@@ -177,6 +177,11 @@ final class ShopOrderService
                     (int) $order->id,
                     (string) ($order->referral_code ?? ''),
                     (int) $order->subtotal_naira,
+                    null,
+                    // A shop order has no account column, so the buyer is the address on
+                    // it. Without this the shop paid commission on a member's own link.
+                    null,
+                    (string) ($order->email ?? ''),
                 );
 
                 return ['ok' => true, 'state' => 'confirmed', 'message' => 'Payment received.'];
@@ -204,6 +209,13 @@ final class ShopOrderService
 
         $lines = json_decode((string) $order->items_json, true) ?: [];
         $short = self::drawDownStock($lines);
+
+        // What was actually taken is written back onto the lines, so a later refund returns
+        // THAT and not the quantity ordered. See returnStock().
+        try {
+            DB::table('gates_orders')->where('id', $orderId)
+                ->update(['items_json' => json_encode($lines, JSON_UNESCAPED_UNICODE)]);
+        } catch (\Throwable) {}
 
         // ── A SHORTFALL IS RECORDED, NOT FLOORED ─────────────────────────────
         //
@@ -372,6 +384,10 @@ final class ShopOrderService
             self::returnStock($lines);
         }
 
+        // And the referrer's commission on it. Same reasoning as the points: the purchase
+        // that earned it no longer exists. Never throws — see ReferralService::reverseSale().
+        ReferralService::reverseSale('shop_order', (int) $order->id, 'order refunded: ' . $why);
+
         // Take back the points the purchase awarded. Best effort and never negative — see
         // PointsService::reverseFromPurchase().
         try {
@@ -413,14 +429,23 @@ final class ShopOrderService
      * copy of this loop had no variant branch at all, so a reconciled order for any variant
      * product drew its stock from nowhere.
      *
+     * ── AND WHAT WAS ACTUALLY TAKEN IS RECORDED ON THE LINE ─────────────────
+     *
+     * An oversold line is clamped to zero, so it draws only what was on hand — three of a
+     * five-unit order, say. `drawn` is written onto each tracked line (by reference, then
+     * persisted by fulfil()) because returnStock() used to give back the full `qty`: a
+     * refunded oversold order then CREATED two units nobody had, and the next buyer paid
+     * for a shirt that was never on the shelf. The count is the gap the conditional
+     * statements actually closed, not the read before them.
+     *
      * @param list<array<string,mixed>> $lines
      * @return list<string> human sentences naming what fell short
      */
-    private static function drawDownStock(array $lines): array
+    private static function drawDownStock(array &$lines): array
     {
         $short = [];
 
-        foreach ($lines as $l) {
+        foreach ($lines as $i => $l) {
             $slug = (string) ($l['slug'] ?? '');
             $qty  = (int) ($l['qty'] ?? 0);
             $vid  = (int) ($l['variant_id'] ?? 0);
@@ -429,39 +454,57 @@ final class ShopOrderService
             $what = (string) ($l['name'] ?? $slug)
                   . (($l['variant'] ?? '') !== '' ? ' (' . $l['variant'] . ')' : '');
 
-            if ($vid > 0) {
-                $have = DB::table('gates_product_variants')->where('id', $vid)->value('stock');
-                if ($have === null) continue;                      // untracked: nothing to draw
-                if ((int) $have < $qty) {
-                    $short[] = $what . ' — ordered ' . $qty . ', ' . (int) $have . ' on hand';
-                }
-                DB::table('gates_product_variants')->where('id', $vid)->whereNotNull('stock')
-                    ->where('stock', '>=', $qty)->decrement('stock', $qty);
-                DB::table('gates_product_variants')->where('id', $vid)->whereNotNull('stock')
-                    ->where('stock', '<', $qty)->update(['stock' => 0]);
-                continue;
-            }
+            $q = static fn () => $vid > 0
+                ? DB::table('gates_product_variants')->where('id', $vid)
+                : DB::table('gates_products')->where('slug', $slug);
 
-            $have = DB::table('gates_products')->where('slug', $slug)->value('stock');
-            if ($have === null) continue;
+            $have = $q()->value('stock');
+            // Untracked: nothing to draw, and recorded as nothing drawn, so switching stock
+            // tracking on later cannot make a refund of this order mint units.
+            if ($have === null) { $lines[$i]['drawn'] = 0; continue; }
             if ((int) $have < $qty) {
                 $short[] = $what . ' — ordered ' . $qty . ', ' . (int) $have . ' on hand';
             }
-            DB::table('gates_products')->where('slug', $slug)->whereNotNull('stock')
-                ->where('stock', '>=', $qty)->decrement('stock', $qty);
-            DB::table('gates_products')->where('slug', $slug)->whereNotNull('stock')
-                ->where('stock', '<', $qty)->update(['stock' => 0]);
+
+            // The whole quantity when it is there. Otherwise whatever is left, taken by a
+            // compare-and-set on the value just read, so a concurrent order cannot be
+            // counted as drawn by both — retried a few times, then recorded as nothing drawn
+            // rather than guessed.
+            $drawn = 0;
+            if ($q()->whereNotNull('stock')->where('stock', '>=', $qty)->decrement('stock', $qty) > 0) {
+                $drawn = $qty;
+            } else {
+                for ($try = 0; $try < 3; $try++) {
+                    $left = $q()->value('stock');
+                    if ($left === null || (int) $left <= 0) break;
+                    if ((int) $left >= $qty) {
+                        if ($q()->where('stock', '>=', $qty)->decrement('stock', $qty) > 0) { $drawn = $qty; break; }
+                        continue;
+                    }
+                    if ($q()->where('stock', (int) $left)->update(['stock' => 0]) > 0) {
+                        $drawn = (int) $left;
+                        break;
+                    }
+                }
+            }
+            $lines[$i]['drawn'] = $drawn;
         }
 
         return $short;
     }
 
-    /** Put the units back. Only ever called for an order that had not shipped. */
+    /**
+     * Put the units back. Only ever called for an order that had not shipped.
+     *
+     * Returns `drawn`, what fulfil() actually took, and falls back to `qty` only for an
+     * order fulfilled before `drawn` was recorded — the old behaviour, for the rows that
+     * have no better answer.
+     */
     private static function returnStock(array $lines): void
     {
         foreach ($lines as $l) {
             $slug = (string) ($l['slug'] ?? '');
-            $qty  = (int) ($l['qty'] ?? 0);
+            $qty  = array_key_exists('drawn', $l) ? (int) $l['drawn'] : (int) ($l['qty'] ?? 0);
             $vid  = (int) ($l['variant_id'] ?? 0);
             if ($slug === '' || $qty < 1) continue;
 

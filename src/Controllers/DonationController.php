@@ -11,7 +11,7 @@ use Psr\Log\LoggerInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
 use Slim\Views\Twig;
-use AfricaGates\Services\{PaymentService, RateLimitService, OtpService, Notifier};
+use AfricaGates\Services\{PaymentService, RateLimitService, OtpService};
 
 /**
  * Donations — free-amount philanthropic giving that funds child leadership
@@ -20,8 +20,9 @@ use AfricaGates\Services\{PaymentService, RateLimitService, OtpService, Notifier
  *      cast to an integer; an optional processing-fee cover is applied
  *      server-side (a client-sent total is never trusted).
  *   2. A PENDING gates_donations row is written before leaving for the gateway.
- *   3. Confirmation requires verify()=success AND the verified amount equalling
- *      the row's amount, via an idempotent pending→confirmed transition.
+ *   3. Confirmation requires verify()=success AND at least the row's amount, in
+ *      naira, via PaymentController::confirmByReference() — the one idempotent
+ *      pending→confirmed transition the webhook uses too.
  *
  * Donations grant NO votes (bonus_votes = 0): money never touches the CPI — it
  * funds programmes. The page's figures are drawn from real confirmed rows, never
@@ -36,6 +37,9 @@ final class DonationController
         private readonly PaymentService    $payments,
         private readonly Twig              $view,
         private readonly ?RateLimitService $rateLimit = null,
+        // Unread since the gift receipt moved to CheckoutMailer, which uses the transport
+        // the container hands it. Kept only so config/container.php's positional wiring
+        // (the logger is the next argument) does not shift; drop it with that line.
         private readonly ?OtpService       $mailer = null,
         private readonly ?LoggerInterface  $log = null,
     ) {}
@@ -305,8 +309,10 @@ final class DonationController
     /** Confirmed totals for one partner. Same doctrine as stats(): never fabricated. */
     private function orgStats(int $orgId): array
     {
+        // `raised`, not `gross`: gross includes every donor's voluntary tip to the
+        // platform, which is ours and was being printed as theirs. See PartnerOrg::tipSumSql().
         $t = \AfricaGates\Services\PartnerOrg::totals($orgId);
-        return ['raised_naira' => $t['gross'], 'gifts' => $t['count']];
+        return ['raised_naira' => $t['raised'], 'gifts' => $t['count']];
     }
 
     /**
@@ -334,12 +340,19 @@ final class DonationController
         return max(0.0, min(10.0, $pct));
     }
 
-    /** Real, public-safe aggregates from confirmed donations (never fabricated). */
+    /**
+     * Real, public-safe aggregates for the Africa GATES fund (never fabricated).
+     *
+     * Off {@see \AfricaGates\Services\PartnerOrg::countableFundDonations()}. This summed
+     * every confirmed row in `gates_donations` — paid votes, vote packs, partner gifts that
+     * settled into other organisations' accounts, refunded money — under a heading that says
+     * what people have given this fund. The goal bar is measured from it too.
+     */
     private function stats(): array
     {
         try {
-            $raised = (int) DB::table('gates_donations')->where('status', 'confirmed')->sum('amount_naira');
-            $gifts  = (int) DB::table('gates_donations')->where('status', 'confirmed')->count();
+            $raised = (int) \AfricaGates\Services\PartnerOrg::countableFundDonations()->sum('amount_naira');
+            $gifts  = (int) \AfricaGates\Services\PartnerOrg::countableFundDonations()->count();
         } catch (\Throwable $e) { $raised = 0; $gifts = 0; }
         return ['raised_naira' => $raised, 'gifts' => $gifts];
     }
@@ -406,7 +419,11 @@ final class DonationController
             // started printing them, "Recent donations" was showing an April gift above a
             // two-minute-old one. `id` stays as the tiebreak so two gifts in the same
             // second still order deterministically.
-            $rows = DB::table('gates_donations')->where('status', 'confirmed')
+            //
+            // And off the FUND's scope, for the same reason as stats(): "Recent donations"
+            // on this page was listing paid votes, refunded gifts and gifts to other
+            // organisations as gifts to the fund.
+            $rows = \AfricaGates\Services\PartnerOrg::countableFundDonations()
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->limit(5)->get(['donor_name', 'amount_naira', 'created_at']);
         } catch (\Throwable $e) { return []; }
@@ -769,9 +786,12 @@ final class DonationController
         $don = DB::table('gates_donations')->where('payment_ref', $reference)->first();
         if (!$don) return $this->redirect($res, $this->base($req) . GivingUrl::refused('error'));
 
+        // The receipt is not sent here any more. It is queued by the confirmation itself
+        // (PaymentController::deliver()), which the webhook and the reconcile sweep reach
+        // too — sending it only when THIS call flipped the row meant a donor whose webhook
+        // landed first never got one, and a monthly donor never got the link to stop.
         $result = $this->confirm($provider, $reference, $don);
         if ($result === 'confirmed' || $result === 'already') {
-            if ($result === 'confirmed') $this->receipt($don);
             return $this->redirect($res, $this->base($req) . GivingUrl::success($reference));
         }
         return $this->redirect($res, $this->base($req) . GivingUrl::refused('failed'));
@@ -794,71 +814,22 @@ final class DonationController
         ]);
     }
 
-    /** Idempotent confirm — mirrors PaymentController/ShopCheckoutController. */
+    /**
+     * Confirm through THE confirmation path, not a copy of it.
+     *
+     * This was a private mirror of `PaymentController::confirmByReference()` and had not
+     * kept up: it required the verified amount to EQUAL the row (so the gateway's
+     * "customer bears the fee" toggle refused every gift while the money left the donor's
+     * bank), never checked the currency (₦5,000 and $5,000 are the same integer), never
+     * stamped `confirmed_at` and never remembered the gateway's own ids — the numbers on
+     * the donor's bank receipt. The webhook already confirmed `AFG-GIVE-` references
+     * through the shared path, so one gift could be refused by the browser and confirmed
+     * by the gateway a second later. One path now; it also queues the receipt.
+     */
     private function confirm(string $provider, string $reference, object $don): string
     {
-        if (($don->status ?? '') === 'confirmed') return 'already';
-        $v = $this->payments->verify($provider, $reference);
-        if (!$v['ok'] || ($v['status'] ?? '') !== 'success') {
-            if (($v['status'] ?? '') === 'failed') {
-                DB::table('gates_donations')->where('payment_ref', $reference)->where('status', 'pending')->update(['status' => 'failed']);
-            }
-            return 'failed';
-        }
-        if ((int)$v['amount'] !== (int)$don->amount_naira) {
-            $this->log?->warning('[donate] amount mismatch — refusing to confirm', ['ref' => $reference]);
-            return 'failed';
-        }
-        $changed = DB::table('gates_donations')->where('payment_ref', $reference)->where('status', 'pending')->update(['status' => 'confirmed']);
-        return $changed > 0 ? 'confirmed' : 'already';
-    }
-
-    /**
-     * One-time receipt + admin alert on a freshly-confirmed gift.
-     *
-     * ── AND, FOR A STANDING GIFT, THE LINK THAT STOPS IT ────────────────────
-     *
-     * {@see giving()} above explains why the cancellation is a link in the receipt rather
-     * than a login, and {@see \AfricaGates\Services\RecurringGiving::start()} mints the
-     * token at checkout "so it can travel in the receipt". It never travelled: this was
-     * the only receipt a recurring donor received and it said nothing about a monthly
-     * charge and carried no way to stop one, while
-     * {@see \AfricaGates\Services\RecurringGiving::manageUrl()} — the function that
-     * builds the link — had no caller anywhere. The stop page worked perfectly and could
-     * be reached only by somebody who already knew a token nothing had ever sent.
-     *
-     * A donor who cannot find the stop button goes to their bank, and a chargeback costs
-     * more than the gift was worth.
-     */
-    private function receipt(object $don): void
-    {
-        $total = '₦' . number_format((int)$don->amount_naira);
-        $stop  = \AfricaGates\Services\RecurringGiving::stopLink(
-            (string) $don->payment_ref, $this->base());
-
-        if ($this->mailer) {
-            try {
-                $this->mailer->sendBranded(
-                    (string)$don->donor_email,
-                    'Thank you for your gift to Africa GATES',
-                    '<p>Thank you, ' . htmlspecialchars((string)$don->donor_name) . ' — your gift of <strong>' . $total . '</strong> is confirmed.</p>'
-                    . '<p style="font-family:monospace">Receipt ' . htmlspecialchars((string)$don->payment_ref) . '</p>'
-                    // Said plainly and in the same breath as the amount, because the one
-                    // thing a monthly donor must not have to hunt for is the fact that it
-                    // is monthly and where the off switch is.
-                    . ($stop === '' ? ''
-                        : '<p>This is a <strong>monthly</strong> gift of ' . $total . ', and you can '
-                        . 'stop it at any time — no sign-in, no email to anybody: '
-                        . '<a href="' . htmlspecialchars($stop, ENT_QUOTES, 'UTF-8') . '">'
-                        . htmlspecialchars($stop, ENT_QUOTES, 'UTF-8') . '</a>. '
-                        . 'Keep this email; the link stays valid.</p>')
-                    . '<p>Your gift funds child leadership programmes across the continent — mentorship, scholarships and grassroots education. With gratitude.</p>',
-                    'Donations'
-                );
-            } catch (\Throwable $e) { /* a receipt failure must never break confirmation */ }
-        }
-        Notifier::adminAlert($this->mailer, 'New donation (confirmed)',
-            'Donor:  ' . (string)$don->donor_name . ' <' . (string)$don->donor_email . ">\nAmount: " . $total . "\nRef:    " . (string)$don->payment_ref);
+        return (new PaymentController($this->payments, $this->view, $this->log))
+            ->confirmByReference($provider, $reference, $don, 'donate-callback');
     }
 
     /**

@@ -500,42 +500,60 @@ final class EventTicketService
 
         $ref = self::freshReference();
 
+        // ── THE CODE'S USE IS CLAIMED IN THE SAME TRANSACTION AS THE HOLD ────
+        //
+        // apply() above priced the code from a row read at the start of this request, and
+        // the use used to be counted by a bare increment after the insert — so a fifty-use
+        // code's last use, or a one-per-person code from two tabs, went to everybody who
+        // pressed at once. EventDiscount::claim() locks the code, counts this buyer's
+        // registrations and takes the use atomically, and the insert rides in the same
+        // transaction: if it throws, the use is rolled back with it.
+        $codeRefusal = '';
         try {
-            $id = (int) DB::table('gates_event_registrations')->insertGetId(
-                OptionalColumn::filter('gates_event_registrations', [
-                    'event_id'     => $eventId,
-                    'tier_id'      => $tierId,
-                    // The tier NAME is copied as well as referenced. A tier can be renamed
-                    // after somebody has bought against it, and an attendee list that
-                    // silently restates history is worse than one that repeats itself.
-                    'tier'         => mb_substr((string) $tier->name, 0, 80),
-                    'name'         => mb_substr($name, 0, 160),
-                    'email'        => mb_substr($email, 0, 190),
-                    'phone'        => mb_substr($phone, 0, 40),
-                    'quantity'     => $qty,
-                    'amount_naira' => $amount,
-                    // What was used and what it took off, written on the ROW. A code can be
-                    // edited or deleted after somebody has bought against it, and a receipt
-                    // that silently restated history would make the money stop adding up.
-                    'discount_code'  => $usedCode,
-                    'discount_naira' => $off > 0 ? $off : null,
-                    // Who brought this booking in. Written at reservation and read at
-                    // confirmation, because commission is owed on a PAID ticket and this row
-                    // is the only place the referral survives the trip to the gateway.
-                    'referral_code'  => self::refFor($referral, $userId, $email, $eventId),
-                    'reference'    => $ref,
-                    'user_id'      => $userId,
-                    // A free seat is confirmed on the spot: there is nothing to wait for,
-                    // and leaving it pending would hold a seat behind a payment nobody owes.
-                    'status'       => $free ? 'confirmed' : 'pending',
-                    'ticket_code'  => $free ? self::freshCode() : null,
-                    'confirmed_at' => $free ? $now->toDateTimeString() : null,
-                    'hold_expires_at' => $free ? null : $now->copy()->addMinutes(self::HOLD_MINUTES)->toDateTimeString(),
-                    'created_at'   => $now->toDateTimeString(),
-                ], ['tier_id', 'quantity', 'status', 'ticket_code', 'confirmed_at',
-                    'hold_expires_at', 'user_id', 'discount_code', 'discount_naira',
-                    'referral_code'])
-            );
+            $id = (int) DB::transaction(function () use (&$codeRefusal, $usedCodeId, $eventId, $email,
+                                                       $tierId, $tier, $name, $phone, $qty, $amount,
+                                                       $usedCode, $off, $referral, $userId, $ref,
+                                                       $free, $now): int {
+                if ($usedCodeId !== null) {
+                    $codeRefusal = EventDiscount::claim($usedCodeId, $eventId, $email);
+                    if ($codeRefusal !== '') return 0;
+                }
+                return (int) DB::table('gates_event_registrations')->insertGetId(
+                    OptionalColumn::filter('gates_event_registrations', [
+                        'event_id'     => $eventId,
+                        'tier_id'      => $tierId,
+                        // The tier NAME is copied as well as referenced. A tier can be renamed
+                        // after somebody has bought against it, and an attendee list that
+                        // silently restates history is worse than one that repeats itself.
+                        'tier'         => mb_substr((string) $tier->name, 0, 80),
+                        'name'         => mb_substr($name, 0, 160),
+                        'email'        => mb_substr($email, 0, 190),
+                        'phone'        => mb_substr($phone, 0, 40),
+                        'quantity'     => $qty,
+                        'amount_naira' => $amount,
+                        // What was used and what it took off, written on the ROW. A code can be
+                        // edited or deleted after somebody has bought against it, and a receipt
+                        // that silently restated history would make the money stop adding up.
+                        'discount_code'  => $usedCode,
+                        'discount_naira' => $off > 0 ? $off : null,
+                        // Who brought this booking in. Written at reservation and read at
+                        // confirmation, because commission is owed on a PAID ticket and this row
+                        // is the only place the referral survives the trip to the gateway.
+                        'referral_code'  => self::refFor($referral, $userId, $email, $eventId),
+                        'reference'    => $ref,
+                        'user_id'      => $userId,
+                        // A free seat is confirmed on the spot: there is nothing to wait for,
+                        // and leaving it pending would hold a seat behind a payment nobody owes.
+                        'status'       => $free ? 'confirmed' : 'pending',
+                        'ticket_code'  => $free ? self::freshCode() : null,
+                        'confirmed_at' => $free ? $now->toDateTimeString() : null,
+                        'hold_expires_at' => $free ? null : $now->copy()->addMinutes(self::HOLD_MINUTES)->toDateTimeString(),
+                        'created_at'   => $now->toDateTimeString(),
+                    ], ['tier_id', 'quantity', 'status', 'ticket_code', 'confirmed_at',
+                        'hold_expires_at', 'user_id', 'discount_code', 'discount_naira',
+                        'referral_code'])
+                );
+            });
         } catch (\Throwable $e) {
             // UNIQUE(event_id, email) on the original table. Somebody registering twice is
             // not an error worth an apology, but with paid tiers it is no longer safe to
@@ -544,6 +562,15 @@ final class EventTicketService
             error_log('[event] could not reserve for event ' . $eventId . ': ' . $e->getMessage());
             return ['ok' => false, 'message' => 'You already have a registration for this event. '
                                               . 'If you need another ticket, please contact us.'];
+        }
+
+        // The code ran out (or this buyer's allowance did) between the price and the hold.
+        // Refused rather than silently re-priced: the buyer was shown the discounted figure,
+        // and charging them the full one without a word is worse than asking them again.
+        if ($codeRefusal !== '') {
+            return ['ok' => false, 'state' => 'code',
+                    'message' => $codeRefusal . ' Nothing has been held or charged — book again '
+                               . 'without the code, or with a different one.'];
         }
 
         // ── THE ARRIVAL THIS SEAT CAME FROM ─────────────────────────────────
@@ -557,10 +584,10 @@ final class EventTicketService
         // VisitTracker::convert().
         \AfricaGates\Services\VisitTracker::convert('ticket');
 
-        // Counted here rather than after the capacity check below, so that it is symmetrical
-        // with the release in rollBack(): a use that had not yet been counted when the
-        // rollback released one would take a use off somebody ELSE's live booking.
-        if ($usedCodeId !== null) EventDiscount::countUse($usedCodeId);
+        // The code's use was claimed with the insert, BEFORE the capacity check below, so
+        // that it is symmetrical with the release in rollBack(): a use that had not yet been
+        // counted when the rollback released one would take a use off somebody ELSE's live
+        // booking.
 
         // ── the count, AFTER the insert. See the docblock. ───────────────────
         $overTier  = $avail['left'] !== null && self::sold($tierId) > (int) $tier->capacity;
@@ -849,6 +876,13 @@ final class EventTicketService
                     ], ['refund_status', 'refunded_at']));
             } catch (\Throwable) {}
 
+            // Normally reversed already, by the self-service cancel that asked for this
+            // refund. Asked again because it is idempotent and a cancel from before the
+            // reversal existed is still settling.
+            if (!$failed) {
+                ReferralService::reverseSale('registration', (int) $row->id, 'refund settled: ' . $why);
+            }
+
             if ($failed) {
                 Notifier::adminAlert(null, 'Event refund failed at the gateway',
                     'Reference: ' . (string) $row->reference . "\n"
@@ -880,6 +914,11 @@ final class EventTicketService
         if (!$done) return false;
 
         self::releaseDiscount($row);
+
+        // The bank took the money back, so the referrer's share of it goes too. Without
+        // this a ticket bought on a friend's link and charged back stayed one of their ten
+        // paid referrals and inside the balance they could withdraw.
+        ReferralService::reverseSale('registration', (int) $row->id, 'payment reversed: ' . $why);
 
         Notifier::adminAlert(null, 'Event ticket reversed — ' . $why,
             'Reference: ' . (string) $row->reference . "\n"

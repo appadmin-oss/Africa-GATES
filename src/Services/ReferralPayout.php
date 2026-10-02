@@ -67,7 +67,9 @@ final class ReferralPayout
         $claimed = self::claimedCreditIds($userId);
 
         try {
-            $rows = DB::table('gates_referral_credits')
+            // Live credits only: a reversed one is a refunded sale, and its commission is not
+            // the member's to withdraw. See ReferralService::reverseSale().
+            $rows = ReferralService::liveCredits()
                 ->where('user_id', $userId)->whereNull('paid_out_at')
                 ->get(['id', 'commission_naira']);
         } catch (\Throwable) {
@@ -96,10 +98,9 @@ final class ReferralPayout
      */
     public static function request(int $userId, string $bank, string $accountName, string $accountNumber): array
     {
-        if (self::openFor($userId) !== null) {
-            return ['ok' => false, 'message' => 'You already have a withdrawal waiting. '
-                                             . 'We will email you when it has been paid.'];
-        }
+        $waiting = ['ok' => false, 'message' => 'You already have a withdrawal waiting. '
+                                              . 'We will email you when it has been paid.'];
+        if (self::openFor($userId) !== null) return $waiting;
 
         $avail = self::available($userId);
         if (!$avail['ok']) return ['ok' => false, 'message' => $avail['reason']];
@@ -116,20 +117,43 @@ final class ReferralPayout
             return ['ok' => false, 'message' => 'That account number does not look right.'];
         }
 
+        // ── ONE OPEN REQUEST, DECIDED UNDER A LOCK ───────────────────────────
+        //
+        // The checks above are the friendly early answer. They are not the guarantee: they
+        // read openFor() and available() and the INSERT came several statements later, so
+        // two submits in the same second each saw no open request, each froze the SAME
+        // credits, and the queue held two requests for one balance — "two requests can
+        // never both claim the same naira", from the class docblock, was true only one at a
+        // time. So both questions are asked again inside a transaction holding the member's
+        // own row: the second submit waits, then finds the first one's request and stops.
+        // SQLite has no row lock and serialises the write instead — the same answer.
         try {
-            $id = (int) DB::table('gates_referral_payouts')->insertGetId([
-                'user_id'        => $userId,
-                'amount_naira'   => $avail['amount'],
-                'credit_ids'     => json_encode($avail['credits']),
-                'status'         => 'requested',
-                'bank_name'      => mb_substr($bank, 0, 120),
-                'account_name'   => mb_substr($name, 0, 160),
-                'account_number' => mb_substr($number, 0, 32),
-                'requested_at'   => Carbon::now()->toDateTimeString(),
-            ]);
+            $out = DB::transaction(static function () use ($userId, $bank, $name, $number, $waiting): array {
+                DB::table('gates_users')->where('id', $userId)->lockForUpdate()->first();
+
+                if (self::openFor($userId) !== null) return $waiting;
+
+                $avail = self::available($userId);
+                if (!$avail['ok']) return ['ok' => false, 'message' => $avail['reason']];
+
+                $id = (int) DB::table('gates_referral_payouts')->insertGetId([
+                    'user_id'        => $userId,
+                    'amount_naira'   => $avail['amount'],
+                    'credit_ids'     => json_encode($avail['credits']),
+                    'status'         => 'requested',
+                    'bank_name'      => mb_substr($bank, 0, 120),
+                    'account_name'   => mb_substr($name, 0, 160),
+                    'account_number' => mb_substr($number, 0, 32),
+                    'requested_at'   => Carbon::now()->toDateTimeString(),
+                ]);
+                return ['ok' => true, 'id' => $id, 'amount' => $avail['amount']];
+            });
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'The request could not be saved just now.'];
         }
+        if (!$out['ok']) return $out;
+        $id    = (int) $out['id'];
+        $avail = ['amount' => (int) $out['amount']];
 
         return ['ok' => true, 'id' => $id,
                 'message' => 'Requested ₦' . number_format($avail['amount'])
@@ -202,7 +226,7 @@ final class ReferralPayout
         return ['ok' => true, 'message' => 'Saved. Withdrawals will use these details unless you change them.'];
     }
 
-    /** This member's open request, if any. */    /** This member's open request, if any. */
+    /** This member's open request, if any. */
     public static function openFor(int $userId): ?object
     {
         try {
@@ -295,6 +319,29 @@ final class ReferralPayout
         $ids = json_decode((string) ($p->credit_ids ?? '[]'), true);
         $ids = is_array($ids) ? array_map('intval', $ids) : [];
         $now = Carbon::now()->toDateTimeString();
+
+        // ── A REQUEST CAN OUTLIVE ONE OF ITS CREDITS ─────────────────────────
+        //
+        // The request froze its credits and its amount, which is right — but a ticket inside
+        // it can be refunded before anybody pays it, and ReferralService::reverseSale() then
+        // stamps that credit. Paying the frozen amount would pay commission on a refunded
+        // sale. Recomputing it here would break the promise that the amount cannot drift
+        // between request and payment. So the request is refused instead: rejecting it puts
+        // the live credits back in the member's balance, and their next request is for
+        // exactly what is still owed.
+        if ($ids !== [] && \AfricaGates\Support\SchemaHas::column('gates_referral_credits', 'reversed_at')) {
+            try {
+                $reversed = (int) DB::table('gates_referral_credits')->whereIn('id', $ids)
+                    ->whereNotNull('reversed_at')->count();
+            } catch (\Throwable) {
+                $reversed = 0;
+            }
+            if ($reversed > 0) {
+                return ['ok' => false, 'message' => 'Do not pay this one: ' . $reversed . ' of the sales in it '
+                    . ($reversed === 1 ? 'has' : 'have') . ' since been refunded, so the amount is no '
+                    . 'longer owed. Refuse it, and the member can request what is still due.'];
+            }
+        }
 
         try {
             // The credits first. If this succeeds and the status write fails, the request

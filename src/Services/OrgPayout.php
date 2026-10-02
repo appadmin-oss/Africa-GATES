@@ -162,25 +162,48 @@ final class OrgPayout
             return $fail + ['message' => 'The smallest payout is ₦' . number_format(self::MIN_NAIRA) . '.'];
         }
 
-        $available = self::available($orgId);
-        if ($amountNaira > $available) {
-            return $fail + ['message' => 'That is more than is available. You can request up to ₦'
-                                       . number_format($available) . '.'];
-        }
-
         $reference = self::mintReference($orgId);
 
+        // ── THE BALANCE IS READ AND SPENT UNDER ONE LOCK ─────────────────────
+        //
+        // available() is a computed figure — net donations less what is already out — and it
+        // used to be read here and then spent by an INSERT several statements later with
+        // nothing in between. Two requests in the same second (a double-click, two people
+        // in one organisation, a retried POST) each read the full balance, each passed, and
+        // each wrote a payout for all of it; in transfer mode both are then SENT. So the
+        // organisation's row is locked first and the balance is computed inside the lock:
+        // the second request waits for the first to commit and then sees its payout among
+        // the ones holding funds. SQLite has no row lock and serialises the whole write
+        // instead, which gives the same answer.
+        //
+        // The lock is on `gates_partner_orgs` rather than on payout rows because the
+        // question is "how much of THIS organisation's money is left", and an organisation
+        // with no payouts yet has no payout row to lock.
+        $available = 0;
         try {
-            DB::table('gates_org_payouts')->insert([
-                'org_id'       => $orgId,
-                'reference'    => $reference,
-                'amount_naira' => $amountNaira,
-                'status'       => self::ST_QUEUED,
-                'requested_by' => $byOrgUserId > 0 ? $byOrgUserId : null,
-                'requested_at' => date('Y-m-d H:i:s'),
-            ]);
+            $ok = DB::transaction(static function () use ($orgId, $amountNaira, $reference, $byOrgUserId, &$available): bool {
+                DB::table('gates_partner_orgs')->where('id', $orgId)->lockForUpdate()->first();
+
+                $available = self::available($orgId);
+                if ($amountNaira > $available) return false;
+
+                DB::table('gates_org_payouts')->insert([
+                    'org_id'       => $orgId,
+                    'reference'    => $reference,
+                    'amount_naira' => $amountNaira,
+                    'status'       => self::ST_QUEUED,
+                    'requested_by' => $byOrgUserId > 0 ? $byOrgUserId : null,
+                    'requested_at' => date('Y-m-d H:i:s'),
+                ]);
+                return true;
+            });
         } catch (\Throwable $e) {
             return $fail + ['message' => 'Could not record that request. Nothing was sent.'];
+        }
+
+        if (!$ok) {
+            return $fail + ['message' => 'That is more than is available. You can request up to ₦'
+                                       . number_format($available) . '.'];
         }
 
         // Settlement mode stops here, and says so plainly rather than implying money moved.

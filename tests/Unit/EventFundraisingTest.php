@@ -67,6 +67,12 @@ final class EventFundraisingTest extends TestCase
     private function gift(int $campaignId, int $naira, string $status = 'confirmed'): void
     {
         DB::table('gates_donations')->insert([
+            // The recipient and the tier, as DonationController::start() writes every gift
+            // to an appeal. The fixture used to carry a campaign with no organisation — a
+            // row no checkout produces — which OrgCampaign::progress() only counted while
+            // it spelled its own status clause instead of PartnerOrg::countableDonations().
+            'recipient_org_id' => (int) DB::table('gates_org_campaigns')->where('id', $campaignId)->value('org_id'),
+            'tier' => 'donation',
             'campaign_id' => $campaignId,
             'donor_name' => 'A Supporter', 'donor_email' => 'giver@example.test',
             'amount_naira' => $naira, 'platform_fee_naira' => 0,

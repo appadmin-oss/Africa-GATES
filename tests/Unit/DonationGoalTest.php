@@ -64,8 +64,11 @@ final class DonationGoalTest extends TestCase
         static $n = 0;
         DB::table('gates_donations')->insert([
             'donor_name' => $name, 'donor_email' => 'g' . (++$n) . '@example.test',
+            // `donation`, which is what DonationController::start() writes. The fixture used
+            // to omit the tier — a row no checkout produces — and the page summed it only
+            // because it summed every payment in the table.
             'amount_naira' => $naira, 'status' => 'confirmed', 'provider' => 'paystack',
-            'payment_ref' => 'REF' . $n,
+            'tier' => 'donation', 'payment_ref' => 'REF' . $n,
             'created_at' => Carbon::now()->subMinutes($minutesAgo)->toDateTimeString(),
         ]);
     }
@@ -96,6 +99,44 @@ final class DonationGoalTest extends TestCase
             '250,000 of 1,000,000 is a quarter, and the bar said otherwise');
         $this->assertStringContainsString('₦750,000', $html,
             'the distance left is the half of this that moves somebody');
+    }
+
+    /**
+     * THE FUND'S RAISED FIGURE IS GIFTS TO THE FUND, AND NOTHING ELSE IN THE TABLE.
+     *
+     * `gates_donations` holds paid votes, vote packs, partner gifts that settled into other
+     * organisations' accounts, and refunded money beside the fund's own gifts, and the page
+     * summed all of it. Each of those rows is written here in the shape its own checkout
+     * writes it, and the bar must stay at the one real gift — plus a monthly instalment,
+     * which is a gift to the fund and must not fall out of it.
+     */
+    public function test_the_fund_counts_only_gifts_to_the_fund(): void
+    {
+        $this->goal(1000000);
+        $this->gift('Amara Okonkwo', 200000);
+
+        $row = static fn (array $over): bool => DB::table('gates_donations')->insert($over + [
+            'donor_name' => 'Zebulon Quartermaine', 'donor_email' => 'o' . bin2hex(random_bytes(3)) . '@example.test',
+            'amount_naira' => 300000, 'status' => 'confirmed', 'provider' => 'paystack',
+            'payment_ref' => 'X-' . bin2hex(random_bytes(4)), 'created_at' => Carbon::now()->toDateTimeString(),
+        ]);
+        $row(['tier' => 'paid-vote', 'bonus_votes' => 10]);
+        $row(['tier' => 'votes:champion', 'bonus_votes' => 35]);
+        $row(['tier' => 'donation', 'recipient_org_id' => 77]);
+        $row(['tier' => 'donation', 'refunded_at' => Carbon::now()->toDateTimeString()]);
+        $row(['tier' => 'donation', 'status' => 'pending']);
+        // A month-two instalment as RecurringGiving::chargeArrived() wrote it before it
+        // carried a tier: no tier, a subscription link.
+        $row(['tier' => null, 'subscription_id' => 5, 'amount_naira' => 50000]);
+
+        $html = self::flat($this->render());
+
+        $this->assertStringContainsString('width:25%', $html,
+            '₦250,000 of ₦1,000,000 is a quarter: the bar is counting paid votes, other '
+            . 'organisations\' gifts or refunded money as gifts to the fund');
+        $this->assertStringContainsString('₦750,000', $html);
+        $this->assertStringNotContainsString('Zebulon', strip_tags($html),
+            'the recent-gifts ledger listed a payment that was not a gift to the fund');
     }
 
     /**

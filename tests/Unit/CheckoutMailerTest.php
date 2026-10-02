@@ -221,7 +221,7 @@ class CheckoutMailerTest extends TestCase
         foreach ([
             'not_confirmed' => ['status' => 'pending'],
             'refunded'      => ['refunded_at' => date('Y-m-d H:i:s')],
-            'not_paid_vote' => ['tier' => 'donation'],
+            'not_receipted_here' => ['tier' => 'shop:standard'],
             'no_email'      => ['donor_email' => 'not-an-address'],
         ] as $expected => $over) {
             $r = CheckoutMailer::receipt($this->order($over));

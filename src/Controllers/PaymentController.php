@@ -648,6 +648,12 @@ final class PaymentController
     /**
      * The single confirmation path shared by callback + webhook.
      *
+     * PUBLIC because `DonationController::callback()` confirms through it too. That
+     * controller kept its own copy, and the copy had drifted on every point this one was
+     * corrected on: strict `!==` on the amount (so "customer bears the fee" refused every
+     * gift), no currency check, no `confirmed_at`, no gateway ids remembered. Two
+     * confirmations of one reference must not be able to disagree about whether it paid.
+     *
      * Verifies with the gateway, checks amount parity, then performs an IDEMPOTENT
      * pending→confirmed transition. Returns one of:
      *   'confirmed' — we flipped it this call
@@ -656,7 +662,7 @@ final class PaymentController
      *
      * @param object $donation row from gates_donations (has id, amount_naira, status)
      */
-    private function confirmByReference(string $provider, string $reference, object $donation, string $source): string
+    public function confirmByReference(string $provider, string $reference, object $donation, string $source): string
     {
         if (($donation->status ?? '') === 'confirmed') {
             // Idempotent fast-path: the money is settled and is never re-verified
@@ -781,8 +787,17 @@ final class PaymentController
     private function deliver(string $reference): void
     {
         try {
-            $row = DB::table('gates_donations')->where('payment_ref', $reference)->first(['id', 'tier', 'intent_nominee_id']);
-            if ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
+            $row = DB::table('gates_donations')->where('payment_ref', $reference)->first();
+            if ($row && \AfricaGates\Services\CheckoutMailer::isGift($row)) {
+                // A GIFT owes its donor a receipt too, and for a monthly one that receipt is
+                // the only thing that carries the link to stop it. This branch did not
+                // exist: only the browser callback sent a gift receipt, and only when it was
+                // the call that flipped the row — so a donor whose webhook landed first (or
+                // who never came back from their banking app) heard nothing, ever. Queued
+                // and claimed exactly like the paid-vote receipt below, so callback, webhook
+                // and reconcile between them send one.
+                \AfricaGates\Services\CheckoutMailer::queueReceipt((int) $row->id);
+            } elseif ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
                 // MINTING STAYS INLINE, deliberately. It is a handful of indexed
                 // writes, and it is the thing the supporter is actually watching — a
                 // tally that updates on the next cron tick instead of now is the
@@ -800,7 +815,7 @@ final class PaymentController
                 \AfricaGates\Services\CheckoutMailer::queueReceipt((int) $row->id);
             }
         } catch (\Throwable $e) {
-            $this->log?->error('[payment] paid-vote delivery failed', ['ref' => $reference, 'err' => $e->getMessage()]);
+            $this->log?->error('[payment] delivery failed', ['ref' => $reference, 'err' => $e->getMessage()]);
         }
     }
 

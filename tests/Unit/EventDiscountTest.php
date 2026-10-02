@@ -298,6 +298,45 @@ final class EventDiscountTest extends TestCase
         $this->assertTrue(D::apply('ALUMNI20', $this->eventId, $this->tierId, 10000, 'other@x.test')['ok']);
     }
 
+    /**
+     * The cap is decided by an atomic claim, not by the row apply() read.
+     *
+     * apply() is the preview and reads `used_count` at the start of a request; two buyers
+     * on the last use both see it free. The bare increment that used to follow counted both
+     * and left the counter past the cap — the cap was decoration at any concurrency above
+     * one. The interleaving is staged by hand: both previews first, then both claims.
+     */
+    public function test_the_last_use_of_a_code_is_claimed_by_one_buyer_only(): void
+    {
+        $id = $this->code(['max_uses' => 1, 'max_per_email' => 5]);
+
+        $this->assertTrue(D::apply('ALUMNI20', $this->eventId, $this->tierId, 10000, 'a@x.test')['ok']);
+        $this->assertTrue(D::apply('ALUMNI20', $this->eventId, $this->tierId, 10000, 'b@x.test')['ok']);
+
+        $this->assertSame('', D::claim($id, $this->eventId, 'a@x.test'));
+        $this->assertSame(\AfricaGates\Support\PromoCode::EXHAUSTED, D::claim($id, $this->eventId, 'b@x.test'));
+        $this->assertSame(1, (int) DB::table('gates_event_codes')->where('id', $id)->value('used_count'));
+    }
+
+    /** Two tabs from one buyer: the per-person count is asked again at the claim. */
+    public function test_the_per_person_allowance_is_counted_again_at_the_claim(): void
+    {
+        $id = $this->code(['max_per_email' => 1]);
+        $this->assertTrue(D::apply('ALUMNI20', $this->eventId, $this->tierId, 10000, 'ada@example.test')['ok']);
+
+        // The other tab got there first and is holding a seat on the code.
+        DB::table('gates_event_registrations')->insert([
+            'event_id' => $this->eventId, 'tier_id' => $this->tierId, 'tier' => 'Standard',
+            'name' => 'Ada Obi', 'email' => 'ada@example.test', 'phone' => '08031234567',
+            'quantity' => 1, 'amount_naira' => 8000, 'reference' => 'AFG-EVT-TAB1',
+            'discount_code' => 'ALUMNI20', 'status' => 'pending',
+            'created_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        $this->assertNotSame('', D::claim($id, $this->eventId, 'ada@example.test'));
+        $this->assertSame(0, (int) DB::table('gates_event_codes')->where('id', $id)->value('used_count'));
+    }
+
     public function test_a_second_press_with_a_different_code_is_a_different_purchase(): void
     {
         $this->code(['max_per_email' => 5]);

@@ -201,47 +201,72 @@ final class RecurringGiving
             return 0;
         }
 
-        // The most recent. Somebody who stopped a ₦5,000 monthly gift and started another
-        // has two rows on the same plan, and the charge belongs to the newer.
-        $sub = $q->orderByDesc('id')->first();
-        if (!$sub) return 0;
-
-        // Already recorded — a retry, or the same delivery twice.
-        if (DB::table('gates_donations')->where('payment_ref', $ref)->exists()) return 0;
-
         // NORMALISED, never the gateway's own string — see stamp(). This value lands in
         // three TIMESTAMP columns on the donation row below, so a format MySQL refuses does
         // not merely lose a date: it loses the whole record of the money.
         $now = self::stamp($when) ?? Carbon::now()->toDateTimeString();
 
-        $id = (int) DB::table('gates_donations')->insertGetId([
-            'donor_name'   => (string) ($sub->donor_name ?? ''),
-            'donor_email'  => (string) ($sub->donor_email ?? ''),
-            'amount_naira' => $amountNaira,
-            // CONFIRMED, and this is the one place on the platform where that is written
-            // without a server-to-server verify first. The signature on the delivery is the
-            // proof: this row is minted only from a webhook that has already passed HMAC
-            // verification in PaymentController, and there is no browser callback for a
-            // charge the donor was not present for.
-            'status'       => 'confirmed',
-            'provider'     => 'paystack',
-            'payment_ref'  => $ref,
-            'confirmed_at' => $now,
-            'created_at'   => $now,
-            'subscription_id' => (int) $sub->id,
-            // No bonus votes on a recurring instalment. Vote packs are a separate product
-            // with their own reference prefix; minting votes here would let a standing order
-            // accumulate influence every month without anybody choosing it.
-            'bonus_votes'  => 0,
-        ]);
+        // ── CLAIMED, NOT CHECKED-THEN-INSERTED ───────────────────────────────
+        //
+        // This was `exists()` and then `insertGetId()`, and `payment_ref` carries no UNIQUE
+        // key, so nothing serialised the gap: two deliveries of one charge arriving together
+        // (Paystack retries, and a slow first response is exactly what makes it retry) each
+        // saw no row and each minted one — one ₦5,000 instalment recorded twice, and the
+        // `charges` count bumped twice from the same stale read.
+        //
+        // A LOCK and not a UNIQUE index, deliberately. The index is the better primitive but
+        // it can only be added where existing rows already satisfy it, and this table has
+        // been written by every payment path on the platform for years under exactly this
+        // race; a migration that fails on production's data is worse than the fault. Every
+        // delivery for one arrangement locks that arrangement's row FIRST, so the second
+        // waits for the first to commit. Its existence check then runs as the transaction's
+        // first non-locking read, which is when InnoDB takes the snapshot — after the wait,
+        // so it sees the committed row. That check is deliberately NOT `FOR UPDATE`:
+        // `payment_ref` has no index, and a locking read on an unindexed column next-key
+        // locks the whole table, stalling every checkout on the platform behind one
+        // instalment. (SQLite has one writer and ignores the clause.)
+        return (int) DB::connection()->transaction(static function () use ($q, $ref, $now, $amountNaira): int {
+            // The most recent. Somebody who stopped a ₦5,000 monthly gift and started another
+            // has two rows on the same plan, and the charge belongs to the newer.
+            $sub = $q->orderByDesc('id')->lockForUpdate()->first();
+            if (!$sub) return 0;
 
-        DB::table('gates_donation_subscriptions')->where('id', (int) $sub->id)->update([
-            'status'         => self::ST_ACTIVE,
-            'charges'        => (int) ($sub->charges ?? 0) + 1,
-            'last_charge_at' => $now,
-        ]);
+            // Already recorded — a retry, or the same delivery twice.
+            if (DB::table('gates_donations')->where('payment_ref', $ref)->exists()) return 0;
 
-        return $id;
+            $id = (int) DB::table('gates_donations')->insertGetId([
+                // A gift, so every reader of "gifts to the fund" counts it — the instalments
+                // used to carry no tier at all, and `/donate`'s raised figure is the donation
+                // tier. See PartnerOrg::countableFundDonations().
+                'tier'         => 'donation',
+                'donor_name'   => (string) ($sub->donor_name ?? ''),
+                'donor_email'  => (string) ($sub->donor_email ?? ''),
+                'amount_naira' => $amountNaira,
+                // CONFIRMED, and this is the one place on the platform where that is written
+                // without a server-to-server verify first. The signature on the delivery is the
+                // proof: this row is minted only from a webhook that has already passed HMAC
+                // verification in PaymentController, and there is no browser callback for a
+                // charge the donor was not present for.
+                'status'       => 'confirmed',
+                'provider'     => 'paystack',
+                'payment_ref'  => $ref,
+                'confirmed_at' => $now,
+                'created_at'   => $now,
+                'subscription_id' => (int) $sub->id,
+                // No bonus votes on a recurring instalment. Vote packs are a separate product
+                // with their own reference prefix; minting votes here would let a standing order
+                // accumulate influence every month without anybody choosing it.
+                'bonus_votes'  => 0,
+            ]);
+
+            DB::table('gates_donation_subscriptions')->where('id', (int) $sub->id)->update([
+                'status'         => self::ST_ACTIVE,
+                'charges'        => (int) ($sub->charges ?? 0) + 1,
+                'last_charge_at' => $now,
+            ]);
+
+            return $id;
+        });
     }
 
     /**

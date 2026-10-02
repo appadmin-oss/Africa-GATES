@@ -161,6 +161,76 @@ final class ReferralPayoutTest extends TestCase
     // ══ paying ═══════════════════════════════════════════════════════════════
 
     /** THE ONE THAT MATTERS: no reference, no stamp. */
+    // ══ a sale refunded after it earned ══════════════════════════════════════
+
+    /**
+     * A reversed credit is out of the withdrawable balance AND out of the gate's count.
+     * Both readers used to sum the whole table, so a reversal anywhere moved neither.
+     */
+    public function test_a_reversed_credit_leaves_the_balance_and_the_gate(): void
+    {
+        $this->unlocked();
+        $this->assertTrue(ReferralPayout::available(self::USER)['ok']);
+
+        $this->assertTrue(ReferralService::reverseSale('registration', 1, 'refund.processed'));
+        // Once: a second refund event for the same sale reverses nothing.
+        $this->assertFalse(ReferralService::reverseSale('registration', 1, 'refund.processed'));
+
+        $stats = ReferralService::stats(self::USER);
+        $this->assertSame(ReferralService::THRESHOLD - 1, $stats['referrals']);
+        $this->assertFalse($stats['unlocked'], 'a refunded ticket still opened the gate');
+        $this->assertFalse(ReferralPayout::available(self::USER)['ok']);
+        $this->assertSame(0, ReferralService::liability()['payable_naira']);
+
+        // Stamped, never deleted.
+        $this->assertSame(ReferralService::THRESHOLD, DB::table('gates_referral_credits')->count());
+    }
+
+    /**
+     * A request froze its credits; one of them is then refunded. Paying the frozen amount
+     * would pay commission on a refunded sale, so the request must be refused instead.
+     */
+    public function test_a_request_holding_a_since_refunded_credit_cannot_be_paid(): void
+    {
+        $this->credits(ReferralService::THRESHOLD + 2);
+        $r = ReferralPayout::request(self::USER, 'GTBank', 'Ada Obi', '0123456789');
+        $this->assertTrue($r['ok'], $r['message']);
+
+        ReferralService::reverseSale('registration', 3, 'charge.dispute');
+
+        $paid = ReferralPayout::markPaid((int) $r['id'], 'TRF-1');
+        $this->assertFalse($paid['ok'], 'paid a request covering a refunded sale');
+        $this->assertStringContainsString('refunded', $paid['message']);
+        $this->assertSame(0, DB::table('gates_referral_credits')->whereNotNull('paid_out_at')->count());
+        $this->assertSame('requested', (string) ReferralPayout::find((int) $r['id'])->status);
+    }
+
+    /**
+     * Two submits in the same second used to each pass openFor(), each freeze the same
+     * credits, and each write a request. SQLite cannot run the two concurrently, so the
+     * guarantee is pinned on its SHAPE: the open-request check and available() are asked
+     * inside the transaction, after the member's row is locked, and before the insert.
+     */
+    public function test_the_open_request_check_and_the_insert_share_one_lock(): void
+    {
+        $src  = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Services/ReferralPayout.php');
+        $body = substr($src, (int) strpos($src, 'public static function request('));
+        $body = substr($body, 0, (int) strpos($body, 'public static function bankFor('));
+
+        $tx     = strpos($body, 'DB::transaction(');
+        $lock   = strpos($body, "->lockForUpdate()", (int) $tx);
+        $open   = strpos($body, 'self::openFor($userId)', (int) $lock);
+        $avail  = strpos($body, 'self::available($userId)', (int) $lock);
+        $insert = strpos($body, "insertGetId(");
+
+        $this->assertNotFalse($tx);
+        $this->assertNotFalse($lock, 'no lock inside the transaction');
+        $this->assertNotFalse($open, 'the open-request check is not repeated under the lock');
+        $this->assertNotFalse($avail, 'the balance is not re-read under the lock');
+        $this->assertGreaterThan($open, $insert);
+        $this->assertGreaterThan($avail, $insert);
+    }
+
     public function test_it_cannot_be_marked_paid_without_a_transfer_reference(): void
     {
         $this->unlocked();

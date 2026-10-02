@@ -424,7 +424,7 @@ final class ShopCheckoutTest extends TestCase
     {
         $id = $this->code(['max_uses' => 1]);
 
-        ShopDiscount::countUse($id);
+        $this->assertSame('', ShopDiscount::claim($id, 'a@x.test'));
         $this->assertSame(1, (int) DB::table('gates_shop_codes')->where('id', $id)->value('used_count'));
         $this->assertFalse(ShopDiscount::apply('GATES10',
             [['line_total' => 10000, 'product_id' => 1, 'category' => 'Apparel']], 'b@x.test')['ok']);
@@ -433,6 +433,40 @@ final class ShopCheckoutTest extends TestCase
         $this->assertSame(0, (int) DB::table('gates_shop_codes')->where('id', $id)->value('used_count'));
         $this->assertTrue(ShopDiscount::apply('GATES10',
             [['line_total' => 10000, 'product_id' => 1, 'category' => 'Apparel']], 'b@x.test')['ok']);
+    }
+
+    /**
+     * The cap is decided by an atomic claim, not by the row apply() read. Both previews see
+     * the last use free; only one claim gets it, and the counter never passes the cap.
+     */
+    public function test_the_last_use_of_a_code_is_claimed_by_one_buyer_only(): void
+    {
+        $id = $this->code(['max_uses' => 1, 'max_per_email' => 5]);
+        $line = [['line_total' => 10000, 'product_id' => 1, 'category' => 'Apparel']];
+
+        $this->assertTrue(ShopDiscount::apply('GATES10', $line, 'a@x.test')['ok']);
+        $this->assertTrue(ShopDiscount::apply('GATES10', $line, 'b@x.test')['ok']);
+
+        $this->assertSame('', ShopDiscount::claim($id, 'a@x.test'));
+        $this->assertSame(\AfricaGates\Support\PromoCode::EXHAUSTED, ShopDiscount::claim($id, 'b@x.test'));
+        $this->assertSame(1, (int) DB::table('gates_shop_codes')->where('id', $id)->value('used_count'));
+    }
+
+    /** Two tabs from one buyer: the per-person count is asked again at the claim. */
+    public function test_the_per_person_allowance_is_counted_again_at_the_claim(): void
+    {
+        $id = $this->code(['max_per_email' => 1]);
+        $line = [['line_total' => 10000, 'product_id' => 1, 'category' => 'Apparel']];
+        $this->assertTrue(ShopDiscount::apply('GATES10', $line, 'a@x.test')['ok']);
+
+        DB::table('gates_orders')->insert([
+            'reference' => 'AFG-SHP-TAB1', 'email' => 'a@x.test', 'name' => 'A',
+            'items_json' => '[]', 'subtotal_naira' => 9000, 'status' => 'pending',
+            'discount_code' => 'GATES10', 'created_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        $this->assertNotSame('', ShopDiscount::claim($id, 'a@x.test'));
+        $this->assertSame(0, (int) DB::table('gates_shop_codes')->where('id', $id)->value('used_count'));
     }
 
     public function test_releasing_a_use_never_goes_below_zero(): void

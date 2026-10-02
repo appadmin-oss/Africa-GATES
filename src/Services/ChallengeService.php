@@ -282,8 +282,8 @@ final class ChallengeService
      * ── A PUBLISHED RULE WITH NOTHING TO READ ───────────────────────────────
      *
      * "Refunded tickets are removed" is printed on the challenge page. Nothing in this
-     * codebase reverses a referral credit: `refunded_at` exists on donations and on
-     * nothing else, and `creditSale()` has no counterpart. So the rule was publishable
+     * codebase used to reverse a referral credit: `creditSale()` had no counterpart.
+     * So the rule was publishable
      * and unenforceable — somebody could buy five tickets through their own promotion,
      * collect the prize, and charge all five back.
      *
@@ -292,11 +292,8 @@ final class ChallengeService
      * through its migrations must not throw. Its absence means no reversal has been
      * recorded, which is the same answer as none existing.
      *
-     * **Nothing calls `reverse()` yet** — the event side has no refund path at all to
-     * call it from. That is recorded in the step 3 notes rather than left to be
-     * discovered: a mechanism with no route in is this codebase's most expensive shape,
-     * and the honest state is "the rule can now be enforced the day a refund path
-     * exists", not "refunds are handled".
+     * The stamp is written by {@see ReferralService::reverseSale()}, from every refund and
+     * chargeback path; see {@see referralReversed()}.
      *
      * @return array{verified:int,checking:int,needs_details:int}
      */
@@ -334,33 +331,31 @@ final class ChallengeService
     }
 
     /**
-     * Take a referral credit back out of a challenge count, for a refunded ticket.
+     * A referral credit has been reversed: recount the member's open entries.
      *
-     * Stamped rather than deleted: the credit is the record that the money once
-     * cleared, and this codebase has the rule written down already — a donation
-     * clawback stamps `refunded_at` and deliberately leaves the row, because rewriting
-     * it destroys the fact. The entry is recounted, which can take a qualification
+     * The stamp itself is {@see ReferralService::reverseSale()} — the one reversal, called
+     * from every refund and chargeback path — and this is only the challenge's half of what
+     * it means. It used to be `reverseReferralCredit()`, which did both, had no caller, and
+     * said the event side had no refund path to call it from. That was wrong when it was
+     * written: self-service cancellation refunds a ticket ({@see TicketSelfService::cancel()})
+     * and a gateway refund or chargeback reverses one ({@see EventTicketService::reverse()}),
+     * so "Refunded tickets are removed" was printed on the challenge page while every
+     * refunded ticket stayed in the count.
+     *
+     * Only entries without a `standing` are recounted, so a reversal can take a qualification
      * away but never a standing already assigned.
      */
-    public static function reverseReferralCredit(int $creditId, string $reason = ''): bool
+    public static function referralReversed(int $creditId, int $userId, string $reason = ''): void
     {
-        if (!SchemaHas::column('gates_referral_credits', 'reversed_at')) return false;
+        if ($userId < 1 || !SchemaHas::table('gates_challenge_entries')) return;
 
-        $credit = DB::table('gates_referral_credits')->where('id', $creditId)->first();
-        if (!$credit || $credit->reversed_at !== null) return false;
-
-        DB::table('gates_referral_credits')->where('id', $creditId)
-            ->update(['reversed_at' => date('Y-m-d H:i:s')]);
-
-        foreach (DB::table('gates_challenge_entries')->where('user_id', $credit->user_id)
+        foreach (DB::table('gates_challenge_entries')->where('user_id', $userId)
                      ->whereNull('standing')->pluck('id') as $entryId) {
             self::recount((int) $entryId);
         }
 
         self::event(0, null, 'referral_reversed',
-            ['credit' => $creditId, 'user' => (int) $credit->user_id, 'reason' => $reason]);
-
-        return true;
+            ['credit' => $creditId, 'user' => $userId, 'reason' => $reason]);
     }
 
     // ══════════════════════════════════════════════════════════════════════════

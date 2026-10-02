@@ -128,6 +128,45 @@ class OrgPayoutTest extends TestCase
         $this->assertSame(0, DB::table('gates_org_payouts')->count(), 'Nothing should be recorded.');
     }
 
+    public function test_a_second_request_for_the_same_balance_is_refused(): void
+    {
+        $id = $this->makeOrg();
+        $this->confirmedGift($id, 50000);
+
+        $this->assertTrue(OrgPayout::request($this->offlinePayments(), $id, 50000, 1)['ok']);
+        $again = OrgPayout::request($this->offlinePayments(), $id, 50000, 1);
+
+        $this->assertFalse($again['ok']);
+        $this->assertStringContainsString('more than is available', $again['message']);
+        $this->assertSame(1, DB::table('gates_org_payouts')->where('org_id', $id)->count());
+    }
+
+    /**
+     * The race itself — two requests reading the full balance in the same second — cannot
+     * be staged on SQLite, which runs one writer at a time. So it is pinned on SHAPE: the
+     * balance is read inside the transaction, after the organisation's row is locked, and
+     * before the payout is written. Reading it outside, as it used to be, is the double pay.
+     */
+    public function test_the_balance_is_read_and_spent_under_one_lock(): void
+    {
+        $src  = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Services/OrgPayout.php');
+        $body = substr($src, (int) strpos($src, 'public static function request('));
+        $body = substr($body, 0, (int) strpos($body, 'public static function send('));
+
+        $tx     = strpos($body, 'DB::transaction(');
+        $lock   = strpos($body, "DB::table('gates_partner_orgs')->where('id', \$orgId)->lockForUpdate()");
+        $avail  = strpos($body, 'self::available($orgId)');
+        $insert = strpos($body, "DB::table('gates_org_payouts')->insert(");
+
+        $this->assertNotFalse($tx);
+        $this->assertNotFalse($lock, 'the organisation row is not locked');
+        $this->assertGreaterThan($tx, $lock);
+        $this->assertGreaterThan($lock, $avail, 'the balance is read before the lock');
+        $this->assertGreaterThan($avail, $insert);
+        $this->assertSame(1, substr_count($body, 'self::available($orgId)'),
+            'a second, unlocked read of the balance is the check that decides nothing');
+    }
+
     public function test_a_suspended_organisation_cannot_withdraw(): void
     {
         $id = $this->makeOrg(['status' => PartnerOrg::STATUS_SUSPENDED]);

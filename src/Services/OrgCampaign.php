@@ -125,6 +125,15 @@ final class OrgCampaign
      * and `raised` is not, because an appeal that beat its target should say so and a bar
      * that overflows its container is a rendering bug rather than good news.
      *
+     * ── OFF THE ONE SCOPE, AND WITHOUT THE TIP ───────────────────────────────
+     *
+     * This spelled `status = 'confirmed'` by hand, so a refunded gift stayed in the bar on
+     * the public appeal page for good (a clawback never moves the status — see
+     * {@see PartnerOrg::countableDonations()}). And `raised` was the CHARGE, which includes
+     * the donor's voluntary tip to the platform, so a ₦10,000 gift with a ₦1,000 tip moved
+     * the appeal ₦11,000 towards a target set in the organisation's own money. `net` was
+     * already right — the tip sits inside `platform_fee_naira`.
+     *
      * @return array{raised:int,net:int,count:int,target:int,pct:int,met:bool}
      */
     public static function progress(int $campaignId): array
@@ -135,10 +144,10 @@ final class OrgCampaign
         if (!$c) return $zero;
 
         try {
-            $row = DB::table('gates_donations')
+            $row = PartnerOrg::countableDonations((int) $c->org_id)
                 ->where('campaign_id', $campaignId)
-                ->where('status', 'confirmed')
-                ->selectRaw('COALESCE(SUM(amount_naira),0) g, COALESCE(SUM(platform_fee_naira),0) f, COUNT(*) n')
+                ->selectRaw('COALESCE(SUM(amount_naira),0) g, COALESCE(SUM(platform_fee_naira),0) f, COUNT(*) n, '
+                          . PartnerOrg::tipSumSql() . ' t')
                 ->first();
         } catch (\Throwable) {
             return $zero;
@@ -146,15 +155,16 @@ final class OrgCampaign
 
         $gross  = (int) ($row->g ?? 0);
         $fee    = (int) ($row->f ?? 0);
+        $raised = max(0, $gross - max(0, (int) ($row->t ?? 0)));
         $target = (int) ($c->target_naira ?? 0);
 
         return [
-            'raised' => $gross,
+            'raised' => $raised,
             'net'    => max(0, $gross - $fee),
             'count'  => (int) ($row->n ?? 0),
             'target' => $target,
-            'pct'    => $target > 0 ? min(100, (int) floor($gross * 100 / $target)) : 0,
-            'met'    => $target > 0 && $gross >= $target,
+            'pct'    => $target > 0 ? min(100, (int) floor($raised * 100 / $target)) : 0,
+            'met'    => $target > 0 && $raised >= $target,
         ];
     }
 

@@ -127,18 +127,30 @@ final class EventDiscount
     }
 
     /**
-     * Count a use, once the seat is actually taken.
+     * Spend one use of a code for this buyer on this event, or say why not. '' means theirs.
      *
-     * Called from {@see EventTicketService::reserve()} rather than from a checkout page,
-     * because `used_count` is what `max_uses` is checked against and a code counted when
-     * somebody merely LOOKED at it would exhaust itself on window shoppers.
+     * Replaces `countUse()`, which incremented unconditionally after the hold was written,
+     * against limits {@see apply()} had checked from a row read earlier in the request — so
+     * neither `max_uses` nor `max_per_email` held under concurrency. The full reasoning is on
+     * {@see ShopDiscount::claim()}; the two are the same three steps over different tables:
+     * lock the code row, count this person's registrations, claim the cap atomically.
+     *
+     * Run inside the transaction that inserts the hold, so a failed insert takes the use
+     * back with it. Called from {@see EventTicketService::reserve()} rather than from a
+     * checkout page, because a code counted when somebody merely LOOKED at it would exhaust
+     * itself on window shoppers.
      */
-    public static function countUse(int $codeId): void
+    public static function claim(int $codeId, int $eventId, string $email): string
     {
-        try {
-            DB::table('gates_event_codes')->where('id', $codeId)
-                ->update(['used_count' => DB::raw('COALESCE(used_count, 0) + 1')]);
-        } catch (\Throwable) {}
+        $row = DB::table('gates_event_codes')->where('id', $codeId)->lockForUpdate()->first();
+        if (!$row) return 'That code is not recognised for this event.';
+
+        $perEmail = max(1, (int) ($row->max_per_email ?? 1));
+        if (self::timesUsedBy((string) $row->code, $eventId, $email) >= $perEmail) {
+            return PromoCode::perPersonRefusal($perEmail);
+        }
+
+        return PromoCode::claimUse('gates_event_codes', $codeId) ? '' : PromoCode::EXHAUSTED;
     }
 
     /** Release a use when a hold is withdrawn, so an abandoned checkout does not consume one. */

@@ -138,7 +138,7 @@ final class CheckoutMailer
     }
 
     /* ══════════════════════════════════════════════════════════════════════
-       RECEIPT — sent once, when a paid-vote order confirms
+       RECEIPT — sent once, when a paid-vote order or a gift confirms
     ══════════════════════════════════════════════════════════════════════ */
 
     /**
@@ -242,7 +242,8 @@ final class CheckoutMailer
         try {
             $don = DB::table('gates_donations')->where('id', $donationId)->first();
             if (!$don)                                       return ['sent' => false, 'reason' => 'not_found'];
-            if ((string) ($don->tier ?? '') !== 'paid-vote') return ['sent' => false, 'reason' => 'not_paid_vote'];
+            $gift = self::isGift($don);
+            if (!$gift && (string) ($don->tier ?? '') !== 'paid-vote') return ['sent' => false, 'reason' => 'not_receipted_here'];
             if ((string) ($don->status ?? '') !== 'confirmed') return ['sent' => false, 'reason' => 'not_confirmed'];
             if (!empty($don->refunded_at))                   return ['sent' => false, 'reason' => 'refunded'];
 
@@ -256,22 +257,121 @@ final class CheckoutMailer
             // once, and one payment must not produce two receipts.
             if (!self::claim($donationId, 'receipt_sent_at')) return ['sent' => false, 'reason' => 'already_sent'];
 
-            $minted = (int) ($don->votes_used ?? 0) > 0;
-            $mail   = $minted ? self::mintedBody($don) : self::unmintedBody($don);
+            if ($gift) {
+                $mail = self::giftBody($don);
+                $kind = $mail['kind'];
+            } else {
+                $minted = (int) ($don->votes_used ?? 0) > 0;
+                $mail   = $minted ? self::mintedBody($don) : self::unmintedBody($don);
+                $kind   = $minted ? 'minted' : 'unminted';
+            }
 
-            $r = $mailer->sendBranded($to, $mail['subject'], $mail['html'], $mail['text'], 'Paid votes', $mail['hero'] ?? '');
+            $r = $mailer->sendBranded($to, $mail['subject'], $mail['html'], $mail['text'],
+                                      $gift ? 'Donations' : 'Paid votes', $mail['hero'] ?? '');
             if (empty($r['success'])) {
                 // Nothing reached a mail server. Give the claim back so a later
                 // confirm, reconcile or resend can try again — an unsent receipt for a
                 // payment that DID complete is the worse of the two failures.
                 self::release($donationId, 'receipt_sent_at');
-                return ['sent' => false, 'reason' => 'send_failed', 'kind' => $minted ? 'minted' : 'unminted'];
+                return ['sent' => false, 'reason' => 'send_failed', 'kind' => $kind];
             }
-            return ['sent' => true, 'kind' => $minted ? 'minted' : 'unminted'];
+            if ($gift) {
+                // Inside the claim, so the office hears about a gift exactly as many times
+                // as the donor does: once. It used to ride on the browser callback with the
+                // receipt and was lost with it on every webhook-first confirmation.
+                Notifier::adminAlert($mailer, 'New donation (confirmed)',
+                    'Donor:  ' . (string) $don->donor_name . ' <' . $to . ">\nAmount: ₦"
+                    . number_format((int) $don->amount_naira) . "\nRef:    " . (string) $don->payment_ref);
+            }
+            return ['sent' => true, 'kind' => $kind];
         } catch (\Throwable $e) {
             error_log('[CheckoutMailer] receipt failed: ' . $e->getMessage());
             return ['sent' => false, 'reason' => 'error'];
         }
+    }
+
+    /**
+     * Does this row owe a GIFT receipt — the one {@see DonationController} used to send?
+     *
+     * `donation` is the tier `DonationController::start()` writes, for the fund and for a
+     * partner organisation alike. A recurring instalment minted by
+     * {@see RecurringGiving::chargeArrived()} is a gift too, and the older ones were
+     * written with no tier at all, so the subscription link is what identifies them.
+     */
+    public static function isGift(object $don): bool
+    {
+        return (string) ($don->tier ?? '') === 'donation' || !empty($don->subscription_id);
+    }
+
+    /**
+     * The receipt for a GIFT — and, for a standing gift, the link that stops it.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS MOVED HERE FROM THE DONATION CONTROLLER
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * It was sent by `DonationController::callback()`, and only when the callback was the
+     * call that flipped the row. But an `AFG-GIVE-` reference is also confirmed by the
+     * signature-verified webhook through `PaymentController::confirmByReference()`, whose
+     * delivery step acted only on paid votes, and the reconcile sweep's call to
+     * {@see receipt()} answered `not_paid_vote`. So whenever the webhook won the race —
+     * which is the ordinary case for anybody who pays inside a banking app and never comes
+     * back — the donor got no receipt and the office got no alert. And for a MONTHLY gift
+     * that receipt is the only thing that ever carries {@see RecurringGiving::stopLink()}:
+     * a donor who cannot find the off switch goes to their bank, and a chargeback costs
+     * more than the gift was worth.
+     *
+     * Every confirming path now reaches {@see receipt()}, which claims `receipt_sent_at`
+     * before sending, so whichever of {callback, webhook, reconcile} arrives first sends
+     * it and the others send nothing.
+     *
+     * @return array{subject:string, html:string, text:string, kind:string}
+     */
+    private static function giftBody(object $don): array
+    {
+        $e     = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+        $total = '₦' . number_format((int) $don->amount_naira);
+        $ref   = (string) ($don->payment_ref ?? '');
+        $stop  = RecurringGiving::stopLink($ref, SiteUrl::base());
+
+        // Named, because a gift to somebody else's appeal thanked the donor for a gift "to
+        // Africa GATES" — the one organisation it was not for.
+        $orgName = '';
+        if (!empty($don->recipient_org_id)) {
+            try {
+                $orgName = (string) (DB::table('gates_partner_orgs')
+                    ->where('id', (int) $don->recipient_org_id)->value('name') ?? '');
+            } catch (\Throwable) {}
+        }
+        $to = $orgName !== '' ? $orgName : 'Africa GATES';
+
+        $html = '<p>Thank you, ' . $e($don->donor_name) . ' — your gift of <strong>' . $total . '</strong>'
+            . ($orgName !== '' ? ' to <strong>' . $e($orgName) . '</strong>' : '') . ' is confirmed.</p>'
+            . '<p style="font-family:monospace">Receipt ' . $e($ref) . '</p>'
+            // Said plainly and in the same breath as the amount, because the one thing a
+            // monthly donor must not have to hunt for is the fact that it is monthly and
+            // where the off switch is.
+            . ($stop === '' ? ''
+                : '<p>This is a <strong>monthly</strong> gift of ' . $total . ', and you can '
+                . 'stop it at any time — no sign-in, no email to anybody: '
+                . '<a href="' . $e($stop) . '">' . $e($stop) . '</a>. '
+                . 'Keep this email; the link stays valid.</p>')
+            . ($orgName !== ''
+                ? '<p>Your gift goes to ' . $e($orgName) . '. With gratitude.</p>'
+                : '<p>Your gift funds child leadership programmes across the continent — mentorship, '
+                . 'scholarships and grassroots education. With gratitude.</p>');
+
+        $text = "Thank you, {$don->donor_name} — your gift of {$total} to {$to} is confirmed.\n\nReceipt: {$ref}\n"
+            . ($stop === '' ? '' : "\nThis is a MONTHLY gift of {$total}. Stop it at any time, no sign-in needed:\n{$stop}\n"
+                                  . "Keep this email; the link stays valid.\n")
+            . "\n— Africa GATES";
+
+        return [
+            'subject' => 'Thank you for your gift to ' . $to,
+            'html'    => $html,
+            'text'    => $text,
+            'kind'    => $stop === '' ? 'gift' : 'monthly',
+        ];
     }
 
     /** "Your votes are in" — the ordinary, happy receipt. */

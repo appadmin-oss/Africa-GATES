@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Services\OrgCampaign;
 use AfricaGates\Services\OrgPayout;
 use AfricaGates\Services\PartnerOrg;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -117,5 +118,71 @@ final class RefundedMoneyTest extends TestCase
         $this->assertSame(50000, $raised());
         $this->refundTheLargerGift();
         $this->assertSame(10000, $raised(), 'the public page still counts a refunded gift');
+    }
+
+    /**
+     * AND THE APPEAL'S BAR, WHICH SPELLED THE CLAUSE A SIXTH TIME.
+     *
+     * `OrgCampaign::progress()` summed `status = 'confirmed'` by hand, so on the public
+     * appeal page a refunded gift stayed in the bar for good.
+     */
+    public function test_a_refunded_gift_leaves_the_appeals_bar(): void
+    {
+        $campaignId = $this->appealHoldingBothGifts();
+
+        $this->assertSame(50000, OrgCampaign::progress($campaignId)['raised']);
+        $this->refundTheLargerGift();
+
+        $p = OrgCampaign::progress($campaignId);
+        $this->assertSame(10000, $p['raised'], 'the appeal still counts a refunded gift');
+        $this->assertSame(1, $p['count']);
+        $this->assertSame(9000, $p['net']);
+    }
+
+    /**
+     * THE DONOR'S TIP TO THE PLATFORM IS NOT MONEY THE ORGANISATION RAISED.
+     *
+     * `PlatformTip` adds the tip ON TOP of the gift, so `amount_naira` is gift + tip, and
+     * the tip is folded into `platform_fee_naira` so `net` — and so the payout balance —
+     * never hands it over. But the public figures were `gross`: the organisation's page,
+     * the partner headline and the appeal's bar all printed our tip as their money, and the
+     * bar measured it against a target set in theirs. The balance must NOT move: it was
+     * already right, and this test holds that the display fix did not "fix" it twice.
+     */
+    public function test_a_donors_tip_to_the_platform_is_not_counted_as_raised(): void
+    {
+        $campaignId = $this->appealHoldingBothGifts();
+        // A ₦20,000 gift with a ₦2,000 tip on top: the donor's bank was charged ₦22,000,
+        // and the fee column carries the agreed 10% cut plus the tip, as start() writes it.
+        DB::table('gates_donations')->insert([
+            'donor_name' => 'A tipper', 'donor_email' => 'tip@example.org',
+            'amount_naira' => 22000, 'platform_fee_naira' => 2000 + 2000, 'platform_tip_naira' => 2000,
+            'recipient_org_id' => $this->orgId, 'campaign_id' => $campaignId, 'status' => 'confirmed',
+            'tier' => 'donation', 'payment_ref' => 'REF-TIP', 'bonus_votes' => 0,
+            'created_at' => '2026-09-02 10:00:00', 'confirmed_at' => '2026-09-02 10:00:00',
+        ]);
+
+        $t = PartnerOrg::totals($this->orgId);
+        $this->assertSame(72000, $t['gross'], 'gross is what donors paid, tips included');
+        $this->assertSame(70000, $t['raised'], 'the tip is the platform\'s, not raised by the organisation');
+        $this->assertSame(63000, $t['net']);
+        $this->assertSame(63000, OrgPayout::available($this->orgId),
+            'the payout balance already excluded the tip and must not have moved');
+
+        $this->assertSame(70000, OrgCampaign::progress($campaignId)['raised'],
+            'the appeal bar counted the donor\'s tip to the platform towards their target');
+        $this->assertSame(70000, PartnerOrg::platformTotals()['raised'],
+            'the public partner headline counted tips to the platform');
+    }
+
+    private function appealHoldingBothGifts(): int
+    {
+        $id = (int) DB::table('gates_org_campaigns')->insertGetId([
+            'org_id' => $this->orgId, 'slug' => 'roof', 'title' => 'Roof',
+            'target_naira' => 100000, 'shortfall_policy' => 'same_purpose',
+            'status' => OrgCampaign::STATUS_LIVE, 'created_at' => '2026-08-01 10:00:00',
+        ]);
+        DB::table('gates_donations')->whereIn('payment_ref', ['REF-0', 'REF-1'])->update(['campaign_id' => $id]);
+        return $id;
     }
 }

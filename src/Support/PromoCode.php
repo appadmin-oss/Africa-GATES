@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Support;
 
+use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
 /**
@@ -32,7 +33,7 @@ use Illuminate\Support\Carbon;
  *     mixing the two is how an "expired" code works for one more day in one timezone.
  *
  * Stateless and static: the callers own their tables, their per-person counting and their
- * targeting. This owns only what a code is.
+ * targeting. This owns only what a code is — and {@see claimUse()}, the one way a use is spent.
  */
 final class PromoCode
 {
@@ -65,10 +66,50 @@ final class PromoCode
             return 'That code has expired.';
         }
         if (($row->max_uses ?? null) !== null && (int) $row->used_count >= (int) $row->max_uses) {
-            return 'That code has been used as many times as it allows.';
+            return self::EXHAUSTED;
         }
 
         return '';
+    }
+
+    /** The sentence for a code whose `max_uses` is spent — at preview or at the claim. */
+    public const EXHAUSTED = 'That code has been used as many times as it allows.';
+
+    /**
+     * Take one use of a code, or learn that there is none left. The ONE place a use is spent.
+     *
+     * ── WHY {@see refusal()} IS NOT ENOUGH ───────────────────────────────────
+     *
+     * refusal() compares `used_count` from a row read at the start of the request, and the
+     * use used to be counted by a bare `used_count + 1` several statements later. Nothing
+     * serialised the gap, so fifty buyers pressing pay on a fifty-use code's last use in the
+     * same second each read 49, each passed, and each wrote +1: the counter went to 99 while
+     * the cap read as enforced. Same shape as the OTP attempt cap ({@see OtpAttempt::claim()}).
+     *
+     * So the predicate and the increment travel in one statement, and zero affected rows
+     * means the cap is spent. refusal() stays as the PREVIEW's answer — what a buyer is told
+     * when they type the code — and this is what decides whether they actually get it.
+     *
+     * The increment is RELATIVE on purpose. MySQL reports rows CHANGED and SQLite rows
+     * MATCHED; `used_count + 1` always changes the value, so the two agree. Write it as an
+     * absolute value the row may already hold and MySQL reports 0 — a claim refused on the
+     * only database that matters.
+     *
+     * Call it inside the transaction that writes the order or the hold, so a failed write
+     * rolls the use back with it rather than needing a release nobody remembers to call.
+     *
+     * @param string $table `gates_shop_codes` or `gates_event_codes`
+     */
+    public static function claimUse(string $table, int $codeId): bool
+    {
+        if ($codeId < 1) return false;
+
+        return DB::table($table)->where('id', $codeId)
+            ->where(static function ($q): void {
+                $q->whereNull('max_uses')
+                  ->orWhereRaw('COALESCE(used_count, 0) < max_uses');
+            })
+            ->update(['used_count' => DB::raw('COALESCE(used_count, 0) + 1')]) > 0;
     }
 
     /**

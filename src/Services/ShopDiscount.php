@@ -173,18 +173,39 @@ final class ShopDiscount
     }
 
     /**
-     * Count a use, once an order actually exists against it.
+     * Spend one use of a code for this buyer, or say why not. '' means it is theirs.
      *
-     * Called when the pending order is written rather than when somebody types the code into
-     * the preview box: a code counted on a look would exhaust itself on window shoppers, and
-     * `max_uses` is what that number is checked against.
+     * Replaces `countUse()`, which incremented unconditionally AFTER the order was written,
+     * against a limit {@see apply()} had checked from a row read at the start of the request.
+     * Both limits leaked under concurrency: `max_uses` because nothing stopped two requests
+     * each reading the last use as free, and `max_per_email` because it is a count of orders
+     * followed by an insert of one — two tabs from one buyer each counted zero and each
+     * wrote an order.
+     *
+     * So this runs INSIDE the transaction that writes the order, and in this order:
+     *
+     *   1. the code row is locked, so every checkout using this code queues behind it — the
+     *      per-person count and the insert that follows it are then one step to anybody
+     *      else holding the same code (SQLite has no row lock, and serialises the whole
+     *      write instead, which is the same guarantee more bluntly);
+     *   2. the per-person allowance is counted from the orders, as before;
+     *   3. the overall cap is claimed atomically by {@see PromoCode::claimUse()}.
+     *
+     * Called when the pending order is written rather than when somebody types the code
+     * into the preview box: a code counted on a look would exhaust itself on window
+     * shoppers. If the order insert then fails, the transaction takes the use back with it.
      */
-    public static function countUse(int $codeId): void
+    public static function claim(int $codeId, string $email): string
     {
-        try {
-            DB::table('gates_shop_codes')->where('id', $codeId)
-                ->update(['used_count' => DB::raw('COALESCE(used_count, 0) + 1')]);
-        } catch (\Throwable) {}
+        $row = DB::table('gates_shop_codes')->where('id', $codeId)->lockForUpdate()->first();
+        if (!$row) return 'That code is not recognised.';
+
+        $perEmail = max(1, (int) ($row->max_per_email ?? 1));
+        if (self::timesUsedBy((string) $row->code, $email) >= $perEmail) {
+            return PromoCode::perPersonRefusal($perEmail);
+        }
+
+        return PromoCode::claimUse('gates_shop_codes', $codeId) ? '' : PromoCode::EXHAUSTED;
     }
 
     /** Give a use back when an order never got paid. */

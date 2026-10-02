@@ -259,8 +259,17 @@ final class PaymentReconciler
                 $row['action'] = 'failed';
                 $row['note']   = 'gateway reports the payment failed';
                 if ($apply) {
-                    DB::table('gates_orders')->where('reference', $o->reference)
+                    $demoted = DB::table('gates_orders')->where('reference', $o->reference)
                         ->where('status', 'pending')->update(['status' => 'failed']);
+                    // The code's use goes back with the order, exactly as it does when
+                    // ShopOrderService::confirm() hears the same "failed" — and, like there,
+                    // only on the TRANSITION: releaseUse() decrements and is not idempotent,
+                    // so a sweep re-reading a row a webhook already failed must not hand the
+                    // use back twice. Without this, every declined card the sweep caught
+                    // spent one of a limited code's uses for good.
+                    if ($demoted > 0) {
+                        ShopDiscount::releaseUse((string) ($o->discount_code ?? ''));
+                    }
                 }
                 $out[] = $row;
                 continue;

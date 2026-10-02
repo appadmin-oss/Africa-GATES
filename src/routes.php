@@ -2265,11 +2265,22 @@ return function(App $app) {
         $g->post('/shop/{slug}/notify-me', ShopController::class.':notifyMe');
 
         // ── Payments (Paystack / Flutterwave behind PaymentService) ──────────
-        //   /pay/init     first-party form post (CSRF-protected) → hosted checkout
+        //   /pay/init     RETIRED — 410. See below.
         //   /pay/callback browser return; verified server-side before crediting
         //   /pay/success  read-only confirmation page
         //   /pay/webhook  server-to-server, signature-verified, CSRF-EXEMPT
-        $g->post('/pay/init',     PaymentController::class.':init');
+        //
+        // /pay/init sold "vote packs": a donation row carrying `bonus_votes`, described as
+        // "redeemable later via BonusVoteService". Nothing redeems them — redeem() has no
+        // caller and no template posts here — so it took money for votes that could never be
+        // cast, and anybody who found the endpoint could buy them. Paid voting is
+        // PaidVoteController, which mints at confirmation. 410 rather than 404 so a stale
+        // form says "this has gone" rather than "this never existed"; the callback, success
+        // page and webhook stay, because a checkout already started here may still settle.
+        $g->post('/pay/init', function ($req, $res) {
+            $res->getBody()->write('This checkout has been retired. Nothing has been charged.');
+            return $res->withStatus(410)->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        });
         $g->get('/pay/redirect',  PaymentController::class.':handoff');  // see GatewayHandoff
         $g->get('/pay/callback',  PaymentController::class.':callback');
         $g->get('/pay/success',   PaymentController::class.':success');

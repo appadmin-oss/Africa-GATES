@@ -283,43 +283,65 @@ final class ShopCheckoutController
         if ($t['charged'] < 1) return $bail('empty');
 
         $reference = 'AFG-SHP-' . bin2hex(random_bytes(6));
+
+        // ── THE CODE'S USE IS CLAIMED IN THE SAME TRANSACTION AS THE ORDER ───
+        //
+        // totals() priced the code from a row read at the start of this request and the use
+        // used to be counted by a bare increment AFTER the insert, so neither `max_uses` nor
+        // the per-person allowance held when two checkouts pressed at once. ShopDiscount::
+        // claim() locks the code, counts this buyer's orders and takes the use atomically;
+        // the insert rides in the same transaction, so a failed insert hands the use back.
+        $codeRefusal = '';
         try {
-            DB::table('gates_orders')->insert(OptionalColumn::filter('gates_orders', [
-                'reference'      => $reference,
-                'email'          => $email,
-                'name'           => $name,
-                'phone'          => $phone !== '' ? $phone : null,
-                'address'        => 'Region: ' . $region . "\n" . $address,
-                'items_json'     => json_encode($priced['lines'], JSON_UNESCAPED_UNICODE),
-                // `subtotal_naira` is the CHARGED figure and always has been: it is what goes
-                // to the gateway and what confirmation checks the verified amount against.
-                // The breakdown sits beside it rather than replacing it, because renaming this
-                // column would mean touching that parity check.
-                'subtotal_naira' => $t['charged'],
-                'goods_naira'    => $t['goods'],
-                'shipping_naira' => $t['shipping'],
-                'discount_naira' => $t['discount'],
-                'discount_code'  => $t['code'] !== '' ? $t['code'] : null,
-                'status'         => 'pending',
-                'fulfilment'     => 'unfulfilled',
-                'provider'       => $provider,
-                // Stamped on the ORDER rather than read from the session at fulfilment. A
-                // webhook confirming a payment made on a phone that has since been closed
-                // has no session to read — so a referral held only in one would fail on
-                // exactly the slow payments where the referrer waited longest.
-                'referral_code'  => \AfricaGates\Services\ReferralService::fromSession() ?: null,
-                'ip_hash'        => $ip ? hash('sha256', $ip) : null,
-                'created_at'     => Carbon::now()->toDateTimeString(),
-            ], ['goods_naira', 'shipping_naira', 'discount_naira', 'discount_code', 'fulfilment',
-                'referral_code']));
+            DB::transaction(function () use (&$codeRefusal, $t, $email, $reference, $name, $phone,
+                                             $region, $address, $priced, $provider, $ip): void {
+                if ($t['code_id'] > 0) {
+                    $codeRefusal = ShopDiscount::claim((int) $t['code_id'], $email);
+                    if ($codeRefusal !== '') return;
+                }
+                DB::table('gates_orders')->insert(OptionalColumn::filter('gates_orders', [
+                    'reference'      => $reference,
+                    'email'          => $email,
+                    'name'           => $name,
+                    'phone'          => $phone !== '' ? $phone : null,
+                    'address'        => 'Region: ' . $region . "\n" . $address,
+                    'items_json'     => json_encode($priced['lines'], JSON_UNESCAPED_UNICODE),
+                    // `subtotal_naira` is the CHARGED figure and always has been: it is what goes
+                    // to the gateway and what confirmation checks the verified amount against.
+                    // The breakdown sits beside it rather than replacing it, because renaming this
+                    // column would mean touching that parity check.
+                    'subtotal_naira' => $t['charged'],
+                    'goods_naira'    => $t['goods'],
+                    'shipping_naira' => $t['shipping'],
+                    'discount_naira' => $t['discount'],
+                    'discount_code'  => $t['code'] !== '' ? $t['code'] : null,
+                    'status'         => 'pending',
+                    'fulfilment'     => 'unfulfilled',
+                    'provider'       => $provider,
+                    // Stamped on the ORDER rather than read from the session at fulfilment. A
+                    // webhook confirming a payment made on a phone that has since been closed
+                    // has no session to read — so a referral held only in one would fail on
+                    // exactly the slow payments where the referrer waited longest.
+                    //
+                    // Through usable(), so the buyer's OWN link is not stamped: the event checkout
+                    // always refused a self-referral and this one stamped whatever the session
+                    // held. creditSale() refuses it again at payment — this half keeps the row
+                    // from claiming a referral that will never pay.
+                    'referral_code'  => self::referralFor($email),
+                    'ip_hash'        => $ip ? hash('sha256', $ip) : null,
+                    'created_at'     => Carbon::now()->toDateTimeString(),
+                ], ['goods_naira', 'shipping_naira', 'discount_naira', 'discount_code', 'fulfilment',
+                    'referral_code']));
+            });
         } catch (\Throwable $e) {
             $this->log?->error('[shop] could not persist order', ['err' => $e->getMessage()]);
             return $bail('error');
         }
 
-        // Counted now that an order exists against it, not when somebody typed it into the
-        // preview box — a code counted on a look would exhaust itself on window shoppers.
-        if ($t['code_id'] > 0) ShopDiscount::countUse($t['code_id']);
+        // The code ran out — or this buyer's allowance did — between the preview and the
+        // order. Refused rather than re-priced: the buyer was shown the discounted total, and
+        // charging the full one without a word is worse than asking them again.
+        if ($codeRefusal !== '') return $bail('codegone');
 
         $callbackUrl = $this->base($req) . '/shop/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
         $init = $this->payments->initialize($provider, $t['charged'], $email, $reference, $callbackUrl, [
@@ -344,6 +366,21 @@ final class ShopCheckoutController
         return $this->redirect($res, \AfricaGates\Services\GatewayHandoff::remember(
             $reference, (string) $init['checkout_url'], $this->base($req) . '/shop/redirect', $provider
         ));
+    }
+
+    /**
+     * The referral code to stamp on a shop order, or null — the session's code, through the
+     * same self-referral rule the event checkout applies.
+     */
+    private static function referralFor(string $email): ?string
+    {
+        $code = \AfricaGates\Services\ReferralService::fromSession();
+        if ($code === '') return null;
+
+        $uid = isset($_SESSION['user_id']) ? ((int) $_SESSION['user_id'] ?: null) : null;
+        $u   = \AfricaGates\Services\ReferralService::usable($code, $uid, $email);
+
+        return ($u['ok'] ?? false) ? $code : null;
     }
 
     /**
