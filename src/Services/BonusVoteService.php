@@ -126,7 +126,16 @@ class BonusVoteService
                 return ['ok' => false, 'message' => "Only {$remaining} bonus vote(s) remain on this donation."];
             }
 
-            $nominee = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))->first();
+            // LOCKED, and it is the cap's lock rather than the nominee's. The donation lock
+            // above serialises one donor against themselves; the ceiling below is per
+            // NOMINEE, so two donors (or a donor and a points redeemer — PointsService
+            // takes this same lock) redeeming onto one nominee at once each read `used`
+            // under the cap and both granted, overshooting it by a whole redemption. With
+            // the row held, the second waits, then reads the first's grant in capFor()
+            // and the incremented vote_count here. Taken after the donation lock, the
+            // same order mint() writes them in, so the two cannot deadlock each other.
+            $nominee = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))
+                ->lockForUpdate()->first();
             if (!$nominee) {
                 return ['ok' => false, 'message' => 'Nominee is not open for voting.'];
             }

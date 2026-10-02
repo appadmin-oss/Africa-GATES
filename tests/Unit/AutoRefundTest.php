@@ -593,4 +593,72 @@ final class AutoRefundTest extends TestCase
         $this->assertStringContainsString('person', $s['say']);
         $this->assertStringNotContainsString('No refund has been started', $s['say']);
     }
+
+    // ── mint and refund racing for one order ─────────────────────────────────
+    //
+    // Each side reads the order, decides, and then claims it with a guarded UPDATE.
+    // The read is stale by the time the claim runs, so each claim has to carry the
+    // OTHER side's stamp in its WHERE — otherwise both win and the buyer gets their
+    // votes and their money. These tests put the other side's write exactly into
+    // that gap. They cannot run two real connections on SQLite; they reproduce the
+    // interleaving deterministically, which is the part the clause decides.
+
+    /** The refund claimed on a row read before the mint landed. */
+    public function test_a_refund_claim_loses_to_a_mint_that_landed_after_the_read(): void
+    {
+        $id    = $this->order();
+        $stale = $this->row($id);                       // votes_used = 0 when read
+        DB::table('gates_donations')->where('id', $id)->update(['votes_used' => 20]);   // mint lands
+
+        $gw = $this->gateway();
+        $m  = new \ReflectionMethod(RefundService::class, 'refundOne');
+        $this->assertFalse($m->invoke(new RefundService($gw), $stale));
+
+        $this->assertCount(0, $gw->refunds, 'the gateway was asked to refund an order whose votes are on the tally');
+        $this->assertNull($this->row($id)->refund_requested_at, 'the refund claimed a delivered order');
+    }
+
+    /** The mint claimed on a row read before the refund's claim stamp landed. */
+    public function test_a_mint_claim_loses_to_a_refund_claimed_after_the_read(): void
+    {
+        $id = $this->order(['intent_nominee_id' => $this->openNominee]);
+
+        // Stamp the refund claim immediately before mint()'s claim UPDATE runs — after
+        // its early refund check has passed on the stale read. (beforeExecuting, not
+        // DB::listen: this harness's connection has no event dispatcher.)
+        $armed = true;
+        DB::connection()->beforeExecuting(function (string $sql) use (&$armed, $id): void {
+            if (!$armed) return;
+            if (stripos(ltrim($sql), 'update') === 0 && str_contains($sql, 'gates_donations')
+                && str_contains($sql, 'votes_used')) {
+                $armed = false;
+                DB::table('gates_donations')->where('id', $id)
+                    ->update(['refund_requested_at' => date('Y-m-d H:i:s'), 'refund_state' => 'requested']);
+            }
+        });
+
+        try {
+            $r = \AfricaGates\Services\PaidVoteService::mint($id);
+            $fired = !$armed;
+        } finally {
+            $armed = false;   // the callback outlives this test on the shared connection
+        }
+        $this->assertTrue($fired, 'the interleaving never happened, so this test proves nothing');
+
+        $this->assertFalse((bool) $r['ok'], 'mint reported success on an order a refund had claimed');
+        $this->assertSame('ALREADY_REFUNDED', $r['code'] ?? null);
+        $this->assertSame(0, (int) $this->row($id)->votes_used, 'votes were credited on an order being refunded');
+        $this->assertSame(0, (int) DB::table('gates_votes')->where('donation_id', $id)->count());
+        $this->assertSame(0, (int) DB::table('gates_nominees')->where('id', $this->openNominee)->value('vote_count'));
+    }
+
+    /** An override against DELIVERED is the one refund that may claim a minted order. */
+    public function test_an_override_still_refunds_a_delivered_order(): void
+    {
+        $id = $this->order(['votes_used' => 20]);
+        $gw = $this->gateway();
+        $m  = new \ReflectionMethod(RefundService::class, 'refundOne');
+        $this->assertTrue($m->invoke(new RefundService($gw), $this->row($id), false));
+        $this->assertCount(1, $gw->refunds);
+    }
 }

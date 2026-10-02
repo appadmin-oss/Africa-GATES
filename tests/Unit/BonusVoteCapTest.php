@@ -160,4 +160,63 @@ final class BonusVoteCapTest extends TestCase
                 $f . ' resolves the bonus ceiling itself instead of asking capFor()');
         }
     }
+
+    /**
+     * THE CEILING IS PER NOMINEE, SO ITS LOCK HAS TO BE TOO.
+     *
+     * Both redemption paths locked only the row of the person spending — the donation,
+     * the member — so two different people redeeming onto one nominee at the same moment
+     * each read `used` below the cap and each granted, overshooting it by a redemption.
+     * The fix is a `lockForUpdate()` on the nominee row read before `capFor()`.
+     *
+     * Said plainly: SQLite compiles `lockForUpdate()` to nothing and this harness has one
+     * connection, so the race itself cannot be run here — only on MySQL with two
+     * sessions. What is asserted is the shape (the nominee read that feeds the cap carries
+     * the lock, in both files) and, below, that the cap holds across two DIFFERENT
+     * spenders sequentially, which is the case the lock makes true concurrently.
+     */
+    public function test_the_nominee_row_is_locked_before_the_cap_is_read(): void
+    {
+        $root = dirname(__DIR__, 2) . '/src/Services/';
+        foreach (['BonusVoteService.php' => 'function redeem(', 'PointsService.php' => 'function redeemForVote('] as $f => $sig) {
+            $src  = (string) file_get_contents($root . $f);
+            $code = (string) preg_replace(['~/\*.*?\*/~s', '~(?<!:)//[^\n]*~'], ' ', $src);
+            $from = strpos($code, $sig);
+            $this->assertNotFalse($from, "$f no longer has $sig — update this guard, do not delete it");
+            $cap  = strpos($code, 'capFor(', $from);
+            $this->assertNotFalse($cap, "$f $sig no longer asks capFor()");
+            $body = substr($code, $from, $cap - $from);
+
+            $reads = array_filter(explode(';', $body),
+                static fn (string $stmt): bool => str_contains($stmt, "'gates_nominees'") && str_contains($stmt, '->first('));
+            $this->assertNotEmpty($reads, "$f: no nominee read found before capFor()");
+            foreach ($reads as $stmt) {
+                $this->assertStringContainsString('lockForUpdate()', $stmt,
+                    "$f reads the nominee for the per-nominee cap without locking it:\n" . trim($stmt));
+            }
+        }
+    }
+
+    public function test_the_cap_holds_across_two_different_donors(): void
+    {
+        $nid = $this->nominee(0);   // no support yet: the ceiling is the floor
+        DB::table('gates_award_cycles')->where('id', 1)->update([
+            'voting_open'  => Carbon::now()->subDay()->toDateTimeString(),
+            'voting_close' => Carbon::now()->addDays(5)->toDateTimeString(),
+        ]);
+        $don = fn (): int => (int) DB::table('gates_donations')->insertGetId([
+            'donor_name' => 'D', 'donor_email' => 'd@example.test', 'amount_naira' => 1000,
+            'tier' => 'bonus', 'bonus_votes' => BonusVoteService::MIN_BONUS_CAP, 'votes_used' => 0,
+            'payment_ref' => 'ref_' . bin2hex(random_bytes(4)), 'status' => 'confirmed',
+            'created_at' => Carbon::now()->toDateTimeString(),
+        ]);
+        $svc = new BonusVoteService();
+        $cap = BonusVoteService::MIN_BONUS_CAP;
+
+        $first = $svc->redeem($don(), $nid, $cap - 1);
+        $this->assertTrue($first['ok'], json_encode($first));
+        $second = $svc->redeem($don(), $nid, 2);
+        $this->assertFalse($second['ok'], 'a second donor pushed the nominee past the ceiling');
+        $this->assertSame($cap - 1, (int) DB::table('gates_votes')->where('nominee_id', $nid)->sum('weight'));
+    }
 }

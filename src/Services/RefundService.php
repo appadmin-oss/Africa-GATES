@@ -553,7 +553,10 @@ final class RefundService
         } catch (\Throwable) { $don = null; }
         if (!$don) return ['ok' => false, 'outcome' => 'NOT_FOUND', 'say' => 'No payment with that reference.'];
 
-        if (!$this->refundOne($don)) {
+        // An override may refund an order whose votes ARE on the tally — that is what
+        // overriding a DELIVERED verdict means — so only the override drops the
+        // undelivered clause from the claim.
+        if (!$this->refundOne($don, requireUndelivered: !$override)) {
             return ['ok' => false, 'outcome' => 'NOT_SENT',
                     'say' => 'The refund was not sent. Either another worker already has it, or the gateway '
                            . 'refused — the order\'s refund state and reason say which.'];
@@ -584,17 +587,27 @@ final class RefundService
      * ticket path uses for a different reason: claim first, act second, record
      * third. A crash anywhere leaves a state that is visible and conservative.
      */
-    private function refundOne(object $don): bool
+    private function refundOne(object $don, bool $requireUndelivered = true): bool
     {
         $ref  = (string) $don->payment_ref;
         $now  = date('Y-m-d H:i:s');
 
         // ── 1. claim ─────────────────────────────────────────────────────────
-        $claimed = DB::table('gates_donations')
+        //
+        // `votes_used = 0` is IN the claim, not only in owed()'s SELECT, and the two are
+        // not the same check. The row this method was handed was read before the claim;
+        // between that read and this UPDATE a reconciler retry or a late webhook can run
+        // PaidVoteService::mint(), whose own claim flips votes_used. Without the clause
+        // here both claims succeed — the votes go on the tally AND the money goes back,
+        // free votes paid for by us. mint()'s claim carries the mirror clause
+        // (refund_requested_at IS NULL), so whichever UPDATE lands first owns the order
+        // and the other sees 0 rows. 0 rows means the gateway is never asked.
+        $claim = DB::table('gates_donations')
             ->where('id', $don->id)
-            ->whereNull('refund_requested_at')
-            ->update(['refund_requested_at' => $now, 'refund_state' => 'requested']);
-        if ($claimed === 0) return false;   // another worker has it
+            ->whereNull('refund_requested_at');
+        if ($requireUndelivered) $claim->where('votes_used', 0);
+        $claimed = $claim->update(['refund_requested_at' => $now, 'refund_state' => 'requested']);
+        if ($claimed === 0) return false;   // another worker has it, or the votes were minted
 
         // ── 2. ask the gateway ───────────────────────────────────────────────
         $provider = $this->providerFor($don);

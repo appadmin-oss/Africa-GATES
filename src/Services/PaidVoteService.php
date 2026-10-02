@@ -581,10 +581,30 @@ class PaidVoteService
 
         return DB::connection()->transaction(function () use ($don, $nominee, $qty, $nomineeId) {
             // Idempotency gate: only the first caller flips votes_used.
-            $claimed = DB::table('gates_donations')
-                ->where('id', $don->id)->where('votes_used', 0)
-                ->update(['votes_used' => $qty]);
-            if ($claimed === 0) return ['ok' => true, 'minted' => 0, 'message' => 'Already minted.'];
+            //
+            // And the refund check AGAIN, inside the claim. The one above read `$don`
+            // before any of this ran; RefundService can stamp refund_requested_at in the
+            // gap and then, because its own claim requires votes_used = 0, go on to send
+            // the money back — while this claim, asking only votes_used, flipped it
+            // anyway. Both halves won: votes on the tally, money returned. With the
+            // clause on both claims exactly one UPDATE can match.
+            $claim = DB::table('gates_donations')
+                ->where('id', $don->id)->where('votes_used', 0);
+            $refundable = OptionalColumn::on('gates_donations', 'refunded_at');
+            if ($refundable) $claim->whereNull('refund_requested_at');
+            $claimed = $claim->update(['votes_used' => $qty]);
+            if ($claimed === 0) {
+                // 0 rows is two different facts and the caller is told which. "Already
+                // minted" is ok:true — a replayed webhook — and saying it about an order
+                // a refund just claimed would tell the buyer their votes landed.
+                $now = DB::table('gates_donations')->where('id', $don->id)->first();
+                if ($refundable && (int) ($now->votes_used ?? 0) === 0
+                    && (($now->refund_requested_at ?? null) !== null || ($now->refunded_at ?? null) !== null)) {
+                    return ['ok' => false, 'code' => 'ALREADY_REFUNDED',
+                            'message' => 'This order has been refunded, so no votes were added.'];
+                }
+                return ['ok' => true, 'minted' => 0, 'message' => 'Already minted.'];
+            }
 
             DB::table('gates_votes')->insert(OptionalColumn::filter('gates_votes', [
                 'nominee_id'       => $nomineeId,

@@ -37,6 +37,22 @@ final class BallotGuard
     {
         $cycle = self::cycleForCategory($categoryId);
         if (!$cycle) throw PhaseError::noCycle('category');
+        // ── THE SANDBOX IS NOT A BALLOT ──────────────────────────────────────
+        // DemoSeeder's rehearsal cycle sits in `voting` with a live window on purpose,
+        // so the phase check below says yes to it. Every vote write path — OTP, paid
+        // checkout and mint, points, donation bonus — resolves its nominee BY ID and
+        // asks only this method, so a lookup by id has no containment at all
+        // (CLAUDE.md, "the sandbox must never reach the public"): a stranger who typed
+        // a sandbox nominee's number could cast a free vote on it and PAY real money
+        // for votes on a row whose whole purpose is to be purged. The refusal is the
+        // same rule as DemoSeeder::liveAwardOnly() — refuse only a programme that is
+        // positively `is_active = 0`, so a cycle with no programme row stays as it was —
+        // and it is applied here rather than in cycleForCategory() because the read
+        // paths (stateForCategory(), votingCloseFor()) describe a sandbox cycle's phase
+        // to the operator rehearsing it, and must go on doing so.
+        if (isset($cycle->programme_active) && (int) $cycle->programme_active === 0) {
+            throw PhaseError::noCycle('category');
+        }
         self::assertPhase($cycle, 'vote', $now);
     }
 
@@ -149,10 +165,15 @@ final class BallotGuard
         try {
             $row = DB::table('gates_award_cycles as cy')
                 ->join('gates_award_categories as c', 'c.cycle_id', '=', 'cy.id')
+                // LEFT join: a cycle whose programme row is missing must still resolve
+                // (an import, a fixture), exactly as it did before; only a programme
+                // that exists and is inactive is refused, in assertVotable().
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
                 ->where('c.id', $categoryId)
                 ->select(['cy.id', 'cy.status', 'cy.year', 'cy.programme_id',
                           'cy.nominations_open', 'cy.nominations_close',
-                          'cy.voting_open', 'cy.voting_close', 'cy.results_date'])
+                          'cy.voting_open', 'cy.voting_close', 'cy.results_date',
+                          'p.is_active as programme_active'])
                 ->first();
         } catch (\Throwable) {
             return null;

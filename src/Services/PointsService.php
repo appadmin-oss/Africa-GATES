@@ -178,7 +178,13 @@ final class PointsService
                 if ((int) $u->points < $cost) {
                     return ['ok' => false, 'message' => 'You need ' . number_format($cost) . ' points to redeem a vote — you have ' . number_format((int) $u->points) . '.'];
                 }
-                $nom = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))->first();
+                // Locked for the per-nominee cap below — see BonusVoteService::redeem(),
+                // which takes the same lock for the same reason: the user lock above stops
+                // one member double-spending, and does nothing about two members (or a
+                // donor) redeeming onto one nominee in the same instant, each reading the
+                // ceiling as unspent.
+                $nom = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))
+                    ->lockForUpdate()->first();
                 if (!$nom) return ['ok' => false, 'message' => 'That nominee is not open for voting.'];
 
                 $cycle = DB::table('gates_award_cycles AS cy')
