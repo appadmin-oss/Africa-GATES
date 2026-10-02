@@ -374,7 +374,11 @@ final class QuestionnaireInvites
         try {
             return (int) DB::table('gates_jobs')
                 ->where('type', self::JOB_INVITE)
-                ->whereIn('status', ['pending', 'running'])
+                // `pending` alone: gates_jobs.status is ENUM('pending','done','failed') on
+                // MySQL and has never held a `running`, so naming it here was a filter word
+                // for a state that cannot exist — harmless today, and the shape that zeroed
+                // a dashboard elsewhere (CLAUDE.md, "a status filter outside its own ENUM").
+                ->where('status', 'pending')
                 ->where('dedupe_key', 'like', self::JOB_INVITE . ':c' . $cycleId . ':%')
                 ->count();
         } catch (\Throwable) {

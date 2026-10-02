@@ -221,6 +221,21 @@ final class StandPhotosTest extends TestCase
 
     // ── the scope check, which is the whole controller ──────────────────────
 
+    /**
+     * A real org login, because the controller re-reads it: the session's ids alone no
+     * longer authorise a write.
+     */
+    private function signIn(int $orgId, string $role = 'owner', int $active = 1): int
+    {
+        $uid = (int) DB::table('gates_org_users')->insertGetId([
+            'org_id' => $orgId, 'email' => "u{$orgId}{$role}" . bin2hex(random_bytes(2)) . '@vendor.test',
+            'password_hash' => 'x', 'role' => $role, 'is_active' => $active,
+        ]);
+        $_SESSION['org_id'] = $orgId;
+        $_SESSION['org_user_id'] = $uid;
+        return $uid;
+    }
+
     private function ctrl(): \AfricaGates\Controllers\StandPhotoController
     {
         return new \AfricaGates\Controllers\StandPhotoController($this->uploads());
@@ -250,7 +265,7 @@ final class StandPhotosTest extends TestCase
      */
     public function test_another_vendors_application_is_not_reachable(): void
     {
-        $_SESSION['org_id'] = 999;   // signed in, but not as the owner of this application
+        $this->signIn(999);   // signed in, but not as the owner of this application
 
         [$status, $body] = $this->call(fn () => $this->ctrl()->add(
             $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
@@ -263,7 +278,7 @@ final class StandPhotosTest extends TestCase
 
     public function test_a_signed_out_visitor_is_refused(): void
     {
-        unset($_SESSION['org_id']);
+        unset($_SESSION['org_id'], $_SESSION['org_user_id']);
 
         [$status, $body] = $this->call(fn () => $this->ctrl()->add(
             $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
@@ -281,7 +296,7 @@ final class StandPhotosTest extends TestCase
      */
     public function test_photographs_cannot_be_changed_after_the_call_closes(): void
     {
-        $_SESSION['org_id'] = 7;
+        $this->signIn(7);
         $this->add();
         DB::table('gates_stand_calls')->where('id', 1)->update(['status' => 'closed']);
 
@@ -303,7 +318,7 @@ final class StandPhotosTest extends TestCase
     /** And the owner can add through the endpoint, so the guard is not simply refusing. */
     public function test_the_owner_can_add_through_the_endpoint(): void
     {
-        $_SESSION['org_id'] = 7;
+        $this->signIn(7);
 
         [$status, $body] = $this->call(fn () => $this->ctrl()->add(
             $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
@@ -312,6 +327,38 @@ final class StandPhotosTest extends TestCase
         $this->assertSame(200, $status);
         $this->assertTrue($body['ok']);
         $this->assertSame(1, $body['count']);
+    }
+
+    /**
+     * The session's org id is not an authorisation. A viewer may read the dashboard and
+     * change nothing, and a login deactivated (or moved to another organisation) since it
+     * signed in must lose its writes now — both were let through when the controller asked
+     * `OrgAuth::orgId()`, which is only what the session remembers.
+     */
+    public function test_a_viewer_or_a_stale_session_cannot_change_photographs(): void
+    {
+        $this->signIn(7, 'viewer');
+        [$status, $body] = $this->call(fn () => $this->ctrl()->add(
+            $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
+            ['application' => $this->appId]));
+        $this->assertSame(403, $status, 'a viewer changed an application');
+        $this->assertFalse($body['ok']);
+
+        $this->signIn(7, 'owner', 0);
+        [$status] = $this->call(fn () => $this->ctrl()->add(
+            $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
+            ['application' => $this->appId]));
+        $this->assertSame(401, $status, 'a deactivated login changed an application');
+
+        // A login moved to org 8 whose session still says 7.
+        $uid = $this->signIn(7);
+        DB::table('gates_org_users')->where('id', $uid)->update(['org_id' => 8]);
+        [$status] = $this->call(fn () => $this->ctrl()->add(
+            $this->post(['photo' => $this->photo()]), new \Slim\Psr7\Response(),
+            ['application' => $this->appId]));
+        $this->assertSame(401, $status, 'a session for an org the login has left still wrote');
+
+        $this->assertSame(0, StandPhotos::count($this->appId));
     }
 
     // ── arriving with the form ──────────────────────────────────────────────

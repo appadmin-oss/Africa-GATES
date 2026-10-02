@@ -526,6 +526,20 @@ trait FlierRaster
      */
     protected function fetch(string $url): ?string
     {
+        // ── HTTP AND HTTPS, AND NOTHING ELSE ─────────────────────────────────
+        //
+        // A photo URL is a value somebody stored, and both transports below speak far
+        // more than the web: cURL does `file://`, `gopher://`, `dict://`, and the stream
+        // wrapper does `file://`, `php://filter` and `phar://`. So `file:///…/.env` was a
+        // "photo" that failed to decode as an image AFTER being read off this disk — and
+        // a redirect from an allowed host could carry cURL to any of those as well. The
+        // scheme is checked here for the request and pinned on the handle for every hop.
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if ($scheme !== 'http' && $scheme !== 'https') {
+            error_log('[flier] refused a photo URL that is not http(s): ' . $url);
+            return null;
+        }
+
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [
@@ -538,6 +552,13 @@ trait FlierRaster
                 CURLOPT_MAXREDIRS      => 3,
                 CURLOPT_USERAGENT      => 'AfricaGates-Flier/1.0',
             ]);
+            if (defined('CURLOPT_PROTOCOLS_STR')) {
+                curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'http,https');
+                curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS_STR, 'http,https');
+            } else {
+                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+                curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+            }
             $out  = curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $err  = curl_error($ch);

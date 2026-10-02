@@ -241,7 +241,11 @@ final class UserAccountService
             ->where('is_used', 0)->where('expires_at', '>', Carbon::now()->toDateTimeString())
             ->orderByDesc('id')->first();
         if (!$tok) return null;
-        DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
+        // Spent by a GUARDED update, and only the request that changed the row goes on.
+        // A bare update by id after the SELECT lets two requests presenting the same link
+        // together both read it unused and both sign in — see consumePasswordReset().
+        $spent = DB::table('gates_otp_tokens')->where('id', $tok->id)->where('is_used', 0)->update(['is_used' => 1]);
+        if ($spent !== 1) return null;
         $user = $this->findById((int) $tok->nominee_id);
         // The token is spent above whatever happens next, so a refusal here cannot leave a
         // presented link spendable — and a suspended account must not be signed in by a
@@ -332,7 +336,16 @@ final class UserAccountService
         // PRESENTED is spent, whatever is decided about it afterwards: if the write below
         // throws, or the account turns out to be one that may not be signed in, a live link
         // left in an inbox is one somebody can carry on trying.
-        DB::table('gates_otp_tokens')->where('id', $row->id)->update(['is_used' => 1]);
+        //
+        // And the burn is the CLAIM: `is_used = 0` is in the update, and only the request
+        // whose update changed the row goes on. Without the predicate, two submits of the
+        // same link (a double-tap, or the owner and whoever else holds the inbox) both
+        // read it live, both stamp it, and both set a password — the last write wins, and
+        // it need not be the owner's. `attempts + 1`-style relativity is not needed here:
+        // `0 → 1` always changes the value, so MySQL's rows-CHANGED and SQLite's
+        // rows-matched agree on it.
+        $spent = DB::table('gates_otp_tokens')->where('id', $row->id)->where('is_used', 0)->update(['is_used' => 1]);
+        if ($spent !== 1) return null;
 
         $user = $this->findById((int) $row->nominee_id);
         if (!$user || !$this->canSignIn($user)) return null;

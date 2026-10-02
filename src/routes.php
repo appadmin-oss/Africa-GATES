@@ -1720,22 +1720,36 @@ return function(App $app) {
                     $tbl = \Illuminate\Database\Capsule\Manager::table('gates_admins');
                     $existing = (clone $tbl)->where('email', $email)->first();
                     if ($existing) {
-                        // RESET is limited to genuine recovery — a locked-out or
-                        // disabled account. An active, unlocked admin must rotate
-                        // from the console (or via the magic-link) so that a leaked
-                        // SETUP_TOKEN can't silently seize a live superadmin.
-                        $locked   = $existing->locked_until !== null && strtotime((string) $existing->locked_until) > time();
-                        $disabled = (int) ($existing->is_active ?? 1) === 0;
-                        if (!$locked && !$disabled) {
-                            error_log("[setup] REFUSED password reset for active account {$email} from {$ip}");
-                            $msg = 'This account is active and not locked, so in-place reset here is disabled. '
-                                 . 'Use the admin magic-link at /admin/magic, or delete SETUP_TOKEN and run `php bin/console admin:create`.';
+                        // RESET is limited to genuine recovery: NO superadmin can sign in
+                        // at all, so nobody inside the console is able to fix it.
+                        //
+                        // It used to be "this account is locked or disabled", and both
+                        // halves of that were the attack rather than the recovery. A lock
+                        // is something anybody can CAUSE — five wrong passwords at
+                        // /admin/login — so a holder of a leaked SETUP_TOKEN locked a live
+                        // superadmin on purpose and then reset it to a password of their
+                        // choosing. And `is_active = 0` is how an admin is deliberately
+                        // switched off; flipping it back to 1 here quietly re-armed
+                        // somebody a colleague had removed. A lock also expires on its own
+                        // — waiting is the recovery for it, and needs no token.
+                        $activeSupers = (int) (clone $tbl)->where('role', 'superadmin')->where('is_active', 1)->count();
+                        if ($activeSupers > 0) {
+                            error_log("[setup] REFUSED password reset for {$email} from {$ip} — {$activeSupers} active superadmin(s) exist");
+                            $msg = 'A superadmin account is active, so reset here is disabled. A locked account unlocks '
+                                 . 'by itself; otherwise use the admin magic-link at /admin/magic, ask a superadmin to '
+                                 . 'act from the console (Admins), or delete SETUP_TOKEN and run `php bin/console admin:create`.';
+                        } elseif ((string) ($existing->role ?? '') !== 'superadmin') {
+                            // Recovery means getting a superadmin back. Re-arming some other
+                            // (possibly deliberately disabled) account restores nobody's
+                            // ability to administer anything.
+                            error_log("[setup] REFUSED password reset for non-superadmin {$email} from {$ip}");
+                            $msg = 'Only a superadmin account can be recovered here. Enter the email of a superadmin.';
                         } else {
                             (clone $tbl)->where('id', $existing->id)->update([
                                 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
                                 'is_active' => 1, 'failed_attempts' => 0, 'locked_until' => null, 'updated_at' => $now,
                             ]);
-                            error_log("[setup] password reset + unlock for {$email} from {$ip}");
+                            error_log("[setup] superadmin recovery: password reset + unlock for {$email} from {$ip}");
                             $ok = true; $msg = "Password reset and account unlocked for {$email} (role unchanged).";
                         }
                     } else {
@@ -1746,7 +1760,7 @@ return function(App $app) {
                         if ($adminCount > 0) {
                             error_log("[setup] REFUSED create superadmin {$email} from {$ip} — {$adminCount} admin(s) already exist");
                             $msg = 'An admin account already exists, so first-admin creation here is disabled. '
-                                 . 'Add admins from the console (Admins), recover a locked/disabled account, or use `php bin/console admin:create`.';
+                                 . 'Add admins from the console (Admins), recover a superadmin here when none is active, or use `php bin/console admin:create`.';
                         } else {
                             (clone $tbl)->insert([
                                 'email' => $email, 'name' => $name, 'role' => 'superadmin',

@@ -402,4 +402,53 @@ final class PasswordResetTest extends TestCase
         $this->assertNotNull($this->accounts()->attemptLogin((string) $u->email, 'a brand new password'),
             'the password was not set because the notice could not be sent');
     }
+    /**
+     * Run $fn with another request's spend of every live token landing immediately before
+     * the first UPDATE of `gates_otp_tokens` — after the consumer's own read said the
+     * token was live. That is the interleaving two simultaneous presentations produce.
+     */
+    private function withRivalSpend(callable $fn): mixed
+    {
+        $armed = true;
+        DB::connection()->beforeExecuting(function (string $sql) use (&$armed): void {
+            if (!$armed) return;
+            if (stripos(ltrim($sql), 'update') === 0 && str_contains($sql, 'gates_otp_tokens')) {
+                $armed = false;
+                DB::table('gates_otp_tokens')->update(['is_used' => 1]);
+            }
+        });
+        try {
+            $r = $fn();
+            $this->assertFalse($armed, 'the interleaving never happened, so this test proves nothing');
+            return $r;
+        } finally {
+            $armed = false;   // the callback outlives this test on the shared connection
+        }
+    }
+
+    /**
+     * ONCE, UNDER CONCURRENCY TOO. The burn used to be a bare update by id after the
+     * read, so two submits of one link both read it live, both stamped it and both set a
+     * password — the last write winning, and it need not be the owner's. The burn is the
+     * claim now: only the request whose update changed the row goes on.
+     *
+     * This is also the first test here that fails when the burn is DELETED — the sweep
+     * of every other outstanding token marks the same row used on its way past, which is
+     * why `test_a_link_sets_the_password_and_then_cannot_be_used_again` stayed green
+     * without it. It holds that the guarded burn exists and decides; it still does not
+     * hold that the burn precedes the password write, which nothing here does.
+     */
+    public function test_a_link_spent_by_a_simultaneous_request_sets_nothing(): void
+    {
+        $a = $this->accounts();
+        $u = $this->member();
+        $raw = (string) $a->issuePasswordReset((int) $u->id, (string) $u->email);
+
+        $r = $this->withRivalSpend(fn () => $a->consumePasswordReset($raw, 'the-racer-password'));
+
+        $this->assertNull($r, 'one reset link was spent by two requests');
+        $this->assertNull($a->attemptLogin((string) $u->email, 'the-racer-password'),
+            'the losing request still wrote its password');
+        $this->assertNotNull($a->attemptLogin((string) $u->email, 'the-old-one'));
+    }
 }

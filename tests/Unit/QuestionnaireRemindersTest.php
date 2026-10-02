@@ -199,6 +199,46 @@ final class QuestionnaireRemindersTest extends TestCase
     }
 
     /** But a later mark is a new warning, and it does go. */
+    /**
+     * CLAIM BEFORE SEND. Two sweeps reading the same silent list both mailed the nominee
+     * before either stamped. The rival's stamp lands after our read and before our next
+     * write; ours must not send.
+     */
+    public function test_a_warning_another_sweep_claimed_is_not_sent_again(): void
+    {
+        $this->submission(1);
+        $this->policy(4);
+
+        $armed = true;
+        DB::connection()->beforeExecuting(function (string $sql) use (&$armed): void {
+            if ($armed && stripos(ltrim($sql), 'update') === 0 && str_contains($sql, 'gates_nominee_submissions')) {
+                $armed = false;
+                DB::table('gates_nominee_submissions')->where('id', 1)->update(['reminded_at' => date('Y-m-d H:i:s')]);
+            }
+        });
+        try {
+            $n = R::sweep($this->mailer());
+            $fired = !$armed;
+        } finally {
+            $armed = false;
+        }
+
+        $this->assertTrue($fired, 'the interleaving never happened, so this test proves nothing');
+        $this->assertSame(0, $n);
+        $this->assertSame([], $this->sent, 'a nominee was warned twice for one mark');
+    }
+
+    /** A warning that could not go leaves no stamp — enforce() would read one as a warning. */
+    public function test_a_warning_with_nowhere_to_go_leaves_no_stamp(): void
+    {
+        $this->submission(1);
+        DB::table('gates_nominations')->where('id', 1)->update(['nominee_email' => 'not-an-address']);
+        $this->policy(4);
+
+        $this->assertSame(0, R::sweep($this->mailer()));
+        $this->assertSame('', $this->stamp(1));
+    }
+
     public function test_a_later_mark_warns_again(): void
     {
         $this->submission(1);

@@ -87,11 +87,18 @@ class AccountController
      * are allowed — never a scheme, host, or protocol-relative (`//evil.com`) URL,
      * which would turn login into an open redirect. Also refuses auth pages so we
      * don't bounce a freshly-signed-in user back to a login screen.
+     *
+     * Any control character or space is refused outright, not just CR/LF: the URL parser
+     * every browser implements STRIPS tab and newline from anywhere in a URL before
+     * resolving it, so `/\t/evil.example/` passes a "second character is not a slash"
+     * check here and arrives at the browser as `//evil.example/` — protocol-relative, and
+     * off-site. A real path never carries a raw one; it would be percent-encoded.
      */
     private function safeNext(?string $raw): ?string
     {
         $raw = trim((string) $raw);
-        if ($raw === '' || $raw[0] !== '/' || str_starts_with($raw, '//') || str_contains($raw, "\\")) return null;
+        if ($raw === '' || preg_match('/[\x00-\x20\x7F]/', $raw)) return null;
+        if ($raw[0] !== '/' || str_starts_with($raw, '//') || str_contains($raw, "\\")) return null;
         $path = parse_url($raw, PHP_URL_PATH) ?: '';
         if (str_starts_with($path, '/account/login') || str_starts_with($path, '/account/register') || str_starts_with($path, '/account/verify')) return null;
         return $raw;

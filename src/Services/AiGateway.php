@@ -318,7 +318,10 @@ final class AiGateway
             DB::table('gates_ai_calls')->insert([
                 'capability'     => mb_substr($capability, 0, 60),
                 'purpose'        => $cap?->purpose,
-                'provider'       => isset($meta['provider']) ? mb_substr((string) $meta['provider'], 0, 40) : null,
+                // 20, the column's width on MySQL (VARCHAR(20)). Truncated at 40 a long
+                // provider string was refused in strict mode — and this insert's own catch
+                // swallowed it, so the audit row for the call simply did not exist.
+                'provider'       => isset($meta['provider']) ? mb_substr((string) $meta['provider'], 0, 20) : null,
                 'model'          => isset($meta['model']) ? mb_substr((string) $meta['model'], 0, 80) : $cap?->model,
                 'subject_type'   => isset($meta['subject_type']) ? mb_substr((string) $meta['subject_type'], 0, 40) : null,
                 'subject_id'     => isset($meta['subject_id']) ? (int) $meta['subject_id'] : null,

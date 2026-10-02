@@ -1208,16 +1208,39 @@ class SettingsController
     public function runCron(Request $req, Response $res): Response
     {
         $adminId = (int)($_SESSION['admin_id'] ?? 0);
+        // The SAME single-instance lock the CLI cron and /__cron/run take. Without it this
+        // button was a third, unguarded door into one orchestrator: pressed during a tick,
+        // two passes ran side by side over every sweep that reads "not yet done" and then
+        // acts — refunds, payouts, the reminders, the acknowledgements — which is how one
+        // person receives the same email twice, or one refund is asked for twice.
+        if (!self::acquireMaintenanceLock()) {
+            $_SESSION['flash_error'] = 'Maintenance is already running (the scheduled tick, or another press of this button). '
+                . 'Nothing was started — try again in a minute.';
+            return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+        }
         try {
             $r = (new \AfricaGates\Support\Maintenance(null, false))->run('auto');
-            $done = array_sum(array_map(static fn($x) => (int)($x[1] ?? 0), $r['ran'] ?? []));
-            $_SESSION['flash_ok'] = sprintf('Maintenance ran (%d task groups, %dms). Queue delivery + integrations run on the automatic tick.', count($r['ran'] ?? []), (int)($r['runtime_ms'] ?? 0));
+            $failed = array_keys((array) ($r['failures'] ?? []));
+            if ($failed !== []) {
+                $_SESSION['flash_error'] = sprintf('Maintenance ran (%d task groups, %dms) but %d failed: %s. The reasons are in the cron log.',
+                    count($r['ran'] ?? []), (int)($r['runtime_ms'] ?? 0), count($failed), implode(', ', $failed));
+            } else {
+                $_SESSION['flash_ok'] = sprintf('Maintenance ran (%d task groups, %dms). Queue delivery + integrations run on the automatic tick.', count($r['ran'] ?? []), (int)($r['runtime_ms'] ?? 0));
+            }
         } catch (\Throwable $e) {
             error_log('[settings run-cron] ' . $e->getMessage());
             $_SESSION['flash_error'] = 'Maintenance run failed — check the logs.';
+        } finally {
+            \AfricaGates\Support\CronGuard::releaseAll();
         }
         try { $this->audit->record($adminId, 'settings.run_cron', null, null); } catch (\Throwable) {}
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
+    /** The lock {@see \AfricaGates\Support\CronGuard} names `maintenance`, in the directory the webcron uses. */
+    private static function acquireMaintenanceLock(): bool
+    {
+        return \AfricaGates\Support\CronGuard::acquire('maintenance', dirname(__DIR__, 3) . '/var/data');
     }
 
     /**
@@ -1242,6 +1265,13 @@ class SettingsController
     public function reconcilePayments(Request $req, Response $res): Response
     {
         $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        // Same lock as runCron() and the scheduler. The reconciliation's own UPDATE is
+        // idempotent, but the recovery and receipt mail around it is not.
+        if (!self::acquireMaintenanceLock()) {
+            $_SESSION['flash_error'] = 'Maintenance is running right now, and it reconciles payments itself. '
+                . 'Nothing was started — try again in a minute.';
+            return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+        }
         try {
             $r = (new \AfricaGates\Support\Maintenance(null, false))->run('payments');
             $failed = ($r['failures'] ?? []) !== [];
@@ -1253,6 +1283,8 @@ class SettingsController
         } catch (\Throwable $e) {
             error_log('[settings reconcile] ' . $e->getMessage());
             $_SESSION['flash_error'] = 'Could not reconcile: ' . $e->getMessage();
+        } finally {
+            \AfricaGates\Support\CronGuard::releaseAll();
         }
         try { $this->audit->record($adminId, 'settings.reconcile_payments', null, null); } catch (\Throwable) {}
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);

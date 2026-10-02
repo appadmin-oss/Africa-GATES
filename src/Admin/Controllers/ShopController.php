@@ -72,11 +72,14 @@ final class ShopController
                     : $rows->where('fulfilment', $ful);
             }
             if ($search !== '') {
-                $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $search) . '%';
+                // Through Support\Like: a backslash escape with no ESCAPE clause is MySQL's
+                // default and SQLite has none, so a search for a reference containing `_`
+                // matched on production and returned nothing in dev.
+                $like = \AfricaGates\Support\Like::contains($search);
                 $rows->where(static function ($w) use ($like): void {
-                    $w->where('reference', 'like', $like)
-                      ->orWhere('email', 'like', $like)
-                      ->orWhere('name', 'like', $like);
+                    $w->whereRaw(\AfricaGates\Support\Like::clause('reference'), [$like])
+                      ->orWhereRaw(\AfricaGates\Support\Like::clause('email'), [$like])
+                      ->orWhereRaw(\AfricaGates\Support\Like::clause('name'), [$like]);
                 });
             }
             // A shortfall first, then newest. Not a sort the operator picks: a paid order that

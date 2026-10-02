@@ -223,7 +223,10 @@ final class CookiePrefs
         $p = trim($path);
         if ($p === '' || $p[0] !== '/') return '/';
         if (str_starts_with($p, '//') || str_starts_with($p, '/\\')) return '/';
-        if (str_contains($p, "\n") || str_contains($p, "\r")) return '/';
+        // Every control character and the space, not only CR/LF: a browser strips tab
+        // and newline from anywhere in a URL before resolving it, so `/\t/evil.example`
+        // survives the two checks above and is followed as `//evil.example`.
+        if (preg_match('/[\x00-\x20\x7F]/', $p)) return '/';
 
         // No query and no fragment: see path() for why the query in particular.
         $p = (string) preg_replace('/[?#].*$/', '', $p);

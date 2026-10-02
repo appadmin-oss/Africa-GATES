@@ -161,7 +161,17 @@ class AuthService
             ->where('expires_at', '>', Carbon::now()->toDateTimeString())
             ->first();
         if (!$row) return null;
-        DB::table('gates_magic_links')->where('id', $row->id)->update(['used_at' => Carbon::now()->toDateTimeString()]);
+        // The spend IS the check. A bare update by id after the SELECT leaves a gap nothing
+        // serialises: two requests presenting the same link together both read it unused,
+        // both stamp it, and both sign in — a single-use credential spent twice, by
+        // whoever forwarded it as well as whoever it was for. With the predicate on the
+        // update, the database decides who spent it: one request changes the row and the
+        // other changes nothing and is refused.
+        $spent = DB::table('gates_magic_links')
+            ->where('id', $row->id)
+            ->whereNull('used_at')
+            ->update(['used_at' => Carbon::now()->toDateTimeString()]);
+        if ($spent !== 1) return null;
         $admin = $this->findByEmail($row->email);
         if ($admin) {
             $this->audit->record($admin->id, 'login', 'admin', $admin->id, ['method' => 'magic_link']);

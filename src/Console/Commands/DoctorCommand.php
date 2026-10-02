@@ -247,7 +247,7 @@ final class DoctorCommand extends Command
             // redirect a browser to. See Support\SiteUrl.
             'app_url_usable'  => \AfricaGates\Support\SiteUrl::isConfigured()
                 ? 'yes'
-                : 'NO — unset or missing its scheme; gateway callbacks fall back to the request host',
+                : 'NO — unset or missing its scheme; links fall back to the request host only if it is trusted (TRUSTED_HOSTS)',
         ];
         foreach (['APP_URL', 'APP_ENV', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS',
                   'TRUST_PROXY', 'SESSION_SECURE', 'CRON_TOKEN', 'SETUP_TOKEN',
@@ -687,8 +687,10 @@ final class DoctorCommand extends Command
                  . 'gateway callback is built from it, so a blank value produced a RELATIVE '
                  . 'return URL — which Paystack and Flutterwave cannot redirect a browser to, '
                  . 'so the buyer never comes back and the order stays PENDING with their money '
-                 . 'taken. Support\\SiteUrl now falls back to the request host, which is correct '
-                 . 'on a single-host deployment, but set APP_URL explicitly: it is the only value '
+                 . 'taken. Support\\SiteUrl now falls back to the request host when that host is '
+                 . 'trusted (the production host, localhost, or one listed in TRUSTED_HOSTS) — an '
+                 . 'untrusted Host would otherwise put an attacker\'s domain in a password-reset '
+                 . 'link — and to the production host otherwise. Set APP_URL explicitly: it is the only value '
                  . 'that is right behind a TLS-terminating proxy, and cron and the console have '
                  . 'no request to derive it from.';
         }

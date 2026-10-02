@@ -90,6 +90,19 @@ final class Maintenance
      *      is gated by a shared secret and whoever holds it is the operator — shown in
      *      the webcron response body.
      */
+    /*
+     * ── AND A TASK MUST NOT SWALLOW ITS OWN FAILURE ─────────────────────────────
+     *
+     * task() can only record what reaches it. Ten tasks below each wrapped their body in
+     * `catch (\Throwable) { log; return 0; }` — written before task() existed, when a
+     * throw would have ended the whole run — so every one of their crashes arrived here
+     * as "ran fine, nothing to do", `failures` stayed empty, gates_cron_log said
+     * `success` and /__cron/run said `ok:true`. A dead payment reconciler, refund sweep or
+     * payout sweep looked exactly like a quiet night. They now log their own line and
+     * RETHROW; a non-zero exit from an in-process command throws too. What stays 0 is a
+     * task that decided not to run — automatic refunds switched off, no assistant, no
+     * mailer configured — because that is a setting, not a fault.
+     */
     private function task(string $name, callable $fn): int
     {
         try {
@@ -773,7 +786,7 @@ final class Maintenance
             return $r['changed'];
         } catch (\Throwable $e) {
             $this->log('payouts error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
     }
 
@@ -792,7 +805,7 @@ final class Maintenance
             return $n;
         } catch (\Throwable $e) {
             $this->log('stands error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
     }
 
@@ -810,7 +823,7 @@ final class Maintenance
             return $n;
         } catch (\Throwable $e) {
             $this->log('refunds error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
     }
 
@@ -840,7 +853,7 @@ final class Maintenance
             return $n;
         } catch (\Throwable $e) {
             $this->log('support error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
     }
 
@@ -856,11 +869,16 @@ final class Maintenance
             foreach (array_filter(array_map('trim', explode("\n", $out->fetch()))) as $line) {
                 $this->log('payments: ' . $line);
             }
-            return $code === 0 ? 1 : 0;
         } catch (\Throwable $e) {
             $this->log('payments error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
+        // Non-zero is the command's own way of saying "a person is needed" — an amount
+        // mismatch is money that does not add up. Mapped to 0 it read as a quiet tick.
+        if ($code !== 0) {
+            throw new \RuntimeException("payment reconciliation exited {$code} — see the payments: lines above (an amount mismatch needs a person)");
+        }
+        return 1;
     }
 
     /**
@@ -885,7 +903,7 @@ final class Maintenance
             return (int) $r['sent'];
         } catch (\Throwable $e) {
             $this->log('Checkout recovery error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
     }
 
@@ -906,11 +924,14 @@ final class Maintenance
         try {
             $code = (new CpiRecomputeCommand())->run(new ArrayInput([]), new NullOutput());
             $this->log('cpi: recompute exit ' . $code);
-            return $code === 0 ? 1 : 0;
         } catch (\Throwable $e) {
             $this->log('cpi error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
+        if ($code !== 0) {
+            throw new \RuntimeException("cpi recompute exited {$code}");
+        }
+        return 1;
     }
 
     private function captureSnapshots(): int
@@ -921,7 +942,7 @@ final class Maintenance
             return $n;
         } catch (\Throwable $e) {
             $this->log('Snapshot error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
     }
 
@@ -977,7 +998,7 @@ final class Maintenance
             return $r['findings'];
         } catch (\Throwable $e) {
             $this->log('Collusion error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
     }
 
@@ -1123,7 +1144,7 @@ final class Maintenance
             return $r['done'];
         } catch (\Throwable $e) {
             $this->log('Queue error: ' . $e->getMessage());
-            return 0;
+            throw $e;
         }
     }
 
@@ -1149,16 +1170,30 @@ final class Maintenance
                 $html = "<p>Hi <strong>{$by}</strong>,</p><p>A quick note that your nomination of <strong>{$nn}</strong>"
                     . ($ref !== '' ? " (ref {$ref})" : '') . " is still with our review team. Thank you for your patience — "
                     . "we review every nomination by hand to keep the awards fair, and you'll hear from us the moment there's a decision.</p>";
+                // CLAIM, THEN SEND. It used to send and then stamp, so two passes reading the
+                // same "not yet acknowledged" list — a scheduled tick and the settings
+                // button, or two webcron hits inside the 06:00 window — both mailed the
+                // nominator before either stamped. The stamp is the claim now: a guarded
+                // UPDATE on `nominator_ack_at IS NULL`, and only the pass that changed the
+                // row sends. A send that throws hands the claim back, so "try again next
+                // run" still holds.
+                $stamp = date('Y-m-d H:i:s');
+                $claimed = DB::table('gates_nominations')->where('id', (int) $nom->id)
+                    ->whereNull('nominator_ack_at')->update(['nominator_ack_at' => $stamp]);
+                if ($claimed !== 1) continue;
                 try {
                     $mailer->sendBranded((string)$nom->nominator_email, "Your nomination of {$nom->nominee_name} is still under review",
                         $html, "Hi {$nom->nominator_name},\n\nYour nomination of {$nom->nominee_name} is still under review. You'll hear from us as soon as there's a decision.\n\n— Africa GATES", 'Nominations');
-                    NominationFeedbackService::markAcked((int)$nom->id);
                     $sent++;
-                } catch (\Throwable $e) { /* try again next run */ }
+                } catch (\Throwable $e) {
+                    // Released only if it is still OUR claim.
+                    DB::table('gates_nominations')->where('id', (int) $nom->id)
+                        ->where('nominator_ack_at', $stamp)->update(['nominator_ack_at' => null]);
+                }
             }
             $this->log("Nomination acknowledgements sent: {$sent}");
             return $sent;
-        } catch (\Throwable $e) { $this->log('Ack error: ' . $e->getMessage()); return 0; }
+        } catch (\Throwable $e) { $this->log('Ack error: ' . $e->getMessage()); throw $e; }
     }
 
     /** The newsletter sender, on this deployment's transport and site address. */
@@ -1249,6 +1284,7 @@ final class Maintenance
             $this->log("Voting reminders sent: {$count}");
         } catch (\Throwable $e) {
             $this->log('Reminder error: ' . $e->getMessage());
+            throw $e;
         }
         return $count;
     }

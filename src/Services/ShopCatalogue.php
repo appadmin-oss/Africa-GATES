@@ -506,13 +506,16 @@ final class ShopCatalogue
                 // LIKE, not a full-text index: this catalogue is tens of products, MySQL and
                 // SQLite disagree on full-text syntax, and a shared helper that lied on one of
                 // them would be worse than a scan nobody can measure.
-                $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
+                // Support\Like, not a backslash: SQLite has no default LIKE escape, so
+                // `\_` matched only a literal backslash there and a search containing an
+                // underscore found nothing in dev and the suite.
+                $like = \AfricaGates\Support\Like::contains($q);
                 $base->where(static function ($w) use ($like): void {
-                    $w->where('name', 'like', $like)
-                      ->orWhere('description', 'like', $like)
-                      ->orWhere('category', 'like', $like);
+                    $w->whereRaw(\AfricaGates\Support\Like::clause('name'), [$like])
+                      ->orWhereRaw(\AfricaGates\Support\Like::clause('description'), [$like])
+                      ->orWhereRaw(\AfricaGates\Support\Like::clause('category'), [$like]);
                     if (OptionalColumn::on('gates_products', 'subtitle')) {
-                        $w->orWhere('subtitle', 'like', $like);
+                        $w->orWhereRaw(\AfricaGates\Support\Like::clause('subtitle'), [$like]);
                     }
                 });
             }

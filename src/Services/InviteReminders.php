@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\BroadcastLog;
 use AfricaGates\Support\DisplayTime;
 use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -507,24 +508,38 @@ final class InviteReminders
         if (self::alreadySent((int) $event->id, $mark, $email)) {
             return ['ok' => false, 'error' => 'Already reminded at this mark.', 'skipped' => true];
         }
+        // CLAIM, THEN SEND. alreadySent() above is a read, and two sweeps reading it
+        // together — the hourly tick and an operator's `?task=invite-reminders`, or two
+        // webcron hits in one window — both saw "not sent" and both mailed the guest
+        // before either logged. The claim is a write the database arbitrates; the read
+        // stays only as the cheap early answer.
+        if (!self::claim((int) $event->id, $mark, $invite)) {
+            return ['ok' => false, 'error' => 'Already reminded at this mark.', 'skipped' => true];
+        }
 
         $mailer ??= OtpService::boot();
         $m = self::compose($invite, $event, $daysUntil, $mark);
 
-        $r = $mailer->sendBranded(
-            $email,
-            $m['subject'],
-            $m['html'],
-            $m['plain'],
-            'Reminder',
-            $m['hero'],
-            EmailOptOut::url(rtrim(SiteUrl::base(), '/'), $email),
-            // NO ATTACHMENT. The formal letter went with the invitation; repeating a PDF
-            // four times is weight in somebody's inbox for a document they already have.
-            [],
-            $m['preheader'],
-            self::HERO_H
-        );
+        // A throw must still settle the claim, or the row sits at `sending` — the
+        // never-retried state — for a reminder that provably did not go.
+        try {
+            $r = $mailer->sendBranded(
+                $email,
+                $m['subject'],
+                $m['html'],
+                $m['plain'],
+                'Reminder',
+                $m['hero'],
+                EmailOptOut::url(rtrim(SiteUrl::base(), '/'), $email),
+                // NO ATTACHMENT. The formal letter went with the invitation; repeating a PDF
+                // four times is weight in somebody's inbox for a document they already have.
+                [],
+                $m['preheader'],
+                self::HERO_H
+            );
+        } catch (\Throwable $e) {
+            $r = ['success' => false, 'error' => $e->getMessage()];
+        }
 
         $ok    = (bool) ($r['success'] ?? false);
         $error = (string) ($r['error'] ?? '');
@@ -872,6 +887,33 @@ final class InviteReminders
             // makes for the invitation itself: a second copy of a message somebody already
             // has is worse than a missing one an operator can send by hand.
             return true;
+        }
+    }
+
+    /**
+     * Own this guest at this mark, or learn somebody else does.
+     *
+     * {@see BroadcastLog::claim()} is the insert the UNIQUE (campaign, email_hash) decides.
+     * One case it does not cover is deliberate here: a reminder that FAILED is retried on
+     * a later tick (it always has been — the old log overwrote `failed` in place), so a
+     * `failed` row is re-claimed by a guarded UPDATE, and only the sweep that moved it to
+     * `sending` sends. A row at `sending` is somebody else's send in flight, or one that
+     * died mid-send; neither is retried, for the reason BroadcastLog gives.
+     */
+    private static function claim(int $eventId, int $mark, object $invite): bool
+    {
+        $campaign  = self::campaignKey($eventId, $mark);
+        $email     = (string) $invite->email;
+        $nomineeId = ($invite->nominee_id ?? null) ? (int) $invite->nominee_id : null;
+        if (BroadcastLog::claim($campaign, $email, $nomineeId)) return true;
+        try {
+            return DB::table('gates_broadcast_log')
+                ->where('campaign', $campaign)
+                ->where('email_hash', EmailOptOut::hash($email))
+                ->where('status', BroadcastLog::FAILED)
+                ->update(['status' => BroadcastLog::SENDING, 'sent_at' => Carbon::now()->toDateTimeString()]) === 1;
+        } catch (\Throwable) {
+            return false;   // cannot prove it is ours, so do not send — same call as alreadySent()
         }
     }
 

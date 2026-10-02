@@ -198,4 +198,39 @@ final class EmailVerificationTest extends TestCase
         $this->assertStringContainsString('junk folder', $html,
             'the page offers a resend without first suggesting the free thing');
     }
+    /**
+     * Run $fn with another request's spend of every live token landing immediately before
+     * the first UPDATE of `gates_otp_tokens` — after the consumer's own read said the
+     * token was live. That is the interleaving two simultaneous presentations produce.
+     */
+    private function withRivalSpend(callable $fn): mixed
+    {
+        $armed = true;
+        DB::connection()->beforeExecuting(function (string $sql) use (&$armed): void {
+            if (!$armed) return;
+            if (stripos(ltrim($sql), 'update') === 0 && str_contains($sql, 'gates_otp_tokens')) {
+                $armed = false;
+                DB::table('gates_otp_tokens')->update(['is_used' => 1]);
+            }
+        });
+        try {
+            $r = $fn();
+            $this->assertFalse($armed, 'the interleaving never happened, so this test proves nothing');
+            return $r;
+        } finally {
+            $armed = false;   // the callback outlives this test on the shared connection
+        }
+    }
+
+    /** One verification link, presented twice at once, signs in once. */
+    public function test_a_verification_link_spent_by_a_simultaneous_request_signs_nobody_in(): void
+    {
+        $svc = $this->accounts();
+        [$id, $email] = $this->member();
+        $raw = (string) $svc->issueEmailVerification($id, $email);
+
+        $r = $this->withRivalSpend(fn () => $svc->verifyEmailToken($raw));
+
+        $this->assertNull($r, 'one verification link signed two requests in');
+    }
 }

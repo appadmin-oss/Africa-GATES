@@ -368,6 +368,55 @@ final class InviteRemindersTest extends TestCase
         $this->assertCount(1, $m->sent, 'one mark is one message');
     }
 
+    /**
+     * CLAIM BEFORE SEND. Two sweeps reading "not reminded yet" together both mailed the
+     * guest before either logged. Here the rival's row lands after our read and before
+     * our next touch of the log; ours must not send.
+     */
+    public function test_a_reminder_another_sweep_claimed_is_not_sent_again(): void
+    {
+        $inv = $this->invited();
+        $m   = $this->recorder();
+        $key = InviteReminders::campaignKey((int) $this->event->id, 14);
+
+        $seen = 0; $armed = true;
+        DB::connection()->beforeExecuting(function (string $sql) use (&$seen, &$armed, $key, $inv): void {
+            if (!$armed || !str_contains($sql, 'gates_broadcast_log')) return;
+            if (++$seen === 2) {
+                $armed = false;
+                DB::table('gates_broadcast_log')->insert([
+                    'campaign' => $key, 'email_hash' => EmailOptOut::hash((string) $inv->email),
+                    'email' => (string) $inv->email, 'status' => 'sending', 'sent_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        });
+        try {
+            $r = InviteReminders::send($inv, $this->event, 9, 14, $m);
+            $fired = !$armed;
+        } finally {
+            $armed = false;
+        }
+
+        $this->assertTrue($fired, 'the interleaving never happened, so this test proves nothing');
+        $this->assertFalse($r['ok']);
+        $this->assertSame([], $m->sent, 'one guest was reminded twice at one mark');
+    }
+
+    /** A reminder that FAILED is still retried — the claim must not freeze it. */
+    public function test_a_failed_reminder_is_sent_on_a_later_tick(): void
+    {
+        $inv = $this->invited();
+        DB::table('gates_broadcast_log')->insert([
+            'campaign' => InviteReminders::campaignKey((int) $this->event->id, 14),
+            'email_hash' => EmailOptOut::hash((string) $inv->email), 'email' => (string) $inv->email,
+            'status' => 'failed', 'sent_at' => date('Y-m-d H:i:s'),
+        ]);
+        $m = $this->recorder();
+
+        $this->assertTrue(InviteReminders::send($inv, $this->event, 9, 14, $m)['ok']);
+        $this->assertCount(1, $m->sent);
+    }
+
     /** A different mark IS a different message — that is what a schedule is. */
     public function test_a_later_mark_still_sends(): void
     {

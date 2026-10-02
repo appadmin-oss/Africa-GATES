@@ -242,6 +242,13 @@ final class CookiePrefsTest extends TestCase
             '/honour/AGI-K7M2QX4T?t=secret' => '/honour/AGI-K7M2QX4T',
             '/nominees#x'             => '/nominees',
             '/nominees/42'            => '/nominees/42',
+            // A browser strips tab and newline from ANYWHERE in a URL before resolving
+            // it, so each of these is followed as `//evil.example`.
+            "/\t/evil.example"        => '/',
+            "/\n/evil.example"        => '/',
+            "/\t\\evil.example"       => '/',
+            "/\x00/evil.example"      => '/',
+            "/\x7f/evil.example"      => '/',
         ] as $in => $want) {
             $this->assertSame($want, CookiePrefs::safeReturn($in), "safeReturn('{$in}')");
         }
