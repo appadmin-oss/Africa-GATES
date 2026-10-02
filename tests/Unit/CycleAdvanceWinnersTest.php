@@ -35,8 +35,8 @@ class CycleAdvanceWinnersTest extends TestCase
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'A_HighVotes', 'status' => 'approved', 'vote_count' => 10, 'organic_vote_count' => 10]);
         DB::table('gates_nominees')->insert(['id' => 2, 'category_id' => 1, 'name' => 'B_HighJudge', 'status' => 'approved', 'vote_count' => 2, 'organic_vote_count' => 2]);
         DB::table('gates_judges')->insert([
-            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
-            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
+            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
+            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
         ]);
         // The shipped rubric is installed by a migration, so it is present in the
         // harness exactly as it is in a migrated production database. Cleared here
@@ -75,8 +75,8 @@ class CycleAdvanceWinnersTest extends TestCase
         ]);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
         DB::table('gates_judges')->insert([
-            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
-            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
+            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
+            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
         ]);
         // The shipped rubric is installed by a migration, so it is present in the
         // harness exactly as it is in a migrated production database. Cleared here
@@ -138,8 +138,8 @@ class CycleAdvanceWinnersTest extends TestCase
         ]);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
         DB::table('gates_judges')->insert([
-            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
-            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
+            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
+            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
         ]);
         // The shipped rubric is installed by a migration, so it is present in the
         // harness exactly as it is in a migrated production database. Cleared here
@@ -215,8 +215,8 @@ class CycleAdvanceWinnersTest extends TestCase
         ]);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
         DB::table('gates_judges')->insert([
-            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
-            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
+            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
+            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
         ]);
         // The shipped rubric is installed by a migration, so it is present in the
         // harness exactly as it is in a migrated production database. Cleared here
@@ -272,8 +272,8 @@ class CycleAdvanceWinnersTest extends TestCase
         ]);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
         DB::table('gates_judges')->insert([
-            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
-            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
+            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
+            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'programme_ids' => '[1]', 'is_active' => 1],
         ]);
         DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert(['id' => 1, 'slug' => 'impact', 'label' => 'Impact', 'weight' => 25, 'is_active' => 1]);

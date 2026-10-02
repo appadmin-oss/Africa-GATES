@@ -176,6 +176,9 @@
                   {% elseif j.why == 'removed' %}
                     <span class="ja-flag ja-flag--bad">off the panel</span>
                     <span class="ja-den">no longer an active judge</span>
+                  {% elseif j.why == 'unassigned' %}
+                    <span class="ja-flag ja-flag--bad">not assigned</span>
+                    <span class="ja-den">no longer on this programme's panel</span>
                   {% else %}
                     <span class="ja-flag ja-flag--warn">part-marked</span>
                     <span class="ja-den">dropped whole, not reweighted</span>

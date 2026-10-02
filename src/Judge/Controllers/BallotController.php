@@ -170,8 +170,8 @@ class BallotController
         $judgeId = (int)$_SESSION['judge_id'];
         $programmeId = (int)$args['programmeId'];
         $b = (array)$req->getParsedBody();
-        $this->judges->declareConflict($judgeId, $programmeId, isset($b['reason']) ? (string)$b['reason'] : null);
-        $_SESSION['flash_ok'] = 'Conflict of interest recorded — you are recused from scoring this programme.';
+        $r = $this->judges->declareConflict($judgeId, $programmeId, isset($b['reason']) ? (string)$b['reason'] : null);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
         return $res->withHeader('Location', '/judge')->withStatus(302);
     }
 
@@ -180,8 +180,8 @@ class BallotController
     {
         $judgeId = (int)$_SESSION['judge_id'];
         $programmeId = (int)$args['programmeId'];
-        $this->judges->withdrawConflict($judgeId, $programmeId);
-        $_SESSION['flash_ok'] = 'Conflict of interest withdrawn — you can score this programme again.';
+        $r = $this->judges->withdrawConflict($judgeId, $programmeId);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
         return $res->withHeader('Location', '/judge/ballot/' . $programmeId)->withStatus(302);
     }
 }

@@ -468,13 +468,11 @@ final class InterviewReview
      */
     public static function looksLikeAScore(string $text): bool
     {
-        if ($text === '') return false;
-        return (bool) preg_match(
-            '~\b\d{1,2}\s*(?:/|out of)\s*10\b'
-            . '|\b(?:score|scores|scored|scoring|rating|rated|grade|graded|band)\b'
-            . '|\b\d{1,3}\s*%|\b(?:strong|weak|excellent|poor)\s+(?:candidate|nominee|answer)\b~i',
-            $text
-        );
+        // The detector lives in Support\ScoreTalk, shared with the judge's dossier map.
+        // A percentage counts HERE ("80% of the criterion is met" is a mark).
+        return \AfricaGates\Support\ScoreTalk::hasMark($text)
+            || \AfricaGates\Support\ScoreTalk::hasPercent($text)
+            || \AfricaGates\Support\ScoreTalk::hasVerdict($text);
     }
 
     // ══ plumbing ═════════════════════════════════════════════════════════════

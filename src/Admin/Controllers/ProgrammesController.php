@@ -68,7 +68,9 @@ class ProgrammesController
             'description' => trim((string)($b['description'] ?? '')),
             'scope'       => (string)($b['scope'] ?? 'continental'),
             'icon_emoji'  => (string)($b['icon_emoji'] ?? '🏆'),
-            'sort_order'  => (int)($b['sort_order'] ?? 0),
+            // TINYINT UNSIGNED on production: strict MySQL refuses 256 (1264) where SQLite
+            // stores it, so the form's value is clamped to what the column can hold.
+            'sort_order'  => max(0, min(255, (int)($b['sort_order'] ?? 0))),
             'is_active'   => isset($b['is_active']) ? 1 : 0,
             'terms'       => trim((string)($b['terms'] ?? '')) ?: null,
         ];
@@ -438,12 +440,25 @@ class ProgrammesController
             'slug'        => preg_replace('/[^a-z0-9-]+/i','-', strtolower((string)($b['slug'] ?? ''))),
             'title'       => trim((string)($b['title'] ?? '')),
             'description' => trim((string)($b['description'] ?? '')),
-            'sort_order'  => (int)($b['sort_order'] ?? 0),
+            // TINYINT UNSIGNED on production — see save() and CycleEdition::copy().
+            'sort_order'  => max(0, min(255, (int)($b['sort_order'] ?? 0))),
         ];
-        if ($catId) {
-            DB::table('gates_award_categories')->where('id', $catId)->update($data);
-        } else {
-            $catId = (int)DB::table('gates_award_categories')->insertGetId($data);
+        // ── A REFUSED WRITE IS A SENTENCE, NOT A 500 ─────────────────────────
+        //
+        // This had no catch at all, so anything the database refused — a slug another
+        // category in the cycle already holds, an empty title on a NOT NULL column —
+        // reached the operator as an error page with the form's contents gone.
+        try {
+            if ($catId) {
+                DB::table('gates_award_categories')->where('id', $catId)->update($data);
+            } else {
+                $catId = (int)DB::table('gates_award_categories')->insertGetId($data);
+            }
+        } catch (\Throwable $e) {
+            error_log('[programmes] category save: ' . $e->getMessage());
+            $_SESSION['flash_error'] = 'That category could not be saved — check its slug is not '
+                . 'already used by another category in this cycle, and that it has a title.';
+            return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
         }
         $this->audit->record((int)$_SESSION['admin_id'], 'category.save', 'category', $catId);
         $this->bustAwardsCache();

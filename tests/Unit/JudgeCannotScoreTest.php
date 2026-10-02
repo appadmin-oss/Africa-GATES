@@ -47,7 +47,11 @@ final class JudgeCannotScoreTest extends TestCase
         DB::table('gates_award_cycles')->insert([
             'id' => 1, 'programme_id' => 1, 'year' => (int) date('Y'), 'status' => 'judging',
             'nominations_open' => '2020-01-01 00:00:00', 'voting_open' => '2020-02-01 00:00:00',
-            'voting_close' => '2020-03-01 00:00:00', 'results_date' => '2020-04-01 00:00:00',
+            // Results date in the FUTURE: the judging lock reads the computed phase
+            // (CyclePolicy::phaseFor), and a 2020 results date computes as Results however
+            // the stored column reads — which is the stale-cache case that lock exists for.
+            'voting_close' => '2020-03-01 00:00:00',
+            'results_date' => date('Y-m-d H:i:s', strtotime('+30 days')),
         ]);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
         DB::table('gates_nominees')->insert([
@@ -172,7 +176,11 @@ final class JudgeCannotScoreTest extends TestCase
     public function test_scoring_outside_the_judging_phase_is_still_refused(): void
     {
         $this->addRubric();
-        DB::table('gates_award_cycles')->where('id', 1)->update(['status' => 'voting']);
+        // The WINDOWS move it back to voting, not the status column: the lock reads the
+        // computed phase, so a status edit alone is the stale cache, not a phase change.
+        DB::table('gates_award_cycles')->where('id', 1)->update([
+            'status' => 'voting', 'voting_close' => date('Y-m-d H:i:s', strtotime('+5 days')),
+        ]);
 
         $r = $this->svc->saveScore(1, 1, [1 => 8], null);
         $this->assertFalse($r['ok']);

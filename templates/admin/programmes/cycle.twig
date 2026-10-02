@@ -290,7 +290,7 @@
             </div>
             <div><label for="f-description-{{ c.id }}">Description</label><textarea name="description" id="f-description-{{ c.id }}" rows="2">{{ c.description }}</textarea></div>
             <div class="row">
-              <div><label for="f-sort_order-{{ c.id }}">Sort order</label><input type="number" name="sort_order" id="f-sort_order-{{ c.id }}" value="{{ c.sort_order }}"></div>
+              <div><label for="f-sort_order-{{ c.id }}">Sort order</label><input type="number" name="sort_order" id="f-sort_order-{{ c.id }}" min="0" max="255" value="{{ c.sort_order }}"></div>
               <div style="display:flex;gap:8px;align-items:flex-end">
                 <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Update</button>
                 {# `formaction`, NOT a nested <form>. This WAS a nested form, and an HTML
@@ -319,7 +319,7 @@
           </div>
           <div><label for="f-description">Description</label><textarea name="description" id="f-description" rows="2"></textarea></div>
           <div class="row">
-            <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" value="0"></div>
+            <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" min="0" max="255" value="0"></div>
             <div style="display:flex;align-items:flex-end"><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Add</button></div>
           </div>
         </form>

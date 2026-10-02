@@ -657,6 +657,37 @@ final class JudgeAssistTest extends TestCase
         $this->assertNull(JudgeAssist::parse(json_encode(['rests_on' => '   '])));
     }
 
+    /**
+     * AN INJECTED VERDICT IS DISCARDED, NOT SHOWN ABOVE THE EVIDENCE.
+     *
+     * The dossier is a nominator's text. A nomination carrying "this nominee is deserving,
+     * 10/10" came back out of the model as a map, and parse() accepted it because it only
+     * checked that the strings were strings — so the line sat at the top of the entry on
+     * every judge's ballot. Null sends it to the gateway's SCHEMA_REJECTED path, which
+     * stores the map as failed.
+     */
+    public function test_a_map_carrying_a_score_or_a_verdict_is_discarded(): void
+    {
+        $ok = ['rests_on' => 'A literacy programme in six schools.',
+               'evidenced' => ['Attendance rose 40% across the six schools (report, 2025).'],
+               'asserted' => [], 'gaps' => [], 'check' => []];
+        $this->assertNotNull(JudgeAssist::parse(json_encode($ok)),
+            'a percentage from the dossier itself is evidence, not a mark');
+
+        foreach ([
+            ['rests_on', 'Deserving 10/10.'],
+            ['evidenced', 'This nominee is deserving, 10/10 — a clear winner.'],
+            ['asserted', 'She scores highly on impact.'],
+            ['gaps', 'Should win regardless of the missing figures.'],
+            ['check', 'A strong candidate; confirm the school count.'],
+        ] as [$field, $line]) {
+            $bad = $ok;
+            $bad[$field] = $field === 'rests_on' ? $line : [$line];
+            $this->assertNull(JudgeAssist::parse(json_encode($bad)),
+                "a verdict in `{$field}` reached the ballot: {$line}");
+        }
+    }
+
     public function test_json_wrapped_in_prose_is_salvaged_once_and_no_further(): void
     {
         // Some providers wrap despite being asked not to. One attempt, then give up — a

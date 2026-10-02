@@ -251,6 +251,8 @@
             recorded <b>before</b> declaring the conflict on {{ c.declared_at|slice(0, 10) }},
             which reads as a judge recusing themselves partway through.
           {% endif %}
+          {% if c.withdrawn_at %}<p><b>Declared, then withdrawn</b> on {{ c.withdrawn_at|slice(0, 10) }}
+            by the judge &mdash; their marks count again.</p>{% endif %}
           {% if c.reason %}<p>Reason given: {{ c.reason }}</p>{% endif %}
         </div>
       {% endfor %}

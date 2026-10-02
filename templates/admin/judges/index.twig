@@ -67,7 +67,7 @@
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/judges/{{ r.id }}">Edit</a>
           <form method="post" action="/admin/judges/{{ r.id }}/regenerate-form" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm" type="submit" data-confirm="Email this judge a fresh single-use onboarding form link? Any previous link will stop working." title="Resend / regenerate onboarding form link">✉</button></form>
-          <form method="post" action="/admin/judges/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Remove {{ r.name }} from the panel? Scores they have already submitted stay on the nominees. They lose access immediately.">×</button></form>
+          <form method="post" action="/admin/judges/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Take {{ r.name }} off the panel? They lose access immediately, and any marks they have given stop counting towards results. A judge who has marked anything is kept as inactive (so the record survives and can be reactivated); one who has judged nothing is deleted.">×</button></form>
         </td>
       </tr>
       {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No judges yet.</td></tr>{% endfor %}

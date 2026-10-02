@@ -668,6 +668,7 @@ class NomineeScoringService
      *   • a judge who recused themselves on this programme — every mark dropped, not
      *     merely no further ones accepted;
      *   • a judge taken off the panel (`is_active = 0`) — the same;
+     *   • a judge no longer assigned to this nominee's programme — the same;
      *   • a scorecard that does not cover every active criterion — dropped whole, so a
      *     judge who marked four of five contributes nothing at all.
      *
@@ -690,6 +691,7 @@ class NomineeScoringService
     public const NOT_COUNTED_RECUSED    = 'recused';
     public const NOT_COUNTED_REMOVED    = 'removed';
     public const NOT_COUNTED_INCOMPLETE = 'incomplete';
+    public const NOT_COUNTED_UNASSIGNED = 'unassigned';
 
     public function panelDetailFor(array $nomineeIds): array
     {
@@ -716,14 +718,17 @@ class NomineeScoringService
         // Resolved before the tree is built, because the answer is not a property of a
         // score row: it is a property of the JUDGE, and of the programme the nominee
         // sits in. See {@see disqualifiedJudges()}.
-        $barred = $this->disqualifiedJudges(array_values(array_unique($programmeOf)));
-
         // Every mark, including the ones that will not count. The filtering used to
         // happen HERE, which is why nothing downstream could ever explain an absence.
         $tree = [];
+        $markers = [];
         foreach (DB::table('gates_judge_criteria_scores')->whereIn('nominee_id', $nomineeIds)->get() as $s) {
             $tree[(int) $s->nominee_id][(int) $s->judge_id][(int) $s->criterion_id] = (int) $s->score;
+            $markers[(int) $s->judge_id] = true;
         }
+
+        $barred = $this->disqualifiedJudges(array_values(array_unique($programmeOf)),
+                                            array_keys($markers));
 
         $out = [];
         foreach ($tree as $nomId => $byJudge) {
@@ -756,6 +761,13 @@ class NomineeScoringService
                 $why = null;
                 if (isset($barred['inactive'][$judgeId]))          $why = self::NOT_COUNTED_REMOVED;
                 elseif (isset($barred['coi'][$prog][$judgeId]))    $why = self::NOT_COUNTED_RECUSED;
+                // Only where the programme is KNOWN: a nominee whose cycle row is gone (an
+                // import, a cycle deleted after release) resolves to 0, and voiding every
+                // mark on a released award because its cycle row is missing is the same
+                // collapse EditionScale guards against, one table over.
+                elseif ($prog > 0 && isset($barred['assigned'][$judgeId])
+                        && !in_array($prog, $barred['assigned'][$judgeId], true))
+                                                                   $why = self::NOT_COUNTED_UNASSIGNED;
                 elseif ($covered !== $required || $wt <= 0)        $why = self::NOT_COUNTED_INCOMPLETE;
 
                 $judges[$judgeId] = [
@@ -786,7 +798,7 @@ class NomineeScoringService
      * Judges whose marks must not count, and why.
      *
      * ══════════════════════════════════════════════════════════════════════════
-     * THE TWO FAILURES THIS EXISTS BECAUSE OF
+     * THE THREE FAILURES THIS EXISTS BECAUSE OF
      * ══════════════════════════════════════════════════════════════════════════
      *
      * 1 · A RECUSED JUDGE WAS STILL DECIDING THE AWARD.
@@ -822,12 +834,45 @@ class NomineeScoringService
      * platform publishes a result partly decided by somebody who told us they should not be
      * deciding it. That is not a defensible award.
      *
+     * 3 · A JUDGE TAKEN OFF A PROGRAMME WAS STILL DECIDING IT.
+     *
+     *     Unticking a programme on the judge's admin form edits `programme_ids`, and every
+     *     gate in the portal reads that — the ballot disappears, saveScore() refuses. The
+     *     marks already given stayed in the average, for the same reason as the two cases
+     *     above: nothing here asked. Asked now through
+     *     {@see \AfricaGates\Judge\Services\JudgeService::programmeIdsFor()}, the portal's
+     *     own assignment rule, so "may this judge score here" and "does this judge's mark
+     *     count here" cannot come to different answers. Retroactive like the other two and
+     *     for the same reason, and shown on the scorecard with its reason.
+     *
+     *     A mark whose judge has NO row is not barred by this. On production the foreign
+     *     key cascades a judge's marks away with the row (which is why a judge is now
+     *     deactivated rather than deleted); the case only exists in a fixture, and an
+     *     unknown judge is not evidence of an unassigned one.
+     *
+     * A WITHDRAWN recusal does not bar: withdrawing exists for a declaration made in
+     * error, and the ballot re-opens on it. The row is kept for the audit, and
+     * {@see \AfricaGates\Judge\Services\JudgeService::standing()} is the one clause both
+     * readers use to tell the two apart.
+     *
      * @param  list<int> $programmeIds programmes in play, so the COI lookup is scoped
-     * @return array{inactive: array<int,true>, coi: array<int, array<int,true>>}
+     * @param  list<int> $judgeIds     judges with a mark in play, so the assignment lookup is
+     * @return array{inactive: array<int,true>, coi: array<int, array<int,true>>,
+     *               assigned: array<int, list<int>>}
      */
-    private function disqualifiedJudges(array $programmeIds): array
+    private function disqualifiedJudges(array $programmeIds, array $judgeIds = []): array
     {
-        $out = ['inactive' => [], 'coi' => []];
+        $out = ['inactive' => [], 'coi' => [], 'assigned' => []];
+
+        if ($judgeIds !== []) {
+            try {
+                $out['assigned'] = \AfricaGates\Judge\Services\JudgeService::programmeIdsFor($judgeIds);
+            } catch (\Throwable $e) {
+                // Unknown is not "unassigned": failing open on THIS clause leaves the two
+                // above it in force, and failing closed would void every panel on a hiccup.
+                error_log('[scoring] could not read judge assignments: ' . $e->getMessage());
+            }
+        }
 
         try {
             foreach (DB::table('gates_judges')->where('is_active', 0)->pluck('id') as $id) {
@@ -842,8 +887,9 @@ class NomineeScoringService
         $programmeIds = array_values(array_filter(array_map('intval', $programmeIds)));
         if ($programmeIds !== []) {
             try {
-                foreach (DB::table('gates_judge_coi')->whereIn('programme_id', $programmeIds)
-                            ->get(['judge_id', 'programme_id']) as $r) {
+                $q = DB::table('gates_judge_coi')->whereIn('programme_id', $programmeIds);
+                \AfricaGates\Judge\Services\JudgeService::standing($q);
+                foreach ($q->get(['judge_id', 'programme_id']) as $r) {
                     $out['coi'][(int) $r->programme_id][(int) $r->judge_id] = true;
                 }
             } catch (\Throwable $e) {

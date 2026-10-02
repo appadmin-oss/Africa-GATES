@@ -295,12 +295,74 @@ class JudgesController
         try { $this->mailer->sendBranded($email, 'Complete your Africa GATES judge profile', $html, $plain, 'Judges'); } catch (\Throwable $e) {}
     }
 
+    /**
+     * POST /admin/judges/{id}/delete — take a judge off the panel.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * A JUDGE WHO HAS MARKED ANYTHING IS RETIRED, NEVER DELETED
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * This was a hard DELETE under a confirm reading "scores they have already submitted
+     * stay on the nominees". On production that sentence was false in the worst direction:
+     * `gates_judge_criteria_scores` and `gates_judge_notes` carry `ON DELETE CASCADE` to
+     * this table, so one click silently destroyed every mark the judge had ever given —
+     * across every cycle, released ones included — and with it the quorum of every nominee
+     * they had sat on. On SQLite (dev, the suite) the foreign keys are not enforced, so the
+     * marks SURVIVED and kept COUNTING, because the scorer bars only `is_active = 0`. The
+     * same button did opposite things on the two databases, and neither was "removed".
+     *
+     * So removal is what `is_active = 0` already means everywhere else: the sign-in, the
+     * live session ({@see \AfricaGates\Judge\Middleware\JudgeAuthMiddleware}) and the
+     * scorer ({@see \AfricaGates\Services\NomineeScoringService::disqualifiedJudges()},
+     * which keeps the marks visible on the scorecard as "off the panel") all honour it. A
+     * true delete is offered only to a judge with no record at all — the mistyped invite —
+     * which is the rule {@see \AfricaGates\Services\JudgeRubric::retire()} applies to a
+     * criterion, for the same reason: a row other records point at is history.
+     */
     public function delete(Request $req, Response $res, array $args): Response
     {
         $id = (int)$args['id'];
-        DB::table('gates_judges')->where('id', $id)->delete();
-        $this->audit->record((int)$_SESSION['admin_id'], 'judge.delete', 'judge', $id);
-        $_SESSION['flash_ok'] = 'Judge removed.';
+        $j = DB::table('gates_judges')->where('id', $id)->first();
+        if (!$j) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $record = self::recordCount($id);
+        if ($record > 0) {
+            DB::table('gates_judges')->where('id', $id)->update(['is_active' => 0]);
+            $this->audit->record((int)($_SESSION['admin_id'] ?? 0), 'judge.retire', 'judge', $id,
+                ['records' => $record]);
+            $_SESSION['flash_ok'] = 'Judge taken off the panel. They have ' . number_format($record)
+                . ' judging record' . ($record === 1 ? '' : 's') . ', so they are kept as inactive rather '
+                . 'than deleted: they can no longer sign in, and their marks no longer count towards '
+                . 'any result. Reactivate them from Edit if this was a mistake.';
+        } else {
+            DB::table('gates_judges')->where('id', $id)->delete();
+            $this->audit->record((int)($_SESSION['admin_id'] ?? 0), 'judge.delete', 'judge', $id);
+            $_SESSION['flash_ok'] = 'Judge removed. They had not judged anything, so nothing else changed.';
+        }
         return $res->withHeader('Location', '/admin/judges')->withStatus(302);
+    }
+
+    /**
+     * How many rows elsewhere point at this judge. Any at all makes the judge history.
+     *
+     * Every table is asked through SchemaHas, because the score log, the map flags and the
+     * conflict table each arrived in a migration and an unmigrated deployment must still be
+     * able to remove a judge — counting a table that does not exist is zero, not a 500.
+     */
+    public static function recordCount(int $judgeId): int
+    {
+        $n = 0;
+        foreach (['gates_judge_criteria_scores', 'gates_judge_notes', 'gates_judge_score_log',
+                  'gates_judge_coi', 'gates_judge_map_flags'] as $table) {
+            if (!\AfricaGates\Support\SchemaHas::table($table)) continue;
+            try {
+                $n += (int) DB::table($table)->where('judge_id', $judgeId)->count();
+            } catch (\Throwable $e) {
+                // Unknown is not none: refuse the delete rather than guess.
+                error_log('[judges] record count on ' . $table . ': ' . $e->getMessage());
+                $n += 1;
+            }
+        }
+        return $n;
     }
 }
