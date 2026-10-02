@@ -209,6 +209,38 @@ final class MailHealthTest extends TestCase
             'it advised retesting ports the diagnosis had just proved blocked');
     }
 
+    /**
+     * The TLS advice was "use 587 with Encryption on Automatic" — sent, hourly, to an
+     * operator already on 587 / Automatic. When the pairing is right, the advice must say
+     * so and name the cause it has measured, never tell them to set what is already set.
+     */
+    public function test_tls_advice_never_tells_a_correct_pairing_to_change_it(): void
+    {
+        foreach ([
+            'no STARTTLS offered'   => new FakeSmtp(offersTls: false),
+            'certificate mismatch'  => new FakeSmtp(tlsOk: false, tlsError:
+                'stream_socket_enable_crypto(): Peer certificate CN=`server.host.example\' did not match expected CN=`smtp.gmail.com\''),
+            'handshake, no reason'  => new FakeSmtp(tlsOk: false),
+        ] as $case => $fake) {
+            $r = $this->diagnose($fake, over: ['host' => 'smtp.gmail.com', 'secure' => 'auto']);
+            $this->assertSame(MailFailure::TLS, $r['cause'], $case);
+            $this->assertStringContainsString('already the right pairing', $r['fix'], $case);
+            $this->assertStringNotContainsString('use port 587', $r['fix'], $case);
+            $this->assertStringContainsString('Send by', $r['fix'], $case . ': no road that is not SMTP was offered');
+        }
+        $r = $this->diagnose(new FakeSmtp(offersTls: false));
+        $this->assertStringContainsString('intercepting', $r['fix'], 'a missing STARTTLS on 587 is the host answering');
+    }
+
+    public function test_tls_advice_names_a_pairing_that_really_is_wrong(): void
+    {
+        $r = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: 'SSL operation failed'),
+                             over: ['port' => 465, 'secure' => 'starttls']);
+        $this->assertSame(MailFailure::TLS, $r['cause']);
+        $this->assertStringContainsString('Port 465 is set with STARTTLS', $r['fix']);
+        $this->assertStringContainsString('Automatic', $r['fix']);
+    }
+
     public function test_a_passing_diagnosis_never_sends_a_message(): void
     {
         $fake = new FakeSmtp();
@@ -383,9 +415,9 @@ final class MailHealthTest extends TestCase
 
     // ══════════════════════════════════════════════════════════════════════════
 
-    private function diagnose(FakeSmtp $fake, ?callable $reach = null): array
+    private function diagnose(FakeSmtp $fake, ?callable $reach = null, array $over = []): array
     {
-        $c = MailConfig::of(['host' => 'smtp.test', 'port' => 587, 'username' => 'login@x', 'password' => 'k',
+        $c = MailConfig::of($over + ['host' => 'smtp.test', 'port' => 587, 'username' => 'login@x', 'password' => 'k',
                              'from' => 'noreply@afrovanguard.org.ng']);
         return (new MailDiagnosis($c, static fn () => $fake, static fn () => ['203.0.113.9'],
                                   $reach ?? static fn () => false))->run();
@@ -439,20 +471,22 @@ final class FakeSmtp extends SMTP
 {
     public array $calls = [];
 
-    public function __construct(private bool $connect = true, private bool $auth = true) {}
+    public function __construct(private bool $connect = true, private bool $auth = true,
+                                private bool $offersTls = true, private bool $tlsOk = true, private string $tlsError = '') {}
 
     public function setTimeout($timeout = 0) { $this->calls[] = 'setTimeout'; }
     public function connect($host, $port = null, $timeout = 30, $options = []) { $this->calls[] = 'connect'; return $this->connect; }
     public function getLastReply() { $this->calls[] = 'getLastReply'; return '220 smtp.test ESMTP ready'; }
     public function hello($host = '') { $this->calls[] = 'hello'; return true; }
-    public function getServerExt($name) { $this->calls[] = 'getServerExt'; return true; }
-    public function startTLS() { $this->calls[] = 'startTLS'; return true; }
+    public function getServerExt($name) { $this->calls[] = 'getServerExt'; return $this->offersTls; }
+    public function startTLS() { $this->calls[] = 'startTLS'; return $this->tlsOk; }
     public function authenticate($username, $password, $authtype = null, $OAuth = null) { $this->calls[] = 'authenticate'; return $this->auth; }
     public function mail($from) { $this->calls[] = 'mail'; return true; }
     public function reset() { $this->calls[] = 'reset'; return true; }
     public function quit($close_on_error = true) { $this->calls[] = 'quit'; return true; }
     public function close() { $this->calls[] = 'close'; }
-    public function getError() { return ['error' => $this->auth ? 'connect failed' : 'Authentication failed', 'detail' => '', 'smtp_code' => $this->auth ? '' : '535', 'smtp_code_ex' => '']; }
+    public function getError() { if (!$this->tlsOk) return ['error' => $this->tlsError, 'detail' => '', 'smtp_code' => '', 'smtp_code_ex' => ''];
+        return ['error' => $this->auth ? 'connect failed' : 'Authentication failed', 'detail' => '', 'smtp_code' => $this->auth ? '' : '535', 'smtp_code_ex' => '']; }
     public function recipient($address, $dsn = '') { $this->calls[] = 'recipient'; return true; }
     public function data($msg_data) { $this->calls[] = 'data'; return true; }
 }

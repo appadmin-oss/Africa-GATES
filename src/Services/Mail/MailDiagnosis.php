@@ -154,6 +154,57 @@ final class MailDiagnosis
     }
 
     /**
+     * ── "THE PORT AND THE ENCRYPTION DO NOT MATCH", SAID TO SOMEBODY WHOSE DO ──
+     *
+     * The generic TLS advice is "use 587 with Encryption on Automatic". That is right only
+     * when the pairing is actually wrong — 465 forced to STARTTLS, or 587 forced to SMTPS.
+     * Shipped, it was sent to an operator already on 587 / Automatic, whose handshake was
+     * failing for a different reason, so the alert told them to set what was already set,
+     * every hour. Same shape as the CONNECT advice above it: the diagnosis has measured
+     * the answer, so it says the measured thing.
+     *
+     * When the pairing is the conventional one, a STARTTLS that is not offered, or a
+     * certificate that is not the provider's, is almost always the web host intercepting
+     * outbound SMTP (cPanel's "SMTP Restrictions" answers port 587 itself) — and no port or
+     * encryption setting on this side can fix that. The remedy is a road that is not SMTP.
+     */
+    /** The detail recorded when the server answered EHLO without offering STARTTLS. */
+    private const NO_STARTTLS = 'The server does not offer STARTTLS.';
+
+    private static function tlsFix(MailConfig $c, string $detail): string
+    {
+        $sec = $c->security();
+        $mismatched = ($c->port === 465 && $sec !== MailConfig::SECURE_SMTPS)
+                   || ($c->port !== 465 && $sec === MailConfig::SECURE_SMTPS);
+        if ($mismatched) {
+            return 'Port ' . $c->port . ' is set with ' . ($sec === MailConfig::SECURE_SMTPS ? 'SMTPS' : 'STARTTLS')
+                . ', which that port does not speak. Set Encryption to Automatic in Settings → Email & sender'
+                . ' (465 is SMTPS, 587 and 2525 are STARTTLS).';
+        }
+
+        $bare = $detail === self::NO_STARTTLS;
+        $intercepted = $bare
+            || preg_match('~certificate|peer|CN=|verify failed|subject name~i', $detail);
+        $road = $c->hasApiKey()
+            ? 'set “Send by” to Automatic so mail goes out by the Brevo API'
+            : 'set “Send by” to Automatic and save a Brevo API key, so mail goes out over HTTPS'
+              . (MailConfig::hostMailAvailable() ? ' (or by this server’s own mail)' : '');
+
+        if ($intercepted) {
+            return 'Port ' . $c->port . ' with ' . ($sec === MailConfig::SECURE_SMTPS ? 'SMTPS' : 'STARTTLS')
+                . ' is already the right pairing, so changing the port or the encryption will not help. '
+                . ($bare ? 'The server answering on ' . $c->port . ' offered no encryption at all'
+                                  : 'The server answering presented a certificate that is not ' . $c->host . '’s')
+                . ' — the web host is intercepting outbound mail and answering it itself (cPanel calls this'
+                . ' “SMTP Restrictions”). Ask the host to turn that off for this account, or ' . $road . '.';
+        }
+        return 'Port ' . $c->port . ' with ' . ($sec === MailConfig::SECURE_SMTPS ? 'SMTPS' : 'STARTTLS')
+            . ' is already the right pairing, so the settings are not the fault: the encrypted handshake itself'
+            . ' failed' . ($detail !== '' ? ' (' . mb_substr($detail, 0, 160) . ')' : '') . '. If it persists, the web host may be interfering with'
+            . ' outbound mail — ' . $road . '.';
+    }
+
+    /**
      * Run it.
      *
      * @return array{ok:bool, cause:?string, title:string, fix:string, steps:list<array{key:string,label:string,state:string,detail:string}>,
@@ -191,6 +242,9 @@ final class MailDiagnosis
                       . ') is blocked from this server, so no setting here can fix it: the web host is '
                       . 'blocking outbound mail. Ask them to allow outbound SMTP to ' . $c->host
                       . ', or move sending to a provider that delivers over HTTPS.';
+            }
+            if ($cause === MailFailure::TLS) {
+                $fix = self::tlsFix($c, $detail);
             }
             return [
                 'ok'      => $cause === null,
@@ -281,7 +335,7 @@ final class MailDiagnosis
             if (!$smtp->getServerExt('STARTTLS')) {
                 $step('tls', self::FAIL, 'The server does not offer STARTTLS on port ' . $c->port . '.');
                 $smtp->close();
-                return $finish(MailFailure::TLS);
+                return $finish(MailFailure::TLS, self::NO_STARTTLS);
             }
             if (!$smtp->startTLS() || !$smtp->hello($me)) {
                 $err = self::err($smtp);
