@@ -195,6 +195,97 @@ final class ChallengeCopy
     }
 
     /**
+     * Every line on the share flier, from the row.
+     *
+     * The campaign's own lines — headline, standfirst, tagline — are what somebody wrote
+     * for THIS challenge, with `{target}`, `{cap}` and `{prize}` where a number goes. The
+     * rest is generated the way the page's is, so the flier and the page cannot quote two
+     * different prizes or two different targets: the tab over the prize ("First 11
+     * Winners"), the line under it ("Nominate 10, get them verified"), the address line
+     * with its date, and the button, which follows the state like the page's does.
+     *
+     * An empty campaign line falls back to the title, or to the promise — never to a
+     * sentence typed here, because a fallback that reads like one challenge's copy is that
+     * challenge's copy on every other flier.
+     *
+     * @return array{headline:string, standfirst:string, tagline:string, tab:string,
+     *               prize_big:string, prize_unit:string, card_line:string, url_line:string,
+     *               cta:string, kicker:string, state:string}
+     */
+    public static function flier(array $c, array $ctx = []): array
+    {
+        $v      = self::for($c, $ctx);
+        $target = max(1, (int) ($c['target'] ?? 1));
+        $cap    = (int) ($c['cap'] ?? 0);
+        $draws  = (int) ($c['draw_count'] ?? 0);
+        $mode   = (string) ($c['mode'] ?? E::MODE_FIRST);
+        $action = (string) ($c['action'] ?? E::ACTION_NOMINATE);
+        $title  = trim((string) ($c['title'] ?? ''));
+
+        $fill = static fn (string $t): string => trim(strtr($t, [
+            '{target}' => (string) $target,
+            '{cap}'    => (string) $cap,
+            '{prize}'  => trim($v['prize_big'] . ' ' . $v['prize_unit']),
+        ]));
+
+        $tab = match (true) {
+            $mode === E::MODE_DRAW && $draws > 0 => $draws . ' ' . ($draws === 1 ? 'Winner' : 'Winners') . ' Drawn',
+            $mode === E::MODE_TOP && $cap > 0    => 'Top ' . $cap . ' Win',
+            $cap > 0                             => 'First ' . $cap . ' ' . ($cap === 1 ? 'Winner' : 'Winners'),
+            default                              => 'Every Finisher Wins',
+        };
+
+        $card = match ($action) {
+            E::ACTION_NOMINATE => 'Nominate ' . $target . ', get them verified',
+            E::ACTION_VOTE     => 'Vote in ' . $target . ' ' . $v['u'],
+            E::ACTION_REFER    => 'Bring ' . $target . ' ' . $v['u'],
+            E::ACTION_GIVE     => 'Give ' . $target . ' ' . $v['u'],
+            default            => 'Reach ' . $target . ' ' . $v['u'],
+        };
+
+        $base = rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/');
+        $host = (string) (parse_url($base, PHP_URL_HOST) ?: 'afg.afrovanguard.org.ng');
+        $tz   = (string) ($c['timezone'] ?? '') ?: \AfricaGates\Support\DisplayTime::zone();
+        $when = static function (?string $utc) use ($tz): string {
+            if ($utc === null || trim($utc) === '') return '';
+            try {
+                return \Illuminate\Support\Carbon::parse($utc, 'UTC')->setTimezone($tz)->format('j M');
+            } catch (\Throwable) {
+                return '';
+            }
+        };
+        $date = match ($v['state']) {
+            E::ST_UPCOMING => ($d = $when($c['starts_at'] ?? null)) !== '' ? 'starts ' . $d : '',
+            E::ST_ENDED    => 'ended',
+            default        => ($d = $when($c['ends_at'] ?? null)) !== '' ? 'ends ' . $d : '',
+        };
+
+        $cta = match ($v['state']) {
+            'full'         => 'SEE THE AWARDS',
+            E::ST_ENDED    => 'SEE THE RESULTS',
+            default        => 'JOIN NOW',
+        };
+
+        $headline = $fill((string) ($c['headline'] ?? ''));
+        $stand    = $fill((string) ($c['standfirst'] ?? ''));
+        $tagline  = $fill((string) ($c['tagline'] ?? ''));
+
+        return [
+            'headline'   => $headline !== '' ? $headline : $title,
+            'standfirst' => $stand !== '' ? $stand : (string) $v['promise'],
+            'tagline'    => $tagline !== '' ? $tagline : $title,
+            'tab'        => $tab,
+            'prize_big'  => (string) $v['prize_big'],
+            'prize_unit' => (string) $v['prize_unit'],
+            'card_line'  => $card,
+            'url_line'   => $host . '/challenges' . ($date !== '' ? ' · ' . $date : ''),
+            'cta'        => $cta,
+            'kicker'     => trim((string) ($c['kicker'] ?? '')),
+            'state'      => (string) $v['state'],
+        ];
+    }
+
+    /**
      * One line for the compact strip on a scoped award, event or nominee page.
      *
      * The same figures as the card, in the one sentence that fits beside something

@@ -1136,7 +1136,7 @@ final class Maintenance
             $pending = NominationFeedbackService::pendingNeedingAck($sla * 2, 200);
             if (!$pending) return 0;
             $mailer = $this->container?->get(OtpService::class);
-            if (!$mailer || !$mailer->smtpConfigured()) return 0;
+            if (!$mailer || !$mailer->canSend()) return 0;
             $sent = 0;
             foreach ($pending as $nom) {
                 if (!filter_var($nom->nominator_email ?? '', FILTER_VALIDATE_EMAIL)) {
@@ -1204,7 +1204,7 @@ final class Maintenance
             if ($cycles->isEmpty()) return 0;
 
             $mailer = $this->container?->get(OtpService::class);
-            if (!$mailer || !$mailer->smtpConfigured()) return 0;
+            if (!$mailer || !$mailer->canSend()) return 0;
             $site = SiteUrl::base();
             if ($site === '') return 0;
 

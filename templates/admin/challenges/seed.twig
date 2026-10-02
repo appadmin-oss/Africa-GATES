@@ -1,0 +1,114 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ═══════════════════════════════════════════════════════════════════════════════
+  A SEEDED CHALLENGE, CHECKED BEFORE IT IS ADDED — /admin/challenges/seeds/{name}
+  ═══════════════════════════════════════════════════════════════════════════════
+
+  The seed writes a PUBLISHED challenge, and its target, cap, prize and start are locked
+  from that moment (people are competing under them). So this is the one screen where
+  they can still be corrected, and the hourly check will not add it until somebody has
+  pressed "Add the challenge" here.
+
+  THE PREVIEW IS THE REAL GENERATOR — `ChallengeCopy`, over the values as they stand —
+  so the sentence approved here is the sentence published. Each field shows the
+  handoff's original under it once it has been changed, so a correction is never
+  mistaken for the plan.
+
+  Two forms, side by side and never nested: a `<form>` inside a `<form>` is dropped by
+  the parser and its button posts to the outer action.
+#}
+
+{% block head_styles %}
+{% include 'admin/challenges/_builder-style.twig' %}
+{% endblock %}
+
+{% block content %}
+
+{% if done %}
+  <div class="cb-card">
+    <span class="cb-step">Added</span>
+    <h3>This challenge is live</h3>
+    <p class="cb-note">Its rules are the published terms now and cannot change. Its words and art
+      can still be edited{% if challenge %} in <a href="/admin/challenges/{{ challenge.id }}">the builder</a>{% endif %}.</p>
+  </div>
+{% else %}
+
+<div class="cb">
+  <div>
+    <form method="post" action="/admin/challenges/seeds/{{ name }}">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      <div class="cb-card">
+        <span class="cb-step">Before it is added</span>
+        <h3>Check every detail</h3>
+        <p class="cb-note">This challenge is written for you, and nothing is added until you press
+          <strong>Add the challenge</strong>. Once it is added, the rules — how many nominees, how many
+          winners, the prize and the opening time — are fixed, because people will be working towards
+          them. Change anything here first.
+          Write <code>{target}</code>, <code>{cap}</code> or <code>{prize}</code> where a number goes;
+          it is filled in from the rules.</p>
+        {% if approved_at and ready %}
+          <p class="cb-note"><strong>Approved {{ approved_at|when }}.</strong> It will be added as soon as its
+            award edition is open for nominations.</p>
+        {% endif %}
+      </div>
+
+      {% for group, fields in groups %}
+      <fieldset class="cb-card" style="border:0">
+        <h3>{{ group }}</h3>
+        {% for f in fields %}
+          <label class="cb-f"><span>{{ f.label }}</span>
+            {% if f.type == 'textarea' or f.type == 'lines' %}
+              <textarea name="{{ f.key }}"{% if f.max is defined %} maxlength="{{ f.max }}"{% endif %}
+                        {% if f.error %}aria-invalid="true" aria-describedby="e-{{ f.key }}"{% endif %}>{{ f.value }}</textarea>
+            {% elseif f.type == 'int' %}
+              <input name="{{ f.key }}" value="{{ f.value }}" inputmode="numeric" pattern="[0-9]*" required
+                     {% if f.error %}aria-invalid="true" aria-describedby="e-{{ f.key }}"{% endif %}>
+            {% elseif f.type == 'when' %}
+              <input type="datetime-local" step="1" name="{{ f.key }}" value="{{ f.value }}" required
+                     {% if f.error %}aria-invalid="true" aria-describedby="e-{{ f.key }}"{% endif %}>
+            {% else %}
+              <input name="{{ f.key }}" value="{{ f.value }}"{% if f.max is defined %} maxlength="{{ f.max }}"{% endif %} required
+                     {% if f.error %}aria-invalid="true" aria-describedby="e-{{ f.key }}"{% endif %}>
+            {% endif %}
+            {% if f.error %}<span class="cb-lock" id="e-{{ f.key }}" role="alert">{{ f.error }}</span>{% endif %}
+            {% if f.help is defined %}<span class="cb-note">{{ f.help }}</span>{% endif %}
+            {% if f.changed %}<span class="cb-lock">Changed. The original was: {{ f.default_text }}</span>{% endif %}
+          </label>
+        {% endfor %}
+      </fieldset>
+      {% endfor %}
+
+      <div class="cb-acts">
+        <button type="submit" class="cb-btn cb-btn--q">Save</button>
+        <button type="submit" class="cb-btn" name="add" value="1">Add the challenge</button>
+      </div>
+    </form>
+
+    <form method="post" action="/admin/challenges/seeds/{{ name }}/reset" class="cb-acts">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button type="submit" class="cb-btn cb-btn--d">Go back to the original values</button>
+    </form>
+  </div>
+
+  {% if preview %}
+  <aside class="cb-prev" aria-label="What the page will say">
+    <h4>What the page will say</h4>
+    <p class="p-promise">{{ preview.copy.promise }}</p>
+    <dl>
+      {% for f in preview.copy.facts %}<div><dt>{{ f.k }}</dt><dd>{{ f.v }}</dd></div>{% endfor %}
+    </dl>
+    <p class="cb-note">{{ preview.summary }}</p>
+    <h4>The flier</h4>
+    <p class="p-promise"><strong>{{ preview.flier.headline }}</strong></p>
+    <p class="cb-note">{{ preview.flier.standfirst }}</p>
+    <p class="cb-note">{{ preview.flier.tab }} · {{ preview.flier.prize_big }} {{ preview.flier.prize_unit }} · {{ preview.flier.card_line }}</p>
+    <p class="cb-note">{{ preview.flier.tagline }}</p>
+    <p class="cb-note">Saved values only — press Save to see a change here.</p>
+  </aside>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

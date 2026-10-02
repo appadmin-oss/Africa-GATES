@@ -7,6 +7,7 @@ use AfricaGates\Services\ChallengeService as CS;
 use AfricaGates\Services\PromoService;
 use AfricaGates\Support\ChallengeEnum as E;
 use AfricaGates\Support\ProgrammeHost;
+use AfricaGates\Support\SeedReview;
 use AfricaGates\Support\SeedRunner;
 use DI\ContainerBuilder;
 use Slim\Psr7\Factory\ServerRequestFactory;
@@ -71,6 +72,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
         DB::table('gates_settings')
             ->whereIn('key_name', ['seed_ran_' . self::SEED, 'seed_last_' . self::SEED])
             ->delete();
+        SeedReview::reset(self::SEED);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -274,6 +276,9 @@ final class CelebrateNigeriaSeedTest extends TestCase
      */
     public function test_a_waiting_seed_keeps_its_reason_where_the_admin_reads_it(): void
     {
+        // Approved: the operator has checked its details, so what it is waiting on now is
+        // the award, and the reason it gives is about the award.
+        SeedReview::approve(self::SEED);
         DB::table('gates_award_programmes')->where('id', $this->programme)->update(['slug' => 'alimosho']);
         DB::table('gates_award_programmes')->where('id', $this->programme)->update(['title' => 'Alimosho Awards 2026']);
 
@@ -303,6 +308,14 @@ final class CelebrateNigeriaSeedTest extends TestCase
         $ctl->runSeed(self::post(['seed' => '../../config/container']), new Response());
         $this->assertSame('No such seed.', $_SESSION['flash_error'] ?? null);
 
+        // Not checked yet: the button sends the operator to the details instead of
+        // publishing figures nobody has looked at.
+        $_SESSION = [];
+        $res = $ctl->runSeed(self::post(['seed' => self::SEED]), new Response());
+        $this->assertSame('/admin/challenges/seeds/' . self::SEED, $res->getHeaderLine('Location'));
+        $this->assertNull(CS::bySlug(self::SLUG), 'an unchecked seed was added from a bare button');
+
+        SeedReview::approve(self::SEED);
         $_SESSION = [];
         $res = $ctl->runSeed(self::post(['seed' => self::SEED]), new Response());
         $this->assertSame(302, $res->getStatusCode());
@@ -312,6 +325,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
 
     public function test_the_list_draws_the_waiting_seed_and_its_reason(): void
     {
+        SeedReview::approve(self::SEED);
         DB::table('gates_award_programmes')->where('id', $this->programme)
             ->update(['slug' => 'x', 'title' => 'X']);
         SeedRunner::run(self::SEED);

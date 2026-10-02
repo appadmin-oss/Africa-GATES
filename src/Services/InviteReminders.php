@@ -456,7 +456,7 @@ final class InviteReminders
         // Not an error and not a failure: an unconfigured mailer is a deployment that has
         // not finished setting up email, and the invitation send says so on its own screen.
         // Reporting a failure every fifteen minutes for it would bury the real ones.
-        if (!$mailer->smtpConfigured()) return 0;
+        if (!$mailer->canSend()) return 0;
 
         $sent = 0;
 

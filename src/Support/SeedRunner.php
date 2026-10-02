@@ -211,6 +211,13 @@ final class SeedRunner
                 continue;
             }
 
+            // A seed an operator has to check first is never run by a clock. It writes
+            // published terms that lock the moment they exist, so the hour an edition
+            // opens is the worst possible time to find out the prize was wrong.
+            if (!SeedReview::ready($name)) {
+                continue;
+            }
+
             if (self::run($name)['status'] === 'done') {
                 $n++;
             }
@@ -229,7 +236,8 @@ final class SeedRunner
      * somebody to a shell this host does not have.
      *
      * @return array<string,array{status:string, note:string, at:?string}>
-     *         status: done | waiting | failed | pending (never attempted on this database)
+     *         status: done | review (held for an operator) | waiting | failed |
+     *         pending (never attempted on this database)
      */
     public static function status(): array
     {
@@ -239,6 +247,14 @@ final class SeedRunner
             if (self::done($name)) {
                 $out[$name] = ['status' => 'done', 'note' => 'applied',
                                'at' => self::setting(self::DONE_PREFIX . $name)];
+                continue;
+            }
+            // Held for a person: said as such, whatever a past attempt reported, because
+            // the next step is theirs and nothing will happen until they take it.
+            if (!SeedReview::ready($name)) {
+                $out[$name] = ['status' => 'review',
+                               'note' => 'Check its details and press “Add the challenge”. It will not be added by itself.',
+                               'at' => null];
                 continue;
             }
             $last = json_decode((string) self::setting(self::LAST_PREFIX . $name), true);

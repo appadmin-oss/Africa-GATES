@@ -5,9 +5,12 @@ declare(strict_types=1);
  * Seed: the "Celebrate Nigeria" Independence Day challenge, on the Alimosho Awards.
  *
  * Shipped from `handoff-oct-2026/challenge/seed/2026_10_01_celebrate_nigeria.php`. The
- * LOGIC, THE COPY AND THE NUMBERS ARE THE HANDOFF'S and are not to be edited here —
- * only the table and column names were adapted to what this repo actually has, which is
- * what that handoff asked for. The adaptations, each one a real difference:
+ * LOGIC is the handoff's and is not to be edited here. The COPY AND THE NUMBERS are the
+ * handoff's DEFAULTS: they live in `data/2026_10_01_celebrate_nigeria.php`, and an
+ * operator checks — and may correct — them on /admin/challenges before this runs, because
+ * once it has run they are the published terms and locked. Only the table and column
+ * names were adapted to what this repo actually has, which is what that handoff asked
+ * for. The adaptations, each one a real difference:
  *
  *   gates_awards              → gates_award_programmes   (and `name` → `title`)
  *   gates_award_cycles.award_id          → programme_id
@@ -50,14 +53,36 @@ declare(strict_types=1);
 return static function (PDO $db): void {
     $slug  = 'celebrate-nigeria-2026';
     $now   = gmdate('Y-m-d H:i:s');
-    // Africa/Lagos (WAT, UTC+1), stored as UTC. WAT has no daylight saving, so the offset
-    // is a constant hour and these two literals are exact rather than approximately right
-    // for half the year — which is why they are allowed to be literals at all.
-    $start = '2026-09-30 23:00:00';   //  1 Oct 2026 00:00:00 WAT
-    $end   = '2026-10-15 22:59:59';   // 15 Oct 2026 23:59:59 WAT
 
-    $artUrl = '/assets/img/challenges/alimosho-celebrates-nigeria.png';
-    $artAlt = 'Àlímọ̀ṣọ́ celebrates Nigeria';
+    // ── THE VALUES ARE THE OPERATOR'S TO CHECK FIRST ─────────────────────────
+    //
+    // Everything a person may want to correct — the words, the numbers, the window, the
+    // art and the flier's lines — is in `data/2026_10_01_celebrate_nigeria.php`, with the
+    // handoff's value as each default, and an operator's edits from
+    // /admin/challenges/seeds/2026_10_01_celebrate_nigeria laid over it. The sweep does
+    // not run this seed until that form has been approved: see SeedReview.
+    $seedName = basename(__FILE__, '.php');
+    $v = \AfricaGates\Support\SeedReview::values($seedName);
+    $fill = static fn (string $t): string => \AfricaGates\Support\SeedReview::fill($t, $v);
+
+    // Typed as Lagos wall-clock time and stored as UTC with a SPACE separator. WAT has
+    // no daylight saving, so the handoff's 1 Oct 00:00 and 15 Oct 23:59:59 are exactly
+    // 30 Sep 23:00 and 15 Oct 22:59:59 UTC.
+    $start = \AfricaGates\Support\SeedReview::utc($seedName, (string) $v['starts_at']);
+    $end   = \AfricaGates\Support\SeedReview::utc($seedName, (string) $v['ends_at']);
+
+    $artUrl = (string) $v['art_url'];
+    $artAlt = (string) $v['art_alt'];
+
+    // The flier's lines keep their placeholders: ChallengeCopy::flier() fills them from
+    // the row at render time, so they follow the numbers if the row is ever corrected.
+    $flier = [
+        ':headline'     => (string) $v['headline'],
+        ':standfirst'   => (string) $v['standfirst'],
+        ':tagline'      => (string) $v['tagline'],
+        ':portrait'     => (string) $v['portrait_url'],
+        ':portrait_alt' => (string) $v['portrait_alt'],
+    ];
 
     // ── 1. Resolve the scope: Alimosho Awards, the edition open for nominations ──
     $award = $db->prepare(
@@ -132,34 +157,35 @@ return static function (PDO $db): void {
         // ── 2. The challenge (upsert by slug) ──
         $row = [
             ':slug'    => $slug,
-            ':title'   => 'Celebrate Nigeria',
-            ':kicker'  => 'Independence Day challenge',
-            ':summary' => 'Nominate 10 different people for the Alimosho Awards. The first '
-                        . '11 people to get 10 nominees verified win ₦6,000 each.',
+            ':title'   => (string) $v['title'],
+            ':kicker'  => (string) $v['kicker'],
+            ':summary' => $fill((string) $v['summary']),
             ':action'  => 'nominate',
-            ':target'  => 10,
+            ':target'  => (int) $v['target'],
             ':mode'    => 'first',
-            ':cap'     => 11,
+            ':cap'     => (int) $v['cap'],
             ':ptype'   => 'cash_each',
             // WHOLE NAIRA, not kobo: `prize_amount` is an INT of the challenge's own
             // currency unit and `ChallengeCopy` prints it with a thousands separator. Six
             // thousand kobo here would read as "₦6,000" on the page and pay sixty naira.
-            ':pamount' => 6000,
+            ':pamount' => (int) $v['prize_amount'],
             ':pcur'    => 'NGN',
-            ':plabel'  => '₦6,000 each',
+            ':plabel'  => '₦' . number_format((int) $v['prize_amount']) . ' each',
             ':theme'   => 'green',
             ':art'     => $artUrl,
             ':artalt'  => $artAlt,
             ':icon'    => null,
+            ':headline'     => $flier[':headline'],
+            ':standfirst'   => $flier[':standfirst'],
+            ':tagline'      => $flier[':tagline'],
+            ':portrait'     => $flier[':portrait'],
+            ':portrait_alt' => $flier[':portrait_alt'],
             ':flag'    => 1,
             ':elig'    => json_encode([
                 'country' => ['NG'], 'state' => [], 'lga' => [],
                 'new_members_only' => false, 'min_age' => 18,
             ]),
-            ':extra'   => json_encode([
-                'Nominees must live or work in Alimosho, Lagos.',
-                'You cannot nominate yourself or the same person twice.',
-            ], JSON_UNESCAPED_UNICODE),
+            ':extra'   => json_encode(array_map($fill, (array) $v['extra_rules']), JSON_UNESCAPED_UNICODE),
             ':starts'  => $start,
             ':ends'    => $end,
             ':tz'      => 'Africa/Lagos',
@@ -186,11 +212,18 @@ return static function (PDO $db): void {
 
         if ($challengeId) {
             // The words and the picture only. Status, cap, dates, mode and prize are the
-            // terms somebody is already competing under — see the note at the top.
+            // terms somebody is already competing under — see the note at the top. The
+            // flier's lines are FILLED, never overwritten: they are campaign copy the
+            // builder lets an operator edit, and a re-run must not take that edit back.
             $db->prepare(
                 'UPDATE gates_challenges
                     SET title = :title, kicker = :kicker, summary = :summary,
                         art_url = :art, art_alt = :artalt, extra_rules = :extra,
+                        headline     = COALESCE(NULLIF(headline, \'\'), :headline),
+                        standfirst   = COALESCE(NULLIF(standfirst, \'\'), :standfirst),
+                        tagline      = COALESCE(NULLIF(tagline, \'\'), :tagline),
+                        portrait_url = COALESCE(NULLIF(portrait_url, \'\'), :portrait),
+                        portrait_alt = COALESCE(NULLIF(portrait_alt, \'\'), :portrait_alt),
                         updated_at = :now
                   WHERE id = :id')
                ->execute([
@@ -198,19 +231,21 @@ return static function (PDO $db): void {
                    ':summary' => $row[':summary'], ':art' => $row[':art'],
                    ':artalt' => $row[':artalt'], ':extra' => $row[':extra'],
                    ':now' => $now, ':id' => $challengeId,
-               ]);
+               ] + $flier);
         } else {
             $db->prepare(
                 'INSERT INTO gates_challenges
                  (slug, title, kicker, summary, action, target, mode, cap,
                   prize_type, prize_amount, prize_currency, prize_label,
-                  theme, art_url, art_alt, icon, flag, eligibility, extra_rules,
+                  theme, art_url, art_alt, icon, headline, standfirst, tagline, portrait_url, portrait_alt,
+                  flag, eligibility, extra_rules,
                   starts_at, ends_at, timezone, terms_version, status,
                   created_by, published_at, created_at, updated_at)
                  VALUES
                  (:slug, :title, :kicker, :summary, :action, :target, :mode, :cap,
                   :ptype, :pamount, :pcur, :plabel,
-                  :theme, :art, :artalt, :icon, :flag, :elig, :extra,
+                  :theme, :art, :artalt, :icon, :headline, :standfirst, :tagline, :portrait, :portrait_alt,
+                  :flag, :elig, :extra,
                   :starts, :ends, :tz, :terms, :status,
                   NULL, :pub, :created, :updated)')
                ->execute($row);

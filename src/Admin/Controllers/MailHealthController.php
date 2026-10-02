@@ -8,6 +8,7 @@ use AfricaGates\Services\Mail\MailConfig;
 use AfricaGates\Services\Mail\MailFailure;
 use AfricaGates\Services\Mail\MailEvents;
 use AfricaGates\Services\Mail\MailHealth;
+use AfricaGates\Services\Mail\MailSetup;
 use AfricaGates\Services\Mail\SendPolicy;
 use AfricaGates\Services\Mail\Suppression;
 use AfricaGates\Support\SiteUrl;
@@ -55,6 +56,7 @@ final class MailHealthController
             'window'       => $w,
             'causes'       => $causes,
             'config'       => MailConfig::load()->describe(),
+            'sending'      => self::sendingView(),
             // The stored cause is a key; the screen says what it means.
             'history'      => array_map(static fn (object $i): object
                 => (object) ((array) $i + ['cause_title' => MailFailure::title((string) $i->cause)]),
@@ -79,6 +81,61 @@ final class MailHealthController
                 'events_url' => MailEvents::url(SiteUrl::base($req)),
             ],
         ]);
+    }
+
+    /**
+     * What the "How mail is sent" form draws: the values in force, never a secret, and
+     * where the login came from — the one fact that explains most "it used to work".
+     *
+     * @return array<string,mixed>
+     */
+    private static function sendingView(): array
+    {
+        $c = MailConfig::load();
+        $stored = [];
+        try {
+            $stored = \Illuminate\Database\Capsule\Manager::table('gates_settings')
+                ->whereIn('key_name', MailSetup::SMTP_KEYS)->where('value', '!=', '')->pluck('value', 'key_name')->all();
+        } catch (\Throwable) {
+        }
+        $env = MailConfig::load([]);
+        return [
+            'transport' => $c->transport, 'host' => $c->host, 'port' => $c->port,
+            'secure' => $c->secureSetting, 'username' => $c->username,
+            'pass_set' => $c->password !== '', 'api_set' => $c->hasApiKey(),
+            'login_source' => match ($c->source('username')) {
+                'settings' => 'the login saved on this page is in use',
+                'env'      => 'the login from the server’s .env file is in use',
+                default    => 'no login is set',
+            },
+            'has_stored_smtp' => $stored !== [],
+            'env_has_login' => $env->hasCredentials(),
+        ];
+    }
+
+    /** POST — save how mail is sent, trying each credential before it is stored. */
+    public function sending(Request $req, Response $res): Response
+    {
+        $r = (new MailSetup())->save((array) $req->getParsedBody(), (int) ($_SESSION['admin_id'] ?? 0) ?: null);
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.sending', null, null,
+            ['ok' => $r['ok'], 'saved' => $r['saved']]);
+        if ($r['report'] !== null) MailHealth::rememberReport($r['report']);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['messages'] !== []
+            ? implode(' ', $r['messages']) : 'Nothing changed.';
+        return $res->withHeader('Location', '/admin/settings/mail#sending')->withStatus(302);
+    }
+
+    /** POST — forget the SMTP values saved here; the server's .env decides again. */
+    public function useEnv(Request $req, Response $res): Response
+    {
+        $gone = MailSetup::useEnv();
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.use_env', null, null, ['removed' => $gone]);
+        $health = new MailHealth();
+        $d = $health->diagnoseNow();
+        try { $health->check(); } catch (\Throwable) {}
+        $_SESSION[$d['ok'] ? 'flash_ok' : 'flash_error'] = 'The saved SMTP values were removed; the .env file decides now. '
+            . ($d['ok'] ? 'Checked: the provider accepts that login.' : 'Checked, and it fails too: ' . $d['title'] . '. ' . $d['fix']);
+        return $res->withHeader('Location', '/admin/settings/mail#sending')->withStatus(302);
     }
 
     /** POST — the daily cap on announcements per address. */

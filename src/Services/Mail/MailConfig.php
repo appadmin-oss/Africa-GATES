@@ -54,6 +54,32 @@ final class MailConfig
     public const SECURE_SMTPS    = 'smtps';
     public const SECURE_NONE     = 'none';
 
+    /**
+     * HOW a message leaves, as the settings form offers it.
+     *
+     * SMTP was the only road, and on a shared host it is the one most likely to be shut:
+     * cPanel's "SMTP Restrictions" and the common firewalls refuse a user account's
+     * outbound connections to ports 25, 465 and 587 and route everything through the
+     * host's own server. On such a host no SMTP setting can ever work — every fix to the
+     * SMTP code changed nothing, and the diagnosis could only advise asking the host to
+     * open a port, which a shared host does not do.
+     *
+     *   auto  SMTP while it works; on a failure that is about the ROAD (it cannot connect,
+     *         negotiate TLS or log in), the provider's HTTPS API, then this server's own
+     *         mail. A refused RECIPIENT is about the address and never falls through —
+     *         it would only bounce a second time.
+     *   smtp  SMTP and nothing else.
+     *   api   Brevo's transactional API over HTTPS (port 443, which every integration on
+     *         this platform already reaches).
+     *   host  The server's own mail, through PHP's mail() — what every site on a cPanel
+     *         host can send with, and whose deliverability rests on the domain's SPF/DKIM.
+     */
+    public const TRANSPORT_AUTO = 'auto';
+    public const TRANSPORT_SMTP = 'smtp';
+    public const TRANSPORT_API  = 'api';
+    public const TRANSPORT_HOST = 'host';
+    public const TRANSPORTS = [self::TRANSPORT_AUTO, self::TRANSPORT_SMTP, self::TRANSPORT_API, self::TRANSPORT_HOST];
+
     /** What `.env.example` ships with. A login equal to one of these is not a login. */
     private const PLACEHOLDERS = ['your_brevo_login@email.com', 'your_brevo_smtp_key',
                                   'your@email.com', 'smtp_key'];
@@ -77,6 +103,10 @@ final class MailConfig
          * from `.env` alone by six senders — on a host with no shell to edit it on.
          */
         public readonly string $postalAddress = self::DEFAULT_POSTAL,
+        /** One of {@see TRANSPORTS}. */
+        public readonly string $transport = self::TRANSPORT_AUTO,
+        /** Brevo's API key — a different credential from the SMTP key, from the same dashboard. */
+        public readonly string $apiKey = '',
     ) {}
 
     /**
@@ -126,12 +156,15 @@ final class MailConfig
             port:          $port,
             secureSetting: $secure,
             username:      $pick('username', 'mail_smtp_user', 'SMTP_USER', ''),
-            password:      $pick('password', 'mail_smtp_pass', 'SMTP_PASS', ''),
+            password:      self::password($host, $pick('password', 'mail_smtp_pass', 'SMTP_PASS', '')),
             fromAddress:   $pick('from', 'mail_from_address', 'MAIL_FROM_ADDRESS', self::DEFAULT_FROM),
             fromName:      $pick('from_name', 'mail_from_name', 'MAIL_FROM_NAME', 'Africa GATES'),
             replyTo:       $pick('reply_to', 'mail_reply_to', 'MAIL_REPLY_TO', ''),
             postalAddress: $pick('postal', 'mail_postal_address', 'MAIL_POSTAL_ADDRESS', self::DEFAULT_POSTAL),
             sources:       $sources,
+            transport:     in_array($t = strtolower($pick('transport', 'mail_transport', 'MAIL_TRANSPORT', self::TRANSPORT_AUTO)),
+                                    self::TRANSPORTS, true) ? $t : self::TRANSPORT_AUTO,
+            apiKey:        $pick('api_key', 'mail_brevo_api_key', 'BREVO_API_KEY', ''),
         );
     }
 
@@ -160,12 +193,14 @@ final class MailConfig
         return new self(
             (string) ($v['host'] ?? self::DEFAULT_HOST), (int) ($v['port'] ?? self::DEFAULT_PORT),
             (string) ($v['secure'] ?? self::SECURE_AUTO),
-            (string) ($v['username'] ?? ''), (string) ($v['password'] ?? ''),
+            (string) ($v['username'] ?? ''), self::password((string) ($v['host'] ?? self::DEFAULT_HOST), (string) ($v['password'] ?? '')),
             (string) ($v['from'] ?? self::DEFAULT_FROM), (string) ($v['from_name'] ?? 'Africa GATES'),
             (string) ($v['reply_to'] ?? ''),
             // Everything passed in was chosen, so nothing is reported as the default.
             array_fill_keys(array_keys($v), 'given'),
             (string) ($v['postal'] ?? self::DEFAULT_POSTAL),
+            in_array((string) ($v['transport'] ?? ''), self::TRANSPORTS, true) ? (string) $v['transport'] : self::TRANSPORT_AUTO,
+            (string) ($v['api_key'] ?? ''),
         );
     }
 
@@ -193,6 +228,76 @@ final class MailConfig
         if ($this->username === '' || $this->password === '') return false;
         return !in_array($this->username, self::PLACEHOLDERS, true)
             && !in_array($this->password, self::PLACEHOLDERS, true);
+    }
+
+    /** Google's SMTP hosts — the personal relay and Workspace's. */
+    public const GOOGLE_HOSTS = ['smtp.gmail.com', 'smtp.googlemail.com', 'smtp-relay.gmail.com'];
+
+    /**
+     * Who the SMTP host belongs to, from the host itself: `google`, `brevo` or `other`.
+     * Derived rather than chosen, so it cannot disagree with the host it describes.
+     */
+    public function provider(): string
+    {
+        $h = strtolower($this->host);
+        if (in_array($h, self::GOOGLE_HOSTS, true)) return 'google';
+        if (str_contains($h, 'brevo') || str_contains($h, 'sendinblue')) return 'brevo';
+        return 'other';
+    }
+
+    /**
+     * ── A GOOGLE APP PASSWORD IS SHOWN WITH SPACES, AND THE SPACES ARE NOT IN IT ──
+     *
+     * Google displays an App Password as four groups of four — `abcd efgh ijkl mnop` —
+     * and that is what gets pasted. Sent as typed, the spaces are part of the password,
+     * and the answer is `535 5.7.8 Username and Password not accepted`, which reads
+     * exactly like the wrong password. Normalised only where it can only be that: a
+     * Google host and sixteen letters once the spaces are gone.
+     */
+    private static function password(string $host, string $raw): string
+    {
+        if (!in_array(strtolower($host), self::GOOGLE_HOSTS, true)) return $raw;
+        $squeezed = (string) preg_replace('~\s+~', '', $raw);
+        return preg_match('~^[a-z]{16}$~i', $squeezed) ? $squeezed : $raw;
+    }
+
+    /**
+     * How many messages the SMTP account may send in a day, or 0 when nobody knows.
+     *
+     * Google's: 500 a day for a gmail.com account, 2,000 for Workspace — and once it is
+     * spent, Google refuses EVERY message for up to a day, sign-in codes included. So the
+     * send rules stop announcements short of it ({@see SendPolicy::BULK_SHARE}); a
+     * newsletter must never be what stops somebody signing in. `mail_daily_limit` sets it
+     * for any provider whose plan says otherwise.
+     */
+    public function dailyLimit(?array $settings = null): int
+    {
+        $set = $settings['mail_daily_limit'] ?? null;
+        if ($set === null) {
+            try {
+                $set = DB::table('gates_settings')->where('key_name', 'mail_daily_limit')->value('value');
+            } catch (\Throwable) {
+            }
+        }
+        if ($set !== null && trim((string) $set) !== '' && (int) $set >= 0) return (int) $set;
+        if ($this->provider() !== 'google') return 0;
+        $domain = strtolower((string) substr((string) strrchr($this->username, '@'), 1));
+        return in_array($domain, ['gmail.com', 'googlemail.com'], true) ? 500 : 2000;
+    }
+
+    /** True when an API key is set that is not the placeholder. */
+    public function hasApiKey(): bool
+    {
+        return $this->apiKey !== '' && !in_array($this->apiKey, self::PLACEHOLDERS, true)
+            && !str_starts_with($this->apiKey, 'your_');
+    }
+
+    /** True where PHP's own mail() can be called — present and not in `disable_functions`. */
+    public static function hostMailAvailable(): bool
+    {
+        if (!function_exists('mail')) return false;
+        $off = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+        return !in_array('mail', $off, true);
     }
 
     /** settings | env | default — where a field's value came from. */
@@ -226,6 +331,13 @@ final class MailConfig
             'username' => $this->username !== '' ? $this->username : '(not set)',
             'password' => $this->password !== '' ? 'set (' . $this->source('password') . ')' : '(not set)',
             'from'     => $this->fromAddress,
+            'transport' => match ($this->transport) {
+                self::TRANSPORT_SMTP => 'SMTP only',
+                self::TRANSPORT_API  => 'Brevo API (HTTPS) only',
+                self::TRANSPORT_HOST => 'this server’s own mail only',
+                default              => 'automatic — SMTP, then the Brevo API, then this server’s own mail',
+            },
+            'api_key'  => $this->hasApiKey() ? 'set (' . $this->source('api_key') . ')' : '(not set)',
         ];
     }
 }

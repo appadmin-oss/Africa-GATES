@@ -200,7 +200,7 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" data-sec="mail" data-keys="email sender smtp from name address reply-to admin alerts test email delivery health mail log outgoing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Email &amp; sender<small>{% if smtp_configured %}SMTP is configured — mail sends live.{% else %}SMTP not set — mail is written to var/logs/outgoing-mail.log.{% endif %}</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="mail" data-keys="email sender smtp from name address reply-to admin alerts test email delivery health mail log outgoing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Email &amp; sender<small>{% if smtp_configured %}Mail sends live.{% else %}No way to send is set up — mail is written to var/logs/outgoing-mail.log.{% endif %}</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <div class="row">
         <div><label for="f-mail_from_name">From name</label><input type="text" name="mail_from_name" id="f-mail_from_name" value="{{ values.mail_from_name|default('Africa GATES') }}"></div>
@@ -217,34 +217,21 @@
         <div><label for="f-support_email">Support inbox <small>printed on the site, quoted by the assistant, and where tickets are delivered</small></label><input type="email" name="support_email" id="f-support_email" value="{{ values.support_email|default('') }}" placeholder="gates@afrovanguard.org.ng"></div>
       </div>
 
-      {# ── THE TRANSPORT ITSELF ──────────────────────────────────────────────
-         These four were readable only from .env. There is no SSH on production, so
-         that meant the card's own heading could report "SMTP not set" directly above
-         a form with no field that could set it — on the platform whose OTP codes gate
-         voting. Resolved by OtpService::boot(): these first, .env as the fallback. #}
+      {# ── HOW MAIL LEAVES — SET ON EMAIL HEALTH, NOT HERE ───────────────────
+         The SMTP host, port, login and key used to be fields on THIS form, and every
+         save of the settings page re-posted them. A stored value outranks the server's
+         .env, so whatever the browser put in those boxes — an autofilled admin login in
+         "SMTP username" is the commonest — replaced a working configuration the next
+         time anybody saved an announcement banner. Mail had worked from .env on every
+         branch before the fields existed.
+         They live on /admin/settings/mail now, saved by themselves, and a login is
+         stored only after the provider has accepted it. #}
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
-        <div class="row">
-          <div><label for="f-mail_smtp_host">SMTP host <small>leave blank for the Brevo relay</small></label><input type="text" name="mail_smtp_host" id="f-mail_smtp_host" value="{{ values.mail_smtp_host|default('') }}" placeholder="smtp-relay.brevo.com"></div>
-          <div><label for="f-mail_smtp_port">Port <small>587 or 2525 for STARTTLS · 465 for SMTPS</small></label><input type="number" name="mail_smtp_port" id="f-mail_smtp_port" value="{{ values.mail_smtp_port|default('') }}" placeholder="587" min="1" max="65535"></div>
-          {# There was no choice here: the transport used STARTTLS whatever the port, so
-             465 — implicit TLS — timed out on every send. Automatic follows the port,
-             which is what every provider documents; the others are for the one that
-             does something unusual. See MailConfig::security(). #}
-          <div><label for="f-mail_smtp_secure">Encryption</label>
-            <select name="mail_smtp_secure" id="f-mail_smtp_secure">
-              {% for k, l in {'auto':'Automatic (from the port)','starttls':'STARTTLS','smtps':'SMTPS (implicit TLS)','none':'None — not recommended'} %}
-              <option value="{{ k }}"{{ (values.mail_smtp_secure|default('auto')) == k ? ' selected' }}>{{ l }}</option>
-              {% endfor %}
-            </select></div>
-        </div>
-        <div class="row">
-          <div><label for="f-mail_smtp_user">SMTP username</label><input type="text" name="mail_smtp_user" id="f-mail_smtp_user" value="{{ values.mail_smtp_user|default('') }}" autocomplete="off" placeholder="the login your mail provider issued"></div>
-          <div>
-            <label for="f-mail_smtp_pass">SMTP password <small>stored write-only — never shown again</small></label>
-            <input type="password" name="mail_smtp_pass" id="f-mail_smtp_pass" autocomplete="new-password" placeholder="{% if smtp_pass_set %}•••••••••• (leave blank to keep){% else %}your provider's SMTP key{% endif %}">
-            {% if smtp_pass_set %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="secret_clear[smtp_pass]" value="1"> remove</label>{% endif %}
-          </div>
-        </div>
+        <p style="margin:0 0 6px;font-size:13px"><strong>How mail is sent:</strong> {{ mail_config.transport }}.</p>
+        <p style="margin:0 0 6px;font-size:13px">SMTP {{ mail_config.host }}, port {{ mail_config.port }} ({{ mail_config.security }}),
+          login {{ mail_config.username }} — {{ mail_config.login_source }}.</p>
+        <p style="margin:0;font-size:13px">Brevo API key: {{ mail_config.api_key }}.
+          Change any of these on <a href="/admin/settings/mail#sending">Email health</a>.</p>
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap">

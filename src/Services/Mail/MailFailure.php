@@ -75,7 +75,7 @@ final class MailFailure
         // connection exists and the handshake itself went wrong.
         self::TLS       => '~starttls|stream_socket_enable_crypto|certificate|handshake|ssl operation failed|wrong version number~i',
         self::AUTH      => '~authenticat|\b535\b|\b534\b|username and password|invalid login|auth~i',
-        self::QUOTA     => '~quota|limit exceeded|too many|rate limit|\b421\b|\b452\b|suspended|blocked account~i',
+        self::QUOTA     => '~quota|limit exceeded|too many|rate limit|\b421\b|\b452\b|suspended|blocked account|5\.4\.5|sending limit~i',
         self::SENDER    => '~sender|from address|not verified|unverified|mail from|\b553\b~i',
         self::RECIPIENT => '~recipient|rcpt to|invalid address|mailbox unavailable|user unknown|no such user|\b550 5\.1\.1\b~i',
         self::CONNECT   => '~connect\(\) failed|connection (refused|timed out|reset)|timed out|could not connect|network is unreachable|failed to connect~i',
@@ -103,8 +103,40 @@ final class MailFailure
         return self::CAUSES[$cause][0] ?? self::CAUSES[self::UNKNOWN][0];
     }
 
-    public static function fix(string $cause): string
+    /**
+     * The same causes, said for Google's SMTP, whose rules are not Brevo's: a login is an
+     * App Password and never the account's own; Gmail sends only as the account or a
+     * verified "Send mail as" address; and the account has a daily allowance after which
+     * EVERYTHING is refused.
+     */
+    private const GOOGLE = [
+        self::AUTH => 'Google refused the login. Google’s SMTP takes an App Password, never the account’s normal password: '
+            . 'in that Google account turn on 2-Step Verification, then Security → App passwords, create one, and paste its '
+            . '16 letters as the SMTP key on Settings → Email health (spaces are fine). The SMTP login is the full Gmail or Workspace address.',
+        self::SENDER => 'Google refused our From address. Gmail sends only as the signed-in account, or as an address added '
+            . 'under Gmail → Settings → Accounts → “Send mail as”. Set the From address to one of those.',
+        self::QUOTA => 'The Google account has used its daily sending allowance — about 500 a day for Gmail, 2,000 for Workspace — '
+            . 'and Google refuses every message until the day rolls over. Announcements are now held back to leave room for sign-in codes.',
+        self::CONNECT => 'This server cannot reach smtp.gmail.com. Use port 587 with Encryption on Automatic. If every port fails '
+            . 'the host blocks outbound mail: set “Send by” to Automatic, and mail falls back to this server’s own mail.',
+        self::TLS => 'The port and the encryption do not match. For Google use port 587 with Encryption on Automatic (or 465, also Automatic).',
+    ];
+
+    /**
+     * What to do about a cause. `$provider` is `MailConfig::provider()`; when omitted it is
+     * read from the configuration in force, so every screen gives advice for the mail
+     * account actually being used.
+     */
+    public static function fix(string $cause, ?string $provider = null): string
     {
+        if ($provider === null) {
+            try {
+                $provider = MailConfig::load()->provider();
+            } catch (\Throwable) {
+                $provider = 'other';
+            }
+        }
+        if ($provider === 'google' && isset(self::GOOGLE[$cause])) return self::GOOGLE[$cause];
         return self::CAUSES[$cause][1] ?? self::CAUSES[self::UNKNOWN][1];
     }
 

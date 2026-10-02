@@ -7,7 +7,9 @@ use AfricaGates\Support\Brand;
 use AfricaGates\Support\Env;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Services\Mail\BrevoApi;
 use AfricaGates\Services\Mail\MailConfig;
+use AfricaGates\Services\Mail\MailFailure;
 use AfricaGates\Services\Mail\MailLog;
 use AfricaGates\Services\Mail\SendPolicy;
 use AfricaGates\Services\Mail\Suppression;
@@ -86,6 +88,8 @@ class OtpService
             'from_address' => $c->fromAddress,
             'from_name'    => $c->fromName,
             'reply_to'     => $c->replyTo,
+            'transport'    => $c->transport,
+            'api_key'      => $c->hasApiKey() ? $c->apiKey : '',
         ], $log);
     }
 
@@ -100,6 +104,79 @@ class OtpService
             'username' => (string) ($this->smtp['username'] ?? ''),
             'password' => (string) ($this->smtp['password'] ?? ''),
         ])->hasCredentials();
+    }
+
+    /**
+     * The roads a message may take, in the order they are tried.
+     *
+     * `auto` is SMTP while it works, then the Brevo API over HTTPS, then this server's own
+     * mail — see MailConfig::TRANSPORTS for why there has to be more than one road. The
+     * server's own mail is offered only in production: a developer's laptop calling
+     * mail() is a message to a real address from a machine nobody configured.
+     *
+     * An SMTP road that failed on the ROAD (connect, TLS, login) in the last half hour is
+     * skipped, so one blocked port does not cost every later message a 12-second wait.
+     * If it is the only road it is tried anyway: a skip must never turn into "no road".
+     *
+     * @return list<string>
+     */
+    public function routes(): array
+    {
+        $t = (string) ($this->smtp['transport'] ?? MailConfig::TRANSPORT_SMTP);
+        $smtp = $this->smtpConfigured();
+        $api  = trim((string) ($this->smtp['api_key'] ?? '')) !== '';
+        $host = $this->isProduction() && MailConfig::hostMailAvailable();
+
+        $out = match ($t) {
+            MailConfig::TRANSPORT_SMTP => $smtp ? ['smtp'] : [],
+            MailConfig::TRANSPORT_API  => $api ? ['api'] : [],
+            MailConfig::TRANSPORT_HOST => $host ? ['host'] : [],
+            default => array_values(array_filter([
+                $smtp ? 'smtp' : null, $api ? 'api' : null, $host ? 'host' : null,
+            ])),
+        };
+        if (count($out) > 1 && $out[0] === 'smtp' && self::smtpResting()) {
+            $out = array_merge(array_slice($out, 1), ['smtp']);
+        }
+        return $out;
+    }
+
+    /**
+     * Can a message leave at all, by any road? What a sender asks before it starts a run —
+     * `smtpConfigured()` asked only about one road, so a deployment sending perfectly over
+     * the API or the host's own mail was told by every batch job that email was off.
+     */
+    public function canSend(): bool
+    {
+        return $this->routes() !== [];
+    }
+
+    /** The setting that rests a failing SMTP road. */
+    public const SMTP_REST_KEY = 'mail_smtp_rest_until';
+    public const SMTP_REST_MIN = 30;
+
+    private static function smtpResting(): bool
+    {
+        try {
+            $until = (string) \Illuminate\Database\Capsule\Manager::table('gates_settings')
+                ->where('key_name', self::SMTP_REST_KEY)->value('value');
+            return $until !== '' && $until > Carbon::now()->toDateTimeString();
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private static function restSmtp(bool $rest): void
+    {
+        try {
+            $q = \Illuminate\Database\Capsule\Manager::table('gates_settings');
+            $rest
+                ? $q->updateOrInsert(['key_name' => self::SMTP_REST_KEY],
+                    ['value' => Carbon::now()->addMinutes(self::SMTP_REST_MIN)->toDateTimeString(),
+                     'updated_at' => Carbon::now()->toDateTimeString()])
+                : $q->where('key_name', self::SMTP_REST_KEY)->delete();
+        } catch (\Throwable) {
+        }
     }
 
     /** Absolute site base URL for every link/image in email — from APP_URL, no trailing slash. */
@@ -280,14 +357,15 @@ class OtpService
                               string $devBody, callable $build): array
     {
         $bulk = $unsubscribeUrl !== '';
+        $routes = $this->routes();
 
-        if (!$this->smtpConfigured()) {
+        if ($routes === []) {
             $this->devLog($to, $subject, $devBody);
             if ($this->isProduction()) {
-                $this->log?->error('[mail] SMTP not configured in production — message NOT delivered', ['to' => $to, 'subject' => $subject]);
-                MailLog::write($to, $subject, $category, MailLog::FAILED, 'SMTP not configured (Settings → Email & sender)', $bulk);
+                $this->log?->error('[mail] no way to send configured in production — message NOT delivered', ['to' => $to, 'subject' => $subject]);
+                MailLog::write($to, $subject, $category, MailLog::FAILED, 'Email is not configured (Settings → Email health)', $bulk);
                 return ['success' => false, 'fallback' => 'log',
-                        'error' => 'Email is not configured — set the SMTP host and login in Settings → Email & sender. The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
+                        'error' => 'Email is not configured — set it up in Settings → Email health. The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
             }
             MailLog::write($to, $subject, $category, MailLog::DEV, null, $bulk);
             return ['success' => true, 'fallback' => 'log'];
@@ -304,21 +382,60 @@ class OtpService
             $m->Subject = $subject;
             $build($m);
             $this->headers($m, $category, $unsubscribeUrl);
-            $this->transmit($m);
-            $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject]);
-            MailLog::write($to, $subject, $category, MailLog::SENT, null, $bulk);
-            return ['success' => true];
         } catch (MailException|\Throwable $e) {
-            $err = $e->getMessage();
-            $this->log?->error('[mail] send failed: ' . $err, ['to' => $to]);
-            MailLog::write($to, $subject, $category, MailLog::FAILED, $err, $bulk);
-            // The receiving server said, permanently, that this mailbox does not exist.
-            // Remember it, or every announcement after this one bounces too.
-            if (Suppression::isPermanentBounce($err)) {
-                Suppression::record($to, Suppression::BOUNCE, 'smtp', $err);
-            }
-            return ['success' => false, 'error' => $err];
+            // A message that cannot even be built (an address PHPMailer rejects) is not a
+            // road problem, and no other road would fix it.
+            MailLog::write($to, $subject, $category, MailLog::FAILED, $e->getMessage(), $bulk);
+            return ['success' => false, 'error' => $e->getMessage()];
         }
+
+        // ── ONE MESSAGE, SEVERAL ROADS ───────────────────────────────────────
+        // Tried in order. A failure that is about the ROAD moves on to the next one; a
+        // refused RECIPIENT stops, because every road delivers to the same mailbox and
+        // the second attempt would only bounce again. What reached the log is the road
+        // that finally carried it, and every road that failed on the way, so an operator
+        // reading "sent" can also read that SMTP has been failing for a week.
+        $failed = [];
+        foreach ($routes as $i => $road) {
+            try {
+                match ($road) {
+                    'api'  => $this->transmitApi($m),
+                    'host' => (function () use ($m): void { $m->isMail(); $this->transmit($m); })(),
+                    default => (function () use ($m): void { $m->isSMTP(); $this->transmit($m); })(),
+                };
+                if ($road === 'smtp') self::restSmtp(false);
+                $note = $failed === [] ? null : 'via ' . $road . ' after: ' . implode(' | ', $failed);
+                $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject, 'via' => $road]);
+                MailLog::write($to, $subject, $category, MailLog::SENT, $note, $bulk);
+                return ['success' => true, 'via' => $road];
+            } catch (MailException|\Throwable $e) {
+                $err = $e->getMessage();
+                $cause = MailFailure::classify($err);
+                $this->log?->error('[mail] send failed via ' . $road . ': ' . $err, ['to' => $to]);
+                if ($cause === MailFailure::RECIPIENT || $i === count($routes) - 1) {
+                    $all = $failed === [] ? $err : implode(' | ', array_merge($failed, [$road . ': ' . $err]));
+                    MailLog::write($to, $subject, $category, MailLog::FAILED, $all, $bulk);
+                    // The receiving server said, permanently, that this mailbox does not exist.
+                    // Remember it, or every announcement after this one bounces too.
+                    if (Suppression::isPermanentBounce($err)) {
+                        Suppression::record($to, Suppression::BOUNCE, 'smtp', $err);
+                    }
+                    return ['success' => false, 'error' => $err];
+                }
+                if ($road === 'smtp') self::restSmtp(true);
+                $failed[] = $road . ': ' . $err;
+            }
+        }
+        return ['success' => false, 'error' => 'no road delivered it'];
+    }
+
+    /**
+     * Hand a built message to Brevo's API. Kept apart from `transmit()` for the same
+     * reason: the suite replaces the one line that leaves the process.
+     */
+    protected function transmitApi(PHPMailer $m): void
+    {
+        (new BrevoApi((string) ($this->smtp['api_key'] ?? '')))->send($m);
     }
 
     /**
@@ -375,8 +492,8 @@ class OtpService
      */
     public function selfTest(string $to): array
     {
-        if (!$this->smtpConfigured()) {
-            return ['success' => false, 'error' => 'SMTP credentials are not configured. Set them in Settings → Email & sender.'];
+        if (!$this->canSend()) {
+            return ['success' => false, 'error' => 'Email is not set up — no road to send by. Set it up in Settings → Email health.'];
         }
         return $this->sendBranded(
             $to,

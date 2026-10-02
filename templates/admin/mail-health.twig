@@ -82,6 +82,14 @@
         <p class="mh-meta">Checked {{ report.ran_at|when }}. Not yet an incident: nothing has failed to send since.</p>
       </div>
     </section>
+  {% elseif report and report.degraded|default(false) %}
+    <section class="mh-state mh-state--ok" role="status">
+      <div>
+        <h2>Email is working — by a fallback</h2>
+        <p class="mh-fix">{{ report.title }}. People are getting their mail; SMTP still needs fixing: {{ report.fix }}</p>
+        <p class="mh-meta">Checked {{ report.ran_at|when }}.</p>
+      </div>
+    </section>
   {% else %}
     <section class="mh-state mh-state--ok" role="status">
       <div>
@@ -96,7 +104,7 @@
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <button class="ad-btn ad-btn--primary" type="submit">Run the diagnosis now</button>
     <span class="mh-meta">Connects, signs in and offers our From address, then stops. Nobody is emailed.</span>
-    <a class="ad-btn ad-btn--ghost" href="/admin/settings#mail">Edit the email settings</a>
+    <a class="ad-btn ad-btn--ghost" href="#sending">Change how mail is sent</a>
   </form>
 
   {# ── THE DIAGNOSIS ──────────────────────────────────────────────────────── #}
@@ -154,6 +162,68 @@
       <dl class="mh-kv">
         {% for k, v in config %}<dt>{{ k|capitalize }}</dt><dd>{{ v }}</dd>{% endfor %}
       </dl>
+    </div>
+  </section>
+
+  {# ── HOW MAIL IS SENT ───────────────────────────────────────────────────────
+     Saved by itself, and an SMTP login or an API key is stored only once the provider
+     has accepted it — see MailSetup. These fields used to sit on the main settings page,
+     which re-posted them on every save, so a browser's autofill could replace a working
+     login with an admin's own and nothing said so. #}
+  <section class="ad-card" id="sending">
+    <div class="ad-card__head"><div class="ad-card__title">How mail is sent
+      <small>Nothing here is saved until it has been tried: a login the provider refuses is not stored, and the one that was working stays in charge.</small></div></div>
+    <div class="ad-card__body">
+      <form method="post" action="/admin/settings/mail/sending" class="ad-form" autocomplete="off">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div class="row">
+          <div><label for="mh-transport">Send by</label>
+            <select id="mh-transport" name="transport">
+              {% for k, l in {
+                'auto': 'Automatic — SMTP, then the Brevo API, then this server’s own mail',
+                'smtp': 'SMTP only',
+                'api':  'Brevo API over HTTPS only',
+                'host': 'This server’s own mail only'} %}
+              <option value="{{ k }}"{{ sending.transport == k ? ' selected' }}>{{ l }}</option>
+              {% endfor %}
+            </select></div>
+        </div>
+        <p class="mh-meta">SMTP — {{ sending.login_source }}. Leave a box empty to keep what is there.</p>
+        <div class="row">
+          <div><label for="mh-host">SMTP host</label><input id="mh-host" name="host" value="{{ sending.host }}" placeholder="smtp.gmail.com" autocomplete="off"></div>
+          <div><label for="mh-port">Port</label><input id="mh-port" name="port" inputmode="numeric" value="{{ sending.port }}" placeholder="587" autocomplete="off"></div>
+          <div><label for="mh-secure">Encryption</label>
+            <select id="mh-secure" name="secure">
+              {% for k, l in {'auto':'Automatic (from the port)','starttls':'STARTTLS','smtps':'SMTPS (implicit TLS)','none':'None — not recommended'} %}
+              <option value="{{ k }}"{{ sending.secure == k ? ' selected' }}>{{ l }}</option>
+              {% endfor %}
+            </select></div>
+        </div>
+        <div class="row">
+          <div><label for="mh-user">SMTP login <small>for Google, the full Gmail or Workspace address — not your sign-in to this console</small></label>
+            <input id="mh-user" name="username" value="{{ sending.username }}" autocomplete="off" data-lpignore="true" data-1p-ignore spellcheck="false"></div>
+          <div><label for="mh-pass">SMTP password <small>for Google, an App Password (Google Account → Security → App passwords) — never the account’s own password. Never shown again once saved.</small></label>
+            <input id="mh-pass" name="password" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                   placeholder="{{ sending.pass_set ? '•••••••••• (leave empty to keep)' : '16-letter App Password, spaces are fine' }}"></div>
+        </div>
+        <div class="row">
+          <div><label for="mh-api">Brevo API key <small>optional — only if you also have a Brevo account. Used when SMTP cannot get through.</small></label>
+            <input id="mh-api" name="api_key" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                   placeholder="{{ sending.api_set ? '•••••••••• (leave empty to keep)' : 'xkeysib-…' }}">
+            {% if sending.api_set %}<label class="mh-meta"><input type="checkbox" name="api_key_clear" value="1"> remove the saved key</label>{% endif %}</div>
+        </div>
+        <div class="mh-bar">
+          <button class="ad-btn ad-btn--primary" type="submit">Try it and save</button>
+          <span class="mh-meta">Signs in and offers our From address, then stops. Nobody is emailed.</span>
+        </div>
+      </form>
+      {% if sending.has_stored_smtp %}
+      <form method="post" action="/admin/settings/mail/use-env" class="mh-bar">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ad-btn" type="submit">Use the server’s .env settings instead</button>
+        <span class="mh-meta">Forgets the SMTP values saved here, so the .env file this server was set up with decides again.{% if sending.env_has_login %} It has an SMTP login.{% else %} It has no SMTP login of its own.{% endif %}</span>
+      </form>
+      {% endif %}
     </div>
   </section>
 

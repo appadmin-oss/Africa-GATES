@@ -54,6 +54,25 @@ final class ChallengeAdmin
         'starts_at', 'terms_version', 'slug',
     ];
 
+    /** The flier's own lines and portrait — {@see ChallengeCopy::flier()}. */
+    public const FLIER = ['headline', 'standfirst', 'tagline', 'portrait_url', 'portrait_alt'];
+
+    /**
+     * What a BLANK box means in a NOT NULL column: the column's own default. A draft is
+     * allowed to be half-filled — `publish()` is the gate, and it asks for each of these
+     * by name — so a blank must save, and NULL is the one value these refuse.
+     *
+     * @var array<string,string|int>
+     */
+    private const BLANK_MEANS = [
+        'kicker'        => '',
+        'target'        => 1,
+        'prize_amount'  => 0,
+        'timezone'      => 'Africa/Lagos',
+        'terms_version' => '1.0',
+        'title'         => '',
+    ];
+
     // ══════════════════════════════════════════════════════════════════════════
     // Writing
     // ══════════════════════════════════════════════════════════════════════════
@@ -68,8 +87,14 @@ final class ChallengeAdmin
      */
     public static function create(array $in, ?int $adminId = null): array
     {
-        $slug = self::slug((string) ($in['slug'] ?? $in['title'] ?? ''));
-        if ($slug === '') return ['ok' => false, 'code' => 'NO_TITLE', 'id' => 0];
+        // A BLANK slug falls back to the title, not only a missing one. The form always
+        // posts the field and it is usually empty, so `$in['slug'] ?? $in['title']` took
+        // the empty string, slugged it to nothing, and refused every challenge with
+        // "give it a title first" beside a title box that was filled in.
+        $slug = self::slug(trim((string) ($in['slug'] ?? '')) ?: (string) ($in['title'] ?? ''));
+        if ($slug === '' || trim((string) ($in['title'] ?? '')) === '') {
+            return ['ok' => false, 'code' => 'NO_TITLE', 'id' => 0];
+        }
 
         if (DB::table('gates_challenges')->where('slug', $slug)->exists()) {
             // A slug is a published URL the moment it goes live, so a collision is
@@ -79,16 +104,10 @@ final class ChallengeAdmin
         }
 
         $now    = date('Y-m-d H:i:s');
-        $fields = self::clean($in);
-
-        // ── NOT NULL WITH NO DEFAULT, WHICH A DRAFT MUST NOT REQUIRE ────────
-        // `kicker` is NOT NULL and has no default, and `clean()` turns an empty string
-        // into null — so creating a draft with nothing but a title threw. The whole
-        // point of `create()` is that a half-filled draft saves; the gate is
-        // `publish()`, which asks for a kicker by name. Empty string, not null.
-        foreach (['kicker' => '', 'target' => 1] as $col => $default) {
-            if (($fields[$col] ?? null) === null) $fields[$col] = $default;
-        }
+        // `kicker` is NOT NULL with NO database default, so it is supplied even when the
+        // caller sent no such key at all; every other NOT NULL column has a default of
+        // its own and is simply left out.
+        $fields = self::clean($in) + ['kicker' => ''];
 
         $id = (int) DB::table('gates_challenges')->insertGetId($fields + [
             'slug' => $slug, 'status' => E::ST_DRAFT,
@@ -136,11 +155,9 @@ final class ChallengeAdmin
             }
         }
 
-        // Same reason as `create()`: a form that clears the kicker box must not 500.
-        foreach (['kicker', 'title'] as $col) {
-            if (array_key_exists($col, $fields) && $fields[$col] === null) $fields[$col] = '';
-        }
-        if (array_key_exists('target', $fields) && $fields['target'] === null) $fields['target'] = 1;
+        // A cleared title box keeps the title: a challenge with no name is a row nobody
+        // can find again in the list, and `publish()` would refuse it anyway.
+        if (array_key_exists('title', $fields) && $fields['title'] === '') unset($fields['title']);
 
         if ($fields !== []) {
             $fields['updated_at'] = date('Y-m-d H:i:s');
@@ -400,10 +417,20 @@ final class ChallengeAdmin
     {
         $out = [];
 
-        $str = ['title', 'kicker', 'summary', 'prize_currency', 'prize_label',
-                'art_url', 'art_alt', 'icon', 'eligibility', 'timezone', 'terms_version'];
-        foreach ($str as $k) {
+        foreach (['title', 'kicker', 'summary', 'prize_currency', 'prize_label',
+                  'art_url', 'art_alt', 'icon', 'eligibility', 'timezone', 'terms_version'] as $k) {
             if (array_key_exists($k, $in)) $out[$k] = trim((string) $in[$k]) ?: null;
+        }
+
+        // The flier's campaign lines and portrait — copy, never a rule, so they stay
+        // editable after publication like the title and the art. Written only where the
+        // columns exist: `2027_02_22_challenge_flier_copy.php` adds them, migrations here
+        // are applied by an operator opening a URL, and a builder that names a column the
+        // database does not have yet is a builder that 500s on every save until then.
+        foreach (self::FLIER as $k) {
+            if (array_key_exists($k, $in) && \AfricaGates\Support\SchemaHas::column('gates_challenges', $k)) {
+                $out[$k] = trim((string) $in[$k]) ?: null;
+            }
         }
 
         foreach (['target', 'cap', 'draw_count', 'prize_amount'] as $k) {
@@ -436,8 +463,15 @@ final class ChallengeAdmin
             $out['extra_rules'] = $list === [] ? null : json_encode($list, JSON_UNESCAPED_UNICODE);
         }
 
-        // `target` has a NOT NULL default of 1; a null from the loop above would throw.
-        if (array_key_exists('target', $out) && $out['target'] === null) $out['target'] = 1;
+        // ── A BLANK BOX IS NOT A NULL IN A NOT NULL COLUMN ──────────────────
+        // Every blank above became null, and five of these columns refuse one. The
+        // prize box starts EMPTY on a new challenge, so saving a draft before deciding
+        // the prize — the ordinary way to use a builder — threw on `prize_amount` and
+        // answered 500. One table of what a blank means, rather than a patch per column
+        // as each one is found: these are the columns' own defaults.
+        foreach (self::BLANK_MEANS as $k => $default) {
+            if (array_key_exists($k, $out) && $out[$k] === null) $out[$k] = $default;
+        }
 
         return $out;
     }
@@ -445,22 +479,17 @@ final class ChallengeAdmin
     /**
      * A datetime from a form, stored as UTC.
      *
-     * `datetime-local` posts "2026-11-30T23:59" with no zone. MySQL normalises the `T`
-     * in a TIMESTAMP column and SQLite stores it verbatim, so a comparison that passes
-     * every test silently rejects real input — which this codebase has already paid
-     * for. Normalised in one place, and null rather than a throw on nonsense.
+     * `datetime-local` posts "2026-11-30T23:59" with no zone, and the form drew it with
+     * `|when_input` — the stored UTC time in the DISPLAY zone. So it is read back in that
+     * zone, through {@see \AfricaGates\Support\DisplayTime::toStored()}, the inverse of
+     * what drew it. This read it as UTC, which moved every date an hour LATER each time
+     * somebody opened the form and pressed save — and on a published challenge the moved
+     * `starts_at` is a locked field, so the save was refused for a change nobody made.
+     * Null rather than a throw on nonsense.
      */
     private static function stamp(string $raw): ?string
     {
-        $raw = trim($raw);
-        if ($raw === '') return null;
-
-        try {
-            return (new \DateTimeImmutable($raw, new \DateTimeZone('UTC')))
-                ->format('Y-m-d H:i:s');
-        } catch (\Throwable) {
-            return null;
-        }
+        return \AfricaGates\Support\DisplayTime::toStored($raw);
     }
 
     /**

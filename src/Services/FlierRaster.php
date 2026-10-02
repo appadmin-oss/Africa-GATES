@@ -177,7 +177,7 @@ trait FlierRaster
     }
 
     /** Draw text with an optional letter-spacing, which imagettftext has no concept of. */
-    protected function text($im, string $s, int $size, string $font, int $colour, float $x, float $y, float $tracking = 0): void
+    protected function text($im, string $s, float $size, string $font, int $colour, float $x, float $y, float $tracking = 0): void
     {
         if ($tracking <= 0) {
             // ── THE FAST PATH STAYS FAST ────────────────────────────────────
@@ -233,7 +233,7 @@ trait FlierRaster
      * the right edge of a flier. So when tracking is asked for, this sums exactly what
      * `text()` will advance by. Untracked callers take the same path they always did.
      */
-    protected function width(string $s, int $size, string $font, float $tracking = 0.0): float
+    protected function width(string $s, float $size, string $font, float $tracking = 0.0): float
     {
         if ($tracking <= 0) {
             $b = imagettfbbox($size, 0, $font, $s);
@@ -366,7 +366,7 @@ trait FlierRaster
      *
      * @return list<string>
      */
-    protected function wrapMeasured(string $text, float $maxW, int $size, string $font, int $maxLines): array
+    protected function wrapMeasured(string $text, float $maxW, float $size, string $font, int $maxLines): array
     {
         $words = preg_split('/\s+/', trim($text)) ?: [];
         $lines = []; $cur = '';
@@ -434,6 +434,21 @@ trait FlierRaster
      */
     protected function loadPhoto(string $url): mixed
     {
+        // ── THE SITE'S OWN FILES FIRST ──────────────────────────────────────────
+        // A public asset is written `/assets/...`, which also starts with a slash — so
+        // checked after the disk-path branch below it was taken for an absolute path,
+        // found outside the upload directories, refused, and the challenge flier drew no
+        // artwork at all. A path that names a file under public/ is that file.
+        $pub = dirname(__DIR__, 2) . '/public';
+        $p0  = parse_url($url, PHP_URL_PATH);
+        if (is_string($p0) && str_starts_with($p0, '/') && !str_contains($p0, '..')) {
+            $local = $pub . rawurldecode($p0);
+            if (is_file($local)) {
+                $im = @imagecreatefromstring((string) @file_get_contents($local));
+                if ($im !== false) return $im;
+            }
+        }
+
         // An absolute path on this disk, which is what the event flier hands over: the
         // uploaded photo is cropped to the slot and DISCARDED, so it never gets a URL. Bounded
         // to the two directories a temporary upload can legitimately be in, because this

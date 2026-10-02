@@ -3,43 +3,44 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Accent;
+use AfricaGates\Support\Brand;
 use AfricaGates\Support\ChallengeEnum as E;
 
 /**
- * The 1080×1080 share graphic — a port of `designs/Celebrate Nigeria Flier.dc.html`.
+ * The 1080×1080 share flier — rebuilt on the October campaign artwork.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * EVERY NUMBER ON IT IS DERIVED. THE DESIGN'S ARE THE EXAMPLE, NOT THE VALUES.
+ * THE LAYOUT IS THE ARTWORK'S. EVERY WORD AND NUMBER ON IT IS THE ROW'S.
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * The comp reads "₦6k", "11 people", "10 unique nominees", "Choral, Business or
- * Impact". Those are one challenge's figures. Typed into a renderer they would be
- * every challenge's figures, and the flier for a different campaign would advertise
- * the wrong prize — on an image that is downloaded, posted and then impossible to
- * correct. This codebase has four separate records of prose outliving the rule it
- * describes; a flier is that hazard with no edit button.
+ * The artwork reads "Know 10 people who make Alimosho proud?", "First 11 Winners",
+ * "₦6,000 each", "ends 15 Oct". Those are one challenge's figures; typed into a renderer
+ * they would be every challenge's, on an image that is downloaded, posted and then
+ * impossible to correct. So the geometry below is measured off the artwork — positions,
+ * sizes and line pitches in its own pixels — and the strings come from
+ * {@see ChallengeCopy::flier()}: the campaign's own lines from its row (with the numbers
+ * as placeholders), everything else generated exactly as the page generates it.
  *
- * So the layout is the comp's, exactly, and the strings come from the row and from
- * {@see ChallengeCopy}. {@see FLIER} is the only type scale, and nothing below reads a
- * hex that is not in {@see IN}.
+ * ── WHAT IS DRAWN AND WHAT IS PLACED ────────────────────────────────────────
  *
- * ── GD, BECAUSE THERE IS NO HEADLESS BROWSER ON THIS HOST ───────────────────
+ * Drawn: the ground, the logo disc, every word, the prize card and its tab, the footer
+ * band and its button. Placed, as files: the two logos, the challenge's portrait (a
+ * cut-out on a clear background, from `portrait_url`, else its `art_url`), and two
+ * stickers the artwork carries — the waving flag when the challenge flies one (`flag`),
+ * the coupon when the prize is cash. A sticker is decoration; neither carries a fact.
  *
- * The primitives are `FlierRaster`'s, shared with the ticket and the result card.
- * `roundRect()` was added there rather than written here: two renderers with their own
- * corner maths is how one graphic's cards come out a pixel rounder than another's, and
- * neither looks wrong on its own.
+ * ── COLOUR ──────────────────────────────────────────────────────────────────
  *
- * ── THE COPY DIVERGENCE, RECORDED RATHER THAN RESOLVED SILENTLY ─────────────
+ * Text and the button are the house ramp ({@see Accent}): ink, ink-2, the action green.
+ * The ground and the card's lower tint are DERIVED from the challenge's theme — 12% and
+ * 5% of its fill over white — so a blue or gold challenge gets its own flier rather than
+ * a green one; for the green theme that lands within three levels of the artwork's
+ * `#e6f2e8`/`#f4f9f3`. Two values are the artwork's own and nobody else's: the headline's
+ * pure black, and Nigeria's flag green for the prize on a challenge that flies the flag.
  *
- * The comp's step wording is SHORTER than the page's: "Sign in and create your
- * account / Free, on Africa GATES" against `ChallengeCopy`'s "Sign in or create your
- * account / Free. Verify your phone number with a code." A 1080px square cannot hold
- * the page's sentences at 24px, and the design shortened them deliberately.
- *
- * The flier's own strings are therefore the flier's spec, with the numbers
- * interpolated. The alternative — wrapping the page's copy into three cards — would
- * reflow the whole lower third away from the comp. Listed as deviation 1.
+ * GD, because there is no headless browser on this host. The primitives are
+ * {@see FlierRaster}'s, shared with the ticket and the event flier.
  */
 final class ChallengeFlier
 {
@@ -48,64 +49,64 @@ final class ChallengeFlier
     public const W = 1080;
     public const H = 1080;
 
-    /**
-     * The comp's palette, read off its markup. No hex appears below this block.
-     *
-     * These are the FLIER's colours, not the site's tokens: it is printed and posted
-     * rather than rendered in the shell, the ground is warmer than the site's paper,
-     * and the two greens are Nigeria's flag green (`#008751`, in the flag and the
-     * highlighted words) and the design's own deeper green for solid fills.
-     */
-    private const IN = [
-        'ground'   => '#f6f2ea',
-        'ink'      => '#123f25',
-        'green'    => '#1f6b2e',   // step discs, the URL pill
-        'flag'     => '#008751',   // the flag bars and the highlighted words
-        'gold'     => '#b8861f',   // WIN, and the prize unit
-        'soft'     => '#4a5e51',   // a step's second line
-        'muted'    => '#6b7a6f',   // the footer note
-        'white'    => '#ffffff',
-        'hairline' => '#d3c9b3',
+    /** The artwork's own two colours. Everything else comes from the ramp or the theme. */
+    private const OWN = [
+        'display' => '#000000',   // the headline
+        'flag'    => '#008751',   // Nigeria's flag green — the prize, on a flag challenge
     ];
 
     /**
-     * CSS pixels → GD points.
-     *
-     * ── THE COMP IS IN PIXELS AND `imagettftext` TAKES POINTS ───────────────
-     *
-     * Every size in the design file is a CSS pixel. `imagettftext()`'s second argument
-     * is a POINT size, and 1pt is 4/3 px — so the figure laid out at 168px rendered
-     * 260px wide and 163px tall, ran past its 416px column, pushed "each" off the right
-     * margin and shoved the promise into the artwork. Everything on the flier was a
-     * third too large at once, which reads as "the design is wrong" rather than as a
-     * unit mismatch.
-     *
-     * Converted here so the table below stays the comp's own numbers, which is what
-     * makes it checkable against the design file.
+     * The four theme presets, as `challenge.css` declares them from the tokens:
+     * fill (the identity), edge (the kicker), solid (a fill carrying white text).
+     * {@see \Tests\Unit\ChallengeFlierTest} holds these to tokens.css, so the flier and
+     * the page cannot drift apart.
      */
-    private static function pt(float $cssPx): int
+    public const THEMES = [
+        E::THEME_GREEN => ['fill' => '#237b22', 'edge' => '#1a6118', 'solid' => '#237b22'],
+        E::THEME_BLUE  => ['fill' => '#1f6fa3', 'edge' => '#1f6fa3', 'solid' => '#1f6fa3'],
+        E::THEME_GOLD  => ['fill' => '#f3b416', 'edge' => '#7a5600', 'solid' => '#7a5600'],
+        E::THEME_ROSE  => ['fill' => '#e0245e', 'edge' => '#b0224f', 'solid' => '#b0224f'],
+    ];
+
+    /** The ground and the card tint: this share of the theme's fill, over white. */
+    public const GROUND_MIX = 0.12;
+    public const TINT_MIX   = 0.05;
+
+    /** The type, in the artwork's pixels, per face. */
+    private const TYPE = [
+        'kicker'   => 15.8,  // DM Sans Bold
+        'headline' => 55,    // Playfair Display Bold
+        'stand'    => 20.5,  // DM Sans Regular
+        'tab'      => 13.5,  // DM Sans SemiBold
+        'prize'    => 48.1,  // Playfair Display Bold
+        'unit'     => 20,    // DM Sans Regular
+        'card'     => 20,    // DM Sans SemiBold
+        'tagline'  => 32.5,  // DM Sans SemiBold
+        'url'      => 18.6,  // DM Sans Regular
+        'cta'      => 23,    // DM Sans Bold, tracked tight
+    ];
+
+    /** The cut-out stickers the artwork carries, as files under public/. */
+    public const STICKER_FLAG   = '/assets/img/flier/sticker-flag.png';
+    public const STICKER_COUPON = '/assets/img/flier/sticker-coupon.png';
+
+    /**
+     * CSS pixels → GD points: imagettftext() takes points, and 1pt is 4/3 px.
+     *
+     * NOT rounded. A whole point is 1.33px, so rounding moved every size here by up to
+     * two-thirds of a pixel — the tagline came out 9px narrower than the artwork's, the
+     * prize 3px wider — and FreeType takes a fractional size as readily as a whole one.
+     */
+    private static function pt(float $cssPx): float
     {
-        return (int) round($cssPx * 0.75);
+        return $cssPx * 0.75;
     }
-
-    /** The comp's type scale, in CSS PIXELS as the design states them. */
-    private const FLIER = [
-        'chip'      => 19,
-        'win'       => 20,
-        'prize'     => 168,
-        'unit'      => 34,
-        'promise'   => 30,
-        'step_n'    => 21,
-        'step_t'    => 24,
-        'step_s'    => 17,
-        'url'       => 28,
-        'note'      => 17,
-    ];
 
     /**
      * Render one challenge's flier as PNG bytes, or null when GD cannot.
      *
-     * @param array<string,mixed> $c the challenge row
+     * @param array<string,mixed> $c   the challenge row
+     * @param array<string,mixed> $ctx ChallengeCopy context, plus `host_logo` (a public path)
      */
     public static function png(array $c, array $ctx = []): ?string
     {
@@ -114,34 +115,64 @@ final class ChallengeFlier
             // renders as an empty image is worse than a missing download.
             return null;
         }
-
         return (new self())->draw($c, $ctx);
+    }
+
+    /** @return array{ground:string, tint:string, edge:string, solid:string} */
+    public static function palette(string $theme): array
+    {
+        $t = self::THEMES[$theme] ?? self::THEMES[E::THEME_GREEN];
+        $mix = static function (string $hex, float $share): string {
+            [$r, $g, $b] = FlierLayout::rgb($hex);
+            $m = static fn (int $c): int => (int) round(255 - $share * (255 - $c));
+            return sprintf('#%02x%02x%02x', $m($r), $m($g), $m($b));
+        };
+        return ['ground' => $mix($t['fill'], self::GROUND_MIX), 'tint' => $mix($t['fill'], self::TINT_MIX),
+                'edge' => $t['edge'], 'solid' => $t['solid']];
     }
 
     private function draw(array $c, array $ctx): ?string
     {
-        $copy = ChallengeCopy::for($c, $ctx);
+        $copy  = ChallengeCopy::flier($c, $ctx);
+        $theme = self::palette((string) ($c['theme'] ?? E::THEME_GREEN));
+        $flag  = !empty($c['flag']);
 
         $im = imagecreatetruecolor(self::W, self::H);
         imagealphablending($im, true);
         imagesavealpha($im, false);
 
+        $hex = [
+            'ground' => $theme['ground'], 'tint' => $theme['tint'], 'edge' => $theme['edge'],
+            'white'  => Accent::SURFACE,
+            'ink'    => Accent::neutral('ink'), 'ink2' => Accent::neutral('ink-2'),
+            'action' => Accent::fill(Accent::ACTION),
+            'display'=> self::OWN['display'],
+            'prize'  => $flag ? self::OWN['flag'] : $theme['solid'],
+        ];
         $col = [];
-        foreach (self::IN as $k => $hex) {
-            [$r, $g, $b] = FlierLayout::rgb($hex);
+        foreach ($hex as $k => $h) {
+            [$r, $g, $b] = FlierLayout::rgb($h);
             $col[$k] = (int) imagecolorallocate($im, $r, $g, $b);
         }
 
         imagefilledrectangle($im, 0, 0, self::W - 1, self::H - 1, $col['ground']);
 
-        $bold = FlierService::fontPath('bold');
-        $semi = FlierService::fontPath('semibold');
+        $f = [
+            'display' => FlierService::fontPath('display'),
+            'bold'    => FlierService::fontPath('bold'),
+            'semi'    => FlierService::fontPath('semibold'),
+            'regular' => FlierService::fontPath('regular'),
+        ];
 
-        $this->header($im, $col, $bold, $c);
-        $this->art($im, $col, $bold, $c);
-        $this->prize($im, $col, $bold, $copy);
-        $this->steps($im, $col, $bold, $semi, $copy);
-        $this->footer($im, $col, $bold, $semi);
+        $this->portrait($im, $col, $f, $c);
+        $this->header($im, $col, $f, $copy, $ctx, $flag);
+        $bottom = $this->headline($im, $col, $f, $copy);
+        $this->standfirst($im, $col, $f, $copy, $bottom);
+        if (in_array((string) ($c['prize_type'] ?? ''), [E::PRIZE_CASH_EACH, E::PRIZE_CASH_POOL], true)) {
+            $this->place($im, self::STICKER_COUPON, 42, 598);
+        }
+        $this->card($im, $col, $f, $copy);
+        $this->footer($im, $col, $f, $copy);
 
         ob_start();
         imagepng($im, null, 6);
@@ -153,351 +184,285 @@ final class ChallengeFlier
 
     // ══════════════════════════════════════════════════════════════════════════
 
-    /**
-     * The logo lockup, and the kicker chip opposite it.
-     *
-     * The chip is SIZED FROM ITS TEXT rather than fixed: the comp's "Independence Day
-     * challenge" is one kicker, and a longer one on a fixed-width chip runs off the
-     * right edge of an image nobody can scroll.
-     */
-    private function header($im, array $col, string $bold, array $c): void
+    /** The Africa GATES disc, the host's logo beside it, the flag sticker opposite. */
+    private function header($im, array $col, array $f, array $copy, array $ctx, bool $flag): void
     {
-        // Logo disc: left 64, top 56, 72×72.
-        imagefilledellipse($im, 64 + 36, 56 + 36, 72, 72, $col['white']);
-        $this->mark($im, 64 + 36, 56 + 36, 52);
+        // The disc: 77px, centred at (131, 134), on a soft shadow.
+        $this->softShadow($im, 131 - 38, 134 - 38 + 6, 77, 77, 38);
+        imagefilledellipse($im, 131, 134, 77, 77, $col['white']);
+        $this->placeContain($im, '/' . Brand::LOGO_ON_TINT, 131 - 26, 134 - 30, 52, 60);
 
-        // The 1px × 40px rule, 18px after the disc.
-        imagefilledrectangle($im, 64 + 72 + 18, 56 + 16, 64 + 72 + 18, 56 + 56, $col['hairline']);
+        // The host's mark, 104px wide, top-aligned with the disc.
+        $host = trim((string) ($ctx['host_logo'] ?? ''));
+        if ($host !== '') $this->placeContain($im, $host, 198, 91, 104, 76, 'left');
 
-        $kicker = trim((string) ($c['kicker'] ?? ''));
-        if ($kicker === '') return;
+        if ($flag) $this->place($im, self::STICKER_FLAG, 772, 146);
 
-        $size = self::pt(self::FLIER['chip']);
-        $tw   = $this->width($kicker, $size, $bold);
-
-        // padding `0 20px 0 14px`, a 34px flag, a 12px gap.
-        $cw = 14 + 34 + 12 + $tw + 20;
-        $cx = self::W - 64 - $cw;
-
-        $this->pill($im, $cx, 70, $cw, 48, $col['white']);
-
-        // The flag: three equal bars in a 34×22 box, 4px corners.
-        $fx = $cx + 14; $fy = 70 + 13;
-        $this->roundRect($im, $fx, $fy, 34, 22, 4, $col['flag']);
-        imagefilledrectangle($im, (int) ($fx + 34 / 3), (int) $fy,
-            (int) ($fx + 34 * 2 / 3), (int) ($fy + 22), $col['white']);
-
-        $this->text($im, $kicker, $size, $bold, $col['ink'],
-            $fx + 34 + 12, 70 + 24 + $size * 0.36);
+        if ($copy['kicker'] !== '') {
+            $this->text($im, $copy['kicker'], self::pt(self::TYPE['kicker']), $f['bold'], $col['edge'], 196, 276);
+        }
     }
 
     /**
-     * The artwork, left 30 / top 120 / 560×560, `contain`.
+     * The headline: Playfair, three lines at most, 62px apart, in a 470px column.
      *
-     * ── AND WHAT HAPPENS WHEN A CHALLENGE HAS NONE ──────────────────────────
+     * @return int the last line's baseline
+     */
+    private function headline($im, array $col, array $f, array $copy): int
+    {
+        $size  = self::pt(self::TYPE['headline']);
+        $lines = $this->wrapMeasured($copy['headline'], 470, $size, $f['display'], 3);
+        $y = 345;
+        foreach ($lines as $i => $line) {
+            $this->text($im, $line, $size, $f['display'], $col['display'], 197, $y);
+            if ($i < count($lines) - 1) $y += 62;
+        }
+        return $y;
+    }
+
+    /** The line under it: 42px below the headline's last baseline, 23px apart. */
+    private function standfirst($im, array $col, array $f, array $copy, int $after): void
+    {
+        $size = self::pt(self::TYPE['stand']);
+        $y = $after + 42;
+        foreach ($this->wrapMeasured($copy['standfirst'], 445, $size, $f['regular'], 3) as $line) {
+            $this->text($im, $line, $size, $f['regular'], $col['ink2'], 197, $y);
+            $y += 23;
+        }
+    }
+
+    /**
+     * The prize card: a 200×199 white card at (197, 700), a tinted lower third, and the
+     * dark tab over its top edge naming who wins.
+     */
+    private function card($im, array $col, array $f, array $copy): void
+    {
+        $x = 197; $y = 700; $w = 200; $h = 199; $r = 28; $cx = $x + $w / 2;
+
+        $this->softShadow($im, $x, $y + 6, $w, $h, $r);
+        $this->roundRect($im, $x, $y, $w, $h, $r, $col['white']);
+        // The tint: rounded at the bottom, square where it meets the white at 818.
+        $this->roundRect($im, $x, 790, $w, $y + $h - 790, $r, $col['tint']);
+        imagefilledrectangle($im, (int) $x, 790, (int) ($x + $w - 1), 817, $col['white']);
+
+        // The tab, sized from its text, centred on the card's top edge.
+        $ts = self::pt(self::TYPE['tab']);
+        $tw = $this->width($copy['tab'], $ts, $f['semi']);
+        $pw = (int) round($tw + 24);
+        $this->pill($im, $cx - $pw / 2, 693, $pw, 28, $col['ink']);
+        $this->text($im, $copy['tab'], $ts, $f['semi'], $col['white'], $cx - $tw / 2, 712);
+
+        // The figure, shrunk only if a long amount would leave the card.
+        $ps = self::pt(self::TYPE['prize']);
+        while ($ps > 18 && $this->width($copy['prize_big'], $ps, $f['display']) > $w - 24) $ps -= 0.5;
+        $pw2 = $this->width($copy['prize_big'], $ps, $f['display']);
+        $this->text($im, $copy['prize_big'], $ps, $f['display'], $col['prize'], $cx - $pw2 / 2, 777);
+
+        if ($copy['prize_unit'] !== '') {
+            $us = self::pt(self::TYPE['unit']);
+            $uw = $this->width($copy['prize_unit'], $us, $f['regular']);
+            $this->text($im, $copy['prize_unit'], $us, $f['regular'], $col['ink2'], $cx - $uw / 2, 798);
+        }
+
+        $cs = self::pt(self::TYPE['card']);
+        $y2 = 848;
+        foreach ($this->wrapMeasured($copy['card_line'], $w - 30, $cs, $f['semi'], 2) as $line) {
+            $lw = $this->width($line, $cs, $f['semi']);
+            $this->text($im, $line, $cs, $f['semi'], $col['ink'], $cx - $lw / 2, $y2);
+            $y2 += 21;
+        }
+    }
+
+    /**
+     * The portrait, bottom-right, standing on the footer band.
      *
-     * The comp is drawn around one campaign's illustration. Most challenges will not
-     * have one, and leaving the left half empty makes the flier read as a broken image
-     * rather than as a design — measured on the first render here, which came out with
-     * half a square of nothing.
-     *
-     * The fallback is the one the challenge page already uses for the same absence: the
-     * icon, large, on a soft disc. That keeps it inside the design system rather than
-     * inventing a second answer, and the page and the flier agree about what a
+     * A challenge with no picture — or one whose file is gone — gets the answer the
+     * challenge page already gives for the same absence: its initial, large, on a white
+     * disc. Half the flier as bare ground reads as a broken image, not as a design, and a
+     * second invented answer here would make the page and the flier disagree about what a
      * challenge with no art looks like.
      */
-    private function art($im, array $col, string $bold, array $c): void
+    private function portrait($im, array $col, array $f, array $c): void
     {
-        $box = 560; $x = 30; $y = 120;
+        $url = trim((string) ($c['portrait_url'] ?? ''));
+        if ($url === '') $url = trim((string) ($c['art_url'] ?? ''));
+        // A 484×526 box whose bottom edge is the band's top and whose right edge is the
+        // flier's: the artwork's subject stands on the band.
+        if ($url !== '' && $this->placeContain($im, $url, 596, 422, 484, 526, 'bottom-right')) return;
 
-        $url = trim((string) ($c['art_url'] ?? ''));
-        if ($url !== '') {
-            $src = $this->loadPhoto($url);
-
-            if ($src !== null && $src !== false) {
-                $sw = imagesx($src); $sh = imagesy($src);
-                // `contain`, not `cover`: the comp's illustration has its own margins
-                // and cropping it would cut the lettering inside the artwork.
-                $sc = min($box / max(1, $sw), $box / max(1, $sh));
-                $dw = (int) round($sw * $sc); $dh = (int) round($sh * $sc);
-
-                imagecopyresampled($im, $src, $x + (int) (($box - $dw) / 2), $y + (int) (($box - $dh) / 2),
-                    0, 0, $dw, $dh, $sw, $sh);
-                imagedestroy($src);
-
-                return;
-            }
-        }
-
-        // No art: a 360px disc with the challenge's own icon, centred in the same box.
-        $cx = $x + $box / 2; $cy = $y + $box / 2;
-        imagefilledellipse($im, (int) $cx, (int) $cy, 360, 360, $col['white']);
-
-        $glyph = mb_substr(trim((string) ($c['title'] ?? 'A')), 0, 1);
+        $cx = 838; $cy = 685;
+        $this->softShadow($im, $cx - 180, $cy - 180 + 8, 360, 360, 180);
+        imagefilledellipse($im, $cx, $cy, 360, 360, $col['white']);
+        $glyph = mb_strtoupper(mb_substr(trim((string) ($c['title'] ?? '')) ?: 'A', 0, 1));
         $size  = self::pt(190);
-        $w     = $this->width($glyph, $size, $bold);
-
-        $this->text($im, mb_strtoupper($glyph), $size, $bold, $col['green'],
-            $cx - $w / 2, $cy + $size * 0.36);
+        $w     = $this->width($glyph, $size, $f['display']);
+        $this->text($im, $glyph, $size, $f['display'], $col['edge'], $cx - $w / 2, $cy + $size * 0.48);
     }
 
-    /**
-     * WIN · the figure · the promise.
-     *
-     * The prize is ABBREVIATED here and nowhere else — "₦6k" at 168px is the comp's
-     * single loudest element, and "₦6,000" at that size does not fit the 416px column.
-     * {@see shortPrize()}.
-     */
-    private function prize($im, array $col, string $bold, array $copy): void
+    /** The white band: the tagline, the address and its date, and the button. */
+    private function footer($im, array $col, array $f, array $copy): void
     {
-        $x = 600;
+        imagefilledrectangle($im, 0, 949, self::W - 1, self::H - 1, $col['white']);
 
-        // "WIN", 20px/700, letter-spacing .18em → 3.6px at 20px.
-        $this->text($im, 'WIN', self::pt(self::FLIER['win']), $bold, $col['gold'], $x, 190 + 20, 3.6);
+        // The button's label is set tight, -0.06em, which `text()` cannot express (its
+        // tracking only advances forward) — so it is drawn and measured per character here.
+        $cta = $copy['cta'];
+        $bs  = self::pt(self::TYPE['cta']);
+        $tr  = -0.06 * self::TYPE['cta'];
+        $bw  = $this->tightWidth($cta, $bs, $f['bold'], $tr);
+        $pw  = (int) round($bw + 88);
+        $px  = 999 - $pw;
+        $this->pill($im, $px, 986, $pw, 57, $col['action']);
+        $this->tight($im, $cta, $bs, $f['bold'], $col['white'], $px + ($pw - $bw) / 2, 1021, $tr);
 
-        $big  = $this->shortPrize($copy);
-        $size = self::pt(self::FLIER['prize']);
+        // The tagline gives way to the button: shrunk rather than run under it.
+        $maxW = $px - 81 - 28;
+        $ts = self::pt(self::TYPE['tagline']);
+        while ($ts > 14 && $this->width($copy['tagline'], $ts, $f['semi']) > $maxW) $ts -= 0.5;
+        // x is the pen, not the ink: DM Sans carries a 2px side bearing at this size, and
+        // the artwork's first stroke is at 81.
+        $this->text($im, $copy['tagline'], $ts, $f['semi'], $col['ink2'], 79, 1005);
 
-        // ── THE BASELINE IS MEASURED, NOT A MULTIPLIER ──────────────────────
-        // The comp stacks WIN (a 20px line from top 190) and then the figure block 2px
-        // under it. A guessed "0.74 of the size" put the figure's cap height ABOVE
-        // WIN's baseline and the two overlapped — visible only once the currency symbol
-        // started drawing and widened the run.
-        //
-        // `imagettfbbox`'s upper-left Y is the ascent above the baseline for THIS
-        // string in THIS face, so the baseline that puts the glyph top exactly where
-        // the comp puts it is arithmetic rather than taste.
-        $top = 190 + 20 + 2;
-        $bb  = imagettfbbox($size, 0, $bold, $big);
-        $by  = $top + ($bb === false ? (int) round($size * 1.0) : -$bb[7]);
-
-        // `letter-spacing:-.05em` — negative, which `text()`'s tracking cannot express
-        // (it only advances forward). Drawn per character with a negative advance here,
-        // because the figure is the one place the comp's tightening is visible.
-        $cx = $x;
-        foreach (preg_split('//u', $big, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $ch) {
-            // `faceFor()` per character, because this loop bypasses `text()` and would
-            // otherwise reproduce the exact fault that one exists to fix: DM Sans has
-            // no ₦, so the symbol drew NOTHING while still advancing its own width —
-            // a flier reading "6k" with a gap where the currency should be.
-            $face = $this->faceFor($bold, $ch);
-
-            imagettftext($im, $size, 0, (int) round($cx), $by, $col['ink'], $face, $ch);
-            $cx += $this->width($ch, $size, $face) - $size * 0.05;
-        }
-
-        $unit = $this->prizeUnit($copy);
-        if ($unit !== '') {
-            // Baseline-aligned with the figure, 14px after it.
-            $this->text($im, $unit, self::pt(self::FLIER['unit']), $bold, $col['gold'], $cx + 14, $by);
-        }
-
-        $this->promise($im, $col, $bold, $copy, $x, $by + 16 + 24);
-    }
-
-    /**
-     * The promise, wrapped to the comp's 416px column with the numbers in flag green.
-     *
-     * Drawn word by word so the two highlighted runs keep their colour across a line
-     * break — the comp colours "11 people" and "10 unique nominees", and a highlight
-     * that stops at the wrap is worse than none.
-     */
-    private function promise($im, array $col, string $bold, array $copy, float $x, float $top): void
-    {
-        $size = self::pt(self::FLIER['promise']);
-        $lead = (int) round($size * 1.25);
-        $maxW = 416;
-
-        [$text, $hot] = $this->shortPromise($copy);
-
-        $cx = $x; $cy = $top;
-        foreach (explode(' ', $text) as $word) {
-            $w = $this->width($word . ' ', $size, $bold);
-
-            if ($cx + $w - $x > $maxW && $cx > $x) { $cx = $x; $cy += $lead; }
-
-            $plain  = trim($word, '.,');
-            $colour = in_array($plain, $hot, true) ? $col['flag'] : $col['ink'];
-
-            $this->text($im, $word, $size, $bold, $colour, $cx, $cy);
-            $cx += $w;
-        }
-    }
-
-    /** The three cards, from `ChallengeCopy::steps()`. */
-    private function steps($im, array $col, string $bold, string $semi, array $copy): void
-    {
-        $steps = array_slice($copy['steps'] ?? [], 0, 3);
-        if ($steps === []) return;
-
-        $gap  = 14;
-        $full = self::W - 64 - 64;
-        $cw   = ($full - $gap * 2) / 3;
-        $ch   = 200;
-
-        foreach ($steps as $i => $s) {
-            $x = 64 + $i * ($cw + $gap);
-
-            $this->roundRect($im, $x, 700, $cw, $ch, 24, $col['white']);
-
-            // The numbered disc: 44×44, centred text.
-            imagefilledellipse($im, (int) ($x + 22 + 22), 700 + 22 + 22, 44, 44, $col['green']);
-            $n  = (string) $s['n'];
-            $nw = $this->width($n, self::pt(self::FLIER['step_n']), $bold);
-            $this->text($im, $n, self::pt(self::FLIER['step_n']), $bold, $col['white'],
-                $x + 44 - $nw / 2, 700 + 44 + self::pt(self::FLIER['step_n']) * 0.37);
-
-            $ty = 700 + 22 + 44 + 12 + self::pt(self::FLIER['step_t']);
-            foreach ($this->wrapMeasured($this->shorten($s['t']), $cw - 44, self::pt(self::FLIER['step_t']), $bold, 3) as $line) {
-                $this->text($im, $line, self::pt(self::FLIER['step_t']), $bold, $col['ink'], $x + 22, $ty);
-                $ty += (int) round(self::pt(self::FLIER['step_t']) * 1.15);
-            }
-
-            $sy = $ty + 10;
-            foreach ($this->wrapMeasured($this->shorten($s['s']), $cw - 44, self::pt(self::FLIER['step_s']), $semi, 2) as $line) {
-                $this->text($im, $line, self::pt(self::FLIER['step_s']), $semi, $col['soft'], $x + 22, $sy);
-                $sy += (int) round(self::pt(self::FLIER['step_s']) * 1.4);
-            }
-        }
-    }
-
-    private function footer($im, array $col, string $bold, string $semi): void
-    {
-        // The host, not the full URL: the comp's pill reads `afg.afrovanguard.org.ng`
-        // with no scheme, which is what somebody types. Falls back to the production
-        // host rather than to an empty pill — a flier with a blank address is a flier
-        // that cannot do its one job.
-        $base = rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/');
-        $host = (string) (parse_url($base, PHP_URL_HOST) ?: 'afg.afrovanguard.org.ng');
-
-        $size = self::pt(self::FLIER['url']);
-        $tw   = $this->width($host, $size, $bold);
-        $pw   = $tw + 64;
-        $py   = self::H - 56 - 68;
-
-        $this->pill($im, 64, $py, $pw, 68, $col['green']);
-        $this->text($im, $host, $size, $bold, $col['white'], 64 + 32, $py + 34 + $size * 0.36);
-
-        // Right-aligned, two lines, as the comp's `<br>` sets them.
-        $note = ['Only complete, verified', 'nominations count'];
-        $ny   = $py + 24;
-        foreach ($note as $line) {
-            $lw = $this->width($line, self::pt(self::FLIER['note']), $semi);
-            $this->text($im, $line, self::pt(self::FLIER['note']), $semi, $col['muted'],
-                self::W - 64 - $lw, $ny);
-            $ny += (int) round(self::pt(self::FLIER['note']) * 1.4);
-        }
+        $us = self::pt(self::TYPE['url']);
+        $this->text($im, $copy['url_line'], $us, $f['regular'], $col['ink'], 81, 1034);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * "₦6,000" → "₦6k". The abbreviation lives HERE and nowhere else.
-     *
-     * At 168px the column holds about five glyphs. The page keeps the exact figure —
-     * that is the one somebody is owed — and the flier carries the shape of it, which
-     * is what a square on a timeline is for.
+     * Text with NEGATIVE letter-spacing. Each character is placed at the measured width of
+     * everything before it plus the tracking so far — measuring the PREFIX, not summing
+     * per-glyph boxes, because a glyph's box drops its side bearings and a space has none,
+     * so a per-glyph sum closes every word gap ("JOINNOW").
      */
-    private function shortPrize(array $copy): string
+    private function tight($im, string $s, float $size, string $font, int $colour, float $x, float $y, float $track): void
     {
-        $big = (string) ($copy['prize_big'] ?? '');
-
-        return (string) preg_replace_callback('/([0-9][0-9,]*)/', static function (array $m): string {
-            $n = (int) str_replace(',', '', $m[1]);
-
-            if ($n >= 1_000_000) return rtrim(rtrim(number_format($n / 1_000_000, 1), '0'), '.') . 'm';
-            if ($n >= 1_000)     return rtrim(rtrim(number_format($n / 1_000, 1), '0'), '.') . 'k';
-
-            return (string) $n;
-        }, $big, 1);
+        $chars = preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $prefix = '';
+        foreach ($chars as $i => $ch) {
+            $at = $x + ($prefix === '' ? 0.0 : $this->advance($prefix, $size, $font)) + $i * $track;
+            if ($ch !== ' ') imagettftext($im, $size, 0, (int) round($at), (int) round($y), $colour, $font, $ch);
+            $prefix .= $ch;
+        }
     }
 
-    /** `cash_each` reads "each"; a pooled prize or points keeps its own word. */
-    private function prizeUnit(array $copy): string
+    private function tightWidth(string $s, float $size, string $font, float $track): float
     {
-        return trim((string) ($copy['prize_unit'] ?? ''));
+        $n = mb_strlen($s);
+        return $n > 0 ? $this->width($s, $size, $font) + ($n - 1) * $track : 0.0;
+    }
+
+    /** Where the pen ends after `$s`: the inked width of `$s` plus a following glyph, minus that glyph. */
+    private function advance(string $s, float $size, string $font): float
+    {
+        return $this->width($s . 'H', $size, $font) - $this->width('H', $size, $font);
+    }
+
+    /** A file under public/ at its own size. */
+    private function place($im, string $path, int $x, int $y): void
+    {
+        $src = $this->loadPhoto($path);
+        if ($src === null || $src === false) return;
+        imagecopy($im, $src, $x, $y, 0, 0, imagesx($src), imagesy($src));
+        imagedestroy($src);
     }
 
     /**
-     * The flier's shorter promise, and the two runs the comp colours.
+     * A file scaled to fit a box (`contain`), anchored as the artwork anchors it.
      *
-     * The comp: "The first 11 people to nominate 10 unique nominees each win." The
-     * page's sentence is longer and names verification; at 30px in a 416px column it
-     * runs to six lines and collides with the steps. Deviation 1.
-     *
-     * @return array{0:string,1:list<string>} the sentence, and the words to highlight
+     * @param string $anchor centre | left | bottom-right
      */
-    private function shortPromise(array $copy): array
+    private function placeContain($im, string $path, int $x, int $y, int $bw, int $bh, string $anchor = 'centre'): bool
     {
-        $cap    = (int) ($copy['cap'] ?? 0);
-        $target = 0;
+        $src = $this->loadPhoto($path);
+        if ($src === null || $src === false) return false;
+        $sw = imagesx($src); $sh = imagesy($src);
+        $sc = min($bw / max(1, $sw), $bh / max(1, $sh));
+        $dw = (int) round($sw * $sc); $dh = (int) round($sh * $sc);
+        [$dx, $dy] = match ($anchor) {
+            'left'         => [$x, $y + intdiv($bh - $dh, 2)],
+            'bottom-right' => [$x + $bw - $dw, $y + $bh - $dh],
+            default        => [$x + intdiv($bw - $dw, 2), $y + intdiv($bh - $dh, 2)],
+        };
+        imagealphablending($im, true);
+        imagecopyresampled($im, $src, $dx, $dy, 0, 0, $dw, $dh, $sw, $sh);
+        imagedestroy($src);
+        return true;
+    }
 
-        // The target is on the facts strip as "10 different nominees", which is the one
-        // place `for()` publishes it alongside its unit.
-        foreach ($copy['facts'] ?? [] as $f) {
-            if (($f['k'] ?? '') === 'To qualify') $target = (int) $f['v'];
+    /**
+     * A soft shadow: the shape drawn OPAQUE on its own small canvas, blurred, and the result
+     * used as a coverage mask for the ink. Translucent shapes drawn straight onto the flier
+     * cannot do this — `roundRect()` is two rectangles and four ellipses, and where they
+     * overlap a translucent colour is laid down twice, which drew hard grey bars along every
+     * edge of the card instead of a glow.
+     *
+     * The blur is three box passes each way over FLOATS (a close gaussian). Not
+     * `IMG_FILTER_GAUSSIAN_BLUR` repeated: that rounds to 8 bits on every pass, the error
+     * creeps outward, and the shadow ends in a visible square at the canvas edge.
+     *
+     * `$opacity` is the density beneath the shape; `$blur` its spread in px. The defaults
+     * are measured off the artwork: 8% darker than the ground at the card's edge, gone by
+     * about 18px below it.
+     */
+    private function softShadow($im, float $x, float $y, float $w, float $h, float $r,
+                                float $opacity = 0.13, int $blur = 14): void
+    {
+        $pad = $blur * 3;
+        $cw = (int) ceil($w) + 2 * $pad; $ch = (int) ceil($h) + 2 * $pad;
+        $m = imagecreatetruecolor($cw, $ch);
+        imagefill($m, 0, 0, (int) imagecolorallocate($m, 0, 0, 0));
+        $this->roundRect($m, $pad, $pad, $w, $h, $r, (int) imagecolorallocate($m, 255, 255, 255));
+        $a = [];
+        for ($py = 0; $py < $ch; $py++) {
+            for ($px = 0; $px < $cw; $px++) $a[$py * $cw + $px] = (imagecolorat($m, $px, $py) & 0xFF) / 255;
+        }
+        imagedestroy($m);
+        $rad = max(1, intdiv($blur, 2));
+        for ($pass = 0; $pass < 3; $pass++) {
+            $a = self::boxBlur($a, $cw, $ch, $rad, true);
+            $a = self::boxBlur($a, $cw, $ch, $rad, false);
         }
 
-        $u    = (string) ($copy['u'] ?? '');
-        $who  = $cap > 0 ? 'The first ' . $cap . ' people' : 'Everybody who finishes';
-        $hot  = [];
-
-        if ($cap > 0)    $hot[] = (string) $cap;
-        if ($target > 0) $hot[] = (string) $target;
-
-        $verb = str_contains($u, 'ticket') ? 'bring' : 'nominate';
-
-        return [
-            $who . ' to ' . $verb . ' ' . $target . ' ' . $u . ' each win.',
-            array_merge($hot, ['people', $u !== '' ? explode(' ', $u)[0] : '']),
-        ];
-    }
-
-    /** A step line trimmed to what a 1080 square can hold without reflowing the row. */
-    private function shorten(string $s): string
-    {
-        $s = trim($s);
-
-        // The comp's own second lines are four or five words. A page sentence is longer,
-        // so it is cut at its first full stop rather than ellipsised mid-clause.
-        $at = mb_strpos($s, '. ');
-
-        return $at !== false ? mb_substr($s, 0, $at) : $s;
-    }
-
-    /**
-     * The Africa GATES mark, centred in the white disc.
-     *
-     * Drawn from the bundled PNG when it is there; a solid green disc with the letter
-     * otherwise. A flier that fails because a logo file moved is a flier nobody can
-     * publish, and the fallback is recognisably ours rather than an empty hole.
-     */
-    private function mark($im, int $cx, int $cy, int $size): void
-    {
-        $path = dirname(__DIR__, 2) . '/public/assets/img/gates-logo.png';
-
-        if (is_file($path)) {
-            $src = @imagecreatefrompng($path);
-            if ($src !== false) {
-                $sw = imagesx($src); $sh = imagesy($src);
-                $sc = min($size / max(1, $sw), $size / max(1, $sh));
-                $dw = (int) round($sw * $sc); $dh = (int) round($sh * $sc);
-
-                imagecopyresampled($im, $src, $cx - (int) ($dw / 2), $cy - (int) ($dh / 2),
-                    0, 0, $dw, $dh, $sw, $sh);
-                imagedestroy($src);
-
-                return;
+        [$sr, $sg, $sb] = FlierLayout::rgb(Accent::neutral('ink'));
+        $ox = (int) round($x) - $pad; $oy = (int) round($y) - $pad;
+        $iw = imagesx($im); $ih = imagesy($im);
+        imagealphablending($im, true);
+        for ($py = 0; $py < $ch; $py++) {
+            $ty = $oy + $py;
+            if ($ty < 0 || $ty >= $ih) continue;
+            for ($px = 0; $px < $cw; $px++) {
+                $tx = $ox + $px;
+                if ($tx < 0 || $tx >= $iw) continue;
+                $alpha = (int) round(127 * (1 - $a[$py * $cw + $px] * $opacity));
+                if ($alpha >= 127) continue;
+                imagesetpixel($im, $tx, $ty, (int) imagecolorallocatealpha($im, $sr, $sg, $sb, $alpha));
             }
         }
+    }
 
-        [$r, $g, $b] = FlierLayout::rgb(self::IN['green']);
-        $green = (int) imagecolorallocate($im, $r, $g, $b);
-        imagefilledellipse($im, $cx, $cy, $size, $size, $green);
-
-        $white = (int) imagecolorallocate($im, 255, 255, 255);
-        $font  = FlierService::fontPath('bold');
-        $w     = $this->width('G', 30, $font);
-        $this->text($im, 'G', 30, $font, $white, $cx - $w / 2, $cy + 11);
+    /**
+     * One box-blur pass along rows or columns, with a running sum.
+     *
+     * @param array<int,float> $a
+     * @return array<int,float>
+     */
+    private static function boxBlur(array $a, int $w, int $h, int $r, bool $rows): array
+    {
+        $out = $a;
+        $len = $rows ? $w : $h; $lines = $rows ? $h : $w;
+        $n = 2 * $r + 1;
+        for ($l = 0; $l < $lines; $l++) {
+            $at = $rows ? static fn (int $i): int => $l * $w + $i : static fn (int $i): int => $i * $w + $l;
+            $sum = 0.0;
+            for ($i = -$r; $i <= $r; $i++) $sum += ($i >= 0 && $i < $len) ? $a[$at($i)] : 0.0;
+            for ($i = 0; $i < $len; $i++) {
+                $out[$at($i)] = $sum / $n;
+                $in = $i + $r + 1; $outI = $i - $r;
+                if ($in < $len) $sum += $a[$at($in)];
+                if ($outI >= 0) $sum -= $a[$at($outI)];
+            }
+        }
+        return $out;
     }
 }

@@ -263,7 +263,7 @@ final class InvitesController
         // One transport for the whole batch, so fifteen invitations are fifteen messages
         // over one connection rather than fifteen handshakes.
         $mailer = OtpService::boot();
-        if (!$mailer->smtpConfigured()) {
+        if (!$mailer->canSend()) {
             $_SESSION['flash_error'] = 'SMTP is not configured — set it in Settings → Email & sender first. '
                                      . 'Nothing was sent.';
             return $res->withHeader('Location', '/admin/events/' . $id . '/invites')->withStatus(302);
@@ -561,7 +561,7 @@ final class InvitesController
         }
 
         $mailer = OtpService::boot();
-        if (!$mailer->smtpConfigured()) {
+        if (!$mailer->canSend()) {
             $_SESSION['flash_error'] = 'SMTP is not configured — set it in Settings → Email & sender first.';
             return $res->withHeader('Location', $back)->withStatus(302);
         }

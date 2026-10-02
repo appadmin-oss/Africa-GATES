@@ -8,6 +8,7 @@ use AfricaGates\Services\ChallengeAdmin;
 use AfricaGates\Services\ChallengeCopy;
 use AfricaGates\Services\ChallengeService as CS;
 use AfricaGates\Support\ChallengeEnum as E;
+use AfricaGates\Support\SeedReview;
 use AfricaGates\Support\SeedRunner;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -94,6 +95,7 @@ final class ChallengesController
             // "applied" is a panel an operator learns to scroll past, and then it is
             // scrolled past on the day one is waiting.
             'seeds' => SeedRunner::anyOutstanding() ? SeedRunner::status() : [],
+            'reviewable' => array_values(array_filter(SeedRunner::names(), [SeedReview::class, 'required'])),
         ]);
     }
 
@@ -118,6 +120,13 @@ final class ChallengesController
             return $this->back($res, '/admin/challenges');
         }
 
+        // A seed that waits for a person is added from its review page, never from a
+        // bare button: what it writes becomes published terms, locked from that moment.
+        if (!SeedReview::ready($name)) {
+            $_SESSION['flash_error'] = 'Check its details first — then press “Add the challenge”.';
+            return $this->back($res, '/admin/challenges/seeds/' . $name);
+        }
+
         $r = SeedRunner::run($name);
         $this->audit?->record($this->adminId(), 'seed.run', 'seed', 0,
             ['seed' => $name, 'status' => $r['status']]);
@@ -131,6 +140,151 @@ final class ChallengesController
         $_SESSION[$key] = $msg;
 
         return $this->back($res, '/admin/challenges');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // A seed, checked before it runs
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * GET — the seed's values, as a form, with what they will say on the page.
+     *
+     * The preview is `ChallengeCopy`, the generator the public page uses, run over the
+     * values as they stand — so the sentence an operator approves is the sentence that
+     * will be published, not a description of it.
+     */
+    public function seedForm(Request $req, Response $res, array $args): Response
+    {
+        $name = (string) ($args['name'] ?? '');
+        $spec = in_array($name, SeedRunner::names(), true) ? SeedReview::spec($name) : null;
+        if ($spec === null) return $res->withStatus(404);
+
+        $values = SeedReview::values($name);
+        $old    = $_SESSION['seed_old'][$name] ?? null;
+        $errors = $_SESSION['seed_errors'][$name] ?? [];
+        unset($_SESSION['seed_old'][$name], $_SESSION['seed_errors'][$name]);
+
+        $groups = [];
+        foreach ($spec['fields'] as $k => $f) {
+            $v = is_array($old) && array_key_exists($k, $old) ? $old[$k] : $values[$k];
+            $groups[$f['group']][] = $f + [
+                'key' => $k,
+                'value' => $f['type'] === 'lines' ? implode("\n", (array) $v)
+                         : ($f['type'] === 'when' ? str_replace(' ', 'T', (string) $v) : (string) $v),
+                'changed' => in_array($k, SeedReview::edited($name), true),
+                'error' => $errors[$k] ?? null,
+                'default_text' => $f['type'] === 'lines' ? implode(' · ', (array) $f['default']) : (string) $f['default'],
+            ];
+        }
+
+        $done = SeedRunner::done($name);
+        $approval = SeedReview::approval($name);
+
+        return $this->view->render($res, 'admin/challenges/seed.twig', [
+            'admin_page' => 'challenges', 'topbar_title' => 'Check before adding',
+            'name' => $name, 'groups' => $groups, 'done' => $done,
+            'ready' => SeedReview::ready($name),
+            'approved_at' => $approval['at'] ?? null,
+            'status' => SeedRunner::status()[$name] ?? null,
+            'preview' => $this->seedPreview($name, $values),
+            'challenge' => $done ? CS::bySlug('celebrate-nigeria-2026') : null,
+        ]);
+    }
+
+    /** POST — save the values; with `add=1`, approve them and run the seed now. */
+    public function seedSave(Request $req, Response $res, array $args): Response
+    {
+        $name = (string) ($args['name'] ?? '');
+        if (!in_array($name, SeedRunner::names(), true) || SeedReview::spec($name) === null) {
+            return $res->withStatus(404);
+        }
+        $to = '/admin/challenges/seeds/' . $name;
+
+        if (SeedRunner::done($name)) {
+            // Its terms are published and locked now; the builder is where its words
+            // are edited, and it says which ones may still change.
+            $_SESSION['flash_error'] = 'This challenge has already been added. Edit it in the builder.';
+            return $this->back($res, $to);
+        }
+
+        $b = (array) $req->getParsedBody();
+        $r = SeedReview::save($name, $b, $this->adminId() ?: null);
+        if (!$r['ok']) {
+            $_SESSION['seed_old'][$name] = $b;
+            $_SESSION['seed_errors'][$name] = $r['errors'];
+            $_SESSION['flash_error'] = count($r['errors']) === 1
+                ? 'One thing to fix before this can be saved.'
+                : count($r['errors']) . ' things to fix before this can be saved.';
+            return $this->back($res, $to);
+        }
+        $this->audit?->record($this->adminId(), 'seed.values', 'seed', 0, ['seed' => $name]);
+
+        if (empty($b['add'])) {
+            $_SESSION['flash_ok'] = 'Saved. Nothing is added until you press “Add the challenge”.';
+            return $this->back($res, $to);
+        }
+
+        SeedReview::approve($name, $this->adminId() ?: null);
+        $run = SeedRunner::run($name);
+        $this->audit?->record($this->adminId(), 'seed.run', 'seed', 0, ['seed' => $name, 'status' => $run['status']]);
+
+        [$key, $msg] = match ($run['status']) {
+            'done'    => ['flash_ok',    'Added. It is live on its own page now.'],
+            // Approved and refused for a reason outside this form — no edition open, say.
+            // The approval stands, so the hourly check adds it as soon as that is fixed.
+            'waiting' => ['flash_error', 'Approved, but not added yet: ' . $run['note']
+                          . ' It will be added by itself as soon as that is fixed.'],
+            default   => ['flash_error', 'It failed: ' . $run['note']],
+        };
+        $_SESSION[$key] = $msg;
+        return $this->back($res, $run['status'] === 'done' ? '/admin/challenges' : $to);
+    }
+
+    /** POST — back to the handoff's values. */
+    public function seedReset(Request $req, Response $res, array $args): Response
+    {
+        $name = (string) ($args['name'] ?? '');
+        if (!in_array($name, SeedRunner::names(), true) || SeedReview::spec($name) === null) {
+            return $res->withStatus(404);
+        }
+        if (!SeedRunner::done($name)) {
+            SeedReview::reset($name);
+            $this->audit?->record($this->adminId(), 'seed.reset', 'seed', 0, ['seed' => $name]);
+            $_SESSION['flash_ok'] = 'Back to the original values.';
+        }
+        return $this->back($res, '/admin/challenges/seeds/' . $name);
+    }
+
+    /**
+     * What the page will say, from the values as they stand.
+     *
+     * @param array<string,mixed> $v
+     * @return array<string,mixed>|null
+     */
+    private function seedPreview(string $name, array $v): ?array
+    {
+        if ($name !== '2026_10_01_celebrate_nigeria') return null;
+        try {
+            $row = [
+                'title' => $v['title'], 'kicker' => $v['kicker'],
+                'action' => E::ACTION_NOMINATE, 'mode' => E::MODE_FIRST, 'prize_type' => E::PRIZE_CASH_EACH,
+                'prize_currency' => 'NGN', 'prize_amount' => (int) $v['prize_amount'],
+                'target' => (int) $v['target'], 'cap' => (int) $v['cap'],
+                'starts_at' => SeedReview::utc($name, (string) $v['starts_at']),
+                'ends_at' => SeedReview::utc($name, (string) $v['ends_at']),
+                'timezone' => 'Africa/Lagos', 'headline' => $v['headline'],
+                'standfirst' => $v['standfirst'], 'tagline' => $v['tagline'],
+                'extra_rules' => json_encode(array_values((array) $v['extra_rules'])),
+            ];
+            $ctx = ['claimed' => 0];
+            return [
+                'copy' => ChallengeCopy::for($row, $ctx),
+                'flier' => ChallengeCopy::flier($row, $ctx),
+                'summary' => SeedReview::fill((string) $v['summary'], $v),
+            ];
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════

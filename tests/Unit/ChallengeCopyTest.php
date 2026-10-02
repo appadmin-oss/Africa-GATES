@@ -581,4 +581,112 @@ final class ChallengeCopyTest extends TestCase
             }
         }
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // The flier's lines — ChallengeCopy::flier()
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /** The seeded campaign's own lines, as the artwork prints them, numbers filled in. */
+    public function test_the_flier_prints_the_campaigns_own_lines_with_the_numbers_filled(): void
+    {
+        $f = ChallengeCopy::flier(ChallengeDemo::get('nigeria') + [
+            'headline'   => 'Know {target} people who make Alimosho proud?',
+            'standfirst' => 'Nominate them for the Alimosho Awards. Once all {target} are verified, you win.',
+            'tagline'    => 'Celebrate Nigeria, one name at a time',
+        ], ['state' => E::ST_OPEN, 'claimed' => 0]);
+
+        self::assertSame('Know 10 people who make Alimosho proud?', $f['headline']);
+        self::assertSame('Nominate them for the Alimosho Awards. Once all 10 are verified, you win.', $f['standfirst']);
+        self::assertSame('Celebrate Nigeria, one name at a time', $f['tagline']);
+        self::assertSame('Independence Day challenge', $f['kicker']);
+        self::assertSame('First 11 Winners', $f['tab']);
+        self::assertSame('₦6,000', $f['prize_big']);
+        self::assertSame('each', $f['prize_unit']);
+        self::assertSame('Nominate 10, get them verified', $f['card_line']);
+        self::assertSame('JOIN NOW', $f['cta']);
+    }
+
+    /**
+     * A challenge nobody wrote flier lines for still makes a flier — from its title and
+     * its generated promise, the same sentence the page leads with — rather than a
+     * blank headline over a prize.
+     */
+    public function test_a_challenge_with_no_flier_lines_falls_back_to_its_own_title_and_promise(): void
+    {
+        $c = ChallengeDemo::get('nigeria');
+        $f = ChallengeCopy::flier($c, ['state' => E::ST_OPEN, 'claimed' => 0]);
+
+        self::assertSame('Celebrate Nigeria', $f['headline']);
+        self::assertSame('Celebrate Nigeria', $f['tagline']);
+        self::assertSame(ChallengeCopy::for($c, ['state' => E::ST_OPEN, 'claimed' => 0])['promise'], $f['standfirst']);
+    }
+
+    public function test_the_tab_names_who_wins_in_every_mode(): void
+    {
+        $c = ChallengeDemo::get('nigeria');
+        $tab = static fn (array $o): string => ChallengeCopy::flier($o + $c, ['state' => E::ST_OPEN, 'claimed' => 0])['tab'];
+
+        self::assertSame('First 11 Winners', $tab([]));
+        self::assertSame('First 1 Winner', $tab(['cap' => 1]));
+        self::assertSame('Top 5 Win', $tab(['mode' => E::MODE_TOP, 'cap' => 5]));
+        self::assertSame('3 Winners Drawn', $tab(['mode' => E::MODE_DRAW, 'draw_count' => 3]));
+        self::assertSame('1 Winner Drawn', $tab(['mode' => E::MODE_DRAW, 'draw_count' => 1]));
+        self::assertSame('Every Finisher Wins', $tab(['cap' => 0]));
+    }
+
+    public function test_the_card_line_is_the_action_and_its_target(): void
+    {
+        $c = ChallengeDemo::get('nigeria');
+        $line = static fn (array $o): string => ChallengeCopy::flier($o + $c, ['state' => E::ST_OPEN])['card_line'];
+
+        self::assertSame('Nominate 10, get them verified', $line([]));
+        foreach ([E::ACTION_VOTE => 'Vote in ', E::ACTION_REFER => 'Bring ', E::ACTION_GIVE => 'Give '] as $action => $verb) {
+            $u = ChallengeCopy::for(['action' => $action] + $c, ['state' => E::ST_OPEN])['u'];
+            self::assertSame($verb . '10 ' . $u, $line(['action' => $action]), $action);
+        }
+    }
+
+    /**
+     * The button follows the state. A flier for a race whose prizes are all claimed
+     * that still says JOIN NOW sends people to a page that tells them they are too late.
+     */
+    public function test_the_button_follows_the_state(): void
+    {
+        $c = ChallengeDemo::get('nigeria');
+        self::assertSame('JOIN NOW', ChallengeCopy::flier($c, ['state' => E::ST_OPEN, 'claimed' => 0])['cta']);
+        self::assertSame('SEE THE AWARDS', ChallengeCopy::flier($c, ['state' => E::ST_OPEN, 'claimed' => 11])['cta']);
+        self::assertSame('SEE THE RESULTS', ChallengeCopy::flier($c, ['state' => E::ST_ENDED, 'claimed' => 3])['cta']);
+    }
+
+    /** The address and its date, in the challenge's own zone — 22:59 UTC is the 15th in Lagos. */
+    public function test_the_address_line_carries_the_date_in_the_challenges_zone(): void
+    {
+        $prev = getenv('APP_URL');
+        putenv('APP_URL=https://afg.afrovanguard.org.ng');
+        try {
+            $c = ['starts_at' => '2026-09-30 23:00:00', 'ends_at' => '2026-10-15 22:59:59',
+                  'timezone' => 'Africa/Lagos'] + ChallengeDemo::get('nigeria');
+            self::assertSame('afg.afrovanguard.org.ng/challenges · ends 15 Oct',
+                ChallengeCopy::flier($c, ['state' => E::ST_OPEN, 'claimed' => 0])['url_line']);
+            self::assertSame('afg.afrovanguard.org.ng/challenges · starts 1 Oct',
+                ChallengeCopy::flier($c, ['state' => E::ST_UPCOMING, 'claimed' => 0])['url_line']);
+            self::assertSame('afg.afrovanguard.org.ng/challenges · ended',
+                ChallengeCopy::flier($c, ['state' => E::ST_ENDED, 'claimed' => 0])['url_line']);
+        } finally {
+            putenv($prev === false ? 'APP_URL' : 'APP_URL=' . $prev);
+        }
+    }
+
+    /** A placeholder nobody filled must never reach a printed flier. */
+    public function test_no_flier_line_carries_an_unfilled_placeholder(): void
+    {
+        foreach (array_keys(ChallengeDemo::all()) as $key) {
+            $f = ChallengeCopy::flier(ChallengeDemo::get($key) + [
+                'headline' => '{target} {cap} {prize}', 'standfirst' => 'x {prize}', 'tagline' => '{cap}',
+            ], ['state' => E::ST_OPEN, 'claimed' => 0]);
+            foreach ($f as $k => $v) {
+                self::assertDoesNotMatchRegularExpression('~\{[a-z_]+\}~', (string) $v, "$key.$k");
+            }
+        }
+    }
 }

@@ -68,24 +68,28 @@
 {% if seeds|length %}
 <section class="cq-lede cq-seeds" aria-labelledby="cq-seeds-h">
   <h2 id="cq-seeds-h">Waiting to be added</h2>
-  <p>These challenges are written by the platform once their award is ready. It checks
-    every hour by itself; press <strong>Run now</strong> after fixing what a row says.</p>
+  <p>These challenges are written by the platform once their award is ready. Check each
+    one's details first — nothing is added until you do. After that it checks every hour by
+    itself; press <strong>Run now</strong> after fixing what a row says.</p>
   {% for name, s in seeds %}
   <div class="cq-seed" data-s="{{ s.status }}">
     <div class="cq-seed__b">
       <span class="cq-t">{{ name|replace({'_': ' '})|slice(11)|capitalize }}</span>
       <span class="cq-pill" data-s="{{ s.status == 'done' ? 'open' : (s.status == 'failed' ? 'cancelled' : 'full') }}">
-        {{- {'done':'Added','waiting':'Waiting','failed':'Failed','pending':'Not tried yet'}[s.status]|default(s.status) -}}
+        {{- {'done':'Added','review':'Check it first','waiting':'Waiting','failed':'Failed','pending':'Not tried yet'}[s.status]|default(s.status) -}}
       </span>
       {% if s.status != 'done' %}<span class="cq-sub cq-seed__why">{{ s.note }}</span>{% endif %}
       {% if s.at %}<span class="cq-sub">Last checked {{ s.at|when }}</span>{% endif %}
     </div>
-    {% if s.status != 'done' %}
+    {% if s.status == 'review' %}
+    <a class="cq-act" href="/admin/challenges/seeds/{{ name }}">Check details</a>
+    {% elseif s.status != 'done' %}
     <form method="post" action="/admin/challenges/seeds/run">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <input type="hidden" name="seed" value="{{ name }}">
       <button type="submit" class="cq-act">Run now</button>
     </form>
+    {% if name in reviewable %}<a class="cq-act" href="/admin/challenges/seeds/{{ name }}">Details</a>{% endif %}
     {% endif %}
   </div>
   {% endfor %}

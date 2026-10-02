@@ -2683,7 +2683,8 @@ return function(App $app) {
          * The 1080x1080 share graphic — /challenges/{slug}/flier.png
          *
          * Public, because the point of it is that an entrant posts it. It carries only
-         * what the page already says: the kicker, the prize, the promise, the steps.
+         * what the page already says: the kicker, the campaign's own lines, who wins, the
+         * prize, what qualifies, and the date it closes.
          * A draft or cancelled challenge has no flier for the same reason it has no
          * page — it would be publishing an offer nobody approved.
          */
@@ -2695,8 +2696,14 @@ return function(App $app) {
                     return $res->withStatus(404);
                 }
 
+                // The host's mark sits beside ours on the flier, resolved from the
+                // challenge's scopes exactly as the page resolves it.
+                $host = \AfricaGates\Support\ProgrammeHost::forScopes(
+                    \AfricaGates\Services\ChallengeService::scopeIds($c, 'award_cycle'),
+                    \AfricaGates\Services\ChallengeService::scopeIds($c, 'category'));
                 $png = \AfricaGates\Services\ChallengeFlier::png((array) $c, [
-                    'claimed' => \AfricaGates\Services\ChallengeService::claimed((int) $c->id),
+                    'claimed'   => \AfricaGates\Services\ChallengeService::claimed((int) $c->id),
+                    'host_logo' => (string) ($host['logo'] ?? ''),
                 ]);
 
                 // GD or FreeType missing is a 503, not a broken image: an empty square
@@ -3818,6 +3825,11 @@ return function(App $app) {
         $a->get('/challenges',                                 AdminChallengesController::class.':index');
         $a->get('/challenges/new',                             AdminChallengesController::class.':form');
         $a->post('/challenges/seeds/run',                      AdminChallengesController::class.':runSeed');
+        // A seed checked before it runs. The name is constrained to a seed's own shape
+        // (a date, then words) so the literal `/seeds/run` above can never be read as one.
+        $a->get('/challenges/seeds/{name:[0-9]{4}_[0-9]{2}_[0-9]{2}_[a-z0-9_]+}',        AdminChallengesController::class.':seedForm');
+        $a->post('/challenges/seeds/{name:[0-9]{4}_[0-9]{2}_[0-9]{2}_[a-z0-9_]+}',       AdminChallengesController::class.':seedSave');
+        $a->post('/challenges/seeds/{name:[0-9]{4}_[0-9]{2}_[0-9]{2}_[a-z0-9_]+}/reset', AdminChallengesController::class.':seedReset');
         $a->post('/challenges/new',                            AdminChallengesController::class.':save');
         $a->post('/challenges/new/draft',                      AdminChallengesController::class.':draft');
         $a->get('/challenges/{id:[0-9]+}',                     AdminChallengesController::class.':form');
@@ -4369,6 +4381,8 @@ return function(App $app) {
             // to MAIL FROM and stops: it never sends, so it can run by itself hourly.
             $s->get('/mail',           \AfricaGates\Admin\Controllers\MailHealthController::class.':index');
             $s->post('/mail/diagnose', \AfricaGates\Admin\Controllers\MailHealthController::class.':diagnose');
+            $s->post('/mail/sending',  \AfricaGates\Admin\Controllers\MailHealthController::class.':sending');
+            $s->post('/mail/use-env',  \AfricaGates\Admin\Controllers\MailHealthController::class.':useEnv');
             $s->post('/mail/rules',    \AfricaGates\Admin\Controllers\MailHealthController::class.':rules');
             $s->post('/mail/events/rotate', \AfricaGates\Admin\Controllers\MailHealthController::class.':rotate');
             $s->post('/mail/suppression/{id:[0-9]+}/lift', \AfricaGates\Admin\Controllers\MailHealthController::class.':lift');

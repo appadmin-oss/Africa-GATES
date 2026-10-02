@@ -92,6 +92,68 @@ final class MailDiagnosis
     }
 
     /**
+     * Can mail leave by ANY road the configuration allows — not only SMTP?
+     *
+     * `run()` walks the SMTP conversation, and was the whole of the hourly check: so a
+     * deployment sending perfectly over the Brevo API, or by the server's own mail with
+     * SMTP blocked, opened an incident every hour about a road it was not using. This
+     * asks about the roads in the order a send tries them, and a fallback carrying the
+     * mail is reported as WORKING and DEGRADED — mail is reaching people, and the SMTP
+     * fault is still on the screen with its fix.
+     *
+     * @param \Closure(string):array{ok:bool,detail:string}|null $api
+     * @return array<string,mixed> run()'s shape, plus `road` and `degraded`
+     */
+    public static function roads(MailConfig $c, ?\Closure $api = null, ?bool $production = null): array
+    {
+        $api ??= static fn (string $k): array => (new BrevoApi($k))->check();
+        $production ??= strtolower((string) \AfricaGates\Support\Env::get('APP_ENV', 'production')) === 'production';
+        $host = $production && MailConfig::hostMailAvailable();
+
+        $smtp = in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_SMTP], true)
+            ? (new self($c))->run() : null;
+        if ($smtp !== null && ($smtp['ok'] || $c->transport === MailConfig::TRANSPORT_SMTP)) {
+            return $smtp + ['road' => 'smtp', 'degraded' => false];
+        }
+
+        $base = $smtp ?? ['ok' => false, 'cause' => MailFailure::CONFIG, 'title' => '', 'fix' => '', 'detail' => '',
+            'steps' => [], 'config' => $c->describe(), 'ports' => [], 'ran_at' => gmdate('Y-m-d H:i:s'), 'took_ms' => 0];
+        $why = $smtp !== null ? 'SMTP is failing (' . $smtp['title'] . ')' : 'SMTP is not used';
+
+        if (in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_API], true)) {
+            if ($c->hasApiKey()) {
+                $r = $api($c->apiKey);
+                $base['steps'][] = ['key' => 'api', 'label' => 'The Brevo API accepts our key',
+                                    'state' => $r['ok'] ? self::OK : self::FAIL, 'detail' => $r['detail']];
+                if ($r['ok']) {
+                    return array_merge($base, ['ok' => true, 'road' => 'api', 'degraded' => $smtp !== null,
+                        'title' => $smtp !== null ? $why . ' — mail is going out by the Brevo API instead' : 'Email can be sent by the Brevo API']);
+                }
+                if ($c->transport === MailConfig::TRANSPORT_API) {
+                    return array_merge($base, ['ok' => false, 'cause' => MailFailure::AUTH, 'road' => 'api', 'degraded' => false,
+                        'title' => 'The Brevo API refused our key', 'fix' => $r['detail']]);
+                }
+            } elseif ($c->transport === MailConfig::TRANSPORT_API) {
+                return array_merge($base, ['ok' => false, 'cause' => MailFailure::CONFIG, 'road' => 'api', 'degraded' => false,
+                    'title' => 'No Brevo API key is saved', 'fix' => 'Paste the API key into “How mail is sent” on Settings → Email health.']);
+            }
+        }
+
+        if (in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_HOST], true)) {
+            $base['steps'][] = ['key' => 'host', 'label' => 'This server can send its own mail',
+                                'state' => $host ? self::OK : self::FAIL,
+                                'detail' => $host ? 'PHP’s mail() is available here.' : 'PHP’s mail() is not available on this server.'];
+            if ($host) {
+                return array_merge($base, ['ok' => true, 'road' => 'host', 'degraded' => $c->transport === MailConfig::TRANSPORT_AUTO,
+                    'title' => $c->transport === MailConfig::TRANSPORT_AUTO
+                        ? $why . ' — mail is going out by this server’s own mail instead'
+                        : 'Email can be sent by this server’s own mail']);
+            }
+        }
+        return $base + ['road' => null, 'degraded' => false];
+    }
+
+    /**
      * Run it.
      *
      * @return array{ok:bool, cause:?string, title:string, fix:string, steps:list<array{key:string,label:string,state:string,detail:string}>,
@@ -113,7 +175,7 @@ final class MailDiagnosis
                     $steps[] = ['key' => $key, 'label' => $label, 'state' => self::SKIP, 'detail' => 'Not reached.'];
                 }
             }
-            $fix = $cause === null ? '' : MailFailure::fix($cause);
+            $fix = $cause === null ? '' : MailFailure::fix($cause, $c->provider());
             if ($cause === MailFailure::CONNECT && $ports !== []) {
                 $open = array_keys(array_filter($ports));
                 // The generic advice is "try another port" — and it has just tried them.
@@ -249,7 +311,14 @@ final class MailDiagnosis
         }
         $smtp->reset();
         $smtp->quit();
-        $step('sender', self::OK, $c->fromAddress . ' accepted. No message was sent.');
+        // Gmail ACCEPTS any From at this step and rewrites it later to the signed-in
+        // account unless the address is one of its verified "Send mail as" aliases — so a
+        // pass here is not the whole answer, and the screen says so rather than letting
+        // somebody wonder why the mail arrives from a different address.
+        $alias = $c->provider() === 'google' && strcasecmp($c->fromAddress, $c->username) !== 0;
+        $step('sender', $alias ? self::WARN : self::OK, $c->fromAddress . ' accepted. No message was sent.'
+            . ($alias ? ' Google will send it as ' . $c->username . ' unless ' . $c->fromAddress
+                      . ' is added under Gmail → Settings → Accounts → “Send mail as”.' : ''));
 
         return $finish(null);
     }

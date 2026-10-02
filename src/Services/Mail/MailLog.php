@@ -92,6 +92,17 @@ final class MailLog
         }
     }
 
+    /** Every message SENT since a moment, to anybody — what an account's daily quota counts. */
+    public static function sentSince(string $since): int
+    {
+        try {
+            return (int) DB::table('gates_mail_log')->where('status', self::SENT)
+                ->where('created_at', '>=', $since)->count();
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
     /** Announcements this address has been SENT since a moment — what the daily cap counts. */
     public static function bulkSentSince(string $to, string $since): int
     {

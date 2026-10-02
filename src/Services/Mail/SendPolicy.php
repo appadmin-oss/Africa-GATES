@@ -64,6 +64,9 @@ final class SendPolicy
     public const CAP_MAX     = 6;
     public const CAP_HOURS   = 24;
 
+    /** The share of the mail account's daily allowance announcements may use. */
+    public const BULK_SHARE  = 0.6;
+
     /** Top-level names reserved so that nothing can ever be delivered there. */
     public const RESERVED_TLDS = ['invalid', 'test', 'example', 'localhost', 'local'];
     /** Second-level names reserved for documentation (RFC 2606 §3). */
@@ -95,6 +98,17 @@ final class SendPolicy
                     'reason' => (Suppression::REASONS[$why] ?? 'Suppressed') . ' — announcements are held.'];
         }
 
+        // ── THE ACCOUNT'S OWN DAILY QUOTA ────────────────────────────────────────
+        // Google refuses every message once the account's day is spent, sign-in codes
+        // included. Announcements stop at BULK_SHARE of it, so the rest of the day is
+        // left for the mail somebody is waiting for.
+        $limit = self::dailyLimit();
+        if ($limit > 0 && MailLog::sentSince(Carbon::now()->subHours(24)->toDateTimeString()) >= (int) floor($limit * self::BULK_SHARE)) {
+            return ['status' => self::DEFERRED,
+                    'reason' => sprintf('The mail account’s daily allowance is %d and announcements stop at %d%% of it, so sign-in codes keep working.',
+                                        $limit, (int) round(self::BULK_SHARE * 100))];
+        }
+
         $cap ??= self::cap();
         $since = Carbon::now()->subHours(self::CAP_HOURS)->toDateTimeString();
         if (MailLog::bulkSentSince($to, $since) >= $cap) {
@@ -103,6 +117,27 @@ final class SendPolicy
                                         $cap, $cap === 1 ? '' : 's', self::CAP_HOURS)];
         }
         return null;
+    }
+
+    /** @var array{0:int,1:int}|null [read at, limit] */
+    private static ?array $limitMemo = null;
+
+    /**
+     * The account's daily allowance, read at most once a minute: a newsletter asks this
+     * for every address, and each ask would otherwise load the whole settings table.
+     */
+    private static function dailyLimit(): int
+    {
+        if (self::$limitMemo === null || time() - self::$limitMemo[0] >= 60) {
+            self::$limitMemo = [time(), MailConfig::load()->dailyLimit()];
+        }
+        return self::$limitMemo[1];
+    }
+
+    /** For the suite, and for a settings save that must be in force at once. */
+    public static function forget(): void
+    {
+        self::$limitMemo = null;
     }
 
     public static function reserved(string $email): bool

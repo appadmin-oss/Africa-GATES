@@ -525,7 +525,7 @@ final class SupportContext
         // which since OtpService::boot() answers a narrower question than the one being
         // asked — mail configured in Settings would have had the assistant telling a
         // user email was switched off while their receipts were going out.
-        $out['email'] = ['ok' => OtpService::boot()->smtpConfigured()];
+        $out['email'] = ['ok' => OtpService::boot()->canSend()];
 
         // Pending migrations are the single most common cause of "it worked
         // yesterday" on this deployment model, so the agent gets to see them.

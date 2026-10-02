@@ -70,7 +70,9 @@ final class MailHealthTest extends TestCase
     /**
      * The rule rather than the instance: nothing but the resolver reads an SMTP setting.
      * The probe used to, and called a blank host "not set" while the sender used Brevo.
-     * The settings controller WRITES these keys and is the one exemption.
+     * `MailSetup` WRITES these keys (only after a login has been tried) and is the one
+     * exemption — the settings controller used to be, and its re-posting of them on
+     * every save is how an autofilled field replaced a working login.
      */
     public function test_nothing_but_the_resolver_reads_an_smtp_setting(): void
     {
@@ -80,7 +82,7 @@ final class MailHealthTest extends TestCase
         foreach ($it as $f) {
             if (!$f->isFile() || $f->getExtension() !== 'php') continue;
             $rel = substr($f->getPathname(), strlen($root) + 1);
-            if ($rel === 'Services/Mail/MailConfig.php' || $rel === 'Admin/Controllers/SettingsController.php') continue;
+            if ($rel === 'Services/Mail/MailConfig.php' || $rel === 'Services/Mail/MailSetup.php') continue;
             // Comments stripped: the note explaining why a file STOPPED reading a key
             // names the key, and a sweep that cannot tell an explanation from a read
             // pushes people towards not writing the explanation.

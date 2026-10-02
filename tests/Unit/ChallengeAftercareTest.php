@@ -219,43 +219,14 @@ final class ChallengeAftercareTest extends TestCase
         $with    = $this->figureInk($this->challenge(['prize_currency' => '₦', 'prize_amount' => 6000]));
         $without = $this->figureInk($this->challenge(['prize_type' => E::PRIZE_POINTS, 'prize_amount' => 6000]));
 
-        self::assertGreaterThan($without + 1500, $with,
+        // Proportional, not a pixel count: the figure is 48px on the card now and the
+        // symbol is a sixth of "₦6,000" — measured 2,043 against 1,211. A dropped ₦ still
+        // advances its width and adds no ink, which lands at 1.0.
+        self::assertGreaterThan($without * 1.3, $with,
             'the currency symbol put no ink on the flier — it advertises a bare number');
     }
 
-    /** A flier for a challenge with no art does not render half an empty square. */
-    public function test_a_challenge_with_no_art_still_fills_its_canvas(): void
-    {
-        if (!function_exists('imagettftext')) {
-            self::markTestSkipped('no FreeType on this build');
-        }
-
-        $ch  = $this->challenge(['art_url' => null]);
-        $png = ChallengeFlier::png((array) CS::find($ch), ['claimed' => 0]);
-
-        $im = imagecreatefromstring((string) $png);
-
-        // The art box is left 30 / top 120 / 560 square. The question is "is anything
-        // there", so the test counts pixels that DIFFER FROM THE GROUND — not dark
-        // ones. The fallback's disc is white, which is brighter than the `#f6f2ea`
-        // ground, so a darkness threshold sees the letter and misses the disc entirely
-        // and reports an almost-empty canvas as empty.
-        [$gr, $gg, $gb] = \AfricaGates\Services\FlierLayout::rgb('#f6f2ea');
-
-        $drawn = 0;
-        for ($x = 60; $x < 560; $x += 3) {
-            for ($y = 160; $y < 660; $y += 3) {
-                $c = imagecolorat($im, $x, $y);
-                if (abs((($c >> 16) & 0xFF) - $gr) + abs((($c >> 8) & 0xFF) - $gg)
-                    + abs(($c & 0xFF) - $gb) > 12) $drawn++;
-            }
-        }
-        imagedestroy($im);
-
-        // The disc alone is ~100k px; sampled every 3px that is ~11k. Anything in the
-        // thousands means something real was drawn rather than a stray glyph.
-        self::assertGreaterThan(5000, $drawn, 'the left half of the flier is empty');
-    }
+    // A challenge with no picture: {@see ChallengeFlierTest::test_a_challenge_with_no_picture_still_fills_the_portraits_place()}.
 
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -265,9 +236,10 @@ final class ChallengeAftercareTest extends TestCase
         $png = ChallengeFlier::png((array) CS::find($challengeId), ['claimed' => 0]);
         $im  = imagecreatefromstring((string) $png);
 
+        // The figure's line on the prize card: inside the card, under the tab, over the unit.
         $n = 0;
-        for ($x = 596; $x < 1016; $x++) {
-            for ($y = 200; $y < 345; $y++) {
+        for ($x = 200; $x < 395; $x++) {
+            for ($y = 728; $y < 783; $y++) {
                 if (((imagecolorat($im, $x, $y) >> 16) & 0xFF) < 100) $n++;
             }
         }

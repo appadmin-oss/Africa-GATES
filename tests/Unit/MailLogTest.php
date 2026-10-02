@@ -46,7 +46,7 @@ final class MailLogTest extends TestCase
             $this->assertFalse($r['success'], 'production must NEVER fake success when nothing was delivered');
             $row = DB::table('gates_mail_log')->first();
             $this->assertSame('failed', $row->status);
-            $this->assertStringContainsString('SMTP not configured', (string) $row->error);
+            $this->assertStringContainsString('not configured', (string) $row->error);
         } finally {
             $_ENV['APP_ENV'] = 'development';
         }

@@ -46,7 +46,15 @@ class SettingsController
             'tz_choices'     => \AfricaGates\Support\DisplayTime::choices(),
             'tz_current'     => \AfricaGates\Support\DisplayTime::zone(),
             'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
-            'smtp_configured'=> $this->mailer?->smtpConfigured() ?? false,
+            'smtp_configured'=> $this->mailer?->canSend() ?? false,
+            'mail_config'    => (static function (): array {
+                $c = \AfricaGates\Services\Mail\MailConfig::load();
+                return $c->describe() + ['login_source' => match ($c->source('username')) {
+                    'settings' => 'saved on Email health',
+                    'env'      => 'from the server’s .env file',
+                    default    => 'not set',
+                }];
+            })(),
             // Whether a password is resolvable at all, from either source — the field
             // itself is WRITE-ONLY, like every provider key, so this only picks the
             // placeholder. Same shape as ai_mod_dedicated below.
@@ -54,7 +62,6 @@ class SettingsController
             // placeholder promises that leaving the box blank KEEPS what is there, and
             // what blank keeps is the stored row. An .env password is the fallback
             // underneath, not something this form is holding on to.
-            'smtp_pass_set'  => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'mail_smtp_pass')->value('value') ?? '')) !== '',
             // Image hosting. Read through the resolver, so what the card reports is
             // what an upload will actually do rather than what one source of two says.
             'cloudinary_on'     => \AfricaGates\Services\CloudinaryService::enabled(),
@@ -521,10 +528,8 @@ class SettingsController
                   // that one is internal plumbing, this one is printed on pages and
                   // quoted by the assistant, so a stranger must be able to write to it.
                   'support_email',
-                  // SMTP transport. The host, port and login are echoed back like any
-                  // other field; the PASSWORD is handled below and never rendered.
-                  // These used to be readable only from .env, on a host with no shell.
-                  'mail_smtp_host','mail_smtp_port','mail_smtp_user','mail_smtp_secure',
+                  // NOT the SMTP transport: see MailSetup. Re-posting the login on every
+                  // save of this page let an autofilled field replace a working one.
                   // Image hosting. Cloud name, key and folder are identifiers, not
                   // secrets — the API secret and the combined URL are handled below.
                   'cloudinary_cloud_name','cloudinary_api_key','cloudinary_folder',
@@ -595,8 +600,7 @@ class SettingsController
         // `cloudinary_url` is in this list rather than the echoed one above because
         // `cloudinary://key:secret@cloud` carries the secret inside it; echoing it back
         // would put the credential in the page source of every settings render.
-        foreach (['mail_smtp_pass' => 'smtp_pass',
-                  'cloudinary_api_secret' => 'cloudinary_secret',
+        foreach (['cloudinary_api_secret' => 'cloudinary_secret',
                   'cloudinary_url' => 'cloudinary_url',
                   'azure_speech_key' => 'azure_key'] as $settingKey => $clearName) {
             $clear = (array) ($b['secret_clear'] ?? []);

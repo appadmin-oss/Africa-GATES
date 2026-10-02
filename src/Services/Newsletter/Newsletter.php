@@ -201,6 +201,15 @@ final class Newsletter
     public const HOLIDAY_PREFIX = 'h-';
 
     /**
+     * The widest `period_key` the column holds. It was VARCHAR(20), and
+     * `h-independence-day-2026` is 23: strict MySQL refused the issue, the composer's catch
+     * swallowed it, and the Independence Day greeting never went out — on SQLite, which
+     * stores TEXT, the suite was green. `2027_02_23_newsletter_period_widen.php` repairs
+     * the column; `HolidayNewsletterTest` holds every key to this width.
+     */
+    public const PERIOD_KEY_MAX = 40;
+
+    /**
      * How close a regular issue may follow a holiday one. A holiday on a Wednesday and the
      * weekly issue on Thursday would be two newsletters in two days with the same news in
      * both — and the second is the one that gets "report spam".
@@ -373,7 +382,7 @@ final class Newsletter
      */
     public function blocker(): ?string
     {
-        if ($this->mailer === null || !$this->mailer->smtpConfigured()) {
+        if ($this->mailer === null || !$this->mailer->canSend()) {
             return 'Paused: email is not configured. Settings → Email & sender.';
         }
         if ($this->site === '')   return 'Paused: the site address (APP_URL) is not set, and every link in an issue is absolute.';

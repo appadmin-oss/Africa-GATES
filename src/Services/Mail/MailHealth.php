@@ -60,7 +60,14 @@ final class MailHealth
 
     public function __construct(?callable $diagnose = null, private ?MailAlert $alert = null)
     {
-        $this->diagnose = $diagnose ?? static fn (): array => (new MailDiagnosis(MailConfig::load()))->run();
+        $this->diagnose = $diagnose ?? static fn (): array => MailDiagnosis::roads(MailConfig::load());
+    }
+
+    /** Keep a report produced elsewhere — the "try it and save" button — as the latest. */
+    public static function rememberReport(array $report): void
+    {
+        self::put(self::PROBE_AT, Carbon::now()->toDateTimeString());
+        self::put(self::PROBE_REPORT, (string) json_encode($report, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     // ══════════════════════════════════════════════════════════════════════════

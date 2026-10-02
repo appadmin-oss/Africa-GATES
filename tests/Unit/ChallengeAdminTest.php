@@ -266,12 +266,23 @@ final class ChallengeAdminTest extends TestCase
         self::assertContains($c->mode, E::MODES);
     }
 
-    /** `datetime-local` posts a `T`, which MySQL takes and SQLite stores verbatim. */
+    /**
+     * `datetime-local` posts a `T`, which MySQL takes and SQLite stores verbatim — and no
+     * zone. The form drew the field in the display zone (`|when_input`), so what comes
+     * back is a Lagos wall-clock time and is stored as UTC: 23:59 WAT is 22:59 UTC.
+     *
+     * This used to assert 23:59:00, which is the bug written down: a challenge closing
+     * "at 23:59" closed at 00:59 the next morning in Lagos, and every save of the form
+     * moved it another hour.
+     */
     public function test_a_form_datetime_is_normalised_before_it_is_stored(): void
     {
+        \AfricaGates\Support\DisplayTime::forget();
         $id = CA::create(['title' => 'Date probe', 'ends_at' => '2026-11-30T23:59'])['id'];
 
-        self::assertSame('2026-11-30 23:59:00', CS::find($id)->ends_at);
+        self::assertSame('2026-11-30 22:59:00', CS::find($id)->ends_at);
+        self::assertSame('2026-11-30T23:59:00', \AfricaGates\Support\DisplayTime::forInput(CS::find($id)->ends_at),
+            'the value the form draws is not the value that was typed');
 
         // Nonsense is null rather than a throw: a bad date must not cost an operator
         // everything else they typed.

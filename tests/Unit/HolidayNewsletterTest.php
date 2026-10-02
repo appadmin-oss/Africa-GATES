@@ -130,6 +130,23 @@ final class HolidayNewsletterTest extends TestCase
         $this->assertSame('christmas', HolidayCalendar::load()->today(Carbon::parse('2026-12-25 10:00:00', 'UTC'))['key'] ?? null);
     }
 
+    /**
+     * Every issue key fits the column. `h-independence-day-2026` is 23 characters and the
+     * column was VARCHAR(20): MySQL refused it, the tick swallowed the refusal, and the
+     * greeting never went — green on SQLite, which has no width.
+     */
+    public function test_every_holiday_issue_key_fits_its_column(): void
+    {
+        foreach (array_keys(HolidayCalendar::HOLIDAYS) as $key) {
+            $this->assertLessThanOrEqual(Newsletter::PERIOD_KEY_MAX, strlen(Newsletter::holidayKey($key, 2099)), $key);
+        }
+        if (DB::connection()->getDriverName() === 'mysql') {
+            $len = (int) DB::selectOne("SELECT CHARACTER_MAXIMUM_LENGTH AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'gates_newsletter_issues' AND COLUMN_NAME = 'period_key'")->n;
+            $this->assertGreaterThanOrEqual(Newsletter::PERIOD_KEY_MAX, $len, 'the column is narrower than the keys written into it');
+        }
+    }
+
     public function test_no_greeting_mentions_money(): void
     {
         foreach (HolidayCalendar::HOLIDAYS as $key => $h) {
