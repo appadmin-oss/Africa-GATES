@@ -1,22 +1,56 @@
 /* ══════════════════════════════════════════════════════════════════════════════
-   BASE COMPONENTS (BEM)
-   Every value comes from REFERENCE §6 or a .dc.html. Nothing here is rounded.
+   BASE COMPONENTS (BEM) — Phase 1 of design_handoff_africa_gates
+   Button · chip · sticky toolbar + collapsing search · field · card · list row ·
+   icon tile · scrim + bottom sheet · switch · segmented control · skeleton ·
+   empty and error · stock note · count badge
    ══════════════════════════════════════════════════════════════════════════════
 
-   Two rules run through the whole file and are the ones most often broken:
+   Written from REFERENCE §6, §9.2, §9.4, §9.5, §13, `snippets/css/components.css`
+   and the DCs' inline styles (REFERENCE §5 — where a DC and the snippet disagree,
+   the DC wins). Not one value here was read off a screenshot.
 
-   · TARGETS ARE ≥44px. WCAG 2.5.8 sets 24 as the AA floor and 2.5.5 sets 44 as
-     the enhanced bar. This product ships 44, and 48–54 for a primary phone
-     action. A component here is never shorter than that even when the design
-     draws a smaller visual — the hit area grows, not the ink.
+   ── THIS FILE IS THE BASE AND NOTHING ELSE ──────────────────────────────────
 
-   · A SELECTED CHIP IS A 2px INK OUTLINE, NEVER A DARK FILL. Dark-filled chips
-     are in the anti-pattern list (skill §22) and in DESIGN-NOTES. The padding
-     drops by 1px with the border so the width does not jump on selection.
+   It was destroyed and rebuilt in Phase 1 of the redesign. The file it replaced
+   had grown to 1,376 lines, because every later piece of work appended its own
+   component here — the site header, the Menu, the records library, a nomination
+   notice — so the base layer every page downloads carried a thousand lines of
+   other phases' rules, and "rebuild the base" could not be done without either
+   destroying their work or patching around it. Those rules were moved out first,
+   unchanged, into files owned by the phases that will destroy them
+   (`components/chrome.css`, `components/library.css`; docs/handoff/GAPS.md §7.2).
+
+   `BaseComponentsTest` holds the line now: a block here must be one of the base
+   components above. A screen's own component goes in its own sheet.
+
+   ── THREE RULES THAT RUN THROUGH EVERY COMPONENT ────────────────────────────
+
+   · TARGETS ARE ≥44px (REFERENCE §6.7, §13), 48–54 for a primary phone action.
+     When a design draws a smaller visual, the hit area grows, never the ink.
+
+   · A SELECTED CHIP IS A 2px INK OUTLINE ON THE SAME WHITE FILL, NEVER A DARK
+     FILL (REFERENCE §6.1, §18.2). The padding drops by 1px with the border so
+     the chip does not change width when it is selected.
+
+   · COLOUR COMES FROM Support\Accent. Not one literal in this file —
+     ColourLiteralTest fails it by name — so a value that is not one of the
+     handoff's tokens cannot be written here at all, only mixed from them.
+
+   ── THE SPECIMEN HOOKS: `.is-hover`, `.is-active`, `.is-focus` ──────────────
+
+   A pointer state cannot be held still for a screenshot or a review, so each
+   interactive state is reachable by a class as well as by its pseudo-class:
+   `:is(:hover,.is-hover)`. `:is()` takes the specificity of its strongest
+   argument, so the class adds nothing a page could notice. Only /_dev/ui writes
+   these classes.
    ══════════════════════════════════════════════════════════════════════════════ */
 
 
-/* ══ Button ══════════════════════════════════════════════════════════════════ */
+/* ══ Button ══════════════════════════════════════════════════════════════════
+   52px, radius 16, 15.5/700 on a phone; 48px and 15px on desktop. Primary is
+   green and is THE action inside the page — there is never a green button in the
+   header (§6.1). Secondary is outlined, text is underlined, ink is the dark one
+   the DCs use for "Sign in or join" and "Back to the shop". */
 
 .ag-btn{
   display:inline-flex; align-items:center; justify-content:center; gap:var(--ag-sp-8);
@@ -24,43 +58,73 @@
   border:0; border-radius:var(--ag-r-16);
   font-size:15.5px; font-weight:700; line-height:1;
   text-decoration:none; white-space:nowrap; cursor:pointer;
-  transition:background var(--ag-dur-1) var(--ag-ease),
+  transition:background-color var(--ag-dur-1) var(--ag-ease),
              border-color var(--ag-dur-1) var(--ag-ease),
-             opacity var(--ag-dur-1) var(--ag-ease);
+             color var(--ag-dur-1) var(--ag-ease);
 }
-.ag-btn--primary{ background:var(--ag-green); color:#fff }
-.ag-btn--primary:hover{ background:var(--ag-green-deep); color:#fff }
+.ag-btn--primary{ background:var(--ag-green); color:var(--ag-surface) }
+.ag-btn--primary:is(:hover,.is-hover){ background:var(--ag-green-deep); color:var(--ag-surface) }
+
 .ag-btn--secondary{
   background:var(--ag-surface); color:var(--ag-ink);
-  border:1px solid var(--ag-line-2); font-size:15px; font-weight:600;
+  border:1px solid var(--ag-line-2);
+  font-size:15px; font-weight:600;
 }
-.ag-btn--secondary:hover{ background:var(--ag-bar); color:var(--ag-ink) }
-.ag-btn--ink{ background:var(--ag-ink); color:#fff }
+/* VotePage.dc.html: `style-hover="background:#fbfbfa"` on its outlined button. */
+.ag-btn--secondary:is(:hover,.is-hover){ background:var(--ag-bar); color:var(--ag-ink) }
+
+.ag-btn--ink{ background:var(--ag-ink); color:var(--ag-surface) }
+.ag-btn--ink:is(:hover,.is-hover){ color:var(--ag-surface) }
+
 .ag-btn--text{
   height:44px; padding:0 var(--ag-sp-4);
   background:transparent; color:var(--ag-ink); font-weight:600;
   text-decoration:underline; text-underline-offset:3px;
 }
+.ag-btn--text:is(:hover,.is-hover){ color:var(--ag-ink) }
+
+/* Destructive text — "Sign out" (§6.1 `--ag-error`). A word, not a red slab. */
 .ag-btn--danger{ background:transparent; color:var(--ag-error); font-weight:600 }
+.ag-btn--danger:is(:hover,.is-hover){ color:var(--ag-error) }
+
 .ag-btn--pill{ border-radius:var(--ag-r-pill) }
 .ag-btn--block{ width:100% }
 
-/* Pressed within 50ms, so the tap is acknowledged before the network is.
-   Transform only — never height, or the bar it sits in reflows. */
-.ag-btn:active{ transform:translateY(1px) }
+/* Pressed. NominationFlow.dc.html draws it as a 1px drop (`style-active` on its
+   primary). Transform only, never height, or the bar the button sits in reflows. */
+.ag-btn:is(:active,.is-active){ transform:translateY(1px) }
 
-/* A disabled button must say why somewhere; on its own it is an anti-pattern.
-   `aria-disabled` is styled as well as `[disabled]` because a bottom-bar action
-   that is merely impossible-for-now must stay focusable to announce its reason. */
-.ag-btn[disabled],
-.ag-btn[aria-disabled="true"]{
+/* Disabled: tint fill, mute words (§6.1 names `--ag-mute` as THE disabled text).
+   `aria-disabled` is styled as well as `[disabled]` because a button that is
+   impossible-for-now must stay focusable to announce why — a disabled button with
+   no reason beside it is an anti-pattern, and /_dev/ui shows the reason. */
+.ag-btn:is([disabled],[aria-disabled="true"]){
   background:var(--ag-tint); color:var(--ag-mute); border-color:transparent;
   cursor:not-allowed; transform:none;
 }
 
-/* Submitting: the label becomes "Sending…" in markup and the width is held, so
-   the bar does not jump. Spinners are for <1s actions inside a button only. */
-.ag-btn[data-busy]{ pointer-events:none; opacity:.72 }
+/* Submitting (§9.4): pressed AND disabled within 50ms, and the label stays — the
+   markup changes it to "Sending…" rather than swapping in a spinner. `aria-busy`
+   is the attribute, because it is the one assistive technology reads and the one
+   `main.js` already sets on every submit it guards. */
+.ag-btn[aria-busy="true"]{
+  background:var(--ag-tint); color:var(--ag-mute); border-color:transparent;
+  transform:translateY(1px); pointer-events:none; cursor:progress;
+}
+
+/* A round icon button (§6.4 "999 · round buttons"): 44px at every width — the DCs
+   draw 40 on desktop, and §6.7/§13 require 44 everywhere — white, an ink glyph.
+   It owes the two §6.5 shadows a round button is given — `--float` when it sits on
+   a photograph (the back and share buttons over a gallery) and `--dot` when it is a
+   card's quick-add — because over an image or a card edge a white circle with no
+   shadow simply disappears. */
+.ag-btn--icon{
+  width:44px; height:44px; padding:0; border-radius:50%;
+  background:var(--ag-surface); color:var(--ag-ink);
+}
+.ag-btn--icon:is(:hover,.is-hover){ background:var(--ag-surface); color:var(--ag-ink) }
+.ag-btn--float{ box-shadow:var(--ag-sh-float) }
+.ag-btn--dot{ box-shadow:var(--ag-sh-dot) }
 
 @media (min-width:1024px){
   .ag-btn{ height:48px; font-size:15px }
@@ -68,7 +132,10 @@
 }
 
 
-/* ══ Chip ════════════════════════════════════════════════════════════════════ */
+/* ══ Chip ════════════════════════════════════════════════════════════════════
+   Outlined, always (§6.1, §18.2). 44px on a phone, 40 on desktop — the desktop
+   pointer floor. No DC gives a chip a hover state: selection IS its state, so a
+   chip draws the same under a pointer as at rest. */
 
 .ag-chip{
   flex:none;
@@ -77,26 +144,30 @@
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
   background:var(--ag-surface); color:var(--ag-ink);
   font-size:14.5px; font-weight:500;
-  white-space:nowrap;                 /* a wrapped chip label is a defect */
-  cursor:pointer;
-  transition:border-color var(--ag-dur-1) var(--ag-ease);
+  white-space:nowrap;                 /* a chip label that wraps is a defect */
+  text-decoration:none; cursor:pointer;
 }
-.ag-chip[aria-pressed="true"],
-.ag-chip[aria-selected="true"],
-.ag-chip[aria-current="true"],
-.ag-chip[aria-current="page"]{
+.ag-chip:is([aria-pressed="true"],[aria-selected="true"],[aria-current="true"],[aria-current="page"]){
   border:2px solid var(--ag-ink);
-  padding:0 15px;                     /* 16 − 1 so the width does not move */
+  padding:0 15px;                     /* 16 − 1, so the width does not move */
   font-weight:700;
 }
-.ag-chip[disabled]{ color:var(--ag-mute); border-color:var(--ag-line); cursor:not-allowed }
-.ag-chip__dot{ width:7px; height:7px; border-radius:50%; background:currentColor }
-.ag-chip__n{ font-variant-numeric:tabular-nums; color:var(--ag-soft); font-weight:600 }
+.ag-chip:is([disabled],[aria-disabled="true"]){
+  color:var(--ag-mute); border-color:var(--ag-line); cursor:not-allowed;
+}
+/* The phase dot (AwardsPage.dc.html): 7px, coloured by DATA — which phase the
+   award is in — so its colour arrives as a custom property, the one kind of inline
+   style REFERENCE §4.6 allows. Ink when nothing is said. */
+.ag-chip__dot{ flex:none; width:7px; height:7px; border-radius:50%; background:var(--ag-dot, var(--ag-ink)) }
+.ag-chip__n{ color:var(--ag-soft); font-weight:600; font-variant-numeric:tabular-nums }
+/* An applied filter: outlined like every chip, with a remove mark (§18.2). */
 .ag-chip--remove{ padding-inline-end:10px }
-.ag-chip--remove b{ display:flex; width:20px; height:20px; align-items:center; justify-content:center }
+.ag-chip--remove > b{ display:flex; width:20px; height:20px; align-items:center; justify-content:center }
+
 @media (min-width:1024px){ .ag-chip{ height:40px } }
 
-/* The row bleeds to both edges so the last chip is not visually clipped mid-word. */
+/* The row bleeds to both edges so the last chip is clipped by the screen, not by
+   the gutter — a chip cut off mid-word at the gutter reads as a layout bug. */
 .ag-chip-row{
   display:flex; gap:var(--ag-sp-8);
   overflow-x:auto; scrollbar-width:none;
@@ -106,52 +177,68 @@
 .ag-chip-row::-webkit-scrollbar{ display:none }
 
 
-/* ══ Sticky toolbar ══════════════════════════════════════════════════════════
-   The hairline appears only once something has scrolled under it, which is what
-   makes the bar read as attached to the content rather than drawn on top. */
+/* ══ Sticky toolbar + collapsing search · REFERENCE §9.2 ═════════════════════
+   AwardsPage.dc.html is the source of every number: the block bleeds to the edges
+   and pads by the gutter, 10px of vertical padding at rest and 8px once scrolled,
+   and the hairline only once something has scrolled under it. `shell.js` sets
+   `data-scrolled` on the threshold and nothing else; the CSS does the rest. */
 
 .ag-sticky{
   position:sticky; top:0; z-index:var(--ag-z-sticky);
+  display:flex; flex-direction:column;
+  margin-inline:calc(var(--ag-gutter) * -1);
+  padding:var(--ag-sp-10) var(--ag-gutter);
   background:var(--ag-ground);
   border-bottom:1px solid transparent;
-  transition:border-color var(--ag-dur-1) var(--ag-ease);
+  /* `.18s` is the DC's own number for this one transition (AwardsPage `stPadV`),
+     inside §3's ±10ms of nothing on the ladder; written as given, not rounded to a
+     token it is not. */
+  transition:padding .18s var(--ag-ease), border-color var(--ag-dur-1) var(--ag-ease);
 }
-.ag-sticky[data-scrolled]{ border-bottom-color:var(--ag-line) }
+.ag-sticky[data-scrolled]{ padding-block:var(--ag-sp-8); border-bottom-color:var(--ag-line) }
+/* Inside the block the row has no vertical padding of its own — the block's is it. */
+.ag-sticky > .ag-chip-row{ padding-block:0 }
 
-
-/* ══ Collapsing search · REFERENCE §9.2 ══════════════════════════════════════
-   The row is ALWAYS in the DOM. `display:none` cannot animate and cannot be
-   reopened smoothly, so the collapse is a grid-row transition with an
-   overflow-hidden inner — the one technique that animates to and from auto. */
-
+/* The search row is ALWAYS in the DOM. `display:none` cannot animate and cannot
+   be reopened smoothly, so the row collapses a grid track around an
+   overflow-hidden child: the one technique that animates to and from auto. */
 .ag-cs__row{
-  display:grid; grid-template-rows:1fr; margin-bottom:var(--ag-sp-10);
+  display:grid; grid-template-rows:1fr; margin-bottom:var(--ag-sp-10); opacity:1;
   transition:grid-template-rows var(--ag-dur-2) var(--ag-ease),
              margin-bottom var(--ag-dur-2) var(--ag-ease),
              opacity var(--ag-dur-1) ease;
 }
-.ag-cs__row > div{ min-height:0; overflow:hidden }
+.ag-cs__row > *{ min-height:0; overflow:hidden }
 [data-cs][data-collapsed] .ag-cs__row{ grid-template-rows:0fr; margin-bottom:0; opacity:0 }
 
+/* The search button: always in the DOM at the start of the chip row, 0 wide while
+   the row is open. The WRAPPER animates and clips; the button inside keeps its
+   44px circle, so its border never squeezes into a 2px sliver mid-animation. The
+   −8px end margin cancels the row's gap while the wrapper is empty. */
 .ag-cs__btn{
-  flex:none; width:0; margin-inline-end:-8px; opacity:0; overflow:hidden;
-  display:inline-flex; align-items:center; justify-content:center;
-  height:44px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
-  background:var(--ag-surface); color:var(--ag-ink); cursor:pointer; padding:0;
+  flex:none; display:flex;
+  width:0; margin-inline-end:calc(var(--ag-sp-8) * -1); opacity:0; overflow:hidden;
   transition:width var(--ag-dur-2) var(--ag-ease),
              margin var(--ag-dur-2) var(--ag-ease),
              opacity var(--ag-dur-1) ease;
 }
 [data-cs][data-collapsed] .ag-cs__btn{ width:44px; margin-inline-end:0; opacity:1 }
+.ag-cs__go{
+  flex:none; width:44px; height:44px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--ag-line-2); border-radius:50%;
+  background:var(--ag-surface); color:var(--ag-ink); cursor:pointer;
+}
 @media (min-width:1024px){
-  .ag-cs__btn{ height:40px }
   [data-cs][data-collapsed] .ag-cs__btn{ width:40px }
+  .ag-cs__go{ width:40px; height:40px }
 }
 
 
-/* ══ Field ═══════════════════════════════════════════════════════════════════
-   52px tall, 16px text, visible label always. A placeholder is not a label:
-   it disappears exactly when the person needs it. */
+/* ══ Field · REFERENCE §9.5 ══════════════════════════════════════════════════
+   52px tall, 16px text, radius 14, a label that is always visible. Under 16px
+   iOS Safari zooms the page on focus and does not zoom back; a placeholder is not
+   a label, because it disappears exactly when the person needs it. */
 
 .ag-label{
   display:block; margin-bottom:var(--ag-sp-6);
@@ -166,32 +253,67 @@
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
   color:var(--ag-soft);
 }
-.ag-field > input,
-.ag-field > select{
+.ag-field > :is(input,select){
   flex:1; min-width:0; height:100%;
   border:0; outline:0; background:transparent;
   color:var(--ag-ink); font-size:16px;
 }
-.ag-field:focus-within{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-field:is(:focus-within,.is-focus){ outline:3px solid var(--ag-green); outline-offset:2px }
 .ag-field[data-invalid]{ border-color:var(--ag-error) }
+/* Disabled: the ground behind it and the mute words §6.1 reserves for exactly this. */
+.ag-field:has(> :disabled){ background:var(--ag-ground); border-color:var(--ag-line); color:var(--ag-mute) }
+.ag-field > :disabled{ color:var(--ag-mute); cursor:not-allowed }
+textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items:stretch; color:var(--ag-ink) }
 
+/* Search (ShopPage, AwardsPage): a hairline border rather than the input border,
+   an 18px glass in soft, and — when there is something to clear — a 44px target
+   around a 26px tint disc, which takes the end padding down to 4. */
+.ag-field--search{ border-color:var(--ag-line); padding:0 var(--ag-sp-16) }
+.ag-field--search:has(.ag-field__clear){ padding-inline-end:var(--ag-sp-4) }
+.ag-field__clear{
+  flex:none; width:44px; height:44px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:0; background:transparent; color:var(--ag-ink); cursor:pointer;
+}
+.ag-field__clear > span{
+  width:26px; height:26px; border-radius:50%; background:var(--ag-tint);
+  display:flex; align-items:center; justify-content:center;
+}
+
+@media (min-width:1024px){ .ag-field{ height:48px } }
+
+/* ══ Error · REFERENCE §9.4 ══════════════════════════════════════════════════
+   Inline, next to the field, in `--ag-error` with an icon — never colour alone —
+   and announced with `aria-live="polite"` in the markup. */
 .ag-err{
-  display:flex; align-items:center; gap:6px;
+  display:flex; align-items:center; gap:var(--ag-sp-6);
   margin:var(--ag-sp-6) 0 0;
   font-size:13.5px; font-weight:600; color:var(--ag-error);
 }
-
-textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items:stretch }
-@media (min-width:1024px){ .ag-field{ height:48px } }
+.ag-err > svg{ flex:none }
 
 
-/* ══ Card · list · icon tile ═════════════════════════════════════════════════ */
+/* ══ Card ════════════════════════════════════════════════════════════════════
+   Surface, one hairline, radius 20. A card that is a link or a button takes the
+   input border under the pointer (LegacyVault, HelpCentre `style-hover`). */
 
 .ag-card{
   background:var(--ag-surface);
   border:1px solid var(--ag-line);
   border-radius:var(--ag-r-20);
 }
+:is(a,button).ag-card{ display:block; color:inherit; text-decoration:none; text-align:start; cursor:pointer;
+  transition:border-color var(--ag-dur-1) var(--ag-ease) }
+:is(a,button).ag-card:is(:hover,.is-hover){ border-color:var(--ag-line-2); color:inherit }
+
+
+/* ══ List row · 56px ═════════════════════════════════════════════════════════
+   MobileMenu.dc.html: a flex row, gap 14, padding 0 14, at least 56px; the label
+   takes the slack and the chevron sits at the trailing edge. Flex and not a
+   three-column grid, because callers carry a tile, a body and ONE OR TWO trailing
+   marks (a value and a chevron) — a fourth child in a three-track grid lands in an
+   implicit column and the alignment drifts. The whole row is the target; no small
+   buttons inside a tappable row. */
 
 .ag-list{
   display:flex; flex-direction:column;
@@ -199,56 +321,51 @@ textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items
   border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
   overflow:hidden;
 }
-/* The whole row is the target and it ends in a chevron. No small inline buttons
-   inside a tappable row — they are a coin-toss for a thumb. */
-/* ── FLEX, NOT A THREE-COLUMN GRID ────────────────────────────────────────────
-   This was `grid-template-columns:auto minmax(0,1fr) auto`, which is exactly three
-   slots — so a row carrying a tile, a body, a status AND a chevron put the fourth
-   child into an implicit column and the alignment drifted. Every caller has a
-   leading tile, a growing body and one or two trailing marks, which is a flex row:
-   the body takes the space and the trailing items keep their size, whatever there
-   are of them. */
 .ag-list__row{
   display:flex; align-items:center; gap:14px;
-  min-height:56px; padding:0 var(--ag-sp-16);
-  border-top:1px solid var(--ag-line-3);
-  color:var(--ag-ink); text-decoration:none;
+  min-height:56px; padding:0 14px;
+  border:0; border-top:1px solid var(--ag-line-3);
+  background:transparent; color:var(--ag-ink);
+  font:inherit; text-align:start; text-decoration:none;
 }
+button.ag-list__row{ width:100%; cursor:pointer }
 .ag-list__row:first-child{ border-top:0 }
-.ag-list__row:hover{ background:var(--ag-bar); color:var(--ag-ink) }
-/* The body takes the slack and truncates; a row whose height changes with its text
-   is a row that makes a list look broken. */
-.ag-list__b{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
-.ag-list__label{ font-size:16px; font-weight:500;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-.ag-list__sub{ font-size:12.5px; color:var(--ag-soft);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-.ag-list__value{ flex:none; font-size:14.5px; color:var(--ag-soft);
-  font-variant-numeric:tabular-nums }
-.ag-list__chev{ flex:none; color:var(--ag-chevron); display:flex }
-a.ag-list__row:hover{ background:var(--ag-ground) }
-a.ag-list__row:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+:is(a,button).ag-list__row:is(:hover,.is-hover){ background:var(--ag-ground); color:var(--ag-ink) }
+/* Inset, because the list clips its overflow and an outside ring would be cut. */
+.ag-list__row:is(:focus-visible,.is-focus){ outline-offset:-3px }
 
-/* ── THE TILE TAKES ITS SIZE FROM A PROPERTY ──────────────────────────────────
-   The comps use 28, 32, 34, 38, 40, 44 and 46px tiles across five screens, and the
-   last pass answered that by declaring a tile per page. One class with `--ag-tile`
-   is the same shape at every size: a caller sets the property, the default stays 34
-   so every existing use is unchanged, and `--lg` keeps its 44.
+.ag-list__row > .ag-list__label,
+.ag-list__b{ flex:1; min-width:0 }
+.ag-list__b{ display:flex; flex-direction:column; gap:2px }
+.ag-list__label{
+  font-size:16px; font-weight:500;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ag-list__sub{
+  font-size:12.5px; color:var(--ag-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ag-list__value{ flex:none; font-size:14.5px; color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.ag-list__chev{ flex:none; display:flex; color:var(--ag-chevron) }
 
-   The radius scales with it, because a 15px radius on a 28px square is nearly a
-   circle and on a 46px one is a rounded square — the DC's own tiles follow that. */
+
+/* ══ Icon tile ═══════════════════════════════════════════════════════════════
+   34px, radius 10, tint (§6.4 "10 · icon tiles"). The size is a property so one
+   class serves every size the DCs draw; `--lg` is the 44px tile. */
+
 .ag-icon-tile{
   --ag-tile:34px;
-  width:var(--ag-tile); height:var(--ag-tile); flex:none;
-  border-radius:var(--ag-r-10); background:var(--ag-tint);
+  flex:none; width:var(--ag-tile); height:var(--ag-tile);
   display:flex; align-items:center; justify-content:center;
+  border-radius:var(--ag-r-10); background:var(--ag-tint);
 }
 .ag-icon-tile--lg{ --ag-tile:44px; border-radius:var(--ag-r-14) }
 
 
 /* ══ Scrim + bottom sheet ════════════════════════════════════════════════════
-   Back closes the top-most layer first, so a sheet pushes a history entry and
-   its close is driven by popstate — see sheet.js. */
+   Ground, radius 24 on the top corners, the sheet shadow, 88% of the dynamic
+   viewport at most. `shell.js` opens it, traps Tab, closes on Esc and on the
+   scrim, and gives focus back to the trigger. */
 
 .ag-scrim{
   position:fixed; inset:0; z-index:var(--ag-z-scrim);
@@ -265,75 +382,85 @@ a.ag-list__row:focus-visible{ outline:3px solid var(--ag-green); outline-offset:
   background:var(--ag-ground);
   border-radius:var(--ag-r-24) var(--ag-r-24) 0 0;
   box-shadow:var(--ag-sh-sheet);
-  transform:translateY(100%);
-  /* `visibility` as well as the transform, and it is not belt-and-braces.
-     `translateY(100%)` moves the sheet by ITS OWN height, which clears the
-     viewport only when its top edge started at the bottom of it. The Menu's does
-     not — it is pinned at `top:52px` — so 100% left a 49px sliver of grabber and
-     header on screen at rest, on every phone page of the site. Visible in a
-     screenshot, invisible in the markup: the element was `inert` and correct in
-     every other respect.
-     The delay is what keeps the CLOSING animation on screen; without it the sheet
-     vanishes on the first frame instead of sliding out. */
-  visibility:hidden;
-  transition:transform var(--ag-dur-2) var(--ag-ease),
-             visibility 0s linear var(--ag-dur-2);
   padding-bottom:env(safe-area-inset-bottom);
+  transform:translateY(100%);
+  /* `visibility` as well as the transform, and it is load-bearing.
+     `translateY(100%)` moves a sheet by ITS OWN height, which clears the viewport
+     only when its top edge started at the bottom of it. A sheet pinned from the top
+     (the Menu, at `top:52px`) left a 49px sliver of grabber on screen at rest, on
+     every phone page — visible in a screenshot, invisible in the markup. The delay
+     keeps the CLOSING slide on screen; without it the sheet vanishes on frame one. */
+  visibility:hidden;
+  transition:transform var(--ag-dur-2) var(--ag-ease), visibility 0s linear var(--ag-dur-2);
 }
 .ag-sheet[data-open]{
   transform:none; visibility:visible;
   transition:transform var(--ag-dur-2) var(--ag-ease), visibility 0s;
 }
-/* Landscape phone: a sheet that fills the screen has nothing to dismiss against. */
-@media (max-height:520px){ .ag-sheet{ max-height:90dvh } }
-
 .ag-sheet__grabber{
-  width:38px; height:5px; margin:var(--ag-sp-8) auto 2px;
+  flex:none; width:38px; height:5px; margin:var(--ag-sp-8) auto 2px;
   border-radius:3px; background:var(--ag-grabber);
 }
 .ag-sheet__head{
+  flex:none;
   display:grid; grid-template-columns:44px 1fr 44px; align-items:center;
   padding:0 var(--ag-sp-8) var(--ag-sp-6);
   font-size:16.5px; font-weight:700; text-align:center;
 }
 .ag-sheet__body{ flex:1; min-height:0; overflow:auto; padding:0 var(--ag-sp-16) var(--ag-sp-32) }
 
-/* Desktop: nothing slides up from the bottom. A sheet becomes a floating drawer
-   12px from the edges with a 20px radius (skill §23, REFERENCE §18.1). */
+/* Desktop: nothing slides up from the bottom of a 1440px screen. The sheet becomes
+   a drawer floating 12px from the edges, radius 20, popover shadow (§18.1; the
+   ShopPage cart: 420 wide). */
 @media (min-width:1024px){
   .ag-sheet--drawer{
-    left:auto; right:12px; top:12px; bottom:12px;
-    width:380px; max-height:none;
+    top:12px; right:12px; bottom:12px; left:auto;
+    width:420px; max-height:none;
     border-radius:var(--ag-r-20);
     box-shadow:var(--ag-sh-pop);
     transform:translateX(calc(100% + 24px));
   }
   .ag-sheet--drawer[data-open]{ transform:none }
-  .ag-sheet--drawer .ag-sheet__grabber{ display:none }
+  .ag-sheet--drawer > .ag-sheet__grabber{ display:none }
 }
 
 
-/* ══ Switch ══════════════════════════════════════════════════════════════════ */
+/* ══ Switch ══════════════════════════════════════════════════════════════════
+   46 × 28, a 22px thumb, 3px inset (the snippet; DiscoverPage and GivingPage draw
+   the same). Off is the mute track, on is green — ink on a document page.
+
+   The STATE can sit on the switch itself or on the row that IS the switch. The
+   Display & reading rows put `role="switch"` and `aria-checked` on the whole
+   52px row, which is the target the standards ask for, and the visual inside it
+   is `aria-hidden`. The rule used to read only `.ag-switch[aria-checked]`, so on
+   every one of those rows the drawn switch stayed OFF whatever the row said: a
+   setting that saved, applied and announced itself correctly while its picture
+   showed the opposite. */
 
 .ag-switch{
-  flex:none; width:44px; height:26px; padding:3px; box-sizing:border-box;
+  flex:none; width:46px; height:28px; padding:3px;
   border:0; border-radius:var(--ag-r-pill);
   background:var(--ag-mute);
-  display:flex; justify-content:flex-start; align-items:center;
+  display:flex; align-items:center; justify-content:flex-start;
   cursor:pointer;
-  transition:background var(--ag-dur-1) var(--ag-ease);
+  transition:background-color var(--ag-dur-1) var(--ag-ease);
 }
-.ag-switch::after{ content:""; width:20px; height:20px; border-radius:50%; background:var(--ag-surface) }
-.ag-switch[aria-checked="true"]{ background:var(--ag-green); justify-content:flex-end }
-.ag-doc .ag-switch[aria-checked="true"]{ background:var(--ag-ink) }
-/* The control is 28px of ink inside a 44px target. */
+.ag-switch::after{ content:""; width:22px; height:22px; border-radius:50%; background:var(--ag-surface) }
+:is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch){
+  background:var(--ag-green); justify-content:flex-end;
+}
+.ag-doc :is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch){ background:var(--ag-ink) }
+.ag-switch:is([disabled],[aria-disabled="true"]){ background:var(--ag-tint); cursor:not-allowed }
+/* 28px of drawing inside a 44px target. */
 .ag-switch-target{
   display:flex; align-items:center; justify-content:center;
-  min-width:44px; min-height:44px; border:0; background:transparent; cursor:pointer; padding:0;
+  min-width:44px; min-height:44px; padding:0;
+  border:0; background:transparent; cursor:pointer;
 }
 
 
-/* ══ Segmented control ═══════════════════════════════════════════════════════ */
+/* ══ Segmented control ═══════════════════════════════════════════════════════
+   A tint track, 4px inset, 48px options at radius 11; the chosen one is white. */
 
 .ag-seg{
   display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:var(--ag-sp-4);
@@ -344,1026 +471,84 @@ a.ag-list__row:focus-visible{ outline:3px solid var(--ag-green); outline-offset:
   height:48px; border:0; border-radius:11px;
   background:transparent; color:var(--ag-ink);
   font-weight:600; cursor:pointer;
-  transition:background var(--ag-dur-1) var(--ag-ease);
+  transition:background-color var(--ag-dur-1) var(--ag-ease);
 }
-.ag-seg__opt[aria-checked="true"]{ background:var(--ag-surface); font-weight:700 }
+.ag-seg__opt[aria-checked="true"]{ background:var(--ag-surface) }
+.ag-seg__opt:is([disabled],[aria-disabled="true"]){ color:var(--ag-mute); cursor:not-allowed }
 
 
-/* ══ Skeleton ════════════════════════════════════════════════════════════════
-   Skeletons match the final geometry so nothing shifts when the data lands.
-   Spinners are never used for content (skill §13.1). */
+/* ══ Skeleton · REFERENCE §9.4 ═══════════════════════════════════════════════
+   Skeletons match the final geometry, so nothing moves when the data lands, and
+   content never gets a spinner. The sheen is mixed from tint and surface because
+   the snippet's highlight is not one of the handoff's tokens (Accent holds every
+   colour; see the deviations in docs/handoff/PHASE-1.md). */
 
 .ag-skel{
-  background:linear-gradient(90deg,var(--ag-tint) 0,#f6f4ef 50%,var(--ag-tint) 100%) 0 0/200% 100%;
-  border-radius:var(--ag-r-10);
+  display:block;
+  background:linear-gradient(90deg,
+               var(--ag-tint) 0,
+               color-mix(in srgb, var(--ag-tint) 40%, var(--ag-surface)) 50%,
+               var(--ag-tint) 100%) 0 0 / 200% 100%;
+  border-radius:8px;
   animation:agSkel 1.2s linear infinite;
 }
-.ag-skel--line{ height:14px; border-radius:7px }
-.ag-skel--title{ height:20px; border-radius:7px; width:62% }
-.ag-skel--card{ height:180px }
+/* A 14px line with fully round ends — §6.4's 7. */
+.ag-skel--line{ height:14px; border-radius:var(--ag-r-7) }
+.ag-skel--title{ height:20px; width:62%; border-radius:var(--ag-r-7) }
 @keyframes agSkel{ to{ background-position:-200% 0 } }
 
 
-/* ══ Empty and error blocks · skill §13 ══════════════════════════════════════
-   An empty state is one sentence built from the live filters plus one action.
-   Never a blank page, never a shrug. */
+/* ══ Empty · REFERENCE §9.4 ══════════════════════════════════════════════════
+   One sentence built from the active filters and one action. Never a blank page. */
 
 .ag-empty{ padding:var(--ag-sp-32) var(--ag-gutter); text-align:center }
 .ag-empty__t{ margin:0 0 var(--ag-sp-12); font-size:16px; color:var(--ag-ink-2) }
-.ag-offline{
-  display:flex; align-items:center; justify-content:center; gap:var(--ag-sp-8);
-  padding:var(--ag-sp-10) var(--ag-gutter);
-  background:var(--ag-gold-wash); color:var(--ag-gold-ink);
-  font-size:13.5px; font-weight:600;
+
+
+/* ══ Stock note · REFERENCE §6.1 ═════════════════════════════════════════════
+   "Only N left" in `--ag-stock-low`, "Sold out" in `--ag-stock-gone`, "In stock"
+   in success text. Always words — the colour is never the only thing that says it.
+   ShopPage.dc.html: 12.5/600 under a card's price (12 on a phone), 14/600 on the
+   item page's size line (13/700 on a phone), which is a live region there because
+   it changes as the size changes. */
+
+.ag-stock{ font-size:12.5px; font-weight:600 }
+.ag-stock--low { color:var(--ag-stock-low) }
+.ag-stock--gone{ color:var(--ag-stock-gone) }
+.ag-stock--ok  { color:var(--ag-green-deep) }
+.ag-stock--line{ font-size:14px }
+@media (max-width:599px){
+  .ag-stock{ font-size:12px }
+  .ag-stock--line{ font-size:13px; font-weight:700 }
 }
 
 
-/* ══ Phone app bar · REFERENCE §7.2 ══════════════════════════════════════════
-   At rest it is the page ground with no border. Once content scrolls under it,
-   it fills and grows a hairline — a colour change only, never a height jump. */
+/* ══ Count badge ═════════════════════════════════════════════════════════════
+   The number on a cart or a filter button (ShopPage: 18px, pill, green with white
+   figures; 11.5 because §6.2's micro floor is 11.5 and the DC's 11 sits under it).
 
-.ag-appbar{
-  position:relative; z-index:var(--ag-z-appbar);
-  background:var(--ag-ground);
-  border-bottom:1px solid transparent;
-  transition:background var(--ag-dur-1) var(--ag-ease),
-             border-color var(--ag-dur-1) var(--ag-ease);
-}
-.ag-shell[data-scrolled] .ag-appbar{ background:var(--ag-bar); border-bottom-color:var(--ag-line) }
+   When the number changes it POPS: `data-pop` runs one beat on `--ag-ease-pop` —
+   §6.6's curve "for badges, stars", the one that overshoots — over `--ag-dur-3`,
+   the celebration-rise duration the Celebration DC uses for its own entrances.
+   The keyframes are the celebration engine's `agcPop`, so a badge and a medal
+   arrive the same way. Reduced motion shows the final state at once: the global
+   rule in shell.css cuts the animation to nothing, and the badge simply has its
+   new number. */
 
-/* Two equal 88px rails on root, so the centred title is centred against the BAR
-   rather than against whatever happens to be in the slots. Child is left-aligned
-   beside its back button and has no symmetry to keep. */
-/* PHONE ONLY, at the same 768 the header and the tab bar use. §7.2 calls this the
-   phone AppBar and §7.1 calls the other one the tablet-and-desktop header; without
-   this rule a converted page drew BOTH above 768 — a child app bar under a site
-   header, two titles and two back affordances on one screen. The three breakpoints
-   have to be one number or a width exists with two chromes, or with none. */
-@media (min-width:768px){ .ag-appbar{ display:none } }
-
-.ag-appbar__row{ display:grid; align-items:center; height:52px; padding:0 var(--ag-sp-4) }
-.ag-appbar--root  .ag-appbar__row{ grid-template-columns:88px minmax(0,1fr) 88px }
-.ag-appbar--child .ag-appbar__row{ grid-template-columns:44px minmax(0,1fr) auto }
-.ag-appbar__end{ display:flex; justify-content:flex-end }
-
-.ag-appbar__icon{
-  flex:none; width:44px; height:44px;
-  border:0; border-radius:50%; background:transparent; color:var(--ag-ink);
-  display:flex; align-items:center; justify-content:center; cursor:pointer;
-}
-/* Over a photo an icon button needs a container fill or it disappears (M3). */
-.ag-appbar__icon--float{ background:rgba(255,255,255,.94); box-shadow:var(--ag-sh-float) }
-
-.ag-appbar__title{ min-width:0; display:flex; flex-direction:column; justify-content:center; padding:0 var(--ag-sp-6) }
-.ag-appbar--root  .ag-appbar__title{ align-items:center }
-.ag-appbar--child .ag-appbar__title{ align-items:flex-start }
-.ag-appbar__av{
-  width:32px; height:32px; border-radius:50%;
-  background:var(--ag-ink); color:var(--ag-ground);
-  display:flex; align-items:center; justify-content:center;
-  font-weight:700; font-size:12px;
-}
-
-/* Root: a small centred title that fades in, over a large title row that hides. */
-.ag-appbar--root .ag-appbar__small{
-  max-width:100%; text-align:center;
-  font-size:17px; font-weight:600; line-height:1.2;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  opacity:0; transition:opacity var(--ag-dur-1) var(--ag-ease);
-}
-.ag-shell[data-scrolled] .ag-appbar--root .ag-appbar__small{ opacity:1 }
-
-.ag-appbar__large{
-  display:grid; grid-template-rows:1fr;
-  padding:0 var(--ag-gutter) var(--ag-sp-10);
-  background:var(--ag-ground);
-  transition:grid-template-rows var(--ag-dur-2) var(--ag-ease),
-             padding-bottom var(--ag-dur-2) var(--ag-ease),
-             opacity var(--ag-dur-1) var(--ag-ease);
-}
-.ag-appbar__large > h1{
-  margin:0; min-height:0; overflow:hidden;
-  font-family:var(--ag-font-display); font-weight:700;
-  font-size:32px; line-height:1.1; letter-spacing:-.01em;
-}
-.ag-shell[data-scrolled] .ag-appbar__large{ grid-template-rows:0fr; padding-bottom:0; opacity:0 }
-
-/* Child: back · title + sub · at most one action. Both lines truncate; the sub
-   adds information and never repeats the title. */
-.ag-appbar--child .ag-appbar__title b{
-  max-width:100%; font-size:17px; font-weight:600; line-height:1.2;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.ag-appbar--child .ag-appbar__title span{
-  max-width:100%; font-size:12.5px; color:var(--ag-soft);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-
-
-/* ══ Phone tab bar · REFERENCE §7.3 ══════════════════════════════════════════
-   Five destinations, labels always visible, exactly one or zero active. */
-
-.ag-tabbar{
-  display:grid; grid-template-columns:repeat(5,1fr);
-  padding:var(--ag-sp-6) var(--ag-sp-8) calc(var(--ag-sp-22) + env(safe-area-inset-bottom));
-  background:var(--ag-bar);
-  border-top:1px solid var(--ag-line);
-}
-/* Inside the shell it is a flex child of a 100dvh column and pins itself. On the
-   ~180 pages still on the old layout there is no such column — the document
-   scrolls — so it has to be fixed, or it lands wherever the markup happens to sit,
-   which on the home page was ABOVE the hero. */
-body:not(.ag-shelled) .ag-tabbar{
-  position:fixed; inset-inline:0; bottom:0; z-index:var(--ag-z-bar);
-}
-/* PHONE ONLY. The tablet and desktop chrome is the site header, and a tab bar still
-   on screen at 1440 is five destinations competing with the two panels that already
-   hold them — measured on the real page, where it drew straight through the mega
-   panel's backdrop blur.
-
-   AFTER the rules it overrides, not before: `.ag-tabbar{display:grid}` and
-   `@media … .ag-tabbar{display:none}` are the same specificity, so source order is
-   the whole of the decision. Written above, it read correctly and did nothing.
-
-   768 is the header's own breakpoint. The two must be the same number or a width
-   exists with both chromes, or with neither. */
-@media (min-width:768px){ .ag-tabbar{ display:none } }
-.ag-tabbar a,
-.ag-tabbar button{
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--ag-sp-4);
-  min-height:52px; border:0; background:transparent;
-  color:var(--ag-soft); font-size:12px; font-weight:600; cursor:pointer;
-}
-.ag-tabbar [aria-current="page"]{ color:var(--ag-green); font-weight:700 }
-
-
-/* ══ Bottom action bar · skill §8 ════════════════════════════════════════════
-   The primary action of a flow lives here, in the thumb zone — never only at the
-   top of a long page. */
-
-.ag-actionbar{
-  display:flex; align-items:center; gap:14px;
-  padding:var(--ag-sp-12) var(--ag-sp-16) calc(var(--ag-sp-28) + env(safe-area-inset-bottom));
-  background:rgba(251,251,250,.96);
-  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-  border-top:1px solid var(--ag-line);
-}
-.ag-actionbar__sum{ flex:1; min-width:0 }
-.ag-actionbar__sum b{ display:block; font-size:16px; font-weight:700 }
-.ag-actionbar__sum span{
-  display:block; font-size:12.5px; color:var(--ag-soft);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.ag-actionbar .ag-btn{ flex:none; height:54px }
-
-
-/* ══ Icon tile tints ══════════════════════════════════════════════════════════
-
-   MobileMenu.dc.html tints its tiles `#eef7ee`, `#e9efef`, `#a47306` and
-   `#2b373d`. None of those is in REFERENCE §6.1, whose rule is "only the tokens
-   in §6. No new colours" — so each maps to the nearest token pair rather than
-   being written as a fifth, sixth and seventh value of the same ramp. Recorded in
-   docs/handoff/GAPS.md as a deviation; the alternative was four more hexes on a
-   palette that already cost this codebase 642 of them.
-
-   Every pair is a FILL plus the INK drawn on it, measured here rather than
-   assumed: 7.08, 6.06, 5.78 and 7.37 : 1. An icon owes 3:1 under 1.4.11 and each
-   of these clears the 4.5 a word owes, which is what makes the tile safe to reuse
-   for a label later. */
-
-.ag-tint--green  { background:var(--ag-green-wash); color:var(--ag-green-deep) }
-.ag-tint--gold   { background:var(--ag-gold-wash);  color:var(--ag-gold-ink) }
-.ag-tint--live   { background:var(--ag-live-wash);  color:var(--ag-live-ink) }
-.ag-tint--neutral{ background:var(--ag-tint);       color:var(--ag-ink-2) }
-
-
-/* ══ Small and quiet buttons ═════════════════════════════════════════════════
-   44px and not smaller: §6 draws a 36px pill in two places and the rule at the
-   top of this file is that the hit area grows rather than the ink. */
-
-.ag-btn--sm{ height:44px; padding:0 var(--ag-sp-16); font-size:14.5px; border-radius:var(--ag-r-14) }
-.ag-btn--quiet{
-  background:transparent; color:var(--ag-ink);
-  border:1px solid var(--ag-line-2); font-weight:600;
-}
-.ag-btn--quiet:hover{ background:var(--ag-surface) }
-
-
-/* ══ The sheet, while it is open ═════════════════════════════════════════════
-   `.ag-main` is the page's only scroller, so stopping IT is what stops the page
-   moving behind a sheet. `position:fixed` on the body is the usual trick and is
-   not needed here — the shell never scrolled the document in the first place. */
-
-body.ag-sheet-open .ag-main{ overflow:hidden }
-
-
-/* ══ Menu ════════════════════════════════════════════════════════════════════
-   MobileMenu.dc.html. From `top:52px` so the app bar stays visible behind it and
-   the sheet reads as something OVER the page rather than a new page. */
-
-/* Its own distance, because it starts 52px down: `translateY(100%)` is 100% of the
-   sheet, and the sheet is 52px short of the viewport. */
-/* `max-height:none` because this one is pinned top AND bottom, so its height is
-   already decided. The shared 88dvh cap capped it at 743px from a top of 52, which
-   ended the sheet 49px above the viewport floor — a strip of dimmed tab bar under an
-   open menu, and the last list row scrolled behind it.
-
-   Its own transform distance, too: `translateY(100%)` is 100% of the sheet, and the
-   sheet starts 52px down. */
-.ag-menu{
-  top:52px; max-height:none; background:var(--ag-ground);
-  transform:translateY(calc(100% + 52px));
-}
-.ag-menu .ag-sheet__head{
-  display:grid; grid-template-columns:44px minmax(0,1fr) 44px;
-  align-items:center; padding:0 var(--ag-sp-8) var(--ag-sp-6);
-}
-[data-ag-menu-title]{ text-align:center; font-size:16.5px; font-weight:700 }
-/* Keeps its grid cell and leaves the tab order — see the note in menu-sheet.twig. */
-.ag-menu [data-hide]{ visibility:hidden }
-.ag-menu__x{
-  display:flex; align-items:center; justify-content:center;
-  width:30px; height:30px; border-radius:50%;
-  background:var(--ag-tint); color:var(--ag-ink);
-}
-/* The tab bar is still under the sheet on a phone, so the last row of the last list
-   has to clear it — `--ag-bottom-ui` is measured, so this follows a bar that changes
-   height instead of a number that goes stale. */
-.ag-menu__body{
-  display:flex; flex-direction:column; gap:var(--ag-sp-22);
-  padding:var(--ag-sp-6) var(--ag-sp-16) calc(var(--ag-sp-40) + var(--ag-bottom-ui, 0px));
-}
-.ag-menu__body > [data-ag-menu-view]{ display:flex; flex-direction:column; gap:var(--ag-sp-22) }
-.ag-menu__body > [data-ag-menu-view][hidden]{ display:none }
-.ag-menu__h{
-  margin:0; padding:0 var(--ag-sp-6) var(--ag-sp-8);
-  font-size:13px; font-weight:600; color:var(--ag-soft);
-}
-
-/* Profile card and its signed-out counterpart. */
-.ag-menu__me,
-.ag-qs__me{
-  display:flex; align-items:center; gap:var(--ag-sp-12);
-  padding:var(--ag-sp-14); border-radius:var(--ag-r-18);
-  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
-}
-.ag-menu__av{
-  flex:none; display:flex; align-items:center; justify-content:center;
-  width:52px; height:52px; border-radius:50%;
-  background:var(--ag-ink); color:var(--ag-ground);
-  font-weight:700; font-size:16px;
-}
-.ag-qs__me .ag-menu__av{ width:44px; height:44px; font-size:14.5px }
-.ag-menu__who{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
-.ag-menu__who b{ font-size:17px; font-weight:700 }
-.ag-menu__who span{ font-size:13.5px; color:var(--ag-soft) }
-.ag-menu__pts{ flex:none; display:flex; flex-direction:column; align-items:flex-end }
-/* Mono is for references and figures, never for labels — §6.2. */
-.ag-menu__pts b{ font-family:var(--ag-font-mono); font-weight:700; font-size:15px }
-.ag-menu__pts span{ font-size:12px; color:var(--ag-soft) }
-
-.ag-menu__join{
-  display:flex; flex-direction:column; gap:var(--ag-sp-6);
-  padding:var(--ag-sp-16); border-radius:var(--ag-r-18); background:var(--ag-surface);
-}
-.ag-menu__join b{ font-size:17px; font-weight:700 }
-.ag-menu__join span{ font-size:13.5px; color:var(--ag-soft) }
-.ag-menu__join .ag-btn{ height:50px; margin-top:var(--ag-sp-6) }
-
-/* Four quick tiles. */
-.ag-menu__quick{ display:grid; grid-template-columns:repeat(4,1fr); gap:var(--ag-sp-8) }
-.ag-menu__quick a{
-  display:flex; flex-direction:column; align-items:center; gap:var(--ag-sp-6);
-  padding:var(--ag-sp-12) var(--ag-sp-4); border-radius:var(--ag-r-18);
-  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
-  font-size:13px; font-weight:600; text-align:center;
-}
-
-/* A dot AND the word: colour is never the only carrier of a state. */
-.ag-menu__live{
-  display:inline-flex; align-items:center; gap:var(--ag-sp-6);
-  font-size:13px; font-weight:600; color:var(--ag-green-deep);
-}
-.ag-menu__live i{ width:7px; height:7px; border-radius:50%; background:var(--ag-green) }
-
-.ag-menu__lang .ag-menu__tick{ color:var(--ag-green); opacity:0; flex:none; display:flex }
-.ag-menu__lang[aria-current="true"] .ag-menu__tick{ opacity:1 }
-.ag-menu__lang[aria-current="true"] .ag-list__label{ font-weight:700 }
-
-.ag-menu__pane{ padding:var(--ag-sp-16) }
-
-.ag-menu__foot{ display:flex; flex-direction:column; gap:var(--ag-sp-12); align-items:flex-start }
-.ag-menu__foot nav{ display:flex; flex-wrap:wrap; gap:0 var(--ag-sp-16) }
-/* 44 rather than 32. Three small legal links in a row are exactly the shape that
-   gets missed — quiet, secondary, and the only way to the page somebody opened the
-   Menu to find. The row gains twelve pixels and nothing else moves. */
-.ag-menu__foot nav a{
-  /* `min-width` as well as `min-height`: "Terms" is four letters and came out 40px
-     wide, so the target failed on the axis nobody checks. */
+.ag-badge{
   display:inline-flex; align-items:center; justify-content:center;
-  min-height:44px; min-width:44px;
-  font-size:13.5px; color:var(--ag-soft);
-}
-.ag-menu__foot .ag-btn--danger{ height:44px; padding:0; font-size:15px }
-/* --ag-mute measures 2.75:1 on the ground and this is a real sentence, not a
-   disabled control — so the wordmark takes --ag-soft (4.80). The DC asks for
-   mute; recorded as a deviation with the measurement rather than shipped. */
-.ag-menu__foot > span{ font-size:12px; color:var(--ag-soft) }
-
-
-/* ══ Quick settings ══════════════════════════════════════════════════════════
-   AppBar.dc.html. A short sheet: two of the seven switches, and a way through to
-   all of them. It is a subset of one store, never a second set. */
-
-.ag-qs__body{
-  display:flex; flex-direction:column; min-width:0;
-  gap:var(--ag-sp-16); padding:var(--ag-sp-8) var(--ag-sp-16) var(--ag-sp-24);
-}
-.ag-qs__block{ min-width:0 }
-.ag-qs__block{ display:flex; flex-direction:column; gap:var(--ag-sp-8) }
-.ag-qs__h{ font-size:13px; font-weight:600; color:var(--ag-soft) }
-.ag-seg--48 .ag-seg__opt{ height:48px }
-.ag-qs__switches{ background:var(--ag-surface); border-radius:var(--ag-r-18); padding:0 var(--ag-sp-14) }
-.ag-qs__switches .ag-dr__row:last-child{ border-bottom:0 }
-
-/* Eight chips do not fit across 390px. They scroll HERE because this sheet is a
-   shortcut; the Menu and the full screen present the same eight as a list, so a
-   horizontal scroller is never the only way to reach one. */
-/* No negative-margin bleed. It made the scroller's outer box wider than the sheet's
-   content box, which grew the flex column to max-content — so `width:100%` on the
-   Sign-in button resolved to 402px inside a 390px sheet and the button ran off the
-   right edge. Measured, not theorised: body scrollWidth 418, clientWidth 390.
-   The chips scroll inside the padding instead; nothing else on the sheet moves. */
-.ag-qs__langs{
-  display:flex; gap:var(--ag-sp-8);
-  overflow-x:auto; scrollbar-width:none;
-  min-width:0;
-}
-.ag-qs__langs::-webkit-scrollbar{ display:none }
-.ag-qs__lang{ flex:none }
-
-.ag-qs__all{ background:var(--ag-surface); border-radius:var(--ag-r-18); border-top:0 }
-.ag-qs__done{ height:52px }
-
-
-/* ══ Display & reading ═══════════════════════════════════════════════════════
-   DisplayReading.dc.html. One block, three homes — the full screen, the Quick
-   settings sheet and the Menu's pushed sub-view — so the markup is shared rather
-   than copied. */
-
-.ag-dr{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
-.ag-dr__h{ font-size:15px; font-weight:700 }
-
-/* The whole row is the switch: a 52px target rather than the 26px the visual
-   control occupies. */
-.ag-dr__row{
-  display:flex; align-items:center; gap:var(--ag-sp-12);
-  min-height:52px; padding:var(--ag-sp-6) 2px;
-  border:0; border-bottom:1px solid var(--ag-ground);
-  background:transparent; color:var(--ag-ink);
-  font-family:inherit; text-align:start; cursor:pointer;
-}
-.ag-qs__switches .ag-dr__row{ border-bottom-color:var(--ag-line-3) }
-.ag-dr__text{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
-.ag-dr__label{ font-size:14.5px; font-weight:600 }
-.ag-dr__help{ font-size:12.5px; color:var(--ag-soft) }
-
-.ag-dr__size{ font-weight:700; line-height:1 }
-/* The specimen letters, at the sizes they set. Off the ladder on purpose and stated
-   here rather than in a `style` attribute: these are what 100 / 125 / 150% of the
-   reading size look like, which is the only way three identical letters can differ. */
-.ag-dr__size--0{ font-size:15px }
-.ag-dr__size--1{ font-size:19px }
-.ag-dr__size--2{ font-size:23px }
-
-.ag-dr__lang{
-  display:flex; align-items:center; gap:var(--ag-sp-10);
-  min-height:48px; font-size:14.5px; font-weight:600;
-}
-.ag-dr__lang label{ flex:1 }
-.ag-dr__lang select{
-  height:44px; padding:0 var(--ag-sp-10);
-  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-10);
-  font-family:inherit; font-size:14px; color:var(--ag-ink); background:var(--ag-surface);
-}
-.ag-dr__note{ margin:0; font-size:12.5px; color:var(--ag-soft) }
-
-
-/* ══ The first-visit language prompt ═════════════════════════════════════════
-   One row under the root app bar, asked once. Both answers are links, so it works
-   with scripting off; the script only chooses WHICH row, which is the half only a
-   browser can answer. */
-
-.ag-langask{ background:var(--ag-gold-wash-2); border-bottom:1px solid var(--ag-line) }
-.ag-langask__row{
-  display:flex; align-items:center; flex-wrap:wrap; gap:var(--ag-sp-8);
-  padding:var(--ag-sp-10) var(--ag-gutter);
-}
-.ag-langask__row[hidden]{ display:none }
-.ag-langask__q{ flex:1; min-width:180px; font-size:14px; font-weight:600 }
-
-
-/* ══ Site header — tablet and desktop ════════════════════════════════════════
-   REFERENCE §7.1, SiteHeader.dc.html.
-
-   Hidden below 768px: the phone has the app bar and the tab bar, and a site header
-   squeezed onto 390px is the nav-clutter anti-pattern by another route.
-
-   768 and not 900, because §7.1 calls this the TABLET AND DESKTOP header and the
-   acceptance protocol screenshots 834 as a tablet — at 900 an iPad in portrait got
-   the phone chrome on the width the spec names as the tablet case. The figure is
-   what the bar actually needs, measured on the page rather than guessed: logo 150
-   + two links 200 + toolbar pill 180 + identity 100 + 56 of gutter is 686. */
-
-.ag-head{ position:sticky; top:0; z-index:var(--ag-z-header) }
-@media (max-width:767px){ .ag-head{ display:none } }
-
-.ag-head__bar{
-  display:flex; align-items:center; gap:var(--ag-sp-8);
-  height:64px; padding:0 var(--ag-sp-28);
-  background:rgba(251,251,250,.9);
-  -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
-  border-bottom:1px solid var(--ag-line);
-}
-/* The panel hangs from the bar with no gap, so a rule between them cuts it in
-   half. Removed while one is open — §7.1. */
-.ag-head.is-mega .ag-head__bar{ border-bottom-color:transparent }
-.ag-head__gap{ flex:1 }
-.ag-head__end{ display:flex; align-items:center; gap:var(--ag-sp-12) }
-
-/* `min-height:40px` is the desktop pointer floor, and the home link is the one every
-   page carries. The mark stays 32px — only the target grows. */
-.ag-logo{ display:flex; align-items:center; min-height:40px; gap:var(--ag-sp-10); margin-inline-end:var(--ag-sp-18); text-decoration:none }
-.ag-logo img{
-  width:32px; height:32px; box-sizing:border-box; padding:3px;
-  border:1px solid var(--ag-line-2); border-radius:9px;
-  background:var(--ag-surface); object-fit:contain;
-}
-.ag-logo span{ display:flex; flex-direction:column; line-height:1 }
-.ag-logo b{ font-family:var(--ag-font-display); font-weight:700; font-size:16px; color:var(--ag-ink) }
-.ag-logo i{ font-style:normal; font-size:9.5px; font-weight:700; letter-spacing:.26em; color:var(--ag-green) }
-/* 9.5px is below §6.2's 11.5 micro floor, and it stays there because this is a
-   LOGOTYPE and not type: at a quarter-em of tracking the five letters are a device
-   locked to the 32px mark beside them, not a word anybody reads. Raising it to the
-   ladder makes the tag wider than the name above it and breaks the lockup.
-   TypeScaleTest exempts it by what it does — a sub-floor size at .26em — never by
-   naming this file. */
-
-.ag-head__top{ display:flex; gap:2px }
-.ag-head__link{
-  display:flex; align-items:center; gap:var(--ag-sp-6);
-  height:40px; padding:0 var(--ag-sp-14);
-  border:0; border-radius:var(--ag-r-10);
-  background:transparent; color:var(--ag-ink);
-  font-family:inherit; font-weight:600; font-size:14.5px; cursor:pointer;
-}
-.ag-head__link:hover{ background:var(--ag-ground) }
-.ag-head__link svg{ width:11px; height:11px; transition:transform var(--ag-dur-1) var(--ag-ease) }
-.is-open > .ag-head__link{ background:var(--ag-tint) }
-.is-open > .ag-head__link svg{ transform:rotate(180deg) }
-
-/* The toolbar pill. One 40px capsule, three controls, hairline dividers. */
-.ag-tools{
-  display:flex; align-items:center; gap:2px;
-  height:40px; padding:0 3px;
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-pill);
-  background:var(--ag-surface);
-}
-/* 40, NOT 34. §1's desktop floor is 40x40 for a pointer and this toolbar is drawn
-   only at 768 and above, so 34 was six pixels under it on every desktop — on the
-   three controls a person reaches for most often beside the nav itself. The pill is
-   the same height as `.ag-head__link` beside it, which was already 40. */
-.ag-tools__b{
-  display:flex; align-items:center; justify-content:center; gap:var(--ag-sp-6);
-  width:40px; height:40px;
-  border:0; border-radius:var(--ag-r-pill);
-  background:transparent; color:var(--ag-ink);
-  font-family:inherit; cursor:pointer;
-}
-.ag-tools__b:hover{ background:var(--ag-ground) }
-.ag-tools__b[aria-expanded="true"]{ background:var(--ag-tint) }
-.ag-tools__aa{ font-weight:700; font-size:14.5px }
-.ag-tools__lang{ width:auto; padding:0 var(--ag-sp-12); font-weight:600; font-size:13.5px }
-.ag-tools__div{ width:1px; height:18px; background:var(--ag-line) }
-
-.ag-head__cart{
-  position:relative; display:flex; align-items:center; justify-content:center;
-  width:40px; height:40px; border-radius:50%; color:var(--ag-ink);
-}
-.ag-head__cart:hover{ background:var(--ag-ground) }
-.ag-head__cartn{
-  position:absolute; top:3px; inset-inline-end:1px;
-  min-width:17px; height:17px; padding:0 var(--ag-sp-4); box-sizing:border-box;
+  min-width:18px; height:18px; padding:0 5px;
   border-radius:var(--ag-r-pill);
   background:var(--ag-green); color:var(--ag-surface);
-  /* The DC draws this at 10.5px. That IS type — a number somebody reads — so it
-     takes the ladder's bottom rung instead. GAPS.md §9.9. */
-  font:700 11.5px/17px var(--ag-font-ui); text-align:center;
+  font-size:11.5px; font-weight:700; line-height:1;
+  font-variant-numeric:tabular-nums;
 }
-
-.ag-head__av{
-  display:flex; align-items:center; justify-content:center;
-  width:40px; height:40px; border-radius:50%;
-  background:var(--ag-ink); color:var(--ag-ground);
-  font-weight:700; font-size:13px; text-decoration:none;
+/* The filter count (ShopPage's Filters button): ink, and 20px rather than 18. */
+.ag-badge--ink{ min-width:20px; height:20px; padding:0 6px; background:var(--ag-ink) }
+.ag-badge[data-pop]{ animation:agPop var(--ag-dur-3) var(--ag-ease-pop) both }
+@keyframes agPop{
+  0%  { transform:scale(.4);  opacity:0 }
+  60% { transform:scale(1.08); opacity:1 }
+  80% { transform:scale(.98) }
+  100%{ transform:scale(1) }
 }
-/* OUTLINED, never green. §6.1: green is the primary action inside the PAGE, and
-   a green pill in the chrome outshouts every page's own call to action. */
-.ag-head__signin{
-  display:flex; align-items:center; height:40px; padding:0 var(--ag-sp-18);
-  border:1px solid var(--ag-ink); border-radius:var(--ag-r-pill);
-  color:var(--ag-ink); font-weight:600; font-size:14px; text-decoration:none;
-}
-.ag-head__signin:hover{ background:var(--ag-tint); color:var(--ag-ink) }
-
-/* ── The mega panel ──────────────────────────────────────────────────────── */
-
-.ag-mega-wrap{ position:static }
-.ag-mega{
-  display:none;
-  position:absolute; top:64px; inset-inline:0;
-  background:rgba(251,251,250,.9);
-  -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
-  border-bottom:1px solid rgba(16,41,44,.08);
-  border-end-start-radius:var(--ag-r-24); border-end-end-radius:var(--ag-r-24);
-  box-shadow:var(--ag-sh-mega);
-}
-.ag-mega-wrap.is-open .ag-mega{ display:block }
-.ag-mega__grid{
-  max-width:1180px; margin:0 auto; padding:26px var(--ag-sp-40) 30px;
-  display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--ag-sp-4);
-}
-.ag-mega__item{
-  display:flex; align-items:flex-start; gap:var(--ag-sp-14);
-  padding:var(--ag-sp-12); border-radius:var(--ag-r-14);
-  color:var(--ag-ink); text-decoration:none;
-}
-.ag-mega__item:hover{ background:var(--ag-ground); color:var(--ag-ink) }
-.ag-icon-tile--mega{ width:40px; height:40px; border-radius:var(--ag-r-12) }
-.ag-mega__txt{ display:flex; flex-direction:column; gap:2px }
-.ag-mega__txt b{ font-weight:700; font-size:15px }
-/* There are no pictures in here — §7.1. A description is what a reader was
-   scanning anyway, and it is the thing an icon cannot say. */
-.ag-mega__txt span{ font-size:13px; line-height:1.45; color:var(--ag-soft) }
-
-/* ── The two popovers ────────────────────────────────────────────────────── */
-
-.ag-pop{
-  display:none;
-  position:absolute; top:70px; inset-inline-end:var(--ag-sp-28);
-  box-sizing:border-box;
-  background:var(--ag-surface);
-  border:1px solid var(--ag-line);
-  box-shadow:var(--ag-sh-pop);
-}
-.ag-pop[data-open]{ display:flex; flex-direction:column }
-.ag-pop--aa{ width:360px; max-height:min(620px, calc(100dvh - 90px)); overflow:auto; padding:var(--ag-sp-18); border-radius:var(--ag-r-20) }
-.ag-pop--lang{ width:210px; padding:var(--ag-sp-6); border-radius:var(--ag-r-16) }
-
-.ag-pop__lang{
-  display:flex; align-items:center; justify-content:space-between;
-  height:40px; padding:0 var(--ag-sp-12);
-  border-radius:var(--ag-r-10);
-  color:var(--ag-ink); font-size:14px; text-decoration:none;
-}
-.ag-pop__lang:hover{ background:var(--ag-ground); color:var(--ag-ink) }
-.ag-pop__lang[aria-current="true"]{ background:var(--ag-tint); font-weight:700 }
-.ag-pop__lang i{ font-style:normal; font-size:12px; color:var(--ag-soft) }
-
-
-/* ══ The announcement strip ══════════════════════════════════════════════════
-   Not in the DC and not invented here: it is an operator-controlled sentence
-   that predates the redesign, and removing it inside a navigation change would
-   have taken a product feature out with the chrome. */
-
-.ag-announce{
-  display:flex; align-items:center; gap:var(--ag-sp-10);
-  padding:var(--ag-sp-8) var(--ag-gutter);
-  background:var(--ag-ink); color:var(--ag-ground);
-  font-size:13px;
-}
-.ag-announce__dot{ width:7px; height:7px; border-radius:50%; background:var(--ag-green-light) }
-/* ── 44, INSIDE A 48px BAR ────────────────────────────────────────────────
-   Both of these were under the floor — the link 30px tall on a phone and 15px on a
-   desktop, where it is one line of a sentence, and the close 26x32. §1 ships 44 and
-   lists no inline exception.
-
-   `min-height` on an inline-flex link raises the TARGET without raising the bar: the
-   bar is already 48px, so the 44px box fits inside it and nothing moves. The text
-   still looks like a sentence's link, which is the point — the fix is the hit area,
-   not the appearance. */
-.ag-announce a{
-  display:inline-flex; align-items:center; min-height:44px;
-  color:var(--ag-ground); text-decoration:underline; text-underline-offset:3px;
-}
-.ag-announce__x{
-  /* `flex:none`, or the bar's flex shrinks a 44px button to 29 on a narrow phone —
-     a declared width is a BASIS to a flex child, not a floor. */
-  margin-inline-start:auto; flex:none; width:44px; height:44px;
-  border:0; background:transparent; color:var(--ag-ground);
-  font-size:17px; line-height:1; cursor:pointer;
-}
-
-/* ══ Point-of-collection AI notice ═══════════════════════════════════════════
-   Beside the field, generated from the capability registry — see
-   `partials/ai-collection-notice.twig`. Informational rather than a warning: it
-   describes what happens, and dressing it as a fault teaches people to dismiss
-   the notices that are one. */
-.ag-ai-note{
-  margin:0; padding:var(--ag-sp-10) var(--ag-sp-12);
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-12);
-  background:var(--ag-surface);
-  font-size:13px; line-height:1.5; color:var(--ag-ink-2);
-}
-.ag-ai-note a{ color:var(--ag-green-deep); font-weight:600 }
-
-/* ══ RECORDS: a pill, a table, a fact strip and a meter ═══════════════════════
-   ═════════════════════════════════════════════════════════════════════════════
-
-   Four primitives the account, challenge and award pages all need and none of
-   which this layer had. They are HERE and not in a page's own sheet because the
-   last pass built them three times under three prefixes — `.me-pill`, `.ch__fact`,
-   a third in the award page — and three copies of a status badge is three answers
-   to "what does Confirmed look like".
-
-   Everything below composes what is already here: `--ag-tint--*` for colour,
-   `--ag-sp-*`/`--ag-r-*` for rhythm, `.ag-icon-tile` for the leading mark. Nothing
-   re-declares a value this file already holds. */
-
-/* ── A STATUS, WHICH IS NOT A CHIP ────────────────────────────────────────────
-   `.ag-chip` is an interactive control and is 44px for that reason. A status is a
-   LABEL — it is read, never pressed — so it is 28px and carries no border, no
-   pointer and no focus ring. Giving a status the chip's geometry is how a row ends
-   up looking like it has two buttons in it. */
-.ag-pill{
-  display:inline-flex; align-items:center;
-  height:28px; padding:0 11px;
-  border-radius:var(--ag-r-pill);
-  font-size:12.5px; font-weight:700; white-space:nowrap;
-  background:var(--ag-line-3); color:var(--ag-ink-2);
-}
-.ag-pill--ok{   background:var(--ag-green-wash); color:var(--ag-green-deep) }
-.ag-pill--wait{ background:var(--ag-info-wash);  color:var(--ag-info) }
-.ag-pill--warn{ background:var(--ag-gold-wash);  color:var(--ag-gold-ink) }
-.ag-pill--bad{  background:var(--ag-error-wash); color:var(--ag-error) }
-/* Happening now — a vote that is open. The dot is extra; the word is the state. */
-.ag-pill--live{ background:var(--ag-live-wash); color:var(--ag-live-ink) }
-.ag-pill--live::before{ content:''; width:6px; height:6px; margin-inline-end:6px;
-  border-radius:50%; background:currentColor }
-
-/* ── A RECORDS TABLE ──────────────────────────────────────────────────────────
-   A list of records is a TABLE on a pointer — aligned columns an eye runs down, a
-   header saying what each one is — and a STACK on a phone. The two are the same
-   markup: `--ag-dcell` and `--ag-mcell` decide which cells exist, so a row is never
-   written twice, and a page sets `--ag-cols` to its own column template.
-
-   Row height does not change with content. A table whose rows breathe as the text
-   varies is a list wearing a table's clothes, which is why the cells truncate. */
-.ag-tbl{
-  --ag-cols:minmax(0,1fr) auto;
-  --ag-dcell:none;
-  --ag-mcell:block;
-  background:var(--ag-surface);
-  border:1px solid var(--ag-line);
-  border-radius:var(--ag-r-20);
-  overflow:hidden;
-}
-@media (min-width:600px){ .ag-tbl{ --ag-dcell:block; --ag-mcell:none } }
-
-.ag-tbl__h{
-  display:grid; grid-template-columns:var(--ag-cols); gap:var(--ag-sp-16);
-  padding:var(--ag-sp-12) var(--ag-sp-20);
-  border-bottom:1px solid var(--ag-line-3);
-  font-size:12.5px; font-weight:600; color:var(--ag-soft);
-}
-@media (max-width:599px){ .ag-tbl__h{ display:none } }
-
-.ag-tbl__r{
-  display:grid; grid-template-columns:var(--ag-cols); gap:var(--ag-sp-16);
-  align-items:center; min-height:72px;
-  padding:var(--ag-sp-12) var(--ag-sp-20);
-  color:var(--ag-ink); text-decoration:none;
-}
-.ag-tbl__r + .ag-tbl__r{ border-top:1px solid var(--ag-line-3) }
-a.ag-tbl__r:hover{ background:var(--ag-ground) }
-a.ag-tbl__r:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
-@media (max-width:599px){
-  .ag-tbl__r{ min-height:64px; gap:var(--ag-sp-12); padding:var(--ag-sp-10) var(--ag-sp-16) }
-  .ag-tbl__h, .ag-tbl__g{ padding-inline:var(--ag-sp-16) }
-}
-
-/* A band grouping the rows under it — a month, a status, a cycle. Sticky on a
-   phone, because scrolling a long ledger without it means losing track of which
-   group you are in; static on a pointer, where the header row is always visible. */
-.ag-tbl__g{
-  position:static; top:0; z-index:2;
-  padding:var(--ag-sp-10) var(--ag-sp-20);
-  background:var(--ag-surface-2); border-top:1px solid var(--ag-line-3);
-  font-size:12.5px; font-weight:700; color:var(--ag-ink-2);
-}
-.ag-tbl__g:first-child{ border-top:0 }
-@media (max-width:599px){ .ag-tbl__g{ position:sticky } }
-
-/* The cells. `--d` exists only on a pointer, `--m` only on a phone. */
-.ag-cell--d{ display:var(--ag-dcell) }
-.ag-cell--m{ display:var(--ag-mcell) }
-.ag-cell{ min-width:0; display:flex; flex-direction:column; gap:2px }
-.ag-cell__t{ font-size:15px; font-weight:600;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-.ag-cell__s{ font-size:12.5px; color:var(--ag-soft);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-.ag-cell__p{ font-size:14px; color:var(--ag-ink-2);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-/* Tabular, and right-aligned: a column of figures that does not line up at the
-   decimal is a column you cannot compare down. */
-.ag-cell__n{ text-align:right; font:700 15px/1 var(--ag-font-mono);
-  font-variant-numeric:tabular-nums }
-
-/* ── A STRIP OF FACTS ─────────────────────────────────────────────────────────
-   Two to four figures in one sunken panel, divided by the GAP rather than by
-   borders — one background showing through a 1px grid gap is one element to style
-   instead of n-1 dividers that have to know which of them is last. */
-.ag-facts{
-  display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr);
-  gap:1px; background:var(--ag-line-3);
-  border-radius:var(--ag-r-14); overflow:hidden;
-}
-.ag-facts > *{
-  display:flex; flex-direction:column; gap:var(--ag-sp-4);
-  padding:var(--ag-sp-12); background:var(--ag-surface-2); min-width:0;
-}
-.ag-facts dt, .ag-facts__k{
-  font-size:12px; color:var(--ag-soft);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.ag-facts dd, .ag-facts__v{
-  margin:0; font:700 16px/1 var(--ag-font-mono); color:var(--ag-ink);
-}
-/* Words rather than figures: white cells with a hairline round them, the value in the
-   UI face. Both design comps that state facts about an award draw them this way. */
-.ag-facts--text{ border:1px solid var(--ag-line) }
-.ag-facts--text > *{ background:var(--ag-surface) }
-.ag-facts--text dd{ font:700 15.5px/1.3 var(--ag-font-ui) }
-.ag-facts--text dt{ white-space:normal }
-/* Four facts do not fit a phone in one row. They wrap to two before they shrink
-   to unreadable, which is the choice the ticket strip already makes. */
-@media (max-width:599px){
-  .ag-facts{ grid-auto-flow:row; grid-template-columns:repeat(2,minmax(0,1fr)) }
-  /* An odd count leaves a hole in the last row, which reads as a fact that failed to
-     load. The last one takes the row instead. */
-  .ag-facts > :last-child:nth-child(odd){ grid-column:1 / -1 }
-}
-
-/* ── A PROGRESS METER ─────────────────────────────────────────────────────────
-   SEGMENTS, not a bar, wherever the quantity is a COUNT somebody is working
-   toward: "6 of 10" is readable off segments at a glance and a percentage bar can
-   only say "most of the way". A bar is right for a proportion with no natural
-   unit — a profile's completeness — and `.ag-meter--bar` is that case.
-
-   Not `.ag-seg`, which is this file's segmented CONTROL. A meter is read; that one
-   is pressed. */
-.ag-meter{ display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:var(--ag-sp-4) }
-.ag-meter > *{ height:8px; border-radius:4px; background:var(--ag-line-3) }
-.ag-meter__on{   background:var(--ag-green) }
-.ag-meter__wait{ background:var(--ag-info-wash);  box-shadow:inset 0 0 0 2px var(--ag-info) }
-.ag-meter__need{ background:var(--ag-gold-wash);  box-shadow:inset 0 0 0 2px var(--ag-gold-ink) }
-/* Unreached segments as rings rather than grey fills, for a meter drawn on a white
-   card where the design wants "places still free" rather than "progress missing". */
-.ag-meter--outline > *{ height:10px; border-radius:5px; background:var(--ag-surface);
-  box-shadow:inset 0 0 0 1.5px var(--ag-line-2) }
-.ag-meter--outline > .ag-meter__on{ background:var(--ag-meter-fill, var(--ag-green)); box-shadow:none }
-.ag-meter--bar{ display:block; height:6px; border-radius:3px;
-  background:var(--ag-line-3); overflow:hidden }
-.ag-meter--bar > *{ display:block; height:100%; border-radius:0;
-  background:var(--ag-green); transition:width var(--ag-dur) var(--ag-ease) }
-
-/* The info tint the other four were missing. Tickets, orders and anything
-   in-transit read blue across this product; without it each page reached for a
-   literal. */
-.ag-tint--info{ background:var(--ag-info-wash); color:var(--ag-info) }
-
-/* ══ THE LIBRARY'S REMAINING PARTS ════════════════════════════════════════════
-   Each is used by `partials/ui.twig` and by nothing else, which is how it should
-   be: a macro and its rule arrive together or the macro is describing something
-   that does not exist. */
-
-/* A person, where a tile is a thing. Same sizing property as `.ag-icon-tile`, so a
-   row holding one of each lines up without either knowing about the other. */
-.ag-avatar{
-  --ag-tile:40px;
-  width:var(--ag-tile); height:var(--ag-tile); flex:none;
-  border-radius:50%;
-  background:var(--ag-tint); color:var(--ag-ink-2);
-  display:flex; align-items:center; justify-content:center;
-  font-weight:700; font-size:calc(var(--ag-tile) * .34);
-}
-
-/* A figure in a fact strip can carry a direction. Three tones and no more: a strip
-   where every value is coloured is a strip where none of them is. */
-.ag-facts--ok{  color:var(--ag-green-deep) }
-.ag-facts--bad{ color:var(--ag-error) }
-.ag-facts--warn{ color:var(--ag-gold-ink) }
-
-/* An empty state's body. `.ag-empty__t` is already here; this is the sentence under
-   it that says WHY it is empty — "no data" is not a reason a reader can act on. */
-.ag-empty__b{ margin:0 auto var(--ag-sp-16); max-width:46ch;
-  font-size:14px; line-height:1.6; color:var(--ag-soft) }
-
-/* ── A PAGE'S TITLE BLOCK ─────────────────────────────────────────────────────
-   Display face, the lead under it, and room for one action on the right. The lead
-   is hidden below 600 and reprinted by the page where the phone layout wants it —
-   one element showing at a time, because both at once is the same sentence twice.
-
-   `clamp()` rather than the closed type ladder: this is the display range, which is
-   set against the viewport by the house rule rather than off the 10–17 scale. */
-.ag-pagehead{ display:flex; align-items:flex-end; justify-content:space-between;
-  gap:var(--ag-sp-16); padding-bottom:var(--ag-sp-4) }
-.ag-pagehead__b{ display:flex; flex-direction:column; gap:var(--ag-sp-6); min-width:0 }
-.ag-pagehead h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
-  font-size:clamp(26px, 4.2vw, 34px); line-height:1.1 }
-.ag-pagehead p{ margin:0; font-size:15.5px; line-height:1.5; color:var(--ag-ink-2) }
-@media (max-width:599px){ .ag-pagehead{ display:none } }
-
-/* The phone's copy of the lead, for the width that has no title block. */
-.ag-lead{ margin:0; padding-top:var(--ag-sp-6);
-  font-size:14.5px; line-height:1.5; color:var(--ag-ink-2) }
-@media (min-width:600px){ .ag-lead{ display:none } }
-
-/* A heading over a group of rows — 13px soft, the DC's group label. */
-.ag-group{ display:flex; flex-direction:column; gap:var(--ag-sp-8) }
-.ag-group > h2{ margin:0; padding:0 var(--ag-sp-4);
-  font-size:13px; font-weight:600; color:var(--ag-soft) }
-
-/* A section heading inside a page, where `.ag-group`'s label is too quiet. */
-.ag-h2{ margin:0; font-size:18px; font-weight:700 }
-/* A heading and its action on one line — used above tables, lists and cards. */
-.ag-between{ display:flex; align-items:center; justify-content:space-between;
-  gap:var(--ag-sp-10); flex-wrap:wrap }
-
-/* ── A FIELD WITH NO ICON ─────────────────────────────────────────────────────
-   `.ag-field` is a WRAPPER — a box with an icon beside an input. Most fields have
-   no icon, and a second class for that case is a second box to keep in step: the
-   referral link's input and the payout form's three had drifted to 48px and a
-   14px face, which on iOS is the height of a zoom on focus (§11).
-
-   So the same class goes on the control itself. Flex on a replaced element is
-   ignored and the box is identical; only the text properties, which an `<input>`
-   does not inherit, have to be said again. */
-input.ag-field, select.ag-field, textarea.ag-field{
-  width:100%; font:inherit; font-size:16px; color:var(--ag-ink);
-}
-input.ag-field:focus, select.ag-field:focus, textarea.ag-field:focus{
-  outline:3px solid var(--ag-green); outline-offset:2px;
-}
-/* A value read character by character — a referral code, an account number, a
-   reference. The mono face is what makes 0/O and 1/l tellable apart, which is the
-   whole reason somebody is reading it one character at a time. */
-.ag-field--mono{ font-family:var(--ag-font-mono); font-size:15px; letter-spacing:.01em }
-
-/* A field with its action beside it. It WRAPS, and the button keeps a floor of
-   its own: side by side at 390px a Copy button and a URL field leave the field
-   about nine characters wide, which is a link nobody can check before sending. */
-.ag-inline{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8); align-items:center }
-.ag-inline > .ag-field{ flex:1 1 220px; min-width:0 }
-
-/* ── A NUMBERED SEQUENCE ──────────────────────────────────────────────────────
-   `ui.steps()`. An `<ol>`, because the order is the content. The marker is drawn
-   rather than left to the list style so it can carry the tint and sit on the first
-   line of a wrapped step; `list-style:none` removes the native one, and the number is
-   in the markup for a reader that has lost the CSS.
-
-   `--ag-step-fill` is the one thing a page changes: the challenge page paints the
-   number in its theme. It must be a colour that holds WHITE TEXT at 4.5:1 — a gold
-   fill under a white numeral is 1.85:1 — so a page passes its solid, never its wash. */
-.ag-steps{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column;
-  gap:var(--ag-sp-12) }
-.ag-steps > li{ display:flex; gap:var(--ag-sp-12); font-size:14.5px; line-height:1.55 }
-.ag-steps__n{
-  flex:none; width:26px; height:26px; border-radius:50%;
-  background:var(--ag-green-wash); color:var(--ag-green-deep);
-  display:flex; align-items:center; justify-content:center;
-  font-size:13px; font-weight:700;
-}
-.ag-steps__b{ display:flex; flex-direction:column; gap:var(--ag-sp-4); min-width:0 }
-.ag-steps__t{ font-size:16px; line-height:1.3 }
-.ag-steps__s{ color:var(--ag-ink-2) }
-
-/* The card row: number above, each step its own card. Three across from 600px,
-   stacked with the number beside the text below it — on a phone a 34px circle above
-   three lines of text is a column of mostly white space. */
-.ag-steps--cards{ display:grid; grid-template-columns:minmax(0,1fr); gap:var(--ag-sp-10) }
-.ag-steps--cards > li{ padding:var(--ag-sp-18); background:var(--ag-surface);
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
-.ag-steps--cards .ag-steps__n{ width:34px; height:34px; font-size:15px; font-weight:800;
-  background:var(--ag-step-fill, var(--ag-green)); color:var(--ag-surface) }
-.ag-steps--cards .ag-steps__s{ font-size:14px; line-height:1.5 }
-@media (min-width:600px){
-  .ag-steps--cards{ grid-template-columns:repeat(3,minmax(0,1fr)) }
-  .ag-steps--cards > li{ flex-direction:column }
-}
-
-/* ── CONDITIONS THAT HOLD ─────────────────────────────────────────────────────
-   `ui.ticks()`. One white panel with hairlines between, a tick on each line. */
-.ag-ticks{ list-style:none; margin:0; padding:0; background:var(--ag-surface);
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-18); overflow:hidden }
-.ag-ticks > li{ display:flex; gap:var(--ag-sp-12); align-items:flex-start;
-  padding:var(--ag-sp-14) var(--ag-sp-18); font-size:15px; line-height:1.5 }
-.ag-ticks > li + li{ border-top:1px solid var(--ag-line) }
-.ag-ticks__i{ flex:none; margin-top:3px; color:var(--ag-green) }
-
-/* ── AN INLINE "NOTHING YET" ──────────────────────────────────────────────────
-   `ui.notice()`. Dashed, because it marks a PLACE for something: a solid card with
-   nothing in it reads as a broken one. */
-.ag-notice{ display:flex; align-items:center; gap:var(--ag-sp-16); padding:var(--ag-sp-20);
-  background:var(--ag-surface); border:1px dashed var(--ag-line-strong); border-radius:var(--ag-r-18) }
-.ag-notice__i{ flex:none; width:48px; height:48px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  background:var(--ag-notice-wash, var(--ag-green-wash)); color:var(--ag-notice-ink, var(--ag-green-deep)) }
-.ag-notice__b{ display:flex; flex-direction:column; gap:3px; min-width:0 }
-.ag-notice__b b{ font-size:16px }
-.ag-notice__b span{ font-size:14px; line-height:1.5; color:var(--ag-ink-2) }
-
-/* ── QUESTIONS ────────────────────────────────────────────────────────────────
-   `ui.faq()`. Flush rows with hairlines — no card — and a plus that becomes a minus.
-   The native marker is removed for the reason `.ag-disc` gives: 8px, and drawn as a
-   filled triangle on WebKit that no stylesheet can recolour. */
-.ag-faq{ border-top:1px solid var(--ag-line-2) }
-.ag-faq__i{ border-bottom:1px solid var(--ag-line-2) }
-.ag-faq__i > summary{ display:flex; align-items:center; justify-content:space-between;
-  gap:var(--ag-sp-12); min-height:58px; cursor:pointer; list-style:none;
-  font-size:16px; font-weight:600 }
-.ag-faq__i > summary::-webkit-details-marker{ display:none }
-.ag-faq__i > summary::after{ content:'+'; flex:none; font-size:22px; font-weight:400; line-height:1 }
-.ag-faq__i[open] > summary::after{ content:'−' }
-.ag-faq__i > summary:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-.ag-faq__i > p{ margin:0 0 var(--ag-sp-16); max-width:62ch; font-size:15px; line-height:1.6; color:var(--ag-ink-2) }
-
-/* ── A DATE BLOCK ─────────────────────────────────────────────────────────────
-   Month over day, where a row is about a day — the next ticket, a sitting, a
-   deadline. It takes the leading slot a tile would, at the same width, so a list
-   mixing the two keeps one left edge. */
-.ag-date{
-  flex:none; width:44px; padding:5px 0;
-  border-radius:var(--ag-r-12); background:var(--ag-tint);
-  display:flex; flex-direction:column; align-items:center; line-height:1.1;
-}
-.ag-date > span{ font-family:var(--ag-font-mono); font-size:10px; font-weight:700;
-  letter-spacing:var(--ag-tracking-label); color:var(--ag-soft) }
-.ag-date > b{ font-size:17px; font-weight:700 }
-
-/* A card that is itself a link. The hover is a border rather than a lift: a card
-   that rises on hover tells a touch device nothing and moves the text under a
-   finger that has already landed. */
-.ag-card--link{ display:flex; flex-direction:column; gap:var(--ag-sp-10);
-  padding:var(--ag-sp-16); text-decoration:none; color:inherit;
-  transition:border-color var(--ag-dur-1) var(--ag-ease) }
-.ag-card--link:hover{ border-color:var(--ag-line-strong); color:inherit }
-
-/* ── A FORM STACK ─────────────────────────────────────────────────────────────
-   Label, field, hint, label, field, hint, button. The gap is on the stack and not
-   on each element, so a hint sits tight under its own field (its own `margin-top`
-   closes the gap) and the next label starts a fresh pair. Three forms were each
-   doing this with inline styles. */
-.ag-form{ display:flex; flex-direction:column; gap:var(--ag-sp-12) }
-.ag-form > .ag-label{ margin-bottom:calc(var(--ag-sp-12) * -1 + var(--ag-sp-6)) }
-.ag-form > .ag-hint{ margin-top:calc(var(--ag-sp-12) * -1 + var(--ag-sp-6)) }
-.ag-form > .ag-btn{ align-self:flex-start; margin-top:var(--ag-sp-4) }
-
-/* ── A DISCLOSURE ─────────────────────────────────────────────────────────────
-   A `<details>` whose summary is a 52px row. The marker is removed and redrawn as
-   a chevron that turns, because the native one is 8px — far under the 24px AA
-   floor — and WebKit draws it as a filled triangle no stylesheet can recolour.
-
-   `list-style:none` is the standards-track way and `::-webkit-details-marker` is
-   the one Safari still reads; both are needed, and dropping either leaves a stray
-   triangle beside the chevron on exactly one engine. */
-.ag-disc > summary{
-  display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-10);
-  min-height:52px; padding:0 var(--ag-sp-16);
-  font-size:14.5px; font-weight:600; cursor:pointer; list-style:none;
-}
-.ag-disc > summary::-webkit-details-marker{ display:none }
-.ag-disc > summary::after{
-  content:''; flex:none; width:9px; height:9px;
-  border-right:2px solid var(--ag-soft); border-bottom:2px solid var(--ag-soft);
-  transform:rotate(45deg) translateY(-2px);
-  transition:transform var(--ag-dur-1) var(--ag-ease);
-}
-.ag-disc[open] > summary::after{ transform:rotate(-135deg) translateY(-2px) }
-.ag-disc > summary:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
-.ag-disc__b{ padding:0 var(--ag-sp-16) var(--ag-sp-16);
-  display:flex; flex-direction:column; gap:var(--ag-sp-12) }
-
-/* ── A PAGE'S OWN VIEWS ───────────────────────────────────────────────────────
-   `ui.subnav()`. An underline on the current view, a hairline under the set. It
-   scrolls sideways on a phone rather than wrapping: three labels that wrap read as two
-   rows of something else. The 44px floor is the target, not the ink. */
-.ag-subnav{ display:flex; gap:var(--ag-sp-8); overflow-x:auto; scrollbar-width:none;
-  border-bottom:1px solid var(--ag-line-2) }
-.ag-subnav::-webkit-scrollbar{ display:none }
-.ag-subnav__i{ flex:none; display:flex; align-items:center; min-height:44px;
-  padding:0 var(--ag-sp-10); margin-bottom:-1px; border-bottom:2px solid transparent;
-  font-size:15px; font-weight:600; color:var(--ag-soft); text-decoration:none; white-space:nowrap }
-.ag-subnav__i:hover{ color:var(--ag-ink) }
-.ag-subnav__i[aria-current="page"]{ color:var(--ag-ink); border-bottom-color:var(--ag-green) }
-.ag-subnav__i:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }

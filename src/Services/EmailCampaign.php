@@ -472,10 +472,10 @@ final class EmailCampaign
     public static function render(string $subject, string $preheader, array $blocks, array $vars): string
     {
         static $twig = null;
-        $twig ??= new Environment(
+        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
             new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
             ['autoescape' => 'html']
-        );
+        ));
 
         return $twig->render('emails/campaign.twig', $vars + [
             'subject'   => $subject,

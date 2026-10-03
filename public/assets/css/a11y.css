@@ -83,16 +83,18 @@ input[type="reset"], select, summary, [role="tab"], [role="switch"],
    difference between a rule and a list of fixes. `:target` inherits it, so the
    anchor-jump margin below is now the same number said once.
 
-   The values are the chrome's own heights from base/tokens.css. A number typed
-   here would be wrong the first time a nav grew a row. */
+   The values are the chrome's own heights: `--ag-header-h`, declared by the
+   header in components/chrome.css, and `--ag-bottom-ui`, measured by shell.js from the
+   bar actually on screen. A number typed here would be wrong the first time a nav
+   grew a row. */
 html {
-  scroll-padding-top: calc(var(--ag-nav-h, 72px) + 18px);
-  scroll-padding-bottom: calc(var(--ag-mobile-nav-h, 64px) + 18px);
+  scroll-padding-top: calc(var(--ag-header-h) + 18px);
+  scroll-padding-bottom: calc(var(--ag-bottom-ui, 64px) + 18px);
 }
 
 /* ── :target landing highlight (skip-link / anchor jumps stay visible) ── */
 :target {
-  scroll-margin-top: calc(var(--ag-nav-h, 72px) + 18px);
+  scroll-margin-top: calc(var(--ag-header-h) + 18px);
 }
 
 main:target, section:target, div[id]:target {

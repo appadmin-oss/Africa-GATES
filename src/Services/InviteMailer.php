@@ -298,10 +298,10 @@ final class InviteMailer
     private static function html(array $view): string
     {
         static $twig = null;
-        $twig ??= new Environment(
+        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
             new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
             ['autoescape' => 'html']
-        );
+        ));
 
         return $twig->render('emails/invitation.twig', $view);
     }

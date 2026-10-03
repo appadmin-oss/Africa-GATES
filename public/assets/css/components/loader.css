@@ -3,7 +3,7 @@
    "Africa" in Playfair ink, tracked green "GATES", 2px hairline.
      0.00–0.36 disc opens · 0.16–0.50 continent rises · 0.28–0.62 Africa · 0.34–0.68 GATES
      0.20–0.92 hairline · 1.04–1.28 mark lifts and fades · 1.12–1.36 panel fades */
-.ag-loader{ position:fixed; inset:0; z-index:var(--ag-z-loader,2147483000); display:none; align-items:center; justify-content:center; background:var(--ag-bg,#fbfbfa); }
+.ag-loader{ position:fixed; inset:0; z-index:2147483000; display:none; align-items:center; justify-content:center; background:var(--ag-ground,#fbfbfa); }
 html.ag-loading .ag-loader{ display:flex; opacity:1; transition:opacity .24s ease, visibility .24s; }
 html.ag-loading .ag-loader.is-out{ opacity:0; visibility:hidden; }
 .ag-loader__mark{ display:flex; flex-direction:column; align-items:center; gap:22px; transition:transform .24s cubic-bezier(.2,.8,.2,1), opacity .24s ease; }

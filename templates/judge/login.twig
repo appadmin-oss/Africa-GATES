@@ -9,7 +9,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('/assets/css/base/tokens.css') }}">
+{# The palette from Support\Accent and the tokens from tokens.css — the orphaned
+   base/tokens.css this screen used to link carried a second gold nothing else did. #}
+<style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
+<link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/components/auth.css') }}">
 </head>
 <body>

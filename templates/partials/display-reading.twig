@@ -98,8 +98,10 @@
 
   {# Said plainly rather than discovered. The mechanism is real — it sets `lang`
      and `dir` on the document, which is what a screen reader's pronunciation and
-     the whole RTL layout depend on — and the copy is not translated yet. A menu
-     that silently does nothing is the thing worth refusing to ship. #}
+     the whole RTL layout depend on — and the copy is not translated yet: the
+     `|trans` layer exists (Support\Translator) but its catalogues hold only the
+     first-visit prompt. Rewrite this note when they hold the pages. A menu that
+     silently does nothing is the thing worth refusing to ship. #}
   <p class="ag-dr__note">Sets the page’s language for screen readers and
     right-to-left layout. The writing is still in English while the translations
     are prepared.</p>

@@ -74,7 +74,7 @@
     position:sticky; top:0; z-index:12;
     margin:0 calc(var(--ag-gutter,16px) * -1) 0;
     padding:6px var(--ag-gutter,16px) 0;
-    background:var(--ag-bg,#fbfbfa);
+    background:var(--ag-ground,#fbfbfa);
     border-bottom:1px solid rgba(16,41,44,.09);
     overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
   }
@@ -109,7 +109,7 @@
   body[data-page="pulse"] .pf-end,
   body[data-page="pulse"] .pf-more{
     padding:22px 16px; text-align:center;
-    color:var(--ag-ink-soft,#626a6e); background:transparent;
+    color:var(--ag-soft,#626a6e); background:transparent;
   }
 
   /* The toast sits clear of the bottom nav. `transform:none` is load-bearing: the
@@ -119,7 +119,7 @@
      keep the centring — never both. */
   body[data-page="pulse"] .pf-toast{
     left:12px; right:12px; transform:none;
-    bottom:calc(var(--ag-mobile-nav-h,64px) + 16px); z-index:9;
+    bottom:calc(var(--ag-bottom-ui,64px) + 16px); z-index:9;
     max-width:none; justify-content:space-between;
   }
 
@@ -131,5 +131,5 @@
   }
 
   /* Clear of the bottom tab bar, or the last post's actions sit under it. */
-  body[data-page="pulse"] .pl-grid{ padding-bottom:calc(var(--ag-mobile-nav-h,64px) + 12px); }
+  body[data-page="pulse"] .pl-grid{ padding-bottom:calc(var(--ag-bottom-ui,64px) + 12px); }
 }

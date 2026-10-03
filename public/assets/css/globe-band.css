@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════
    Africa GATES — "We are Africa" globe band (component)
    Pairs with templates/partials/globe-band.twig and js/globe-band.js.
-   Tokens come from base/tokens.css (--ag-*). See docs/GLOBE-BAND.md.
+   Tokens are the --ag-* set (colour from Support\Accent). See docs/GLOBE-BAND.md.
 
    ── WHAT CHANGED FROM THE HANDOFF COPY, AND WHY ──────────────────
 
@@ -16,7 +16,7 @@
 
      · `#8b9698` is 3.04:1 on white. It set the country card's city line —
        which is content — and the ✕ button's colour. Both are now
-       `--ag-ink-soft` (#626a6e, 5.52:1), the token the rest of this file
+       `--ag-soft` (#626a6e, 5.52:1), the token the rest of this file
        already uses. Measured, not estimated.
      · The ✕ was `padding:0; font-size:13px` — about a 13px target, against
        the handoff's own 44px floor. It gets the same `::after` hit-area
@@ -24,9 +24,9 @@
        unchanged.
    ════════════════════════════════════════════════════════════════ */
 .reg{
-  /* ── The four values with no token in base/tokens.css ──
+  /* ── The four values with no token in the palette ──
      Declared on the component, derived from tokens, never inlined. --ag-line
-     is rgba(16,41,44,.07) and --ag-line-strong is .12; the band's guides sit
+     is rgba(16,41,44,.07) and --ag-line-2 is .12; the band's guides sit
      at .09 and its hairlines at .055, between the two. */
   --reg-guide:  rgba(16,41,44,.09);   /* --ag-ink at 9% — dashed quarter guides */
   --reg-hair:   rgba(16,41,44,.055);  /* --ag-ink at 5.5% — inner hairlines */
@@ -50,14 +50,14 @@
 
 /* dashed background guides on the container's quarter lines */
 .reg__guides{ position:absolute; inset:0; pointer-events:none; display:flex; justify-content:center; }
-.reg__guides i{ width:calc(var(--ag-maxw,1240px) / 4); border-left:1px dashed var(--reg-guide); }
+.reg__guides i{ width:calc(1240px / 4); border-left:1px dashed var(--reg-guide); }
 .reg__guides i:last-child{ border-right:1px dashed var(--reg-guide); }
 
 .reg__in{ position:relative; }
 .reg__hd{ text-align:center; max-width:46ch; margin:0 auto; }
 .reg__h{ font-family:var(--ag-font-display); font-weight:700;
   font-size:clamp(1.9rem,3.4vw,2.6rem); line-height:1.05; letter-spacing:-.02em; }
-.reg__sub{ margin:14px auto 0; font-size:14px; line-height:1.6; color:var(--ag-ink-soft); }
+.reg__sub{ margin:14px auto 0; font-size:14px; line-height:1.6; color:var(--ag-soft); }
 .reg__sub-em{ color:var(--ag-green); }
 
 .reg__body{ position:relative; z-index:1; margin-top:clamp(.5rem,1.5vw,1rem); }
@@ -81,7 +81,7 @@
 /* dashed annotation card, kept clear of the sphere */
 .reg__note{ position:absolute; right:0; top:1%; width:186px; z-index:2; padding:14px 16px;
   border:1px dashed var(--reg-note); border-radius:4px; background:color-mix(in srgb, var(--ag-surface) 70%, transparent);
-  font-size:13px; line-height:1.55; color:var(--ag-ink-soft); text-wrap:pretty; }
+  font-size:13px; line-height:1.55; color:var(--ag-soft); text-wrap:pretty; }
 
 /* stat card, overlapping the sphere's lower edge */
 .reg__cols{ position:relative; z-index:3; display:grid; grid-template-columns:repeat(4,1fr);
@@ -92,7 +92,7 @@
 .reg__n{ font-family:var(--ag-font-mono); font-variant-numeric:tabular-nums;
   font-weight:700; font-size:26px; letter-spacing:-.02em; }
 .reg__n small{ font-size:.58em; }
-.reg__l{ font-size:12px; color:var(--ag-ink-soft); margin-top:7px; }
+.reg__l{ font-size:12px; color:var(--ag-soft); margin-top:7px; }
 
 @media (max-width:860px){
   .reg__note{ position:static; width:auto; max-width:420px; margin:16px auto 0; }
@@ -180,8 +180,8 @@
 .ccard__hd{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
   padding:14px 16px 11px; border-bottom:1px solid var(--reg-hair); }
 .ccard__nm{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:17px; line-height:1.15; }
-.ccard__rg{ margin:4px 0 0; font:700 10px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
-.ccard__x{ position:relative; background:none; border:0; color:var(--ag-ink-soft);
+.ccard__rg{ margin:4px 0 0; font:700 10px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ag-soft); }
+.ccard__x{ position:relative; background:none; border:0; color:var(--ag-soft);
   cursor:pointer; font-size:13px; padding:0; line-height:1; }
 /* 44px target without moving the glyph — same technique as .node above. */
 .ccard__x::after{ content:''; position:absolute; left:50%; top:50%; width:44px; height:44px;
@@ -192,12 +192,12 @@
 .crow{ display:flex; justify-content:space-between; align-items:baseline; gap:12px;
   padding:7px 0; border-bottom:1px solid var(--reg-hair); }
 .crow:last-child{ border-bottom:0; }
-.crow span{ font-size:13px; color:var(--ag-ink-soft); }
+.crow span{ font-size:13px; color:var(--ag-soft); }
 .crow b{ font-family:var(--ag-font-mono); font-variant-numeric:tabular-nums; font-weight:700; font-size:13px; }
 /* Shown INSTEAD of the rows for a nation with nothing in a live award. A card
    of two zeros reads as data that failed to load. */
 .ccard__none{ margin:0; padding:4px 16px 16px; font-size:13px; line-height:1.5;
-  color:var(--ag-ink-soft); }
+  color:var(--ag-soft); }
 
 @media (max-width:900px){
   /* ── ANCHORED TO THE STAGE'S FOOT, NOT RETURNED TO FLOW ───────────────

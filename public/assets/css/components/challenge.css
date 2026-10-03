@@ -151,7 +151,7 @@
 .ch-rail .ch-meter{ padding-top:16px; border-top:1px solid var(--ag-line) }
 .ch-rail .ch-meter b{ font-size:15px }
 .ch-rail__mine{ display:flex; flex-direction:column; gap:8px; padding:14px;
-  background:var(--ag-surface-2); border-radius:var(--ag-r-14); font-size:14px }
+  background:var(--ag-ground); border-radius:var(--ag-r-14); font-size:14px }
 .ch-rail__mine .ag-meter--bar > *{ background:var(--ch-fill) }
 .ch-rail__acts{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding-top:4px }
 .ch-rail .ag-btn--sm{ height:44px }

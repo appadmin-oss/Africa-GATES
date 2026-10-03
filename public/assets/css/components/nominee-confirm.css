@@ -13,14 +13,14 @@
    codebase's cookie notice explicitly forbids, and the stakes here are higher than
    analytics: it decides whether a named person appears in a public award. Both are
    48px minimum, both are bordered, both are full width on a phone. They differ only in
-   the accent, and `honour` versus `caution` is a difference of HUE rather than of
+   the accent, and `gold` versus `error` is a difference of HUE rather than of
    weight — neither is louder.
    ══════════════════════════════════════════════════════════════════════════════ */
 
 .nc{
   display:flex; align-items:center; justify-content:center;
   min-height:100dvh; padding:var(--ag-sp-24) var(--ag-sp-16);
-  background:var(--ag-paper);
+  background:var(--ag-ground);
 }
 
 .nc__card{
@@ -43,7 +43,7 @@
 
 .nc__facts{
   margin:0 0 var(--ag-sp-20); padding:var(--ag-sp-14) var(--ag-sp-16);
-  background:var(--ag-paper); border-radius:var(--ag-r-12);
+  background:var(--ag-ground); border-radius:var(--ag-r-12);
   display:flex; flex-direction:column; gap:var(--ag-sp-10);
 }
 .nc__facts > div{ display:flex; justify-content:space-between; gap:var(--ag-sp-12) }
@@ -68,8 +68,8 @@
 
 /* `edge`, not `fill`. A border owes 3:1 against white (1.4.11) and a fill owes no
    floor at all, so painting a hairline with an identity colour draws nothing. */
-.nc__btn--yes{ color:var(--ag-honour-edge, var(--ag-green)) }
-.nc__btn--no { color:var(--ag-caution-edge, var(--ag-ink-2)) }
+.nc__btn--yes{ color:var(--ag-gold-ink) }
+.nc__btn--no { color:var(--ag-error, var(--ag-ink-2)) }
 
 @media (min-width:560px){
   .nc__answers{ flex-direction:row }

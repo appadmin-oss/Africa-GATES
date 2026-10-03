@@ -31,7 +31,7 @@ use Tests\TestCase;
  *   other input — an eye tracker, a trackpad used with a tremor, a touchscreen that
  *   reports itself as fine.
  *
- * And the one that is this repository's own signature shape: `--ag-pulse` `#e0245e` was
+ * And the one that is this repository's own signature shape: `--ag-live` `#e0245e` was
  * chosen as "the Pulse accent" with no floor attached, and it is a pass for a border and a
  * borderline case for a word — 4.58:1 on white, 4.42:1 on the Pulse's own `#fbfbfa`
  * ground, 4.08:1 on paper. It was a word on three public screens, and on exactly ONE of
@@ -124,18 +124,18 @@ final class AccessibilityFloorTest extends TestCase
         // a pass on a card and a failure on the page behind it — which is exactly why it
         // was chosen as "the Pulse accent" and never questioned.
         $hues = [];
-        foreach (Accent::roles() as $role) {
+        foreach (Accent::families() as $family) {
             foreach (['fill', 'edge'] as $slot) {
-                $hex = strtolower(Accent::of($role)[$slot]);
-                if (Contrast::ratio($hex, Accent::SURFACE) < Contrast::TEXT
-                    || Contrast::ratio($hex, Accent::PAPER) < Contrast::TEXT) {
-                    $hues[$hex] = '--ag-' . $role . '-ink';
+                $hex = Accent::hex($family[$slot]);
+                if (Contrast::ratio($hex, Accent::hex('surface')) < Contrast::TEXT
+                    || Contrast::ratio($hex, Accent::hex('ground')) < Contrast::TEXT) {
+                    $hues[$hex] = '--ag-' . $family['ink'];
                 }
             }
         }
         // The strays that are in no role table and were the drift that made one necessary.
-        foreach (['#c9a24b' => '--ag-honour-ink', '#fbc329' => '--ag-honour-ink',
-                  '#7fc87c' => '--ag-action-ink'] as $hex => $use) {
+        foreach (['#c9a24b' => '--ag-gold-ink', '#fbc329' => '--ag-gold-ink',
+                  '#7fc87c' => '--ag-green'] as $hex => $use) {
             $hues[$hex] = $use;
         }
         $this->assertNotSame([], $hues, 'nothing is being swept — the role table went empty');
@@ -274,9 +274,9 @@ final class AccessibilityFloorTest extends TestCase
         // The other half: the sweep above tells somebody to use an ink, so an ink has to
         // exist and has to pass. AccentTest measures the palette; this is the one line that
         // makes the instruction above honest.
-        foreach (Accent::roles() as $role) {
+        foreach (Accent::families() as $name => $family) {
             $this->assertGreaterThanOrEqual(Contrast::TEXT,
-                Contrast::ratio(Accent::ink($role), Accent::PAPER), $role);
+                Contrast::ratio(Accent::hex($family['ink']), Accent::hex('ground')), $name);
         }
     }
 
@@ -298,8 +298,8 @@ final class AccessibilityFloorTest extends TestCase
         // Read from the chrome's own token, not typed: a number here is wrong the first
         // time a nav grows a row, and silently — nothing looks broken, the focus is just
         // behind something.
-        $this->assertStringContainsString('--ag-nav-h', $css);
-        $this->assertStringContainsString('--ag-mobile-nav-h', $css);
+        $this->assertStringContainsString('--ag-header-h', $css);
+        $this->assertStringContainsString('--ag-bottom-ui', $css);
     }
 
     public function test_the_globe_can_be_turned_without_a_drag(): void
@@ -372,7 +372,7 @@ final class AccessibilityFloorTest extends TestCase
         // notice that hides the site's primary navigation on a phone while asking a
         // question is obstructing the one control a reader needs to leave it. Read from
         // the bar's own token, so the clearance follows it.
-        $this->assertStringContainsString('--ag-mobile-nav-h', $twig,
+        $this->assertStringContainsString('--ag-bottom-ui', $twig,
             'the notice covers the mobile tab bar');
 
         // It must not trap or block: no overlay, nothing inert, and it is not a dialog.

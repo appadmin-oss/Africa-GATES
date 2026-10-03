@@ -18,7 +18,7 @@
 .vc{ border:1px solid var(--ag-line,rgba(16,41,44,.12)); border-radius:16px;
      padding:16px 18px; background:var(--ag-surface,#fff); }
 .vc__k{ margin:0; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.16em;
-        text-transform:uppercase; color:var(--ag-ink-soft,#626a6e);
+        text-transform:uppercase; color:var(--ag-soft,#626a6e);
         display:flex; align-items:center; gap:8px; }
 .vc__abs{ margin:10px 0 0; font-size:14px; line-height:1.5; color:var(--ag-ink,#10292c); }
 
@@ -36,7 +36,7 @@
 .vc__cell b{ display:block; font:700 26px/1 var(--ag-font-mono,monospace);
              color:var(--ag-ink,#10292c); font-variant-numeric:tabular-nums; }
 .vc__cell i{ display:block; margin-top:4px; font-style:normal; font-size:11px;
-             letter-spacing:.06em; text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); }
+             letter-spacing:.06em; text-transform:uppercase; color:var(--ag-soft,#626a6e); }
 /* Seconds carry the accent — it is the digit that proves the clock is live. */
 .vc__cell--s b{ color:#237b22; }
 
@@ -64,7 +64,7 @@
    being a second hue. */
 .vc--bare{ position:relative; border:0; padding:0; background:transparent; margin-top:10px; }
 .vc--bare .vc__abs{ margin-top:8px; font-size:13px; }
-.vc--bare .vc__cell{ background:var(--ag-card); border-color:var(--ag-line); }
+.vc--bare .vc__cell{ background:var(--ag-surface); border-color:var(--ag-line); }
 
 /* The pulse is decoration; the numbers are the information. */
 @media (prefers-reduced-motion: reduce){

@@ -1,44 +1,37 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   THE LIP — the one way this platform shows depth
+   THE LIP — the press affordance of the pre-redesign buttons
    ═══════════════════════════════════════════════════════════════════════════
 
-   A hard offset bottom border in a solid darker shade of the element's own
-   colour. Never a blurred drop shadow: there are no shadows anywhere on this
-   site, and the 118 that were here have been removed.
+   A hard 4px bottom border in a darker green that collapses on press: the
+   button travels down by exactly the lip's height and the border goes to zero,
+   so the only thing that moved is the depth. That collapse is what made it an
+   affordance rather than an ornament, and it is why the lip belongs only to
+   things that are pressed — never a tile, a card or a panel.
 
-   ── WHY IT BELONGS ONLY TO THINGS THAT ARE PRESSED ────────────────────────
+   ── WHAT THIS IS NOT ANY MORE ─────────────────────────────────────────────
 
-   The lip COLLAPSES on press — the button travels down by exactly the lip's
-   height and the border goes to zero, so the element ends where it started and
-   the only thing that moved is the depth. That collapse is the whole point: it
-   is what makes the lip an affordance rather than an ornament.
+   This file used to say there were no shadows anywhere on this site and that
+   the lip was the only depth there was. Both stopped being true when the owner
+   adopted the handoff's shadows (REFERENCE §6.5, GAPS §8 Q3): popovers, sheets,
+   the mega panel and floating buttons now cast them, emitted by Support\Accent.
+   The handoff's own buttons (`.ag-btn` in components.css) have no lip. This
+   sheet keeps the lip on the three legacy classes below until their pages are
+   rebuilt, and goes with the last of them.
 
-   So a tile does not get one. A card does not get one. A panel does not get
-   one. Depth that cannot be pressed is decoration, and this site does not have
-   decoration it cannot explain.
+   The darker green is `--ag-green-deep`, the handoff's only darker green.
 
    ── THE PADDING IS ASYMMETRIC ON PURPOSE ──────────────────────────────────
 
-   Bottom padding is reduced by the lip height, so the LABEL sits optically
-   centred in the visible pill rather than centred in a box that happens to
-   have a 4px border on one side. Get this wrong and every button on the site
-   reads a few pixels high without anybody being able to say why.
-
-   ── AND THE HOVER LIFT HAD TO GO ──────────────────────────────────────────
-
-   `transform: translateY(-1px)` on hover fought the press: the button rose a
-   pixel, then fell four, so the press overshot and read as a stumble. A lipped
-   button does not lift. It is already up.
+   Bottom padding is reduced by the lip height so the LABEL sits optically
+   centred in the visible pill. And a lipped button does not lift on hover:
+   rising a pixel and then falling four made the press overshoot.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .ag-lip,
 .btn--primary,
 .ag-register {
-  border-bottom: 4px solid var(--ag-action-lip);
-  /* The lip is part of the shape, so the radius has to survive it. */
+  border-bottom: 4px solid var(--ag-green-deep);
   border-radius: var(--ag-r-pill, 999px);
-  /* 15px top / 13px bottom — the 2px difference plus the 4px lip optically
-     centres the label. See above. */
   padding-top: 15px;
   padding-bottom: 13px;
   min-height: 48px;
@@ -53,17 +46,14 @@
   border-bottom-width: 0;
 }
 
-/* The lift is replaced by the only thing a lipped button should do on hover:
-   deepen. Stated as a rule rather than left to the old declaration, because the
-   old one is still in main.css and nav.css and would otherwise win on order. */
+/* Stated here because the old lift is still declared in main.css and would win
+   on order otherwise. */
 .btn--primary:hover,
 .ag-register:hover {
   transform: none;
 }
 
-/* An outlined button is not pressed into the page — it has no fill to darken —
-   so it takes no lip. Named here so the exclusion is deliberate rather than an
-   oversight somebody "fixes" later. */
+/* An outlined button has no fill to press into, so it takes no lip. */
 .btn--ghost,
 .ag-signin {
   border-bottom-width: 1px;
@@ -73,8 +63,7 @@
   .ag-lip, .btn--primary, .ag-register { transition: none; }
 }
 
-/* A coarse pointer gets the AAA target size; the lip is inside it, not on top
-   of it, so the pressable area does not shrink by the border's height. */
+/* The lip is inside the coarse-pointer target, not on top of it. */
 @media (pointer: coarse) {
   .ag-lip, .btn--primary, .ag-register { min-height: 52px; }
 }

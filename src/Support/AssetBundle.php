@@ -69,9 +69,8 @@ final class AssetBundle
         'assets/css/redesign-2026.css',
         'assets/css/aurora.css',
         // The newer modular design system, layered over the legacy sheets above.
-        // `base/tokens.css` is gone — superseded by `assets/css/tokens.css` below.
-        // It had already been emptied of colour; what remained moved into the new
-        // file's compatibility block. Two files called tokens.css was the confusion.
+        // Colour is not in any of these sheets: Support\Accent emits the palette and
+        // the shadows into the layout's nonced <style>, before this bundle.
         'assets/css/base/reset.css',
         'assets/css/base/typography.css',
         // ── THE REDESIGN LAYER: the base, before the components that specialise it ──
@@ -81,6 +80,11 @@ final class AssetBundle
         'assets/css/tokens.css',
         'assets/css/shell.css',
         'assets/css/components.css',
+        // Rules other phases had appended to components.css, moved out unchanged when
+        // Phase 1 rebuilt that file, in the position they held inside it. Each is
+        // destroyed by the phase that owns it (docs/handoff/GAPS.md §7.2).
+        'assets/css/components/chrome.css',
+        'assets/css/components/library.css',
         'assets/css/components/flash.css',
         'assets/css/components/loader.css',
         'assets/css/components/footer.css',

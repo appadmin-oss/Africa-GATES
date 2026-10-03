@@ -195,7 +195,7 @@ class AdminContrastTest extends TestCase
      * Six literal greys were carrying metadata and hint text on white cards at between
      * 2.3:1 and 4.4:1 — shop delivery notes, the account dashboard's "your email is fixed
      * here", event schedule bodies, message timestamps. They were replaced with
-     * `--ag-ink-soft`, which the token file already documents as the AA-safe secondary
+     * `--ag-soft`, which the token file already documents as the AA-safe secondary
      * ink, rather than with six new near-identical greys.
      *
      * a11y.css had already diagnosed two of them by name and corrected exactly two
@@ -227,7 +227,7 @@ class AdminContrastTest extends TestCase
 
         $this->assertSame([], $offenders, sprintf(
             "These greys fail 4.5:1 on the light grounds they are used on. Use "
-            . "var(--ag-ink-soft,#626a6e) (5.14:1 at worst) instead:\n%s",
+            . "var(--ag-soft,#626a6e) (5.14:1 at worst) instead:\n%s",
             implode("\n", $offenders)
         ));
     }
@@ -235,18 +235,14 @@ class AdminContrastTest extends TestCase
     /** The token those greys were replaced with must itself stay AA on every light ground. */
     public function test_ink_soft_token_is_aa_on_light_grounds(): void
     {
-        // READ FROM Support\Accent, NOT FROM A STYLESHEET. Colour moved out of
-        // base/tokens.css when the neutral ramp arrived, because a value with two sources
-        // is decided by load order and load order is invisible in a diff. This used to
-        // parse the sheet, and it also asserted against `#fbfbfa` and `#f6f7f6` — two
-        // grounds the platform no longer has.
-        $ink = \AfricaGates\Support\Accent::neutral('ink-soft');
+        // READ FROM Support\Accent, NOT FROM A STYLESHEET: it is the one place a colour
+        // lives, so the value measured here is the value the page receives.
+        $ink = \AfricaGates\Support\Accent::hex('soft');
 
-        // Only the grounds it is LEGAL on. It measures 4.38 on `surface-2` and 3.88 on
-        // `desk` and is refused there by name — `SlotFloorTest` holds those, both that
-        // they fail and that the failure is deliberate.
-        foreach (['ground', 'card'] as $name) {
-            $ground = \AfricaGates\Support\Accent::grounds()[$name];
+        // Only the grounds it is LEGAL on, from Accent's own table. It measures 4.38 on
+        // `tint` and is refused there — `SlotFloorTest` holds that the refusal is real.
+        foreach (\AfricaGates\Support\Accent::words()['soft'] as $name) {
+            $ground = \AfricaGates\Support\Accent::hex($name);
             $r = self::ratio(strtolower($ink), $ground);
             $this->assertGreaterThanOrEqual(4.5, $r, sprintf(
                 'ink-soft (%s) is %.2f:1 on %s — it is the site-wide secondary ink and '

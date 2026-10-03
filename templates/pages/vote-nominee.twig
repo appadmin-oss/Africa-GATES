@@ -30,10 +30,10 @@
    so it carries no hue at all.
 
    `colour_alt` is the laurel. A decided award closes its voting, so the
-   celebration and the ballot can never be on one screen; declaring the role says
+   celebration and the ballot can never be on one screen; declaring the family says
    that out loud instead of leaving a static sweep to guess. See ColourBudgetTest. #}
 {% set colour_tier = '2' %}
-{% set colour_alt = 'honour' %}
+{% set colour_alt = 'gold' %}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
@@ -45,7 +45,7 @@
   html{ scroll-padding-top:88px; }
 
   .vn{ max-width:1080px; margin:0 auto; padding:0 var(--ag-gutter,32px); }
-  .vn-crumb{ padding:18px 0 0; font-size:14px; color:var(--ag-ink-soft); }
+  .vn-crumb{ padding:18px 0 0; font-size:14px; color:var(--ag-soft); }
   /* Breadcrumb links were 15px tall — a 12.5px line box and nothing else. The trail
      is how somebody gets back to the category they were browsing, so it has to be
      tappable; inline-block plus vertical padding grows the hit area without moving
@@ -68,7 +68,7 @@
      if it cannot carry the programme's own hue it is decoration, which is the
      thing this whole system exists to remove. */
   .vn-hero{ position:relative; overflow:hidden; border-radius:20px; margin-top:14px;
-            background:var(--ag-card); border:1px solid var(--ag-line); }
+            background:var(--ag-surface); border:1px solid var(--ag-line); }
   .vn-hero__orb{ display:none; }              /* the glow had nothing to sit on */
   .vn-hero__in{ position:relative; display:flex; align-items:stretch; gap:clamp(18px,3vw,30px);
                 padding:clamp(22px,3.4vw,30px) clamp(20px,3.4vw,32px); }
@@ -95,7 +95,7 @@
                font-variant-numeric:tabular-nums; }
   .vn-stat__n.g{ color:var(--ag-ink); }
   .vn-stat__l{ font:600 10px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
-               color:var(--ag-ink-soft); margin-top:6px; }
+               color:var(--ag-soft); margin-top:6px; }
   /* Under the tally, not beside it: this is a caveat on a number, and a caveat set at
      the same level as the thing it qualifies reads as a second statistic. */
   .vn-vsplit{ margin:14px 0 0; max-width:56ch; font-size:14px; line-height:1.6;
@@ -109,12 +109,12 @@
            border:1px solid transparent; min-height:44px; }
   /* THE ONE `action` EVENT ON THIS PAGE, with the lip — the press is the lip
      disappearing. See components/lip.css. */
-  .vn-btn--light{ background:var(--ag-action-fill); color:var(--ag-card);
-                  border-bottom:4px solid var(--ag-action-lip); padding-top:14px; padding-bottom:12px; }
+  .vn-btn--light{ background:var(--ag-green); color:var(--ag-surface);
+                  border-bottom:4px solid var(--ag-green-deep); padding-top:14px; padding-bottom:12px; }
   .vn-btn--light:active{ transform:translateY(4px); border-bottom-width:0; }
-  .vn-btn--ghost{ background:var(--ag-card); border-color:var(--ag-line); color:var(--ag-ink); }
-  .vn-btn--ghost:hover{ background:var(--ag-surface-2); }
-  .vn-btn:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:3px; }
+  .vn-btn--ghost{ background:var(--ag-surface); border-color:var(--ag-line); color:var(--ag-ink); }
+  .vn-btn--ghost:hover{ background:var(--ag-ground); }
+  .vn-btn:focus-visible{ outline:3px solid var(--ag-green); outline-offset:3px; }
   .vn-btn--icon{ padding:13px; }
 
   .vn-hero__side{ flex:none; width:240px; position:relative; display:flex; align-items:stretch;
@@ -126,14 +126,14 @@
                 border-radius:14px; }
   .vn-mono{ position:relative; z-index:2; width:100%; min-height:300px; border-radius:14px;
             display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display);
-            font-weight:700; font-size:68px; color:var(--ag-ink-2); background:var(--ag-surface-2); }
+            font-weight:700; font-size:68px; color:var(--ag-ink-2); background:var(--ag-ground); }
 
   /* body grid */
   .vn-grid{ margin:26px 0 0; padding-bottom:60px; display:grid; grid-template-columns:1fr 380px;
             gap:34px; align-items:start; }
   .vn-col{ display:flex; flex-direction:column; gap:22px; min-width:0; }
   .vn-side{ display:flex; flex-direction:column; gap:18px; position:sticky; top:20px; }
-  .vn-card{ background:var(--ag-card); border:1px solid var(--ag-line); border-radius:18px;
+  .vn-card{ background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:18px;
             padding:clamp(18px,2.6vw,24px); }
 
   /* ── The celebration — `colour_alt`, and never beside the ballot ───────────
@@ -143,11 +143,11 @@
      this and the ballot's two events are never on one screen. It appears at most
      twice per category per cycle; it is allowed to be loud. */
   .vn-laurel{ position:relative; overflow:hidden; background:var(--ag-ink);
-              border-color:var(--ag-honour-edge); color:var(--ag-card); }
+              border-color:var(--ag-gold-edge); color:var(--ag-surface); }
   .vn-laurel__glow{ display:none; }
   .vn-laurel__head{ position:relative; }
   .vn-laurel__badge{ display:inline-flex; align-items:center; gap:8px;
-                     border:1px solid var(--ag-honour-fill); color:var(--ag-honour-fill);
+                     border:1px solid var(--ag-gold); color:var(--ag-gold);
                      border-radius:999px; padding:7px 14px;
                      font:700 11px/1 var(--ag-font-mono); letter-spacing:.12em;
                      text-transform:uppercase; }
@@ -156,22 +156,22 @@
      source order and the headline renders near-black on the dark card — invisible,
      and only on the one screen that exists to be looked at. */
   .vn-laurel .vn-laurel__head h2{ margin:14px 0 0; font-family:var(--ag-font-display); font-weight:700;
-                 color:var(--ag-card); font-size:clamp(1.5rem,4vw,2rem); letter-spacing:-.02em;
+                 color:var(--ag-surface); font-size:clamp(1.5rem,4vw,2rem); letter-spacing:-.02em;
                  line-height:1.15; }
-  .vn-laurel .vn-laurel__roll h3{ color:var(--ag-honour-fill); }
-  .vn-laurel__lede{ margin:10px 0 0; font-size:16px; line-height:1.7; color:var(--ag-desk); max-width:56ch; }
-  .vn-laurel__lede strong{ color:var(--ag-honour-fill); }
-  .vn-laurel__lede em{ color:var(--ag-card); font-style:italic; }
-  .vn-laurel__lede a{ color:var(--ag-honour-fill); }
+  .vn-laurel .vn-laurel__roll h3{ color:var(--ag-gold); }
+  .vn-laurel__lede{ margin:10px 0 0; font-size:16px; line-height:1.7; color:var(--ag-line-2); max-width:56ch; }
+  .vn-laurel__lede strong{ color:var(--ag-gold); }
+  .vn-laurel__lede em{ color:var(--ag-surface); font-style:italic; }
+  .vn-laurel__lede a{ color:var(--ag-gold); }
   .vn-laurel__roll{ position:relative; margin-top:22px; padding-top:20px;
-                    border-top:1px solid var(--ag-ink-soft); }
+                    border-top:1px solid var(--ag-soft); }
   .vn-laurel__roll h3{ margin:0; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em;
-                       text-transform:uppercase; color:var(--ag-honour-fill); }
-  .vn-laurel__roll p{ margin:9px 0 0; font-size:14px; line-height:1.6; color:var(--ag-desk); max-width:60ch; }
+                       text-transform:uppercase; color:var(--ag-gold); }
+  .vn-laurel__roll p{ margin:9px 0 0; font-size:14px; line-height:1.6; color:var(--ag-line-2); max-width:60ch; }
   .vn-laurel__names{ display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
   .vn-laurel__name{ display:inline-flex; align-items:center; background:var(--ag-ink-2);
-                    border:1px solid var(--ag-ink-soft); border-radius:999px; padding:6px 14px;
-                    font-size:14px; font-weight:500; color:var(--ag-card); }
+                    border:1px solid var(--ag-soft); border-radius:999px; padding:6px 14px;
+                    font-size:14px; font-weight:500; color:var(--ag-surface); }
 
   .vn-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:20px;
                letter-spacing:-.02em; color:var(--ag-ink); }
@@ -191,7 +191,7 @@
   .vn-story{ position:relative; }
   .vn-story.is-clamped{ max-height:300px; overflow:hidden; }
   .vn-story__fade{ position:absolute; left:0; right:0; bottom:0; height:86px; pointer-events:none;
-    background:linear-gradient(to bottom, transparent, var(--ag-card) 86%); }
+    background:linear-gradient(to bottom, transparent, var(--ag-surface) 86%); }
   .vn-more{ display:inline-flex; align-items:center; gap:6px; min-height:40px; margin-top:6px;
     background:none; border:none; padding:6px 0; cursor:pointer;
     font:700 14px/1 inherit; color:var(--ag-ink); text-decoration:underline;
@@ -204,19 +204,19 @@
   .vn-sect{ margin-top:18px; }
   .vn-sect--split{ padding-top:18px; border-top:1px solid var(--ag-line); }
   .vn-sect__h{ margin:0; font-size:14px; font-weight:700; color:var(--ag-ink); }
-  .vn-sect__sub{ margin:8px 0 0; font-size:14px; line-height:1.6; color:var(--ag-ink-soft); }
+  .vn-sect__sub{ margin:8px 0 0; font-size:14px; line-height:1.6; color:var(--ag-soft); }
   .vn-sect__more{ margin:14px 0 0; font-size:14px; }
   .vn-sect__more a{ display:inline-flex; align-items:center; min-height:40px;
     color:var(--ag-ink); font-weight:600; text-decoration:underline; text-underline-offset:3px; }
   .vn-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
   /* Supporters are people, not states. Neutral: a green chip per supporter would
      spend the ask's own role on decoration, once per name. */
-  .vn-chip{ display:inline-flex; align-items:center; gap:7px; background:var(--ag-surface-2);
+  .vn-chip{ display:inline-flex; align-items:center; gap:7px; background:var(--ag-ground);
     border:1px solid var(--ag-line); border-radius:999px; padding:6px 13px 6px 7px;
     font-size:13px; color:var(--ag-ink); }
   .vn-chip strong{ font-weight:600; }
   .vn-chip__av{ width:24px; height:24px; border-radius:50%; background:var(--ag-ink-2);
-    color:var(--ag-card); display:inline-flex; align-items:center; justify-content:center;
+    color:var(--ag-surface); display:inline-flex; align-items:center; justify-content:center;
     font-size:11px; font-weight:700; }
   .vn-full{ margin:16px 0 0; font-size:14px; font-weight:600; color:var(--ag-ink);
             text-decoration:underline; text-underline-offset:3px;
@@ -227,29 +227,29 @@
   .vn-sim__row{ display:flex; align-items:center; gap:12px; text-decoration:none; min-height:44px; }
   .vn-sim__av{ flex:none; width:40px; height:40px; border-radius:11px; display:flex; align-items:center;
     justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:17px;
-    background:var(--ag-surface-2); color:var(--ag-ink-2);
+    background:var(--ag-ground); color:var(--ag-ink-2);
     background-size:cover; background-position:center; }
   .vn-sim__b{ flex:1; min-width:0; }
   .vn-sim__n{ font-weight:600; font-size:14px; color:var(--ag-ink); white-space:nowrap;
               overflow:hidden; text-overflow:ellipsis; }
-  .vn-sim__c{ font-size:12px; color:var(--ag-ink-soft); }
+  .vn-sim__c{ font-size:12px; color:var(--ag-soft); }
   .vn-sim__go{ font-size:13px; font-weight:700; color:var(--ag-ink);
                text-decoration:underline; text-underline-offset:3px; }
 
   /* ══ THE BALLOT ══════════════════════════════════════════════════════════ */
-  .vn-ballot{ background:var(--ag-card); border:1px solid var(--ag-line); border-radius:18px;
+  .vn-ballot{ background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:18px;
               overflow:hidden; }
   /* THE SECOND EVENT: the window is open RIGHT NOW, which is the one `live` fact on
      this page. The label is house ink and not `live-ink`, which is 4.44 on its own
      wash — SlotFloorTest refuses that pairing by name. */
   .vn-ballot__top{ position:relative; overflow:hidden; padding:18px 20px;
-                   background:var(--ag-live-wash); border-bottom:1px solid var(--ag-live-edge); }
+                   background:var(--ag-live-wash); border-bottom:1px solid var(--ag-live); }
   .vn-ballot__orb{ display:none; }
   .vn-ballot__k{ position:relative; margin:0; display:flex; align-items:center; gap:8px;
                  font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
                  color:var(--ag-ink); }
   .vn-ballot__k::before{ content:""; flex:none; width:9px; height:9px; border-radius:50%;
-                         background:var(--ag-live-fill); }
+                         background:var(--ag-live); }
   @media (prefers-reduced-motion: no-preference){
     .vn-ballot__k::before{ animation:vn-pulse 2s ease-in-out infinite; }
   }
@@ -261,34 +261,34 @@
   /* Points a member already holds. Neutral: spending them is not a purchase and not a
      state — it is a second way to do the thing the green button does, and two greens
      on one card is two asks. */
-  .vn-redeem{ background:var(--ag-surface-2); border:1px solid var(--ag-line);
+  .vn-redeem{ background:var(--ag-ground); border:1px solid var(--ag-line);
               border-radius:14px; padding:15px 16px; margin-bottom:16px; }
   .vn-redeem__hd{ display:flex; flex-direction:column; gap:3px; margin-bottom:11px; }
   .vn-redeem__hd strong{ font-size:14px; color:var(--ag-ink); }
   .vn-redeem__hd span{ font-size:13px; color:var(--ag-ink-2); line-height:1.45; }
-  .vn-redeem__btn{ width:100%; cursor:pointer; border:1px solid var(--ag-ink); background:var(--ag-card);
+  .vn-redeem__btn{ width:100%; cursor:pointer; border:1px solid var(--ag-ink); background:var(--ag-surface);
     color:var(--ag-ink); font-family:inherit; font-weight:700; font-size:14px; padding:11px;
     border-radius:999px; min-height:44px; }
-  .vn-redeem__btn:hover{ background:var(--ag-ink); color:var(--ag-card); }
+  .vn-redeem__btn:hover{ background:var(--ag-ink); color:var(--ag-surface); }
   .vn-redeem__btn:disabled{ opacity:.55; cursor:not-allowed; }
-  .vn-redeem__err{ margin:9px 0 0; font-size:13px; color:var(--ag-caution-ink);
+  .vn-redeem__err{ margin:9px 0 0; font-size:13px; color:var(--ag-error);
                    font-weight:600; text-align:center; }
   .vn-redeem__ok{ display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px;
                   font-weight:600; color:var(--ag-ink); padding:6px 0; }
   .vn-redeem__or{ margin:11px 0 0; text-align:center; font:600 10px/1 var(--ag-font-mono);
-                  letter-spacing:.14em; color:var(--ag-ink-soft); text-transform:uppercase; }
+                  letter-spacing:.14em; color:var(--ag-soft); text-transform:uppercase; }
 
   .vn-sub{ margin:0; font-size:14px; line-height:1.55; color:var(--ag-ink-2); }
   .vn-sub strong{ color:var(--ag-ink); }
-  .vn-note{ font-size:13px; line-height:1.55; background:var(--ag-surface-2); border-radius:12px;
+  .vn-note{ font-size:13px; line-height:1.55; background:var(--ag-ground); border-radius:12px;
             padding:11px 14px; margin-top:14px; color:var(--ag-ink-2); }
   .vn-note a{ color:var(--ag-ink); font-weight:700; }
   .vn-label{ display:block; font-size:12px; font-weight:600; color:var(--ag-ink-2); margin:16px 0 7px; }
   .vn-input{ width:100%; border:1px solid var(--ag-line); border-radius:12px; padding:13px 15px;
-             font-family:inherit; font-size:16px; color:var(--ag-ink); background:var(--ag-card);
+             font-family:inherit; font-size:16px; color:var(--ag-ink); background:var(--ag-surface);
              outline:none; transition:border-color .15s; }
   .vn-input:focus{ border-color:var(--ag-ink); }
-  .vn-input:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
+  .vn-input:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px; }
   .vn-input--otp{ text-align:center; font-family:var(--ag-font-mono); font-size:26px; font-weight:700;
                   letter-spacing:.3em; padding:15px; margin-top:16px; }
   /* The whole LABEL is the target, which is what makes a 16px box acceptable: a tap
@@ -297,7 +297,7 @@
      visual size because a 40px checkbox looks like a bug. */
   .vn-check{ display:flex; align-items:flex-start; gap:9px; margin-top:13px; cursor:pointer;
     min-height:40px; padding:6px 0; }
-  .vn-check input{ margin-top:2px; width:16px; height:16px; accent-color:var(--ag-action-fill);
+  .vn-check input{ margin-top:2px; width:16px; height:16px; accent-color:var(--ag-green);
     /* A larger invisible hit box around the control itself, for anyone aiming at the
        box rather than the words. */
     padding:12px; margin-right:-12px; margin-left:-12px; }
@@ -306,13 +306,13 @@
 
   /* The free vote. The page's `action` event, and the same lip every primary on the
      platform wears. */
-  .vn-go{ width:100%; margin-top:16px; cursor:pointer; border:0; background:var(--ag-action-fill);
-    color:var(--ag-card); font-family:inherit; font-weight:600; font-size:16px; padding:15px 14px 13px;
-    min-height:48px; border-radius:999px; border-bottom:4px solid var(--ag-action-lip);
+  .vn-go{ width:100%; margin-top:16px; cursor:pointer; border:0; background:var(--ag-green);
+    color:var(--ag-surface); font-family:inherit; font-weight:600; font-size:16px; padding:15px 14px 13px;
+    min-height:48px; border-radius:999px; border-bottom:4px solid var(--ag-green-deep);
     transition:transform 60ms ease-out, border-bottom-width 60ms ease-out; }
   .vn-go:active:not(:disabled){ transform:translateY(4px); border-bottom-width:0; }
   .vn-go:focus-visible{ outline:3px solid var(--ag-ink); outline-offset:3px; }
-  .vn-go:disabled{ background:var(--ag-surface-2); color:var(--ag-ink-soft);
+  .vn-go:disabled{ background:var(--ag-ground); color:var(--ag-soft);
                    border-bottom-color:var(--ag-line); cursor:not-allowed; }
   /* ── THE PURCHASE IS OUTLINED, AND IT USED TO BE THE FREE VOTE'S BUTTON ──
      It carried `.vn-go` — literally the same class, so the same filled `action`
@@ -322,32 +322,32 @@
      Ink and an outline. It is not smaller, not hidden and not hard to press —
      44px and full width like everything else on this card. It simply does not
      wear the role reserved for the thing we are actually asking for. */
-  .vn-pay{ width:100%; margin-top:16px; cursor:pointer; background:var(--ag-card);
+  .vn-pay{ width:100%; margin-top:16px; cursor:pointer; background:var(--ag-surface);
     border:1.5px solid var(--ag-ink); color:var(--ag-ink); font-family:inherit; font-weight:600;
     font-size:16px; padding:14px; min-height:48px; border-radius:999px;
     transition:background .15s, color .15s; }
-  .vn-pay:hover{ background:var(--ag-ink); color:var(--ag-card); }
-  .vn-pay:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:3px; }
-  .vn-pay:disabled{ border-color:var(--ag-line); color:var(--ag-ink-soft); cursor:not-allowed; }
+  .vn-pay:hover{ background:var(--ag-ink); color:var(--ag-surface); }
+  .vn-pay:focus-visible{ outline:3px solid var(--ag-green); outline-offset:3px; }
+  .vn-pay:disabled{ border-color:var(--ag-line); color:var(--ag-soft); cursor:not-allowed; }
 
   .vn-secure{ display:flex; align-items:center; justify-content:center; gap:7px; margin-top:13px;
-              font-size:12px; color:var(--ag-ink-soft); }
+              font-size:12px; color:var(--ag-soft); }
   .vn-back{ cursor:pointer; border:none; background:none; font-family:inherit; font-size:13px;
             font-weight:600; color:var(--ag-ink-2); padding:6px 0; min-height:40px; margin-bottom:4px;
             text-decoration:underline; text-underline-offset:3px; }
   /* A form error IS a fault — something actually broke — which is the one thing the
      `fault` role is for, and it is the ground inverted rather than a red field. */
-  .vn-err{ font-size:13px; color:var(--ag-caution-ink); background:var(--ag-card);
-           border:1px solid var(--ag-caution-edge); border-radius:11px; padding:10px 13px;
+  .vn-err{ font-size:13px; color:var(--ag-error); background:var(--ag-surface);
+           border:1px solid var(--ag-error); border-radius:11px; padding:10px 13px;
            margin-top:13px; }
   .vn-done{ text-align:center; }
   .vn-done__ico{ width:60px; height:60px; margin:4px auto 12px; border-radius:50%;
-                 background:var(--ag-action-wash); display:flex; align-items:center;
+                 background:var(--ag-green-wash); display:flex; align-items:center;
                  justify-content:center; }
-  .vn-tally{ background:var(--ag-surface-2); border-radius:14px; padding:14px 16px; display:flex;
+  .vn-tally{ background:var(--ag-ground); border-radius:14px; padding:14px 16px; display:flex;
              align-items:center; justify-content:space-between; gap:12px; margin:14px 0; }
   .vn-newrank{ flex:none; display:inline-flex; align-items:center; gap:6px; padding:6px 11px;
-               border-radius:999px; border:1px solid var(--ag-line); background:var(--ag-card);
+               border-radius:999px; border:1px solid var(--ag-line); background:var(--ag-surface);
                font:600 12px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
                color:var(--ag-ink-2); }
   .vn-newrank b{ color:var(--ag-ink); font-variant-numeric:tabular-nums; }
@@ -359,10 +359,10 @@
      THE TRACK IS A TWO-TONE NEUTRAL. A composition is not a ranking, so it
      carries no hue — see the split bar note in the handoff. */
   .vn-race{ margin:16px 0; padding:14px 16px; border-radius:14px;
-    background:var(--ag-card); border:1px solid var(--ag-line); }
+    background:var(--ag-surface); border:1px solid var(--ag-line); }
   .vn-race__h{ margin:0 0 10px; font-size:14px; font-weight:700; color:var(--ag-ink); }
   .vn-race__track{ position:relative; height:10px; border-radius:5px;
-    background:var(--ag-surface-2); overflow:visible; }
+    background:var(--ag-ground); overflow:visible; }
   .vn-race__fill{ display:block; height:100%; border-radius:5px; background:var(--ag-ink-2);
     /* Transitioned so a vote cast on this page visibly moves the bar rather than
        teleporting it — the movement IS the feedback. */
@@ -377,7 +377,7 @@
   .vn-race__facts strong{ color:var(--ag-ink); font-weight:700; font-variant-numeric:tabular-nums; }
   .vn-race__hot strong{ color:var(--ag-ink); }
   .vn-race__cta{ margin:10px 0 0; font-size:13px; color:var(--ag-ink); font-weight:600; }
-  .vn-race__fine{ margin:6px 0 0; font-size:12px; line-height:1.5; color:var(--ag-ink-soft); }
+  .vn-race__fine{ margin:6px 0 0; font-size:12px; line-height:1.5; color:var(--ag-soft); }
 
   /* ── The recovery disclosure ──────────────────────────────────────────────
      The platform admitting it put votes on a public tally itself, and a disclosure
@@ -386,8 +386,8 @@
      never a filled one: this is a caveat about OUR process and a red field reads
      as a finding about the nominee whose page it is on. */
   .vn-rec{ margin:16px 0; padding:14px 16px; border-radius:14px;
-    background:var(--ag-card); border:1px solid var(--ag-caution-edge); }
-  .vn-rec__h{ margin:0 0 8px; font-size:14px; font-weight:700; color:var(--ag-caution-ink); }
+    background:var(--ag-surface); border:1px solid var(--ag-error); }
+  .vn-rec__h{ margin:0 0 8px; font-size:14px; font-weight:700; color:var(--ag-error); }
   .vn-rec__b{ margin:0; font-size:14px; line-height:1.6; color:var(--ag-ink-2); }
   .vn-rec__l{ list-style:none; margin:10px 0 0; padding:0;
     font-size:13px; line-height:1.6; color:var(--ag-ink-2); }
@@ -397,29 +397,29 @@
      these votes here and ask us about it by that name. Monospace so it survives being
      read aloud, copied, or written down. */
   .vn-rec__r{ display:inline-block; margin-left:6px; font-family:var(--ag-font-mono,monospace);
-    font-size:12px; color:var(--ag-ink-soft); }
-  .vn-rec__f{ margin:10px 0 0; font-size:12px; line-height:1.55; color:var(--ag-ink-soft); }
+    font-size:12px; color:var(--ag-soft); }
+  .vn-rec__f{ margin:10px 0 0; font-size:12px; line-height:1.55; color:var(--ag-soft); }
   .vn-rec__f a{ color:var(--ag-ink); font-weight:600; }
 
   .vn-share{ display:flex; gap:9px; }
   .vn-share button, .vn-share a{ flex:1; cursor:pointer; border:1px solid var(--ag-line);
-    background:var(--ag-card); color:var(--ag-ink); font-family:inherit; font-weight:600;
+    background:var(--ag-surface); color:var(--ag-ink); font-family:inherit; font-weight:600;
     font-size:14px; padding:11px; min-height:44px; border-radius:999px; display:inline-flex;
     align-items:center; justify-content:center; gap:7px; text-decoration:none; }
-  .vn-share button:hover, .vn-share a:hover{ background:var(--ag-surface-2); border-color:var(--ag-ink-soft); }
+  .vn-share button:hover, .vn-share a:hover{ background:var(--ag-ground); border-color:var(--ag-soft); }
   /* The wall's item styles live in partials/vote-message-assets.twig, beside the
      markup they belong to, because the full messages page renders the same items. */
   /* The optional message field on the ballot. */
   .vn-msg{ margin-top:15px; padding-top:15px; border-top:1px dashed var(--ag-line); }
   .vn-msg textarea{ width:100%; box-sizing:border-box; margin-top:7px; font:inherit; font-size:16px;
-    line-height:1.6; color:var(--ag-ink); background:var(--ag-card); border:1px solid var(--ag-line);
+    line-height:1.6; color:var(--ag-ink); background:var(--ag-surface); border:1px solid var(--ag-line);
     border-radius:12px; padding:11px 13px; resize:vertical; min-height:78px; }
   .vn-msg textarea:focus{ outline:none; border-color:var(--ag-ink); }
-  .vn-msg textarea:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
+  .vn-msg textarea:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px; }
   .vn-msg__meta{ display:flex; justify-content:space-between; gap:10px; margin-top:6px;
-                 font-size:12px; color:var(--ag-ink-soft); }
+                 font-size:12px; color:var(--ag-soft); }
   .vn-msg__meta b{ font-variant-numeric:tabular-nums; }
-  .vn-msg__over{ color:var(--ag-caution-ink); font-weight:700; }
+  .vn-msg__over{ color:var(--ag-error); font-weight:700; }
   /* min-height 40px: this is the door to the whole message feature and it measured 23px
      tall on any width where its label fits on one line. */
   .vn-msg__toggle{ display:inline-flex; align-items:center; gap:7px; background:none; border:none;
@@ -427,9 +427,9 @@
     font:600 13px/1.4 inherit; color:var(--ag-ink); cursor:pointer; text-align:left;
     text-decoration:underline; text-underline-offset:3px; }
   .vn-msg__count{ font-style:normal; font-weight:700; font-size:11px; letter-spacing:.08em;
-    text-transform:uppercase; background:var(--ag-surface-2); color:var(--ag-ink-2);
+    text-transform:uppercase; background:var(--ag-ground); color:var(--ag-ink-2);
     border:1px solid var(--ag-line); border-radius:999px; padding:3px 8px; text-decoration:none; }
-  .vn-msg__as{ margin:8px 0 0; font-size:12px; line-height:1.6; color:var(--ag-ink-soft); }
+  .vn-msg__as{ margin:8px 0 0; font-size:12px; line-height:1.6; color:var(--ag-soft); }
   .vn-msg__as strong{ color:var(--ag-ink); }
 
   /* ── The quick-amount chips: OUTLINED INK, AND THE SELECTED ONE TOO ───────
@@ -441,15 +441,15 @@
      used to mark the selected one replaced the whole style attribute and stripped
      every chip back to bare text. min-height 40px because they measured 23px, the
      smallest tap target on the platform sitting on its highest-intent control. */
-  .vn-qty{ border:1.5px solid var(--ag-line); background:var(--ag-card); color:var(--ag-ink);
+  .vn-qty{ border:1.5px solid var(--ag-line); background:var(--ag-surface); color:var(--ag-ink);
     border-radius:999px; padding:7px 14px; min-height:40px; display:inline-flex;
     align-items:center; font:700 13px/1 inherit; cursor:pointer;
     transition:background .15s, color .15s, border-color .15s; }
-  .vn-qty:hover{ border-color:var(--ag-ink-soft); }
-  .vn-qty:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
+  .vn-qty:hover{ border-color:var(--ag-soft); }
+  .vn-qty:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px; }
   /* Selected is a 2px ink ring and a surface-2 ground — weight and value, which is
      how the rest of this platform says "this one" without spending a role. */
-  .vn-qty.is-on{ background:var(--ag-surface-2); color:var(--ag-ink);
+  .vn-qty.is-on{ background:var(--ag-ground); color:var(--ag-ink);
                  border:2px solid var(--ag-ink); padding:6px 13px; }
   /* Quantity + email. `align-items:flex-start` so the two labels start on the same
      line even when one of them wraps — flex-end pinned the inputs and let the labels
@@ -466,13 +466,13 @@
 
   /* Voting has closed. A statement of fact in the past tense, with no hue at all:
      nothing here is live, nothing is withheld, and nothing went wrong. */
-  .vn-closed{ background:var(--ag-surface-2); border:1px solid var(--ag-line); border-radius:14px;
+  .vn-closed{ background:var(--ag-ground); border:1px solid var(--ag-line); border-radius:14px;
               padding:14px 16px; font-size:14px; line-height:1.55; color:var(--ag-ink-2); }
   .vn-toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:90;
-             background:var(--ag-ink); color:var(--ag-card); font-size:14px; font-weight:500;
+             background:var(--ag-ink); color:var(--ag-surface); font-size:14px; font-weight:500;
              padding:13px 22px; border-radius:999px; }
   .vn-claimline{ margin:34px 0 8px; padding-top:20px; border-top:1px solid var(--ag-line);
-                 font-size:13px; color:var(--ag-ink-soft); text-align:center; }
+                 font-size:13px; color:var(--ag-soft); text-align:center; }
   .vn-claimline a{ color:var(--ag-ink); font-weight:600; text-decoration:underline;
                    text-underline-offset:3px; }
 
@@ -494,7 +494,7 @@
 {% block content %}
 {% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼','AO':'🇦🇴','CD':'🇨🇩'} %}
 {% set CCN = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','ML':'Mali','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','BF':'Burkina Faso','NE':'Niger','BW':'Botswana','AO':'Angola','CD':'DR Congo'} %}
-{% set AV = [['var(--ag-action-wash)','var(--ag-action-ink)'],['var(--ag-honour-wash)','var(--ag-honour-ink)'],['var(--ag-line)','var(--ag-ink)'],['var(--ag-surface-2)','var(--ag-ink-2)'],['var(--ag-live-wash)','var(--ag-live-ink)']] %}
+{% set AV = [['var(--ag-green-wash)','var(--ag-green)'],['var(--ag-gold-wash)','var(--ag-gold-ink)'],['var(--ag-line)','var(--ag-ink)'],['var(--ag-ground)','var(--ag-ink-2)'],['var(--ag-live-wash)','var(--ag-live-ink)']] %}
 {# media_url: Cloudinary-hosted portraits come back face-cropped at the size this
    element actually renders. A local path passes through untouched. #}
 {% set portrait = ((profile and profile.avatar_path) ? profile.avatar_path : n.photo_path)|media_url('portrait') %}
@@ -515,7 +515,7 @@
       <div class="vn-hero__main">
         <div class="vn-tags">
           {% if rank %}<span class="vn-rankpill">#{{ rank }}{% if cat_count %} of {{ cat_count }}{% endif %} in category</span>{% endif %}
-          {% if profile and profile.cpi_tier and profile.cpi_tier != 'unranked' %}<span class="vn-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="var(--ag-honour-fill)" aria-hidden="true"><path d="m12 2 2.6 6.6L21 9.2l-5 4.3L17.6 21 12 17.3 6.4 21 8 13.5l-5-4.3 6.4-.6L12 2Z"/></svg>{{ profile.cpi_tier|capitalize }}</span>{% endif %}
+          {% if profile and profile.cpi_tier and profile.cpi_tier != 'unranked' %}<span class="vn-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="var(--ag-gold)" aria-hidden="true"><path d="m12 2 2.6 6.6L21 9.2l-5 4.3L17.6 21 12 17.3 6.4 21 8 13.5l-5-4.3 6.4-.6L12 2Z"/></svg>{{ profile.cpi_tier|capitalize }}</span>{% endif %}
         </div>
         <h1>{{ n.name }}</h1>
         <p class="vn-meta">{{ flag }} {{ ctry }} · {{ n.category }}{% if n.programme_title %} · {{ n.programme_title }}{% endif %}</p>
@@ -967,7 +967,7 @@
               {{ phase.detail|default('Follow the leaderboard — we’ll announce when it opens.') }}
             </div>
             <a class="vn-go" href="/leaderboard" style="display:block;text-align:center;text-decoration:none;margin-top:14px">See the leaderboard</a>
-            <a href="/vote/{{ nominee.programme_slug }}" style="display:block;text-align:center;margin-top:11px;font-size:13px;font-weight:600;color:var(--ag-ink-soft);text-decoration:none">← All {{ nominee.programme_title }} nominees</a>
+            <a href="/vote/{{ nominee.programme_slug }}" style="display:block;text-align:center;margin-top:11px;font-size:13px;font-weight:600;color:var(--ag-soft);text-decoration:none">← All {{ nominee.programme_title }} nominees</a>
           {% else %}
             {% if can_redeem %}
             <div class="vn-redeem" x-data="{ busy:false, done:false, msg:'', bal:{{ member_points }} }">
@@ -978,7 +978,7 @@
                   x-text="busy ? 'Redeeming…' : 'Redeem points to vote'"></button>
                 <p class="vn-redeem__err" x-show="msg" x-cloak x-text="msg"></p>
               </div>
-              <div class="vn-redeem__ok" x-show="done" x-cloak><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ag-action-fill)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> <span x-text="msg"></span></div>
+              <div class="vn-redeem__ok" x-show="done" x-cloak><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ag-green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> <span x-text="msg"></span></div>
               <p class="vn-redeem__or">— or vote free with email verification —</p>
             </div>
             {% elseif member_logged_in and points_enabled %}
@@ -1024,14 +1024,14 @@
                 q(){ return Math.max(1, Math.min({{ max_qty }}, this.qty|0)) },
                 gross(){ return this.q() * this.per },
                 cost(){ return Math.max(100, Math.ceil(this.gross() * (100 - this.off()) / 100)) } }"
-              style="background:var(--ag-surface-2);border:1.5px solid var(--ag-line);border-radius:16px;padding:16px 18px;margin:0 0 16px">
+              style="background:var(--ag-ground);border:1.5px solid var(--ag-line);border-radius:16px;padding:16px 18px;margin:0 0 16px">
               <h3 id="pv-h" style="margin:0 0 4px;font-size:16px;color:var(--ag-ink)">Support {{ firstName }}</h3>
               {# NO DISCOUNT IS ADVERTISED ANYWHERE ON THIS PAGE.
                  The ladder still PRICES the order — `cost()` below applies it, and the
                  server recomputes the same figure — but the percentage is never named,
                  no "save up to N%" is promised and no next tier is dangled. A buyer
                  sees a quantity and the price of that quantity. #}
-              <p style="margin:0 0 12px;font-size:13px;color:var(--ag-ink-soft);line-height:1.5">A contribution of ₦{{ vote_price|number_format }} adds one vote to {{ firstName }}'s public tally and helps fund the programme. It does not affect the jury score or the Cultural Power Index.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} in one contribution.{% endif %} <a href="/integrity#money" style="color:var(--ag-action-ink)">How this works</a> &middot; <a href="/philosophy" style="color:var(--ag-action-ink)">why voting is paid</a>.</p>
+              <p style="margin:0 0 12px;font-size:13px;color:var(--ag-soft);line-height:1.5">A contribution of ₦{{ vote_price|number_format }} adds one vote to {{ firstName }}'s public tally and helps fund the programme. It does not affect the jury score or the Cultural Power Index.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} in one contribution.{% endif %} <a href="/integrity#money" style="color:var(--ag-green)">How this works</a> &middot; <a href="/philosophy" style="color:var(--ag-green)">why voting is paid</a>.</p>
               <form method="POST" action="/vote/paid/start" data-favicon-busy>
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
                 <input type="hidden" name="nominee_id" value="{{ nominee.id }}">
@@ -1069,7 +1069,7 @@
                     <input id="pvQty" name="qty" class="vn-input" type="number" min="1" max="{{ max_qty }}" x-model.number="qty" required>
                   </div>
                   <div class="vn-payrow__email">
-                    <label class="vn-label" for="pvEmail">Your email <span style="font-weight:400;color:var(--ag-ink-soft)">(for the receipt)</span></label>
+                    <label class="vn-label" for="pvEmail">Your email <span style="font-weight:400;color:var(--ag-soft)">(for the receipt)</span></label>
                     <input id="pvEmail" name="email" class="vn-input" type="email" required autocomplete="email" placeholder="you@email.com" value="{{ paid_retry.email|default('') ?: (member ? member.email : '') }}">
                   </div>
                 </div>
@@ -1101,7 +1101,7 @@
                    survives a name containing a quote or an apostrophe either way. #}
                 <div style="margin-top:10px"
                      x-data="{ pvName: {{ (paid_retry.name|default('') ?: (member ? member.name : ''))|json_encode|e('html_attr') }}, pvMsg: '' }">
-                  <label class="vn-label" for="pvName">Your name <span style="font-weight:400;color:var(--ag-ink-soft)">(optional)</span></label>
+                  <label class="vn-label" for="pvName">Your name <span style="font-weight:400;color:var(--ag-soft)">(optional)</span></label>
                   {# NO autocomplete here, deliberately, and it is the one field on this form
                      that must not have it. Per the note above, THE FIELD IS THE CONSENT: an
                      empty box means "publish nothing". A browser that helpfully autofilled a
@@ -1109,7 +1109,7 @@
                      choosing it, and the pre-filled value would submit unnoticed. The email
                      beside it is tagged, because nothing is published from it. #}
                   <input id="pvName" name="name" class="vn-input" type="text" autocomplete="off" placeholder="e.g. Amara Okonkwo" x-model="pvName">
-                  <p style="margin:5px 0 0;font-size:12px;color:var(--ag-ink-soft);line-height:1.5">Shown on {{ firstName }}’s public supporters list and on your receipt. <strong>Leave it blank to give anonymously</strong> — your vote counts exactly the same. Only the name is ever published: never your email, your phone or the amount. <a href="/privacy#supporters" style="color:var(--ag-green,var(--ag-action-ink));font-weight:600">How we handle voter names</a></p>
+                  <p style="margin:5px 0 0;font-size:12px;color:var(--ag-soft);line-height:1.5">Shown on {{ firstName }}’s public supporters list and on your receipt. <strong>Leave it blank to give anonymously</strong> — your vote counts exactly the same. Only the name is ever published: never your email, your phone or the amount. <a href="/privacy#supporters" style="color:var(--ag-green,var(--ag-green));font-weight:600">How we handle voter names</a></p>
 
                 {# ── SAY SOMETHING, ON THE PAID FORM TOO ─────────────────────────
                    This was originally only on the free ballot, and on a paid-only
@@ -1128,7 +1128,7 @@
                    the box for anyone whose session did not survive the round trip.
                    See PaidVoteController::start()/callback(). #}
                   <div class="vn-msg" style="margin-top:12px;padding-top:12px">
-                    <label class="vn-label" for="pvMsg">Say something about {{ firstName }} <span style="font-weight:400;color:var(--ag-ink-soft)">(optional)</span></label>
+                    <label class="vn-label" for="pvMsg">Say something about {{ firstName }} <span style="font-weight:400;color:var(--ag-soft)">(optional)</span></label>
                     <textarea id="pvMsg" name="message" x-model="pvMsg" maxlength="{{ msg_max }}"
                               placeholder="What do you want people to know about {{ firstName }}?"></textarea>
                     <div class="vn-msg__meta">
@@ -1171,7 +1171,7 @@
                 <button type="submit" class="vn-pay" style="margin-top:10px">
                   <span x-text="'Contribute ₦' + cost().toLocaleString() + ' · ' + q() + (q() === 1 ? ' vote' : ' votes') + ' →'">Contribute</span>
                 </button>
-                <p style="margin:8px 0 0;font-size:12px;color:var(--ag-ink-soft)">Secured checkout — the charge is verified server-side before any vote counts.</p>
+                <p style="margin:8px 0 0;font-size:12px;color:var(--ag-soft)">Secured checkout — the charge is verified server-side before any vote counts.</p>
               </form>
               {# One line, on the buy form itself. Somebody who paid an hour ago and
                  came back to try again is about to pay TWICE for votes they have
@@ -1187,7 +1187,7 @@
             {% if not paid_free_disabled %}
             {# step: email #}
             <div x-show="step === 'email'">
-              <p class="vn-sub">One verified vote per category. We email a 6-digit code to confirm it’s you — your email is hashed for the one-vote check. By voting you agree to the <a href="/terms/{{ nominee.programme_slug }}" target="_blank" rel="noopener" style="color:var(--ag-green,var(--ag-action-ink));font-weight:600;text-decoration:underline">programme terms</a>.</p>
+              <p class="vn-sub">One verified vote per category. We email a 6-digit code to confirm it’s you — your email is hashed for the one-vote check. By voting you agree to the <a href="/terms/{{ nominee.programme_slug }}" target="_blank" rel="noopener" style="color:var(--ag-green,var(--ag-green));font-weight:600;text-decoration:underline">programme terms</a>.</p>
               {% if donation_votes_per_1000 > 0 %}<div class="vn-note"><strong>Want more votes?</strong> <a href="/giving">Give</a> to earn {{ donation_votes_per_1000 }} bonus votes per ₦1,000.</div>{% endif %}
               {% include 'partials/member-autofill.twig' with {
                 member: member|default(null),
@@ -1275,7 +1275,7 @@
               {# Written out as well as bound — see the note on the contribute button. #}
               <button type="button" class="vn-go" :disabled="busy || !canRequest || !agreed" @click="requestOtp()" x-text="busy ? 'Sending…' : 'Vote for {{ firstName|e('js') }} →'">Vote for {{ firstName }} &rarr;</button>
               <div class="vn-secure">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ag-ink-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ag-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 OTP-secured · one vote per category · audited
               </div>
               {# ── THE DOOR THAT IS ALWAYS HERE ─────────────────────────────
@@ -1286,10 +1286,10 @@
                  unconfigured, and on a free-only ballot the one page explaining why
                  any of this works this way was unreachable from here.
                  So: on the free form too, which always renders. #}
-              <p style="margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--ag-ink-soft)">
-                <a href="/philosophy" style="color:var(--ag-action-ink);font-weight:600">Why voting works this way</a>
+              <p style="margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--ag-soft)">
+                <a href="/philosophy" style="color:var(--ag-green);font-weight:600">Why voting works this way</a>
                 &middot;
-                <a href="/integrity" style="color:var(--ag-action-ink)">How a winner is decided</a>
+                <a href="/integrity" style="color:var(--ag-green)">How a winner is decided</a>
               </p>
             </div>
             {# step: otp #}
@@ -1303,17 +1303,17 @@
                      autocomplete="one-time-code" maxlength="6" placeholder="······" @keyup.enter="submitVote()">
               <p class="vn-err" x-show="voteError" x-cloak x-text="voteError"></p>
               <button type="button" class="vn-go" :disabled="busy || otp.length !== 6" @click="submitVote()" x-text="busy ? 'Recording…' : 'Confirm vote'">Confirm vote</button>
-              <p style="margin:13px 0 0;text-align:center;font-size:13px;color:var(--ag-ink-soft)">Didn’t get it? <button type="button" @click="requestOtp()" style="color:var(--ag-green);font-weight:500;background:none;border:none;cursor:pointer;font:inherit">Resend code</button></p>
+              <p style="margin:13px 0 0;text-align:center;font-size:13px;color:var(--ag-soft)">Didn’t get it? <button type="button" @click="requestOtp()" style="color:var(--ag-green);font-weight:500;background:none;border:none;cursor:pointer;font:inherit">Resend code</button></p>
             </div>
             {# step: done #}
             <div x-show="step === 'done'" x-cloak class="vn-done">
               {# Decoration: "Your vote is in" sits directly beneath it and is the fact.
                  A tick that announces itself before the sentence is a stammer. #}
-              <div class="vn-done__ico" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ag-action-ink)"><path d="M20 6 9 17l-5-5"/></svg></div>
+              <div class="vn-done__ico" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ag-green)"><path d="M20 6 9 17l-5-5"/></svg></div>
               <h2 style="font-size:1.25rem">Your vote is in ✓</h2>
               <p class="vn-sub" style="margin-top:6px">Counted for <strong>{{ n.name }}</strong> in {{ n.category }}. Tallies refresh every 6 hours.</p>
               <div class="vn-tally">
-                <div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ag-ink-soft)">Now at</div><div style="font-family:var(--ag-font-mono);font-weight:700;font-size:18px;color:var(--ag-ink)" x-text="votes.toLocaleString() + ' votes'"></div></div>
+                <div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ag-soft)">Now at</div><div style="font-family:var(--ag-font-mono);font-weight:700;font-size:18px;color:var(--ag-ink)" x-text="votes.toLocaleString() + ' votes'"></div></div>
                 {#
                   A POSITION IS NOT A STATE, SO IT WEARS NO ROLE. This was an `action`-
                   washed pill — the green reserved for the one thing a screen asks you to
@@ -1334,7 +1334,7 @@
                  message that silently fails to appear reads as a message that was
                  thrown away. `message_url` is only ever set for one that is live. #}
               <template x-if="messageNote">
-                <div style="margin:14px 0 0;background:var(--ag-surface-2);border:1px solid var(--ag-line);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6;color:var(--ag-action-ink);text-align:left">
+                <div style="margin:14px 0 0;background:var(--ag-ground);border:1px solid var(--ag-line);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6;color:var(--ag-green);text-align:left">
                   <span x-text="messageNote"></span>
                   {# The MESSAGE's own links, distinct from the panel below. That panel
                      shares the ballot to rally votes; these share the sentence this
@@ -1342,9 +1342,9 @@
                      instead of the same card everybody else posts. #}
                   <template x-if="messageUrl">
                     <span style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px">
-                      <a :href="messageUrl" style="color:var(--ag-action-ink);font-weight:600">Open your message ↗</a>
+                      <a :href="messageUrl" style="color:var(--ag-green);font-weight:600">Open your message ↗</a>
                       <a :href="'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(messageUrl)" target="_blank" rel="noopener" style="color:var(--ag-ink);font-weight:600">Share it on Facebook</a>
-                      <a :href="'https://wa.me/?text=' + encodeURIComponent(messageUrl)" target="_blank" rel="noopener" style="color:var(--ag-action-ink);font-weight:600">WhatsApp</a>
+                      <a :href="'https://wa.me/?text=' + encodeURIComponent(messageUrl)" target="_blank" rel="noopener" style="color:var(--ag-green);font-weight:600">WhatsApp</a>
                     </span>
                   </template>
                 </div>

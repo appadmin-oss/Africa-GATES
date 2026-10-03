@@ -164,7 +164,7 @@
           <span class="sc-mono" x-text="'−' + $store.cart.ngn($store.cart.q.discount)"></span>
         </div>
         <div class="sc-srow" x-show="$store.cart.q.charged !== undefined" x-cloak>
-          <span>Delivery <span style="color:var(--ag-ink-soft,#626a6e)" x-text="$store.cart.q.shipping_why || ''"></span></span>
+          <span>Delivery <span style="color:var(--ag-soft,#626a6e)" x-text="$store.cart.q.shipping_why || ''"></span></span>
           <span class="sc-mono" x-text="($store.cart.q.shipping || 0) > 0 ? $store.cart.ngn($store.cart.q.shipping) : 'Free'"></span>
         </div>
         <div class="sc-srow tot"><span>Total</span><span class="sc-mono" x-text="$store.cart.ngn($store.cart.due)"></span></div>
@@ -194,7 +194,7 @@
              "Street, city, state, country" with this select sitting under it, so the zone was
              entered twice: once as prose the courier reads, once as the field the price comes
              from, with no way to see when the two disagreed. #}
-          <div class="sc-field"><label for="scCoRegion">Delivery region <span style="font-weight:400;color:var(--ag-ink-soft,#626a6e)">(sets your delivery cost)</span></label>
+          <div class="sc-field"><label for="scCoRegion">Delivery region <span style="font-weight:400;color:var(--ag-soft,#626a6e)">(sets your delivery cost)</span></label>
             <select id="scCoRegion" name="region" required autocomplete="address-level1" x-model="$store.cart.region" @change="$store.cart.quote()">
               <option value="" disabled>Select your region…</option>
               {% for r in shop_regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
@@ -209,7 +209,7 @@
              A preview only: ShopCheckoutController::totals() prices it again from the code
              row at checkout, so what is shown here cannot change what anybody is charged. #}
           <div class="sc-field">
-            <label for="scCoCode">Discount code <span style="font-weight:400;color:var(--ag-ink-soft,#626a6e)">(optional)</span></label>
+            <label for="scCoCode">Discount code <span style="font-weight:400;color:var(--ag-soft,#626a6e)">(optional)</span></label>
             <div class="sc-code">
               <input id="scCoCode" x-model="$store.cart.code" placeholder="GATES10" autocomplete="off"
                      @keydown.enter.prevent="$store.cart.quote()">

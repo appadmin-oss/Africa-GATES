@@ -53,7 +53,7 @@
 
   /* ── the header ── */
   .rx-head{ padding:clamp(1.6rem,4vw,2.4rem) 0 clamp(1.3rem,3vw,1.8rem); }
-  .rx-crumb{ margin:0 0 14px; font-size:14px; line-height:1.5; color:var(--ag-ink-soft); }
+  .rx-crumb{ margin:0 0 14px; font-size:14px; line-height:1.5; color:var(--ag-soft); }
   .rx-crumb a{ color:var(--ag-ink-2); text-decoration:none; display:inline-flex;align-items:center;min-height:44px}
   .rx-crumb a:hover{ text-decoration:underline; }
   .rx-crumb b{ color:var(--ag-ink); font-weight:600; }
@@ -67,7 +67,7 @@
             padding:0; }
   .rx-figs > div{ margin:0; }
   .rx-figs dt{ margin:0 0 4px; font:600 11px/1 var(--ag-font-mono); letter-spacing:.16em;
-               text-transform:uppercase; color:var(--ag-ink-soft); }
+               text-transform:uppercase; color:var(--ag-soft); }
   .rx-figs dd{ margin:0; font:700 clamp(1.5rem,3.4vw,1.9rem)/1 var(--ag-font-mono);
                letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:var(--ag-ink); }
 
@@ -84,13 +84,13 @@
            background:var(--ag-ground); border-bottom:1px solid var(--ag-line); }
   .rx-find{ display:flex; gap:8px; align-items:center; min-width:0; }
   .rx-find input{ min-width:min(280px,60vw); min-height:40px; padding:0 14px;
-                  border:1px solid var(--ag-ink); border-radius:999px; background:var(--ag-card);
+                  border:1px solid var(--ag-ink); border-radius:999px; background:var(--ag-surface);
                   font:400 14px/1 inherit; color:var(--ag-ink); }
-  .rx-find input:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
+  .rx-find input:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px; }
   .rx-find button{ min-height:40px; min-width:44px; padding:0 16px; border-radius:999px;
-                   border:1px solid var(--ag-line); background:var(--ag-card); color:var(--ag-ink);
+                   border:1px solid var(--ag-line); background:var(--ag-surface); color:var(--ag-ink);
                    font:600 13px/1 inherit; cursor:pointer; min-height:44px}
-  .rx-find button:hover{ background:var(--ag-surface-2); }
+  .rx-find button:hover{ background:var(--ag-ground); }
 
   /* ── `min-width:0` IS WHAT MAKES `overflow-x:auto` ACTUALLY SCROLL ──────────
      A flex item's min-width defaults to `auto`, which is its MIN-CONTENT width —
@@ -105,16 +105,16 @@
      pointer gets more; nobody gets less. */
   .rx-chip{ flex:none; display:inline-flex; align-items:center; gap:7px; min-height:32px;
             padding:0 13px; border-radius:999px; border:1px solid var(--ag-line);
-            background:var(--ag-card); color:var(--ag-ink-2); text-decoration:none;
+            background:var(--ag-surface); color:var(--ag-ink-2); text-decoration:none;
             font:600 13px/1 inherit; white-space:nowrap; min-height:44px}
-  .rx-chip:hover{ border-color:var(--ag-ink-soft); color:var(--ag-ink); }
+  .rx-chip:hover{ border-color:var(--ag-soft); color:var(--ag-ink); }
   .rx-chip[aria-current]{ border:2px solid var(--ag-ink); color:var(--ag-ink); padding:0 12px; }
   .rx-chip i{ flex:none; width:8px; height:8px; border-radius:50%; font-style:normal;
               background:var(--pg-fill,var(--ag-mute)); }
   .rx-count{ font:600 11px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
-             color:var(--ag-ink-soft); white-space:nowrap; font-variant-numeric:tabular-nums; }
+             color:var(--ag-soft); white-space:nowrap; font-variant-numeric:tabular-nums; }
   .rx-order{ display:flex; align-items:center; gap:10px; font:600 11px/1 var(--ag-font-mono);
-             letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
+             letter-spacing:.1em; text-transform:uppercase; color:var(--ag-soft); }
   .rx-order a{ color:var(--ag-ink-2); text-decoration:none; padding:6px 0; display:inline-flex;align-items:center;min-height:44px}
   .rx-order a:hover{ color:var(--ag-ink); }
   .rx-order a[aria-current]{ color:var(--ag-ink); border-bottom:2px solid var(--ag-ink); }
@@ -122,43 +122,43 @@
   /* ── a row ── */
   .rx-list{ list-style:none; margin:0; padding:0; }
   .rx-item + .rx-item{ border-top:1px solid var(--ag-line); }
-  .rx-item:nth-child(even) .rx-a{ background:var(--ag-surface-2); }
+  .rx-item:nth-child(even) .rx-a{ background:var(--ag-ground); }
   .rx-a{ display:grid; grid-template-columns:minmax(0,1fr) 260px 230px 150px 40px;
          gap:10px 22px; align-items:center; padding:20px;
          border-left:5px solid var(--pg-fill,var(--ag-line));
          color:inherit; text-decoration:none; }
-  .rx-a:hover{ background:var(--ag-surface-2); }
-  .rx-a:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:-3px; }
+  .rx-a:hover{ background:var(--ag-ground); }
+  .rx-a:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px; }
 
   .rx-pg{ margin:0 0 6px; display:flex; align-items:center; gap:7px;
           font:600 11px/1.3 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
-          color:var(--pg-ink,var(--ag-ink-soft)); }
+          color:var(--pg-ink,var(--ag-soft)); }
   .rx-name{ margin:0; font-family:var(--ag-font-display); font-weight:700;
             font-size:clamp(1.18rem,2.6vw,1.56rem); line-height:1.12; letter-spacing:-.02em; }
   .rx-a:hover .rx-name{ text-decoration:underline; text-underline-offset:4px; }
 
   /* ── the four statuses, and the one that is allowed a colour ── */
   .rx-st{ display:inline-flex; align-items:center; gap:8px; min-height:28px; padding:0 11px;
-          border-radius:999px; border:1px solid var(--ag-line); background:var(--ag-card);
+          border-radius:999px; border:1px solid var(--ag-line); background:var(--ag-surface);
           font:700 11px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase;
           color:var(--ag-ink); }
   /* `counting` is the page's one event: a bounded field with a saturated mark and a
      word inside it. The LABEL is house ink and not `live-ink`, which is 4.44 on its
      own wash — see SlotFloorTest, which refuses that pairing by name. */
-  .rx-st--counting{ background:var(--ag-live-wash); border-color:var(--ag-live-edge); }
+  .rx-st--counting{ background:var(--ag-live-wash); border-color:var(--ag-live); }
   .rx-st--counting i{ flex:none; width:9px; height:9px; border-radius:50%; font-style:normal;
-                      background:var(--ag-live-fill); }
+                      background:var(--ag-live); }
   @media (prefers-reduced-motion: no-preference){
     .rx-st--counting i{ animation:rx-pulse 2s ease-in-out infinite; }
   }
   @keyframes rx-pulse{ 0%,100%{ opacity:1 } 50%{ opacity:.45 } }
   /* OUTLINED, never filled. One withheld award against eleven decided ones, drawn as
      a field, makes the absence of a result the loudest thing on the page. */
-  .rx-st--withheld{ border-color:var(--ag-caution-edge); color:var(--ag-caution-ink); }
-  .rx-st--decided{ border:0; padding:0; background:none; color:var(--ag-ink-soft); }
+  .rx-st--withheld{ border-color:var(--ag-error); color:var(--ag-error); }
+  .rx-st--decided{ border:0; padding:0; background:none; color:var(--ag-soft); }
 
   .rx-when{ margin:6px 0 0; font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.07em;
-            text-transform:uppercase; color:var(--ag-ink-soft);
+            text-transform:uppercase; color:var(--ag-soft);
             font-variant-numeric:tabular-nums; }
 
   /* The panel's own progress — a count against its own denominator, and the only
@@ -172,10 +172,10 @@
   .rx-who p{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.12rem;
              line-height:1.2; letter-spacing:-.01em; }
   .rx-who small{ display:block; margin:5px 0 0; font:600 11px/1.3 var(--ag-font-mono);
-                 letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
+                 letter-spacing:.1em; text-transform:uppercase; color:var(--ag-soft); }
   .rx-prov{ display:inline-flex; align-items:center; min-height:22px; margin:6px 0 0;
-            padding:0 8px; border-radius:999px; border:1px solid var(--ag-caution-edge);
-            color:var(--ag-caution-ink); font:700 10px/1 var(--ag-font-mono);
+            padding:0 8px; border-radius:999px; border:1px solid var(--ag-error);
+            color:var(--ag-error); font:700 10px/1 var(--ag-font-mono);
             letter-spacing:.11em; text-transform:uppercase; }
   /* Not a blank cell. A reader who sees nothing in the column where a winner goes
      assumes the page failed; a sentence says the platform is declining, on purpose.
@@ -183,29 +183,29 @@
      1.12rem and would otherwise win on specificity — which set a sentence explaining
      why there is no winner in the exact type reserved for one. */
   .rx-who .rx-quiet{ margin:0; font-family:inherit; font-weight:400; font-size:14px;
-                     line-height:1.55; letter-spacing:0; color:var(--ag-ink-soft);
+                     line-height:1.55; letter-spacing:0; color:var(--ag-soft);
                      max-width:28ch; }
 
   .rx-n{ text-align:right; }
   .rx-n b{ display:block; font:700 1.5rem/1 var(--ag-font-mono); letter-spacing:-.02em;
            font-variant-numeric:tabular-nums; color:var(--ag-ink); }
   .rx-n small{ display:block; margin:5px 0 0; font:600 10px/1.3 var(--ag-font-mono);
-               letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
+               letter-spacing:.1em; text-transform:uppercase; color:var(--ag-soft); }
   /* An affordance marker, never the target — the whole row is the link. */
   .rx-go{ text-align:right; color:var(--ag-mute); font-size:19px; }
 
   /* ── the notices, and the empty page ── */
   .rx-late{ margin:0 0 22px; padding:18px 20px; border:1px solid var(--ag-line);
-            border-left:3px solid var(--ag-caution-edge); border-radius:14px;
-            background:var(--ag-card); }
+            border-left:3px solid var(--ag-error); border-radius:14px;
+            background:var(--ag-surface); }
   .rx-late h2{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700;
                font-size:1.15rem; color:var(--ag-ink); }
   .rx-late p{ margin:.5rem 0 0; font-size:14px; line-height:1.65; color:var(--ag-ink-2);
               max-width:64ch; }
   .rx-late__meta{ margin:0; font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.07em;
-                  text-transform:uppercase; color:var(--ag-ink-soft); }
+                  text-transform:uppercase; color:var(--ag-soft); }
   .rx-late__note{ margin:.7rem 0 0; padding:.7rem .9rem; border-radius:10px;
-                  background:var(--ag-surface-2); font-size:14px; line-height:1.62;
+                  background:var(--ag-ground); font-size:14px; line-height:1.62;
                   color:var(--ag-ink); white-space:pre-line; }
 
   .rx-held{ margin:26px 0 0; padding:16px 18px; border:1px dashed var(--ag-line);
@@ -221,7 +221,7 @@
   .rx-empty a{ display:inline-flex; align-items:center; min-height:44px; padding:0 22px;
                border:1px solid var(--ag-ink); border-radius:999px; color:var(--ag-ink);
                font-weight:600; font-size:14px; text-decoration:none; }
-  .rx-empty a:hover{ background:var(--ag-ink); color:var(--ag-card); }
+  .rx-empty a:hover{ background:var(--ag-ink); color:var(--ag-surface); }
 
 
   /* ── THE BAR AT PHONE WIDTH ────────────────────────────────────────────────

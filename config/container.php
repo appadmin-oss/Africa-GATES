@@ -252,8 +252,9 @@ return [
         // made once per request by VisitTrackingMiddleware, from the real request, on the
         // same tick the tracker acts on it; a function is evaluated at RENDER time, which
         // is after that, so it reads the answer rather than recomputing one.
-        // The semantic accent palette, as custom properties. A function rather than a
-        // global only because it belongs beside the two below; the values are constants.
+        // The whole palette and the shadows (Support\Accent, the handoff's §6.1/§6.5), as
+        // custom properties every layout writes before its stylesheets. A function rather
+        // than a global only because it belongs beside the two below.
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'ag_accents',
             [\AfricaGates\Support\Accent::class, 'css'],
@@ -384,6 +385,11 @@ return [
             'lang_ask',
             [\AfricaGates\Support\Languages::class, 'shouldAsk']
         ));
+        // `{{ 'Back'|trans }}` — the words, in the language settled above. A filter
+        // for the same reason those are functions: it reads Languages::current() at
+        // render time. Registered through the one method every bare mail environment
+        // also calls, so the two cannot come to mean different things by `trans`.
+        \AfricaGates\Support\Translator::register($twig->getEnvironment());
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cookie_ask',
             static fn (): bool => \AfricaGates\Services\CookiePrefs::asking()

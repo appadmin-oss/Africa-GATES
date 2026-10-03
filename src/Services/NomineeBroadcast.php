@@ -157,10 +157,10 @@ final class NomineeBroadcast
         // or csp_nonce — so it does not need the app's extensions, and not depending on
         // them keeps it renderable from a console with no HTTP request in flight.
         static $twig = null;
-        $twig ??= new Environment(
+        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
             new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
             ['autoescape' => 'html']
-        );
+        ));
 
         $vars = $this->vars($r, $site);
 

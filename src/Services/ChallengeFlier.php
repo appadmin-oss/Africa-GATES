@@ -143,9 +143,9 @@ final class ChallengeFlier
 
         $hex = [
             'ground' => $theme['ground'], 'tint' => $theme['tint'], 'edge' => $theme['edge'],
-            'white'  => Accent::SURFACE,
-            'ink'    => Accent::neutral('ink'), 'ink2' => Accent::neutral('ink-2'),
-            'action' => Accent::fill(Accent::ACTION),
+            'white'  => Accent::hex('surface'),
+            'ink'    => Accent::hex('ink'), 'ink2' => Accent::hex('ink-2'),
+            'action' => Accent::hex('green'),
             'display'=> self::OWN['display'],
             'prize'  => $flag ? self::OWN['flag'] : $theme['solid'],
         ];
@@ -424,7 +424,7 @@ final class ChallengeFlier
             $a = self::boxBlur($a, $cw, $ch, $rad, false);
         }
 
-        [$sr, $sg, $sb] = FlierLayout::rgb(Accent::neutral('ink'));
+        [$sr, $sg, $sb] = FlierLayout::rgb(Accent::hex('ink'));
         $ox = (int) round($x) - $pad; $oy = (int) round($y) - $pad;
         $iw = imagesx($im); $ih = imagesy($im);
         imagealphablending($im, true);

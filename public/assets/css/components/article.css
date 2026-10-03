@@ -67,12 +67,12 @@ body[data-page="legal"]{
      thing in its row. It simply is not green. */
   --ar-accent:var(--ag-ink,#10292c);
   --ar-accent-dark:var(--ag-ink,#10292c);
-  --ar-wash:var(--ag-surface-2,#e8e5dd);
+  --ar-wash:var(--ag-ground,#e8e5dd);
   --ar-gold:#9a7726;
-  /* THERE ARE NO SHADOWS ON THIS SITE. Depth is a hard offset border — the lip — and
-     the lip belongs only to things that are pressed. Kept as a token set to `none` rather
-     than deleted, because three rules reference it and a dangling var() resolves to an
-     invalid value that takes the whole declaration with it. */
+  /* The article draws no shadow. The site has the handoff's shadows now (REFERENCE §6.5,
+     emitted by Support\Accent), and each one belongs to something that floats — a
+     popover, a sheet, a mega panel. A legal page has nothing floating, so this stays
+     `none`; three rules read it, and a dangling var() would take their declarations. */
   --ar-shadow:none;
   --ar-measure:44rem;
   background:var(--ar-ground);
@@ -86,7 +86,7 @@ body[data-page="legal"]{
 .ar-shell{ max-width:76rem; margin:0 auto; padding:clamp(1.6rem,4vw,2.6rem) var(--ag-gutter,32px) clamp(3.5rem,7vw,5rem); }
 @media (min-width:1180px){
   .ar-shell{ display:grid; grid-template-columns:minmax(0,1fr) 15.5rem; gap:3rem; align-items:start; }
-  .ar-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 1.25rem); order:2; }
+  .ar-rail{ position:sticky; top:calc(var(--ag-header-h) + 1.25rem); order:2; }
   .ar-body{ order:1; }
 }
 
@@ -97,7 +97,7 @@ body[data-page="legal"]{
   max-width:none;
   background:var(--ar-surface);
   border:1px solid var(--ar-line);
-  border-radius:var(--ag-r-lg,22px);
+  border-radius:var(--ag-r-24,22px);
   box-shadow:var(--ar-shadow);
   padding:clamp(1.5rem,4vw,3rem) clamp(1.35rem,4vw,3.25rem) clamp(2.5rem,5vw,3.5rem);
 }
@@ -109,7 +109,7 @@ body[data-page="legal"]{
 /* ── TYPE ───────────────────────────────────────────────────────────────────
    Denser than the first pass: 16.5/1.72 rather than 17.5/1.78. These are long
    documents and the extra air was making them feel longer than they are. */
-.ar-body p, .ar-body li{ font-family:var(--ag-font-body); font-size:17px; line-height:1.72; color:var(--ar-ink); }
+.ar-body p, .ar-body li{ font-family:var(--ag-font-ui); font-size:17px; line-height:1.72; color:var(--ar-ink); }
 .ar-body p{ margin:0 0 1.15em; }
 .ar-body a{ color:var(--ar-accent-dark); font-weight:500; text-decoration:underline;
             text-decoration-color:rgba(35,123,34,.35); text-decoration-thickness:1px; text-underline-offset:.16em; }
@@ -130,8 +130,8 @@ body[data-page="legal"]{
 
 /* The colophon. A tinted strip rather than two bare hairlines — it reads as a
    block of metadata instead of a stray line of small text. */
-.ar-meta{ margin:1.5rem 0 0; padding:.75rem 1rem; background:var(--ag-surface-2,#f6f7f6);
-          border:1px solid var(--ar-line-soft); border-radius:var(--ag-r-md,14px);
+.ar-meta{ margin:1.5rem 0 0; padding:.75rem 1rem; background:var(--ag-ground,#f6f7f6);
+          border:1px solid var(--ar-line-soft); border-radius:var(--ag-r-14,14px);
           display:flex; flex-wrap:wrap; gap:.35rem 1.25rem;
           font:500 12px/1.5 var(--ag-font-mono); color:var(--ar-faint); }
 .ar-meta b{ color:var(--ar-ink); font-weight:600; }
@@ -147,7 +147,7 @@ body[data-page="legal"]{
    simply missed. */
 .ar-tool{ display:inline-flex; align-items:center; min-height:44px; gap:.45rem; cursor:pointer;
           background:var(--ar-surface); border:1px solid var(--ar-line); border-radius:var(--ag-r-pill,999px);
-          padding:.52rem 1rem; font:600 13px/1 var(--ag-font-body); color:var(--ar-ink);
+          padding:.52rem 1rem; font:600 13px/1 var(--ag-font-ui); color:var(--ar-ink);
           text-decoration:none !important; transition:border-color .15s, background-color .15s, transform .15s; }
 .ar-tool:hover{ border-color:var(--ar-accent); background:var(--ar-wash); transform:translateY(-1px); }
 .ar-tool[aria-expanded="true"]{ border-color:var(--ar-accent); background:var(--ar-wash); }
@@ -163,12 +163,12 @@ body[data-page="legal"]{
    else would be a coin toss. */
 .ar-fmt{ font-family:var(--ag-font-mono); font-size:11px; font-weight:700; opacity:.72; letter-spacing:.02em; }
 
-.ar-say{ margin:.65rem 0 0; min-height:1.1rem; font:600 13px/1.1 var(--ag-font-body); color:var(--ar-accent-dark); }
+.ar-say{ margin:.65rem 0 0; min-height:1.1rem; font:600 13px/1.1 var(--ag-font-ui); color:var(--ar-accent-dark); }
 
 /* ── CONTENTS ───────────────────────────────────────────────────────────────
    A card, like every other sidebar on this platform. */
 .ar-rail, .ar-toc{ background:var(--ar-surface); border:1px solid var(--ar-line);
-                   border-radius:var(--ag-r-lg,18px); padding:1.1rem 1.2rem; box-shadow:var(--ar-shadow); }
+                   border-radius:var(--ag-r-24,18px); padding:1.1rem 1.2rem; box-shadow:var(--ar-shadow); }
 .ar-rail h2, .ar-toc h2{ margin:0 0 .7rem; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em;
                          text-transform:uppercase; color:var(--ar-faint); }
 .ar-rail ol, .ar-toc ol{ list-style:none; margin:0; padding:0; counter-reset:ar; }
@@ -200,8 +200,8 @@ body[data-page="legal"]{
 
 /* ── PART DIVIDER ───────────────────────────────────────────────────────── */
 .ar-part-head{ margin:clamp(2.6rem,5vw,3.6rem) 0 0; padding:1.3rem 1.4rem;
-               background:var(--ag-surface-2,#f6f7f6); border:1px solid var(--ar-line-soft);
-               border-left:3px solid var(--ar-accent); border-radius:var(--ag-r-md,14px); }
+               background:var(--ag-ground,#f6f7f6); border:1px solid var(--ar-line-soft);
+               border-left:3px solid var(--ar-accent); border-radius:var(--ag-r-14,14px); }
 .ar-part-head .ar-pn{ display:block; font:700 11px/1 var(--ag-font-mono); letter-spacing:.15em;
                       text-transform:uppercase; color:var(--ar-accent); margin-bottom:.5rem; }
 .ar-part-head h2{ margin:0; font-family:var(--ag-font-display); font-weight:700;
@@ -212,14 +212,14 @@ body[data-page="legal"]{
    The number is a green chip rather than a bare mono string. It gives each
    section a visible anchor point in a long scroll, which is what the flat
    version was missing. */
-.ar-sec{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.25rem); margin-top:clamp(2.2rem,4.5vw,3rem); }
+.ar-sec{ scroll-margin-top:calc(var(--ag-header-h) + 1.25rem); margin-top:clamp(2.2rem,4.5vw,3rem); }
 .ar-sec > h3{ margin:0 0 .9rem; font-family:var(--ag-font-display); font-weight:700;
               font-size:clamp(1.3rem,2.7vw,1.6rem); line-height:1.24; letter-spacing:-.014em; color:var(--ar-ink); }
 .ar-sn{ display:inline-flex; align-items:center; justify-content:center; min-width:1.65rem; height:1.65rem;
         margin-bottom:.55rem; padding:0 .45rem; background:var(--ar-wash); border-radius:8px;
         font:700 11px/1 var(--ag-font-mono); letter-spacing:.06em; color:var(--ar-accent-dark); }
 
-.ar-h4{ margin:1.7rem 0 .6rem; font-family:var(--ag-font-body); font-weight:700; font-size:1rem;
+.ar-h4{ margin:1.7rem 0 .6rem; font-family:var(--ag-font-ui); font-weight:700; font-size:1rem;
         line-height:1.4; color:var(--ar-ink); }
 
 /* ── LISTS ──────────────────────────────────────────────────────────────── */
@@ -238,7 +238,7 @@ body[data-page="legal"]{
    A tinted panel now, not a bare left rule. On a white surface the hairline
    version had nothing to sit against. */
 .ar-quote{ margin:1.7rem 0; padding:1.15rem 1.35rem; background:var(--ar-wash);
-           border-left:3px solid var(--ar-accent); border-radius:0 var(--ag-r-md,14px) var(--ag-r-md,14px) 0; }
+           border-left:3px solid var(--ar-accent); border-radius:0 var(--ag-r-14,14px) var(--ag-r-14,14px) 0; }
 .ar-quote p{ margin:0; font-family:var(--ag-font-display); font-style:italic; font-weight:400;
              font-size:clamp(1.1rem,2.3vw,1.3rem) !important; line-height:1.46 !important; color:var(--ar-ink) !important; }
 
@@ -246,26 +246,26 @@ body[data-page="legal"]{
    What used to be bar charts. A tinted header row and zebra-free hairlines, in a
    scroll container so a narrow screen scrolls the table instead of the page. */
 .ar-tw{ margin:0 0 1.3em; overflow-x:auto; border:1px solid var(--ar-line);
-        border-radius:var(--ag-r-md,14px); background:var(--ar-surface); }
-.ar-table{ width:100%; border-collapse:collapse; font-family:var(--ag-font-body); }
+        border-radius:var(--ag-r-14,14px); background:var(--ar-surface); }
+.ar-table{ width:100%; border-collapse:collapse; font-family:var(--ag-font-ui); }
 .ar-table caption{ caption-side:top; text-align:left; padding:.8rem 1rem .1rem;
                    font:700 11px/1.4 var(--ag-font-mono); letter-spacing:.13em; text-transform:uppercase; color:var(--ar-faint); }
 .ar-table th, .ar-table td{ text-align:left; padding:.7rem 1rem; border-bottom:1px solid var(--ar-line-soft);
                             font-size:16px; line-height:1.6; vertical-align:baseline; }
-.ar-table thead th{ background:var(--ag-surface-2,#f6f7f6); border-bottom:1px solid var(--ar-line);
+.ar-table thead th{ background:var(--ag-ground,#f6f7f6); border-bottom:1px solid var(--ar-line);
                     font-weight:700; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ar-faint); }
 .ar-table tbody th{ font-weight:600; color:var(--ar-ink); }
 .ar-table tbody tr:last-child td, .ar-table tbody tr:last-child th{ border-bottom:0; }
 .ar-table .ar-num{ font-family:var(--ag-font-mono); font-weight:700; font-size:14px;
                    color:var(--ar-accent-dark); white-space:nowrap; }
-.ar-table tfoot td{ background:var(--ag-surface-2,#f6f7f6); border-bottom:0; border-top:1px solid var(--ar-line);
+.ar-table tfoot td{ background:var(--ag-ground,#f6f7f6); border-bottom:0; border-top:1px solid var(--ar-line);
                     font-size:14px; color:var(--ar-soft); }
 
 /* ── TWO COLUMNS ──────────────────────────────────────────────────────────── */
 .ar-cols{ margin:0 0 1.3em; display:grid; gap:1rem; }
 @media (min-width:640px){ .ar-cols{ grid-template-columns:1fr 1fr; gap:1rem; } }
 .ar-cols > div{ padding:1.1rem 1.2rem; border:1px solid var(--ar-line-soft);
-                border-radius:var(--ag-r-md,14px); background:var(--ag-surface-2,#f6f7f6); }
+                border-radius:var(--ag-r-14,14px); background:var(--ag-ground,#f6f7f6); }
 .ar-cols--can{ border-top:3px solid var(--ar-accent) !important; }
 .ar-cols--cannot{ border-top:3px solid #b0453f !important; }
 .ar-cols h4{ margin:0 0 .65rem; font:700 11px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase; }
@@ -278,15 +278,15 @@ body[data-page="legal"]{
    The one thing on a page whose job is to interrupt it. */
 .ar-note{ margin:1.4rem 0 1.3em; padding:1.25rem 1.4rem; background:rgba(201,162,75,.09);
           border:1px solid rgba(154,119,38,.3); border-left:3px solid var(--ar-gold);
-          border-radius:var(--ag-r-md,14px); }
+          border-radius:var(--ag-r-14,14px); }
 .ar-note h4{ margin:0 0 .8rem; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em;
              text-transform:uppercase; color:var(--ar-gold); }
 .ar-note p{ font-size:16px !important; line-height:1.68 !important; }
 .ar-note p:last-child{ margin-bottom:0; }
 
 /* ── ASIDE ──────────────────────────────────────────────────────────────── */
-.ar-aside{ margin:1.3rem 0; padding:.9rem 1.1rem; background:var(--ag-surface-2,#f6f7f6);
-           border-radius:var(--ag-r-md,12px); }
+.ar-aside{ margin:1.3rem 0; padding:.9rem 1.1rem; background:var(--ag-ground,#f6f7f6);
+           border-radius:var(--ag-r-14,12px); }
 .ar-aside p{ margin:0; font-size:16px !important; line-height:1.65 !important; color:var(--ar-soft) !important; }
 
 /* Further reading — a line of references, the way an article ends a section. */
@@ -303,8 +303,8 @@ body[data-page="legal"]{
    card, because it is a call to go somewhere. */
 .ar-next{ margin:clamp(2.2rem,4vw,3rem) 0 0; display:block; padding:1.2rem 1.4rem;
           border:1px solid var(--ar-line); border-left:3px solid var(--ar-accent);
-          border-radius:var(--ag-r-md,14px); text-decoration:none !important;
-          background:var(--ag-surface-2,#f6f7f6); box-shadow:var(--ar-shadow);
+          border-radius:var(--ag-r-14,14px); text-decoration:none !important;
+          background:var(--ag-ground,#f6f7f6); box-shadow:var(--ar-shadow);
           transition:border-color .15s, transform .15s, box-shadow .15s; }
 .ar-next:hover{ transform:translateY(-2px); }
 .ar-next span{ display:block; font:700 10px/1 var(--ag-font-mono); letter-spacing:.14em;
@@ -314,7 +314,7 @@ body[data-page="legal"]{
 .ar-next em{ display:block; margin-top:.3rem; font-style:normal; font-size:14px; line-height:1.55; color:var(--ar-soft); }
 
 /* ── CITATION ───────────────────────────────────────────────────────────── */
-.ar-cite{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.25rem); margin:clamp(2.6rem,5vw,3.6rem) 0 0;
+.ar-cite{ scroll-margin-top:calc(var(--ag-header-h) + 1.25rem); margin:clamp(2.6rem,5vw,3.6rem) 0 0;
           padding-top:1.5rem; border-top:2px solid var(--ar-line); }
 .ar-cite > h2{ margin:0 0 .45rem; font-family:var(--ag-font-display); font-weight:700;
                font-size:clamp(1.35rem,2.8vw,1.7rem); letter-spacing:-.014em; }
@@ -323,17 +323,17 @@ body[data-page="legal"]{
    phone, and they measured 28px tall — under the 40px a thumb needs and under the
    24px WCAG 2.5.8 asks for at minimum. A taller hit area with the same type size
    keeps the row looking identical on a desktop and makes it usable on a handset. */
-.ar-tab{ cursor:pointer; background:var(--ag-surface-2,#f6f7f6); border:1px solid var(--ar-line);
+.ar-tab{ cursor:pointer; background:var(--ag-ground,#f6f7f6); border:1px solid var(--ar-line);
          border-radius:var(--ag-r-pill,999px); padding:.42rem .85rem;
          min-height:44px; display:inline-flex; align-items:center;
-         font:600 13px/1 var(--ag-font-body); color:var(--ar-soft); transition:background .15s, color .15s; }
+         font:600 13px/1 var(--ag-font-ui); color:var(--ar-soft); transition:background .15s, color .15s; }
 .ar-tab:hover{ color:var(--ar-ink); background:var(--ar-wash); border-color:var(--ar-accent); }
 .ar-tab[aria-selected="true"]{ background:var(--ar-accent); border-color:var(--ar-accent); color:#fff; }
 .ar-cite-body{ margin:1rem 0 0; }
 /* `.ar-body p` is `.class element` and beats a bare `.ar-cite-text`, which is how
    the citations lost their monospace the first time. Hence the qualified selector. */
-.ar-body .ar-cite-text{ margin:0; padding:1rem 1.15rem; background:var(--ag-surface-2,#f6f7f6);
-                        border:1px solid var(--ar-line); border-radius:var(--ag-r-md,12px);
+.ar-body .ar-cite-text{ margin:0; padding:1rem 1.15rem; background:var(--ag-ground,#f6f7f6);
+                        border:1px solid var(--ar-line); border-radius:var(--ag-r-14,12px);
                         font-family:var(--ag-font-mono) !important; font-size:13px !important; line-height:1.72 !important;
                         color:var(--ar-ink); white-space:pre-wrap; word-break:break-word; }
 .ar-cite-act{ margin:.7rem 0 0; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
@@ -352,23 +352,23 @@ body[data-page="legal"]{
 .ar-rich > h2{ margin:clamp(2rem,4vw,2.8rem) 0 .9rem; padding-top:1.2rem; border-top:1px solid var(--ar-line-soft);
                font-family:var(--ag-font-display); font-weight:700;
                font-size:clamp(1.28rem,2.6vw,1.55rem); line-height:1.24; letter-spacing:-.014em; color:var(--ar-ink);
-               scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.25rem); }
+               scroll-margin-top:calc(var(--ag-header-h) + 1.25rem); }
 .ar-rich > h2:first-child{ margin-top:0; padding-top:0; border-top:0; }
-.ar-rich > h3{ margin:1.7rem 0 .6rem; font-family:var(--ag-font-body); font-weight:700; font-size:1rem;
+.ar-rich > h3{ margin:1.7rem 0 .6rem; font-family:var(--ag-font-ui); font-weight:700; font-size:1rem;
                line-height:1.4; color:var(--ar-ink); }
-.ar-rich > h4{ margin:1.4rem 0 .5rem; font-family:var(--ag-font-body); font-weight:700; font-size:.95rem; color:var(--ar-ink); }
+.ar-rich > h4{ margin:1.4rem 0 .5rem; font-family:var(--ag-font-ui); font-weight:700; font-size:.95rem; color:var(--ar-ink); }
 .ar-rich ul, .ar-rich ol{ margin:0 0 1.15em; padding-left:1.3em; }
 .ar-rich li{ margin-bottom:.45em; padding-left:.15em; }
 .ar-rich li::marker{ color:var(--ar-accent); font-weight:700; }
 .ar-rich blockquote{ margin:1.6rem 0; padding:1.05rem 1.3rem; background:var(--ar-wash);
-                     border-left:3px solid var(--ar-accent); border-radius:0 var(--ag-r-md,14px) var(--ag-r-md,14px) 0; }
+                     border-left:3px solid var(--ar-accent); border-radius:0 var(--ag-r-14,14px) var(--ag-r-14,14px) 0; }
 .ar-rich blockquote p{ margin:0; font-family:var(--ag-font-display); font-style:italic;
                        font-size:clamp(1.05rem,2.2vw,1.22rem) !important; line-height:1.5 !important; }
 .ar-rich hr{ margin:2rem 0; border:0; border-top:1px solid var(--ar-line); }
 .ar-rich small{ font-size:.86em; color:var(--ar-soft); }
 .ar-rich table{ width:100%; border-collapse:collapse; margin:0 0 1.3em; font-size:16px; }
 .ar-rich th, .ar-rich td{ text-align:left; padding:.6rem .8rem; border:1px solid var(--ar-line-soft); }
-.ar-rich thead th{ background:var(--ag-surface-2,#f6f7f6); font-weight:700; }
+.ar-rich thead th{ background:var(--ag-ground,#f6f7f6); font-weight:700; }
 .ar-rich td code{ white-space:nowrap; }
 
 /* ── A POLICY TABLE ON A PHONE ────────────────────────────────────────────────

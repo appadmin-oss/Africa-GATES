@@ -10,10 +10,12 @@
   ── WHY THE ROWS ARE RENDERED AND HIDDEN RATHER THAN BUILT IN JS ─────────────
 
   `navigator.languages` is only readable in the browser, so the CHOICE of row is
-  necessarily client-side. The WORDS are not: they are the only translated strings
-  in this codebase and they live in `Support\Languages`, beside the language they
-  belong to, so nothing composes a sentence at runtime and nothing carries a
-  second copy. Seven small rows is a cheap price for that, and it means the prompt
+  necessarily client-side. The WORDS are not: each row's question and "yes" come
+  from that language's catalogue (`resources/lang/{code}.php`, through
+  `Support\Languages::prompts()`), NOT through `|trans` — `|trans` answers in the
+  page's language, and this row must ask in the visitor's while the page is still
+  English. A language whose catalogue lacks either is not offered, so nothing
+  composes a sentence at runtime. Seven small rows is a cheap price for that, and it means the prompt
   works with no JSON blob in an attribute — the shape that silently shredded the
   flier's styles when the HTML parser closed the attribute at the first quote.
 

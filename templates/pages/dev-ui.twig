@@ -2,41 +2,48 @@
 
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  /_dev/ui — every token and every base component, in every state
+  /_dev/ui — every base component, in every state
+  Phase 1 of design_handoff_africa_gates, build item 6
   ══════════════════════════════════════════════════════════════════════════════
 
-  Phase 1 build item 6. Two jobs, and the second is the one that earns its place:
+  Destroyed and rebuilt in Phase 1. What it is FOR decides what is on it:
 
-  1. A specimen sheet. Somebody building phase 4 can see what a chip looks like
-     selected, what a disabled button says, and what the skeleton geometry is,
-     without reading three stylesheets.
+  · A specimen of components.css, not of tokens. Every specimen below is the real
+    component class in the real state — default, hover, focus, pressed, disabled,
+    selected, error, loading, empty — so a phase building a screen sees what the
+    base will draw without reading the stylesheet.
 
-  2. A READER for the token vocabulary. `DeadTokenTest` fails on a custom property
-     nothing reads, and it is right to: the fault it was written for is the next
-     person finding `--shadow-lg: none` in a file, taking it for the house
-     convention, and getting nothing. When `tokens.css` landed it declared
-     thirteen §6 rungs — spacing steps, two radii, three z-layers — that no
-     component had reached yet, and the guard failed exactly as the recon predicted.
+  · Not a token reader. The page it replaces drew the spacing, radius and layer
+    ladders as `style="width:var(--ag-sp-36)"` swatches, which kept DeadTokenTest
+    quiet about rungs nothing used — §17's "declared, no reader" with a reader
+    manufactured for it (GAPS C7). Four tokens were still unread when this was
+    rebuilt, and each now has a real reader IN components.css, shown here working:
+    the stock note (`--ag-stock-low`, `--ag-stock-gone`) and the count badge's pop
+    (`--ag-ease-pop` over `--ag-dur-3`). `DevUiTest` holds both halves.
 
-     Carving an exemption for "the token file" would have been the easy answer and
-     the wrong one: it is the same hole a genuinely dead palette would later hide
-     in. So the specimens below USE the whole vocabulary. The spacing ladder is
-     drawn from the spacing tokens, the radius ladder from the radius tokens, the
-     layer legend from the z tokens. They are read because they are shown, and the
-     guard stays strict with nothing forgiven.
+  · The working parts work. The sticky search at the top is §9.2's collapsing
+    search on the page's own scroller, filtering this page's sections, and its "no
+    match" is the real empty state. The sheet opens through AGShell.openSheet. The
+    switches, the segmented control and the filter chips change state.
 
-  Phase 2 added a third job, and it is the one that keeps a sheet honest: this is
-  the only page on the site that mounts the phone APP BAR, so it is the only route
-  from which Quick settings can be opened at all. Until a phase converts a real
-  page to this shell, a specimen page is the difference between a dialog that has
-  been seen working and one nobody has ever opened — which is the state the
-  donor's cancellation link and the Chrome extension both shipped in.
+  A STATE THAT A POINTER OR A KEYBOARD HAS TO HOLD (hover, focus, pressed) is drawn
+  by the specimen classes `.is-hover` / `.is-focus` / `.is-active`, which
+  components.css accepts beside the pseudo-classes. Those copies are `inert`: they
+  are pictures of a state, and a screen reader walking the page should meet each
+  control once, not six times. The first cell of every matrix is the live one.
 
-  Dev-only: the route answers 404 when APP_ENV is production.
+  Dev-only: the route answers 404 when APP_ENV is production. Its words are not
+  passed through `|trans` for that reason — nobody outside the team reads them.
 #}
 
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/dev-ui.css') }}">
+{% endblock %}
+
+{% block header %}{% include 'partials/site-header.twig' %}{% endblock %}
+
 {% block app_bar %}
-  {% include 'partials/app-bar.twig' with { variant: 'root', title: 'Tokens & components', initials: 'AG' } %}
+  {% include 'partials/app-bar.twig' with { variant: 'child', title: 'Base components', sub: 'Phase 1 · dev only', back: '/' } %}
 {% endblock %}
 
 {% block bottom_bar %}
@@ -44,413 +51,449 @@
 {% endblock %}
 
 {% block content %}
-<div class="duix__wrap">
+<div class="duix">
 
-      <header class="duix__head">
-        <p class="duix__kicker">Phase 1</p>
-        <h1 class="duix__h1">Tokens &amp; base components</h1>
-        <p class="duix__lede">Every value on this page comes from
-          <code>tokens.css</code>. If something here is wrong, it is wrong
-          everywhere.</p>
-      </header>
+  <header class="duix__head">
+    <h1 class="duix__h1">Base components</h1>
+    <p class="duix__lede">Every specimen is a class from <code>components.css</code> in a real
+      state. Scroll and the search below collapses into the chip row; type and it filters
+      this page.</p>
+  </header>
 
-      {# ── COLOUR ─────────────────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Colour</h2>
-        <p class="duix__note">One accent per block. Green is only the primary action
-          inside the page — never a button in the header. The hex values are
-          deliberately not printed here: a value repeated on a page is a second copy
-          that goes stale on its own. <code>tokens.css</code> is the one place.</p>
-        <ul class="duix__swatches">
-          {% for t in [
-            {n:'ink',        u:'primary text'},
-            {n:'ink-2',      u:'secondary text'},
-            {n:'soft',       u:'meta, captions'},
-            {n:'mute',       u:'disabled, off track'},
-            {n:'ground',     u:'page background'},
-            {n:'surface',    u:'cards, inputs'},
-            {n:'bar',        u:'filled bars'},
-            {n:'line',       u:'hairlines'},
-            {n:'line-2',     u:'input borders'},
-            {n:'line-3',     u:'list separators'},
-            {n:'tint',       u:'neutral fills'},
-            {n:'green',      u:'primary action'},
-            {n:'green-deep', u:'success text'},
-            {n:'green-light',u:'accents on dark'},
-            {n:'green-wash', u:'success wash'},
-            {n:'green-edge', u:'success borders'},
-            {n:'gold',       u:'honour, winners'},
-            {n:'gold-ink',   u:'text on gold'},
-            {n:'gold-wash',  u:'winner cards'},
-            {n:'gold-wash-2',u:'early-bird strip'},
-            {n:'gold-edge',  u:'gold borders'},
-            {n:'live',       u:'live dot, hearts'},
-            {n:'live-ink',   u:'live text'},
-            {n:'live-wash',  u:'giving wash'},
-            {n:'info',       u:'tickets, info'},
-            {n:'info-wash',  u:'info wash'},
-            {n:'error',      u:'errors, Sign out'},
-            {n:'stock-low',  u:'Only N left'},
-            {n:'stock-gone', u:'Sold out'}
-          ] %}
-          <li class="duix__sw">
-            <span class="duix__chip" style="--c:var(--ag-{{ t.n }})"></span>
-            <b>--ag-{{ t.n }}</b>
-            <span>{{ t.u }}</span>
-          </li>
-          {% endfor %}
-        </ul>
-      </section>
+  {# ── §9.2 — the collapsing sticky search, live on this page's scroller ──── #}
+  <div class="ag-sticky" data-cs>
+    <div class="ag-cs__row">
+      <div>
+        <label class="ag-field ag-field--search" data-duix-search>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+          <input type="search" data-cs-input enterkeyhint="search" autocomplete="off"
+                 aria-label="Search components" placeholder="Search components">
+          <button type="button" class="ag-field__clear" aria-label="Clear search" data-duix-clear hidden>
+            <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+          </button>
+        </label>
+      </div>
+    </div>
+    <nav class="ag-chip-row" aria-label="Components">
+      <span class="ag-cs__btn">
+        <button type="button" class="ag-cs__go" data-cs-btn aria-label="Search components">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+        </button>
+      </span>
+      {% for s in [
+        {id:'button', l:'Button'}, {id:'chip', l:'Chip'}, {id:'field', l:'Field'},
+        {id:'card', l:'Card'}, {id:'list', l:'List row'}, {id:'sheet', l:'Sheet'},
+        {id:'switch', l:'Switch'}, {id:'seg', l:'Segmented'}, {id:'states', l:'Loading, empty, error'},
+        {id:'stock', l:'Stock note'}, {id:'badge', l:'Count badge'}
+      ] %}
+        <a class="ag-chip" href="#ui-{{ s.id }}">{{ s.l }}</a>
+      {% endfor %}
+    </nav>
+  </div>
 
-      {# ── TYPE ───────────────────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Type</h2>
-        <p class="duix__note">Playfair Display 700 for headlines only. Mono only for
-          references and codes — never for labels or stats. No uppercase labels.</p>
-        <div class="duix__type">
-          <p class="duix__t-d">Display · 32 phone / 44 desktop</p>
-          <p class="duix__t-h2">Section heading · 19</p>
-          <p class="duix__t-card">Card title · 17 / 700</p>
-          <p class="duix__t-body">Body · 16, measure capped at 62ch. The rest of this
-            line exists to show where a paragraph wraps when it is allowed to run on
-            past a comfortable reading measure and keeps going.</p>
-          <p class="duix__t-sec">Secondary · 14.5</p>
-          <p class="duix__t-meta">Meta · 13.5</p>
-          <p class="duix__t-micro">Micro · 12.5</p>
-          <p class="duix__t-mono">AGX-4417-KQ · mono 13, references and codes only</p>
-        </div>
-      </section>
+  <div class="ag-empty" role="status" data-duix-empty hidden>
+    <p class="ag-empty__t" data-duix-empty-t></p>
+    <button type="button" class="ag-btn ag-btn--secondary" data-duix-clear>Clear search</button>
+  </div>
 
-      {# ── SPACING · reads every --ag-sp-* rung ───────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Spacing</h2>
-        <p class="duix__note">The whole ladder. A value not on it is a misread of the
-          design.</p>
-        <ul class="duix__scale">
-          <li><i style="width:var(--ag-sp-4)"></i><b>4</b></li>
-          <li><i style="width:var(--ag-sp-6)"></i><b>6</b></li>
-          <li><i style="width:var(--ag-sp-8)"></i><b>8</b></li>
-          <li><i style="width:var(--ag-sp-10)"></i><b>10</b></li>
-          <li><i style="width:var(--ag-sp-12)"></i><b>12</b></li>
-          <li><i style="width:var(--ag-sp-14)"></i><b>14</b></li>
-          <li><i style="width:var(--ag-sp-16)"></i><b>16</b></li>
-          <li><i style="width:var(--ag-sp-18)"></i><b>18</b></li>
-          <li><i style="width:var(--ag-sp-20)"></i><b>20</b></li>
-          <li><i style="width:var(--ag-sp-22)"></i><b>22</b></li>
-          <li><i style="width:var(--ag-sp-24)"></i><b>24</b></li>
-          <li><i style="width:var(--ag-sp-28)"></i><b>28</b></li>
-          <li><i style="width:var(--ag-sp-32)"></i><b>32</b></li>
-          <li><i style="width:var(--ag-sp-36)"></i><b>36</b></li>
-          <li><i style="width:var(--ag-sp-40)"></i><b>40</b></li>
-          <li><i style="width:var(--ag-sp-48)"></i><b>48</b></li>
-          <li><i style="width:var(--ag-sp-56)"></i><b>56</b></li>
-          <li><i style="width:var(--ag-sp-64)"></i><b>64</b></li>
-        </ul>
-      </section>
+  {# ══ BUTTON ═══════════════════════════════════════════════════════════════ #}
+  <section class="duix__sec" id="ui-button" data-duix-sec="button primary secondary ink text danger pill block disabled loading busy pressed">
+    <h2 class="duix__h2">Button</h2>
+    <p class="duix__note">52px and radius 16 on a phone, 48 on desktop. Primary is the one
+      green action inside a page. Loading keeps its label and is pressed and disabled at
+      once.</p>
+    {% for v in [
+      {m:'primary',   t:'Send my support'},
+      {m:'secondary', t:'See how it was decided'},
+      {m:'ink',       t:'Sign in or join'},
+      {m:'text',      t:'Celebrate again'},
+      {m:'danger',    t:'Sign out'}
+    ] %}
+    <ul class="duix__grid duix__grid--wide" aria-label="{{ v.m|capitalize }} button states">
+      <li class="duix__cell"><div class="duix__stage"><button type="button" class="ag-btn ag-btn--{{ v.m }}">{{ v.t }}</button></div><span class="duix__cap"><b>{{ v.m|capitalize }}</b> · default</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-btn ag-btn--{{ v.m }} is-hover">{{ v.t }}</button></div><span class="duix__cap">Hover</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-btn ag-btn--{{ v.m }} is-focus">{{ v.t }}</button></div><span class="duix__cap">Focus</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-btn ag-btn--{{ v.m }} is-active">{{ v.t }}</button></div><span class="duix__cap">Pressed</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-btn ag-btn--{{ v.m }}" disabled>{{ v.t }}</button></div><span class="duix__cap">Disabled</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-btn ag-btn--{{ v.m }}" aria-busy="true">Sending…</button></div><span class="duix__cap">Loading</span></li>
+    </ul>
+    {% endfor %}
+    <div class="duix__row">
+      <button type="button" class="ag-btn ag-btn--primary ag-btn--pill">Get tickets</button>
+      <button type="button" class="ag-btn ag-btn--primary" data-duix-busy>Send my support</button>
+      <button type="button" class="ag-btn ag-btn--primary" aria-disabled="true" aria-describedby="duix-why">Continue</button>
+      <span class="ag-hint" id="duix-why">Choose a tier first.</span>
+    </div>
+    <button type="button" class="ag-btn ag-btn--primary ag-btn--block">Full width</button>
+    <ul class="duix__grid" aria-label="Round icon button states">
+      <li class="duix__cell"><div class="duix__stage"><button type="button" class="ag-btn ag-btn--icon ag-btn--dot" aria-label="Add Kente Tote to cart"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div><span class="duix__cap"><b>Quick-add</b> · on a card</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-btn ag-btn--icon ag-btn--dot is-focus" aria-label="Add, focused"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div><span class="duix__cap">Focus</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-btn ag-btn--icon ag-btn--dot is-active" aria-label="Add, pressed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div><span class="duix__cap">Pressed</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-btn ag-btn--icon ag-btn--dot" disabled aria-label="Add, sold out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button></div><span class="duix__cap">Disabled</span></li>
+      <li class="duix__cell"><div class="duix__stage"><button type="button" class="ag-btn ag-btn--icon ag-btn--float" aria-label="Share"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 14v6h14v-6"/></svg></button></div><span class="duix__cap"><b>Float</b> · on a photo</span></li>
+    </ul>
+  </section>
 
-      {# ── RADII · reads every --ag-r-* rung ──────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Radii</h2>
-        <ul class="duix__radii">
-          <li><i style="border-radius:var(--ag-r-7)"></i><b>7</b><span>mini badges</span></li>
-          <li><i style="border-radius:var(--ag-r-10)"></i><b>10</b><span>icon tiles</span></li>
-          <li><i style="border-radius:var(--ag-r-12)"></i><b>12</b><span>tiles</span></li>
-          <li><i style="border-radius:var(--ag-r-14)"></i><b>14</b><span>inputs, small buttons</span></li>
-          <li><i style="border-radius:var(--ag-r-16)"></i><b>16</b><span>phone CTAs, rows</span></li>
-          <li><i style="border-radius:var(--ag-r-18)"></i><b>18</b><span>lists</span></li>
-          <li><i style="border-radius:var(--ag-r-20)"></i><b>20</b><span>cards, drawers</span></li>
-          <li><i style="border-radius:var(--ag-r-22)"></i><b>22</b><span>content sheet over a gallery</span></li>
-          <li><i style="border-radius:var(--ag-r-24)"></i><b>24</b><span>major cards, sheets</span></li>
-          <li><i style="border-radius:var(--ag-r-pill)"></i><b>999</b><span>pills, chips</span></li>
-        </ul>
-      </section>
+  {# ══ CHIP ═════════════════════════════════════════════════════════════════ #}
+  <section class="duix__sec" id="ui-chip" data-duix-sec="chip filter selected outlined pill dot remove">
+    <h2 class="duix__h2">Chip</h2>
+    <p class="duix__note">Outlined always; selected is a 2px ink border on the same white fill,
+      never a dark fill. No design draws a chip hover — selection is its state.</p>
+    <ul class="duix__grid" aria-label="Chip states">
+      <li class="duix__cell"><div class="duix__stage"><button type="button" class="ag-chip" aria-pressed="false">Voting open <span class="ag-chip__n">12</span></button></div><span class="duix__cap"><b>Chip</b> · default</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-chip is-hover" aria-pressed="false">Voting open <span class="ag-chip__n">12</span></button></div><span class="duix__cap">Hover · unchanged</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-chip is-focus" aria-pressed="false">Voting open <span class="ag-chip__n">12</span></button></div><span class="duix__cap">Focus</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-chip is-active" aria-pressed="false">Voting open <span class="ag-chip__n">12</span></button></div><span class="duix__cap">Pressed · unchanged</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-chip" aria-pressed="true">Voting open <span class="ag-chip__n">12</span></button></div><span class="duix__cap">Selected</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-chip" aria-pressed="false" disabled>Closed</button></div><span class="duix__cap">Disabled</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-chip" aria-pressed="false"><span class="ag-chip__dot" style="--ag-dot:var(--ag-live)"></span>Live</button></div><span class="duix__cap">With a phase dot</span></li>
+      <li class="duix__cell" inert><div class="duix__stage"><button type="button" class="ag-chip ag-chip--remove" aria-label="Remove filter: Size L">Size L <b aria-hidden="true">×</b></button></div><span class="duix__cap">Applied filter</span></li>
+    </ul>
+  </section>
 
-      {# ── LAYERS · reads every --ag-z-* token ────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Layers</h2>
-        <p class="duix__note">Written down because a z-index picked by adding ten to
-          the last one somebody remembered is how two fixed elements end up level.</p>
-        <ul class="duix__layers">
-          <li><b style="--z:var(--ag-z-sticky)">5</b><span>sticky toolbars</span></li>
-          <li><b style="--z:var(--ag-z-appbar)">20</b><span>app bar</span></li>
-          <li><b style="--z:var(--ag-z-bar)">30</b><span>buy / vote / give bars</span></li>
-          <li><b style="--z:var(--ag-z-header)">40</b><span>site header</span></li>
-          <li><b style="--z:var(--ag-z-gee)">60</b><span>Gee</span></li>
-          <li><b style="--z:var(--ag-z-scrim)">79</b><span>scrim</span></li>
-          <li><b style="--z:var(--ag-z-sheet)">80</b><span>sheets</span></li>
-        </ul>
-      </section>
+  {# ══ FIELD ════════════════════════════════════════════════════════════════ #}
+  <section class="duix__sec" id="ui-field" data-duix-sec="field input search text select textarea label hint error invalid disabled form">
+    <h2 class="duix__h2">Field and search</h2>
+    <p class="duix__note">52px (48 on desktop), 16px text, radius 14, and a label that is always
+      on screen. Errors sit beside the field with an icon and are announced.</p>
+    <ul class="duix__grid duix__grid--wide" aria-label="Field states">
+      <li class="duix__cell"><div class="duix__stage duix__stage--col">
+        <label class="ag-label" for="duix-f1">Full name</label>
+        <span class="ag-field"><input id="duix-f1" type="text" autocomplete="name" enterkeyhint="next" aria-describedby="duix-f1-h"></span>
+        <p class="ag-hint" id="duix-f1-h">As it should appear on the record.</p>
+      </div><span class="duix__cap"><b>Field</b> · empty</span></li>
+      <li class="duix__cell" inert><div class="duix__stage duix__stage--col">
+        <span class="ag-label">Full name</span>
+        <span class="ag-field"><input type="text" value="Achieng Odhiambo" aria-label="Full name, filled"></span>
+      </div><span class="duix__cap">Filled</span></li>
+      <li class="duix__cell" inert><div class="duix__stage duix__stage--col">
+        <span class="ag-label">Full name</span>
+        <span class="ag-field is-focus"><input type="text" value="Achieng" aria-label="Full name, focused"></span>
+      </div><span class="duix__cap">Focus</span></li>
+      <li class="duix__cell"><div class="duix__stage duix__stage--col">
+        <label class="ag-label" for="duix-f4">Email</label>
+        <span class="ag-field" data-invalid><input id="duix-f4" type="email" inputmode="email" autocomplete="email" enterkeyhint="done" value="achieng@" aria-invalid="true" aria-describedby="duix-f4-e"></span>
+        <p class="ag-err" id="duix-f4-e" aria-live="polite"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>That address is missing everything after the @.</p>
+      </div><span class="duix__cap">Error</span></li>
+      <li class="duix__cell"><div class="duix__stage duix__stage--col">
+        <label class="ag-label" for="duix-f5">Reference</label>
+        <span class="ag-field"><input id="duix-f5" type="text" value="GS-7F3A9C21B04E" disabled></span>
+      </div><span class="duix__cap">Disabled</span></li>
+      <li class="duix__cell"><div class="duix__stage duix__stage--col">
+        <label class="ag-label" for="duix-f6">Country</label>
+        <span class="ag-field"><select id="duix-f6" autocomplete="country-name"><option>Nigeria</option><option>Kenya</option><option>Ghana</option></select></span>
+      </div><span class="duix__cap">Native select</span></li>
+      <li class="duix__cell"><div class="duix__stage duix__stage--col">
+        <span class="ag-label" id="duix-f7l">Search</span>
+        <label class="ag-field ag-field--search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+          <input type="search" value="kente" aria-labelledby="duix-f7l" enterkeyhint="search">
+          <button type="button" class="ag-field__clear" aria-label="Clear search"><span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+        </label>
+      </div><span class="duix__cap">Search, with a query</span></li>
+      <li class="duix__cell"><div class="duix__stage duix__stage--col">
+        <label class="ag-label" for="duix-f8">Why they deserve it</label>
+        <textarea class="ag-field" id="duix-f8" rows="4"></textarea>
+      </div><span class="duix__cap">Textarea</span></li>
+    </ul>
+  </section>
 
-      {# ── SHADOWS ────────────────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Shadows</h2>
-        <ul class="duix__shadows">
-          <li><i style="box-shadow:var(--ag-sh-pop)"></i><b>pop</b><span>popover, drawer</span></li>
-          <li><i style="box-shadow:var(--ag-sh-mega)"></i><b>mega</b><span>mega panel</span></li>
-          <li><i style="box-shadow:var(--ag-sh-sheet)"></i><b>sheet</b><span>bottom sheet</span></li>
-          <li><i style="box-shadow:var(--ag-sh-float)"></i><b>float</b><span>round button on a photo</span></li>
-          <li><i style="box-shadow:var(--ag-sh-dot)"></i><b>dot</b><span>quick-add on a card</span></li>
-        </ul>
-      </section>
+  {# ══ CARD ═════════════════════════════════════════════════════════════════ #}
+  <section class="duix__sec" id="ui-card" data-duix-sec="card surface link">
+    <h2 class="duix__h2">Card</h2>
+    <p class="duix__note">Surface, one hairline, radius 20. A card that is a link takes the input
+      border under the pointer.</p>
+    <ul class="duix__grid duix__grid--wide" aria-label="Card states">
+      <li class="duix__cell"><div class="ag-card duix__pad duix__stack"><p class="duix__t">A card</p><p class="duix__s">Static content holds no pointer state.</p></div><span class="duix__cap"><b>Card</b> · static</span></li>
+      <li class="duix__cell"><a class="ag-card duix__pad duix__stack" href="#ui-card"><span class="duix__t">A link card</span><span class="duix__s">The whole card is the target.</span></a><span class="duix__cap">Link · default</span></li>
+      <li class="duix__cell" inert><a class="ag-card duix__pad duix__stack is-hover" href="#ui-card"><span class="duix__t">A link card</span><span class="duix__s">The whole card is the target.</span></a><span class="duix__cap">Link · hover</span></li>
+      <li class="duix__cell" inert><a class="ag-card duix__pad duix__stack is-focus" href="#ui-card"><span class="duix__t">A link card</span><span class="duix__s">The whole card is the target.</span></a><span class="duix__cap">Link · focus</span></li>
+    </ul>
+  </section>
 
-      {# ── BUTTONS ────────────────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Button</h2>
-        <p class="duix__note">52px on phone, 48 on desktop. A disabled button always
-          has an explanation beside it; on its own it is an anti-pattern.</p>
-        <div class="duix__row">
-          <button type="button" class="ag-btn ag-btn--primary">Send my support</button>
-          <button type="button" class="ag-btn ag-btn--secondary">See how it was decided</button>
-          <button type="button" class="ag-btn ag-btn--ink">Sign in or join</button>
-          <button type="button" class="ag-btn ag-btn--text">Celebrate again</button>
-          <button type="button" class="ag-btn ag-btn--danger">Sign out</button>
-          <button type="button" class="ag-btn ag-btn--primary ag-btn--pill">Get tickets</button>
-        </div>
-        <div class="duix__row">
-          <button type="button" class="ag-btn ag-btn--primary" disabled>Choose a tier first</button>
-          <button type="button" class="ag-btn ag-btn--primary" data-busy>Sending…</button>
-        </div>
-        <div class="duix__row duix__row--block">
-          <button type="button" class="ag-btn ag-btn--primary ag-btn--block">Full width, 52px, radius 16</button>
-        </div>
-      </section>
-
-      {# ── CHIPS ──────────────────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Chip</h2>
-        <p class="duix__note">Outlined always. Selected is a 2px ink border with the
-          same white fill — never a dark fill. Labels never wrap.</p>
-        <div class="ag-chip-row">
-          <button type="button" class="ag-chip" aria-pressed="true">All</button>
-          <button type="button" class="ag-chip" aria-pressed="false">Voting open
-            <span class="ag-chip__n">12</span></button>
-          <button type="button" class="ag-chip" aria-pressed="false">
-            <span class="ag-chip__dot" style="color:var(--ag-live)"></span>Live</button>
-          <button type="button" class="ag-chip" aria-pressed="false">Opens soon</button>
-          <button type="button" class="ag-chip ag-chip--remove" aria-pressed="false">
-            Size L <b aria-hidden="true">×</b></button>
-          <button type="button" class="ag-chip" disabled>Closed</button>
-        </div>
-      </section>
-
-      {# ── FIELDS ─────────────────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Field</h2>
-        <p class="duix__note">52px tall, 16px text — anything smaller makes iOS zoom
-          on focus. Labels are always visible; a placeholder is not a label.</p>
-        <div class="duix__grid2">
-          <div>
-            <label class="ag-label" for="duix-a">Full name</label>
-            <span class="ag-field"><input id="duix-a" type="text" autocomplete="name" value="Achieng Odhiambo"></span>
-            <p class="ag-hint">One field. Never first name and last name.</p>
-          </div>
-          <div>
-            <label class="ag-label" for="duix-b">Email</label>
-            <span class="ag-field" data-invalid>
-              <input id="duix-b" type="email" inputmode="email" autocomplete="email"
-                     enterkeyhint="done" aria-invalid="true" aria-describedby="duix-b-e" value="achieng@">
-            </span>
-            <p class="ag-err" id="duix-b-e" role="alert">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2.1" stroke-linecap="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>
-              That address is missing everything after the @.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {# ── LIST + CARD ────────────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">List and card</h2>
-        <p class="duix__note">The whole row is the target and it ends in a chevron.
-          No small inline buttons inside a tappable row.</p>
+  {# ══ LIST ROW ═════════════════════════════════════════════════════════════ #}
+  <section class="duix__sec" id="ui-list" data-duix-sec="list row rows chevron tile value">
+    <h2 class="duix__h2">List row</h2>
+    <p class="duix__note">At least 56px, the whole row is the target, and it ends in a chevron.
+      No small buttons inside a tappable row.</p>
+    <ul class="duix__grid duix__grid--wide" aria-label="List row states">
+      <li class="duix__cell">
         <div class="ag-list">
-          {% for r in [
-            {t:'Display &amp; reading', v:'Larger text'},
-            {t:'Language', v:'English'},
-            {t:'Notifications', v:'On'}
-          ] %}
-          <a class="ag-list__row" href="#">
-            <span class="ag-icon-tile" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/></svg>
-            </span>
-            <span class="ag-list__label">{{ r.t|raw }}</span>
-            <span class="ag-list__value">{{ r.v }}</span>
+          <a class="ag-list__row" href="#ui-list">
+            <span class="ag-icon-tile" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5M6 10v10h12V10"/></svg></span>
+            <span class="ag-list__label">Display &amp; reading</span>
+            <span class="ag-list__chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
           </a>
-          {% endfor %}
+          <a class="ag-list__row" href="#ui-list">
+            <span class="ag-icon-tile" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 3 2.5 13 0 16M12 4c-2.5 3-2.5 13 0 16"/></svg></span>
+            <span class="ag-list__label">Language</span>
+            <span class="ag-list__value">English</span>
+            <span class="ag-list__chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
+          </a>
+          <button type="button" class="ag-list__row">
+            <span class="ag-icon-tile ag-icon-tile--lg" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg></span>
+            <span class="ag-list__b"><span class="ag-list__label">Heritage Tee</span><span class="ag-list__sub">Soko Threads · Nairobi</span></span>
+            <span class="ag-list__value">₦17,500</span>
+          </button>
         </div>
-        <div class="ag-card duix__cardpad">
-          <p class="duix__t-card">A card</p>
-          <p class="duix__t-sec">Surface, one hairline, radius 20.</p>
+        <span class="duix__cap"><b>Rows</b> · default (link, with a value, a button row with a sub-line)</span>
+      </li>
+      <li class="duix__cell" inert>
+        <div class="ag-list">
+          <a class="ag-list__row is-hover" href="#ui-list"><span class="ag-icon-tile" aria-hidden="true"></span><span class="ag-list__label">Hover</span><span class="ag-list__chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span></a>
+          <a class="ag-list__row is-focus" href="#ui-list"><span class="ag-icon-tile" aria-hidden="true"></span><span class="ag-list__label">Focus — the ring is inset</span><span class="ag-list__chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span></a>
+          <div class="ag-list__row"><span class="ag-icon-tile" aria-hidden="true"></span><span class="ag-list__label">A very long label that has to truncate rather than wrap onto a second line</span></div>
         </div>
-      </section>
+        <span class="duix__cap">Hover · focus · truncation</span>
+      </li>
+    </ul>
+  </section>
 
-      {# ── SWITCH + SEGMENTED ─────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Switch and segmented control</h2>
-        <div class="duix__grid2">
-          <div class="ag-card duix__cardpad">
-            <div class="duix__switchrow">
-              <span class="ag-list__label">High contrast</span>
-              <span class="ag-switch-target">
-                <span class="ag-switch" role="switch" aria-checked="false" tabindex="0"
-                      aria-label="High contrast"></span>
-              </span>
-            </div>
-            <div class="duix__switchrow">
-              <span class="ag-list__label">Reduce motion</span>
-              <span class="ag-switch-target">
-                <span class="ag-switch" role="switch" aria-checked="true" tabindex="0"
-                      aria-label="Reduce motion"></span>
-              </span>
-            </div>
-          </div>
-          <div class="ag-card duix__cardpad">
-            <span class="ag-label" id="duix-size">Text size</span>
-            <div class="ag-seg" role="radiogroup" aria-labelledby="duix-size">
-              <button type="button" class="ag-seg__opt" role="radio" aria-checked="true">100%</button>
-              <button type="button" class="ag-seg__opt" role="radio" aria-checked="false">125%</button>
-              <button type="button" class="ag-seg__opt" role="radio" aria-checked="false">150%</button>
-            </div>
-          </div>
-        </div>
-      </section>
+  {# ══ SHEET ════════════════════════════════════════════════════════════════ #}
+  <section class="duix__sec" id="ui-sheet" data-duix-sec="sheet bottom drawer scrim grabber dialog">
+    <h2 class="duix__h2">Bottom sheet</h2>
+    <p class="duix__note">Grabber, a three-cell head, a scrim. On desktop it is a drawer 12px from
+      the edges. Focus moves in, Tab is trapped, Esc and the scrim close it, and focus goes back
+      to the button that opened it.</p>
+    <div class="duix__row">
+      <button type="button" class="ag-btn ag-btn--secondary" data-duix-sheet aria-haspopup="dialog" aria-expanded="false" aria-controls="duix-sheet">Open a sheet</button>
+    </div>
+  </section>
 
-      {# ── STATES ─────────────────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Loading, empty, offline</h2>
-        <p class="duix__note">Skeletons match the final geometry so nothing shifts
-          when the data lands. Spinners are never used for content.</p>
-        <div class="ag-card duix__cardpad">
-          <span class="ag-skel ag-skel--title"></span>
-          <span class="ag-skel ag-skel--line duix__mt"></span>
-          <span class="ag-skel ag-skel--line duix__mt" style="width:78%"></span>
-        </div>
-        <div class="ag-card duix__mt">
-          <div class="ag-empty">
-            <p class="ag-empty__t">Nothing matched “kente” in Size L.</p>
-            <button type="button" class="ag-btn ag-btn--secondary">Clear filters</button>
-          </div>
-        </div>
-        <div class="ag-offline duix__mt">You’re offline. Showing saved results.</div>
-      </section>
+  {# ══ SWITCH ═══════════════════════════════════════════════════════════════ #}
+  <section class="duix__sec" id="ui-switch" data-duix-sec="switch toggle on off">
+    <h2 class="duix__h2">Switch</h2>
+    <p class="duix__note">46 × 28, inside a 44px target. The state may sit on the switch or on the
+      row that is the switch — both draw it.</p>
+    <ul class="duix__grid duix__grid--wide" aria-label="Switch states">
+      <li class="duix__cell"><div class="ag-card">
+        <div class="duix__switch"><span id="duix-s1">Email me when it opens</span><span class="ag-switch-target"><button type="button" class="ag-switch" role="switch" aria-checked="false" aria-labelledby="duix-s1" data-duix-toggle></button></span></div>
+        <div class="duix__switch"><span id="duix-s2">Show sold-out items</span><span class="ag-switch-target"><button type="button" class="ag-switch" role="switch" aria-checked="true" aria-labelledby="duix-s2" data-duix-toggle></button></span></div>
+      </div><span class="duix__cap"><b>Switch</b> · off, on</span></li>
+      <li class="duix__cell" inert><div class="ag-card">
+        <div class="duix__switch"><span>Focus</span><span class="ag-switch-target"><button type="button" class="ag-switch is-focus" role="switch" aria-checked="true" aria-label="Focus"></button></span></div>
+        <div class="duix__switch"><span>Disabled</span><span class="ag-switch-target"><button type="button" class="ag-switch" role="switch" aria-checked="false" aria-label="Disabled" disabled></button></span></div>
+      </div><span class="duix__cap">Focus · disabled</span></li>
+      <li class="duix__cell"><div class="ag-card">
+        <button type="button" class="duix__switch ag-list__row" role="switch" aria-checked="true" data-duix-toggle><span class="ag-list__label">The whole row is the switch</span><span class="ag-switch" aria-hidden="true"></span></button>
+      </div><span class="duix__cap">State on the row</span></li>
+      <li class="duix__cell" inert><div class="ag-card ag-doc">
+        <div class="duix__switch"><span>On a document page</span><span class="ag-switch-target"><button type="button" class="ag-switch" role="switch" aria-checked="true" aria-label="On a document page"></button></span></div>
+      </div><span class="duix__cap">Inside <code>.ag-doc</code> — ink</span></li>
+    </ul>
+  </section>
 
-      {# ── BARS ───────────────────────────────────────────────────────────── #}
-      <section class="duix__sec">
-        <h2 class="duix__h2">Bars</h2>
-        <p class="duix__note">The app bar fills and grows a hairline once content
-          scrolls under it — a colour change, never a height jump.</p>
-
-        <div class="duix__spec">
-          <div class="ag-appbar ag-appbar--child">
-            <button type="button" class="ag-appbar__icon" aria-label="Back">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
-            </button>
-            <span class="ag-appbar__title"><b>Results</b><span>3rd Edition · 2025</span></span>
-            <button type="button" class="ag-appbar__icon" aria-label="Share">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>
-            </button>
-          </div>
+  {# ══ SEGMENTED ════════════════════════════════════════════════════════════ #}
+  <section class="duix__sec" id="ui-seg" data-duix-sec="segmented control seg radio">
+    <h2 class="duix__h2">Segmented control</h2>
+    <p class="duix__note">A tint track, 48px options; the chosen one is white. Arrow keys move the
+      choice, as a radio group's do.</p>
+    <ul class="duix__grid duix__grid--wide" aria-label="Segmented control states">
+      <li class="duix__cell"><div class="duix__stage duix__stage--col">
+        <span class="ag-label" id="duix-g1">Text size</span>
+        <div class="ag-seg" role="radiogroup" aria-labelledby="duix-g1" data-duix-seg>
+          <button type="button" class="ag-seg__opt" role="radio" aria-checked="true" tabindex="0">100%</button>
+          <button type="button" class="ag-seg__opt" role="radio" aria-checked="false" tabindex="-1">125%</button>
+          <button type="button" class="ag-seg__opt" role="radio" aria-checked="false" tabindex="-1">150%</button>
         </div>
-
-        <div class="duix__spec">
-          <div class="ag-actionbar">
-            <span class="ag-actionbar__sum"><b>₦17,500</b><span>Patron · 1 ticket</span></span>
-            <button type="button" class="ag-btn ag-btn--primary">Get tickets</button>
-          </div>
+      </div><span class="duix__cap"><b>Segmented</b> · default</span></li>
+      <li class="duix__cell" inert><div class="duix__stage duix__stage--col">
+        <span class="ag-label">Text size</span>
+        <div class="ag-seg">
+          <button type="button" class="ag-seg__opt" aria-checked="false">100%</button>
+          <button type="button" class="ag-seg__opt is-focus" aria-checked="true">125%</button>
+          <button type="button" class="ag-seg__opt" aria-checked="false" disabled>150%</button>
         </div>
+      </div><span class="duix__cap">Focus on the chosen · one disabled</span></li>
+    </ul>
+  </section>
 
-        <div class="duix__spec">
-          <nav class="ag-tabbar" aria-label="Specimen">
-            {% for t in ['Home','Discover','Nominate','Pulse','Menu'] %}
-            <a href="#"{% if loop.first %} aria-current="page"{% endif %}>
-              <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="8"/></svg>
-              {{ t }}
-            </a>
-            {% endfor %}
-          </nav>
-        </div>
-      </section>
+  {# ══ LOADING · EMPTY · ERROR — REFERENCE §9.4 ═════════════════════════════ #}
+  <section class="duix__sec" id="ui-states" data-duix-sec="loading skeleton empty error network offline states">
+    <h2 class="duix__h2">Loading, empty, error</h2>
+    <p class="duix__note">The skeleton has the loaded card's geometry, so nothing moves when the
+      data lands. Empty is one sentence from the filters and one action.</p>
+    <ul class="duix__grid duix__grid--wide" aria-label="Data view states">
+      <li class="duix__cell"><div class="ag-card duix__pad duix__stack" aria-hidden="true">
+        <span class="ag-skel ag-skel--title"></span><span class="ag-skel ag-skel--line"></span><span class="ag-skel ag-skel--line"></span>
+      </div><span class="duix__cap"><b>Loading</b></span></li>
+      <li class="duix__cell"><div class="ag-card duix__pad duix__stack">
+        <p class="duix__t">Kente Tote</p><p class="duix__s">Handwoven in Kumasi.</p><p class="duix__s">₦13,750</p>
+      </div><span class="duix__cap">Loaded</span></li>
+      <li class="duix__cell"><div class="ag-card">
+        <div class="ag-empty"><p class="ag-empty__t">Nothing matched “kente” in Size L.</p><button type="button" class="ag-btn ag-btn--secondary">Clear filters</button></div>
+      </div><span class="duix__cap">Empty</span></li>
+      <li class="duix__cell"><div class="ag-card duix__pad duix__stack">
+        <p class="ag-err" aria-live="polite"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>We couldn’t reach Africa GATES. Your details are saved. Try again.</p>
+        <div><button type="button" class="ag-btn ag-btn--text">Try again</button></div>
+      </div><span class="duix__cap">Network error</span></li>
+    </ul>
+  </section>
 
-      <p class="duix__foot">Dev only. This route answers 404 when
-        <code>APP_ENV=production</code>.</p>
+  {# ══ STOCK NOTE — reads --ag-stock-low and --ag-stock-gone ════════════════ #}
+  <section class="duix__sec" id="ui-stock" data-duix-sec="stock note sold out left low gone shop">
+    <h2 class="duix__h2">Stock note</h2>
+    <p class="duix__note">Words first, colour second: “Only N left” in the low-stock red, “Sold
+      out” in the sold-out brown.</p>
+    <ul class="duix__grid duix__grid--wide" aria-label="Stock notes">
+      <li class="duix__cell"><div class="ag-card duix__pad duix__stack">
+        <p class="duix__t">Heritage Tee</p>
+        <span class="duix__line"><b class="duix__price">₦17,500</b><span class="ag-stock ag-stock--low">Only 3 left in L</span></span>
+      </div><span class="duix__cap"><b>Low</b> · on a card</span></li>
+      <li class="duix__cell"><div class="ag-card duix__pad duix__stack">
+        <p class="duix__t">Winners’ Edition Cap</p>
+        <span class="duix__line"><b class="duix__price">₦11,900</b><span class="ag-stock ag-stock--gone">Sold out</span></span>
+      </div><span class="duix__cap"><b>Gone</b> · on a card</span></li>
+      <li class="duix__cell"><div class="ag-card duix__pad duix__stack">
+        <p class="duix__t">Size · M</p>
+        <span class="ag-stock ag-stock--line ag-stock--ok" aria-live="polite">In stock</span>
+      </div><span class="duix__cap"><b>In stock</b> · the item page’s size line</span></li>
+      <li class="duix__cell"><div class="ag-card duix__pad duix__stack">
+        <p class="duix__t">Size · XL</p>
+        <span class="ag-stock ag-stock--line ag-stock--gone" aria-live="polite">Sold out in XL</span>
+      </div><span class="duix__cap"><b>Gone</b> · the item page’s size line</span></li>
+    </ul>
+  </section>
+
+  {# ══ COUNT BADGE — reads --ag-ease-pop and --ag-dur-3 ═════════════════════ #}
+  <section class="duix__sec" id="ui-badge" data-duix-sec="badge count pop filters cart number">
+    <h2 class="duix__h2">Count badge</h2>
+    <p class="duix__note">Choose a filter and the count pops on the overshooting curve. With
+      reduced motion it simply shows the new number.</p>
+    <div class="duix__row">
+      <button type="button" class="ag-btn ag-btn--secondary ag-btn--pill duix__filters">
+        Filters <span class="ag-badge ag-badge--ink" data-duix-count aria-hidden="true">1</span><span class="ag-sr" data-duix-count-sr>, 1 on</span>
+      </button>
+      <span class="ag-badge" role="img" aria-label="3 in your cart">3</span>
+    </div>
+    <div class="ag-chip-row" role="group" aria-label="Filters" data-duix-filters>
+      <button type="button" class="ag-chip" aria-pressed="true">Apparel</button>
+      <button type="button" class="ag-chip" aria-pressed="false">Accessories</button>
+      <button type="button" class="ag-chip" aria-pressed="false">Winners</button>
+      <button type="button" class="ag-chip" aria-pressed="false">Gives back</button>
+    </div>
+  </section>
+
 </div>
 {% endblock %}
 
-{% block head_styles %}
-<style nonce="{{ csp_nonce }}">
-  /* Page-local specimen furniture. Every value is a token; nothing here is a
-     component, so none of it belongs in components.css. */
-  .duix{ background:var(--ag-ground) }
-  .duix__wrap{ max-width:1180px; margin:0 auto; padding:var(--ag-sp-32) var(--ag-gutter) var(--ag-sp-64) }
-  .duix__head{ margin-bottom:var(--ag-sp-40) }
-  .duix__kicker{ margin:0 0 var(--ag-sp-8); font-size:13px; font-weight:600; color:var(--ag-green) }
-  .duix__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:44px; line-height:1.06 }
-  .duix__lede{ max-width:62ch; margin:var(--ag-sp-12) 0 0; font-size:17px; line-height:1.65; color:var(--ag-ink-2) }
-  .duix__sec{ margin-top:var(--ag-sp-48); padding-top:var(--ag-sp-32); border-top:1px solid var(--ag-line) }
-  .duix__h2{ margin:0 0 var(--ag-sp-8); font-size:19px; font-weight:700; line-height:1.3 }
-  .duix__note{ max-width:62ch; margin:0 0 var(--ag-sp-20); font-size:14.5px; line-height:1.5; color:var(--ag-soft) }
-  .duix__row{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-12); margin-bottom:var(--ag-sp-12); align-items:center }
-  .duix__row--block{ display:block }
-  .duix__grid2{ display:grid; gap:var(--ag-sp-20) }
-  @media (min-width:720px){ .duix__grid2{ grid-template-columns:1fr 1fr } }
-  .duix__mt{ margin-top:var(--ag-sp-12) }
-  .duix__cardpad{ padding:var(--ag-sp-18) }
-  .duix__spec{ margin-bottom:var(--ag-sp-20); border:1px solid var(--ag-line); border-radius:var(--ag-r-16); overflow:hidden }
-  .duix__foot{ margin-top:var(--ag-sp-56); font-size:13px; color:var(--ag-soft) }
-  code{ font-family:var(--ag-font-mono); font-size:13px }
+{% block sheets %}
+  {{ parent() }}
+  <div class="ag-scrim" data-duix-scrim></div>
+  <div class="ag-sheet ag-sheet--drawer" id="duix-sheet" role="dialog" aria-modal="true" aria-labelledby="duix-sheet-h" tabindex="-1" inert>
+    <span class="ag-sheet__grabber" aria-hidden="true"></span>
+    <div class="ag-sheet__head">
+      <span></span>
+      <h2 id="duix-sheet-h" class="duix__sheeth">Filters</h2>
+      <button type="button" class="ag-appbar__icon" aria-label="Close" data-duix-sheet-close>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="ag-sheet__body">
+      <div class="duix__stack">
+        <span class="ag-label" id="duix-sheet-sort">Sort</span>
+        <div class="ag-seg" role="radiogroup" aria-labelledby="duix-sheet-sort" data-duix-seg>
+          <button type="button" class="ag-seg__opt" role="radio" aria-checked="true" tabindex="0">Featured</button>
+          <button type="button" class="ag-seg__opt" role="radio" aria-checked="false" tabindex="-1">Newest</button>
+        </div>
+        <div class="ag-list">
+          <button type="button" class="ag-list__row" role="switch" aria-checked="false" data-duix-toggle><span class="ag-list__label">In stock only</span><span class="ag-switch" aria-hidden="true"></span></button>
+        </div>
+        <button type="button" class="ag-btn ag-btn--primary ag-btn--block" data-duix-sheet-close>Show 24 items</button>
+      </div>
+    </div>
+  </div>
+{% endblock %}
 
-  .duix__swatches{ display:grid; gap:var(--ag-sp-10); margin:0; padding:0; list-style:none;
-    grid-template-columns:repeat(auto-fill,minmax(250px,1fr)) }
-  .duix__sw{ display:grid; grid-template-columns:34px 1fr; gap:var(--ag-sp-10) var(--ag-sp-12); align-items:center }
-  .duix__sw b{ font-size:13px; font-weight:700; font-family:var(--ag-font-mono) }
-  .duix__sw > span:last-child{ grid-column:2; font-size:12.5px; color:var(--ag-soft) }
-  .duix__chip{ grid-row:span 2; width:34px; height:34px; border-radius:var(--ag-r-10);
-    background:var(--c); border:1px solid var(--ag-line-2) }
+{% block foot_scripts %}
+<script nonce="{{ csp_nonce }}">
+/* The specimen page's own wiring. Everything it drives is a real component; this
+   only changes their states the way a screen built on them would. */
+(function () {
+  'use strict';
+  function all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
-  .duix__type > *{ margin:0 0 var(--ag-sp-14) }
-  .duix__t-d{ font-family:var(--ag-font-display); font-weight:700; font-size:44px; line-height:1.06 }
-  .duix__t-h2{ font-size:19px; font-weight:700; line-height:1.3 }
-  .duix__t-card{ font-size:17px; font-weight:700 }
-  .duix__t-body{ max-width:62ch; font-size:16px; line-height:1.65 }
-  .duix__t-sec{ font-size:14.5px; line-height:1.5; color:var(--ag-ink-2) }
-  .duix__t-meta{ font-size:13.5px; color:var(--ag-soft) }
-  .duix__t-micro{ font-size:12.5px; color:var(--ag-soft) }
-  .duix__t-mono{ font-family:var(--ag-font-mono); font-size:13px; font-weight:500 }
+  /* Search: filters the sections; nothing left is the real empty state. */
+  var input = document.querySelector('[data-cs-input]');
+  var empty = document.querySelector('[data-duix-empty]');
+  var emptyT = document.querySelector('[data-duix-empty-t]');
+  var clearIn = document.querySelector('[data-duix-search] [data-duix-clear]');
+  var secs = all('[data-duix-sec]');
+  function filter() {
+    var q = input.value.trim().toLowerCase(), shown = 0;
+    secs.forEach(function (s) {
+      var hit = !q || s.getAttribute('data-duix-sec').indexOf(q) > -1 ||
+                s.querySelector('h2').textContent.toLowerCase().indexOf(q) > -1;
+      s.hidden = !hit; if (hit) shown++;
+    });
+    clearIn.hidden = !q;
+    empty.hidden = shown > 0;
+    emptyT.textContent = shown ? '' : 'Nothing on this page matches “' + input.value.trim() + '”.';
+  }
+  input.addEventListener('input', filter);
+  all('[data-duix-clear]').forEach(function (b) {
+    b.addEventListener('click', function () { input.value = ''; filter(); input.focus(); });
+  });
 
-  .duix__scale, .duix__radii, .duix__layers, .duix__shadows{ margin:0; padding:0; list-style:none }
-  .duix__scale li{ display:flex; align-items:center; gap:var(--ag-sp-12); margin-bottom:var(--ag-sp-6) }
-  .duix__scale i{ display:block; height:14px; border-radius:var(--ag-r-7); background:var(--ag-green-edge) }
-  .duix__scale b{ font-family:var(--ag-font-mono); font-size:12.5px; color:var(--ag-soft) }
+  /* Switches: the button with the role flips its own aria-checked. */
+  all('[data-duix-toggle]').forEach(function (t) {
+    t.addEventListener('click', function () {
+      t.setAttribute('aria-checked', String(t.getAttribute('aria-checked') !== 'true'));
+    });
+  });
 
-  .duix__radii{ display:grid; gap:var(--ag-sp-14); grid-template-columns:repeat(auto-fill,minmax(150px,1fr)) }
-  .duix__radii li{ display:grid; grid-template-columns:56px 1fr; gap:var(--ag-sp-10); align-items:center }
-  .duix__radii i{ display:block; width:56px; height:56px; background:var(--ag-tint); border:1px solid var(--ag-line-2) }
-  .duix__radii b{ font-family:var(--ag-font-mono); font-size:13px }
-  .duix__radii span{ grid-column:2; font-size:12.5px; color:var(--ag-soft) }
+  /* Segmented controls: a radio group — click or arrow keys, roving tabindex. */
+  all('[data-duix-seg]').forEach(function (g) {
+    var opts = all('[role="radio"]', g);
+    function pick(o, focus) {
+      opts.forEach(function (x) { var on = x === o; x.setAttribute('aria-checked', String(on)); x.tabIndex = on ? 0 : -1; });
+      if (focus) o.focus();
+    }
+    opts.forEach(function (o, i) {
+      o.addEventListener('click', function () { pick(o, false); });
+      o.addEventListener('keydown', function (e) {
+        var d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+        if (!d) return;
+        if (document.dir === 'rtl' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) d = -d;
+        e.preventDefault();
+        pick(opts[(i + d + opts.length) % opts.length], true);
+      });
+    });
+  });
 
-  .duix__layers li{ display:flex; align-items:center; gap:var(--ag-sp-12); margin-bottom:var(--ag-sp-8) }
-  .duix__layers b{ display:flex; align-items:center; justify-content:center; width:44px; height:28px;
-    border-radius:var(--ag-r-7); background:var(--ag-tint); font-family:var(--ag-font-mono); font-size:12.5px;
-    /* The token is read here: the specimen's own stack order is the value it names. */
-    position:relative; z-index:var(--z) }
-  .duix__layers span{ font-size:13.5px; color:var(--ag-soft) }
+  /* Loading: pressed and disabled at once, label kept as "Sending…". */
+  all('[data-duix-busy]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var label = b.textContent;
+      b.setAttribute('aria-busy', 'true'); b.textContent = 'Sending…';
+      setTimeout(function () { b.removeAttribute('aria-busy'); b.textContent = label; }, 1500);
+    });
+  });
 
-  .duix__shadows{ display:grid; gap:var(--ag-sp-20); grid-template-columns:repeat(auto-fill,minmax(170px,1fr)) }
-  .duix__shadows li{ display:grid; gap:var(--ag-sp-8) }
-  .duix__shadows i{ display:block; height:64px; border-radius:var(--ag-r-14); background:var(--ag-surface) }
-  .duix__shadows b{ font-family:var(--ag-font-mono); font-size:13px }
-  .duix__shadows span{ font-size:12.5px; color:var(--ag-soft) }
+  /* The sheet, through the shell's own sheet behaviour. */
+  var sheet = document.getElementById('duix-sheet');
+  var scrim = document.querySelector('[data-duix-scrim]');
+  var opener = document.querySelector('[data-duix-sheet]');
+  var close = null;
+  opener.addEventListener('click', function () { close = window.AGShell.openSheet(sheet, scrim, opener); });
+  all('[data-duix-sheet-close]').forEach(function (b) {
+    b.addEventListener('click', function () { if (close) { close(); close = null; } });
+  });
 
-  .duix__switchrow{ display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-12);
-    min-height:56px }
-</style>
+  /* Filters: the count badge follows the chips and pops when it changes. */
+  var count = document.querySelector('[data-duix-count]');
+  var countSr = document.querySelector('[data-duix-count-sr]');
+  all('[data-duix-filters] .ag-chip').forEach(function (c) {
+    c.addEventListener('click', function () {
+      c.setAttribute('aria-pressed', String(c.getAttribute('aria-pressed') !== 'true'));
+      var n = all('[data-duix-filters] [aria-pressed="true"]').length;
+      count.textContent = String(n);
+      countSr.textContent = ', ' + n + ' on';
+      count.removeAttribute('data-pop');
+      void count.offsetWidth;            /* restart the animation on a repeat change */
+      count.setAttribute('data-pop', '');
+    });
+  });
+})();
+</script>
 {% endblock %}

@@ -216,26 +216,17 @@
   })();
   </script>
 
-  {# ── THE FOUR COLOURS THIS SITE MAY MEAN SOMETHING WITH ────────────────────
-     Emitted from Support\Accent rather than written into a stylesheet, so the values
-     the page receives and the values AccentTest measures cannot drift apart. That drift
-     is how FOUR golds (#f3b416, #fbc329, #c9a24b, #7a5600) came to be in circulation
-     under a house style naming one — and how the one the style names came to be used as
-     a hairline, where 1.65:1 against paper is invisible.
+  {# ── EVERY COLOUR ON THE SITE, FROM ONE PLACE ───────────────────────────────
+     Support\Accent emits the handoff's palette (REFERENCE §6.1) and its shadows
+     (§6.5) as custom properties, and is the only file a colour literal may be typed
+     in. Emitted rather than written into a stylesheet so the values the page receives
+     and the values AccentTest and SlotFloorTest measure are the same values; a colour
+     with two sources is decided by load order, which is how four golds came to be in
+     circulation under a house style naming one.
 
-     ── IT MOVED ABOVE THE STYLESHEETS, AND THAT IS THE WHOLE POINT ───────────
-     It used to sit AFTER them, deliberately, so it would win the cascade. That was the
-     right answer while it was the only source of colour and the wrong one the moment
-     the redesign brought a token layer: an inline <style> beats a linked sheet at the
-     same specificity, so `tokens.css` would have been silently overridden on every name
-     the two share — and five of the six colliding names carry IDENTICAL values, so the
-     only visible symptom would have been one hairline, `--ag-line`, quietly staying the
-     old colour.
-
-     So the cascade is inverted rather than the machinery deleted. Accent still owns the
-     four roles and their sixteen slots, still has its floors re-derived by AccentTest
-     and SlotFloorTest on every run, and `tokens.css` now wins where the two overlap.
-     Nothing is declared in both files. #}
+     BEFORE the stylesheets, and nothing below redeclares a colour — `tokens.css` holds
+     none (ColourLiteralTest), so there is no cascade between them left to win. Every
+     layout writes this same block: gates, shell, and the three sign-in screens. #}
   {# Display & reading, before the first paint. On THIS layout too, and that is the
      point: a text size that applies on the two converted pages and not on the other
      hundred and eighty is worse than one that applies nowhere, because it reads as
@@ -271,22 +262,16 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/redesign-2026.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/aurora.css') }}">
 
-  {# ── New modular design system (built alongside legacy; migrated per-page) ──
-     `base/tokens.css` is GONE, superseded by `/assets/css/tokens.css` below. It
-     had been emptied of colour already (Accent took that over); what was left —
-     the fluid display sizes, the named radii, the old z ladder — moved into the
-     new file's compatibility block, which each phase shrinks. Two files called
-     tokens.css was itself the confusion worth removing. #}
+  {# ── New modular design system (built alongside legacy; migrated per-page) ── #}
   <link rel="stylesheet" href="{{ asset('/assets/css/base/reset.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/base/typography.css') }}">
   {# ── THE REDESIGN LAYER — BASE, THEN THE COMPONENTS THAT SPECIALISE IT ───────
-     tokens.css is the single source of every colour, size, radius, shadow and
-     duration in the redesign (REFERENCE §6). shell.css gives the page its
+     tokens.css is the single source of every size, radius, duration and layer in
+     the redesign (REFERENCE §6.2–§6.7); colour and shadow come from the Accent
+     block above. shell.css gives the page its
      structure — only <main> scrolls — and components.css the base components.
 
-     AFTER the legacy sheets above, which is what lets the redesign replace them, and
-     after the inline Accent block, which is what makes tokens.css authoritative: a
-     linked sheet cannot beat an inline one, so the inline one moved earlier.
+     AFTER the legacy sheets above, which is what lets the redesign replace them.
 
      And BEFORE every component sheet below, which is the half that used to be wrong.
      This block loaded last, so the shared layer beat every page's own sheet at equal
@@ -298,6 +283,10 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
+  {# Moved out of components.css unchanged when Phase 1 rebuilt it — Phase 2's chrome,
+     then the records library. Same position they held inside it (GAPS §7.2). #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/chrome.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/library.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/flash.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/loader.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">

@@ -12,7 +12,7 @@
    ════════════════════════════════════════════════════════════════ */
 
 .ag-flash-rail{
-  max-width:var(--ag-maxw,1240px);
+  max-width:1240px;
   margin:0 auto;
   padding:14px var(--ag-gutter,24px) 0;
   display:grid;
@@ -26,7 +26,7 @@
   padding:13px 16px;
   border:1px solid;
   border-left-width:3px;
-  border-radius:var(--ag-r-sm,10px);
+  border-radius:var(--ag-r-10,10px);
   background:var(--ag-surface,#fff);
   font-size:.9375rem;
   line-height:1.55;

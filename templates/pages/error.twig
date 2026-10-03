@@ -58,7 +58,7 @@
   body[data-page=""]{ }
   .err{ min-height:74vh; display:flex; align-items:center; justify-content:center; text-align:center;
     padding:clamp(2rem,5vw,3.5rem) var(--ag-gutter,24px) clamp(2.5rem,6vw,4rem);
-    background:var(--ag-bg); }
+    background:var(--ag-ground); }
   .err__wrap{ max-width:600px; margin:0 auto; width:100%; }
 
   /* illustration: centered, dissolves softly into the light page on every edge — no box, no seam, no cut */
@@ -74,12 +74,12 @@
   .err__btn{ text-decoration:none; font-weight:600; font-size:14px; padding:13px 28px; border-radius:999px; cursor:pointer; border:1px solid transparent; transition:background .15s, border-color .15s, transform .15s; font-family:inherit; }
   .err__btn:hover{ transform:translateY(-1px); }
   .err__btn--p{ background:var(--ag-green); color:#fff; }
-  .err__btn--p:hover{ background:var(--ag-green-dark); }
+  .err__btn--p:hover{ background:var(--ag-green-deep); }
   .err__btn--g{ background:var(--ag-surface); border-color:rgba(16,41,44,.16); color:var(--ag-ink); }
   .err__btn--g:hover{ border-color:rgba(16,41,44,.34); }
 
   /* ── Dark 500 variant: centered card, no illustration ── */
-  .err--dark{ background:var(--ag-bg); }
+  .err--dark{ background:var(--ag-ground); }
   .err--dark .err__wrap{ background:radial-gradient(120% 120% at 20% 0%,#1d5b2a,#10292C 62%);
     border-radius:26px; padding:clamp(2.8rem,5vw,3.8rem) clamp(1.6rem,4vw,3.4rem); color:#fff; }
   .err--dark .err__h{ color:#fff; }

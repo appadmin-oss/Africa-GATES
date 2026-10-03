@@ -38,8 +38,8 @@
      So the bar's height is reserved rather than discovered, and the same value keeps the
      conversation from ending behind it. */
   .iv{ --iv-bar:env(safe-area-inset-bottom, 0px); --iv-top:0px;
-    background:#fff; color:#10292c; font-family:var(--ag-font-body, "DM Sans", system-ui, sans-serif);
-    min-height:calc(100dvh - var(--ag-nav-h, 72px)); display:flex; flex-direction:column;
+    background:#fff; color:#10292c; font-family:var(--ag-font-ui, "DM Sans", system-ui, sans-serif);
+    min-height:calc(100dvh - var(--ag-header-h)); display:flex; flex-direction:column;
     max-width:640px; margin:0 auto; width:100%; box-sizing:border-box }
   /* The page renders with `hide_chrome`, so there is no site nav above and no tab bar below
      to reserve room for — only the phone's own home-indicator inset. The two variables stay
@@ -113,7 +113,7 @@
 
   /* ── 07 · the conversation ─────────────────────────────────────────────── */
   .iv__head{ padding:8px 20px 14px; background:#fff; border-bottom:1px solid rgba(16,41,44,.08);
-    position:sticky; top:var(--ag-nav-h, 72px); z-index:4 }
+    position:sticky; top:var(--ag-header-h); z-index:4 }
   .iv__headrow{ display:flex; align-items:center; gap:12px }
   .iv__title{ font:600 14px/1.2 inherit; color:#10292c; margin:0 }
   .iv__status{ font:500 10px/1.4 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;

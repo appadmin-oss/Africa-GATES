@@ -74,7 +74,7 @@
      15px = (48px field − 18px icon) ÷ 2, and the field is the first row at every width,
      so this is centred on it whether the row wraps or not. */
   top: 15px;
-  color: var(--ag-ink-soft, #626a6e);
+  color: var(--ag-soft, #626a6e);
   pointer-events: none;
 }
 
@@ -85,21 +85,21 @@
      control of the band and is used most on a phone, one-handed. */
   min-height: 48px;
   padding: 0 16px 0 44px;
-  border: 1px solid var(--ag-line-strong, #c9c6bc);
+  border: 1px solid var(--ag-line-2, #c9c6bc);
   border-radius: 999px;
-  background: var(--ag-card, #fff);
-  font: 400 16px/1 var(--ag-font-body, system-ui);
+  background: var(--ag-surface, #fff);
+  font: 400 16px/1 var(--ag-font-ui, system-ui);
   color: var(--ag-ink, #10292c);
 }
 
-.fb__input::placeholder { color: var(--ag-ink-soft, #626a6e); opacity: 1; }
-.fb__input:hover { border-color: var(--ag-ink-soft, #626a6e); }
+.fb__input::placeholder { color: var(--ag-soft, #626a6e); opacity: 1; }
+.fb__input:hover { border-color: var(--ag-soft, #626a6e); }
 
 /* A visible focus ring, 3px, offset so it is not swallowed by the pill's own
    border — WCAG 2.4.7, and 2.4.11 is why nothing sticky may cover this band. */
 .fb__input:focus-visible,
 .fb__go:focus-visible {
-  outline: 3px solid var(--ag-action-edge, #237b22);
+  outline: 3px solid var(--ag-green, #237b22);
   outline-offset: 2px;
 }
 .fb__input:focus-visible { border-color: var(--ag-ink, #10292c); }
@@ -112,8 +112,8 @@
   border: 1px solid var(--ag-ink, #10292c);
   border-radius: 999px;
   background: var(--ag-ink, #10292c);
-  color: var(--ag-card, #fff);
-  font: 600 14px/1 var(--ag-font-body, system-ui);
+  color: var(--ag-surface, #fff);
+  font: 600 14px/1 var(--ag-font-ui, system-ui);
   cursor: pointer;
 }
 .fb__go:hover { background: var(--ag-ink-2, #3a4a4c); border-color: var(--ag-ink-2, #3a4a4c); }
@@ -124,7 +124,7 @@
   margin: 16px auto 0;
   font-size: 13px;
   line-height: 1.55;
-  color: var(--ag-ink-soft, #626a6e);
+  color: var(--ag-soft, #626a6e);
   text-wrap: pretty;
 }
 

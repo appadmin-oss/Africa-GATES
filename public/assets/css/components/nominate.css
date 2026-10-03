@@ -576,3 +576,20 @@
   .nf--done{ width:100%; max-width:680px; margin-inline:auto }
   .ns__h{ font-size:36px }
 }
+
+
+/* ══ Moved from components.css unchanged (Phase 1 carve, GAPS §7.2) ══════════════
+   `partials/ai-collection-notice.twig` is included by pages/nominate-award.twig and
+   nothing else, so its rule is this page's and is destroyed with it in Phase 8. */
+/* ══ Point-of-collection AI notice ═══════════════════════════════════════════
+   Beside the field, generated from the capability registry — see
+   `partials/ai-collection-notice.twig`. Informational rather than a warning: it
+   describes what happens, and dressing it as a fault teaches people to dismiss
+   the notices that are one. */
+.ag-ai-note{
+  margin:0; padding:var(--ag-sp-10) var(--ag-sp-12);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-12);
+  background:var(--ag-surface);
+  font-size:13px; line-height:1.5; color:var(--ag-ink-2);
+}
+.ag-ai-note a{ color:var(--ag-green-deep); font-weight:600 }

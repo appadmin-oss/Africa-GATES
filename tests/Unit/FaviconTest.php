@@ -97,7 +97,8 @@ final class FaviconTest extends TestCase
     public function test_its_colours_are_tokens_that_exist(): void
     {
         $js     = (string) file_get_contents(self::ROOT . '/public/assets/js/favicon.js');
-        $tokens = (string) file_get_contents(self::ROOT . '/public/assets/css/tokens.css');
+        // Colour tokens are emitted by Support\Accent, the rest live in tokens.css.
+        $tokens = \AfricaGates\Support\Accent::css() . (string) file_get_contents(self::ROOT . '/public/assets/css/tokens.css');
 
         preg_match_all("~token\('(--ag-[a-z0-9-]+)'~", $js, $m);
         $this->assertGreaterThanOrEqual(5, count($m[1]));

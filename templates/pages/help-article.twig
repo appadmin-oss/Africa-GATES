@@ -96,11 +96,11 @@
   .ha-prog{ position:fixed; inset:0 auto auto 0; width:100%; height:3px; z-index:60; background:transparent; pointer-events:none; }
   .ha-prog__b{ height:100%; width:0; background:linear-gradient(90deg,#7FC87C,#177015); transition:width .08s linear; }
 
-  .ha-crumb{ display:flex; align-items:center; gap:7px; font-size:13px; color:var(--ag-ink-soft); margin-bottom:16px; flex-wrap:wrap; }
+  .ha-crumb{ display:flex; align-items:center; gap:7px; font-size:13px; color:var(--ag-soft); margin-bottom:16px; flex-wrap:wrap; }
   /* Standalone navigation rather than a link in a sentence, so it does not get SC
      2.5.8's inline exception — it measured 19.4px tall. */
   .ha-crumb a{ display:inline-flex; align-items:center; min-height:24px;
-    color:var(--ag-ink-soft); text-decoration:none; }
+    color:var(--ag-soft); text-decoration:none; }
   .ha-crumb a:hover{ color:var(--ag-green); }
   .ha-crumb svg{ flex:none; opacity:.5 }
 
@@ -122,7 +122,7 @@
   .ha-copy{ margin-left:auto; cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; display:inline-flex;
     align-items:center; gap:6px; padding:7px 12px; border-radius:999px; border:1px solid rgba(16,41,44,.14);
     background:var(--ag-surface); color:#4a5256; }
-  .ha-copy:hover{ border-color:var(--ag-green); color:var(--ag-green-dark,#177015); }
+  .ha-copy:hover{ border-color:var(--ag-green); color:var(--ag-green-deep,#177015); }
   .ha-copy.is-done{ border-color:#bfe0bd; background:#eef7ee; color:#1a6118; }
 
   .ha-main h1{ margin:14px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.45rem,3.4vw,2rem); line-height:1.2; letter-spacing:-.015em; }
@@ -133,7 +133,7 @@
   .ha-body{ max-width:62ch; }
   .ha-body p{ margin:0 0 16px; font-size:16px; line-height:1.72; color:#39464a; }
   .ha-body p:last-child{ margin-bottom:0; }
-  .ha-body a{ color:var(--ag-green-dark,#177015); text-decoration:underline; text-underline-offset:2px; }
+  .ha-body a{ color:var(--ag-green-deep,#177015); text-decoration:underline; text-underline-offset:2px; }
   .ha-body strong{ color:var(--ag-ink); font-weight:650; }
   .ha-body code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.88em; background:#eef2ef;
     border:1px solid rgba(16,41,44,.09); border-radius:5px; padding:1px 5px; white-space:nowrap; }
@@ -181,7 +181,7 @@
   .ha-fb__r{ display:flex; gap:9px; margin-top:12px; flex-wrap:wrap; }
   .ha-fb__b{ cursor:pointer; font-family:inherit; font-size:14px; font-weight:600; padding:10px 18px; border-radius:999px;
     border:1px solid rgba(16,41,44,.16); background:var(--ag-surface); color:#39464a; text-decoration:none; display:inline-block; }
-  .ha-fb__b:hover{ border-color:var(--ag-green); color:var(--ag-green-dark,#177015); }
+  .ha-fb__b:hover{ border-color:var(--ag-green); color:var(--ag-green-deep,#177015); }
   .ha-fb__ok{ font-size:14px; color:#1a6118; font-weight:600; }
 
   /* prev / next */
@@ -189,7 +189,7 @@
   .ha-pn a{ display:block; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px;
     padding:14px 16px; text-decoration:none; transition:border-color .15s; }
   .ha-pn a:hover{ border-color:var(--ag-green); }
-  .ha-pn__l{ display:block; font:600 11px/1 var(--ag-font-body); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; }
+  .ha-pn__l{ display:block; font:600 11px/1 var(--ag-font-ui); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; }
   .ha-pn__t{ display:block; margin-top:6px; font-size:14px; font-weight:600; line-height:1.4; color:var(--ag-ink); }
   .ha-pn__next{ text-align:right; }
   /* When there is no previous, the next must not slide left into its place. */
@@ -205,7 +205,7 @@
   .ha-box li + li{ border-top:1px solid rgba(16,41,44,.06); }
   .ha-box a{ display:block; padding:9px 0; font-size:14px; line-height:1.5; color:#39464a; text-decoration:none; }
   .ha-box a:hover{ color:var(--ag-green); }
-  .ha-box a[aria-current]{ color:var(--ag-green-dark,#177015); font-weight:650; }
+  .ha-box a[aria-current]{ color:var(--ag-green-deep,#177015); font-weight:650; }
 
   /* Flat. The radial-gradient orb that used to sit in this corner was decoration
      doing no work, and the same move appeared on the index and on the donations page —

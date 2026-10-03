@@ -296,24 +296,69 @@ generated section is the fact. `2027_01_23_cookie_policy_repair.php` corrects pr
 stored copy **only where `updated_by IS NULL`** — an operator's edits are theirs.
 `docs/CODEBASE-INDEX.md` §24.
 
-## A bare hex is not a colour: `fill`, `edge`, `ink`, `wash`
+## A bare hex is not a colour: one palette, typed in one file
 
-The house style used to name **one gold accent, `#f3b416`**. On the house paper it is
-**1.65:1** — under the 3:1 a border owes and far under the 4.5:1 a word owes — and it was
-being used as a hairline and as a mono micro-label. That is the whole reason the site read
-monochrome: not too little colour, but **colour used as a LINE when it is only ever visible
-as a FIELD**. Three of five tokens failed on paper (`--ag-gold` `#c9a24b` 2.13 was a SECOND
-gold nothing mentioned; `--ag-green-light` 1.79; `--ag-pulse` 4.08 — a pass for a border and
-a fail for a word, and it WAS a word on three public screens). Underneath: **642 distinct hex
-values in the templates**, four golds among them, because people were hand-deriving this ramp
-separately.
+**`Support\Accent` is the handoff's palette, exactly, and the only file a colour literal may
+be typed in.** The redesign handoff (REFERENCE §6.1, `snippets/css/tokens.css`) names 32
+colour tokens — `ink`, `ink-2`, `soft`, `mute`, `ground`, `surface`, `bar`, `line`/`-2`/`-3`,
+`tint`, the `green`, `gold`, `live` and `info` families, `error`, `stock-low`/`-gone`,
+`scrim`, `chevron`, `grabber` — and the owner decided (2 Oct 2026, GAPS §8 Q1–Q3) to ship
+them **±0, under the handoff's names**, with `Accent` destroyed and rebuilt as that table
+rather than `tokens.css` becoming a second source. `Accent::css()` emits them, plus the
+handoff's shadows (`--ag-sh-*`, which are rgba of the house ink and so are colour), into one
+nonced `<style>` that EVERY layout writes before its stylesheets — gates, shell, and the
+admin/judge sign-in screens. `public/assets/css/tokens.css` holds sizes, radii, motion and
+layers and **no colour at all**. Mail and GD cannot read `var()`; they ask `Accent::hex('soft')`
+by name, and an unknown name throws rather than painting a button blank.
 
-`Support\Accent` is the ramp. Same `fill`/`edge` split `EventTierTone` already draws; **never
-invent a fifth name.** A `fill` owes NO floor and that is load-bearing — demanding 3:1 of it
-forces the gold to a mustard nobody chose, which is how an accessibility pass fixes a palette
-into blandness. The rule held instead is that a fill is never the only carrier of meaning.
-`AccentTest` re-derives every floor, keeps each lifted value within 18° of its identity, and
-caps a public template at **two roles** — rarity is not something a palette can hope for.
+Why PHP and not a stylesheet: the values the page receives and the values the tests measure
+must be the same values. A colour with two sources is decided by load order, which is how
+four golds came to be in circulation under a house style naming one — and how, until this
+rebuild, `--ag-line` was `#d6d4cc` from Accent and `#e8e5dd` from `tokens.css` at once.
+
+**No compatibility aliases.** The old roles (`--ag-honour-*`, `--ag-action-*`, `--ag-caution-*`,
+the inverted `fault`), `--ag-ink-soft`, `--ag-surface-2`, `--ag-card`, `--ag-line-strong` and
+the twenty-two-name compatibility block were deleted, and every reader was rewritten to the
+new name in the same change: honour → `gold`, action → `green`, caution and fault → `error`
+(there is no inverted error block in the handoff; a refusal is `--ag-error` WORDS, and where it
+needs a field it takes `live-wash`, as the handoff's own audit tile does). An alias is a patch:
+it lets a dead name go on working, so nothing ever forces its reader to change. The full
+old → new table is in the Phase 1 inventory and in `Accent`'s docblocks.
+
+**What "ship exactly" costs is accepted, and written down as data.** The gold on the ground
+is 1.61:1, the outlined chip and input border (`line-2` on white) 1.48:1, `mute` 2.75:1,
+the hairlines and edges lower still. The previous house rule failed every one of them as a
+line; the owner accepted them (Q2), so `Accent::ACCEPTED` lists each with the floor it is
+under and `SlotFloorTest` holds that the list stays true — none may become a word, and none
+may quietly be lifted. **What is not relaxed is every token drawn as a word**:
+`Accent::words()` names each word token and every ground it is drawn on, measured at 4.5:1
+every run (`soft` is 4.80 on the ground and 4.38 on `tint`, so `tint` is not in its row). If
+one fails, the instruction is to REPORT it, not to edit the hex.
+
+**A family is four slots of token names** (`fill`, `edge`, `ink`, `wash`), meanings resolve to
+families (`Accent::for('withheld')` throws on a typo), and a tile or a programme spine is
+painted with `var(--ag-…)` inline — never a hex. A programme's identity colour survives as a
+feature, in the only two families no meaning has claimed on a results page: `info`, then
+`ink`; a third programme wraps, and its printed name is what tells it apart.
+
+**The guards had to learn the new names, and two of them had to learn to read CSS.** The old
+ceilings recognised a field by its slot name (`--ag-honour-wash`), so a page painted entirely
+in `--ag-green`/`--ag-gold` passed unchecked (GAPS C2) — and the handoff's names do not encode
+field-versus-word: `--ag-green` is the primary button, the focus ring and a link. So a field
+is now decided by PROPERTY (`Tests\Support\ColourFields`: a wash anywhere, a hue only in a
+`background`/`fill`), shared by `AccentTest`'s two-family ceiling, `ColourBudgetTest`'s tiers
+and money rule and `ColourIsNeverAloneTest`. Seeing the names surfaced 32 pages that spend
+green with no declared tier and 18 coloured elements with no word; both are count-per-file
+backlogs that may only shrink, owned by each page's rebuild. And `ColourLiteralTest` replaced
+the template-only hex sweep: it counts hex, `rgb()`, `rgba()`, `hsl()` in templates AND
+authored CSS (C8), holds `tokens.css`, `shell.css` and `components.css` at zero by name, and
+ratchets the rest. A translucent palette colour is `color-mix(in srgb, var(--ag-ink) 8%,
+transparent)`, never a typed rgba. `DeadTokenTest` counts Accent's emitted names as
+declarations, or moving colour into PHP would have exempted every colour token from it.
+
+**Shadows exist now.** This file used to say there were none and depth was "the lip". The
+handoff's shadows were adopted (Q3); the lip survives only on three legacy button classes in
+`components/lip.css` until their pages are rebuilt.
 
 `Support\Contrast` is the one relative-luminance implementation; there were four, and the
 fifth is where the wrong threshold lands. Each caller keeps its own threshold (`Swatch`'s
@@ -906,6 +951,13 @@ something a controller passes. A render test that builds its own `Environment` u
 `strict_variables` breaks the moment the screen gains a form, for a reason unrelated to the
 screen — 16 tests at once. Mirror the app's globals in the test; do not default the token in
 the template, which posts an empty one and has the write rejected in production.
+
+**`|trans` is the same trap, louder.** An unknown FILTER is a compile error, not a blank,
+so the first `|trans` added to a shared partial breaks every test that builds a bare
+`Environment` over it — and every mailer that does, from a cron tick whose catch swallows
+it. Wrap the construction in `Translator::register(new Environment(…))`;
+`TranslatorTest` sweeps `src/` for one that is not. Never `is_safe` the filter, and never
+add a catalogue entry nothing passes to `|trans` — that test fails on both.
 
 ### The MySQL parity run, which is the one that finds things
 
@@ -1682,7 +1734,8 @@ smoke check that a symbol decodes at all; the threshold question needs a camera.
 Comments explain *why*, and name the failure the code exists to prevent — this codebase is
 maintained by people who were not in the room. Match the density of the file you are in.
 
-Design system: paper ground `#f0f2f2`, hairline rules, mono micro-labels. **Colour comes
-from `Support\Accent` and nowhere else** — four roles (`honour`, `action`, `live`,
-`caution`), four values each (`fill`, `edge`, `ink`, `wash`). See the section above for why a
-bare hex is not a colour here.
+Design system: the handoff's — ground `#f1efe9`, white cards, hairline rules, the shadows
+of REFERENCE §6.5. **Colour comes from `Support\Accent` and nowhere else**: the handoff's
+32 tokens under their own names, families of four slots (`fill`, `edge`, `ink`, `wash`),
+meanings resolved by `Accent::for()`. Never invent a token the handoff does not name; never
+type a hex, `rgb()` or `hsl()` outside `Accent`. See the section above for why.

@@ -101,7 +101,8 @@ final class ChallengePageTest extends TestCase
     public function test_each_themes_solid_holds_white_text(): void
     {
         $css    = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/challenge.css');
-        $tokens = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/tokens.css');
+        // The palette is emitted by Support\Accent; tokens.css carries no colour.
+        $tokens = \AfricaGates\Support\Accent::css();
         $lum = static function (string $hex): float {
             $c = array_map(static fn ($v) => ($v /= 255) <= 0.03928 ? $v / 12.92 : (($v + 0.055) / 1.055) ** 2.4,
                            sscanf(ltrim($hex, '#'), '%02x%02x%02x'));

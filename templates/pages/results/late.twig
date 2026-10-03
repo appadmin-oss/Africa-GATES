@@ -38,30 +38,30 @@
 
   .rl{ max-width:640px; margin:0 auto;
        padding:clamp(2.5rem,7vw,4.5rem) var(--ag-gutter,32px) clamp(3rem,8vw,5.5rem); }
-  .rl-eyebrow{ margin:0 0 12px; font:600 var(--ag-fs-label) / 1 var(--ag-font-mono);
-               letter-spacing:var(--ag-tracking-label); text-transform:uppercase;
-               color:var(--ag-ink-soft); }
+  .rl-eyebrow{ margin:0 0 12px; font:600 11.5px / 1 var(--ag-font-mono);
+               letter-spacing:.22em; text-transform:uppercase;
+               color:var(--ag-soft); }
   .rl h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
           font-size:clamp(1.7rem,4.2vw,2.35rem); letter-spacing:-.02em; line-height:1.15; }
   .rl-lede{ margin:16px 0 0; font-size:16px; line-height:1.65; color:#3f484c; }
-  .rl-rule{ height:1px; background:var(--ag-line-strong); margin:clamp(1.6rem,4vw,2.2rem) 0; }
+  .rl-rule{ height:1px; background:var(--ag-line-2); margin:clamp(1.6rem,4vw,2.2rem) 0; }
 
   /* The promised date, given the weight of a fact rather than of an apology. It is the
      thing a reader is holding this platform to. */
   .rl-date{ display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline;
-            padding:14px 16px; border-left:3px solid var(--ag-pulse);
+            padding:14px 16px; border-left:3px solid var(--ag-live);
             background:rgba(224,36,94,.05); }
   .rl-date dt{ margin:0; font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.07em;
-               text-transform:uppercase; color:var(--ag-ink-soft); }
+               text-transform:uppercase; color:var(--ag-soft); }
   .rl-date dd{ margin:0; font-weight:600; font-size:16px; color:var(--ag-ink); }
 
   /* The operator's own words, set visibly apart from the platform's. A reader is entitled
      to know which sentences a person wrote for them and which the site derived. */
-  .rl-note{ margin:20px 0 0; padding:16px 18px; border:1px solid var(--ag-line-strong);
-            border-radius:var(--ag-r-lg); background:var(--ag-surface);
+  .rl-note{ margin:20px 0 0; padding:16px 18px; border:1px solid var(--ag-line-2);
+            border-radius:var(--ag-r-24); background:var(--ag-surface);
             font-size:16px; line-height:1.65; color:var(--ag-ink); white-space:pre-line; }
   .rl-note__k{ display:block; margin:0 0 8px; font:600 11px/1 var(--ag-font-mono);
-               letter-spacing:.07em; text-transform:uppercase; color:var(--ag-ink-soft); }
+               letter-spacing:.07em; text-transform:uppercase; color:var(--ag-soft); }
 
   .rl-body p{ margin:14px 0 0; font-size:16px; line-height:1.68; color:#4a5256; }
   .rl-acts{ display:flex; flex-wrap:wrap; gap:12px; margin:26px 0 0; }
@@ -69,7 +69,7 @@
            border-radius:var(--ag-r-pill); font-weight:600; font-size:14px;
            text-decoration:none; }
   .rl-btn--p{ background:var(--ag-green); color:#fff; }
-  .rl-btn--g{ border:1px solid var(--ag-line-strong); color:var(--ag-ink); background:var(--ag-surface); }
+  .rl-btn--g{ border:1px solid var(--ag-line-2); color:var(--ag-ink); background:var(--ag-surface); }
 </style>
 {% endblock %}
 

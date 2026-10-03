@@ -362,22 +362,23 @@ final class HallOfFameTest extends TestCase
         $body = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/results/hall.twig');
         $body = (string) preg_replace('/\{#.*?#\}/s', '', $body);
 
-        // A FIELD is what a reader can point at, so that is what the ceiling counts. An
-        // `edge` is a boundary and an `ink` is a word; the page draws a caution OUTLINE on
-        // a provisional caveat and an `action` focus ring, and forbidding either pushes
-        // this page toward filling the caveat — a red field under somebody's face, which
-        // is an accusation — or dropping a focus ring, which is a WCAG 2.4.7 failure
-        // traded for a palette rule.
-        foreach (Accent::roles() as $role) {
-            $used = (bool) preg_match('/var\(\s*--ag-' . $role . '-(?:fill|wash)\b/', $body);
-            $this->assertSame($role === Accent::HONOUR, $used,
-                "the hall paints a field in the '{$role}' accent");
+        // A FIELD is what a reader can point at, so that is what the ceiling counts — a
+        // family's field token painted as a BACKGROUND. An edge is a boundary and an ink
+        // is a word; the page draws an error OUTLINE on a provisional caveat and a green
+        // focus ring, and forbidding either pushes this page toward filling the caveat —
+        // a red field under somebody's face, which is an accusation — or dropping a focus
+        // ring, which is a WCAG 2.4.7 failure traded for a palette rule.
+        foreach (Accent::fields() as $family => $tokens) {
+            $alt  = implode('|', array_map(static fn (string $t): string => preg_quote($t, '/'), $tokens));
+            $used = (bool) preg_match('/background(?:-color)?\s*:[^;{}]*var\(\s*--ag-(?:' . $alt . ')(?![a-z0-9-])/', $body);
+            $this->assertSame($family === 'gold', $used,
+                "the hall paints a field in the '{$family}' family");
         }
 
-        // Three of honour's four slots are named here: the wash is the band, the edge is
-        // the boundary that owes 3:1, the ink is the word on it.
-        foreach (['edge', 'ink', 'wash'] as $slot) {
-            $this->assertStringContainsString('--ag-honour-' . $slot, $body);
+        // Three of gold's four slots are named here: the wash is the band, the edge is
+        // the boundary, the ink is the word on it.
+        foreach (['gold-edge', 'gold-ink', 'gold-wash'] as $token) {
+            $this->assertStringContainsString('--ag-' . $token, $body);
         }
 
         // The FILL is not, and that is the point rather than a gap. The saturated mark
@@ -386,7 +387,7 @@ final class HallOfFameTest extends TestCase
         // somebody liked, and this page cannot hand-roll one. A second implementation of
         // the tile is exactly how one screen's "overall winner" comes to look like
         // another's "voting open".
-        $this->assertStringNotContainsString('--ag-honour-fill', $body,
+        $this->assertDoesNotMatchRegularExpression('/--ag-gold(?![a-z0-9-])/', $body,
             'the hall is painting its own mark instead of using the tile');
         $this->assertStringContainsString("include 'partials/tile.twig'", $body);
         $this->assertStringContainsString("meaning: 'overall-winner'", $body,

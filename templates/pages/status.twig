@@ -45,8 +45,8 @@
        reads as the whole page being clipped. */
     overflow-wrap:break-word; }
 
-  .stx-kick{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
-    text-transform:uppercase; color:var(--ag-ink-soft); margin:0 0 14px; }
+  .stx-kick{ font-family:var(--ag-font-mono); font-size:11.5px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--ag-soft); margin:0 0 14px; }
 
   .stx-verdict{ font-family:var(--ag-font-display); font-weight:700; letter-spacing:-.015em;
     font-size:clamp(1.9rem,4.6vw,2.9rem); line-height:1.1; margin:0; color:var(--ag-ink); }
@@ -65,22 +65,22 @@
      a deadline or a timestamp with no zone on it is the thing people get wrong by
      exactly one hour, and this page is read across the continent. */
   .stx-stamp{ margin:22px 0 0; padding-top:16px; border-top:1px solid rgba(16,41,44,.12);
-    font-family:var(--ag-font-mono); font-size:12px; color:var(--ag-ink-soft);
+    font-family:var(--ag-font-mono); font-size:12px; color:var(--ag-soft);
     display:flex; flex-wrap:wrap; gap:6px 18px; font-variant-numeric:tabular-nums; }
   .stx-stamp b{ font-weight:600; color:var(--ag-ink); }
 
   .stx-h2{ margin:44px 0 0; padding-bottom:12px; border-bottom:1px solid rgba(16,41,44,.16);
-    font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
+    font-family:var(--ag-font-mono); font-size:11.5px; letter-spacing:.22em;
     text-transform:uppercase; color:var(--ag-ink); display:flex; justify-content:space-between;
     align-items:baseline; gap:14px; }
-  .stx-h2 span{ font-weight:400; text-transform:none; letter-spacing:0; color:var(--ag-ink-soft); }
+  .stx-h2 span{ font-weight:400; text-transform:none; letter-spacing:0; color:var(--ag-soft); }
 
   /* ── THE FOUR STATES, DEFINED ONCE ────────────────────────────────────────
      One fill vocabulary shared by the row mark, the history cells and the legend,
      so a square in the strip and the mark beside its name cannot drift apart.
      Solid / half / hatched / dashed-outline, so the states are still four things
      with no colour perception at all. */
-  .stx-f{ border:1.5px solid var(--ag-ink-soft); background:transparent; }
+  .stx-f{ border:1.5px solid var(--ag-soft); background:transparent; }
   .stx-f--operational{ background:#237b22; border-color:#237b22; }
   .stx-f--degraded{ border-color:#a4761a; background:linear-gradient(180deg,#f3b416 0 50%,transparent 50% 100%); }
   .stx-f--down{ border-color:#a32b1c; background:repeating-linear-gradient(45deg,#a32b1c 0 2px,transparent 2px 4px); }
@@ -93,7 +93,7 @@
 
   .stx-row__main{ flex:1; min-width:0; }
   .stx-row__name{ font-weight:600; font-size:1.0125rem; color:var(--ag-ink); }
-  .stx-row__what{ margin-top:3px; font-size:.875rem; color:var(--ag-ink-soft); }
+  .stx-row__what{ margin-top:3px; font-size:.875rem; color:var(--ag-soft); }
   .stx-row__detail{ margin:9px 0 0; font-size:.9125rem; line-height:1.55; color:#3c4649; max-width:54ch; }
 
   /* Capped as well as floored. Some metrics are a phrase rather than a figure
@@ -105,7 +105,7 @@
   .stx-state--down{ color:#a32b1c; }
   .stx-state--unknown{ color:#5f676a; }
   .stx-metric{ margin-top:4px; font-family:var(--ag-font-mono); font-size:12px;
-    color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
+    color:var(--ag-soft); font-variant-numeric:tabular-nums; }
 
   /* ── PER-COMPONENT HISTORY ────────────────────────────────────────────────
      One cell per day, worst-state-wins. Worst wins because a day with one broken
@@ -123,10 +123,10 @@
   .stx-cells{ display:flex; gap:3px; flex:1; min-width:0; }
   .stx-cell{ flex:1 1 0; min-width:6px; height:12px; border-radius:2px; }
   .stx-up{ flex:none; margin-left:14px; font-family:var(--ag-font-mono); font-size:12px;
-    color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; white-space:nowrap; }
+    color:var(--ag-soft); font-variant-numeric:tabular-nums; white-space:nowrap; }
 
   .stx-axis{ display:flex; justify-content:space-between; gap:12px; margin:10px 0 0 29px;
-    font-family:var(--ag-font-mono); font-size:11px; color:var(--ag-ink-soft); }
+    font-family:var(--ag-font-mono); font-size:11px; color:var(--ag-soft); }
   .stx-axisnote{ margin:14px 0 0; font-size:.9125rem; line-height:1.6; color:#3c4649; max-width:58ch; }
 
   /* ── INCIDENTS ────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@
      default of `auto` floors the item at its min-content width and the `flex-shrink`
      never takes effect. */
   .stx-inc__when{ flex:0 1 auto; min-width:0; font-family:var(--ag-font-mono); font-size:12px;
-    color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
+    color:var(--ag-soft); font-variant-numeric:tabular-nums; }
   .stx-inc__live{ font-family:var(--ag-font-mono); font-size:11px; letter-spacing:.08em;
     text-transform:uppercase; color:#a32b1c; }
   .stx-clear{ margin:18px 0 0; font-size:.9375rem; line-height:1.6; color:#3c4649; }
@@ -159,7 +159,7 @@
   .stx-key i{ flex:none; width:12px; height:12px; border-radius:2px; }
 
   .stx-scope{ margin:22px 0 0; padding:20px 22px; background:#fff;
-    border:1px solid rgba(16,41,44,.1); border-radius:var(--ag-r-sm,10px); }
+    border:1px solid rgba(16,41,44,.1); border-radius:var(--ag-r-10,10px); }
   .stx-scope p{ margin:0; font-size:.9125rem; line-height:1.65; color:#3c4649; }
   .stx-scope p + p{ margin-top:11px; }
   .stx-scope strong{ font-weight:600; color:var(--ag-ink); }
@@ -167,7 +167,7 @@
     background:var(--ag-ground); padding:1px 5px; border-radius:4px; }
 
   .stx-broken{ margin:24px 0 0; padding:20px 22px; border:1px solid rgba(163,43,28,.28);
-    border-radius:var(--ag-r-sm,10px); background:#fff; font-size:.9375rem; line-height:1.6; color:#3c4649; }
+    border-radius:var(--ag-r-10,10px); background:#fff; font-size:.9375rem; line-height:1.6; color:#3c4649; }
 
   @media (max-width:560px){
     .stx-row__top{ flex-wrap:wrap; }

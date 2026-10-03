@@ -64,30 +64,27 @@ final class TileTest extends TestCase
         $this->assertStringContainsString('<span>Withheld</span>', $html);
     }
 
-    public function test_a_live_tile_labels_in_house_ink_because_its_own_ink_cannot(): void
+    public function test_every_tile_labels_in_its_own_family_ink_and_it_holds(): void
     {
-        // live ink on live wash is 4.44 — the system's one failure, and a stated exception
-        // rather than a bug. Resolved in Accent::tileStyle() rather than left for each
-        // template to remember, because a template that forgot would ship a label below
-        // the floor and look entirely normal.
-        $style = Accent::tileStyle('voting-open');
+        // The previous palette's live ink was 4.44 on its own wash, so a live tile borrowed
+        // house ink. The handoff's `live-ink` is 5.78 there, and the exception went with
+        // its cause: every tile labels in its family's ink, measured here on the wash it
+        // actually sits on, so a future value that breaks one fails by name.
+        foreach (Accent::meanings() as $meaning => $family) {
+            $c     = Accent::for($meaning);
+            $style = Accent::tileStyle($meaning);
 
-        $this->assertStringContainsString('--tile-ink:' . Accent::neutral('ink'), $style);
-        $this->assertStringNotContainsString('--tile-ink:' . Accent::ink(Accent::LIVE), $style);
-
-        // And the reason, measured, so the exception cannot outlive its cause.
-        $this->assertLessThan(Contrast::TEXT,
-            Contrast::ratio(Accent::ink(Accent::LIVE), Accent::wash(Accent::LIVE)));
-        $this->assertGreaterThanOrEqual(Contrast::TEXT,
-            Contrast::ratio(Accent::neutral('ink'), Accent::wash(Accent::LIVE)));
+            $this->assertStringContainsString('--tile-ink:var(--ag-' . $c['ink'] . ')', $style, $meaning);
+            $this->assertGreaterThanOrEqual(Contrast::TEXT,
+                round(Contrast::ratio(Accent::hex($c['ink']), Accent::hex($c['wash'])), 2), $meaning);
+        }
     }
 
-    public function test_every_other_role_labels_in_its_own_ink(): void
+    public function test_a_tile_points_at_the_palette_and_carries_no_literal(): void
     {
-        foreach (['award-decided' => Accent::HONOUR,
-                  'withheld'      => Accent::CAUTION,
-                  'do-this'       => Accent::ACTION] as $meaning => $role) {
-            $this->assertStringContainsString('--tile-ink:' . Accent::ink($role),
+        foreach (array_keys(Accent::meanings()) as $meaning) {
+            $this->assertMatchesRegularExpression(
+                '/^(--tile-(wash|edge|fill|ink):var\(--ag-[a-z0-9-]+\);?){4}$/',
                 Accent::tileStyle($meaning), $meaning);
         }
     }

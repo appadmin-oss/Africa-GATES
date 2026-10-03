@@ -126,10 +126,10 @@
      the long scroll it used to be. */
   .pd-body{ display:grid; grid-template-columns:230px minmax(0,1fr); gap:30px;
     margin-top:22px; }
-  .pd-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 14px); align-self:start;
+  .pd-rail{ position:sticky; top:calc(var(--ag-header-h) + 14px); align-self:start;
     display:flex; flex-direction:column; gap:2px; }
   .pd-rail__i{ display:flex; align-items:center; gap:10px; min-height:42px; padding:0 12px;
-    box-sizing:border-box; width:100%; border:0; border-radius:var(--ag-r-sm,10px);
+    box-sizing:border-box; width:100%; border:0; border-radius:var(--ag-r-10,10px);
     background:none; cursor:pointer; text-align:left; text-decoration:none;
     font:600 14px/1.2 inherit; color:var(--pd-mute); }
   .pd-rail__i:hover{ background:var(--pd-cream); color:var(--pd-ink); }
@@ -210,7 +210,7 @@
   [hidden]{ display:none !important }
 
   .pd-sec{ margin-top:clamp(32px,4.5vw,48px);
-    scroll-margin-top:calc(var(--ag-nav-h,72px) + 64px);
+    scroll-margin-top:calc(var(--ag-header-h) + 64px);
     display:grid; grid-template-columns:34px minmax(0,1fr);
     column-gap:clamp(12px,2vw,18px); }
   .pd-sec__h{ grid-column:1 / -1; display:grid; grid-template-columns:subgrid;
@@ -337,7 +337,7 @@
     font-size:clamp(1.25rem,2.4vw,1.6rem); font-variant-numeric:tabular-nums;
     letter-spacing:0; color:var(--pd-ink); }
   .pd__stat small{ display:block; margin-top:5px; max-width:22ch; font-size:12px;
-    font-weight:400; font-family:var(--ag-font-body); line-height:1.5; color:var(--pd-mute); }
+    font-weight:400; font-family:var(--ag-font-ui); line-height:1.5; color:var(--pd-mute); }
 
   /* ── tables ──────────────────────────────────────────────────────────────── */
   .pd__wrap{ overflow-x:auto; }
@@ -848,14 +848,14 @@
           <tr data-find="{{ a.event ? a.event.title : '' }} {{ a.type ? a.type.name : '' }} stand application">
             <td>{{ a.event ? a.event.title : '—' }}</td>
             <td>{{ a.type ? a.type.name : '—' }}
-              {% if a.type %}<div class="pd__num" style="font-size:12px;color:var(--ag-ink-soft,#626a6e)">
+              {% if a.type %}<div class="pd__num" style="font-size:12px;color:var(--ag-soft,#626a6e)">
                 {{ ngn }}{{ a.type.price_naira|number_format }}</div>{% endif %}</td>
             <td class="pd__num">{{ a.app.submitted_at|date('d M Y') }}
               {# NAMED, and linked. "Not complete" on its own is a verdict with no
                  instruction — the reason is a table two sections up, and the reader was
                  left to work out that the two were about each other. #}
               {% if not a.app.completed_at %}
-                <div style="margin-top:4px;font-family:var(--ag-font-body);font-size:12px;
+                <div style="margin-top:4px;font-family:var(--ag-font-ui);font-size:12px;
                             line-height:1.5;color:#b42318;white-space:normal">
                   Not complete —
                   {% if n_missing > 0 %}<a href="#documents" style="color:#b42318;text-decoration:underline">{{ n_missing }}
@@ -867,7 +867,7 @@
                           'rejected':'dead','declined':'dead','pending':'open'}[a.app.decision]|default('open') %}
               <span class="pd__chip pd__chip--{{ c }}">{{ decisions[a.app.decision]|default(a.app.decision) }}</span>
               {% if a.app.decision_reason %}
-                <div style="margin-top:5px;font-size:13px;line-height:1.55;color:var(--ag-ink-soft,#626a6e)">
+                <div style="margin-top:5px;font-size:13px;line-height:1.55;color:var(--ag-soft,#626a6e)">
                   {{ a.app.decision_reason }}</div>
               {% endif %}
               {% if a.app.eligibility == 'fail' and a.app.eligibility_note %}
@@ -884,10 +884,10 @@
                             border-radius:999px;background:var(--ag-green,#237b22);color:#fff;
                             font:700 14px/1 inherit;cursor:pointer">Accept</button>
                   </form>
-                  <div style="margin-top:5px;font-size:12px;color:var(--ag-ink-soft,#626a6e)">
+                  <div style="margin-top:5px;font-size:12px;color:var(--ag-soft,#626a6e)">
                     By {{ a.app.offer_expires_at|slice(0,16) }}</div>
                 {% else %}
-                  <span style="font-size:13px;color:var(--ag-ink-soft,#626a6e)">
+                  <span style="font-size:13px;color:var(--ag-soft,#626a6e)">
                     Only an account owner can accept</span>
                 {% endif %}
               {% elseif a.expired %}
@@ -991,7 +991,7 @@
               </td>
               <td class="pd__num">
                 {{ ngn }}{{ c.progress.raised|number_format }}
-                {%- if c.progress.target > 0 %} <span style="color:var(--ag-ink-soft,#626a6e)">of {{ ngn }}{{ c.progress.target|number_format }}</span>{% endif %}
+                {%- if c.progress.target > 0 %} <span style="color:var(--ag-soft,#626a6e)">of {{ ngn }}{{ c.progress.target|number_format }}</span>{% endif %}
                 <div class="pd__who">{{ c.progress.count }} gift{{ c.progress.count == 1 ? '' : 's' }}</div>
               </td>
               <td>

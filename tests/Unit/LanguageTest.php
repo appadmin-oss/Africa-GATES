@@ -19,10 +19,10 @@ use Tests\TestCase;
  * WHAT THIS IS GUARDING AND WHY EACH PART OF IT MATTERS
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * `Support\Languages` is the mechanism and not a translation layer, and its own docblock
- * says so — picking Yorùbá sets `lang="yo"` and leaves the copy in English. That makes the
- * things it DOES do the whole of what can be checked, and each of them has a failure mode
- * this codebase has already paid for once:
+ * `Support\Languages` is the mechanism; the words are `Support\Translator`'s, held by
+ * `TranslatorTest`. What this file checks is the mechanism — which language, which
+ * direction, which cookie — and each part of it has a failure mode this codebase has
+ * already paid for once:
  *
  * · TWO STORES FOR ONE VALUE. The first cut of this work kept the language in the
  *   `ag-a11y` localStorage bag as well as in the cookie, because the settings surfaces
@@ -114,15 +114,20 @@ final class LanguageTest extends TestCase
         }
     }
 
-    public function test_every_language_carries_all_four_facts(): void
+    public function test_every_language_carries_all_its_facts(): void
     {
-        foreach (Languages::ALL as $code => $l) {
+        // Asked of options(), the shape every template loops over, rather than of ALL:
+        // the prompt's words moved into the catalogues and are read back here, so a
+        // template still sees `ask` and `yes` on every row and never a missing key.
+        foreach (Languages::options() as $l) {
+            $code = $l['code'];
             foreach (['name', 'english', 'dir', 'ask', 'yes'] as $k) {
                 $this->assertArrayHasKey($k, $l, "$code is missing $k");
             }
             $this->assertNotSame('', $l['name'], "$code has no name");
             $this->assertNotSame('', $l['english'], "$code has no English name");
         }
+        $this->assertCount(count(Languages::ALL), Languages::options());
     }
 
     public function test_the_name_is_written_in_the_language_itself(): void

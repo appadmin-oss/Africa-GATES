@@ -17,8 +17,8 @@
    and it is a card, no ink and it is decoration, no wash and it is a floating
    chip.
 
-   The values arrive inline from Accent::tileStyle('<meaning>'), never from a
-   literal here, so a tile cannot be built out of a hue somebody liked.
+   The values arrive inline from Accent::tileStyle('<meaning>') as var()s of the
+   palette, never from a literal here, so a tile cannot be built out of a hue somebody liked.
 
    ── COVER THE TILE WITH YOUR THUMB AND THE CARD MUST STILL READ ───────────
 
@@ -26,10 +26,10 @@
    aria-hidden and the word is not: a screen reader gets the sentence, and the
    colour adds nothing it needs.
 
-   ── NO LIP ────────────────────────────────────────────────────────────────
+   ── NO LIP, NO SHADOW ─────────────────────────────────────────────────────
 
-   A tile is not pressed, so it has no depth. Depth that cannot be pressed is
-   decoration. See components/lip.css.
+   A tile is not pressed and does not float, so it has neither. See
+   components/lip.css.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .ag-tile {
@@ -61,9 +61,9 @@
   background: var(--tile-fill);
 }
 
-/* `live` is the one role whose ink cannot sit on its own wash (4.44), so its
-   label is house ink and the MARK carries the hue — and a live mark is the one
-   that is allowed to be a circle, because here it genuinely is a status light. */
+/* A live mark is the one allowed to be a circle, because here it genuinely is a
+   status light. (Its label is the family's own `live-ink`, 5.78:1 on `live-wash`;
+   the previous palette's live ink failed there and borrowed house ink instead.) */
 .ag-tile--live .ag-tile__mark {
   border-radius: 50%;
   width: 10px;

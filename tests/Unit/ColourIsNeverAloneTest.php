@@ -29,7 +29,7 @@ use Tests\TestCase;
  *
  * Almost no coloured element on this platform says so in its own tag. The colour arrives
  * through a class — `.hf-chip`, `.hf-pg i` — declared in a style block somewhere else in
- * the file, so a sweep that greps markup for `var(--ag-honour-fill)` finds the two inline
+ * the file, so a sweep that greps markup for `var(--ag-gold)` finds the two inline
  * cases and reports a clean pass over everything that actually carries colour. It has to
  * resolve which SELECTORS paint, then find the elements those selectors reach.
  *
@@ -51,8 +51,23 @@ use Tests\TestCase;
  */
 final class ColourIsNeverAloneTest extends TestCase
 {
-    /** Painted by a role, by the tile's own slots, or by a programme's identity hue. */
-    private const PAINTS = '/background(?:-color)?\s*:[^;{}]*var\(\s*--(?:ag-(?:honour|action|live|caution|fault)-(?:fill|wash)|tile-(?:fill|wash)|pg-fill)/i';
+    /**
+     * Painted by a colour family's field, by the tile's own slots, or by a programme's
+     * identity. Built from `Accent::fields()` rather than spelled: the previous version
+     * spelled the retired role slots (`--ag-honour-wash`), and once the palette became the
+     * handoff's a bar painted `var(--ag-gold)` was invisible to it — the rule pinned to
+     * the wrong token.
+     */
+    private static function paints(): string
+    {
+        $tokens = [];
+        foreach (\AfricaGates\Support\Accent::fields() as $list) {
+            foreach ($list as $t) $tokens[] = preg_quote($t, '/');
+        }
+
+        return '/background(?:-color)?\s*:[^;{}]*var\(\s*--(?:ag-(?:' . implode('|', $tokens)
+             . ')(?![a-z0-9-])|tile-(?:fill|wash)|pg-fill)/i';
+    }
 
     /** Never pushed on the stack: they cannot contain anything. */
     private const VOID = ['img', 'br', 'hr', 'input', 'meta', 'link', 'source', 'track',
@@ -126,7 +141,7 @@ final class ColourIsNeverAloneTest extends TestCase
             $selectors = substr($chunk, 0, $at);
             $body      = substr($chunk, $at + 1);
 
-            if (!preg_match(self::PAINTS, $body)) continue;
+            if (!preg_match(self::paints(), $body)) continue;
 
             foreach (explode(',', $selectors) as $sel) {
                 // Pseudo-classes and pseudo-elements are dropped: a `::before` swatch is
@@ -246,7 +261,7 @@ final class ColourIsNeverAloneTest extends TestCase
                    'id' => $next++, 'start' => $at, 'end' => $at + strlen($whole)];
 
             // Inline `style` beats every selector: if the tag paints itself, it paints.
-            $painted = preg_match(self::PAINTS, $attrs) === 1
+            $painted = preg_match(self::paints(), $attrs) === 1
                     || str_contains($attrs, 'tile_style')
                     || $this->reached($el, $stack, $selectors);
 
@@ -356,14 +371,43 @@ final class ColourIsNeverAloneTest extends TestCase
                 $local .= "\n" . implode("\n", $sm[1]);
             }
 
-            foreach ($this->violations($rel, $body, $this->paintingSelectors($local)) as $v) {
-                $bad[] = $v;
+            $found = $this->violations($rel, $body, $this->paintingSelectors($local));
+            $known = self::BACKLOG[$rel] ?? 0;
+            if (count($found) > $known) {
+                foreach ($found as $v) $bad[] = $v;
+            } elseif (count($found) < $known) {
+                $bad[] = sprintf('%s: down to %d, the backlog still says %d — lower it', $rel, count($found), $known);
             }
         }
 
         $this->assertSame([], $bad,
             "colour is carrying meaning on its own:\n  " . implode("\n  ", $bad));
     }
+
+    /**
+     * WHAT THE SWEEP FOUND THE DAY IT COULD SEE THE HANDOFF'S NAMES — A LIST THAT ONLY SHRINKS.
+     *
+     * Its painting rule spelled the retired role slots, so an element painted with the
+     * handoff's `--ag-gold`, `--ag-green` or `--ag-live` was invisible to it. Rebuilt
+     * against `Accent::fields()` (Phase 1, 2 Oct 2026), it found these on pages the
+     * redesign destroys and rebuilds in later phases; each rebuild owes its page's
+     * word-or-`aria-hidden` and deletes the line. A count per file, never a file
+     * exemption: a page that gains one more fails, and a page that loses one has to lower
+     * its number.
+     *
+     * @var array<string,int>
+     */
+    private const BACKLOG = [
+        'templates/pages/challenges/show.twig'  => 3,
+        'templates/pages/events/detail.twig'    => 2,
+        'templates/pages/home.twig'             => 6,
+        'templates/pages/pulse.twig'            => 1,
+        'templates/pages/results/show.twig'     => 1,
+        'templates/pages/vote-program.twig'     => 1,
+        'templates/pages/vote.twig'             => 1,
+        'templates/partials/promo-carousel.twig'=> 2,
+        'templates/partials/site-header.twig'   => 1,
+    ];
 
     public function test_the_tile_hides_its_mark_and_leaves_its_word_alone(): void
     {
@@ -387,7 +431,7 @@ final class ColourIsNeverAloneTest extends TestCase
     {
         // Proven against the sweep rather than assumed of it: a bar painted by a class,
         // holding nothing, unmarked.
-        $css  = '.bar{ background:var(--ag-honour-fill); }';
+        $css  = '.bar{ background:var(--ag-gold); }';
         $bad  = $this->violations('x.twig',
             '<style>' . $css . '</style><div><span class="bar"></span></div>',
             $this->paintingSelectors($css));
@@ -398,7 +442,7 @@ final class ColourIsNeverAloneTest extends TestCase
 
     public function test_a_decorative_mark_beside_a_word_is_accepted_and_alone_is_not(): void
     {
-        $css = '.dot{ background:var(--ag-live-fill); }';
+        $css = '.dot{ background:var(--ag-live); }';
         $sel = $this->paintingSelectors($css);
 
         // The tile's shape: hidden mark, word beside it.
@@ -436,7 +480,7 @@ final class ColourIsNeverAloneTest extends TestCase
         // exactly the files somebody troubled to explain.
         $sel = $this->paintingSelectors(
             "/* the medal, and why it is a fill rather than an edge */\n"
-          . '.medal{ background:var(--ag-honour-fill); }');
+          . '.medal{ background:var(--ag-gold); }');
 
         $this->assertCount(1, $this->violations('x.twig', '<div><span class="medal"></span></div>', $sel));
     }

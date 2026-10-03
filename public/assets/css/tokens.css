@@ -1,110 +1,43 @@
 /* ══════════════════════════════════════════════════════════════════════════════
-   AFRICA GATES — DESIGN TOKENS
-   The only file in this codebase that contains a hex value.
-   Names and values are REFERENCE §6 verbatim; ±0 on colour is the contract.
+   AFRICA GATES — DESIGN TOKENS (everything but colour)
+   REFERENCE §6.2–§6.7 of the redesign handoff, under the names and values of its
+   snippets/css/tokens.css. Not a value here is a reading of a screenshot.
    ══════════════════════════════════════════════════════════════════════════════
 
-   ── WHY THIS FILE REPLACED THE PREVIOUS ARRANGEMENT ─────────────────────────
+   ── THERE IS NO COLOUR IN THIS FILE, AND THAT IS ITS FIRST RULE ─────────────
 
-   Colour used to be emitted at RUNTIME by Support\Accent, into a nonced <style>
-   that the layout wrote AFTER the stylesheet links so it would win the cascade.
-   That was a deliberate and good answer to the problem it was built for: two
-   sources for one colour, decided by load order, is the kind of thing nobody can
-   see in a diff.
+   The handoff calls its tokens.css "the only place hex values live". Here that
+   place is Support\Accent, by the owner's decision (GAPS §8 Q1): the palette is
+   emitted by PHP into a nonced <style> that every layout writes before its
+   stylesheets, so the values the page receives are the values AccentTest and
+   SlotFloorTest measure. A colour declared here as well would be a second source
+   decided by load order — the fault that put four golds into circulation. The
+   shadows contain an rgba of the house ink, so they are colour and live there
+   too. ColourLiteralTest fails this file on a single hex, rgb() or hsl().
 
-   It is the wrong answer for a redesign, because it makes the redesign's token
-   layer inoperative. A linked stylesheet cannot beat an inline one at the same
-   specificity, so every `--ag-*` this file declares that Accent also emitted
-   would have been silently overridden — and five of the six colliding names
-   carried IDENTICAL values, so the breakage would not have shown up anywhere
-   except on `--ag-line`, one hairline at a time.
+   ── NO COMPATIBILITY BLOCK ─────────────────────────────────────────────────
 
-   So the cascade is reversed rather than the machinery deleted. `Accent::css()`
-   is now emitted BEFORE the stylesheet links instead of after them, so this file
-   wins every name the two share. Accent keeps everything it was actually good
-   at — the four semantic roles with their four slots, whose contrast floors
-   AccentTest and SlotFloorTest re-derive on every run, and the per-element
-   data-driven colours a stylesheet cannot express (tier swatches, tile meanings,
-   programme accents).
+   The previous file carried twenty-two retired names "until every phase had
+   converted its pages". An alias is a patch: it lets a reader of a dead name go
+   on working, so nothing ever forces the reader to change. Every reader was
+   rewritten to these names in the same change that deleted the aliases.
 
-   Nothing Accent emits is repeated here. One source per value: the redesign's
-   §6 tokens below, the role slots from Accent. Copying its twenty role values
-   into this file would have re-created the drift both files exist to prevent.
-
-   ── THE COMPATIBILITY BLOCK AT THE BOTTOM IS TEMPORARY AND LOAD-BEARING ─────
-
-   The redesign converts the site over ten phases. Around sixty templates that no
-   phase has reached yet read names this file would otherwise stop declaring, and
-   a dangling `var()` does not fall back — it invalidates its whole declaration,
-   which in fifteen places here would take a focus ring with it. So every name the
-   old layer emitted is still declared, in one clearly marked block, and each
-   phase deletes the ones its pages stop using. When that block is empty the
-   migration is finished.
+   A token lands with its first reader (DeadTokenTest). The full ladders below
+   are the handoff's; the /_dev/ui page is the reader of the rungs no page uses
+   yet.
    ══════════════════════════════════════════════════════════════════════════════ */
 
 :root{
 
-  /* ── Colour · REFERENCE §6.1 ───────────────────────────────────────────────
-     One accent per block. Green is ONLY the primary action inside the page —
-     there is never a green button in the header. Chips are outlined, never
-     dark-filled. */
+  /* ── Type · §6.2 ───────────────────────────────────────────────────────────
+     Playfair Display 700 for headlines only. DM Sans for everything else.
+     JetBrains Mono 500/700 only for references and codes. */
 
-  --ag-ink:#10292c;          /* primary text, dark UI, selected-chip border */
-  --ag-ink-2:#3a4a4c;        /* secondary text */
-  --ag-soft:#626a6e;         /* meta text, captions — 4.5:1 on ground, verified */
-  --ag-mute:#8b9295;         /* disabled text, off-switch track */
-
-  --ag-ground:#f1efe9;       /* page background */
-  --ag-surface:#ffffff;      /* cards, inputs */
-  /* A SUNKEN surface, for a panel inside a card: a strip of figures, the band over
-     a group of table rows. It is not the page ground — those sit ON white and need
-     to read as set into it rather than as a gap in it. */
-  --ag-surface-2:#f8f7f4;
-  --ag-bar:#fbfbfa;          /* app bars and tab bars when filled */
-  --ag-line:#e8e5dd;         /* hairlines, card borders */
-  --ag-line-2:#d6d4cc;       /* input and outlined-chip borders */
-  --ag-line-3:#eeece6;       /* separators inside a white list */
-  --ag-tint:#e8e5dd;         /* neutral fills: icon tiles, segmented track */
-
-  --ag-green:#237b22;        /* THE primary action, success */
-  --ag-green-deep:#1a6118;   /* success text */
-  --ag-green-light:#7fc87c;  /* accents on dark, sparks */
-  --ag-green-wash:#effaf0;   /* success wash */
-  --ag-green-edge:#cfe6ce;   /* success borders */
-
-  --ag-gold:#f3b416;         /* honour, winners */
-  --ag-gold-ink:#7a5600;     /* text on gold wash */
-  --ag-gold-wash:#fcf4de;    /* winner cards */
-  --ag-gold-wash-2:#fff8df;  /* early-bird strip */
-  --ag-gold-edge:#f0dfae;
-
-  --ag-live:#e0245e;         /* live dot, hearts */
-  --ag-live-ink:#b0224f;     /* live text, dates on events */
-  --ag-live-wash:#fdecef;    /* giving wash */
-
-  --ag-info:#1f6fa3;         /* tickets, info */
-  --ag-info-wash:#e8f1f7;
-  --ag-error:#b42318;        /* errors, destructive text ("Sign out") */
-  /* The wash behind a refusal — a refunded order, a rejected nomination, a failed
-     payout. It existed as a literal in four places before it had a name, which is
-     how the shop's "Refunded" and the account's came to be different pinks. */
-  --ag-error-wash:#fdecea;
-
-  --ag-scrim:rgba(16,41,44,.32);
-  --ag-chevron:#b3b9ba;
-  --ag-grabber:#c9c4b8;
-
-  /* ── Type · REFERENCE §6.2 ─────────────────────────────────────────────────
-     Playfair Display 700 for headlines ONLY. DM Sans for everything else.
-     JetBrains Mono 500/700 only for references and codes — order refs, ticket
-     codes, receipt codes, times inside ticket stubs. Never for labels or stats. */
-
-  --ag-font-display:'Playfair Display',Georgia,'Times New Roman',serif;
+  --ag-font-display:'Playfair Display',Georgia,serif;
   --ag-font-ui:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --ag-font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --ag-font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;
 
-  /* ── Spacing · REFERENCE §6.3 ──────────────────────────────────────────────
-     The whole ladder. A value not on it is a misread of the design. */
+  /* ── Spacing · §6.3 — the px name is the px value ──────────────────────── */
 
   --ag-sp-4:4px;   --ag-sp-6:6px;   --ag-sp-8:8px;   --ag-sp-10:10px;
   --ag-sp-12:12px; --ag-sp-14:14px; --ag-sp-16:16px; --ag-sp-18:18px;
@@ -112,35 +45,29 @@
   --ag-sp-32:32px; --ag-sp-36:36px; --ag-sp-40:40px; --ag-sp-48:48px;
   --ag-sp-56:56px; --ag-sp-64:64px;
 
-  /* Page gutter: phone 16 · tablet 28 · desktop 32. Overridden below. */
+  /* Page gutter: phone 16 · tablet 28 · desktop 32. */
   --ag-gutter:16px;
 
-  /* ── Radii · REFERENCE §6.4 ────────────────────────────────────────────────
-     999 pills/chips/round buttons · 24 major cards, sheets, celebration ·
-     22 content sheet over a gallery (top corners) · 20 cards, drawers,
-     popovers · 16 phone CTAs, rows, inline stat tiles · 14 inputs, list cards,
-     small buttons · 12 · 10 icon tiles · 7 mini badges. */
+  /* ── Radii · §6.4 ──────────────────────────────────────────────────────────
+     999 pills, chips, round buttons · 24 major cards, sheets · 22 a content sheet
+     over a gallery · 20 cards, drawers, popovers · 16 phone CTAs, rows · 14 inputs,
+     list cards · 12 · 10 icon tiles · 7 mini badges. The snippet omits 7; §6.4
+     names it, and the badges that read it are real. */
 
   --ag-r-pill:999px;
   --ag-r-24:24px; --ag-r-22:22px; --ag-r-20:20px; --ag-r-18:18px;
   --ag-r-16:16px; --ag-r-14:14px; --ag-r-12:12px; --ag-r-10:10px; --ag-r-7:7px;
 
-  /* ── Shadows · REFERENCE §6.5 (exact) ──────────────────────────────────── */
+  /* ── Motion · §6.6 ─────────────────────────────────────────────────────────
+     Scroll-linked chrome swaps on a threshold and is never scrubbed per pixel. */
 
-  --ag-sh-pop:0 24px 48px -20px rgba(16,41,44,.30);   /* popover / drawer */
-  --ag-sh-mega:0 24px 48px -28px rgba(16,41,44,.25);  /* mega panel */
-  --ag-sh-sheet:0 -12px 40px rgba(16,41,44,.18);      /* bottom sheet */
-  --ag-sh-float:0 2px 10px rgba(16,41,44,.15);        /* round button on a photo */
-  --ag-sh-dot:0 3px 10px rgba(16,41,44,.18);          /* quick-add dot on a card */
-
-  /* ── Motion · REFERENCE §6.6 ───────────────────────────────────────────────
-     Scroll-linked chrome swaps on a threshold, never scrubbed per pixel. */
-
-  --ag-ease:cubic-bezier(.2,0,0,1);        /* all UI transitions */
+  --ag-ease:cubic-bezier(.2,0,0,1);        /* every UI transition */
+  --ag-ease-pop:cubic-bezier(.2,.9,.3,1.2); /* badges, stars */
   --ag-dur-1:200ms;                         /* opacity, colour */
   --ag-dur-2:260ms;                         /* collapse and expand, sheets */
+  --ag-dur-3:500ms;                         /* celebration text rise */
 
-  /* ── Layers · REFERENCE §6.7 ───────────────────────────────────────────────
+  /* ── Layers · §6.7 ─────────────────────────────────────────────────────────
      sticky toolbars 4–6 · app bar 20 · buy/vote bars 30 · header 40 · Gee 60 ·
      scrim 79 · sheets 80. */
 
@@ -153,103 +80,12 @@
   --ag-z-sheet:80;
 
   /* ── The height of whatever fixed bar is on screen ─────────────────────────
-     Set by bottom-ui.js from any element carrying [data-bottom-ui], read by Gee
-     and by toasts so they clear it by 16px. DESIGN-NOTES: 96 above the tab bar,
-     108 above a sticky action bar, 40 with no bar. Declared here with a zero so
-     `calc()` never sees an undefined value on a page that has no bar. */
+     Measured by shell.js from the bar actually showing, read by Gee and toasts so
+     they clear it. Zero here so calc() never meets an undefined value on a page
+     with no bar. A typed height goes stale the first time a bar gains a line. */
+
   --ag-bottom-ui:0px;
 }
 
 @media (min-width:600px){  :root{ --ag-gutter:28px } }
 @media (min-width:1024px){ :root{ --ag-gutter:32px } }
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   COMPATIBILITY — the names the previous layer emitted
-   ══════════════════════════════════════════════════════════════════════════════
-
-   Read the header. These exist so a template no phase has converted yet keeps
-   rendering; they are not part of the design system and nothing new may use one.
-   Each phase removes the names its pages stop reading. Empty block = done.
-
-   Three of them deliberately changed VALUE rather than being preserved, because
-   the redesign is the point:
-
-     --ag-gold   #c9a24b → #f3b416   the old one measured 2.13:1 on paper and was
-                                     a second gold nothing documented
-     --ag-ease   (.2,.7,.3,1) → (.2,0,0,1)   REFERENCE §6.6 is the standard
-                                     decelerate curve for every UI transition
-     --ag-line   #d6d4cc → #e8e5dd   the redesign carries two hairline weights;
-                                     the old ramp had collapsed both into one.
-                                     The stronger weight is --ag-line-2, and
-                                     --ag-line-strong below still points at it,
-                                     so an existing "strong" border is unchanged.
-   ══════════════════════════════════════════════════════════════════════════════ */
-
-:root{
-  /* Legacy greens and the pulse, from the retired base/tokens.css. */
-  --ag-green-dark:var(--ag-green-deep);
-  --ag-pulse:var(--ag-live);
-  --ag-font-body:var(--ag-font-ui);
-
-  /* Fluid display sizes, still read by unconverted heroes. */
-  --ag-fs-hero:clamp(2.6rem,6vw,4.5rem);
-  --ag-fs-h2:clamp(1.9rem,3.4vw,2.9rem);
-  --ag-fs-h3:clamp(1.35rem,2.2vw,1.75rem);
-  --ag-fs-body:1.0625rem;
-  --ag-fs-sm:.9rem;
-  --ag-fs-label:.72rem;
-  --ag-tracking-label:.22em;
-
-  /* Named radii. */
-  --ag-r-sm:var(--ag-r-10);
-  --ag-r-md:var(--ag-r-14);
-  --ag-r-lg:var(--ag-r-24);
-
-  /* There were no shadows on the old site: depth was a solid lip that collapsed
-     on press. Kept as `none` rather than removed — a dangling var() invalidates
-     its whole declaration, and fifteen of these share one with a focus ring. */
-  --ag-shadow-nav:0 1px 0 var(--ag-line);
-
-  /* Layout and motion under their previous names.
-
-     BOTH BAR HEIGHTS WERE WRONG THE MOMENT THE CHROME WAS REBUILT, and wrong is
-     worse than stale here: ~10 templates stick a rail under `--ag-nav-h` and the
-     Pulse FAB and the cookie notice clear `--ag-mobile-nav-h`, so a number that
-     no longer describes a bar puts a control underneath one or floating above
-     nothing. The redesign's header is 64px, measured off its own rule.
-
-     The phone bar has no fixed height any more — it is 52px of target plus a
-     22px pad plus the safe-area inset, which differs per device — so the compat
-     name points at `--ag-bottom-ui`, which `shell.js` MEASURES from whatever bar
-     is actually on screen. That is also why it is not a number: the three
-     documented offsets (96 above the tab bar, 108 above an action bar, 40 with
-     neither) are just "the bar plus the gap", and a typed one goes stale the
-     first time a bar gains a second line. */
-  --ag-maxw:1240px;
-  --ag-nav-h:64px;
-  --ag-mobile-nav-h:var(--ag-bottom-ui);
-  --ag-dur-fast:.15s;
-  --ag-dur:.25s;
-
-  /* The old z ladder, minus the three whose only reader was `components/nav.css`:
-     `--ag-z-mega`, `--ag-z-mobile-nav` and `--ag-z-overlay` went with the file, which
-     is what this block's own rule says to do — each phase deletes the names its pages
-     stop using. `DeadTokenTest` named all three the moment the sheet was removed. */
-  --ag-z-loader:2147483000;
-}
-
-/* ── A DIRECTIONAL ICON MIRRORS AND NOTHING ELSE DOES ────────────────────────
-   `partials/icons.twig` marks the chevrons it draws for `back` and `next` with this
-   class. They are the only shapes on this site whose meaning is "the way you came"
-   and "onward", and in a right-to-left language that is the other way round.
-
-   Before this rule a grep for `rtl` across every stylesheet here returned nothing:
-   `<html dir>` was being written correctly by `lang_dir()` and no rule anywhere acted
-   on it, so a back chevron in Arabic pointed forward. It is scoped to the PATH rather
-   than the `<svg>` so a shield, a cog or a logo inside the same icon set cannot pick it
-   up — mirroring those is the same mistake in the other direction.
-
-   `transform-box` is spelled out: without it the origin is resolved against a box the
-   path does not have, and the mirrored chevron lands outside the 24×24 viewport — a
-   button that renders empty, which is how this rule fails if it is written short. */
-[dir="rtl"] .ag-ico-dir{ transform:scaleX(-1); transform-box:view-box; transform-origin:50% 50%; }

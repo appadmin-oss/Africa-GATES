@@ -12,7 +12,7 @@
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* The header trigger's own rules are GONE: it is the toolbar pill's first
-   control now (`.ag-tools__b` in components.css), and `.ag-searchbtn` was left
+   control now (`.ag-tools__b` in components/chrome.css), and `.ag-searchbtn` was left
    with no element to style. A selector with nothing behind it is §17 at the
    stylesheet layer — the next person reads it as the site's convention for a
    search button and writes markup for a rule that no longer matches anything.
@@ -37,7 +37,7 @@
 
 .ags__bar{ display:flex; align-items:center; gap:10px; padding:14px 16px;
            border-bottom:1px solid rgba(16,41,44,.08); }
-.ags__icon{ width:20px; height:20px; flex:none; color:var(--ag-ink-soft,#626a6e); }
+.ags__icon{ width:20px; height:20px; flex:none; color:var(--ag-soft,#626a6e); }
 .ags__input{
   flex:1; min-width:0; border:0; background:transparent; font:inherit; font-size:16px;
   color:var(--ag-ink,#10292c); padding:6px 0;
@@ -57,7 +57,7 @@
 .ags__close:hover{ background:#f2f5f2; }
 .ags__close:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
 
-.ags__hint{ margin:0; padding:10px 18px 0; font-size:13px; color:var(--ag-ink-soft,#626a6e); }
+.ags__hint{ margin:0; padding:10px 18px 0; font-size:13px; color:var(--ag-soft,#626a6e); }
 .ags__status{ margin:0; padding:8px 18px 0; font-size:13px; font-weight:600; color:#5a6d6f; }
 .ags__status:empty{ padding:0; }
 
@@ -81,13 +81,13 @@
   text-transform:uppercase; color:#237b22; background:#eaf4ea; border-radius:5px; padding:2px 6px;
 }
 .ags__t{ grid-row:1; font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ags__at{ grid-row:1; font-size:12px; color:var(--ag-ink-soft,#626a6e); white-space:nowrap; }
+.ags__at{ grid-row:1; font-size:12px; color:var(--ag-soft,#626a6e); white-space:nowrap; }
 .ags__d{ grid-row:2; grid-column:2 / -1; font-size:13px; color:#5a6d6f;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 .ags__foot{
   margin:0; padding:11px 18px; border-top:1px solid rgba(16,41,44,.08);
-  font-size:12px; color:var(--ag-ink-soft,#626a6e); display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  font-size:12px; color:var(--ag-soft,#626a6e); display:flex; align-items:center; gap:6px; flex-wrap:wrap;
 }
 .ags__foot kbd{
   font:600 11px/1 var(--ag-font-mono,monospace); color:#5a6d6f; background:#f2f5f2;

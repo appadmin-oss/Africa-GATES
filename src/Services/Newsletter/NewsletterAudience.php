@@ -165,11 +165,11 @@ final class NewsletterAudience
 
         // Colours from the ramp, as values — see Newsletter::palette() for why mail carries
         // literals at all.
-        [$ink, $ink2, $soft] = [Accent::neutral('ink'), Accent::neutral('ink-2'), Accent::neutral('ink-soft')];
-        $go = Accent::fill(Accent::ACTION);
+        [$ink, $ink2, $soft] = [Accent::hex('ink'), Accent::hex('ink-2'), Accent::hex('soft')];
+        $go = Accent::hex('green');
         $html = '<h1 style="margin:0;font-family:Helvetica,Arial,sans-serif;font-weight:700;font-size:24px;line-height:30px;color:' . $ink . '">Confirm your subscription</h1>'
               . '<p style="margin:13px 0 0;font-size:16px;line-height:1.6;color:' . $ink2 . '">' . htmlspecialchars($lede, ENT_QUOTES) . '</p>'
-              . '<p style="text-align:center;margin:24px 0"><a href="' . $e . '" style="display:inline-block;padding:13px 28px;background:' . $go . ';color:' . Accent::SURFACE . ';border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">Yes, send me the newsletter</a></p>'
+              . '<p style="text-align:center;margin:24px 0"><a href="' . $e . '" style="display:inline-block;padding:13px 28px;background:' . $go . ';color:' . Accent::hex('surface') . ';border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">Yes, send me the newsletter</a></p>'
               . '<p style="margin:0;font-size:13px;line-height:1.6;color:' . $soft . '">' . htmlspecialchars($after, ENT_QUOTES) . '</p>';
 
         $plain = "Confirm your subscription\n\n{$lede}\n\nConfirm here: {$url}\n\n{$after}";

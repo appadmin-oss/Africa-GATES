@@ -62,7 +62,9 @@ final class SiteHeaderTest extends TestCase
 
     public function test_there_is_no_green_button_in_either_signed_in_state(): void
     {
-        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/components.css');
+        // The header's rules moved out of the base sheet unchanged in the Phase 1 rebuild,
+        // into the file Phase 2 owns (docs/handoff/GAPS.md §7.2).
+        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/components/chrome.css');
 
         // Both controls that sit in that slot, read out of the stylesheet rather than
         // eyeballed: the avatar is ink, the signed-out pill is an ink OUTLINE.
@@ -299,7 +301,9 @@ final class SiteHeaderTest extends TestCase
         // The panel hangs from the bar with no gap (§7.1), so a rule between them cuts
         // it in half. Two files have to agree for this: the controller sets the class
         // and the stylesheet acts on it.
-        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/components.css');
+        // The header's rules moved out of the base sheet unchanged in the Phase 1 rebuild,
+        // into the file Phase 2 owns (docs/handoff/GAPS.md §7.2).
+        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/components/chrome.css');
         $this->assertStringContainsString('.ag-head.is-mega .ag-head__bar', $css);
         $this->assertStringContainsString("classList.toggle('is-mega'", $this->nav());
     }

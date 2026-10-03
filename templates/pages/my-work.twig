@@ -78,7 +78,7 @@
   .mw__back__go small{ display:block; font-weight:400; font-size:12px; margin-top:3px;
     opacity:.75 }
 
-  .mw__hint{ margin-top:8px; font-size:12px; color:var(--ag-ink-soft,#626a6e) }
+  .mw__hint{ margin-top:8px; font-size:12px; color:var(--ag-soft,#626a6e) }
 
   /* ── ONE STEP OF A WIZARD ─────────────────────────────────────────────────
      A FORM, and it says so: a label, help under it, one field, one thing under the field.
@@ -164,7 +164,7 @@
     background:#c9a24b }
   .mw__dot--here i{ background:#e8c98a }
   .mw__stepline{ display:flex; align-items:baseline; justify-content:space-between; gap:12px }
-  .mw__slab--soft{ color:var(--ag-ink-soft,#626a6e); font-weight:400 }
+  .mw__slab--soft{ color:var(--ag-soft,#626a6e); font-weight:400 }
   .mw__steps{ display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-top:18px;
     padding-top:14px; border-top:1px solid rgba(16,41,44,.08) }
   /* Next is the primary and Back is not. They used to be identical dark pills, so the one
@@ -203,7 +203,7 @@
   .mw__work{ border:1px solid rgba(16,41,44,.13); border-radius:14px; padding:15px 15px 6px;
     margin-top:12px; background:#fbfdfb }
   .mw__grid{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr)) }
-  .mw__slab{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+  .mw__slab{ display:block; font:700 10px/1 var(--ag-font-ui,inherit); letter-spacing:.08em;
     text-transform:uppercase; color:#5a6d6f; margin:0 0 5px }
   .mw__file{ margin-top:10px; font-size:13px; color:#3d5254; background:#eef4ee;
     border-radius:9px; padding:9px 11px; display:flex; gap:8px; align-items:center; flex-wrap:wrap }
@@ -702,7 +702,7 @@
         clock(){ const m = Math.floor(this.secs/60), s = this.secs%60;
                  return m + ":" + (s < 10 ? "0" : "") + s }
       }'>
-        <h2>Introduce yourself out loud <small style="font-weight:400;color:var(--ag-ink-soft,#626a6e)">— optional</small></h2>
+        <h2>Introduce yourself out loud <small style="font-weight:400;color:var(--ag-soft,#626a6e)">— optional</small></h2>
         <p>Up to {{ (intro_max|default(120)) // 60 }} minutes on who you are and what the work is.
           The judges will <strong>hear this in your own voice</strong>, which is the one thing in a
           dossier nobody can write for you. It is fine to skip it and type everything instead.</p>

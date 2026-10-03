@@ -1,84 +1,81 @@
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  THE REDESIGN PAGE SHELL
-  REFERENCE §6.7 · app-ux-standards §0.4
+  THE PAGE SHELL — Phase 1 of design_handoff_africa_gates
+  snippets/twig/page-shell.twig, adapted to this repo · REFERENCE §6.7
   ══════════════════════════════════════════════════════════════════════════════
 
-  The root is 100dvh and does not scroll. Exactly one element inside it does —
-  `<main class="ag-main">` — so app bars, tab bars, action bars and the Gee
-  launcher stay pinned without `position:fixed` and without the iOS address-bar
-  jitter that comes with it.
+  The root is 100dvh and does not scroll; `<main class="ag-main">` is the only
+  scroller, so every bar is a plain flex child that cannot move with the content.
+  A page the redesign rebuilds extends THIS layout. `layout/gates.twig` keeps
+  serving every page no phase has reached, and the two never nest: a shell inside a
+  layout whose body scrolls is a one-viewport window onto a document that carries
+  on underneath it.
 
-  ── WHY THIS IS A LAYOUT AND NOT A BLOCK INSIDE gates.twig ───────────────────
+  ── WHERE THIS DIFFERS FROM THE SNIPPET, AND WHY ─────────────────────────────
 
-  The first cut of the Phase 1 style page extended `layout/gates.twig` and put
-  `.ag-shell` inside its `{% block content %}`. That renders, and it is wrong in
-  a way that is obvious the moment you look at it: `.ag-shell` is `height:100dvh`
-  with `overflow:hidden`, and the old layout's body scrolls, so the shell became a
-  one-viewport-tall window onto a document that carried on underneath it. The page
-  clipped at 844px, the legacy tab bar sat over the specimens, and the intro
-  loader's globe painted across the whole thing.
+  · `<html class="ag-shelled">` arms the overflow lock, which is scoped to this
+    layout rather than global — deviation #1, see shell.css and PHASE-1.md.
+  · `lang` and `dir` are `lang()` / `lang_dir()`, the one answer LanguageMiddleware
+    settles per request from `?lang=` and the `ag_lang` cookie. The snippet's
+    `lang == 'ar'` test would be a second resolver for the same value.
+  · The head script is `partials/a11y-head.twig` (nonced, before any stylesheet), not
+    `source('snippets/a11y-head.js')` — the repo's store and the snippet's differ.
+  · Colour is not a stylesheet. Every colour and shadow token comes from
+    Support\Accent through `ag_accents()`, in a nonced <style> BEFORE the links, the
+    same block every layout writes (GAPS §8 Q1).
+  · The snippet includes `partials/nav.twig` and `partials/gee.twig`. Neither
+    exists: the site header is `partials/site-header.twig`, which a page puts in
+    `header`, and Gee on this layout is GAPS §8 Q19, unanswered — so `gee` stays an
+    empty block rather than this phase inventing Phase 2's or Phase 3's partials.
+  · `components/chrome.css` and `components/library.css` load right after
+    `components.css`: they are other phases' rules carved OUT of it, in the
+    position they held inside it (GAPS §7.2).
 
-  A shell that only works when nothing else owns the scroll cannot be a guest
-  inside a layout that does. So it is its own layout, loading only the three
-  redesign stylesheets, and pages converted by later phases extend THIS.
-
-  `layout/gates.twig` keeps serving every unconverted page until Phase 9 retires
-  it. Two layouts during a redesign is the honest state; one layout trying to be
-  both is what produced the screenshot above.
-
-  ── BLOCKS ──────────────────────────────────────────────────────────────────
-    head_styles   page-local <style>, nonce'd
-    header        SiteHeader — tablet and desktop      (Phase 2)
-    app_bar       the phone AppBar, root or child      (Phase 2)
-    sheets        the Menu and Quick settings; shell-level, rarely overridden
-    content       goes inside <main>; the ONLY scroller
-    bottom_bar    action bar OR tab bar, each [data-bottom-ui]  (Phase 2)
-    foot_scripts  page-local <script>, nonce'd
+  ── BLOCKS ───────────────────────────────────────────────────────────────────
+    a11y_head     Display & reading, before first paint
+    head_styles   page-local stylesheet links or a nonced <style>
+    header        SiteHeader, tablet and desktop                    (Phase 2)
+    app_bar       the phone AppBar, root or child                    (Phase 2)
+    content       inside <main> — the ONLY scroller
+    bottom_bar    an action bar OR a tab bar, each [data-bottom-ui]  (Phase 2)
+    gee           empty until Q19                                    (Phase 3)
+    sheets        Menu and Quick settings, shell-level              (Phase 2)
+    foot_scripts  page-local scripts, nonced
   ══════════════════════════════════════════════════════════════════════════════
 #}
 <!doctype html>
-{# `lang` and `dir` come from the cookie, resolved once per request by
-   LanguageMiddleware. They are on the markup the server sends, which is why the
-   head script below does not touch them — a second reader would be a second
-   answer, and the two would disagree the first time a cookie was cleared. #}
-<html lang="{{ lang() }}" dir="{{ lang_dir() }}">
+<html lang="{{ lang() }}" dir="{{ lang_dir() }}" class="ag-shelled">
 <head>
   <meta charset="utf-8">
-  {# `viewport-fit=cover` so `env(safe-area-inset-*)` reports real numbers; without
-     it every safe-area calculation in the components resolves to zero. #}
+  {# `viewport-fit=cover`, or every `env(safe-area-inset-*)` resolves to zero. #}
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{{ page_title|default('Africa GATES') }}</title>
   {% if meta_description is defined %}<meta name="description" content="{{ meta_description }}">{% endif %}
   {% if meta_robots is defined %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
 
-  {# ── Display & reading, before first paint ────────────────────────────────
-     Phase 2 owns the store and the settings screen. The hook is here because it
-     has to run before any stylesheet paints — a linked file would paint first and
-     the person who asked for 150% text would watch it start at 100%. #}
+  {# Before any stylesheet: a linked script runs after first paint, and somebody who
+     asked for 150% text would watch the page draw at 100% and jump. #}
   {% block a11y_head %}{% include 'partials/a11y-head.twig' %}{% endblock %}
 
+  {# §6.2: Playfair Display 700, DM Sans 400–700, JetBrains Mono 500/700, swap. #}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@500;700&display=swap">
 
-  {# The three sheets, in cascade order. tokens.css is the single source of every
-     colour, size, radius, shadow and duration; nothing else may carry a hex. #}
+  <style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
+
+  {# In cascade order: the tokens, the shell, the base components, the rules carved
+     out of them, then the form states that refine `.ag-field`. #}
   <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
-  {# Forms: the invalid state, the error summary, the required/optional marks. Part of
-     the base here as it is in the main layout — this layout carries the nomination
-     form, and without this its `data-ag-validate` described styles nothing loaded. #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/chrome.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/library.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/forms.css') }}">
   {% block head_styles %}{% endblock %}
 </head>
-
-{# `ag-shelled` is what arms the overflow lock in shell.css. It is a class rather
-   than a bare `html,body{overflow:hidden}` so the ~180 pages still on the old
-   layout keep their document scroll — see the note at the top of shell.css. #}
-<body class="ag-shelled" data-page="{{ page_id|default('') }}">
-  <a class="ag-skip" href="#main">Skip to content</a>
+<body data-page="{{ page_id|default('') }}">
+  <a class="ag-skip" href="#main">{{ 'Skip to content'|trans }}</a>
 
   <div class="ag-shell">
     {% block header %}{% endblock %}
@@ -93,11 +90,10 @@
 
   {% block gee %}{% endblock %}
 
-  {# The two sheets live in the SHELL and not in the pages that open them: the
-     Menu is reachable from the tab bar on every phone page and Quick settings from
-     every root app bar, and a partial each page had to remember to include is a
-     partial the next page forgets. Both start `inert`, so nothing inside them is
-     focusable or announced until one is opened. #}
+  {# The Menu is reachable from the tab bar on every phone page and Quick settings
+     from every root app bar, so they belong to the shell, not to each page — a
+     partial every page must remember is a partial the next page forgets. Both
+     start `inert`. #}
   {% block sheets %}
     {% include 'partials/menu-sheet.twig' %}
     {% include 'partials/quick-settings.twig' %}
@@ -106,11 +102,8 @@
   <script defer src="{{ asset('/assets/js/shell.js') }}"></script>
   <script defer src="{{ asset('/assets/js/a11y.js') }}"></script>
   <script defer src="{{ asset('/assets/js/chrome.js') }}"></script>
-  {# The shared validator. A form here that says `novalidate data-ag-validate` turns the
-     browser's own messages off on the promise this replaces them — and this layout
-     never loaded it, so on the nomination form that promise was kept only by
-     nominate.js's per-step checks, and the summary and field messages it describes
-     never drew. #}
+  {# The shared validator: a form here that says `novalidate data-ag-validate` has
+     turned the browser's own messages off on the promise this replaces them. #}
   <script defer src="{{ asset('/assets/js/form-validate.js') }}"></script>
   {% block foot_scripts %}{% endblock %}
 </body>

@@ -182,7 +182,8 @@ final class ChallengeFlierTest extends TestCase
     public function test_the_themes_are_the_challenge_pages_tokens(): void
     {
         $root   = dirname(__DIR__, 2) . '/public/assets/css';
-        $tokens = (string) file_get_contents($root . '/tokens.css');
+        // The palette is emitted by Support\Accent; tokens.css carries no colour.
+        $tokens = \AfricaGates\Support\Accent::css();
         $css    = (string) file_get_contents($root . '/components/challenge.css');
         $token  = static function (string $name) use ($tokens): string {
             self::assertMatchesRegularExpression('~' . preg_quote($name, '~') . '\s*:\s*(#[0-9a-f]{6})~i', $tokens, $name);

@@ -18,17 +18,21 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * language here really does change the document's language and direction, and the
  * choice really does survive a reload.
  *
- * It is **not** a translation layer, and nothing here pretends otherwise. There is
- * no string catalogue in this codebase — `docs/handoff/GAPS.md` §5.3 records that
- * finding and the question it raises, which is still open. Until it is answered,
- * picking Yorùbá sets `lang="yo"`, tells a screen reader which voice to use, and
- * leaves the copy in English.
+ * The WORDS are {@see Translator}'s: the `trans` filter, and catalogues in
+ * `resources/lang/{code}.php` keyed by the English source string. That layer reads
+ * {@see current()} and nothing else, so this class stays the one answer to "which
+ * language is this request in" and the translator is the one answer to "what does
+ * this sentence say in it". The product owner decided to build it before the
+ * redesign's first phase (`docs/handoff/GAPS.md` Q12), so the rebuilt screens are
+ * translatable from their first commit.
  *
- * That is worth shipping on its own: `lang` drives pronunciation, hyphenation and
- * the browser's own offer to translate, and `dir="rtl"` is what the entire RTL
- * requirement of the acceptance protocol is measured against. Shipping the
- * mechanism now also means the day a catalogue arrives, nothing about the UI has
- * to change.
+ * The catalogues are close to empty today, and that is the honest state: a string is
+ * translated when a template passes it through `|trans` AND a speaker has written it.
+ * Until then picking Yorùbá sets `lang="yo"`, tells a screen reader which voice to
+ * use, and leaves the copy in English — which is worth shipping on its own: `lang`
+ * drives pronunciation, hyphenation and the browser's own offer to translate, and
+ * `dir="rtl"` is what the entire RTL requirement of the acceptance protocol is
+ * measured against.
  *
  * What would NOT be worth shipping is a language menu that silently does nothing,
  * so the surfaces that offer these say so in one line.
@@ -47,40 +51,26 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 final class Languages
 {
     /**
-     * Code → the four facts about it.
+     * Code → the three facts about it.
      *
      * Order is deliberate: English first because it is the fallback and the
      * interface language today, then by the size of the audience this platform
      * actually reaches.
      *
-     * `ask` and `yes` are the ONLY translated strings in this codebase, and they
-     * are here for a reason that does not generalise: the first-visit prompt
-     * (REFERENCE §7.2) asks somebody whether they would like the site in their
-     * language, and asking that in English asks it of the one person least able
-     * to answer. The decline stays in English on purpose — "Keep English" is the
-     * option it describes, and a reader who wants it can read it.
-     *
-     * They are short, they are stated once, and they are not a translation
-     * layer; `docs/handoff/GAPS.md` §5.3 still records that as open. Each wants
-     * a speaker's eye before the prompt is switched on for that language.
+     * The first-visit prompt's words (`ask`, `yes`) used to live here too, as the
+     * only translated strings in the codebase. They are in the catalogues now, so a
+     * sentence has exactly one place it is written in each language; {@see options()}
+     * reads them back so a template sees the same shape it always did.
      */
     public const ALL = [
-        'en' => ['name' => 'English',   'english' => 'English',    'dir' => 'ltr',
-                 'ask'  => '',          'yes' => ''],
-        'fr' => ['name' => 'Français',  'english' => 'French',     'dir' => 'ltr',
-                 'ask'  => 'Voir Africa GATES en français ?', 'yes' => 'Oui'],
-        'ar' => ['name' => 'العربية',    'english' => 'Arabic',     'dir' => 'rtl',
-                 'ask'  => 'عرض Africa GATES بالعربية؟',            'yes' => 'نعم'],
-        'sw' => ['name' => 'Kiswahili', 'english' => 'Swahili',    'dir' => 'ltr',
-                 'ask'  => 'Uone Africa GATES kwa Kiswahili?',     'yes' => 'Ndiyo'],
-        'pt' => ['name' => 'Português', 'english' => 'Portuguese', 'dir' => 'ltr',
-                 'ask'  => 'Ver o Africa GATES em português?',     'yes' => 'Sim'],
-        'ha' => ['name' => 'Hausa',     'english' => 'Hausa',      'dir' => 'ltr',
-                 'ask'  => 'Ka ga Africa GATES da Hausa?',         'yes' => 'Ee'],
-        'yo' => ['name' => 'Yorùbá',    'english' => 'Yoruba',     'dir' => 'ltr',
-                 'ask'  => 'Wo Africa GATES ní Yorùbá?',           'yes' => 'Bẹ́ẹ̀ni'],
-        'ig' => ['name' => 'Igbo',      'english' => 'Igbo',       'dir' => 'ltr',
-                 'ask'  => "Lee Africa GATES n'Igbo?",             'yes' => 'Ee'],
+        'en' => ['name' => 'English',   'english' => 'English',    'dir' => 'ltr'],
+        'fr' => ['name' => 'Français',  'english' => 'French',     'dir' => 'ltr'],
+        'ar' => ['name' => 'العربية',    'english' => 'Arabic',     'dir' => 'rtl'],
+        'sw' => ['name' => 'Kiswahili', 'english' => 'Swahili',    'dir' => 'ltr'],
+        'pt' => ['name' => 'Português', 'english' => 'Portuguese', 'dir' => 'ltr'],
+        'ha' => ['name' => 'Hausa',     'english' => 'Hausa',      'dir' => 'ltr'],
+        'yo' => ['name' => 'Yorùbá',    'english' => 'Yoruba',     'dir' => 'ltr'],
+        'ig' => ['name' => 'Igbo',      'english' => 'Igbo',       'dir' => 'ltr'],
     ];
 
     public const COOKIE  = 'ag_lang';
@@ -137,18 +127,39 @@ final class Languages
     {
         $out = [];
         foreach (self::ALL as $code => $l) {
-            $out[] = ['code' => $code] + $l;
+            $out[] = ['code' => $code] + $l + self::promptWords($code);
         }
         return $out;
+    }
+
+    /**
+     * The first-visit prompt's question and its "yes", IN THAT LANGUAGE, or '' each.
+     *
+     * Asked of the catalogue for that language rather than through `|trans`, because
+     * the prompt is not in the page's language: it asks a visitor in theirs, and the
+     * page they are reading is still English. And '' rather than a fallback, because
+     * an English fallback here would ask a Hausa reader in English — the one thing
+     * the prompt exists not to do. The decline, "Keep English", stays in English on
+     * purpose: it is the option it describes, and a reader who wants it can read it.
+     *
+     * @return array{ask:string,yes:string}
+     */
+    private static function promptWords(string $code): array
+    {
+        return [
+            'ask' => Translator::translated($code, 'View Africa GATES in your language?') ?? '',
+            'yes' => Translator::translated($code, 'Yes') ?? '',
+        ];
     }
 
     /**
      * The languages the first-visit prompt can be written in.
      *
      * English is excluded because the prompt offers a way OUT of English, and a
-     * language with no `ask` is excluded because a prompt nobody has written is
-     * a prompt that would have to be composed here — which is how a placeholder
-     * reaches a person's screen.
+     * language whose catalogue lacks the question OR its "yes" is excluded because a
+     * prompt nobody has written is a prompt that would have to be composed here —
+     * which is how a placeholder, or a button with no label, reaches a person's
+     * screen.
      *
      * @return list<array{code:string,name:string,english:string,dir:string,ask:string,yes:string}>
      */
@@ -156,7 +167,7 @@ final class Languages
     {
         return array_values(array_filter(
             self::options(),
-            static fn (array $l): bool => $l['code'] !== self::DEFAULT && $l['ask'] !== ''
+            static fn (array $l): bool => $l['code'] !== self::DEFAULT && $l['ask'] !== '' && $l['yes'] !== ''
         ));
     }
 

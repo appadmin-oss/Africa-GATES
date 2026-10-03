@@ -39,7 +39,7 @@
 /* ── the identity ── */
 .hn__id {
   margin: 0;
-  font: 700 clamp(16px, 2vw, 17px)/1.2 var(--ag-font-body, system-ui);
+  font: 700 clamp(16px, 2vw, 17px)/1.2 var(--ag-font-ui, system-ui);
   letter-spacing: -.01em;
   color: var(--ag-ink, #10292c);
   min-width: 0;
@@ -49,11 +49,11 @@
 .hn__id a { display: inline-flex; align-items: center; min-height: 44px;
             color: inherit; text-decoration: none; }
 .hn__id a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.hn__id a:focus-visible { outline: 3px solid var(--ag-action-edge, #237b22); outline-offset: 3px; }
+.hn__id a:focus-visible { outline: 3px solid var(--ag-green, #237b22); outline-offset: 3px; }
 
 /* The audience, when one is chosen. Lighter than the identity because it is a
    qualifier on it — "Help centre · Organisations" reads as one line, not two. */
-.hn__scope { font-weight: 500; color: var(--ag-ink-soft, #626a6e); }
+.hn__scope { font-weight: 500; color: var(--ag-soft, #626a6e); }
 
 /* ── the search ── */
 .hn__find {
@@ -68,7 +68,7 @@
 .hn__mag {
   position: absolute;
   left: 14px;
-  color: var(--ag-ink-soft, #626a6e);
+  color: var(--ag-soft, #626a6e);
   pointer-events: none;
 }
 .hn__find input {
@@ -78,13 +78,13 @@
   padding: 0 14px 0 39px;
   border: 1px solid var(--ag-line, #d6d4cc);
   border-radius: 999px;
-  background: var(--ag-card, #fff);
+  background: var(--ag-surface, #fff);
   font: 400 16px/1 inherit;
   color: var(--ag-ink, #10292c);
 }
-.hn__find input:hover { border-color: var(--ag-ink-soft, #626a6e); }
+.hn__find input:hover { border-color: var(--ag-soft, #626a6e); }
 .hn__find input:focus-visible {
-  outline: 3px solid var(--ag-action-edge, #237b22);
+  outline: 3px solid var(--ag-green, #237b22);
   outline-offset: 2px;
   border-color: var(--ag-ink, #10292c);
 }
@@ -95,13 +95,13 @@
   padding: 0 18px;
   border: 1px solid var(--ag-ink, #10292c);
   border-radius: 999px;
-  background: var(--ag-card, #fff);
+  background: var(--ag-surface, #fff);
   color: var(--ag-ink, #10292c);
   font: 600 14px/1 inherit;
   cursor: pointer;
 }
-.hn__find button:hover { background: var(--ag-ink, #10292c); color: var(--ag-card, #fff); }
-.hn__find button:focus-visible { outline: 3px solid var(--ag-action-edge, #237b22); outline-offset: 2px; }
+.hn__find button:hover { background: var(--ag-ink, #10292c); color: var(--ag-surface, #fff); }
+.hn__find button:focus-visible { outline: 3px solid var(--ag-green, #237b22); outline-offset: 2px; }
 
 /* ── the tabs ── */
 .hn__tabs {
@@ -133,7 +133,7 @@
   white-space: nowrap;
 }
 .hn__tabs a:hover { color: var(--ag-ink, #10292c); }
-.hn__tabs a:focus-visible { outline: 3px solid var(--ag-action-edge, #237b22); outline-offset: 2px; }
+.hn__tabs a:focus-visible { outline: 3px solid var(--ag-green, #237b22); outline-offset: 2px; }
 /* Where you ARE is weight and a rule; where your pointer is, is colour. Two
    different questions, so two different devices. */
 .hn__tabs a[aria-current] {

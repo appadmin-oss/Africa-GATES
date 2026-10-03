@@ -7,7 +7,7 @@
 .ag-foot{
   background:#0c2225;
   color:#fff;
-  font-family:var(--ag-font-body);
+  font-family:var(--ag-font-ui);
   -webkit-font-smoothing:antialiased;
 }
 

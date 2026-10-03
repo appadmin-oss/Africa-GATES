@@ -296,10 +296,10 @@ final class StandNotice
         // need the app's extensions — and not depending on them keeps this renderable from
         // a console with no HTTP request in flight.
         static $twig = null;
-        $twig ??= new Environment(
+        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
             new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
             ['autoescape' => 'html']
-        );
+        ));
 
         return $twig->render('emails/stand-decision.twig', $vars);
     }

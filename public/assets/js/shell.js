@@ -1,36 +1,74 @@
 /* ══════════════════════════════════════════════════════════════════════════════
    AFRICA GATES — SHELL BEHAVIOUR
-   Scroll state · collapsing search · bottom-bar measurement · sheets
+   Phase 1 of design_handoff_africa_gates · REFERENCE §6.6, §9.1, §9.2, §13
+   Scroll state · collapsing sticky search · bottom-bar height · sheets
    ══════════════════════════════════════════════════════════════════════════════
 
-   A classic script exposing `window.AGShell`, not an ES module. The handoff's
-   snippets are written with `export`, and this codebase loads every one of its
-   own scripts as `<script defer src>` with a CSP nonce — a module would need
-   `type="module"`, which changes the load order and the CSP surface for no gain
-   here. The skill's own rule applies: the codebase wins on mechanics.
+   A CLASSIC SCRIPT, exposing `window.AGShell`. The handoff's snippets are ES
+   modules (`export function`); every script in this codebase is a classic
+   `<script defer src>` under a nonce, and `type="module"` would change both the
+   execution order against the other deferred scripts and the CSP surface for
+   nothing gained. The snippets are the spec for BEHAVIOUR; the repo decides
+   mechanics.
 
-   Everything below is idempotent and safe to call on a page that has none of the
-   markup it looks for.
+   ── THE CONTRACT OTHER CODE READS (keep it, or rewrite them in the same change) ─
+     window.AGShell.watchScroll(main, {threshold, onChange}) → stop()
+     window.AGShell.collapsingSearch(main, block)
+     window.AGShell.trackBottomUI()                → re-measure()
+     window.AGShell.openSheet(sheet, scrim, trigger) → close()   (chrome.js)
+     [data-scrolled]   on .ag-shell and every .ag-sticky inside <main>
+     --ag-bottom-ui    on <body>, the tallest visible [data-bottom-ui]
+     [data-cs] [data-cs-input] [data-cs-btn] .ag-cs__row .ag-cs__btn  (§9.2 markup)
+
+   Everything is idempotent and does nothing on a page without the markup it looks
+   for — which is every page still on layout/gates.twig, since none has `.ag-main`.
    ══════════════════════════════════════════════════════════════════════════════ */
 
 (function () {
   'use strict';
 
-  var FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
+  var THRESHOLD = 8;     /* §6.6 / §9.1: scrolled = scrollTop > 8 */
+  var DRIFT     = 24;    /* §9.2 state 4: an opened, empty search closes after 24px */
+  var FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),' +
+                  'textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+  /* ── ONE passive listener per scroller ────────────────────────────────────
+     §9.1: "one passive scroll listener per page". The collapsing search needs the
+     raw offset on every event as well as the shared boolean, so it SUBSCRIBES to
+     the scroller's single listener instead of adding a second one. Subscribers are
+     kept per element, so a page with two scrollers (a sheet body, say) still gets
+     exactly one listener on each. */
+  var subs = (typeof WeakMap === 'function') ? new WeakMap() : null;
+
+  function listen(main, fn) {
+    var list = subs && subs.get(main);
+    if (!list) {
+      list = [];
+      if (subs) subs.set(main, list);
+      main.addEventListener('scroll', function () {
+        var y = main.scrollTop;
+        for (var i = 0; i < list.length; i++) list[i](y);
+      }, { passive: true });
+    }
+    list.push(fn);
+    return function () {
+      var at = list.indexOf(fn);
+      if (at > -1) list.splice(at, 1);
+    };
+  }
 
   /* ── Scroll state ─────────────────────────────────────────────────────────
-     ONE passive listener per page, and it computes a BOOLEAN. The chrome swaps
-     on a threshold; it is never scrubbed per pixel (REFERENCE §6.6, §9.1). The
-     early return on an unchanged value is the whole point — without it this runs
-     a layout-affecting attribute write on every scroll frame. */
+     Computes a BOOLEAN and writes only when it changes. The chrome swaps on a
+     threshold and is never scrubbed per pixel; without the early return this would
+     write a layout-affecting attribute on every scroll frame. */
   function watchScroll(main, opts) {
     opts = opts || {};
-    var threshold = opts.threshold == null ? 8 : opts.threshold;
+    var threshold = opts.threshold == null ? THRESHOLD : opts.threshold;
     var shell = main.closest('.ag-shell');
     var state = null;
 
-    function tick() {
-      var v = main.scrollTop > threshold;
+    function tick(y) {
+      var v = y > threshold;
       if (v === state) return;
       state = v;
       if (shell) shell.toggleAttribute('data-scrolled', v);
@@ -39,80 +77,123 @@
       if (opts.onChange) opts.onChange(v);
     }
 
-    main.addEventListener('scroll', tick, { passive: true });
-    tick();
-    return function () { main.removeEventListener('scroll', tick); };
+    var stop = listen(main, tick);
+    tick(main.scrollTop);
+    return stop;
   }
 
   /* ── Collapsing sticky search · REFERENCE §9.2, states 1–6 ────────────────
 
-     The search row is ALWAYS in the DOM. `display:none` cannot animate and
-     cannot be reopened smoothly, so the CSS collapses a grid row instead and
-     this only flips the attribute and keeps the accessibility tree honest:
-     the hidden copy is `aria-hidden` with `tabindex="-1"`, so a keyboard user
-     never lands on a control they cannot see. */
+       1  scrollTop ≤ 8                         open, button hidden
+       2  scrolled with an empty query          collapsed, button shown
+       3  the button opens the row              and records y0
+       4  open + empty, moved > 24px from y0    collapses
+       5  a non-empty query                     keeps it open
+       6  back at the top                       resets to state 1
+
+     The row is never `display:none` (the CSS collapses a grid track), so the
+     accessibility tree has to be kept honest by hand: whichever of the two is not
+     showing is `aria-hidden` and out of the tab order. And if the row closes while
+     focus is inside it, focus MOVES to the button — otherwise a keyboard user is
+     left on a control that is hidden from everybody, including their screen reader.
+     Reduced motion needs nothing here: the swap is the same attribute, and shell.css
+     takes the transitions to zero. */
   function collapsingSearch(main, block) {
     var input = block.querySelector('[data-cs-input]');
     var btn   = block.querySelector('[data-cs-btn]');
     var row   = block.querySelector('.ag-cs__row');
     if (!input || !btn || !row) return;
+    /* AwardsPage.dc.html hides the button's WRAPPER (it animates the width) and
+       takes the button itself out of the tab order; a bare button does both. */
+    var wrap = btn.closest('.ag-cs__btn') || btn;
 
-    var open = true, y0 = 0;
+    var open = null, y0 = 0, settleUntil = 0;
+
+    /* ── SCROLL ANCHORING MOVES THE SCROLLER WHEN THE ROW OPENS ─────────────
+       Opening the row grows the sticky block, which pushes the content under it
+       down — and Chromium's scroll anchoring answers by raising `scrollTop` by the
+       same amount, so the content does not appear to move. That adjustment arrives
+       as an ordinary scroll event, about 60px from y0, and state 4 then closed the
+       row the instant it opened, sending focus straight back to the button. The
+       snippet has this fault; measured on /_dev/ui at 390.
+
+       So for as long as the row is growing, a scroll event re-bases y0 instead of
+       counting as drift: the growth is the toolbar's, not the person's. The window
+       is the expand duration read from the token, plus a frame or two. Safari has no
+       scroll anchoring, nothing moves there, and the window simply passes. */
+    function settleMs() {
+      var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ag-dur-2'));
+      return (isNaN(v) ? 260 : v) + 120;
+    }
 
     function set(o) {
+      if (o === open) return;
+      /* Whichever control is about to be hidden, if it holds focus, hands it to the
+         one appearing — in both directions, so focus is never left on something
+         aria-hidden (the row closing under a typing thumb, or the button vanishing
+         at the top of the page). */
+      var fromRow = !o && row.contains(document.activeElement);
+      var fromBtn = o && open === false && document.activeElement === btn;
       open = o;
       block.toggleAttribute('data-collapsed', !o);
       row.setAttribute('aria-hidden', String(!o));
       input.tabIndex = o ? 0 : -1;
-      btn.setAttribute('aria-hidden', String(o));
+      wrap.setAttribute('aria-hidden', String(o));
       btn.tabIndex = o ? -1 : 0;
+      if (fromRow) btn.focus({ preventScroll: true });
+      if (fromBtn) input.focus({ preventScroll: true });
     }
 
-    function onScroll() {
-      var y = main.scrollTop, q = input.value.trim();
-      if (y <= 8) { if (!open) set(true); return; }   /* states 1 and 6 */
-      if (q) return;                                   /* state 5: a query keeps it open */
-      if (open && Math.abs(y - y0) > 24) set(false);   /* states 2 and 4 */
+    function onScroll(y) {
+      if (y <= THRESHOLD) { set(true); return; }          /* states 1 and 6 */
+      if (input.value.trim()) return;                      /* state 5 */
+      if (open && Date.now() < settleUntil) { y0 = y; return; }
+      if (open && Math.abs(y - y0) > DRIFT) set(false);    /* states 2 and 4 */
     }
 
-    /* State 3: opening records where we were, so the 24px test below measures
-       from the tap rather than from the top of the document. */
-    btn.addEventListener('click', function () { y0 = main.scrollTop; set(true); input.focus(); });
-
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && main.scrollTop > 8 && !input.value.trim()) { set(false); btn.focus(); }
+    btn.addEventListener('click', function () {            /* state 3 */
+      y0 = main.scrollTop;
+      settleUntil = Date.now() + settleMs();
+      set(true);
+      input.focus({ preventScroll: true });
     });
 
-    main.addEventListener('scroll', onScroll, { passive: true });
-    set(main.scrollTop <= 8);
-    if (!open) y0 = main.scrollTop;
+    /* Esc collapses the row and gives focus back to the button. At the top the row
+       is state 1 and has nowhere to collapse to, and a typed query is state 5 — Esc
+       does nothing in either rather than throwing away what somebody wrote. */
+    input.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      if (main.scrollTop <= THRESHOLD || input.value.trim()) return;
+      e.preventDefault();
+      set(false);
+      btn.focus({ preventScroll: true });
+    });
+
+    listen(main, onScroll);
+    y0 = main.scrollTop;
+    set(main.scrollTop <= THRESHOLD || !!input.value.trim());
   }
 
-  /* ── Bottom UI measurement ────────────────────────────────────────────────
+  /* ── Bottom UI height ─────────────────────────────────────────────────────
 
-     Every fixed bottom element carries [data-bottom-ui]; the tallest VISIBLE one
-     sets `--ag-bottom-ui` on <body>, and the Gee launcher and toasts clear it by
-     16px. Measured rather than hard-coded because the three documented offsets —
-     96 above the tab bar, 108 above an action bar, 40 with neither — are just
-     "the bar plus the gap", and a hard-coded number goes stale the first time a
-     bar gains a second line of text.
+     Every fixed bottom element carries [data-bottom-ui]; the tallest one that is
+     laid out sets `--ag-bottom-ui` on <body>, and Gee, the cookie notice and the
+     page's own clearance read it. Measured, never typed: the documented offsets
+     (96 above a tab bar, 108 above an action bar) are only "the bar plus 16", and
+     a typed number goes stale the first time a bar wraps to a second line.
 
-     ── THE VISIBILITY TEST EXCLUDED EVERY BAR IT EXISTS TO MEASURE ──────────
+     The VISIBILITY test is `getClientRects().length`, NOT the snippet's
+     `offsetParent !== null`. `offsetParent` is null for a `position:fixed`
+     element, which is what every one of these bars is on a page that scrolls the
+     document — so the snippet's test excluded every bar it exists to measure, the
+     variable sat at its 0px default, and the launcher landed on top of the tab bar.
+     `getClientRects()` is empty for `display:none` and only then.
 
-     It was `offsetParent !== null`, described here as the display:none test. It is
-     not: `offsetParent` is **null for a `position:fixed` element**, which is what
-     every one of these bars is. So the tallest visible bar was always none of
-     them, `--ag-bottom-ui` stayed at its 0px default on every page, and the Gee
-     launcher and the cookie notice sat flat against the bottom edge — on top of
-     the tab bar on a phone. Nothing threw; the number simply never moved off its
-     own fallback, which is the shape that survives a review.
-
-     `getClientRects().length` is the test that means what the old comment claimed:
-     zero for `display:none`, non-zero for anything laid out, fixed included. A bar
-     merely translated off-screen still counts, which is correct while a sheet
-     animates. */
+     It writes only when the figure changes. It observes `style` attributes under
+     <body>, and its own write IS a style attribute on <body>: an unconditional
+     write would be its own trigger. */
   function trackBottomUI() {
-    var bars = document.querySelectorAll('[data-bottom-ui]');
+    var last = null;
 
     function set() {
       var h = 0;
@@ -120,11 +201,15 @@
       for (var i = 0; i < els.length; i++) {
         if (els[i].getClientRects().length) h = Math.max(h, els[i].getBoundingClientRect().height);
       }
-      document.body.style.setProperty('--ag-bottom-ui', h + 'px');
+      var v = h + 'px';
+      if (v === last) return;
+      last = v;
+      document.body.style.setProperty('--ag-bottom-ui', v);
     }
 
     if (window.ResizeObserver) {
       var ro = new ResizeObserver(set);
+      var bars = document.querySelectorAll('[data-bottom-ui]');
       for (var i = 0; i < bars.length; i++) ro.observe(bars[i]);
     }
     if (window.MutationObserver) {
@@ -138,24 +223,20 @@
   }
 
   /* ── Sheets and dialogs ───────────────────────────────────────────────────
-
-     Open, trap Tab, close on Esc and on the scrim, and RESTORE FOCUS to the
-     trigger. The restore is the part most often missed and the part a keyboard
-     user notices: without it, closing a sheet drops focus on <body> and the next
-     Tab starts again at the top of the document.
-
-     Back closes the top-most layer first (skill §10), so the caller pushes a
-     history entry and calls the returned close() from popstate. */
+     Open, move focus in, trap Tab, close on Esc and on the scrim, and give focus
+     BACK to the trigger — the part most often missed and the part a keyboard user
+     notices, because without it the next Tab starts again at the top of the
+     document. A closed sheet is `inert`, so nothing in it is focusable or announced.
+     The back gesture (skill §10) is the caller's: chrome.js pushes one history
+     entry and calls the returned close() from popstate. */
   function openSheet(sheet, scrim, trigger) {
     sheet.setAttribute('data-open', '');
     sheet.removeAttribute('inert');
     if (scrim) scrim.setAttribute('data-open', '');
     if (trigger) trigger.setAttribute('aria-expanded', 'true');
 
-    /* `offsetParent` is the right test HERE and the wrong one in trackBottomUI,
-       and the difference is worth stating: it is null for a fixed element itself,
-       and NOT null for that element's children — their offsetParent is the fixed
-       ancestor. These are the sheet's children. */
+    /* `offsetParent` is right HERE: it is null for a fixed element itself, but not
+       for that element's children, whose offsetParent is the fixed ancestor. */
     function els() {
       return Array.prototype.filter.call(
         sheet.querySelectorAll(FOCUSABLE),
@@ -187,9 +268,7 @@
     return close;
   }
 
-  /* ── Boot ─────────────────────────────────────────────────────────────────
-     Wires whatever the page happens to have. A page with no .ag-main is an
-     unconverted one and simply gets nothing. */
+  /* ── Boot ─────────────────────────────────────────────────────────────────── */
   function boot() {
     var main = document.querySelector('.ag-main');
     if (main) {

@@ -915,11 +915,11 @@ HTML;
         string $unsubscribeUrl = '',
     ): array {
         $base  = $this->base();
-        $ink   = Accent::neutral('ink');
-        $ink2  = Accent::neutral('ink-2');
-        $soft  = Accent::neutral('ink-soft');
-        $line  = Accent::neutral('line');
-        $go    = Accent::fill(Accent::ACTION);
+        $ink   = Accent::hex('ink');
+        $ink2  = Accent::hex('ink-2');
+        $soft  = Accent::hex('soft');
+        $line  = Accent::hex('line');
+        $go    = Accent::hex('green');
         $name  = htmlspecialchars($cycleName, ENT_QUOTES);
         $when  = htmlspecialchars($closingDate, ENT_QUOTES);
 
@@ -938,7 +938,7 @@ HTML;
         $html = '<h1 style="margin:0;font-family:Helvetica,Arial,sans-serif;font-weight:700;font-size:24px;line-height:30px;color:' . $ink . '">Voting closes soon</h1>'
               . '<p style="margin:12px 0 0;font-size:16px;line-height:1.6;color:' . $ink2 . '">Voting for <strong style="color:' . $ink . '">' . $name . '</strong> closes on <strong style="color:' . $ink . '">' . $when . '</strong>. If you have not voted yet, there is still time.</p>'
               . $leaders
-              . '<p style="text-align:center;margin:28px 0 8px"><a href="' . $base . '/vote" style="display:inline-block;padding:14px 32px;background:' . $go . ';color:' . Accent::SURFACE . ';border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">Vote now</a></p>'
+              . '<p style="text-align:center;margin:28px 0 8px"><a href="' . $base . '/vote" style="display:inline-block;padding:14px 32px;background:' . $go . ';color:' . Accent::hex('surface') . ';border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">Vote now</a></p>'
               . '<p style="margin:12px 0 0;font-size:13px;line-height:1.6;color:' . $soft . '">One vote per category, confirmed with a code we send you. It takes under a minute.</p>';
 
         $plain = "Voting for {$cycleName} closes on {$closingDate}.\n\nVote now: {$base}/vote\n\n"

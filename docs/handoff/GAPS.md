@@ -74,7 +74,7 @@ from it, and where each feature lives in the rebuild.
 | **`supportDesk()`** | **Not Gee's.** An Alpine component defined in a nonced inline script in the support page, posting to `/api/v1/support/chat` and `/escalate` | defined `templates/pages/support-assistant.twig:394-395`, used `:215` |
 | Fonts | Google Fonts, `display=swap`, preconnect; allowed by both policies; nothing self-hosted. `gates.twig:174` loads Playfair 400–900, Source Serif 4, DM Sans 300–700, JetBrains Mono 400/500/700; `shell.twig:61-63` loads exactly the handoff set. **Atkinson Hyperlegible (the "easy read" option) is loaded nowhere** and silently falls back | `shell.css:112`; `partials/display-reading.twig:58` |
 | Icons | `partials/icons.twig`: `sec(name, size, title)` (two-tone section icons) and `ui(name, size)` (24×24, stroke 1.9, round caps; `back`/`next` mirror in RTL). Admin has its own sprite. **Lucide 1.28.0 is also vendored** — a second icon set already in the tree, against REFERENCE §14 | `icons.twig:71, 167`; `public/assets/js/vendor/lucide-1.28.0.min.js` |
-| Translation | **There is no translation layer.** No `trans` filter is registered anywhere; every handoff Twig snippet uses `{{ '…'|trans }}` and will not compile. Language is `Support\Languages` + `LanguageMiddleware` (cookie `ag_lang`, `lang`/`dir`) only | `grep` over `config/`, `src/`: no hits |
+| Translation | **Built (Q12, answered by the owner: build it).** `Support\Translator` is the one resolver: the Twig filter `trans` (`{{ 'Back'\|trans }}`, `'Hello %name%'\|trans({'%name%': n})`) reads `Languages::current()` — the locale `LanguageMiddleware` settled from `?lang=` / `ag_lang` — and catalogues `resources/lang/{code}.php` keyed by the English source string. English has no catalogue (identity); a missing or empty entry renders the source; output is plain text, so autoescape still applies. Registered on the app environment and on every bare mail `Environment` through `Translator::register()`. The catalogues hold only the first-visit prompt's words today (moved out of `Support\Languages`); every rebuilt string is translatable from its first commit, and `TranslatorTest` fails on a catalogue entry nothing reads | `src/Support/Translator.php`; `resources/lang/`; `config/container.php` (after `lang_ask`); `tests/Unit/TranslatorTest.php` |
 | Layouts | `layout/gates.twig` (85 public templates), `layout/shell.twig` (4: nominate ×3, dev-ui), `layout/account-auth.twig` (5), `admin/layout.twig` (97), `judge/layout.twig` (2) | — |
 | CSS | Legacy top level (`main.css` 4,949 lines, `ui-overhaul.css`, `professional.css`, `redesign-2026.css`, `aurora.css`, `motion.css`, …); redesign layer `tokens.css` / `shell.css` / `components.css`; 24 sheets in `components/`. **`base/tokens.css` is orphaned but still linked by `templates/admin/login.twig:11`** and still declares the failing gold `#c9a24b` | `public/assets/css/` |
 | Inline styling today | 924 `style="…"` attributes in 79 public templates (42 interpolate Twig); 89 `<style>` blocks in 81 templates; 3,137 literal hexes in 82 templates (baseline `tests/baselines/template-hex.json`) | — |
@@ -406,10 +406,10 @@ building the bundle as written fails a test or reintroduces a documented fault. 
 
 | # | Bundle says | Repo rule / guard | Decision needed |
 |---|---|---|---|
-| C1 | **Colour:** 26 named tokens, "only the tokens in §6", `snippets/css/tokens.css` "the only file with hex values" (REFERENCE §6.1, §4.6) | CLAUDE.md: `Support\Accent` is the ramp, "colour comes from Accent and nowhere else", "never invent a fifth name". Guards: `AccentTest` (10), `SlotFloorTest` (15), `ColourBudgetTest` (9), `NoLiteralHexTest` (4). **Live collision today:** `--ag-line` is `#d6d4cc` from Accent (`Accent.php:121`, emitted at `gates.twig:245`) and `#e8e5dd` in `tokens.css:64`; `--ag-surface-2` likewise. Near-duplicates under different names: action wash `#e4f6e4` / `--ag-green-wash #effaf0`; live ink `#cc1950` / `#b0224f`; caution `#b3261e` / `--ag-error #b42318` | **Q1** — one source. Either Accent is destroyed and rebuilt *as* the bundle palette (still PHP-emitted, so the floor tests measure real values), or `tokens.css` is the source and the four guards are rebuilt to read it |
-| C2 | Guards are **blind** to the bundle's names: `AccentTest`/`ColourBudgetTest` look for `--ag-<role>-(fill\|wash)`; a page painted with `--ag-green` or `--ag-gold-wash` passes them **without being checked** | CLAUDE.md, "the right rule pinned to the wrong token" | Rebuild the guards with the palette (Q1) |
-| C3 | Gold `#f3b416` for "honour, winners"; `--ag-mute` for disabled text; inputs and outlined chips bordered only by `--ag-line-2 #d6d4cc` | Gold is 1.61:1 on the ground — CLAUDE.md records gold used as a line as the reason the site read monochrome; `SlotFloorTest::test_mute_is_never_a_word`; the chip/input border is **1.48:1** on white, under the 3:1 a border owes (WCAG 1.4.11, CLAUDE.md tier section) | **Q2** — rule on gold as fill-only, mute as text, and the outlined-component border |
-| C4 | Seven exact shadows (REFERENCE §6.5) | `Accent.php:212-217` "there are no shadows anywhere on this site" (the lip) | **Q3** |
+| C1 | **Colour:** 26 named tokens, "only the tokens in §6", `snippets/css/tokens.css` "the only file with hex values" (REFERENCE §6.1, §4.6) | CLAUDE.md: `Support\Accent` is the ramp, "colour comes from Accent and nowhere else", "never invent a fifth name". Guards: `AccentTest` (10), `SlotFloorTest` (15), `ColourBudgetTest` (9), `NoLiteralHexTest` (4). **Live collision today:** `--ag-line` is `#d6d4cc` from Accent (`Accent.php:121`, emitted at `gates.twig:245`) and `#e8e5dd` in `tokens.css:64`; `--ag-surface-2` likewise. Near-duplicates under different names: action wash `#e4f6e4` / `--ag-green-wash #effaf0`; live ink `#cc1950` / `#b0224f`; caution `#b3261e` / `--ag-error #b42318` | **Q1 — answered: Accent rebuilt as the bundle palette (§8).** Was: either Accent is destroyed and rebuilt *as* the bundle palette (still PHP-emitted, so the floor tests measure real values), or `tokens.css` is the source and the four guards are rebuilt to read it |
+| C2 | Guards are **blind** to the bundle's names: `AccentTest`/`ColourBudgetTest` look for `--ag-<role>-(fill\|wash)`; a page painted with `--ag-green` or `--ag-gold-wash` passes them **without being checked** | CLAUDE.md, "the right rule pinned to the wrong token" | **Done in Phase 1** — fields read by property, `Tests\Support\ColourFields` |
+| C3 | Gold `#f3b416` for "honour, winners"; `--ag-mute` for disabled text; inputs and outlined chips bordered only by `--ag-line-2 #d6d4cc` | Gold is 1.61:1 on the ground — CLAUDE.md records gold used as a line as the reason the site read monochrome; `SlotFloorTest::test_mute_is_never_a_word`; the chip/input border is **1.48:1** on white, under the 3:1 a border owes (WCAG 1.4.11, CLAUDE.md tier section) | **Q2 — answered: accepted as shipped (§8)** |
+| C4 | Seven exact shadows (REFERENCE §6.5) | `Accent.php:212-217` "there are no shadows anywhere on this site" (the lip) | **Q3 — answered: adopted (§8)** |
 | C5 | Type scale: body 16, 14.5, 13.5, micro 11.5–12.5, display fixed per breakpoint, "never `vw` type" (§6.2, §4.5) | `TypeScaleTest` **already enforces the bundle's ladder** (11.5…17, `MIGRATING = [10, 11]`, Phase 1 `c73971e`) — but CLAUDE.md still states the old closed scale `10·11·12·13·14·16·17` and "display set with `clamp()` against the viewport", and `tokens.css:195-201` carries `vw` compat sizes | **Q4** — fixed display rungs; delete `MIGRATING`; rewrite CLAUDE.md's section (prose outliving the rule) |
 | C6 | "Never mono for labels, stats or kickers; no uppercase labels" (§6.2, §18.3-4) — but the bundle contradicts itself: HANDOFF §2 "Mono … numbers, codes, times", §5e "a mono count"; SKILL §24.3 "mono 17px value" vs §24.7 "no monospace"; HANDOFF §5c "removable dark chips" vs §18.2 outlined | CLAUDE.md house style: "hairline rules, **mono micro-labels**" (214 such declarations). 124 files use `text-transform:uppercase`. No test either way | **Q5** — resolve the bundle's own contradictions; rewrite the house-style line; add a guard |
 | C7 | Snippet `tokens.css` declares the full ladders (`--ag-sp-*`, `--ag-r-*`, `--ag-sh-*`, `--ag-z-*`, stock, `--ag-ease-pop`, `--ag-dur-3`) | `DeadTokenTest`: no property declared without a reader. It already forced five bundle tokens out; Phase 1 made `/_dev/ui` read ladders to keep them alive — the §17 fault dressed as a fix | A token lands with its first reader, in the phase that reads it |
@@ -420,7 +420,7 @@ building the bundle as written fails a test or reintroduces a documented fault. 
 | C12 | Paid contributions "count the same as free votes" (§12, HANDOFF §6, DESIGN-NOTES) | CLAUDE.md: paid votes count at full weight in the **30% tally only**; the 70% people term counts verified people and a purchase buys no reach (`VoterReach`; `PaidVoteCpiSeparationTest`, `EditionScaleTest` sweeps help articles for the retired wording) | **Q10** — copy built from that sentence would publish a false rule; confirm it is overridden |
 | C13 | "No AI wording anywhere public" (§4.8, README rule 8) | Legally required disclosures: `partials/ai-collection-notice.twig` (NDPA point-of-collection), `/privacy#automated-processing` from `AiPrivacy::disclosure()`, the `/cookies` AI section; `AiPrivacyTest` (30). The notice's own comment draws the line: features may go unnamed, data processing may not | Keep the disclosures; the rule applies to feature copy |
 | C14 | Consent cookie `ag_consent` (JSON, versioned), four categories (§10, CookieConsent DC) | `CookiePrefs::COOKIE = 'ag_privacy'`, one resolver ("if anything said no, the answer is no"), `visits_consent_mode`, plain-POST controls, identical class strings on accept/decline; `CookieRegistryTest` fails by name on `ag_consent`, `ag-cel-*`, `ag-gee-privacy` | **Q11** |
-| C15 | Snippets use `|trans`; ES-module JS (`export function`); `page-shell.twig` includes `partials/nav.twig` and `partials/gee.twig`; `shell.css` locks `html,body{overflow:hidden}` globally; `bottom-ui.js` skips `position:fixed` bars via `offsetParent` | No `trans` filter; every repo script is a classic `defer` script; neither partial exists; a global lock makes every `gates.twig` page unscrollable; the `offsetParent` bug was found and fixed in `4c5f489` | **Q12** — build a translation layer first, or drop `|trans`. The other three are known snippet faults; the DC wins over the snippet (snippets README) |
+| C15 | Snippets use `|trans`; ES-module JS (`export function`); `page-shell.twig` includes `partials/nav.twig` and `partials/gee.twig`; `shell.css` locks `html,body{overflow:hidden}` globally; `bottom-ui.js` skips `position:fixed` bars via `offsetParent` | No `trans` filter (built since — §2); every repo script is a classic `defer` script; neither partial exists; a global lock makes every `gates.twig` page unscrollable; the `offsetParent` bug was found and fixed in `4c5f489` | **Q12 — answered: build it.** `|trans` now compiles (§2 "Translation"). The other three are known snippet faults; the DC wins over the snippet (snippets README) |
 | C16 | `GET /search?q=&scope=` returns JSON (HANDOFF §3) | `/search` is a 301 alias to `/activity`; the palette's JSON is `/activity/search` (`SearchScopeTest`, 7) | **Q13** |
 | C17 | `docs/redesign-ref/` | A different, earlier set of 24 DCs; the nomination flow (`4e4090c`, `4dadb12`) was built against it, not against `H/design/NominationFlow.dc.html`. REFERENCE §0: only `design/` is spec | **Q15** — two references disagreeing is this repo's costliest shape |
 | C20 | NominationFlow DC: the error copy says "at least one" category | Its own heading, and PHASE-8 §8.16, say two to three; `NominationRules` enforces two (`src/Services/NominationRules.php:52-62`). REFERENCE §0 puts the phase file above the DC | **Resolved by the bundle's own order:** two. Recorded here because the comment in `NominationRules` points at this file |
@@ -469,6 +469,29 @@ Each is destroyed **together with** its guard, which is rebuilt with its rule in
   `templates/layout/shell.twig`; `templates/pages/dev-ui.twig` and its route (`routes.php:2920-2937`).
   Guards: `TypeScaleTest`, `DeadTokenTest`, `AssetBundleTest`, `ShorthandOverridesTest`, and — with Q1 — `AccentTest`,
   `SlotFloorTest`, `ColourBudgetTest`, `NoLiteralHexTest` + `tests/baselines/template-hex.json`.
+  **Done (3 Oct 2026) — `docs/handoff/PHASE-1.md`.** `shell.css`, `components.css`, `shell.js`, `layout/shell.twig`
+  and `pages/dev-ui.twig` were deleted and written again; new guards `ShellLayoutTest`, `DevUiTest`.
+  **Moved, not rebuilt — to be destroyed by their owners.** `components.css` had grown to 1,376 lines because later
+  work appended to it. Before the rebuild those rules were moved out **byte for byte** (screenshots of `/`, `/nominate`
+  and its Menu at 390 and 1440 are byte-identical before and after the move, `shots/phase-1/carve/`), each into a file
+  owned by the phase that destroys it, loaded at the position it held inside `components.css` (both layouts and
+  `AssetBundle::STYLESHEETS`):
+  - `public/assets/css/components/chrome.css` — **moved, to be destroyed in Phase 2**: app bar, tab bar, bottom action
+    bar, `.ag-tint--*`, `.ag-btn--sm` / `--quiet`, `body.ag-sheet-open`, Menu, Quick settings, Display & reading, the
+    language prompt, site header, mega panel, popovers, announcement strip (b18620b, ee7dce0, 4c5f489, e2b2343,
+    4dadb12); and `[dir="rtl"] .ag-ico-dir` from `shell.css`. Two lines were written rather than moved, both marked in
+    the file: the tab bar's `body:not(.ag-shelled)` became `html:not(.ag-shelled)` (the lock class moved to `<html>`),
+    and the Display & reading rows keep DisplayReading.dc.html's 44 × 26 switch (Phase 2 had resized the base switch
+    in place; the rebuilt base is the snippet's 46 × 28).
+  - `public/assets/css/components/library.css` — **moved, to be destroyed with its readers**: pill, table, cell, facts,
+    meter, avatar, page head, lead, group, steps, ticks, notice, FAQ, date, link card, form stack, disclosure, sub-nav,
+    `input.ag-field` (980609c Account, e107714 Challenges, e9f7d2f Awards). The award page's share goes in **Phase 5**;
+    Account and Challenges are **Q16** — no phase owns them yet.
+  - `.ag-ai-note` → end of `public/assets/css/components/nominate.css` — **moved, to be destroyed in Phase 8**: its
+    only includer is `pages/nominate-award.twig`.
+  `DevUiTest::test_components_css_holds_the_base_components_and_nothing_else` now fails any block appended to the base.
+  **Found by the rebuild, for Phase 2:** `partials/app-bar.twig` draws its back chevron inline without `.ag-ico-dir`,
+  so in Arabic it points the wrong way (`shots/phase-1/devui-390-rtl-collapsed.png`).
 - **Phase 2 (chrome):** `layout/nav.twig`, `partials/{site-header,app-bar,tab-bar,menu-sheet,quick-settings,display-reading,a11y-head,lang-prompt,site-search}.twig`,
   `public/assets/js/{a11y,chrome,header,ag-search}.js`, `components/{site-search,vote-countdown}.css`, the cookie notice partial.
   Guards: `SiteHeaderTest`, `ChromeReachabilityTest`, `DisplayReadingTest`, `LanguageTest` (rebuilt to catch §3.8's fault),
@@ -493,9 +516,9 @@ scoring, sealing, mail and payment service.
 
 ## 8. Blocked questions — for the owner, not guessed
 
-1. **One colour source** — rebuild `Support\Accent` as the bundle palette, or make `tokens.css` the source and rebuild the four colour guards to read it? (C1, C2)
-2. Gold as fill only; `--ag-mute` as disabled text; the 1.48:1 outlined chip/input border — accepted, or corrected? (C3)
-3. Shadows — the bundle's seven, or none? (C4)
+1. **One colour source** — rebuild `Support\Accent` as the bundle palette, or make `tokens.css` the source and rebuild the four colour guards to read it? (C1, C2) — **Answered (owner, 2 Oct 2026): Accent is destroyed and rebuilt as the handoff palette**, exact names and values, still PHP-emitted into a nonced `<style>` by every layout; `tokens.css` holds no colour; no compatibility aliases — every reader of a retired name rewritten. Guards rebuilt to see the handoff's names (`AccentTest`, `SlotFloorTest`, `ColourBudgetTest`, `ColourIsNeverAloneTest` via `Tests\Support\ColourFields`) and to sweep CSS as well as templates (`ColourLiteralTest` replaces `NoLiteralHexTest`; C8). Built in Phase 1.
+2. Gold as fill only; `--ag-mute` as disabled text; the 1.48:1 outlined chip/input border — accepted, or corrected? (C3) — **Answered (owner, 2 Oct 2026): ship the handoff exactly, ±0.** Fills, lines/borders, gold as a line, `mute` and the 1.48:1 border are accepted (`Accent::ACCEPTED`); the 4.5:1 floor is kept for every word token on every ground it is drawn on (`Accent::words()`); a failing word is reported, never re-valued.
+3. Shadows — the bundle's seven, or none? (C4) — **Answered (owner, 2 Oct 2026): adopted.** §6.5 plus `--ag-sh-gee`, emitted by Accent (they are rgba of ink); the "no shadows anywhere" doctrine is deleted from Accent, AssetBundle, `lip.css`, `article.css` and CLAUDE.md. The two per-element §6.5 shadows (celebration badge, celebration ticket) belong to Phase 3.
 4. Display type — fixed rungs per breakpoint (bundle) confirmed, `MIGRATING [10, 11]` deleted outright? (C5)
 5. Mono and uppercase — which side of the bundle's own contradictions wins? (C6)
 6. Event tier colour — five stored columns, or derived from the slot at read time (recommended)? (C9)
@@ -504,7 +527,7 @@ scoring, sealing, mail and payment service.
 9. Ballot fields — make name, phone and message required (REFERENCE §12)? The paid name field is the display-name consent today. (§3.16)
 10. Paid-vote copy states the real rule (tally yes, reach no) — confirm the bundle's "count the same" sentence is overridden. (C12)
 11. Consent — keep the `ag_privacy` single-switch model, or build the four-category `ag_consent` (CookiePrefs, legal copy, a repair migration of the stored policy)? (C14)
-12. Translation — build a `trans` layer before any phase uses the snippets, or drop `|trans`? (C15)
+12. ~~Translation — build a `trans` layer before any phase uses the snippets, or drop `|trans`? (C15)~~ **Answered by the product owner: build it first.** Built — §2 "Translation".
 13. Search JSON — move it to `GET /search` (retiring that alias), or keep `/activity/search`? Trending in the empty palette has no measured signal — drop it? (C16, §3.6)
 14. Which DC owns `/results` (index) and `/results/{id}` (one award)? (§5.1)
 15. `docs/redesign-ref/` — delete as superseded? (C17)
@@ -523,7 +546,7 @@ phase that next touches each one re-points it:
 | Comment | Cited | The fact now lives in |
 |---|---|---|
 | `tests/Unit/SiteHeaderTest.php:126` | §9.8 (Results in the header) | §3.15, Q18 |
-| `src/Support/Languages.php:22, :64` | §5.3 (no translation layer) | §2 "Translation", C15, Q12 |
+| `src/Support/Languages.php` | §5.3 (no translation layer) | Re-pointed: the docblock now describes `Support\Translator` and cites Q12 |
 | `src/Services/NominationRules.php:61` | (no section) the DC's "at least one" | C20 |
 | `src/routes.php:1842` | §5.5 (no Discover page) | §4, §5.3 |
 
@@ -544,4 +567,4 @@ phase that next touches each one re-points it:
   reinstalled from the bundle (byte-identical, no diff).
 - **DC prop combinations → screenshots:** none — Phase 0 renders nothing.
 - **Deviations:** none.
-- **Blocked:** §8, nineteen questions. Q1–Q5 and Q12 block Phases 1–2; Q7 and Q19 block Phase 3; the rest block the phase named beside them.
+- **Blocked:** §8, nineteen questions. Q1–Q5 block Phases 1–2 (Q12 is answered and built); Q7 and Q19 block Phase 3; the rest block the phase named beside them.

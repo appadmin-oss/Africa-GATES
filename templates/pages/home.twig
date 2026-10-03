@@ -34,7 +34,7 @@
   .hm-btn{ cursor:pointer; text-decoration:none; font-family:inherit; font-weight:600; font-size:16px; padding:15px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; }
   .hm-btn svg{ width:15px; height:15px; }
   .hm-btn--p{ background:var(--ag-green); color:#fff; }
-  .hm-btn--p:hover{ background:var(--ag-green-dark); }
+  .hm-btn--p:hover{ background:var(--ag-green-deep); }
   .hm-btn--o{ background:#fff; color:var(--ag-ink); border-color:rgba(16,41,44,.16); }
   .hm-btn--o:hover{ border-color:var(--ag-green); color:var(--ag-green); }
   .hm-hero__trust{ margin:30px 0 0; font-size:13px; font-weight:500; color:#5a6d6f; }
@@ -73,7 +73,7 @@
   .hm-mini__open{ display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:#1a6118; background:#effaf0; padding:5px 10px; border-radius:999px; }
   .hm-mini__row{ display:flex; align-items:center; gap:12px; background:#f6f7f6; border:1px solid rgba(16,41,44,.06); border-radius:14px; padding:11px 13px; }
   .hm-mini__row + .hm-mini__row{ margin-top:9px; }
-  .hm-av{ width:38px; height:38px; border-radius:11px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; flex:none; background-size:cover; background-position:center; }
+  .hm-av{ width:38px; height:38px; border-radius:11px; background:var(--ag-green-wash); color:var(--ag-green-deep); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; flex:none; background-size:cover; background-position:center; }
   .hm-mini__nm{ font-weight:600; font-size:14px; color:var(--ag-ink); }
   .hm-mini__mt{ font-size:11px; color:#5a6d6f; }
   .hm-mini__foot{ margin-top:14px; display:flex; align-items:center; gap:8px; font-size:12px; color:#5a6d6f; }
@@ -82,7 +82,7 @@
   .hm-evs{ display:flex; flex-direction:column; gap:12px; }
   .hm-ev{ display:flex; align-items:center; gap:16px; background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:16px 18px; text-decoration:none; transition:border-color .15s, transform .15s; }
   .hm-ev:hover{ border-color:rgba(16,41,44,.2); transform:translateX(2px); }
-  .hm-ev__d{ flex:none; width:58px; height:62px; border-radius:14px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .hm-ev__d{ flex:none; width:58px; height:62px; border-radius:14px; background:var(--ag-green-wash); color:var(--ag-green-deep); display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .hm-ev__mon{ font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
   .hm-ev__day{ font-family:var(--ag-font-mono); font-weight:700; font-size:22px; line-height:1; }
   .hm-ev__t{ font-weight:600; font-size:16px; color:var(--ag-ink); }
@@ -210,33 +210,33 @@
   .hm-win__h{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px 24px;
               flex-wrap:wrap; padding-bottom:14px; border-bottom:2px solid var(--ag-ink); }
   .hm-win__k{ margin:0 0 6px; font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.12em;
-              text-transform:uppercase; color:var(--ag-ink-soft); }
+              text-transform:uppercase; color:var(--ag-soft); }
   .hm-win__t{ margin:0; font-family:var(--ag-font-display); font-weight:700;
               font-size:clamp(1.5rem,3.4vw,2.1rem); letter-spacing:-.02em; line-height:1.1; }
   .hm-win__all{ font:600 13px/1 var(--ag-font-mono); letter-spacing:.05em; text-transform:uppercase;
                 color:var(--ag-green); text-decoration:none; display:inline-flex; align-items:center;
                 gap:6px; white-space:nowrap; }
-  .hm-win__all:hover{ color:var(--ag-green-dark); }
+  .hm-win__all:hover{ color:var(--ag-green-deep); }
   .hm-win__grid{ list-style:none; margin:22px 0 0; padding:0; display:grid;
                  grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:clamp(14px,2vw,22px); }
   .hm-win__c{ display:block; text-decoration:none; color:inherit; }
   /* `display:block` on the box, not inline — aspect-ratio does not apply to an inline
      span, and the winner with no photograph is the case that exposes it. */
   .hm-win__ph{ display:block; position:relative; aspect-ratio:4/5; border-radius:12px;
-               overflow:hidden; background:var(--ag-surface-2,#f6f7f6); }
+               overflow:hidden; background:var(--ag-ground,#f6f7f6); }
   .hm-win__ph img{ width:100%; height:100%; object-fit:cover; display:block;
-                   transition:transform var(--ag-dur,.4s) var(--ag-ease,ease); }
+                   transition:transform var(--ag-dur-2,.4s) var(--ag-ease,ease); }
   .hm-win__c:hover .hm-win__ph img{ transform:scale(1.04); }
   .hm-win__mono{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
                  font-family:var(--ag-font-display); font-weight:700; font-size:2.1rem;
                  color:rgba(16,41,44,.22); background:linear-gradient(160deg,#eef1ef,#e4e9e6); }
   .hm-win__cat{ display:block; margin:11px 0 3px; font:600 10px/1.4 var(--ag-font-mono);
-                letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
+                letter-spacing:.1em; text-transform:uppercase; color:var(--ag-soft); }
   .hm-win__n{ display:block; font-family:var(--ag-font-display); font-weight:700;
               font-size:1.02rem; line-height:1.25; }
   .hm-win__c:hover .hm-win__n{ color:var(--ag-green); }
   .hm-win__c:focus-visible .hm-win__ph{ outline:3px solid var(--ag-green); outline-offset:3px; }
-  .hm-win__past{ margin:22px 0 0; font-size:14px; color:var(--ag-ink-soft); }
+  .hm-win__past{ margin:22px 0 0; font-size:14px; color:var(--ag-soft); }
   .hm-win__past a{ color:var(--ag-green); }
 
   .hm-leg{ margin-top:clamp(4rem,8vw,7rem); }
@@ -545,7 +545,7 @@
         <a class="hm-ev" href="/events">
           <span class="hm-ev__d"><span class="hm-ev__mon">{{ e.event_date|date('M') }}</span><span class="hm-ev__day">{{ e.event_date|date('d') }}</span></span>
           <div style="flex:1;min-width:0"><div class="hm-ev__t">{{ e.title }}{% if loop.first %} <span class="hm-mini__open" data-countdown="{{ e.event_date|date('c') }}" style="margin-left:6px"><span class="hm-live__dot"></span><span data-countdown-label>soon</span></span>{% endif %}</div><div class="hm-ev__m">{{ e.event_date|date('D, g:i a') }}{% if e.location %} · {{ e.location }}{% endif %}</div></div>
-          <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 20 20" fill="none" style="flex:none;color:var(--ag-ink-soft,#626a6e)"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 20 20" fill="none" style="flex:none;color:var(--ag-soft,#626a6e)"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </a>
         {% endfor %}
       </div>

@@ -457,10 +457,10 @@ final class QuestionnaireInvites
         // need the app's extensions — and not depending on them keeps it renderable from a
         // console with no HTTP request in flight.
         static $twig = null;
-        $twig ??= new Environment(
+        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
             new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
             ['autoescape' => 'html']
-        );
+        ));
 
         return $twig->render('emails/questionnaire.twig', self::vars($r, $cycleId, $site));
     }

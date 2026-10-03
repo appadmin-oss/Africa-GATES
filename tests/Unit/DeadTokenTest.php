@@ -80,6 +80,17 @@ final class DeadTokenTest extends TestCase
                 }
             }
         }
+        // ── COLOUR IS DECLARED IN PHP, AND IS STILL A DECLARATION ────────────
+        //
+        // Support\Accent emits the palette and the shadows into the layout's <style>;
+        // no stylesheet declares them. Reading only CSS would have exempted every
+        // colour token from this rule the moment colour moved there — a sweep going
+        // quiet over exactly the file that holds what it was written for.
+        foreach (array_merge(array_keys(\AfricaGates\Support\Accent::palette()),
+                             array_keys(\AfricaGates\Support\Accent::shadows())) as $name) {
+            $decls['--ag-' . $name][] = 'src/Support/Accent.php';
+        }
+
         return [$decls, $reads];
     }
 

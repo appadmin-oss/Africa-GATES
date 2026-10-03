@@ -323,29 +323,32 @@ final class Newsletter
     public static function palette(): array
     {
         return [
-            'ground'     => Accent::PAPER,
-            'card'       => Accent::SURFACE,
-            'ink'        => Accent::neutral('ink'),
-            'ink2'       => Accent::neutral('ink-2'),
-            'soft'       => Accent::neutral('ink-soft'),
-            'line'       => Accent::neutral('line'),
-            'surface2'   => Accent::neutral('surface-2'),
-            'action'     => Accent::fill(Accent::ACTION),
-            // The header bar and the dark-mode ground: the inverted block, ink as a field.
-            'bar'        => Accent::fill(Accent::FAULT),
-            'dark'       => Accent::fill(Accent::FAULT),
-            'bar_accent' => Accent::wash(Accent::ACTION),
-            'bar_soft'   => Accent::neutral('line'),
+            'ground'     => Accent::hex('ground'),
+            'card'       => Accent::hex('surface'),
+            'ink'        => Accent::hex('ink'),
+            'ink2'       => Accent::hex('ink-2'),
+            'soft'       => Accent::hex('soft'),
+            'line'       => Accent::hex('line'),
+            'surface2'   => Accent::hex('tint'),
+            'action'     => Accent::hex('green'),
+            // The header bar and the dark-mode ground: ink as a field.
+            'bar'        => Accent::hex('ink'),
+            'dark'       => Accent::hex('ink'),
+            'bar_accent' => Accent::hex('green-wash'),
+            'bar_soft'   => Accent::hex('line'),
         ];
     }
 
     public function html(object $issue, string $email, string $since = ''): string
     {
         // A bare environment, as NomineeBroadcast does: plain variables only, so it renders
-        // from a cron tick with no HTTP request and none of the app's extensions.
+        // from a cron tick with no HTTP request and none of the app's extensions — bar
+        // `trans`, which needs no request (off one it answers in English) and without
+        // which the first `|trans` in a shared email partial is a compile error here.
         static $twig = null;
-        $twig ??= new Environment(new FilesystemLoader(\dirname(__DIR__, 3) . '/templates'),
-                                  ['autoescape' => 'html']);
+        $twig ??= \AfricaGates\Support\Translator::register(
+            new Environment(new FilesystemLoader(\dirname(__DIR__, 3) . '/templates'), ['autoescape' => 'html'])
+        );
         return $twig->render('emails/newsletter.twig', $this->vars($issue, $email, $since));
     }
 
