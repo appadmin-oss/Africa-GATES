@@ -21,7 +21,15 @@ class JudgeScoringTest extends TestCase
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'N1', 'status' => $nomineeStatus, 'vote_count' => 0]);
         DB::table('gates_judges')->insert(['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'programme_ids' => '[1]', 'is_active' => 1]);
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert(['id' => 1, 'slug' => 'impact', 'label' => 'Impact', 'weight' => 25, 'is_active' => 1]);
+        // The panel judges the SHORTLIST, not the whole field, so a ballot fixture
+        // without one is a locked ballot with nobody on it.
+        $this->publishShortlist(1, 1, [1]);
     }
 
     /** A second programme the judge is NOT assigned to. */
@@ -31,6 +39,9 @@ class JudgeScoringTest extends TestCase
         DB::table('gates_award_cycles')->insert(['id' => 2, 'programme_id' => 2, 'year' => (int) date('Y'), 'status' => 'judging']);
         DB::table('gates_award_categories')->insert(['id' => 2, 'cycle_id' => 2, 'slug' => 'c2', 'title' => 'C2']);
         DB::table('gates_nominees')->insert(['id' => 2, 'category_id' => 2, 'name' => 'N2', 'status' => 'approved', 'vote_count' => 0]);
+        // The panel judges the SHORTLIST, not the whole field, so a ballot fixture
+        // without one is a locked ballot with nobody on it.
+        $this->publishShortlist(2, 2, [2]);
     }
 
     public function test_score_blocked_outside_judging_window(): void

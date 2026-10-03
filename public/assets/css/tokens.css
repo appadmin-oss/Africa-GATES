@@ -1,0 +1,143 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   AFRICA GATES — DESIGN TOKENS (everything but colour)
+   REFERENCE §6.2–§6.7 of the redesign handoff, under the names and values of its
+   snippets/css/tokens.css. Not a value here is a reading of a screenshot.
+   Destroyed and written again on 3 Oct 2026, when the owner put type in rem.
+   ══════════════════════════════════════════════════════════════════════════════
+
+   ── THERE IS NO COLOUR IN THIS FILE, AND THAT IS ITS FIRST RULE ─────────────
+
+   The handoff calls its tokens.css "the only place hex values live". Here that
+   place is Support\Accent, by the owner's decision (GAPS §8 Q1): the palette is
+   emitted by PHP into a nonced <style> that every layout writes before its
+   stylesheets, so the values the page receives are the values AccentTest and
+   SlotFloorTest measure. A colour declared here as well would be a second source
+   decided by load order — the fault that put four golds into circulation. The
+   shadows contain an rgba of the house ink, so they are colour and live there
+   too. ColourLiteralTest fails this file on a single hex, rgb() or hsl().
+
+   ── TYPE IS IN REM, AND THIS FILE IS THE ONLY PLACE A SIZE IS CONVERTED ─────
+
+   The Display & reading setting (100 · 125 · 150%) sets the ROOT font size —
+   `html.ag-t125` / `html.ag-t150` in shell.css — and a root percentage moves
+   only what is measured against the root. The handoff's DCs, and so the first
+   build of the base and the chrome, wrote every size in px, so the setting's
+   control worked, the class landed on <html>, and not one letter on the page
+   grew (docs/handoff/PHASE-2.md §9.2, `settings-390-largest-hc.png`). The setting
+   did nothing, and nothing anywhere said so. The owner decided on 3 Oct 2026:
+   type in rem.
+
+   So every font size on the public surface is one of the steps below, read as
+   `font-size:var(--ag-fs-14-5)` or inside the `font:` shorthand. The NAME is the
+   §6.2 px value (a hyphen for the half point — `--ag-fs-14-5` is 14.5px), the
+   VALUE is that px over the 16px root, so at 100% every size is the DC's to the
+   pixel (/_dev/ui was compared frame by frame, docs/handoff/shots/phase-2/rem/)
+   and at 125% and 150% every size grows with the reader's choice — and with the
+   browser's own default text size, which is what WCAG 1.4.4 asks for and px
+   ignores. Writing the conversion once, here, is what keeps it exact: a
+   hand-typed `.90625rem` in a component is a number nobody can check at a
+   glance, and the first `.9rem` typed beside it is 14.4px, off the ladder.
+
+   What stays in px, deliberately: spacing, radii, borders, shadows and the
+   heights of controls. A 44px target is a size for a FINGER, not for text — it
+   must not shrink under a smaller root, and the chrome's heights are the DCs'
+   own numbers. Every control here holds one line of text whose line box is
+   unitless (it grows with the type), and at 150% every chrome control was
+   measured still to contain its label (PHASE-2.md, "Type in rem").
+
+   TypeScaleTest holds it: the ladder below is the closed §6.2 ladder exactly,
+   every step converts to its name, a public font size is a step or a token that
+   resolves to one (never a literal px), `em` and `%` sizes are refused anywhere
+   but the root, and the two text-size classes really do change the root.
+
+   ── NO COMPATIBILITY BLOCK ─────────────────────────────────────────────────
+
+   An alias is a patch: it lets a reader of a dead name go on working, so nothing
+   ever forces the reader to change. A token lands with its first reader
+   (DeadTokenTest); /_dev/ui is the reader of the rungs no page uses yet.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+:root{
+
+  /* ── Type · §6.2 ───────────────────────────────────────────────────────────
+     Playfair Display 700 for headlines only. DM Sans for everything else.
+     JetBrains Mono 500/700 only for references and codes. */
+
+  --ag-font-display:'Playfair Display',Georgia,serif;
+  --ag-font-ui:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --ag-font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;
+
+  /* The closed small-text ladder. Micro 11.5–12.5 · meta 13–13.5 · secondary 14.5 ·
+     buttons 14.5–15.5 · body and inputs 16 · card titles 16–17. No 10, no 11. */
+  --ag-fs-11-5:.71875rem;  --ag-fs-12:.75rem;      --ag-fs-12-5:.78125rem;
+  --ag-fs-13:.8125rem;     --ag-fs-13-5:.84375rem; --ag-fs-14:.875rem;
+  --ag-fs-14-5:.90625rem;  --ag-fs-15:.9375rem;    --ag-fs-15-5:.96875rem;
+  --ag-fs-16:1rem;         --ag-fs-16-5:1.03125rem; --ag-fs-17:1.0625rem;
+
+  /* Display: a FIXED size per breakpoint, never scaled by the viewport (§6.2, §4.5).
+     18 the shortcuts dialog's heading · 32 the phone H1 and the app bar's large
+     title · 44 the desktop H1. 19 and 23 are the Display & reading size control's
+     own specimens — the "A" drawn at the size each step gives. The celebration
+     (Phase 3, Celebration.dc.html): 34 → 48 its title (§6.2's own row), 22 the inline
+     title, 20 → 24 a stat's figure. */
+  --ag-fs-18:1.125rem;  --ag-fs-19:1.1875rem; --ag-fs-20:1.25rem;   --ag-fs-22:1.375rem;
+  --ag-fs-23:1.4375rem; --ag-fs-24:1.5rem;    --ag-fs-32:2rem;      --ag-fs-34:2.125rem;
+  --ag-fs-44:2.75rem;   --ag-fs-48:3rem;
+  /* Gee (Phase 3, Gee.dc.html): 25 the panel's greeting, Playfair (§8.22 "Playfair 25"). */
+  --ag-fs-25:1.5625rem;
+
+  /* ── Spacing · §6.3 — the px name is the px value ──────────────────────── */
+  /* 20 and 22 (§6.3), the 22 radius (§6.4) and the bar 30 layer (§6.7)
+     have no reader since the old pages were destroyed (docs/handoff/DESTROYED.md),
+     and DeadTokenTest refuses a declaration nothing reads; nor has 48 (§6.3). The
+     phase that rebuilds a reader puts its step back, at the handoff's value. */
+
+  --ag-sp-4:4px;   --ag-sp-6:6px;   --ag-sp-8:8px;   --ag-sp-10:10px;
+  --ag-sp-12:12px; --ag-sp-14:14px; --ag-sp-16:16px; --ag-sp-18:18px;
+  --ag-sp-24:24px; --ag-sp-28:28px;
+  --ag-sp-32:32px; --ag-sp-36:36px; --ag-sp-40:40px;
+  --ag-sp-56:56px; --ag-sp-64:64px;
+
+  /* Page gutter: phone 16 · tablet 28 · desktop 32. */
+  --ag-gutter:16px;
+
+  /* ── Radii · §6.4 ──────────────────────────────────────────────────────────
+     999 pills, chips, round buttons · 24 major cards, sheets · 22 a content sheet
+     over a gallery · 20 cards, drawers, popovers · 16 phone CTAs, rows · 14 inputs,
+     list cards · 12 · 10 icon tiles · 7 mini badges. The snippet omits 7; §6.4
+     names it, and the badges that read it are real. */
+
+  --ag-r-pill:999px;
+  --ag-r-24:24px; --ag-r-20:20px; --ag-r-18:18px;
+  --ag-r-16:16px; --ag-r-14:14px; --ag-r-12:12px; --ag-r-10:10px; --ag-r-7:7px;
+
+  /* ── Motion · §6.6 ─────────────────────────────────────────────────────────
+     Scroll-linked chrome swaps on a threshold and is never scrubbed per pixel. */
+
+  --ag-ease:cubic-bezier(.2,0,0,1);        /* every UI transition */
+  --ag-ease-pop:cubic-bezier(.2,.9,.3,1.2); /* badges, stars */
+  --ag-dur-1:200ms;                         /* opacity, colour */
+  --ag-dur-2:260ms;                         /* collapse and expand, sheets */
+  --ag-dur-3:500ms;                         /* celebration text rise */
+
+  /* ── Layers · §6.7 ─────────────────────────────────────────────────────────
+     sticky toolbars 4–6 · app bar 20 · buy/vote bars 30 · header 40 · Gee 60 ·
+     scrim 79 · sheets 80. */
+
+  --ag-z-sticky:5;
+  --ag-z-appbar:20;
+  --ag-z-header:40;
+  --ag-z-gee:60;      /* restored with its reader, components/gee.css (Phase 3) */
+  --ag-z-scrim:79;
+  --ag-z-sheet:80;
+
+  /* ── The height of whatever fixed bar is on screen ─────────────────────────
+     Measured by shell.js from the bar actually showing, read by Gee and toasts so
+     they clear it. Zero here so calc() never meets an undefined value on a page
+     with no bar. A typed height goes stale the first time a bar gains a line. */
+
+  --ag-bottom-ui:0px;
+}
+
+@media (min-width:600px){  :root{ --ag-gutter:28px } }
+@media (min-width:1024px){ :root{ --ag-gutter:32px } }

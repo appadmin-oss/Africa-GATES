@@ -1,0 +1,315 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Email health{% endblock %}
+
+{#
+  ══ EMAIL HEALTH ═══════════════════════════════════════════════════════════════
+
+  Where every mail alert points, so the first thing on it is the answer an alert
+  promised: is it broken, since when, why, and what to change. Then the evidence —
+  the diagnosis step by step, the last hour grouped by CAUSE (a list of 400 identical
+  "SMTP connect() failed" rows is noise, one line saying "connect · 400" is a finding),
+  and the history, which is how "were we told?" gets an answer.
+
+  Every figure on the rules line is read from MailHealth's constants, never typed —
+  CLAUDE.md's handbook rule: anything typed here that could be computed is a bug
+  waiting for the day somebody changes the threshold.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .mh{ display:flex; flex-direction:column; gap:18px; max-width:980px }
+  .mh-lead{ margin:0; max-width:68ch; font-size:14px; line-height:1.65; color:var(--ad-text-mute) }
+  .mh-state{ display:flex; gap:14px; align-items:flex-start; padding:18px 20px;
+    border-radius:var(--ad-radius); border:1px solid var(--ad-line); background:var(--ad-surface) }
+  .mh-state--bad{ border-color:#f1c4c4; background:#fef6f6 }
+  .mh-state--ok{ border-color:rgba(35,123,34,.3); background:rgba(35,123,34,.05) }
+  .mh-state h2{ margin:0 0 4px; font-size:17px }
+  .mh-state p{ margin:4px 0 0; font-size:14px; line-height:1.6; max-width:72ch }
+  .mh-fix{ font-weight:600 }
+  .mh-meta{ font-size:12.5px; color:var(--ad-text-mute) }
+  .mh-s{ display:inline-block; min-width:62px; padding:3px 9px; border-radius:999px;
+    font:600 11px/1.6 var(--ad-font-mono,ui-monospace,monospace); letter-spacing:.06em; text-align:center; white-space:nowrap }
+  .mh-s--ok{ background:rgba(35,123,34,.12); color:#1a6118; border:1px solid rgba(35,123,34,.3) }
+  .mh-s--fail{ background:rgba(138,32,32,.10); color:#8a2020; border:1px solid rgba(138,32,32,.3) }
+  .mh-s--warn{ background:rgba(243,180,22,.14); color:#7a5600; border:1px solid rgba(243,180,22,.35) }
+  .mh-s--skip{ background:rgba(16,41,44,.05); color:var(--ad-text-mute); border:1px solid rgba(16,41,44,.12) }
+  .mh-t{ width:100%; border-collapse:collapse; font-size:14px }
+  .mh-t th{ text-align:start; font-size:12px; font-weight:600; color:var(--ad-text-mute);
+    padding:8px 10px; border-bottom:1px solid var(--ad-line) }
+  .mh-t td{ padding:10px; border-top:1px solid var(--ad-line-soft); vertical-align:top; line-height:1.5 }
+  .mh-t tr:first-child td{ border-top:0 }
+  .mh-d{ color:var(--ad-text-mute); word-break:break-word }
+  .mh-kv{ display:grid; grid-template-columns:max-content 1fr; gap:6px 16px; margin:0; font-size:14px }
+  .mh-kv dt{ color:var(--ad-text-mute) }
+  .mh-kv dd{ margin:0; font-family:var(--ad-font-mono,ui-monospace,monospace); font-size:13px; word-break:break-all }
+  .mh-bar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+  .mh-list{ margin:0 0 14px; padding-inline-start:18px; font-size:14px; line-height:1.6; max-width:78ch }
+  .mh-list li + li{ margin-top:4px }
+  .mh-h3{ margin:20px 0 6px; font-size:14px }
+  .mh-h3 small{ display:block; font-weight:400; color:var(--ad-text-mute) }
+  .mh-url{ padding:6px 10px; border-radius:8px; background:var(--ad-line-soft); font-size:13px; word-break:break-all }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set step_word = {'ok':'passed','fail':'failed','warn':'warning','skip':'not run'} %}
+<div class="mh">
+
+  <p class="mh-lead">The platform checks this by itself. It opens an incident when
+    {{ rules.fails }} or more emails fail within {{ rules.window }} minutes at a rate of
+    {{ rules.rate }}% or worse, or when its own hourly check fails; it then runs the
+    diagnosis below and alerts by webhook, by this server’s own mail and on this console,
+    and repeats every {{ rules.realert }} hours until email works again.</p>
+
+  {# ── THE ANSWER ─────────────────────────────────────────────────────────── #}
+  {% if open %}
+    {% set r = open_report ?? {} %}
+    <section class="mh-state mh-state--bad" role="alert">
+      <div>
+        <h2>Email is not sending — {{ r.title|default('cause unknown') }}</h2>
+        <p class="mh-meta">Since {{ open.opened_at|when }} · {{ open.failures }} failed sends
+          · opened by {{ open.opened_by == 'probe' ? 'the hourly check' : 'failed sends' }}
+          {%- if open.alerted_at %} · alerted {{ open.alerted_at|when }} by {{ open.alert_channels|replace({',':', '}) }}{% endif %}</p>
+        {% if r.fix %}<p class="mh-fix">{{ r.fix }}</p>{% endif %}
+        {% if open.last_error %}<p class="mh-meta">Server said: {{ open.last_error }}</p>{% endif %}
+      </div>
+    </section>
+  {% elseif report and not report.ok %}
+    <section class="mh-state mh-state--bad" role="status">
+      <div>
+        <h2>The last check failed — {{ report.title }}</h2>
+        <p class="mh-fix">{{ report.fix }}</p>
+        <p class="mh-meta">Checked {{ report.ran_at|when }}. Not yet an incident: nothing has failed to send since.</p>
+      </div>
+    </section>
+  {% elseif report and report.degraded|default(false) %}
+    <section class="mh-state mh-state--ok" role="status">
+      <div>
+        <h2>Email is working — by a fallback</h2>
+        <p class="mh-fix">{{ report.title }}. People are getting their mail; SMTP still needs fixing: {{ report.fix }}</p>
+        <p class="mh-meta">Checked {{ report.ran_at|when }}.</p>
+      </div>
+    </section>
+  {% else %}
+    <section class="mh-state mh-state--ok" role="status">
+      <div>
+        <h2>Email is working</h2>
+        <p class="mh-meta">{{ window.sent }} sent in the last {{ rules.window }} minutes
+          {%- if report %} · last check {{ report.ran_at|when }}, every step passed{% endif %}.</p>
+      </div>
+    </section>
+  {% endif %}
+
+  <form method="post" action="/admin/settings/mail/diagnose" class="mh-bar">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="ad-btn ad-btn--primary" type="submit">Run the diagnosis now</button>
+    <span class="mh-meta">Connects, signs in and offers our From address, then stops. Nobody is emailed.</span>
+    <a class="ad-btn ad-btn--ghost" href="#sending">Change how mail is sent</a>
+  </form>
+
+  {# ── THE DIAGNOSIS ──────────────────────────────────────────────────────── #}
+  {% set shown = (open and open_report) ? open_report : report %}
+  {% if shown %}
+  <section class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Step by step
+      <small>{{ shown.ran_at|when }} · {{ shown.took_ms }} ms</small></div></div>
+    <div class="ad-card__body">
+      <table class="mh-t">
+        <tbody>
+          {% for s in shown.steps %}
+          <tr>
+            <td style="width:88px"><span class="mh-s mh-s--{{ s.state }}">{{ step_word[s.state]|default(s.state) }}</span></td>
+            <td style="width:34%"><b>{{ s.label }}</b></td>
+            <td class="mh-d">{{ s.detail }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if shown.ports|default([])|length %}
+      <p class="mh-meta" style="margin-top:12px">Other ports from this server:
+        {% for p, open_ in shown.ports %}{{ p }} {{ open_ ? 'open' : 'blocked' }}{{ loop.last ? '' : ' · ' }}{% endfor %}</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── THE LAST HOUR, BY CAUSE ────────────────────────────────────────────── #}
+  <section class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">The last {{ rules.window }} minutes
+      <small>{{ window.sent }} sent · {{ window.system }} failed{% if window.recipient %} · {{ window.recipient }} refused for one address{% endif %}{% if window.dev %} · {{ window.dev }} written to the dev log{% endif %}{% if window.held %} · {{ window.held }} held by the send rules{% endif %}</small></div></div>
+    <div class="ad-card__body">
+      {% if causes|length %}
+      <table class="mh-t">
+        <thead><tr><th>Cause</th><th>Failures</th><th>What to do</th></tr></thead>
+        <tbody>
+          {% for c in causes %}
+          <tr><td><b>{{ c.title }}</b></td><td>{{ c.n }}</td><td class="mh-d">{{ c.fix }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if window.last_error %}<p class="mh-meta" style="margin-top:10px">Latest server message: {{ window.last_error }}</p>{% endif %}
+      {% else %}
+      <p class="mh-meta">No failures.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ── WHAT IS CONFIGURED ─────────────────────────────────────────────────── #}
+  <section class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">What the platform is using
+      <small>Resolved the way a send resolves it: Settings first, then the server’s .env, then the built-in default.</small></div></div>
+    <div class="ad-card__body">
+      <dl class="mh-kv">
+        {% for k, v in config %}<dt>{{ k|capitalize }}</dt><dd>{{ v }}</dd>{% endfor %}
+      </dl>
+    </div>
+  </section>
+
+  {# ── HOW MAIL IS SENT ───────────────────────────────────────────────────────
+     Saved by itself, and an SMTP login or an API key is stored only once the provider
+     has accepted it — see MailSetup. These fields used to sit on the main settings page,
+     which re-posted them on every save, so a browser's autofill could replace a working
+     login with an admin's own and nothing said so. #}
+  <section class="ad-card" id="sending">
+    <div class="ad-card__head"><div class="ad-card__title">How mail is sent
+      <small>Nothing here is saved until it has been tried: a login the provider refuses is not stored, and the one that was working stays in charge.</small></div></div>
+    <div class="ad-card__body">
+      <form method="post" action="/admin/settings/mail/sending" class="ad-form" autocomplete="off">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div class="row">
+          <div><label for="mh-transport">Send by</label>
+            <select id="mh-transport" name="transport">
+              {% for k, l in {
+                'auto': 'Automatic — SMTP, then the Brevo API, then this server’s own mail',
+                'smtp': 'SMTP only',
+                'api':  'Brevo API over HTTPS only',
+                'host': 'This server’s own mail only'} %}
+              <option value="{{ k }}"{{ sending.transport == k ? ' selected' }}>{{ l }}</option>
+              {% endfor %}
+            </select></div>
+        </div>
+        <p class="mh-meta">SMTP — {{ sending.login_source }}. Leave a box empty to keep what is there.</p>
+        <div class="row">
+          <div><label for="mh-host">SMTP host</label><input id="mh-host" name="host" value="{{ sending.host }}" placeholder="smtp.gmail.com" autocomplete="off"></div>
+          <div><label for="mh-port">Port</label><input id="mh-port" name="port" inputmode="numeric" value="{{ sending.port }}" placeholder="587" autocomplete="off"></div>
+          <div><label for="mh-secure">Encryption</label>
+            <select id="mh-secure" name="secure">
+              {% for k, l in {'auto':'Automatic (from the port)','starttls':'STARTTLS','smtps':'SMTPS (implicit TLS)','none':'None — not recommended'} %}
+              <option value="{{ k }}"{{ sending.secure == k ? ' selected' }}>{{ l }}</option>
+              {% endfor %}
+            </select></div>
+        </div>
+        <div class="row">
+          <div><label for="mh-user">SMTP login <small>for Google, the full Gmail or Workspace address — not your sign-in to this console</small></label>
+            <input id="mh-user" name="username" value="{{ sending.username }}" autocomplete="off" data-lpignore="true" data-1p-ignore spellcheck="false"></div>
+          <div><label for="mh-pass">SMTP password <small>for Google, an App Password (Google Account → Security → App passwords) — never the account’s own password. Never shown again once saved.</small></label>
+            <input id="mh-pass" name="password" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                   placeholder="{{ sending.pass_set ? '•••••••••• (leave empty to keep)' : '16-letter App Password, spaces are fine' }}"></div>
+        </div>
+        <div class="row">
+          <div><label for="mh-api">Brevo API key <small>optional — only if you also have a Brevo account. Used when SMTP cannot get through.</small></label>
+            <input id="mh-api" name="api_key" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                   placeholder="{{ sending.api_set ? '•••••••••• (leave empty to keep)' : 'xkeysib-…' }}">
+            {% if sending.api_set %}<label class="mh-meta"><input type="checkbox" name="api_key_clear" value="1"> remove the saved key</label>{% endif %}</div>
+        </div>
+        <div class="mh-bar">
+          <button class="ad-btn ad-btn--primary" type="submit">Try it and save</button>
+          <span class="mh-meta">Signs in and offers our From address, then stops. Nobody is emailed.</span>
+        </div>
+      </form>
+      {% if sending.has_stored_smtp %}
+      <form method="post" action="/admin/settings/mail/use-env" class="mh-bar">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ad-btn" type="submit">Use the server’s .env settings instead</button>
+        <span class="mh-meta">Forgets the SMTP values saved here, so the .env file this server was set up with decides again.{% if sending.env_has_login %} It has an SMTP login.{% else %} It has no SMTP login of its own.{% endif %}</span>
+      </form>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ── THE SEND RULES ─────────────────────────────────────────────────────────
+     Every figure is SendPolicy's own constant or setting, so this states the rules the
+     transport is applying rather than a description of them that can drift. #}
+  <section class="ad-card" id="send-rules">
+    <div class="ad-card__head"><div class="ad-card__title">Send rules
+      <small>Checked before every message, before any connection is made. A held message is never counted as mail failing.</small></div></div>
+    <div class="ad-card__body">
+      <ul class="mh-list">
+        <li><b>Every message:</b> refused if the address is not valid, or is at a domain reserved so that no mailbox can exist there ({{ send.reserved|join(', ') }}).</li>
+        <li><b>Announcements</b> — anything with an unsubscribe link — are also refused to anybody who unsubscribed, whose mailbox bounced, or who reported one as spam.</li>
+        <li><b>And held</b> once somebody has been sent {{ send.cap }} announcement{{ send.cap == 1 ? '' : 's' }} in {{ send.cap_hours }} hours. The newsletter sends theirs once the window passes.</li>
+        <li>Sign-in codes, receipts, tickets and replies are never held by the announcement rules: somebody asked for them.</li>
+      </ul>
+
+      <form method="post" action="/admin/settings/mail/rules" class="mh-bar">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <label for="mhCap">Announcements per person per {{ send.cap_hours }} hours</label>
+        <select id="mhCap" name="cap">
+          {% for n in send.cap_min..send.cap_max %}<option value="{{ n }}"{{ n == send.cap ? ' selected' }}>{{ n }}</option>{% endfor %}
+        </select>
+        <button class="ad-btn" type="submit">Save</button>
+      </form>
+
+      <h3 class="mh-h3">Bounces and complaints from your provider</h3>
+      <p class="mh-meta">A relay accepts a message first and learns an hour later that the mailbox does not exist, or that the reader pressed “report spam”. Give your provider this address as its webhook (Brevo: Transactional → Settings → Webhook; SendGrid: Event Webhook; Mailgun: Webhooks; Postmark: Webhooks) and those reports reach the list below. Refusals the server gives us at sending time are recorded without it.</p>
+      <div class="mh-bar">
+        <code class="mh-url">{{ send.events_url }}</code>
+        <form method="post" action="/admin/settings/mail/events/rotate" data-confirm="Make a new webhook address? The current one stops working at once, so your provider must be given the new one.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="ad-btn" type="submit">Make a new address</button>
+        </form>
+      </div>
+
+      <h3 class="mh-h3">Not receiving announcements
+        <small>{% for k, label in send.reasons %}{{ label }}: {{ send.counts[k]|default(0) }}{{ not loop.last ? ' · ' }}{% endfor %}</small></h3>
+      {% if send.suppressed|length %}
+      <table class="mh-t">
+        <thead><tr><th>Address</th><th>Why</th><th>From</th><th>Last</th><th></th></tr></thead>
+        <tbody>
+          {% for r in send.suppressed %}
+          <tr>
+            <td>{{ r.email_masked }}</td>
+            <td>{{ send.reasons[r.reason]|default(r.reason) }}{% if r.events > 1 %} · {{ r.events }} times{% endif %}{% if r.detail %}<br><span class="mh-d">{{ r.detail }}</span>{% endif %}</td>
+            <td>{{ r.source }}</td>
+            <td>{{ r.last_at|when }}</td>
+            <td>
+              <form method="post" action="/admin/settings/mail/suppression/{{ r.id }}/lift" data-confirm="Send announcements to {{ r.email_masked }} again? Only do this once you know the address works — another bounce puts it straight back.">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <button class="ad-btn ad-btn--sm" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="mh-meta">Nobody yet.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ── HISTORY ────────────────────────────────────────────────────────────── #}
+  {% if history|length %}
+  <section class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Incidents</div></div>
+    <div class="ad-card__body">
+      <table class="mh-t">
+        <thead><tr><th>Started</th><th>Ended</th><th>Cause</th><th>Failures</th><th>Alerted by</th></tr></thead>
+        <tbody>
+          {% for i in history %}
+          <tr>
+            <td>{{ i.opened_at|when }}</td>
+            <td>{{ i.resolved_at ? i.resolved_at|when : 'still open' }}</td>
+            <td>{{ i.cause_title }}</td>
+            <td>{{ i.failures }}</td>
+            <td class="mh-d">{{ i.alert_channels ? i.alert_channels|replace({',':', '}) : 'not yet' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

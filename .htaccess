@@ -1,15 +1,124 @@
-# ═══════════════════════════════════════════════════════════════
-#  Africa GATES — PROJECT ROOT.
-#  The web server DocumentRoot MUST point at the ./public subdirectory.
-#  This deny-all is defense-in-depth: if a host is ever misconfigured to
-#  serve the project root, it stops .env, the SQLite database, logs, and
-#  tooling/migration scripts from being downloaded over HTTP.
-#  (PHP's built-in dev server ignores .htaccess, so local dev is unaffected.)
-# ═══════════════════════════════════════════════════════════════
-<IfModule mod_authz_core.c>
-  Require all denied
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Africa GATES — PROJECT ROOT
+#
+#  THIS FILE IS ONLY EVER READ WHEN THE DOCUMENT ROOT IS WRONG.
+#
+#  Apache reads .htaccess from the DocumentRoot downward and never above it. So if
+#  the DocumentRoot points at ./public — the correct configuration — this file is
+#  invisible and nothing in it runs. That fact is the diagnosis: **if any rule in
+#  here has an effect, the DocumentRoot is the project root.**
+#
+#  ── THE INCIDENT ──────────────────────────────────────────────────────────────
+#
+#  This file used to be `Require all denied`, as defence-in-depth for exactly that
+#  misconfiguration. On a host whose DocumentRoot IS the project root, that is not
+#  defence-in-depth — it is the site returning 403 for every URL, which is what
+#  happened. Replacing it with a copy of public/.htaccess then produced a 500,
+#  because `RewriteRule ^ index.php` at this level names a file that does not
+#  exist here (index.php lives in public/), so Apache looped until it hit the
+#  internal-redirect limit.
+#
+#  Both symptoms had one cause and neither pointed at it.
+#
+#  ── WHAT THIS FILE DOES NOW ───────────────────────────────────────────────────
+#
+#  It forwards every request into ./public and hard-denies everything else, so the
+#  site is CORRECT under both DocumentRoot configurations:
+#
+#    DocumentRoot = ./public         → this file is never read. No change.
+#    DocumentRoot = project root     → requests reach public/index.php anyway, and
+#                                      the source tree is not downloadable.
+#
+#  ── THIS IS A MITIGATION, NOT THE FIX ─────────────────────────────────────────
+#
+#  Point the DocumentRoot at ./public. With the DocumentRoot here, the entire
+#  project — .env, the SQLite database, logs, migrations, vendor/ — is physically
+#  inside the web root, and the only thing keeping it unreadable is the rules
+#  below. That is strictly worse than having those files outside the web root: it
+#  survives a mod_rewrite outage (see the layers) but it does not survive a host
+#  that ignores .htaccess entirely.
+#
+#  In cPanel: Domains → Manage → Document Root → append `/public`.
+#
+#  ── ORDER AND LAYERING ARE DELIBERATE ─────────────────────────────────────────
+#
+#  Layer 1 (mod_alias)      — 404 the sensitive trees by PATH.
+#  Layer 2 (mod_authz_core) — deny by FILENAME at every depth.
+#  Layer 3 (per-directory)  — a deny-all .htaccess inside each sensitive directory.
+#  Layer 4 (mod_rewrite)    — forward what is left into public/.
+#
+#  Layers 1-3 do not depend on mod_rewrite, so a request for /.env is refused even
+#  if the forwarder is not running. Layer 3 does not depend on THIS file at all,
+#  which matters because an operator debugging a 403 tends to empty this one.
+#
+#  Only universally-supported directives are used. No `setifempty`, no
+#  `<IfVersion>`, no `Options`, no `php_flag` — each of those has taken this site
+#  down on a LiteSpeed/cPanel host, either because the module is absent or because
+#  AllowOverride forbids the directive. Every block that can be module-gated is.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Layer 1: deny the sensitive trees by path ─────────────────────────────────
+#
+# mod_alias, so it holds without mod_rewrite. 404 rather than 403: a 403 confirms
+# the path exists, and the shape of this tree tells an attacker which framework and
+# which version to try next.
+#
+# Note what is NOT here: `assets` and `uploads` — those live inside public/ and are
+# reached as /assets/… and /uploads/…, which these patterns cannot match.
+<IfModule mod_alias.c>
+  RedirectMatch 404 (?i)^/+(?:\.git|\.github|\.claude|bin|config|cron|database|docs|node_modules|resources|src|templates|tests|var|vendor)(?:/|$)
+  RedirectMatch 404 (?i)^/+(?:\.env.*|\.user\.ini|composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml(?:\.dist)?|README.*|CHANGELOG.*|Makefile|.*\.sqlite3?|.*\.log|.*\.sql)$
 </IfModule>
-<IfModule !mod_authz_core.c>
-  Order allow,deny
-  Deny from all
+
+# ── Layer 2: deny by filename, at every depth ─────────────────────────────────
+#
+# <FilesMatch> in a root .htaccess applies to this directory AND every
+# subdirectory, so the patterns are restricted to names that can never be a
+# legitimate public asset. Deliberately NOT here: .json (public/assets ships
+# JSON), .map, .md, .txt (robots.txt), .xml (sitemaps).
+<FilesMatch "(?i)(^\.env)|(^\.git)|(^\.htpasswd$)|(^composer\.(json|lock)$)|(^phpunit\.xml)|(\.(sqlite|sqlite3|db|log|bak|old|orig|save|swp|swo|sql|sh|bash|twig|lock|dist|ini)$)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# ── Layer 4: forward everything else into ./public ────────────────────────────
+#
+# Internal rewrites, so $_SERVER['REQUEST_URI'] is untouched and Slim's routing
+# sees the URL the visitor asked for. (SCRIPT_NAME does gain a /public prefix; the
+# app does not derive its base path from it — see APP_BASE_PATH in
+# public/index.php, which stays empty.)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # ── MOD_REWRITE RULES ARE NOT INHERITED, AND THAT IS LOAD-BEARING HERE ──────
+  #
+  # Unlike almost every other .htaccess directive, `RewriteRule` in a subdirectory
+  # REPLACES the parent's rules rather than merging with them (absent
+  # `RewriteOptions Inherit`). So for a request to /public/vote, Apache runs
+  # public/.htaccess's rules and NEVER these — which was found by tracing, after a
+  # canonicalising redirect written here turned out to be dead code.
+  #
+  # The consequence to hold on to: this file governs requests that land in the
+  # PROJECT ROOT. Anything that reaches public/ is public/.htaccess's business, and
+  # the /public/… → /… canonical redirect lives there for exactly that reason.
+
+  # Already inside public/ — stop, and let public/.htaccess take over. This is what
+  # TERMINATES the rewrite: the last rule below re-enters this file with the path
+  # prefixed, and this rule catches it on the second pass.
+  RewriteRule ^public(?:/|$) - [L]
+
+  # The bare root.
+  RewriteRule ^$ public/index.php [L]
+
+  # Everything else, verbatim, one level down. Real files under public/ are then
+  # served by public/.htaccess's `RewriteCond !-f`; everything else reaches
+  # public/index.php. Deliberately NO `!-f` test HERE: a path that happens to match
+  # a file in the PROJECT ROOT must never be served out of it.
+  RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>

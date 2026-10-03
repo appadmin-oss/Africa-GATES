@@ -1,0 +1,51 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ d.label }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/data">← All data</a> <a class="ad-btn" href="/admin/data/{{ dataset }}/export{{ qs_base ? '?' ~ qs_base : '' }}">⤓ Export CSV</a>{% endblock %}
+{% block content %}
+{% if d.search|length or has_date %}
+<form method="get" action="/admin/data/{{ dataset }}" class="ad-card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+  {% if d.search|length %}
+  <div style="flex:1;min-width:200px">
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Search</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="Search {{ d.label|lower }}…" aria-label="Search {{ d.label|lower }}" style="width:100%;padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+  </div>
+  {% endif %}
+  {% if has_date %}{% include 'admin/partials/datefields.twig' %}{% endif %}
+  <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+  {% if q or (range not in ['','all']) or from or to %}<a class="ad-btn" href="/admin/data/{{ dataset }}">Clear</a>{% endif %}
+</form>
+{% endif %}
+
+<div class="ad-card"><div class="ad-table-wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 4px 12px"><strong style="font-size:14px">{{ total|number_format }} record{{ total == 1 ? '' : 's' }}</strong>{% if pages > 1 %}<span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Page {{ page }} of {{ pages }}</span>{% endif %}</div>
+  <table class="ad-table">
+    <thead><tr>
+      {% for c in cols %}
+        {% set isSort = sort == c.0 %}
+        {% set nextDir = (isSort and dir == 'asc') ? 'desc' : 'asc' %}
+        <th scope="col"><a href="/admin/data/{{ dataset }}?{{ qs_base ? qs_base ~ '&' : '' }}sort={{ c.0 }}&dir={{ nextDir }}" style="color:inherit;text-decoration:none;white-space:nowrap">{{ c.1 }}{% if isSort %} {{ dir == 'asc' ? '▲' : '▼' }}{% endif %}</a></th>
+      {% endfor %}
+      {% if has_id %}<th scope="col" class="col-actions"></th>{% endif %}
+    </tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        {% for c in cols %}
+          {% set v = r[c.0] %}
+          {% set fmt = c.2|default('') %}
+          <td>
+            {%- if fmt == 'datetime' -%}{% if v %}<span style="font-family:'Space Mono',monospace;font-size:12px">{{ v|slice(0,16) }}</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">—</span>{% endif %}
+            {%- elseif fmt == 'naira' -%}₦{{ v|default(0)|number_format }}
+            {%- elseif fmt == 'chip' -%}{% if v not in [null, ''] %}<span class="ad-chip ad-chip--grey">{{ v }}</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">—</span>{% endif %}
+            {%- elseif fmt == 'bool' -%}{{ v ? 'Yes' : 'No' }}
+            {%- else -%}{% set s = v|default('')|trim %}{% if s == '' %}<span style="color:var(--ad-text-mute,#61728e)">—</span>{% elseif s|length > 70 %}<span class="ad-trunc">{{ s|slice(0,70)|trim }}…</span><button type="button" class="ad-view-btn" data-view-title="{{ c.1 }}" data-view-text="{{ s }}">View</button>{% else %}{{ s }}{% endif %}{%- endif -%}
+          </td>
+        {% endfor %}
+        {% if has_id %}<td class="col-actions"><a class="ad-btn ad-btn--sm" href="/admin/data/{{ dataset }}/{{ r.id }}">View</a></td>{% endif %}
+      </tr>
+      {% else %}<tr><td colspan="{{ cols|length + 1 }}" style="text-align:center;padding:30px;color:var(--ad-text-mute)">No records{% if q %} match “{{ q }}”{% endif %}.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% include 'admin/partials/pager.twig' with {base: '/admin/data/' ~ dataset, qs: qs, page: page, pages: pages, window: window} only %}
+</div></div>
+{% endblock %}

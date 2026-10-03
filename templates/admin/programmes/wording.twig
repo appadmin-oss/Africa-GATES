@@ -1,0 +1,278 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE WORDS ONE AWARD USES ABOUT ITS OWN PEOPLE
+  ══════════════════════════════════════════════════════════════════════════════
+
+  A sub-page of a programme, linked from the programme's own form rather than added
+  to the rail — the rail is seven headings and a section carries exactly one gate, so
+  a new entry there is an access decision and this is not one. It needs no page key
+  and no sprite icon; `admin_page: 'programmes'` keeps the rail on Programmes while
+  an operator stands here.
+
+  ── EVERY LABEL, HINT AND CAP IS READ FROM THE FIELD TABLE ──────────────────
+
+  `AwardWording::FIELDS` drives the loop below: the label, the help line, the
+  `maxlength` and the name of the input. So a field added there appears here with no
+  edit, and — the half that matters — a field the WRITER does not read cannot be
+  rendered. That failure is silent: an input named `nominee_noun` posts happily, is
+  never read, and the operator saves with no error and finds the form unchanged.
+
+  Nothing on this page types a number. The `maxlength` is `f.max`, and the counter
+  under each box reads the same attribute, so the browser and `save()` cannot come to
+  disagree about how long a phrase may be.
+#}
+
+{% block topbar_title %}Wording · {{ row.title }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/programmes/{{ row.id }}">← Back to the award</a>
+{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .aw-lede{ background:var(--ad-surface); border:1px solid var(--ad-line);
+    border-radius:14px; padding:18px 20px; margin-bottom:16px }
+  .aw-lede h2{ margin:0 0 6px; font-size:14px; color:var(--ad-text) }
+  .aw-lede p{ margin:8px 0 0; font-size:13px; line-height:1.7;
+    color:var(--ad-text-mute); max-width:76ch }
+  .aw-card{ background:var(--ad-surface); border:1px solid var(--ad-line);
+    border-radius:14px; padding:18px 20px; margin-bottom:16px }
+  .aw-card h3{ margin:0 0 4px; font-size:14px; color:var(--ad-text) }
+  .aw-card > p{ margin:0 0 14px; font-size:13px; line-height:1.6;
+    color:var(--ad-text-mute); max-width:76ch }
+
+  .aw-field{ margin-bottom:18px }
+  .aw-field:last-child{ margin-bottom:0 }
+  .aw-field label{ display:block; font-size:13px; font-weight:600;
+    color:var(--ad-text); margin-bottom:3px }
+  .aw-field .aw-help{ display:block; font-size:12px; line-height:1.6;
+    color:var(--ad-text-mute); margin-bottom:6px }
+  .aw-field input[type="text"]{ width:100%; border:1px solid var(--ad-line);
+    border-radius:8px; padding:9px 11px; font:inherit; font-size:14px;
+    color:var(--ad-text); background:var(--ad-surface) }
+  .aw-field input[type="text"]:focus-visible{ outline:3px solid var(--ad-primary);
+    outline-offset:1px }
+
+  /* The house word, shown as the placeholder AND named in the hint. A placeholder
+     vanishes the moment somebody types, so it is the one place a rule must never be
+     stated alone — the eight-character password minimum lived in one and the only
+     person who saw it had not started. */
+  .aw-foot{ display:flex; justify-content:space-between; gap:12px; margin-top:4px }
+  .aw-fallback{ font-size:12px; color:var(--ad-text-mute) }
+  .aw-count{ font-family:var(--ag-font-mono, ui-monospace, monospace);
+    font-size:11px; font-weight:700; color:var(--ad-text-mute); white-space:nowrap }
+  .aw-count[data-over]{ color:var(--ad-danger) }
+
+  .aw-kinds{ display:flex; flex-wrap:wrap; gap:10px }
+  .aw-kind{ display:flex; align-items:flex-start; gap:9px; flex:1 1 220px;
+    border:1px solid var(--ad-line); border-radius:12px; padding:11px 13px;
+    line-height:1.5; cursor:pointer }
+  .aw-kind input{ width:18px; height:18px; margin:1px 0 0; flex:none;
+    accent-color:var(--ad-primary) }
+  /* EACH PART NAMED. `.aw-kind span` matched the wrapper as well as the hint, so
+     the kind's name inherited the muted colour through it and the two lines came
+     out identical — the card had a heading that did not read as one. A descendant
+     selector cannot tell a wrapper from the thing it wraps. */
+  .aw-kind__txt{ display:flex; flex-direction:column; gap:2px; min-width:0 }
+  .aw-kind__name{ font-size:13px; font-weight:600; color:var(--ad-text) }
+  .aw-kind__how{ font-size:12px; color:var(--ad-text-mute) }
+
+  .aw-preview{ border:1px solid var(--ad-line); border-radius:12px;
+    padding:14px 16px; background:var(--ad-bg) }
+  .aw-preview dt{ font-family:var(--ag-font-mono, ui-monospace, monospace);
+    font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ad-text-mute); margin-bottom:3px }
+  .aw-preview dd{ margin:0 0 12px; font-size:15px; line-height:1.4;
+    color:var(--ad-text) }
+  .aw-preview dd:last-of-type{ margin-bottom:0 }
+
+  .aw-actions{ display:flex; justify-content:flex-end; gap:10px; align-items:center }
+  .aw-actions .aw-spacer{ margin-right:auto; font-size:12px; color:var(--ad-text-mute) }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="aw-lede">
+  <h2>What this award calls the people it is for</h2>
+  <p>
+    Every nomination form here says <em>nominee</em> unless an award says otherwise.
+    That is right for most awards and wrong for some: a form headed
+    <strong>{{ row.title }}</strong> that asks for “the nominee’s full name” is asking
+    a question about a person, and if this award is for organisations or choirs the
+    commonest outcome is not an error — it is somebody typing their own name because
+    the form appeared to be asking for it.
+  </p>
+  <p>
+    Leave a box empty to keep the house word. Nothing here changes who may be
+    nominated or how anything is judged; it changes only what the form says.
+    {% if row.slug %}
+      <a href="/nominate/{{ row.slug }}" target="_blank" rel="noopener">See this award’s
+        nomination form →</a>
+    {% endif %}
+  </p>
+</div>
+
+<form class="ad-form" method="post"
+      action="/admin/programmes/{{ row.id }}/wording"
+      data-aw-form data-aw-programme="{{ row.id }}">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+  {#
+    ── THE AI DRAFT ──────────────────────────────────────────────────────────
+    Its own partial, because the widget beside the terms editor writes ONE rich-text
+    field and this one fills seven plain boxes — the same button doing two different
+    things is how a shared helper grows a mode flag and then a second one.
+  #}
+  {% include 'admin/programmes/_wording-ai.twig' %}
+
+  <div class="aw-card">
+    <h3>The words</h3>
+    <p>
+      Each box is capped at the length shown beside it, which is the same limit the
+      save applies — there is no second rule to meet.
+    </p>
+
+    {% for key, f in fields %}
+      {% set current = old is not empty ? (old[key] ?? '') : (wording[key] == f.default ? '' : wording[key]) %}
+      <div class="aw-field">
+        <label for="aw-{{ key }}">{{ f.label }}</label>
+        <span class="aw-help" id="aw-{{ key }}-help">{{ f.help }}</span>
+        <input type="text" id="aw-{{ key }}" name="{{ key }}"
+               value="{{ current }}"
+               maxlength="{{ f.max }}"
+               placeholder="{{ f.default }}"
+               aria-describedby="aw-{{ key }}-help aw-{{ key }}-foot"
+               data-aw-input data-aw-key="{{ key }}">
+        <div class="aw-foot" id="aw-{{ key }}-foot">
+          <span class="aw-fallback">Left empty, the form says “{{ f.default }}”.</span>
+          <span class="aw-count" data-aw-count data-max="{{ f.max }}">0/{{ f.max }}</span>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="aw-card">
+    <h3>Who may be nominated for this award</h3>
+    <p>
+      The form asks for a name differently for a person and for a registered body, and
+      it offers only the kinds ticked here. An award with none ticked would have no way
+      in at all, so leaving them all off is read as all three.
+    </p>
+    {% set chosen = old is not empty ? (old[kinds_key] ?? []) : wording[kinds_key] %}
+    <div class="aw-kinds">
+      {% for k, kind in kinds %}
+        <label class="aw-kind">
+          <input type="checkbox" name="{{ kinds_key }}[]" value="{{ k }}"
+                 {% if k in chosen %}checked{% endif %}>
+          <span class="aw-kind__txt">
+            <strong class="aw-kind__name">{{ kind.one }}</strong>
+            <span class="aw-kind__how">The form asks for “{{ kind.name_label }}”.</span>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="aw-card">
+    <h3>How it reads</h3>
+    <p>
+      The same sentences the nomination form builds, with a stand-in name and one of
+      this award’s categories. Updates as you type.
+    </p>
+    <dl class="aw-preview">
+      <dt>Step one asks</dt>
+      <dd data-aw-preview="who_question">{{ wording.who_question }}</dd>
+      <dt>And under it</dt>
+      <dd data-aw-preview="who_hint">{{ wording.who_hint }}</dd>
+      <dt>Each reason is headed</dt>
+      {#
+        The stand-in name and the category travel as attributes, and the CATEGORY is a
+        real one from this award's own cycle where it has any. A preview that invents
+        "Category name" shows an operator a sentence that will never be printed, and
+        the one thing they are here to judge is how the sentence reads with their own
+        words in it.
+      #}
+      <dd data-aw-preview="reason"
+          data-name="{{ preview_name }}" data-category="{{ preview_category }}"
+        >{{ preview_reason }}</dd>
+      <dt>The evidence step says</dt>
+      <dd data-aw-preview="evidence_hint">{{ wording.evidence_hint }}</dd>
+    </dl>
+  </div>
+
+  <div class="aw-actions">
+    <span class="aw-spacer">
+      {% if is_custom %}This award uses its own words.
+      {% else %}This award uses the house words.{% endif %}
+    </span>
+    <a class="ad-btn" href="/admin/programmes/{{ row.id }}">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save wording</button>
+  </div>
+</form>
+
+<script nonce="{{ csp_nonce }}">
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE COUNTERS AND THE PREVIEW
+
+   Both are enhancements over a form that already works: the boxes carry `maxlength`,
+   the caps are enforced again by `AwardWording::save()`, and with this script absent
+   an operator fills seven inputs and presses Save with no change in outcome.
+
+   The preview's stand-in name and category come from data attributes rather than
+   being written here. The sentence itself is built the way `AwardWording::reasonQuestion()`
+   builds it — two placeholders, one replace — because the admin's preview and the
+   public form have to show one sentence, and a second implementation of it here is how
+   they come to disagree.
+   ══════════════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+  var form = document.querySelector('[data-aw-form]');
+  if (!form) return;
+
+  function chars(s) {
+    // Counted through the string iterator, not `.length`: `.length` counts UTF-16
+    // code units, and `save()` counts with `mb_strlen`. An award written in a script
+    // with combining marks would otherwise be told it had passed a cap the server
+    // still refuses it on.
+    var n = 0;
+    for (var it = String(s)[Symbol.iterator](); !it.next().done;) n++;
+    return n;
+  }
+
+  var PREVIEW = form.querySelector('[data-aw-preview="reason"]');
+  var NAME    = PREVIEW ? (PREVIEW.getAttribute('data-name') || 'them') : 'them';
+  var CAT     = PREVIEW ? (PREVIEW.getAttribute('data-category') || 'this category') : '';
+
+  function paint(input) {
+    var key   = input.getAttribute('data-aw-key');
+    var wrap  = input.closest('.aw-field');
+    var count = wrap && wrap.querySelector('[data-aw-count]');
+    var max   = count ? parseInt(count.getAttribute('data-max'), 10) : 0;
+    var n     = chars(input.value);
+
+    if (count) {
+      count.textContent = n + '/' + max;
+      count.toggleAttribute('data-over', n > max);
+    }
+
+    /* The house word is what the form shows when the box is empty, so the preview
+       shows the house word — not an empty line, which would read as the form being
+       about to print nothing. */
+    var shown = input.value.trim() !== '' ? input.value.trim() : input.placeholder;
+    var slot  = form.querySelector('[data-aw-preview="' + key + '"]');
+    if (slot) slot.textContent = shown;
+
+    if (key === 'reason_question' && PREVIEW) {
+      PREVIEW.textContent = shown.replace('{name}', NAME).replace('{category}', CAT);
+    }
+  }
+
+  Array.prototype.forEach.call(form.querySelectorAll('[data-aw-input]'), function (i) {
+    i.addEventListener('input', function () { paint(i); });
+    paint(i);
+  });
+})();
+</script>
+{% endblock %}

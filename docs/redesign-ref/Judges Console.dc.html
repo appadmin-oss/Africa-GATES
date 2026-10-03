@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="image-slot.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#f4f6f3}
+  image-slot::part(frame){background:transparent}
+  image-slot[data-deco]::part(empty){display:none}
+  .jd-scroll::-webkit-scrollbar{width:8px}
+  .jd-scroll::-webkit-scrollbar-thumb{background:rgba(16,41,44,.16);border-radius:5px}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:5px;background:#dde6df;outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#237b22;cursor:pointer;border:3px solid #fff;box-shadow:0 2px 6px rgba(16,41,44,.3)}
+  @keyframes jdRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes jdToast{0%{opacity:0;transform:translateX(-50%) translateY(12px)}12%{opacity:1;transform:translateX(-50%) translateY(0)}88%{opacity:1}100%{opacity:0}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#f4f6f3">
+  <!-- TOPBAR -->
+  <div style="position:sticky;top:0;z-index:30;background:#0c2225;padding:14px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="width:36px;height:36px;border-radius:10px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:19px;color:#7FC87C">G</span>
+      <div style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#fff">Africa GATES</span><span style="font-size:9.5px;font-weight:700;letter-spacing:.18em;color:#7FC87C;margin-top:2px">JUDGES PANEL</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="text-align:right"><div style="font-size:12.5px;font-weight:600;color:#fff">Judge S. Bello</div><div style="font-size:10.5px;color:rgba(255,255,255,.5)">Education panel · Round 2</div></div>
+      <span style="width:36px;height:36px;border-radius:10px;background:#7FC87C;color:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:15px">B</span>
+    </div>
+  </div>
+
+  <!-- PROGRESS STRIP -->
+  <div style="background:#10292C;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+    <div>
+      <div style="font-family:'Playfair Display',serif;font-weight:700;font-size:19px;color:#fff">Your judging queue</div>
+      <div style="font-size:12.5px;color:rgba(255,255,255,.6);margin-top:2px">Education Excellence · score each nominee across four criteria</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:18px">
+      <div style="text-align:right"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;color:#7FC87C">{{ doneCount }} / {{ totalCount }}</div><div style="font-size:10.5px;color:rgba(255,255,255,.5)">scored</div></div>
+      <div style="width:160px"><div style="height:8px;border-radius:5px;background:rgba(255,255,255,.14);overflow:hidden"><span style="display:block;height:100%;border-radius:5px;width:{{ progPct }};background:linear-gradient(90deg,#7FC87C,#fbc329)"></span></div></div>
+    </div>
+  </div>
+
+  <div style="max-width:1180px;margin:0 auto;padding:24px 32px 60px;display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start">
+    <!-- QUEUE LIST -->
+    <div style="position:sticky;top:84px">
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;overflow:hidden">
+        <div style="padding:14px 16px;border-bottom:1px solid rgba(16,41,44,.07);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#92a6a7">Nominees</div>
+        <div class="jd-scroll" style="max-height:520px;overflow-y:auto">
+          <sc-for list="{{ nominees }}" as="n" hint-placeholder-count="6">
+            <button onClick="{{ n.pick }}" style="width:100%;cursor:pointer;border:none;text-align:left;display:flex;align-items:center;gap:12px;padding:13px 16px;background:{{ n.bg }};border-left:3px solid {{ n.accent }};border-bottom:1px solid rgba(16,41,44,.05)">
+              <span style="flex:none;width:38px;height:38px;border-radius:11px;background:{{ n.avBg }};color:{{ n.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:15px">{{ n.initial }}</span>
+              <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13.5px;color:#10292C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.flag }} {{ n.name }}</div><div style="font-size:11.5px;color:#92a6a7">{{ n.statusLabel }}</div></div>
+              <span style="flex:none;color:{{ n.tickColor }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:16px;margin-top:14px;display:flex;align-items:center;gap:11px">
+        <span style="width:34px;height:34px;border-radius:10px;background:#fff8df;color:#a47306;display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <div><div style="font-size:12.5px;font-weight:600;color:#10292C">Scoring closes</div><div style="font-size:12px;color:#717a7e">in 4 days · 30 Jun</div></div>
+      </div>
+    </div>
+
+    <!-- SCORING PANEL -->
+    <div style="animation:jdRise .3s ease both">
+      <!-- nominee header -->
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;overflow:hidden">
+        <div style="position:relative;background:radial-gradient(130% 130% at 82% 0%,#1d5b2a,#10292C 60%);padding:26px 28px;display:flex;align-items:center;gap:20px">
+          <div style="position:absolute;right:-40px;bottom:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%)"></div>
+          <span style="position:relative;flex:none;width:72px;height:72px;border-radius:18px;background:{{ curAvBg }};color:{{ curAvFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:30px;border:3px solid rgba(255,255,255,.2)">{{ curInitial }}</span>
+          <div style="position:relative;flex:1">
+            <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:25px;color:#fff">{{ curFlag }} {{ curName }}</h2>
+            <p style="margin:6px 0 0;font-size:13.5px;color:rgba(255,255,255,.78)">{{ curRole }}</p>
+          </div>
+          <div style="position:relative;text-align:right"><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:30px;color:#7FC87C;line-height:1">{{ curScore }}</div><div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-top:3px">Your score · /40</div></div>
+        </div>
+        <!-- dossier -->
+        <div style="padding:22px 28px;border-bottom:1px solid rgba(16,41,44,.07)">
+          <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#92a6a7">Submission dossier</p>
+          <p style="margin:10px 0 0;font-size:14.5px;line-height:1.65;color:#3a4448">{{ curDossier }}</p>
+          <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+            <sc-for list="{{ curEvidence }}" as="e" hint-placeholder-count="3">
+              <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:#1a6118;background:#eef7ee;border:1px solid #cfe8cd;padding:8px 13px;border-radius:10px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>{{ e.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- criteria sliders -->
+        <div style="padding:22px 28px">
+          <p style="margin:0 0 18px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#92a6a7">Score the four criteria · 0–10 each</p>
+          <div style="display:flex;flex-direction:column;gap:22px">
+            <sc-for list="{{ criteria }}" as="c" hint-placeholder-count="4">
+              <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                  <div><div style="font-weight:600;font-size:14.5px;color:#10292C">{{ c.label }}</div><div style="font-size:12px;color:#92a6a7;margin-top:2px">{{ c.hint }}</div></div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;color:#237b22;min-width:34px;text-align:right">{{ c.val }}</span>
+                </div>
+                <input type="range" min="0" max="10" step="1" value="{{ c.val }}" onInput="{{ c.set }}" style="width:100%"/>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- comment -->
+          <div style="margin-top:24px">
+            <label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:8px">Panel note (optional)</label>
+            <textarea value="{{ note }}" onInput="{{ onNote }}" placeholder="Why this score? Notes are shared with the panel, never public." style="width:100%;min-height:84px;resize:vertical;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14px;line-height:1.5;color:#10292C;outline:none" style-focus="border-color:#237b22"></textarea>
+          </div>
+
+          <!-- actions -->
+          <div style="display:flex;align-items:center;gap:12px;margin-top:20px">
+            <button onClick="{{ recuse }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#717a7e;font-family:inherit;font-size:13.5px;font-weight:600;padding:13px 18px;border-radius:999px">Recuse myself</button>
+            <div style="flex:1"></div>
+            <button onClick="{{ skip }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-size:14px;font-weight:600;padding:13px 22px;border-radius:999px">Skip</button>
+            <button onClick="{{ submit }}" style="cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-size:14px;font-weight:600;padding:13px 28px;border-radius:999px;display:flex;align-items:center;gap:8px" style-hover="background:#1a6118">{{ submitLabel }}
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- guidance -->
+      <div style="background:#f4f7f4;border:1px solid #d6e8d3;border-radius:14px;padding:16px 18px;margin-top:16px;display:flex;align-items:flex-start;gap:12px">
+        <span style="flex:none;color:#1a6118;margin-top:1px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+        <p style="margin:0;font-size:12.5px;line-height:1.6;color:#1a6118">Judge on documented impact, not popularity — public votes are scored separately. Your scores are confidential and combine with other judges' before contributing to the CPI.</p>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:90;background:#10292C;color:#fff;font-size:13.5px;font-weight:500;padding:13px 22px;border-radius:999px;box-shadow:0 16px 40px -12px rgba(0,0,0,.5);animation:jdToast 2.4s ease both">{{ toastMsg }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:860}}">
+class Component extends DCLogic {
+  state = {
+    active: 0,
+    scores: {}, // idx -> [a,b,c,d]
+    notes: {},
+    done: {},
+    cur: [8,7,9,8],
+    note: ''
+  };
+  ping(m){ this.setState({toast:m}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:null}),2300); }
+  renderVals(){
+    const s = this.state;
+    const AV=[['#fff8df','#a47306'],['#effaf0','#1a6118'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#b03a5b']];
+    const N = [
+      { name:'Amara Okonkwo', flag:'🇳🇬', initial:'A', role:'Lifetime Educator · 18 yrs in rural numeracy',
+        dossier:'Built a multi-grade numeracy framework now in 12 Enugu schools, training 40 teachers a year. Independent assessment shows a 31% gain in numeracy scores across adopting schools.',
+        ev:['Impact report 2025.pdf','3 letters of support','Field audit'] },
+      { name:'Tariro Banda', flag:'🇿🇲', initial:'T', role:'Science teacher · STEM access',
+        dossier:'Founded a girls-in-STEM lab network reaching 6 provinces, with a documented rise in university science enrolment among participants.',
+        ev:['Programme deck.pdf','Enrolment data'] },
+      { name:'Kofi Asante', flag:'🇬🇭', initial:'K', role:'Vocational education reformer',
+        dossier:'Redesigned a national vocational curriculum adopted by the Ghana Education Service; tracked into measurable employment outcomes.',
+        ev:['Curriculum.pdf','Ministry endorsement','Outcomes study'] },
+      { name:'Naledi Moyo', flag:'🇧🇼', initial:'N', role:'Early-childhood literacy',
+        dossier:'Mother-tongue early-literacy method scaled to 80 pre-schools with peer-reviewed results.',
+        ev:['Peer review','Scale report'] },
+      { name:'Peter Otieno', flag:'🇰🇪', initial:'P', role:'Teacher-training innovator',
+        dossier:'Low-bandwidth teacher CPD platform serving 4,000 rural teachers across Kenya.',
+        ev:['Platform metrics','Usage audit'] }
+    ];
+    const total = N.length;
+    const doneCount = Object.keys(s.done).length;
+    const nominees = N.map((n,i)=>{ const on=s.active===i; const done=!!s.done[i]; return {
+      name:n.name, flag:n.flag, initial:n.initial, avBg:AV[i%5][0], avFg:AV[i%5][1],
+      pick:()=>this.openNominee(i),
+      bg: on?'#f6fcf5':'#fff', accent: on?'#237b22':'transparent',
+      statusLabel: done? ('Scored · '+s.done[i]+'/40') : 'Awaiting score',
+      tickColor: done?'#237b22':'#e2e8e4' }; });
+
+    const cur = N[s.active];
+    const vals = s.cur;
+    const CRIT = [
+      ['Documented impact','Measurable, evidenced outcomes'],
+      ['Reach & scale','Breadth across communities'],
+      ['Sustainability','Will it outlast the individual?'],
+      ['Originality','Novelty of the approach']
+    ];
+    const criteria = CRIT.map((c,i)=>({ label:c[0], hint:c[1], val:vals[i],
+      set:(e)=>{ const v=parseInt(e.target.value)||0; this.setState(st=>{ const nc=st.cur.slice(); nc[i]=v; return {cur:nc}; }); } }));
+    const curScore = vals.reduce((a,b)=>a+b,0);
+    const curEvidence = cur.ev.map(x=>({label:x}));
+    const alreadyDone = !!s.done[s.active];
+
+    return {
+      nominees, doneCount, totalCount: total, progPct: Math.round(doneCount/total*100)+'%',
+      curName:cur.name, curFlag:cur.flag, curInitial:cur.initial, curRole:cur.role, curDossier:cur.dossier,
+      curAvBg:AV[s.active%5][0], curAvFg:AV[s.active%5][1], curScore, curEvidence,
+      criteria, note:s.note, onNote:(e)=>this.setState({note:e.target.value}),
+      submitLabel: alreadyDone?'Update score':'Submit score',
+      submit:()=>{ this.setState(st=>({ done:{...st.done,[st.active]:curScore}, scores:{...st.scores,[st.active]:st.cur.slice()}, notes:{...st.notes,[st.active]:st.note} })); this.ping('Score saved · '+curScore+'/40'); this.advance(); },
+      skip:()=>this.advance(),
+      recuse:()=>this.ping('Recused from this nominee'),
+      toastOpen:!!s.toast, toastMsg:s.toast||''
+    };
+  }
+  openNominee(i){
+    this.setState(st=>({ active:i, cur: (st.scores[i]||[8,7,9,8]).slice(), note: st.notes[i]||'' }));
+  }
+  advance(){
+    const st=this.state; const total=5;
+    let nx=st.active; for(let k=1;k<=total;k++){ const c=(st.active+k)%total; if(!st.done[c]){ nx=c; break; } }
+    this.openNominee(nx);
+  }
+}
+</script>
+</body>
+</html>

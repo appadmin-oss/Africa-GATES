@@ -1,0 +1,185 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   PAGE SHELL — only <main> scrolls
+   Phase 1 of design_handoff_africa_gates · REFERENCE §6.7, §13 · skill §0.4
+   ══════════════════════════════════════════════════════════════════════════════
+
+   The root is 100dvh and does not scroll. Exactly one element inside it does —
+   `<main class="ag-main">` — so app bars, tab bars, action bars and the Gee
+   launcher stay pinned as ordinary flex children, without `position:fixed` and
+   without the iOS address-bar jitter that comes with it.
+
+   Loaded by BOTH layouts: everything below the lock is the base every page needs
+   (focus, the 16px input floor, Display & reading, reduced motion, border-box,
+   `hidden` that hides). The lock itself applies only where the shell is.
+
+   Destroyed and written again on 3 Oct 2026 when the owner put type in rem: the one
+   size this file sets (the input floor) reads a tokens.css step, and the root that
+   Display & reading scales is stated rather than assumed.
+
+   ── DEVIATION #1: THE LOCK IS SCOPED, NOT GLOBAL ────────────────────────────
+
+   The handoff writes `html,body{margin:0;height:100%;overflow:hidden}` for every
+   page. That is right for a finished redesign and fatal during one: the ~85
+   templates still on `layout/gates.twig` scroll the DOCUMENT and have no
+   `.ag-main`, so a global lock would leave every one of them unscrollable below
+   the fold. So the lock rides on `html.ag-shelled`, which `layout/shell.twig`
+   writes into the markup the server sends — on <html> itself, because that is
+   the element the lock is on, and so no `:has()` is needed to reach it from the
+   body. A page moves into the lock by moving onto the shell, in the phase that
+   destroys and rebuilds it; when the last one has, the class becomes
+   unconditional and this paragraph goes with it. (docs/handoff/PHASE-1.md)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+html,body{ margin:0 }
+
+body{
+  background:var(--ag-ground);
+  color:var(--ag-ink);
+  font-family:var(--ag-font-ui);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-size-adjust:100%;
+  -webkit-text-size-adjust:100%;
+}
+
+/* The lock. See deviation #1 above. */
+html.ag-shelled,
+html.ag-shelled body{ height:100%; overflow:hidden }
+
+.ag-shell{
+  position:relative;
+  width:100%;
+  height:100dvh;
+  max-height:100%;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+/* Every bar — header, app bar, action bar, tab bar — sits OUTSIDE the scroller
+   and keeps its own height; the scroller takes what is left. Written as "not the
+   main" rather than a list of bars, so a bar added later is pinned by default. */
+.ag-shell > :not(.ag-main){ flex:none }
+
+.ag-main{
+  position:relative;              /* sticky children and absolute overlays resolve here */
+  flex:1;
+  min-height:0;                   /* without this a flex child refuses to shrink below its content */
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior-y:contain;  /* the page behind a sheet does not rubber-band */
+  -webkit-overflow-scrolling:touch;
+  /* WCAG 2.4.11: something the keyboard focuses must not land under the sticky
+     toolbar at the top of the scroller. Scroll padding on the scroller does that
+     for every focus move, including the browser's own. */
+  scroll-padding-top:var(--ag-sp-64);
+}
+
+
+/* ══ Focus · REFERENCE §13 ═══════════════════════════════════════════════════
+   A 3px green outline, 2px offset, on everything the keyboard reaches. On a
+   document page (`.ag-doc`, tier-0 text) the ring is ink: green there reads as an
+   action, and DocPage.dc.html draws it ink. `.is-focus` is the specimen hook
+   /_dev/ui uses to hold the ring still for a screenshot. */
+
+:focus-visible,
+.is-focus{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-doc :focus-visible,
+.ag-doc .is-focus{ outline-color:var(--ag-ink) }
+
+.ag-skip{
+  position:absolute; inset-inline-start:var(--ag-sp-8); top:-64px; z-index:var(--ag-z-sheet);
+  height:44px; display:inline-flex; align-items:center; padding:0 var(--ag-sp-16);
+  border-radius:var(--ag-r-12); background:var(--ag-surface); color:var(--ag-ink);
+  font-weight:700; transition:top var(--ag-dur-1) var(--ag-ease);
+}
+.ag-skip:focus{ top:var(--ag-sp-8) }
+
+
+/* ══ Defaults ════════════════════════════════════════════════════════════════
+   An input is never below 16px: anything smaller makes iOS Safari zoom the page
+   on focus, and it does not zoom back. 1rem, so it grows with Display & reading
+   and is 16px exactly at 100%. */
+
+a{ color:var(--ag-green); text-decoration:none }
+a:hover{ color:var(--ag-green-deep) }
+input,select,textarea,button{ font:inherit; color:inherit }
+input,select,textarea{ font-size:var(--ag-fs-16) }
+h1,h2,h3{ text-wrap:balance }
+p{ text-wrap:pretty }
+.ag-num{ font-variant-numeric:tabular-nums }
+
+.ag-sr{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;
+}
+
+/* Border-box everywhere. Every width, padding and border in this design system is
+   written as though it were already true, and where it was not the Quick settings
+   Sign-in button measured 402px inside a 390px sheet: `width:100%` on an anchor
+   plus its own 44px of padding. */
+*, *::before, *::after{ box-sizing:border-box }
+
+/* `[hidden]{display:none}` is a USER-AGENT rule, so any author rule that sets
+   `display` beats it — and nearly every component here sets `display`. A script's
+   `el.hidden = true` then reads as correct at the call site while the element
+   stays on screen. The `!important` is the only one outside a reduced-motion block,
+   and it is listed as a deviation for that reason (docs/handoff/PHASE-1.md). */
+[hidden]{ display:none !important }
+
+
+/* ══ Display & reading ═══════════════════════════════════════════════════════
+   Applied to <html> before first paint by `partials/a11y-head.twig` from
+   localStorage["ag-a11y"]; `a11y.js` keeps them in step afterwards. */
+
+/* TEXT SIZE IS THE ROOT, AND THE ROOT IS THE ONLY THING IT MOVES. 100% is the
+   reader's own browser default (16px unless they changed it, and if they changed it
+   that is a setting too); 125% and 150% multiply it. It reaches the page because
+   every font size on the public surface is a rem step from tokens.css — under px
+   type these two lines changed nothing a reader could see, which is how the setting
+   shipped once already: control working, class on <html>, no letter grown.
+   TypeScaleTest::test_the_text_size_setting_moves_the_root_and_the_type_follows
+   holds both halves. A percentage, not a px: a px size here would REPLACE the
+   reader's default rather than scale it. */
+html{ font-size:100% }
+html.ag-t125{ font-size:125% }
+html.ag-t150{ font-size:150% }
+
+/* High contrast collapses the greys and hairlines onto ink rather than inventing
+   a second palette — the snippet's values ARE the ink, so they are read from it. */
+html.ag-hc{
+  --ag-soft:var(--ag-ink);
+  --ag-ink-2:var(--ag-ink);
+  --ag-line:var(--ag-ink);
+  --ag-line-2:var(--ag-ink);
+  --ag-line-3:var(--ag-ink);
+}
+html.ag-easy body{ font-family:'Atkinson Hyperlegible',var(--ag-font-ui); letter-spacing:.01em }
+html.ag-ls p, html.ag-ls li{ line-height:1.8 }
+html.ag-ul a{ text-decoration:underline; text-underline-offset:3px }
+
+/* Data saver: nothing plays by itself, and an image marked for it waits for a tap. */
+html.ag-saver video[autoplay]{ display:none }
+html.ag-saver img[data-saver-hide]{ visibility:hidden }
+
+
+/* ══ Reduced motion · REFERENCE §4.7, §6.6 ═══════════════════════════════════
+   Both the operating system's signal and the in-app switch, and both show the
+   FINAL state at once rather than a slower version of the motion. `!important` is
+   allowed here and only here (§4.6). */
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.001ms!important;
+    transition-delay:0s!important;
+    scroll-behavior:auto!important;
+  }
+}
+html.ag-rm *,
+html.ag-rm *::before,
+html.ag-rm *::after{
+  animation:none!important;
+  transition:none!important;
+  scroll-behavior:auto!important;
+}

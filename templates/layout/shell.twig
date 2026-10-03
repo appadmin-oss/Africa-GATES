@@ -1,0 +1,148 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE PAGE SHELL — every rebuilt public page extends this
+  Phase 1 (the shell) and Phase 2 (the chrome) of design_handoff_africa_gates
+  REFERENCE §6.7 · §7.1–§7.5 · §10 · §13
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The root is 100dvh and does not scroll; `<main class="ag-main">` is the only scroller,
+  so every bar is a plain flex child that cannot move with the content.
+
+  ── THE CHROME IS THE LAYOUT'S, NOT EACH PAGE'S ─────────────────────────────
+
+  A page gets the whole of the shared chrome by extending this file and saying three
+  things about itself, as variables set at the top of the page template:
+
+    app_bar    {variant:'root'|'child', title, sub, back, share, search, avatar}
+               — the phone app bar (§7.2). Default: root, titled with page_heading or
+               page_title. A tab destination is root; a pushed screen is child.
+    tab        'home' | 'discover' | 'nominate' | 'pulse' — the active tab (§7.3).
+               Unset means none is lit, which is right for every page that is not a tab
+               destination.
+    flow_page  true on a flow (vote, checkout, event detail, nominee, product): no tab
+               bar — that page brings its own back button and bottom action bar (§7.3).
+
+  The blocks remain for a page that needs to replace a piece outright, but a partial
+  every page must remember to include is a partial the next page forgets — which is how
+  the old layout came to mount Quick settings on 180 pages with no button to open it
+  (ChromeReachabilityTest). So the defaults ARE the chrome.
+
+  What each breakpoint shows is CSS, not markup chosen per request (REFERENCE §6.7):
+  below 600 the app bar and the tab bar; from 600 the site header. The Menu and Quick
+  settings are phone sheets; the search palette and the shortcuts dialog answer `/` and
+  `?` at any width.
+
+  ── WHERE THIS DIFFERS FROM snippets/twig/page-shell.twig ─────────────────
+
+  · `<html class="ag-shelled">` arms the overflow lock, scoped rather than global
+    (Phase 1 deviation #1).
+  · `lang`/`dir` are `lang()`/`lang_dir()`, LanguageMiddleware's one answer — the
+    snippet's `lang == 'ar'` would be a second resolver for one value.
+  · Colour is `ag_accents()` in a nonced <style> BEFORE the stylesheets (GAPS §8 Q1).
+  · There is no `partials/nav.twig`. The header is `partials/site-header.twig`; Gee is
+    `partials/gee.twig` (Phase 3), mounted in the `gee` block below.
+
+  ── THE FLASH RAIL IS HERE BECAUSE A REDIRECT WITH NOTHING ON THE OTHER END IS SILENT ─
+
+  `flash_error`/`flash_ok`/`flash_notice` are written by public POST handlers that then
+  redirect. The old layout's rail was destroyed with it (inventory: _partials.md, MUST
+  RESTORE), so every such message reached nobody. A page that places its own sets
+  `own_flash` and the rail stands aside, or the message appears twice.
+#}
+{% set _bar = {variant: 'root', title: page_heading|default(page_title|default('Africa GATES'))}|merge(app_bar|default({})) %}
+{% set _member_sync = is_member ? (member_display() is null ? 'empty' : 'saved') : '' %}
+{# Preferences (CookiePrefs): may the display store outlive the tab? The one fact about
+   consent a script needs, handed over as a value rather than the whole record. #}
+{% set _consent = consent() %}
+{# Gee (Phase 3, REFERENCE §7.7): on every shell page except Pulse. Also not on the support
+   pages — the desk's own ticket list and forms are there, and two launchers onto one
+   brain is a choice nobody can make (the old layout's reason, still true) — nor on a page
+   that hides the chrome. Hoisted to template scope: it is read by the head, the `gee`
+   block and the scripts. #}
+{% set _gee_off = hide_chrome|default(false)
+                  or gates_page|default('') in ['pulse', 'support']
+                  or tab|default('') == 'pulse' %}
+<!doctype html>
+<html lang="{{ lang() }}" dir="{{ lang_dir() }}" class="ag-shelled"
+      data-ag-easy-font="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;display=swap"
+      data-ag-keep="{{ _consent and _consent.remember ? '1' : '0' }}"
+      {% if _member_sync %}data-ag-sync="{{ _member_sync }}"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  {# `viewport-fit=cover`, or every `env(safe-area-inset-*)` resolves to zero. #}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ page_title|default('Africa GATES') }}</title>
+  {% if meta_description is defined %}<meta name="description" content="{{ meta_description }}">{% endif %}
+  {% if meta_robots is defined %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
+  {# Only for a signed-in member: the token a11y.js sends with POST /account/display. #}
+  {% if _member_sync %}<meta name="ag-csrf" content="{{ csrf_token }}">{% endif %}
+
+  {# Before any stylesheet — see the partial for why. #}
+  {% block a11y_head %}{% include 'partials/a11y-head.twig' %}{% endblock %}
+
+  {# §6.2: Playfair Display 700, DM Sans 400–700, JetBrains Mono 500/700, swap. #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@500;700&display=swap">
+
+  <style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
+
+  {# In cascade order, the same order as AssetBundle::STYLESHEETS: the tokens, the
+     shell, the base components, then the shared chrome (Phase 2). #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/chrome.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/consent.css') }}">
+  {% if not _gee_off %}<link rel="stylesheet" href="{{ asset('/assets/css/components/gee.css') }}">{% endif %}
+  {% block head_styles %}{% endblock %}
+</head>
+<body data-page="{{ page_id|default('') }}">
+  <a class="ag-skip" href="#main">{{ 'Skip to content'|trans }}</a>
+
+  <div class="ag-shell">
+    {% block header %}{% include 'partials/site-header.twig' %}{% endblock %}
+    {% block app_bar %}{% include 'partials/app-bar.twig' with _bar only %}{% endblock %}
+
+    <main class="ag-main" id="main">
+      {% if not own_flash|default(false) %}{% include 'partials/flash.twig' %}{% endif %}
+      {% block content %}{% endblock %}
+    </main>
+
+    {# The cookie notice, the preferences sheet and the "saved" line (§7.9). Inside the
+       column on purpose: on a phone the notice is a flex child above the tab bar, so the
+       scroller shrinks for it and it can cover nothing (see consent.css). #}
+    {% include 'partials/cookie-consent.twig' %}
+
+    {% block bottom_bar %}
+      {% if not flow_page|default(false) %}{% include 'partials/tab-bar.twig' with { active: tab|default('') } only %}{% endif %}
+    {% endblock %}
+  </div>
+
+  {# Gee — the guide everywhere, the help desk where somebody arrives stuck (§7.7, §8.22).
+     Outside the column: the launcher and the panel are fixed, and clear every bottom bar
+     through `--ag-bottom-ui` rather than by being placed in the flow. #}
+  {% block gee %}{% if not _gee_off %}{% include 'partials/gee.twig' %}{% endif %}{% endblock %}
+
+  {# Each starts `inert` (or `hidden`) and is opened by a control the chrome above draws
+     — ChromeReachabilityTest holds that every one has a way in. #}
+  {% block sheets %}
+    {% include 'partials/menu-sheet.twig' %}
+    {% include 'partials/quick-settings.twig' %}
+    {% include 'partials/site-search.twig' %}
+    {% include 'partials/shortcuts.twig' %}
+  {% endblock %}
+
+  <script defer src="{{ asset('/assets/js/shell.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/a11y.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/chrome.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/header.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/search.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/consent.js') }}"></script>
+  {% if not _gee_off %}<script defer src="{{ asset('/assets/js/gee.js') }}"></script>{% endif %}
+  {# The shared validator: a form here that says `novalidate data-ag-validate` has
+     turned the browser's own messages off on the promise this replaces them. #}
+  <script defer src="{{ asset('/assets/js/form-validate.js') }}"></script>
+  {% block foot_scripts %}{% endblock %}
+</body>
+</html>

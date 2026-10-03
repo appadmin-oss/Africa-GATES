@@ -1,0 +1,31 @@
+── 390: Tab from the top
+PASS 390: Allow all reached by Tab (51 presses)
+PASS 390: then Essential — button[value=essential] "Essential"
+PASS 390: then Choose — button[value=choose] "Choose"
+PASS 390: Enter on Choose opens the sheet with focus inside — input#ag-consent-preferences[value=1] ""
+PASS 390: the open sheet is not inert
+PASS 390: Tab ×20 never leaves the sheet (4 stops: input#ag-consent-analytics[value=1] "" | button[value=essential] "Essential only" | button[value=save] "Save my choices" | input#ag-consent-preferences[value=1] "")
+PASS 390: Space switches Preferences on
+PASS 390: it is announced as a switch
+PASS 390: Esc closes and focus returns to Choose — button[value=choose] "Choose"
+PASS 390: the closed sheet is inert again
+PASS 390: the notice is still there — Esc is not an answer
+PASS 390: Enter on Save posts, the notice is gone and the confirmation is a status
+── 1440: Tab from the top
+PASS 1440: Allow all reached by Tab (54 presses)
+PASS 1440: then Essential — button[value=essential] "Essential"
+PASS 1440: then Choose — button[value=choose] "Choose"
+PASS 1440: Enter on Choose opens the sheet with focus inside — input#ag-consent-preferences[value=1] ""
+PASS 1440: the open sheet is not inert
+PASS 1440: Tab ×20 never leaves the sheet (4 stops: input#ag-consent-analytics[value=1] "" | button[value=essential] "Essential only" | button[value=save] "Save my choices" | input#ag-consent-preferences[value=1] "")
+PASS 1440: Space switches Preferences on
+PASS 1440: it is announced as a switch
+PASS 1440: Esc closes and focus returns to Choose — button[value=choose] "Choose"
+PASS 1440: the closed sheet is inert again
+PASS 1440: the notice is still there — Esc is not an answer
+PASS 1440: Enter on Save posts, the notice is gone and the confirmation is a status
+PASS 390: Menu → Cookies opens the preferences in place — input#ag-consent-preferences[value=1] ""
+PASS 390: the Menu closed as it opened
+PASS 390: Esc returns focus to the Menu tab — button "Open menu"
+PASS 390: the browser Back closes the sheet and stays on the page
+28/28 pass

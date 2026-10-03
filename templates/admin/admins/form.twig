@@ -6,9 +6,10 @@
   <input type="hidden" name="_token" value="{{ csrf_token }}">
   <div class="ad-card"><div class="ad-card__body">
     <div class="ad-form">
-      <div class="row"><div><label>Name</label><input type="text" name="name" value="{{ row.name|default('') }}" required></div><div><label>Email</label><input type="email" name="email" value="{{ row.email|default('') }}" required></div></div>
-      <div class="row"><div><label>Role</label><select name="role">{% for r in ['superadmin','admin','editor','judge','viewer'] %}<option value="{{ r }}" {% if row.role == r %}selected{% endif %}>{{ r|capitalize }}</option>{% endfor %}</select></div><div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> Active</label></div></div>
-      <div><label>{{ is_new ? 'Password' : 'New password' }} <span style="color:var(--ad-text-mute);font-weight:400">{{ is_new ? '— leave blank for a random one (they sign in via magic link)' : '— leave blank to keep current' }}</span></label><input type="password" name="password" autocomplete="new-password"></div>
+      <div class="row"><div><label for="f-name">Name</label><input type="text" name="name" id="f-name" value="{{ row.name|default('') }}" required></div><div><label for="f-email">Email</label><input type="email" name="email" id="f-email" value="{{ row.email|default('') }}" required></div></div>
+      <div class="row"><div><label for="f-role">Role</label><select name="role" id="f-role">{% if row.role is defined and row.role and row.role not in roles|keys %}<option value="{{ row.role }}" selected>{{ row.role|capitalize }} (current)</option>{% endif %}{% for key, r in roles %}<option value="{{ key }}" {% if row.role|default('editor') == key %}selected{% endif %}>{{ r.label }}</option>{% endfor %}</select></div><div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> Active</label></div></div>
+      <ul style="margin:2px 0 0;padding-left:18px;font-size:12px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">{% for key, r in roles %}<li><strong>{{ r.label }}</strong> — {{ r.blurb }}</li>{% endfor %}</ul>
+      <div><label for="f-password">{{ is_new ? 'Password' : 'New password' }} <span style="color:var(--ad-text-mute);font-weight:400">{{ is_new ? '— leave blank for a random one (they sign in via magic link)' : '— leave blank to keep current' }}</span></label><input type="password" name="password" id="f-password" autocomplete="new-password"></div>
     </div>
   </div></div>
   <div style="display:flex;justify-content:flex-end;gap:10px">

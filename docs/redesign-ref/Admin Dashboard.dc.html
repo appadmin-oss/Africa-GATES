@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#f4f6f3}
+  .ad-scroll::-webkit-scrollbar{width:8px;height:8px}
+  .ad-scroll::-webkit-scrollbar-thumb{background:rgba(16,41,44,.16);border-radius:5px}
+  @keyframes adRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes adToast{0%{opacity:0;transform:translateX(-50%) translateY(12px)}12%{opacity:1;transform:translateX(-50%) translateY(0)}88%{opacity:1}100%{opacity:0}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;background:#f4f6f3">
+  <!-- SIDEBAR -->
+  <aside style="flex:none;width:248px;background:#0c2225;display:flex;flex-direction:column;padding:20px 16px;position:sticky;top:0;height:100vh">
+    <div style="display:flex;align-items:center;gap:11px;padding:6px 8px 20px">
+      <span style="width:36px;height:36px;border-radius:10px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:19px;color:#7FC87C">G</span>
+      <div style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#fff">Africa GATES</span><span style="font-size:9.5px;font-weight:700;letter-spacing:.18em;color:#7FC87C;margin-top:2px">ADMIN CONSOLE</span></div>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:3px;margin-top:8px">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="6">
+        <button onClick="{{ n.go }}" style="cursor:pointer;border:none;text-align:left;display:flex;align-items:center;gap:11px;font-family:inherit;font-size:13.5px;font-weight:{{ n.weight }};color:{{ n.color }};background:{{ n.bg }};padding:11px 12px;border-radius:11px">
+          <span style="display:flex;color:{{ n.iconColor }}">{{ n.iconEl }}</span>{{ n.label }}
+          <sc-if value="{{ n.badge }}" hint-placeholder-val="{{ false }}"><span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;background:{{ n.badgeBg }};color:{{ n.badgeFg }};padding:2px 7px;border-radius:999px">{{ n.badge }}</span></sc-if>
+        </button>
+      </sc-for>
+    </nav>
+    <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px;background:rgba(255,255,255,.05);border-radius:12px">
+      <span style="width:34px;height:34px;border-radius:10px;background:#7FC87C;color:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:15px">N</span>
+      <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ngozi A.</div><div style="font-size:10.5px;color:rgba(255,255,255,.5)">Super admin</div></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="ad-scroll" style="flex:1;min-width:0;height:100vh;overflow-y:auto">
+    <!-- topbar -->
+    <div style="position:sticky;top:0;z-index:20;background:rgba(244,246,243,.86);backdrop-filter:blur(14px);border-bottom:1px solid rgba(16,41,44,.08);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px">
+      <div><h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:#10292C">{{ pageTitle }}</h1><p style="margin:3px 0 0;font-size:12.5px;color:#92a6a7">{{ pageSub }}</p></div>
+      <div style="display:flex;align-items:center;gap:11px">
+        <div style="display:flex;align-items:center;gap:9px;background:#fff;border:1px solid rgba(16,41,44,.12);border-radius:11px;padding:9px 13px;width:240px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#92a6a7" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Search…" style="flex:1;border:none;outline:none;font-family:inherit;font-size:13.5px;color:#10292C;background:none"/></div>
+        <button style="cursor:pointer;position:relative;border:1px solid rgba(16,41,44,.12);background:#fff;width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#3a4448"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span style="position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:#e0245e;border:1.5px solid #fff"></span></button>
+      </div>
+    </div>
+
+    <div style="padding:26px 32px 60px">
+      <!-- ═══ OVERVIEW ═══ -->
+      <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+      <div style="animation:adRise .3s ease both">
+        <!-- KPI row -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+            <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:20px">
+              <div style="display:flex;align-items:center;justify-content:space-between"><span style="width:36px;height:36px;border-radius:10px;background:{{ k.tint }};color:{{ k.color }};display:flex;align-items:center;justify-content:center">{{ k.iconEl }}</span><span style="font-size:11.5px;font-weight:600;color:{{ k.trendColor }}">{{ k.trend }}</span></div>
+              <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:27px;color:#10292C;margin-top:14px">{{ k.value }}</div>
+              <div style="font-size:12px;color:#717a7e;margin-top:2px">{{ k.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-top:16px">
+          <!-- votes chart -->
+          <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:22px">
+            <div style="display:flex;align-items:center;justify-content:space-between"><h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Votes · last 14 days</h2><span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#237b22">+18.2%</span></div>
+            <div style="display:flex;align-items:flex-end;gap:7px;height:170px;margin-top:22px">
+              <sc-for list="{{ bars }}" as="b" hint-placeholder-count="14">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px">
+                  <div style="width:100%;border-radius:5px 5px 0 0;background:linear-gradient(#7FC87C,#237b22);height:{{ b.h }}"></div>
+                  <span style="font-size:9px;color:#b3bdb8">{{ b.label }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <!-- category split -->
+          <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:22px">
+            <h2 style="margin:0 0 18px;font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">By programme</h2>
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ split }}" as="sp" hint-placeholder-count="5">
+                <div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span style="font-size:13px;color:#4a5256">{{ sp.label }}</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#10292C">{{ sp.pct }}</span></div>
+                  <div style="height:8px;border-radius:5px;background:#eef2ee;overflow:hidden"><span style="display:block;height:100%;border-radius:5px;width:{{ sp.pct }};background:{{ sp.color }}"></span></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <!-- recent activity -->
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:22px;margin-top:16px">
+          <h2 style="margin:0 0 4px;font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Recent activity</h2>
+          <div style="display:flex;flex-direction:column;margin-top:10px">
+            <sc-for list="{{ activity }}" as="a" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:13px;padding:12px 0;border-bottom:1px solid rgba(16,41,44,.06)">
+                <span style="width:34px;height:34px;border-radius:10px;background:{{ a.tint }};color:{{ a.color }};display:flex;align-items:center;justify-content:center;flex:none">{{ a.iconEl }}</span>
+                <div style="flex:1;min-width:0"><span style="font-size:13.5px;color:#10292C"><strong style="font-weight:600">{{ a.who }}</strong> {{ a.what }}</span></div>
+                <span style="font-size:12px;color:#92a6a7;flex:none">{{ a.when }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ═══ NOMINATIONS (moderation queue) ═══ -->
+      <sc-if value="{{ isQueue }}" hint-placeholder-val="{{ false }}">
+      <div style="animation:adRise .3s ease both">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <sc-for list="{{ qTabs }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.set }}" style="cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:999px;border:1px solid {{ t.border }};background:{{ t.bg }};color:{{ t.fg }}">{{ t.label }}</button>
+          </sc-for>
+        </div>
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:16px;padding:13px 22px;border-bottom:1px solid rgba(16,41,44,.07);font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#92a6a7"><span style="flex:1">Nominee</span><span style="width:120px">Programme</span><span style="width:110px">Submitted</span><span style="width:200px;text-align:right">Action</span></div>
+          <sc-for list="{{ queue }}" as="q" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid rgba(16,41,44,.05)">
+              <div style="flex:1;display:flex;align-items:center;gap:12px;min-width:0">
+                <span style="flex:none;width:40px;height:40px;border-radius:11px;background:{{ q.avBg }};color:{{ q.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:16px">{{ q.initial }}</span>
+                <div style="min-width:0"><div style="font-weight:600;font-size:14px;color:#10292C">{{ q.flag }} {{ q.name }}</div><div style="font-size:12px;color:#92a6a7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ q.note }}</div></div>
+              </div>
+              <span style="width:120px;font-size:12.5px;color:#717a7e">{{ q.prog }}</span>
+              <span style="width:110px;font-size:12.5px;color:#717a7e">{{ q.when }}</span>
+              <div style="width:200px;display:flex;gap:7px;justify-content:flex-end">
+                <button onClick="{{ q.reject }}" style="cursor:pointer;border:1px solid {{ q.rejBorder }};background:{{ q.rejBg }};color:{{ q.rejFg }};font-family:inherit;font-size:12.5px;font-weight:600;padding:8px 13px;border-radius:9px">{{ q.rejLabel }}</button>
+                <button onClick="{{ q.approve }}" style="cursor:pointer;border:none;background:{{ q.appBg }};color:{{ q.appFg }};font-family:inherit;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:9px">{{ q.appLabel }}</button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ═══ INTEGRITY ═══ -->
+      <sc-if value="{{ isIntegrity }}" hint-placeholder-val="{{ false }}">
+      <div style="animation:adRise .3s ease both">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+          <sc-for list="{{ intCards }}" as="c" hint-placeholder-count="3">
+            <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:20px">
+              <span style="width:38px;height:38px;border-radius:10px;background:{{ c.tint }};color:{{ c.color }};display:flex;align-items:center;justify-content:center">{{ c.iconEl }}</span>
+              <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:24px;color:#10292C;margin-top:14px">{{ c.value }}</div>
+              <div style="font-size:12.5px;color:#717a7e;margin-top:2px">{{ c.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:22px;margin-top:16px">
+          <h2 style="margin:0 0 6px;font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Flagged for review</h2>
+          <p style="margin:0 0 14px;font-size:12.5px;color:#92a6a7">Automated anomaly detection · voting integrity</p>
+          <div style="display:flex;flex-direction:column;gap:11px">
+            <sc-for list="{{ flags }}" as="f" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:14px;padding:14px;border:1px solid {{ f.border }};border-radius:13px;background:{{ f.bg }}">
+                <span style="width:36px;height:36px;border-radius:10px;background:{{ f.iconBg }};color:{{ f.iconColor }};display:flex;align-items:center;justify-content:center;flex:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="M12 8v4M12 16h.01"/></svg></span>
+                <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13.5px;color:#10292C">{{ f.title }}</div><div style="font-size:12.5px;color:#717a7e">{{ f.body }}</div></div>
+                <span style="font-size:11px;font-weight:600;padding:5px 11px;border-radius:999px;background:{{ f.sevBg }};color:{{ f.sevFg }};flex:none">{{ f.sev }}</span>
+                <button onClick="{{ f.resolve }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.14);background:#fff;color:#10292C;font-family:inherit;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:9px;flex:none">{{ f.btn }}</button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+  </main>
+
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:90;background:#10292C;color:#fff;font-size:13.5px;font-weight:500;padding:13px 22px;border-radius:999px;box-shadow:0 16px 40px -12px rgba(0,0,0,.5);animation:adToast 2.4s ease both">{{ toastMsg }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:860}}">
+class Component extends DCLogic {
+  state = { view:'overview', qTab:'Pending', queueState:{}, flagState:{}, toast:null };
+  ping(m){ this.setState({toast:m}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:null}),2300); }
+  renderVals(){
+    const s = this.state;
+    const I = {
+      grid:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+      inbox:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 6h13l3.5 6v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6Z"/></svg>',
+      shield:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>',
+      users:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg>',
+      cal:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+      cog:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H7a1.6 1.6 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V7a1.6 1.6 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>',
+      check:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+      vote:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+      heart:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>',
+      ticket:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/></svg>',
+      flag:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>'
+    };
+    const NAVS = [
+      ['overview','Overview',I.grid,null],
+      ['queue','Nominations',I.inbox,'12'],
+      ['integrity','Integrity',I.shield,'3'],
+      ['users','People',I.users,null],
+      ['events','Events',I.cal,null],
+      ['settings','Settings',I.cog,null]
+    ];
+    const el = (svg) => React.createElement('span', { style:{display:'flex'}, dangerouslySetInnerHTML:{__html:svg} });
+    const nav = NAVS.map(n=>{ const on=s.view===n[0]; return {
+      label:n[1], iconEl:el(n[2]), badge:n[3], go:()=>this.setState({view:n[0]}),
+      bg:on?'rgba(127,200,124,.14)':'transparent', color:on?'#fff':'rgba(255,255,255,.66)', weight:on?'600':'500',
+      iconColor:on?'#7FC87C':'rgba(255,255,255,.5)',
+      badgeBg:on?'#7FC87C':'rgba(255,255,255,.12)', badgeFg:on?'#10292C':'rgba(255,255,255,.7)' }; });
+
+    const TITLES = { overview:['Overview','Live snapshot of the 2026 cycle'], queue:['Nominations','Review & verify incoming profiles'], integrity:['Integrity','Voting anomaly monitoring'], users:['People','Verified profiles & roles'], events:['Events','Gatherings & ticketing'], settings:['Settings','Platform configuration'] };
+    const tt = TITLES[s.view]||TITLES.overview;
+
+    const kpis = [
+      { label:'Total votes', value:'1.24M', trend:'▲ 18.2%', trendColor:'#1a9c34', tint:'#eef7ee', color:'#1a6118', iconEl:el(I.vote) },
+      { label:'Verified profiles', value:'4,214', trend:'▲ 64', trendColor:'#1a9c34', tint:'#fff8df', color:'#a47306', iconEl:el(I.users) },
+      { label:'Donations (₦)', value:'8.6M', trend:'▲ 12%', trendColor:'#1a9c34', tint:'#fdeaf0', color:'#b03a5b', iconEl:el(I.heart) },
+      { label:'Tickets sold', value:'1,902', trend:'68% cap', trendColor:'#a47306', tint:'#e9efef', color:'#2b373d', iconEl:el(I.ticket) }
+    ];
+    const HS=[52,64,48,71,83,60,76,90,68,85,73,94,88,100];
+    const bars = HS.map((h,i)=>({ h: Math.round(h/100*150)+'px', label: (i%2===0)? ('D'+(i+1)) : '' }));
+    const split = [
+      { label:'Education', pct:'28%', color:'#237b22' },
+      { label:'Music', pct:'22%', color:'#a47306' },
+      { label:'Integrity', pct:'18%', color:'#2b373d' },
+      { label:'Business', pct:'17%', color:'#5b3a8a' },
+      { label:'Science', pct:'15%', color:'#b03a5b' }
+    ];
+    const activity = [
+      { who:'Amara O.', what:'profile was verified by Judge Bello', when:'2m ago', tint:'#eef7ee', color:'#1a6118', iconEl:el(I.check) },
+      { who:'New nomination', what:'submitted for Music · Ghana', when:'14m ago', tint:'#fff8df', color:'#a47306', iconEl:el(I.inbox) },
+      { who:'Integrity bot', what:'flagged a vote spike in Sport', when:'31m ago', tint:'#fdeaf0', color:'#b03a5b', iconEl:el(I.shield) },
+      { who:'Kofi A.', what:'purchased 2 VIP gala tickets', when:'1h ago', tint:'#e9efef', color:'#2b373d', iconEl:el(I.ticket) },
+      { who:'Donation', what:'of ₦50,000 received · monthly', when:'2h ago', tint:'#fdeaf0', color:'#b03a5b', iconEl:el(I.heart) }
+    ];
+
+    // queue
+    const QTAB=['Pending','Approved','Rejected'];
+    const qTabs = QTAB.map(t=>{ const on=s.qTab===t; return { label:t, set:()=>this.setState({qTab:t}), bg:on?'#10292C':'#fff', fg:on?'#fff':'#4a5256', border:on?'#10292C':'rgba(16,41,44,.12)' }; });
+    const AV=[['#fff8df','#a47306'],['#effaf0','#1a6118'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#b03a5b']];
+    const QRAW=[
+      ['Zainab Yusuf','🇳🇬','Education','Maths teacher, 9 rural schools','2h ago'],
+      ['Bongani Khumalo','🇿🇦','Music','Choir director, Soweto','5h ago'],
+      ['Esi Owusu','🇬🇭','Business','Fintech founder, 3 markets','8h ago'],
+      ['Mariam Sow','🇸🇳','Arts','Textile heritage archivist','1d ago'],
+      ['Peter Otieno','🇰🇪','Science','Water-purification researcher','1d ago']
+    ];
+    const queue = QRAW.map((q,i)=>{ const st=s.queueState[q[0]]; return {
+      name:q[0], flag:q[1], prog:q[2], note:q[3], when:q[4], initial:q[0][0], avBg:AV[i%5][0], avFg:AV[i%5][1],
+      appLabel: st==='approved'?'Approved ✓':'Approve', appBg: st==='approved'?'#eef7ee':'#237b22', appFg: st==='approved'?'#1a6118':'#fff',
+      rejLabel: st==='rejected'?'Rejected':'Reject', rejBg: st==='rejected'?'#fdecec':'#fff', rejFg: st==='rejected'?'#c0392b':'#717a7e', rejBorder: st==='rejected'?'#f3c2c2':'rgba(16,41,44,.14)',
+      approve:()=>{ this.setState(x=>({queueState:{...x.queueState,[q[0]]:'approved'}})); this.ping(q[0]+' approved & verified'); },
+      reject:()=>{ this.setState(x=>({queueState:{...x.queueState,[q[0]]:'rejected'}})); this.ping(q[0]+' rejected'); } }; });
+
+    // integrity
+    const intCards = [
+      { label:'Votes audited (24h)', value:'182K', tint:'#eef7ee', color:'#1a6118', iconEl:el(I.vote) },
+      { label:'Duplicates removed', value:'1,204', tint:'#fff8df', color:'#a47306', iconEl:el(I.shield) },
+      { label:'Open flags', value:'3', tint:'#fdeaf0', color:'#b03a5b', iconEl:el(I.flag) }
+    ];
+    const FRAW=[
+      ['Vote spike · Sport / Kenya','+820 votes in 4 min from one subnet','High','#fdecec','#f3c2c2','#fdecec','#c0392b','#c0392b'],
+      ['Repeated device fingerprint','11 votes, same fingerprint, Music','Medium','#fff8df','#f0e0b0','#fff8df','#a47306','#a47306'],
+      ['Disposable email cluster','38 sign-ups from one domain','Low','#f0f2f2','#dde2e2','#f0f2f2','#5d7374','#5d7374']
+    ];
+    const flags = FRAW.map((f,i)=>{ const done=!!s.flagState[i]; return {
+      title:f[0], body: done?'Resolved — cleared by admin':f[1], sev: done?'Resolved':f[2],
+      bg: done?'#f6f9f5':f[3], border: done?'#d6e8d3':f[4], iconBg:f[5], iconColor:f[7],
+      sevBg: done?'#e7f3e7':f[5], sevFg: done?'#1a6118':f[7],
+      btn: done?'View':'Resolve', resolve:()=>{ if(!done){ this.setState(x=>({flagState:{...x.flagState,[i]:true}})); this.ping('Flag resolved'); } } }; });
+
+    return {
+      nav, pageTitle:tt[0], pageSub:tt[1],
+      isOverview:s.view==='overview', isQueue:s.view==='queue', isIntegrity:s.view==='integrity',
+      kpis, bars, split, activity,
+      qTabs, queue, intCards, flags,
+      toastOpen:!!s.toast, toastMsg:s.toast||''
+    };
+  }
+}
+</script>
+</body>
+</html>

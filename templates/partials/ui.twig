@@ -1,0 +1,345 @@
+{#
+  ══ THE COMPONENT LIBRARY ═══════════════════════════════════════════════════════
+
+  Macros for the compositions this product repeats. `components.css` (row, tile) and
+  `components/library.css` (table, pill, facts…) say what they LOOK like; this says what they are MADE of, so a page
+  writes its content instead of fifteen nested divs with the right classes on them.
+
+  ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────
+
+  Three screens were each hand-building the same list row, the same status badge and
+  the same figure strip, and they drifted: the account page's "Confirmed" and the
+  shop's were different pinks, the icon tile came in seven sizes, and a 20-line row
+  had to be copied correctly every time somebody added one. A class alone does not
+  stop that — it only names the end state. A macro makes the WRONG shape impossible
+  to write, because there is only one way to call it.
+
+  ── WHAT BELONGS HERE, AND WHAT DOES NOT ────────────────────────────────────────
+
+  A macro earns its place when the composition repeats AND its parts are fixed. A
+  row is three to five slots in a known order; a button is one element with a dozen
+  possible attributes, so it stays a `.ag-btn` class in the markup rather than
+  becoming a macro with twelve arguments. The test is: could a caller need an
+  attribute this signature cannot express? If yes, it is a class, not a macro.
+
+  Twig has no block macro, so anything that WRAPS arbitrary content — a section, a
+  card with a body — is markup too. That boundary is deliberate and it is why this
+  file is short.
+
+  ── CALLING ─────────────────────────────────────────────────────────────────────
+
+      {% import "partials/ui.twig" as ui %}
+      {{ ui.pill('Confirmed', 'ok') }}
+      {{ ui.row({label: 'Points', value: '1,250', href: '#me-points', icon: 'points'}) }}
+
+  Options are passed as ONE map rather than as positional arguments, because every
+  one of these has optional slots and `ui.row(null, null, null, 'x')` is unreadable.
+#}
+
+{% import "partials/icons.twig" as gi %}
+
+{#
+  A status. Read, never pressed — which is why it is 28px and has no border, no
+  pointer and no focus ring, where `.ag-chip` is an interactive control at 44.
+
+  @param label  the word a reader sees
+  @param tone   ok | wait | warn | bad | '' (neutral)
+#}
+{% macro pill(label, tone) %}
+<span class="ag-pill{{ tone ? ' ag-pill--' ~ tone : '' }}">{{ label }}</span>
+{%- endmacro %}
+
+{#
+  An icon tile. One class, any size: the size is a custom property, which is what
+  stopped five screens each declaring their own.
+
+  @param icon  a name from `partials/icons.twig`'s `ui()` set
+  @param tone  green | gold | live | info | neutral
+  @param size  px; 34 is the shared default
+#}
+{% macro tile(icon, tone, size) %}
+{%- import "partials/icons.twig" as gi -%}
+<span class="ag-icon-tile{{ tone ? ' ag-tint--' ~ tone : '' }}" aria-hidden="true"
+      {%- if size %} style="--ag-tile:{{ size }}px"{% endif %}>
+  {{- gi.ui(icon, size ? (size * 0.45)|round : 16) -}}
+</span>
+{%- endmacro %}
+
+{#
+  A circle of initials. A person, where a tile is a thing — the shape is the whole
+  distinction, so it is a separate macro rather than a flag on `tile()`.
+
+  @param name  the full name; the initials are derived, never passed
+  @param size  px
+#}
+{% macro avatar(name, size) %}
+<span class="ag-avatar" aria-hidden="true"{% if size %} style="--ag-tile:{{ size }}px"{% endif %}>
+  {{- (name|default('?')|split(' ')|map(w => w|first)|slice(0,2)|join)|upper -}}
+</span>
+{%- endmacro %}
+
+{#
+  A list row: tile · label over sub · value · chevron.
+
+  The WHOLE ROW is the target when it has an `href`, and there is no second control
+  inside it — a small button inside a tappable row is two targets a thumb cannot
+  tell apart (§18). A row that needs an action beside it is a table row, not this.
+
+  @param o.label    required
+  @param o.sub      second line
+  @param o.value    right-aligned meta
+  @param o.pill     {label, tone} instead of a value
+  @param o.icon     + o.tone for a leading tile
+  @param o.href     makes the row a link and adds the chevron
+  @param o.find     the account search's haystack
+#}
+{% macro row(o) %}
+{%- import "partials/ui.twig" as ui -%}
+{%- import "partials/icons.twig" as gi -%}
+<{{ o.href ? 'a' : 'span' }} class="ag-list__row"{% if o.href %} href="{{ o.href }}"{% endif %}
+   {%- if o.find %} data-find="{{ o.find }}"{% endif %}
+   {%- if o.attrs %} {{ o.attrs|raw }}{% endif %}>
+  {% if o.icon %}{{ ui.tile(o.icon, o.tone|default('neutral'), 32) }}{% endif %}
+  <span class="ag-list__b">
+    <span class="ag-list__label">{{ o.label }}</span>
+    {% if o.sub %}<span class="ag-list__sub">{{ o.sub }}</span>{% endif %}
+  </span>
+  {% if o.pill %}{{ ui.pill(o.pill.label, o.pill.tone|default('')) }}
+  {% elseif o.value is not empty %}<span class="ag-list__value">{{ o.value }}</span>{% endif %}
+  {% if o.href %}<span class="ag-list__chev" aria-hidden="true">{{ gi.ui('next', 16) }}</span>{% endif %}
+</{{ o.href ? 'a' : 'span' }}>
+{%- endmacro %}
+
+{#
+  A table cell carrying a title and a phone-only second line.
+
+  The second line is the facts that have their OWN columns on a pointer — a date, a
+  reference — so on a phone they are not lost and on a desk they are not said twice.
+  That is the whole mechanism behind one row of markup being a table and a stack.
+#}
+{% macro cell(title, sub) %}
+<span class="ag-cell">
+  <span class="ag-cell__t">{{ title }}</span>
+  {% if sub %}<span class="ag-cell--m ag-cell__s">{{ sub }}</span>{% endif %}
+</span>
+{%- endmacro %}
+
+{#
+  A strip of two to four figures in one sunken panel.
+
+  A definition list, because that is what it is: a term and its value. It renders as
+  a grid, so the semantics cost nothing and a screen reader gets the pairing.
+
+  @param items    [{k: 'Earned', v: '+1,450', tone: 'ok'}]
+  @param variant  'text' when the values are WORDS — a host, a date, a rule. The mono
+                  face is for figures that line up; a sentence set in it reads as code.
+#}
+{% macro facts(items, variant) %}
+<dl class="ag-facts{{ variant ? ' ag-facts--' ~ variant : '' }}">
+  {% for f in items %}
+  <div>
+    <dt>{{ f.k }}</dt>
+    <dd{% if f.tone %} class="ag-facts--{{ f.tone }}"{% endif %}>{{ f.v }}</dd>
+  </div>
+  {% endfor %}
+</dl>
+{%- endmacro %}
+
+{#
+  A progress meter, as SEGMENTS.
+
+  Segments wherever the quantity is a COUNT somebody is working toward: "6 of 10" is
+  readable at a glance off ten pills and a percentage bar can only say "most of the
+  way". Use `bar()` for a proportion with no natural unit.
+
+  `done` is EITHER a number — one run in the default tone — OR a list of runs,
+  `[{n: 6}, {n: 2, tone: 'wait'}, {n: 2, tone: 'need'}]`, drawn in order and then
+  padded to `total` with empties.
+
+  The list form is not a nicety. A challenge entry has three live states — verified,
+  being checked, and needing the member's own detail — and the one that matters most
+  is the third, because it is work only they can do and a flat bar shows it as our
+  delay rather than their turn. Drawing it in one colour loses exactly the
+  distinction the card exists to make.
+
+  @param done   a count, or a list of {n, tone} runs
+  @param total  how many segments there are in all
+  @param label  the accessible sentence — REQUIRED, because the dots say nothing on
+                their own and `role="img"` with no name is worse than no role
+  @param variant  'outline' draws the unreached segments as rings on a tinted ground,
+                  where the default's grey fill would vanish into it
+#}
+{% macro meter(done, total, label, variant) %}
+{%- set runs = (done is iterable) ? done : [{n: done}] -%}
+{%- set filled = runs|reduce((c, r) => c + (r.n|default(0)), 0) -%}
+<div class="ag-meter{{ variant ? ' ag-meter--' ~ variant : '' }}" role="img" aria-label="{{ label }}"
+     style="grid-template-columns:repeat({{ total }},1fr)">
+  {#- `1..0` counts DOWN in Twig and would draw a segment for an empty run, so each
+      run is guarded rather than filtered: `for ... if` was removed in Twig 3. -#}
+  {%- for r in runs %}{% if r.n|default(0) > 0 %}{% for i in 1..r.n -%}
+    <span class="ag-meter__{{ r.tone|default('on') }}"></span>
+  {%- endfor %}{% endif %}{% endfor -%}
+  {%- if total > filled %}{% for i in 1..(total - filled) %}<span></span>{% endfor %}{% endif -%}
+</div>
+{%- endmacro %}
+
+{# A proportion, where there is no unit to count. #}
+{% macro bar(pct, label) %}
+<span class="ag-meter--bar" role="img" aria-label="{{ label }}">
+  <span style="width:{{ pct }}%"></span>
+</span>
+{%- endmacro %}
+
+{#
+  An empty state: a reason and one action, never a blank panel (§13.2).
+
+  `body` says WHY it is empty in the reader's terms, not "no data". The action is
+  the thing that would fill it.
+#}
+{% macro empty(title, body, cta, href) %}
+{%- import "partials/icons.twig" as gi -%}
+<div class="ag-empty">
+  <h3 class="ag-empty__t">{{ title }}</h3>
+  {% if body %}<p class="ag-empty__b">{{ body }}</p>{% endif %}
+  {% if cta and href %}<a class="ag-btn ag-btn--secondary ag-btn--sm" href="{{ href }}">{{ cta }} {{ gi.ui('go', 15) }}</a>{% endif %}
+</div>
+{%- endmacro %}
+
+{#
+  A row of filter chips.
+
+  Each chip carries `aria-pressed` rather than a class, so the state is in the
+  accessibility tree and the stylesheet reads it from there — one source of truth
+  for "which one is on", and a screen reader is told the same thing the eye is.
+
+  @param name   the data attribute the page's script filters on
+  @param items  [{key: 'all', label: 'All'}]
+  @param on     the selected key
+#}
+{% macro chips(name, items, on, label) %}
+<div class="ag-chip-row" role="group" aria-label="{{ label }}">
+  {% for c in items %}
+  <button type="button" class="ag-chip" data-{{ name }}="{{ c.key }}"
+          aria-pressed="{{ c.key == on ? 'true' : 'false' }}">{{ c.label }}</button>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{#
+  A page's title block: the display heading, its lead, and an optional action.
+
+  The lead is rendered ONCE here and shown by the stylesheet at the width that has a
+  title block; the phone copy is a separate element because on a phone there is no
+  title to hang it under. Printing both is the same sentence twice, which is what
+  the first rebuild of /account did.
+#}
+{% macro head(title, lead, id) %}
+<div class="ag-pagehead">
+  <div class="ag-pagehead__b">
+    <h1{% if id %} id="{{ id }}"{% endif %}>{{ title }}</h1>
+    {% if lead %}<p>{{ lead }}</p>{% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+{#
+  A numbered sequence: "how it works", "how to take part".
+
+  An `<ol>`, because the order is the content. `cards` lays the steps out as a row of
+  cards with the number above — the challenge page's shape — and is a modifier rather
+  than a second macro, because the two are one list drawn at two densities.
+
+  @param items  [{t: 'Title', s: 'one line under it'}] — either may be absent; a step
+                that is one plain sentence passes only `s`
+  @param cards  true for the card row
+#}
+{% macro steps(items, cards) %}
+<ol class="ag-steps{{ cards ? ' ag-steps--cards' : '' }}">
+  {% for st in items %}
+  <li>
+    <span class="ag-steps__n" aria-hidden="true">{{ loop.index }}</span>
+    <span class="ag-steps__b">
+      {% if st.t is defined and st.t %}<b class="ag-steps__t">{{ st.t }}</b>{% endif %}
+      {% if st.s is defined and st.s %}<span class="ag-steps__s">{{ st.s }}</span>{% endif %}
+    </span>
+  </li>
+  {% endfor %}
+</ol>
+{%- endmacro %}
+
+{#
+  A list of conditions that each hold: "what counts", "what you get".
+
+  A tick, never a bullet: these are rules being MET, and a reader scanning for the one
+  that is not met reads ticks faster than dots. The tick is decorative — the sentence
+  is the condition — so it is hidden from a screen reader.
+
+  @param items  list of strings
+#}
+{% macro ticks(items) %}
+{%- import "partials/icons.twig" as gi -%}
+<ul class="ag-ticks">
+  {% for t in items %}<li><span class="ag-ticks__i" aria-hidden="true">{{ gi.ui('tick', 16) }}</span><span>{{ t }}</span></li>{% endfor %}
+</ul>
+{%- endmacro %}
+
+{#
+  An inline "nothing here yet": an icon, a reason, and what will change it.
+
+  Where `empty()` stands in for a whole panel, this sits inside a section that is still
+  doing its job — "Winners so far" with nobody in it is a section with an answer, and
+  the dashed edge says "a place for something" rather than "a thing".
+
+  @param icon   a name from `icons.twig`'s `ui()` set
+#}
+{% macro notice(icon, title, body) %}
+{%- import "partials/icons.twig" as gi -%}
+<div class="ag-notice">
+  <span class="ag-notice__i" aria-hidden="true">{{ gi.ui(icon, 22) }}</span>
+  <span class="ag-notice__b">
+    <b>{{ title }}</b>
+    {% if body %}<span>{{ body }}</span>{% endif %}
+  </span>
+</div>
+{%- endmacro %}
+
+{#
+  Questions and answers, as native disclosures.
+
+  `<details>` rather than a scripted toggle: a question that needs JavaScript to open is
+  a question some readers never see, and the element gives keyboard, screen reader and
+  find-in-page for nothing. `open_first` matches the design's resting state — the first
+  answer showing — so the section never reads as a wall of closed questions.
+
+  @param items  [{q: 'question', a: 'answer'}]
+#}
+{% macro faq(items, open_first) %}
+<div class="ag-faq">
+  {% for it in items %}
+  <details class="ag-faq__i"{{ open_first and loop.first ? ' open' }}>
+    <summary>{{ it.q }}</summary>
+    <p>{{ it.a }}</p>
+  </details>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{#
+  A page's own views, as links: "Overview · Award details · Terms".
+
+  Links, not ARIA tabs. Each view is a URL (`?tab=…`) the server renders, so it can be
+  shared, it survives a reload, and Back undoes it — none of which is true of panels a
+  script swaps in place. `aria-current="page"` says which one is showing; `role="tab"`
+  would promise arrow-key behaviour this does not have and should not.
+
+  @param items    [{key: 'overview', label: 'Overview', href: '?tab=overview'}]
+  @param current  the key being shown
+  @param label    what the set is, for the landmark
+#}
+{% macro subnav(items, current, label) %}
+<nav class="ag-subnav" aria-label="{{ label }}">
+  {% for it in items %}
+  <a class="ag-subnav__i" href="{{ it.href }}"{{ it.key == current ? ' aria-current="page"' }}>{{ it.label }}</a>
+  {% endfor %}
+</nav>
+{%- endmacro %}

@@ -1,0 +1,117 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  DRAFT THE SEVEN PHRASES FROM WHAT THE AWARD ALREADY SAYS ABOUT ITSELF
+  ══════════════════════════════════════════════════════════════════════════════
+
+  ITS OWN PARTIAL rather than `admin/partials/ai-assist.twig`. That widget fills ONE
+  rich-text field from a brief somebody types; this one fills seven plain boxes from
+  the award's own title, subtitle and description and takes no brief at all. Giving
+  the shared helper a mode flag for the difference is how a shared helper grows a
+  second flag, and then a branch nobody can read.
+
+  ── IT WRITES INTO THE BOXES AND STORES NOTHING ─────────────────────────────
+
+  The endpoint returns a draft; this fills the inputs and fires `input` on each so the
+  counters and the live preview update exactly as they would for typing. The operator
+  then reads it, edits it and presses Save. Nothing on this path writes to the
+  database, which is why there is no confirmation step: the undo is the Cancel button
+  that was always there, and every value is still in front of them.
+
+  ── AND IT SAYS WHEN IT CANNOT ─────────────────────────────────────────────
+
+  `admin.award_wording` is declared FAIL_ANNOUNCE. An operator who pressed Draft and
+  got silence would retype seven phrases believing the button does nothing, so a
+  refusal is printed in the operator's own terms — the controller turns "no key",
+  "switched off" and "over budget" into three different sentences rather than one 502.
+#}
+<div class="aw-ai" data-aw-ai>
+  <div class="aw-ai__top">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" aria-hidden="true">
+      <path d="M12 3l2.1 5.4L19.5 10l-5.4 2.1L12 17l-2.1-4.9L4.5 10l5.4-1.6z"/>
+    </svg>
+    <strong>Draft these from the award’s own description</strong>
+    <button type="button" class="ad-btn ad-btn--sm" data-aw-draft>Draft</button>
+  </div>
+  <p class="aw-ai__note">
+    Reads this award’s title, subtitle and description and suggests the seven phrases.
+    It fills the boxes below — nothing is saved until you press <strong>Save
+    wording</strong>, and you can edit every line first.
+  </p>
+  <p class="aw-ai__msg" role="alert" data-aw-ai-error hidden></p>
+  <p class="aw-ai__msg aw-ai__msg--ok" role="status" data-aw-ai-ok hidden></p>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+  .aw-ai{ border:1px dashed var(--ad-primary); border-radius:12px;
+    padding:13px 15px; margin-bottom:16px; background:var(--ad-bg) }
+  .aw-ai__top{ display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+    color:var(--ad-primary) }
+  .aw-ai__top strong{ font-size:13px; color:var(--ad-text) }
+  .aw-ai__top .ad-btn{ margin-left:auto }
+  .aw-ai__note{ margin:9px 0 0; font-size:12px; line-height:1.65;
+    color:var(--ad-text-mute); max-width:76ch }
+  .aw-ai__msg{ margin:9px 0 0; font-size:13px; font-weight:600;
+    color:var(--ad-danger) }
+  .aw-ai__msg--ok{ color:var(--ad-primary) }
+  .aw-ai__msg[hidden]{ display:none }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  'use strict';
+  var box = document.querySelector('[data-aw-ai]');
+  var form = document.querySelector('[data-aw-form]');
+  if (!box || !form) return;
+
+  var go    = box.querySelector('[data-aw-draft]');
+  var errEl = box.querySelector('[data-aw-ai-error]');
+  var okEl  = box.querySelector('[data-aw-ai-ok]');
+
+  function say(el, msg) {
+    errEl.hidden = true; okEl.hidden = true;
+    if (!msg) return;
+    el.textContent = msg;
+    el.hidden = false;
+  }
+
+  go.addEventListener('click', function () {
+    if (go.disabled) return;
+    go.disabled = true;
+    var was = go.textContent;
+    go.textContent = 'Working…';
+    say(null, '');
+
+    fetch('/admin/ai/award-wording', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]') || {}).content
+                        || '{{ csrf_token }}'
+      },
+      body: JSON.stringify({ programme_id: form.getAttribute('data-aw-programme') })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j || !j.ok || !j.wording) {
+        say(errEl, (j && j.error) || 'The draft could not be written just now.');
+        return;
+      }
+      var filled = 0;
+      Object.keys(j.wording).forEach(function (key) {
+        var input = form.querySelector('[data-aw-key="' + key + '"]');
+        if (!input) return;                 // a key the field table does not have
+        input.value = j.wording[key];
+        // Fired so the counter and the preview update exactly as they do for
+        // typing — the alternative is a second code path painting the same things.
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        filled++;
+      });
+      say(okEl, filled + ' of {{ fields|length }} drafted — read them, change what you '
+              + 'want, then press Save wording.');
+    })
+    .catch(function () { say(errEl, 'Network error — try again.'); })
+    .finally(function () { go.disabled = false; go.textContent = was; });
+  });
+})();
+</script>

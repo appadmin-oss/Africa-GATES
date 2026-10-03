@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="image-slot.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+  image-slot::part(frame){background:transparent}
+  image-slot[data-deco]::part(empty){display:none}
+  @keyframes siFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes siSpin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:1100px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></a>
+      <nav style="display:flex;align-items:center;gap:4px">
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#e0245e"></span>Pulse</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Shop</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Leaderboard</a>
+      </nav>
+      <a href="#" style="text-decoration:none;background:#237b22;color:#fff;font-size:14px;font-weight:600;padding:10px 20px;border-radius:999px;box-shadow:0 8px 18px -8px rgba(35,123,34,.6)">Vote</a>
+    </div>
+  </header>
+
+  <!-- breadcrumb -->
+  <div style="max-width:1100px;margin:0 auto;padding:18px 32px 0"><span style="font-size:12.5px;color:#92a6a7">Shop · Apparel · <span style="color:#10292C;font-weight:500">Heritage Tee</span></span></div>
+
+  <!-- PRODUCT -->
+  <div style="max-width:1100px;margin:14px auto 0;padding:0 32px;display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:start">
+    <!-- gallery -->
+    <div>
+      <div style="position:relative;aspect-ratio:1/1;border-radius:22px;overflow:hidden;background:radial-gradient(130% 130% at 70% 10%,#1d5b2a,#10292C 70%)">
+        <div style="position:absolute;right:-40px;bottom:-50px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%)"></div>
+        <image-slot id="si-main" data-deco fit="contain" style="position:absolute;inset:0;width:100%;height:100%;padding:8%" placeholder="Drop product photo"></image-slot>
+        <span style="position:absolute;top:14px;left:14px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:5px 11px;border-radius:999px;background:#fff8df;color:#a47306">Bestseller</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px">
+        <sc-for list="{{ thumbs }}" as="t" hint-placeholder-count="4">
+          <div style="aspect-ratio:1/1;border-radius:12px;background:{{ t.cover }};border:1.5px solid {{ t.border }};cursor:pointer"></div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- details -->
+    <div>
+      <p style="margin:0;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#237b22">Apparel</p>
+      <h1 style="margin:8px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:34px;letter-spacing:-.01em;color:#10292C">Heritage Tee</h1>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+        <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:24px;color:#10292C">₦12,000</span>
+        <span style="display:flex;align-items:center;gap:4px;font-size:13px;color:#a47306"><svg width="14" height="14" viewBox="0 0 24 24" fill="#d49a0e"><path d="m12 2 2.6 6.6L21 9.2l-5 4.3L17.6 21 12 17.3 6.4 21 8 13.5l-5-4.3 6.4-.6L12 2Z"/></svg>4.9 · 214 reviews</span>
+      </div>
+      <p style="margin:16px 0 0;font-size:14.5px;line-height:1.65;color:#3a4448">Heavyweight organic cotton in deep kale, with the GATES laurel embroidered at the chest. Cut for everyday wear; made to last a decade.</p>
+
+      <!-- size -->
+      <div style="margin-top:22px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px"><span style="font-size:13px;font-weight:600;color:#10292C">Size</span><span style="font-size:12.5px;color:#237b22">Size guide</span></div>
+        <div style="display:flex;gap:9px">
+          <sc-for list="{{ sizes }}" as="z" hint-placeholder-count="5">
+            <button onClick="{{ z.set }}" style="cursor:pointer;min-width:48px;font-family:inherit;font-size:14px;font-weight:600;padding:11px 0;border-radius:11px;border:1.5px solid {{ z.border }};background:{{ z.bg }};color:{{ z.fg }}">{{ z.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- qty + actions -->
+      <div style="display:flex;gap:12px;margin-top:22px;align-items:center">
+        <div style="display:flex;align-items:center;gap:14px;border:1px solid rgba(16,41,44,.14);border-radius:12px;padding:10px 14px">
+          <button onClick="{{ dec }}" style="cursor:pointer;border:none;background:none;font-size:20px;color:#10292C">−</button>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;min-width:16px;text-align:center">{{ qty }}</span>
+          <button onClick="{{ inc }}" style="cursor:pointer;border:none;background:none;font-size:20px;color:#10292C">+</button>
+        </div>
+        <button onClick="{{ buyNow }}" style="flex:1;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:15px;border-radius:999px" style-hover="background:#1a6118">Buy now · {{ total }}</button>
+      </div>
+      <button onClick="{{ addCart }}" style="width:100%;margin-top:10px;cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:999px">Add to cart</button>
+
+      <!-- assurances -->
+      <div style="display:flex;flex-direction:column;gap:11px;margin-top:24px;padding-top:22px;border-top:1px solid rgba(16,41,44,.08)">
+        <div style="display:flex;align-items:center;gap:11px"><span style="width:34px;height:34px;border-radius:10px;background:#effaf0;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg></span><span style="font-size:13.5px;color:#3a4448">Every order funds child leadership programmes</span></div>
+        <div style="display:flex;align-items:center;gap:11px"><span style="width:34px;height:34px;border-radius:10px;background:#fff8df;color:#a47306;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7M5.5 19a2.5 2.5 0 1 0 0-.01M18.5 19a2.5 2.5 0 1 0 0-.01"/></svg></span><span style="font-size:13.5px;color:#3a4448">Free shipping in Nigeria over ₦25,000</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- you may also like -->
+  <div style="max-width:1100px;margin:44px auto 0;padding:0 32px 60px">
+    <h2 style="margin:0 0 16px;font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:#10292C">You may also like</h2>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px">
+      <sc-for list="{{ related }}" as="r" hint-placeholder-count="4">
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;overflow:hidden" style-hover="border-color:rgba(16,41,44,.18)">
+          <div style="aspect-ratio:1/1;background:{{ r.cover }}"></div>
+          <div style="padding:13px"><div style="font-weight:600;font-size:14px;color:#10292C">{{ r.name }}</div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:#237b22;margin-top:5px">{{ r.price }}</div></div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- CHECKOUT OVERLAY -->
+  <sc-if value="{{ coOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeCo }}" style="position:fixed;inset:0;z-index:95;background:rgba(5,12,13,.6);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:24px;animation:siFade .2s ease both">
+    <div onClick="{{ stop }}" style="width:460px;max-width:100%;max-height:92vh;overflow-y:auto;background:#fbfbfa;border-radius:24px;box-shadow:0 40px 90px -30px rgba(0,0,0,.6);animation:siFade .3s ease both">
+      <div style="position:sticky;top:0;background:rgba(251,251,250,.92);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid rgba(16,41,44,.07)">
+        <div style="display:flex;align-items:center;gap:10px"><span style="font-size:11px;font-weight:600;color:#237b22">{{ coStepLabel }}</span></div>
+        <button onClick="{{ closeCo }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.12);background:#fff;width:32px;height:32px;border-radius:50%;font-size:17px;color:#10292C">×</button>
+      </div>
+
+      <!-- review -->
+      <sc-if value="{{ coReview }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:22px">
+        <h2 style="margin:0 0 16px;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#10292C">Order summary</h2>
+        <div style="display:flex;gap:13px;align-items:center;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:14px;padding:14px">
+          <span style="flex:none;width:56px;height:56px;border-radius:11px;background:radial-gradient(130% 130% at 70% 10%,#1d5b2a,#10292C)"></span>
+          <div style="flex:1"><div style="font-weight:600;font-size:14.5px;color:#10292C">Heritage Tee</div><div style="font-size:12.5px;color:#92a6a7">Size {{ size }} · Qty {{ qty }}</div></div>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:#10292C">{{ total }}</span>
+        </div>
+        <div style="margin-top:16px;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:14px;padding:16px">
+          <div style="display:flex;justify-content:space-between;font-size:13.5px;color:#4a5256"><span>Subtotal</span><span style="font-family:'JetBrains Mono',monospace;color:#10292C">{{ total }}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13.5px;color:#4a5256;margin-top:8px"><span>Shipping</span><span style="font-family:'JetBrains Mono',monospace;color:#1a6118">Free</span></div>
+          <div style="height:1px;background:rgba(16,41,44,.08);margin:12px 0"></div>
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:600;color:#10292C"><span>Total</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">{{ total }}</span></div>
+        </div>
+        <button onClick="{{ toShip }}" style="width:100%;margin-top:18px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:999px">Continue to shipping →</button>
+      </div>
+      </sc-if>
+
+      <!-- shipping -->
+      <sc-if value="{{ coShip }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:22px">
+        <h2 style="margin:0 0 16px;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#10292C">Shipping details</h2>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <input placeholder="Full name" style="width:100%;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/>
+          <input value="{{ email }}" onInput="{{ onEmail }}" type="email" placeholder="Email" style="width:100%;border:1px solid {{ emailBorder }};border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/>
+          <input placeholder="Address" style="width:100%;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/>
+          <div style="display:flex;gap:12px"><input placeholder="City" style="flex:1;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/><input placeholder="Country" style="flex:1;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+        </div>
+        <button onClick="{{ toPay }}" style="width:100%;margin-top:18px;cursor:pointer;border:none;background:{{ shipBg }};color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:999px;opacity:{{ shipOp }}">Continue to payment →</button>
+        <button onClick="{{ backReview }}" style="width:100%;margin-top:8px;cursor:pointer;border:none;background:none;font-family:inherit;font-size:13px;font-weight:600;color:#92a6a7;padding:8px">Back</button>
+      </div>
+      </sc-if>
+
+      <!-- pay -->
+      <sc-if value="{{ coPay }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:22px">
+        <h2 style="margin:0 0 16px;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#10292C">Payment</h2>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px;border:1px solid rgba(16,41,44,.14);border-radius:12px;padding:13px 15px" style-focus-within="border-color:#237b22"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92a6a7" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg><input placeholder="4242 4242 4242 4242" style="flex:1;border:none;outline:none;font-family:'JetBrains Mono',monospace;font-size:14.5px;color:#10292C;background:none"/></div>
+          <div style="display:flex;gap:12px"><input placeholder="MM / YY" style="flex:1;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:'JetBrains Mono',monospace;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/><input placeholder="CVC" style="flex:1;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:'JetBrains Mono',monospace;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+        </div>
+        <button onClick="{{ pay }}" style="width:100%;margin-top:18px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:15px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Pay {{ total }} securely</button>
+        <button onClick="{{ backShip }}" style="width:100%;margin-top:8px;cursor:pointer;border:none;background:none;font-family:inherit;font-size:13px;font-weight:600;color:#92a6a7;padding:8px">Back</button>
+      </div>
+      </sc-if>
+
+      <!-- processing -->
+      <sc-if value="{{ coProcessing }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:56px 22px;text-align:center"><div style="width:48px;height:48px;margin:0 auto;border-radius:50%;border:4px solid #e8ece9;border-top-color:#237b22;animation:siSpin .8s linear infinite"></div><p style="margin:20px 0 0;font-size:14.5px;font-weight:600;color:#10292C">Placing your order…</p></div>
+      </sc-if>
+
+      <!-- done -->
+      <sc-if value="{{ coDone }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:30px 22px 26px;text-align:center">
+        <div style="width:64px;height:64px;margin:0 auto;border-radius:50%;background:#effaf0;display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h2 style="margin:16px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:23px;color:#10292C">Order confirmed 🎉</h2>
+        <p style="margin:10px 0 0;font-size:14px;line-height:1.55;color:#4a5256">Thank you! Your Heritage Tee is on its way, and your purchase just funded leadership programmes.</p>
+        <div style="margin:18px auto 0;max-width:260px;background:#f4f7f4;border-radius:14px;padding:15px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#92a6a7">Order</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:#10292C">SHP-26-8K2D</span></div>
+        <button onClick="{{ closeCo }}" style="width:100%;margin-top:18px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:999px">Continue shopping</button>
+      </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <footer style="background:#0c2225"><div style="max-width:1100px;margin:0 auto;padding:40px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+    <div style="display:flex;align-items:center;gap:11px"><span style="width:32px;height:32px;border-radius:9px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#7FC87C">G</span><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#fff">Africa<span style="color:#7FC87C">GATES</span></span></div>
+    <span style="font-size:12.5px;color:rgba(255,255,255,.5)">Secure checkout · ships continent-wide · 30-day returns</span>
+  </div></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { size:'M', qty:1, coOpen:false, coStep:'review', email:'' };
+  renderVals(){
+    const s = this.state;
+    const unit = 12000;
+    const NGN = n => '₦'+n.toLocaleString();
+    const COV=['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)'];
+    const thumbs = COV.map((c,i)=>({ cover:c, border: i===0?'#237b22':'rgba(16,41,44,.12)' }));
+    const SZ=['XS','S','M','L','XL'];
+    const sizes = SZ.map(z=>{ const on=s.size===z; return { label:z, set:()=>this.setState({size:z}), bg:on?'#10292C':'#fff', fg:on?'#fff':'#10292C', border:on?'#10292C':'rgba(16,41,44,.16)' }; });
+    const related = [['CPI Hoodie','₦28,000',COV[2]],['Laurel Cap','₦9,500',COV[1]],['Enamel Mug','₦6,500',COV[3]],['Canvas Tote','₦7,500',COV[1]]].map(r=>({name:r[0],price:r[1],cover:r[2]}));
+    const validEmail = /.+@.+\..+/.test(s.email);
+    const open = (step)=>this.setState({coOpen:true, coStep:step});
+    const LBL = { review:'Step 1 of 3 · Review', shipping:'Step 2 of 3 · Shipping', pay:'Step 3 of 3 · Payment', processing:'Processing', done:'Confirmed' };
+    return {
+      thumbs, sizes, related, qty:s.qty, size:s.size, total: NGN(unit*s.qty),
+      inc:()=>this.setState(st=>({qty:Math.min(10,st.qty+1)})), dec:()=>this.setState(st=>({qty:Math.max(1,st.qty-1)})),
+      addCart:()=>open('review'), buyNow:()=>open('review'),
+      coOpen:s.coOpen, closeCo:()=>this.setState({coOpen:false,coStep:'review'}), stop:(e)=>e.stopPropagation(),
+      coStepLabel: LBL[s.coStep]||'',
+      coReview:s.coStep==='review', coShip:s.coStep==='shipping', coPay:s.coStep==='pay', coProcessing:s.coStep==='processing', coDone:s.coStep==='done',
+      toShip:()=>this.setState({coStep:'shipping'}), backReview:()=>this.setState({coStep:'review'}),
+      email:s.email, onEmail:(e)=>this.setState({email:e.target.value}), emailBorder: validEmail||!s.email?'rgba(16,41,44,.16)':'#c0392b',
+      shipBg: validEmail?'#237b22':'#9aa6a8', shipOp: validEmail?1:0.75,
+      toPay:()=>{ if(validEmail) this.setState({coStep:'pay'}); }, backShip:()=>this.setState({coStep:'shipping'}),
+      pay:()=>{ this.setState({coStep:'processing'}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({coStep:'done'}),1500); }
+    };
+  }
+}
+</script>
+</body>
+</html>

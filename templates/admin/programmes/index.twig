@@ -6,7 +6,7 @@
 {% block content %}
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th>Programme</th><th>Active</th><th>Current Cycle</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Programme</th><th scope="col">Active</th><th scope="col">Current Cycle</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
@@ -24,6 +24,10 @@
         </td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/programmes/{{ r.id }}">Edit</a>
+          {# A sub-page is linked from the page it belongs under rather than added to the
+             rail — that is what keeps the rail scannable, and a page nothing links to is
+             a page nobody finds without knowing its URL. #}
+          <a class="ad-btn ad-btn--sm" href="/admin/programmes/{{ r.id }}/sponsors">Sponsors</a>
           <a class="ad-btn ad-btn--sm ad-btn--primary" href="/admin/programmes/{{ r.id }}/cycle">Manage Cycle</a>
         </td>
       </tr>

@@ -1,0 +1,220 @@
+{#
+  ══ THE ICON SET ════════════════════════════════════════════════════════════
+
+  ── WHY THESE ARE COLOURED, AND WHY THEY ARE NOT EMOJI ──────────────────────
+
+  The account and partner dashboards used emoji as their section icons — 🛍️ 🎟️
+  ♥ ✦ — and the thing that was RIGHT about them is that a colourful pictogram
+  makes a list of sections scannable in a way six identical grey glyphs do not.
+  Colour is the fastest channel there is for "which one of these is which", and
+  a monochrome icon set throws it away.
+
+  What was wrong with them is that an emoji is a font lookup. Which picture a
+  reader gets is decided by their operating system, it changes between versions,
+  several of the useful ones are missing from shipped emoji fonts entirely — this
+  repo measured U+1F6CD rendering as a tofu box on its own build machine — and
+  none of them can be told to match a brand.
+
+  So: drawn, two-tone, one hue each. The soft fill carries the colour at a glance
+  and the stroke carries the shape up close, which is what makes them legible at
+  16px in a rail and at 40px in an empty state.
+
+  ── AND WHY THE FUNCTIONAL ONES STAY MONOCHROME ─────────────────────────────
+
+  Two jobs, two treatments. A SECTION icon is a category marker: it identifies a
+  destination, it is always beside its own label, and colour is doing real work.
+  A FUNCTIONAL icon — search, copy, download, an arrow — lives inside a button
+  and means the same thing everywhere; it takes `currentColor` so it inverts with
+  the button it sits in, which a fixed hue cannot do.
+
+  Colour is never the only signal for either. Every section icon is beside its
+  name, and every functional icon is inside a control with a label or an
+  aria-label. Removing all the colour from this file would cost speed and no
+  meaning.
+#}
+
+{# The section hues. Fixed by NAME rather than by position, so adding a section
+   never repaints the ones beside it — the same rule the chart palette obeys, for
+   the same reason: a colour that moves means nothing.
+
+   Each pair is a light tint for the fill and a saturated tone for the stroke.
+   Every stroke clears 3:1 against white, which is the non-text floor, so the
+   shape reads even where the fill does not. #}
+{% macro _hue(name) %}
+{%- set map = {
+  'overview':  ['#dbe4ff', '#3b5bdb'],
+  'points':    ['#fff3bf', '#a97a00'],
+  'bag':       ['#d3f9d8', '#1a7f4b'],
+  'ticket':    ['#ffe8cc', '#c9541a'],
+  'activity':  ['#ffdeeb', '#bf2c5e'],
+  'saved':     ['#e5dbff', '#6741d9'],
+  'settings':  ['#e9ecef', '#495057'],
+  'shield':    ['#dbe9ff', '#1c4f9c'],
+  'money':     ['#c5f6fa', '#0b7285'],
+  'doc':       ['#ffe3e3', '#c92a2a'],
+  'stand':     ['#d0ebff', '#1864ab'],
+  'team':      ['#d3f9d8', '#2b8a3e'],
+  'spark':     ['#fff3bf', '#a97a00'],
+  'heart':     ['#ffdeeb', '#bf2c5e'],
+  'refer':     ['#d3f9d8', '#1a7f4b']
+} -%}
+{{- map[name]|default(['#e9ecef', '#495057'])|join('|') -}}
+{% endmacro %}
+
+{#
+  A coloured section icon.
+
+  `size` is the box; `title` makes it a labelled image instead of a decoration —
+  pass it ONLY where the icon stands alone, because an icon beside its own name
+  announced twice is worse than an icon announced not at all.
+#}
+{% macro sec(name, size, title) %}
+{%- import _self as ico -%}
+{%- set s = size|default(18) -%}
+{%- set c = ico._hue(name)|trim|split('|') -%}
+{%- set fill = c[0] -%}{%- set ink = c[1] -%}
+<svg width="{{ s }}" height="{{ s }}" viewBox="0 0 24 24" class="ico"
+     {% if title %}role="img" aria-label="{{ title }}"{% else %}aria-hidden="true" focusable="false"{% endif %}>
+  {%- if name == 'overview' %}
+    <rect x="3" y="3" width="7.5" height="9.5" rx="2" fill="{{ fill }}"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="2" fill="{{ fill }}"/>
+    <rect x="13.5" y="11.5" width="7.5" height="9.5" rx="2" fill="{{ fill }}"/><rect x="3" y="15.5" width="7.5" height="5.5" rx="2" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.7" stroke-linejoin="round">
+      <rect x="3" y="3" width="7.5" height="9.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="2"/>
+      <rect x="13.5" y="11.5" width="7.5" height="9.5" rx="2"/><rect x="3" y="15.5" width="7.5" height="5.5" rx="2"/></g>
+  {%- elseif name == 'points' %}
+    <path d="M3 18.5 8.5 12l4 3.8L20.5 6v13.5H3Z" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 18.5 8.5 12l4 3.8L21 6"/><path d="M21 11.4V6h-5.4"/></g>
+  {%- elseif name == 'refer' %}
+    <circle cx="7.5" cy="8" r="3.4" fill="{{ fill }}"/><circle cx="16.5" cy="8" r="3.4" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="7.5" cy="8" r="3.4"/><circle cx="16.5" cy="8" r="3.4"/>
+      <path d="M2.4 20.2c.6-2.9 2.6-4.5 5.1-4.5s4.5 1.6 5.1 4.5"/>
+      <path d="M16.5 15.7c2.5 0 4.5 1.6 5.1 4.5"/>
+      <path d="M10.9 8h2.2" stroke-dasharray="1.4 1.8"/></g>
+  {%- elseif name == 'bag' %}
+    <path d="M4.4 8h15.2l-1.1 11.1a1.9 1.9 0 0 1-1.9 1.7H7.4a1.9 1.9 0 0 1-1.9-1.7Z" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4.4 8h15.2l-1.1 11.1a1.9 1.9 0 0 1-1.9 1.7H7.4a1.9 1.9 0 0 1-1.9-1.7Z"/>
+      <path d="M8.6 8V6.2a3.4 3.4 0 0 1 6.8 0V8"/></g>
+  {%- elseif name == 'ticket' %}
+    <path d="M3.6 9.2V7.4a1 1 0 0 1 1-1h14.8a1 1 0 0 1 1 1v1.8a2.5 2.5 0 0 0 0 5v1.8a1 1 0 0 1-1 1H4.6a1 1 0 0 1-1-1v-1.8a2.5 2.5 0 0 0 0-5Z" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round">
+      <path d="M3.6 9.2V7.4a1 1 0 0 1 1-1h14.8a1 1 0 0 1 1 1v1.8a2.5 2.5 0 0 0 0 5v1.8a1 1 0 0 1-1 1H4.6a1 1 0 0 1-1-1v-1.8a2.5 2.5 0 0 0 0-5Z"/>
+      <path d="M12 8.4v7.2" stroke-dasharray="1.6 2.2" stroke-linecap="round"/></g>
+  {%- elseif name == 'activity' %}
+    <circle cx="12" cy="12" r="9" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/><path d="M4 12h3l2-4.6 3.4 9.6L15 12h5"/></g>
+  {%- elseif name == 'saved' %}
+    <path d="M6.5 3.6h11a1 1 0 0 1 1 1v15.8l-6.5-3.6-6.5 3.6V4.6a1 1 0 0 1 1-1Z" fill="{{ fill }}"/>
+    <path d="M6.5 3.6h11a1 1 0 0 1 1 1v15.8l-6.5-3.6-6.5 3.6V4.6a1 1 0 0 1 1-1Z" fill="none"
+          stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round"/>
+  {%- elseif name == 'shield' %}
+    <path d="M12 2.9l7.2 2.9v5.6c0 4.6-3 8.2-7.2 9.7-4.2-1.5-7.2-5.1-7.2-9.7V5.8L12 2.9Z" fill="{{ fill }}"/>
+    <path d="M12 2.9l7.2 2.9v5.6c0 4.6-3 8.2-7.2 9.7-4.2-1.5-7.2-5.1-7.2-9.7V5.8L12 2.9Z" fill="none"
+          stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M8.9 11.9l2.2 2.2 4-4.3" fill="none" stroke="{{ ink }}" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  {%- elseif name == 'settings' %}
+    <circle cx="12" cy="12" r="9" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linecap="round">
+      <circle cx="12" cy="12" r="9"/><path d="M7 9h10M7 12.6h10M7 16.2h6"/></g>
+    <circle cx="15.4" cy="9" r="1.9" fill="{{ ink }}"/><circle cx="9.2" cy="12.6" r="1.9" fill="{{ ink }}"/>
+  {%- elseif name == 'money' %}
+    <rect x="2.8" y="5.4" width="18.4" height="13.2" rx="2.4" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round">
+      <rect x="2.8" y="5.4" width="18.4" height="13.2" rx="2.4"/><circle cx="12" cy="12" r="3.1"/>
+      <path d="M6.2 9.2v5.6M17.8 9.2v5.6" stroke-linecap="round"/></g>
+  {%- elseif name == 'doc' %}
+    <path d="M6.4 3h7.2L19 8.4V20a1 1 0 0 1-1 1H6.4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round">
+      <path d="M6.4 3h7.2L19 8.4V20a1 1 0 0 1-1 1H6.4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/>
+      <path d="M13.4 3v5.4H19"/><path d="M8.6 13.4h6.8M8.6 16.8h4.6" stroke-linecap="round"/></g>
+  {%- elseif name == 'stand' %}
+    <path d="M3.4 8.6 5.2 4.4A1 1 0 0 1 6.1 3.8h11.8a1 1 0 0 1 .9.6l1.8 4.2Z" fill="{{ fill }}"/>
+    <rect x="5.2" y="8.6" width="13.6" height="11.6" rx="1.4" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round">
+      <path d="M3.4 8.6 5.2 4.4A1 1 0 0 1 6.1 3.8h11.8a1 1 0 0 1 .9.6l1.8 4.2Z"/>
+      <path d="M5.2 8.6v11.6a1 1 0 0 0 1 1h11.6a1 1 0 0 0 1-1V8.6"/>
+      <path d="M9.6 20.2v-5.4h4.8v5.4" stroke-linecap="round"/></g>
+  {%- elseif name == 'team' %}
+    <circle cx="9" cy="8.4" r="3.5" fill="{{ fill }}"/><circle cx="16.6" cy="9.6" r="2.7" fill="{{ fill }}"/>
+    <path d="M2.8 20.2a6.2 6.2 0 0 1 12.4 0Z" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round">
+      <circle cx="9" cy="8.4" r="3.5"/><path d="M2.8 20.2a6.2 6.2 0 0 1 12.4 0"/>
+      <path d="M16.6 12.3a5 5 0 0 1 4.6 4.6"/><circle cx="16.6" cy="9.6" r="2.7"/></g>
+  {%- elseif name == 'heart' %}
+    <path d="M12 20.4S3.6 15.3 3.6 9.8A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 8.4 2.2c0 5.5-8.4 10.6-8.4 10.6Z" fill="{{ fill }}"/>
+    <path d="M12 20.4S3.6 15.3 3.6 9.8A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 8.4 2.2c0 5.5-8.4 10.6-8.4 10.6Z"
+          fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round"/>
+  {%- elseif name == 'spark' %}
+    <path d="M12 2.6l2.3 5.7 5.7 2.3-5.7 2.3L12 18.6l-2.3-5.7L4 10.6l5.7-2.3Z" fill="{{ fill }}"/>
+    <path d="M12 2.6l2.3 5.7 5.7 2.3-5.7 2.3L12 18.6l-2.3-5.7L4 10.6l5.7-2.3Z" fill="none"
+          stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M18.4 16.6l.9 2.2 2.2.9-2.2.9-.9 2.2-.9-2.2-2.2-.9 2.2-.9Z" fill="{{ ink }}" opacity=".55"/>
+  {%- endif -%}
+</svg>
+{% endmacro %}
+
+{#
+  A functional icon: one colour, taken from whatever it is sitting inside.
+
+  Deliberately NOT hued — these live in buttons that invert on hover and on the
+  dark rail, and a fixed colour there is an icon that disappears against its own
+  background half the time.
+#}
+{% macro ui(name, size) %}
+{%- set s = size|default(16) -%}
+<svg width="{{ s }}" height="{{ s }}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == 'search' %}<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+{%- elseif name == 'copy' %}<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>
+{%- elseif name == 'down' %}<path d="M12 4v11m0 0-4-4m4 4 4-4"/><path d="M4 17v1.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V17"/>
+{%- elseif name == 'go' %}<path d="M5 12h13m0 0-5-5m5 5-5 5"/>
+{%- elseif name == 'tick' %}<path d="m5 12.5 4.5 4.5L19 7" stroke-width="2.6"/>
+{%- elseif name == 'up' %}<path d="M12 20V8m0 0-4.5 4.5M12 8l4.5 4.5"/>
+{%- elseif name == 'plus' %}<path d="M12 5v14M5 12h14"/>
+{%- elseif name == 'warn' %}<path d="M12 3.6 21.4 20H2.6Z"/><path d="M12 10v4.2M12 17.2v.1" stroke-width="2.2"/>
+{%- elseif name == 'clock' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5.3l3.2 2"/>
+{# ── added for the account phone hub (§2) ────────────────────────────────────
+   `back` and `next` are directional, and that is why they belong in this macro rather
+   than drawn inline in a page: a chevron that means "the way you came" has to mirror
+   under `dir="rtl"`, which `<html dir>` already carries, and NOTHING in this tree was
+   mirroring anything — a grep for `rtl` across every stylesheet returned no rules at
+   all. So the rule ships with the icons (see `.ag-ico-dir` in components/chrome.css), and a second
+   copy of the path typed into a template would point the wrong way in Arabic with
+   nothing on screen to say why. Not `shield-tick` or `gear`: a logo, a shield and a
+   cog are not directional, and mirroring them is the other half of the same mistake. #}
+{%- elseif name == 'back' %}<path class="ag-ico-dir" d="m15 18-6-6 6-6" stroke-width="2.2"/>
+{%- elseif name == 'next' %}<path class="ag-ico-dir" d="m9 6 6 6-6 6" stroke-width="2.2"/>
+{%- elseif name == 'gear' %}<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>
+{%- elseif name == 'eye' %}<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
+{%- elseif name == 'eye-off' %}<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/>
+{# The eight tiles of the account phone hub. These paths are the DESIGN'S OWN — copied
+   out of `AccountPage.dc.html`'s `IC`/`BI` tables rather than redrawn, because a tile
+   grid is read as one shape and eight icons with four different stroke weights is the
+   way that reads as eight separate widgets. `sec()` below has its own `bag`, `ticket`,
+   `refer` and `heart`: those are the two-tone SECTION marks and carry a fixed hue, which
+   is right in a rail and wrong inside a tile that sets its own colour. #}
+{%- elseif name == 'vote' %}<path d="M4 12.5 9 17.5 20 6.5" stroke-width="2"/>
+{%- elseif name == 'bag' %}<path d="M5.5 8h13l-1 12h-11zM9 8V7a3 3 0 0 1 6 0v1" stroke-width="2"/>
+{%- elseif name == 'ticket' %}<path d="M4 7h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z" stroke-width="2"/>
+{%- elseif name == 'refer' %}<path d="M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6" stroke-width="2"/>
+{%- elseif name == 'trophy' %}<path d="M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4" stroke-width="2"/>
+{%- elseif name == 'heart' %}<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" stroke-width="2"/>
+{%- elseif name == 'help' %}<path d="M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14" stroke-width="2"/>
+{# The rail's nine section marks, from the DC's own `IC` table. They are in `ui` and
+   not in `sec` because a rail tile sets its own colour from a token pair, and `sec`'s
+   marks carry a fixed two-tone hue that fights it. #}
+{%- elseif name == 'overview' %}<path d="M3 9.5 12 3l9 6.5V20H3z" stroke-width="2"/>
+{%- elseif name == 'points' %}<path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z" stroke-width="2"/>
+{%- elseif name == 'activity' %}<path d="M3 12h4l3-7 4 14 3-7h4" stroke-width="2"/>
+{%- elseif name == 'saved' %}<path d="M6 3h12v18l-6-4-6 4z" stroke-width="2"/>
+{%- elseif name == 'shield' %}<path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z" stroke-width="2"/>
+{%- elseif name == 'settings' %}<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v3M12 19v3M2 12h3M19 12h3" stroke-width="2"/>
+{%- elseif name == 'stand' %}<path d="M4 9h16l-1 11H5zM3 9l2-5h14l2 5M9 9v11M15 9v11" stroke-width="2"/>
+{%- elseif name == 'shield-tick' %}<path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/><path d="m8.6 11.8 2.3 2.3 4.5-4.6"/>
+{%- endif -%}
+</svg>
+{% endmacro %}

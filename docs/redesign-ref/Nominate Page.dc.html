@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="image-slot.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+  image-slot::part(frame){background:transparent}
+  image-slot[data-deco]::part(empty){display:none}
+  @keyframes nmFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes nmSpin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:1000px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></a>
+      <nav style="display:flex;align-items:center;gap:4px">
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#e0245e"></span>Pulse</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Participate <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Explore <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Leaderboard</a>
+      </nav>
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#" style="text-decoration:none;font-size:14px;font-weight:600;color:#10292C;padding:9px 12px;border-radius:10px">Vote</a>
+        <a href="#" style="text-decoration:none;background:#237b22;color:#fff;font-size:14px;font-weight:600;padding:10px 20px;border-radius:999px;display:flex;align-items:center;gap:7px;box-shadow:0 8px 18px -8px rgba(35,123,34,.6)">Register <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </header>
+
+  <div style="max-width:1000px;margin:0 auto;padding:40px 32px 0;text-align:center">
+    <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#237b22">Nominate</p>
+    <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:38px;letter-spacing:-.02em;color:#10292C">Surface someone who matters</h1>
+    <p style="margin:12px auto 0;font-size:15px;line-height:1.6;color:#4a5256;max-width:520px">Ninety seconds to put a name on the continental record. Our panel verifies every profile before it joins the cycle.</p>
+  </div>
+
+  <!-- stepper -->
+  <div style="max-width:680px;margin:28px auto 0;padding:0 32px">
+    <div style="display:flex;align-items:center;gap:0">
+      <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;flex:{{ st.flex }}">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:7px;flex:none">
+            <span style="width:34px;height:34px;border-radius:50%;background:{{ st.bg }};color:{{ st.fg }};border:2px solid {{ st.border }};display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px">{{ st.label }}</span>
+            <span style="font-size:11px;font-weight:600;color:{{ st.textColor }};white-space:nowrap">{{ st.name }}</span>
+          </div>
+          <sc-if value="{{ st.hasLine }}" hint-placeholder-val="{{ true }}"><span style="flex:1;height:2px;background:{{ st.lineColor }};margin:0 8px;margin-bottom:22px"></span></sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- form card -->
+  <div style="max-width:680px;margin:24px auto 0;padding:0 32px 70px">
+    <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:22px;padding:34px">
+
+      <!-- STEP 1 · WHO -->
+      <sc-if value="{{ s1 }}" hint-placeholder-val="{{ true }}">
+      <div style="animation:nmFade .3s ease both">
+        <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:#10292C">Who are you nominating?</h2>
+        <p style="margin:8px 0 22px;font-size:14px;color:#717a7e">Tell us about the person you believe deserves recognition.</p>
+        <div style="display:flex;gap:20px;align-items:flex-start">
+          <div style="flex:none;width:130px;text-align:center">
+            <div style="position:relative;width:130px;height:150px;border-radius:16px;background:#f4f7f4;border:1px dashed #bfe0bd;overflow:hidden;display:flex;align-items:center;justify-content:center"><image-slot id="nm-portrait" fit="cover" style="position:absolute;inset:0;width:100%;height:100%" placeholder="Photo"></image-slot></div>
+            <p style="margin:8px 0 0;font-size:11px;color:#92a6a7">Optional portrait</p>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:14px">
+            <div><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Full name</label><input value="{{ nomName }}" onInput="{{ onName }}" placeholder="e.g. Amara Okonkwo" style="width:100%;border:1px solid {{ nameBorder }};border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+            <div style="display:flex;gap:12px">
+              <div style="flex:1"><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Country</label><input placeholder="Nigeria" style="width:100%;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+              <div style="flex:1"><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">City</label><input placeholder="Enugu" style="width:100%;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- STEP 2 · CATEGORY -->
+      <sc-if value="{{ s2 }}" hint-placeholder-val="{{ false }}">
+      <div style="animation:nmFade .3s ease both">
+        <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:#10292C">Which programme?</h2>
+        <p style="margin:8px 0 22px;font-size:14px;color:#717a7e">Pick the honour that best fits their contribution.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <button onClick="{{ setEdu }}" style="cursor:pointer;text-align:left;border:1.5px solid {{ bEdu }};background:{{ bgEdu }};border-radius:14px;padding:15px;display:flex;align-items:center;gap:12px"><span style="flex:none;width:38px;height:38px;border-radius:11px;background:#eef7ee;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/></svg></span><span style="font-weight:600;font-size:14px;color:#10292C">Education</span></button>
+          <button onClick="{{ setMus }}" style="cursor:pointer;text-align:left;border:1.5px solid {{ bMus }};background:{{ bgMus }};border-radius:14px;padding:15px;display:flex;align-items:center;gap:12px"><span style="flex:none;width:38px;height:38px;border-radius:11px;background:#fff8df;color:#a47306;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span><span style="font-weight:600;font-size:14px;color:#10292C">Music</span></button>
+          <button onClick="{{ setInt }}" style="cursor:pointer;text-align:left;border:1.5px solid {{ bInt }};background:{{ bgInt }};border-radius:14px;padding:15px;display:flex;align-items:center;gap:12px"><span style="flex:none;width:38px;height:38px;border-radius:11px;background:#e9efef;color:#2b373d;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM4 7h16"/></svg></span><span style="font-weight:600;font-size:14px;color:#10292C">Integrity</span></button>
+          <button onClick="{{ setBiz }}" style="cursor:pointer;text-align:left;border:1.5px solid {{ bBiz }};background:{{ bgBiz }};border-radius:14px;padding:15px;display:flex;align-items:center;gap:12px"><span style="flex:none;width:38px;height:38px;border-radius:11px;background:#eef7ee;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span><span style="font-weight:600;font-size:14px;color:#10292C">Business</span></button>
+          <button onClick="{{ setSci }}" style="cursor:pointer;text-align:left;border:1.5px solid {{ bSci }};background:{{ bgSci }};border-radius:14px;padding:15px;display:flex;align-items:center;gap:12px"><span style="flex:none;width:38px;height:38px;border-radius:11px;background:#fff8df;color:#a47306;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"/></svg></span><span style="font-weight:600;font-size:14px;color:#10292C">Science</span></button>
+          <button onClick="{{ setArt }}" style="cursor:pointer;text-align:left;border:1.5px solid {{ bArt }};background:{{ bgArt }};border-radius:14px;padding:15px;display:flex;align-items:center;gap:12px"><span style="flex:none;width:38px;height:38px;border-radius:11px;background:#fdeaf0;color:#b03a5b;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5 4 4M12 19l7-7-4-4-7 7-1 5 5-1Z"/></svg></span><span style="font-weight:600;font-size:14px;color:#10292C">Arts</span></button>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- STEP 3 · WHY -->
+      <sc-if value="{{ s3 }}" hint-placeholder-val="{{ false }}">
+      <div style="animation:nmFade .3s ease both">
+        <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:#10292C">Why do they deserve this?</h2>
+        <p style="margin:8px 0 22px;font-size:14px;color:#717a7e">Tell their story. Specific impact carries the most weight with our panel.</p>
+        <textarea value="{{ story }}" onInput="{{ onStory }}" placeholder="What have they built or changed? Who has it helped?" style="width:100%;min-height:150px;resize:vertical;border:1px solid {{ storyBorder }};border-radius:12px;padding:14px 15px;font-family:inherit;font-size:14.5px;line-height:1.55;color:#10292C;outline:none" style-focus="border-color:#237b22"></textarea>
+        <div style="display:flex;justify-content:space-between;margin-top:7px"><span style="font-size:12px;color:#92a6a7">Minimum 40 characters</span><span style="font-size:12px;font-family:'JetBrains Mono',monospace;color:{{ countColor }}">{{ storyCount }}</span></div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin:18px 0 7px">Evidence link (optional)</label>
+        <input placeholder="Article, video, or programme website" style="width:100%;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/>
+      </div>
+      </sc-if>
+
+      <!-- STEP 4 · YOU -->
+      <sc-if value="{{ s4 }}" hint-placeholder-val="{{ false }}">
+      <div style="animation:nmFade .3s ease both">
+        <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:#10292C">About you</h2>
+        <p style="margin:8px 0 22px;font-size:14px;color:#717a7e">We verify nominators to keep the registry trustworthy. Your details stay private.</p>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Your name</label><input placeholder="Your full name" style="width:100%;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+          <div><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Email</label><input value="{{ email }}" onInput="{{ onEmail }}" type="email" placeholder="you@email.com" style="width:100%;border:1px solid {{ emailBorder }};border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+          <label style="display:flex;align-items:flex-start;gap:9px;cursor:pointer"><input type="checkbox" style="margin-top:2px;width:16px;height:16px;accent-color:#237b22"/><span style="font-size:12.5px;line-height:1.5;color:#717a7e">I confirm this nomination is genuine and I accept the <span style="color:#237b22">nomination rules</span>.</span></label>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- PROCESSING -->
+      <sc-if value="{{ sProcessing }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:48px 0;text-align:center"><div style="width:48px;height:48px;margin:0 auto;border-radius:50%;border:4px solid #e8ece9;border-top-color:#237b22;animation:nmSpin .8s linear infinite"></div><p style="margin:20px 0 0;font-size:14.5px;font-weight:600;color:#10292C">Submitting nomination…</p></div>
+      </sc-if>
+
+      <!-- DONE -->
+      <sc-if value="{{ sDone }}" hint-placeholder-val="{{ false }}">
+      <div style="text-align:center;padding:10px 0;animation:nmFade .3s ease both">
+        <img src="assets/illo-plane.jpg" alt="" style="display:block;width:240px;margin:0 auto;height:auto;border-radius:16px"/>
+        <h2 style="margin:6px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:25px;color:#10292C">Nomination on its way 🎉</h2>
+        <p style="margin:10px auto 0;font-size:14.5px;line-height:1.55;color:#4a5256;max-width:380px">Thank you for surfacing excellence. We've logged your nomination of <strong style="color:#10292C">{{ nomNameEcho }}</strong>. Our panel will review it and email you the moment it's live.</p>
+        <div style="margin:18px auto 0;max-width:260px;background:#f4f7f4;border-radius:14px;padding:15px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#92a6a7">Reference</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:#10292C">NOM-7F3K2</span></div>
+        <button onClick="{{ reset }}" style="margin-top:20px;cursor:pointer;border:1px solid rgba(16,41,44,.14);background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:14px;padding:12px 24px;border-radius:999px">Nominate someone else</button>
+      </div>
+      </sc-if>
+
+      <!-- nav buttons -->
+      <sc-if value="{{ showNav }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:26px;padding-top:22px;border-top:1px solid rgba(16,41,44,.07)">
+        <button onClick="{{ back }}" style="cursor:{{ backCursor }};border:none;background:none;font-family:inherit;font-size:14px;font-weight:600;color:{{ backColor }};padding:8px 4px">← Back</button>
+        <button onClick="{{ next }}" style="cursor:pointer;border:none;background:{{ nextBg }};color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:13px 28px;border-radius:999px;display:flex;align-items:center;gap:8px;opacity:{{ nextOp }}">{{ nextLabel }} <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      </sc-if>
+    </div>
+    <p style="margin:16px 0 0;text-align:center;font-size:12.5px;color:#92a6a7">Free · takes about 90 seconds · OTP-secured</p>
+  </div>
+
+  <footer style="background:#0c2225"><div style="max-width:1000px;margin:0 auto;padding:40px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+    <div style="display:flex;align-items:center;gap:11px"><span style="width:32px;height:32px;border-radius:9px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#7FC87C">G</span><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#fff">Africa<span style="color:#7FC87C">GATES</span></span></div>
+    <span style="font-size:12.5px;color:rgba(255,255,255,.5)">© 2026 Africa GATES · An Afrovanguard initiative · Lagos, Nigeria</span>
+  </div></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1000,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { step:1, nomName:'', cat:null, story:'', email:'' };
+  renderVals(){
+    const s = this.state;
+    const pick = (k)=>()=>this.setState({cat:k});
+    const cb = (k)=> s.cat===k ? '#237b22' : 'rgba(16,41,44,.12)';
+    const cbg = (k)=> s.cat===k ? '#f6fcf5' : '#fff';
+    const STEPS=[['1','Who'],['2','Category'],['3','Story'],['4','You']];
+    const steps = STEPS.map((st,i)=>{ const n=i+1; const done=s.step>n; const cur=s.step===n; return {
+      label: done?'✓':st[0], name:st[1], hasLine:i<STEPS.length-1, flex:i<STEPS.length-1?'1':'none',
+      bg: done?'#237b22':(cur?'#10292C':'#fff'), fg: (done||cur)?'#fff':'#92a6a7', border: (done||cur)?'transparent':'rgba(16,41,44,.14)',
+      textColor: cur?'#10292C':'#92a6a7', lineColor: done?'#237b22':'rgba(16,41,44,.12)' }; });
+    const storyOk = s.story.trim().length>=40;
+    const validEmail = /.+@.+\..+/.test(s.email);
+    const canNext = (s.step===1 && s.nomName.trim().length>1) || (s.step===2 && s.cat) || (s.step===3 && storyOk) || (s.step===4 && validEmail);
+    const advance = ()=>{ if(!canNext) return; if(s.step<4){ this.setState({step:s.step+1}); } else { this.setState({step:5}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({step:6}),1600); } };
+    return {
+      steps,
+      s1:s.step===1, s2:s.step===2, s3:s.step===3, s4:s.step===4, sProcessing:s.step===5, sDone:s.step===6,
+      showNav: s.step<=4,
+      nomName:s.nomName, onName:(e)=>this.setState({nomName:e.target.value}), nameBorder: s.nomName.trim().length>1||!s.nomName?'rgba(16,41,44,.16)':'#c0392b',
+      setEdu:pick('edu'), setMus:pick('mus'), setInt:pick('int'), setBiz:pick('biz'), setSci:pick('sci'), setArt:pick('art'),
+      bEdu:cb('edu'), bMus:cb('mus'), bInt:cb('int'), bBiz:cb('biz'), bSci:cb('sci'), bArt:cb('art'),
+      bgEdu:cbg('edu'), bgMus:cbg('mus'), bgInt:cbg('int'), bgBiz:cbg('biz'), bgSci:cbg('sci'), bgArt:cbg('art'),
+      story:s.story, onStory:(e)=>this.setState({story:e.target.value}), storyBorder:'rgba(16,41,44,.16)',
+      storyCount: s.story.trim().length+' chars', countColor: storyOk?'#1a9c34':'#92a6a7',
+      email:s.email, onEmail:(e)=>this.setState({email:e.target.value}), emailBorder: validEmail||!s.email?'rgba(16,41,44,.16)':'#c0392b',
+      nomNameEcho: s.nomName || 'your nominee',
+      back: ()=>{ if(s.step>1&&s.step<5) this.setState({step:s.step-1}); }, backCursor: s.step>1?'pointer':'default', backColor: s.step>1?'#717a7e':'transparent',
+      next: advance, nextLabel: s.step===4?'Submit nomination':'Continue', nextBg: canNext?'#237b22':'#9aa6a8', nextOp: canNext?1:0.75,
+      reset: ()=>this.setState({step:1, nomName:'', cat:null, story:'', email:''})
+    };
+  }
+}
+</script>
+</body>
+</html>

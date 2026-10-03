@@ -1,0 +1,281 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ═══════════════════════════════════════════════════════════════════════════════
+  THE BUILDER — /admin/challenges/new and /admin/challenges/{id}
+  ═══════════════════════════════════════════════════════════════════════════════
+
+  §5's five steps, as five FIELDSETS in one form rather than five pages. A wizard that
+  loses its answers between steps is the commonest way a long form is abandoned, and
+  nothing here depends on anything else being filled first.
+
+  THE PREVIEW IS THE REAL GENERATOR. It renders `ChallengeCopy::for()` — the same
+  function the public page calls. A preview drawn by a second, friendlier code path is
+  a preview that lies, and the pair most likely to disagree is the screen that
+  publishes a value and the screen that acts on it.
+
+  WHAT IS LOCKED IS SAID, NOT DISCOVERED. Once published, the fields that decide who
+  wins are read-only and the reason is printed beside them. A form that greys a field
+  and says nothing is a form people fight with.
+
+  THE ASSISTANT DRAFTS WORDS AND NOTHING ELSE. It is never shown the prize, the cap or
+  the dates, and its answer lands in this form for a person to read and change. It
+  writes no row.
+#}
+
+{% block head_styles %}
+{% include 'admin/challenges/_builder-style.twig' %}
+{% endblock %}
+
+{% block content %}
+
+{% if blockers|length %}
+  <div class="cb-blk">
+    <b>{{ blockers|length }} thing{{ blockers|length == 1 ? '' : 's' }} to fix before this can go live</b>
+    <ul>{% for b in blockers %}<li>{{ b }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+
+<div class="cb">
+  <div>
+    {# The draft form. `novalidate` + `data-ag-validate` so it gets the same per-field
+       messages and summary as every other form on the site. #}
+    {# The browser's own validation, on purpose. This carried `novalidate
+       data-ag-validate`, which turns the native messages off on the promise that the
+       shared validator replaces them — and the admin layout does not load it, so a
+       blank required field was simply posted and refused by the server a page later. #}
+    <form method="post" action="/admin/challenges/{{ c ? c.id : 'new' }}">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      {# ── 1 ─────────────────────────────────────────────────────────────── #}
+      <fieldset class="cb-card" style="border:0">
+        <span class="cb-step">Step 1</span>
+        <h3>Basics</h3>
+        <p class="cb-note">The title and kicker are what a reader sees first. They can be
+          changed after publishing; the web address cannot, because it is a link people
+          will already have.</p>
+
+        <label class="cb-f"><span>Title</span>
+          <input name="title" value="{{ draft.title|default(c.title|default('')) }}" required maxlength="200"></label>
+        <label class="cb-f"><span>Kicker — the small line above it</span>
+          <input name="kicker" value="{{ draft.kicker|default(c.kicker|default('')) }}" required maxlength="160"></label>
+        <label class="cb-f"><span>Summary</span>
+          <textarea name="summary" maxlength="300">{{ draft.summary|default(c.summary|default('')) }}</textarea></label>
+
+        <div class="cb-row">
+          <label class="cb-f"><span>Web address</span>
+            <input name="slug" value="{{ c.slug|default('') }}" maxlength="160"
+                   {{ live ? 'readonly' : '' }} placeholder="made from the title">
+            {% if live %}<span class="cb-lock">Fixed — people already have this link.</span>{% endif %}</label>
+          <label class="cb-f"><span>Theme</span>
+            <select name="theme">
+              {% for t in themes %}<option value="{{ t }}"{{ c and c.theme == t ? ' selected' : '' }}>{{ t }}</option>{% endfor %}
+            </select></label>
+          <label class="cb-f"><span>Terms version</span>
+            <input name="terms_version" value="{{ c.terms_version|default('1.0') }}" maxlength="16" {{ live ? 'readonly' : '' }}></label>
+        </div>
+
+        <div class="cb-row">
+          <label class="cb-f"><span>Art URL</span>
+            <input name="art_url" value="{{ c.art_url|default('') }}" maxlength="400"></label>
+          <label class="cb-f"><span>Art description, for a screen reader</span>
+            <input name="art_alt" value="{{ c.art_alt|default('') }}" maxlength="200"></label>
+        </div>
+
+        {# The flier's own lines. Numbers are placeholders, filled from the rules above, so
+           the flier cannot go on promising a target that has since changed. #}
+        <p class="cb-note"><strong>The flier.</strong> Write <code>{target}</code>, <code>{cap}</code> or
+          <code>{prize}</code> where a number goes — it is filled from the rules. Leave a line empty
+          and the flier uses the title or the promise instead.</p>
+        <label class="cb-f"><span>Headline</span>
+          <input name="headline" value="{{ c.headline|default('') }}" maxlength="160"
+                 placeholder="Know {target} people who make your community proud?"></label>
+        <label class="cb-f"><span>The line under it</span>
+          <input name="standfirst" value="{{ c.standfirst|default('') }}" maxlength="300"></label>
+        <label class="cb-f"><span>Tagline, on the bottom band</span>
+          <input name="tagline" value="{{ c.tagline|default('') }}" maxlength="120"></label>
+        <div class="cb-row">
+          <label class="cb-f"><span>Portrait URL — a cut-out on a clear background</span>
+            <input name="portrait_url" value="{{ c.portrait_url|default('') }}" maxlength="400"></label>
+          <label class="cb-f"><span>Portrait description, for a screen reader</span>
+            <input name="portrait_alt" value="{{ c.portrait_alt|default('') }}" maxlength="200"></label>
+        </div>
+      </fieldset>
+
+      {# ── 2 ─────────────────────────────────────────────────────────────── #}
+      <fieldset class="cb-card" style="border:0">
+        <span class="cb-step">Step 2</span>
+        <h3>What counts</h3>
+        <p class="cb-note">An action counts <strong>only</strong> inside a scope. Pick at
+          least one award, category or event — without one the challenge would count
+          everything everywhere, which is never what anybody means.
+          {% if live %}These are fixed now: they decide who qualifies.{% endif %}</p>
+
+        <div class="cb-row">
+          <label class="cb-f"><span>Action</span>
+            <select name="action" {{ live ? 'disabled' : '' }}>
+              {% for a in actions %}<option value="{{ a }}"{{ c and c.action == a ? ' selected' : '' }}>{{ a }}</option>{% endfor %}
+            </select>
+            {% if live %}<span class="cb-lock">Fixed after publishing.</span>{% endif %}</label>
+          <label class="cb-f"><span>Target — how many each person needs</span>
+            <input type="number" name="target" min="1" max="999" value="{{ c.target|default(10) }}" {{ live ? 'readonly' : '' }}></label>
+        </div>
+
+        <label class="cb-f cb-multi"><span>Counts inside — hold ctrl or cmd to pick several</span>
+          <select name="scope[]" multiple size="8" {{ live ? 'disabled' : '' }}>
+            {% for o in cycles %}
+              <option value="award_cycle:{{ o.id }}"{{ ('award_cycle:' ~ o.id) in scopes ? ' selected' : '' }}>Award · {{ o.label }}</option>
+            {% endfor %}
+            {% for o in categories %}
+              <option value="category:{{ o.id }}"{{ ('category:' ~ o.id) in scopes ? ' selected' : '' }}>Category · {{ o.label }}</option>
+            {% endfor %}
+            {% for o in events %}
+              <option value="event:{{ o.id }}"{{ ('event:' ~ o.id) in scopes ? ' selected' : '' }}>Event · {{ o.label }}</option>
+            {% endfor %}
+          </select></label>
+      </fieldset>
+
+      {# ── 3 ─────────────────────────────────────────────────────────────── #}
+      <fieldset class="cb-card" style="border:0">
+        <span class="cb-step">Step 3</span>
+        <h3>Who wins</h3>
+        <p class="cb-note"><strong>first</strong> is a race for numbered places.
+          <strong>top</strong> ranks by count at the close. <strong>draw</strong> is a
+          lottery among everybody who finished, from a seed that is stored before it is
+          used so anybody can re-run it.
+          {% if live %}All of this is fixed — it is what the entrants were told.{% endif %}</p>
+
+        <div class="cb-row">
+          <label class="cb-f"><span>Mode</span>
+            <select name="mode" {{ live ? 'disabled' : '' }}>
+              {% for m in modes %}<option value="{{ m }}"{{ c and c.mode == m ? ' selected' : '' }}>{{ m }}</option>{% endfor %}
+            </select></label>
+          <label class="cb-f"><span>Cap — how many can win (first and top)</span>
+            <input type="number" name="cap" min="0" max="9999" value="{{ c.cap|default('') }}" {{ live ? 'readonly' : '' }}></label>
+          <label class="cb-f"><span>Winners drawn (draw only)</span>
+            <input type="number" name="draw_count" min="0" max="9999" value="{{ c.draw_count|default('') }}" {{ live ? 'readonly' : '' }}></label>
+          <label class="cb-f"><span>Draw date (draw only)</span>
+            <input type="datetime-local" name="draw_at"
+                   value="{{ c.draw_at|when_input }}" step="1" {{ live ? 'readonly' : '' }}></label>
+        </div>
+
+        <div class="cb-row">
+          <label class="cb-f"><span>Prize type</span>
+            <select name="prize_type" {{ live ? 'disabled' : '' }}>
+              {% for t in prize_types %}<option value="{{ t }}"{{ c and c.prize_type == t ? ' selected' : '' }}>{{ t }}</option>{% endfor %}
+            </select></label>
+          <label class="cb-f"><span>Amount</span>
+            <input type="number" name="prize_amount" min="0" value="{{ c.prize_amount|default('') }}" {{ live ? 'readonly' : '' }}></label>
+          <label class="cb-f"><span>Currency symbol (cash)</span>
+            <input name="prize_currency" value="{{ c.prize_currency|default('₦') }}" maxlength="8" {{ live ? 'readonly' : '' }}></label>
+          <label class="cb-f"><span>Label (tickets)</span>
+            <input name="prize_label" value="{{ c.prize_label|default('') }}" maxlength="80" {{ live ? 'readonly' : '' }}></label>
+        </div>
+      </fieldset>
+
+      {# ── 4 ─────────────────────────────────────────────────────────────── #}
+      <fieldset class="cb-card" style="border:0">
+        <span class="cb-step">Step 4</span>
+        <h3>Schedule and eligibility</h3>
+        <p class="cb-note">Times are stored in UTC and shown to readers in the zone below,
+          so a deadline reads the same to everyone it applies to. A closing date can be
+          moved <strong>later</strong> after publishing but never earlier — bringing it
+          forward takes time from whoever is part-way through.</p>
+
+        {# `|when_input` is `DisplayTime::forInput()`, and `step="1"` goes with it. At
+           minute precision the round trip silently moved a deadline stored at 23:59:59
+           back to 23:59:00 every time somebody opened the form and saved without
+           touching the field — 59 seconds of drift per save, in the column that
+           decides whether an entry made it. #}
+        <div class="cb-row">
+          <label class="cb-f"><span>Opens</span>
+            <input type="datetime-local" name="starts_at"
+                   value="{{ c.starts_at|when_input }}" step="1" {{ live ? 'readonly' : '' }}></label>
+          <label class="cb-f"><span>Closes</span>
+            <input type="datetime-local" name="ends_at"
+                   value="{{ c.ends_at|when_input }}" step="1" required></label>
+          <label class="cb-f"><span>Shown in this timezone</span>
+            <input name="timezone" value="{{ c.timezone|default('Africa/Lagos') }}" maxlength="64"></label>
+        </div>
+
+        <label class="cb-f"><span>Extra rules — one per line. These are ADDED to the
+          platform's own; the base rules about verification and one entry per person are
+          always published and cannot be removed.</span>
+          {# Decoded in the controller: `extra_rules` is JSON in the column and Twig has
+             no decoder, so a template doing it would need a filter nobody else wants. #}
+          <textarea name="extra_rules" maxlength="1200">{{ draft.rules is defined and draft.rules ? draft.rules|join("\n") : extra_rules_text|default('') }}</textarea></label>
+      </fieldset>
+
+      <div class="cb-acts">
+        <button class="cb-btn" type="submit">{{ c ? 'Save' : 'Create draft' }}</button>
+        {% if c %}<a class="cb-btn cb-btn--q" href="/admin/challenges/{{ c.id }}/queues">Queues</a>{% endif %}
+      </div>
+    </form>
+
+    {# ── 5 ───────────────────────────────────────────────────────────────── #}
+    {% if c %}
+      <div class="cb-card">
+        <span class="cb-step">Step 5</span>
+        <h3>Publish</h3>
+        <p class="cb-note">Publishing fixes the rules. Everything that decides who wins or
+          what they get stops being editable, because the people who enter will have read
+          those terms.</p>
+
+        {# Separate forms, never nested — the parser silently deletes an inner one and
+           its children post to the outer action. #}
+        <div class="cb-acts">
+          <form method="post" action="/admin/challenges/{{ c.id }}/publish">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button class="cb-btn" type="submit" {{ blockers|length ? 'disabled' : '' }}>
+              {{ c.status == 'draft' ? 'Publish' : 'Re-publish' }}
+            </button>
+          </form>
+
+          <form method="post" action="/admin/challenges/{{ c.id }}/cancel" data-confirm="Cancel this challenge? The page comes down and the entries are kept.">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <input class="cb-f" name="reason" placeholder="Why it is being cancelled" maxlength="300" style="min-width:260px">
+            <button class="cb-btn cb-btn--d" type="submit">Cancel challenge</button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  {# ── the preview, and the assistant ───────────────────────────────────── #}
+  <aside>
+    <div class="cb-prev">
+      <h4>What the page will say</h4>
+      {% if preview %}
+        <p class="p-promise">{{ preview.promise }}</p>
+        <dl>{% for f in preview.facts %}<dt>{{ f.k }}</dt><dd>{{ f.v }}</dd>{% endfor %}</dl>
+        <h4>What counts</h4>
+        <ul>{% for r in preview.rules %}<li>{{ r }}</li>{% endfor %}</ul>
+      {% else %}
+        <p class="p-promise">Save the draft to see the page's own words. Every sentence
+          on it is generated from the figures beside this — nothing is typed twice.</p>
+      {% endif %}
+
+      <div class="cb-ai">
+        {% if ai_on %}
+          <form method="post" action="/admin/challenges/{{ c ? c.id : 'new' }}/draft">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="{{ c.action|default('nominate') }}">
+            <input type="hidden" name="target" value="{{ c.target|default(10) }}">
+            <input type="hidden" name="mode" value="{{ c.mode|default('first') }}">
+            {% for s in scopes %}<input type="hidden" name="scope[]" value="{{ s }}">{% endfor %}
+            <label class="cb-f"><span>Draft the wording</span>
+              <input name="hint" maxlength="400" placeholder="what this campaign is for, in your words"></label>
+            <button class="cb-btn cb-btn--q" type="submit">Draft it</button>
+          </form>
+          <p>It writes a title, a kicker, a summary and extra rules into the form for you
+            to change. <strong>It is never told the prize, the cap or the dates</strong>,
+            and it cannot save anything — the promise sentence is generated from the
+            figures either way.</p>
+        {% else %}
+          <p>Drafting is off. The form works exactly the same without it.</p>
+        {% endif %}
+      </div>
+    </div>
+  </aside>
+</div>
+{% endblock %}
