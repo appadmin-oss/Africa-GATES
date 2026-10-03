@@ -588,6 +588,38 @@ Raised by Phase 2 (`PHASE-2.md` §9 and deviation 15), not in the list above:
 
 ---
 
+## 8c. Open after Phase 2 — awaiting the owner (recorded 3 Oct 2026)
+
+Raised by the Phase 2 builds and put to the owner; nothing below has been decided, and no phase may guess
+an answer. Each is detailed in `PHASE-2.md` (deviations list, §9, §10 and "Cookie consent").
+
+1. **Marketing category** — nothing on this site does marketing, so it is drawn as the fourth row marked
+   "Not used" with no switch, and can never be stored as a yes. Keep that, or drop the row?
+2. **Consent records** — the handoff's admin consent view promises answers kept for 12 months; nothing
+   server-side records an answer today. Build a consent log, or keep none?
+3. **Notice position** — the cookie notice comes after `<main>` in reading order (51 Tab presses at 390).
+   Move it to the top of the page?
+4. **Language under a privacy signal** — with GPC/DNT (or Preferences refused) the chosen language is a
+   session cookie and is forgotten when the browser closes. Acceptable?
+5. **Six sub-44px controls outside the header** — `.ag-pop__lang` rows 40, palette Esc 28, shortcuts
+   close 36, `.ag-chip` 40 and `.ag-cs__go` 40 at ≥1024, `.ag-switch` 28 inside a 44 span. Each: raise
+   to 44, or an approved exception? (`TargetSizeTest` lists them as OPEN.)
+6. **Tab labels at 150%** — on a 390 phone "Discover" and "Nominate" touch (no overlap). Cap the tab
+   label size?
+7. **Email colours** — mapped by role onto the palette, so some look different (the old 2.8:1 footer
+   grey is now `soft`; the old dark-mode palette is retired). Confirm.
+8. **Design deviations** — 28 in the chrome and 14 in cookie consent, each with what/why, listed in
+   `PHASE-2.md`. Approve or reject each.
+9. **Still open from earlier**:
+   - who writes the translations (every new string goes through `|trans`, but no catalogue entries exist yet);
+   - trending in the empty search palette has no measured signal (Q13, second half);
+   - the change to how `/cookies` describes the `ag-a11y` text-size setting.
+10. **Re-opening consent at ≥600px** — there is no in-page way back to the choices until Phase 4 rebuilds
+    the footer. Accept the gap until then?
+11. **Admin and judge consoles** — the owner is sending an update; both stay held until it arrives.
+
+---
+
 ## 8a. Code that cites this file
 
 Four comments cite section numbers of the GAPS.md this file replaces. Phase 0 edits no other file, so the
