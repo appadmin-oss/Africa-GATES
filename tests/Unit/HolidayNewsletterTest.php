@@ -222,13 +222,4 @@ final class HolidayNewsletterTest extends TestCase
         $this->assertSame(Newsletter::ST_SKIPPED,
             DB::table('gates_newsletter_issues')->where('period_key', 'w2026-40')->value('status'));
     }
-
-    public function test_the_public_page_names_the_holidays_from_the_calendar(): void
-    {
-        NewsletterSchedule::save(['newsletter_mode' => 'auto']);
-        HolidayCalendar::save(['christmas', 'new-year'], []);
-        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', self::SITE . '/newsletter');
-        $html = (string) \Tests\Support\TestApp::build()->handle($req)->getBody();
-        $this->assertStringContainsString('And a greeting on New Year’s Day and Christmas Day.', $html);
-    }
 }

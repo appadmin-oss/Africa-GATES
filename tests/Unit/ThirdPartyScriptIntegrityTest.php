@@ -163,15 +163,25 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
             // loaded on every page and called by NOTHING — main.js and the extension each
             // define their own local `$` as querySelector, which is what made it look used.
             // The site paid a cross-origin round trip and 70KB per page load for dead code.
-            'https://unpkg.com/leaflet@',          // Leaflet, pinned
-            'https://challenges.cloudflare.com/',  // Turnstile, unpinnable
-            'https://pagead2.googlesyndication.com/', // AdSense, unpinnable
+            // Leaflet (`https://unpkg.com/leaflet@`, pinned) left this list on 3 Oct 2026:
+            // its only loader was layout/gates.twig, destroyed with the old pages.
+            // Turnstile (`https://challenges.cloudflare.com/`, unpinnable) too: its one
+            // loader was the ballot, vote-nominee.twig, destroyed the same day.
+            // And AdSense (`https://pagead2.googlesyndication.com/`, unpinnable): its one
+            // loader was shop/index.twig. With all three gone the list is empty.
         ] as $expected) {
             $this->assertNotEmpty(
                 array_filter($urls, static fn(string $u): bool => str_starts_with($u, $expected)),
                 "The scanner no longer sees {$expected} — either it was removed (delete this "
                 . 'line) or the regex is broken and every assertion below passes vacuously.');
         }
+
+        // With nothing left to name, the control is the converse: the scanner finds NO
+        // third-party script today. The first rebuilt page that brings one back (Turnstile
+        // on the ballot is the likely one) fails here and names it in the list above —
+        // which re-arms the "the regex still sees something" half of this control.
+        $this->assertSame([], $urls,
+            'a third-party script is back in the templates — name it in the list above');
     }
 
     /**

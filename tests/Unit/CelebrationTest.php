@@ -136,69 +136,7 @@ final class CelebrationTest extends TestCase
 
     // ───────────────────────── where it may and may not fire ──────────────────
 
-    public function test_a_released_result_celebrates_its_winner(): void
-    {
-        $html = $this->render(self::drawn());
-
-        $this->assertStringContainsString('data-celebrate="12-teachers-choice"', $html);
-        $this->assertStringContainsString('celebrate.js', $html);
-        $this->assertStringContainsString('canvas-confetti', $html);
-        // The figure and the name are the SERVER'S. Verified here because the count-up
-        // reads its target out of the element — if the page rendered a placeholder, the
-        // number would animate to nothing and land on nothing.
-        $this->assertMatchesRegularExpression('~data-celebrate-figure[^>]*>780<~', $html);
-        $this->assertStringContainsString('Oluwagbemiga Dorcas', $html);
-    }
-
-    public function test_a_held_result_names_nobody_and_celebrates_nobody(): void
-    {
-        $html = $this->render(self::drawn(['held' => 'The panel has not finished']));
-
-        $this->assertStringNotContainsString('Oluwagbemiga Dorcas', $html,
-            'a held result named its winner');
-        $this->assertStringNotContainsString('data-celebrate', $html,
-            'confetti over a result the platform is deliberately withholding');
-        $this->assertStringNotContainsString('celebrate.js', $html);
-        $this->assertStringNotContainsString('canvas-confetti', $html);
-    }
-
-    public function test_the_delayed_holding_page_carries_no_celebration(): void
-    {
-        // A different template entirely — a cycle past its results date with nothing
-        // decided. Asserted rather than assumed, because "it is a different file" is
-        // exactly the reasoning that stops being true when somebody moves the include
-        // into the layout.
-        $late = self::src('templates/pages/results/late.twig');
-        $this->assertStringNotContainsString('celebrate', $late);
-    }
-
     // ───────────────────────── the nominee's own page ─────────────────────────
-
-    public function test_the_nominee_page_celebrates_only_a_promoted_nominee(): void
-    {
-        $won  = $this->nominee('winner');
-        $none = $this->nominee('');
-
-        $this->assertStringContainsString('data-celebrate="nominee-', $won,
-            'a promoted nominee gets no moment on their own page');
-        $this->assertStringContainsString('celebrate.js', $won);
-
-        $this->assertStringNotContainsString('data-celebrate', $none,
-            'confetti on the page of somebody who has not been promoted');
-        $this->assertStringNotContainsString('celebrate.js', $none);
-    }
-
-    public function test_the_nominee_page_does_not_put_two_clocks_on_one_number(): void
-    {
-        // The backer count already carries `data-ag-count`, which ag-motion drives when
-        // the laurel section reveals. Naming it as the celebration's figure as well would
-        // be two animations writing to one element, and the loser is whichever finishes
-        // second — a count that lands on the wrong number in front of the person it is
-        // about.
-        $won = $this->nominee('winner');
-        $this->assertStringContainsString('data-ag-count', $won);
-        $this->assertStringNotContainsString('data-celebrate-figure', $won);
-    }
 
     // ───────────────────────── the member's dashboard ─────────────────────────
 

@@ -95,17 +95,6 @@ final class LegalDocumentTest extends TestCase
         }
     }
 
-    /** And the page shows the same thing, from the same builder. */
-    public function test_the_page_and_the_download_come_from_one_source(): void
-    {
-        [$status, $html] = $this->get('/privacy');
-
-        $this->assertSame(200, $status);
-        $this->assertStringContainsString('Automated processing', $html);
-        // Same anchor the .txt heading came from, so the two are provably one source.
-        $this->assertStringContainsString('id="automated-processing"', $html);
-    }
-
     /** The terms are not the privacy policy and must not grow an AI section. */
     public function test_the_terms_carry_no_ai_disclosure(): void
     {

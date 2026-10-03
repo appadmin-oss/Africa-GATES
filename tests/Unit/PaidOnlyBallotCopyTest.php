@@ -109,51 +109,15 @@ final class PaidOnlyBallotCopyTest extends TestCase
     {
         $root = dirname(__DIR__, 2) . '/';
         $out  = [];
-        foreach (['templates/pages/results/show.twig',
-                  'templates/admin/result-release.twig',
-                  'templates/pages/vote-nominee.twig'] as $rel) {
+        // results/show.twig and vote-nominee.twig left this list when they were destroyed
+        // (docs/handoff/DESTROYED.md); their rules are in their inventories.
+        foreach (['templates/admin/result-release.twig'] as $rel) {
             // Comments stripped. Each of these files documents the copy it replaced, in
             // the words it replaced — the fault reads exactly like the fix.
             $out[$rel] = (string) preg_replace('~\{#.*?#\}~s', ' ',
                 (string) file_get_contents($root . $rel));
         }
         return $out;
-    }
-
-    public function test_no_surface_prints_the_organic_split_where_there_was_no_choice(): void
-    {
-        foreach (self::templates() as $rel => $src) {
-            $flag = str_contains($rel, 'vote-nominee') ? 'paid_free_disabled' : 'paid_only';
-            $this->assertStringContainsString($flag, $src,
-                $rel . ' does not know whether a free vote was on offer, so it marks a '
-                . 'whole field as having bought their support');
-        }
-    }
-
-    /**
-     * AND THE REPLACEMENT SENTENCE EXISTS.
-     *
-     * Branching without saying anything would delete the disclosure rather than correct
-     * it — and a page that goes quiet about where a tally came from is worse than one
-     * that describes it clumsily. Each surface has to state the fact positively.
-     */
-    public function test_each_surface_says_instead_that_there_was_no_free_vote(): void
-    {
-        $t = self::templates();
-
-        $this->assertStringContainsString('Free voting was not open',
-            $t['templates/pages/results/show.twig'],
-            'the public result page branches on paid_only and then says nothing');
-        $this->assertStringContainsString('One kind of vote',
-            $t['templates/pages/results/show.twig']);
-
-        $this->assertStringContainsString('every vote here was contributed',
-            $t['templates/admin/result-release.twig'],
-            'the release screen drops the per-row mark without replacing it');
-
-        $this->assertStringContainsString('free voting is not open on',
-            $t['templates/pages/vote-nominee.twig'],
-            'the ballot says nothing about why every vote on it was paid for');
     }
 
     /**

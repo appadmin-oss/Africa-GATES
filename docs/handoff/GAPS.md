@@ -512,6 +512,26 @@ both schema files; `Support\Languages`, `LanguageMiddleware` and their cookie ro
 `NominationRules`, `NominationCategoryFit`, `AwardWording`, `NomineeKind`, `AwardOverview`, `ActivityFeedService::SCOPES`; every
 scoring, sealing, mail and payment service.
 
+
+### 7.3 The old pages, destroyed (3 Oct 2026) — `DESTROYED.md`
+The owner judged Phase 1's in-place renames (~95 files) and its moved rules (`chrome.css`, `library.css`) a patch, and decided:
+destroy the old pages now; each phase rebuilds its own from its DC. **125 files were deleted** — 92 page templates,
+`layout/gates.twig` and `layout/account-auth.twig`, 9 partials, 22 stylesheets — by the rules and with the per-file reason,
+rebuilding phase and route behaviour in [`DESTROYED.md`](DESTROYED.md). A feature inventory of every destroyed file, taken
+from `a9d963a^` (§0's requirement), is in [`inventory/`](inventory/), each ending with the rules of the **548 guard-test methods**
+destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
+
+- **What renders now:** `/_dev/ui` (header, app bar, tab bar and sheets with base styles only — `chrome.css` is gone) and `/door/{token}`;
+  every non-page endpoint and every POST. Every route whose template is gone answers **500** through `ErrorHandler`'s last-resort
+  body (its own `pages/error.twig` is destroyed too), and records a `PublicFault` per request.
+- **Held, owner to decide:** the 16 admin/judge templates `a9d963a` patched, `a11y.css`, `components/auth.css`, `partials/viz.twig`
+  (shared with admin), the patched `src/` services, and the email templates — no phase rebuilds them.
+- **This changes §7.2:** the Phase 2–9 lists above name files that no longer exist; a phase now *writes* its pages rather than
+  destroying them first. The orphans that did not qualify (`layout/nav.twig`, `layout/footer.twig`, most Phase 2 chrome partials,
+  the legacy sheets) are still the owning phase's to destroy — listed in `DESTROYED.md`.
+- **Tokens:** seven `tokens.css` steps with no remaining reader were removed; seven palette tokens and three `--ob-*` are held in
+  `DeadTokenTest::AWAITING_REBUILD` (deleting a handoff palette entry is the owner's call, Q1).
+
 ---
 
 ## 8. Blocked questions — for the owner, not guessed

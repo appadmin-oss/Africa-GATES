@@ -6,10 +6,8 @@
 
   The root is 100dvh and does not scroll; `<main class="ag-main">` is the only
   scroller, so every bar is a plain flex child that cannot move with the content.
-  A page the redesign rebuilds extends THIS layout. `layout/gates.twig` keeps
-  serving every page no phase has reached, and the two never nest: a shell inside a
-  layout whose body scrolls is a one-viewport window onto a document that carries
-  on underneath it.
+  A page the redesign rebuilds extends THIS layout — the only public layout left
+  since `layout/gates.twig` was destroyed with the old pages (docs/handoff/DESTROYED.md).
 
   ── WHERE THIS DIFFERS FROM THE SNIPPET, AND WHY ─────────────────────────────
 
@@ -27,9 +25,10 @@
     exists: the site header is `partials/site-header.twig`, which a page puts in
     `header`, and Gee on this layout is GAPS §8 Q19, unanswered — so `gee` stays an
     empty block rather than this phase inventing Phase 2's or Phase 3's partials.
-  · `components/chrome.css` and `components/library.css` load right after
-    `components.css`: they are other phases' rules carved OUT of it, in the
-    position they held inside it (GAPS §7.2).
+  · Only the three base sheets load. The chrome and records-library rules once
+    carved out of `components.css` were destroyed with the old pages, so the
+    header, app bar, tab bar and sheets below render with base styles only until
+    Phase 2 rebuilds them (docs/handoff/DESTROYED.md).
 
   ── BLOCKS ───────────────────────────────────────────────────────────────────
     a11y_head     Display & reading, before first paint
@@ -64,14 +63,13 @@
 
   <style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
 
-  {# In cascade order: the tokens, the shell, the base components, the rules carved
-     out of them, then the form states that refine `.ag-field`. #}
+  {# In cascade order: the tokens, the shell, the base components. Nothing else:
+     the rules carved out of components.css (chrome.css, library.css) and the form
+     states (forms.css) were destroyed with the old pages on 3 Oct 2026 and come back
+     only as each phase rebuilds them — docs/handoff/DESTROYED.md. #}
   <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
-  <link rel="stylesheet" href="{{ asset('/assets/css/components/chrome.css') }}">
-  <link rel="stylesheet" href="{{ asset('/assets/css/components/library.css') }}">
-  <link rel="stylesheet" href="{{ asset('/assets/css/components/forms.css') }}">
   {% block head_styles %}{% endblock %}
 </head>
 <body data-page="{{ page_id|default('') }}">

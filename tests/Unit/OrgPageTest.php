@@ -103,42 +103,6 @@ final class OrgPageTest extends TestCase
     // ══ the two halves that did not exist ════════════════════════════════════
 
     /**
-     * THERE IS A FORM, AND IT POSTS WHERE THE SERVICE LISTENS.
-     *
-     * The `#brand` anchor `saveBrand()` has always redirected to must exist, or a
-     * successful save returns somebody to the top of a long dashboard with a flash
-     * message and no idea which screen it came from.
-     */
-    public function test_the_dashboard_has_a_form_that_reaches_the_service(): void
-    {
-        $tpl = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/org/dashboard.twig');
-
-        $this->assertStringContainsString('action="/org/brand"', $tpl,
-            'the route has always existed; the form is what did not');
-        $this->assertStringContainsString('name="_token"', $tpl, 'and it carries CSRF');
-        $this->assertStringContainsString('id="page"', $tpl,
-            'saveBrand() redirects to an anchor, which has to be on the page');
-
-        // ── THE FIELD NAMES ARE DERIVED, NOT TYPED ──────────────────────────
-        //
-        // The form emits `name="{{ name }}_{{ spec.a }}[]"` from the same table
-        // `OrgBrand::blockFrom()` derives the names it reads. That is the whole reason
-        // the spec is a table: two hand-written lists claiming the same thing in the
-        // same words is the shape this codebase has paid for twice, and here it would
-        // fail silently — a field named `impact_figures` posts happily, is never read,
-        // and the organisation saves with no error and finds the block empty.
-        //
-        // So this asserts the DERIVATION is still what generates them. The round-trip in
-        // test_every_block_survives_the_form is what proves the two ends actually meet.
-        $this->assertStringContainsString('name="{{ name }}_{{ spec.a }}[]"', $tpl,
-            'block field names must be derived from the spec, never typed per block');
-        $this->assertStringContainsString('name="{{ name }}_{{ spec.b }}[]"', $tpl);
-        foreach (['link_label[]', 'link_url[]', 'video_url[]', 'video_title[]'] as $f) {
-            $this->assertStringContainsString('name="' . $f . '"', $tpl);
-        }
-    }
-
-    /**
      * EVERY BLOCK SURVIVES A ROUND TRIP THROUGH ITS DERIVED FIELD NAMES.
      *
      * The assertion that the form and the writer meet. Built from the spec, so a block
@@ -167,22 +131,6 @@ final class OrgPageTest extends TestCase
             $this->assertStringContainsString('A-' . $name, $html,
                 "{$name} was stored but never drawn");
         }
-    }
-
-    /**
-     * AND THE DONATION PAGE ACTUALLY INCLUDES THE RENDERER.
-     *
-     * Without this, every other assertion in this file is about a template no request
-     * ever reaches — which is the fault being fixed, one level up.
-     */
-    public function test_the_donation_page_includes_the_renderer(): void
-    {
-        $tpl = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/donate.twig');
-        $this->assertStringContainsString("include 'partials/org-page.twig'", $tpl);
-
-        $ctl = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/DonationController.php');
-        $this->assertStringContainsString('OrgBrand::of($org)', $ctl,
-            'the controller has to read the brand for the template to draw it');
     }
 
     // ══ what an organisation can put on the page ═════════════════════════════

@@ -110,20 +110,6 @@ final class DevUiTest extends TestCase
             . implode("\n", array_map(static fn ($b, $s) => ".ag-{$b}  ({$s})", array_keys($foreign), $foreign)));
     }
 
-    public function test_the_carved_out_rules_are_loaded_where_they_used_to_be(): void
-    {
-        foreach (['public/assets/css/components/chrome.css', 'public/assets/css/components/library.css'] as $f) {
-            $this->assertFileExists(self::ROOT . $f);
-        }
-        // The two sheets Phase 2 and the records pages still read. If either is missing
-        // the header, the Menu and the account dashboard lose their styling at once.
-        $chrome = (string) file_get_contents(self::ROOT . 'public/assets/css/components/chrome.css');
-        foreach (['.ag-appbar', '.ag-tabbar', '.ag-menu', '.ag-head', '.ag-mega'] as $c) {
-            $this->assertStringContainsString($c, $chrome);
-        }
-        $this->assertStringContainsString('.ag-pill', (string) file_get_contents(self::ROOT . 'public/assets/css/components/library.css'));
-    }
-
     // ── 2 · real readers, no manufactured ones ───────────────────────────────
 
     public function test_the_once_unread_tokens_are_read_by_components_the_page_renders(): void

@@ -87,6 +87,23 @@ final class CookieRegistryTest extends TestCase
             if (preg_match_all('/setcookie\s*\(\s*[\'"]([A-Za-z0-9_.-]+)[\'"]/', $body, $m)) {
                 foreach ($m[1] as $n) $found[strtolower($n)] = $path;
             }
+
+            // And the PSR-7 form, which is how the two server-side writers that remain
+            // actually set theirs (Languages::apply(), CookiePrefs::apply()):
+            // `withAddedHeader('Set-Cookie', …)` over parts beginning `self::COOKIE . '='`.
+            // The sweep was blind to it for as long as the templates' `data-cookie`
+            // writers kept the "found nothing" canary quiet; when those pages were
+            // destroyed (docs/handoff/DESTROYED.md) the canary fired, and this is the
+            // repair rather than a relaxation. The name is resolved from the same
+            // file's own constant — one file, one declaration.
+            if (preg_match('/with(?:Added)?Header\(\s*[\'"]Set-Cookie[\'"]/', $body)
+                && preg_match_all('/self::([A-Z_]+)\s*\.\s*[\'"]=/', $body, $m)) {
+                foreach (array_unique($m[1]) as $const) {
+                    if (preg_match('/const\s+' . $const . '\s*=\s*[\'"]([A-Za-z0-9_.-]+)[\'"]/', $body, $c)) {
+                        $found[strtolower($c[1])] = $path;
+                    }
+                }
+            }
         }
 
         $this->assertNotSame([], $found,

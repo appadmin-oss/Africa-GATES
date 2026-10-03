@@ -175,31 +175,6 @@ final class ChallengeFlierTest extends TestCase
         self::assertTrue(self::near('#e6f2e8', self::hexAt($im, 520, 60), 4), 'the ground');
     }
 
-    /**
-     * The flier's palette is the challenge page's own, value for value: a blue challenge
-     * whose page is blue and whose flier is green is two products.
-     */
-    public function test_the_themes_are_the_challenge_pages_tokens(): void
-    {
-        $root   = dirname(__DIR__, 2) . '/public/assets/css';
-        // The palette is emitted by Support\Accent; tokens.css carries no colour.
-        $tokens = \AfricaGates\Support\Accent::css();
-        $css    = (string) file_get_contents($root . '/components/challenge.css');
-        $token  = static function (string $name) use ($tokens): string {
-            self::assertMatchesRegularExpression('~' . preg_quote($name, '~') . '\s*:\s*(#[0-9a-f]{6})~i', $tokens, $name);
-            preg_match('~' . preg_quote($name, '~') . '\s*:\s*(#[0-9a-f]{6})~i', $tokens, $m);
-            return strtolower($m[1]);
-        };
-
-        foreach (ChallengeFlier::THEMES as $theme => $want) {
-            self::assertSame(1, preg_match('~\[data-theme="' . $theme . '"\]\s*\{([^}]*)\}~', $css, $m), "no $theme block");
-            foreach (['fill', 'edge', 'solid'] as $role) {
-                self::assertSame(1, preg_match('~--ch-' . $role . '\s*:\s*var\((--[a-z0-9-]+)\)~', $m[1], $v), "$theme.$role");
-                self::assertSame($token($v[1]), strtolower($want[$role]), "$theme.$role is not the page's {$v[1]}");
-            }
-        }
-    }
-
     /** The ground follows the theme, so a blue challenge gets a blue flier. */
     public function test_the_ground_follows_the_theme(): void
     {

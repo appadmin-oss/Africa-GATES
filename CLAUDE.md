@@ -4,6 +4,11 @@ Start with `docs/CODEBASE-INDEX.md`. This file is only the handful of facts that
 caused a real, shipped bug — the ones worth knowing *before* you write the first line
 rather than after the review.
 
+**On 3 Oct 2026 the old public pages were destroyed** — every template on `layout/gates.twig`
+(and that layout), their partials and page stylesheets; see `docs/handoff/DESTROYED.md`. Where
+a section below names one of those files, it describes the rule the rebuild owes, not a file
+you will find; each page's rules are in `docs/handoff/inventory/`.
+
 ## The stack, and the two shapes of it
 
 PHP 8.4 · Slim 4 · Twig 3 · Eloquent's Capsule used as a **query builder only** (no models,
@@ -306,7 +311,7 @@ colour tokens — `ink`, `ink-2`, `soft`, `mute`, `ground`, `surface`, `bar`, `l
 them **±0, under the handoff's names**, with `Accent` destroyed and rebuilt as that table
 rather than `tokens.css` becoming a second source. `Accent::css()` emits them, plus the
 handoff's shadows (`--ag-sh-*`, which are rgba of the house ink and so are colour), into one
-nonced `<style>` that EVERY layout writes before its stylesheets — gates, shell, and the
+nonced `<style>` that EVERY layout writes before its stylesheets — shell and the
 admin/judge sign-in screens. `public/assets/css/tokens.css` holds sizes, radii, motion and
 layers and **no colour at all**. Mail and GD cannot read `var()`; they ask `Accent::hex('soft')`
 by name, and an unknown name throws rather than painting a button blank.
@@ -357,8 +362,8 @@ transparent)`, never a typed rgba. `DeadTokenTest` counts Accent's emitted names
 declarations, or moving colour into PHP would have exempted every colour token from it.
 
 **Shadows exist now.** This file used to say there were none and depth was "the lip". The
-handoff's shadows were adopted (Q3); the lip survives only on three legacy button classes in
-`components/lip.css` until their pages are rebuilt.
+handoff's shadows were adopted (Q3); `components/lip.css` was destroyed with the old pages,
+so the lip survives nowhere.
 
 `Support\Contrast` is the one relative-luminance implementation; there were four, and the
 fifth is where the wrong threshold lands. Each caller keeps its own threshold (`Swatch`'s
@@ -1413,8 +1418,8 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   `SchemaHas` and its absence means no refund has been recorded rather than an error.
   `RefundedMoneyTest` refunds a real row and requires every figure to move, which is the only
   way to tell a scope that is APPLIED from one that is merely present in the source.
-- **Anything a partner or nominee typed is untrusted in JSON-LD.** `layout/gates.twig`
-  renders it with `JSON_UNESCAPED_SLASHES`, so `</script>` in a campaign title closes the
+- **Anything a partner or nominee typed is untrusted in JSON-LD.** The public layout (it was
+  `layout/gates.twig`, destroyed; the rebuild must keep this) renders it with `JSON_UNESCAPED_SLASHES`, so `</script>` in a campaign title closes the
   script element. Everything in `src/Support/Schema.php` goes through `text()`.
 - **No secrets, no model identifiers, and no operator email addresses in commits.**
 - **And its mirror image: a record everything writes that nothing can ask.** `gates_audit_log`

@@ -397,31 +397,26 @@ return function(App $app) {
         // Grouping by feature is what stops that happening again. Adding a release
         // now means adding a heading, and a heading with nothing under it is
         // obvious in a way that a missing row in a flat list of twelve is not.
+        // Rows that checked a public page template were removed on 3 Oct 2026 when the
+        // old pages were destroyed (docs/handoff/DESTROYED.md): a page deliberately gone
+        // is not an upload that failed, and a ✗ here would send an operator hunting for
+        // it. Each rebuilt page adds its row back.
         $groups = [
             'Comments on a vote, and sharing' => [
-                ['The message box on the paid form', 'templates/pages/vote-nominee.twig', 'id="pvMsg"'],
-                ['The message box on the free form', 'templates/pages/vote-nominee.twig', 'id="vnMsg"'],
                 ['One message, rendered',            'templates/partials/vote-message.twig', 'vmi__act'],
-                ['Cheer / Report behaviour',         'templates/partials/vote-message-assets.twig', 'vmItem'],
-                ['A nominee\'s full wall',           'templates/pages/vote-messages.twig', 'vmi-list'],
-                ['A message\'s own page',            'templates/pages/vote-message.twig', 'vm__quote'],
                 ['The share row',                    'templates/partials/share.twig', 'ag-share--grid'],
                 ['Message routes + card',            'src/Controllers/VoteMessageController.php', 'messageCard'],
                 ['The message card renderer',        'src/Services/FlierService.php', 'messageCard'],
                 ['Moderation queue rows',            'templates/admin/moderation/index.twig', 'vote_message'],
-                ['Quantity chips (deformity fix)',   'templates/pages/vote-nominee.twig', 'vn-qty'],
                 ['Poll options (deformity fix)',     'templates/partials/poll.twig', 'ag-poll__opt'],
             ],
             'The full nomination story, and every supporter' => [
-                ['The story and its “read the full nomination”', 'templates/pages/vote-nominee.twig', 'vn-story'],
-                ['The all-supporters page',                      'templates/pages/vote-supporters.twig', 'vsu__grid'],
                 ['Sentence-aware short lines',                   'src/Support/Text.php', 'firstSentence'],
             ],
             'Profile claiming: the cooling-off period and the freeze link' => [
                 ['The cooling-off rule, with code behind it', 'src/Services/ClaimGuard.php', 'payoutState'],
                 ['The one-tap freeze',                       'src/Services/ClaimDispute.php', 'function freeze'],
                 ['Risk signals that hold rather than refuse', 'src/Services/ClaimRisk.php', 'SHARED_CONTACT_NOMINEES'],
-                ['The confirm-then-freeze page',             'templates/pages/claim-dispute.twig', 'class="cdp"'],
             ],
             'Finding a payment by the number the supporter has' => [
                 ['Reference resolution',            'src/Services/PaymentLookup.php', 'function canonical'],
@@ -433,8 +428,6 @@ return function(App $app) {
                 ['The schedule takes itself over', 'src/Support/Maintenance.php', 'shouldAdopt'],
             ],
             'The Help Centre, and one door for nominations' => [
-                ['A page per topic',            'templates/pages/help-category.twig', 'hcc-list'],
-                ['Packed, capped topic cards',  'templates/pages/help.twig', 'hc-cats'],
                 ['Both nomination doors agree', 'src/Services/NominationAftercare.php', 'function run'],
             ],
             'A chargeback can be answered before the 16 hours run out' => [
@@ -447,17 +440,14 @@ return function(App $app) {
                 ['The sitting, from invite to transcript', 'src/Services/InterviewService.php', 'function publish'],
                 ['Questions built from the dossier',       'src/Services/InterviewBrief.php', 'function fromRules'],
                 ['The transcript read by criterion',       'src/Services/InterviewReview.php', 'function figureCheck'],
-                ['The nominee\'s own consent page',        'templates/pages/interview.twig', 'ivp__consent'],
                 ['The live panel console',                 'templates/admin/interviews/run.twig', 'rn-cov'],
                 ['The Meet + transcript door',             'src/Services/GoogleMeetService.php', 'function createSpace'],
                 ['Apps Script: calendar + transcript',     'config/AfricaGATES_AppScript.gs', 'function meetCreate'],
             ],
             'The nominee\'s own case, in their own words' => [
                 ['The questionnaire, per programme', 'src/Services/QuestionnaireService.php', 'function publishEvidence'],
-                ['The nominee\'s page',              'templates/pages/my-work.twig', 'mw__work'],
                 ['Sending it out',                   'src/Admin/Controllers/QuestionnairesController.php', 'function inviteAll'],
                 ['Answering it as a conversation',    'src/Services/QuestionnaireChat.php', 'function probeFor'],
-                ['Chat, form and live progress',     'templates/pages/my-work.twig', 'mw__prog'],
                 ['Questions read aloud (ElevenLabs)', 'src/Services/VoiceService.php', 'function speak'],
                 ['Answering by talking',              'src/Services/QuestionnaireVoice.php', 'function hear'],
                 ['What the voice notice says',        'src/Services/LegalDocument.php', 'function voiceHtml'],

@@ -173,31 +173,6 @@ class DeployFingerprintTest extends TestCase
     // ── Removing the dependency rather than allowlisting it ─────────────────
 
     /**
-     * Popper and Tippy are served from this origin.
-     *
-     * Both files were committed under public/assets/js/vendor/ all along while the layout
-     * loaded them from unpkg — a cross-origin round trip for bytes already on disk, and a
-     * `script-src` allowlist entry for a dependency that never needed to be remote.
-     * `'self'` is permitted by every policy this site has served, INCLUDING the stale one
-     * still live, so these two work regardless of which CSP is in force.
-     */
-    public function test_vendored_libraries_are_loaded_from_this_origin(): void
-    {
-        $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
-        $root   = dirname(__DIR__, 2) . '/public';
-
-        foreach (['popper-2.11.8.min.js', 'tippy-6.3.7.umd.min.js'] as $file) {
-            $this->assertFileExists($root . '/assets/js/vendor/' . $file);
-            $this->assertStringContainsString('/assets/js/vendor/' . $file, $layout,
-                $file . ' is committed — the layout must not fetch it from a CDN');
-        }
-
-        $code = (string) preg_replace('~\{#.*?#\}~s', '', $layout);
-        $this->assertStringNotContainsString('unpkg.com/@popperjs', $code);
-        $this->assertStringNotContainsString('unpkg.com/tippy.js', $code);
-    }
-
-    /**
      * No template may load a script from an UNPINNED CDN URL.
      *
      * `unpkg.com/tippy.js@6` resolves to whatever that major currently points at, which

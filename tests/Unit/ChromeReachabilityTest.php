@@ -126,10 +126,11 @@ final class ChromeReachabilityTest extends TestCase
         $all = $this->templates();
         $bad = [];
 
-        // The two layouts, and what each can reach. `layout/shell.twig` leaves the app bar
-        // to a `{% block %}` the page fills, so its reach includes the pages that extend
-        // it; `layout/gates.twig` mounts its own chrome through `layout/nav.twig`.
-        foreach (['layout/gates.twig', 'layout/shell.twig'] as $layout) {
+        // The layout, and what it can reach. `layout/shell.twig` leaves the app bar to a
+        // `{% block %}` the page fills, so its reach includes the pages that extend it.
+        // (`layout/gates.twig`, which mounted its own chrome through `layout/nav.twig`,
+        // was destroyed with the old pages — docs/handoff/DESTROYED.md.)
+        foreach (['layout/shell.twig'] as $layout) {
             $reach = $this->reach($layout, $all);
 
             foreach (self::SHEETS as $sheet => $trigger) {

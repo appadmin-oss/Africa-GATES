@@ -107,31 +107,6 @@ class OgImageTest extends TestCase
         $this->assertStringContainsString(".svg'", $src, 'the fallback target');
     }
 
-    public function test_the_dimensions_the_meta_tags_declare_match_the_image(): void
-    {
-        // A mismatch means a cropped or letterboxed preview. Both sides read the same
-        // constants, so this pins that they are the ones actually rendered.
-        //
-        // OG_W/OG_H now, not W/H: the preview is the 1200x630 card, and declaring the
-        // flier's 1080x1350 beside it would tell every crawler the wrong aspect ratio —
-        // which several act on before they have fetched the image at all.
-        $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
-
-        $this->assertStringContainsString('og:image:width', $layout);
-        $this->assertStringContainsString('og:image:height', $layout);
-        $this->assertStringContainsString('og:image:type', $layout);
-
-        foreach ([
-            dirname(__DIR__, 2) . '/src/Controllers/VoteController.php',
-            dirname(__DIR__, 2) . '/src/Controllers/FlierController.php',
-        ] as $file) {
-            $src = (string) file_get_contents($file);
-            $this->assertStringContainsString('FlierService::OG_W', $src,
-                basename($file) . ' must declare the width from the renderer, not a literal');
-            $this->assertStringContainsString('FlierService::OG_H', $src);
-        }
-    }
-
     public function test_the_og_image_url_is_absolute(): void
     {
         // A relative og:image is silently ignored by every crawler and the preview falls

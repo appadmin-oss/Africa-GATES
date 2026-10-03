@@ -173,38 +173,9 @@ final class ColourBudgetTest extends TestCase
      * @var list<string>
      */
     private const UNDECLARED = [
-        'templates/pages/blog/index.twig',
-        'templates/pages/community/new-thread.twig',
-        'templates/pages/community/thread.twig',
-        'templates/pages/community/threads.twig',
-        'templates/pages/error.twig',
-        'templates/pages/events.twig',
-        'templates/pages/events/detail.twig',
-        'templates/pages/form.twig',
-        'templates/pages/gated-form.twig',
-        'templates/pages/home.twig',
-        'templates/pages/judges.twig',
-        'templates/pages/leaderboard.twig',
-        'templates/pages/nominate-award.twig',
-        'templates/pages/nominate-success.twig',
-        'templates/pages/nominate.twig',
-        'templates/pages/partner.twig',
-        'templates/pages/pulse.twig',
-        'templates/pages/registry/index.twig',
-        'templates/pages/registry/register.twig',
-        'templates/pages/results/late.twig',
-        'templates/pages/results/show.twig',
-        'templates/pages/shop/alert-stopped.twig',
-        'templates/pages/shop/index.twig',
-        'templates/pages/shop/item.twig',
-        'templates/pages/shop/order.twig',
-        'templates/pages/support-assistant.twig',
-        'templates/pages/support-ticket-link.twig',
-        'templates/pages/support-tickets.twig',
-        'templates/pages/support.twig',
-        'templates/pages/vote-program.twig',
-        'templates/pages/vote-verify.twig',
-        'templates/pages/vote.twig',
+        // Empty since 3 Oct 2026: every page that was on it was destroyed with the old
+        // pages (docs/handoff/DESTROYED.md). A rebuilt page declares its tier from its
+        // first commit; nothing is ever added here again.
     ];
 
     public function test_a_template_that_spends_colour_declares_what_it_may_spend(): void
@@ -259,7 +230,8 @@ final class ColourBudgetTest extends TestCase
     public function test_chrome_is_not_charged_to_a_page(): void
     {
         $root = dirname(__DIR__, 2);
-        foreach (['templates/layout/nav.twig', 'templates/layout/gates.twig'] as $chrome) {
+        // `layout/gates.twig` left this list when it was destroyed (DESTROYED.md).
+        foreach (['templates/layout/nav.twig'] as $chrome) {
             $this->assertFileExists($root . '/' . $chrome);
             $this->assertArrayNotHasKey($chrome, $this->pages());
         }
@@ -285,8 +257,12 @@ final class ColourBudgetTest extends TestCase
         }
         sort($claimed);
 
-        $this->assertSame(['templates/pages/results/edition.twig', 'templates/pages/results/hall.twig'], $claimed,
-            'a third page is claiming the honour band — a band on a third page is a band that has stopped meaning anything.');
+        // The two holders — results/edition.twig and results/hall.twig — were destroyed
+        // with the old pages; the privilege is recorded in their inventories
+        // (docs/handoff/inventory/) and a rebuilt page that claims it adds itself here,
+        // never a third.
+        $this->assertSame([], $claimed,
+            'a page is claiming the honour band — only the rebuilt edition and hall pages may, and only by adding themselves here.');
     }
 
     /**
@@ -307,7 +283,9 @@ final class ColourBudgetTest extends TestCase
         }
         ksort($claimed);
 
-        $this->assertSame(['templates/pages/vote-nominee.twig' => 'gold'], $claimed,
+        // The one holder — vote-nominee.twig's gold laurel, drawn only once voting has
+        // closed — was destroyed with the old pages; its rebuild adds itself back here.
+        $this->assertSame([], $claimed,
             'a page is claiming one of its families is drawn in a state excluding the others');
 
         // The family named must exist, or the subtraction silently removes nothing.
@@ -413,11 +391,9 @@ final class ColourBudgetTest extends TestCase
         }
         $this->assertSame([], $bad, implode("\n  ", $bad));
 
-        $vote    = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/vote-nominee.twig');
-        $regions = $this->paidRegions((string) preg_replace('/\{#.*?#\}/s', '', $vote));
-        $this->assertNotSame([], $regions, 'the ballot marks no paid region at all');
-        $this->assertStringContainsString('vn-qty', $regions[0],
-            'the marked region does not contain the pack controls');
+        // The second half read the ballot (vote-nominee.twig) and required its marked
+        // region to hold the pack controls (`vn-qty`). The ballot was destroyed; the rule
+        // is in its inventory for the rebuild to re-assert.
     }
 
     public function test_the_money_rule_fails_on_a_planted_fill(): void

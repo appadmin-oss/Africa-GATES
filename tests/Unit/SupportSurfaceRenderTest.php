@@ -170,35 +170,6 @@ final class SupportSurfaceRenderTest extends TestCase
 
     // ── where it is actually placed ──────────────────────────────────────────
 
-    public function test_the_pressure_points_all_include_it(): void
-    {
-        // Named explicitly: this is the list that stops the prompt quietly
-        // disappearing from the page it matters most on during a redesign.
-        $root = dirname(__DIR__, 2) . '/templates/pages/';
-        foreach ([
-            'pay-success.twig'       => 'the wallet payer who is told only "awaiting confirmation"',
-            'vote-paid-success.twig' => 'the buyer whose votes were not minted',
-            'vote-nominee.twig'      => 'the ballot, where they are one tap from paying twice',
-            'error.twig'             => 'a 500 catches somebody mid-payment',
-            'status.twig'            => 'green board, missing money — the most frustrating combination there is',
-        ] as $file => $why) {
-            $this->assertStringContainsString(
-                "partials/support-prompt.twig", (string) file_get_contents($root . $file),
-                $file . ': ' . $why
-            );
-        }
-    }
-
-    public function test_the_unconfirmed_payment_page_hands_over_its_reference(): void
-    {
-        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/pay-success.twig');
-
-        $this->assertMatchesRegularExpression(
-            "/support-prompt\.twig' with \{ sp_kind: 'payment', sp_ref: reference/", $src,
-            'the whole point is that the reader never retypes the reference'
-        );
-    }
-
     // ── the ticket thread ────────────────────────────────────────────────────
 
     public function test_an_escalated_conversation_opens_as_turns_not_as_one_blob(): void
@@ -236,53 +207,4 @@ final class SupportSurfaceRenderTest extends TestCase
     }
 
     // ── the nominee brief ────────────────────────────────────────────────────
-
-    public function test_the_nominee_brief_appears_once_and_is_never_truncated(): void
-    {
-        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/vote-nominee.twig');
-
-        // It belongs in the About card, where there is room for it, and NOT in
-        // the hero as well — printing it twice made the reader meet the same
-        // paragraph again forty pixels later, and pushed the vote count and the
-        // CTA down the page on a phone.
-        // `_case` is the nominee's case for the ballot: the full `story` where one
-        // exists, falling back to `tagline` for rows approved before the story column
-        // did. Printed exactly ONCE, and not in the hero as well.
-        $this->assertSame(1, substr_count($src, '{{ _case|nl2br }}'),
-            'the nominee\'s case is printed exactly once');
-        $this->assertStringNotContainsString('vn-bioline', $src,
-            'the hero copy is gone, and so is the CSS that positioned it');
-
-        // ── AND IT IS THE FULL TEXT ──────────────────────────────────────────
-        // The story is what approval now keeps in full; `tagline` is only the fallback
-        // for un-backfilled rows. A template reading tagline FIRST would reintroduce
-        // the 200-character truncation this whole change exists to remove.
-        $this->assertStringContainsString('{% set _story = n.story|default(\'\')|trim %}', $src);
-        $this->assertStringContainsString('{% set _case  = _story ?: _brief %}', $src,
-            'the story must be preferred over the short tagline');
-
-        // And nothing is destroyed on the way there.
-        $this->assertStringNotContainsString('n.tagline|slice', $src);
-        $this->assertStringNotContainsString('n.tagline|u.truncate', $src);
-        $this->assertStringNotContainsString('n.story|slice', $src);
-        // The clamp is a CSS class applied by Alpine after measuring, never a Twig
-        // truncation — so the whole text is in the HTML for a crawler and for anyone
-        // whose JavaScript never runs.
-        $this->assertStringContainsString('long = $refs.story.scrollHeight', $src,
-            'the clamp must be measured at runtime, not baked into the markup');
-        $this->assertStringContainsString('overflow-wrap:anywhere', $src,
-            'a pasted URL must break rather than widen the column');
-    }
-
-    public function test_a_registry_bio_no_longer_swallows_the_nomination_brief(): void
-    {
-        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/vote-nominee.twig');
-
-        // The brief is the one place a nominee's case is stated in their
-        // nominator's words. It used to vanish entirely whenever a registry
-        // profile existed, because the bio REPLACED it rather than joining it.
-        $this->assertStringNotContainsString("(profile and profile.bio) ? profile.bio : n.tagline", $src);
-        $this->assertStringContainsString('_case != _bio', $src,
-            'and when the two are the same text, only one of them prints');
-    }
 }

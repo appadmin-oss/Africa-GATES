@@ -82,31 +82,6 @@ final class CookieConsentRouteTest extends TestCase
         return $this->app()->handle($r);
     }
 
-    public function test_the_cookies_page_carries_the_control_and_the_real_list(): void
-    {
-        $res  = $this->get('/cookies');
-        $html = (string) $res->getBody();
-
-        $this->assertSame(200, $res->getStatusCode());
-        $this->assertStringContainsString('id="your-choice"', $html,
-            'the switch the page promises is not on the page');
-        $this->assertStringContainsString('action="/cookies/choice"', $html);
-        $this->assertStringContainsString('name="_token"', $html);
-
-        // Every cookie, named, on the page that exists to name them. `ag_region` and
-        // `ag_currency` were set for a year and unmentioned for as long.
-        foreach (CookieRegistry::names() as $name) {
-            $this->assertStringContainsString($name, $html, "'{$name}' is not published");
-        }
-
-        // And the counting is admitted, in the section a visitor can be linked to.
-        $this->assertStringContainsString('id="counting-arrivals"', $html);
-
-        $low = strtolower($html);
-        $this->assertStringNotContainsString('we set one cookie', $low);
-        $this->assertStringNotContainsString('we run no analytics', $low);
-    }
-
     public function test_pressing_the_button_stores_the_refusal_and_comes_back(): void
     {
         $req = (new ServerRequestFactory())
@@ -199,33 +174,5 @@ final class CookieConsentRouteTest extends TestCase
         $this->assertStringContainsString('</body>', $html, 'the page did not reach the layout');
 
         return $html;
-    }
-
-    public function test_the_notice_appears_on_an_ordinary_page_in_ask_first_mode(): void
-    {
-        DB::table('gates_settings')->where('key_name', CookiePrefs::MODE_KEY)->delete();
-        DB::table('gates_settings')->insert([
-            'key_name' => CookiePrefs::MODE_KEY, 'value' => CookiePrefs::MODE_CONSENT,
-        ]);
-
-        $html = $this->ordinaryPage();
-
-        // A `consent` mode with nowhere to consent is a switch that counts nobody for
-        // ever: never asked, so never a yes, so the report goes quiet and the screen says
-        // "nobody came". The mode and the question are one feature.
-        $this->assertStringContainsString('May we count this visit?', $html);
-        $this->assertStringContainsString('name="return" value="/"', $html);
-
-        // Not on the page that carries the full control, two inches below.
-        $this->assertStringNotContainsString('May we count this visit?',
-            (string) $this->get('/cookies')->getBody());
-
-        // And not once they have answered.
-        $this->assertStringNotContainsString('May we count this visit?',
-            (string) $this->get('/', [CookiePrefs::COOKIE => CookiePrefs::NO])->getBody());
-
-        // Nor when their browser has already said no for them.
-        $this->assertStringNotContainsString('May we count this visit?',
-            (string) $this->get('/', [], ['Sec-GPC' => '1'])->getBody());
     }
 }

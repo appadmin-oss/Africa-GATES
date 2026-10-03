@@ -480,22 +480,6 @@ class StandingsAndFlierTest extends TestCase
         $this->assertTrue($f['ok'], 'missing: ' . implode(', ', $f['missing']));
     }
 
-    public function test_the_bundled_fonts_are_the_faces_the_site_actually_loads(): void
-    {
-        // Not the ones the CSS mentions. Montserrat appears in some stylesheets but the
-        // layout never loads it, so it was already rendering as a fallback everywhere —
-        // and the first version of this flier bundled it, which would have made the
-        // graphic use a typeface that appears nowhere else on the site.
-        $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
-
-        $this->assertStringContainsString('family=DM+Sans', $layout);
-        $this->assertStringContainsString('family=Playfair+Display', $layout);
-        $this->assertFileExists(dirname(__DIR__, 2) . '/resources/fonts/DMSans-Bold.ttf');
-        $this->assertFileExists(dirname(__DIR__, 2) . '/resources/fonts/PlayfairDisplay-Bold.ttf');
-        $this->assertFileDoesNotExist(dirname(__DIR__, 2) . '/resources/fonts/Montserrat-Bold.ttf',
-            'Montserrat is not a face this site loads');
-    }
-
     public function test_the_fonts_cover_the_orthographies_this_platform_serves(): void
     {
         // Subsetting is where a font quietly stops working for a whole language. Every
@@ -591,52 +575,6 @@ class StandingsAndFlierTest extends TestCase
         // Both name the same font families / files.
         $this->assertStringContainsString('DM Sans', $svg);
         $this->assertStringContainsString('Playfair Display', $svg);
-    }
-
-    public function test_the_svg_and_the_canvas_do_not_drift_apart(): void
-    {
-        // The SVG and the PNG are two renderings of ONE design — server-side XML and
-        // browser-side canvas — so a rule fixed in one and not the other means the
-        // graphic a nominee downloads differs from the one they previewed. That already
-        // happened once: the letters-only monogram rule was corrected in
-        // FlierService::initials() and the canvas kept producing "N4".
-        //
-        // A full pixel comparison is not what this can assert. What it can is that both
-        // sides carry the same GEOMETRY constants and the same guarded rules, so a change
-        // to one without the other is visible here.
-        // THE CANVAS IS GONE, and its removal is the point. The PNG was drawn in the
-        // browser to avoid GD needing a font file — defensible while it was only a
-        // download, indefensible once the graphic had to be an og:image, because a
-        // crawler cannot run JavaScript. It also produced a real bug: a monogram rule
-        // fixed in the SVG kept rendering the old way on the canvas.
-        //
-        // So the drift risk is now between two methods in ONE class, and this asserts
-        // the template no longer contains a second renderer at all.
-        $twig = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/vote-flier.twig');
-
-        $this->assertStringNotContainsString('getContext(\'2d\')', $twig,
-            'the flier must have exactly one renderer, and it is server-side');
-        $this->assertStringNotContainsString('toBlob', $twig);
-        // Both downloads are plain links, so they work with JavaScript off.
-        $this->assertMatchesRegularExpression('~href="\{\{ png_url \}\}"[^>]*download~', $twig);
-        $this->assertMatchesRegularExpression('~href="\{\{ svg_url \}\}"[^>]*download~', $twig);
-
-        // And the jury footnote, which must never be dropped from either encoding.
-        // It is now a single constant on FlierLayout rather than a literal repeated in
-        // each renderer — which is the stronger version of what this assertion wanted,
-        // because the two encodings can no longer disagree about the wording at all.
-        $svg = (new FlierService())->svg($this->flierFor($this->nominee('Footnote Check', 3)));
-        $this->assertStringContainsString('An independent jury decides the award', $svg);
-        $this->assertStringContainsString('An independent jury decides the award',
-            \AfricaGates\Services\FlierLayout::FOOTNOTE);
-
-        // All three renderers must draw that constant and none may carry its own copy —
-        // a second literal is precisely how the two encodings drifted last time.
-        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Services/FlierService.php');
-        $this->assertStringNotContainsString('An independent jury decides the award', $src,
-            'the footnote belongs to FlierLayout; a literal here is a second copy waiting to drift');
-        $this->assertGreaterThanOrEqual(3, substr_count($src, 'FlierLayout::FOOTNOTE'),
-            'the SVG, the flier raster and the OG card must each draw the shared footnote');
     }
 
     public function test_the_flier_carries_no_contact_detail(): void

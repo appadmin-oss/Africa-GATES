@@ -364,26 +364,6 @@ final class StandPhotosTest extends TestCase
     // ── arriving with the form ──────────────────────────────────────────────
 
     /**
-     * The photographs ride along in the single POST that was already there.
-     *
-     * There is nothing to attach them to before that: the application does not exist
-     * until the form is submitted. So they are staged in the browser and posted as one
-     * more part of the same request, which is also why the form carries an enctype now —
-     * without it the browser sends the filenames as text and the photographs never leave
-     * the machine, silently, with a 200 and a cheerful success page.
-     */
-    public function test_the_form_posts_the_photographs_with_everything_else(): void
-    {
-        $t = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/stands/apply.twig');
-
-        $this->assertStringContainsString('enctype="multipart/form-data"', $t,
-            'the form carries files and did not say so');
-        $this->assertStringContainsString('name="photos[]"', $t);
-        // The admin CSP has no 'unsafe-inline', and the public pages follow the same rule.
-        $this->assertStringNotContainsString('onclick=', $t);
-    }
-
-    /**
      * A refused photograph never costs somebody the form they just filled in.
      *
      * The application is recorded first and the photographs are filed after it, so a

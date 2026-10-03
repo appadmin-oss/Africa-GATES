@@ -33,10 +33,9 @@ final class SupportTicketNamingTest extends TestCase
 {
     /** The surfaces where the word means the support desk. */
     private const SURFACES = [
-        'templates/pages/support-tickets.twig',
-        'templates/pages/support.twig',
-        'templates/pages/support-ticket-link.twig',
-        'templates/pages/support-assistant.twig',
+        // The four public support pages (support-tickets, support, support-ticket-link,
+        // support-assistant) left this list on 3 Oct 2026 when they were destroyed
+        // (docs/handoff/DESTROYED.md); each rebuild adds itself back.
         'templates/admin/support/index.twig',
         'templates/admin/support/show.twig',
     ];
@@ -55,24 +54,7 @@ final class SupportTicketNamingTest extends TestCase
      */
     private const SCRIPT_COPY = [
         'public/assets/js/gee.js'                     => 'my_tickets:',
-        'templates/pages/support-assistant.twig'      => 'my_tickets:',
     ];
-
-    public function test_the_assistants_own_labels_say_support_ticket(): void
-    {
-        $root = dirname(__DIR__, 2) . '/';
-
-        foreach (self::SCRIPT_COPY as $rel => $key) {
-            $src = (string) file_get_contents($root . $rel);
-
-            $this->assertMatchesRegularExpression(
-                "~" . preg_quote($key, "~") . "\\s*'[^']*support tickets?'~",
-                $src,
-                $rel . " tells a reader it checked their \"tickets\" — on an event page that is "
-                     . 'the thing they just bought'
-            );
-        }
-    }
 
     /**
      * Everything a reader actually sees: comments, styles, scripts, Twig tags and
@@ -110,57 +92,5 @@ final class SupportTicketNamingTest extends TestCase
 
         $this->assertSame([], $bad,
             "a support surface says \"ticket\" where the member also has event tickets:\n" . implode("\n", $bad));
-    }
-
-    /**
-     * And the qualified form is really on the page — a scan for what is ABSENT
-     * passes just as happily on a page that says nothing at all.
-     */
-    public function test_the_member_desk_names_them(): void
-    {
-        $s = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/support-tickets.twig');
-
-        foreach (['Your support tickets', 'Raise a support ticket', 'Open support ticket',
-                  'aria-label="Support ticket status"', 'aria-label="Filter support tickets by status"'] as $phrase) {
-            $this->assertStringContainsString($phrase, $s);
-        }
-    }
-
-    /**
-     * Event tickets are NOT renamed. They are tickets: a thing with a code, shown
-     * at a door. "Support ticket" on the account page's events panel would be a
-     * straight lie, and this test exists so a future sweep does not make it.
-     */
-    public function test_event_tickets_keep_their_name(): void
-    {
-        $me = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/account/dashboard.twig');
-
-        // ── THE RULE, NOT THE MARKUP ─────────────────────────────────────────────
-        //
-        // This pinned the literal `<p class="me-panel__h">Tickets</p>`, and when the page
-        // was rebuilt to the design comp that class stopped existing — so the test failed
-        // on a page where the rule was perfectly intact. That is the "right rule, wrong
-        // token" failure this codebase keeps paying for, inside the guard against it.
-        //
-        // What has to stay true is that an EVENT ticket is called a ticket on this page,
-        // distinctly from a support ticket.
-        //
-        // And it moved AGAIN, which is why this no longer looks at markup at all: the
-        // quick tile and the purchase filter are both generated from arrays now, so the
-        // word is a quoted label and `>Tickets<` appears nowhere — the rule intact, the
-        // guard red for the second time over the same sentence. The word is a LABEL
-        // wherever it is written, so this strips the comments (a word nobody renders is
-        // not a label) and asks whether the page labels anything "Tickets", in an
-        // element or in a list a loop prints.
-        $body = (string) preg_replace('~\{#.*?#\}~s', ' ', $me);
-        $this->assertMatchesRegularExpression(
-            '~(>\s*Tickets\s*<|[\'"]Tickets[\'"])~', $body,
-            'nothing on the account page is labelled "Tickets" any more — an event ticket '
-            . 'needs its own name, distinct from a support ticket'
-        );
-        $this->assertStringNotContainsString('support ticket code', strtolower($me));
-        $this->assertStringNotContainsString('raise a ticket', strtolower($me),
-            'support language on the page that lists event tickets is the confusion this '
-            . 'test exists to prevent');
     }
 }

@@ -183,41 +183,6 @@ class OrgApplyTest extends TestCase
         $this->assertSame($before, (int) DB::table('gates_partner_orgs')->count());
     }
 
-    /**
-     * A bad detail must not cost them the other nine fields.
-     *
-     * The old page re-rendered in place; this one redirects back to the branch with the
-     * message and the values in the session, which is the pattern the member half already
-     * uses. So the test follows the redirect — asserting only that the POST bounced would
-     * pass on a handler that dropped every field on the floor.
-     */
-    public function test_a_rejected_form_comes_back_filled_in(): void
-    {
-        $res = $this->apply($this->form(['password' => 'tooshort']));
-
-        $this->assertSame(302, $res->getStatusCode());
-        $this->assertSame('/account/register?as=organisation', $res->getHeaderLine('Location'));
-
-        $html = $this->applyForm();
-        $this->assertStringContainsString('at least 12 characters', $html);
-        $this->assertStringContainsString('Bright Futures Initiative', $html);
-        $this->assertStringContainsString('IT/1234567', $html);
-
-        // Never handed back, even for one redirect: a session bag is not where a password
-        // belongs, and the field is re-typed rather than repopulated.
-        $this->assertStringNotContainsString('tooshort', $html);
-    }
-
-    /** The requirements are on the page, above the form, not behind a link. */
-    public function test_the_page_states_what_it_will_ask_for(): void
-    {
-        $html = $this->applyForm();
-
-        foreach (['CAC registration', 'SCUML', 'registered name', 'with a reason'] as $needle) {
-            $this->assertStringContainsString($needle, $html);
-        }
-    }
-
     // ──────────────────── one registered body, one record ───────────────────
 
     /**
@@ -275,27 +240,6 @@ class OrgApplyTest extends TestCase
     // ───────────────────────── the door it now lives behind ─────────────────
 
     /**
-     * The chooser sends a non-profit to the branch, not to a page of its own.
-     *
-     * This is the fault the chooser itself was built to fix, one level up: a mechanism with
-     * no findable way in. Two doors to one thing is the same fault wearing the other face —
-     * the chooser pointed off to a separate address, and the two screens disagreed about
-     * what registering here even is.
-     */
-    public function test_the_chooser_opens_the_application_in_place(): void
-    {
-        $html = (string) $this->ctrl()->registerForm(
-            (new ServerRequestFactory())->createServerRequest('GET', '/account/register'),
-            new Response()
-        )->getBody();
-
-        $this->assertStringContainsString('/account/register?as=organisation', $html,
-            'the chooser no longer offers the organisation branch');
-        $this->assertStringNotContainsString('/giving/apply', $html,
-            'the chooser still sends a non-profit to the retired page');
-    }
-
-    /**
      * The branch travels in the BODY, and the handler reads it there.
      *
      * A submit does not carry a query string. A controller forking on `?as=` would send
@@ -319,44 +263,6 @@ class OrgApplyTest extends TestCase
     }
 
     // ───────────────── the two branches do not share a pocket ───────────────
-
-    /**
-     * A FAILED APPLICATION MUST NOT PREFILL THE OTHER FORM.
-     *
-     * Both branches kept their rejected values under one session key, and `name` means
-     * different things on either side — a person on one, an organisation on the other. So
-     * a failed application for "Bright Futures Initiative" put that string into the Full
-     * name field of the individual form, for anybody who backed out and started again as
-     * themselves.
-     *
-     * Nothing threw and nothing looked wrong. A prefilled field IS the feature, and the
-     * value was one the same person had typed a minute earlier — which is exactly why it
-     * needed keying rather than patching: the next field the two branches happen to name
-     * alike would have done it again, silently.
-     */
-    public function test_a_failed_application_does_not_leak_into_the_member_form(): void
-    {
-        $this->apply($this->form(['name' => 'Bright Futures Initiative', 'password' => 'short']));
-
-        $html = (string) $this->ctrl()->registerForm(
-            (new ServerRequestFactory())
-                ->createServerRequest('GET', '/account/register?as=individual')
-                ->withQueryParams(['as' => 'individual']),
-            new Response()
-        )->getBody();
-
-        $this->assertStringNotContainsString('Bright Futures Initiative', $html,
-            "the organisation's name is prefilled into the member form's Full name field");
-    }
-
-    /** And the application's own values still come back to the application. */
-    public function test_the_application_still_gets_its_own_values_back(): void
-    {
-        $this->apply($this->form(['password' => 'short']));
-
-        $this->assertStringContainsString('Bright Futures Initiative', $this->applyForm(),
-            'keying the bag per branch emptied the branch it belongs to');
-    }
 
     // ────────────────────── member registration is throttled ────────────────
 

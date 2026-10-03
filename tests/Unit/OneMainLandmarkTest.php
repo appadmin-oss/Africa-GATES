@@ -8,8 +8,8 @@ use Tests\TestCase;
 /**
  * One `<main>` per page.
  *
- * Both layouts own the landmark — `gates.twig` and `shell.twig` each render
- * `<main id="main">` around their content block — so a page that opens its own puts a
+ * The layout owns the landmark — `shell.twig` renders `<main id="main">` around its
+ * content block, as `gates.twig` did until it was destroyed — so a page that opens its own puts a
  * second main landmark inside the first, with a second `id="main"`. Four did: the
  * challenge page, the challenge list and both nominee-confirmation screens. A screen
  * reader's landmark list then offers two "main" regions, and the skip link's
@@ -41,7 +41,7 @@ final class OneMainLandmarkTest extends TestCase
 
     public function test_each_layout_has_exactly_one(): void
     {
-        foreach (['gates', 'shell'] as $l) {
+        foreach (['shell'] as $l) {   // `gates` was destroyed (docs/handoff/DESTROYED.md)
             $src = (string) preg_replace('~\{#.*?#\}~s', '',
                 (string) file_get_contents(dirname(__DIR__, 2) . "/templates/layout/{$l}.twig"));
             $this->assertSame(1, preg_match_all('~<main\b[^>]*\bid="main"~', $src), "{$l}.twig");

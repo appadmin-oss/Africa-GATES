@@ -361,73 +361,6 @@ final class GlobeBandTest extends TestCase
     }
 
     /**
-     * THE NOTE STATES WHAT THE MARKERS ARE AND CLAIMS NO MEASUREMENT.
-     *
-     * The retired line spoke of a routing node nearest the voter and a median
-     * confirmation time in seconds — a latency, a piece of infrastructure, and an air of
-     * instrumentation, none of it recorded anywhere here. §19's lesson is that prose
-     * outlives the rule it describes, so the prose is swept and not only the code.
-     *
-     * ── IT SWEEPS WHAT A READER SEES, NOT THE FILE ──────────────────────────
-     *
-     * Twig comments are stripped first. This repo has already shipped a sweep that its
-     * own explanatory comment tripped, and the lesson recorded from it was to describe
-     * the retired label rather than quote it — which is a rule about how to write
-     * comments, enforced by making comments unwritable. Removing them from the subject
-     * fixes the sweep instead of the prose: a `{# … #}` block reaches nobody, so it was
-     * never in scope, and now the comment above the change may name what it removed.
-     */
-    public function test_the_note_claims_nothing_the_platform_cannot_count(): void
-    {
-        $this->nominee('Adaeze Nwankwo', 'NG', 10);
-
-        $rendered = preg_replace('~\{#.*?#\}~s', '', (string) file_get_contents(self::TWIG));
-
-        foreach ([GlobeBand::note(), (string) $rendered] as $subject) {
-            foreach (['verification node', 'median', 'seconds', '1.3'] as $claim) {
-                $this->assertStringNotContainsStringIgnoringCase($claim, $subject,
-                    "the band still speaks of '$claim', which nothing here measures");
-            }
-        }
-    }
-
-    /**
-     * THE FAKE SET CANNOT COME BACK, AND IT IS THE KIND THAT WOULD.
-     *
-     * Sixteen cities with plausible ballot counts read as data in a diff and render
-     * beautifully. Each token below is a load-bearing piece of the retired model:
-     * `ballots`/`verify_seconds` were the invented figures, `FALLBACK` the set itself,
-     * `geoInterpolate` the arcs drawn between "nodes", and `hub` the node concept.
-     */
-    /**
-     * THE BAND DOES NOT EAT THE PAGE'S SCROLL ON A PHONE.
-     *
-     * `touch-action:none` cancels every browser touch gesture for a press that STARTS
-     * inside the element — page scrolling included. The stage is up to 560px tall on a
-     * phone, so a finger landing almost anywhere in the band could not move the page,
-     * and the failure reads as the page having frozen rather than as anything to do with
-     * a globe. Nothing throws and nothing logs; it is invisible to every check that does
-     * not put a thumb on it.
-     *
-     * `pan-y` is the fix and the thing to keep: the browser keeps the vertical axis, the
-     * drag keeps the horizontal one it actually turns on, and up/down stay reachable by
-     * the arrow keys and by focusing a marker.
-     */
-    public function test_the_stage_does_not_cancel_the_page_scroll(): void
-    {
-        // DECLARATIONS ONLY. A browser never sees a comment, so neither does this — and
-        // the comment above the fix necessarily names the value it replaced. Sweeping the
-        // raw file makes the explanation unwritable, which is this repo's own rule about
-        // a comment that documents a removal.
-        $css = self::declarationsOf((string) file_get_contents(self::CSS));
-
-        $this->assertMatchesRegularExpression('~\.reg__stage\{[^}]*touch-action:\s*pan-y~s', $css,
-            'the stage must leave the vertical axis to the browser');
-        $this->assertDoesNotMatchRegularExpression('~\.reg__stage\{[^}]*touch-action:\s*none~s', $css,
-            'touch-action:none on the stage makes the band a scroll trap on a phone');
-    }
-
-    /**
      * THE SPHERE IS NOT SIZED FOR A CARD THAT IS NOT BESIDE IT.
      *
      * The width factor is clearance for the 186px annotation card at `right:0`. Below
@@ -533,51 +466,7 @@ final class GlobeBandTest extends TestCase
         $this->assertStringContainsString('d3.geoContains', $js);
     }
 
-    /**
-     * A card row whose value can only be an em dash is worse than an absent row — it
-     * reads as data that failed to load. Both retired rows named things this platform
-     * does not record.
-     */
-    public function test_the_country_card_has_no_row_the_platform_cannot_fill(): void
-    {
-        $twig = (string) preg_replace('~\{#.*?#\}~s', '',
-            (string) file_get_contents(self::TWIG));
-
-        $this->assertStringNotContainsString('data-globe-verify', $twig);
-        $this->assertStringNotContainsString('data-globe-node', $twig);
-        $this->assertStringContainsString('data-globe-nominees', $twig);
-        $this->assertStringContainsString('data-globe-votes', $twig);
-    }
-
     // ══ and it is actually on the page ═══════════════════════════════════════
-
-    /**
-     * A COMPONENT WITH NO INCLUDE IS §18 AGAIN — every piece complete, nothing serving it.
-     *
-     * The band's three assets are asserted with it: `globe-band.js` no-ops without d3 and
-     * topojson, so a missing vendor tag is not an error anywhere, just a band that never
-     * paints. And the duplicate stat strip has to be GONE, not merely superseded: two
-     * strips one scroll apart saying the same thing is what the handoff asked to resolve.
-     */
-    public function test_the_band_is_on_the_homepage_with_its_assets_and_the_duplicate_strip_is_gone(): void
-    {
-        $home = (string) file_get_contents(self::HOME);
-
-        $this->assertStringContainsString("include 'partials/globe-band.twig'", $home);
-        $this->assertStringContainsString('/assets/css/globe-band.css', $home);
-        foreach ([
-            '/assets/js/vendor/d3-7.9.0.min.js',
-            '/assets/js/vendor/topojson-client-3.1.0.min.js',
-            '/assets/js/globe-band.js',
-        ] as $asset) {
-            $this->assertStringContainsString($asset, $home,
-                "the homepage does not load $asset");
-        }
-
-        // The strip's markup and its CSS both go; a dead rule is the next reader's puzzle.
-        $this->assertStringNotContainsString('class="hm-stats"', $home);
-        $this->assertStringNotContainsString('.hm-stat{', $home);
-    }
 
     /**
      * THE CONTROLLER HANDS THE BAND ITS DATA, WHICH IS THE ONLY THING THAT MAKES IT REAL.

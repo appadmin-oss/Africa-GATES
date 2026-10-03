@@ -261,66 +261,6 @@ final class VoteRecoveryReachableTest extends TestCase
 
     // ══ the way out: it cannot be quiet ══════════════════════════════════════
 
-    /**
-     * THE CONTROL THE DOCTRINE CALLS THE STRONGEST ONE.
-     *
-     * "Published, because the strongest control on a mechanism like this is not any
-     * of the approvals — it is that using it cannot be quiet." The approvals bind the
-     * people who happen to be in the room; publication binds everybody afterwards.
-     */
-    public function test_applied_votes_are_named_on_the_nominees_own_public_page(): void
-    {
-        $id = $this->openBatch(3);
-        $ref = (string) Recover::batch($id)->reference;
-
-        $this->as(self::PREPARER);
-        $this->post('submit', [], ['id' => $id]);
-        $this->as(self::APPROVER);
-        $this->post('approve', [], ['id' => $id]);
-        $this->post('apply', ['confirm' => 'APPLY'], ['id' => $id]);
-
-        $html = $this->publicPage();
-
-        $this->assertStringContainsString('added by us', $html,
-            'three votes were put on a public tally and the page said nothing');
-        $this->assertStringContainsString('Relay rejected every send', $html,
-            'the disclosure does not say what went wrong');
-        $this->assertStringContainsString($ref, $html,
-            'the reference exists so a reader can name the batch and ask about it');
-    }
-
-    /** And a reversal takes them off the disclosure with them. */
-    public function test_a_reversed_batch_stops_being_disclosed(): void
-    {
-        $id = $this->openBatch(3);
-        $this->as(self::PREPARER);
-        $this->post('submit', [], ['id' => $id]);
-        $this->as(self::APPROVER);
-        $this->post('approve', [], ['id' => $id]);
-        $this->post('apply', ['confirm' => 'APPLY'], ['id' => $id]);
-        $this->assertStringContainsString('added by us', $this->publicPage());
-
-        $this->post('void', ['reason' => 'The relay log was misread.'], ['id' => $id]);
-
-        $this->assertStringNotContainsString('added by us', $this->publicPage(),
-            'votes that are no longer on the tally are still being claimed as support');
-        $this->assertSame(100, (int) DB::table('gates_nominees')->where('id', 1)->value('vote_count'));
-    }
-
-    /**
-     * And nothing is claimed on a platform that has never recovered anything — which
-     * is every page on almost every deployment. A permanent "0 recovered votes" would
-     * be noise on 100% of pages to be honest about 0% of them.
-     */
-    public function test_nothing_is_disclosed_where_nothing_was_recovered(): void
-    {
-        $html = $this->publicPage();
-
-        $this->assertStringNotContainsString('added by us', $html);
-        // And the page really did render, so the assertion above means something.
-        $this->assertStringContainsString('Ada Obi', $html);
-    }
-
     /** The nominee's public ballot page. */
     private function publicPage(): string
     {

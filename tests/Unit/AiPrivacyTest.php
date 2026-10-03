@@ -484,58 +484,6 @@ class AiPrivacyTest extends TestCase
         ]);
     }
 
-    public function test_the_privacy_page_actually_renders_the_disclosure(): void
-    {
-        // The data being right is not the same as the page showing it. Twig's
-        // non-strict mode renders a missing variable as empty, so a disclosure
-        // wired to the wrong key would silently show nothing at all — which is
-        // the exact class of bug this codebase has been bitten by repeatedly.
-        $html = $this->renderPrivacy();
-
-        $this->assertStringContainsString('Automated processing', $html);
-
-        // Asserted against the REGISTRY, not against a vendor name. Hardcoding
-        // 'Sent to Groq' meant retargeting the capabilities to GPT broke a privacy
-        // test for no privacy reason, which teaches the next person to edit the
-        // expectation rather than read it.
-        foreach (\AfricaGates\Services\AiPrivacy::disclosure() as $group) {
-            $this->assertStringContainsString('Sent to ' . $group['label'], $html,
-                'every destination the registry names must appear on the page');
-        }
-        // And the spelling is the company's, not ucfirst()'s.
-        $this->assertStringNotContainsString('Sent to Openai', $html);
-        $this->assertStringNotContainsString('Sent to Groq (', $html);
-        $this->assertStringContainsString('[email]', $html, 'the placeholder is named so a reader knows what to expect');
-        $this->assertStringContainsString('never sent', $html, 'nominee contact fields are stated as never sent');
-    }
-
-    public function test_the_page_says_names_are_sent_rather_than_implying_otherwise(): void
-    {
-        $this->assertStringContainsString('Names', $this->renderPrivacy(),
-            'a notice that omits the one obvious identifier would be the misleading kind of true');
-    }
-
-    public function test_the_page_admits_what_is_not_known_about_provider_retention(): void
-    {
-        // The alternative was an assurance nobody had verified. An admitted gap
-        // is worth more on a privacy page than a comfortable sentence.
-        $html = $this->renderPrivacy();
-
-        $this->assertStringContainsString('What we cannot yet tell you', $html);
-        $this->assertStringContainsString('train their models', $html);
-    }
-
-    public function test_the_other_legal_documents_carry_no_ai_section(): void
-    {
-        // Built the way the route builds the terms, because the slug is now what
-        // decides whether the disclosure is attached — it is no longer a variable the
-        // caller chooses to pass, so passing an empty one would prove nothing.
-        $html = $this->renderOtherLegal('terms');
-
-        $this->assertStringNotContainsString('Automated processing', $html);
-        $this->assertStringContainsString('Body.', $html, 'and the document itself still renders');
-    }
-
     public function test_the_disclosure_text_is_escaped_not_injected(): void
     {
         // The strings are developer-authored today, but they land in a public legal
@@ -566,45 +514,5 @@ class AiPrivacyTest extends TestCase
             \AfricaGates\Support\Html::sanitize($html),
             'the generated disclosure must survive Html::sanitize() intact'
         );
-    }
-
-    public function test_the_nominate_form_discloses_at_the_point_of_collection(): void
-    {
-        // Burying "we send this to a third party" in a policy page nobody opens is
-        // disclosure in name only. The notice belongs beside the button that
-        // sends the text, and it must link to the generated detail rather than
-        // restate it — a second copy of the facts is a second thing to drift.
-        DB::table('gates_award_programmes')->insert([
-            'id' => 1, 'slug' => 'gates', 'title' => 'GATES Awards', 'is_active' => 1, 'sort_order' => 1,
-            'description' => 'A programme.',
-        ]);
-        DB::table('gates_award_cycles')->insert([
-            'id' => 1, 'programme_id' => 1, 'year' => (int) date('Y'), 'status' => 'nominations',
-            'nominations_open'  => date('Y-m-d H:i:s', strtotime('-1 day')),
-            'nominations_close' => date('Y-m-d H:i:s', strtotime('+10 days')),
-        ]);
-        DB::table('gates_award_categories')->insert([
-            'id' => 1, 'cycle_id' => 1, 'slug' => 'music', 'title' => 'Music', 'sort_order' => 1,
-        ]);
-
-        $builder = new \DI\ContainerBuilder();
-        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
-        $ctrl = $builder->build()->get(\AfricaGates\Controllers\NominationController::class);
-        // THE POINT OF COLLECTION IS THE AWARD'S OWN PAGE. `/nominate` is the chooser
-        // now — it collects nothing, so a notice there would be disclosure attached to
-        // no field. The form, and the boxes the reasons are typed into, are at
-        // `/nominate/{slug}`, and that is where the sentence has to be.
-        $req  = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/nominate/gates');
-        $html = (string) $ctrl->award($req, new \Slim\Psr7\Response(), ['slug' => 'gates'])->getBody();
-
-        // Collapsed, because the sentence is wrapped for the template it lives in.
-        $flat = (string) preg_replace('/\s+/', ' ', $html);
-
-        $this->assertStringContainsString('third-party AI service', $flat);
-        $this->assertStringContainsString('replaced with placeholders', $flat);
-        $this->assertStringContainsString('/privacy#automated-processing', $flat,
-            'and it must point at the generated section, whose anchor therefore has to exist');
-        $this->assertStringContainsString('id="automated-processing"', $this->renderPrivacy(),
-            'the anchor the nominate form links to');
     }
 }

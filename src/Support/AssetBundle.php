@@ -72,47 +72,19 @@ final class AssetBundle
         // Colour is not in any of these sheets: Support\Accent emits the palette and
         // the shadows into the layout's nonced <style>, before this bundle.
         'assets/css/base/reset.css',
-        'assets/css/base/typography.css',
         // ── THE REDESIGN LAYER: the base, before the components that specialise it ──
         // After the legacy sheets (so it replaces them) and before every component
         // sheet (so a page's own sheet can still say something more specific). It was
-        // last, and components.css then beat forms.css on every form — see gates.twig.
+        // last, and components.css then beat forms.css on every form.
         'assets/css/tokens.css',
         'assets/css/shell.css',
         'assets/css/components.css',
-        // Rules other phases had appended to components.css, moved out unchanged when
-        // Phase 1 rebuilt that file, in the position they held inside it. Each is
-        // destroyed by the phase that owns it (docs/handoff/GAPS.md §7.2).
-        'assets/css/components/chrome.css',
-        'assets/css/components/library.css',
-        'assets/css/components/flash.css',
-        'assets/css/components/loader.css',
-        'assets/css/components/footer.css',
-        'assets/css/components/vote-countdown.css',
-        'assets/css/components/gee.css',
-        'assets/css/components/community-modal.css',
-        'assets/css/components/site-search.css',
-        // Forms. After components.css's `.ag-field`, because it adds the invalid and
-        // summary states to that base rather than redeclaring it.
-        'assets/css/components/forms.css',
-        // The nominee's confirmation screen: one card, no chrome, two equal answers.
-        'assets/css/components/nominee-confirm.css',
-        // Challenges. The four theme presets are NAMES resolving to existing tokens.
-        'assets/css/components/challenge.css',
-        // The promo band, on five placements.
+        // Every component sheet that used to follow here was destroyed with the old
+        // pages on 3 Oct 2026 (docs/handoff/DESTROYED.md); each phase adds back what it
+        // rebuilds. These two survive only because nothing qualified them: neither read
+        // a retired name. Their readers went with the pages.
         'assets/css/components/promo.css',
-        'assets/css/components/account.css',
-        // The immersive mobile Pulse feed. After site-search so its
-        // body[data-page="pulse"] overrides win over the generic components, and
-        // before a11y.css, which must stay last.
-        'assets/css/components/pulse-immersive.css',
-        // The tile — the one device that carries colour. After the components it is
-        // placed inside, so a card's own rules cannot win over it on order.
         'assets/css/components/tile.css',
-        // The lip. After every component sheet, because it overrides the hover lift
-        // those sheets declare on the buttons it applies to — a lipped button does not
-        // rise, and a rule that loses on order would leave the press overshooting.
-        'assets/css/components/lip.css',
         // LAST, and it must stay last — its corrections are meant to win.
         'assets/css/a11y.css',
     ];

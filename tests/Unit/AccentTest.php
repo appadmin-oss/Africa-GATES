@@ -118,7 +118,8 @@ final class AccentTest extends TestCase
         // old shell layout got away with it only because tokens.css typed the same values
         // a second time.
         $root = dirname(__DIR__, 2) . '/templates/';
-        foreach (['layout/gates.twig', 'layout/shell.twig', 'admin/login.twig',
+        // layout/gates.twig left this list when it was destroyed (docs/handoff/DESTROYED.md).
+        foreach (['layout/shell.twig', 'admin/login.twig',
                   'admin/magic.twig', 'judge/login.twig'] as $file) {
             $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($root . $file));
             $at   = strpos($body, '{{ ag_accents()|raw }}');

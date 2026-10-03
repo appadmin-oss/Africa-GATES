@@ -226,54 +226,6 @@ class AssetBundleTest extends TestCase
         }
     }
 
-    /**
-     * The layout's fallback must list exactly the same files, in the same order.
-     *
-     * A divergence here is the worst bug this feature can have, because it appears ONLY
-     * on deployments that have run the build — every developer machine looks fine.
-     */
-    public function test_the_layout_fallback_matches_the_bundle_list_exactly(): void
-    {
-        $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
-
-        // The layout links stylesheets through `{{ asset('/path') }}` — a content
-        // hash per file, because the shared `?v=` token was the pinned
-        // ASSET_VERSION that nothing bumps on this host. See Support\Assets::url().
-        preg_match_all('~<link rel="stylesheet" href="\{\{ asset\(\'/(assets/css/[^\']+)\'\)[^>]*>~',
-                       $layout, $m, PREG_SET_ORDER);
-
-        // `data-lazy-css` links are NOT part of the critical bundle. They carry
-        // media="print" and are promoted by JS after first paint, which is the whole
-        // reason they are separate — bundling them would put Swiper, Splide and Plyr's
-        // stylesheets into the render-blocking payload of every page that uses none of
-        // them. They only started matching this pattern when those files were vendored
-        // off their CDNs, so the exclusion is new; the intent is not.
-        $inLayout = [];
-        foreach ($m as $hit) {
-            if (str_contains($hit[0], 'data-lazy-css')) continue;
-            $inLayout[] = $hit[1];
-        }
-
-        $this->assertNotEmpty($inLayout,
-            'No stylesheet links were found in the layout at all. This test only means '
-            . 'something if it can see them, so the pattern above has drifted from the '
-            . 'markup — fix the pattern rather than relaxing the assertion below.');
-
-        $this->assertSame(AssetBundle::STYLESHEETS, $inLayout,
-            'the {% else %} fallback in the layout and AssetBundle::STYLESHEETS must be '
-            . 'the same files in the same order, or bundled and unbundled pages differ');
-    }
-
-    public function test_the_layout_prefers_the_bundle_when_one_exists(): void
-    {
-        $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
-
-        $this->assertMatchesRegularExpression('~\{%\s*if css_bundle\s*%\}~', $layout);
-        $this->assertStringContainsString('href="{{ css_bundle }}"', $layout);
-        $this->assertMatchesRegularExpression('~\{%\s*else\s*%\}~', $layout,
-            'the fallback branch is what makes a missing build harmless');
-    }
-
     // ── Staleness: never serve CSS that does not match the source ───────────
 
     /**
@@ -310,7 +262,7 @@ class AssetBundleTest extends TestCase
         $this->assertNotNull(AssetBundle::url($this->root));
 
         // Edit one source with a later mtime — the situation every developer creates.
-        $edited = $this->root . '/assets/css/components/footer.css';
+        $edited = $this->root . '/assets/css/components/tile.css';
         file_put_contents($edited, ".nav{color:hotpink}\n");
         touch($edited, time() + 30);
         clearstatcache();
@@ -390,7 +342,7 @@ class AssetBundleTest extends TestCase
         $this->seedSources();
         // A component sheet referencing an image the way a future edit might.
         file_put_contents(
-            $this->root . '/assets/css/components/footer.css',
+            $this->root . '/assets/css/components/tile.css',
             ".n{background:url(../../img/logo.svg)}\n"
         );
         AssetBundle::build($this->root);

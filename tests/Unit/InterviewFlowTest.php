@@ -591,32 +591,6 @@ final class InterviewFlowTest extends TestCase
 
     // ══ 6. the nominee's page, through the real router ═══════════════════════
 
-    public function test_the_nominee_page_offers_consent_and_never_the_questions(): void
-    {
-        $id = $this->open();
-        InterviewBrief::build($id);
-        $token = (string) InterviewService::tokenFor($id);
-
-        $html = $this->getPage('/interview/' . $token);
-
-        $this->assertStringContainsString('Ada Obi', $html);
-        $this->assertStringContainsString('recorded and transcribed', $html);
-        $this->assertStringContainsString('Impact', $html, 'the themes are shown');
-        $this->assertStringNotContainsString('who else could confirm it', $html,
-            'the panel’s exact wording must not leak — that interviews the rehearsal');
-        // The one sentence that stops an impersonation costing somebody money.
-        $this->assertStringContainsString('never ask you to pay', $html);
-    }
-
-    public function test_an_unknown_token_says_nothing_about_whether_it_exists(): void
-    {
-        $res = $this->request('GET', '/interview/' . str_repeat('a', 32));
-        $this->assertSame(404, $res->getStatusCode());
-        $html = (string) $res->getBody();
-        $this->assertStringContainsString('not working', $html);
-        $this->assertStringNotContainsString('Ada Obi', $html);
-    }
-
     /**
      * THE MAIL-SCANNER TRAP, again. Gmail and every link-safety scanner fetch URLs in a
      * message before a human sees them. A GET that recorded consent would manufacture
@@ -632,13 +606,6 @@ final class InterviewFlowTest extends TestCase
         $row = InterviewService::byId($id);
         $this->assertEmpty($row->consent_at, 'a scanner just consented on a person’s behalf');
         $this->assertEmpty($row->confirmed_at);
-    }
-
-    public function test_the_page_is_not_indexable(): void
-    {
-        $id = $this->open();
-        $res = $this->request('GET', '/interview/' . InterviewService::tokenFor($id));
-        $this->assertStringContainsString('noindex', $res->getHeaderLine('X-Robots-Tag'));
     }
 
     // ══ helpers ══════════════════════════════════════════════════════════════

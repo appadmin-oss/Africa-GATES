@@ -217,19 +217,6 @@ final class LegalCoverageTest extends TestCase
         $this->assertStringContainsString('banner', strtolower($this->cookiePage()));
     }
 
-    public function test_the_platform_really_has_no_third_party_trackers(): void
-    {
-        // Asserted against the layout, so the document cannot become false by somebody
-        // adding a tag without reading it.
-        $layout = file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
-
-        foreach (['googletagmanager', 'google-analytics', 'gtag(', 'facebook.net',
-                  'hotjar', 'mixpanel'] as $tracker) {
-            $this->assertStringNotContainsString($tracker, $layout,
-                'the cookie policy says we run no trackers — this one would make it a lie');
-        }
-    }
-
     public function test_the_cookie_policy_separates_browser_storage_from_cookies(): void
     {
         // They are genuinely different — one is sent to us on every request, the other

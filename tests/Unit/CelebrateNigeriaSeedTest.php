@@ -569,31 +569,6 @@ final class CelebrateNigeriaSeedTest extends TestCase
         $this->assertNull(CS::stripFor($other, $u));
     }
 
-    /** The README's MUST, on the real nomination form — and only for somebody who joined. */
-    public function test_the_alimosho_form_shows_counts_toward_for_a_joined_member_only(): void
-    {
-        SeedRunner::run(self::SEED);
-        $form = function (int $user): string {
-            $_SESSION = $user ? ['user_id' => $user] : [];
-            $b = new ContainerBuilder();
-            $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
-            return (string) $b->build()->get(\AfricaGates\Controllers\NominationController::class)->award(
-                (new ServerRequestFactory())->createServerRequest('GET', '/nominate/alimosho-awards'),
-                new Response(), ['slug' => 'alimosho-awards'])->getBody();
-        };
-
-        $this->assertStringNotContainsString('class="ch-strip', $form(0),
-            'a strip mid-form for somebody who has not joined is an advertisement');
-
-        $u = $this->user('Form Entrant', '+2348035550002');
-        CS::join((int) CS::bySlug(self::SLUG)->id, $u, '+2348035550002');
-        $h = $form($u);
-        $this->assertMatchesRegularExpression(
-            '~class="ch-strip"[^>]*>\s*<span class="ch-strip__t">Counts toward Celebrate Nigeria</span>\s*<span class="ch-strip__m"><span aria-hidden="true">·</span> <span class="ch-strip__n">0/10</span></span>~',
-            $h);
-        $_SESSION = [];
-    }
-
     private function user(string $name, ?string $phone = null): int
     {
         return (int) DB::table('gates_users')->insertGetId([

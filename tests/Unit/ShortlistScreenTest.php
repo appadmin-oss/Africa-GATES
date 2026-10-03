@@ -217,53 +217,6 @@ final class ShortlistScreenTest extends TestCase
 
     // ══ the public side ══════════════════════════════════════════════════════
 
-    /**
-     * The badge on the public programme page comes from the PUBLISHED snapshot.
-     *
-     * A badge derived from the live threshold would appear and disappear as votes landed —
-     * telling a nominee they were shortlisted and then that they were not, on a page they
-     * never reloaded. So: nothing before publication, the badge after it, and it survives a
-     * vote that would have knocked them below the line.
-     */
-    public function test_the_public_badge_appears_only_after_publication_and_then_holds(): void
-    {
-        DB::table('gates_award_cycles')->where('id', self::CYCLE)->update([
-            'voting_open'  => date('Y-m-d H:i:s', time() - 86400),
-            'voting_close' => date('Y-m-d H:i:s', time() + 86400),
-        ]);
-
-        $render = function (): string {
-            $b = new ContainerBuilder();
-            $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
-            $res = $b->build()->get(\AfricaGates\Controllers\VoteController::class)->program(
-                (new ServerRequestFactory())->createServerRequest('GET', '/vote/gates'),
-                (new ResponseFactory())->createResponse(),
-                ['program' => 'gates']
-            );
-            return (string) $res->getBody();
-        };
-
-        // `class="vp-short"` and not the bare class name: the rule that styles the badge
-        // is in the page's own <style> block on every render, so a substring test on the
-        // name alone would pass whether or not a single card carried it.
-        $this->assertStringNotContainsString('class="vp-short"', $render(),
-            'nothing may be badged before a shortlist is published');
-
-        ShortlistService::saveRule(self::CYCLE, null, new ShortlistRule('top_n', 2, 1), 1);
-        ShortlistService::publish(self::CYCLE, self::CAT, 1);
-
-        $html = $render();
-        $this->assertSame(2, substr_count($html, 'class="vp-short"'),
-            'exactly the two published nominees carry the badge');
-
-        // Dami overtakes everybody. The published list — and the badge — do not move.
-        DB::table('gates_nominees')->where('id', 4)->update(['vote_count' => 9999, 'organic_vote_count' => 9999]);
-
-        $after = $render();
-        $this->assertSame(2, substr_count($after, 'class="vp-short"'),
-            'a badge that moves with the live tally un-tells a nominee they were shortlisted');
-    }
-
     /** A cycle with no categories is a normal state, not an empty page with no explanation. */
     public function test_a_cycle_with_no_categories_says_so(): void
     {

@@ -60,29 +60,6 @@ final class SiteHeaderTest extends TestCase
         return (string) preg_replace('/\{#.*?#\}/s', '', $this->nav());
     }
 
-    public function test_there_is_no_green_button_in_either_signed_in_state(): void
-    {
-        // The header's rules moved out of the base sheet unchanged in the Phase 1 rebuild,
-        // into the file Phase 2 owns (docs/handoff/GAPS.md §7.2).
-        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/components/chrome.css');
-
-        // Both controls that sit in that slot, read out of the stylesheet rather than
-        // eyeballed: the avatar is ink, the signed-out pill is an ink OUTLINE.
-        preg_match('/\.ag-head__signin\{([^}]*)\}/', $css, $signin);
-        $this->assertNotEmpty($signin, 'the signed-out control has no rule');
-        $this->assertStringNotContainsString('--ag-green', $signin[1],
-            'the signed-out control is green; §6.1 keeps green for the primary action INSIDE the page');
-        $this->assertStringContainsString('border:1px solid var(--ag-ink)', $signin[1],
-            'the signed-out control must be an outlined pill, not a fill');
-
-        preg_match('/\.ag-head__av\{([^}]*)\}/', $css, $av);
-        $this->assertNotEmpty($av);
-        $this->assertStringNotContainsString('--ag-green', $av[1]);
-
-        // And the old green pill is gone rather than merely unlinked.
-        $this->assertStringNotContainsString('ag-vote', $this->code());
-    }
-
     public function test_the_bar_carries_two_top_links_and_no_more(): void
     {
         // §18.5 rejects a bar carrying search, Aa, language, cart, account and half a
@@ -220,7 +197,8 @@ final class SiteHeaderTest extends TestCase
         // the halves of a setting come to disagree. What it may not do is carry a
         // fixed id, so it takes a `uid`. That is why this counts IDS and not mounts:
         // a mount rule would have forced the wrong fix.
-        foreach (['layout/gates.twig', 'layout/shell.twig'] as $layout) {
+        // `layout/gates.twig` left this list when it was destroyed (DESTROYED.md).
+        foreach (['layout/shell.twig'] as $layout) {
             $ids = [];
             $this->collectIds($layout, $ids);
 
@@ -275,36 +253,5 @@ final class SiteHeaderTest extends TestCase
         $this->assertSame([], $bad,
             'these shell pages include the legacy chrome bundle, which mounts a second '
             . 'Menu sheet over the one the shell already drew: ' . implode(', ', $bad));
-    }
-
-    public function test_the_full_screen_overlay_menu_is_gone(): void
-    {
-        $code = $this->code();
-
-        // A full-screen menu PAGE is in the anti-pattern list: it takes a navigation
-        // step to leave and loses where you were. It is a bottom sheet now.
-        $this->assertStringNotContainsString('id="agMenu"', $code);
-        $this->assertStringNotContainsString('ag-mobnav', $code);
-        $this->assertStringNotContainsString('ag-menu__group', $code);
-
-        // And its stylesheet went with it, rather than staying to restyle the new sheet:
-        // the old `.ag-menu` rule was `position:fixed; inset:0`, and the new one is a
-        // sheet from `top:52px` — same class, opposite component, nothing in either file
-        // to hint at the collision.
-        $this->assertFileDoesNotExist(__DIR__ . '/../../public/assets/css/components/nav.css');
-        $this->assertFileExists(__DIR__ . '/../../public/assets/css/components/vote-countdown.css',
-            'the countdown rules lived in that file and must not have gone with it');
-    }
-
-    public function test_the_hairline_is_dropped_while_a_panel_is_open(): void
-    {
-        // The panel hangs from the bar with no gap (§7.1), so a rule between them cuts
-        // it in half. Two files have to agree for this: the controller sets the class
-        // and the stylesheet acts on it.
-        // The header's rules moved out of the base sheet unchanged in the Phase 1 rebuild,
-        // into the file Phase 2 owns (docs/handoff/GAPS.md §7.2).
-        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/components/chrome.css');
-        $this->assertStringContainsString('.ag-head.is-mega .ag-head__bar', $css);
-        $this->assertStringContainsString("classList.toggle('is-mega'", $this->nav());
     }
 }

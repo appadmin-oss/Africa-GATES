@@ -615,38 +615,6 @@ final class NewsletterTest extends TestCase
         return \Tests\Support\TestApp::build()->handle($req);
     }
 
-    public function test_the_pages_render_through_the_real_app(): void
-    {
-        NewsletterSchedule::save(['newsletter_mode' => 'auto', 'newsletter_weekday' => 4, 'newsletter_hour' => 9]);
-
-        $page = $this->hit('GET', '/newsletter');
-        $html = (string) $page->getBody();
-        $this->assertSame(200, $page->getStatusCode());
-        $this->assertStringContainsString('action="/newsletter"', $html);
-        $this->assertStringContainsString('Every Thursday at 09:00 WAT', $html,
-            'the day the page promises is read from the setting that sends on it');
-        foreach (NewsletterComposer::SECTIONS as $title) $this->assertStringContainsString($title, $html);
-
-        $bad = $this->hit('POST', '/newsletter', ['email' => 'not-an-address']);
-        $this->assertSame(422, $bad->getStatusCode());
-        $b = (string) $bad->getBody();
-        $this->assertStringContainsString('aria-invalid="true"', $b);
-        $this->assertStringContainsString('value="not-an-address"', $b, 'never clear what somebody typed');
-
-        // The confirmation link, as a mail scanner fetches it: it shows, it does not act.
-        $url = NewsletterAudience::confirmUrl('', 'scan@example.com');
-        $this->subscriber('scan@example.com', false);
-        $shown = $this->hit('GET', $url);
-        $this->assertSame(200, $shown->getStatusCode());
-        $this->assertStringContainsString('Yes, send it to me', (string) $shown->getBody());
-        $this->assertSame([], NewsletterAudience::recipients(), 'a GET must never confirm');
-
-        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
-        $done = $this->hit('POST', '/email/confirm', ['e' => $q['e'], 't' => $q['t']]);
-        $this->assertStringContainsString('You are on the list', (string) $done->getBody());
-        $this->assertSame(['scan@example.com'], array_column(NewsletterAudience::recipients(), 'email'));
-    }
-
     public function test_the_signup_form_posts_and_lands_on_what_to_do_next(): void
     {
         $mail = $this->mailer();
@@ -660,14 +628,6 @@ final class NewsletterTest extends TestCase
         $this->assertCount(1, $mail->branded);
         $this->assertSame('newsletter-page',
             DB::table('gates_newsletter')->where('email_hash', EmailOptOut::hash('join@example.com'))->value('source'));
-    }
-
-    public function test_the_stand_call_form_reads_the_field_the_api_actually_sends(): void
-    {
-        $tpl = (string) file_get_contents(__DIR__ . '/../../templates/pages/stands/call.twig');
-        $this->assertStringNotContainsString('j && j.ok', $tpl,
-            'the API answers `success`; reading `ok` told every person who asked that it had failed');
-        $this->assertStringContainsString('j && j.success', $tpl);
     }
 
     public function test_the_newsletter_is_linked_from_every_page(): void

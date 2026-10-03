@@ -167,17 +167,6 @@ final class FormErrorStateTest extends TestCase
             'the message has no stable id, so aria-describedby cannot point at it');
     }
 
-    /** The CSS must not express the invalid state by colour alone. */
-    public function test_the_invalid_field_is_not_signalled_by_colour_alone(): void
-    {
-        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/components/forms.css');
-
-        $this->assertStringContainsString('box-shadow:inset', $css,
-            'the invalid field changes only its border colour');
-        // Focus has to win, or a keyboard user inside an error loses "where am I".
-        $this->assertStringContainsString('.ag-field:focus-within{ box-shadow:none }', $css);
-    }
-
     // ══════════════════════════════════════════════════════════════════════════
     // The bag
     // ══════════════════════════════════════════════════════════════════════════

@@ -68,59 +68,6 @@ final class AwardPageTest extends TestCase
         return (string) $res->getBody();
     }
 
-    public function test_the_overview_renders_the_comps_sections(): void
-    {
-        $h = $this->page();
-
-        foreach (['class="ag-subnav"', 'id="h-ed"', 'class="aw-steps"', 'id="h-cats"', 'id="h-about"'] as $m) {
-            $this->assertStringContainsString($m, $h, $m);
-        }
-        $this->assertMatchesRegularExpression('~id="h-ed"><span>Edition</span>\s*11th Edition · 2026~', $h);
-        $this->assertStringContainsString('aria-current="step"', $h, 'no step is marked as now');
-        $this->assertSame(1, preg_match_all('~<main\b~', $h));
-    }
-
-    /** The award's own picture, never the stock photo the old page hotlinked for every award. */
-    public function test_the_cover_is_the_awards_own(): void
-    {
-        $h = $this->page();
-        $this->assertStringContainsString('src="/uploads/awards/kcea.jpg"', $h);
-        $this->assertStringNotContainsString('images.unsplash.com/photo', $h, 'a stock photo is not this award');
-
-        DB::table('gates_award_programmes')->where('id', $this->programme)->update(['cover_path' => null]);
-        DB::table('gates_cache')->delete();
-        $this->assertStringNotContainsString('aw-hero__art', $this->page(), 'no cover must mean no picture, not a stand-in');
-    }
-
-    public function test_views_are_urls_and_terms_is_offered_only_when_written(): void
-    {
-        $this->assertStringContainsString('href="?tab=terms"', $this->page());
-        $terms = $this->page('?tab=terms');
-        $this->assertStringContainsString('Rule one.<br />', $terms);
-        $this->assertMatchesRegularExpression('~href="\?tab=terms" aria-current="page"~', $terms);
-
-        DB::table('gates_award_programmes')->where('id', $this->programme)->update(['terms' => null]);
-        DB::table('gates_cache')->delete();
-        $h = $this->page('?tab=terms');
-        $this->assertStringNotContainsString('?tab=terms', $h, 'a Terms view over nothing is a promise the award has not made');
-        $this->assertStringContainsString('id="h-ed"', $h, 'an unknown view falls back to the overview');
-    }
-
-    /** The scoring split is the scorer's, for this programme — never a typed figure. */
-    public function test_the_scoring_fact_moves_with_the_rules(): void
-    {
-        $this->assertStringContainsString('45% public · 55% panel', $this->page());
-
-        (new RuleEngine())->merge('programme', $this->programme, ['community_weight' => 0.3, 'judge_weight' => 0.7]);
-        DB::table('gates_cache')->delete();
-        $this->assertStringContainsString('30% public · 70% panel', $this->page());
-    }
-
-    public function test_since_is_counted_from_the_editions(): void
-    {
-        $this->assertStringContainsString('2019 · 3 editions', $this->page());
-    }
-
     public function test_the_timeline_marks_one_step_now(): void
     {
         $cycle = (array) DB::table('gates_award_cycles')->where('year', 2026)->first();

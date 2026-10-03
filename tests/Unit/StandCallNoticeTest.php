@@ -233,14 +233,4 @@ final class StandCallNoticeTest extends TestCase
             DB::statement('ALTER TABLE _jobs_hidden RENAME TO gates_jobs');
         }
     }
-
-    /** The source string has one owner, and the form uses it. */
-    public function test_the_form_and_the_lookup_agree_on_the_source(): void
-    {
-        $this->assertSame('stands:market', StandCallNotice::source('market'));
-
-        $t = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/stands/call.twig');
-        $this->assertStringContainsString('value="{{ notify_source }}"', $t,
-            'the template writes its own copy of the source string');
-    }
 }

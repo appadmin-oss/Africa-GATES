@@ -172,32 +172,6 @@ final class EmailVerificationTest extends TestCase
         $this->assertGreaterThan(0, $delivered,
             'the limit refuses everybody, which is not a limit but an outage');
     }
-
-    /**
-     * THE PAGE STATES THE WINDOW, AND READS IT FROM THE CODE.
-     *
-     * The life of the link was in the EMAIL and nowhere else, so the one person who could
-     * not read it was the one whose link had already expired — they met the rule as
-     * "invalid or expired", with no sign there had ever been a clock.
-     *
-     * Asserted against the CONSTANT the token is minted with rather than against "24", so
-     * a number typed into the template fails the moment the two disagree. That is this
-     * repo's own rule about looping a figure from the code, and this page is the cheapest
-     * possible place to break it.
-     */
-    public function test_the_notice_states_the_window_and_gets_it_from_the_constant(): void
-    {
-        $html = (string) $this->app()->handle(
-            (new ServerRequestFactory())->createServerRequest('GET', '/account/verify'))->getBody();
-
-        $this->assertStringContainsString(
-            'lasts ' . UserAccountService::VERIFY_TTL_HOURS . ' hours', $html,
-            'the page does not state how long the link lives, or has its own copy of the number');
-
-        // The commonest reason a verification message "has not arrived".
-        $this->assertStringContainsString('junk folder', $html,
-            'the page offers a resend without first suggesting the free thing');
-    }
     /**
      * Run $fn with another request's spend of every live token landing immediately before
      * the first UPDATE of `gates_otp_tokens` — after the consumer's own read said the

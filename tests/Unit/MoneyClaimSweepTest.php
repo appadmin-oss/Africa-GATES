@@ -132,27 +132,4 @@ final class MoneyClaimSweepTest extends TestCase
         $this->assertSame([], $found,
             "A help article still publishes the old methodology:\n  " . implode("\n  ", $found));
     }
-
-    /**
-     * THE TRUE CLAIM IS STILL BEING MADE.
-     *
-     * The failure mode of a sweep like this is somebody deleting the sentences to make it
-     * pass. What separates money from the award is real and load-bearing — judges are not
-     * shown a vote count — so it is asserted present, not merely permitted.
-     */
-    public function test_the_separation_that_does_hold_is_still_stated_publicly(): void
-    {
-        $said = 0;
-        foreach (['templates/pages/integrity.twig',
-                  'templates/pages/results/show.twig'] as $rel) {
-            $prose = mb_strtolower(self::prose(
-                (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel)));
-            if (str_contains($prose, 'judges') && str_contains($prose, 'vote count')) $said++;
-        }
-
-        $this->assertGreaterThan(0, $said,
-            'no public page says any more that judges are not shown a vote count — the '
-            . 'sweep above has been satisfied by deleting the claim rather than by '
-            . 'correcting it');
-    }
 }

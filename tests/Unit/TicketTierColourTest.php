@@ -51,50 +51,6 @@ class TicketTierColourTest extends TestCase
         return ['ref' => $ref, 'event' => $eventId, 'tier' => $tierId];
     }
 
-    public function test_the_tier_dot_is_rendered_from_the_events_accent(): void
-    {
-        $s    = $this->seed('#2a6fdb', 'deep');
-        $html = $this->render('/events/ticket/' . $s['ref']);
-
-        $expected = EventTierPalette::fromAccent('#2a6fdb')['deep'];
-        // `class="tk__dot"` and not `tk__dot`: the class NAME is also in the page's own
-        // stylesheet, so the bare string is present whether or not a dot was rendered.
-        $this->assertStringContainsString('class="tk__dot"', $html, 'The tier dot should render.');
-        $this->assertStringContainsString($expected['fill'], $html, 'The dot should carry the slot fill.');
-        $this->assertStringContainsString($expected['edge'], $html, 'The dot should carry the slot edge.');
-    }
-
-    /**
-     * The reason the column holds a slot rather than a hex. A hex chosen against the old
-     * accent would still be here; a slot follows the event.
-     */
-    public function test_changing_the_events_accent_moves_the_tier_colour(): void
-    {
-        $s = $this->seed('#2a6fdb', 'deep');
-
-        $before = EventTierPalette::fromAccent('#2a6fdb')['deep']['fill'];
-        $this->assertStringContainsString($before, $this->render('/events/ticket/' . $s['ref']));
-
-        DB::table('gates_site_events')->where('id', $s['event'])->update(['ticket_accent' => '#b4452f']);
-
-        $after = EventTierPalette::fromAccent('#b4452f')['deep']['fill'];
-        $html  = $this->render('/events/ticket/' . $s['ref']);
-
-        $this->assertNotSame($before, $after, 'The two accents must produce different fills.');
-        $this->assertStringContainsString($after, $html, 'The dot should follow the new accent.');
-        $this->assertStringNotContainsString($before, $html, 'The old accent must not survive.');
-    }
-
-    /** A tier with no colour chosen renders the name and no dot — never a grey one. */
-    public function test_a_tier_without_a_slot_renders_no_dot(): void
-    {
-        $s = $this->seed('#2a6fdb', '');
-        $html = $this->render('/events/ticket/' . $s['ref']);
-
-        $this->assertStringContainsString('Patron', $html, 'The tier name still shows.');
-        $this->assertStringNotContainsString('class="tk__dot"', $html, 'No slot means no dot.');
-    }
-
     /**
      * The palette's own guarantees, which the dot depends on: six separable swatches, each
      * with an edge that is visible against white. A pale fill with no edge is a gap.
@@ -122,23 +78,5 @@ class TicketTierColourTest extends TestCase
                 }
             }
         }
-    }
-
-    /**
-     * The ticket's hero is the largest above-the-fold paint. Lazy-loading it defers the
-     * request until layout and is the standard way to lose LCP — on the one page whose whole
-     * premise is rendering on a phone with one bar of signal at a door.
-     */
-    public function test_the_ticket_hero_is_not_lazy_loaded(): void
-    {
-        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/events/ticket.twig');
-        // Matched against the <img> tag rather than the file, because the word also appears
-        // in the comment explaining why it is not used — a test that reads prose is a test
-        // that fails when somebody rewords a comment.
-        $this->assertSame(1, preg_match('/<img[^>]*class="tk__shot"[^>]*>/', $src, $m),
-            'Expected the ticket hero img.');
-        $this->assertStringNotContainsString('loading="lazy"', $m[0],
-            'The ticket hero is the LCP element and must not be lazy-loaded.');
-        $this->assertStringContainsString('fetchpriority="high"', $m[0]);
     }
 }

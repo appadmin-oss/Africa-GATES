@@ -383,62 +383,6 @@ final class StatusHistoryTest extends TestCase
         ]);
     }
 
-    /** The bars reach the page, and a screen reader gets the summary rather than the cells. */
-    public function test_the_page_draws_a_history_bar_per_component(): void
-    {
-        $this->all(60, SystemStatus::OK);
-        $this->snap(30, SystemStatus::DEGRADED, [
-            'Payments' => SystemStatus::DEGRADED, 'Email' => SystemStatus::OK,
-        ]);
-
-        $html = $this->render();
-
-        $this->assertStringContainsString('stx-cell', $html, 'the per-component bars');
-        $this->assertStringContainsString('Payments over the last 14 days', $html,
-            'the cells are aria-hidden, so the group label has to carry the information');
-        // Fourteen indistinguishable squares read aloud one by one convey nothing.
-        $this->assertStringContainsString('stx-cell stx-f stx-f--degraded" aria-hidden="true"', $html);
-    }
-
-    /** The incident list reaches the page with its duration. */
-    public function test_the_page_lists_recent_problems(): void
-    {
-        $this->snap(120, SystemStatus::DOWN, ['Payments' => SystemStatus::DOWN]);
-        $this->snap(90,  SystemStatus::DOWN, ['Payments' => SystemStatus::DOWN]);
-        $this->snap(75,  SystemStatus::OK,   ['Payments' => SystemStatus::OK]);
-
-        $html = $this->render();
-
-        $this->assertStringContainsString('Recent problems', $html);
-        $this->assertStringContainsString('30 min', $html, 'a problem with no duration is a rumour');
-    }
-
-    /** A clean fortnight says so, rather than showing an empty heading. */
-    public function test_a_clean_window_says_nothing_went_wrong(): void
-    {
-        $this->all(60, SystemStatus::OK);
-
-        $this->assertStringContainsString('Nothing was recorded as broken or slow',
-            $this->render());
-    }
-
-    /** Four states, four fills, and a key — otherwise the fills mean nothing to a reader. */
-    public function test_the_page_carries_a_legend(): void
-    {
-        $html = $this->render();
-
-        foreach (['Working', 'Slower than usual', 'Not working', 'Not checked'] as $label) {
-            $this->assertStringContainsString($label, $html);
-        }
-        $this->assertStringContainsString('stx-key', $html);
-    }
-
-    /** And it points at the machine-readable board, because monitors are readers too. */
-    public function test_the_page_names_the_endpoint(): void
-    {
-        $this->assertStringContainsString('/status.json', $this->render());
-    }
-
     // ══ the endpoint ═════════════════════════════════════════════════════════
 
     /**

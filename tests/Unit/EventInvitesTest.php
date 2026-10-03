@@ -1197,34 +1197,6 @@ final class EventInvitesTest extends TestCase
             ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
     }
 
-    public function test_the_id_page_shows_the_pass_the_ask_and_the_evening(): void
-    {
-        $inv  = $this->invited();
-        $res  = $this->get('/honour/' . $inv->reference);
-        $html = (string) $res->getBody();
-
-        $this->assertSame(200, $res->getStatusCode());
-        $this->assertStringContainsString('Ada Obi', $html);
-        $this->assertStringContainsString((string) $inv->reference, $html, 'the reference is read aloud at the door');
-        $this->assertStringContainsString('25', $html, 'the quota promised must be on the pass');
-        $this->assertStringContainsString('10% off', $html);
-        $this->assertStringContainsString('Supporter', $html, 'the ask names the cheapest paid tier');
-        $this->assertStringContainsString('Africa GATES Gala 2026', $html);
-    }
-
-    /**
-     * The code on screen is valid for one window. A cached copy of this page is an
-     * expired pass rendered as though it were live, and a search engine holding it is a
-     * directory of who was shortlisted before the ceremony announced it.
-     */
-    public function test_the_id_page_is_never_cached_and_never_indexed(): void
-    {
-        $res = $this->get('/honour/' . $this->invited()->reference);
-
-        $this->assertStringContainsString('no-store', $res->getHeaderLine('Cache-Control'));
-        $this->assertStringContainsString('noindex', $res->getHeaderLine('X-Robots-Tag'));
-    }
-
     /** A scannable symbol before any script runs — the door has the worst signal. */
     public function test_the_qr_endpoint_returns_a_symbol(): void
     {
@@ -1377,89 +1349,6 @@ final class EventInvitesTest extends TestCase
     private function pass(): string
     {
         return (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/honour.twig');
-    }
-
-    /**
-     * The first version was three near-identical rounded cards stacked down a dark page.
-     * Everything had the same weight, so nothing was the pass. The structure IS the design:
-     * a stub carrying the evening, a perforation, and a paper plate holding the code.
-     */
-    public function test_the_pass_is_built_like_a_pass(): void
-    {
-        $css = $this->pass();
-
-        $this->assertStringContainsString('hn__stub', $css, 'no stub — the evening has nowhere to sit');
-        $this->assertStringContainsString('hn__perf', $css, 'no perforation — the shape reads as a panel');
-        $this->assertStringContainsString('hn__plate', $css, 'no plate — the code has no home');
-
-        // The plate is PAPER on an ink page: at a door it is the only thing that matters
-        // and the eye has to land on it with no help.
-        $this->assertMatchesRegularExpression('~\.hn__plate\{[^}]*background:var\(--paper\)~', $css);
-    }
-
-    /**
-     * The countdown is a depleting ring, not a spinner. A spinner says "something is
-     * happening"; the remaining life of the code on screen is a fact a guest and a steward
-     * both need, and it is the one piece of motion on the page that earns itself.
-     */
-    public function test_the_countdown_is_informative_motion_not_decoration(): void
-    {
-        $css = $this->pass();
-
-        $this->assertStringContainsString('stroke-dashoffset', $css, 'the ring does not deplete');
-        $this->assertStringNotContainsString('hn-spin', $css, 'a spinner is decoration, not a countdown');
-        $this->assertStringContainsString('prefers-reduced-motion', $css,
-            'a full-page animation with no reduced-motion path');
-    }
-
-    /** The two things that actually happen at a door: no signal, and a stale code. */
-    public function test_the_unhappy_states_exist(): void
-    {
-        $css = $this->pass();
-
-        $this->assertStringContainsString('hn--offline', $css, 'no offline state — at a venue, on venue wifi');
-        $this->assertStringContainsString('hn--stale', $css, 'no state for a code that failed to refresh');
-        $this->assertStringContainsString("classList.add('hn--offline')", $css,
-            'the offline class is styled but never applied');
-    }
-
-    /** Hierarchy is subtraction: two actions on the surface, and the rest on the event page. */
-    public function test_the_pass_carries_two_actions_and_no_more(): void
-    {
-        preg_match_all('~<a class="hn__(?:cta|alt)"~', $this->pass(), $m);
-
-        $this->assertCount(2, $m[0],
-            'the pass grew a third action — the schedule and the map belong on the event page');
-    }
-
-    /** Touch targets. A pass is used one-handed, in a queue, in the dark. */
-    public function test_every_action_clears_the_touch_floor(): void
-    {
-        $css = $this->pass();
-
-        foreach (['.hn__cta', '.hn__alt'] as $sel) {
-            $this->assertMatchesRegularExpression(
-                '~' . preg_quote($sel, '~') . '\{[^}]*(min-height:44px|line-height:44px)~',
-                $css,
-                $sel . ' is under the 44px touch floor'
-            );
-        }
-    }
-
-    /**
-     * The site already loads Playfair Display, DM Sans and JetBrains Mono and exposes them
-     * as tokens. A pass that ships a fourth face is a pass that does not belong to the site
-     * it is part of.
-     */
-    public function test_the_pass_uses_the_sites_own_type_tokens(): void
-    {
-        $css = $this->pass();
-
-        foreach (['--ag-font-display', '--ag-font-mono'] as $token) {
-            $this->assertStringContainsString($token, $css, $token . ' is not used');
-        }
-        $this->assertStringNotContainsString('fonts.googleapis.com', $css,
-            'the layout already loads the faces — a second link is a second render-blocking request');
     }
 
 }

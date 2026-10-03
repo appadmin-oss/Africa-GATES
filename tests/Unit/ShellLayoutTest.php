@@ -98,7 +98,7 @@ final class ShellLayoutTest extends TestCase
             }
         }
         $this->assertSame([], $bad,
-            'shell.css locks the document scroll for every page that loads it, layout/gates.twig included: '
+            'shell.css locks the document scroll for every page that loads it: '
             . implode(', ', $bad));
 
         preg_match('~<html\b[^>]*>~', $this->twig('templates/layout/shell.twig'), $shell);
@@ -106,10 +106,9 @@ final class ShellLayoutTest extends TestCase
         $this->assertMatchesRegularExpression('~class="[^"]*\bag-shelled\b~', $shell[0],
             'layout/shell.twig must arm the lock on <html> in the markup the server sends');
 
-        preg_match('~<html\b[^>]*>~', $this->twig('templates/layout/gates.twig'), $gates);
-        $this->assertNotEmpty($gates);
-        $this->assertStringNotContainsString('ag-shelled', $gates[0],
-            'layout/gates.twig pages scroll the document and must never be locked');
+        // The other half used to read layout/gates.twig and require it NOT to be armed.
+        // That layout was destroyed with the old pages (docs/handoff/DESTROYED.md); the
+        // selector sweep above still refuses a lock that reaches any other document.
     }
 
     public function test_only_main_scrolls_and_it_is_the_positioning_context(): void
@@ -261,10 +260,12 @@ final class ShellLayoutTest extends TestCase
     {
         preg_match_all("~asset\('/(assets/css/[^']+)'\)~", $this->twig('templates/layout/shell.twig'), $m);
         $shell = $m[1];
-        $want = ['assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css',
-                 'assets/css/components/chrome.css', 'assets/css/components/library.css'];
-        $this->assertSame($want, array_slice($shell, 0, 5),
-            'the shell must load the base, then the rules carved out of it, in the order they held');
+        // The base and nothing else: the rules once carved out of components.css
+        // (chrome.css, library.css) were destroyed with the old pages, and a rebuilt
+        // component sheet joins this list in the commit that rebuilds it.
+        $want = ['assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css'];
+        $this->assertSame($want, $shell,
+            'the shell must load the base, in the bundle\'s order, and nothing destroyed');
 
         $list = AssetBundle::STYLESHEETS;
         $at = array_map(static fn (string $s): int => (int) array_search($s, $list, true), $shell);

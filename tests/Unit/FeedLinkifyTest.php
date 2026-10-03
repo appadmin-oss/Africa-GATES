@@ -174,31 +174,4 @@ final class FeedLinkifyTest extends TestCase
             'linkify escapes AFTER it linkifies, so the anchors it just wrote are escaped '
             . 'and the text it trusted was never inert');
     }
-
-    /**
-     * AND SOMETHING STYLES IT.
-     *
-     * An unstyled `<a>` in the Pulse's dark canvas inherits the browser default blue on a
-     * near-black ground, which is the one colour pairing that fails contrast outright. The
-     * class is inserted by shared JS, so the surfaces that render post text have to know
-     * about it — a link that is technically present and invisible is not a fix.
-     */
-    public function test_the_feed_styles_the_class_the_shared_helper_inserts(): void
-    {
-        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/pulse.twig');
-
-        // One selector per surface that renders post text, and both are named because
-        // they are different grounds: `.pf__text` is a post on paper and `.pf__cap` is a
-        // caption over a photograph, so the same class needs a different treatment on
-        // each. This assertion has already earned its keep once — the text surface was
-        // `.pf__canvas` (a dark quote-poster) until the feed was rebuilt as a timeline,
-        // and the link styling did not follow the element that replaced it.
-        $this->assertStringContainsString('.pf__text .ag-link', $src,
-            'a text post does not style ag-link, so shared links render as default blue');
-        $this->assertStringContainsString('.pf__cap .ag-link', $src,
-            'a media post\'s caption does not style ag-link');
-        $this->assertStringNotContainsString('.pf__canvas', $src,
-            'a rule for the dark text canvas survived the timeline rebuild — dead CSS for '
-            . 'an element nothing renders any more');
-    }
 }

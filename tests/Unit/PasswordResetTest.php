@@ -243,25 +243,6 @@ final class PasswordResetTest extends TestCase
             . 'membership check for anybody who wants one');
     }
 
-    public function test_the_reset_screen_refuses_to_draw_a_password_field_for_a_dead_link(): void
-    {
-        $u   = $this->member();
-        $raw = (string) $this->accounts()->issuePasswordReset((int) $u->id, (string) $u->email);
-
-        $live = $this->render(['token' => $raw]);
-        $this->assertMatchesRegularExpression('~<input[^>]+name="password"~', $live);
-        $this->assertStringContainsString($raw, $live, 'the live token is not carried into the form');
-
-        // Spend it, then ask for the page again.
-        $this->accounts()->consumePasswordReset($raw, 'now-it-is-spent');
-        $dead = $this->render(['token' => $raw]);
-
-        $this->assertDoesNotMatchRegularExpression('~<input[^>]+name="password"~', $dead,
-            'a password field was drawn against a link that cannot work');
-        $this->assertStringNotContainsString($raw, $dead, 'a spent token was echoed back');
-        $this->assertStringContainsString('/account/forgot', $dead, 'no way to ask for a fresh one');
-    }
-
     /** Render the reset page through the real controller. */
     private function render(array $query): string
     {

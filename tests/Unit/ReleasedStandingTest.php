@@ -317,31 +317,6 @@ final class ReleasedStandingTest extends TestCase
     }
 
     /**
-     * AND THE PAGE SAYS WHICH OF THE TWO IT IS SHOWING.
-     *
-     * The distinction only protects anybody if a reader can see it. Both states are
-     * rendered, because the failure mode is not a missing sentence — it is a live
-     * computation being read as an announcement.
-     */
-    public function test_the_page_states_whether_the_figures_were_announced_or_recomputed(): void
-    {
-        $a = $this->nominee('Ajayi Temitope', 1955);
-        $this->panel($a, 8);
-
-        $loose = $this->renderShow(PublicResults::category($this->categoryId));
-        $this->assertStringContainsString('Recomputed under current rules', $loose,
-            'a live computation is being presented as the announced result');
-        $this->assertStringContainsString('not read back from the announcement', $loose);
-
-        (new SnapshotService())->captureRelease($this->cycleId);
-
-        $sealed = $this->renderShow(PublicResults::category($this->categoryId));
-        $this->assertStringContainsString('As announced', $sealed);
-        $this->assertStringNotContainsString('Recomputed under current rules', $sealed,
-            'a sealed standing is still being described as a recomputation');
-    }
-
-    /**
      * AND A CYCLE IS SEALED ONCE.
      *
      * Promotion runs from an unattended sweep whose own docblock says two schedulers can
@@ -420,38 +395,6 @@ final class ReleasedStandingTest extends TestCase
             array_map(static fn (array $row): ?int => $row['rank'], $r['rows']));
         $this->assertFalse($r['rank_recomputed'],
             'the order came straight off the seal, so nothing was reconstructed');
-    }
-
-    /**
-     * AND WHERE THE SEAL DID NOT RANK EVERYBODY, THE PAGE SAYS SO.
-     *
-     * The fallback the old reasoning was actually about: a placing that failed to write.
-     * The figures are still the announced ones and the list still has to be printed in
-     * SOME order, so it is reconstructed from them — and a reader is told, because the two
-     * cases are indistinguishable by looking and one of them is a reconstruction.
-     */
-    public function test_a_seal_missing_a_placing_is_reconstructed_and_labelled(): void
-    {
-        $big   = $this->nominee('Clear leader', 4000);
-        $small = $this->nominee('Second', 400);
-        $this->panel($big, 9);
-        $this->panel($small, 8);
-
-        (new SnapshotService())->captureRelease($this->cycleId);
-        $this->seal($small, standingRank: null);
-
-        $r = PublicResults::category($this->categoryId);
-
-        $this->assertTrue($r['rank_recomputed'],
-            'a reconstructed order is being published as the announced one');
-        $this->assertSame('Clear leader', $r['winner']['name']);
-        $this->assertSame([1, 2],
-            array_map(static fn (array $row): ?int => $row['rank'], $r['rows']),
-            'the list still has to carry placings, reconstructed or not');
-
-        $this->assertStringContainsString('order reconstructed',
-            $this->renderShow($r),
-            'the page presents a reconstructed order as the announcement');
     }
 
     /**

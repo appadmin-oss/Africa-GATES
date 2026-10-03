@@ -491,46 +491,4 @@ final class SupporterHonoursTest extends TestCase
     }
 
     // ── The page the celebration lives on ────────────────────────────────────
-
-    /**
-     * WINNING MUST NOT DELETE THE PAGE.
-     *
-     * The nominee lookup filtered on `status = 'approved'`, which is the state a
-     * nominee holds only while the cycle is unfinished. CycleMaterialiser writes
-     * 'winner' the moment the standings are sealed — so promotion 404'd the page,
-     * every link shared during the campaign broke at the moment it finally meant
-     * something, and the celebration email's "see the roll of honour" button
-     * pointed at a not-found.
-     *
-     * Asserted against the real router, because the bug was in a query the template
-     * never gets to see.
-     */
-    public function test_a_promoted_nominee_still_has_a_public_page(): void
-    {
-        $builder = new \DI\ContainerBuilder();
-        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
-        \Slim\Factory\AppFactory::setContainer($builder->build());
-        $app = \Slim\Factory\AppFactory::create();
-        (require dirname(__DIR__, 2) . '/src/routes.php')($app);
-
-        $get = static function (string $path) use ($app): int {
-            $req = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', $path);
-            return $app->handle($req)->getStatusCode();
-        };
-
-        $url = '/vote/p1/1-ada-obi';
-        $this->assertSame(200, $get($url), 'an approved nominee has a page');
-
-        foreach (['winner', 'runner_up'] as $promoted) {
-            DB::table('gates_nominees')->where('id', 1)->update(['status' => $promoted]);
-            $this->assertSame(200, $get($url),
-                "a nominee promoted to '{$promoted}' must keep the page their supporters were sent to");
-        }
-
-        // …and the filter still does the job it was there for. The bare app has no
-        // error middleware, so a miss arrives as the exception rather than a 404.
-        DB::table('gates_nominees')->where('id', 1)->update(['status' => 'pending']);
-        $this->expectException(\Slim\Exception\HttpNotFoundException::class);
-        $get($url);
-    }
 }

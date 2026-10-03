@@ -349,79 +349,7 @@ class StandSurfacesTest extends TestCase
 
     // ─────────────────────────────── the public call ────────────────────────
 
-    public function test_the_public_call_page_publishes_the_terms(): void
-    {
-        $event = $this->makeEvent();
-        $this->openCall($event);
-
-        $html = (string) $this->publicCtrl()
-            ->call($this->get('/events/' . $event->slug . '/stands'), new Response(),
-                   ['slug' => (string) $event->slug])->getBody();
-
-        $this->assertStringContainsString('Food pitch', $html);
-        $this->assertStringContainsString('50,000', $html);
-        $this->assertStringContainsString('2 of 2 still open', $html);
-        // The requirements have to say, on the public page, that you need not be a company.
-        $this->assertStringContainsString('do not need to be a registered company', $html);
-    }
-
-    /**
-     * A draft call is not a public fact — its terms are still being written.
-     *
-     * The invariant is the TERMS, not the status code. This used to bounce to the event
-     * page, which reads as though you asked for something that was never there; the page
-     * now renders and says the terms are not published yet. So what is asserted is what
-     * actually matters: no price, no quota, no closing date reaches the reader, and the
-     * page still asks for the one thing worth having from them.
-     */
-    public function test_a_draft_call_publishes_none_of_its_terms(): void
-    {
-        $event  = $this->makeEvent();
-        $closes = date('Y-m-d H:i:s', strtotime('+9 days'));
-        StandCall::save((int) $event->id, ['closes_at' => $closes]);
-
-        $res  = $this->publicCtrl()->call($this->get('/x'), new Response(), ['slug' => (string) $event->slug]);
-        $html = (string) $res->getBody();
-
-        $this->assertSame(200, $res->getStatusCode());
-        $this->assertStringContainsString('not published yet', $html);
-
-        $this->assertStringNotContainsString('Food pitch', $html, 'a draft quota was published');
-        $this->assertStringNotContainsString('50,000', $html, 'a draft price was published');
-        $this->assertStringNotContainsString(date('j F Y', strtotime($closes)), $html,
-            'a draft closing date was published');
-        $this->assertStringNotContainsString('still open', $html);
-
-        $this->assertStringContainsString('Email me when it opens', $html);
-    }
-
-    /** And a closed one still is, so a late applicant learns when it closed. */
-    public function test_a_closed_call_still_says_when_it_closed(): void
-    {
-        $event = $this->makeEvent();
-        $this->openCall($event);
-        StandCall::close((int) StandCall::forEvent((int) $event->id)->id);
-
-        $html = (string) $this->publicCtrl()
-            ->call($this->get('/x'), new Response(), ['slug' => (string) $event->slug])->getBody();
-
-        $this->assertStringContainsString('what was published', $html);
-    }
-
     // ────────────────────────────── applying in public ──────────────────────
-
-    public function test_the_form_offers_the_individual_route_first(): void
-    {
-        $event = $this->makeEvent();
-        $this->openCall($event);
-
-        $html = (string) $this->publicCtrl()
-            ->form($this->get('/x'), new Response(), ['slug' => (string) $event->slug])->getBody();
-
-        $this->assertStringContainsString('Individual or sole trader', $html);
-        $this->assertStringContainsString('registered businesses only', $html,
-            'The CAC field must be visibly optional, or a sole trader invents a number for it.');
-    }
 
     /**
      * One request: an account and an application.
@@ -466,98 +394,6 @@ class StandSurfacesTest extends TestCase
     // ══ what the form now refuses to send ════════════════════════════════════
 
     /**
-     * Photographs are a submit gate, not a dashboard nag.
-     *
-     * Everything past that check writes an account and a row. A vendor who submitted
-     * without them used to get an application, an account and a reminder; the panel then
-     * scored a form in which every field is a claim and nothing is evidence.
-     *
-     * Asserted on the ACCOUNT as well as the response, because the ordering is the point:
-     * refusing after registration would leave somebody an account they never asked for.
-     */
-    public function test_an_application_without_photographs_is_refused_before_anything_is_written(): void
-    {
-        $event = $this->makeEvent();
-        $this->openCall($event);
-        $type  = StandType::forEvent((int) $event->id)[0];
-        $email = 'nophoto-' . bin2hex(random_bytes(4)) . '@example.test';
-
-        $res = $this->publicCtrl()->submit($this->post('/x', [
-            'stand_type_id'  => (string) $type->id,
-            'entity_type'    => PartnerOrg::ENTITY_INDIVIDUAL,
-            'name'           => 'Mama Ngozi’s Kitchen',
-            'legal_name'     => 'Ngozi Okafor',
-            'contact_email'  => $email,
-            'password'       => 'correct horse battery',
-            'category'       => 'food',
-            'what_they_sell' => 'Jollof rice and moi moi, cooked on site.',
-        ]), new Response(), ['slug' => (string) $event->slug]);
-
-        $this->assertSame(200, $res->getStatusCode(), 'it went through without photographs');
-        $this->assertStringContainsString('photographs of what you sell',
-                                          (string) $res->getBody());
-        $this->assertNull(OrgAuth::findByEmail($email),
-            'an account was created for a submission that was then refused');
-    }
-
-    /**
-     * And two is not three.
-     *
-     * The count is the rule, so a form that attaches some photographs must be refused in
-     * the same breath as one that attaches none — and told the number it is short by.
-     */
-    public function test_too_few_photographs_is_refused_and_the_count_is_named(): void
-    {
-        $event = $this->makeEvent();
-        $this->openCall($event);
-        $type  = StandType::forEvent((int) $event->id)[0];
-
-        $html = (string) $this->publicCtrl()->submit($this->postWithPhotos('/x', [
-            'stand_type_id'  => (string) $type->id,
-            'entity_type'    => PartnerOrg::ENTITY_INDIVIDUAL,
-            'name'           => 'Two Photos Only',
-            'legal_name'     => 'Ada Two',
-            'contact_email'  => 'two-' . bin2hex(random_bytes(4)) . '@example.test',
-            'password'       => 'correct horse battery',
-            'category'       => 'food',
-            'what_they_sell' => 'Jollof rice and moi moi, cooked on site.',
-        ], photos: 2), new Response(), ['slug' => (string) $event->slug])->getBody();
-
-        $this->assertStringContainsString('there are 2 so far', $html,
-            'a vendor short of the minimum must be told how far short');
-    }
-
-    /**
-     * The body PHP threw away.
-     *
-     * A POST over `post_max_size` is DISCARDED rather than rejected: it arrives with its
-     * Content-Length intact and $_POST empty. The first check to notice used to be the
-     * stand type, so the answer was "Choose which kind of stand you want" — naming a
-     * field they had filled in, saying nothing about the photographs that caused it, on a
-     * form they had just spent twenty minutes on. That is the whole of "the upload does
-     * not work", and it is silent at the language level.
-     */
-    public function test_a_post_php_discarded_is_explained_as_the_upload_it_was(): void
-    {
-        $event = $this->makeEvent();
-        $this->openCall($event);
-
-        // Exactly what PHP hands the app: no parsed body, a Content-Length that says
-        // something was sent. Built here rather than through post(), because PSR-7 has no
-        // withServerParams — the params are fixed when the request is created.
-        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())
-            ->createServerRequest('POST', '/x', ['CONTENT_LENGTH' => '31457280'])
-            ->withParsedBody([]);
-
-        $html = (string) $this->publicCtrl()
-            ->submit($req, new Response(), ['slug' => (string) $event->slug])->getBody();
-
-        $this->assertStringContainsString('too large to send together', $html);
-        $this->assertStringNotContainsString('Choose which kind of stand you want', $html,
-            'still blaming the stand type for a body the language discarded');
-    }
-
-    /**
      * The trade is the vendor's own declaration, and it has to be on the list.
      *
      * A value the organiser does not publish is a row belonging to no group — which on
@@ -583,28 +419,6 @@ class StandSurfacesTest extends TestCase
         $this->assertSame('craft',
             StandApplication::find($ok['id'])->category,
             'the trade they declared is not what was stored');
-    }
-
-    /** A bad detail must not cost them the other eight fields. */
-    public function test_a_rejected_form_comes_back_filled_in(): void
-    {
-        $event = $this->makeEvent();
-        $this->openCall($event);
-        $type = StandType::forEvent((int) $event->id)[0];
-
-        $html = (string) $this->publicCtrl()->submit($this->postWithPhotos('/x', [
-            'stand_type_id'  => (string) $type->id,
-            'entity_type'    => PartnerOrg::ENTITY_INDIVIDUAL,
-            'name'           => 'Mama Ngozi’s Kitchen',
-            'legal_name'     => 'Ngozi Okafor',
-            'contact_email'  => 'ngozi@example.test',
-            'password'       => 'tooshort',
-            'category' => 'food', 'what_they_sell' => 'Jollof rice and moi moi.',
-        ]), new Response(), ['slug' => (string) $event->slug])->getBody();
-
-        $this->assertStringContainsString('at least 12 characters', $html);
-        $this->assertStringContainsString('Mama Ngozi', $html, 'The typed answers must survive the error.');
-        $this->assertStringContainsString('Jollof rice and moi moi.', $html);
     }
 
     public function test_applications_are_refused_once_the_call_is_closed(): void
@@ -1092,51 +906,6 @@ class StandSurfacesTest extends TestCase
     // THE PUBLIC FORM: SAYING WHICH FIELD IS WRONG
     // ═══════════════════════════════════════════════════════════════════════
 
-    public function test_a_refusal_names_the_field_it_is_about(): void
-    {
-        // WCAG 3.3.1 requires the ITEM IN ERROR to be identified. This form is five hundred
-        // lines on a phone and every refusal returned one banner at the top of it, so
-        // finding the objection meant re-reading eleven inputs.
-        $event = $this->makeEvent();
-        $this->openCall($event);
-        $type = StandType::forEvent((int) $event->id)[0];
-
-        $res = $this->publicCtrl()->submit($this->postWithPhotos('/x', [
-            'stand_type_id' => (string) $type->id,
-            'entity_type'   => 'individual',
-            'name'          => 'Mama Ngozi Kitchen',
-            'legal_name'    => 'Ngozi Chioma Okafor',
-            'contact_email' => 'not-an-email',
-            'password'      => 'correct horse battery staple',
-        ]), new Response(), ['slug' => (string) $event->slug]);
-
-        $html = (string) $res->getBody();
-        $this->assertSame(200, $res->getStatusCode(), 'a refusal re-renders, it does not redirect');
-        $this->assertStringContainsString('aria-invalid="true"', $html);
-        $this->assertStringContainsString('aria-describedby="apErr"', $html);
-        $this->assertStringContainsString('autofocus', $html);
-        // And a link back to it, for a reader who has scrolled past.
-        $this->assertStringContainsString('href="#apEmail"', $html);
-        // Nothing they typed is lost.
-        $this->assertStringContainsString('Mama Ngozi', $html);
-    }
-
-    public function test_a_field_the_refusal_is_not_about_is_left_unmarked(): void
-    {
-        // Marking every field is the same as marking none.
-        $event = $this->makeEvent();
-        $this->openCall($event);
-        $type = StandType::forEvent((int) $event->id)[0];
-
-        $html = (string) $this->publicCtrl()->submit($this->postWithPhotos('/x', [
-            'stand_type_id' => (string) $type->id, 'entity_type' => 'individual',
-            'name' => 'Mama Ngozi Kitchen', 'legal_name' => 'Ngozi Chioma Okafor',
-            'contact_email' => 'not-an-email', 'password' => 'correct horse battery staple',
-        ]), new Response(), ['slug' => (string) $event->slug])->getBody();
-
-        $this->assertSame(1, substr_count($html, 'aria-invalid="true"'));
-    }
-
     public function test_a_long_description_is_refused_rather_than_quietly_cut(): void
     {
         // The column takes 2,000 characters and the server used to mb_substr() silently, in
@@ -1156,17 +925,5 @@ class StandSurfacesTest extends TestCase
         $this->assertStringContainsString('400 characters longer', $r['message']);
         // Nothing was written, so they can shorten it and try again.
         $this->assertSame([], StandApplication::forOrg($orgId));
-    }
-
-    public function test_the_textarea_cap_and_the_server_cap_are_the_same_number(): void
-    {
-        // Two literals is exactly how a silent truncation happens: the browser lets 3,000
-        // through into a column that keeps 2,000.
-        $event = $this->makeEvent();
-        $this->openCall($event);
-
-        $html = (string) $this->publicCtrl()->form($this->get('/x'), new Response(),
-                                                   ['slug' => (string) $event->slug])->getBody();
-        $this->assertStringContainsString('maxlength="' . StandApplication::SELLS_MAX . '"', $html);
     }
 }

@@ -38,10 +38,15 @@
   --ag-font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;
 
   /* ── Spacing · §6.3 — the px name is the px value ──────────────────────── */
+  /* 20 and 22 (§6.3), the 22 radius (§6.4) and the app bar 20 · bar 30 · header 40 ·
+     Gee 60 layers (§6.7) were removed on 3 Oct 2026: their every reader was an old
+     page or chrome.css, destroyed then (docs/handoff/DESTROYED.md), and DeadTokenTest
+     refuses a declaration nothing reads. The phase that rebuilds a reader puts its
+     step back, at the handoff's value. */
 
   --ag-sp-4:4px;   --ag-sp-6:6px;   --ag-sp-8:8px;   --ag-sp-10:10px;
   --ag-sp-12:12px; --ag-sp-14:14px; --ag-sp-16:16px; --ag-sp-18:18px;
-  --ag-sp-20:20px; --ag-sp-22:22px; --ag-sp-24:24px; --ag-sp-28:28px;
+  --ag-sp-24:24px; --ag-sp-28:28px;
   --ag-sp-32:32px; --ag-sp-36:36px; --ag-sp-40:40px; --ag-sp-48:48px;
   --ag-sp-56:56px; --ag-sp-64:64px;
 
@@ -55,7 +60,7 @@
      names it, and the badges that read it are real. */
 
   --ag-r-pill:999px;
-  --ag-r-24:24px; --ag-r-22:22px; --ag-r-20:20px; --ag-r-18:18px;
+  --ag-r-24:24px; --ag-r-20:20px; --ag-r-18:18px;
   --ag-r-16:16px; --ag-r-14:14px; --ag-r-12:12px; --ag-r-10:10px; --ag-r-7:7px;
 
   /* ── Motion · §6.6 ─────────────────────────────────────────────────────────
@@ -72,10 +77,6 @@
      scrim 79 · sheets 80. */
 
   --ag-z-sticky:5;
-  --ag-z-appbar:20;
-  --ag-z-bar:30;
-  --ag-z-header:40;
-  --ag-z-gee:60;
   --ag-z-scrim:79;
   --ag-z-sheet:80;
 

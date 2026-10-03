@@ -398,15 +398,12 @@ final class ColourIsNeverAloneTest extends TestCase
      * @var array<string,int>
      */
     private const BACKLOG = [
-        'templates/pages/challenges/show.twig'  => 3,
-        'templates/pages/events/detail.twig'    => 2,
-        'templates/pages/home.twig'             => 6,
-        'templates/pages/pulse.twig'            => 1,
-        'templates/pages/results/show.twig'     => 1,
-        'templates/pages/vote-program.twig'     => 1,
-        'templates/pages/vote.twig'             => 1,
+        // Seven pages left this list on 3 Oct 2026 when they were destroyed with the old
+        // pages (challenges/show 3, events/detail 2, home 6, pulse 1, results/show 1,
+        // vote-program 1, vote 1 — docs/handoff/DESTROYED.md, and each one's inventory),
+        // and site-header.twig fell to 0 when the chrome.css rules that painted its
+        // dot were destroyed with them.
         'templates/partials/promo-carousel.twig'=> 2,
-        'templates/partials/site-header.twig'   => 1,
     ];
 
     public function test_the_tile_hides_its_mark_and_leaves_its_word_alone(): void

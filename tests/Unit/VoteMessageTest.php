@@ -549,76 +549,6 @@ final class VoteMessageTest extends TestCase
         $this->assertSame([], VoteMessageService::wall(self::NOMINEE));
     }
 
-    public function test_the_permalink_page_puts_the_message_in_its_own_social_card(): void
-    {
-        $r = $this->submit(['body' => 'She taught our whole street to read.']);
-
-        $req  = (new ServerRequestFactory())->createServerRequest('GET', '/m/' . $r['token']);
-        $html = (string) $this->app()->handle($req)->getBody();
-
-        // THE WHOLE POINT OF THE PAGE. Shared as a link to the ballot, fifty
-        // supporters' fifty different sentences all preview as the same "Vote for X"
-        // card. Here the words are in the og:title, so the card carries them.
-        $this->assertStringContainsString('She taught our whole street to read', $html);
-        $this->assertMatchesRegularExpression(
-            '/property="og:title" content="[^"]*She taught our whole street/',
-            $html,
-            'the message is on the page but not in the preview card, which is the only reason the page exists'
-        );
-        // And it still has to lead somewhere: a shared message that cannot be acted
-        // on is a dead end.
-        $this->assertStringContainsString('/vote/prog-4400/', $html);
-    }
-
-    /**
-     * THE CARD IS THE SHARE.
-     *
-     * Facebook's preview is mostly image. Before this, the image was the nominee's
-     * ballot card — so fifty supporters posting fifty different sentences produced
-     * fifty identical "VOTE NOW" thumbnails and the words were lost. The og:image now
-     * points at the message's own graphic.
-     */
-    public function test_the_permalink_advertises_the_messages_own_card_not_the_ballots(): void
-    {
-        $r    = $this->submit();
-        $html = (string) $this->app()->handle(
-            (new ServerRequestFactory())->createServerRequest('GET', '/m/' . $r['token'])
-        )->getBody();
-
-        $this->assertMatchesRegularExpression(
-            '#property="og:image" content="[^"]*/m/' . preg_quote((string) $r['token'], '#') . '/card\.png"#',
-            $html,
-            'a shared message previews with the ballot card, so the words never appear'
-        );
-    }
-
-    /**
-     * A message permalink is share bait, not search bait: one short quote surrounded by
-     * boilerplate, one per message. A few hundred of those is thin content that dilutes
-     * the pages which should rank, so it is noindex — and `follow`, because the links
-     * out of it are worth crawling. Social crawlers read og: tags and ignore robots
-     * meta, so the share is unaffected. The full wall stays indexable.
-     */
-    public function test_a_message_permalink_is_noindex_but_the_full_wall_is_not(): void
-    {
-        $r = $this->submit();
-        $app = $this->app();
-
-        $one = (string) $app->handle(
-            (new ServerRequestFactory())->createServerRequest('GET', '/m/' . $r['token'])
-        )->getBody();
-        $all = (string) $app->handle(
-            (new ServerRequestFactory())->createServerRequest('GET', '/vote/prog-4400/' . self::NOMINEE . '-amara-okonkwo/messages')
-        )->getBody();
-
-        $this->assertMatchesRegularExpression('/name="robots" content="noindex, follow/', $one);
-        $this->assertMatchesRegularExpression('/name="robots" content="index, follow/', $all);
-        // The og: tags are what a share preview reads, and they are untouched by any of
-        // this — asserted here because "noindex" and "unshareable" are one careless
-        // change apart.
-        $this->assertStringContainsString('property="og:image"', $one);
-    }
-
     /**
      * And the card renders. GD and the bundled fonts are what it needs; where they are
      * missing it must REDIRECT to the nominee's card rather than 404, because a missing
@@ -654,44 +584,6 @@ final class VoteMessageTest extends TestCase
         )->getStatusCode();
 
         $this->assertSame(404, $status);
-    }
-
-    /**
-     * The full wall is a PAGE, not a "load more" button — so it has a URL a nominee can
-     * send to their family, it is visible to crawlers and to readers without
-     * JavaScript, and the item markup has exactly one renderer.
-     */
-    public function test_a_nominee_has_a_page_of_all_their_messages(): void
-    {
-        $this->submit(['email' => 'a@example.com', 'body' => 'She never once asked anybody for a naira.']);
-        $this->submit(['email' => 'b@example.com', 'body' => 'Twelve people and no instruments.']);
-
-        $html = (string) $this->app()->handle(
-            (new ServerRequestFactory())->createServerRequest('GET', '/vote/prog-4400/' . self::NOMINEE . '-amara-okonkwo/messages')
-        )->getBody();
-
-        $this->assertStringContainsString('She never once asked anybody for a naira.', $html);
-        $this->assertStringContainsString('Twelve people and no instruments.', $html);
-        $this->assertStringContainsString('Messages for Amara Okonkwo', $html);
-        // The report control has to be on THIS page too — it comes from the shared
-        // partial, which is the whole reason the partial exists.
-        $this->assertStringContainsString('vmItem(', $html);
-    }
-
-    /** Held and rejected messages are not on it, not counted, and not hinted at. */
-    public function test_the_messages_page_shows_only_what_was_approved(): void
-    {
-        $this->submit(['email' => 'ok@example.com', 'body' => 'A clean and public message.']);
-        $this->submit(['email' => 'held@example.com', 'body' => 'Something borderline.'],
-            $this->spam('quarantine', 0.6, 'borderline'));
-
-        $html = (string) $this->app()->handle(
-            (new ServerRequestFactory())->createServerRequest('GET', '/vote/prog-4400/' . self::NOMINEE . '-amara-okonkwo/messages')
-        )->getBody();
-
-        $this->assertStringContainsString('A clean and public message.', $html);
-        $this->assertStringNotContainsString('Something borderline.', $html);
-        $this->assertStringContainsString('1 message from verified voters', $html);
     }
 
     public function test_an_unknown_or_rejected_token_is_a_404_not_a_blank_page(): void

@@ -186,12 +186,57 @@ final class PublicIaTest extends TestCase
             // now. A login bounce is the second. Only the first is out of scope here.
             if ($this->movedPermanently($app, $p)) continue;
 
+            // ── A DESTROYED PAGE AWAITING ITS REBUILD IS NOT A PAGE ─────────
+            //
+            // On 3 Oct 2026 the old public pages were destroyed and their routes left
+            // standing (docs/handoff/DESTROYED.md); each comes back when its phase
+            // rebuilds it. Until then the route renders a template that is not in the
+            // tree — there is no page to find, so asking whether it is linked asks about
+            // nothing. ASKED, not listed: the handler's own source names the template, and
+            // the route drops out of scope only while every template it names is missing.
+            // The day the rebuild lands the template, this route is back in the sweep.
+            if ($this->rendersOnlyDestroyedTemplates($r->getCallable())) continue;
+
             $out[rtrim($p, '/') ?: '/'] = true;
         }
 
         ksort($out);
 
         return array_keys($out);
+    }
+
+    /**
+     * Does this handler render page templates, every one of which is missing from the tree?
+     *
+     * Read from the handler's source (and the private methods it calls, one level down),
+     * because a destroyed page and a sign-in bounce both answer without ever reaching the
+     * render, so dispatching cannot tell them apart. A handler naming no template at all
+     * answers false: that is a redirect or data, and the checks above own it.
+     */
+    private function rendersOnlyDestroyedTemplates(mixed $callable): bool
+    {
+        if (is_string($callable) && str_contains($callable, ':')) $callable = explode(':', $callable, 2);
+        if (!is_array($callable) || !is_string($callable[0]) || !class_exists($callable[0])) return false;
+
+        $cls = new \ReflectionClass($callable[0]);
+        if (!$cls->hasMethod($callable[1])) return false;
+
+        $source = static function (\ReflectionMethod $m): string {
+            $lines = file((string) $m->getFileName());
+            return implode('', array_slice($lines, $m->getStartLine() - 1, $m->getEndLine() - $m->getStartLine() + 1));
+        };
+        $body = $source($cls->getMethod($callable[1]));
+        if (preg_match_all('~\$this->([A-Za-z_]+)\(~', $body, $calls)) {
+            foreach (array_unique($calls[1]) as $name) {
+                if ($cls->hasMethod($name)) $body .= $source($cls->getMethod($name));
+            }
+        }
+
+        if (!preg_match_all("~['\"](pages/[A-Za-z0-9_/.-]+\\.twig)['\"]~", $body, $m)) return false;
+        foreach (array_unique($m[1]) as $tpl) {
+            if (is_file(dirname(__DIR__, 2) . '/templates/' . $tpl)) return false;
+        }
+        return true;
     }
 
     /**
@@ -356,7 +401,10 @@ final class PublicIaTest extends TestCase
 
         foreach ([
             'templates/layout/footer.twig'  => 'the site footer, which is the one place on every page a partner can get back from',
-            'templates/pages/partner.twig'  => 'the page that tells organisations about the platform, where an organisation who already joined needs a way back in',
+            // `templates/pages/partner.twig` — "the page that tells organisations about the
+            // platform, where an organisation who already joined needs a way back in" — was
+            // the second door. It was destroyed with the old pages; its inventory carries
+            // the rule, and its rebuild puts this line back.
         ] as $rel => $why) {
             $body = $this->visible((string) file_get_contents($root . '/' . $rel));
 

@@ -116,54 +116,6 @@ final class OneTimeCodeScreenTest extends TestCase
 
     // ═════════════════════ the screen with no address ════════════════════════
 
-    /**
-     * THE FAULT. Every control the screen offers has to be able to succeed. Before
-     * the fix this asked for an address it never showed and posted an empty one.
-     */
-    public function test_with_no_remembered_address_the_screen_asks_for_one(): void
-    {
-        $html = $this->get('/account/login?sent=1');
-
-        $this->assertMatchesRegularExpression(
-            '~<input[^>]*id="otp-email"[^>]*name="email"~', $html,
-            'the code screen must ask for the address when the session no longer has one');
-        $this->assertDoesNotMatchRegularExpression(
-            '~<input type="hidden" name="email" value="">~', $html,
-            'a hidden field carrying nothing posts nothing, and the only feedback is a message about the code');
-        $this->assertStringNotContainsString('we just sent you', $html,
-            'this browser has no record of a send; saying so is what made the dead screen look complete');
-    }
-
-    /** And it does not offer a resend it cannot perform. */
-    public function test_with_no_remembered_address_no_control_posts_an_empty_one(): void
-    {
-        $html = $this->get('/account/login?sent=1');
-
-        // Every form on the card, and what it would post as `email`.
-        preg_match_all('~<form[^>]*action="(/account/login[^"]*)"(.*?)</form>~s', $html, $forms, PREG_SET_ORDER);
-        $this->assertNotEmpty($forms, 'the code screen must still have a form on it');
-
-        foreach ($forms as [, $action, $body]) {
-            $hidden = preg_match('~<input type="hidden" name="email" value="([^"]*)"~', $body, $m) ? $m[1] : null;
-            $asked  = (bool) preg_match('~<input[^>]*type="email"[^>]*name="email"~', $body);
-            $this->assertTrue($asked || ($hidden !== null && $hidden !== ''),
-                "the form posting to {$action} would send no usable address, and cannot succeed "
-                . '(a missing field falls back to the same empty session as an empty one)');
-        }
-    }
-
-    /** With an address in hand the screen keeps its cheaper shape: no second field. */
-    public function test_with_a_remembered_address_the_field_stays_hidden(): void
-    {
-        $_SESSION['user_login_email'] = 'ada@example.com';
-        $html = $this->get('/account/login?sent=1');
-
-        $this->assertStringContainsString('<input type="hidden" name="email" value="ada@example.com">', $html);
-        $this->assertStringNotContainsString('id="otp-email"', $html,
-            'asking again for an address the page is already printing is a field nobody needs');
-        $this->assertStringContainsString('ada@example.com', $html);
-    }
-
     /** A code posted with its address verifies, whatever the session remembers. */
     public function test_a_code_verifies_when_the_address_travels_with_it(): void
     {
@@ -179,16 +131,6 @@ final class OneTimeCodeScreenTest extends TestCase
     }
 
     // ═══════════════════════ the rules it now states ═════════════════════════
-
-    /** The window is read from the rule, not typed into the page. */
-    public function test_the_window_on_the_page_is_the_window_in_the_code(): void
-    {
-        $_SESSION['user_login_email'] = 'ada@example.com';
-        $html = $this->get('/account/login?sent=1');
-
-        $this->assertStringContainsString(
-            'It expires ' . UserAccountService::OTP_TTL_MINUTES . ' minutes after it is sent.', $html);
-    }
 
     /** And the mint uses the same one, so the promise and the token agree. */
     public function test_the_minted_code_lives_exactly_that_long(): void

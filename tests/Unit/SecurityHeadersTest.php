@@ -530,8 +530,17 @@ class SecurityHeadersTest extends TestCase
             'the sweep found no getUserMedia anywhere: it is reading nothing, not passing');
         $this->assertArrayHasKey('autoplay', $found,
             'the sweep found no audio player anywhere: it is reading nothing, not passing');
-        $this->assertArrayHasKey('microphone', $found,
-            'the sweep found nothing recording: the constraint reader is reading nothing');
+        // The microphone control used to be the shipped code too: the nominee's two
+        // dictation screens (my-work.twig, my-work/interview.twig). Both were destroyed
+        // with the old pages on 3 Oct 2026 (docs/handoff/DESTROYED.md), so no shipped
+        // file records today, and the reader is proven on planted constraints instead —
+        // both polarities, because `audio: false` reading as a microphone is the bug
+        // this reader was rebuilt to stop. The rebuilt my-work page must bring
+        // `assertArrayHasKey('microphone', $found)` back.
+        $this->assertSame(['microphone'], $this->mediaConstraints('getUserMedia({ audio: true })'),
+            'the constraint reader no longer sees a microphone request');
+        $this->assertSame([], $this->mediaConstraints('getUserMedia({ video: false, audio: false })'),
+            'the constraint reader reads `audio: false` as a microphone request');
 
         foreach ($found as $feature => $files) {
             $this->assertStringNotContainsString($feature . '=()', $pp,

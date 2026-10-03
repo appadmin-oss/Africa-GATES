@@ -482,24 +482,6 @@ final class SystemStatusTest extends TestCase
         }
     }
 
-    /**
-     * The template must not carry a fallback board of its own.
-     *
-     * The version this replaced hard-coded six 'Operational' rows as a Twig `|default(...)`,
-     * so a route that passed nothing still rendered a full green page. Two independent
-     * places were asserting health that neither had checked.
-     */
-    public function test_the_template_has_no_hard_coded_component_list(): void
-    {
-        $tpl = (string) file_get_contents($this->root() . '/templates/pages/status.twig');
-
-        $this->assertStringNotContainsString('components|default', $tpl,
-            'a defaulted component list is a board that renders green with no data');
-        $this->assertStringNotContainsString("'status':'Operational'", $tpl);
-        $this->assertStringContainsString('checked_at', $tpl,
-            'an undated status board is one nobody can tell is stale');
-    }
-
     /** And the route must delegate rather than build its own answer inline. */
     public function test_the_route_delegates_to_the_measured_report(): void
     {
@@ -508,52 +490,6 @@ final class SystemStatusTest extends TestCase
         $this->assertStringContainsString('SystemStatus::report()', $routes);
         $this->assertStringNotContainsString("'name'=>'Voting & ballots'", $routes,
             'the inline hard-coded status board is back');
-    }
-
-    /**
-     * The template must actually render the report, not merely be free of the old fiction.
-     *
-     * A controller and a template that have never been rendered together are two files that
-     * happen to be in the same repository.
-     */
-    public function test_the_page_renders_the_measured_report(): void
-    {
-        DB::table('gates_cron_log')->truncate();
-
-        $b = new \DI\ContainerBuilder();
-        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
-        $twig = $b->build()->get(\Slim\Views\Twig::class);
-
-        $report = SystemStatus::report();
-        $html   = $twig->fetch('pages/status.twig', $report + [
-            'page_title' => 'Is it working?', 'gates_page' => 'status', 'has_hero' => false,
-        ]);
-
-        foreach ($report['components'] as $c) {
-            $this->assertStringContainsString((string) $c['name'], $html);
-            $this->assertStringContainsString((string) $c['label'], $html,
-                'the state must be printed as a WORD, not carried by colour alone');
-        }
-        // ── THE STAMP CARRIES A ZONE, AND A MACHINE-READABLE INSTANT ────────
-        //
-        // This used to assert the raw stored string, which is exactly what the page was
-        // printing: a bare UTC datetime with no zone on it, to an audience an hour ahead of
-        // it. This codebase's own note on the subject is that a time with no zone is the
-        // thing people get wrong by exactly one hour — so the assertion now holds the
-        // property rather than the bug.
-        $this->assertStringContainsString('<time datetime=', $html,
-            'the instant must be machine-readable, not only prose');
-        $this->assertStringContainsString(
-            \AfricaGates\Support\DisplayTime::show($report['checked_at'], 'j M Y, H:i'), $html,
-            'and rendered in the display zone, not the storage zone');
-        $abbr = \AfricaGates\Support\DisplayTime::abbr();
-        if ($abbr !== '') {
-            $this->assertStringContainsString($abbr, $html, 'with the zone named');
-        }
-
-        // The dead schedule is in this render. If the page can still say everything is
-        // working, it is the old page with new markup.
-        $this->assertStringNotContainsString('Everything we can check is <em>working</em>', $html);
     }
 
     // ════════════════════════════════════════════════════════════════════════

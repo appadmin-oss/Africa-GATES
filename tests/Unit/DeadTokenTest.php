@@ -166,12 +166,46 @@ final class DeadTokenTest extends TestCase
         return $out;
     }
 
+    /**
+     * DECLARED, UNREAD, AND NOT OURS TO DELETE — A LIST THAT ONLY SHRINKS.
+     *
+     * On 3 Oct 2026 the old public pages were destroyed (docs/handoff/DESTROYED.md) and
+     * these lost their last reader. The tokens.css steps that did the same were simply
+     * removed. These were not, for two different reasons:
+     *
+     *  - the `--ag-*` seven are the handoff's palette and shadows, which the owner decided
+     *    ship ±0 under the handoff's names (GAPS §8 Q1) and which AccentTest pins name
+     *    for name. Deleting one is an owner decision, not a tidy-up.
+     *  - the `--ob-*` three are written by `partials/org-page.twig`, a partial that did
+     *    not qualify for the destroy (it reads no retired name) and whose includers did.
+     *
+     * Each entry leaves the moment a rebuilt page reads it — the test below fails on an
+     * entry that has a reader, or one nothing declares any more.
+     */
+    private const AWAITING_REBUILD = [
+        '--ag-gold-wash', '--ag-gold-wash-2', '--ag-green-edge', '--ag-info-wash',
+        '--ag-live-ink', '--ag-live-wash', '--ag-sh-mega',
+        '--ob-accent', '--ob-accent-dark', '--ob-accent-wash',
+    ];
+
+    public function test_the_awaiting_rebuild_list_only_shrinks(): void
+    {
+        [$decls, $reads] = $this->tokens();
+        $stale = [];
+        foreach (self::AWAITING_REBUILD as $name) {
+            if (!isset($decls[$name])) $stale[] = "$name: no longer declared — delete its line";
+            elseif (isset($reads[$name])) $stale[] = "$name: has a reader now — delete its line";
+        }
+        $this->assertSame([], $stale, implode("\n", $stale));
+    }
+
     public function test_no_custom_property_is_declared_without_a_reader(): void
     {
         [$decls, $reads] = $this->tokens();
 
         $dead = [];
         foreach ($decls as $name => $at) {
+            if (in_array($name, self::AWAITING_REBUILD, true)) continue;
             if (!isset($reads[$name])) $dead[] = $name . '  ' . $at[0];
         }
         sort($dead);
