@@ -75,23 +75,6 @@ final class FaviconTest extends TestCase
         $this->assertSame([], $bad, "something other than favicon.js writes the favicon:\n" . implode("\n", $bad));
     }
 
-    public function test_its_colours_are_tokens_that_exist(): void
-    {
-        $js     = (string) file_get_contents(self::ROOT . '/public/assets/js/favicon.js');
-        // Colour tokens are emitted by Support\Accent, the rest live in tokens.css.
-        $tokens = \AfricaGates\Support\Accent::css() . (string) file_get_contents(self::ROOT . '/public/assets/css/tokens.css');
-
-        preg_match_all("~token\('(--ag-[a-z0-9-]+)'~", $js, $m);
-        $this->assertGreaterThanOrEqual(5, count($m[1]));
-        foreach ($m[1] as $t) {
-            $this->assertMatchesRegularExpression('~' . preg_quote($t, '~') . '\s*:~', $tokens, "{$t} is not a token");
-        }
-        // Outside `token()` fallbacks, no literal colour.
-        $bare = preg_replace("~token\('--ag-[a-z0-9-]+',\s*'#[0-9a-f]{3,6}'\)~i", '', $js);
-        $code = preg_replace('~/\*.*?\*/|//[^\n]*~s', '', (string) $bare);
-        $this->assertDoesNotMatchRegularExpression('~#[0-9a-f]{6}\b~i', (string) $code, 'a typed colour');
-    }
-
     public function test_the_manifest_names_the_new_icons(): void
     {
         $m = json_decode((string) file_get_contents(self::ROOT . '/public/site.webmanifest'), true);

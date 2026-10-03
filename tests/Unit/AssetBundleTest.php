@@ -19,8 +19,9 @@ use Tests\TestCase;
  *     occurrences of `calc(100% +0.5rem)` in the real bundle, each of which a browser
  *     discards, silently collapsing whatever it sized. Found by grepping the built file,
  *     not by reading the code.
- *   • CASCADE ORDER. `a11y.css` is last so its WCAG corrections win. Concatenating in a
- *     different order changes which rules apply.
+ *   • CASCADE ORDER. Concatenating in a different order changes which rules apply.
+ *     (`a11y.css` used to be held last so its WCAG corrections won; it left the public
+ *     bundle with the legacy sheets on 3 Oct 2026 — see docs/handoff/DESTROYED.md.)
  *   • THE TEMPLATE FALLBACK. It must list the same files in the same order, or the
  *     bundled and unbundled renderings differ.
  *   • STALENESS. An edited source must fall back rather than serve the old bundle.
@@ -179,11 +180,16 @@ class AssetBundleTest extends TestCase
     // ── Order, which is the cascade ─────────────────────────────────────────
 
     /**
-     * The base before the components that specialise it, and after the legacy sheets it
-     * replaces. This block used to load last, so components.css beat forms.css on every
-     * form on the site — at equal specificity a page's sheet could never refine a shared
-     * component, and the rule that refined `.ag-label` and `.ag-hint` read as shipped
-     * while nothing it said applied.
+     * The base before the components that specialise it. This block used to load last,
+     * so components.css beat forms.css on every form on the site — at equal specificity a
+     * page's sheet could never refine a shared component, and the rule that refined
+     * `.ag-label` and `.ag-hint` read as shipped while nothing it said applied.
+     *
+     * It also had to load AFTER the legacy sheets it replaced (main.css, ui-overhaul.css,
+     * professional.css, redesign-2026.css, aurora.css). Those left the bundle on 3 Oct
+     * 2026 (docs/handoff/DESTROYED.md), so that half is gone; the order of the three
+     * base sheets among themselves is what is left to hold, and it is the order
+     * `layout/shell.twig` links them in.
      */
     public function test_the_base_layer_loads_before_every_component_sheet(): void
     {
@@ -197,18 +203,11 @@ class AssetBundleTest extends TestCase
                     $this->assertLessThan($i, $at($base), "{$base} loads after {$rel}, so it overrides it");
                 }
             }
-            foreach (['main.css', 'ui-overhaul.css', 'professional.css', 'redesign-2026.css', 'aurora.css'] as $legacy) {
-                $this->assertGreaterThan($at('assets/css/' . $legacy), $at($base),
-                    "{$base} loads before {$legacy}, so the legacy sheet beats the redesign");
-            }
         }
-    }
-
-    public function test_a11y_is_last_so_its_corrections_win(): void
-    {
-        $last = AssetBundle::STYLESHEETS[count(AssetBundle::STYLESHEETS) - 1];
-        $this->assertSame('assets/css/a11y.css', $last,
-            'a11y.css carries WCAG corrections that are meant to override everything');
+        $this->assertLessThan($at('assets/css/shell.css'), $at('assets/css/tokens.css'),
+            'the shell reads the size and motion tokens, so they must come first');
+        $this->assertLessThan($at('assets/css/components.css'), $at('assets/css/shell.css'),
+            'a component must be able to specialise the shell, so it comes after it');
     }
 
     public function test_sources_are_concatenated_in_the_declared_order(): void
@@ -262,7 +261,7 @@ class AssetBundleTest extends TestCase
         $this->assertNotNull(AssetBundle::url($this->root));
 
         // Edit one source with a later mtime — the situation every developer creates.
-        $edited = $this->root . '/assets/css/components/tile.css';
+        $edited = $this->root . '/assets/css/components.css';
         file_put_contents($edited, ".nav{color:hotpink}\n");
         touch($edited, time() + 30);
         clearstatcache();
@@ -306,7 +305,7 @@ class AssetBundleTest extends TestCase
         $this->seedSources();
         $a = AssetBundle::build($this->root)['file'];
 
-        file_put_contents($this->root . '/assets/css/a11y.css', ".a11y{outline:3px solid red}\n");
+        file_put_contents($this->root . '/assets/css/shell.css', ".shell{outline:3px solid red}\n");
         $b = AssetBundle::build($this->root)['file'];
 
         $this->assertNotSame($a, $b, 'changed CSS must produce a new URL, or nobody sees it');
@@ -316,7 +315,7 @@ class AssetBundleTest extends TestCase
     {
         $this->seedSources();
         AssetBundle::build($this->root);
-        file_put_contents($this->root . '/assets/css/a11y.css', ".x{color:red}\n");
+        file_put_contents($this->root . '/assets/css/shell.css', ".x{color:red}\n");
         AssetBundle::build($this->root);
 
         $this->assertCount(1, glob($this->root . '/assets/dist/site.*.css') ?: [],
@@ -326,12 +325,12 @@ class AssetBundleTest extends TestCase
     public function test_a_missing_source_is_reported_but_does_not_fail_the_build(): void
     {
         $this->seedSources();
-        @unlink($this->root . '/assets/css/aurora.css');
+        @unlink($this->root . '/assets/css/components.css');
 
         $r = AssetBundle::build($this->root);
 
         $this->assertTrue($r['ok'], 'the remaining CSS is still worth bundling');
-        $this->assertContains('assets/css/aurora.css', $r['missing'],
+        $this->assertContains('assets/css/components.css', $r['missing'],
             'and the operator must be told, not left to notice');
     }
 
@@ -340,15 +339,15 @@ class AssetBundleTest extends TestCase
     public function test_a_relative_url_is_rebased_to_survive_the_move_to_dist(): void
     {
         $this->seedSources();
-        // A component sheet referencing an image the way a future edit might.
+        // A sheet referencing an image the way a future edit might.
         file_put_contents(
-            $this->root . '/assets/css/components/tile.css',
-            ".n{background:url(../../img/logo.svg)}\n"
+            $this->root . '/assets/css/components.css',
+            ".n{background:url(../img/logo.svg)}\n"
         );
         AssetBundle::build($this->root);
         $bundle = $this->built();
 
-        // assets/css/components + ../../img/logo.svg  →  /assets/img/logo.svg
+        // assets/css + ../img/logo.svg  →  /assets/img/logo.svg
         $this->assertStringContainsString('url(/assets/img/logo.svg)', $bundle,
             'concatenation moves CSS to assets/dist/, so a relative url() must be rebased '
             . 'or it silently points at a file that is not there');

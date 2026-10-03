@@ -737,11 +737,12 @@ final class PublicResultsTest extends TestCase
         // appears nowhere and the guard would have gone quiet on the exact change most
         // able to drop the link. Both spellings count now — a link is a link whichever
         // way the template writes it.
-        // `layout/nav.twig` was split: the site header is `partials/site-header.twig`
-        // and the legacy file now holds only the phone chrome. The Explore panel — and
-        // therefore the way into the results — went with the header.
-        foreach (['templates/partials/site-header.twig' => 'the navigation',
-                  'templates/layout/footer.twig'        => 'the footer'] as $f => $what) {
+        // `layout/nav.twig` was split: the site header is `partials/site-header.twig`,
+        // and the Explore panel — and therefore the way into the results — went with the
+        // header. The second door, `layout/footer.twig`, was destroyed on 3 Oct 2026 with
+        // the other orphans of the old pages; its inventory (_partials.md) carries the
+        // rule, and the rebuilt footer goes back on this list.
+        foreach (['templates/partials/site-header.twig' => 'the navigation'] as $f => $what) {
             $body = (string) file_get_contents($root . '/' . $f);
             $this->assertTrue(
                 str_contains($body, 'href="/results"') || str_contains($body, "href:'/results'"),

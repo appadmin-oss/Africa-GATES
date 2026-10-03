@@ -114,23 +114,6 @@ final class SearchScopeTest extends TestCase
         );
     }
 
-    public function test_the_palette_offers_a_chip_for_every_scope_and_no_others(): void
-    {
-        $twig = (string) file_get_contents(__DIR__ . '/../../templates/partials/site-search.twig');
-        preg_match_all("/\\{k:'([a-z]*)', *label:'([A-Za-z]+)'\\}/", $twig, $m, PREG_SET_ORDER);
-
-        $keys = array_map(static fn (array $r): string => $r[1], $m);
-
-        // "All" is the empty key — the absence of a filter, not a fifth bucket.
-        $this->assertSame('', $keys[0] ?? null, 'the first chip must be All');
-        $this->assertSame(
-            array_keys(ActivityFeedService::SCOPES),
-            array_values(array_filter($keys)),
-            'the chips and the scopes disagree: a chip with no bucket filters nothing and '
-            . 'a bucket with no chip is a group of results nobody can ask for'
-        );
-    }
-
     public function test_the_chip_map_is_delivered_and_not_copied_into_the_javascript(): void
     {
         // The palette groups its results under the same headings the chips offer, and

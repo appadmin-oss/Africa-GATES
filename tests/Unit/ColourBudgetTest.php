@@ -230,8 +230,10 @@ final class ColourBudgetTest extends TestCase
     public function test_chrome_is_not_charged_to_a_page(): void
     {
         $root = dirname(__DIR__, 2);
-        // `layout/gates.twig` left this list when it was destroyed (DESTROYED.md).
-        foreach (['templates/layout/nav.twig'] as $chrome) {
+        // `layout/gates.twig` and `layout/nav.twig` left this list when they were
+        // destroyed (DESTROYED.md). The chrome that renders now is the shell and the
+        // header it mounts; neither is a page, so neither may be charged a page's budget.
+        foreach (['templates/layout/shell.twig', 'templates/partials/site-header.twig'] as $chrome) {
             $this->assertFileExists($root . '/' . $chrome);
             $this->assertArrayNotHasKey($chrome, $this->pages());
         }

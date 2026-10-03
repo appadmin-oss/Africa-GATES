@@ -20,8 +20,9 @@ use Tests\TestCase;
  *
  * So: anything painted with a role token either NAMES ITSELF, or is marked decorative
  * and has something beside it that names it. There is no third option, and the second
- * is the tile's shape — `partials/tile.twig` puts `aria-hidden` on the mark and leaves
- * the word alone.
+ * is the tile's shape — `partials/tile.twig` put `aria-hidden` on the mark and left
+ * the word alone (that partial was destroyed on 3 Oct 2026; the shape is in
+ * docs/handoff/inventory/_partials.md for its rebuild).
  *
  * ══════════════════════════════════════════════════════════════════════════════
  * WHY THIS SWEEP READS CSS BEFORE IT READS MARKUP
@@ -380,6 +381,12 @@ final class ColourIsNeverAloneTest extends TestCase
             }
         }
 
+        // An entry for a file the sweep no longer reads is an exemption nothing can
+        // check, and it would wait silently for the next file at that path.
+        foreach (array_keys(self::BACKLOG) as $rel) {
+            if (!is_file($root . '/' . $rel)) $bad[] = $rel . ': gone — delete its line';
+        }
+
         $this->assertSame([], $bad,
             "colour is carrying meaning on its own:\n  " . implode("\n  ", $bad));
     }
@@ -402,27 +409,9 @@ final class ColourIsNeverAloneTest extends TestCase
         // pages (challenges/show 3, events/detail 2, home 6, pulse 1, results/show 1,
         // vote-program 1, vote 1 — docs/handoff/DESTROYED.md, and each one's inventory),
         // and site-header.twig fell to 0 when the chrome.css rules that painted its
-        // dot were destroyed with them.
-        'templates/partials/promo-carousel.twig'=> 2,
+        // dot were destroyed with them. The last entry, partials/promo-carousel.twig (2),
+        // left the same day when it was destroyed as an orphan of those pages.
     ];
-
-    public function test_the_tile_hides_its_mark_and_leaves_its_word_alone(): void
-    {
-        // The device that carries colour on this platform, and the shape every other
-        // coloured element is measured against: the saturated square is decoration and is
-        // hidden, the word beside it is the fact and is not.
-        $tile = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/partials/tile.twig');
-
-        $this->assertMatchesRegularExpression(
-            '/<span class="ag-tile__mark" aria-hidden="true">\s*<\/span>/', $tile,
-            'the tile mark must be hidden — a screen reader gets the sentence, and the '
-          . 'colour adds nothing it needs');
-
-        $this->assertStringContainsString('<span>{{ label }}</span>', $tile,
-            'the word must not be hidden with the mark, or the tile becomes colour alone');
-
-        $this->assertStringNotContainsString('aria-hidden="true"><span>{{ label }}', $tile);
-    }
 
     public function test_a_coloured_element_with_no_word_is_reported(): void
     {

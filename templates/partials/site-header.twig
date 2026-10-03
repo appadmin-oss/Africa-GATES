@@ -20,9 +20,11 @@
   appears dead — the same duplicate-id fault the search palette had, which was
   measured on the rendered page rather than reasoned about.
 
-  So: this is the header. `layout/nav.twig` includes it and adds the phone chrome for
-  the ~180 pages still on the old layout. A shell page includes THIS and gets a
-  header and nothing else. `SiteHeaderTest` compares both layouts' include trees.
+  So: this is the header. `layout/nav.twig`, which included it and added the phone
+  chrome for the pages on the old layout, was destroyed with them on 3 Oct 2026
+  (docs/handoff/DESTROYED.md). A shell page includes THIS and gets a header and
+  nothing else; the shell mounts the phone sheets, and `SiteHeaderTest` holds that
+  the header mounts neither.
 
   ── THERE IS NO GREEN BUTTON IN THIS HEADER ─────────────────────────────────
 

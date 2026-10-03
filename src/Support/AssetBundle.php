@@ -57,36 +57,15 @@ final class AssetBundle
      * use it makes every other page heavier.
      */
     public const STYLESHEETS = [
-        'assets/css/tokens.motion.css',
-        // The layer that consumes those tokens. Immediately after them and before
-        // main.css, matching the layout — a page stylesheet must still be able to
-        // override any of it, and the bundle is a concatenation, so order here IS
-        // the cascade.
-        'assets/css/motion.css',
-        'assets/css/main.css',
-        'assets/css/ui-overhaul.css',
-        'assets/css/professional.css',
-        'assets/css/redesign-2026.css',
-        'assets/css/aurora.css',
-        // The newer modular design system, layered over the legacy sheets above.
-        // Colour is not in any of these sheets: Support\Accent emits the palette and
-        // the shadows into the layout's nonced <style>, before this bundle.
-        'assets/css/base/reset.css',
-        // ── THE REDESIGN LAYER: the base, before the components that specialise it ──
-        // After the legacy sheets (so it replaces them) and before every component
-        // sheet (so a page's own sheet can still say something more specific). It was
-        // last, and components.css then beat forms.css on every form.
+        // The rebuilt foundation, in cascade order: sizes and motion, the page shell,
+        // then the base components a page composes. Colour is in none of them —
+        // Support\Accent emits the palette into the layout's nonced <style> first.
+        // Everything that used to sit around these three was destroyed with the old
+        // public pages (docs/handoff/DESTROYED.md); each phase adds back, in order,
+        // only what it rebuilds.
         'assets/css/tokens.css',
         'assets/css/shell.css',
         'assets/css/components.css',
-        // Every component sheet that used to follow here was destroyed with the old
-        // pages on 3 Oct 2026 (docs/handoff/DESTROYED.md); each phase adds back what it
-        // rebuilds. These two survive only because nothing qualified them: neither read
-        // a retired name. Their readers went with the pages.
-        'assets/css/components/promo.css',
-        'assets/css/components/tile.css',
-        // LAST, and it must stay last — its corrections are meant to win.
-        'assets/css/a11y.css',
     ];
 
     /** Where the built bundle and its manifest live. Gitignored build output. */

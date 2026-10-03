@@ -149,24 +149,6 @@ final class FormErrorStateTest extends TestCase
         $this->assertSame([], array_values(array_unique($bad)), implode("\n  ", array_unique($bad)));
     }
 
-    /**
-     * The error sentence is TEXT, never a colour or an icon alone (WCAG 1.4.1).
-     *
-     * `--ag-error` is `#b42318` on the house paper. Somebody who cannot separate it from
-     * the ink gets nothing from a red border, and the icon is `aria-hidden` by design.
-     */
-    public function test_the_error_message_carries_a_sentence_and_hides_its_icon(): void
-    {
-        $macro = (string) file_get_contents(self::TEMPLATES . '/partials/field.twig');
-
-        $this->assertStringContainsString('{{ err }}', $macro,
-            'the message macro does not print the sentence');
-        $this->assertStringContainsString('aria-hidden="true"', $macro,
-            'the error icon is not hidden from assistive technology, so it is read as noise');
-        $this->assertMatchesRegularExpression('/class="ag-err"\s+id="\{\{ id \}\}-err"/', $macro,
-            'the message has no stable id, so aria-describedby cannot point at it');
-    }
-
     // ══════════════════════════════════════════════════════════════════════════
     // The bag
     // ══════════════════════════════════════════════════════════════════════════

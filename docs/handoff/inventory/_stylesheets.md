@@ -213,3 +213,192 @@ Each line is a test method that was deleted because it rendered or read a destro
 - `SiteHeaderTest::test_the_hairline_is_dropped_while_a_panel_is_open` `[css/components/chrome.css]` — The hairline is dropped while a panel is open.
 - `SiteHeaderTest::test_there_is_no_green_button_in_either_signed_in_state` `[css/components/chrome.css]` — the signed-out control has no rule — *the signed-out control is green; §6.1 keeps green for the primary action INSIDE the page*
 - `FormErrorStateTest::test_every_layout_carrying_a_validated_form_loads_the_validator (kept)` **(guard kept, edited)** `[css/components/forms.css]` — A page with `data-ag-validate` must sit on a layout loading form-validate.js AND components/forms.css. forms.css is destroyed and shell.twig no longer links it, so the first rebuilt validated form fails here until forms.css is rebuilt.
+
+---
+
+# Orphans destroyed 3 Oct 2026 (owner-approved)
+
+Stylesheets the first destroy left with no includer, no linker and no renderer ("Orphaned by the destroy" in DESTROYED.md). The owner approved destroying them the same day. Each entry is taken from the file as it stood at `HEAD` (`882d768`) before deletion. **Rebuild** says what a later phase owes; **MUST RESTORE** marks a feature that is a legal obligation, a promise already made elsewhere on the platform, or a live server mechanism this file was the only way into.
+
+## `public/assets/css/base/reset.css` (HEAD, 30 lines)
+
+**Linked by (at `a9d963a`):** `layout/gates.twig`, `AssetBundle::STYLESHEETS`
+
+**What it did:** Box-sizing; `overflow-x:clip` on html/body (clip, not hidden, so sticky survives); responsive `img`; `.ag-btn-reset`; a sitewide `:focus-visible` ring (2px green, offset 2px) that no component may suppress; a document-wide `prefers-reduced-motion` kill of animation and transition.
+
+**Selector families:** `.ag-scope`×4, `.ag-btn`×1  
+**Non-cosmetic behaviours:** prefers-reduced-motion×1, :focus-visible×11  
+**Custom properties declared:** —  
+**Tokens read:** `--ag-green`
+
+**Rebuild:** Covered for now: `shell.css` carries a `:focus-visible` ring and a reduced-motion block. Check, when a page is rebuilt, that its own components do not clear the ring.
+
+**Guard tests:** none read this file at the time of the destroy.
+
+
+---
+
+## `public/assets/css/components/awards.css` (HEAD, 95 lines)
+
+**Linked by (at `a9d963a`):** `pages/awards/programme.twig` (destroyed 3 Oct)
+
+**What it did:** The `/awards/{slug}` page layer, built to `AwardsPage.dc.html` (view: detail): `.aw*` hero (host mark sized by height), edition card and category race. Sole reader of `--ag-gold` and `--ag-gold-edge`.
+
+**Selector families:** `.aw-hero`×11, `.aw-spon`×9, `.aw-steps`×7, `.aw-cats`×7, `.aw-edition`×6, `.aw`×3, `.aw-sec`×2, `.aw-page`×1, `.aw-back`×1, `.aw-h2`×1, `.aw-prose`×1, `.aw-more`×1  
+**Non-cosmetic behaviours:** —  
+**Custom properties declared:** —  
+**Tokens read:** `--ag-ground`, `--ag-green`, `--ag-ink-2`, `--ag-ink`, `--ag-font-display`, `--ag-r-20`, `--ag-tint`, `--ag-font-ui`, `--ag-line-2`, `--ag-soft`, `--ag-live`, `--ag-font-mono`, `--ag-green-deep`, `--ag-surface`, `--ag-line`, `--ag-r-16`, `--ag-gold-edge`, `--ag-gold`
+
+**Rebuild:** Rebuilt with the awards page (its phase builds to the DC again).
+
+**Guard tests:** none read this file at the time of the destroy.
+
+
+---
+
+## `public/assets/css/components/newsletter.css` (HEAD, 33 lines)
+
+**Linked by (at `a9d963a`):** `pages/newsletter/index.twig`, `pages/newsletter/confirm.twig` (destroyed 3 Oct)
+
+**What it did:** The `/newsletter` page frame only (`.nl*`: head, kicker, display h1, lede, card, sections); the field, button and ticks were the shared library's. Sole reader of `--ag-sp-48`, which was removed from `tokens.css` with it.
+
+**Selector families:** `.nl`×15  
+**Non-cosmetic behaviours:** —  
+**Custom properties declared:** —  
+**Tokens read:** `--ag-sp-48`, `--ag-sp-16`, `--ag-sp-64`, `--ag-sp-28`, `--ag-sp-8`, `--ag-font-mono`, `--ag-soft`, `--ag-font-display`, `--ag-ink`, `--ag-ink-2`, `--ag-sp-14`, `--ag-sp-24`, `--ag-sp-12`, `--ag-sp-18`
+
+**Rebuild:** Rebuilt with the newsletter pages.
+
+**Guard tests:** none read this file at the time of the destroy.
+
+
+---
+
+## `public/assets/css/components/promo.css` (HEAD, 164 lines)
+
+**Linked by (at `a9d963a`):** `layout/gates.twig`, `AssetBundle::STYLESHEETS`
+
+**What it did:** All the promo band's motion (`.pb*`): the track shifted by `--pb-at` × `--pb-n`, decorative rotating/drifting layers all `aria-hidden` and all stopped under `prefers-reduced-motion`. Sole reader of `--ag-gold-ink`, `--ag-green-wash`, `--ag-info`.
+
+**Selector families:** `.pb`×49  
+**Non-cosmetic behaviours:** prefers-reduced-motion×1, :focus-visible×3, @keyframes×3  
+**Custom properties declared:** —  
+**Tokens read:** `--ch-wash`, `--ag-green-wash`, `--pb-n`, `--pb-at`, `--ag-sp-16`, `--ag-sp-8`, `--ag-font-mono`, `--ag-soft`, `--ag-surface`, `--ag-green-deep`, `--ag-gold-ink`, `--ag-info`, `--ag-ink-2`, `--ch-fill`, `--ag-green`, `--ch-edge`, `--ag-ink`
+
+**Rebuild:** With promo-carousel.twig.
+
+**Guard tests:** none read this file at the time of the destroy.
+
+
+---
+
+## `public/assets/css/components/tile.css` (HEAD, 84 lines)
+
+**Linked by (at `a9d963a`):** `layout/gates.twig`, `AssetBundle::STYLESHEETS`
+
+**What it did:** The tile's drawing from its four inline custom properties; no literal, no lip, no shadow; the live dot's opacity-only pulse inside `prefers-reduced-motion: no-preference`.
+
+**Selector families:** `.ag-tile`×7  
+**Non-cosmetic behaviours:** prefers-reduced-motion×1, @keyframes×1  
+**Custom properties declared:** —  
+**Tokens read:** `--tile-wash`, `--tile-edge`, `--tile-ink`, `--ag-font-mono`, `--tile-fill`
+
+**Rebuild:** **MUST RESTORE** — with tile.twig.
+
+**Rules held by guard tests destroyed with it** — the rebuild re-asserts each, watched failing first:
+
+- `TileTest::test_the_tile_carries_no_literal_colour_of_its_own` — No `#` anywhere outside comments, and each of `var(--tile-wash|edge|fill|ink)` is read — a fallback would let a tile render from three parts and a default.
+- `TileTest::test_the_tile_has_no_lip` — No `border-bottom:` and no `box-shadow` — depth that cannot be pressed is decoration. (Passed vacuously on an empty string once the sheet was gone, and was destroyed for that.)
+- `TileTest::test_the_live_pulse_is_opacity_only_and_stops_for_reduced_motion` — The pulse sits inside `prefers-reduced-motion: no-preference`, `@keyframes ag-tile-pulse` animates opacity, and never transform/scale/background.
+- `AssetBundleTest (fixtures)` **(guard kept, edited)** — `test_an_edited_source_falls_back…` and `test_a_relative_url_is_rebased…` wrote their fixture into `components/tile.css`; once it left STYLESHEETS the edit no longer reached the bundle and both failed. They now use `assets/css/components.css` (rebase fixture `url(../img/logo.svg)`).
+
+
+---
+
+## `public/assets/css/motion.css` (HEAD, 136 lines)
+
+**Linked by (at `a9d963a`):** `layout/gates.twig`, `AssetBundle::STYLESHEETS`
+
+**What it did:** Six kinds of page motion — reveal, cascade, count, fill, seal, lift — all scoped under `.ag-motion` on `<html>`, which `ag-motion.js` sets, so a failed script leaves everything visible. Reduced motion honoured twice (tokens to 0ms and transitions disabled).
+
+**Selector families:** `.ag-motion`×15, `.mth-more`×4, `.mth-index`×4, `.mth-cell`×3  
+**Non-cosmetic behaviours:** prefers-reduced-motion×1, :focus-visible×2  
+**Custom properties declared:** —  
+**Tokens read:** `--motion-rise`, `--motion-slow`, `--ease-out-expo`, `--motion-rise-lg`, `--motion-base`, `--ease-out-quart`, `--i`, `--motion-stagger`, `--motion-stagger-sm`, `--ease-spring`, `--motion-fast`, `--ag-green`
+
+**Rebuild:** Optional. **`public/assets/js/ag-motion.js` survives and is loaded by nothing** (it was already unlinked after the first destroy).
+
+**Guard tests:** none read this file at the time of the destroy.
+
+
+---
+
+## `public/assets/css/professional.css` (HEAD, 845 lines)
+
+**Linked by (at `a9d963a`):** `layout/gates.twig`, `AssetBundle::STYLESHEETS`
+
+**What it did:** "Professional UI Layer 2026" — corona glow, orbital motif, dark editorial overrides of main.css + ui-overhaul (845 lines, 66 colour literals).
+
+**Selector families:** `.btn`×27, `.lb-row`×10, `.card`×8, `.afg-brand`×7, `.modal-panel`×5, `.field`×5, `.section`×5, `.toast`×5, `.afg-nav`×4, `.empty-state`×4, `.form-section`×4, `.modal-overlay`×3, `.otp-display`×3, `.pill`×3, `.p-hero`×3, `.modal-header`×2, `.modal-body`×2, `.modal-footer`×2, `.modal-close`×2, `.nominee-avatar`×2, `.eyebrow`×2, `.announce`×2, `.modal-eyebrow`×1, `.modal-title`×1, `.modal-sub`×1  
+**Non-cosmetic behaviours:** prefers-reduced-motion×2, @keyframes×10  
+**Custom properties declared:** `--border-subtle`, `--r-sm`, `--r-md`, `--r-lg`, `--r-xl`, `--r-2xl`, `--r-full`, `--ease-spring`, `--ease-silky`, `--dur-fast`, `--dur-normal`, `--dur-slow`, `--primary`, `--emerald`, `--gold`, `--white`, `--ghost`, `--nominee`, `--live`, `--dark`, `--kente-top`  
+**Tokens read:** `--dur-normal`, `--ease-silky`, `--font-heading`, `--dur-fast`, `--r-2xl`, `--dur-slow`, `--ease-spring`, `--neutral-200`, `--border-subtle`, `--neutral-100`, `--neutral-500`, `--kale-700`, `--emerald-600`, `--r-md`, `--font-mono`, `--neutral-50`, `--emerald-400`, `--bg-light-emerald`, `--r-full`, `--font-body`, `--ease-out-quart`, `--emerald-700`, `--gold-400`, `--r-xl`, `--emerald-500`, `--gold-300`, `--r-lg`
+
+**Rebuild:** No — a superseded layer.
+
+**Guard tests:** none read this file at the time of the destroy.
+
+
+---
+
+## `public/assets/css/redesign-2026.css` (HEAD, 534 lines)
+
+**Linked by (at `a9d963a`):** `layout/gates.twig`, `AssetBundle::STYLESHEETS`
+
+**What it did:** The `r26-*` strangler-pattern redesign layer over main.css's `--emerald-*`/`--kale-*` tokens (534 lines, 121 colour literals).
+
+**Selector families:** `.r26-band`×20, `.ftr`×19, `.afg-nav`×18, `.r26-map`×17, `.r26-mcard`×15, `.afg-mega`×14, `.r26-card`×13, `.r26-stats`×12, `.r26-ballot`×12, `.btn`×11, `.ftr-cinema`×11, `.r26-edition`×8, `.r26-face`×7, `.r26-cutout`×7, `.r26-price`×7, `.r26-stepper`×7, `.r26-progcard`×7, `.r26-hero`×6, `.r26-empty`×6, `.r26-article`×6, `.r26-surface`×5, `.r26-prow`×5, `.r26-cattab`×5, `.r26-hl`×4, `.r26-rot`×4  
+**Non-cosmetic behaviours:** prefers-reduced-motion×6, @keyframes×6, position:sticky×3  
+**Custom properties declared:** `--r26-gray`, `--r26-ink`, `--r26-mute`, `--r26-hair`, `--r26-em`, `--r26-e`, `--ghostlight`, `--ghost`, `--white`, `--empty`, `--ftr-bg`, `--ftr-band-h`  
+**Tokens read:** `--emerald-600`, `--r26-e`, `--font-body`, `--r26-em`, `--r26-ink`, `--neutral-600`, `--r26-gray`, `--r26-mute`, `--gold-300`, `--gold-400`, `--font-heading`, `--emerald-300`, `--font-mono`, `--kale-700`, `--r26-hair`, `--emerald-400`, `--gold-500`, `--bg-soft`, `--emerald-50`, `--z-fab`, `--header-h`, `--wrap-max`, `--neutral-500`, `--emerald-200`, `--emerald-800`, `--emerald-700`, `--neutral-400`, `--ftr-bg`, `--ftr-band-h`
+
+**Rebuild:** No — superseded by the handoff.
+
+**Guard tests:** none read this file at the time of the destroy.
+
+
+---
+
+## `public/assets/css/tokens.motion.css` (HEAD, 44 lines)
+
+**Linked by (at `a9d963a`):** `layout/gates.twig`, `AssetBundle::STYLESHEETS`
+
+**What it did:** Motion tokens: `--motion-fast/base/slow`, `--ease-out-expo/-quart`, `--ease-spring`, rises and staggers, collapsed to 0 under reduced motion.
+
+**Selector families:** —  
+**Non-cosmetic behaviours:** prefers-reduced-motion×1  
+**Custom properties declared:** `--motion-fast`, `--motion-base`, `--motion-slow`, `--ease-out-expo`, `--ease-out-quart`, `--ease-spring`, `--motion-rise`, `--motion-rise-lg`, `--motion-stagger`, `--motion-stagger-sm`  
+**Tokens read:** —
+
+**Rebuild:** `tokens.css` (Phase 1) owns motion now.
+
+**Guard tests:** none read this file at the time of the destroy.
+
+
+---
+
+## `public/assets/css/ui-overhaul.css` (HEAD, 609 lines)
+
+**Linked by (at `a9d963a`):** `layout/gates.twig`, `AssetBundle::STYLESHEETS`
+
+**What it did:** "Nomination Form UX Layer" — floating labels, section cards, real-time validation styling, a global `:focus-visible` ring (609 lines, 45 colour literals).
+
+**Selector families:** `.field`×16, `.scoring-formula`×9, `.fraud-stat`×7, `.form-section`×6, `.completion-ring`×6, `.activity-item`×6, `.field-row`×5, `.criterion-card`×5, `.lifecycle-step`×4, `.vote-trust`×4, `.draft-banner`×4, `.integrity-rule`×3, `.vote-proof`×3, `.form-input`×3, `.form-select`×3, `.form-textarea`×3, `.integrity-signal`×2, `.integrity-section`×2, `.integrity-footer`×2, `.vote-progress`×2, `.lb-c`×2, `.integrity-signals`×1, `.integrity-h2`×1, `.lifecycle-steps`×1, `.integrity-rules`×1  
+**Non-cosmetic behaviours:** :focus-visible×1, @keyframes×1  
+**Custom properties declared:** `--textarea`  
+**Tokens read:** `--emerald-500`, `--kale-700`, `--font-mono`, `--neutral-500`, `--neutral-200`, `--font-body`, `--emerald-600`, `--emerald-400`, `--bg-light-emerald`, `--emerald-200`, `--emerald-800`, `--color-border`, `--font-heading`, `--neutral-600`, `--neutral-400`, `--neutral-100`, `--ease-silky`, `--gold-100`, `--gold-200`, `--gold-300`, `--gold-800`, `--emerald-700`
+
+**Rebuild:** No — superseded.
+
+**Guard tests:** none read this file at the time of the destroy.
+

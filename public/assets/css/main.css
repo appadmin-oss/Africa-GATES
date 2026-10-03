@@ -30,7 +30,6 @@
   --emerald-500: #338632;
   --emerald-600: #237b22;
   --emerald-700: #1a6118;
-  --emerald-800: #144a13;
 
   --kale-600: #1a2629;
   --kale-700: #10292C;   /* primary dark text */
@@ -96,7 +95,6 @@
 
   /* Motion */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 200ms;
   --dur-med: 350ms;
   --dur-slow: 700ms;

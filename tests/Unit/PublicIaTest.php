@@ -208,28 +208,60 @@ final class PublicIaTest extends TestCase
     /**
      * Does this handler render page templates, every one of which is missing from the tree?
      *
-     * Read from the handler's source (and the private methods it calls, one level down),
+     * Read from the handler's source (and the private methods it calls, one level down;
+     * for a closure, what it captured, one level down),
      * because a destroyed page and a sign-in bounce both answer without ever reaching the
      * render, so dispatching cannot tell them apart. A handler naming no template at all
      * answers false: that is a redirect or data, and the checks above own it.
      */
     private function rendersOnlyDestroyedTemplates(mixed $callable): bool
     {
-        if (is_string($callable) && str_contains($callable, ':')) $callable = explode(':', $callable, 2);
-        if (!is_array($callable) || !is_string($callable[0]) || !class_exists($callable[0])) return false;
-
-        $cls = new \ReflectionClass($callable[0]);
-        if (!$cls->hasMethod($callable[1])) return false;
-
-        $source = static function (\ReflectionMethod $m): string {
+        $source = static function (\ReflectionFunctionAbstract $m): string {
             $lines = file((string) $m->getFileName());
             return implode('', array_slice($lines, $m->getStartLine() - 1, $m->getEndLine() - $m->getStartLine() + 1));
         };
-        $body = $source($cls->getMethod($callable[1]));
-        if (preg_match_all('~\$this->([A-Za-z_]+)\(~', $body, $calls)) {
-            foreach (array_unique($calls[1]) as $name) {
-                if ($cls->hasMethod($name)) $body .= $source($cls->getMethod($name));
+        // A method's own source plus the private methods it calls, one level down.
+        $method = static function (\ReflectionClass $cls, string $name) use ($source): string {
+            $body = $source($cls->getMethod($name));
+            if (preg_match_all('~\$this->([A-Za-z_]+)\(~', $body, $calls)) {
+                foreach (array_unique($calls[1]) as $n) {
+                    if ($cls->hasMethod($n)) $body .= $source($cls->getMethod($n));
+                }
             }
+            return $body;
+        };
+
+        if ($callable instanceof \Closure) {
+            // ── A CLOSURE IS A HANDLER TOO, AND MOST PUBLIC PAGES ARE ONE ────
+            //
+            // 132 public GETs are closures — `/support`, `/philosophy`, the legal
+            // documents — and several only delegate: `fn(...) => $legalRender(..., 'refunds')`
+            // or `fn(...) => $challenges->index(...)`. Reading only class handlers left
+            // every one of them in scope after its template was destroyed, and that went
+            // unseen for as long as the orphaned `layout/footer.twig` was still in the
+            // tree linking them: the sweep passed on a link from a file nothing renders.
+            // So the closure's own source is read, and what it captured, one level down —
+            // a captured closure's source, or the method it calls on a captured object.
+            $fn   = new \ReflectionFunction($callable);
+            $body = $source($fn);
+            foreach ($fn->getClosureUsedVariables() as $var => $value) {
+                if ($value instanceof \Closure) {
+                    $body .= $source(new \ReflectionFunction($value));
+                } elseif (is_object($value)
+                    && preg_match_all('~\$' . preg_quote($var, '~') . '->([A-Za-z_]+)\(~', $body, $calls)) {
+                    $cls = new \ReflectionClass($value);
+                    foreach (array_unique($calls[1]) as $n) {
+                        if ($cls->hasMethod($n)) $body .= $method($cls, $n);
+                    }
+                }
+            }
+        } else {
+            if (is_string($callable) && str_contains($callable, ':')) $callable = explode(':', $callable, 2);
+            if (!is_array($callable) || !is_string($callable[0]) || !class_exists($callable[0])) return false;
+
+            $cls = new \ReflectionClass($callable[0]);
+            if (!$cls->hasMethod($callable[1])) return false;
+            $body = $method($cls, $callable[1]);
         }
 
         if (!preg_match_all("~['\"](pages/[A-Za-z0-9_/.-]+\\.twig)['\"]~", $body, $m)) return false;
@@ -372,48 +404,6 @@ final class PublicIaTest extends TestCase
           . "navigated to — add the kind, with its reason, to this class. Never add the "
           . "page itself: a list of pages nobody linked becomes the answer rather than a "
           . "record of exceptions.");
-    }
-
-    public function test_the_partner_console_is_reachable_from_the_public_site(): void
-    {
-        // Named on its own, because it is the finding this test was written for and the
-        // one with a customer on the other end of it.
-        //
-        // AND THE ASSERTION THAT MATTERS IS *WHERE*, NOT *WHETHER*. `/org` was already
-        // linked from four templates before this test existed — org-apply, the stand
-        // application, the stand offer and the member dashboard — every one of them a
-        // page a partner lands on in the minute AFTER an action they just took. So
-        // "is it linked anywhere" was true the whole time the console was unreachable in
-        // practice: close the tab, come back on Monday, and the way back in was an old
-        // email. A front door is a page somebody can arrive at cold.
-        //
-        // The two that qualify are the footer, which is on every page of the site, and
-        // `/partner`, which is the page organisations are sent to before they are
-        // anything. Both, not either: the footer alone is a link nobody reads on the one
-        // page written for this reader, and `/partner` alone is unreachable from the rest
-        // of the site.
-        //
-        // NOT by putting organisation sign-in on the member sign-in page:
-        // `account/login.twig` refuses that deliberately, because separate trust domains
-        // on separate routes are what stop one of them becoming a target. A findable
-        // public DESTINATION is a different thing from a shared login form.
-        $root = dirname(__DIR__, 2);
-
-        foreach ([
-            'templates/layout/footer.twig'  => 'the site footer, which is the one place on every page a partner can get back from',
-            // `templates/pages/partner.twig` — "the page that tells organisations about the
-            // platform, where an organisation who already joined needs a way back in" — was
-            // the second door. It was destroyed with the old pages; its inventory carries
-            // the rule, and its rebuild puts this line back.
-        ] as $rel => $why) {
-            $body = $this->visible((string) file_get_contents($root . '/' . $rel));
-
-            $this->assertMatchesRegularExpression('~href="/org"~', $body,
-                $rel . ' does not link the organisation console — ' . $why . ".\n\n"
-              . 'Note this asks for an `href`, and asks it of the file with its comments '
-              . 'removed: a sentence in a comment saying the page points at /org is not a '
-              . 'link, and passed this assertion once.');
-        }
     }
 
     public function test_the_sweep_would_notice_an_orphan(): void

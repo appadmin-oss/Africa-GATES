@@ -10,7 +10,7 @@ A public template (`templates/pages/**`, `templates/partials/**`, `templates/lay
 - **(b)** `a9d963a` created or extended it by MOVING old rules (`chrome.css`, `library.css`; `nominate.css` received `.ag-ai-note`);
 - **(c)** it depends on a destroyed file so completely it cannot render: it extends/includes/imports a destroyed template (every page on `layout/gates.twig`, which itself includes the destroyed `partials/cookie-notice.twig` and links `chrome.css`/`library.css`), or its own page stylesheet was destroyed (`nominate*.twig` → `nominate.css`; `partials/{article,find-band,help-nav,globe-band}.twig` → their own sheets).
 
-Note on `nominate*.twig`: they extend `layout/shell.twig` and include NO destroyed partial (site-header, app-bar, tab-bar, challenge-strip, ai-collection-notice and promo-carousel all survive). They qualify only through `components/nominate.css`, their page sheet, which received moved rules in `a9d963a`. Destroyed as instructed.
+Note on `nominate*.twig`: they extend `layout/shell.twig` and included NO partial destroyed in that pass (site-header, app-bar, tab-bar, challenge-strip, ai-collection-notice and promo-carousel all survived it; the last three were destroyed later the same day as orphans). They qualify only through `components/nominate.css`, their page sheet, which received moved rules in `a9d963a`. Destroyed as instructed.
 
 ## Counts
 
@@ -20,14 +20,15 @@ Note on `nominate*.twig`: they extend `layout/shell.twig` and include NO destroy
 | Layouts | 2 (`gates.twig`, `account-auth.twig`) |
 | Partials | 9 |
 | Stylesheets | 22 |
-| Scripts | 0 — no public script was renamed in `a9d963a` or moved; see "Orphaned" |
+| Scripts | 0 — no public script was renamed in `a9d963a` or moved |
 | **Total files** | **125** |
+| *Then, as orphans (owner-approved, same day)* | *38 — 2 layouts, 17 partials, 10 stylesheets, 9 scripts; see "Destroyed (orphans…)"* |
 
 Feature inventories, taken from each file at `a9d963a^` before deletion, are in [`inventory/`](inventory/) — one file per page template and layout (`pages--vote-nominee.md`, `layout--gates.md` …), plus `_partials.md`, `_stylesheets.md` and `_cross-page-rules.md`. Each ends with **the rules held by the guard tests destroyed with it**: the rebuild re-asserts every one.
 
 ## What still renders
 
-- **`/_dev/ui`** — `pages/dev-ui.twig` on `layout/shell.twig`. Its site header, app bar, tab bar, Menu and Quick settings partials survive but **render with base styles only**: their rules lived in `chrome.css`, destroyed. That is Phase 2's to rebuild.
+- **`/_dev/ui`** — `pages/dev-ui.twig` on `layout/shell.twig`. Its site header, app bar, tab bar, Menu and Quick settings partials survive but **render with base styles only**: their rules lived in `chrome.css`, destroyed. That is Phase 2's to rebuild. Since the orphans went, the header's search button, Aa and language popovers, toolbar arrow keys and basket badge also have no script behind them (`header.js`, `site-search.twig`).
 - **`/door/{token}`** — `pages/events/door.twig` is standalone (no layout) and read no retired name.
 - **Everything that is not a page**: the 86 301-aliases, payment hand-offs and callbacks, webhooks, `/ping`, `robots.txt`, `sitemap.xml`, `*.txt`/`*.md` legal documents, `status.json`, images/cards/fliers (GD), `.ics`, the API, and **every POST handler** — voting, payments, nominations, sign-in. A POST that answers with a redirect still works; a POST that re-renders its form on a validation error now 500s on that branch.
 - **Admin and judge consoles** — untouched (own layouts, held below).
@@ -51,45 +52,44 @@ Patched in place by `a9d963a` (retired names renamed) but **not destroyed**, bec
 - **`src/` behaviour/infrastructure patched by `a9d963a`:** `Services/{ChallengeFlier,EmailCampaign,InviteMailer,InviteReminders,Newsletter/Newsletter,Newsletter/NewsletterAudience,NomineeBroadcast,OtpService,QuestionnaireInvites,StandNotice}.php`, `Support/{Accent,AssetBundle,Languages,Translator}.php`, `config/container.php` — mail, GD, Accent consumers, i18n. Not pages.
 - **Email templates (`templates/emails/`, 7 files):** none read a retired name and none includes a destroyed partial. Untouched.
 
-## Orphaned by the destroy — kept, did not qualify
+## Destroyed (orphans, owner-approved 3 Oct 2026)
 
-These read no retired name and include nothing destroyed, so they stay, but nothing renders or links them any more. Each phase destroys the ones it owns (GAPS §7.2):
+The first destroy left these with no includer, no linker and no renderer. They read no retired name, so they did not qualify, and this section used to list them as "Orphaned — kept". **The owner approved destroying them the same day** and they are gone (`git rm`), 38 files:
 
 ```
-## templates (public) with no includer and no renderer
+## templates (2 layouts, 17 partials)
 templates/layout/footer.twig
-templates/partials/account-payout.twig
-templates/partials/ad-slot.twig
-templates/partials/ai-collection-notice.twig
-templates/partials/celebrate.twig
-templates/partials/challenge-strip.twig
-templates/partials/comments.twig
-templates/partials/community-modal.twig
-templates/partials/field.twig
-templates/partials/flash.twig
-templates/partials/lottie.twig
-templates/partials/member-autofill.twig
-templates/partials/org-page.twig
-templates/partials/promo-carousel.twig
-templates/partials/site-search.twig
-templates/partials/support-prompt.twig
-templates/partials/tile.twig
-templates/partials/vote-countdown.twig
-## public css/js not linked by any surviving template, src, or AssetBundle
-public/assets/css/components/awards.css
-public/assets/css/components/newsletter.css
-public/assets/js/account.js
-public/assets/js/afg-features.js
-public/assets/js/favicon.js
-public/assets/js/globe-band.js
-public/assets/js/header.js
-public/assets/js/nominate-share.js
-public/assets/js/nominate.js
-public/assets/js/passkeys.js
-public/assets/js/promo-carousel.js
+templates/layout/nav.twig
+templates/partials/{account-payout,ad-slot,ai-collection-notice,celebrate,challenge-strip,
+                    comments,community-modal,field,flash,lottie,member-autofill,org-page,
+                    promo-carousel,site-search,support-prompt,tile,vote-countdown}.twig
+## stylesheets (10)
+public/assets/css/components/{awards,newsletter,promo,tile}.css
+public/assets/css/{ui-overhaul,professional,redesign-2026,motion,tokens.motion}.css
+public/assets/css/base/reset.css
+## scripts (9)
+public/assets/js/{account,afg-features,favicon,globe-band,header,nominate-share,nominate,passkeys,promo-carousel}.js
 ```
 
-`layout/nav.twig` and the legacy sheets (`main.css`, `ui-overhaul.css`, `professional.css`, `redesign-2026.css`, `aurora.css`, `motion.css`, `tokens.motion.css`, `base/reset.css`, `components/promo.css`, `components/tile.css`) are referenced only by `AssetBundle::STYLESHEETS` or by each other; no surviving page loads them.
+Inventories, from each file at `HEAD` (`882d768`) before deletion, are in [`inventory/_partials.md`](inventory/_partials.md) (templates — the two layouts are filed there, since both were partials of `layout/gates.twig`), [`inventory/_stylesheets.md`](inventory/_stylesheets.md) and the new [`inventory/_scripts.md`](inventory/_scripts.md), each under "Orphans destroyed 3 Oct 2026". Each entry says what the file did, what the rebuild owes, and the rules its destroyed tests held.
+
+**MUST RESTORE** (flagged in the inventories): `ai-collection-notice.twig` (the NDPA/GDPR point-of-collection notice — a legal obligation wherever free text a capability may process is collected), `favicon.js` (the dynamic favicon the handoff specifies), `passkeys.js` (the only browser way into a live server mechanism: five routes, `Services\Passkeys`), `header.js` (the surviving site header still declares `role="toolbar"`, two popovers and a basket badge that are now inert), `site-search.twig` (the header's search button now opens nothing), `flash.twig` (the shell renders no flash, so a public POST that redirects with a message is silent again), `field.twig` (the error-state ARIA wiring every validated form owes), `footer.twig` (the only every-page link to `/refunds`, `/vendor-terms`, `/support`, `/philosophy`, `/challenges`, `/newsletter`, the legal row and the `/org` front door), `org-page.twig` (OrgBrand's only renderer — the feature is "no page out" again), `support-prompt.twig`, `account-payout.twig` (its two POST routes are live and money is owed), `tile.twig` + `tile.css`, `vote-countdown.twig`.
+
+### Kept on purpose
+
+- **`public/assets/css/main.css`, `public/assets/css/aurora.css`, `public/assets/js/main.js`** — `templates/judge/layout.twig` still loads all three (and `NewsletterController` names `main.js`). Destroying them breaks a held surface. They left `AssetBundle::STYLESHEETS`, which is now `tokens.css`, `shell.css`, `components.css` only, in the order `layout/shell.twig` links them. Two dead declarations were removed from `main.css` (see Token fallout); nothing else in it changed.
+- **`templates/partials/site-header.twig`** — `layout/shell.twig`'s pages and `pages/dev-ui.twig` include it. Its comment described `layout/nav.twig` as a live includer; it was corrected to say it was destroyed. Its comments still say `header.js` implements the toolbar's arrow keys and the basket badge — that is now untrue of the running page, and is recorded as a MUST RESTORE rather than edited away.
+- **`a11y.css`, admin/judge files** — held, as before. `a11y.css` left the public bundle with the legacy sheets; `layout/shell.twig` never linked it.
+
+### Newly orphaned — owner to decide
+
+Nothing renders or links these now. They were not on the approved list, so they stay:
+
+- `public/assets/js/celebrate.js` and `public/assets/js/vendor/canvas-confetti-1.9.3.js` — loaded only by `partials/celebrate.twig`. `CelebrationTest` still holds `celebrate.js`'s own rules.
+- `public/assets/js/community-modal.js` — loaded only by `partials/community-modal.twig`.
+- `templates/partials/lang-prompt.twig` — included only by `layout/nav.twig`; the shell does not mount it.
+- `public/assets/js/ag-motion.js`, `ag-search.js`, `ag-social.js` — already linked by nothing at `HEAD`, missed by the orphan list above when it was first written. `ag-motion.js` drives the destroyed `motion.css`; `ag-search.js` drives the destroyed `site-search.twig`.
+- `Support\CookieRegistry::storage()` declares `ag-hide-bal` (writer `account.js`, destroyed) and `afg_cart`, `afg_voted_prog_`, `afg_cheer_`, `afg_report_`, `ag_intro` (writers destroyed with the pages): `/cookies` now describes storage nothing on the site writes. Over-disclosure rather than under, but it is the §19 shape on a legal page — whoever rebuilds a writer re-confirms its row, and the rows nobody rebuilds go. (`afg-features.js` also wrote `afg_sid` and `afg_draft_*` and was never declared at all; it is destroyed.)
 
 ## Edits to Phase 1 files (the only non-test files rewritten)
 
@@ -97,6 +97,8 @@ public/assets/js/promo-carousel.js
 - `src/Support/AssetBundle.php` — `STYLESHEETS` lost the 17 destroyed sheets; comments rewritten.
 - `public/assets/css/tokens.css` — removed `--ag-sp-20`, `--ag-sp-22`, `--ag-r-22`, `--ag-z-appbar`, `--ag-z-bar`, `--ag-z-header`, `--ag-z-gee`: their every reader was destroyed (see Token fallout).
 - `pages/dev-ui.twig` needed no change.
+- With the orphans: `src/Support/AssetBundle.php` `STYLESHEETS` is now `tokens.css`, `shell.css`, `components.css` (the legacy sheets, `promo.css`, `tile.css` and `a11y.css` left it); `tokens.css` lost `--ag-sp-48`; and, outside Phase 1, `public/assets/css/main.css` (kept for the judge layout) lost two declarations whose every reader was destroyed (`--emerald-800`, `--ease-out-expo`). Brace balance compared against `HEAD` for both stylesheets.
+- `templates/partials/site-header.twig` — comments only: the paragraph that described `layout/nav.twig` as a live includer now says it was destroyed. (`layout/shell.twig` needed no edit: its one mention is of the snippet's `partials/nav.twig`, which it already says does not exist.)
 - Outside Phase 1, one diagnostic: `src/routes.php` `/__setup/deployed` lost the 14 rows that checked a marker inside a destroyed template (a page deliberately gone is not a failed upload). The rows are listed in `inventory/_cross-page-rules.md`.
 
 ## Tests
@@ -104,7 +106,10 @@ public/assets/js/promo-carousel.js
 - **548 test methods destroyed** (suite 7,127 → 6,580 = 7,127 − 548 + 1 new `DeadTokenTest` method), 25 whole files: `AccountTabsTest`, `ActivityPageAccessibilityTest`, `ChallengePageTest`, `CookieChoiceScreenTest`, `DonationGoalTest`, `EventFlierGeneratorTest`, `EventReferralPromptTest`, `EventTierSelectionTest`, `FormAccessibilityTest`, `GivingFormFlowTest`, `GuidedFormTest`, `HeadingHierarchyTest`, `HighlightToAskTest`, `InterviewPageTest`, `OrgConsoleLedeTest`, `PageRenderSmokeTest`, `PaidVoteReceiptTest`, `PartnerDashboardTest`, `PhaseSurfaceRenderTest`, `ProfileCpiClaimTest`, `PulseTimelineTest`, `SeoStructuredDataTest`, `SplashScreenTest`, `SupportHandoffLinksTest`, `VoteProgrammeLayoutTest`.
   Each method's rule is recorded in the inventory of the page it guarded. Besides the tests that failed, methods that read a destroyed file and then **passed on an empty string** were destroyed too (e.g. `assertStringNotContainsString` over `''`).
 - **Sweeps kept and updated, never destroyed:** `ColourLiteralTest` baseline (80 entries gone), `ColourBudgetTest` (`UNDECLARED` emptied; band privilege and exclusive-state holders emptied; ballot half of the money rule removed), `ColourIsNeverAloneTest` (`BACKLOG` down to one entry), `DeadTokenTest` (new shrink-only `AWAITING_REBUILD`), `CookieRegistryTest` (repaired: now reads PSR-7 `Set-Cookie`, proven failing on a planted writer), `PublicIaTest` (learned the kind "a route whose every template is missing", proven failing), `SecurityHeadersTest` (microphone control moved to planted constraints), `CspHostCoverageTest` and `ThirdPartyScriptIntegrityTest` (no third-party script remains anywhere; controls inverted/narrowed), layout lists in `AccentTest`, `AdminContrastTest`, `OneMainLandmarkTest`, `ChromeReachabilityTest`, `SiteHeaderTest`, `ShellLayoutTest`; `SupportTicketNamingTest` and `PaidOnlyBallotCopyTest` surface lists; `AssetBundleTest` fixture moved from `footer.css` to `tile.css`; `DeployedEndpointTest` asserts a surviving row.
-- **Failing for any other reason:** only `PasskeyTest` (8, environmental: PHP 8.3 container), exactly as before the destroy.
+- **The orphans (owner-approved, same day): 49 more methods destroyed, no whole file** (suite 6,580 → 6,531). By file: `OrgPageTest` 8 (renderer gone; the 7 that test `OrgBrand` itself stay), `SupportSurfaceRenderTest` 11 (the ticket-thread 3 stay), `VoteCountdownTest` 7 (the `main.js` ticker test stays), `TileTest` 5 (the 3 on `Accent::tileStyle()` stay; `test_the_tile_has_no_lip` passed vacuously on an empty string), `GlobeBandTest` 4, `AccessibilityFloorTest` 2, `LegalCoverageTest` 2, `CelebrationTest` 1, `FaviconTest` 1, `ColourIsNeverAloneTest` 1, `SearchScopeTest` 1, `FindBandTest` 1 (vacuous on an empty string), `FormErrorStateTest` 1, `NewsletterTest` 1, `PublicIaTest` 1 (its door list was down to the footer alone), `SiteHeaderTest` 1, `AssetBundleTest` 1 (`a11y.css` left the bundle). Each rule is in its file's inventory entry.
+  **Kept and edited:** `ColourLiteralTest` baseline (9 destroyed files gone; `main.css` 389 → 388); `ColourIsNeverAloneTest` (`BACKLOG` emptied, and the sweep now fails on an entry naming a file that does not exist — proven on a planted entry); `ColourBudgetTest` chrome list (`layout/nav.twig` → `layout/shell.twig`, `partials/site-header.twig`); `DeadTokenTest::AWAITING_REBUILD` (see Token fallout); `AssetBundleTest` (fixtures moved from `components/tile.css`, `a11y.css` and `aurora.css` to `components.css`/`shell.css`, which are in the bundle — two of the old ones no longer reached it, and `test_superseded_bundles_are_pruned` had been editing `a11y.css`, which was in no list, so it passed without testing anything; the base-layer test lost its legacy-order half and now holds `tokens < shell < components`); `SiteHeaderTest` (the toolbar test lost its `header.js` half — the claim is now unbacked, see the MUST RESTORE list — and the sheet-mount test was re-expressed against the shell and the header); `PublicResultsTest` (footer dropped from the browsing doors); `CelebrationTest` (self-hosting test lost its partial half); `GlobeBandTest`, `TileTest`, `VoteCountdownTest`, `SupportSurfaceRenderTest`, `OrgPageTest` lost helpers nothing calls.
+  **`PublicIaTest` learned to read CLOSURE handlers.** Its "every template is missing" detector read class handlers only, so `/challenges`, `/philosophy`, `/refunds`, `/support` and `/vendor-terms` — closures, some delegating to `$legalRender` or `$challenges->index` — stayed in scope after their templates were destroyed and passed only because the orphaned `footer.twig` linked them. It now reads a closure's source and, one level down, a captured closure or the method called on a captured object. Proven failing: restoring `pages/support.twig` reports `/support`; restoring `pages/legal.twig` and `pages/challenges/index.twig` reports `/challenges`, `/refunds`, `/vendor-terms`.
+- **Failing for any other reason:** only `PasskeyTest` (8, environmental: PHP 8.3 container), exactly as before either destroy. No warnings.
 - **Now vacuous until a rebuild arrives:** `FormErrorStateTest::test_every_layout_carrying_a_validated_form_loads_the_validator` — the first rebuilt `data-ag-validate` form on `layout/shell.twig` fails it until `forms.css` is rebuilt and linked. `layout/shell.twig` also does not load `a11y.css`.
 
 ## Token fallout
@@ -113,7 +118,10 @@ Seventeen custom properties lost their last reader:
 
 - **Removed** from `tokens.css` (no rebuilt file reads them): `--ag-sp-20`, `--ag-sp-22`, `--ag-r-22`, `--ag-z-appbar`, `--ag-z-bar`, `--ag-z-header`, `--ag-z-gee`. They are handoff steps (§6.3/6.4/6.7); the phase that rebuilds a reader restores the step at the handoff value.
 - **Not removed — owner to decide:** `--ag-gold-wash`, `--ag-gold-wash-2`, `--ag-green-edge`, `--ag-info-wash`, `--ag-live-ink`, `--ag-live-wash`, `--ag-sh-mega` in `Support\Accent`. The palette ships ±0 under the handoff's names (GAPS §8 Q1) and `AccentTest` pins it name for name; deleting a palette entry is the owner's call. Held in `DeadTokenTest::AWAITING_REBUILD`, a list that fails when an entry gains a reader.
-- **Not removed:** `--ob-accent`, `--ob-accent-dark`, `--ob-accent-wash`, written by the orphaned `partials/org-page.twig` (did not qualify). Same list.
+- **`--ob-accent`, `--ob-accent-dark`, `--ob-accent-wash`** were written only by `partials/org-page.twig`; destroyed with it, they are declared nowhere and **left the list**.
+- **With the orphans, nine more lost their last reader:**
+  - **Listed (palette, owner to decide):** `--ag-gold`, `--ag-gold-edge` (read only by `components/awards.css`/`promo.css`), `--ag-gold-ink`, `--ag-green-wash`, `--ag-info` (only by `components/promo.css`), `--ag-green-light` (only by `js/favicon.js`). Added to `DeadTokenTest::AWAITING_REBUILD`, which now holds thirteen palette names and nothing else.
+  - **Removed:** `--ag-sp-48` from `tokens.css` (its one reader was `components/newsletter.css`; a handoff §6.3 step, restored at 48px by whoever rebuilds a reader), and `--emerald-800`, `--ease-out-expo` from `main.css` (legacy tokens whose readers were the destroyed legacy sheets; the judge layout reads neither).
 
 ## The destroy list
 

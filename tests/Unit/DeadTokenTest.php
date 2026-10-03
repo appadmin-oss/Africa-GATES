@@ -170,14 +170,23 @@ final class DeadTokenTest extends TestCase
      * DECLARED, UNREAD, AND NOT OURS TO DELETE — A LIST THAT ONLY SHRINKS.
      *
      * On 3 Oct 2026 the old public pages were destroyed (docs/handoff/DESTROYED.md) and
-     * these lost their last reader. The tokens.css steps that did the same were simply
-     * removed. These were not, for two different reasons:
+     * these lost their last reader; the orphans those pages left behind were destroyed
+     * the same day and took the second half of the list with them. Every entry is the
+     * handoff's palette or shadows, which the owner decided ship ±0 under the handoff's
+     * names (GAPS §8 Q1) and which AccentTest pins name for name — so deleting one is an
+     * owner decision, not a tidy-up. The non-palette tokens that went dead the same way
+     * were simply removed: tokens.css's spacing and layer steps (restored at the
+     * handoff's value by the phase that rebuilds a reader), and two legacy main.css
+     * tokens whose readers were the destroyed legacy sheets.
      *
-     *  - the `--ag-*` seven are the handoff's palette and shadows, which the owner decided
-     *    ship ±0 under the handoff's names (GAPS §8 Q1) and which AccentTest pins name
-     *    for name. Deleting one is an owner decision, not a tidy-up.
-     *  - the `--ob-*` three are written by `partials/org-page.twig`, a partial that did
-     *    not qualify for the destroy (it reads no retired name) and whose includers did.
+     *  - the first seven lost their readers with the pages;
+     *  - `--ag-gold`, `-gold-edge`, `-gold-ink`, `-green-light`, `-green-wash` and `--ag-info`
+     *    lost theirs with the orphans (`components/awards.css`, `components/promo.css`,
+     *    `js/favicon.js`).
+     *
+     * The `--ob-accent*` three that used to close this list were written by
+     * `partials/org-page.twig`; with their writer destroyed they are declared nowhere, so
+     * they left it rather than being carried as a name nothing holds.
      *
      * Each entry leaves the moment a rebuilt page reads it — the test below fails on an
      * entry that has a reader, or one nothing declares any more.
@@ -185,7 +194,8 @@ final class DeadTokenTest extends TestCase
     private const AWAITING_REBUILD = [
         '--ag-gold-wash', '--ag-gold-wash-2', '--ag-green-edge', '--ag-info-wash',
         '--ag-live-ink', '--ag-live-wash', '--ag-sh-mega',
-        '--ob-accent', '--ob-accent-dark', '--ob-accent-wash',
+        '--ag-gold', '--ag-gold-edge', '--ag-gold-ink', '--ag-green-light',
+        '--ag-green-wash', '--ag-info',
     ];
 
     public function test_the_awaiting_rebuild_list_only_shrinks(): void

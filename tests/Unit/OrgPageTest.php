@@ -75,80 +75,9 @@ final class OrgPageTest extends TestCase
         return (object) ((array) DB::table('gates_partner_orgs')->where('id', $this->orgId)->first());
     }
 
-    /**
-     * The real renderer, rendered.
-     *
-     * The partial rather than `donate.twig`, because the whole page needs globals a unit
-     * test has no business booting — and `test_the_donation_page_includes_the_renderer`
-     * below is what stops that being a way to test a file nothing includes.
-     */
-    private function render(?array $brandOver = null): string
-    {
-        $org   = $this->org();
-        $brand = $brandOver ?? OrgBrand::of($org);
-
-        $twig = new \Twig\Environment(
-            new \Twig\Loader\FilesystemLoader(dirname(__DIR__, 2) . '/templates'),
-            ['strict_variables' => true]);
-        $twig->addFunction(new \Twig\TwigFunction('asset', static fn (string $p): string => $p));
-
-        return $twig->render('partials/org-page.twig', [
-            'org' => $org, 'brand' => $brand,
-            'brand_css' => OrgBrand::css($brand),
-            'story_paragraphs' => OrgBrand::paragraphs((string) $brand['story']),
-            'gates_credit' => OrgBrand::GATES_CREDIT,
-        ]);
-    }
-
     // ══ the two halves that did not exist ════════════════════════════════════
 
-    /**
-     * EVERY BLOCK SURVIVES A ROUND TRIP THROUGH ITS DERIVED FIELD NAMES.
-     *
-     * The assertion that the form and the writer meet. Built from the spec, so a block
-     * added to `OrgBrand::BLOCKS` is covered here the moment it exists — and a block
-     * whose reader and writer disagree fails on the row it drops.
-     */
-    public function test_every_block_survives_the_form(): void
-    {
-        $post = ['accent' => '#1a6118'];
-        foreach (OrgBrand::BLOCKS as $name => $spec) {
-            $post['section_' . $name]          = '1';
-            $post[$name . '_' . $spec['a']]    = ['A-' . $name];
-            $post[$name . '_' . $spec['b']]    = ['B-' . $name];
-        }
-
-        $r = OrgBrand::save($this->orgId, $post);
-        $this->assertTrue($r['ok'], (string) $r['message']);
-
-        $blocks = OrgBrand::of($this->org())['blocks'];
-        $html   = $this->render();
-
-        foreach (OrgBrand::BLOCKS as $name => $spec) {
-            $this->assertCount(1, $blocks[$name], "{$name} did not survive the form");
-            $this->assertSame('A-' . $name, $blocks[$name][0][$spec['a']]);
-            $this->assertSame('B-' . $name, $blocks[$name][0][$spec['b']]);
-            $this->assertStringContainsString('A-' . $name, $html,
-                "{$name} was stored but never drawn");
-        }
-    }
-
     // ══ what an organisation can put on the page ═════════════════════════════
-
-    public function test_every_block_an_organisation_fills_in_reaches_the_page(): void
-    {
-        $r = OrgBrand::save($this->orgId, $this->post());
-        $this->assertTrue($r['ok'], (string) $r['message']);
-
-        $html = $this->render();
-
-        $this->assertStringContainsString('Today we are in forty-one.', $html, 'story');
-        $this->assertStringContainsString('12,400', $html, 'impact figure');
-        $this->assertStringContainsString('a class set for one term', $html, 'gift ladder');
-        $this->assertStringContainsString('Ninety-one per cent.', $html, 'faq answer');
-        $this->assertStringContainsString('Our 2026 annual report', $html, 'link label');
-        $this->assertStringContainsString('A day at Ikorodu', $html, 'video title');
-    }
 
     /**
      * A STORY KEEPS ITS PARAGRAPHS.
@@ -167,24 +96,6 @@ final class OrgPageTest extends TestCase
 
         $this->assertCount(3, $paras, 'blank lines are paragraphs; runs of them are one break');
         $this->assertSame('Three alert(1).', $paras[2], 'and the markup is gone, not escaped');
-    }
-
-    /**
-     * A BLOCK SWITCHED ON WITH NOTHING IN IT PUBLISHES NO HEADING.
-     *
-     * Both conditions, deliberately. A bare "Questions donors ask you" over nothing reads
-     * as a page somebody abandoned halfway, and on a donation page that costs the
-     * organisation money.
-     */
-    public function test_an_empty_block_that_is_switched_on_draws_nothing(): void
-    {
-        OrgBrand::save($this->orgId, ['accent' => '#1a6118', 'section_faq' => '1',
-                                      'section_team' => '1', 'section_quotes' => '1']);
-        $html = $this->render();
-
-        $this->assertStringNotContainsString('What donors ask', $html);
-        $this->assertStringNotContainsString('Who runs', $html);
-        $this->assertStringNotContainsString('What people say', $html);
     }
 
     // ══ the security surface ═════════════════════════════════════════════════
@@ -249,33 +160,6 @@ final class OrgPageTest extends TestCase
     }
 
     /**
-     * NO IFRAME UNTIL SOMEBODY PRESSES PLAY, WHICH IS A LEGAL REQUIREMENT.
-     *
-     * An iframe in the delivered markup sends the visitor's IP to YouTube or Vimeo and
-     * lets them set storage, on page view, before the visitor has done anything. Under
-     * the GDPR joint-controller line and Nigeria's NDPA 2023 that needs a lawful basis,
-     * and "the page contained a video" is not one. `youtube-nocookie.com` narrows the
-     * cookie question and does not touch the transmission.
-     *
-     * So the assertion is on the SHIPPED HTML, not on an intention: zero frames, the
-     * provider named before the press, and a plain link out for a browser that refuses.
-     */
-    public function test_a_video_sends_nothing_to_a_provider_until_it_is_pressed(): void
-    {
-        OrgBrand::save($this->orgId, $this->post());
-        $html = $this->render();
-
-        $this->assertStringNotContainsString('<iframe', $html,
-            'a frame in the markup is a third-party request nobody consented to');
-        $this->assertStringContainsString('data-ob-src="https://www.youtube-nocookie.com/embed/', $html,
-            'the URL is carried for the handler to use on a press');
-        $this->assertStringContainsString('Loads from YouTube when you press play', $html,
-            'the provider is named BEFORE the visitor contacts it');
-        $this->assertStringContainsString('Watch on YouTube', $html,
-            'and there is a way out for a browser that refuses the frame');
-    }
-
-    /**
      * THE HEADER HAS TO PERMIT WHAT THE PAGE ACTUALLY FRAMES.
      *
      * This repo's most expensive recurring fault is a header switching a feature off in a
@@ -305,53 +189,6 @@ final class OrgPageTest extends TestCase
                 "{$origin} must be in public/.htaccess — on this host that is the policy a "
                 . 'browser actually receives, so an origin added only in PHP works nowhere');
         }
-    }
-
-    /** Links an organisation typed are not links this platform vouches for. */
-    public function test_an_organisations_links_are_rel_hardened_and_refused_when_unsafe(): void
-    {
-        $r = OrgBrand::save($this->orgId, $this->post([
-            'link_label' => ['Report', 'Bad'],
-            'link_url'   => ['https://readnaija.example/r.pdf', 'javascript:alert(1)'],
-        ]));
-        $this->assertFalse($r['ok'], 'a javascript: URL is refused, and the save is refused with it');
-        $this->assertStringContainsString('https://', (string) $r['message'],
-            'and the message says what was wrong with it');
-
-        OrgBrand::save($this->orgId, $this->post());
-        $html = $this->render();
-
-        // `nofollow ugc` so we pass no ranking to a partner's link and make no claim about
-        // it; `noopener noreferrer` because a new tab that can reach back into this one is
-        // a tab that can rewrite the donation form.
-        foreach (['noopener', 'noreferrer', 'nofollow', 'ugc'] as $token) {
-            $this->assertStringContainsString($token, $html, "links must carry rel={$token}");
-        }
-    }
-
-    /**
-     * A PARTNER'S TEXT CANNOT BREAK OUT OF THE PAGE.
-     *
-     * `strip_tags` on the way in and Twig's autoescaping on the way out, and the reason
-     * both are needed is that neither is sufficient: escaping alone would render the
-     * markup visibly as text, and stripping alone would leave `"` and `<` to be escaped
-     * by something.
-     */
-    public function test_markup_an_organisation_typed_is_inert(): void
-    {
-        OrgBrand::save($this->orgId, $this->post([
-            'impact_figure' => ['</div><script>alert(1)</script>'],
-            'impact_label'  => ['" onload="alert(2)'],
-            'faq_q'         => ['<img src=x onerror=alert(3)>'],
-            'faq_a'         => ['ok'],
-        ]));
-        $html = $this->render();
-
-        $this->assertStringNotContainsString('<script', $html);
-        $this->assertStringNotContainsString('<img', $html);
-        $this->assertStringNotContainsString('onerror=', $html);
-        // The one survivor is TEXT — an escaped quote cannot open an attribute.
-        $this->assertStringContainsString('&quot; onload=&quot;alert(2)', $html);
     }
 
     // ══ the column, which is 64KB on MySQL ═══════════════════════════════════
@@ -445,51 +282,4 @@ final class OrgPageTest extends TestCase
     }
 
     // ══ the platform underneath ══════════════════════════════════════════════
-
-    /**
-     * THE AFRICA GATES CREDIT IS NOT A SECTION AN ORGANISATION CAN SWITCH OFF.
-     *
-     * Africa GATES provides the page, the checkout, the settlement, the receipting and
-     * the refund path, and takes no cut. Something pays for that, and the credit is the
-     * only place on the page it is named. It is below the organisation's own ask and is
-     * never a second amount field — see OrgBrand::GATES_CREDIT for why the restraint is
-     * the commercial decision rather than squeamishness.
-     */
-    public function test_the_platform_credit_survives_an_organisation_turning_everything_off(): void
-    {
-        // Every section explicitly off.
-        $off = ['accent' => '#1a6118'];
-        OrgBrand::save($this->orgId, $off);
-        $html = $this->render();
-
-        $this->assertStringContainsString(OrgBrand::GATES_CREDIT, $html);
-        $this->assertStringContainsString('takes no cut', $html,
-            'and it says what the organisation gets for it');
-        $this->assertStringContainsString('href="' . GivingUrl::page() . '"', $html,
-            'a credit nobody can act on raises money for nobody');
-
-        $this->assertArrayNotHasKey('gates', OrgBrand::SECTIONS,
-            'it must not be offered as a section, or it becomes a checkbox');
-    }
-
-    /**
-     * AND EVERY ROUTE THE CREDIT POINTS AT IS REGISTERED.
-     *
-     * `/giving` is in the plan and is NOT built. A credit line pointing at a 404 is worse
-     * than no credit at all, and this is the sweep that stops one being written from a
-     * roadmap rather than from the route table.
-     */
-    public function test_the_credit_links_only_to_routes_that_exist(): void
-    {
-        $html   = $this->render();
-        $routes = (string) file_get_contents(dirname(__DIR__, 2) . '/src/routes.php');
-
-        preg_match_all('~href="(/[a-z0-9/-]*)"~', $html, $m);
-        $this->assertNotEmpty($m[1]);
-
-        foreach (array_unique($m[1]) as $path) {
-            $this->assertStringContainsString("'" . $path . "'", $routes,
-                "the page links to {$path}, which no route registers");
-        }
-    }
 }

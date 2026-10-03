@@ -629,11 +629,4 @@ final class NewsletterTest extends TestCase
         $this->assertSame('newsletter-page',
             DB::table('gates_newsletter')->where('email_hash', EmailOptOut::hash('join@example.com'))->value('source'));
     }
-
-    public function test_the_newsletter_is_linked_from_every_page(): void
-    {
-        $this->assertStringContainsString('href="/newsletter"',
-            (string) file_get_contents(__DIR__ . '/../../templates/layout/footer.twig'),
-            'a newsletter nobody can find is a newsletter with no way in');
-    }
 }

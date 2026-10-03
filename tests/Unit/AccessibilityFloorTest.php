@@ -302,25 +302,6 @@ final class AccessibilityFloorTest extends TestCase
         $this->assertStringContainsString('--ag-bottom-ui', $css);
     }
 
-    public function test_the_globe_can_be_turned_without_a_drag(): void
-    {
-        // SC 2.5.7. Rotation was drag-only. A head pointer, a switch, or any device that
-        // cannot express a drag path could not reach the far side of the sphere.
-        $js = (string) file_get_contents($this->root() . '/public/assets/js/globe-band.js');
-
-        $this->assertStringContainsString('pointerdown', $js,
-            'the drag is gone, so this test is now asserting nothing');
-        $this->assertMatchesRegularExpression('/ArrowLeft|ArrowRight/', $js,
-            'the globe rotates by drag and by nothing else');
-
-        // And the half that fixes 2.4.7 in the same component: a marker on the far side is
-        // drawn at opacity 0 and stays in the tab order, so focusing one used to put the
-        // ring on something invisible. Focus now turns the globe to it.
-        $this->assertMatchesRegularExpression(
-            '/addEventListener\(\s*[\'"]focus[\'"]/', $js,
-            'tabbing lands on markers that are drawn at zero opacity');
-    }
-
     public function test_the_target_minimum_is_not_conditional_on_the_pointer(): void
     {
         // SC 2.5.8 is 24×24 and applies on every input. The 44px block is AAA and right
@@ -337,21 +318,6 @@ final class AccessibilityFloorTest extends TestCase
         $unconditional = substr($css, 0, $coarse);
         $this->assertMatchesRegularExpression('/min-height:\s*24px/', $unconditional,
             'the 24px AA target floor is inside a media query, so it is not a floor');
-    }
-
-    public function test_motion_is_not_forced_on_anybody(): void
-    {
-        // Not new and not previously broken — held because the globe gained a keyboard
-        // rotation in the same change, and an animation that ignores the preference is the
-        // easiest thing to add without noticing.
-        $js = (string) file_get_contents($this->root() . '/public/assets/js/globe-band.js');
-
-        $this->assertStringContainsString('prefers-reduced-motion', $js);
-        // The new easing honours it by snapping rather than by refusing to turn: a globe
-        // that will not move for somebody who asked for less motion has taken the feature
-        // away instead of the animation.
-        $this->assertMatchesRegularExpression('/reduced\s*\?\s*1\s*:/', $js,
-            'reduced motion stops the turn instead of making it instant');
     }
 
     // ══ the notice this codebase shipped a week ago ═══════════════════════════

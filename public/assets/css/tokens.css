@@ -41,13 +41,14 @@
   /* 20 and 22 (§6.3), the 22 radius (§6.4) and the app bar 20 · bar 30 · header 40 ·
      Gee 60 layers (§6.7) were removed on 3 Oct 2026: their every reader was an old
      page or chrome.css, destroyed then (docs/handoff/DESTROYED.md), and DeadTokenTest
-     refuses a declaration nothing reads. The phase that rebuilds a reader puts its
-     step back, at the handoff's value. */
+     refuses a declaration nothing reads. 48 (§6.3) followed the same day, when its one
+     reader, the orphaned components/newsletter.css, was destroyed. The phase that
+     rebuilds a reader puts its step back, at the handoff's value. */
 
   --ag-sp-4:4px;   --ag-sp-6:6px;   --ag-sp-8:8px;   --ag-sp-10:10px;
   --ag-sp-12:12px; --ag-sp-14:14px; --ag-sp-16:16px; --ag-sp-18:18px;
   --ag-sp-24:24px; --ag-sp-28:28px;
-  --ag-sp-32:32px; --ag-sp-36:36px; --ag-sp-40:40px; --ag-sp-48:48px;
+  --ag-sp-32:32px; --ag-sp-36:36px; --ag-sp-40:40px;
   --ag-sp-56:56px; --ag-sp-64:64px;
 
   /* Page gutter: phone 16 · tablet 28 · desktop 32. */

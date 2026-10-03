@@ -297,16 +297,6 @@ final class LegalCoverageTest extends TestCase
 
     // ══ findable ═════════════════════════════════════════════════════════════
 
-    public function test_all_four_are_linked_from_the_footer(): void
-    {
-        // A policy that is not linked is a policy people are told about by their bank.
-        $footer = file_get_contents(dirname(__DIR__, 2) . '/templates/layout/footer.twig');
-
-        foreach (['/privacy', '/terms', '/cookies', '/refunds'] as $path) {
-            $this->assertStringContainsString('href="' . $path . '"', $footer);
-        }
-    }
-
     public function test_refunds_has_its_own_path_and_not_only_a_nested_one(): void
     {
         // This is the page somebody looks for while deciding whether to pay, and again
@@ -349,23 +339,6 @@ final class LegalCoverageTest extends TestCase
             $doc = LegalService::get($slug);
             $this->assertIsArray($doc, "/{$slug} answers 404 on a deployment that never ran the seeder");
             $this->assertNotSame('', trim((string) ($doc['body_html'] ?? '')));
-        }
-    }
-
-    /** And every path the footer links is one of them. */
-    public function test_every_policy_the_footer_links_is_a_document_we_ship(): void
-    {
-        $footer = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/footer.twig');
-        $shipped = array_keys(LegalSeeder::documents());
-
-        preg_match_all('~href="/([a-z-]+)"~', $footer, $m);
-        $legalish = array_intersect(array_unique($m[1]),
-            ['terms', 'privacy', 'cookies', 'refunds', 'vendor-terms']);
-
-        $this->assertNotSame([], $legalish, 'the footer links no policy at all');
-        foreach ($legalish as $slug) {
-            $this->assertContains($slug, $shipped,
-                "the footer links /{$slug} and nothing ships a document for it");
         }
     }
 

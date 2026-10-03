@@ -5,10 +5,7 @@ namespace Tests\Unit;
 
 use AfricaGates\Support\Accent;
 use AfricaGates\Support\Contrast;
-use Tests\Support\AppTwig;
 use Tests\TestCase;
-use Twig\Environment;
-use Twig\Loader\FilesystemLoader;
 
 /**
  * The tile: four parts, all of them required.
@@ -25,45 +22,16 @@ use Twig\Loader\FilesystemLoader;
  * Remove any one and it stops being a tile, which is why this asserts the presence of all
  * four rather than the look of the result: no edge and it is a wash, no fill and it is a
  * card, no ink and it is decoration, no wash and it is a floating chip.
+ *
+ * ── WHAT IS LEFT HERE, AND WHY ───────────────────────────────────────────────
+ *
+ * `partials/tile.twig` (with `components/tile.css`) was destroyed on 3 Oct 2026 as an orphan of the old public pages
+ * (docs/handoff/DESTROYED.md). The methods that rendered or read it went with it, and
+ * their rules are in docs/handoff/inventory/_partials.md and _stylesheets.md, which the rebuild re-asserts. What
+ * remains tests code that survived.
  */
 final class TileTest extends TestCase
 {
-    private function render(array $vars): string
-    {
-        $t = new Environment(new FilesystemLoader(dirname(__DIR__, 2) . '/templates'), [
-            'strict_variables' => true, 'autoescape' => 'html',
-        ]);
-        AppTwig::equip($t);
-
-        return $t->render('partials/tile.twig', $vars);
-    }
-
-    public function test_all_four_parts_reach_the_page(): void
-    {
-        $html = $this->render(['meaning' => 'award-decided', 'label' => 'Overall winner']);
-
-        foreach (['--tile-wash', '--tile-edge', '--tile-fill', '--tile-ink'] as $part) {
-            $this->assertStringContainsString($part, $html,
-                "a tile without its {$part} is not a tile");
-        }
-
-        $this->assertStringContainsString('ag-tile__mark', $html);
-        $this->assertStringContainsString('Overall winner', $html);
-    }
-
-    public function test_the_mark_is_decoration_and_the_word_is_the_fact(): void
-    {
-        // The colour is an accelerator on a word, never the fact itself — the rule that
-        // keeps the palette honest for the ~1 in 12 men with a colour vision deficiency
-        // and for every screen reader.
-        $html = $this->render(['meaning' => 'withheld', 'label' => 'Withheld']);
-
-        $this->assertMatchesRegularExpression(
-            '/<span class="ag-tile__mark" aria-hidden="true">/', $html,
-            'the mark is announced to a screen reader, which has nothing to say about it');
-        $this->assertStringContainsString('<span>Withheld</span>', $html);
-    }
-
     public function test_every_tile_labels_in_its_own_family_ink_and_it_holds(): void
     {
         // The previous palette's live ink was 4.44 on its own wash, so a live tile borrowed
@@ -93,51 +61,5 @@ final class TileTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         Accent::tileStyle('gold');
-    }
-
-    public function test_the_tile_carries_no_literal_colour_of_its_own(): void
-    {
-        // Every value arrives inline from Accent. A fallback in the sheet would let a tile
-        // render with three parts and a default, which is precisely the failure the
-        // four-part rule exists to prevent — and it would look fine.
-        $css = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/public/assets/css/components/tile.css');
-        $css = (string) preg_replace('~/\*.*?\*/~s', '', $css);
-
-        $this->assertStringNotContainsString('#', $css,
-            'the tile sheet carries a literal colour, so a tile can be built from a hue '
-            . 'somebody liked rather than from a meaning');
-
-        foreach (['--tile-wash', '--tile-edge', '--tile-fill', '--tile-ink'] as $part) {
-            $this->assertMatchesRegularExpression(
-                '/var\(\s*' . preg_quote($part, '/') . '\s*\)/', $css,
-                $part . ' is declared nowhere, so that part of the tile cannot be drawn');
-        }
-    }
-
-    public function test_the_tile_has_no_lip(): void
-    {
-        // Depth that cannot be pressed is decoration. The lip collapses on press and that
-        // collapse is what makes it an affordance; a tile is not pressed.
-        $css = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/public/assets/css/components/tile.css');
-
-        $this->assertStringNotContainsString('border-bottom:', $css);
-        $this->assertStringNotContainsString('box-shadow', $css);
-    }
-
-    public function test_the_live_pulse_is_opacity_only_and_stops_for_reduced_motion(): void
-    {
-        // The only motion any role is allowed, and only this: opacity, on the dot. Never
-        // scale, never colour.
-        $css = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/public/assets/css/components/tile.css');
-
-        $this->assertStringContainsString('prefers-reduced-motion: no-preference', $css,
-            'the pulse runs for somebody who asked for less motion');
-        $this->assertMatchesRegularExpression('/@keyframes ag-tile-pulse\s*\{[^}]*opacity/s', $css);
-        $this->assertDoesNotMatchRegularExpression(
-            '/@keyframes ag-tile-pulse\s*\{[^{]*\{[^}]*(transform|scale|background)/s', $css,
-            'the pulse moves or recolours — it may only fade');
     }
 }

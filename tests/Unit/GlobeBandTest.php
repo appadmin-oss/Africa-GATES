@@ -46,7 +46,6 @@ use Tests\TestCase;
 final class GlobeBandTest extends TestCase
 {
     private const GEO_FILE = __DIR__ . '/../../public/assets/geo/countries-110m.json';
-    private const JS_FILE  = __DIR__ . '/../../public/assets/js/globe-band.js';
     private const TWIG     = __DIR__ . '/../../templates/partials/globe-band.twig';
     private const HOME     = __DIR__ . '/../../templates/pages/home.twig';
     private const DOC      = __DIR__ . '/../../docs/GLOBE-BAND.md';
@@ -109,20 +108,6 @@ final class GlobeBandTest extends TestCase
         return $out;
     }
 
-    /** @return list<string> the AFRICA set the script paints and hit-tests against */
-    private function scriptAfricaSet(): array
-    {
-        $js  = (string) file_get_contents(self::JS_FILE);
-        $at  = strpos($js, 'var AFRICA = new Set([');
-        $end = $at === false ? false : strpos($js, ']);', $at);
-        $this->assertNotFalse($end, 'globe-band.js no longer declares an AFRICA set');
-
-        $body = substr($js, $at, $end - $at);
-        preg_match_all("~'((?:[^'\\\\]|\\\\.)*)'~", $body, $m);
-
-        return array_map(static fn (string $s): string => str_replace("\\'", "'", $s), $m[1]);
-    }
-
     // ══ the geometry join, which is the part nothing at runtime can check ════
 
     /**
@@ -141,23 +126,6 @@ final class GlobeBandTest extends TestCase
             $this->assertContains($geo, $names,
                 "$code maps to '$geo', which is not a country in the shipped geometry — "
                 . 'its marker would be silently absent');
-        }
-    }
-
-    /**
-     * A MAPPED NAME THE SCRIPT DOES NOT TREAT AS AFRICAN IS STILL INVISIBLE.
-     *
-     * The script draws and hit-tests only the features in its AFRICA set. A country
-     * present in the geometry but absent from that set has no outline to brighten and no
-     * polygon to click, so the marker would sit on a country the band does not draw.
-     */
-    public function test_every_mapped_country_is_in_the_scripts_africa_set(): void
-    {
-        $africa = $this->scriptAfricaSet();
-
-        foreach (GlobeBand::GEOMETRY as $code => $geo) {
-            $this->assertContains($geo, $africa,
-                "$code maps to '$geo', which globe-band.js does not treat as African");
         }
     }
 
@@ -361,45 +329,6 @@ final class GlobeBandTest extends TestCase
     }
 
     /**
-     * THE SPHERE IS NOT SIZED FOR A CARD THAT IS NOT BESIDE IT.
-     *
-     * The width factor is clearance for the 186px annotation card at `right:0`. Below
-     * 860px that card is in normal flow underneath the band, so the clearance buys
-     * nothing and the globe came out about 230px across on a 390px screen with vertical
-     * slack going spare.
-     *
-     * What this pins is the METHOD, not the number: the factor is chosen from a measured
-     * `getComputedStyle(note).position`, never from a copy of the breakpoint. A constant
-     * in the script that has to agree with a media query in the stylesheet is one edit
-     * away from disagreeing, and neither file shows it.
-     */
-    public function test_the_sphere_measures_the_note_rather_than_copying_the_breakpoint(): void
-    {
-        $raw = (string) file_get_contents(self::JS_FILE);
-
-        $this->assertMatchesRegularExpression('~getComputedStyle\(\s*note\s*\)\s*\.position~', $raw,
-            'resize() must ASK where the annotation card is');
-
-        // Code only, for the same reason as above: the comment explaining why the factor
-        // is measured has every right to name the breakpoint it refuses to duplicate.
-        $this->assertStringNotContainsString('860', self::codeOf($raw),
-            'the breakpoint belongs to the stylesheet — a second copy in the script is the drift');
-    }
-
-    /** CSS with `/* … *\/` comments removed — what a browser actually parses. */
-    private static function declarationsOf(string $css): string
-    {
-        return (string) preg_replace('~/\*.*?\*/~s', '', $css);
-    }
-
-    /** JS with block and line comments removed. */
-    private static function codeOf(string $js): string
-    {
-        $js = (string) preg_replace('~/\*.*?\*/~s', '', $js);
-        return (string) preg_replace('~^\s*//.*$~m', '', $js);
-    }
-
-    /**
      * THE DEVELOPER GUIDE DESCRIBES THE RING THAT SHIPPED, NOT THE ONE THAT WAS REJECTED.
      *
      * The sweep below it reads the SCRIPT for the retired city model. Nothing read the
@@ -426,44 +355,6 @@ final class GlobeBandTest extends TestCase
             'the guide still has to explain the two marker shapes');
         $this->assertStringContainsString('decided', $doc,
             'the ring means an award has been decided there');
-    }
-
-    public function test_the_script_carries_no_invented_figures_and_no_routes(): void
-    {
-        $js = (string) file_get_contents(self::JS_FILE);
-
-        foreach (['FALLBACK', 'verify_seconds', 'ballots', 'geoInterpolate', 'hub'] as $token) {
-            $this->assertStringNotContainsString($token, $js,
-                "globe-band.js still carries '$token' from the invented city model");
-        }
-        // And the honest source is wired: the stage's own attribute, nothing else.
-        $this->assertStringContainsString('stage.dataset.countries', $js);
-    }
-
-    /**
-     * THE LAND DOTS ARE THE DRAWING, AND FIFTY-FOUR OUTLINES OVER THEM ARE NOT.
-     *
-     * The handoff's production script added a per-frame stroke over every African nation
-     * — 0.85px at 16% ink for the field, 1.15px of green for any nation with activity —
-     * which is in neither the design reference nor its own screenshots. It turned a quiet
-     * map into a diagram competing with itself, and made the dots look sparse when they
-     * are identical to the reference's (15,000 samples, `#8fa39b`, alpha 0.10–0.40).
-     *
-     * The reference outlines exactly one country: the selected one, while its card is
-     * open. Pinned by the two values it uses, because "looks calmer" is not a test.
-     */
-    public function test_only_the_selected_country_is_outlined(): void
-    {
-        $js = (string) file_get_contents(self::JS_FILE);
-
-        // The reference's selected-country treatment, to the value.
-        $this->assertStringContainsString("rgba(35,123,34,.10)", $js);
-        $this->assertStringContainsString("rgba(35,123,34,.55)", $js);
-        // The retired field stroke and its "any activity" companion.
-        $this->assertStringNotContainsString("rgba(16,41,44,.16)", $js);
-        $this->assertStringNotContainsString("rgba(35,123,34,.62)", $js);
-        // A country is still clickable: the hit test reads the features, not the paint.
-        $this->assertStringContainsString('d3.geoContains', $js);
     }
 
     // ══ and it is actually on the page ═══════════════════════════════════════

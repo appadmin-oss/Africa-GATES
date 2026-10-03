@@ -43,7 +43,6 @@ use Tests\TestCase;
 final class CelebrationTest extends TestCase
 {
     private const JS      = 'public/assets/js/celebrate.js';
-    private const PARTIAL = 'templates/partials/celebrate.twig';
     private const PAGE    = 'templates/pages/results/show.twig';
     private const LIB     = 'public/assets/js/vendor/canvas-confetti-1.9.3.js';
 
@@ -364,25 +363,12 @@ final class CelebrationTest extends TestCase
         $this->assertStringContainsString('canvas-confetti v1.9.3', $lib,
             'the vendored file is not the version its name claims');
 
-        $partial = self::src(self::PARTIAL);
-        // Self-hosted, like every other third party here: the CSP names no CDN in
-        // script-src, so a cdn.jsdelivr.net reference is a script that never runs.
-        $this->assertStringNotContainsString('cdn.', $partial);
-        $this->assertStringNotContainsString('unpkg', $partial);
-        $this->assertStringContainsString('/assets/js/vendor/canvas-confetti-1.9.3.js', $partial);
+        // The half that read `partials/celebrate.twig` — the tag that loaded this file
+        // self-hosted, never from a CDN the CSP does not name — went with that partial on
+        // 3 Oct 2026 (docs/handoff/DESTROYED.md; inventory/_partials.md holds the rule).
 
         $prov = self::src('public/assets/js/vendor/PROVENANCE.md');
         $this->assertStringContainsString('canvas-confetti@1.9.3', $prov,
             'a vendored file with no provenance row — nobody can reproduce or update it');
-    }
-
-    public function test_both_scripts_are_deferred_and_nonced(): void
-    {
-        $partial = self::src(self::PARTIAL);
-        $this->assertSame(2, substr_count($partial, 'defer'),
-            'a celebration script blocks the first paint of a result page');
-        // The admin CSP has no 'unsafe-inline' and the public one is nonce-based; a
-        // script tag without the nonce is one the browser refuses.
-        $this->assertSame(2, substr_count($partial, 'csp_nonce'));
     }
 }

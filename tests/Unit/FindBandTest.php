@@ -74,32 +74,4 @@ final class FindBandTest extends TestCase
     }
 
     // ── The things that fail silently ────────────────────────────────────────
-
-    public function test_no_other_search_entrance_enumerates_the_sources(): void
-    {
-        // There are three ways into this search — the band, the header dialog, and the
-        // activity page — and exactly ONE of them may claim what it covers, because only
-        // one of them generates the claim.
-        //
-        // The header dialog's field was labelled "Search nominees, events, posts and
-        // pages". Ten sources, four named, on the one string a screen reader announces as
-        // that field's name — and it had already drifted past announced results,
-        // categories, verified organisations, profiles, discussions and cycle phases. The
-        // fix was not to add the other six. A coverage claim belongs where it is derived.
-        //
-        // Asserted on the NOUNS, so this fails when somebody re-enumerates with today's
-        // list rather than only when they restore the old wording.
-        $dialog = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/partials/site-search.twig');
-
-        // Comments reach no reader, but they go stale the same way and this one did.
-        $visible = (string) preg_replace('/\{#.*?#\}/s', '', $dialog);
-
-        foreach (ActivityFeedService::nouns() as $noun) {
-            $this->assertStringNotContainsString($noun, $visible,
-                "the header search dialog names '{$noun}' as something it covers. Only "
-              . 'the find band may make that claim, because only the find band generates '
-              . 'it from ActivityFeedService::SOURCES.');
-        }
-    }
 }
