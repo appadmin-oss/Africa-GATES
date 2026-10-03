@@ -4,55 +4,30 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use Illuminate\Database\Capsule\Manager as DB;
-use Slim\Views\Twig;
 use Tests\TestCase;
 
 /**
- * THE WINNER'S MOMENT, AND THE FOUR WAYS A CELEBRATION BECOMES A FAULT.
+ * "SOMEONE YOU BACKED WON" — THE MEMBER'S DASHBOARD PANEL, AND WHO IT MAY CONGRATULATE.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * A CELEBRATION ON A RESULT PAGE IS NOT DECORATION
+ * WHAT IS LEFT HERE, AND WHERE THE REST WENT
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * It fires on the page that tells somebody they have won an award, which makes every
- * way it can misfire a way of saying something untrue or unkind:
+ * This file held the winner's-moment rules: no celebration on a held or delayed result,
+ * play once, never instead of the page, no sound, reduced motion means no particles. The
+ * pages carrying the celebration were destroyed on 3 Oct 2026, and the engine
+ * (`celebrate.js`, its vendored canvas-confetti and `ag-motion.js`'s counter) went with
+ * the second orphan wave the same day. Every rule those methods held is written down in
+ * `docs/handoff/inventory/_scripts.md` and the result pages' inventories, for the Phase 3
+ * rebuild to re-assert against whatever engine ships.
  *
- *   · ON A HELD RESULT. `/results/{id}` for a withheld award names nobody, deliberately —
- *     "half a result on a public page is the version people screenshot". Confetti over
- *     that page announces a winner the platform is refusing to announce.
- *
- *   · ON A DELAYED ONE. A cycle past its results date with nothing decided renders the
- *     holding page, and a celebration there tells the family refreshing it that the
- *     award has been given.
- *
- *   · ON EVERY VISIT. A burst that replays each time is a page somebody cannot read.
- *
- *   · INSTEAD OF THE PAGE. Nothing here may reveal the name or the index: they are the
- *     server's output, complete before a byte of JavaScript arrives. This codebase has
- *     shipped a dead camera, a mute door, a stop-link nobody was handed and a nominee's
- *     read-aloud blocked by a policy line — every one of them a feature that looked
- *     present and was not. A result page must not be able to join them, so the failure
- *     of this script is a page with no confetti and never a page with no winner.
- *
- * ── AND THE FIFTH, WHICH IS A HEADER ────────────────────────────────────────
- * `Permissions-Policy` denies `autoplay` site-wide, and both mobile browsers gate audible
- * playback on a gesture this page never had. A celebration that tried to play a sound
- * would fail silently on every device — exactly how the door's greeting went unheard for
- * months. So it makes no sound at all, and that is asserted rather than assumed.
+ * What survives is the server half the dashboard panel stands on —
+ * {@see \AfricaGates\Services\MemberActivityService::backedWinners()} — and its rule is
+ * the same rule in another place: a member told "someone you backed won" before the
+ * announcement IS the announcement.
  */
 final class CelebrationTest extends TestCase
 {
-    private const JS      = 'public/assets/js/celebrate.js';
-    private const PAGE    = 'templates/pages/results/show.twig';
-    private const LIB     = 'public/assets/js/vendor/canvas-confetti-1.9.3.js';
-
-    private static function src(string $rel): string
-    {
-        $p = dirname(__DIR__, 2) . '/' . $rel;
-        self::assertFileExists($p, $rel . ' is missing');
-        return (string) file_get_contents($p);
-    }
-
     /** `slug` is NOT NULL and UNIQUE per cycle — a fixture that omits it passes on
      *  neither driver, and a shared literal collides with the next test's. */
     private function category(string $title): int
@@ -80,62 +55,6 @@ final class CelebrationTest extends TestCase
             'vote_type' => 'standard', 'voted_at' => date('Y-m-d H:i:s'),
         ]);
     }
-
-    /** The nominee's own public page, promoted or not. */
-    private function nominee(string $awardKind): string
-    {
-        $_SESSION = ['csrf_token' => 'tok'];
-        $b = new \DI\ContainerBuilder();
-        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
-        return $b->build()->get(Twig::class)->fetch('pages/vote-nominee.twig', [
-            'nominee' => ['id' => 42, 'programme_id' => 3, 'name' => 'Ada Obi', 'category' => 'Innovation',
-                          'tagline' => 'A leader', 'vote_count' => 5, 'programme_title' => 'STEM'],
-            'firstName' => 'Ada', 'others' => [], 'AV' => [['#eee', '#333']],
-            'flag' => '🇳🇬', 'ctry' => 'Nigeria',
-            'award_kind' => $awardKind, 'backer_count' => 276, 'roll_of_honour' => [],
-            'gates_page' => 'vote', 'has_hero' => false,
-        ]);
-    }
-
-    /** The page, rendered with the container's own Twig — `csrf_token` is a global. */
-    private function render(array $r): string
-    {
-        $_SESSION = ['csrf_token' => 'tok'];
-        $b = new \DI\ContainerBuilder();
-        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
-        return $b->build()->get(Twig::class)->fetch('pages/results/show.twig', [
-            'r' => $r, 'gates_page' => 'results', 'has_hero' => false,
-        ]);
-    }
-
-    /** @param array<string,mixed> $over */
-    private static function drawn(array $over = []): array
-    {
-        $row = [
-            'name' => 'Oluwagbemiga Dorcas', 'cpi' => 780, 'community_points' => 415,
-            'judge_points' => 365, 'vote_count' => 460, 'unique_voters' => 276,
-            'in_running' => true, 'url' => '/vote/x/dorcas',
-        ];
-        return $over + [
-            'programme' => 'Alimosho Incredible Principal Awards', 'edition' => '2026',
-            'programme_slug' => 'aipa',
-            'category' => ['title' => 'Teachers’ Choice', 'description' => 'd'],
-            'winner' => $row, 'rows' => [$row],
-            'held' => null, 'dead_heat' => false, 'tie_broken_by_votes' => false,
-            'weights' => ['community' => 0.45, 'judge' => 0.55],
-            'cohort_max' => 620, 'cohort_max_unique' => 62, 'cohort_max_by' => null,
-            'votes' => ['total' => 460, 'organic' => 400],
-            'cycle_id' => 7, 'cycle_year' => 2026,
-            'slug' => '12-teachers-choice', 'url' => '/results/12-teachers-choice',
-            'released_at' => '2026-08-01', 'sealed_at' => '2026-08-01 10:00:00',
-            'rank_recomputed' => false, 'community_basis' => 'ideal',
-            'community_scope' => 'edition', 'judge_scale' => 'linear', 'basis_from' => 'default',
-        ];
-    }
-
-    // ───────────────────────── where it may and may not fire ──────────────────
-
-    // ───────────────────────── the nominee's own page ─────────────────────────
 
     // ───────────────────────── the member's dashboard ─────────────────────────
 
@@ -210,165 +129,5 @@ final class CelebrationTest extends TestCase
         $this->assertCount(2, $got);
         $this->assertSame(array_reverse($ids), array_column($got, 'id'),
             'newest first, so a fresh win is the first thing read');
-    }
-
-    // ───────────────────────── the guarantees in the script ───────────────────
-
-    public function test_the_script_reveals_nothing_and_therefore_cannot_withhold_it(): void
-    {
-        $js = self::src(self::JS);
-
-        // It must never set the winner's name or the index from script, and never unhide
-        // anything: a celebration that PAINTS the result is a celebration that can fail
-        // to paint it.
-        $this->assertStringNotContainsString('.hidden = false', $js);
-        $this->assertStringNotContainsString("style.display", $js);
-        $this->assertStringNotContainsString('innerHTML', $js);
-
-        // The figure is animated by ag-motion.js's counter, not by a copy living here.
-        // That one already knows a thousands separator has to survive the animation and
-        // that a COMPOSITE figure ("45 / 55") is two quantities rather than a number —
-        // a second counter is how one screen counts to 45 and another through 4555.
-        $this->assertStringContainsString('window.agCount(figure)', $js,
-            'the celebration stopped using the motion system\u{2019}s counter');
-        $this->assertStringNotContainsString('function countUp', $js,
-            'a second count-up implementation is back in celebrate.js');
-        $this->assertStringNotContainsString('requestAnimationFrame', $js,
-            'celebrate.js is animating a number itself again');
-
-        // And the one it delegates to is really there and really exported.
-        $motion = self::src('public/assets/js/ag-motion.js');
-        $this->assertStringContainsString('window.agCount = function', $motion,
-            'ag-motion.js no longer exports the counter celebrate.js calls');
-    }
-
-    public function test_it_makes_no_sound(): void
-    {
-        // Not taste. `Permissions-Policy` denies autoplay site-wide and both mobile
-        // browsers gate audible playback on a gesture this page never had, so a sound
-        // here is a rejected promise nobody ever hears about.
-        $js = self::src(self::JS);
-        foreach (['new Audio', 'AudioContext', '.play(', '<audio'] as $noisy) {
-            $this->assertStringNotContainsString($noisy, $js, "the celebration reaches for {$noisy}");
-        }
-    }
-
-    public function test_reduced_motion_gets_the_result_and_no_particles(): void
-    {
-        $js = self::src(self::JS);
-        $this->assertStringContainsString('prefers-reduced-motion', $js);
-        // Two belts: the module returns before it makes a canvas, and every burst also
-        // carries the library's own flag — because the check and the bursts are far
-        // enough apart in the file for one to be edited without the other.
-        $this->assertMatchesRegularExpression('~if \(quiet \|\| typeof window\.confetti[^)]*\) return;~', $js);
-        // ── THE RULE, NOT THE SPELLING ──────────────────────────────────────
-        // This counted the LITERAL `disableForReducedMotion: true` and expected two.
-        // The rule it meant — every burst carries the flag — was right; the token was
-        // the way the flag happened to be written on the day. When the beats moved to
-        // a per-kind table the flag became an assignment on the options object, and
-        // the count went to zero against code that is MORE correct, not less: there
-        // are now two kinds and the flag is set on whichever one fires.
-        //
-        // So it is counted against the thing it has to cover. Every call to `fire`
-        // must have had the flag set for it, whether that is a key in a literal or a
-        // property set on the object a moment earlier.
-        $bursts = preg_match_all('~(?<![.\w])fire\(~', $js);
-        $flags  = substr_count($js, 'disableForReducedMotion: true')
-                + substr_count($js, 'disableForReducedMotion = true');
-
-        $this->assertGreaterThan(0, $bursts, 'no bursts found — the reader is broken');
-        $this->assertSame($bursts, $flags,
-            'a burst was added without the reduced-motion flag');
-        // And the count-up is motion too — honoured by the counter it delegates to,
-        // which refuses to run under reduced motion on its own account. Asserted there
-        // rather than assumed, because that guard is now in a different file.
-        $motion = self::src('public/assets/js/ag-motion.js');
-        $this->assertMatchesRegularExpression(
-            '~window\.agCount = function \(el\) \{\s*if \(reduced~', $motion,
-            'the exported counter runs under reduced motion');
-    }
-
-    public function test_it_plays_once_per_result_and_forgetting_is_not_a_failure(): void
-    {
-        $js = self::src(self::JS);
-
-        $this->assertStringContainsString("'ag-celebrated:'", $js);
-        // localStorage throws in a private window and where site data is blocked. A
-        // remembered play that cannot be remembered must play AGAIN, never stop playing:
-        // both accessors return/ignore rather than propagating.
-        // Read the real function BODIES rather than pattern-matching around them: a
-        // `[^}]*` window stops at the first brace, which here is the `try` block's own —
-        // so the pattern could only ever describe a function with no try in it, which is
-        // the opposite of what is being asserted.
-        $this->assertStringContainsString('catch', self::body($js, 'seen'),
-            'a blocked localStorage read propagates, so a private window gets no celebration at all');
-        $this->assertStringContainsString('return false', self::body($js, 'seen'),
-            'an unreadable store must mean "not seen yet", never "seen"');
-        $this->assertStringContainsString('catch', self::body($js, 'remember'),
-            'a blocked localStorage write propagates and takes the celebration with it');
-    }
-
-    /**
-     * One JavaScript function body, by brace matching.
-     *
-     * Brace matching and not a regex: every naive window either stops at the first `}`
-     * inside the function or runs to the end of the file, and both produce assertions
-     * that pass on source they do not describe.
-     */
-    private static function body(string $js, string $fn): string
-    {
-        $at = strpos($js, 'function ' . $fn . '(');
-        self::assertNotFalse($at, "no function {$fn}() in celebrate.js");
-        $open = strpos($js, '{', $at);
-        self::assertNotFalse($open);
-
-        $depth = 0;
-        for ($i = $open, $n = strlen($js); $i < $n; $i++) {
-            if ($js[$i] === '{') $depth++;
-            elseif ($js[$i] === '}' && --$depth === 0) return substr($js, $open, $i - $open + 1);
-        }
-        self::fail("function {$fn}() is not closed");
-    }
-
-    public function test_the_canvas_is_taken_away_again(): void
-    {
-        $js = self::src(self::JS);
-        // Left behind it is a full-screen fixed element over every page scrolled to
-        // next. Pointer-transparent, so the only symptom is a phone getting warm.
-        $this->assertStringContainsString('removeChild(canvas)', $js);
-        $this->assertStringContainsString("setAttribute('aria-hidden', 'true')", $js);
-        $this->assertStringContainsString('pointer-events:none', $js);
-    }
-
-    public function test_no_blob_worker_is_asked_for(): void
-    {
-        // canvas-confetti's worker is built from a Blob URL, and this site's CSP has no
-        // `worker-src` — which falls back to `script-src`, and that is `'self'` plus a
-        // nonce. Asking for it logs a violation on every award page and then falls back
-        // to the main thread anyway.
-        $js  = self::src(self::JS);
-        $csp = self::src('src/Support/Csp.php');
-
-        $this->assertStringContainsString('useWorker: false', $js);
-        $this->assertStringNotContainsString('useWorker: true', $js);
-        $this->assertStringNotContainsString('worker-src', $csp,
-            'the policy gained worker-src — the comment in celebrate.js is now wrong');
-    }
-
-    // ───────────────────────── the vendored library ───────────────────────────
-
-    public function test_the_library_is_self_hosted_and_recorded(): void
-    {
-        $lib = self::src(self::LIB);
-        $this->assertStringContainsString('canvas-confetti v1.9.3', $lib,
-            'the vendored file is not the version its name claims');
-
-        // The half that read `partials/celebrate.twig` — the tag that loaded this file
-        // self-hosted, never from a CDN the CSP does not name — went with that partial on
-        // 3 Oct 2026 (docs/handoff/DESTROYED.md; inventory/_partials.md holds the rule).
-
-        $prov = self::src('public/assets/js/vendor/PROVENANCE.md');
-        $this->assertStringContainsString('canvas-confetti@1.9.3', $prov,
-            'a vendored file with no provenance row — nobody can reproduce or update it');
     }
 }

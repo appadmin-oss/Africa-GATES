@@ -478,7 +478,7 @@ The two layouts (`layout/footer.twig`, `layout/nav.twig`) are filed here rather 
 
 **Styling carried:** 0 <style> block(s), 0 inline style attributes; stylesheet links: —
 
-**Rebuild:** Nothing to restore as a file: `layout/shell.twig` already mounts the Menu and Quick settings and a page includes the header itself. **`partials/lang-prompt.twig` was included only from here and is now itself unreferenced** — the shell does not mount it; Phase 2 decides whether the language prompt comes back.
+**Rebuild:** Nothing to restore as a file: `layout/shell.twig` already mounts the Menu and Quick settings and a page includes the header itself. **`partials/lang-prompt.twig` was included only from here**; it was destroyed in the second orphan wave the same day (entry at the end of this file) — the shell never mounted it, and Phase 2 rebuilds the prompt.
 
 **Rules held by guard tests destroyed with it** — the rebuild re-asserts each, watched failing first:
 
@@ -595,7 +595,7 @@ The two layouts (`layout/footer.twig`, `layout/nav.twig`) are filed here rather 
 
 **Styling carried:** 0 <style> block(s), 0 inline style attributes; stylesheet links: —
 
-**Rebuild:** Restore with the rebuilt result pages. **`public/assets/js/celebrate.js` and the confetti vendor file survive and are now loaded by nothing** (CelebrationTest still holds celebrate.js's own rules).
+**Rebuild:** Restore with the rebuilt result pages. `public/assets/js/celebrate.js` and the confetti vendor file were destroyed in the second orphan wave the same day; their rules are in `_scripts.md`.
 
 **Rules held by guard tests destroyed with it** — the rebuild re-asserts each, watched failing first:
 
@@ -689,7 +689,7 @@ The two layouts (`layout/footer.twig`, `layout/nav.twig`) are filed here rather 
 
 **Styling carried:** 0 <style> block(s), 0 inline style attributes; stylesheet links: —
 
-**Rebuild:** Optional. **`public/assets/js/community-modal.js` survives and is now loaded by nothing.**
+**Rebuild:** Optional. `public/assets/js/community-modal.js` was destroyed in the second orphan wave the same day (`_scripts.md`).
 
 **Guard tests:** none read this file at the time of the destroy.
 
@@ -909,7 +909,7 @@ The two layouts (`layout/footer.twig`, `layout/nav.twig`) are filed here rather 
 
 **Styling carried:** 0 <style> block(s), 0 inline style attributes; stylesheet links: —
 
-**Rebuild:** **MUST RESTORE** — the surviving `partials/site-header.twig` still renders the search button with `aria-haspopup="dialog"`, and it now opens nothing. **`public/assets/js/ag-search.js` survives and is loaded by nothing.** Phase 2 must rebuild the palette (or remove the button).
+**Rebuild:** **MUST RESTORE** — the surviving `partials/site-header.twig` still renders the search button with `aria-haspopup="dialog"`, and it now opens nothing. `public/assets/js/ag-search.js` was destroyed in the second orphan wave the same day (`_scripts.md`, also MUST RESTORE). Phase 2 must rebuild the palette (or remove the button).
 
 **Rules held by guard tests destroyed with it** — the rebuild re-asserts each, watched failing first:
 
@@ -1020,3 +1020,22 @@ The two layouts (`layout/footer.twig`, `layout/nav.twig`) are filed here rather 
 - `VoteCountdownTest::test_the_digits_are_hidden_from_assistive_tech_and_the_deadline_is_not` — `<div class="vc…" data-vc`, `aria-label="Voting closes…"`, and `<div class="vc__clock" aria-hidden="true">` — a screen reader announcing a new value every second is unusable.
 - `VoteCountdownTest::test_the_bare_variant_is_the_same_markup` — `bare` adds `vc--bare` and keeps the same accessible contract (`aria-label="Voting closes`, `aria-hidden="true"`); the card form never carries `vc--bare`.
 
+
+
+# Second orphan wave, 3 Oct 2026 (owner-approved)
+
+One template the first orphan pass left behind (scripts of the same wave are in [`_scripts.md`](_scripts.md)). Grepped for before deletion across `templates/`, `src/`, `config/`, `public/assets/`, `cron/` and `bin/`: no includer. Taken from the file at `HEAD` (`5b06988`).
+
+## `templates/partials/lang-prompt.twig` (HEAD, 44 lines)
+
+**Included by (at `a9d963a`):** `layout/nav.twig` only (destroyed as an orphan 3 Oct). `layout/shell.twig` never mounted it.
+
+**What it did:** The first-visit language prompt (REFERENCE §7.2): one row under the root app bar asking — IN the visitor's language — whether they want the site in it. One hidden row per `lang_prompts()` entry (`Support\Languages::prompts()`: every offered language but English whose catalogue has both an `ask` and a `yes` string, so nothing is composed at runtime), each carrying its own `lang` and `dir`, the question, a "yes" link to `lang_url(code)` and a "Keep English" link to `lang_url('en')` (in English, `lang="en" dir="ltr"`: it is the option it describes). The rows were rendered and hidden rather than built in JS so there was no JSON blob in an attribute (the shape that once shredded the flier's styles), and the WORDS came from the catalogues, not `|trans` (which answers in the page's language). Both answers were LINKS carrying `?lang=`, so `LanguageMiddleware` stayed the one writer of the `ag_lang` cookie and the prompt worked with scripting off. The browser half — pick the row for `navigator.languages[0]` (first only: "English, then French" reads English), show it, hide on the first scroll of `.ag-main` — is `bindLangAsk()` in `public/assets/js/chrome.js`, which survives.
+
+**Mechanics:** **Includes/imports:** — · **Data read:** `lang_prompts()`, `lang_url()` · **Hooks:** `data-ag-langask`, `data-ag-langask-for` · **Classes:** `ag-langask`, `ag-langask__row`, `ag-langask__q`, `ag-btn--sm`, `ag-btn--ink`, `ag-btn--quiet` · 0 `<style>`, 0 inline styles.
+
+**Rebuild:** Phase 2 (chrome), with **the §3.8 fault fixed, not carried**: `nav.twig` included this partial UNCONDITIONALLY, while the server gate `lang_ask()` (`config/container.php`, `Languages::shouldAsk()`) was registered and called by no template — so a visitor who answered "Keep English" was asked again on every page, and on `gates.twig` pages `bindLangAsk` returned before binding the scroll-hide (no `.ag-main`). The rebuild MUST wrap the include in `{% if lang_ask() %}` — "the condition for asking is the ABSENCE of that cookie, so neither answer can bring the prompt back. A prompt that returns is an advert." — and `LanguageTest` should be extended to render through the gate rather than test `shouldAsk()` in isolation (GAPS §3.8).
+
+**Left behind, deliberately untouched (owner to decide with Phase 2):** `config/container.php` still registers `lang_prompts` and `lang_ask`, now with no template caller; `chrome.js` `bindLangAsk()` finds no `[data-ag-langask]` and returns on its first line. Neither is wrong; both are the surviving halves of what this partial joined.
+
+**Guard tests:** none read this file at the time of the destroy (`LanguageTest` holds `Languages` only).

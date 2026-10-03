@@ -181,8 +181,10 @@ code wins and the phase brief needs correcting.**
 ### 3.8 Quick settings + first-visit language prompt — EXISTS, with a live fault (table says NEW)
 - Quick settings: `partials/quick-settings.twig`, mounted only by `shell.twig:103` because its one trigger
   is the shell app bar's avatar (`partials/app-bar.twig:91`) — so it works on four pages.
-- Language prompt: `partials/lang-prompt.twig`, `chrome.js:298-317`, strings from `Support\Languages`, one
-  cookie writer `LanguageMiddleware`.
+- Language prompt: `partials/lang-prompt.twig` (**destroyed 3 Oct 2026** with the second orphan wave —
+  its only includer, `layout/nav.twig`, had gone; inventory in `inventory/_partials.md`), `chrome.js:298-317`
+  (survives, now finds no prompt and returns), strings from `Support\Languages`, one cookie writer
+  `LanguageMiddleware`.
 - **FAULT:** `layout/nav.twig:27` includes the prompt **unconditionally**. The server gate `lang_ask()`
   is registered (`container.php:384`, `Languages::shouldAsk()`) and **no template calls it**
   (`grep -rn lang_ask templates`: nothing), while `chrome.js` says the block is present only when it was
@@ -190,6 +192,9 @@ code wins and the phase brief needs correcting.**
   pages `bindLangAsk` returns early (no `.ag-main`), so it never hides on scroll. `LanguageTest` checks
   `shouldAsk()` in isolation and passes over it. This is a §17 "declared, no reader" fault and is listed
   for the Phase 2 rebuild, not patched here.
+- **Since 3 Oct 2026** the prompt and `nav.twig` are both destroyed, so nothing asks at all; `lang_ask()`
+  and `lang_prompts()` are registered with no template caller. The fault is the rebuild's not to carry: the
+  rebuilt prompt is included only inside `{% if lang_ask() %}`.
 
 ### 3.9 Celebrations — PARTIAL; the verbatim files are not in the repo
 ```
@@ -200,12 +205,16 @@ cmp H/design/assets/celebration/celebration.css public/assets/css/components/cel
 ```
 - Bundle files: `celebration.js` 19,848 B (sha256 `903d690b…5c7a145f3c8`), `celebration.css` 4,776 B
   (sha256 `1e00d2fb…b016eada06a`). No `AGCelebrate` or `data-agc-` anywhere in the repo.
-- What runs instead: `public/assets/js/celebrate.js` (217 lines, `window.agCelebrate`, on vendored
+- What ran instead, **all destroyed 3 Oct 2026** (the partial with the first orphan pass, the two scripts
+  with the second; inventories in `inventory/_partials.md` and `inventory/_scripts.md`): `public/assets/js/celebrate.js` (217 lines, `window.agCelebrate`, on vendored
   `canvas-confetti-1.9.3`), kinds `win`/`nominate` only, seen keys `ag-celebrated:<key>`
   (`celebrate.js:57-62, 89-119`); partial `partials/celebrate.twig` (`key` only); call sites
   `partials/success.twig:179`, `vote-nominee.twig:1407`, `account/dashboard.twig:1051`,
   `events/ticket.twig:1037`, `results/show.twig:685`, `results/edition.twig:385`, and
-  `nominate-success.twig:167` directly. Guarded by `CelebrationTest` (17 tests).
+  `nominate-success.twig:167` directly (all destroyed). Guarded by `CelebrationTest` (17 tests; 4 remain, all on
+  `MemberActivityService::backedWinners()` — the rest were destroyed with the pages and the script and are
+  recorded in the inventories). Nothing celebrates anywhere now, and the `ag-celebrated:` storage row in
+  `CookieRegistry` has no writer (DESTROYED.md, "Stale declarations on `/cookies`").
 - **Rules to carry across the destroy:** no celebration on a held or delayed result, play once, never
   instead of the page (`CelebrationTest`'s docblock).
 

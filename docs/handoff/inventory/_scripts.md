@@ -203,3 +203,140 @@ Scripts the first destroy left with no includer, no linker and no renderer ("Orp
 
 **Guard tests:** none read this file at the time of the destroy.
 
+
+# Second orphan wave, 3 Oct 2026 (owner-approved)
+
+Six scripts and one vendored library that the first orphan pass left behind: `celebrate.js`, `vendor/canvas-confetti-1.9.3.js` and `community-modal.js` lost their last loader with `partials/celebrate.twig` and `partials/community-modal.twig`; `ag-motion.js`, `ag-search.js` and `ag-social.js` were already linked by nothing at `HEAD` (each was loaded only by the destroyed `layout/gates.twig`, plus `pages/vote-nominee.twig`, `pages/pulse.twig` and `pages/results/show.twig`). DESTROYED.md listed them under "Newly orphaned — owner to decide"; the owner's approval to destroy unused leftovers covers them. Before deletion each was grepped for across `templates/`, `src/`, `config/`, `public/assets/`, `cron/` and `bin/`: the only hits were the files naming each other (`celebrate.js` ↔ `ag-motion.js`, `celebrate.js` → canvas-confetti) and the attribute `data-ag-search-open` on the surviving header's search button, which is markup the script bound to, not a loader. Each entry is taken from the file at `HEAD` (`5b06988`).
+
+## `public/assets/js/celebrate.js` (HEAD, 217 lines)
+
+**Loaded by (at `a9d963a^`):** `partials/celebrate.twig` (destroyed as an orphan 3 Oct) and `pages/nominate-success.twig` directly (destroyed 3 Oct)
+
+**What it did:** `window.agCelebrate({key, figure, anchor, kind, once})` and a declarative mount on the first `[data-celebrate]` element (`data-celebrate-figure`, `data-celebrate-anchor`, `data-celebrate-kind`). One engine and a table of beats for two kinds: `win` (two inward cannons from the lower corners at +240ms, then a wider fall from above the badge at +720ms) and `nominate` (stars fanning from the badge on two radii, about half the particles — "a nomination is not a win", so firing the winner's cannons for a nomination would tell somebody the award is theirs). An unknown kind falls back to `win`, so a typo in an attribute never silently removes the celebration. Particles on its own fixed, `aria-hidden`, `pointer-events:none` canvas, reset and removed after 3.2s. Origin measured at fire time, and placed ABOVE the badge, never on it (a clump over the word being celebrated is the one thing a photograph of the moment is of). The index count-up was delegated to `ag-motion.js`'s `window.agCount`, not a second counter. `confetti.create(canvas, {useWorker:false})` — the library's worker is a `blob:` URL that the CSP's `script-src` (no `worker-src`) refuses, logging a violation on every award page before falling back to the main thread anyway. Five hex literals (`#f3b416`, `#237b22`, `#7fc87c`, `#fffdf5`, `#10292c`) — none of them handoff tokens.
+
+**DOM hooks:** `data-celebrate`, `data-celebrate-figure`, `data-celebrate-anchor`, `data-celebrate-kind`  
+**Storage keys:** `localStorage 'ag-celebrated:' + key` (declared in `CookieRegistry::storage()`)  
+**Globals exported:** `window.agCelebrate`; reads `window.confetti`, `window.agCount`  
+**Reads prefers-reduced-motion:** yes
+
+**Rebuild:** Phase 3 replaces it with the handoff's `celebration.js`/`.css` (GAPS §3.9, C10/Q7). The file is not owed back; its **refusal rules are — MUST RESTORE**, whatever engine ships:
+- **No celebration on a held or delayed result.** The withheld page names nobody on purpose and the late-results holding page says nothing is decided; confetti on either announces an award the platform is refusing to announce. It was enforced by PLACEMENT — the loader sat inside the markup that names a winner, so a page with no winner block loaded no celebration. The rebuilt result pages must keep the trigger inside the winner branch (rules in `inventory/pages--results--show.md`, `pages--results--edition.md`).
+- **Play once** per result per browser; a storage read that throws means "not seen yet" (it plays again), never "seen", and a write that throws is swallowed. The handoff engine's key is `ag-cel-…`, undeclared — `CookieRegistryTest` will fail on it by name until its row is written, and the `ag-celebrated:` row must then go (see the CookieRegistry note in DESTROYED.md).
+- **Never instead of the page.** The name and index are the server's output, complete before any script; the engine may not unhide, paint or `innerHTML` the result.
+- No sound (Permissions-Policy denies `autoplay`); honour `prefers-reduced-motion` with NO particles, on every burst; a pointer-transparent, `aria-hidden` stage that is removed afterwards; no `blob:` worker unless the CSP gains `worker-src`.
+
+**Rules held by guard tests destroyed with it** — the rebuild re-asserts each, watched failing first:
+
+- `CelebrationTest::test_the_script_reveals_nothing_and_therefore_cannot_withhold_it` — No `.hidden = false`, no `style.display`, no `innerHTML`; the count-up is `window.agCount(figure)`, with no `function countUp` and no `requestAnimationFrame` of its own; and `ag-motion.js` really exports `window.agCount = function`.
+- `CelebrationTest::test_it_makes_no_sound` — None of `new Audio`, `AudioContext`, `.play(`, `<audio`.
+- `CelebrationTest::test_reduced_motion_gets_the_result_and_no_particles` — Reads `prefers-reduced-motion`; returns before making a canvas when quiet or when `window.confetti` is missing; the number of `fire(` calls equals the number of `disableForReducedMotion` settings (counted against the bursts, not the literal spelling); the exported counter's first line refuses under reduced motion.
+- `CelebrationTest::test_it_plays_once_per_result_and_forgetting_is_not_a_failure` — The key literal `'ag-celebrated:'`; `seen()`'s body (brace-matched, not regex-windowed) has a `catch` and `return false`; `remember()`'s has a `catch`.
+- `CelebrationTest::test_the_canvas_is_taken_away_again` — `removeChild(canvas)`, `setAttribute('aria-hidden', 'true')`, `pointer-events:none`.
+- `CelebrationTest::test_no_blob_worker_is_asked_for` — `useWorker: false`, never `useWorker: true`, and `src/Support/Csp.php` has no `worker-src` (the half that kept the script's comment true).
+- `CelebrationTest::test_the_library_is_self_hosted_and_recorded` — see the canvas-confetti entry.
+
+The four `CelebrationTest` methods on `MemberActivityService::backedWinners()` (the dashboard's "someone you backed won" query) test surviving service code and were kept.
+
+
+---
+
+## `public/assets/js/vendor/canvas-confetti-1.9.3.js` (HEAD, 887 lines)
+
+**Loaded by (at `a9d963a^`):** `partials/celebrate.twig`, `pages/nominate-success.twig` (both destroyed 3 Oct)
+
+**What it did:** `canvas-confetti@1.9.3`, `dist/confetti.browser.js`, ISC, byte-for-byte upstream and unminified (the package ships no minified build; 25 KB, deferred). Exported `window.confetti`. Its PROVENANCE.md row and its paragraph ("the unminified file … loaded on one page: the award result, and only where a winner is actually named") were removed with it.
+
+**Rebuild:** Only if the Phase 3 engine needs a particle library — the handoff's `celebration.js` draws its own. If one comes back, it is vendored under this directory with a PROVENANCE row, never fetched from a CDN (`ThirdPartyScriptIntegrityTest`).
+
+**Rules held by guard tests destroyed with it:**
+
+- `CelebrationTest::test_the_library_is_self_hosted_and_recorded` — The vendored file contains `canvas-confetti v1.9.3` (the version its name claims), and `PROVENANCE.md` carries `canvas-confetti@1.9.3` — a vendored file with no provenance row cannot be reproduced or updated.
+
+
+---
+
+## `public/assets/js/community-modal.js` (HEAD, 81 lines)
+
+**Loaded by (at `a9d963a^`):** `layout/gates.twig`, with the markup in `partials/community-modal.twig` (both destroyed 3 Oct)
+
+**What it did:** `window.AGCommunity.open(context)/.close()` for the "Join our community" dialog (`#agCommunityModal`, `.agcm__dialog`): shown once per browser session after a successful vote or nomination; focus moved to the Join CTA, Tab trapped, focus restored on close; closes on Escape, backdrop, `[data-agcm-close]` and 150ms after `[data-agcm-join]`; body scroll locked while open; a `transitionend` hide with a 400ms failsafe; `AFG.trackFunnel('community_prompt_shown')` when present (`afg-features.js`, already destroyed).
+
+**DOM hooks:** `data-agcm-close`, `data-agcm-join`  
+**Element ids:** `#agCommunityModal`  
+**Storage keys:** `sessionStorage 'ag_community_prompted'` — **never declared in `CookieRegistry`**. It was written through a variable (`var SESSION_KEY = …; setItem(SESSION_KEY, '1')`), and `CookieRegistryTest`'s storage sweep only reads a string LITERAL as the first argument, so the omission was invisible to the guard built to catch it. Destroyed, so nothing is written now; a rebuild that keeps a once-per-session guard declares the key and writes it as a literal.  
+**Globals exported:** `window.AGCommunity`  
+**Reads prefers-reduced-motion:** no
+
+**Rebuild:** Optional (as `community-modal.twig`'s entry says). If rebuilt: a dialog after a completed act, never on arrival, once per session, with the focus contract above.
+
+**Guard tests:** none read this file at the time of the destroy.
+
+
+---
+
+## `public/assets/js/ag-motion.js` (HEAD, 160 lines)
+
+**Loaded by (at `a9d963a^`):** `layout/gates.twig`, `pages/vote-nominee.twig` (both destroyed 3 Oct); drove `css/motion.css` and `css/tokens.motion.css` (destroyed as orphans 3 Oct)
+
+**What it did:** Page motion orchestration, opt-in: adds `.ag-motion` to `<html>` only when `IntersectionObserver` exists, and every rule in `motion.css` was scoped under that class — so a script that 404s, is blocked or throws leaves the page fully visible, never blank (the inverse of the usual hide-then-reveal shape, which turns a script failure into an unreadable ballot). Entrances: `[data-ag-reveal]`, `[data-ag-cascade]` (children indexed `--i`, capped at 12), `[data-ag-seal]` (cap 20), `[data-ag-fill]`; one observer, `rootMargin -12%`, unobserved after firing (entrances, not scroll-linked). Counters `[data-ag-count]`: read the number from the element's own text (correct with JS off), animate only when there is exactly ONE number group (a composite like "45 / 55" otherwise counts through "2733 / 55"), 900ms ease-out, land exactly on the original text; a counter inside an animated section is driven by that section's arrival, not its own (it otherwise finished counting behind an `opacity:0` parent). Exported `window.agCount(el)` for callers with their own clock (`celebrate.js`), guarded and reduced-motion-aware inside the function so a caller cannot forget either.
+
+**DOM hooks:** `data-ag-reveal`, `data-ag-cascade`, `data-ag-seal`, `data-ag-fill`, `data-ag-count`  
+**Custom properties written:** `--i`  
+**Storage keys:** —  
+**Globals exported:** `window.agCount`  
+**Reads prefers-reduced-motion:** yes
+
+**Rebuild:** With whichever phase brings scroll motion back (handoff §6.6 motion tokens). Keep: opt-in by a class the script adds; one counter implementation, exported; one-number-or-nothing; count from the server's own text and land on it exactly; drive a nested counter from its animated ancestor.
+
+**Rules held by guard tests destroyed with it:**
+
+- `CelebrationTest::test_the_script_reveals_nothing_and_therefore_cannot_withhold_it` (its ag-motion half) — `ag-motion.js` exports `window.agCount = function`.
+- `CelebrationTest::test_reduced_motion_gets_the_result_and_no_particles` (its ag-motion half) — `window.agCount = function (el) { if (reduced` — the exported counter refuses under reduced motion before anything else.
+
+
+---
+
+## `public/assets/js/ag-search.js` (HEAD, 346 lines)
+
+**Loaded by (at `a9d963a^`):** `layout/gates.twig` (destroyed 3 Oct), over the markup in `partials/site-search.twig` (destroyed as an orphan 3 Oct)
+
+**What it did:** The site-wide search palette, as progressive enhancement over a real `GET /activity` form (with the script absent, Enter still searches). Opens from any `[data-ag-search-open]` (the surviving header's search button), from `/`, and from Cmd/Ctrl-K — never stealing the keystroke from an `INPUT`, `TEXTAREA`, `SELECT` or contenteditable. Combobox ARIA set FROM SCRIPT (`role=combobox`, `aria-expanded`, `aria-controls`, `aria-autocomplete=list`, `aria-haspopup=listbox`; the list's `role=listbox`), because markup claiming listbox behaviour with no script behind it is a lie to a screen reader. Active option moved by `aria-activedescendant`, never `focus()` (focus in the list loses the next keystroke); Up/Down/Home/End/Escape; Enter opens the active option or lets the form submit. Results are real anchors (middle-click works). Focus trapped while open, returned to the opener on close — and when the shortcut opened it from `<body>`, to the header's search button instead. Fetches `/activity/search?limit=24&q=…&scope=…` debounced 220ms; a sequence counter discards a stale response. **The chip → source map is NOT in the script**: it arrives with every response (`scopes`, from `ActivityFeedService::SCOPES`), so a second list cannot drift. Results grouped People / Awards / Events / Pages in chip order, ≤6 per GROUP (one crowded kind cannot push every other heading off), a kind the map does not name goes under "More" rather than being dropped, and `items` is rebuilt in drawn order so Down and Enter agree. Empty box = the latest feed under the same headings — there is no trending signal, and inventing one is the globe band's fault (GAPS §9.11). Live region: "Searching…", the count SHOWN (not the count received), "N recent items" for an empty query, "No matches in people for …" naming the chip, and an outage message pointing at Enter. Chips are a `tablist`: one tab stop, arrows move and re-run, focus returns to the box.
+
+**DOM hooks:** `data-ag-search`, `data-ag-search-open`, `data-ag-search-close`, `data-ags-scope`  
+**Element ids:** `#agsInput`, `#agsResults`, `#agsStatus`  
+**Endpoints:** `/activity/search` (live), `/activity` (form fallback)  
+**Storage keys:** —  
+**Globals exported:** —  
+**Reads prefers-reduced-motion:** no
+
+**Rebuild:** **MUST RESTORE** — with `site-search.twig` (already MUST RESTORE): the surviving `partials/site-header.twig` renders the `data-ag-search-open` button with `aria-haspopup="dialog"` and it opens nothing. The **server-side scope rule** survives and is held by `SearchScopeTest`: every `ActivityFeedService::SOURCES` key is reachable from exactly one chip, the chips are the four `SCOPES` keys plus "All" (= no filter), an unknown scope widens rather than empties, a chip really narrows `collect()`, an organisation is findable under People, and the search endpoint delivers `SCOPES` with its results. The rebuilt client reads that map from the response and never carries its own copy.
+
+**Rules held by guard tests destroyed with it:**
+
+- `SearchScopeTest::test_the_chip_map_is_delivered_and_not_copied_into_the_javascript` **(guard kept, narrowed and renamed `test_the_chip_map_is_delivered_by_the_search_endpoint`)** — Its JS half: `ag-search.js` must not contain any `ActivityFeedService::SOURCES` key as a quoted literal — the mapping belongs on the server. The controller half (`ActivityController` delivers `ActivityFeedService::SCOPES`) tests surviving code and stays. The rebuilt palette re-asserts the JS half against its own file.
+
+
+---
+
+## `public/assets/js/ag-social.js` (HEAD, 355 lines)
+
+**Loaded by (at `a9d963a^`):** `layout/gates.twig`, `pages/pulse.twig`, `pages/results/show.twig` (all destroyed 3 Oct)
+
+**What it did:** `window.agSocial` — the one implementation of "react to a thing", framework-free (callers pass a plain state object it mutates), so the community thread and the Pulse could not drift into two rollback paths. Every mutation is a form POST to `/api/v1/community/*` with `X-Requested-With` (admitted by the CSRF middleware on same-origin + that header, so it works from a cached page). `cheer()` — optimistic boolean, rolled back on failure; `onSignIn` on 401/`SIGN_IN`; `onLiked` only on a transition to liked. `react()` — one of four reactions, SINGULAR, three optimistic outcomes (clear: −1; move: total UNCHANGED; set: +1), a kind at zero REMOVED from the breakdown rather than drawn as an empty pip. `toggle()` — save/repost/follow, the caller names the response field (`bookmarked`, `reposted`, `following`). `comment()` — resolves `{ok, id, status}` and the caller MUST honour `status: 'quarantined'` (showing it as live tells the author a post is public that no moderator has seen, on a platform with children in the audience). `report()`. `share()` — `navigator.share`, an `AbortError` is the person changing their mind and is not reported, otherwise clipboard (secure context only). `linkify()` — see the rules below. `timeAgo()` — "just now"/m/h/d, a date past a week; `"2026-08-01 00:16:03"` given a `T` and `Z` because Safari will not parse it; negative skew reads as "just now". `signInUrl()` carries `next`.
+
+**Endpoints:** `/api/v1/community/cheer`, `/comment`, `/report` and the toggle paths (all live, `CommunityController`), `/account/login?next=`  
+**Storage keys:** —  
+**Globals exported:** `window.agSocial`  
+**Reads prefers-reduced-motion:** no
+
+**Rebuild:** **MUST RESTORE** with the Pulse and the result page's share (Phase that rebuilds `pages/pulse.twig`): the community API it called is live and has no browser client now. The **feed linkify URL rule** is owed exactly: escape FIRST, then match `\bhttps?://[^\s<>"']+` — http(s) only, never a bare `/path` (that links "and/or" and "12/06"); trailing `.,;:!?)` left OUTSIDE the link (a URL ending a sentence otherwise 404s while looking right); the URL pass runs BEFORE the `@mention` and `#hashtag` passes (which insert `href="/registry?q=…"`/`/activity?q=…` and would be matched from inside); `rel="nofollow ugc noopener"`. The result announcement's last line is the absolute URL of the full standing, and that post exists to carry people there.
+
+**Rules held by guard tests destroyed with it** — `FeedLinkifyTest`, the whole file (7 methods; it read only this script, lifting `URL_RE` out of it into PCRE):
+
+- `test_an_ordinary_link_is_matched` — `https://…/results/12-primary-school-principal`, `http://example.test`, a query with `&amp;`, and a `#fragment` each match inside surrounding text.
+- `test_a_bare_path_is_not_linkified` — `and/or`, `on 12/06 at noon`, `/results/12`, `w/ friends` do not match.
+- `test_no_other_scheme_can_reach_the_href` — `javascript:`, `data:`, `vbscript:`, `file:` do not match.
+- `test_the_match_can_never_contain_a_quote_or_a_tag` — matching `https://example.test/a" onmouseover="alert(1)` captures no `"`, `'`, `<` or `>` (independent of escaping, which a reorder could remove).
+- `test_trailing_punctuation_is_left_outside_the_link` — the trim `url.match(/[.,;:!?)]+$/)` is present.
+- `test_urls_are_linkified_before_mentions_and_hashtags` — inside `linkify()`, `URL_RE` appears before the `@(` and `#(` patterns.
+- `test_the_text_is_escaped_before_anything_is_linkified` — `escapeHtml(text)` exists in `linkify()` (asserted as an int FIRST: with it deleted, `strpos` is `false`, compares as 0 and the ordering assertion passes — caught by mutation) and precedes `URL_RE`.

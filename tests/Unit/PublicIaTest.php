@@ -197,6 +197,18 @@ final class PublicIaTest extends TestCase
             // The day the rebuild lands the template, this route is back in the sweep.
             if ($this->rendersOnlyDestroyedTemplates($r->getCallable())) continue;
 
+            // ── A ROUTE THAT ANSWERS JSON IS A DATA ENDPOINT, WHOEVER CALLS IT ──
+            //
+            // `fetched()` above recognises a data endpoint by its CALLER, and that went
+            // blind on 3 Oct 2026: `/activity/search` was fetched only by `ag-search.js`,
+            // destroyed as an orphan, so the endpoint — live, and the server half of the
+            // search palette the rebuild owes — came back into scope as "a public page
+            // nobody linked". Nothing about the route changed; only who happened to call
+            // it. So the route is ASKED what it is: a GET that answers
+            // `application/json` has nothing to navigate to. Asked last, so only a path
+            // every other kind has already let through is dispatched a second time.
+            if ($this->answersJson($app, $p)) continue;
+
             $out[rtrim($p, '/') ?: '/'] = true;
         }
 
@@ -279,6 +291,25 @@ final class PublicIaTest extends TestCase
      * the sweep — a clean pass over the half it read, which is the failure this file
      * already documents for a different sweep.
      */
+    /**
+     * Does this path answer with a JSON document? Asked of the router, never listed.
+     *
+     * A sweep for pages a reader can find must not demand a link to a data endpoint, and
+     * "which template fetches it" is a property of the caller, not of the endpoint — it
+     * disappears with the caller (see the call site).
+     */
+    private function answersJson(\Slim\App $app, string $path): bool
+    {
+        try {
+            $res = $app->handle(
+                (new ServerRequestFactory())->createServerRequest('GET', $path));
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return str_starts_with(strtolower($res->getHeaderLine('Content-Type')), 'application/json');
+    }
+
     private function movedPermanently(\Slim\App $app, string $path): bool
     {
         try {

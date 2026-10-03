@@ -326,7 +326,7 @@ Stylesheets the first destroy left with no includer, no linker and no renderer (
 **Custom properties declared:** —  
 **Tokens read:** `--motion-rise`, `--motion-slow`, `--ease-out-expo`, `--motion-rise-lg`, `--motion-base`, `--ease-out-quart`, `--i`, `--motion-stagger`, `--motion-stagger-sm`, `--ease-spring`, `--motion-fast`, `--ag-green`
 
-**Rebuild:** Optional. **`public/assets/js/ag-motion.js` survives and is loaded by nothing** (it was already unlinked after the first destroy).
+**Rebuild:** Optional. `public/assets/js/ag-motion.js` (already unlinked after the first destroy) was destroyed in the second orphan wave the same day (`_scripts.md`).
 
 **Guard tests:** none read this file at the time of the destroy.
 

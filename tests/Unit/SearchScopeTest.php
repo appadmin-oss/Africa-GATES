@@ -114,24 +114,22 @@ final class SearchScopeTest extends TestCase
         );
     }
 
-    public function test_the_chip_map_is_delivered_and_not_copied_into_the_javascript(): void
+    public function test_the_chip_map_is_delivered_by_the_search_endpoint(): void
     {
         // The palette groups its results under the same headings the chips offer, and
-        // it cannot know which kind belongs where without the map. A second copy in JS
-        // is two lists that drift — visibly as a result filed under the wrong heading,
-        // invisibly as one filed under none.
+        // it cannot know which kind belongs where without the map — so the endpoint
+        // hands it over with every response, and the client never keeps a copy. A
+        // second copy in JS is two lists that drift: visibly as a result filed under
+        // the wrong heading, invisibly as one filed under none.
+        //
+        // This method used to hold the client half too (the palette script names no
+        // source itself). That script, `ag-search.js`, was destroyed on 3 Oct 2026 as an
+        // orphan; the rule is in docs/handoff/inventory/_scripts.md for the rebuilt
+        // palette to re-assert against its own file.
         $ctrl = (string) file_get_contents(__DIR__ . '/../../src/Controllers/ActivityController.php');
+        $this->assertNotSame('', $ctrl, 'ActivityController.php could not be read');
         $this->assertStringContainsString("ActivityFeedService::SCOPES", $ctrl,
             'the search endpoint no longer delivers the scope map');
-
-        $js = (string) file_get_contents(__DIR__ . '/../../public/assets/js/ag-search.js');
-        foreach (ActivityFeedService::SOURCES as $kind => $_) {
-            $this->assertStringNotContainsString(
-                "'" . $kind . "'",
-                $js,
-                "ag-search.js names the source '$kind' itself; the mapping belongs on the server"
-            );
-        }
     }
 
     public function test_a_verified_organisation_is_findable_from_a_chip(): void
