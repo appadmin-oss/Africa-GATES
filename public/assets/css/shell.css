@@ -12,6 +12,10 @@
    (focus, the 16px input floor, Display & reading, reduced motion, border-box,
    `hidden` that hides). The lock itself applies only where the shell is.
 
+   Destroyed and written again on 3 Oct 2026 when the owner put type in rem: the one
+   size this file sets (the input floor) reads a tokens.css step, and the root that
+   Display & reading scales is stated rather than assumed.
+
    ── DEVIATION #1: THE LOCK IS SCOPED, NOT GLOBAL ────────────────────────────
 
    The handoff writes `html,body{margin:0;height:100%;overflow:hidden}` for every
@@ -93,12 +97,13 @@ html.ag-shelled body{ height:100%; overflow:hidden }
 
 /* ══ Defaults ════════════════════════════════════════════════════════════════
    An input is never below 16px: anything smaller makes iOS Safari zoom the page
-   on focus, and it does not zoom back. */
+   on focus, and it does not zoom back. 1rem, so it grows with Display & reading
+   and is 16px exactly at 100%. */
 
 a{ color:var(--ag-green); text-decoration:none }
 a:hover{ color:var(--ag-green-deep) }
 input,select,textarea,button{ font:inherit; color:inherit }
-input,select,textarea{ font-size:16px }
+input,select,textarea{ font-size:var(--ag-fs-16) }
 h1,h2,h3{ text-wrap:balance }
 p{ text-wrap:pretty }
 .ag-num{ font-variant-numeric:tabular-nums }
@@ -126,6 +131,16 @@ p{ text-wrap:pretty }
    Applied to <html> before first paint by `partials/a11y-head.twig` from
    localStorage["ag-a11y"]; `a11y.js` keeps them in step afterwards. */
 
+/* TEXT SIZE IS THE ROOT, AND THE ROOT IS THE ONLY THING IT MOVES. 100% is the
+   reader's own browser default (16px unless they changed it, and if they changed it
+   that is a setting too); 125% and 150% multiply it. It reaches the page because
+   every font size on the public surface is a rem step from tokens.css — under px
+   type these two lines changed nothing a reader could see, which is how the setting
+   shipped once already: control working, class on <html>, no letter grown.
+   TypeScaleTest::test_the_text_size_setting_moves_the_root_and_the_type_follows
+   holds both halves. A percentage, not a px: a px size here would REPLACE the
+   reader's default rather than scale it. */
+html{ font-size:100% }
 html.ag-t125{ font-size:125% }
 html.ag-t150{ font-size:150% }
 

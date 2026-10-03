@@ -4,57 +4,112 @@ declare(strict_types=1);
 namespace AfricaGates\Support;
 
 use AfricaGates\Services\CookiePrefs;
-use AfricaGates\Services\CurrencyService;
-use AfricaGates\Services\ShopPricing;
 
 /**
- * Every cookie this platform sets, and every key it leaves in a browser's own storage.
+ * Every cookie this platform sets, every key it leaves in a browser's own storage, and the
+ * consent category each one belongs to.
  *
- * ── THE BUG THIS EXISTS BECAUSE OF ───────────────────────────────────────────
+ * Rebuilt on 3 Oct 2026 with the four-category consent model (GAPS Q11). Rebuilt rather
+ * than edited, because the old list had gone stale in the direction nobody tests: seven of
+ * its nine storage rows named keys that nothing on the site wrote any more (their writers
+ * were destroyed with the old pages — `afg_cart`, `afg_voted_prog_`, `afg_cheer_`,
+ * `afg_report_`, `ag_intro`, `ag-celebrated:`, `ag-hide-bal`), the two shop cookies had
+ * lost their only writer (the delegated `data-cookie` listener in the destroyed layout),
+ * and a key written through a VARIABLE (`ag_community_prompted`) had never been on it at
+ * all. docs/handoff/DESTROYED.md, "Stale declarations on `/cookies`".
  *
- * The published cookie policy said, in bold, "We set ONE cookie", and listed `PHPSESSID`
- * in a one-row table. There were three. `ag_region` and `ag_currency` are written by
- * `document.cookie` in the shop's region and currency selects and live for a YEAR, and
- * they were added long after the policy was written. The policy's own docblock named the
- * evidence — "see `session_set_cookie_params()` in public/index.php" — and that is exactly
- * why it stayed wrong: the second writer is a line of JavaScript in a template, so
- * checking the named place confirmed the false answer.
+ * ── THE FAULT THIS EXISTS BECAUSE OF ─────────────────────────────────────────
  *
- * The failure mode is FORGETTING, so a corrected list is not the fix. The fix is that the
- * page is GENERATED from here ({@see \AfricaGates\Services\LegalDocument::cookiesHtml()}),
- * and that `CookieRegistryTest` sweeps the shipped templates and JavaScript for a cookie
- * or storage key that is not declared below and fails naming it. A cookie added tomorrow
- * either appears on the policy or breaks the build.
- *
- * ── DERIVED WHERE IT CAN BE ──────────────────────────────────────────────────
- *
- * The session cookie's name and lifetime are read from PHP's own session configuration
- * rather than typed, so changing `session_set_cookie_params()` changes the published
- * policy in the same commit. The two shop cookies are read from the constants their
- * services already expose. Nothing here restates a value that exists somewhere else.
+ * The published policy said in bold "We set ONE cookie". There were three. The second
+ * writer was a line of JavaScript in a template, and the policy's own note pointed at
+ * `session_set_cookie_params()` — so checking the named evidence confirmed the false
+ * answer. The failure mode is FORGETTING, so a corrected list is not the fix. The fix is
+ * that the page is GENERATED from here ({@see \AfricaGates\Services\LegalDocument::cookiesHtml()})
+ * and that `CookieRegistryTest` holds this list to the code in BOTH directions: a key the
+ * code writes and this does not declare fails by name, and so does a key declared here
+ * that nothing writes. A row describing a writer that no longer exists is the same stale
+ * legal page, on the side of over-disclosure.
  *
  * ── THE CATEGORIES ARE A LEGAL CLAIM, NOT A TIDY-UP ──────────────────────────
  *
- * `essential` is the ePrivacy Art.5(3) carve-out — strictly necessary for a service the
- * visitor asked for, so no consent is required and none is asked for. `preference` is a
- * setting the visitor themselves chose from a control on the page. `analytics` is the
- * arrival counting, which is the only thing on this site anybody could want to refuse,
- * and it is the only category {@see CookiePrefs} can switch off.
- *
- * A cookie in the wrong category here is a consent banner asking permission for the wrong
- * thing, so the category is asserted per entry in the test rather than left to a reader.
+ * A cookie in the wrong category is a consent notice asking permission for the wrong
+ * thing. `essential` is the ePrivacy Art.5(3) carve-out: strictly necessary for a service
+ * the visitor asked for, never refusable. `preferences` is remembering a choice for NEXT
+ * time — refusable, and refused it still works for the browsing session. `analytics` is the
+ * arrival counting, which stores nothing of its own. `marketing` holds nothing, and the
+ * category is described rather than invented a use.
  */
 final class CookieRegistry
 {
-    public const ESSENTIAL  = 'essential';
-    public const PREFERENCE = 'preference';
-    public const ANALYTICS  = 'analytics';
+    public const ESSENTIAL   = CookiePrefs::ESSENTIAL;
+    public const PREFERENCES = CookiePrefs::PREFERENCES;
+    public const ANALYTICS   = CookiePrefs::ANALYTICS;
+    public const MARKETING   = CookiePrefs::MARKETING;
+
+    /**
+     * The four categories, in the order a reader meets them: what each one controls, in the
+     * words the notice, the preferences sheet and `/cookies` all use.
+     *
+     * `who` is derived from the entries below, so the names under a category on the sheet
+     * are the names the code writes.
+     *
+     * @return list<array{key:string,name:string,desc:string,who:string}>
+     */
+    public static function categories(): array
+    {
+        $words = [
+            self::ESSENTIAL => ['Essential',
+                'Keeps you signed in, protects forms from forgery, and remembers the choices you make here.'],
+            self::PREFERENCES => ['Preferences',
+                'Remembers your language and your display and reading settings on this device between visits. Without it they still work, until you close your browser.'],
+            self::ANALYTICS => ['Analytics',
+                'Counts visits ourselves — where a visit came from and whether it led to a vote, a nomination or a ticket — so whoever shared a link can see if it worked. No IP address is kept and nothing reaches anyone else.'],
+            self::MARKETING => ['Marketing',
+                'Advertising, and following you across other sites. Nothing on this site does either: no ads, no pixels, nothing sold.'],
+        ];
+
+        $out = [];
+        foreach ($words as $key => [$name, $desc]) {
+            // Only what reaches EVERY visitor: a member of the public reading the sheet is
+            // not owed a judge's or a door steward's key as if it were theirs. /cookies
+            // lists those too, under their audience.
+            $names = array_map(static fn (array $e): string => $e['name'], self::inCategory($key, true));
+            if ($key === self::ANALYTICS) {
+                $who = 'Africa GATES only · stores nothing on your device';
+            } elseif ($names === []) {
+                $who = 'Not used on this site';
+            } else {
+                $who = 'Africa GATES only · ' . implode(', ', $names);
+            }
+            $out[] = ['key' => $key, 'name' => $name, 'desc' => $desc, 'who' => $who];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Every cookie and storage key in one category.
+     *
+     * @return list<array{name:string,kind:string}>
+     */
+    public static function inCategory(string $category, bool $everyoneOnly = false): array
+    {
+        $out = [];
+        foreach (self::cookies() as $c) {
+            if ($c['category'] === $category) $out[] = ['name' => $c['name'], 'kind' => 'cookie'];
+        }
+        foreach (self::storage() as $s) {
+            if ($s['category'] !== $category) continue;
+            if ($everyoneOnly && $s['audience'] !== 'everyone') continue;
+            $out[] = ['name' => $s['key'], 'kind' => 'storage'];
+        }
+        return $out;
+    }
 
     /**
      * The cookies, in the order a reader should meet them.
      *
-     * @return list<array{name:string,category:string,purpose:string,lifetime:string,
-     *                    set_by:string,refusable:bool}>
+     * @return list<array{name:string,category:string,purpose:string,lifetime:string,set_by:string}>
      */
     public static function cookies(): array
     {
@@ -68,48 +123,46 @@ final class CookieRegistry
                             . 'server; it does not contain your details.',
                 'lifetime' => self::sessionLifetime(),
                 'set_by'   => 'server',
-                'refusable' => false,
             ],
             [
                 'name'     => CookiePrefs::COOKIE,
                 'category' => self::ESSENTIAL,
-                'purpose'  => 'Remembers the choice you made about arrival counting, so we do '
-                            . 'not have to ask again. It holds one character — a yes or a no — '
-                            . 'and no identifier of any kind. Refusing this one is not possible, '
-                            . 'because it is the record of a refusal.',
+                'purpose'  => 'Remembers the choices you made in the cookie notice: a yes or a '
+                            . 'no for each of Preferences, Analytics and Marketing, and a version '
+                            . 'number. No identifier of any kind. It cannot be refused, because it '
+                            . 'is the record of a refusal.',
                 'lifetime' => self::yearsWord(CookiePrefs::TTL_DAYS),
                 'set_by'   => 'server',
-                'refusable' => false,
             ],
             [
                 'name'     => Languages::COOKIE,
-                'category' => self::PREFERENCE,
-                'purpose'  => 'The language you chose, so the site opens in it next time. It '
-                            . 'holds a two-letter code and nothing else. Written when you pick '
-                            . 'a language, or when you answer the question we ask once about '
-                            . 'the language your browser asks for.',
-                'lifetime' => self::yearsWord((int) (Languages::TTL / 86400)),
+                'category' => self::PREFERENCES,
+                'purpose'  => 'The language you chose, so the site opens in it. It holds a '
+                            . 'two-letter code and nothing else. Written when you pick a language, '
+                            . 'or answer the question we ask about the language your browser asks for.',
+                'lifetime' => self::yearsWord((int) (Languages::TTL / 86400))
+                            . ' if you allow Preferences; otherwise until you close your browser',
                 'set_by'   => 'server',
-                'refusable' => false,
             ],
+        ];
+    }
+
+    /**
+     * Cookies this platform no longer writes, and what happens to one still in a browser.
+     *
+     * Not a compatibility alias: each is read once, to carry an answer forward, and then
+     * expired. Listed so the policy says what a visitor may still find on their device.
+     *
+     * @return list<array{name:string,purpose:string}>
+     */
+    public static function retired(): array
+    {
+        return [
             [
-                'name'     => ShopPricing::COOKIE,
-                'category' => self::PREFERENCE,
-                'purpose'  => 'The pricing region you picked from the selector on the shop, so '
-                            . 'the prices are the ones that apply to you on your next visit. '
-                            . 'Written only when you use that selector.',
-                'lifetime' => 'One year',
-                'set_by'   => 'browser',
-                'refusable' => false,
-            ],
-            [
-                'name'     => CurrencyService::COOKIE,
-                'category' => self::PREFERENCE,
-                'purpose'  => 'The currency you asked prices to be shown in, from the same '
-                            . 'selector. Written only when you use it.',
-                'lifetime' => 'One year',
-                'set_by'   => 'browser',
-                'refusable' => false,
+                'name'    => CookiePrefs::LEGACY,
+                'purpose' => 'The earlier record of your answer about counting visits. If your '
+                           . 'browser still has it, your answer is carried into '
+                           . CookiePrefs::COOKIE . ' — a no stays a no — and this one is deleted.',
             ],
         ];
     }
@@ -117,24 +170,30 @@ final class CookieRegistry
     /**
      * Things kept in the browser's own storage, which are not cookies and never leave the device.
      *
-     * Declared with the PREFIX that the code writes, because several are per-item
-     * (`afg_voted_prog_12`, `ag-celebrated:nominee-88`) and a reader does not need the
-     * numbers. `CookieRegistryTest` matches a swept key against these prefixes.
+     * Declared with the PREFIX the code writes, because several are per-item
+     * (`coi_declared_12`, `ag-door-q:3f9c…`). `CookieRegistryTest` matches a swept key
+     * against these prefixes, and requires every prefix here to match something written.
      *
-     * @return list<array{key:string,purpose:string}>
+     * `where`: `local` survives the browser closing; `session` is one tab, gone when it
+     * closes; `local-or-session` is decided by the Preferences answer.
+     *
+     * @return list<array{key:string,category:string,where:string,audience:string,purpose:string}>
      */
     public static function storage(): array
     {
         return [
-            ['key' => 'afg_cart',        'purpose' => 'Your shopping basket, so it survives a reload.'],
-            ['key' => 'afg_voted_prog_', 'purpose' => 'Which programmes you have already voted in, so the page can stop offering.'],
-            ['key' => 'afg_cheer_',      'purpose' => 'A message you started writing for a nominee, so a mistaken tap does not lose it.'],
-            ['key' => 'afg_report_',     'purpose' => 'A report you began, for the same reason.'],
-            ['key' => 'ag_intro',        'purpose' => 'Whether you have seen the introduction, so it is not shown twice.'],
-            ['key' => 'ag-a11y',         'purpose' => 'Your display and reading settings — text size, high contrast, the easy-read font, line spacing, underlined links, reduced motion, data saver and read-aloud — so every page opens the way you set it. It is applied before the page paints, which is why it is kept on your device rather than fetched.'],
-            ['key' => 'ag-celebrated:',  'purpose' => 'Which results you have already seen celebrated, so the animation plays once and not on every visit.'],
-            ['key' => 'ag-hide-bal',     'purpose' => 'Whether you asked for the balances on your account page to be covered up, so they stay covered on this device. It is read before the page paints — the whole point of the control is that the figure is never on the screen — which is why it is kept here rather than on your account.'],
-            ['key' => 'coi_declared_',   'purpose' => 'For judges only: that you have made this programme\'s conflict-of-interest declaration on this device.'],
+            ['key' => 'ag-a11y', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
+             'purpose' => 'Your display and reading settings — text size, high contrast, the easy-read font, line spacing, underlined links, reduced motion, data saver and read-aloud — applied before the page paints so every page opens the way you set it. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. When you are signed in, the same settings are also saved to your account.'],
+            ['key' => 'coi_declared_', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'judges',
+             'purpose' => 'For judges only: that you have made this programme\'s conflict-of-interest declaration in this tab.'],
+            ['key' => 'ag-door-q:', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'door staff',
+             'purpose' => 'For event door staff only: tickets scanned while the connection was down, held on the scanning phone until they can be checked.'],
+            ['key' => 'afStep:', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: which step of a long form you were on, so a save that bounces back reopens it there.'],
+            ['key' => 'ag-copilot', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: the console assistant\'s conversation, so it survives moving between pages in one tab.'],
+            ['key' => 'ag-asst', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: the same, on the assistant\'s full page.'],
         ];
     }
 
@@ -151,29 +210,11 @@ final class CookieRegistry
     }
 
     /**
-     * Is any cookie here in a category a visitor can refuse?
-     *
-     * False today, and that is the point: nothing this site STORES is refusable, because
-     * the arrival counting stores nothing new on the device — it reuses the session cookie
-     * that is already strictly necessary. A banner would therefore be asking permission to
-     * store something we are not storing. What IS refusable is the counting itself, which
-     * is a different question and is answered by {@see CookiePrefs}.
-     */
-    public static function anyRefusable(): bool
-    {
-        foreach (self::cookies() as $c) {
-            if ($c['refusable']) return true;
-        }
-
-        return false;
-    }
-
-    /**
      * The session cookie's name, as PHP will actually send it.
      *
-     * `session_name()` is authoritative and answers before `session_start()`, so this is
-     * right in a test process too. The fallback is PHP's own default and exists because a
-     * host with `session.name` blanked should not publish an empty table cell.
+     * `session_name()` is authoritative and answers before `session_start()`. The fallback
+     * is PHP's own default, so a host with `session.name` blanked does not publish an empty
+     * table cell.
      */
     public static function sessionName(): string
     {

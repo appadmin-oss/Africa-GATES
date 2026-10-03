@@ -11,6 +11,8 @@
    Linked from the page's `head_styles` block, never from a layout or the bundle:
    it is a dev-only route (404 in production) and no other page needs a byte of it.
    Every value is a token; ColourLiteralTest holds this file at zero literals.
+   Type is a tokens.css rem step (owner, 3 Oct 2026), so the specimen page grows with
+   Display & reading like every other public page — destroyed and written again then.
    ══════════════════════════════════════════════════════════════════════════════ */
 
 .duix{
@@ -20,9 +22,9 @@
 .duix__head{ display:flex; flex-direction:column; gap:var(--ag-sp-10); margin-bottom:var(--ag-sp-16) }
 .duix__h1{
   margin:0; font-family:var(--ag-font-display); font-weight:700;
-  font-size:32px; line-height:1.1;
+  font-size:var(--ag-fs-32); line-height:1.1;
 }
-.duix__lede{ max-width:62ch; margin:0; font-size:16px; line-height:1.6; color:var(--ag-ink-2) }
+.duix__lede{ max-width:62ch; margin:0; font-size:var(--ag-fs-16); line-height:1.6; color:var(--ag-ink-2) }
 
 /* §6.3: section gap 22–28 on a phone, 28–40 on desktop. */
 .duix__sec{
@@ -31,8 +33,8 @@
   border-top:1px solid var(--ag-line);
   scroll-margin-top:var(--ag-sp-12);
 }
-.duix__h2{ margin:0; font-size:19px; font-weight:700; line-height:1.3 }
-.duix__note{ max-width:62ch; margin:0; font-size:14.5px; line-height:1.5; color:var(--ag-soft) }
+.duix__h2{ margin:0; font-size:var(--ag-fs-19); font-weight:700; line-height:1.3 }
+.duix__note{ max-width:62ch; margin:0; font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-soft) }
 
 /* The state matrix: one cell per state, captioned. Wraps to fit the width, so a
    phone gets two columns and a desktop gets the whole row. */
@@ -45,7 +47,7 @@
 .duix__cell{ display:flex; flex-direction:column; gap:var(--ag-sp-8); min-width:0; margin:0 }
 .duix__stage{ display:flex; align-items:center; min-height:56px }
 .duix__stage--col{ flex-direction:column; align-items:stretch; gap:var(--ag-sp-6) }
-.duix__cap{ font-size:13px; color:var(--ag-soft) }
+.duix__cap{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .duix__cap b{ color:var(--ag-ink); font-weight:600 }
 
 .duix__row{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--ag-sp-12) }
@@ -53,9 +55,9 @@
 .duix__stack{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
 
 /* A card's specimen content, drawn the way a real card holds it. */
-.duix__t{ margin:0; font-size:17px; font-weight:700 }
-.duix__s{ margin:0; font-size:14.5px; line-height:1.5; color:var(--ag-ink-2) }
-.duix__price{ font-size:15px; font-weight:700; font-variant-numeric:tabular-nums }
+.duix__t{ margin:0; font-size:var(--ag-fs-17); font-weight:700 }
+.duix__s{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-ink-2) }
+.duix__price{ font-size:var(--ag-fs-15); font-weight:700; font-variant-numeric:tabular-nums }
 .duix__line{ display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--ag-sp-6) var(--ag-sp-8) }
 
 /* A switch row inside a card: the label and the 44px target. */
@@ -65,7 +67,7 @@
   border-top:1px solid var(--ag-line-3);
 }
 .duix__switch:first-child{ border-top:0 }
-.duix__switch > span{ font-size:16px; font-weight:500 }
+.duix__switch > span{ font-size:var(--ag-fs-16); font-weight:500 }
 
 /* The sheet's title: the sheet head sets its size; the heading only has to inherit it. */
 .duix__sheeth{ margin:0; font:inherit }
@@ -78,6 +80,6 @@
 
 @media (min-width:1024px){
   .duix{ padding-top:var(--ag-sp-36) }
-  .duix__h1{ font-size:44px; line-height:1.06 }
+  .duix__h1{ font-size:var(--ag-fs-44); line-height:1.06 }
   .duix__sec{ margin-top:var(--ag-sp-40); padding-top:var(--ag-sp-32) }
 }

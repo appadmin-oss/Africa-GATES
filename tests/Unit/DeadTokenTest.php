@@ -191,11 +191,13 @@ final class DeadTokenTest extends TestCase
      * Each entry leaves the moment a rebuilt page reads it — the test below fails on an
      * entry that has a reader, or one nothing declares any more.
      */
+    // Phase 2 (the shared chrome, 3 Oct 2026) gave eight of these their reader back in
+    // components/chrome.css — the mega and Menu tile tones (gold-wash-2, gold-ink,
+    // green-wash, live-wash, live-ink), the status dot (gold), the flash mark (info) and
+    // the mega panel's shadow (sh-mega) — and they left the list as it requires.
     private const AWAITING_REBUILD = [
-        '--ag-gold-wash', '--ag-gold-wash-2', '--ag-green-edge', '--ag-info-wash',
-        '--ag-live-ink', '--ag-live-wash', '--ag-sh-mega',
-        '--ag-gold', '--ag-gold-edge', '--ag-gold-ink', '--ag-green-light',
-        '--ag-green-wash', '--ag-info',
+        '--ag-gold-wash', '--ag-green-edge', '--ag-info-wash',
+        '--ag-gold-edge', '--ag-green-light',
     ];
 
     public function test_the_awaiting_rebuild_list_only_shrinks(): void

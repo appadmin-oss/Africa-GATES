@@ -1,120 +1,105 @@
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  QUICK SETTINGS — what the app bar's avatar opens
-  REFERENCE §7.2, AppBar.dc.html
+  QUICK SETTINGS — what the phone app bar's avatar opens
+  REFERENCE §7.2 · design/AppBar.dc.html (its `qs` state) · skill §3
   ══════════════════════════════════════════════════════════════════════════════
 
-  A short sheet: who you are, text size, the two switches people reach for most,
-  the languages, and a way through to all of them. It exists so the phone bar can
-  hold ONE button instead of three — §18.5 rejects a bar carrying back, title,
-  search, Aa, language and avatar, and this is where the Aa and the globe went.
+  In §7.2's order: the profile row and its Profile link · text size (a 3-step segmented
+  control, 48px) · High contrast and Reduce motion · the languages as chips, each written
+  in its own language with `lang`, scrolling sideways · "All display & reading settings"
+  · a 52px Done. It exists so the phone bar holds ONE button instead of three — the Aa
+  and the globe live here (§18.5).
 
-  ── IT IS A SUBSET, NOT A SECOND SET ─────────────────────────────────────────
+  ── A SUBSET OF ONE STORE, NOT A SECOND STORE ──────────────────────────────
 
-  Two of the seven switches are here and all seven are one tap away. Every control
-  writes the same `ag-a11y` store through `AGA11y.set()`, and the store fires
-  `ag:a11y` on every write, so the copy inside the Menu and the copy on the full
-  screen re-read rather than keeping their own idea of what is on. This codebase's
-  standing fault is two surfaces disagreeing about one setting; three doors onto
-  one store is the answer to it, and three stores would be the fault.
+  Two of the seven switches and the size, writing the same `ag-a11y` store through
+  `AGA11y.set()`; the other five are one tap away in the Menu's sub-view, which is the
+  shared `display-reading.twig`. DisplayReadingTest holds that this file offers no key the
+  store does not know.
 
-  ── THE LANGUAGE CHIPS SCROLL, AND THAT IS A DECISION ────────────────────────
+  ── THE CHIPS SCROLL, AND THAT IS A DECISION ───────────────────────────────
 
-  Eight chips do not fit across 390px. They scroll horizontally here because the
-  sheet is a shortcut; the Menu's sub-view and the full screen both present the
-  same eight as a vertical list, where nothing is off-screen. A horizontal scroller
-  is acceptable for a shortcut and is not acceptable as the only way to reach an
-  option — which is why it is never the only way.
+  Eight chips do not fit across 390px. A horizontal scroller is acceptable for a shortcut
+  and never as the only way to an option, which is why the Menu's Language sub-view lists
+  the same eight vertically. They are LINKS (the middleware stores the choice), so they
+  work with scripting off.
+
+  The DC draws this sheet's state and not its markup, so the parts are the base
+  components at the DC's values: the segmented control at §7.2's 48, the switch rows at
+  DisplayReading's, the chips at the AppBar DC's borders (2px ink chosen, 1px line-2).
 #}
-{% set _ini = member_name ? (member_name|split(' ')|map(w => w|first)|join|upper|slice(0,2)) : 'AG' %}
-{# See the note in menu-sheet.twig: `hidden` is display:none and defeats `data-open`. #}
+{% set _ini = member_name ? (member_name|split(' ')|filter(w => w != '')|map(w => w|first)|join|upper|slice(0, 2)) : 'AG' %}
 <div class="ag-scrim" data-ag-quick-scrim></div>
 
-<div class="ag-sheet ag-qs" data-ag-quick-sheet role="dialog" aria-modal="true"
-     aria-label="Account, language and display" inert>
+<div class="ag-sheet ag-qs" id="ag-quick" data-ag-quick-sheet role="dialog" aria-modal="true"
+     aria-label="{{ 'Account, language and display'|trans }}" inert>
 
   <span class="ag-sheet__grabber" aria-hidden="true"></span>
 
   <div class="ag-qs__body">
-
     {% if is_member %}
       <a class="ag-qs__me" href="/account">
-        <span class="ag-menu__av">{{ _ini }}</span>
+        <span class="ag-menu__av ag-qs__av" aria-hidden="true">{{ _ini }}</span>
         <span class="ag-menu__who">
-          <b>{{ member_name|default('Your account') }}</b>
-          <span>View your profile</span>
+          <b class="ag-qs__name">{{ member_name|default('Your account'|trans) }}</b>
+          <span class="ag-qs__sub">{{ 'Profile'|trans }}</span>
         </span>
-        <span class="ag-list__chev" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m9 6 6 6-6 6"></path></svg>
-        </span>
+        <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
       </a>
     {% else %}
-      <a class="ag-btn ag-btn--ink ag-btn--block" href="/account/login">Sign in or join</a>
+      <a class="ag-qs__me" href="/account/login">
+        <span class="ag-menu__av ag-qs__av" aria-hidden="true">{{ _ini }}</span>
+        <span class="ag-menu__who">
+          <b class="ag-qs__name">{{ 'Sign in or join'|trans }}</b>
+          <span class="ag-qs__sub">{{ 'Nominate, vote and keep your recognitions in one place.'|trans }}</span>
+        </span>
+        <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+      </a>
     {% endif %}
 
-    {# The same three-step control as everywhere else, at the 48px height §7.2
-       asks for rather than DisplayReading's 44. The letters are drawn at the
-       sizes they set; the accessible name carries the words. #}
     <div class="ag-qs__block">
-      <span class="ag-qs__h" id="ag-qs-size">Text size</span>
-      <div class="ag-seg ag-seg--48" role="radiogroup" aria-labelledby="ag-qs-size">
-        {# The size is a class, never a `style` attribute — see display-reading.twig. #}
-        {% for s in [
-          {i:0, name:'Standard text'},
-          {i:1, name:'Large text'},
-          {i:2, name:'Largest text'}
-        ] %}
+      <span class="ag-qs__h" id="ag-qs-size">{{ 'Text size'|trans }}</span>
+      <div class="ag-seg ag-qs__seg" role="radiogroup" aria-labelledby="ag-qs-size">
+        {% for s in [{i:0, name:'Standard text'}, {i:1, name:'Large text'}, {i:2, name:'Largest text'}] %}
           <button type="button" class="ag-seg__opt ag-dr__size ag-dr__size--{{ s.i }}" role="radio"
-                  aria-checked="false" aria-label="{{ s.name }}"
-                  data-ag-size="{{ s.i }}">A</button>
+                  aria-checked="{{ s.i == 0 ? 'true' : 'false' }}" tabindex="{{ s.i == 0 ? '0' : '-1' }}"
+                  aria-label="{{ s.name|trans }}" data-ag-size="{{ s.i }}">A</button>
         {% endfor %}
       </div>
     </div>
 
-    <div class="ag-dr ag-qs__switches">
+    <div class="ag-qs__switches">
       {% for t in [
         {k:'hc',     label:'High contrast', help:'Darker text and borders'},
         {k:'motion', label:'Reduce motion', help:'No animation or auto-play'}
       ] %}
-        <button type="button" class="ag-dr__row" role="switch" aria-checked="false"
-                data-ag-toggle="{{ t.k }}">
+        <button type="button" class="ag-dr__row" role="switch" aria-checked="false" data-ag-toggle="{{ t.k }}">
           <span class="ag-dr__text">
-            <span class="ag-dr__label">{{ t.label }}</span>
-            <span class="ag-dr__help">{{ t.help }}</span>
+            <span class="ag-dr__label">{{ t.label|trans }}</span>
+            <span class="ag-dr__help">{{ t.help|trans }}</span>
           </span>
-          <span class="ag-switch" aria-hidden="true"></span>
+          <span class="ag-switch ag-dr__switch" aria-hidden="true"></span>
         </button>
       {% endfor %}
     </div>
 
     <div class="ag-qs__block">
-      <span class="ag-qs__h" id="ag-qs-lang">Language</span>
-      {# Each chip carries `lang` so a screen reader pronounces the word in its own
-         language instead of reading "Yorùbá" as English. Links, not radios: following
-         one navigates, and the middleware is what stores the choice — so these work
-         with scripting off, which for a language control matters most. #}
+      <span class="ag-qs__h" id="ag-qs-lang">{{ 'Language'|trans }}</span>
       <nav class="ag-qs__langs" aria-labelledby="ag-qs-lang">
         {% for l in languages() %}
-          <a class="ag-chip ag-qs__lang" href="{{ lang_url(l.code) }}" lang="{{ l.code }}"
-             {{ l.code == lang() ? 'aria-current="true"' : '' }}>{{ l.name }}</a>
+          <a class="ag-chip ag-qs__lang" href="{{ lang_url(l.code) }}" hreflang="{{ l.code }}" lang="{{ l.code }}" dir="{{ l.dir }}"
+             {% if l.code == lang() %}aria-current="true"{% endif %}>{{ l.name }}</a>
         {% endfor %}
       </nav>
     </div>
 
     <button type="button" class="ag-list__row ag-qs__all" data-ag-quick-all>
-      <span class="ag-list__label">All display &amp; reading settings</span>
-      <span class="ag-list__chev" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="m9 6 6 6-6 6"></path></svg>
-      </span>
+      <span class="ag-list__label">{{ 'All display & reading settings'|trans }}</span>
+      <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
     </button>
 
-    {# Done rather than a close cross: this sheet has no destructive state and
-       nothing to cancel, so the one button says what pressing it means. #}
-    <button type="button" class="ag-btn ag-btn--ink ag-btn--block ag-qs__done"
-            data-ag-quick-close>Done</button>
+    {# "Done", not a cross: nothing here is destructive and nothing needs cancelling, so
+       the one button says what pressing it means. #}
+    <button type="button" class="ag-qs__done" data-ag-quick-close>{{ 'Done'|trans }}</button>
   </div>
 </div>

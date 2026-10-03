@@ -40,15 +40,9 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/dev-ui.css') }}">
 {% endblock %}
 
-{% block header %}{% include 'partials/site-header.twig' %}{% endblock %}
-
-{% block app_bar %}
-  {% include 'partials/app-bar.twig' with { variant: 'child', title: 'Base components', sub: 'Phase 1 · dev only', back: '/' } %}
-{% endblock %}
-
-{% block bottom_bar %}
-  {% include 'partials/tab-bar.twig' with { active: '' } %}
-{% endblock %}
+{# The chrome is the layout's (Phase 2): the header, a child app bar, the tab bar with
+   nothing lit, the Menu, Quick settings, the search palette and the shortcuts. #}
+{% set app_bar = app_bar|default({ variant: 'child', title: 'Base components', sub: 'Phase 1 · dev only', back: '/' }) %}
 
 {% block content %}
 <div class="duix">

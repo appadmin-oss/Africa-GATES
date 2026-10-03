@@ -404,11 +404,9 @@ return function(App $app) {
         $groups = [
             'Comments on a vote, and sharing' => [
                 ['One message, rendered',            'templates/partials/vote-message.twig', 'vmi__act'],
-                ['The share row',                    'templates/partials/share.twig', 'ag-share--grid'],
                 ['Message routes + card',            'src/Controllers/VoteMessageController.php', 'messageCard'],
                 ['The message card renderer',        'src/Services/FlierService.php', 'messageCard'],
                 ['Moderation queue rows',            'templates/admin/moderation/index.twig', 'vote_message'],
-                ['Poll options (deformity fix)',     'templates/partials/poll.twig', 'ag-poll__opt'],
             ],
             'The full nomination story, and every supporter' => [
                 ['Sentence-aware short lines',                   'src/Support/Text.php', 'firstSentence'],
@@ -1894,17 +1892,10 @@ return function(App $app) {
             '/give'            => '/giving',
             '/votes'           => '/vote',
             '/cookie'          => '/cookies',
-            // ── WHAT PEOPLE TYPE WHEN THEY WANT TO FIND SOMEBODY ─────────
-            //
-            // The site search is `/activity`, which is accurate about what it reads and
-            // useless as a guess: nobody looking for a principal types "activity". These
-            // are the words they do type. The alias preserves the query string, so
-            // `/search?q=ada` lands on the results rather than on an empty box.
-            //
-            // NOT a second search page. See partials/find-band.twig — one endpoint, one
-            // index, one set of promises about what is covered.
-            '/search'          => '/activity',
-            '/find'            => '/activity',
+            // `/search` and `/find` were aliases to the HTML `/activity` page here. Both
+            // were retired on 3 Oct 2026 (owner, GAPS C16): `/search` is the search
+            // palette's JSON endpoint now (SearchController, below), and `/activity` is a
+            // page the redesign retires into Discover — an alias to it would chain.
             // the thing they want, not the section it lives in
             '/ticket'          => '/events',
             '/tickets'         => '/events',
@@ -2131,12 +2122,14 @@ return function(App $app) {
         // Members post to the feed. Goes through CommunityService::postThread, so it
         // inherits the spam filter, the moderation verdict and the moderation queue.
         $g->post('/pulse',         PulseController::class.':post');
-        // Activity — one searchable timeline. TWO routes on purpose: /activity is a
-        // real GET form rendered server-side so the search works with no JavaScript,
-        // and /activity/search is the JSON the live combobox layers on top. Same
-        // service behind both, so they cannot disagree about what happened.
+        // Activity — the searchable timeline's page, retired into Discover by Phase 4.
         $g->get('/activity',       ActivityController::class.':index');
-        $g->get('/activity/search',ActivityController::class.':search');
+        // ── THE SEARCH PALETTE'S DATA (REFERENCE §7.1) ───────────────────────
+        // `GET /search?q=&scope=` IS the endpoint, as JSON. It replaced
+        // `/activity/search` on 3 Oct 2026 (owner, GAPS C16) — one search URL, the one
+        // the handoff names. Same index behind it (ActivityFeedService); the scope map
+        // stays on the server, grouped there, so the script never names a source.
+        $g->get('/search',         \AfricaGates\Controllers\SearchController::class.':search');
         $g->get('/nominate',      NominationController::class.':form');
         $g->post('/nominate',     NominationController::class.':submit');
         $g->get('/nominate/success',function($req,$res) use ($tv){ $d=$_SESSION['nom_done']??null; unset($_SESSION['nom_done']); return $tv($req)->render($res,'pages/nominate-success.twig',['page_title'=>'Nomination Submitted — Africa GATES','meta_description'=>'Your nomination is in. Thank you for championing African excellence — our team will review it for the Africa GATES awards cycle. Nominate someone else too.','gates_page'=>'nominate','ref'=>$d['ref']??'','nominee'=>$d['nominee']??'','category'=>$d['cat']??'','share_payload'=>$d['share']??null]); });
@@ -2483,77 +2476,12 @@ return function(App $app) {
         // (Paid-voting routes are registered above, before /vote/{program}.)
         // Admin-editable legal/policy docs (gates_legal_docs via LegalService).
         // Content is no longer hardcoded; a missing/unpublished doc → 404.
-        /**
-         * What /cookies shows above the policy: what is happening, and the button.
-         *
-         * ── WHY THE WORDS ARE HERE AND NOT IN THE TEMPLATE ───────────────────
-         *
-         * Because there are four states and three of them are easy to draw wrongly. Being
-         * counted under the exempt posture is not the same sentence as being counted
-         * because you said yes; not being counted because you refused is not the same as
-         * not being counted because an administrator switched the whole thing off, and a
-         * page that told somebody "you have opted out" when in fact nothing is running
-         * would be making them a promise about a mechanism rather than about us.
-         *
-         * The fourth is the one that must never be got wrong: the browser said no. We
-         * honour that even over a yes given here, so the page has to SAY that rather than
-         * quietly disagree with a button it is still offering.
-         */
-        $cookieControl = function($req): array {
-            $P        = \AfricaGates\Services\CookiePrefs::class;
-            $on       = \AfricaGates\Services\VisitTracker::enabled();
-            $locked   = $P::signalledNo($req);
-            $choice   = $P::choice($req);
-            $counting = $on && $P::analyticsAllowed($req);
-
-            $saved = (string) ($_SESSION['cookie_saved'] ?? '');
-            unset($_SESSION['cookie_saved']);
-
-            if (!$on) {
-                $headline = 'Nothing is being counted';
-                $why = 'Arrival counting is switched off across the whole site at the moment, so '
-                     . 'there is nothing here to refuse. If it is switched back on, whatever you '
-                     . 'choose below is what will apply to you.';
-            } elseif ($locked) {
-                $headline = 'Your browser has already said no';
-                $why = 'You are sending Do Not Track or Global Privacy Control, and we treat that '
-                     . 'as a refusal. Nothing about your visits is being recorded.';
-            } elseif ($counting) {
-                $headline = $choice === true ? 'You said we may count your visits' : 'We are counting your visits';
-                $why = $choice === true
-                    ? 'One row for this visit, so that whoever shared the link you followed can '
-                    . 'find out whether it worked. You can change your mind here at any time.'
-                    : 'One row for this visit — where you came from, the page you landed on, and '
-                    . 'whether it led to a vote, a nomination or a ticket. It is ours alone and '
-                    . 'reaches no one else. You have not been asked before now because it stores '
-                    . 'nothing extra on your device; you can stop it here.';
-            } else {
-                $headline = 'We are not counting your visits';
-                $why = $choice === false
-                    ? 'You told us not to, and we have not since. Nothing about your visits has '
-                    . 'been recorded, and nothing will be unless you say otherwise here.'
-                    : 'We ask before counting anything, and you have not been asked yet — or you '
-                    . 'have, and said no. Either way nothing is being recorded.';
-            }
-
-            return [
-                'counting'    => $counting,
-                'locked'      => $locked,
-                'headline'    => $headline,
-                'explanation' => $why,
-                'cookie_name' => $P::COOKIE,
-                'saved'       => $saved !== '',
-                'saved_word'  => $saved === 'yes'
-                    ? 'We will count your visits from now on.'
-                    : 'We will not count your visits.',
-                'locked_note' => 'We could offer to overrule that — the Global Privacy Control '
-                               . 'specification permits a site-specific opt-in — and we have '
-                               . 'decided not to. If you do want to be counted, turn the setting '
-                               . 'off in your browser and this page will offer you the choice.',
-            ];
-        };
-
-        $legalRender = function($req,$res,string $slug) use ($tv, $cookieControl){
+        // /cookies' own state (the old `$cookieControl` panel) is not built here any more:
+        // the consent state is CookiePrefs::state(), primed for every request by
+        // VisitTrackingMiddleware and read by the layout through `consent()`, so the page,
+        // the notice and the preferences sheet cannot describe one visitor two ways. The
+        // page itself (DocPage, `doc=cookies`) is Phase 9's.
+        $legalRender = function($req,$res,string $slug) use ($tv){
             $doc = \AfricaGates\Services\LegalService::get($slug);
             if (!$doc) return $res->withStatus(404);
 
@@ -2589,18 +2517,6 @@ return function(App $app) {
                 'doc_standfirst'=>($doc['updated_label'] ?? '') !== ''
                     ? 'Last updated '.$doc['updated_label'].', and effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.'
                     : 'Effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.',
-
-                // ── THE LIVE CONTROL, ON ONE DOCUMENT ONLY ───────────────────
-                //
-                // /cookies is the one policy here that is not only a promise: it carries
-                // the switch that turns arrival counting off. The panel is built in PHP
-                // rather than in the template because the state it shows has to come from
-                // CookiePrefs — the same resolver the tracker asks — and a template
-                // deciding for itself whether somebody is being counted is how a page
-                // comes to show a person the opposite of what is happening to them.
-                //
-                // Null on every other slug, so the partial is simply not drawn.
-                'cookie_control'=>$slug === 'cookies' ? $cookieControl($req) : null,
             ]);
         };
 
@@ -2739,47 +2655,65 @@ return function(App $app) {
             fn($req, $res, $args) => $nomineeConfirm->answer($req, $res, $args));
 
         /**
-         * POST /cookies/choice — the answer, from the page or from the notice.
+         * POST /cookies/choice — the answer, from the notice, the preferences sheet or /cookies.
          *
          * ── A FORM POST, WITH NO JAVASCRIPT ANYWHERE IN THE PATH ─────────────
          *
-         * A privacy control that needs scripts to run is a privacy control that is missing
-         * for exactly the people most likely to have switched them off. So this is a plain
-         * POST that sets a cookie and redirects, and it is the ONLY writer of that cookie
-         * on the whole platform — see CookiePrefs::apply().
+         * A privacy control that needs scripts is a privacy control missing for exactly the
+         * people most likely to have switched them off. So this is a plain POST that sets a
+         * cookie and redirects (303), and it is the ONLY writer of `ag_consent` — see
+         * CookiePrefs::write(). `answer` is `all`, `essential`, `save` (with a `1` per
+         * switched-on category) or `choose`; anything else is read as `essential`, because a
+         * request we could not understand about whether somebody agreed is one in which they
+         * did not (CookiePrefs::fromPost()).
          *
-         * ── WHAT AN UNRECOGNISED ANSWER MEANS ────────────────────────────────
+         * `choose` stores NOTHING: it is the notice's third button, which without a script
+         * has to reach the preferences sheet somehow. It sends the visitor back to the page
+         * they were on with `#ag-consent`, which the sheet answers with `:target` — a
+         * fragment, so nothing about it is stored or logged, and the notice stays up because
+         * nothing was answered.
          *
-         * No. A malformed or missing `choice` is a request we could not understand about
-         * whether somebody agreed to be counted, and the only safe reading of that is that
-         * they did not. Storing the refusal rather than leaving it unanswered is also the
-         * kinder outcome, because leaving it unanswered would show the notice again.
+         * ── THE LANGUAGE COOKIE FOLLOWS THE ANSWER AT ONCE ───────────────────
+         *
+         * `ag_lang` is persistent only with Preferences. A visitor who chose French before
+         * answering has a session cookie; saying yes now makes it a year, saying no makes a
+         * year-long one a session cookie again. Re-written here, on the same response, so
+         * the Preferences switch changes what is on the device the moment it is pressed
+         * rather than the next time somebody happens to pick a language.
          */
         $g->post('/cookies/choice', function($req,$res){
             $P    = \AfricaGates\Services\CookiePrefs::class;
             $b    = (array) ($req->getParsedBody() ?? []);
-            // The token field is `_token`, which is what CsrfMiddleware reads — the Twig
-            // GLOBAL is `csrf_token` and the two names are not interchangeable. Naming the
-            // field after the global posts a correct token in a box nothing opens, and
-            // every submission is rejected as a forgery. CsrfFieldNameTest caught exactly
-            // that on both of this feature's forms.
-            $yes  = strtolower(trim((string) ($b['choice'] ?? ''))) === 'yes';
 
-            // Re-validated here and not trusted from the field. The notice writes the path
-            // it was drawn on, but a hidden input is something anybody can edit, and this
-            // value ends up in a Location header — see CookiePrefs::safeReturn(), which
-            // refuses `//host` as well as an absolute URL.
-            $back = $P::safeReturn((string) ($b['return'] ?? '/cookies'));
-            if ($back === '/') $back = '/cookies';
+            // Re-validated here and not trusted from the field: a hidden input is something
+            // anybody can edit, and this value ends up in a Location header — see
+            // CookiePrefs::safeReturn(), which refuses `//host` as well as an absolute URL.
+            $back = $P::safeReturn((string) ($b['return'] ?? '/'));
+
+            if (strtolower(trim((string) ($b['answer'] ?? ''))) === 'choose') {
+                return $res->withHeader('Location', $back . '#ag-consent')->withStatus(303);
+            }
+
+            $answers = $P::fromPost($req, $b);
+            $res     = $P::write($res, $answers, isset($req->getCookieParams()[$P::LEGACY]));
+
+            $lang = (string) ($req->getCookieParams()[\AfricaGates\Support\Languages::COOKIE] ?? '');
+            if (\AfricaGates\Support\Languages::supported($lang)) {
+                $res = \AfricaGates\Support\Languages::apply($res, $lang,
+                    $P::allows($req, $P::PREFERENCES, $answers));
+            }
 
             // So the page can confirm it heard. A control that changes nothing you can see
-            // is a control people press twice.
-            $_SESSION['cookie_saved'] = $yes ? 'yes' : 'no';
+            // is a control people press twice. The words are the layout's, chosen by key.
+            $all = true; $none = true;
+            foreach ($P::OPTIONAL as $c) {
+                if (!$P::offered($c)) continue;
+                if ($answers[$c] === true) $none = false; else $all = false;
+            }
+            $_SESSION['consent_saved'] = $P::signal($req) !== null && !$none ? 'signal'
+                : ($none ? 'essential' : ($all ? 'all' : 'mine'));
 
-            // The fragment lands them on the panel rather than at the top of a policy.
-            return $P::apply($res, $yes)
-                ->withHeader('Location', $back . '#your-choice')
-                ->withStatus(303);
+            return $res->withHeader('Location', $back)->withStatus(303);
         });
         // Its own path as well as /legal/refunds. This is the page somebody looks for while
         // deciding whether to pay, and while holding a receipt they want reversed — both
@@ -2920,10 +2854,20 @@ return function(App $app) {
             if (\AfricaGates\Support\Env::get('APP_ENV', 'production') === 'production') {
                 return $res->withStatus(404);
             }
-            return $tv($req)->render($res, 'pages/dev-ui.twig', [
+            // `?bar=root` draws the ROOT app bar instead of the child one, and `?flow=1`
+            // drops the tab bar as a flow page does — so every prop combination of the
+            // shared chrome (Phase 2) can be walked on this one dev page.
+            $q = $req->getQueryParams();
+            $vars = [
                 'page_title'  => 'Tokens & base components',
                 'meta_robots' => 'noindex, nofollow',
-            ]);
+            ];
+            if (($q['bar'] ?? '') === 'root') {
+                $vars['app_bar'] = ['variant' => 'root', 'title' => 'Base components'];
+                $vars['tab'] = 'discover';
+            }
+            if (($q['flow'] ?? '') === '1') $vars['flow_page'] = true;
+            return $tv($req)->render($res, 'pages/dev-ui.twig', $vars);
         });
 
         $g->get('/philosophy', function ($req, $res) use ($tv, $integrityFigures) {
@@ -3568,6 +3512,9 @@ return function(App $app) {
         $a->post('/bank', AccountController::class . ':bank');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
+        // Display & reading, saved to the member so it follows them between devices
+        // (REFERENCE §7.5). JSON, from a11y.js; the member is the session's, never a param.
+        $a->post('/display',      \AfricaGates\Controllers\DisplayReadingController::class.':save');
         // The member's own points history as a file. Above the catch-all below, which would
         // otherwise swallow it — and reachable by the owner alone, because there is no id in
         // the path to change.

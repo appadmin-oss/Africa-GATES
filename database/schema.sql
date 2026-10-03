@@ -684,6 +684,9 @@ CREATE TABLE IF NOT EXISTS gates_users (
   -- feature stores: everything else is derived from the tables that already
   -- record the events. NULL = never opened = everything unread.
   alerts_read_at DATETIME NULL DEFAULT NULL,
+  -- Display & reading, saved to the member so it follows them between devices
+  -- (REFERENCE §7.5). NULL = never saved. Written only by DisplayReadingPrefs.
+  display_json VARCHAR(255) NULL DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

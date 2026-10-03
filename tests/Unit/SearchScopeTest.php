@@ -114,22 +114,57 @@ final class SearchScopeTest extends TestCase
         );
     }
 
-    public function test_the_chip_map_is_delivered_by_the_search_endpoint(): void
+    public function test_the_scope_map_stays_on_the_server(): void
     {
-        // The palette groups its results under the same headings the chips offer, and
-        // it cannot know which kind belongs where without the map — so the endpoint
-        // hands it over with every response, and the client never keeps a copy. A
-        // second copy in JS is two lists that drift: visibly as a result filed under
-        // the wrong heading, invisibly as one filed under none.
-        //
-        // This method used to hold the client half too (the palette script names no
-        // source itself). That script, `ag-search.js`, was destroyed on 3 Oct 2026 as an
-        // orphan; the rule is in docs/handoff/inventory/_scripts.md for the rebuilt
-        // palette to re-assert against its own file.
-        $ctrl = (string) file_get_contents(__DIR__ . '/../../src/Controllers/ActivityController.php');
-        $this->assertNotSame('', $ctrl, 'ActivityController.php could not be read');
-        $this->assertStringContainsString("ActivityFeedService::SCOPES", $ctrl,
-            'the search endpoint no longer delivers the scope map');
+        // The palette draws results under the chips' headings, and the mapping from a source
+        // to a chip is the server's: `GET /search` (SearchController) GROUPS by SCOPES before
+        // it answers, so the script receives headings and rows and never a source name. A
+        // second copy of the map in JavaScript is two lists that drift — visibly as a result
+        // filed under the wrong heading, invisibly as one filed under none.
+        $ctrl = (string) file_get_contents(__DIR__ . '/../../src/Controllers/SearchController.php');
+        $this->assertStringContainsString('ActivityFeedService::SCOPES', $ctrl,
+            'the search endpoint no longer groups by the scope map');
+
+        // The client half, which `ag-search.js` held until it was destroyed (inventory/
+        // _scripts.md) and the rebuilt palette now re-asserts against its own file: no
+        // source key appears as a quoted literal anywhere in the script.
+        $js = (string) preg_replace('~/\*.*?\*/~s', '', (string) file_get_contents(__DIR__ . '/../../public/assets/js/search.js'));
+        $this->assertNotSame('', $js, 'search.js could not be read');
+        $named = [];
+        foreach (array_keys(ActivityFeedService::SOURCES) as $kind) {
+            if (preg_match("~['\"]" . preg_quote($kind, '~') . "['\"]~", $js)) $named[] = $kind;
+        }
+        $this->assertSame([], $named, 'search.js names a source itself: ' . implode(', ', $named));
+    }
+
+    public function test_the_palette_offers_a_chip_for_every_scope_and_no_others(): void
+    {
+        // In order: the empty key "All" (the absence of a filter, not a bucket), then exactly
+        // the SCOPES keys — a chip with no bucket filters nothing, a bucket with no chip is
+        // results nobody can ask for. Read from the RENDERED palette.
+        $html = \Tests\Support\ChromeRender::html('/_dev/ui');
+        preg_match_all('~data-ag-scope="([a-z]*)"~', $html, $m);
+        $this->assertSame(array_merge([''], array_keys(ActivityFeedService::SCOPES)), $m[1]);
+    }
+
+    public function test_no_search_entrance_enumerates_the_sources(): void
+    {
+        // Only a surface that GENERATES its coverage sentence from SOURCES may claim
+        // coverage (`search_covers()`); a palette that names the sources in its own words
+        // is a sentence that goes stale the day a source is added. FindBandTest held this
+        // over the old palette and passed vacuously once it was destroyed.
+        // Read from the RENDERED palette — its words are `|trans` expressions, so the
+        // template source holds them inside `{{ }}` — attributes included (a placeholder and
+        // the status messages are read aloud too).
+        $html = \Tests\Support\ChromeRender::html('/_dev/ui');
+        $at = (int) strpos($html, 'data-ag-search hidden');
+        $this->assertGreaterThan(0, $at, 'the palette is not on the page');
+        $palette = substr($html, $at, (int) strpos($html, 'data-ag-search-status', $at) - $at);
+        $text = mb_strtolower(html_entity_decode($palette));
+        $this->assertStringContainsString('search people, awards, events', $text, 'read nothing — the sweep would pass vacuously');
+        foreach (ActivityFeedService::nouns() as $noun) {
+            $this->assertStringNotContainsString(mb_strtolower($noun), $text);
+        }
     }
 
     public function test_a_verified_organisation_is_findable_from_a_chip(): void

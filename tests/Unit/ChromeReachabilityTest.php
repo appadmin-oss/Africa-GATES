@@ -55,7 +55,60 @@ final class ChromeReachabilityTest extends TestCase
     private const SHEETS = [
         'partials/menu-sheet.twig'     => 'data-ag-menu',
         'partials/quick-settings.twig' => 'data-ag-quick',
+        // The search palette (Phase 2): opened by the header's Search control. It is also
+        // opened by `/`, but a key is not a way in for anybody who does not know it.
+        'partials/site-search.twig'    => 'data-ag-search-open',
+        // The cookie preferences (Phase 2 item 6): the notice's "Choose", the "saved"
+        // line's "Change", and the Menu's Cookies row — the hook Phase 2 left for it.
+        'partials/cookie-consent.twig' => 'data-ag-do="consent-open"',
     ];
+    // `partials/shortcuts.twig` is deliberately NOT here: it is the list of keyboard
+    // shortcuts, opened by the `?` key, and its audience is by definition at a keyboard.
+    // Every shortcut it lists has a visible control of its own (skill §23).
+
+    /** The scripts the shell loads — where a trigger has to be BOUND, not merely drawn. */
+    private function shellScripts(): string
+    {
+        $shell = (string) file_get_contents(self::ROOT . 'layout/shell.twig');
+        preg_match_all("~asset\('/(assets/js/[^']+)'\)~", $shell, $m);
+        $out = '';
+        foreach ($m[1] as $rel) {
+            $out .= (string) @file_get_contents(dirname(__DIR__, 2) . '/public/' . $rel);
+        }
+        return $out;
+    }
+
+    /**
+     * A TRIGGER NOTHING BINDS IS A BUTTON THAT OPENS NOTHING.
+     *
+     * The second half of "who is ever handed this". On 3 Oct 2026 `header.js` and
+     * `ag-search.js` were destroyed as orphans while the header kept drawing the Search,
+     * Aa and language buttons — every one of them present, labelled, focusable, and inert
+     * (inventory/_scripts.md, MUST RESTORE). A sheet whose trigger is drawn but read by no
+     * script the layout loads is that fault, so the selector is looked for in the scripts
+     * `layout/shell.twig` actually links.
+     */
+    public function test_every_trigger_is_bound_by_a_script_the_layout_loads(): void
+    {
+        $js = $this->shellScripts();
+        $this->assertNotSame('', $js, 'the shell loads no script at all');
+        $bad = [];
+
+        // Delegated triggers are bound where a CLICK is resolved to them — the selector as
+        // the argument to `closest()`. Merely naming the selector is not enough: the palette
+        // script also names its trigger to set `aria-expanded`, and a sweep satisfied by any
+        // mention passed with the click binding deleted (measured).
+        foreach (self::SHEETS as $sheet => $trigger) {
+            if (!preg_match("~closest\\((?:e,\\s*)?'\\[" . preg_quote($trigger, '~') . "\\]'\\)~", $js)) {
+                $bad[] = "$sheet: no script the shell loads resolves a click to [$trigger]";
+            }
+        }
+        // The header's popovers are bound per trigger, by the one layer controller.
+        if (!str_contains($js, "all('[data-ag-pop]', head)") || !str_contains($js, "layer.trigger.addEventListener('click'")) {
+            $bad[] = 'partials/site-header.twig: [data-ag-pop] is drawn and nothing binds its click';
+        }
+        $this->assertSame([], $bad, implode("\n", $bad));
+    }
 
     /** @return array<string,string> path relative to templates/ → body, comments stripped */
     private function templates(): array

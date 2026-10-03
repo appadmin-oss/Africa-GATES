@@ -151,7 +151,7 @@ final class DisplayReadingTest extends TestCase
     {
         $head = (string) file_get_contents(self::ROOT . 'templates/partials/a11y-head.twig');
 
-        preg_match('/var m=\{([^}]*)\}/', $head, $m);
+        preg_match('/var k=\{([^}]*)\}/', $head, $m);
         $this->assertNotEmpty($m, 'the head script no longer carries a recognisable map');
 
         $inHead = [];
@@ -205,6 +205,64 @@ final class DisplayReadingTest extends TestCase
             'REFERENCE §7.2 puts high contrast and reduce motion in the sheet, and the rest one tap away');
         $this->assertStringContainsString('data-ag-quick-all', $quick,
             'the sheet must offer a way to the other five, or it is a dead end');
+    }
+
+    public function test_the_account_keeps_exactly_the_keys_the_store_keeps(): void
+    {
+        // Three lists name these switches: the store (a11y.js), the account's normaliser
+        // (DisplayReadingPrefs) and the templates' loops. A switch the store has and the
+        // account does not is silently dropped on every save — the member sets it, sees it,
+        // and finds it gone on their next device.
+        $this->assertSame(
+            array_keys($this->switches()),
+            \AfricaGates\Services\DisplayReadingPrefs::SWITCHES,
+            'a11y.js and DisplayReadingPrefs disagree about which switches exist'
+        );
+    }
+
+    public function test_a_signed_in_members_settings_are_painted_before_anything_loads(): void
+    {
+        // §7.5 "plus the member profile when signed in" (GAPS §3.7). The head script is
+        // handed the member's saved settings by the server, so a device they have never
+        // used paints in them with nothing fetched — a fetch runs after the paint, which is
+        // the flash the head script exists to prevent.
+        $head = (string) file_get_contents(self::ROOT . 'templates/partials/a11y-head.twig');
+        $this->assertStringContainsString('member_display()', $head);
+        // Written back to whichever store the visitor's Preferences answer allows
+        // (`data-ag-keep`, CookiePrefs): between visits with a yes, for the tab without.
+        $this->assertMatchesRegularExpression("~if\(m\)\{s=m;if\(K\)localStorage\.setItem\('ag-a11y'[^;]*;else sessionStorage\.setItem\('ag-a11y'~", $head,
+            'the member\'s saved settings must win over this device\'s and be written back to it');
+
+        // And every change goes back to the account while signed in.
+        $js = $this->js('a11y.js');
+        $this->assertStringContainsString("fetch('/account/display'", $js);
+        $this->assertStringContainsString("'X-CSRF-Token'", $js);
+        $shell = (string) file_get_contents(self::ROOT . 'templates/layout/shell.twig');
+        $this->assertStringContainsString('data-ag-sync=', $shell);
+        $this->assertStringContainsString('name="ag-csrf"', $shell);
+    }
+
+    public function test_the_easy_read_font_is_actually_loaded_when_it_is_on(): void
+    {
+        // GAPS §2: `ag-easy` named Atkinson Hyperlegible and NOTHING LOADED IT, so the
+        // browser fell back silently and the "easy-read font" changed the letter spacing
+        // and kept the old face. It must be fetched — by the head script before first paint,
+        // and by the store when the switch is turned on later — from one address, the one
+        // the layout declares.
+        $shell = (string) file_get_contents(self::ROOT . 'templates/layout/shell.twig');
+        $this->assertMatchesRegularExpression('~data-ag-easy-font="https://fonts\.googleapis\.com/css2\?family=Atkinson\+Hyperlegible~', $shell);
+
+        $head = (string) file_get_contents(self::ROOT . 'templates/partials/a11y-head.twig');
+        $this->assertMatchesRegularExpression("~if\(s\.easy&&f\)\{var l=document\.createElement\('link'\)~", $head);
+        $this->assertStringContainsString("getAttribute('data-ag-easy-font')", $head);
+
+        $js = $this->js('a11y.js');
+        $this->assertMatchesRegularExpression('~if \(s\.easy\) loadEasyFont\(\)~', $js);
+        $this->assertStringContainsString("getAttribute('data-ag-easy-font')", $js);
+
+        $css = (string) file_get_contents(self::ROOT . 'public/assets/css/shell.css');
+        $this->assertStringContainsString("html.ag-easy body{ font-family:'Atkinson Hyperlegible'", $css,
+            'the face the link loads is not the face the class asks for');
     }
 
     /** @return array<string,string> path relative to templates/ → body */

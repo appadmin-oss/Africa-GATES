@@ -239,9 +239,11 @@ HTML;
      *
      * So the facts are no longer written here. They are generated on every render from
      * {@see \AfricaGates\Support\CookieRegistry} and {@see \AfricaGates\Services\CookiePrefs}
-     * by {@see \AfricaGates\Services\LegalDocument::cookiesHtml()} — the list of cookies,
-     * the browser storage, what the counting records, how long it is kept, and whether an
-     * operator has switched it off. `CookieRegistryTest` fails if a cookie is set anywhere
+     * by {@see \AfricaGates\Services\LegalDocument::cookiesHtml()} — the four consent
+     * choices and what each covers, the list of cookies, the browser storage, what the
+     * counting records, how long it is kept, and whether an operator has switched it off.
+     * (Rewritten on 3 Oct 2026 for the four-category model; `2027_02_27_cookie_consent_policy_repair.php`
+     * carries it to a deployment whose copy nobody has edited.) `CookieRegistryTest` fails if a cookie is set anywhere
      * in the shipped code without a registry entry, and `LegalCookieProseTest` fails if
      * what is left below starts contradicting the registry again.
      *
@@ -257,16 +259,19 @@ HTML;
    cannot quietly go out of date.</p>
 <p>There is <strong>no Google Analytics here, no advertising pixel and no third-party tag of
    any kind</strong>. Nothing on this site reports your visit to another company.</p>
-<p>We do count arrivals ourselves, so that somebody who shares a link can find out whether it
-   worked. That is described below, and <strong>you can switch it off</strong> with the
-   control at the top of this page. It takes one click and we do not ask you why.</p>
+<p>Beyond what is essential, <strong>you choose</strong>: whether we may remember your
+   language and display settings on this device between visits, and whether we may count
+   your visits ourselves so that whoever shared a link can see whether it worked. Each choice
+   is described below with exactly what it covers, and you can allow or refuse each one with
+   the choices at the top of this page or in the cookie notice. It takes one click and we do
+   not ask you why.</p>
 
 <h2>Turning cookies off</h2>
 <p>Every browser lets you block or delete cookies. If you block ours you can still read the
    site, but you will not be able to sign in, vote, or complete a payment &mdash; the session
    cookie is what tells us one page of your visit is connected to the next.</p>
-<p>Blocking cookies is not the same as switching off the counting, and neither one needs the
-   other. The counting can be refused on its own with the control at the top of this page.</p>
+<p>Blocking cookies in your browser is not the same as the choices on this page, and neither
+   one needs the other. Refusing a choice here is enough on its own.</p>
 
 <h2>Payments</h2>
 <p>When you pay, you are handed to a payment provider on their own page. What they set while

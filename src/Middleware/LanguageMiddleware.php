@@ -55,7 +55,10 @@ final class LanguageMiddleware implements MiddlewareInterface
         // An unsupported `?lang=` is ignored rather than corrected: nothing was
         // chosen, so nothing is stored, and the first-visit prompt may still ask.
         if (Languages::supported($asked)) {
-            $response = Languages::apply($response, (string) $asked);
+            // Kept for a year only with the visitor's Preferences answer; otherwise for
+            // this browsing session. CookiePrefs is the one resolver for that question.
+            $response = Languages::apply($response, (string) $asked,
+                \AfricaGates\Services\CookiePrefs::allows($request, \AfricaGates\Services\CookiePrefs::PREFERENCES));
         }
 
         return $response;

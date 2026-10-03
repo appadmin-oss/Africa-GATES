@@ -106,6 +106,8 @@ Before deletion each was grepped for across `templates/`, `src/`, `config/`, `pu
 - `ag-hide-bal` (writer `account.js`, destroyed), `afg_cart`, `afg_voted_prog_`, `afg_cheer_`, `afg_report_`, `ag_intro` (writers destroyed with the pages) — as recorded at the first orphan pass. Whoever rebuilds a writer re-confirms its row, and the rows nobody rebuilds go.
 - **And one that was never declared at all:** `community-modal.js` wrote `sessionStorage 'ag_community_prompted'` through a variable (`setItem(SESSION_KEY, '1')`), and the storage sweep reads only a string LITERAL as the first argument — so the guard built for exactly this fault could not see it. Destroyed now, so nothing is under-disclosed; the sweep's blind spot (a key held in a variable or constant) remains, and is recorded here rather than patched.
 
+**Resolved 3 Oct 2026 (Phase 2 item 6, owner's answer to GAPS Q11):** `CookieRegistry` was rebuilt to list exactly what surviving code writes — the seven storage rows and the two shop cookies (no writer since the delegated `data-cookie` listener went with `gates.twig`) are gone, and Phase 7 re-declares `ag_region`/`ag_currency` with their writer. `CookieRegistryTest` now asks both directions and resolves a key held in a variable, a method or an option (an unresolvable key fails), which surfaced four undeclared keys in surviving code: `ag-door-q:`, `afStep:`, `ag-copilot`, `ag-asst` — now declared. See `docs/handoff/PHASE-2.md`, "Cookie consent".
+
 ## Edits to Phase 1 files (the only non-test files rewritten)
 
 - `templates/layout/shell.twig` — links `tokens.css`, `shell.css`, `components.css` and nothing else (dropped `chrome.css`, `library.css`, `forms.css`); header comment updated.

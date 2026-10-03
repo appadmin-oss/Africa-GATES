@@ -333,7 +333,7 @@ final class Languages
     /**
      * Write the choice onto a response.
      *
-     * A PSR-7 header rather than `setcookie()`, for the reason CookiePrefs::apply()
+     * A PSR-7 header rather than `setcookie()`, for the reason CookiePrefs::write()
      * gives: the response is the thing being returned, and a side effect on the global
      * output buffer is invisible to every test that renders the route.
      *
@@ -342,16 +342,23 @@ final class Languages
      * answered server-side by {@see shouldAsk()} — so handing scripts one more stable
      * value to read would widen the fingerprinting surface to save a round trip nobody
      * is making.
+     *
+     * `$remember` is the visitor's Preferences answer ({@see \AfricaGates\Services\CookiePrefs::allows()}).
+     * Without it the cookie carries no `Max-Age` — a session cookie: the language still
+     * works for this browsing session, because the visitor asked for it just now, and is
+     * forgotten when the browser closes, because remembering it NEXT time is the part they
+     * did not allow. Required rather than defaulted: a default is a second answer to "may
+     * we remember", taking over silently the day a caller forgets to ask the first.
      */
-    public static function apply(Response $response, string $code): Response
+    public static function apply(Response $response, string $code, bool $remember): Response
     {
         $parts = [
             self::COOKIE . '=' . (self::supported($code) ? strtolower(trim($code)) : self::DEFAULT),
             'Path=/',
-            'Max-Age=' . self::TTL,
-            'HttpOnly',
-            'SameSite=Lax',
         ];
+        if ($remember) $parts[] = 'Max-Age=' . self::TTL;
+        $parts[] = 'HttpOnly';
+        $parts[] = 'SameSite=Lax';
 
         if (self::secure()) $parts[] = 'Secure';
 

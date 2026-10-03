@@ -387,40 +387,86 @@ invisible — both fixed by focusing a marker turning the globe to it); 2.5.8 (4
 `pointer: coarse` was the only floor, and the AA 24×24 is not conditional on the pointer).
 `docs/CODEBASE-INDEX.md` §25.
 
-## The type scale is closed, and a scale with no guard is a comment
+## Type is the handoff's: a closed ladder, fixed display sizes, mono for codes, no capitals
 
-`10 · 11 · 12 · 13 · 14 · 16 · 17`, and the gap at 15 is deliberate — 14 is the reading
-size, 16 is the lede, and a rung between them is an invitation to split the difference
-again. Above 17px is the display range, set with `clamp()` against the viewport rather
-than off this ladder. `TypeScaleTest` holds it.
+The owner answered GAPS Q4 and Q5 on 3 Oct 2026: **apply REFERENCE §6.2 and §18.3–4 as
+written** on the public site. Three rules, each held by a guard, and each the reverse of
+something this file used to say — which is the reason to read the section before the first
+`font:` you write, because the old prose is still in people's heads and in a great deal of
+git history.
 
-It arrived as a comment in a design handoff and stayed one: the tree it was handed to
-carried **1,579** declarations off the ladder, 41% of every font size on the site. Nothing
-failed, because nothing asked. Eight distinct sizes existed between 11px and 15px, because
-sizes were set one screen at a time — `12.5px` and `13px` on adjacent cards doing the same
-job, and the next person splitting the difference again from whichever they copied. None
-of that is visible from any single file, which is why it ran for the life of the codebase.
+**Small text sits on a closed ladder: `11.5 · 12 · 12.5 · 13 · 13.5 · 14 · 14.5 · 15 ·
+15.5 · 16 · 16.5 · 17`.** Micro 11.5–12.5, meta 13–13.5, secondary 14.5, buttons
+14.5–15.5, body and inputs 16. **There is no 10 and no 11.** `TypeScaleTest` used to carry
+them as a `MIGRATING` allowance for the unconverted pages; those pages were destroyed, the
+allowance went with them, and its test now fails if the constant comes back. An allowance
+that outlives its reason is how a ladder grows a rung nobody chose. The ladder is closed
+because an unguarded scale is a comment: the tree this repo inherited carried **1,579**
+declarations off its own documented scale, 41% of every size on the site, set one screen at
+a time with nothing asking.
 
-Two things a sweep over this has to know, both of which had one lying here:
+**Display type is a FIXED size per breakpoint, never scaled by the viewport.** §6.2 gives a
+phone and a desktop size for every display role (H1 32 → 44, celebration 34 → 48, app-bar
+title 26) and §4.5 forbids `vw` type outright. This file used to say the opposite — "above
+17px is the display range, set with `clamp()` against the viewport" — so fluid type here
+was not a lapse, it was the convention. A `vw` size is a size nobody chose: it renders
+every value between the two the designer drew, and it does not grow with the reader's text
+setting (WCAG 1.4.4). `TypeScaleTest` refuses viewport units, container units and
+`clamp()` in `font-size` and the `font` shorthand, including through a custom property — a
+breakpoint is a QUERY, not a unit.
 
-- **Most of the type is in the `font:` SHORTHAND**, not in `font-size:`. 214 declarations
-  of micro-label live as `font:600 11px/1 var(--ag-font-mono)`, and a `font-size:` grep
-  never sees one. Inside the shorthand the size is the FIRST px value — nothing else in
-  `font` takes a length except the line-height, which follows a `/`.
+**Monospace is only for references and codes** — order refs, ticket codes, receipt codes,
+times inside a ticket stub — **never labels, stats or kickers. No capitals**: no
+`text-transform:uppercase`, no `capitalize`, no small-caps, and no typed all-caps
+micro-labels; headings are sentence case. The one exception is the ticket stub's CONFIRMED
+stamp, which is a graphic. The handoff contradicted itself on both (HANDOFF §2 "mono …
+numbers", SKILL §24.3 "mono 17px value", fifteen uppercase declarations in its own DCs);
+its README §0 puts §18 above all of those, and the owner confirmed it. This file's house
+style used to read "mono micro-labels", and 214 declarations were written to it. Mono says
+"copy me exactly": on a reference that is true and it is what tells `0` from `O`; on a
+kicker it is a costume, and it spends the page's only signal for "this is a code".
+`MonoAndCaseTest` holds it with a NAMING convention derived from §18.3's list — a rule may
+set a monospace face only if its selector carries a class segment `ref`, `code` or `stub`
+(or is `code`/`kbd`/`samp`/`pre`), and capitals only under a `stamp` segment. The name is
+the claim, and a claim is reviewable: `.order-ref` in mono is plainly right, `.stat-ref` is
+a lie somebody had to type. Mono is recognised by VALUE and resolved through aliases — the
+door defines its own `--dr-mono`, and a sweep knowing only `--ag-font-mono` passes every
+kicker on that page.
+
+**Scope is the public surface, and the consoles are out by name.** The admin and judge
+consoles are not designed by the handoff (§18.7) and are held by the owner, so both guards
+read `Tests\Support\PublicSurface`: every template but `admin/` and `judge/`, every
+stylesheet but the five only those consoles link (`admin.css`, `judge.css`, `main.css`,
+`aurora.css`, `components/auth.css`) and `vendor/`. Everything else is in by default, so a
+new sheet is covered the day it lands — and `TypeScaleTest` fails if a public page ever
+links a held sheet, because an exclusion is honest only while nothing public reads what it
+excludes. Mail is in for the scale and out for mono and case, which are rules for screens.
+Neither guard reads JavaScript, and both say so.
+
+Things a sweep over type has to know, each of which had one lying here:
+
+- **Most of the type is in the `font:` SHORTHAND**, not in `font-size:` — the 214
+  micro-labels were `font:600 11px/1 var(--ag-font-mono)`, invisible to a `font-size:`
+  grep. Inside the shorthand the size is the FIRST length; the only other length in `font`
+  is the line-height, after a `/`.
 - **`font-size:1px` in an email is not type.** It is the collapse that keeps the hidden
-  preheader from occupying a line in clients that ignore `display:none`, and raising it to
-  the ladder puts a stray line of grey text at the top of four production emails. It is
-  exempted by what it DOES — a 1px size beside `mso-hide:all` — never by naming the four
-  files that currently do it.
+  preheader from occupying a line in clients that ignore `display:none`; raising it puts a
+  stray line of grey text at the top of production mail. Exempt by what it DOES — at most
+  1px in a rule that also says `mso-hide:all` — never by naming the files that do it.
+- **An exemption recognised by a side-effect excuses whatever else has the side-effect.**
+  The old scale forgave a logotype by its `.26em` tracking; with the wordmark gone from the
+  public surface, the only thing that clause still excused was the door's 10px mono
+  kickers, which share the tracking and are labels. It was deleted, not narrowed.
+- **A guard that spells a SIZE inside a regex about something else goes quiet the moment
+  type moves.** `EventTierSelectionTest` found the ticket row's perk colour with
+  `/\.ed-tier__perk\{ font-size:11\.5px; color:(#[0-9a-f]{6})/`; moving the row half a
+  pixel stopped the match, and a contrast floor that cannot find its colour is not being
+  checked. Anything under 18.66px owes 4.5:1 whatever its size. Find it by SELECTOR — the
+  right rule pinned to the wrong token, as with `camera=()`.
 
-**And a guard that spells a SIZE inside a regex about something else goes quiet the moment
-type moves.** `EventTierSelectionTest` found the ticket row's perk colour with
-`/\.ed-tier__perk\{ font-size:11\.5px; color:(#[0-9a-f]{6})/`, to check that no state
-layer takes that text below AA. Moving the row half a pixel stopped the regex matching, and
-a contrast floor that cannot find its colour is a contrast floor that is not being checked.
-The size was never the subject: anything under 18.66px is small text to 1.4.3 and owes the
-same 4.5:1. Find it by SELECTOR. This is `camera=()` again — the right rule pinned to the
-wrong token.
+Both guards run their detectors over planted text on every run (a shorthand, a media query,
+an inline `style=`, a two-step alias, typed capitals) because a sweep is evidence only once
+it has been seen to name a break.
 
 ## A declared token with no reader, and the three ways the sweep lies
 
@@ -1744,3 +1790,8 @@ of REFERENCE §6.5. **Colour comes from `Support\Accent` and nowhere else**: the
 32 tokens under their own names, families of four slots (`fill`, `edge`, `ink`, `wash`),
 meanings resolved by `Accent::for()`. Never invent a token the handoff does not name; never
 type a hex, `rgb()` or `hsl()` outside `Accent`. See the section above for why.
+**Type is REFERENCE §6.2, exactly** (owner, 3 Oct 2026): Playfair Display 700 for headlines,
+DM Sans for everything else, sizes from the closed ladder and fixed per breakpoint — never
+`vw` or `clamp()` — and JetBrains Mono only for references and codes, never a label, stat or
+kicker. No capitals anywhere but the ticket stub's CONFIRMED stamp; headings sentence case.
+`TypeScaleTest` and `MonoAndCaseTest` hold it; see "Type is the handoff's" above for why.

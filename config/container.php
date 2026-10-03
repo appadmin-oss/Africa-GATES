@@ -309,6 +309,49 @@ return [
                 return $memo = \AfricaGates\Services\PointsService::balance($id);
             }
         ));
+        // ── THE SHARED CHROME'S THREE READS (Phase 2 of the redesign) ─────────────
+        //
+        // All three are FUNCTIONS for the reason member_points is: a global is computed
+        // for four hundred routes when the view is built, before any request is known,
+        // and these are read once per page by the chrome at render time.
+        //
+        // The signed-in member's saved Display & reading, written into the first-paint
+        // script in <head> so a new device paints in their settings with nothing fetched
+        // (DisplayReadingPrefs). Null when signed out or never saved — and the head
+        // script then keeps what this browser had. Memoised: the layout reads it twice.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'member_display',
+            static function (): ?array {
+                static $memo = null;
+                if ($memo !== null) return $memo === false ? null : $memo;
+
+                $id = (int) ($_SESSION['user_id'] ?? 0);
+                $v  = $id > 0 ? \AfricaGates\Services\DisplayReadingPrefs::forUser($id) : null;
+                $memo = $v ?? false;
+
+                return $v;
+            }
+        ));
+        // The Menu's Status row light — the last RECORDED overall state, or null when the
+        // record is stale or missing (SystemStatus::light() says why it is not report()).
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'status_light',
+            static function (): ?array {
+                static $memo = null;
+                if ($memo !== null) return $memo === false ? null : $memo;
+                $v = \AfricaGates\Services\SystemStatus::light();
+                $memo = $v ?? false;
+
+                return $v;
+            }
+        ));
+        // The search palette's scope chips: the KEYS of ActivityFeedService::SCOPES, in
+        // order, so a chip cannot exist without a bucket or a bucket without a chip
+        // (SearchScopeTest). Which source answers which chip stays on the server.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'search_scopes',
+            static fn (): array => array_keys(\AfricaGates\Services\ActivityFeedService::SCOPES)
+        ));
         // Is any capability that processes PUBLIC-SUBMITTED content actually running on
         // this deployment? Drives the point-of-collection notice beside the nomination
         // form. A function, so a page that never draws the notice never asks — and so
@@ -390,13 +433,12 @@ return [
         // render time. Registered through the one method every bare mail environment
         // also calls, so the two cannot come to mean different things by `trans`.
         \AfricaGates\Support\Translator::register($twig->getEnvironment());
+        // The consent notice and preferences sheet (partials/cookie-consent.twig): this
+        // request's state, decided once by CookiePrefs from the real request in
+        // VisitTrackingMiddleware. Null where nothing primed it, which draws nothing.
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
-            'cookie_ask',
-            static fn (): bool => \AfricaGates\Services\CookiePrefs::asking()
-        ));
-        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
-            'cookie_return',
-            static fn (): string => \AfricaGates\Services\CookiePrefs::returnPath()
+            'consent',
+            [\AfricaGates\Services\CookiePrefs::class, 'current']
         ));
         // Allowlist-sanitise admin-authored rich text (blog/legacy bodies) at render
         // time — used instead of |raw so stored HTML can't inject script/handlers.

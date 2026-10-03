@@ -8,218 +8,370 @@ use AfricaGates\Support\CookieRegistry;
 use Tests\TestCase;
 
 /**
- * Is anything storing something on a visitor's device that the policy does not name?
+ * Does the published list say exactly what the code stores on a visitor's device — no less,
+ * and no more?
+ *
+ * Rebuilt on 3 Oct 2026 with the registry (GAPS Q11, C14; DESTROYED.md "Stale declarations
+ * on `/cookies`"). The old sweep asked ONE direction and had ONE blind spot, and both had
+ * already cost something:
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * THE FAULT THIS SWEEP EXISTS BECAUSE OF
+ * 1. DECLARED BUT NOT WRITTEN IS THE SAME STALE LEGAL PAGE
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * The published cookie policy said, in bold, "We set ONE cookie", and listed `PHPSESSID`
- * in a one-row table. There were three. `ag_region` and `ag_currency` are written by
- * `document.cookie` from the shop's region and currency selects and last a year; they were
- * added long after the policy was written and nothing connected the two events.
- *
- * The failure mode is FORGETTING, so a corrected list is not a fix — the next cookie would
- * do the same thing. This is the fix: a cookie or storage key that appears in the shipped
- * code and not in {@see CookieRegistry} fails the build, by name.
+ * It asked whether every key WRITTEN was declared, never whether every key DECLARED was
+ * written — so when the old pages were destroyed, seven storage rows and two cookies went
+ * on being published for writers that no longer existed. Over-disclosure is still a page
+ * describing a platform that is not running. Both directions are held now.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * WHAT IT HAD TO LEARN, AND WHAT IT CANNOT SEE
+ * 2. A KEY HELD IN A VARIABLE WAS INVISIBLE
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Storage keys are frequently per-item — `afg_voted_prog_12`, `ag-celebrated:nominee-88`,
- * `coi_declared_{{ programme.id }}` — so the registry declares PREFIXES and a swept key
- * matches if it starts with one. Matching on equality reported four false findings on the
- * first run, every one of them a key that is on the published list.
+ * The storage sweep read only a string LITERAL as the first argument, so
+ * `setItem(SESSION_KEY, '1')` — `ag_community_prompted`, written for months and never
+ * declared — passed. The sweep now resolves the argument: a literal; a variable assigned in
+ * the same file (its leading literal is the prefix — `'ag-door-q:' + TOKEN`); an option
+ * with a literal fallback (`opts.storageKey || ''`, plus every `storageKey:'…'` a caller
+ * passes); a method that returns one (`this.key()` → `'afStep:' + …`). And ANYTHING IT
+ * CANNOT RESOLVE FAILS, by file and expression — so the blind spot is closed by refusal
+ * rather than by cleverness: a key computed in a way this cannot read must be rewritten so
+ * it can, or the build is red. It reads every `.setItem(` whatever the receiver, so a store
+ * held in a variable (`var st = localStorage; st.setItem(…)`) is read too.
  *
- * It reads `vendor/` for nothing. Plyr and Lucide both touch storage, and neither is this
- * platform storing anything: a library's own key inside a player the page never
- * instantiates is not something a visitor is owed a policy entry for. The directory is
- * excluded by path, and named here so the exclusion is a decision rather than an accident.
+ * What it still cannot see, and says so: a write through `Storage.prototype` or bracket
+ * syntax (`localStorage['k'] = …`), IndexedDB, and a script no template loads (out of scope
+ * by definition — a file nothing executes stores nothing; `gee.js` is such a file until
+ * Phase 3 mounts it, and the day a template loads it, it is swept).
  */
 final class CookieRegistryTest extends TestCase
 {
-    /** Files a visitor's browser actually executes. */
-    private function shippedFiles(): array
+    private const ROOT = __DIR__ . '/../..';
+
+    /** @return array<string,string> path → body, for a directory and an extension pattern */
+    private function files(string $dir, string $ext): array
     {
-        $root = dirname(__DIR__, 2);
-        $out  = [];
-
-        foreach ([$root . '/templates', $root . '/public/assets/js', $root . '/src'] as $dir) {
-            if (!is_dir($dir)) continue;
-
-            $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir));
-            foreach ($it as $f) {
-                if (!$f->isFile()) continue;
-                $path = $f->getPathname();
-                // See the class docblock: a library's own storage is not ours to publish.
-                if (str_contains($path, '/vendor/')) continue;
-                if (!preg_match('/\.(twig|js|php)$/', $path)) continue;
-
-                $out[$path] = (string) file_get_contents($path);
-            }
+        $out = [];
+        if (!is_dir($dir)) return $out;
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir));
+        foreach ($it as $f) {
+            if (!$f->isFile() || !preg_match($ext, $f->getFilename())) continue;
+            if (str_contains($f->getPathname(), '/vendor/')) continue;
+            $out[$f->getPathname()] = (string) file_get_contents($f->getPathname());
         }
-
         return $out;
     }
 
-    public function test_every_cookie_the_shipped_code_writes_is_on_the_published_list(): void
+    /**
+     * What a visitor's browser actually executes: every template, every script a template
+     * loads, and the server code. A script nothing loads stores nothing.
+     *
+     * @param array<string,string> $templates
+     * @param array<string,string> $scripts  path under public/assets/js → body
+     * @return array<string,string>
+     */
+    private function scope(array $templates, array $scripts, array $php = []): array
     {
-        $declared = array_map('strtolower', CookieRegistry::names());
-        $found    = [];
-
-        foreach ($this->shippedFiles() as $path => $body) {
-            // `document.cookie = 'name=…'` — a literal written straight into the string.
-            if (preg_match_all('/document\.cookie\s*=\s*[\'"]([A-Za-z0-9_.-]+)=/', $body, $m)) {
-                foreach ($m[1] as $n) $found[strtolower($n)] = $path;
+        $loaded = [];
+        foreach ($templates as $body) {
+            if (preg_match_all('~/assets/js/([A-Za-z0-9_./-]+\.js)~', $body, $m)) {
+                foreach ($m[1] as $rel) $loaded[$rel] = true;
             }
+        }
+        $out = $templates + $php;
+        foreach ($scripts as $rel => $body) {
+            if (isset($loaded[$rel])) $out['public/assets/js/' . $rel] = $body;
+        }
+        return $out;
+    }
 
-            // The delegated form this codebase actually uses: the name travels in a
-            // `data-cookie` attribute and the writer is one generic listener in the
-            // layout. A sweep that only understood the literal form would have found
-            // NOTHING, which is precisely how these two went unpublished for so long.
+    /** @return array<string,string> */
+    private function shipped(): array
+    {
+        $norm = [];
+        foreach ($this->files(self::ROOT . '/public/assets/js', '/\.js$/') as $p => $b) {
+            $norm[(string) preg_replace('~^.*/public/assets/js/~', '', $p)] = $b;
+        }
+
+        return $this->scope(
+            $this->files(self::ROOT . '/templates', '/\.twig$/'),
+            $norm,
+            $this->files(self::ROOT . '/src', '/\.php$/'));
+    }
+
+    // ══ cookies ══════════════════════════════════════════════════════════════
+
+    /**
+     * Every cookie name the code writes, with whether each write is an expiry.
+     *
+     * @param array<string,string> $files
+     * @return array<string, array{path:string, expiry_only:bool}>
+     */
+    private function cookieWrites(array $files): array
+    {
+        $found = [];
+        $add = static function (string $name, string $path, bool $expiry) use (&$found): void {
+            $name = strtolower($name);
+            $prev = $found[$name]['expiry_only'] ?? true;
+            $found[$name] = ['path' => $path, 'expiry_only' => $prev && $expiry];
+        };
+
+        foreach ($files as $path => $body) {
+            if (preg_match_all('/document\.cookie\s*=\s*[\'"]([A-Za-z0-9_.-]+)=([^\'"]*)/', $body, $m, PREG_SET_ORDER)) {
+                foreach ($m as $x) $add($x[1], $path, str_contains($x[2], 'max-age=0'));
+            }
+            // The delegated form: the name in a `data-cookie` attribute, the writer one
+            // generic listener. It is how ag_region/ag_currency went unpublished for so long.
             if (preg_match_all('/data-cookie\s*=\s*"([A-Za-z0-9_.-]+)"/', $body, $m)) {
-                foreach ($m[1] as $n) $found[strtolower($n)] = $path;
+                foreach ($m[1] as $n) $add($n, $path, false);
             }
-
-            // PHP's own writer. Nothing uses it today; it is swept so that the day
-            // something does, the policy learns about it on the same commit.
             if (preg_match_all('/setcookie\s*\(\s*[\'"]([A-Za-z0-9_.-]+)[\'"]/', $body, $m)) {
-                foreach ($m[1] as $n) $found[strtolower($n)] = $path;
+                foreach ($m[1] as $n) $add($n, $path, false);
             }
-
-            // And the PSR-7 form, which is how the two server-side writers that remain
-            // actually set theirs (Languages::apply(), CookiePrefs::apply()):
-            // `withAddedHeader('Set-Cookie', …)` over parts beginning `self::COOKIE . '='`.
-            // The sweep was blind to it for as long as the templates' `data-cookie`
-            // writers kept the "found nothing" canary quiet; when those pages were
-            // destroyed (docs/handoff/DESTROYED.md) the canary fired, and this is the
-            // repair rather than a relaxation. The name is resolved from the same
-            // file's own constant — one file, one declaration.
+            // PSR-7: `withAddedHeader('Set-Cookie', …)` over parts beginning `self::CONST . '='`,
+            // the name resolved from the same file's own constant.
             if (preg_match('/with(?:Added)?Header\(\s*[\'"]Set-Cookie[\'"]/', $body)
-                && preg_match_all('/self::([A-Z_]+)\s*\.\s*[\'"]=/', $body, $m)) {
-                foreach (array_unique($m[1]) as $const) {
-                    if (preg_match('/const\s+' . $const . '\s*=\s*[\'"]([A-Za-z0-9_.-]+)[\'"]/', $body, $c)) {
-                        $found[strtolower($c[1])] = $path;
+                && preg_match_all('/self::([A-Z_]+)\s*\.\s*[\'"]=([^\'"]*)[\'"]/', $body, $m, PREG_SET_ORDER)) {
+                foreach ($m as $x) {
+                    if (preg_match('/const\s+' . $x[1] . '\s*=\s*[\'"]([A-Za-z0-9_.-]+)[\'"]/', $body, $c)) {
+                        $add($c[1], $path, str_contains($x[2], 'Max-Age=0'));
                     }
                 }
             }
         }
 
-        $this->assertNotSame([], $found,
-            'the sweep found no cookie writer at all — the patterns have stopped matching, '
-            . 'which is the state in which this test passes while proving nothing');
+        return $found;
+    }
 
-        foreach ($found as $name => $path) {
+    public function test_every_cookie_the_code_writes_is_published_and_a_retired_one_is_only_ever_expired(): void
+    {
+        $declared = array_map('strtolower', CookieRegistry::names());
+        $retired  = array_map(static fn (array $r): string => strtolower($r['name']), CookieRegistry::retired());
+        $found    = $this->cookieWrites($this->shipped());
+
+        $this->assertNotSame([], $found,
+            'the sweep found no cookie writer at all — the patterns have stopped matching');
+
+        foreach ($found as $name => $w) {
+            if (in_array($name, $retired, true)) {
+                $this->assertTrue($w['expiry_only'],
+                    "'{$name}' is retired and " . basename($w['path']) . ' writes it with a value — '
+                    . 'a retired cookie may only be expired');
+                continue;
+            }
             $this->assertContains($name, $declared,
-                "'{$name}' is set in " . basename($path) . " and is not in CookieRegistry, so "
+                "'{$name}' is set in " . basename($w['path']) . ' and is not in CookieRegistry, so '
                 . 'the published cookie policy does not mention it');
         }
     }
 
-    public function test_every_browser_storage_key_the_shipped_code_writes_is_published(): void
+    public function test_every_cookie_the_policy_publishes_is_actually_written(): void
     {
-        $prefixes = array_map(
-            static fn (array $s): string => strtolower((string) $s['key']),
-            CookieRegistry::storage()
-        );
+        // The other direction. The session cookie is written by PHP's session machinery,
+        // not by a line anybody can sweep for — exempt by what it IS, and only that one.
+        $found = $this->cookieWrites($this->shipped());
+        foreach (CookieRegistry::names() as $name) {
+            if ($name === CookieRegistry::sessionName()) continue;
+            $this->assertArrayHasKey(strtolower($name), $found,
+                "the policy publishes '{$name}' and nothing in the shipped code writes it — "
+                . 'a row for a writer that no longer exists is the same stale legal page');
+        }
+    }
 
+    // ══ browser storage ══════════════════════════════════════════════════════
+
+    /**
+     * Every storage key written, resolved; and every write it could NOT resolve.
+     *
+     * @param array<string,string> $files
+     * @return array{found: array<string,string>, unresolved: list<string>}
+     */
+    private function storageWrites(array $files): array
+    {
         $found = [];
-        foreach ($this->shippedFiles() as $path => $body) {
-            if (!preg_match_all(
-                '/(?:local|session)Storage\.(?:set|get|remove)Item\s*\(\s*[\'"]([^\'"]+)/',
-                $body, $m
-            )) continue;
+        $unresolved = [];
+        $lit = '(?:\'([^\']*)\'|"([^"]*)")';
 
-            foreach ($m[1] as $k) {
-                // `afg_voted_prog_{{ nominee.programme_id }}` — the Twig half is not part
-                // of the name a reader needs, and cutting at the interpolation is what
-                // makes the prefix comparison below meaningful.
-                $k = strtolower((string) preg_replace('/\{\{.*$/', '', $k));
-                if (trim($k) === '') continue;
-                $found[$k] = $path;
+        // Option names a caller passes a literal for, across the whole scope —
+        // `agChat({storageKey:'ag-copilot'})` is how `opts.storageKey` gets its value.
+        $options = [];
+        foreach ($files as $body) {
+            if (preg_match_all('/([A-Za-z_]\w*)\s*:\s*' . $lit . '/', $body, $m, PREG_SET_ORDER)) {
+                foreach ($m as $x) $options[$x[1]][] = ($x[2] ?? '') !== '' ? $x[2] : ($x[3] ?? '');
             }
         }
 
+        foreach ($files as $path => $body) {
+            if (!preg_match_all('/\.setItem\s*\(\s*([^,]+?)\s*,/', $body, $m)) continue;
+
+            foreach ($m[1] as $arg) {
+                $keys = $this->resolve(trim($arg), $body, $options, 0);
+                if ($keys === null) {
+                    $unresolved[] = basename($path) . ': setItem(' . trim($arg) . ', …)';
+                    continue;
+                }
+                foreach ($keys as $k) {
+                    // `coi_declared_{{ programme.id }}` — the Twig half is not part of the name.
+                    $k = strtolower((string) preg_replace('/\{\{.*$/', '', $k));
+                    if (trim($k) !== '') $found[$k] = $path;
+                }
+            }
+        }
+
+        return ['found' => $found, 'unresolved' => $unresolved];
+    }
+
+    /**
+     * The literal key, or prefix, an argument expression writes; null if it cannot be read.
+     *
+     * @param array<string,list<string>> $options
+     * @return list<string>|null
+     */
+    private function resolve(string $expr, string $body, array $options, int $depth): ?array
+    {
+        if ($depth > 3) return null;
+        $expr = trim($expr);
+
+        // A literal, or a literal followed by `+ something` — the literal is the prefix.
+        if (preg_match('/^(?:\'([^\']*)\'|"([^"]*)")/', $expr, $m)) {
+            return [($m[1] ?? '') !== '' ? $m[1] : ($m[2] ?? '')];
+        }
+
+        // `a || 'fallback'` — every value either side can take.
+        if (str_contains($expr, '||')) {
+            $out = [];
+            foreach (explode('||', $expr) as $part) {
+                $r = $this->resolve($part, $body, $options, $depth + 1);
+                if ($r === null) return null;
+                $out = array_merge($out, $r);
+            }
+            return $out;
+        }
+
+        // `opts.storageKey` — whatever literal any caller passes for that option.
+        if (preg_match('/^\w+\.(\w+)$/', $expr, $m) && !preg_match('/^this\./', $expr)) {
+            return $options[$m[1]] ?? [];
+        }
+
+        // `this.key()` / `key()` — the method's return expression, in this file.
+        if (preg_match('/^(?:this\.)?(\w+)\(\)$/', $expr, $m)) {
+            if (preg_match('/\b' . preg_quote($m[1], '/') . '\s*\(\)\s*\{\s*return\s+([^;}]+)/', $body, $r)) {
+                return $this->resolve($r[1], $body, $options, $depth + 1);
+            }
+            return null;
+        }
+
+        // A variable: its assignment in this file.
+        if (preg_match('/^[A-Za-z_$][\w$]*$/', $expr)) {
+            if (preg_match('/(?:var|let|const)\s+' . preg_quote($expr, '/') . '\s*=\s*([^;,\n]+)/', $body, $a)) {
+                return $this->resolve($a[1], $body, $options, $depth + 1);
+            }
+            return null;
+        }
+
+        return null;
+    }
+
+    public function test_every_storage_key_the_code_writes_is_published_and_nothing_hides_from_the_sweep(): void
+    {
+        $prefixes = array_map(static fn (array $s): string => strtolower($s['key']), CookieRegistry::storage());
+        ['found' => $found, 'unresolved' => $unresolved] = $this->storageWrites($this->shipped());
+
         $this->assertNotSame([], $found, 'the storage sweep matched nothing');
+        $this->assertSame([], $unresolved,
+            "a storage write whose key this sweep cannot read — rewrite it so the key is a literal, "
+            . "a variable, an option or a method returning one:\n" . implode("\n", $unresolved));
 
         foreach ($found as $key => $path) {
             $ok = false;
-            foreach ($prefixes as $p) {
-                if (str_starts_with($key, $p)) { $ok = true; break; }
-            }
-
-            $this->assertTrue($ok,
-                "browser storage key '{$key}' is written in " . basename($path)
+            foreach ($prefixes as $p) if (str_starts_with($key, $p)) { $ok = true; break; }
+            $this->assertTrue($ok, "browser storage key '{$key}' is written in " . basename($path)
                 . ' and no CookieRegistry::storage() entry covers it');
         }
     }
 
-    public function test_the_sweep_names_a_cookie_nobody_declared(): void
+    public function test_every_storage_key_the_policy_publishes_is_actually_written(): void
     {
-        // ── PROVING THE SWEEP FAILS ──────────────────────────────────────────
-        //
-        // Every sweep in this repository exists because something shipped, and several of
-        // them passed straight over the thing they were written for. So the matcher is run
-        // here against a file that offends, and it has to find it. Without this, a regex
-        // that quietly stopped matching would leave a green test and no coverage — which
-        // is the state the policy was already in.
-        $offending = <<<'JS'
-        document.cookie = 'ag_experiment=' + v + ';path=/';
-        JS;
+        $found = array_keys($this->storageWrites($this->shipped())['found']);
+        foreach (CookieRegistry::storage() as $s) {
+            $p = strtolower($s['key']);
+            $hit = array_filter($found, static fn (string $k): bool => str_starts_with($k, $p));
+            $this->assertNotSame([], $hit,
+                "the policy publishes storage key '{$s['key']}' and nothing in the shipped code "
+                . 'writes it — the seven stale rows DESTROYED.md recorded were exactly this');
+        }
+    }
 
-        preg_match_all('/document\.cookie\s*=\s*[\'"]([A-Za-z0-9_.-]+)=/', $offending, $m);
+    // ══ proving the sweeps fail ══════════════════════════════════════════════
 
-        $this->assertSame(['ag_experiment'], $m[1],
-            'the matcher no longer recognises a plain document.cookie write');
-        $this->assertNotContains('ag_experiment', array_map('strtolower', CookieRegistry::names()));
+    public function test_the_sweeps_name_what_they_were_built_to_catch(): void
+    {
+        // A sweep is evidence only once it has been seen to name a break.
+        $plant = [
+            'templates/x.twig' => "<script src=\"{{ asset('/assets/js/planted.js') }}\"></script>",
+        ];
+        $scripts = [
+            // The exact shape that got past the old sweep (`ag_community_prompted`).
+            'planted.js'  => "var SESSION_KEY = 'ag_community_prompted'; sessionStorage.setItem(SESSION_KEY, '1');"
+                           . " var st = localStorage; st.setItem('ag_aliased', 1);"
+                           . " function k(){ return 'afStep:' + 1 } sessionStorage.setItem(k(), 1);"
+                           . " localStorage.setItem(window.computeKey(), 1);",
+            // Loaded by nothing, so out of scope — it stores nothing.
+            'orphan.js'   => "localStorage.setItem('ag_orphan', 1);",
+        ];
+        $r = $this->storageWrites($this->scope($plant, $scripts));
 
-        // And the delegated form, which is the one that actually got past everybody.
-        preg_match_all('/data-cookie\s*=\s*"([A-Za-z0-9_.-]+)"/',
-            '<select data-ag-do="set-cookie-reload" data-cookie="ag_theme">', $m2);
-        $this->assertSame(['ag_theme'], $m2[1]);
+        $this->assertArrayHasKey('ag_community_prompted', $r['found'], 'a key held in a variable is invisible again');
+        $this->assertArrayHasKey('ag_aliased', $r['found'], 'a store held in a variable is invisible again');
+        $this->assertArrayHasKey('afstep:', $r['found'], 'a key returned by a method is invisible again');
+        $this->assertSame(['planted.js: setItem(window.computeKey(), …)'], $r['unresolved'],
+            'an unreadable key must be reported, never skipped');
+        $this->assertArrayNotHasKey('ag_orphan', $r['found'], 'a script no template loads was swept');
+
+        // And the two cookie writers that got past everybody.
+        $c = $this->cookieWrites([
+            'a.js'  => "document.cookie = 'ag_experiment=' + v + ';path=/';",
+            'b.twig' => '<select data-ag-do="set-cookie-reload" data-cookie="ag_theme">',
+            'C.php' => "const OLD = 'ag_old'; \$r->withAddedHeader('Set-Cookie', self::OLD . '=v; Path=/');",
+        ]);
+        $this->assertSame(['ag_experiment', 'ag_theme', 'ag_old'], array_keys($c));
+        $this->assertFalse($c['ag_old']['expiry_only'], 'a retired cookie written with a value must be caught');
+    }
+
+    // ══ the declarations themselves ══════════════════════════════════════════
+
+    public function test_every_entry_is_in_one_of_the_four_categories_and_explains_itself(): void
+    {
+        $cats = array_map(static fn (array $c): string => $c['key'], CookieRegistry::categories());
+        $this->assertSame(CookiePrefs::CATEGORIES, $cats, 'the policy and the resolver disagree about the categories');
+
+        foreach (CookieRegistry::cookies() as $c) {
+            $this->assertContains($c['category'], $cats, "'{$c['name']}' has a category no part of the page knows how to draw");
+            $this->assertNotSame('', trim($c['purpose']), "'{$c['name']}' is published with no explanation");
+        }
+        foreach (CookieRegistry::storage() as $s) {
+            $this->assertContains($s['category'], $cats, "'{$s['key']}' has no category");
+            $this->assertContains($s['where'], ['local', 'session', 'local-or-session']);
+            $this->assertNotSame('', trim($s['purpose']));
+        }
+
+        // The record of a refusal is essential and itself declared; the old record is
+        // retired, not declared.
+        $this->assertContains(CookiePrefs::COOKIE, CookieRegistry::names());
+        $this->assertNotContains(CookiePrefs::LEGACY, CookieRegistry::names());
+        $this->assertContains(CookiePrefs::LEGACY, array_column(CookieRegistry::retired(), 'name'));
     }
 
     public function test_the_session_cookie_is_described_from_the_live_configuration(): void
     {
-        // Typed, these drift. `public/index.php` sets a seven-day lifetime; the policy used
-        // to say "Seven days" in prose beside it and there was nothing joining them.
         $this->assertSame(session_name(), CookieRegistry::sessionName());
 
         $params = session_get_cookie_params();
         if ((int) ($params['lifetime'] ?? 0) > 0) {
             $days = (int) floor(((int) $params['lifetime']) / 86400);
-            $this->assertStringContainsString(
-                $days === 7 ? 'Seven days' : (string) $days,
-                CookieRegistry::sessionLifetime());
+            $this->assertStringContainsString($days === 7 ? 'Seven days' : (string) $days, CookieRegistry::sessionLifetime());
         } else {
             $this->assertStringContainsString('close your browser', CookieRegistry::sessionLifetime());
         }
-    }
-
-    public function test_nothing_stored_is_refusable_and_the_policy_may_rely_on_that(): void
-    {
-        // The load-bearing claim on the page: there is no consent banner because the
-        // counting stores nothing extra on the device. If a cookie is ever added in a
-        // category a visitor could refuse, that argument stops holding and the page has to
-        // change — so this fails then, rather than the page quietly becoming untrue.
-        $this->assertFalse(CookieRegistry::anyRefusable(),
-            'a refusable cookie now exists; /cookies still argues that none does');
-
-        foreach (CookieRegistry::cookies() as $c) {
-            $this->assertContains($c['category'],
-                [CookieRegistry::ESSENTIAL, CookieRegistry::PREFERENCE, CookieRegistry::ANALYTICS],
-                "'{$c['name']}' has a category no part of the page knows how to draw");
-            $this->assertNotSame('', trim((string) $c['purpose']),
-                "'{$c['name']}' is published with no explanation of why it exists");
-        }
-    }
-
-    public function test_the_consent_cookie_is_itself_declared(): void
-    {
-        // The one that records a refusal. A cookie policy that failed to mention the
-        // cookie storing the visitor's answer about cookies would be a good joke and a
-        // real omission.
-        $this->assertContains(CookiePrefs::COOKIE, CookieRegistry::names());
     }
 }

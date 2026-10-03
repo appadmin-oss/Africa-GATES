@@ -3,231 +3,217 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use Tests\Support\ChromeRender;
 use Tests\TestCase;
 
 /**
  * The site header: what it must contain, and the one thing it must not.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * THE HEADER IS THE ONE COMPONENT EVERY PAGE CARRIES
+ * DESTROYED AND REBUILT WITH THE HEADER (Phase 2, 3 Oct 2026)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Which makes each of its faults a fault on four hundred routes at once, and makes the
- * usual way of checking one — open a page and look — the way that misses the state you
- * are not signed in as.
+ * `partials/site-header.twig` was deleted and written again from SiteHeader.dc.html, and
+ * this file was rebuilt with it — every rule the old file held, plus the three the destroy
+ * left as prose in `docs/handoff/inventory/` (the green button, the hairline, the toolbar's
+ * arrow keys), each watched failing before it was trusted (docs/handoff/PHASE-2.md).
  *
- * Three things are pinned here and each has a reason outside taste:
- *
- * · NO GREEN BUTTON, IN EITHER SIGNED-IN STATE. REFERENCE §6.1 reserves green for THE
- *   primary action inside the page. A green pill in the chrome is on screen beside every
- *   page's own call to action and wins, so the page's real action becomes the second
- *   loudest thing on it — on every page. The phase file lists this as a Done-when line;
- *   the old header had `.ag-vote` in exactly that spot.
- *
- * · EVERY DESTINATION IN THE PANELS IS A REAL ROUTE. The panels are the only way into
- *   most of this site from most of it, and `SiteLinkIntegrityTest` sweeps hrefs across
- *   all templates — but the header's are written as a Twig data list, which is the form
- *   a literal-href sweep cannot see. `PublicResultsTest` had exactly that blind spot and
- *   it was found by breaking it.
- *
- * · THE SETTINGS PANEL IS THE SHARED PARTIAL. Four surfaces now offer Display & reading:
- *   this popover, the phone Quick settings sheet, the Menu's sub-view and the full
- *   block. Three of them include one file. A fourth copy of seven switches is how the
- *   halves of a setting come to disagree about whether it is on, and nothing on any
- *   screen shows the disagreement until somebody opens two of them.
+ * The header is the one component every page carries, which makes each of its faults a
+ * fault on four hundred routes at once — and makes "open a page and look" the check that
+ * misses the signed-in state you are not in. So the states are RENDERED here, both of them.
  */
 final class SiteHeaderTest extends TestCase
 {
-    /**
-     * The header, which is a PARTIAL and no longer the legacy layout's whole chrome.
-     *
-     * It was `layout/nav.twig`, and that file was two things at once: the desktop
-     * header and the phone's tab bar, Menu sheet and language prompt. The moment a
-     * page on the redesign shell wanted a header, the bundle came with it — a tab bar
-     * on a flow page, and a second `data-ag-menu-sheet` beside the one the shell
-     * already mounts, where the opener finds the first and the Menu appears dead.
-     */
-    private const NAV = __DIR__ . '/../../templates/partials/site-header.twig';
+    private const NAV = 'templates/partials/site-header.twig';
 
-    private function nav(): string
-    {
-        return (string) file_get_contents(self::NAV);
-    }
+    private const MEMBER = ['user_id' => 1, 'user_name' => 'Chioma Obi'];
 
-    /** The template with `{# … #}` removed — a comment reaches nobody. */
     private function code(): string
     {
-        return (string) preg_replace('/\{#.*?#\}/s', '', $this->nav());
+        return ChromeRender::source(self::NAV);
+    }
+
+    /** @return array<string,list<string>> panel key => hrefs, read from the data list the header loops over */
+    private function panels(): array
+    {
+        $out = [];
+        $code = $this->code();
+        preg_match_all("/\\{k:'(\\w+)', label:'[^']+', items:\\[(.*?)\\]\\}/s", $code, $m, PREG_SET_ORDER);
+        foreach ($m as $p) {
+            preg_match_all("/href:'([^']+)'/", $p[2], $h);
+            $out[$p[1]] = $h[1];
+        }
+        return $out;
     }
 
     public function test_the_bar_carries_two_top_links_and_no_more(): void
     {
-        // §18.5 rejects a bar carrying search, Aa, language, cart, account and half a
-        // dozen section links. Two panels is the whole of the primary navigation.
-        //
-        // COUNTED FROM THE DATA LIST, not from the attribute: the markup declares
-        // `data-ag-mega-trigger` ONCE inside a loop that renders it twice, so counting
-        // the attribute answers 1 — and the inline controller mentions it twice more as
-        // a selector, which is how the naive count answered 3. A sweep that cannot tell
-        // a declaration from a selector is the shape DeadTokenTest was built around.
+        // §18.5 rejects a bar carrying half a dozen section links. Counted from the DATA
+        // LIST, because the trigger is declared once inside a loop that renders it twice.
         preg_match_all("/\\{k:'(\\w+)', label:'([^']+)'/", $this->code(), $m);
-
         $this->assertSame(['Participate', 'Explore'], $m[2],
             'the header has grown, lost or renamed a top-level panel');
     }
 
+    public function test_each_panel_is_the_handoffs_six_exactly(): void
+    {
+        // §7.1, and the owner's decision of 3 Oct 2026: Explore is the handoff's six, and
+        // Results is NOT in it. The previous header carried Results as a seventh so a
+        // decided award stayed reachable by browsing (PublicResultsTest); the owner removed
+        // it, and the reachability of /results is now the search index's and the rebuilt
+        // footer's to owe (inventory/_partials.md, layout/footer.twig).
+        $this->assertSame([
+            'participate' => ['/nominate', '/vote', '/awards', '/giving', '/account/register', '/integrity'],
+            'explore'     => ['/discover', '/pulse', '/events', '/legacy', '/blog', '/status'],
+        ], $this->panels());
+        $this->assertStringNotContainsString("href:'/results'", $this->code(),
+            'Results is back in the header — the owner removed it (3 Oct 2026)');
+    }
+
     public function test_every_destination_in_the_panels_is_a_real_page(): void
     {
-        // Read from the Twig data list, which is what the header actually loops over.
-        // A sweep matching `href="/x"` finds none of these — see the class docblock.
-        preg_match_all("/href:'([^']+)'/", $this->code(), $m);
-        $this->assertGreaterThanOrEqual(12, count($m[1]), 'the panels lost most of their items');
+        // Read from the Twig data list, which is the form a literal-href sweep cannot see.
+        $hrefs = array_merge(...array_values($this->panels()));
+        $this->assertCount(12, $hrefs, 'the panels lost items');
 
-        $routes = (string) file_get_contents(__DIR__ . '/../../src/routes.php');
+        $routes = (string) file_get_contents(dirname(__DIR__, 2) . '/src/routes.php');
         $missing = [];
-        foreach (array_unique($m[1]) as $href) {
+        foreach (array_unique($hrefs) as $href) {
             $path = '/' . trim($href, '/');
-            // Declared relative to a group, so `/shop/cart` is `'/cart'` inside `/shop`.
             $last = '/' . substr($path, (int) strrpos($path, '/') + 1);
             if (!str_contains($routes, "'" . $path . "'") && !str_contains($routes, "'" . $last . "'")) {
                 $missing[] = $href;
             }
         }
-
-        $this->assertSame([], $missing,
-            'the header points at ' . implode(', ', $missing) . ' and nothing serves them');
+        $this->assertSame([], $missing, 'the header points at ' . implode(', ', $missing) . ' and nothing serves them');
     }
 
-    public function test_results_is_reachable_by_browsing(): void
+    public function test_there_is_no_green_button_in_either_signed_in_state(): void
     {
-        // Not in either of §7.1's lists, and in the header anyway. `PublicResultsTest`
-        // is the reason: the page was built, the Pulse and the emails linked it, and
-        // nobody browsing the site could reach a decided award. See GAPS.md §9.8.
-        $this->assertStringContainsString("href:'/results'", $this->code());
+        // §6.1: green is THE primary action inside the page. A green pill in the chrome is
+        // on screen beside every page's own call to action and wins. Rendered in BOTH
+        // states, because the one you are not signed in as is the one nobody looks at.
+        foreach (['signed out' => [], 'signed in' => self::MEMBER] as $state => $session) {
+            $html = ChromeRender::html('/_dev/ui', $session);
+            $this->assertMatchesRegularExpression('~<div class="ag-head"~', $html, "no header rendered ($state)");
+            $head = substr($html, (int) strpos($html, '<div class="ag-head"'));
+            $head = substr($head, 0, (int) strpos($head, '<main'));
+            $this->assertStringNotContainsString('ag-btn--primary', $head, "a primary (green) button in the header ($state)");
+            $this->assertStringContainsString($state === 'signed in' ? 'class="ag-head__av"' : 'class="ag-head__signin"', $head);
+        }
+
+        // And the two controls' rules paint nothing green — the signed-out pill once WAS.
+        $css = ChromeRender::code('public/assets/css/components/chrome.css');
+        foreach (ChromeRender::rules($css) as [$sel, $body]) {
+            if (!preg_match('~\.ag-head__(signin|av)\b~', $sel)) continue;
+            $this->assertDoesNotMatchRegularExpression('~--ag-green~', $body, "$sel is painted green");
+        }
     }
 
-    public function test_the_toolbar_holds_exactly_search_display_and_language(): void
+    public function test_the_hairline_is_dropped_while_a_panel_is_open(): void
+    {
+        // The panel hangs from the bar with no gap; a rule between them cuts it in half.
+        $css = ChromeRender::code('public/assets/css/components/chrome.css');
+        $found = false;
+        foreach (ChromeRender::rules($css) as [$sel, $body]) {
+            if (str_contains($sel, '.ag-head.is-mega') && str_contains($sel, '.ag-head__bar')
+                && preg_match('~border-bottom-color\s*:\s*transparent~', $body)) $found = true;
+        }
+        $this->assertTrue($found, 'nothing drops the bar\'s hairline while a panel is open');
+        $js = ChromeRender::code('public/assets/js/header.js');
+        $this->assertStringContainsString("classList.add('is-mega')", $js);
+        $this->assertStringContainsString("classList.remove('is-mega')", $js);
+    }
+
+    public function test_the_toolbar_holds_exactly_search_display_and_language_and_answers_the_arrows(): void
     {
         $code = $this->code();
-
         $this->assertStringContainsString('role="toolbar"', $code);
-        $this->assertSame(3, substr_count($code, 'ag-tools__b'),
+        $this->assertSame(3, preg_match_all('~class="ag-tools__b\b~', $code),
             'the toolbar pill is search, Aa and language — a fourth control belongs in a panel');
         $this->assertStringContainsString('data-ag-search-open', $code);
         $this->assertStringContainsString('data-ag-pop="aa"', $code);
         $this->assertStringContainsString('data-ag-pop="lang"', $code);
 
-        // `role="toolbar"` is a claim about arrow-key navigation, and the half of this
-        // test that held the claim read `header.js`, which implemented it. That script
-        // was destroyed on 3 Oct 2026 with the other orphans of the old pages, so the
-        // claim is currently UNBACKED: the toolbar answers Tab only. Phase 2 must restore
-        // the arrow keys and this assertion with them — see inventory/_scripts.md.
+        // `role="toolbar"` is a claim about the arrow keys: one tab stop, ← → between the
+        // three. The script half was lost with header.js on 3 Oct 2026 and the claim stood
+        // unbacked; it is held again here, against the rebuilt header.js.
+        $js = ChromeRender::code('public/assets/js/header.js');
+        $this->assertStringContainsString('[data-ag-toolbar]', $js);
+        $this->assertStringContainsString("'ArrowRight'", $js);
+        $this->assertMatchesRegularExpression('~tabIndex\s*=\s*i === 0 \? 0 : -1~', $js, 'the toolbar is not one tab stop');
+        $this->assertStringContainsString('data-ag-toolbar', $code);
     }
 
-    public function test_the_display_popover_is_the_shared_partial_and_not_a_fourth_copy(): void
+    public function test_the_display_popover_is_the_shared_partial_and_not_a_second_copy(): void
     {
         $this->assertStringContainsString("include 'partials/display-reading.twig'", $this->code());
-        // Nothing in the header may spell a switch itself.
         $this->assertStringNotContainsString('data-ag-toggle=', $this->code());
     }
 
     public function test_the_language_menu_works_without_javascript(): void
     {
-        $code = $this->code();
-
-        // Links, so the middleware stores the choice on a plain navigation.
         $this->assertMatchesRegularExpression(
             '/<a class="ag-pop__lang"[^>]*href="\{\{ lang_url\(l\.code\) \}\}"/',
-            $code
+            $this->code()
         );
-        $this->assertStringNotContainsString('data-ag-pick-lang', $code);
+        $this->assertStringNotContainsString('data-ag-pick-lang', $this->code());
+    }
+
+    public function test_every_trigger_returns_focus_and_closes_the_others(): void
+    {
+        // §7.1: "Opening one panel closes the other panels and popovers … focus returns to
+        // the trigger." One controller for all of them, so two cannot be open at once.
+        $js = ChromeRender::code('public/assets/js/header.js');
+        $this->assertMatchesRegularExpression('~function open\(layer.*?if \(openLayer && openLayer !== layer\) close\(openLayer~s', $js);
+        $this->assertMatchesRegularExpression("~if \\(returnFocus\\) layer\\.trigger\\.focus\\(\\)~", $js);
+        $this->assertMatchesRegularExpression("~'Escape'.*?close\\(layer, true\\)~s", $js);
+        $this->assertStringContainsString('[data-ag-mega-scrim]', $js);
     }
 
     public function test_each_sheet_is_mounted_by_the_layout_that_can_open_it(): void
     {
         $code  = $this->code();
-        $shell = (string) preg_replace('/\{#.*?#\}/s', '',
-            (string) file_get_contents(__DIR__ . '/../../templates/layout/shell.twig'));
+        $shell = ChromeRender::source('templates/layout/shell.twig');
 
-        // The Menu is the phone's, so it is mounted by the layout and never by the header,
-        // which is tablet-and-desktop. The legacy chrome file (`layout/nav.twig`) that
-        // mounted the other copy was destroyed on 3 Oct 2026 (docs/handoff/DESTROYED.md),
-        // and the half of this test that read it went with it.
-        $this->assertSame(0, substr_count($code, 'partials/menu-sheet.twig'),
-            'the header mounts the Menu, so a shell page draws two');
-        $this->assertSame(1, substr_count($shell, 'partials/menu-sheet.twig'),
-            'the Menu is mounted twice by the shell');
+        foreach (['partials/menu-sheet.twig', 'partials/quick-settings.twig'] as $sheet) {
+            $this->assertSame(0, substr_count($code, $sheet), "the header mounts $sheet, so a page draws two");
+            $this->assertSame(1, substr_count($shell, $sheet), "the shell mounts $sheet other than once");
+        }
+        $this->assertSame(1, substr_count($shell, "'partials/site-header.twig'"), 'the shell must mount the header, once');
+    }
 
-        // Quick settings is on the SHELL ONLY, and that is the §18 rule rather than a
-        // tidy-up: its one trigger is the phone app bar's avatar. Mounting it where no app
-        // bar exists put a dialog in ~180 pages that nothing on any of them could open —
-        // every part complete except the way in. `ChromeReachabilityTest` is the general
-        // form; this pins the instance that shipped.
-        $this->assertSame(0, substr_count($code, 'partials/quick-settings.twig'),
-            'the header mounts Quick settings, so a shell page draws two');
-        $this->assertSame(1, substr_count($shell, 'partials/quick-settings.twig'));
+    public function test_a_page_never_mounts_the_chrome_itself(): void
+    {
+        // The chrome is the LAYOUT's. A page that includes the header, the tab bar or a
+        // sheet draws a second copy beside the shell's — two `data-ag-menu-sheet` dialogs,
+        // and the opener finds the first, so the tab bar's Menu appears dead. This is the
+        // rule `layout/nav.twig`'s destroyed guard held, re-expressed for the shell.
+        $root = dirname(__DIR__, 2) . '/templates/pages';
+        $chrome = ['site-header', 'app-bar', 'tab-bar', 'menu-sheet', 'quick-settings', 'site-search', 'shortcuts', 'lang-prompt'];
+        $bad = [];
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root));
+        foreach ($it as $f) {
+            if (!$f->isFile() || $f->getExtension() !== 'twig') continue;
+            $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($f->getPathname()));
+            foreach ($chrome as $c) {
+                if (str_contains($body, "partials/$c.twig")) $bad[] = basename($f->getPathname()) . " includes partials/$c.twig";
+            }
+        }
+        $this->assertSame([], $bad, implode("\n", $bad));
     }
 
     public function test_no_id_appears_twice_in_one_document(): void
     {
-        // ══════════════════════════════════════════════════════════════════════
-        // THE FAULT IS A DUPLICATE ID, NOT A DUPLICATE MOUNT
-        // ══════════════════════════════════════════════════════════════════════
-        //
-        // `getElementById` answers with the FIRST match, and a `for=` or an
-        // `aria-labelledby` resolves the same way. So two copies of one id in a
-        // document means every control the second copy wired belongs to the first —
-        // silently. Measured twice in this work:
-        //
-        //   · the search palette, mounted by both the header and the legacy layout,
-        //     put two `id="agsInput"` in the home page and stopped responding;
-        //   · `display-reading.twig` is mounted by the header's Aa popover AND the
-        //     Menu's sub-view, so pressing "Language" in the Menu moved focus into a
-        //     panel that was not open.
-        //
-        // The second of those is a partial that SHOULD be mounted twice — three
-        // surfaces share one set of switches on purpose, and splitting them is how
-        // the halves of a setting come to disagree. What it may not do is carry a
-        // fixed id, so it takes a `uid`. That is why this counts IDS and not mounts:
-        // a mount rule would have forced the wrong fix.
-        // `layout/gates.twig` left this list when it was destroyed (DESTROYED.md).
-        foreach (['layout/shell.twig'] as $layout) {
-            $ids = [];
-            $this->collectIds($layout, $ids);
-
-            $twice = [];
-            foreach ($ids as $id => $n) if ($n > 1) $twice[] = $id . ' ×' . $n;
-
-            $this->assertSame([], $twice,
-                $layout . ' renders these ids more than once, so `getElementById`, every '
-                . '`for=` and every `aria-labelledby` resolves to the first: ' . implode(', ', $twice));
+        // `getElementById`, every `for=` and every `aria-labelledby` resolve to the FIRST
+        // match. Display & reading is mounted twice on purpose (Aa popover, Menu) and so
+        // takes a `uid`; this counts ids rather than mounts, so it cannot force the wrong fix.
+        // Measured on the RENDERED page, in both signed-in states.
+        foreach (['signed out' => [], 'signed in' => self::MEMBER] as $state => $session) {
+            $html = ChromeRender::html('/_dev/ui', $session);
+            preg_match_all('/\sid="([^"]+)"/', $html, $m);
+            $twice = array_keys(array_filter(array_count_values($m[1]), static fn (int $n): bool => $n > 1));
+            $this->assertSame([], $twice, "ids rendered more than once ($state): " . implode(', ', $twice));
         }
-    }
-
-    /**
-     * Every literal `id="..."` a layout reaches, counted, following includes down.
-     *
-     * An id carrying `{{ }}` is skipped: it is per-mount by construction, which is the
-     * fix this test asks for, and counting the template text would report it as a
-     * duplicate of itself.
-     *
-     * @param array<string,int> $ids
-     */
-    private function collectIds(string $path, array &$ids, int $depth = 0): void
-    {
-        if ($depth > 12) return;
-        $file = __DIR__ . '/../../templates/' . $path;
-        if (!is_file($file)) return;
-
-        $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($file));
-
-        preg_match_all('/\bid="([^"]+)"/', $body, $m);
-        foreach ($m[1] as $id) {
-            if (str_contains($id, '{{')) continue;
-            $ids[$id] = ($ids[$id] ?? 0) + 1;
-        }
-
-        preg_match_all("/\\{%-? *include '([^']+)'/", $body, $inc);
-        foreach ($inc[1] as $f) $this->collectIds($f, $ids, $depth + 1);
     }
 }

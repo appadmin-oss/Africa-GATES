@@ -228,10 +228,25 @@ final class LanguageTest extends TestCase
         $this->assertSame([], $bad->getHeader('Set-Cookie'),
             'an unsupported code stores nothing, so the prompt may still ask');
 
-        $good = $mw->process($this->request('/?lang=fr'), $this->handler());
+        // Remembered for a year only with the visitor's Preferences answer (CookiePrefs,
+        // GAPS Q11). Without it the language still applies — the visitor asked for it just
+        // now — as a session cookie, forgotten when the browser closes.
+        $session = $mw->process($this->request('/?lang=fr'), $this->handler());
+        $once = implode(' ', $session->getHeader('Set-Cookie'));
+        $this->assertStringContainsString('ag_lang=fr', $once);
+        $this->assertStringNotContainsString('Max-Age', $once,
+            'the language was kept for a year for somebody who never allowed Preferences');
+
+        $yes  = rawurlencode((string) json_encode(['v' => 1, 'preferences' => true, 'analytics' => null, 'marketing' => null]));
+        $good = $mw->process($this->request('/?lang=fr')->withCookieParams(['ag_consent' => $yes]), $this->handler());
         $set = implode(' ', $good->getHeader('Set-Cookie'));
         $this->assertStringContainsString('ag_lang=fr', $set);
         $this->assertStringContainsString('Max-Age=' . Languages::TTL, $set);
+
+        // And a browser signal beats that yes: if anything said no, the answer is no.
+        $gpc = $mw->process($this->request('/?lang=fr')->withCookieParams(['ag_consent' => $yes])
+            ->withHeader('Sec-GPC', '1'), $this->handler());
+        $this->assertStringNotContainsString('Max-Age', implode(' ', $gpc->getHeader('Set-Cookie')));
         $this->assertStringContainsString('SameSite=Lax', $set);
         // Nothing on any page needs to read it: the language is already on `<html lang>`
         // in the markup the server sent. Handing scripts one more stable value would
@@ -302,6 +317,69 @@ final class LanguageTest extends TestCase
         $head = (string) file_get_contents(__DIR__ . '/../../templates/partials/a11y-head.twig');
         $this->assertStringNotContainsString('d.lang=', $head,
             'the head script must not re-answer a question the server already answered in the markup');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // The first-visit prompt, RENDERED through its gate (GAPS §3.8)
+    // ══════════════════════════════════════════════════════════════════════════
+    //
+    // `shouldAsk()` above was always right, and the prompt still asked again on every page:
+    // the include was unconditional and `lang_ask()` had no caller. A test of the gate in
+    // isolation passed over exactly that, so these render the page the way a visitor gets
+    // it — through LanguageMiddleware, with and without the cookie — and look for the row.
+
+    public function test_the_prompt_is_drawn_for_somebody_who_has_not_answered(): void
+    {
+        $html = \Tests\Support\ChromeRender::html('/_dev/ui?bar=root');
+
+        $this->assertStringContainsString('data-ag-langask', $html, 'an unanswered visitor is never asked');
+        // In the visitor's language, written by a speaker, never composed: the French row
+        // carries the French catalogue's question and its own `lang`.
+        $this->assertMatchesRegularExpression('~data-ag-langask-for="fr"~', $html);
+        $this->assertStringContainsString('Voir Africa GATES en français ?', $html);
+        $this->assertMatchesRegularExpression('~<p class="ag-langask__q" lang="fr" dir="ltr">~', $html);
+        // Both answers are links carrying ?lang=, so the middleware stores either one.
+        $this->assertMatchesRegularExpression('~class="ag-langask__yes" href="[^"]*lang=fr~', $html);
+        $this->assertMatchesRegularExpression('~class="ag-langask__no" href="[^"]*lang=en~', $html);
+    }
+
+    public function test_the_prompt_never_returns_once_either_answer_is_stored(): void
+    {
+        foreach (['en', 'fr'] as $answer) {
+            $html = \Tests\Support\ChromeRender::html('/_dev/ui?bar=root', [], ['ag_lang' => $answer]);
+            $this->assertStringNotContainsString('data-ag-langask', $html,
+                "somebody who answered \"$answer\" is asked again — a prompt that returns is an advert");
+        }
+    }
+
+    public function test_the_prompt_hangs_under_the_root_bar_only(): void
+    {
+        // §7.2: "one dismissible row under the root AppBar". A pushed screen is somebody in
+        // the middle of something.
+        $this->assertStringNotContainsString('data-ag-langask', \Tests\Support\ChromeRender::html('/_dev/ui'));
+
+        $bar = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents(__DIR__ . '/../../templates/partials/app-bar.twig'));
+        $this->assertMatchesRegularExpression("~\{% if _root and lang_ask\(\) %\}\{% include 'partials/lang-prompt\.twig' %\}~", $bar,
+            'the prompt must be included only inside the lang_ask() gate');
+
+        // And the script hides it on the first scroll and never brings it back on the page.
+        $js = (string) file_get_contents(__DIR__ . '/../../public/assets/js/chrome.js');
+        $this->assertMatchesRegularExpression('~navigator\.languages\[0\]~', $js, 'the FIRST language decides');
+        $this->assertMatchesRegularExpression('~if \(!scrolled\) return;\s*box\.hidden = true;\s*if \(stop\) stop\(\);~', $js);
+    }
+
+    public function test_arabic_mirrors_the_document_and_every_direction_mark(): void
+    {
+        $html = \Tests\Support\ChromeRender::html('/_dev/ui?lang=ar');
+        $this->assertMatchesRegularExpression('~<html lang="ar" dir="rtl"~', $html);
+
+        // Back and the row chevrons are the reading direction's, and turn with it.
+        $this->assertMatchesRegularExpression('~<svg class="ag-ico-dir"[^>]*>\s*<path d="m15 18-6-6 6-6">~', $html);
+        $css = (string) file_get_contents(__DIR__ . '/../../public/assets/css/components/chrome.css');
+        $this->assertStringContainsString('[dir="rtl"] .ag-ico-dir{ transform:scaleX(-1) }', $css);
+        // The chrome is laid out with logical properties: no physical left/right margin or
+        // padding that would hold a control on the wrong side in Arabic.
+        $this->assertDoesNotMatchRegularExpression('~(?:margin|padding)-(?:left|right)\s*:~', $css);
     }
 
     public function test_the_cookie_is_declared_in_the_published_policy(): void

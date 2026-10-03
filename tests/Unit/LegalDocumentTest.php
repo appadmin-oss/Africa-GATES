@@ -482,4 +482,69 @@ final class LegalDocumentTest extends TestCase
 
         $this->assertStringNotContainsString('NameWhy', $txt);
     }
+
+    /**
+     * THE GENERATED SECTION NAMES EXACTLY THE REGISTRY — no fewer, and no more.
+     *
+     * Every name `cookiesHtml()` prints in `<code>` is a registry name (a cookie, a storage
+     * key, a retired cookie) and every registry name is printed. Fewer is the "we set ONE
+     * cookie" fault; more is a name typed into the section that the registry — and so
+     * CookieRegistryTest's two-way sweep — knows nothing about. And each of the four
+     * categories is stated with what it covers, because "what can I refuse, and what
+     * happens if I do" is the question a reader arrives with (GAPS Q11).
+     */
+    public function test_the_generated_cookie_section_names_exactly_the_registry(): void
+    {
+        $html = \AfricaGates\Services\LegalDocument::cookiesHtml();
+        preg_match_all('~<code>([^<]*)</code>~', $html, $m);
+        $printed = array_values(array_unique(array_map(
+            static fn (string $s): string => html_entity_decode($s, ENT_QUOTES, 'UTF-8'), $m[1])));
+
+        $R = \AfricaGates\Support\CookieRegistry::class;
+        $want = array_values(array_unique(array_merge(
+            $R::names(),
+            array_column($R::storage(), 'key'),
+            array_column($R::retired(), 'name'))));
+
+        sort($printed);
+        sort($want);
+        $this->assertSame($want, $printed, 'the generated section and the registry name different things');
+
+        foreach ($R::categories() as $c) {
+            $this->assertStringContainsString('<h3>' . $c['name'] . '</h3>', $html, "{$c['name']} is not stated");
+            $this->assertStringContainsString(htmlspecialchars($c['desc'], ENT_QUOTES, 'UTF-8'), $html,
+                "{$c['name']} is stated without what it controls");
+        }
+        // The storage list itself, each key with its purpose — the category lists above
+        // name the keys too, so a section that lost its list would still print every name.
+        $a = strpos($html, 'id="browser-storage"');
+        $this->assertNotFalse($a, 'the browser-storage list is gone');
+        $list = substr($html, (int) $a, (int) strpos($html, '<h2', (int) $a + 10) - (int) $a);
+        foreach ($R::storage() as $s) {
+            $this->assertStringContainsString('<code>' . htmlspecialchars($s['key'], ENT_QUOTES, 'UTF-8') . '</code> &mdash; '
+                . htmlspecialchars($s['purpose'], ENT_QUOTES, 'UTF-8'), $list, "'{$s['key']}' is listed without its purpose");
+        }
+
+        // Each entry appears under its own category's heading.
+        foreach ($R::storage() as $s) {
+            $sec = $this->section($html, $this->categoryName($s['category']));
+            $this->assertStringContainsString('<code>' . htmlspecialchars($s['key'], ENT_QUOTES, 'UTF-8') . '</code>', $sec,
+                "'{$s['key']}' is not listed under {$s['category']}");
+        }
+    }
+
+    private function categoryName(string $key): string
+    {
+        foreach (\AfricaGates\Support\CookieRegistry::categories() as $c) if ($c['key'] === $key) return $c['name'];
+        return '';
+    }
+
+    /** The HTML from a category's <h3> to the next heading. */
+    private function section(string $html, string $name): string
+    {
+        $a = strpos($html, '<h3>' . $name . '</h3>');
+        if ($a === false) return '';
+        $b = preg_match('~<h[23][ >]~', $html, $mm, PREG_OFFSET_CAPTURE, $a + 4) ? $mm[0][1] : strlen($html);
+        return substr($html, $a, $b - $a);
+    }
 }

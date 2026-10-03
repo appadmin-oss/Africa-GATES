@@ -66,6 +66,11 @@ final class AssetBundle
         'assets/css/tokens.css',
         'assets/css/shell.css',
         'assets/css/components.css',
+        // Phase 2: the shared chrome — header, app bar, tab bar, Menu, Quick settings,
+        // Display & reading, the search palette. After the base, which it specialises.
+        'assets/css/components/chrome.css',
+        // Phase 2 item 6: the cookie notice and preferences sheet, on the chrome.
+        'assets/css/components/consent.css',
     ];
 
     /** Where the built bundle and its manifest live. Gitignored build output. */

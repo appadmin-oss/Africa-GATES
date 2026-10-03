@@ -1,0 +1,700 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE SHARED CHROME — Phase 2 of design_handoff_africa_gates
+   Site header + mega panels + popovers · search palette · shortcuts · phone app bar ·
+   language prompt · tab bar · Menu sheet · Quick settings · Display & reading · flash
+   REFERENCE §7.1–§7.5, §6, §13 · SiteHeader / AppBar / MobileMenu / DisplayReading DCs
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Written fresh from the DCs' inline styles (REFERENCE §5) on 3 Oct 2026. The file this
+   name once held — rules moved out of components.css "unchanged, to be destroyed in
+   Phase 2" — was destroyed with the old pages; nothing here was carried over from it.
+
+   ── EVERY COLOUR IS A TOKEN, AND EVERY DC HEX WAS MAPPED, NOT TYPED ──────────
+
+   Not one literal colour (ColourLiteralTest). The DCs' translucent values are mixes of
+   the palette: the bar's `rgba(251,251,250,.9)` is `--ag-bar` at 90%, the mega panel's
+   edge `rgba(16,41,44,.08)` is ink at 8%, the search scrim `.28` and the shortcuts scrim
+   `.24` are ink at those weights, and the two dialog shadows the §6.5 table does not name
+   are written with ink mixed at the DC's alpha. The DC's tile pairs that are not in the
+   palette (`#eef7ee`, `#a47306`, `#e9efef`, `#2b373d`, `#f0f2f2`, `#5d7374`) resolve to
+   the nearest family through the TONE classes below — named by what the tile is, so a
+   template never chooses a colour.
+
+   ── WHAT EACH BREAKPOINT SHOWS ───────────────────────────────────────────────
+
+   Below 600px: the app bar, the language prompt and the tab bar. From 600px: the header.
+   Display is decided here, never by hiding desktop blocks inside a phone layout — the
+   phone has its own markup (REFERENCE §4.5).
+
+   ── TYPE IS A REM STEP, EVERYTHING ELSE IS THE DC'S PX ──────────────────────
+
+   Destroyed and written again on 3 Oct 2026, when the owner put type in rem so the
+   Display & reading setting (which scales the root) reaches the words: every size
+   below is a tokens.css step named by the DC's px. Heights, padding, radii and the
+   44px targets stay px — at 150% each control was measured still to hold its label.
+
+   ── TOUCH TARGETS: THE HEADER IS §7.1 AS SPECIFIED (owner, 3 Oct 2026) ───────
+
+   REFERENCE §6.7 asks 44px everywhere; §7.1 draws the header's controls at 40 (the
+   two top links, the toolbar pill, the avatar, Sign in) and the app bar's avatar at
+   34 inside a 44px target. The owner chose §7.1 for the header. That exception is
+   recorded by selector in TargetSizeTest, and nowhere else is anything under 44.
+
+   ── WHERE A VALUE IS NOT THE DC'S, IT SAYS WHY ──────────────────────────────
+
+   Each is listed in docs/handoff/PHASE-2.md with what, why and who decides.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ══ Shared marks ═════════════════════════════════════════════════════════════ */
+
+/* A directional icon (back, a row's chevron) points the reading direction's way. */
+[dir="rtl"] .ag-ico-dir{ transform:scaleX(-1) }
+
+/* Tile tones: the DC's eight tint pairs as palette families, by what the tile is. */
+.ag-tone--grow  { background:var(--ag-green-wash);  color:var(--ag-green-deep) } /* Nominate      */
+.ag-tone--act   { background:var(--ag-green-wash);  color:var(--ag-green) }      /* Vote, Events, Shop */
+.ag-tone--honour{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink) }   /* Awards, Legacy, Register */
+.ag-tone--give  { background:var(--ag-live-wash);   color:var(--ag-live-ink) }   /* Giving, Pulse */
+.ag-tone--plain { background:var(--ag-tint);        color:var(--ag-ink-2) }      /* Discover, Blog, Integrity, Status */
+.ag-tone--set   { background:var(--ag-tint);        color:var(--ag-ink) }        /* Settings and Help rows */
+
+
+/* ══ Site header · §7.1 ═══════════════════════════════════════════════════════
+   64px, padding 28, the bar at 90% with a 16px blur, a hairline that goes while a
+   panel is open (the panel hangs from the bar with no gap, and a rule between them
+   would cut it in half). */
+
+.ag-head{
+  position:relative; z-index:var(--ag-z-header);
+  color:var(--ag-ink);
+}
+.ag-head__bar{
+  position:relative; z-index:2;
+  display:flex; align-items:center; gap:8px;
+  /* CONTENT-box, as the DC draws it: 64px of bar plus the hairline, 65 in all, with the
+     panel hanging from 64 over a hairline that is transparent while it is open. The
+     shell sets border-box everywhere; the DC never did, and five of its boxes (this one,
+     the pill, the panel's inner, the language menu, the shortcuts dialog) measure their
+     padding and border OUTSIDE the stated size — measured against the DC at 1440. */
+  box-sizing:content-box;
+  height:64px; padding:0 28px;
+  background:color-mix(in srgb, var(--ag-bar) 90%, transparent);
+  -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--ag-line);
+}
+.ag-head.is-mega .ag-head__bar{ border-bottom-color:transparent }
+
+/* The logo: a 32px mark in a white 9px tile, then the wordmark.
+   "GATES" is 11.5px, not the DC's 9.5: §6.2 puts nothing on the public site under
+   11.5, the owner applied that ladder with no exception (GAPS Q4), and REFERENCE
+   outranks a DC (§0). Its .26em tracking is the DC's. */
+.ag-logo,
+.ag-logo:hover{
+  display:flex; align-items:center; gap:10px;
+  margin-inline-end:18px;
+  color:var(--ag-ink); text-decoration:none;
+}
+.ag-logo__mark{
+  width:32px; height:32px; padding:3px;
+  border-radius:9px; border:1px solid var(--ag-line-2);
+  background:var(--ag-surface); object-fit:contain;
+}
+.ag-logo__word{ display:flex; flex-direction:column; line-height:1 }
+.ag-logo__africa{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-16); color:var(--ag-ink) }
+.ag-logo__gates{ font-size:var(--ag-fs-11-5); font-weight:700; letter-spacing:.26em; color:var(--ag-green) }
+
+/* Two top links only. 40px, 14px of padding, 600 14.5; open = tint, chevron turned. */
+.ag-head__nav{ display:flex; gap:2px }
+.ag-head__top{
+  display:flex; align-items:center; gap:6px;
+  height:40px; padding:0 14px;
+  border:0; border-radius:10px;
+  background:transparent; color:var(--ag-ink);
+  font-weight:600; font-size:var(--ag-fs-14-5); cursor:pointer;
+}
+.ag-head__top[aria-expanded="true"]{ background:var(--ag-tint) }
+.ag-head__chev{ flex:none; transition:transform var(--ag-dur-1) var(--ag-ease) }
+.ag-head__top[aria-expanded="true"] .ag-head__chev{ transform:rotate(180deg) }
+
+.ag-head__gap{ flex:1 }
+.ag-head__end{ display:flex; align-items:center; gap:12px }
+
+/* The toolbar pill: 40 tall, hairline, white. The three controls inside are the DC's
+   34px with a ground hover; the divider is 1 × 18. */
+.ag-tools-wrap{ position:relative }
+.ag-tools{
+  display:flex; align-items:center; gap:2px;
+  box-sizing:content-box;
+  height:40px; padding:0 3px;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface);
+}
+.ag-tools__b,
+.ag-tools__b:hover{
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  height:34px; padding:0;
+  border:0; border-radius:var(--ag-r-pill);
+  background:transparent; color:var(--ag-ink);
+  text-decoration:none; cursor:pointer;
+}
+.ag-tools__b:hover{ background:var(--ag-ground) }
+.ag-tools__b[aria-expanded="true"]{ background:var(--ag-tint) }
+.ag-tools__search{ width:40px }
+.ag-tools__aa{ width:40px; font-weight:700; font-size:var(--ag-fs-14-5) }
+.ag-tools__lang{ padding:0 12px; font-weight:600; font-size:var(--ag-fs-13-5) }
+.ag-tools__div{ flex:none; width:1px; height:18px; background:var(--ag-line) }
+
+/* Signed in: the 40px ink avatar. Signed out: an OUTLINED ink pill — never green. */
+.ag-head__av,
+.ag-head__av:hover{
+  flex:none; display:flex; align-items:center; justify-content:center;
+  width:40px; height:40px; border-radius:50%;
+  background:var(--ag-ink); color:var(--ag-ground);
+  font-weight:700; font-size:var(--ag-fs-13); text-decoration:none;
+}
+.ag-head__signin,
+.ag-head__signin:hover{
+  flex:none; display:flex; align-items:center;
+  height:40px; padding:0 18px;
+  border:1px solid var(--ag-ink); border-radius:var(--ag-r-pill);
+  background:transparent; color:var(--ag-ink);
+  font-weight:600; font-size:var(--ag-fs-14); text-decoration:none; white-space:nowrap;
+}
+
+/* ── The mega panel: hangs from the bar, full width, frosted, 24px bottom radii, the
+   §6.5 mega shadow; a 1180 inner at 26 40 30, three columns of icon + title + line. */
+.ag-mega{
+  position:absolute; top:64px; left:0; right:0; z-index:1;
+  background:color-mix(in srgb, var(--ag-bar) 90%, transparent);
+  -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
+  border-bottom:1px solid color-mix(in srgb, var(--ag-ink) 8%, transparent);
+  border-radius:0 0 var(--ag-r-24) var(--ag-r-24);
+  box-shadow:var(--ag-sh-mega);
+}
+.ag-mega__in{
+  box-sizing:content-box;
+  max-width:1180px; margin:0 auto; padding:26px 40px 30px;
+  display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:4px;
+}
+.ag-mega__item,
+.ag-mega__item:hover{
+  display:flex; align-items:flex-start; gap:14px;
+  padding:12px; border-radius:var(--ag-r-14);
+  color:var(--ag-ink); text-decoration:none;
+}
+.ag-mega__item:hover{ background:var(--ag-ground) }
+.ag-mega__item:focus-visible{ outline-offset:-3px }
+.ag-mega__tile{
+  flex:none; width:40px; height:40px; border-radius:var(--ag-r-12);
+  display:flex; align-items:center; justify-content:center;
+}
+.ag-mega__txt{ display:flex; flex-direction:column; gap:2px }
+.ag-mega__t{ font-weight:700; font-size:var(--ag-fs-15) }
+.ag-mega__s{ font-size:var(--ag-fs-13); line-height:1.45; color:var(--ag-soft) }
+
+/* The transparent scrim below an open panel: clicking off the panel closes it. */
+.ag-mega-scrim{ position:fixed; inset:64px 0 0 0; z-index:0; background:transparent }
+
+/* ── The Aa and language popovers: 70px from the top of the bar (17px under the pill,
+   whose 42px border box sits 11px into the 65px bar), 360 / 210 wide, radius 20 / 16,
+   the popover shadow.
+   Anchored to the toolbar rather than to the page edge, so the DC's two right offsets
+   (80/120 and 58/98, signed in/out) fall out of the geometry for any width of the
+   account control — and mirror in Arabic. */
+.ag-pop{
+  position:absolute; top:calc(100% + 17px); z-index:3;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line);
+  box-shadow:var(--ag-sh-pop);
+  color:var(--ag-ink);
+}
+.ag-pop--aa{
+  inset-inline-end:0;
+  width:360px; max-height:min(620px, calc(100dvh - 90px)); overflow:auto;
+  padding:18px; border-radius:var(--ag-r-20);
+}
+.ag-pop--lang{
+  inset-inline-end:-22px;
+  box-sizing:content-box;
+  width:210px; padding:6px; border-radius:var(--ag-r-16);
+  display:flex; flex-direction:column;
+}
+.ag-pop__lang,
+.ag-pop__lang:hover{
+  display:flex; align-items:center; justify-content:space-between;
+  height:40px; padding:0 12px; border-radius:var(--ag-r-10);
+  background:transparent; color:var(--ag-ink);
+  font-size:var(--ag-fs-14); font-weight:500; text-decoration:none;
+}
+.ag-pop__lang[aria-checked="true"]{ background:var(--ag-ground); font-weight:700 }
+.ag-pop__lang:focus-visible{ outline-offset:-3px }
+.ag-pop__code{ font-size:var(--ag-fs-12); font-weight:400; color:var(--ag-soft) }
+
+
+/* ══ Search palette · §7.1 ════════════════════════════════════════════════════
+   680 wide, 84 from the top, a scrim behind; input → chips → grouped results → keys. */
+
+.ag-ss-scrim{
+  position:fixed; inset:0; z-index:var(--ag-z-scrim);
+  background:color-mix(in srgb, var(--ag-ink) 28%, transparent);
+  -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+}
+.ag-ss{
+  position:fixed; z-index:var(--ag-z-sheet);
+  top:84px; left:50%; transform:translateX(-50%);
+  width:min(680px, calc(100% - 32px));
+  max-height:min(560px, calc(100dvh - 110px));
+  display:flex; flex-direction:column; overflow:hidden;
+  background:var(--ag-surface); color:var(--ag-ink);
+  border-radius:var(--ag-r-20);
+  box-shadow:0 30px 70px -20px color-mix(in srgb, var(--ag-ink) 45%, transparent);
+}
+.ag-ss__bar{
+  flex:none; display:flex; align-items:center; gap:12px;
+  box-sizing:content-box;
+  height:62px; margin:0; padding:0 18px;
+  border-bottom:1px solid var(--ag-line);
+}
+.ag-ss__glass{ flex:none; color:var(--ag-soft) }
+.ag-ss__q{
+  flex:1; min-width:0; border:0; outline:0; padding:0;
+  background:transparent; color:var(--ag-ink);
+  font-size:var(--ag-fs-17);
+  -webkit-appearance:none; appearance:none;
+}
+.ag-ss__q::-webkit-search-cancel-button{ -webkit-appearance:none; appearance:none }
+.ag-ss__esc{
+  flex:none; height:28px; padding:0 8px;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-7);
+  background:var(--ag-surface); color:var(--ag-soft); cursor:pointer;
+}
+.ag-ss__esc kbd{ font:600 var(--ag-fs-11-5)/1 var(--ag-font-mono) }
+
+/* The chips are the base chip — outlined, the chosen one a 2px ink border on the same
+   white (§6.1, §18.2) — at the DC's 13/600 and its 13px padding. */
+.ag-ss__scopes{
+  flex:none; display:flex; gap:6px;
+  padding:12px 18px 4px;
+  overflow-x:auto; scrollbar-width:none;
+}
+.ag-ss__scopes::-webkit-scrollbar{ display:none }
+.ag-ss__chip{ padding:0 13px; font-size:var(--ag-fs-13); font-weight:600 }
+.ag-ss__chip[aria-selected="true"]{ padding:0 12px; font-weight:700 }
+
+.ag-ss__body{ flex:1; min-height:0; overflow:auto; padding:8px 10px 12px }
+.ag-ss__grp{ display:flex; flex-direction:column; gap:2px; padding:6px 0 }
+.ag-ss__gh{ padding:6px 10px; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-soft) }
+.ag-ss__opt,
+.ag-ss__opt:hover{
+  display:flex; align-items:center; gap:12px;
+  padding:9px 10px; border-radius:var(--ag-r-12);
+  color:var(--ag-ink); text-decoration:none;
+}
+.ag-ss__opt:hover,
+.ag-ss__opt[aria-selected="true"]{ background:var(--ag-ground) }
+.ag-ss__tile{
+  flex:none; width:36px; height:36px; border-radius:var(--ag-r-10);
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-tint); color:var(--ag-ink);
+  font-weight:700; font-size:var(--ag-fs-13);
+}
+.ag-ss__tile--people{ border-radius:50% }
+.ag-ss__tile--pages,
+.ag-ss__tile--more{ background:var(--ag-ink); color:var(--ag-surface) }
+.ag-ss__txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
+.ag-ss__t{ font-weight:600; font-size:var(--ag-fs-14-5) }
+.ag-ss__m{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.ag-ss__k{ flex:none; font-size:var(--ag-fs-12); color:var(--ag-soft) }
+.ag-ss__msg{ margin:0; padding:24px 10px; text-align:center; font-size:var(--ag-fs-14-5); color:var(--ag-ink-2) }
+.ag-ss__keys{
+  flex:none; display:flex; gap:16px;
+  padding:10px 18px; border-top:1px solid var(--ag-line);
+  font-size:var(--ag-fs-12); color:var(--ag-soft);
+}
+
+
+/* ══ Keyboard shortcuts · SiteHeader.dc.html `kbOpen` ═════════════════════════ */
+
+.ag-kb-scrim{
+  position:fixed; inset:0; z-index:var(--ag-z-scrim);
+  background:color-mix(in srgb, var(--ag-ink) 24%, transparent);
+}
+.ag-kb{
+  position:fixed; z-index:var(--ag-z-sheet);
+  top:96px; left:50%; transform:translateX(-50%);
+  box-sizing:content-box;
+  width:min(520px, calc(100vw - 32px));
+  padding:22px 24px;
+  background:var(--ag-surface); color:var(--ag-ink);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-20);
+  box-shadow:0 30px 60px -20px color-mix(in srgb, var(--ag-ink) 35%, transparent);
+}
+.ag-kb__head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px }
+.ag-kb__h{ margin:0; font-weight:700; font-size:var(--ag-fs-18) }
+.ag-kb__x{
+  flex:none; width:36px; height:36px; padding:0;
+  border:0; border-radius:50%;
+  background:var(--ag-ground); color:var(--ag-ink);
+  font-size:var(--ag-fs-17); cursor:pointer;
+}
+.ag-kb__list{ margin:0; display:flex; flex-direction:column }
+.ag-kb__row{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  min-height:44px; border-top:1px solid var(--ag-line-3);
+}
+.ag-kb__row:first-child{ border-top:0 }
+.ag-kb__t{ font-size:var(--ag-fs-14-5) }
+.ag-kb__keys{ margin:0; display:flex; gap:4px }
+.ag-kb__keys kbd{
+  min-width:28px; height:28px; padding:0 8px;
+  display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--ag-line-2); border-bottom-width:2px; border-radius:var(--ag-r-7);
+  background:var(--ag-bar);
+  font:700 var(--ag-fs-12-5)/1 var(--ag-font-mono);
+}
+
+
+/* ══ Phone app bar · §7.2 ═════════════════════════════════════════════════════
+   The ground at rest with no line; scrolled: the bar fill and a hairline. Root is
+   88 · 1fr · 88 over a 52px row; child 44 · 1fr · auto over 56. */
+
+.ag-appbar{
+  position:relative; z-index:var(--ag-z-appbar);
+  background:var(--ag-ground); color:var(--ag-ink);
+  border-bottom:1px solid transparent;
+  transition:background-color var(--ag-dur-1) var(--ag-ease), border-color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-shell[data-scrolled] .ag-appbar{ background:var(--ag-bar); border-bottom-color:var(--ag-line) }
+
+.ag-appbar__row{ display:grid; align-items:center; height:52px; padding:0 4px }
+.ag-appbar--root  .ag-appbar__row{ grid-template-columns:88px minmax(0, 1fr) 88px }
+.ag-appbar--child .ag-appbar__row{ grid-template-columns:44px minmax(0, 1fr) auto; height:56px }
+
+.ag-appbar__icon,
+.ag-appbar__icon:hover{
+  flex:none; width:44px; height:44px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:0; border-radius:50%;
+  background:transparent; color:var(--ag-ink); cursor:pointer;
+}
+.ag-appbar__mid{
+  min-width:0; padding:0 6px;
+  display:flex; flex-direction:column; justify-content:center;
+}
+.ag-appbar--root  .ag-appbar__mid{ align-items:center }
+.ag-appbar--child .ag-appbar__mid{ align-items:flex-start }
+.ag-appbar__small,
+.ag-appbar__t{
+  max-width:100%;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-weight:700; line-height:1.2;
+}
+.ag-appbar__small{ font-size:var(--ag-fs-17); opacity:0; transition:opacity var(--ag-dur-1) var(--ag-ease) }
+.ag-shell[data-scrolled] .ag-appbar__small{ opacity:1 }
+.ag-appbar__t{ font-size:var(--ag-fs-16) }
+.ag-appbar__sub{
+  max-width:100%; font-size:var(--ag-fs-12-5); color:var(--ag-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ag-appbar__end{ display:flex; justify-content:flex-end }
+/* 34px of avatar in a 44px target (§7.2). */
+.ag-appbar__av{
+  width:34px; height:34px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-ink); color:var(--ag-ground);
+  font-weight:700; font-size:var(--ag-fs-12);
+}
+
+/* The large title collapses a grid track rather than leaving the tree, so the <h1>
+   stays readable to a screen reader while the small title above takes over. */
+.ag-appbar__large{
+  display:grid; grid-template-rows:1fr;
+  transition:grid-template-rows var(--ag-dur-2) var(--ag-ease);
+}
+.ag-appbar__large > div{ min-height:0; overflow:hidden }
+.ag-shell[data-scrolled] .ag-appbar__large{ grid-template-rows:0fr }
+.ag-appbar__h1{
+  margin:0; padding:0 16px 10px;
+  font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-32); line-height:1.1; letter-spacing:-.01em;
+}
+/* Landscape phone: the large title is hidden (skill §10). */
+@media (max-height:480px) and (orientation:landscape){
+  .ag-appbar__large{ grid-template-rows:0fr }
+}
+
+
+/* ══ First-visit language prompt · §7.2 ═══════════════════════════════════════
+   One row under the root bar. The DC draws its state and not its markup, so it is the
+   base parts at their own sizes: a white hairline card, the question, an ink pill for
+   yes and a text link for "Keep English", both 44px targets. */
+
+.ag-langask{ padding:0 16px 10px; background:var(--ag-ground) }
+.ag-langask__row{
+  display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
+  padding:8px 8px 8px 14px;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+}
+[dir="rtl"] .ag-langask__row{ padding:8px 14px 8px 8px }
+.ag-langask__q{ flex:1 1 160px; margin:0; font-size:var(--ag-fs-14-5); font-weight:600; line-height:1.4 }
+.ag-langask__yes,
+.ag-langask__yes:hover{
+  display:inline-flex; align-items:center; height:44px; padding:0 18px;
+  border-radius:var(--ag-r-pill); background:var(--ag-ink); color:var(--ag-surface);
+  font-size:var(--ag-fs-14-5); font-weight:700; text-decoration:none;
+}
+.ag-langask__no,
+.ag-langask__no:hover{
+  display:inline-flex; align-items:center; height:44px; padding:0 6px;
+  color:var(--ag-ink); font-size:var(--ag-fs-14-5); font-weight:600;
+  text-decoration:underline; text-underline-offset:3px;
+}
+
+
+/* ══ Phone tab bar · §7.3 ═════════════════════════════════════════════════════
+   Five, ≥52px, a 23px icon over a 12px 600 label; lit = green and 700. The top line is
+   HomePageV3.dc.html's `#d6d4cc`, `--ag-line-2`. */
+
+.ag-tabbar{
+  display:grid; grid-template-columns:repeat(5, 1fr);
+  padding:6px 8px calc(22px + env(safe-area-inset-bottom));
+  background:var(--ag-bar);
+  border-top:1px solid var(--ag-line-2);
+}
+.ag-tabbar__t,
+.ag-tabbar__t:hover{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  min-height:52px; padding:0;
+  border:0; background:transparent; color:var(--ag-soft);
+  font-size:var(--ag-fs-12); font-weight:600; text-decoration:none; cursor:pointer;
+}
+.ag-tabbar__t[aria-current="page"]{ color:var(--ag-green); font-weight:700 }
+
+
+/* ══ Menu · §7.4, MobileMenu.dc.html ══════════════════════════════════════════
+   The base sheet, pinned from `top:52px` so the app bar stays in view. */
+
+.ag-menu{ top:52px; max-height:none; overflow:hidden }
+.ag-menu__head{ padding:0 8px 6px }
+.ag-menu__title{ margin:0; font-size:var(--ag-fs-16-5); font-weight:700; text-align:center }
+.ag-menu__back[data-hide]{ visibility:hidden }
+.ag-menu__x{
+  width:30px; height:30px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-tint);
+}
+.ag-menu__body{ overflow-x:hidden; overflow-y:auto; padding:6px 16px 40px }
+.ag-menu__view{ display:flex; flex-direction:column; gap:22px }
+
+/* Profile card. `flex:none`, or the column squeezes it — the DC's own render clips it
+   to half its height (screenshots/phase-2/menu-open-phone.png), which is the DC's flex
+   default showing, not a design. */
+.ag-menu__me,
+.ag-menu__me:hover{
+  flex:none; display:flex; align-items:center; gap:14px;
+  padding:14px; border-radius:var(--ag-r-18);
+  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
+}
+.ag-menu__av{
+  flex:none; width:52px; height:52px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-ink); color:var(--ag-ground);
+  font-weight:700; font-size:var(--ag-fs-16);
+}
+.ag-menu__who{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.ag-menu__name{ font-size:var(--ag-fs-17); font-weight:700 }
+.ag-menu__view-p{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.ag-menu__pts{ flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:1px }
+.ag-menu__pts > b{ font-size:var(--ag-fs-15); font-weight:700; line-height:1 }
+.ag-menu__pts > span{ font-size:var(--ag-fs-11-5); color:var(--ag-soft) }
+
+.ag-menu__join{
+  flex:none; display:flex; flex-direction:column; gap:12px;
+  padding:18px; border-radius:var(--ag-r-18); background:var(--ag-surface);
+}
+.ag-menu__join-t{ font-size:var(--ag-fs-17); font-weight:700 }
+.ag-menu__join-p{ font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+.ag-menu__join-b,
+.ag-menu__join-b:hover{
+  display:flex; align-items:center; justify-content:center;
+  height:50px; border-radius:var(--ag-r-14);
+  background:var(--ag-ink); color:var(--ag-surface);
+  font-weight:700; font-size:var(--ag-fs-15-5); text-decoration:none;
+}
+
+.ag-menu__quick{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px }
+.ag-menu__tile,
+.ag-menu__tile:hover{
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  padding:14px 4px 12px; border-radius:var(--ag-r-18);
+  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
+}
+.ag-menu__tile-i{
+  width:44px; height:44px; border-radius:var(--ag-r-14);
+  display:flex; align-items:center; justify-content:center;
+}
+.ag-menu__tile-l{ font-size:var(--ag-fs-13); font-weight:600 }
+
+.ag-menu__h{ margin:0; padding:0 6px 8px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
+/* The DC's lists are white with no border — the base list's hairline is the card's. */
+.ag-menu__list{ border:0 }
+.ag-menu__list .ag-list__row,
+.ag-menu__list .ag-list__row:hover{ color:var(--ag-ink) }
+.ag-menu__list .ag-list__value{ font-size:var(--ag-fs-14) }
+
+/* Status: the word is the state; the dot repeats it. */
+.ag-menu__live{ flex:none; display:flex; align-items:center; gap:6px; font-size:var(--ag-fs-13-5); font-weight:600 }
+.ag-menu__dot{ width:8px; height:8px; border-radius:50% }
+.ag-menu__live--operational{ color:var(--ag-green-deep) }
+.ag-menu__live--operational .ag-menu__dot{ background:var(--ag-green) }
+.ag-menu__live--degraded{ color:var(--ag-gold-ink) }
+.ag-menu__live--degraded .ag-menu__dot{ background:var(--ag-gold) }
+.ag-menu__live--down    { color:var(--ag-error) }
+.ag-menu__live--down     .ag-menu__dot{ background:var(--ag-live) }
+
+.ag-menu__foot{ display:flex; flex-direction:column; align-items:center; gap:14px; padding-top:4px }
+.ag-menu__legal{ display:flex; flex-wrap:wrap; justify-content:center; gap:4px 18px; font-size:var(--ag-fs-13-5) }
+.ag-menu__legal a,
+.ag-menu__legal a:hover{
+  min-height:44px; display:flex; align-items:center;
+  color:var(--ag-ink-2); text-decoration:underline; text-underline-offset:3px;
+}
+.ag-menu__out{ margin:0 }
+.ag-menu__signout{
+  height:44px; padding:0 18px; border:0; background:transparent;
+  color:var(--ag-error); font-weight:600; font-size:var(--ag-fs-15); cursor:pointer;
+}
+.ag-menu__mark{ font-size:var(--ag-fs-12); color:var(--ag-soft) }
+
+.ag-menu__card{ padding:16px; border-radius:var(--ag-r-18); background:var(--ag-surface) }
+.ag-menu__en{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.ag-menu__tick{ flex:none; color:var(--ag-green) }
+
+
+/* ══ Quick settings · §7.2 ════════════════════════════════════════════════════ */
+
+.ag-qs__body{
+  overflow-y:auto;
+  display:flex; flex-direction:column; gap:18px;
+  padding:6px 16px 16px;
+}
+.ag-qs__me,
+.ag-qs__me:hover{
+  display:flex; align-items:center; gap:14px;
+  padding:14px; border-radius:var(--ag-r-18);
+  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
+}
+.ag-qs__av{ width:44px; height:44px; font-size:var(--ag-fs-15) }
+.ag-qs__name{ font-size:var(--ag-fs-16); font-weight:700 }
+.ag-qs__sub{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.ag-qs__block{ display:flex; flex-direction:column }
+.ag-qs__h{ padding:0 6px 8px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
+.ag-qs__switches{ padding:0 14px; border-radius:var(--ag-r-18); background:var(--ag-surface) }
+.ag-qs__switches > .ag-dr__row:last-child{ border-bottom:0 }
+.ag-qs__langs{
+  display:flex; gap:8px; overflow-x:auto; scrollbar-width:none;
+  margin-inline:-16px; padding:0 16px 2px;
+}
+.ag-qs__langs::-webkit-scrollbar{ display:none }
+/* The AppBar DC's chip borders: 1px line-2, the chosen one 2px ink at 700. */
+.ag-qs__lang:hover{ color:var(--ag-ink) }
+.ag-qs__all{ border-radius:var(--ag-r-18); background:var(--ag-surface) }
+.ag-qs__all:hover{ background:var(--ag-surface) }
+.ag-qs__done{
+  height:52px; width:100%;
+  border:0; border-radius:var(--ag-r-16);
+  background:var(--ag-ink); color:var(--ag-surface);
+  font-weight:700; font-size:var(--ag-fs-15-5); cursor:pointer;
+}
+
+
+/* ══ Display & reading · §7.5, DisplayReading.dc.html ═════════════════════════
+   A 10px column: the heading, the size control (44px options), seven 52px switch rows
+   with a 44 × 26 switch, the language row. */
+
+.ag-dr{ display:flex; flex-direction:column; gap:10px; color:var(--ag-ink) }
+.ag-dr__h{ font-weight:700; font-size:var(--ag-fs-15) }
+.ag-dr__seg .ag-seg__opt{ height:44px }
+.ag-dr__size{ font-weight:700; line-height:1 }
+.ag-dr__size--0{ font-size:var(--ag-fs-15) }
+.ag-dr__size--1{ font-size:var(--ag-fs-19) }
+.ag-dr__size--2{ font-size:var(--ag-fs-23) }
+.ag-qs__seg .ag-seg__opt{ height:48px }
+
+.ag-dr__row{
+  display:flex; align-items:center; gap:12px;
+  width:100%; min-height:52px; padding:6px 2px;
+  border:0; border-bottom:1px solid var(--ag-ground);
+  background:transparent; color:var(--ag-ink);
+  text-align:start; cursor:pointer;
+}
+.ag-dr__text{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
+.ag-dr__label{ font-weight:600; font-size:var(--ag-fs-14-5) }
+.ag-dr__help{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+/* DisplayReading's switch is 44 × 26 with a 20px thumb — smaller than the base 46 × 28,
+   and the DC is the spec for this block. The base supplies the colours and the state. */
+.ag-dr__switch{ width:44px; height:26px }
+.ag-dr__switch::after{ width:20px; height:20px }
+
+/* The language row. The select is 16px and 44px tall, not the DC's 14 and 40: inputs
+   are never under 16px, or iOS zooms on focus (§6.2, §9.5), and every target is 44
+   (§6.7). */
+.ag-dr__lang{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  min-height:48px; margin:0;
+  font-weight:600; font-size:var(--ag-fs-14-5);
+}
+.ag-dr__lang > label{ flex:1 }
+.ag-dr__lang > select{
+  height:44px; padding:0 10px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-10);
+  background:var(--ag-surface); color:var(--ag-ink); font-size:var(--ag-fs-16);
+}
+.ag-dr__go{
+  height:44px; padding:0 14px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-10);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-weight:600; font-size:var(--ag-fs-14-5); cursor:pointer;
+}
+
+
+/* ══ Flash rail ═══════════════════════════════════════════════════════════════
+   No DC draws it; it is the base card with a mark and the sentence — the words carry
+   the state, the mark repeats it. */
+
+.ag-flash-rail{ display:flex; flex-direction:column; gap:8px; padding:12px var(--ag-gutter) 0 }
+.ag-flash{
+  display:flex; align-items:flex-start; gap:10px;
+  margin:0; padding:12px 14px;
+  background:var(--ag-surface); color:var(--ag-ink);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+  font-size:var(--ag-fs-14-5); line-height:1.5;
+}
+.ag-flash > svg{ flex:none; margin-top:2px }
+.ag-flash--error{ color:var(--ag-error) }
+.ag-flash--ok > svg{ color:var(--ag-green-deep) }
+.ag-flash--notice > svg{ color:var(--ag-info) }
+
+
+/* ══ Breakpoint ownership ═════════════════════════════════════════════════════
+   LAST in the file on purpose: each of these blocks sets its own `display` above, and
+   an equal-specificity rule earlier in the sheet loses to it — which is how the tab bar
+   first rendered on a 1440px screen. */
+
+@media (max-width:599px){
+  .ag-head{ display:none }
+}
+@media (min-width:600px){
+  .ag-appbar, .ag-langask, .ag-tabbar{ display:none }
+}
+/* 600–719: the narrowest tablets. The DC draws the header at 1440 and gives no narrower
+   values, and at 600px the signed-out bar measured 679px wide — the Sign in pill cut off
+   by the shell. Below 720 the wordmark's words step aside (the mark and its accessible
+   name stay) and the bar takes the phone gutter. A deviation, listed in PHASE-2.md. */
+@media (min-width:600px) and (max-width:719px){
+  .ag-logo__word{ display:none }
+  .ag-logo, .ag-logo:hover{ margin-inline-end:8px }
+  .ag-head__bar{ padding:0 16px }
+}

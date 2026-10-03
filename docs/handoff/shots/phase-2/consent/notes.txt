@@ -1,0 +1,3 @@
+after Save with Preferences on: data-ag-keep=1
+no-JS Choose landed on: http://127.0.0.1:8099/_dev/ui#ag-consent
+no-JS Save with Preferences: ag_lang=en (persistent) | ag_consent={"v":1,"preferences":true,"analytics":true,"marketing":null} (persistent)

@@ -933,12 +933,16 @@
           <option value="consent"{% if visits_mode == 'consent' %} selected{% endif %}>Ask first — count nobody until they agree</option>
         </select>
         <small style="display:block;margin-top:6px;color:#6b7472">
-          <strong>Count unless told not to</strong> is the default and needs no banner: the counting
-          stores nothing extra on the visitor's device, so there is nothing to ask permission to
-          store. Every visitor still gets a one-click switch on <a href="/cookies" target="_blank" rel="noopener">/cookies</a>.
-          <strong>Ask first</strong> puts a notice on every public page until each visitor answers,
-          and records nobody in the meantime — expect the arrivals report to show a fraction of the
-          traffic, because most people answer neither way.
+          This decides the <strong>Analytics</strong> choice only. Every public page shows the
+          cookie notice until a visitor answers it (Essential, plus Preferences, Analytics and
+          Marketing — since 3 Oct 2026), and a browser sending Global Privacy Control or Do Not
+          Track is never asked and never counted.
+          <strong>Count unless told not to</strong> is the default: the counting stores nothing
+          extra on the visitor's device, so it runs until somebody refuses Analytics, and the
+          notice says so in words.
+          <strong>Ask first</strong> counts nobody until they allow Analytics — expect the
+          arrivals report to show a fraction of the traffic, because many people answer
+          "Essential" or leave the notice unanswered.
         </small>
       </div>
       <p class="hint" style="margin:6px 0 0">Older rows are dropped by the maintenance run. A recorder with no pruner is a table that grows for the life of the deployment.</p>

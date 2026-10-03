@@ -4,32 +4,21 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Services\ActivityFeedService;
-use AfricaGates\Services\RateLimitService;
-use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 
 /**
- * The live activity search.
+ * The activity timeline's page.
  *
- * TWO ENTRY POINTS, and the HTML one is not a fallback — it is the feature.
+ * `GET /activity?q=…` renders the timeline server-side from a plain `<form method=get>`,
+ * so it works with no JavaScript at all. Its page was destroyed with the old public pages
+ * (docs/handoff/DESTROYED.md) and Phase 4 retires it into Discover's Live tab.
  *
- * `GET /activity?q=…` renders the results server-side from a plain `<form method=get>`.
- * It works with JavaScript disabled, with JavaScript that failed to load, on a browser
- * too old for `fetch`, and in a text browser. That is not a theoretical audience for a
- * platform aimed at the whole continent: a large share of traffic here is low-end
- * Android on an intermittent connection, where a script that did not arrive is a
- * routine event rather than an edge case. A search box that is only a script is a
- * search box that is sometimes simply absent.
- *
- * `GET /activity/search` returns the same data as JSON for the live layer, which
- * upgrades the working form into a combobox that answers as you type. Same service,
- * same shape, so the two can never disagree about what happened on the site.
- *
- * The JSON endpoint is rate limited and the search is uncached — see
- * {@see ActivityFeedService} for why the freshness is worth the queries, and what
- * bounds them.
+ * The JSON half that used to live here, `/activity/search`, moved to `GET /search`
+ * ({@see SearchController}) on 3 Oct 2026 — the address REFERENCE §7.1 names for the
+ * palette's data. Same index ({@see ActivityFeedService}) behind both, so the two can never
+ * disagree about what happened on the site.
  */
 final class ActivityController
 {
@@ -62,80 +51,5 @@ final class ActivityController
             'literal'          => $literal,
             'min_query'        => ActivityFeedService::MIN_QUERY,
         ]);
-    }
-
-    /** GET /activity/search — JSON for the live layer. */
-    public function search(Request $req, Response $res): Response
-    {
-        $json = function (array $payload, int $code = 200) use ($res): Response {
-            $res->getBody()->write((string) json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-            return $res
-                ->withHeader('Content-Type', 'application/json; charset=utf-8')
-                // no-store, not the site default: a search result is per-visitor and
-                // must never be reused, and the endpoint's whole promise is that it
-                // reflects the database right now.
-                ->withHeader('Cache-Control', 'no-store')
-                ->withStatus($code);
-        };
-
-        // Per-client budget. A live search fires on keystrokes, so the debounce is the
-        // first line and this is the one that holds when the debounce is bypassed —
-        // which is what a script hitting the endpoint directly does.
-        try {
-            if (!(new RateLimitService())->check($this->clientKey($req), 'activity_search', 120, 60)) {
-                return $json(['ok' => false, 'error' => 'Too many searches — pause a moment.'], 429);
-            }
-        } catch (\Throwable) {
-            // A rate-limiter outage must not take a read-only public search down.
-        }
-
-        $q       = trim((string) ($req->getQueryParams()['q'] ?? ''));
-        $limit   = (int) ($req->getQueryParams()['limit'] ?? 20);
-        $literal = ($req->getQueryParams()['literal'] ?? '') !== '';
-        // The search palette's scope chip (REFERENCE §7.1). This endpoint serves both
-        // the inline combobox and the palette, deliberately: `/search` is an ALIAS to
-        // `/activity` so people who type it find the page, and src/routes.php says in as
-        // many words that there is not a second search here — one endpoint, one index,
-        // one set of promises about what is covered.
-        $scope   = (string) ($req->getQueryParams()['scope'] ?? '');
-        $result  = $this->feed->search($q, $limit, interpret: !$literal, scope: $scope);
-
-        return $json([
-            'ok'      => true,
-            'query'   => $result['query'],
-            'scope'   => $scope !== '' && ActivityFeedService::scopeSources($scope) !== [] ? $scope : 'all',
-            // The chip → source mapping, DELIVERED rather than duplicated. The palette
-            // groups its results under the same five headings the chips offer, and it
-            // cannot know which kind belongs to which without this — a second copy of
-            // the map in JavaScript is two lists that drift, and the drift shows up as
-            // a result quietly landing under the wrong heading or under none.
-            'scopes'  => ActivityFeedService::SCOPES,
-            'live'    => $result['live'],
-            'count'   => count($result['items']),
-            'items'   => $result['items'],
-            'sources' => $result['sources'],
-            // What the model understood, so the live layer can show it and offer the
-            // literal search. Null whenever nothing was interpreted, which is also what
-            // a deployment with no AI key gets.
-            'understood' => $result['understood'],
-        ]);
-    }
-
-    /**
-     * Rate-limit bucket for this client.
-     *
-     * X-Forwarded-For is only trusted when TRUST_PROXY says a proxy sets it. Behind a
-     * CDN without that flag every visitor shares REMOTE_ADDR — the CDN's — and a
-     * 120-per-minute budget becomes 120 for the entire continent. Hashed so the
-     * limiter's storage never holds a raw address.
-     */
-    private function clientKey(Request $req): string
-    {
-        $server = $req->getServerParams();
-        $ip = (string) ($server['REMOTE_ADDR'] ?? '');
-        if (Env::bool('TRUST_PROXY') && !empty($server['HTTP_X_FORWARDED_FOR'])) {
-            $ip = trim(explode(',', (string) $server['HTTP_X_FORWARDED_FOR'])[0]);
-        }
-        return hash('sha256', $ip . '|activity');
     }
 }

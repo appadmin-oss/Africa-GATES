@@ -16,7 +16,5 @@
     "templates/judge/login.twig": 8,
     "templates/pages/events/door.twig": 1,
     "templates/partials/icons.twig": 32,
-    "templates/partials/poll.twig": 14,
-    "templates/partials/share.twig": 16,
     "templates/partials/viz.twig": 25
 }

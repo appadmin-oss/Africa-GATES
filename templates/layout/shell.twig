@@ -1,49 +1,64 @@
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  THE PAGE SHELL — Phase 1 of design_handoff_africa_gates
-  snippets/twig/page-shell.twig, adapted to this repo · REFERENCE §6.7
+  THE PAGE SHELL — every rebuilt public page extends this
+  Phase 1 (the shell) and Phase 2 (the chrome) of design_handoff_africa_gates
+  REFERENCE §6.7 · §7.1–§7.5 · §10 · §13
   ══════════════════════════════════════════════════════════════════════════════
 
-  The root is 100dvh and does not scroll; `<main class="ag-main">` is the only
-  scroller, so every bar is a plain flex child that cannot move with the content.
-  A page the redesign rebuilds extends THIS layout — the only public layout left
-  since `layout/gates.twig` was destroyed with the old pages (docs/handoff/DESTROYED.md).
+  The root is 100dvh and does not scroll; `<main class="ag-main">` is the only scroller,
+  so every bar is a plain flex child that cannot move with the content.
 
-  ── WHERE THIS DIFFERS FROM THE SNIPPET, AND WHY ─────────────────────────────
+  ── THE CHROME IS THE LAYOUT'S, NOT EACH PAGE'S ─────────────────────────────
 
-  · `<html class="ag-shelled">` arms the overflow lock, which is scoped to this
-    layout rather than global — deviation #1, see shell.css and PHASE-1.md.
-  · `lang` and `dir` are `lang()` / `lang_dir()`, the one answer LanguageMiddleware
-    settles per request from `?lang=` and the `ag_lang` cookie. The snippet's
-    `lang == 'ar'` test would be a second resolver for the same value.
-  · The head script is `partials/a11y-head.twig` (nonced, before any stylesheet), not
-    `source('snippets/a11y-head.js')` — the repo's store and the snippet's differ.
-  · Colour is not a stylesheet. Every colour and shadow token comes from
-    Support\Accent through `ag_accents()`, in a nonced <style> BEFORE the links, the
-    same block every layout writes (GAPS §8 Q1).
-  · The snippet includes `partials/nav.twig` and `partials/gee.twig`. Neither
-    exists: the site header is `partials/site-header.twig`, which a page puts in
-    `header`, and Gee on this layout is GAPS §8 Q19, unanswered — so `gee` stays an
-    empty block rather than this phase inventing Phase 2's or Phase 3's partials.
-  · Only the three base sheets load. The chrome and records-library rules once
-    carved out of `components.css` were destroyed with the old pages, so the
-    header, app bar, tab bar and sheets below render with base styles only until
-    Phase 2 rebuilds them (docs/handoff/DESTROYED.md).
+  A page gets the whole of the shared chrome by extending this file and saying three
+  things about itself, as variables set at the top of the page template:
 
-  ── BLOCKS ───────────────────────────────────────────────────────────────────
-    a11y_head     Display & reading, before first paint
-    head_styles   page-local stylesheet links or a nonced <style>
-    header        SiteHeader, tablet and desktop                    (Phase 2)
-    app_bar       the phone AppBar, root or child                    (Phase 2)
-    content       inside <main> — the ONLY scroller
-    bottom_bar    an action bar OR a tab bar, each [data-bottom-ui]  (Phase 2)
-    gee           empty until Q19                                    (Phase 3)
-    sheets        Menu and Quick settings, shell-level              (Phase 2)
-    foot_scripts  page-local scripts, nonced
-  ══════════════════════════════════════════════════════════════════════════════
+    app_bar    {variant:'root'|'child', title, sub, back, share, search, avatar}
+               — the phone app bar (§7.2). Default: root, titled with page_heading or
+               page_title. A tab destination is root; a pushed screen is child.
+    tab        'home' | 'discover' | 'nominate' | 'pulse' — the active tab (§7.3).
+               Unset means none is lit, which is right for every page that is not a tab
+               destination.
+    flow_page  true on a flow (vote, checkout, event detail, nominee, product): no tab
+               bar — that page brings its own back button and bottom action bar (§7.3).
+
+  The blocks remain for a page that needs to replace a piece outright, but a partial
+  every page must remember to include is a partial the next page forgets — which is how
+  the old layout came to mount Quick settings on 180 pages with no button to open it
+  (ChromeReachabilityTest). So the defaults ARE the chrome.
+
+  What each breakpoint shows is CSS, not markup chosen per request (REFERENCE §6.7):
+  below 600 the app bar and the tab bar; from 600 the site header. The Menu and Quick
+  settings are phone sheets; the search palette and the shortcuts dialog answer `/` and
+  `?` at any width.
+
+  ── WHERE THIS DIFFERS FROM snippets/twig/page-shell.twig ─────────────────
+
+  · `<html class="ag-shelled">` arms the overflow lock, scoped rather than global
+    (Phase 1 deviation #1).
+  · `lang`/`dir` are `lang()`/`lang_dir()`, LanguageMiddleware's one answer — the
+    snippet's `lang == 'ar'` would be a second resolver for one value.
+  · Colour is `ag_accents()` in a nonced <style> BEFORE the stylesheets (GAPS §8 Q1).
+  · There is no `partials/nav.twig` or `partials/gee.twig`. The header is
+    `partials/site-header.twig`; Gee is Phase 3, and its block stays empty here.
+
+  ── THE FLASH RAIL IS HERE BECAUSE A REDIRECT WITH NOTHING ON THE OTHER END IS SILENT ─
+
+  `flash_error`/`flash_ok`/`flash_notice` are written by public POST handlers that then
+  redirect. The old layout's rail was destroyed with it (inventory: _partials.md, MUST
+  RESTORE), so every such message reached nobody. A page that places its own sets
+  `own_flash` and the rail stands aside, or the message appears twice.
 #}
+{% set _bar = {variant: 'root', title: page_heading|default(page_title|default('Africa GATES'))}|merge(app_bar|default({})) %}
+{% set _member_sync = is_member ? (member_display() is null ? 'empty' : 'saved') : '' %}
+{# Preferences (CookiePrefs): may the display store outlive the tab? The one fact about
+   consent a script needs, handed over as a value rather than the whole record. #}
+{% set _consent = consent() %}
 <!doctype html>
-<html lang="{{ lang() }}" dir="{{ lang_dir() }}" class="ag-shelled">
+<html lang="{{ lang() }}" dir="{{ lang_dir() }}" class="ag-shelled"
+      data-ag-easy-font="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;display=swap"
+      data-ag-keep="{{ _consent and _consent.remember ? '1' : '0' }}"
+      {% if _member_sync %}data-ag-sync="{{ _member_sync }}"{% endif %}>
 <head>
   <meta charset="utf-8">
   {# `viewport-fit=cover`, or every `env(safe-area-inset-*)` resolves to zero. #}
@@ -51,9 +66,10 @@
   <title>{{ page_title|default('Africa GATES') }}</title>
   {% if meta_description is defined %}<meta name="description" content="{{ meta_description }}">{% endif %}
   {% if meta_robots is defined %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
+  {# Only for a signed-in member: the token a11y.js sends with POST /account/display. #}
+  {% if _member_sync %}<meta name="ag-csrf" content="{{ csrf_token }}">{% endif %}
 
-  {# Before any stylesheet: a linked script runs after first paint, and somebody who
-     asked for 150% text would watch the page draw at 100% and jump. #}
+  {# Before any stylesheet — see the partial for why. #}
   {% block a11y_head %}{% include 'partials/a11y-head.twig' %}{% endblock %}
 
   {# §6.2: Playfair Display 700, DM Sans 400–700, JetBrains Mono 500/700, swap. #}
@@ -63,43 +79,55 @@
 
   <style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
 
-  {# In cascade order: the tokens, the shell, the base components. Nothing else:
-     the rules carved out of components.css (chrome.css, library.css) and the form
-     states (forms.css) were destroyed with the old pages on 3 Oct 2026 and come back
-     only as each phase rebuilds them — docs/handoff/DESTROYED.md. #}
+  {# In cascade order, the same order as AssetBundle::STYLESHEETS: the tokens, the
+     shell, the base components, then the shared chrome (Phase 2). #}
   <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/chrome.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/consent.css') }}">
   {% block head_styles %}{% endblock %}
 </head>
 <body data-page="{{ page_id|default('') }}">
   <a class="ag-skip" href="#main">{{ 'Skip to content'|trans }}</a>
 
   <div class="ag-shell">
-    {% block header %}{% endblock %}
-    {% block app_bar %}{% endblock %}
+    {% block header %}{% include 'partials/site-header.twig' %}{% endblock %}
+    {% block app_bar %}{% include 'partials/app-bar.twig' with _bar only %}{% endblock %}
 
     <main class="ag-main" id="main">
+      {% if not own_flash|default(false) %}{% include 'partials/flash.twig' %}{% endif %}
       {% block content %}{% endblock %}
     </main>
 
-    {% block bottom_bar %}{% endblock %}
+    {# The cookie notice, the preferences sheet and the "saved" line (§7.9). Inside the
+       column on purpose: on a phone the notice is a flex child above the tab bar, so the
+       scroller shrinks for it and it can cover nothing (see consent.css). #}
+    {% include 'partials/cookie-consent.twig' %}
+
+    {% block bottom_bar %}
+      {% if not flow_page|default(false) %}{% include 'partials/tab-bar.twig' with { active: tab|default('') } only %}{% endif %}
+    {% endblock %}
   </div>
 
+  {# Gee is Phase 3 (GAPS §8 Q19). Empty on purpose. #}
   {% block gee %}{% endblock %}
 
-  {# The Menu is reachable from the tab bar on every phone page and Quick settings
-     from every root app bar, so they belong to the shell, not to each page — a
-     partial every page must remember is a partial the next page forgets. Both
-     start `inert`. #}
+  {# Each starts `inert` (or `hidden`) and is opened by a control the chrome above draws
+     — ChromeReachabilityTest holds that every one has a way in. #}
   {% block sheets %}
     {% include 'partials/menu-sheet.twig' %}
     {% include 'partials/quick-settings.twig' %}
+    {% include 'partials/site-search.twig' %}
+    {% include 'partials/shortcuts.twig' %}
   {% endblock %}
 
   <script defer src="{{ asset('/assets/js/shell.js') }}"></script>
   <script defer src="{{ asset('/assets/js/a11y.js') }}"></script>
   <script defer src="{{ asset('/assets/js/chrome.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/header.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/search.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/consent.js') }}"></script>
   {# The shared validator: a form here that says `novalidate data-ag-validate` has
      turned the browser's own messages off on the promise this replaces them. #}
   <script defer src="{{ asset('/assets/js/form-validate.js') }}"></script>

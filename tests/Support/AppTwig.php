@@ -66,8 +66,7 @@ final class AppTwig
             'ag_accents'    => [\AfricaGates\Support\Accent::class, 'css'],
             'tile_style'    => [\AfricaGates\Support\Accent::class, 'tileStyle'],
             'programme_style' => [\AfricaGates\Support\Accent::class, 'programmeStyle'],
-            'cookie_ask'    => [\AfricaGates\Services\CookiePrefs::class, 'asking'],
-            'cookie_return' => [\AfricaGates\Services\CookiePrefs::class, 'returnPath'],
+            'consent'       => [\AfricaGates\Services\CookiePrefs::class, 'current'],
         ] as $name => $callable) {
             $twig->addFunction(new TwigFunction($name, $callable));
         }

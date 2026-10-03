@@ -597,7 +597,9 @@ CREATE TABLE IF NOT EXISTS gates_users (
   last_login_ip TEXT,
   -- How far this member has read their alerts. The ONLY state the alerts
   -- feature stores — see AfricaGates\Services\AlertService.
-  alerts_read_at TEXT NULL DEFAULT NULL
+  alerts_read_at TEXT NULL DEFAULT NULL,
+  -- Display & reading, saved to the member (REFERENCE §7.5). NULL = never saved.
+  display_json TEXT NULL DEFAULT NULL
 );
 CREATE TABLE IF NOT EXISTS gates_points_ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

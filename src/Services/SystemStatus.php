@@ -234,6 +234,52 @@ final class SystemStatus
         ];
     }
 
+    /** A recorded snapshot older than this is not "now" any more. */
+    public const LIGHT_FRESH_MIN = 45;
+
+    /**
+     * The overall state the last scheduled check RECORDED, for the one-word light on the
+     * phone Menu's Status row (MobileMenu.dc.html: a live dot and "Working").
+     *
+     * ── WHY THE LOG AND NOT {@see report()} ─────────────────────────────────────
+     *
+     * The Menu is in the document of every phone page, so whatever this costs, every page
+     * view pays. `report()` runs six probes — a database timing, the queue, mail, payments —
+     * which is right for the status page somebody opened on purpose and wrong as a tax on
+     * every arrival. The scheduled tick already records exactly this answer every fifteen
+     * minutes ({@see record()}), so the row reads one indexed row.
+     *
+     * ── AND WHY A STALE ROW IS NULL, NOT ITS STATE ──────────────────────────────
+     *
+     * "Working" from a snapshot three days old is the cached all-clear that outlives the
+     * outage it missed — the fault the status page's own timestamp exists to prevent. Past
+     * {@see LIGHT_FRESH_MIN} minutes, or with no row at all, the answer is null and the Menu
+     * draws the row with no state rather than a confident one. A gap in the log is itself
+     * the evidence the scheduler stopped, and the status page says so; a word on a menu row
+     * cannot, so it says nothing.
+     *
+     * @return array{status:string,label:string}|null
+     */
+    public static function light(): ?array
+    {
+        try {
+            $r = DB::table('gates_status_log')->orderByDesc('taken_at')->first(['taken_at', 'overall']);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (!$r || !isset(self::LABELS[(string) $r->overall])) return null;
+        if ((string) $r->overall === self::UNKNOWN) return null;
+
+        try {
+            $age = Carbon::parse((string) $r->taken_at)->diffInMinutes(Carbon::now(), false);
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($age > self::LIGHT_FRESH_MIN) return null;
+
+        return ['status' => (string) $r->overall, 'label' => self::LABELS[(string) $r->overall]];
+    }
+
     /** Drop snapshots past {@see KEEP_DAYS}. */
     public static function prune(): int
     {

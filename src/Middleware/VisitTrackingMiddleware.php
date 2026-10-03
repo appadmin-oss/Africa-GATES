@@ -40,6 +40,9 @@ final class VisitTrackingMiddleware implements MiddlewareInterface
         // permission it has already counted them without. See CookiePrefs::observe().
         CookiePrefs::observe($request);
 
-        return $handler->handle($request);
+        // A browser still holding the retired single-switch cookie has its answer carried
+        // into `ag_consent` on this response and the old cookie expired — once, and then
+        // never again. See CookiePrefs::carryOver().
+        return CookiePrefs::carryOver($request, $handler->handle($request));
     }
 }

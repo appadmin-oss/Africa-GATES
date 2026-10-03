@@ -5,7 +5,11 @@
  * component factory on window so templates use x-data="agChat({...})". */
 window.agChat = function (opts) {
   opts = opts || {};
-  var STORAGE  = opts.storageKey || 'ag-chat';
+  // No default key. Both callers name theirs (`ag-copilot`, `ag-asst`), and a fallback
+  // nobody uses was a storage key the published cookie list would have to carry for a
+  // write that never happens (Support\CookieRegistry, CookieRegistryTest). Unnamed, a
+  // conversation is simply not kept between pages.
+  var STORAGE  = opts.storageKey || '';
   var LOG_ID   = opts.logId || 'agChatLog';
   var FOCUS_ID = opts.focusId || null;
   var CSRF     = opts.csrf || '';
@@ -17,7 +21,7 @@ window.agChat = function (opts) {
 
     // Full-page surface calls init() via x-init; the floating one loads on open.
     init() { this.load(); this.$nextTick(() => this.scroll()); },
-    load() { try { this.msgs = JSON.parse(sessionStorage.getItem(STORAGE) || '[]').slice(-30); } catch (e) {} },
+    load() { if (!STORAGE) return; try { this.msgs = JSON.parse(sessionStorage.getItem(STORAGE) || '[]').slice(-30); } catch (e) {} },
     toggle() {
       this.open = !this.open;
       if (this.open) {
@@ -25,7 +29,7 @@ window.agChat = function (opts) {
         this.$nextTick(() => { this.scroll(); if (FOCUS_ID) { var el = document.getElementById(FOCUS_ID); if (el) el.focus(); } });
       }
     },
-    persist() { try { sessionStorage.setItem(STORAGE, JSON.stringify(this.msgs.slice(-30))); } catch (e) {} },
+    persist() { if (!STORAGE) return; try { sessionStorage.setItem(STORAGE, JSON.stringify(this.msgs.slice(-30))); } catch (e) {} },
     scroll() { var el = document.getElementById(LOG_ID); if (el) el.scrollTop = el.scrollHeight; },
 
     async send() {
