@@ -184,6 +184,16 @@ final class CookieRegistry
         return [
             ['key' => 'ag-a11y', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
              'purpose' => 'Your display and reading settings — text size, high contrast, the easy-read font, line spacing, underlined links, reduced motion, data saver and read-aloud — applied before the page paints so every page opens the way you set it. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. When you are signed in, the same settings are also saved to your account.'],
+            // Written by celebration.js (the handoff's engine, shipped verbatim), which
+            // stores unconditionally — so celebration-boot.js hands it a key only when
+            // Preferences is allowed, and with no key it writes nothing.
+            ['key' => 'ag-cel-', 'category' => self::PREFERENCES, 'where' => 'local', 'audience' => 'everyone',
+             'purpose' => 'That you have already seen a celebration — a vote counted, a nomination sent, a gift, a ticket, a win — so it plays its burst once and goes straight to its quiet loop the next time you open the same page. Kept only if you allow Preferences; without it nothing is stored and the celebration plays in full each time.'],
+            // Gee (Phase 3): its transcript and the privacy note's dismissal.
+            ['key' => 'ag-gee-chat:', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'everyone',
+             'purpose' => 'Your conversation with Gee, the site guide and help desk — one for each — so it survives moving between pages and an accidental reload in this tab. Gone when you close the tab. Nothing you type is kept on our server unless you pass it to a person, when it is kept with your support ticket.'],
+            ['key' => 'ag-gee-privacy', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
+             'purpose' => 'That you closed the privacy note at the top of Gee, so it is not shown again. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab.'],
             ['key' => 'coi_declared_', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'judges',
              'purpose' => 'For judges only: that you have made this programme\'s conflict-of-interest declaration in this tab.'],
             ['key' => 'ag-door-q:', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'door staff',

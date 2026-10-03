@@ -90,6 +90,13 @@ final class SupportContext
         private readonly ?RateLimitService $limits = null,
         /** Already hashed by the caller — this class never sees a raw address. */
         private readonly string $clientKey = '',
+        /**
+         * The gateway client the repair asks. Null builds the live one, as it always did.
+         * A seam for the container (which already owns one PaymentService) and for a test
+         * that has to drive a repair to completion without a network — never an identity:
+         * nothing about WHO is asking can arrive through it.
+         */
+        private readonly ?PaymentService $payments = null,
     ) {}
 
     /**
@@ -127,7 +134,35 @@ final class SupportContext
         );
     }
 
+    /**
+     * The same context, asking a given gateway client.
+     *
+     * A copy, not a setter, and not a parameter of {@see fromSession()}: that factory's
+     * argument list is pinned (GeeSupportsTest) so it can never grow a way to say WHO is
+     * asking, and this carries nothing about who is asking — only which object talks to
+     * Paystack. Every identity field is copied from the session-built original.
+     */
+    public function withPayments(PaymentService $payments): self
+    {
+        return new self($this->viewerId, $this->viewerEmail, $this->isAdmin, $this->search,
+                        $this->limits, $this->clientKey, $payments);
+    }
+
     public function isMember(): bool { return $this->viewerId !== null && $this->viewerId > 0; }
+
+    /**
+     * Is this address the signed-in member's own?
+     *
+     * The only question about the viewer's address this class answers, and it answers
+     * it without handing the address out. The help desk asks it before printing
+     * "Receipt sent to …" under a repaired payment: the repair is open to anybody
+     * holding a reference, and a reference must not be a way to learn who paid.
+     */
+    public function ownsEmail(string $email): bool
+    {
+        $mine = strtolower(trim((string) $this->viewerEmail));
+        return $this->isMember() && $mine !== '' && $mine === strtolower(trim($email));
+    }
     public function isAdmin(): bool  { return $this->isAdmin; }
 
     /**
@@ -1116,6 +1151,18 @@ final class SupportContext
                 return ['ok' => false, 'outcome' => 'NOT_OUR_REFERENCE', 'say' => $shape['say']];
             }
             $ref = (string) ($shape['reference'] ?? $ref);
+            // OUR shape in the wrong case — the help desk's reference box upper-cases what
+            // is typed (REFERENCE §8.22) and our references are minted in lower-case hex.
+            // MySQL's collation forgives that; SQLite's `=` does not, so dev and the suite
+            // would answer "no such payment" to a reference production finds. One cheap
+            // case-insensitive read puts the stored spelling back before the repair runs.
+            if (($shape['shape'] ?? '') === 'ours') {
+                try {
+                    $stored = DB::table('gates_donations')
+                        ->whereRaw('LOWER(payment_ref) = ?', [mb_strtolower($ref)])->value('payment_ref');
+                    if (is_string($stored) && $stored !== '') $ref = $stored;
+                } catch (\Throwable) {}
+            }
         }
 
         if ($ref === '') {
@@ -1135,7 +1182,7 @@ final class SupportContext
             // of signed-in members pay with a different address from the one on
             // their account; scoping here failed both of them. Nothing about the
             // payer comes back, so an unscoped repair discloses nothing.
-            $r = (new PaymentReconciler(new PaymentService()))->reclaim($ref, null);
+            $r = (new PaymentReconciler($this->payments ?? new PaymentService()))->reclaim($ref, null);
         } catch (\Throwable $e) {
             error_log('[support] reclaim failed for ' . $ref . ': ' . $e->getMessage());
             return ['ok' => false, 'outcome' => 'UNAVAILABLE',
@@ -1146,7 +1193,12 @@ final class SupportContext
         return [
             'ok'      => (bool) $r['ok'],
             'outcome' => $r['code'],
+            'reference' => $ref,
             'votes_added' => $r['minted'] ?? 0,
+            // What the repair actually did, for the help desk's live work card
+            // (SupportWork). Not for the model: it reads `say`.
+            'found'   => (bool) ($r['found'] ?? false),
+            'asked'   => array_values((array) ($r['asked'] ?? [])),
             // The service already phrases this for a person. The model should
             // relay it rather than reword it into a claim of its own.
             'say'     => $r['message'],

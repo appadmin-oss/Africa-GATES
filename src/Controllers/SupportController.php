@@ -7,8 +7,9 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
-use AfricaGates\Services\{RateLimitService, SupportAgentService,
-                          SupportContext, SupportTicketService, UserAccountService};
+use AfricaGates\Services\{NominationFeedbackService, PaymentService, RateLimitService,
+                          SupportAgentService, SupportContext, SupportDesk, SupportTicketService,
+                          SupportWork, UserAccountService};
 
 /**
  * The support assistant.
@@ -34,25 +35,48 @@ final class SupportController
         private readonly ?SupportAgentService $agent = null,
         private readonly ?SupportTicketService $tickets = null,
         private readonly ?RateLimitService $rateLimit = null,
+        /** The container's gateway client, handed to the repair (SupportContext::withPayments). */
+        private readonly ?PaymentService $payments = null,
     ) {}
 
-    public function page(Request $req, Response $res): Response
+    /** A reference as it can arrive from a button: our shape, nothing a sentence could hide. */
+    private const CHECK_REF = '/^[A-Za-z0-9_\-]{6,120}$/';
+
+    /**
+     * GET /api/support/desk — what Gee's help desk shows before anybody types.
+     *
+     * The page this used to be ({@see \AfricaGates\Controllers\SupportController} rendered
+     * `pages/support-assistant.twig`) is retired: `/support/assistant` is a 301 to
+     * `/help?gee=support`, and the desk is Gee's support mode on every page (REFERENCE
+     * §8.22). Everything that page was handed now arrives here, once, when the panel opens
+     * — so a page view that never opens Gee asks the database nothing.
+     *
+     * Identity from the session and nothing else, as everywhere in this class.
+     * `can_see_payments` keeps the page's name for the one decision it governs: a guest
+     * gets a reference card, a member gets their own rows.
+     */
+    public function desk(Request $req, Response $res): Response
     {
         $m = UserAccountService::memberForForms();
+        $mine = $m !== null
+            ? SupportDesk::forMember((int) $m['id'], (string) $m['email'], $this->tickets)
+            : ['payment' => null, 'ticket' => null, 'replied' => false];
 
-        return $this->view->render($res, 'pages/support-assistant.twig', [
-            'page_title'       => 'Support — Africa GATES',
-            'meta_description' => 'Get help with voting, payments, nominations and your account on Africa GATES.',
-            'gates_page'       => 'support',
-            'ai_on'            => $this->agent?->available() ?? false,
-            'is_signed_in'     => $m !== null,
-            'member_first'     => $m ? explode(' ', trim((string) $m['name']))[0] : null,
-            // Shown to a guest so they understand WHY the assistant cannot LIST
-            // their payments, instead of concluding it is broken. It is no longer
-            // the same thing as "cannot help with a payment" — a guest with a
-            // reference gets the repair, which is what they came for.
+        return $this->json($res, [
+            'ok'               => true,
             'can_see_payments' => $m !== null,
-            'support_email'    => \AfricaGates\Services\Notifier::supportEmail(),
+            // The status line: with no model the desk still answers from the written help
+            // and a person still gets the message — so it says that, never "Offline".
+            'ai_on'            => $this->agent?->available() ?? false,
+            // From the one resolver of the only reply promise this platform states (the
+            // review and complaint acknowledgement window). There is no separate support
+            // SLA setting; docs/handoff/PHASE-3.md asks the owner whether there should be.
+            'sla_hours'        => NominationFeedbackService::slaHours(),
+            // Only the member's own, for "We'll email {email}" under an opened ticket.
+            'email'            => $m !== null ? (string) $m['email'] : null,
+            'payment'          => $mine['payment'],
+            'ticket'           => $mine['ticket'],
+            'replied'          => $mine['replied'],
         ]);
     }
 
@@ -81,6 +105,34 @@ final class SupportController
                              . 'or email the team directly and they will pick it up.',
                 ], 429);
             }
+        }
+
+        // ── "CHECK NOW": ONE REPAIR, ASKED FOR BY NAME ──────────────────────────
+        //
+        // The desk's Check now / Check / "Check a payment" are not sentences for a planner
+        // to interpret: they name a reference and ask for the repair. Run exactly that
+        // tool, through the same context (same session identity, same repair allowance),
+        // and answer with what it said. A planner given "check AFG-…" might reach for a
+        // lookup a guest is not entitled to, or for nothing — and the button would then
+        // have shown a work card for a repair that never ran.
+        $check = trim((string) ($b['check'] ?? ''));
+        if ($check !== '') {
+            if (!preg_match(self::CHECK_REF, $check)) {
+                return $this->json($res, ['ok' => false,
+                    'reply' => 'That does not look like a payment reference. Ours begin with AFG-.'], 422);
+            }
+            $ctx = $this->context($ip);
+            $run = $ctx->run('fix_payment', ['reference' => $check]);
+            $d   = is_array($run['data'] ?? null) ? $run['data'] : [];
+            return $this->json($res, [
+                'ok'       => true,
+                'reply'    => (string) ($d['say'] ?? $d['note'] ?? $run['error'] ?? 'I could not check that just now.'),
+                'escalated'=> false,
+                'ticket'   => null,
+                'used'     => ['fix_payment'],
+                'articles' => [],
+                'work'     => SupportWork::card($run, $ctx),
+            ]);
         }
 
         $message = trim((string) ($b['message'] ?? ''));
@@ -117,6 +169,8 @@ final class SupportController
             'used'      => $r['used'],
             // Rendered as preview cards under the reply. See articlesFor().
             'articles'  => $this->articlesFor($message, $r['results'] ?? []),
+            // The live work card, when this turn repaired a payment: the steps that RAN.
+            'work'      => SupportWork::fromResults($r['results'] ?? [], $ctx),
         ]);
     }
 
@@ -226,7 +280,8 @@ final class SupportController
             && $this->tickets->appendEscalation($existing, $message, $history, (string) ($m['name'] ?? ''))) {
             $this->rememberRef($existing['reference']);
             return $this->json($res, [
-                'ok' => true, 'ticket' => $existing['reference'], 'appended' => true,
+                'ok' => true, 'ticket' => $existing['reference'], 'appended' => true, 'email' => $email,
+                'attached' => $this->screenshots($req, $existing['reference'], $m),
                 'message' => "You already have this with the team as {$existing['reference']} — I have added what "
                            . 'you just said to it and pushed it back up their queue, rather than starting a second '
                            . 'support ticket about the same thing.',
@@ -252,9 +307,39 @@ final class SupportController
         $this->rememberRef($ref);
 
         return $this->json($res, [
-            'ok' => true, 'ticket' => $ref,
+            'ok' => true, 'ticket' => $ref, 'email' => $email,
+            'attached' => $this->screenshots($req, $ref, $m),
             'message' => "Passed to the team — your reference is {$ref}. They reply by email, usually within a working day.",
         ]);
+    }
+
+    /**
+     * Gee's attach button: screenshots go with the conversation to the person.
+     *
+     * Images only and 5MB (REFERENCE §8.22), decided on the stored BYTES by
+     * {@see \AfricaGates\Services\SupportAttachmentService::store()} — the composer's
+     * `accept` and its size check are a courtesy, never the rule. Best-effort after the
+     * ticket is safely open, exactly as on the ticket page: a refused screenshot must not
+     * lose the conversation it was meant to illustrate. The reasons come back so the card
+     * can say what was not kept.
+     *
+     * @param array<string,mixed>|null $m the session member, or null
+     * @return array{stored:int, problems:list<string>}
+     */
+    private function screenshots(Request $req, string $reference, ?array $m): array
+    {
+        $files = $req->getUploadedFiles()['files'] ?? null;
+        if ($files === null) return ['stored' => 0, 'problems' => []];
+        try {
+            $tid = (int) DB::table('gates_support_tickets')->where('reference', $reference)->value('id');
+            if ($tid < 1) return ['stored' => 0, 'problems' => []];
+            $a = \AfricaGates\Services\SupportAttachmentService::attachAll(
+                $files, $tid, null, 'member', isset($m['id']) ? (int) $m['id'] : null, screenshot: true);
+            return ['stored' => (int) $a['stored'], 'problems' => array_values($a['problems'])];
+        } catch (\Throwable $e) {
+            error_log('[support] screenshot failed on ' . $reference . ': ' . $e->getMessage());
+            return ['stored' => 0, 'problems' => ['The screenshot could not be saved.']];
+        }
     }
 
     /**
@@ -526,7 +611,8 @@ final class SupportController
      */
     private function context(string $ip = ''): SupportContext
     {
-        return SupportContext::fromSession($this->rateLimit, $ip);
+        $ctx = SupportContext::fromSession($this->rateLimit, $ip);
+        return $this->payments !== null ? $ctx->withPayments($this->payments) : $ctx;
     }
 
     private function json(Response $res, array $payload, int $status = 200): Response

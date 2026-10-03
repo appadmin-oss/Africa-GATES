@@ -1,0 +1,123 @@
+{
+ "report": {
+  "reduced-os-win": {
+   "agRm": false,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "18,402",
+    "9.1"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  },
+  "reduced-os-vote": {
+   "agRm": false,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "1"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  },
+  "reduced-os-nominate": {
+   "agRm": false,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "3",
+    "212"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  },
+  "reduced-os-give": {
+   "agRm": false,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "1,412",
+    "68%"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  },
+  "reduced-os-ticket": {
+   "agRm": false,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "2",
+    "68"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  },
+  "reduced-site-win": {
+   "agRm": true,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "18,402",
+    "9.1"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  },
+  "reduced-site-vote": {
+   "agRm": true,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "1"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  },
+  "reduced-site-nominate": {
+   "agRm": true,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "3",
+    "212"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  },
+  "reduced-site-give": {
+   "agRm": true,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "1,412",
+    "68%"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  },
+  "reduced-site-ticket": {
+   "agRm": true,
+   "stage": true,
+   "ambientShown": false,
+   "burstShown": false,
+   "figures": [
+    "2",
+    "68"
+   ],
+   "replayHidden": true,
+   "titleOpacity": "1"
+  }
+ },
+ "errors": []
+}

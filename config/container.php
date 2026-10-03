@@ -440,6 +440,21 @@ return [
             'consent',
             [\AfricaGates\Services\CookiePrefs::class, 'current']
         ));
+        // The celebration's two questions (Phase 3): may this moment celebrate, and the
+        // one play-once key. `partials/celebration.twig` asks both itself, so a page cannot
+        // draw a burst on a held or delayed result by forgetting to ask.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'celebration_allowed',
+            [\AfricaGates\Services\Celebration::class, 'allowed']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'celebration_seen_key',
+            [\AfricaGates\Services\Celebration::class, 'seenKeyForRequest']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'celebration_style',
+            [\AfricaGates\Services\Celebration::class, 'style']
+        ));
         // Allowlist-sanitise admin-authored rich text (blog/legacy bodies) at render
         // time — used instead of |raw so stored HTML can't inject script/handlers.
         $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
@@ -735,7 +750,10 @@ return [
             new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
         ),
         new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class)),
-        $c->get(RateLimitService::class)
+        $c->get(RateLimitService::class),
+        // The one gateway client, so the help desk's repair asks the same object every
+        // other payment path does (SupportContext::withPayments).
+        $c->get(PaymentService::class)
     ),
     // Refunds. Gets the mailer so the buyer is told, and the auditor because
     // money leaving needs a name against it.

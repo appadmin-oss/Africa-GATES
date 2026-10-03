@@ -67,6 +67,9 @@ final class AppTwig
             'tile_style'    => [\AfricaGates\Support\Accent::class, 'tileStyle'],
             'programme_style' => [\AfricaGates\Support\Accent::class, 'programmeStyle'],
             'consent'       => [\AfricaGates\Services\CookiePrefs::class, 'current'],
+            'celebration_allowed'  => [\AfricaGates\Services\Celebration::class, 'allowed'],
+            'celebration_seen_key' => [\AfricaGates\Services\Celebration::class, 'seenKeyForRequest'],
+            'celebration_style'    => [\AfricaGates\Services\Celebration::class, 'style'],
         ] as $name => $callable) {
             $twig->addFunction(new TwigFunction($name, $callable));
         }

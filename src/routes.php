@@ -2867,7 +2867,54 @@ return function(App $app) {
                 $vars['tab'] = 'discover';
             }
             if (($q['flow'] ?? '') === '1') $vars['flow_page'] = true;
+            // `?sticky=1`: a flow page with a mock bottom action bar (Phase 3), the bar Gee
+            // must clear at 108px.
+            if (($q['sticky'] ?? '') === '1') { $vars['flow_page'] = true; $vars['mock_sticky'] = true; }
             return $tv($req)->render($res, 'pages/dev-ui.twig', $vars);
+        });
+
+        // ── THE CELEBRATION SHOWCASE (Phase 3) ──────────────────────────────
+        //
+        // One celebration per load, chosen by `?kind=&size=&layout=`, so every prop
+        // combination of Celebration.dc.html can be screenshotted at every width — and
+        // with no query, an index of all twenty. Dev only, 404 in production, like
+        // /_dev/ui above.
+        //
+        // It does NOT bypass the decision. `win` asks Services\Celebration about the
+        // newest released, decided award in THIS database — the same question a result
+        // page asks — and where there is none the partial draws nothing and the page says
+        // why. A showcase that celebrated a winner the database does not hold would be a
+        // second path into the one moment the guard exists for.
+        $g->get('/_dev/celebration', function ($req, $res) use ($tv) {
+            if (\AfricaGates\Support\Env::get('APP_ENV', 'production') === 'production') {
+                return $res->withStatus(404);
+            }
+            $q      = $req->getQueryParams();
+            $kinds  = \AfricaGates\Services\Celebration::KINDS;
+            $kind   = in_array($q['kind'] ?? '', $kinds, true) ? (string) $q['kind'] : '';
+            $size   = in_array($q['size'] ?? '', \AfricaGates\Services\Celebration::SIZES, true) ? (string) $q['size'] : 'full';
+            $layout = in_array($q['layout'] ?? '', ['phone', 'desktop'], true) ? (string) $q['layout'] : 'auto';
+
+            $award = null;
+            try {
+                foreach (\Illuminate\Database\Capsule\Manager::table('gates_award_categories as c')
+                    ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->whereIn('cy.status', \AfricaGates\Services\PublicResults::RELEASED)
+                    ->orderByDesc('c.id')->limit(20)->pluck('c.id') as $cid) {
+                    $r = \AfricaGates\Services\PublicResults::category((int) $cid);
+                    if ($r !== null && $r['held'] === null && !empty($r['winner'])) { $award = $r; break; }
+                }
+            } catch (\Throwable) {
+                $award = null;
+            }
+
+            return $tv($req)->render($res, 'pages/dev-celebration.twig', [
+                'page_title'  => 'Celebrations',
+                'meta_robots' => 'noindex, nofollow',
+                'kind' => $kind, 'size' => $size, 'layout' => $layout,
+                'kinds' => $kinds, 'award' => $award,
+                'flow_page' => true,
+            ]);
         });
 
         $g->get('/philosophy', function ($req, $res) use ($tv, $integrityFigures) {
@@ -3051,7 +3098,23 @@ return function(App $app) {
         $g->get ('/stand/{token:[a-f0-9]{48}}/redirect', \AfricaGates\Controllers\StandOfferController::class.':handoff');
         $g->get ('/stand/{token:[a-f0-9]{48}}/callback', \AfricaGates\Controllers\StandOfferController::class.':callback');
 
-        $g->get('/support/assistant', SupportController::class.':page');
+        // ── THE SUPPORT DESK IS GEE'S HELP-DESK MODE NOW (REFERENCE §8.22) ─────────
+        //
+        // The page is retired, not its address: it is in sent emails, help articles and the
+        // assistant's own answers. 301 to the Help Centre with Gee opened in support mode,
+        // keeping `q` — the four pages that hand a question over (highlight-to-ask, "No, ask
+        // the assistant", a search that found nothing, the repair button on /vote/verify)
+        // still arrive with it. `ref`, `topic` and `ask` travel too: the repair button sends
+        // a reference and asks for the repair to run, and dropping them here would turn
+        // that button into an empty composer. gee.js reads all four, and only beside
+        // `gee=support`.
+        $g->get('/support/assistant', function ($req, $res) {
+            $keep = array_intersect_key($req->getQueryParams(), array_flip(['q', 'ref', 'topic', 'ask']));
+            $keep = array_filter(array_map(static fn ($v): string => is_string($v) ? $v : '', $keep),
+                static fn (string $v): bool => $v !== '');
+            return $res->withHeader('Location', '/help?' . http_build_query(['gee' => 'support'] + $keep))
+                       ->withStatus(301);
+        });
         // Ticket threads. The page redirects a guest to sign-in; the write
         // endpoints refuse one, because a ticket is a promise to reply and a
         // reply needs a verified address.
@@ -3365,6 +3428,9 @@ return function(App $app) {
             // and neither accepts an identity — see SupportController.
             $a->post('/support/chat',       SupportController::class.':chat');
             $a->post('/support/escalate',   SupportController::class.':escalate');
+            // Gee's help desk, before anybody types: the member's own unresolved payment
+            // and newest open support ticket, the status line and the reply promise.
+            $a->get('/support/desk',        SupportController::class.':desk');
             $a->post('/support/ticket',     SupportController::class.':ticketCreate');
             $a->post('/support/reply',      SupportController::class.':ticketReply');
             // Gee — the page-aware AI guide

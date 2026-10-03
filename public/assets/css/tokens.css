@@ -77,12 +77,17 @@
   /* Display: a FIXED size per breakpoint, never scaled by the viewport (§6.2, §4.5).
      18 the shortcuts dialog's heading · 32 the phone H1 and the app bar's large
      title · 44 the desktop H1. 19 and 23 are the Display & reading size control's
-     own specimens — the "A" drawn at the size each step gives. */
-  --ag-fs-18:1.125rem;  --ag-fs-19:1.1875rem; --ag-fs-23:1.4375rem;
-  --ag-fs-32:2rem;      --ag-fs-44:2.75rem;
+     own specimens — the "A" drawn at the size each step gives. The celebration
+     (Phase 3, Celebration.dc.html): 34 → 48 its title (§6.2's own row), 22 the inline
+     title, 20 → 24 a stat's figure. */
+  --ag-fs-18:1.125rem;  --ag-fs-19:1.1875rem; --ag-fs-20:1.25rem;   --ag-fs-22:1.375rem;
+  --ag-fs-23:1.4375rem; --ag-fs-24:1.5rem;    --ag-fs-32:2rem;      --ag-fs-34:2.125rem;
+  --ag-fs-44:2.75rem;   --ag-fs-48:3rem;
+  /* Gee (Phase 3, Gee.dc.html): 25 the panel's greeting, Playfair (§8.22 "Playfair 25"). */
+  --ag-fs-25:1.5625rem;
 
   /* ── Spacing · §6.3 — the px name is the px value ──────────────────────── */
-  /* 20 and 22 (§6.3), the 22 radius (§6.4) and the bar 30 · Gee 60 layers (§6.7)
+  /* 20 and 22 (§6.3), the 22 radius (§6.4) and the bar 30 layer (§6.7)
      have no reader since the old pages were destroyed (docs/handoff/DESTROYED.md),
      and DeadTokenTest refuses a declaration nothing reads; nor has 48 (§6.3). The
      phase that rebuilds a reader puts its step back, at the handoff's value. */
@@ -122,6 +127,7 @@
   --ag-z-sticky:5;
   --ag-z-appbar:20;
   --ag-z-header:40;
+  --ag-z-gee:60;      /* restored with its reader, components/gee.css (Phase 3) */
   --ag-z-scrim:79;
   --ag-z-sheet:80;
 

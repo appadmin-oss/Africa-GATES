@@ -30,6 +30,8 @@
     shows what is actually happening (on under the `exempt` posture, which the notice
     then says in words, off under `consent`).
   · There is no way to dismiss it without answering: no close button, no Esc.
+  · It carries `data-bottom-ui`, like every bottom-fixed element: anything floating
+    (Gee's launcher, a toast) clears it by 16px through `--ag-bottom-ui` (shell.js).
   · It is not a modal and does not cover the tab bar — it sits above it, and the page
     keeps scroll room for it so nothing the keyboard reaches is hidden under it (2.4.11).
   · It is never drawn when the browser has already said no (GPC / DNT): asking somebody
@@ -45,7 +47,7 @@
 {% set _exempt = _c.mode == 'exempt' %}
 
 {% if _c.ask %}
-  <section class="ag-consent" role="region" aria-labelledby="ag-consent-t" data-ag-consent-bar>
+  <section class="ag-consent" role="region" aria-labelledby="ag-consent-t" data-ag-consent-bar data-bottom-ui>
     <div class="ag-consent__top">
       <span class="ag-icon-tile ag-consent__ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><circle cx="9" cy="10" r="1.2" fill="currentColor"></circle><circle cx="14.5" cy="14" r="1.2" fill="currentColor"></circle><circle cx="15" cy="8.5" r="1" fill="currentColor"></circle></svg></span>
       <div class="ag-consent__words">
@@ -71,7 +73,7 @@
 {% endif %}
 
 {% if _c.saved %}
-  <div class="ag-consent-saved" role="status" data-ag-consent-saved>
+  <div class="ag-consent-saved" role="status" data-ag-consent-saved data-bottom-ui>
     <span class="ag-consent-saved__t">
       {%- if _c.saved == 'all' %}{{ 'Saved. Everything optional is allowed.'|trans }}
       {%- elseif _c.saved == 'essential' %}{{ 'Saved. Only essential cookies are on.'|trans }}

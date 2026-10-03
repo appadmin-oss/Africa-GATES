@@ -371,6 +371,19 @@
 </div>
 {% endblock %}
 
+{# `?sticky=1`: a flow page's bottom action bar (skill §8), so Gee's clearance can be
+   measured above a sticky bar as well as above the tab bar (REFERENCE §17, Phase 3). A
+   plain flex child of the shell column, as every bar is, carrying `data-bottom-ui`; its
+   button unmounts and remounts it, so "clears it when it unmounts" is seen to happen. #}
+{% block bottom_bar %}
+  {% if mock_sticky|default(false) %}
+  <div class="duix__bar" data-bottom-ui data-duix-bar>
+    <span class="duix__bar-sum"><b>₦2,000</b><span>10 votes · Achieng Otieno</span></span>
+    <button type="button" class="ag-btn ag-btn--primary duix__bar-go" data-duix-bar-off>Remove this bar</button>
+  </div>
+  {% else %}{{ parent() }}{% endif %}
+{% endblock %}
+
 {% block sheets %}
   {{ parent() }}
   <div class="ag-scrim" data-duix-scrim></div>
@@ -428,6 +441,17 @@
   all('[data-duix-clear]').forEach(function (b) {
     b.addEventListener('click', function () { input.value = ''; filter(); input.focus(); });
   });
+
+  /* The mock sticky bar: removed and put back, so --ag-bottom-ui is seen to clear and
+     return (shell.js observes the mount and the unmount). */
+  var bar = document.querySelector('[data-duix-bar]');
+  if (bar) {
+    var slot = bar.parentNode, next = bar.nextSibling;
+    bar.querySelector('[data-duix-bar-off]').addEventListener('click', function () {
+      bar.remove();
+      setTimeout(function () { slot.insertBefore(bar, next); }, 4000);
+    });
+  }
 
   /* Switches: the button with the role flips its own aria-checked. */
   all('[data-duix-toggle]').forEach(function (t) {

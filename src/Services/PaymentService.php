@@ -77,6 +77,19 @@ class PaymentService
 
     public function __construct(private readonly ?LoggerInterface $log = null) {}
 
+    /**
+     * The name a person knows a provider by, from the one table of labels.
+     *
+     * Static because the caller is often describing a payment rather than making one —
+     * the help desk's "Asking Paystack about the payment" — and that sentence must not
+     * need a live gateway object to spell a word. An id this class does not know is
+     * returned as null rather than ucfirst()-ed into something that reads like a brand.
+     */
+    public static function label(string $provider): ?string
+    {
+        return self::LABELS[$provider] ?? null;
+    }
+
     /** Whether $provider is a provider we know how to talk to. */
     public function isKnownProvider(string $provider): bool
     {

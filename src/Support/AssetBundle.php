@@ -71,6 +71,9 @@ final class AssetBundle
         'assets/css/components/chrome.css',
         // Phase 2 item 6: the cookie notice and preferences sheet, on the chrome.
         'assets/css/components/consent.css',
+        // Phase 3: Gee, the guide and the help desk — the launcher and the panel that sit
+        // over every shell page but Pulse. Last: it floats above all of the above.
+        'assets/css/components/gee.css',
     ];
 
     /** Where the built bundle and its manifest live. Gitignored build output. */

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Services\Celebration;
 use AfricaGates\Support\Accent;
 use Tests\Support\ColourFields;
 use Tests\TestCase;
@@ -133,7 +134,31 @@ final class ColourBudgetTest extends TestCase
             }
         }
 
+        // A CELEBRATION is one event in its KIND's family. Its colours arrive inline from
+        // Celebration::style(), so the sheet the partial links names none of them and the
+        // field sweep above would never charge it — a page could draw a gold burst for free.
+        // Counted from the include's literal `kind:`, the only place a page names it.
+        if (preg_match_all('/\{%-?\s*include\s+[\'"]partials\/celebration\.twig[\'"](.*?)-?%\}/s', $seen, $inc)) {
+            foreach ($inc[1] as $args) {
+                if (preg_match('/\bkind\s*:\s*[\'"]([a-z]+)[\'"]/', $args, $k)
+                    && isset(Celebration::FAMILY[$k[1]])) {
+                    $out[] = Celebration::FAMILY[$k[1]];
+                }
+            }
+        }
+
         return array_values(array_unique($out));
+    }
+
+    public function test_a_celebration_is_charged_the_family_of_its_kind(): void
+    {
+        // Proving the clause above fails before trusting it to pass: a win names gold, a
+        // give live, and a `kind:` outside the celebration's include is not a celebration.
+        $this->assertContains('gold', $this->events(
+            "{% include 'partials/celebration.twig' with { kind: 'win', primary: {href: '/x'} } only %}"));
+        $this->assertContains('live', $this->events(
+            "{% include 'partials/celebration.twig' with {kind:'give'} %}"));
+        $this->assertSame([], $this->events("{% include 'partials/pulse-card.twig' with { kind: 'win' } %}"));
     }
 
     public function test_no_page_spends_more_colour_than_its_tier_allows(): void

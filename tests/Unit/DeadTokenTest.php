@@ -196,8 +196,8 @@ final class DeadTokenTest extends TestCase
     // green-wash, live-wash, live-ink), the status dot (gold), the flash mark (info) and
     // the mega panel's shadow (sh-mega) — and they left the list as it requires.
     private const AWAITING_REBUILD = [
-        '--ag-gold-wash', '--ag-green-edge', '--ag-info-wash',
-        '--ag-gold-edge', '--ag-green-light',
+        // Phase 3 (Gee) gave green-edge, info-wash and green-light their readers.
+        '--ag-gold-wash', '--ag-gold-edge',
     ];
 
     public function test_the_awaiting_rebuild_list_only_shrinks(): void

@@ -39,8 +39,8 @@
   · `lang`/`dir` are `lang()`/`lang_dir()`, LanguageMiddleware's one answer — the
     snippet's `lang == 'ar'` would be a second resolver for one value.
   · Colour is `ag_accents()` in a nonced <style> BEFORE the stylesheets (GAPS §8 Q1).
-  · There is no `partials/nav.twig` or `partials/gee.twig`. The header is
-    `partials/site-header.twig`; Gee is Phase 3, and its block stays empty here.
+  · There is no `partials/nav.twig`. The header is `partials/site-header.twig`; Gee is
+    `partials/gee.twig` (Phase 3), mounted in the `gee` block below.
 
   ── THE FLASH RAIL IS HERE BECAUSE A REDIRECT WITH NOTHING ON THE OTHER END IS SILENT ─
 
@@ -54,6 +54,14 @@
 {# Preferences (CookiePrefs): may the display store outlive the tab? The one fact about
    consent a script needs, handed over as a value rather than the whole record. #}
 {% set _consent = consent() %}
+{# Gee (Phase 3, REFERENCE §7.7): on every shell page except Pulse. Also not on the support
+   pages — the desk's own ticket list and forms are there, and two launchers onto one
+   brain is a choice nobody can make (the old layout's reason, still true) — nor on a page
+   that hides the chrome. Hoisted to template scope: it is read by the head, the `gee`
+   block and the scripts. #}
+{% set _gee_off = hide_chrome|default(false)
+                  or gates_page|default('') in ['pulse', 'support']
+                  or tab|default('') == 'pulse' %}
 <!doctype html>
 <html lang="{{ lang() }}" dir="{{ lang_dir() }}" class="ag-shelled"
       data-ag-easy-font="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;display=swap"
@@ -86,6 +94,7 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/chrome.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/consent.css') }}">
+  {% if not _gee_off %}<link rel="stylesheet" href="{{ asset('/assets/css/components/gee.css') }}">{% endif %}
   {% block head_styles %}{% endblock %}
 </head>
 <body data-page="{{ page_id|default('') }}">
@@ -110,8 +119,10 @@
     {% endblock %}
   </div>
 
-  {# Gee is Phase 3 (GAPS §8 Q19). Empty on purpose. #}
-  {% block gee %}{% endblock %}
+  {# Gee — the guide everywhere, the help desk where somebody arrives stuck (§7.7, §8.22).
+     Outside the column: the launcher and the panel are fixed, and clear every bottom bar
+     through `--ag-bottom-ui` rather than by being placed in the flow. #}
+  {% block gee %}{% if not _gee_off %}{% include 'partials/gee.twig' %}{% endif %}{% endblock %}
 
   {# Each starts `inert` (or `hidden`) and is opened by a control the chrome above draws
      — ChromeReachabilityTest holds that every one has a way in. #}
@@ -128,6 +139,7 @@
   <script defer src="{{ asset('/assets/js/header.js') }}"></script>
   <script defer src="{{ asset('/assets/js/search.js') }}"></script>
   <script defer src="{{ asset('/assets/js/consent.js') }}"></script>
+  {% if not _gee_off %}<script defer src="{{ asset('/assets/js/gee.js') }}"></script>{% endif %}
   {# The shared validator: a form here that says `novalidate data-ag-validate` has
      turned the browser's own messages off on the promise this replaces them. #}
   <script defer src="{{ asset('/assets/js/form-validate.js') }}"></script>

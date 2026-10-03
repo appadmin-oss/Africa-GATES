@@ -1,649 +1,863 @@
-/* ════════════════════════════════════════════════════════════════════
-   Gee — the Africa GATES guide (client)
-   A page-aware assistant. Greets with context for the current page,
-   talks to /api/guide (the real AI agent when a key is set, a scripted
-   guide otherwise), linkifies the routes it mentions, persists the
-   conversation for the session, and resizes — a docked panel on desktop,
-   a draggable bottom-sheet on mobile.
-   Vanilla JS, no framework dependency. Loaded with `defer`.
-   ════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════
+   GEE — the guide and the help desk (client)
+   Phase 3 · REFERENCE §7.7, §8.22 · design/Gee.dc.html · partials/gee.twig
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Destroyed and written again on 3 Oct 2026 (inventory: docs/handoff/inventory/
+   _scripts.md, "Phase 3 destroy — Gee"). A classic deferred script under the nonce,
+   exposing `window.AGGee`:
+
+     AGGee.open({mode:'guide'|'support', q})   open in that mode, `q` as a draft
+     AGGee.close()
+
+   ── ONE ASSISTANT, TWO MODES, ONE BRAIN ───────────────────────────────────────
+   GUIDE talks to /api/guide, which routes a stuck person to the support agent on its
+   own (GuideController). SUPPORT is the help desk that replaced /support/assistant: it
+   keeps that page's `supportDesk()` store — the transcript that survives a reload, the
+   reference it remembers (and forgets on request), `?q=`/`?ref=`/`?ask=` arriving from
+   another page, "ask, do not file" — and talks to /api/support/chat, /escalate and
+   /desk. The mode is chosen by whoever opens Gee; a reply never flips it under a reader.
+
+   ── THE WORK CARD IS NOT A PERFORMANCE ────────────────────────────────────────
+   While a repair is out the card shows the first step active and the rest pending —
+   true, nothing has come back. When it answers, the card shows exactly the steps the
+   server says RAN (Services\SupportWork): done, or did not complete; a step that never
+   happened is not drawn. No timers. The design file's 700/1500/2300 ms are a demo.
+
+   ── EVERY WORD IS HANDED OVER ─────────────────────────────────────────────────
+   Sentences arrive as `data-msg-*` on the root, each through `|trans`. Nothing a person
+   reads is typed here except the route labels the linkifier uses (kept from the old
+   widget, read by GeeSupportsTest).
+
+   ── SECURITY INVARIANT (kept from the old widget) ─────────────────────────────
+   format() escapes FIRST; every tag added afterwards is a constant or an <a> whose href
+   comes from the fixed ROUTES whitelist, the narrow HELP_RE slug class, or a markdown
+   link to a site-relative path of the same narrow class. Nothing untrusted reaches
+   innerHTML unescaped. Everything else is built with textContent.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
 (function () {
   'use strict';
 
-  var root = document.getElementById('gee');
+  var root = document.querySelector('[data-gee]');
   if (!root) return;
 
-  var panel    = document.getElementById('geePanel');
-  var fab      = document.getElementById('geeFab');
-  var log      = document.getElementById('geeLog');
-  var form     = document.getElementById('geeForm');
-  var input    = document.getElementById('geeInput');
-  var sendBtn  = document.getElementById('geeSend');
-  var suggest  = document.getElementById('geeSuggest');
-  var closeBtn = document.getElementById('geeClose');
-  var clearBtn = document.getElementById('geeClear');
-  var scrim    = root.querySelector('.gee-scrim');
-  var grip     = document.getElementById('geeResize');
+  function q(sel) { return root.querySelector(sel); }
+  function qa(sel) { return Array.prototype.slice.call(root.querySelectorAll(sel)); }
 
-  var PAGE_TITLE = root.dataset.geeTitle || document.title || 'Africa GATES';
-  var PAGE_PATH  = location.pathname || '/';
+  var layer   = q('[data-gee-layer]');
+  var panel   = q('.gee__panel');
+  var fab     = q('[data-gee-fab]');
+  var log     = q('[data-gee-log]');
+  var thread  = q('[data-gee-thread]');
+  var note    = q('[data-gee-note]');
+  var form    = q('[data-gee-form]');
+  var input   = q('[data-gee-input]');
+  var sendBtn = q('[data-gee-send]');
+  var fileIn  = q('[data-gee-filein]');
+  var errLine = q('[data-gee-err]');
+  if (!layer || !panel || !fab || !form || !input) return;
 
-  var SS_MSGS  = 'gee.msgs.v1';
-  var SS_SIZE  = 'gee.size.v1';   // desktop {w,h}
-  var SS_SHEET = 'gee.sheet.v1';  // mobile sheet height fraction
-  var SS_SEEN  = 'gee.seen.v1';
+  var SIGNED = root.getAttribute('data-gee-signed') === '1';
+  var TITLE  = root.getAttribute('data-gee-title') || document.title || 'Africa GATES';
+  var PATH   = location.pathname || '/';
 
-  var mqMobile = window.matchMedia('(max-width:560px)');
-  // history: {role:'user'|'assistant', text, extra?:{used,articles,support,ticket}}
-  var state = { open: false, busy: false, mode: 'guide', history: [] };
+  var PRIV       = 'ag-gee-privacy';
+  var MAX_SAVED  = 40;
+  var MAX_Q      = 300;                         // a pasted essay is not a question
+  var REF_SHAPE  = /^[A-Za-z0-9_\-]{6,120}$/;   // a reference as it can arrive in a URL
+  var OURS       = /\bAFG-[A-Za-z0-9]{2,}(?:-[A-Za-z0-9]{4,})?/i;
+  var SHOT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  var SHOT_MAX   = 5 * 1024 * 1024;
 
-  // ── Known routes → friendly labels (used to linkify replies) ────────
+  /* ── Words ─────────────────────────────────────────────────────────────── */
+  function M(name, vars) {
+    var s = root.getAttribute('data-msg-' + name) || '';
+    if (vars) Object.keys(vars).forEach(function (k) { s = s.split('%' + k + '%').join(String(vars[k])); });
+    return s;
+  }
+  function span(mins) {
+    if (mins < 1) return M('t-now');
+    if (mins < 60) return M('t-min', { n: mins });
+    var h = Math.round(mins / 60);
+    if (h < 24) return h === 1 ? M('t-hour') : M('t-hours', { n: h });
+    var d = Math.round(h / 24);
+    return d === 1 ? M('t-day') : M('t-days', { n: d });
+  }
+
+  /* ── Routes a reply mentions, linked (kept from the old widget) ─────────── */
   var ROUTES = {
     '/vote': 'Vote', '/nominate': 'Nominate', '/registry': 'the Registry',
     '/leaderboard': 'the Leaderboard', '/awards': 'Awards', '/integrity': 'how it works',
     '/methodology': 'how it works', '/shop': 'the Shop', '/events': 'Events',
-    '/partner': 'Partner with us', '/register': 'Register', '/help': 'the Help Center',
-    '/support': 'Support', '/community': 'the Community', '/giving': 'Giving'
+    '/partner': 'Partner with us', '/register': 'Register', '/help': 'the Help Centre',
+    '/support': 'Support', '/community': 'the Community', '/donate': 'Giving'
   };
-  /* `(?![\w/-])` rather than `\b`. With \b, "/help/paid-but-no-votes" matched the
-     bare "/help" prefix — because "/" is a non-word character, so \b succeeds
-     right before it — and rendered as a link labelled "the Help Center" followed
-     by the orphaned text "/paid-but-no-votes". Harmless-looking and badly wrong:
-     the reader saw a link that went to the wrong page and a fragment of a URL.
-     It only surfaced once Gee started quoting Help Centre article URLs. */
+  /* `(?![\w/-])` rather than `\b`: with \b, "/help/paid-but-no-votes" matched the bare
+     "/help" prefix and rendered a link to the wrong page beside an orphaned fragment. */
   var ROUTE_RE = /(^|[\s(])(\/(?:vote|nominate|registry|leaderboard|awards|integrity|methodology|shop|events|partner|register|help|support|community|donate))(?![\w/-])/g;
-
-  /* Help Centre articles get their own rule, run FIRST so the route list above
-     never sees them. The slug is constrained to [a-z0-9-] by this pattern, which
-     is what keeps the SECURITY INVARIANT below true: the capture group cannot
-     contain a quote, an angle bracket or a colon, so it cannot break out of the
-     href it is interpolated into. Do not widen this character class. */
+  /* Articles FIRST, so the route list never sees them. The slug class cannot contain a
+     quote, an angle bracket or a colon, so it cannot leave the href. Do not widen it. */
   var HELP_RE = /(^|[\s(])(\/help\/[a-z0-9](?:[a-z0-9-]{1,60}[a-z0-9])?)/g;
+  /* `[label](/path)`, which the support agent writes. Site-relative and narrow: an
+     absolute URL from a model is a phishing vector; a bad path is at worst a 404 here. */
+  var MD_LINK = /\[([^\]\n]{1,80})\]\((\/[a-z0-9\/-]{1,80})\)/g;
 
-  // ── Page-aware greetings + suggested questions ──────────────────────
-  var PROFILES = {
-    home: { greet: "Hi, I'm **Gee** 👋 your guide to Africa GATES — the continental Cultural Power Index. Ask me how the CPI works, how to vote or nominate, or where to find anything.",
-      chips: ['How does the CPI score work?', 'How do I nominate someone?', 'Take me to the leaderboard'] },
-    vote: { greet: "You're on the voting page. I can explain how verified voting works, why it's OTP-confirmed, or how votes feed the CPI.",
-      chips: ['How do I cast a vote?', 'Why do I have to verify?', 'How much do votes count?'] },
-    nominate: { greet: "Nominating someone? I can walk you through the steps, what makes a strong nomination, or what happens next.",
-      chips: ['What do I need to nominate?', 'What makes a strong nomination?', 'What happens after I submit?'] },
-    registry: { greet: "This is the verified registry. I can help you search by name, country or field — or explain what the CPI scores and badges mean.",
-      chips: ['How do I search the registry?', 'What does the CPI score mean?', 'How do I get listed?'] },
-    profile: { greet: "You're viewing a profile. I can explain the CPI breakdown, how to vote for them, or how the ranking is calculated.",
-      chips: ['How is this CPI score calculated?', 'How do I vote for them?', 'What do the criteria mean?'] },
-    leaderboard: { greet: "These are the live CPI rankings. Ask me how the score is built, how often it updates, or what counts toward it.",
-      chips: ['How often does this update?', 'What moves a ranking?', 'How does the CPI work?'] },
-    awards: { greet: "Welcome to the award programmes. I can explain each programme, how winners are chosen, or how to get involved.",
-      chips: ['How are winners chosen?', 'How do I get involved?', 'What are the programmes?'] },
-    integrity: { greet: "This is how scoring, voting and audits actually work. Ask me anything about the method and I'll point you to the detail.",
-      chips: ['How is the CPI calculated?', 'How do you stop vote fraud?', 'Who are the judges?'] },
-    shop: { greet: "Browsing the shop? Proceeds fund child leadership programmes. I can help with checkout, what your purchase supports, or tracking an order.",
-      chips: ['How does checkout work?', 'What do proceeds fund?', 'How do I track my order?'] },
-    events: { greet: "Here are events and RSVPs. I can help you find an event, RSVP, or learn about the awards gala.",
-      chips: ['How do I RSVP?', 'When is the next event?', 'Tell me about the gala'] },
-    partner: { greet: "Thinking about partnering with Africa GATES? I can outline the options and how the enquiry works.",
-      chips: ['What partnership options are there?', 'Who is the audience?', 'How do I enquire?'] },
-    donate: { greet: "Thinking about giving? Donations fund child leadership programmes — mentorship, scholarships and grassroots education, and every gift is receipted. I can explain where gifts go or how giving works.",
-      chips: ['Where does my gift go?', 'Is my donation secure?', 'Do donations affect scores?'] },
-    register: { greet: "Creating a verified profile? It's free and takes about a minute. I can explain verification and what a profile gets you.",
-      chips: ['What do I need to register?', 'Why verify with an OTP?', 'What does a profile get me?'] },
-    help: { greet: "You're in the Help Center. Tell me what you're trying to do and I'll point you straight to it.",
-      chips: ['How does voting work?', 'I have an account problem', 'How do I nominate?'] },
-    support: { greet: "Need a hand? I can guide you on appeals, account issues, or where to reach a human.",
-      chips: ['How do I appeal a decision?', "I can't access my account", 'How do I contact the team?'] },
-    community: { greet: "Welcome to the community. I can help you find channels, start a thread, or understand the guidelines.",
-      chips: ['How do I start a thread?', 'What are the channels?', 'What are the rules?'] },
-    'default': { greet: "Hi, I'm **Gee** 👋 your guide to Africa GATES. Ask me about voting, nominations, the CPI score, the shop or partnerships — I'll point you to the right place.",
-      chips: ['How does the CPI work?', 'How do I nominate?', 'Take me to the leaderboard'] }
-  };
-
-  function profile() {
-    var p = PAGE_PATH;
-    if (/^\/registry\/[^/]+/.test(p)) return PROFILES.profile;
-    var map = [
-      ['/vote', 'vote'], ['/nominate', 'nominate'], ['/registry', 'registry'],
-      ['/leaderboard', 'leaderboard'], ['/awards', 'awards'], ['/integrity', 'integrity'],
-      ['/methodology', 'integrity'], ['/shop', 'shop'], ['/events', 'events'],
-      ['/partner', 'partner'], ['/register', 'register'], ['/help', 'help'],
-      ['/support', 'support'], ['/community', 'community'], ['/giving', 'donate']
-    ];
-    for (var i = 0; i < map.length; i++) {
-      var pre = map[i][0];
-      if (p === pre || p.indexOf(pre + '/') === 0) return PROFILES[map[i][1]];
-    }
-    if (p === '/' || p === '') return PROFILES.home;
-    return PROFILES['default'];
-  }
-
-  // ── Rendering ───────────────────────────────────────────────────────
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
 
-  // Render a reply to safe HTML. SECURITY INVARIANT: esc() runs FIRST, so the
-  // text is fully neutralised before any markup is introduced; every tag added
-  // afterwards is a constant (<br>, <strong>) or an <a> whose href + label come
-  // from the fixed ROUTES whitelist (ROUTE_RE only ever matches known literals).
-  // No untrusted capture group is ever interpolated unescaped — keep it that way.
   function format(text) {
-    var blocks = String(text).trim().split(/\n{2,}/);
-    return blocks.map(function (block) {
+    return String(text || '').trim().split(/\n{2,}/).map(function (block) {
       var html = esc(block).replace(/\n/g, '<br>');
       html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      // Articles before routes. The href this produces is quoted with '"', and
-      // the slug pattern excludes '"', so the ROUTE_RE pass below cannot match
-      // inside it either (the character before "/help" there is a quote, not
-      // whitespace or an open bracket).
+      html = html.replace(MD_LINK, function (_m, label, path) { return '<a href="' + path + '">' + label + '</a>'; });
       html = html.replace(HELP_RE, function (_m, lead, path) {
-        return lead + '<a class="gee-link" href="' + path + '">the Help Centre answer</a>';
+        return lead + '<a href="' + path + '">' + esc(path) + '</a>';
       });
       html = html.replace(ROUTE_RE, function (_m, lead, path) {
-        var label = ROUTES[path] || path;
-        return lead + '<a class="gee-link" href="' + path + '">' + esc(label) + '</a>';
+        return lead + '<a href="' + path + '">' + esc(ROUTES[path] || path) + '</a>';
       });
       return '<p>' + html + '</p>';
     }).join('');
   }
 
-  var AV_BOT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 4.6L18.5 8l-4.6 1.9L12 14l-1.9-4.1L5.5 8l4.6-1.4z"/><path d="M18 14l.9 2.3L21 17l-2.1.7L18 20l-.9-2.3L15 17l2.1-.7z"/></svg>';
-
-  function bubble(role, html) {
-    var isUser = role === 'user';
-    var wrap = document.createElement('div');
-    wrap.className = 'gee-msg gee-msg--' + (isUser ? 'me' : 'bot');
-    // Only the assistant carries an avatar — the user's own messages read clearly
-    // from their side and colour, so dropping that avatar keeps the thread clean.
-    if (!isUser) {
-      var av = document.createElement('span');
-      av.className = 'gee-msg__av';
-      av.setAttribute('aria-hidden', 'true');
-      av.innerHTML = AV_BOT;
-      wrap.appendChild(av);
-    }
-    var b = document.createElement('div');
-    b.className = 'gee-bubble gee-bubble--' + (isUser ? 'me' : 'bot');
-    b.innerHTML = html;
-    wrap.appendChild(b);
-    log.appendChild(wrap);
-    return wrap;
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function svg(paths, size, stroke) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var s = document.createElementNS(ns, 'svg');
+    s.setAttribute('width', size); s.setAttribute('height', size); s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor');
+    s.setAttribute('stroke-width', stroke || '2'); s.setAttribute('stroke-linecap', 'round');
+    s.setAttribute('stroke-linejoin', 'round'); s.setAttribute('aria-hidden', 'true');
+    paths.forEach(function (d) { var p = document.createElementNS(ns, 'path'); p.setAttribute('d', d); s.appendChild(p); });
+    return s;
   }
 
-  function addUser(text) { bubble('user', '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>'); scrollDown(); }
-
-  /* Render one assistant turn: the reply, then what it was built from, then the
-     articles worth reading. `extra` is {used, articles, support, ticket} — all
-     optional, so an ordinary guide reply renders exactly as it always did. */
-  /* ORDER MATTERS. The way out to a person comes BEFORE the reading, because
-     somebody whose money is missing wants an action and not a reading list —
-     and in a 540px panel whatever goes last goes off-screen. Measured in
-     Chromium: with three cards ahead of it, the handoff button was not visible
-     at all. */
-  function addBot(text, extra) {
-    var wrap = bubble('assistant', format(text));
-    extra = extra || {};
-    if (extra.used && extra.used.length)         wrap.appendChild(usedRow(extra.used));
-    if (extra.support && !extra.ticket)          wrap.appendChild(handoffRow());
-    if (extra.articles && extra.articles.length) wrap.appendChild(articleStrip(extra.articles));
-    // Land on the TOP of the new turn, not the bottom of its attachments — the
-    // answer is what they came for, and scrolling to the end of a 300px card
-    // strip hides it above the fold.
-    revealTop(wrap);
-  }
-
-  /* ── What the answer was built from ────────────────────────────────────
-     A support bot that says where its answer came from is one people can
-     sanity-check. "I re-checked your payment" is a claim the reader can weigh;
-     an unsourced paragraph about their money is one they can only believe or
-     not. The labels are deliberately plain-English — a tool name means nothing
-     to the person reading it. */
-  var TOOL_LABEL = {
-    fix_payment: 're-checked the payment with the bank',
-    resend_receipt: 'sent the receipt again',
-    lookup_reference: 'looked up the reference',
-    my_transactions: 'checked your payments',
-    my_votes: 'checked your votes',
-    // SUPPORT tickets, and the word has to say so. Gee floats on every public page,
-    // including an event page where "your tickets" is the thing the reader just bought
-    // and is holding a code for. Same label, opposite meaning, one line apart from the
-    // page content.
-    my_tickets: 'checked your support tickets',
-    my_nominations: 'checked your nominations',
-    refund_status: 'checked the refund',
-    help_article: 'read the help answer',
-    help_search: 'searched the site',
-    site_state: 'checked the current cycle',
-    platform_health: 'checked whether anything is down',
-    pricing: 'checked vote pricing',
-    gateway_status: 'checked the payment provider',
-    delivery_health: 'checked vote delivery across the platform',
-    when_did_i_vote: 'checked when you voted',
-    nominee_tally: 'checked the tally',
-    find_nominee: 'found the nominee',
-    category_state: 'checked the category',
-    check_email_domain: 'checked the email address',
-    convert_currency: 'converted the amount'
+  /* ══ State ═════════════════════════════════════════════════════════════════
+     `supportDesk()` in the retired page was an Alpine store; this is the same store,
+     without Alpine (the shell does not load it): one history per mode, the remembered
+     reference, the busy flag, the attached screenshot, the desk's own facts. */
+  var state = {
+    mode: 'guide', busy: false, ref: '', file: null, desk: null,
+    history: { guide: [], support: [] }
   };
 
-  function usedRow(used) {
-    var row = document.createElement('div');
-    row.className = 'gee-used';
-    var seen = {};
-    used.forEach(function (t) {
-      var label = TOOL_LABEL[t];
-      if (!label || seen[label]) return;   // unknown tool names are not shown raw
-      seen[label] = 1;
-      var s = document.createElement('span');
-      s.className = 'gee-used__c';
-      s.textContent = label;
-      row.appendChild(s);
-    });
-    if (!row.children.length) row.className = 'gee-used gee-used--empty';
+  /* Where the transcript is kept across a reload: this tab only. A payment problem is
+     not something to leave on a shared machine after the tab closes. */
+  function chatKey() { return 'ag-gee-chat:' + state.mode; }
+
+  function save() {
+    try {
+      sessionStorage.setItem(chatKey(), JSON.stringify({
+        ref: state.mode === 'support' ? state.ref : '',
+        h: state.history[state.mode].slice(-MAX_SAVED)
+      }));
+    } catch (e) { /* private mode or the quota: the conversation still works */ }
+  }
+  function restore(mode) {
+    try {
+      var raw = sessionStorage.getItem('ag-gee-chat:' + mode);
+      var s = raw ? JSON.parse(raw) : null;
+      if (s && Array.isArray(s.h)) {
+        state.history[mode] = s.h.slice(-MAX_SAVED);
+        if (mode === 'support' && typeof s.ref === 'string') state.ref = s.ref;
+      }
+    } catch (e) {}
+  }
+
+  /* The privacy note's dismissal is a Preferences fact (CookieRegistry): kept on the
+     device only when Preferences is allowed — the layout hands that answer over as
+     `data-ag-keep` — and otherwise for this tab. Both stores spelled at each call. */
+  function keep() { return document.documentElement.getAttribute('data-ag-keep') === '1'; }
+  function noteDismissed() {
+    try { return (keep() ? localStorage.getItem(PRIV) : sessionStorage.getItem(PRIV)) === '1'; }
+    catch (e) { return false; }
+  }
+  function dismissNote() {
+    try {
+      if (keep()) localStorage.setItem(PRIV, '1');
+      else sessionStorage.setItem(PRIV, '1');
+    } catch (e) {}
+    note.hidden = true;
+    input.focus();
+  }
+
+  /* ══ Mode ══════════════════════════════════════════════════════════════════ */
+  function setMode(mode) {
+    mode = mode === 'support' ? 'support' : 'guide';
+    var changed = mode !== state.mode;
+    state.mode = mode;
+    root.setAttribute('data-mode', mode);
+    var name = q('[data-gee-name]');
+    if (name) name.textContent = M('name-' + mode);
+    status();
+    panel.setAttribute('aria-label', M('dialog-' + mode));
+    var label = q('[data-gee-fab-label]');
+    if (label) label.textContent = M('fab-' + mode);
+    fab.setAttribute('aria-label', M('fab-aria-' + mode));
+    input.placeholder = M('input-' + mode);
+    input.setAttribute('aria-label', M('input-' + mode));
+    input.maxLength = mode === 'support' ? 1500 : 1000;
+    /* The privacy note: second under the header in guide (§7.7), last of the empty
+       state in the desk (§8.22). Moved, not copied — one note, one dismissal. */
+    var empty = q('[data-gee-empty="support"]');
+    if (mode === 'support' && empty) empty.appendChild(note);
+    else log.insertBefore(note, log.firstChild);
+    if (changed) paint();
+  }
+
+  function status() {
+    var s = q('[data-gee-status]');
+    if (!s) return;
+    /* ai_on: with no model the desk still answers from the written help and a person
+       still gets the message, so it says that — never a flat "Offline". */
+    s.textContent = state.mode === 'support'
+      ? (state.desk && state.desk.ai_on === false ? M('status-support-off') : M('status-support'))
+      : M('status-guide');
+  }
+
+  /* ══ Painting the conversation ═════════════════════════════════════════════ */
+  function isEmpty() { return state.history[state.mode].length === 0; }
+
+  function paint() {
+    thread.textContent = '';
+    state.history[state.mode].forEach(function (m) { draw(m); });
+    qa('[data-gee-empty]').forEach(function (e) { e.hidden = !isEmpty(); });
+    note.hidden = noteDismissed();
+    pending();
+    if (isEmpty()) log.scrollTop = 0; else scrollDown();
+  }
+
+  function draw(m) {
+    switch (m.kind) {
+      case 'me':     thread.appendChild(bubble(true, m.text)); break;
+      case 'bot':    thread.appendChild(bubble(false, m.text, true)); if (m.links && m.links.length) thread.appendChild(links(m.links)); break;
+      case 'work':   drawWork(m); break;
+      case 'yes':    thread.appendChild(bubble(false, m.text)); break;
+      case 'hand':   thread.appendChild(handCard(m)); break;
+    }
+  }
+
+  function bubble(mine, text, rich) {
+    var row = el('div', 'gee__msg ' + (mine ? 'gee__msg--me' : 'gee__msg--bot'));
+    var b = el('div', 'gee__bubble');
+    if (rich) b.innerHTML = format(text); else b.appendChild(el('p', null, text));
+    row.appendChild(b);
     return row;
   }
 
-  /* ── Article preview cards ─────────────────────────────────────────────
-     A link inside a paragraph is a bare blue string: no title, no sense of
-     what is behind it, nothing to weigh against the effort of leaving the
-     conversation. A card with a title and a one-line summary is a decision
-     somebody can make at a glance. Same destination, several times the clicks.
-
-     `cited` means the assistant actually read it, which is a different claim
-     from "you might also want" and should not look identical. */
-  /* TWO cards, not three. The server sends up to three because the support desk
-     is a full page with room for them; this is a 380×540 floating panel, and
-     three cards measured 300px — more than half the panel, pushing the answer
-     itself above the fold. The third card is the one nobody was going to read. */
-  var MAX_CARDS = 2;
-
-  function articleStrip(arts) {
-    var box = document.createElement('div');
-    box.className = 'gee-arts';
-
-    var anyCited = arts.some(function (a) { return a.cited; });
-    var h = document.createElement('p');
-    h.className = 'gee-arts__h';
-    h.textContent = anyCited ? 'From the Help Centre' : 'This might help';
-    box.appendChild(h);
-
-    arts.slice(0, MAX_CARDS).forEach(function (a) {
-      var card = document.createElement('a');
-      card.className = 'gee-art';
-      card.href = a.url || '#';
-      var tag = document.createElement('span');
-      tag.className = 'gee-art__tag';
-      tag.textContent = a.category || 'Help';
-      // The category's own colour, as a label rather than a filled pill. A pill
-      // per card added a row of coloured blocks that read as three buttons, and
-      // in this panel the vertical space it cost was the reply.
-      if (a.fg) tag.style.color = a.fg;
-      var t = document.createElement('strong');
-      t.className = 'gee-art__t';
-      t.textContent = a.title || 'Help article';
-      var s = document.createElement('span');
-      s.className = 'gee-art__s';
-      s.textContent = a.summary || '';
-      card.appendChild(tag);
-      card.appendChild(t);
-      card.appendChild(s);
-      box.appendChild(card);
+  /* 5 · Help-link chips: the Help Centre answers the server sent with the reply. */
+  function links(arts) {
+    var box = el('div', 'gee__links');
+    arts.slice(0, 3).forEach(function (a) {
+      if (!a || !a.url || !/^\/help\/[a-z0-9-]+$/.test(String(a.url))) return;
+      var l = el('a', 'gee__link', (a.title || '') + ' ');
+      l.href = a.url;
+      l.appendChild(el('span', null, '↗')).setAttribute('aria-hidden', 'true');
+      box.appendChild(l);
     });
     return box;
   }
 
-  /* ── The escape hatch ──────────────────────────────────────────────────
-     Offered on every support answer, not hidden until Gee has failed twice.
-     Making somebody negotiate with a robot to reach a person is the single
-     most resented pattern in support software, and this path touches no model
-     at all — so it works in exactly the conditions where the assistant does
-     not. It reaches the same queue as /support. */
-  function handoffRow() {
-    var row = document.createElement('div');
-    row.className = 'gee-hand';
+  function scrollDown() { log.scrollTop = log.scrollHeight; }
 
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'gee-hand__b';
-    b.textContent = 'Pass this to a person';
-    b.addEventListener('click', function () { handoff(b); });
-
-    var n = document.createElement('span');
-    n.className = 'gee-hand__n';
-    n.textContent = 'They reply by email, usually within a working day.';
-
-    row.appendChild(b);
-    row.appendChild(n);
+  function typing() {
+    var row = el('div', 'gee__msg gee__msg--bot');
+    row.setAttribute('data-gee-typing', '');
+    var b = el('div', 'gee__bubble');
+    var t = el('span', 'gee__typing');
+    t.setAttribute('role', 'img'); t.setAttribute('aria-label', M('typing'));
+    t.appendChild(el('i')); t.appendChild(el('i')); t.appendChild(el('i'));
+    b.appendChild(t); row.appendChild(b);
+    thread.appendChild(row);
+    scrollDown();
     return row;
   }
 
-  function handoff(btn) {
-    // The problem is the last thing the PERSON said, not the last thing Gee
-    // said — a ticket whose subject is the robot's own paragraph is useless in
-    // a queue. Falls back to the whole conversation if we cannot find one.
-    var mine = state.history.filter(function (m) { return m.role === 'user'; });
-    var problem = mine.length ? mine[mine.length - 1].text : '';
-    if (!problem) return;
-
-    btn.disabled = true;
-    btn.textContent = 'Passing it on…';
-
-    fetch('/api/support/escalate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      body: JSON.stringify({
-        message: problem,
-        history: JSON.stringify(state.history.slice(-12).map(function (m) {
-          return { role: m.role, content: m.text };
-        })),
-        page_url: location.href
-      })
-    })
-      .then(function (r) { return r.json().catch(function () { return {}; }); })
-      .then(function (d) {
-        var row = btn.parentNode;
-        if (row) row.remove();
-        addBot((d && d.message) ? d.message
-          : 'I could not reach the queue just now. /support will take it, or email the team.',
-          { articles: [] });
-        if (d && d.ok) { state.history.push({ role: 'assistant', text: d.message }); save(); }
-      })
-      .catch(function () {
-        btn.disabled = false;
-        btn.textContent = 'Pass this to a person';
-        addBot("I couldn't reach the team just now — /support has the form, and it goes to the same place.");
-      });
-  }
-
-  function typing() {
-    var wrap = document.createElement('div');
-    wrap.className = 'gee-msg gee-msg--bot';
-    wrap.id = 'geeTyping';
-    wrap.innerHTML = '<span class="gee-msg__av" aria-hidden="true">' + AV_BOT + '</span>' +
-      '<div class="gee-bubble gee-bubble--bot gee-typing" aria-label="Gee is typing"><span></span><span></span><span></span></div>';
-    log.appendChild(wrap);
+  function push(m) {
+    state.history[state.mode].push(m);
+    if (m.kind === 'me' || m.kind === 'bot') noteRef(m.text);
+    save();
+    qa('[data-gee-empty]').forEach(function (e) { e.hidden = true; });
+    draw(m);
     scrollDown();
   }
-  function untyping() { var t = document.getElementById('geeTyping'); if (t) t.remove(); }
 
-  function scrollDown() { log.scrollTop = log.scrollHeight; }
-
-  /* Bring the top of a turn to the top of the log — unless the whole turn fits,
-     in which case the ordinary bottom-scroll reads better (a short reply pinned
-     to the top of a tall panel looks like a rendering fault). */
-  function revealTop(el) {
-    var h = el.getBoundingClientRect().height;
-    if (h + 24 < log.clientHeight) { scrollDown(); return; }
-    log.scrollTop = el.offsetTop - log.offsetTop - 4;
+  /* ── The remembered reference ──────────────────────────────────────────────
+     Pulled from whatever either side has said, so the reader need not paste it again
+     when the conversation moves on to the receipt. Only OUR shape: a bank's own number
+     is real but useless as a pin. The × forgets it (kept from the retired desk). */
+  function noteRef(text) {
+    if (state.mode !== 'support') return;
+    var m = String(text || '').match(OURS);
+    if (m) { state.ref = m[0]; pending(); }
+  }
+  function pending() {
+    var chip = q('[data-gee-refchip]'), val = q('[data-gee-refval]');
+    var fchip = q('[data-gee-filechip]'), fval = q('[data-gee-fileval]');
+    var showRef = state.mode === 'support' && !!state.ref;
+    var showFile = state.mode === 'support' && !!state.file;
+    if (chip) { chip.hidden = !showRef; if (val) val.textContent = state.ref; }
+    if (fchip) { fchip.hidden = !showFile; if (fval) fval.textContent = state.file ? state.file.name : ''; }
+    var box = q('[data-gee-pending]');
+    if (box) box.hidden = !showRef && !showFile;
   }
 
-  // ── Suggested-question chips ────────────────────────────────────────
-  function showChips(list) {
-    suggest.innerHTML = '';
-    (list || []).forEach(function (q) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'gee-chip';
-      b.textContent = q;
-      b.addEventListener('click', function () { send(q); });
-      suggest.appendChild(b);
+  function error(msg) {
+    if (!errLine) return;
+    errLine.textContent = msg || '';
+    errLine.hidden = !msg;
+  }
+
+  /* What goes back to the server as context: roles and words, nothing else. */
+  function priorTurns() {
+    return state.history[state.mode].filter(function (m) {
+      return (m.kind === 'me' && !m.ask) || m.kind === 'bot' || m.kind === 'work';
+    }).slice(-12).map(function (m) {
+      var words = m.kind === 'work' ? m.reply : m.text;
+      return { role: m.kind === 'me' ? 'user' : 'assistant', content: words, text: words };
     });
   }
-  function clearChips() { suggest.innerHTML = ''; }
 
-  // ── Persistence ─────────────────────────────────────────────────────
-  function save() { try { sessionStorage.setItem(SS_MSGS, JSON.stringify(state.history.slice(-40))); } catch (e) {} }
-  function load() { try { var r = sessionStorage.getItem(SS_MSGS); return r ? JSON.parse(r) : []; } catch (e) { return []; } }
+  /* ══ Talking ═══════════════════════════════════════════════════════════════ */
+  function busy(on) {
+    state.busy = on;
+    syncSend();
+  }
+  function syncSend() { sendBtn.disabled = state.busy || input.value.trim() === ''; }
 
-  function paintInitial() {
-    log.innerHTML = '';
-    state.history = load();
-    if (state.history.length) {
-      // The mode comes from the LAST assistant turn, not from whether any turn
-      // was ever support — a conversation that started with a payment problem and
-      // moved on must not still be labelled the support desk after a reload.
-      var lastMode = 'guide';
-      state.history.forEach(function (m) {
-        if (m.role === 'user') { addUser(m.text); return; }
-        addBot(m.text, m.extra);
-        lastMode = (m.extra && m.extra.support) ? 'support' : 'guide';
-      });
-      setMode(lastMode);
-      clearChips();
-    } else {
-      addBot(profile().greet);
-      showChips(profile().chips);
-    }
-    scrollDown();
+  function post(url, body, json) {
+    return fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: json
+        ? { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+        : (body instanceof FormData ? { 'X-Requested-With': 'XMLHttpRequest' }
+                                    : { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' }),
+      body: json ? JSON.stringify(body) : body
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) { return { status: r.status, d: d || {} }; });
+    });
   }
 
-  /* Guide or support desk. Only the label changes — the composer, the history
-     and the endpoint are the same, because from the reader's side this is one
-     conversation with one assistant, and it should not feel like a transfer. */
-  /* TWO chips, kept short. Measured on a 390px sheet: three long chips wrapped
-     to three rows and ate ~200px of a 483px panel, which pushed the handoff
-     button and the article cards below the fold — so the suggestions were
-     crowding out the actions. There is no "speak to someone" chip because the
-     handoff button in the thread already is one, and better. */
-  var SUPPORT_CHIPS = ['My votes are missing', 'No receipt came'];
-
-  function setMode(mode) {
-    state.mode = mode;
-    root.dataset.mode = mode;
-    var s = document.getElementById('geeStatus');
-    if (!s) return;
-    s.textContent = mode === 'support'
-      ? 'Support — I can check a payment'
-      : 'Your Africa GATES guide';
-  }
-
-  // ── Talk to the guide ───────────────────────────────────────────────
   function send(text) {
-    text = (text || '').trim();
+    text = String(text || '').trim();
     if (!text || state.busy) return;
-
-    var priorHistory = state.history.slice(-10); // turns before this message
-    addUser(text);
-    state.history.push({ role: 'user', text: text });
-    save();
-    clearChips();
+    var prior = priorTurns();
+    push({ kind: 'me', text: text });
     input.value = '';
-    autoGrow();
+    error('');
+    busy(true);
+    var dots = typing();
 
-    state.busy = true;
-    sendBtn.disabled = true;
-    typing();
+    var req = state.mode === 'support'
+      ? post('/api/support/chat', new URLSearchParams({ message: text, history: JSON.stringify(prior) }), false)
+      : post('/api/guide', { message: text, history: prior.map(function (p) { return { role: p.role, text: p.text }; }),
+                             page: { title: TITLE, path: PATH } }, true);
 
-    fetch('/api/guide', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      body: JSON.stringify({ message: text, history: priorHistory, page: { title: PAGE_TITLE, path: PAGE_PATH } })
-    })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { status: r.status, data: d }; }); })
-      .then(function (res) {
-        untyping();
-        var d = res.data || {};
-        var reply = d.reply || "I hit a snag just now. In the meantime, /help and /support have you covered.";
-        var extra = {
-          used: d.used || [], articles: d.articles || [],
-          support: !!d.support, ticket: d.ticket || null
-        };
-        addBot(reply, extra);
-        noteUnread();
-        // The header sub-label follows the LAST turn, both ways. It has to reset:
-        // measured in Chromium, asking "how do I nominate someone?" after a
-        // payment problem left the header reading "Support — I can check a
-        // payment" over an answer about nominations.
-        setMode(d.support ? 'support' : 'guide');
-        // Only remember successful exchanges so a transient error doesn't poison context.
-        if (res.status >= 200 && res.status < 300 && d.ok) {
-          state.history.push({ role: 'assistant', text: reply, extra: extra });
-          save();
-        }
-        // Follow-ups that fit the conversation, not the page. Somebody mid-repair
-        // does not want "How does the CPI work?" as their next suggested question.
-        if (d.support) showChips(SUPPORT_CHIPS);
-      })
-      .catch(function () {
-        untyping();
-        addBot("I couldn't reach the server. Check your connection — or head to /help and /support in the meantime.");
-      })
-      .then(function () {
-        state.busy = false;
-        syncSend();
-        if (state.open) input.focus();
-      });
+    req.then(function (res) {
+      dots.remove();
+      var d = res.d;
+      if (d.work) { finishWork(startWork(d.work.reference || state.ref, null), d); return; }
+      push({ kind: 'bot', text: d.reply || M('snag'), links: d.articles || [] });
+      unread();
+    }).catch(function () {
+      dots.remove();
+      push({ kind: 'bot', text: M('no-server') });
+    }).then(function () { busy(false); if (isOpen()) input.focus(); });
   }
 
-  // ── Unread replies, on the tab ──────────────────────────────────────
-  // A reply that lands while the panel is shut, or while somebody is in another tab,
-  // has not been read — and the favicon is the one thing they can see from there.
-  // Counted here because only Gee knows whether its own panel was open; cleared the
-  // moment it is seen.
-  var unread = 0;
-  function noteUnread() {
-    if (state.open && !document.hidden) return;
-    unread++;
-    if (window.agFavicon) agFavicon.unread(unread);
+  /* ══ The repair: Check now / Check / "Check a payment" ═════════════════════ */
+  function runCheck(ref, provider) {
+    ref = String(ref || '').trim();
+    if (!ref || state.busy) return;
+    if (!REF_SHAPE.test(ref)) { push({ kind: 'bot', text: M('ask-ref') }); return; }
+    state.ref = ref; pending();
+    push({ kind: 'me', text: M('check-payment', { ref: ref }) });
+    busy(true);
+    var card = startWork(ref, provider);
+    post('/api/support/chat', new URLSearchParams({ check: ref, history: JSON.stringify(priorTurns()) }), false)
+      .then(function (res) { finishWork(card, res.d); })
+      .catch(function () { card.remove(); push({ kind: 'bot', text: M('no-server') }); })
+      .then(function () { busy(false); });
+  }
+
+  function stepLabel(key, ref, provider) {
+    if (key === 'order') return M('step-order', { ref: ref });
+    if (key === 'provider') return M('step-provider', { provider: provider || M('the-provider') });
+    return M('step-votes');
+  }
+
+  function stepRow(key, st, ref, provider) {
+    var row = el('div', 'gee__step');
+    row.setAttribute('data-state', st);
+    var ring = el('span', 'gee__ring');
+    ring.setAttribute('aria-hidden', 'true');
+    var ok = svg(['M4 10.5 8.5 15 16 5.5'], 10, '3'); ok.setAttribute('viewBox', '0 0 20 20'); ok.setAttribute('class', 'gee__ring-ok');
+    var no = svg(['M10 5v6M10 14.5v.5'], 10, '3'); no.setAttribute('viewBox', '0 0 20 20'); no.setAttribute('class', 'gee__ring-no');
+    ring.appendChild(ok); ring.appendChild(no);
+    row.appendChild(ring);
+    row.appendChild(document.createTextNode(stepLabel(key, ref, provider)));
+    if (st === 'failed') row.appendChild(el('span', 'ag-sr', ' — ' + M('step-failed')));
+    return row;
+  }
+
+  /* While the request is out: the first step active, the others pending. True —
+     the server starts by reading the order, and nothing has come back. */
+  function startWork(ref, provider) {
+    var card = el('div', 'gee__work');
+    card.setAttribute('role', 'status');
+    ['order', 'provider', 'votes'].forEach(function (k, i) {
+      card.appendChild(stepRow(k, i === 0 ? 'active' : 'pending', ref, provider));
+    });
+    thread.appendChild(card);
+    scrollDown();
+    return card;
+  }
+
+  /* When it answers: exactly the steps that ran. No card at all if none did. */
+  function finishWork(card, d) {
+    card.remove();
+    var w = d && d.work;
+    var entry = { kind: 'work', work: w || null, reply: (d && d.reply) || M('snag'), answered: null };
+    push(entry);
+    unread();
+  }
+
+  function drawWork(m) {
+    var w = m.work;
+    if (w && w.steps && w.steps.length) {
+      var card = el('div', 'gee__work');
+      card.setAttribute('role', 'status');
+      w.steps.forEach(function (s) { card.appendChild(stepRow(s.key, s.state, w.reference, w.provider)); });
+      thread.appendChild(card);
+    }
+    if (w && w.fixed && w.result) {
+      thread.appendChild(resultCard(w));
+      if (m.answered === null) thread.appendChild(fixAsk(m));
+      return;
+    }
+    thread.appendChild(bubble(false, m.reply, true));
+  }
+
+  function resultCard(w) {
+    var r = w.result;
+    var box = el('div', 'gee__result');
+    var t = el('span', 'gee__result-t');
+    var ns = 'http://www.w3.org/2000/svg';
+    var check = document.createElementNS(ns, 'svg');
+    check.setAttribute('width', '18'); check.setAttribute('height', '18'); check.setAttribute('viewBox', '0 0 20 20');
+    check.setAttribute('aria-hidden', 'true');
+    var disc = document.createElementNS(ns, 'circle');
+    disc.setAttribute('cx', '10'); disc.setAttribute('cy', '10'); disc.setAttribute('r', '9'); disc.setAttribute('fill', 'currentColor');
+    var tick = document.createElementNS(ns, 'path');
+    tick.setAttribute('d', 'M6 10.5 8.8 13.3 14 7.5'); tick.setAttribute('fill', 'none'); tick.setAttribute('stroke-width', '2.2');
+    tick.setAttribute('stroke-linecap', 'round'); tick.setAttribute('stroke-linejoin', 'round');
+    tick.setAttribute('class', 'gee__result-tick');
+    check.appendChild(disc); check.appendChild(tick);
+    t.appendChild(check);
+    var who = r.nominee && r.nominee.name;
+    var line = r.votes > 0
+      ? (who ? (r.votes === 1 ? M('fixed-vote', { nominee: who }) : M('fixed-votes', { n: r.votes.toLocaleString(), nominee: who }))
+             : M('fixed-votes-only', { n: r.votes.toLocaleString() }))
+      : M('fixed-paid');
+    t.appendChild(document.createTextNode(line));
+    box.appendChild(t);
+
+    var tbl = el('div', 'gee__rcpt');
+    [[M('r-amount'), r.amount], [M('r-paid'), r.paid],
+     [M('r-receipt'), r.receipt_to ? M('r-sent-to', { email: r.receipt_to }) : M('r-sent-payment')]]
+      .forEach(function (kv) {
+        var row = el('div', 'gee__rcpt-r');
+        row.appendChild(el('span', 'gee__rcpt-k', kv[0]));
+        row.appendChild(el('b', 'gee__rcpt-v', kv[1]));
+        tbl.appendChild(row);
+      });
+    box.appendChild(tbl);
+
+    var go = el('div', 'gee__result-go');
+    if (r.nominee && r.nominee.url) { var a = el('a', 'gee__pill', M('see-race')); a.href = r.nominee.url; go.appendChild(a); }
+    if (r.receipt_url) { var v = el('a', 'gee__pill', M('view-receipt')); v.href = r.receipt_url; go.appendChild(v); }
+    box.appendChild(go);
+    return box;
+  }
+
+  function fixAsk(m) {
+    var row = el('div', 'gee__ask');
+    row.appendChild(el('span', 'gee__ask-q', M('fix-ask')));
+    var b = el('span', 'gee__ask-b');
+    var yes = el('button', 'gee__yn', M('yes')); yes.type = 'button';
+    var no = el('button', 'gee__yn', M('no')); no.type = 'button';
+    yes.addEventListener('click', function () {
+      m.answered = 'yes'; row.remove(); save();
+      var to = m.work && m.work.result && m.work.result.receipt_to;
+      push({ kind: 'yes', text: to ? M('yes-reply', { email: to }) : M('yes-reply-payment') });
+    });
+    no.addEventListener('click', function () { m.answered = 'no'; row.remove(); save(); openHandoff(); });
+    b.appendChild(yes); b.appendChild(no); row.appendChild(b);
+    return row;
+  }
+
+  /* ══ The handoff card: "A person can take it from here" ════════════════════
+     The way to a person, at any time, from the footer; and after "No". It files the
+     PERSON's last words, never Gee's paragraph — and with nothing said it asks first
+     rather than opening an empty ticket (a ticket with no content is a promise to
+     reply to nothing; SupportConversationFaultsTest). */
+  function openHandoff(asked) {
+    if (asked) push({ kind: 'me', text: M('person-ask'), ask: true });
+    var waiting = state.history[state.mode].some(function (m) { return m.kind === 'hand' && !m.ticket; });
+    if (!waiting) push({ kind: 'hand', ticket: null, email: null });
+    var all = thread.querySelectorAll('[data-gee-hand] .gee__hand-b');
+    if (all.length) all[all.length - 1].focus();
+  }
+
+  function sla() {
+    var h = state.desk && state.desk.sla_hours;
+    if (!h) return '';
+    return h === 1 ? M('handoff-sla-one') : M('handoff-sla', { n: h });
+  }
+
+  function handCard(m) {
+    var box = el('div', 'gee__hand');
+    box.setAttribute('data-gee-hand', '');
+    var h = el('span', 'gee__hand-h');
+    var ic = el('span', 'gee__hand-i');
+    ic.appendChild(svg(['M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0'], 17));
+    h.appendChild(ic);
+    var tt = el('span', 'gee__hand-tt');
+    tt.appendChild(el('b', 'gee__hand-t', m.ticket ? M('handoff-opened', { ref: m.ticket }) : M('handoff-title')));
+    var s = el('span', 'gee__hand-s', sla());
+    s.setAttribute('data-gee-sla', '');
+    tt.appendChild(s);
+    h.appendChild(tt);
+    box.appendChild(h);
+
+    if (m.ticket) {
+      box.appendChild(handOpened(m));
+      return box;
+    }
+
+    var email = null;
+    if (!SIGNED) {
+      var id = 'gee-hand-e-' + Date.now();
+      var l = el('label', 'gee__hand-l', M('handoff-email')); l.htmlFor = id;
+      email = el('input', 'gee__hand-e'); email.type = 'email'; email.id = id;
+      email.setAttribute('autocomplete', 'email'); email.setAttribute('inputmode', 'email');
+      box.appendChild(l); box.appendChild(email);
+    }
+    var pass = el('button', 'gee__hand-b', M('handoff-pass')); pass.type = 'button';
+    pass.addEventListener('click', function () { escalate(m, pass, email); });
+    box.appendChild(pass);
+    return box;
+  }
+
+  function handOpened(m) {
+    var p = el('p', 'gee__hand-p');
+    if (!m.email) { p.textContent = M('handoff-no-email'); return p; }
+    var tpl = SIGNED ? M('handoff-attached') : M('handoff-attached-guest');
+    var parts = tpl.split('%email%');
+    p.appendChild(document.createTextNode(parts[0]));
+    p.appendChild(el('b', null, m.email));
+    var rest = (parts[1] || '').split('%link%');
+    p.appendChild(document.createTextNode(rest[0]));
+    if (rest.length > 1) {
+      var a = el('a', null, M('handoff-link'));
+      a.href = '/support/tickets?ref=' + encodeURIComponent(m.ticket);
+      p.appendChild(a);
+      p.appendChild(document.createTextNode(rest[1]));
+    }
+    if (m.attachNote) p.appendChild(document.createTextNode(' ' + m.attachNote));
+    return p;
+  }
+
+  function escalate(m, btn, emailInput) {
+    var mine = state.history[state.mode].filter(function (x) { return x.kind === 'me' && !x.ask; });
+    var problem = mine.length ? mine[mine.length - 1].text : '';
+    if (!problem) {
+      push({ kind: 'bot', text: M('handoff-first') });
+      input.focus();
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = M('handoff-passing');
+    var fd = new FormData();
+    fd.append('message', problem);
+    fd.append('history', JSON.stringify(priorTurns()));
+    fd.append('page_url', location.href);
+    if (emailInput && emailInput.value.trim()) fd.append('email', emailInput.value.trim());
+    if (state.file) fd.append('files[]', state.file, state.file.name);
+
+    post('/api/support/escalate', fd, false).then(function (res) {
+      var d = res.d;
+      if (!d.ok || !d.ticket) {
+        btn.disabled = false; btn.textContent = M('handoff-pass');
+        push({ kind: 'bot', text: d.message || M('handoff-failed') });
+        return;
+      }
+      m.ticket = d.ticket;
+      m.email = d.email || (state.desk && state.desk.email) || null;
+      var a = d.attached || {};
+      if (a.problems && a.problems.length) m.attachNote = a.problems.join(' ');
+      else if (a.stored) m.attachNote = M('attach-kept');
+      if (a.stored || (a.problems && a.problems.length)) { state.file = null; pending(); }
+      save();
+      paint();
+    }).catch(function () {
+      btn.disabled = false; btn.textContent = M('handoff-pass');
+      push({ kind: 'bot', text: M('handoff-failed') });
+    });
+  }
+
+  /* ══ The desk's own facts: GET /api/support/desk ═══════════════════════════
+     Asked when the panel opens, never on a page view that does not open Gee. */
+  function loadDesk() {
+    return fetch('/api/support/desk', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) return;
+        state.desk = d;
+        status();
+        /* The live dot is colour; the words beside it say the same thing. */
+        qa('[data-gee-replied]').forEach(function (n) { n.hidden = !d.replied; });
+        qa('[data-gee-sla]').forEach(function (s) { s.textContent = sla(); });
+        mine(d);
+      })
+      .catch(function () {});
+  }
+
+  /* "From your account": up to two rows in one card (§8.22). */
+  function mine(d) {
+    var box = q('[data-gee-mine]'), rows = q('[data-gee-mine-rows]');
+    if (!box || !rows) return;
+    rows.textContent = '';
+    if (d.payment) {
+      var p = d.payment;
+      var row = el('div', 'gee__pay');
+      var tile = el('span', 'gee__tile gee__tile--pay'); tile.setAttribute('aria-hidden', 'true');
+      tile.appendChild(svg(['M3 7h18v10H3zM3 11h18'], 18));
+      row.appendChild(tile);
+      var t = el('span', 'gee__pay-t');
+      t.appendChild(el('b', 'gee__pay-b', p.provider ? p.amount + ' · ' + p.provider : p.amount));
+      t.appendChild(el('span', 'gee__pay-wait', M('pending-for', { t: span(p.minutes) })));
+      t.appendChild(el('span', 'gee__pay-ref', p.reference));
+      row.appendChild(t);
+      var c = el('button', 'gee__check', M('check-now')); c.type = 'button';
+      c.addEventListener('click', function () { runCheck(p.reference, p.provider); });
+      row.appendChild(c);
+      rows.appendChild(row);
+    }
+    if (d.ticket) {
+      var k = d.ticket;
+      var a = el('a', 'gee__tkt'); a.href = k.url;
+      var ti = el('span', 'gee__tile'); ti.setAttribute('aria-hidden', 'true');
+      ti.appendChild(svg(['M4 5h16v10H9l-5 4z'], 18));
+      a.appendChild(ti);
+      var tt = el('span', 'gee__tkt-t');
+      tt.appendChild(el('b', 'gee__tkt-b', M('ticket-row', { ref: k.reference, subject: k.subject })));
+      tt.appendChild(el('span', 'gee__tkt-s', k.replied ? M('replied-ago', { t: span(k.minutes) }) : M('waiting')));
+      a.appendChild(tt);
+      var ch = svg(['m9 6 6 6-6 6'], 16, '2.2'); ch.setAttribute('class', 'gee__tkt-c ag-ico-dir');
+      a.appendChild(ch);
+      rows.appendChild(a);
+    }
+    box.hidden = !d.payment && !d.ticket;
+  }
+
+  /* ══ Open and close ════════════════════════════════════════════════════════
+     Through the site's one sheet implementation: AGChrome pushes one history entry
+     (Back closes) over AGShell (focus in, Tab trapped, Esc closes, focus BACK to the
+     trigger). The layer is the sheet; the launcher is drawn again from the layer's own
+     `data-open`, before that focus lands. */
+  var closer = null;
+
+  function isOpen() { return layer.hasAttribute('data-open'); }
+
+  function open(opts) {
+    opts = opts || {};
+    if (opts.mode) setMode(opts.mode);
+    if (!isOpen()) {
+      var trigger = opts.trigger || fab;
+      if (window.AGChrome && window.AGChrome.openSheet) closer = window.AGChrome.openSheet(layer, null, trigger);
+      else if (window.AGShell) closer = window.AGShell.openSheet(layer, null, trigger);
+      fab.setAttribute('aria-expanded', 'true');
+      clearUnread();
+      loadDesk();
+    }
+    if (typeof opts.q === 'string' && opts.q) {
+      input.value = opts.q.replace(/\s+/g, ' ').trim().slice(0, MAX_Q);
+      syncSend();
+    }
+    /* An empty panel opens at its top — the greeting is what it is for; a conversation
+       opens at its latest turn. */
+    if (isEmpty()) log.scrollTop = 0; else scrollDown();
+    /* The composer takes focus where a keyboard is attached. On a touch screen that
+       would raise the on-screen keyboard over the panel before anybody chose to type,
+       so the sheet's own first focus (the header) stands; with a question handed over
+       (`q`) the composer is where the reader is going next either way. */
+    if (opts.q || window.matchMedia('(pointer: fine)').matches) setTimeout(function () { input.focus(); }, 0);
+  }
+
+  function close() {
+    if (closer) { var c = closer; closer = null; c(); }
+    else if (isOpen()) { layer.removeAttribute('data-open'); layer.setAttribute('inert', ''); fab.focus(); }
+  }
+
+  /* Esc, the browser's Back and AGChrome's handover all close through the sheet; this
+     keeps the launcher's state honest whichever way it went. */
+  if (window.MutationObserver) {
+    new MutationObserver(function () {
+      if (!isOpen()) { fab.setAttribute('aria-expanded', 'false'); closer = null; }
+    }).observe(layer, { attributes: true, attributeFilter: ['data-open'] });
+  }
+
+  /* ── Unread replies, on the tab: only Gee knows whether its own panel was open ── */
+  var unreadN = 0;
+  function unread() {
+    if (isOpen() && !document.hidden) return;
+    unreadN++;
+    if (window.agFavicon) window.agFavicon.unread(unreadN);
   }
   function clearUnread() {
-    if (!unread) return;
-    unread = 0;
-    if (window.agFavicon) agFavicon.unread(0);
+    if (!unreadN) return;
+    unreadN = 0;
+    if (window.agFavicon) window.agFavicon.unread(0);
   }
-  document.addEventListener('visibilitychange', function () {
-    if (!document.hidden && state.open) clearUnread();
-  });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && isOpen()) clearUnread(); });
 
-  // ── Open / close ────────────────────────────────────────────────────
-  function open() {
-    clearUnread();
-    state.open = true;
-    root.dataset.open = '1';
-    panel.hidden = false;
-    fab.setAttribute('aria-expanded', 'true');
-    fab.removeAttribute('data-attention');
-    try { sessionStorage.setItem(SS_SEEN, '1'); } catch (e) {}
-    applySize();
-    if (mqMobile.matches) document.documentElement.classList.add('gee-locked');
-    setTimeout(function () { input.focus(); scrollDown(); }, 60);
-  }
-  function close() {
-    state.open = false;
-    root.removeAttribute('data-open');
-    panel.hidden = true;
-    fab.setAttribute('aria-expanded', 'false');
-    document.documentElement.classList.remove('gee-locked');
-    fab.focus();
-  }
-  function toggle() { state.open ? close() : open(); }
-
-  // Public hooks — other surfaces (e.g. the Help/Support "Ask Gee" buttons,
-  // the mobile drawer) open Gee directly without going through the launcher.
-  window.openGee = open;
-  window.closeGee = close;
-  window.toggleGee = toggle;
-
-  function newChat() {
-    state.history = [];
-    try { sessionStorage.removeItem(SS_MSGS); } catch (e) {}
-    setMode('guide');   // a new chat is not still mid-repair
-    paintInitial();
+  function newConversation() {
+    state.history[state.mode] = [];
+    if (state.mode === 'support') { state.ref = ''; state.file = null; }
+    try { sessionStorage.removeItem(chatKey()); } catch (e) {}
+    error('');
+    paint();
     input.focus();
   }
 
-  // ── Composer behaviour ──────────────────────────────────────────────
-  function autoGrow() {
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-  }
-  // Send is actionable only when there's text to send (and Gee isn't busy).
-  function syncSend() { sendBtn.disabled = state.busy || input.value.trim() === ''; }
+  /* ══ Arriving with the problem already stated ══════════════════════════════
+     `?gee=support` on any URL opens the desk (`/support/assistant` 301s to
+     `/help?gee=support`, keeping q, ref, topic and ask). The pages that link here know
+     the reference and what went wrong; making the person retype forty characters is
+     where a digit gets dropped. `ref` is held to the shape a reference has, because it
+     becomes a repair; `q` is free text, so it is only ever a DRAFT, bound as text and
+     capped; `ask=1` with a reference RUNS the repair (the proof page's one action).
+     Read only beside `gee=support`: a search page's own `?q=` is not a question to Gee.
+     Then the parameters are taken off the address, so a reload does not repair again. */
+  function fromLink() {
+    var p = new URLSearchParams(location.search);
+    if (p.get('gee') !== 'support') return;
+    var ref = (p.get('ref') || '').trim().slice(0, 120);
+    if (ref && !REF_SHAPE.test(ref)) ref = '';
+    var topic = p.get('topic') || '';
+    var text = (p.get('q') || '').replace(/\s+/g, ' ').trim().slice(0, MAX_Q);
+    var ask = p.get('ask') === '1';
 
-  // ── Resize (desktop corner drag + mobile sheet drag) ────────────────
-  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    ['gee', 'q', 'ref', 'topic', 'ask'].forEach(function (k) { p.delete(k); });
+    try {
+      var rest = p.toString();
+      history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+    } catch (e) {}
 
-  function applySize() {
-    if (mqMobile.matches) {
-      var f = parseFloat(sessionStorage.getItem(SS_SHEET) || '');
-      if (f > 0) panel.style.height = clamp(f, 0.42, 0.92) * window.innerHeight + 'px';
-      else panel.style.height = '';
-      panel.style.width = '';
-    } else {
-      panel.style.height = '';
-      try {
-        var s = JSON.parse(sessionStorage.getItem(SS_SIZE) || 'null');
-        if (s && s.w && s.h) {
-          panel.style.width  = clamp(s.w, 320, Math.min(560, window.innerWidth - 48)) + 'px';
-          panel.style.height = clamp(s.h, 380, window.innerHeight - 48) + 'px';
-        } else { panel.style.width = ''; }
-      } catch (e) { panel.style.width = ''; }
+    if (!text && !ref && (topic === 'payment' || topic === 'votes')) {
+      text = topic === 'votes' ? M('topic-votes') : M('topic-payment');
+    }
+    open({ mode: 'support', q: ref && ask ? '' : text });
+    if (ref) {
+      state.ref = ref; pending(); save();
+      if (ask) runCheck(ref);
     }
   }
 
-  (function bindResize() {
-    if (!grip) return;
-    var dragging = false, mobile = false, sx = 0, sy = 0, sw = 0, sh = 0;
-
-    grip.addEventListener('pointerdown', function (e) {
-      dragging = true;
-      mobile = mqMobile.matches;
-      sx = e.clientX; sy = e.clientY;
-      sw = panel.offsetWidth; sh = panel.offsetHeight;
-      grip.setPointerCapture(e.pointerId);
-      e.preventDefault();
-    });
-
-    grip.addEventListener('pointermove', function (e) {
-      if (!dragging) return;
-      if (mobile) {
-        var nh = clamp(sh + (sy - e.clientY), window.innerHeight * 0.30, window.innerHeight * 0.92);
-        panel.style.height = nh + 'px';
-      } else {
-        // panel is anchored bottom-right; dragging the top-left corner grows it up/left
-        var w = clamp(sw + (sx - e.clientX), 320, Math.min(560, window.innerWidth - 48));
-        var h = clamp(sh + (sy - e.clientY), 380, window.innerHeight - 48);
-        panel.style.width = w + 'px';
-        panel.style.height = h + 'px';
-      }
-    });
-
-    function endDrag(e) {
-      if (!dragging) return;
-      dragging = false;
-      try { grip.releasePointerCapture(e.pointerId); } catch (_) {}
-      if (mobile) {
-        // dragged well below the minimum → treat as dismiss
-        if (panel.offsetHeight < window.innerHeight * 0.34) { close(); panel.style.height = ''; return; }
-        try { sessionStorage.setItem(SS_SHEET, (panel.offsetHeight / window.innerHeight).toFixed(3)); } catch (_) {}
-      } else {
-        try { sessionStorage.setItem(SS_SIZE, JSON.stringify({ w: panel.offsetWidth, h: panel.offsetHeight })); } catch (_) {}
-      }
-    }
-    grip.addEventListener('pointerup', endDrag);
-    grip.addEventListener('pointercancel', endDrag);
-  })();
-
-  // ── Wire up ─────────────────────────────────────────────────────────
-  fab.addEventListener('click', toggle);
-  closeBtn.addEventListener('click', close);
-  if (clearBtn) clearBtn.addEventListener('click', newChat);
-  if (scrim) scrim.addEventListener('click', close);
+  /* ══ Wiring ════════════════════════════════════════════════════════════════ */
+  fab.addEventListener('click', function () { open({ trigger: fab }); });
+  q('[data-gee-close]').addEventListener('click', close);
+  q('[data-gee-reset]').addEventListener('click', newConversation);
+  q('[data-gee-note-x]').addEventListener('click', dismissNote);
+  qa('[data-gee-person]').forEach(function (b) { b.addEventListener('click', function () { openHandoff(true); }); });
 
   form.addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
-  input.addEventListener('input', function () { autoGrow(); syncSend(); });
-  input.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input.value); }
+  input.addEventListener('input', syncSend);
+
+  qa('[data-gee-ask]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var fix = b.getAttribute('data-gee-fix');
+      if (fix === 'check') {
+        var known = state.ref || (state.desk && state.desk.payment && state.desk.payment.reference) || '';
+        if (known) { runCheck(known, state.desk && state.desk.payment && state.desk.payment.reference === known ? state.desk.payment.provider : null); return; }
+        var refIn = q('[data-gee-ref]');
+        if (refIn) { refIn.focus(); return; }
+        push({ kind: 'bot', text: M('ask-ref') });
+        input.focus();
+        return;
+      }
+      if (fix === 'receipt' && state.ref) { send(M('fix-receipt-ref', { ref: state.ref })); return; }
+      send(b.getAttribute('data-gee-ask'));
+    });
   });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && state.open) close(); });
 
-  // keep the sheet height sane across rotation / resize
-  window.addEventListener('resize', function () { if (state.open) applySize(); });
+  var refForm = q('[data-gee-refform]');
+  if (refForm) {
+    var refIn = q('[data-gee-ref]');
+    /* Auto-uppercase the VALUE (never with text-transform: no capitals in CSS), keeping
+       the caret where the person is typing. */
+    refIn.addEventListener('input', function () {
+      var s = refIn.selectionStart, e2 = refIn.selectionEnd;
+      var up = refIn.value.toUpperCase();
+      if (up !== refIn.value) { refIn.value = up; try { refIn.setSelectionRange(s, e2); } catch (x) {} }
+    });
+    refForm.addEventListener('submit', function (e) { e.preventDefault(); runCheck(refIn.value); });
+    var signin = q('[data-gee-signin]');
+    if (signin) {
+      var back = new URLSearchParams(location.search); back.set('gee', 'support');
+      signin.href = '/account/login?next=' + encodeURIComponent(location.pathname + '?' + back.toString());
+    }
+  }
 
-  // first-visit gentle attention pulse (once per session)
-  try { if (!sessionStorage.getItem(SS_SEEN)) fab.setAttribute('data-attention', '1'); } catch (e) {}
+  q('[data-gee-forget]').addEventListener('click', function () { state.ref = ''; pending(); save(); input.focus(); });
 
-  paintInitial();
+  /* Attach a screenshot: images only, 5MB. Checked here as a courtesy; the server
+     decides on the stored bytes (SupportAttachmentService, screenshot profile). It goes
+     to a person with the conversation, so it travels with the handoff. */
+  q('[data-gee-attach]').addEventListener('click', function () { if (fileIn) fileIn.click(); });
+  if (fileIn) fileIn.addEventListener('change', function () {
+    var f = fileIn.files && fileIn.files[0];
+    fileIn.value = '';
+    if (!f) return;
+    if (SHOT_TYPES.indexOf(f.type) < 0) { error(M('attach-bad-type')); return; }
+    if (f.size > SHOT_MAX) { error(M('attach-too-big')); return; }
+    error('');
+    state.file = f;
+    pending();
+    var fv = q('[data-gee-fileval]');
+    if (fv) fv.setAttribute('title', M('attach-note'));
+  });
+  q('[data-gee-unattach]').addEventListener('click', function () { state.file = null; pending(); input.focus(); });
+
+  /* Any control on any page: `data-ag-do="open-gee"` (+ `data-gee-mode`, `data-gee-q`). */
+  document.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-ag-do="open-gee"]') : null;
+    if (!t) return;
+    e.preventDefault();
+    open({ mode: t.getAttribute('data-gee-mode') || 'guide', q: t.getAttribute('data-gee-q') || '', trigger: t });
+  });
+
+  window.AGGee = {
+    open: function (o) { o = o || {}; open({ mode: o.mode, q: o.q, trigger: o.trigger }); },
+    close: close
+  };
+
+  /* ══ Boot ══════════════════════════════════════════════════════════════════ */
+  restore('guide');
+  restore('support');
+  setMode('guide');
+  paint();
   syncSend();
+  fab.hidden = false;
+  fromLink();
 })();

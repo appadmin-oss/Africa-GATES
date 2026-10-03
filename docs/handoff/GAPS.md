@@ -39,6 +39,81 @@ from it, and where each feature lives in the rebuild.
 
 ---
 
+## 0b. Progress log — what has been done (kept current; last updated 3 Oct 2026, after Phase 3)
+
+Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed evidence per phase lives in
+`PHASE-1.md`, `PHASE-2.md`, `PHASE-3.md`, `DESTROYED.md`, `inventory/` and `shots/`; this section is the index.
+
+### Before the redesign (audit and fixes)
+- Codebase audit, then fixes shipped in `895c22a` … `615ce92`: mail TLS advice, voting (sandbox is not a
+  ballot; mint vs refund race; ballot gate before a vote code is mailed; refusal through `PublicFault`), money
+  (receipts to every donor; refunds reverse what they earned), security and maintenance (redirects, reset
+  links, single-use tokens, failures that report), judges (removal retires, recusal never erased).
+- **Email on production — not a code fault.** The host intercepts outbound SMTP on 587 (certificate
+  mismatch). Operator action: set Send by to Automatic and save a Brevo API key in `/admin/settings/mail`.
+
+### Phase 0 — recon (`997964a`)
+- This file, the route → DC map, the destroy list. Nothing deleted in Phase 0.
+
+### Phase 1 — foundations (`a9d963a`)
+- `Support\Translator` and the `|trans` filter (Q12). `Support\Accent` destroyed and rebuilt as the handoff's
+  32 tokens + shadows, no aliases (Q1–Q3); colour guards rebuilt (`ColourLiteralTest`, `ColourFields`, …).
+- `layout/shell.twig` and the base components.
+
+### The destroy passes (`882d768`, `5b06988`, `c2cf053`)
+- Owner: "Do NOT EVER patch. Only DESTROY, then rebuild." Every public page on `layout/gates.twig` (and that
+  layout), their partials, page stylesheets and scripts were inventoried (`inventory/`) and deleted, then two
+  orphan passes. Rules each page owes its rebuild are marked MUST RESTORE in the inventories.
+- Held, not destroyed: the admin and judge consoles and their CSS (`admin.css`, `judge.css`, `main.css`,
+  `aurora.css`, `components/auth.css`, `a11y.css`), `partials/viz.twig` (admin-only).
+
+### Phase 2 — chrome (`5e915ac`, `60fba99`, `763f871`)
+- Chrome rebuilt: shell, site header, app bar, tab bar, menu sheet, quick settings, Display & reading
+  (`POST /account/display`, member persistence), search (`GET /search` JSON, palette), shortcuts, language
+  prompt, flash. `SystemStatus::light()`.
+- Type: `TypeScaleTest` (closed ladder, no vw/clamp) and `MonoAndCaseTest` (mono only for ref/code/stub, no
+  capitals) over `Tests\Support\PublicSurface` (Q4, Q5). Screen type in **rem** via `tokens.css`
+  `--ag-fs-*`, so 125/150% text size scales; pixel-identical at 100%.
+- Door scanner **held** like admin. Seven email templates destroyed and rebuilt to the ladder with
+  `Accent::mail()` colours. `share`/`poll` partials destroyed.
+- Header touch targets as specified (40/34px), owner exception in `TargetSizeTest`; 44 elsewhere, 24 floor.
+- Cookie consent (Q11): `ag_consent`, Essential + Preferences/Analytics/Marketing ("Not used"), "any no wins",
+  GPC/DNT beats a stored yes, plain POST forms, `ag_privacy` carried over and retired, `CookieRegistry`
+  rebuilt both directions, generated `/cookies` section, `2027_02_27_cookie_consent_policy_repair.php`.
+
+### Phase 3 — Gee and celebrations (this commit)
+- **Gee**: `gee.js` destroyed and rebuilt; `partials/gee.twig`, `components/gee.css`; mounted on every shell
+  page except Pulse/support/no-chrome (Q19 applied from the spec, awaiting confirmation);
+  `window.AGGee.open({mode,q})`; help-desk mode on the real `supportDesk()` store; `GET /api/support/desk`
+  ("From your account"); work-card steps reported by `Services\SupportWork` from what
+  `PaymentReconciler::reclaim()` actually did (no timers); screenshot attach validated on bytes (images, 5MB);
+  `--ag-bottom-ui` clearance measured at 16px above every bottom bar; `/support/assistant` 301 →
+  `/help?gee=support`. Two live bugs fixed: a confirmed payment whose votes could not be minted was told
+  "confirmed" (now `MINT_REFUSED`); an upper-case reference missed its order on SQLite. The help-desk flow was
+  recorded on the dev server with a stubbed gateway — **not staging**.
+- **Celebrations**: `celebration.js`/`.css` byte-identical to the bundle; `partials/celebration.twig`,
+  `Services\Celebration` (`refusal()` — no delayed, unreleased, held, sandbox or unconfirmed moment, and never
+  the five §7.8 non-moments; `seenKey()`), nonced boot, dev showcase `/_dev/celebration`. **No page celebrates
+  yet** — Phases 5, 7 and 8 wire the moments.
+- Tests: `GeeTest` (27), `CelebrationTest` rebuilt (26); 59 mutations across both, all caught.
+
+### Test status
+- Full suite after Phase 3: **6,633 tests, 8 failures — all `PasskeyTest`**, which needs PHP 8.4 (this
+  container runs 8.3; dependencies installed with `--ignore-platform-req=php`). Not a code fault.
+- No MySQL parity run has been possible in these sessions.
+
+### Known gaps in the meantime
+- `/help` returns 500 until Phase 9 rebuilds it (the Gee 301 lands there).
+- No footer anywhere until Phase 4, so cookie choices cannot be re-opened at ≥600px.
+- No translations written: every new string is `|trans`-ready with no catalogue entries.
+- Public pages destroyed and not yet rebuilt are simply absent until their phase (4–9).
+
+### Next
+- Phase 4 (home and discover), then 5–10 per `phases/`. The admin/judge update is awaited from the owner.
+- Open decisions for the owner: §8c.
+
+---
+
 ## 1. Method
 
 - **Routes were read from Slim, not parsed.** `CLAUDE.md` records a regex parser finding 563
@@ -97,7 +172,7 @@ code wins and the phase brief needs correcting.**
 | 7 | DisplayReading persistence + first-paint apply | NEW | **PARTIAL** — localStorage and first paint EXIST; the profile half is MISSING | Phase 2 `b18620b` |
 | 8 | Quick settings sheet + first-visit language prompt | NEW | **EXISTS, with a live fault** in the prompt. *Disagrees* | Phase 2 `b18620b`, `ee7dce0` |
 | 9 | Celebrations (partial + boot + seen keys) | NEW; JS/CSS supplied | **PARTIAL** — a different engine runs; the verbatim files are not in the repo | pre-redesign |
-| 10 | Gee restyle + privacy note + `--ag-bottom-ui` | EXTEND `gee.js` | **PARTIAL** — none of the three asks done; still mounted on Pulse; absent from shell pages | — |
+| 10 | Gee restyle + privacy note + `--ag-bottom-ui` | EXTEND `gee.js` | **PARTIAL** — none of the three asks done; still mounted on Pulse; absent from shell pages | Phase 3 (destroyed and rebuilt; §3.10) |
 | 11 | Pulse post kinds + guest banner | EXTEND | **PARTIAL** — `post`/`result` only; 4 reactions exist; banner copy differs | pre-redesign |
 | 12 | Event tier colours, glow, states, waitlist | EXTEND | **Mostly EXISTS** — the spec's stored colour columns conflict with CLAUDE.md | pre-redesign |
 | 13 | Shop multi-select, load more, restock alerts, order page | EXTEND | **PARTIAL** — restock and order page exist; multi-select, load more, phone markup missing | pre-redesign |
@@ -196,29 +271,41 @@ code wins and the phase brief needs correcting.**
   and `lang_prompts()` are registered with no template caller. The fault is the rebuild's not to carry: the
   rebuilt prompt is included only inside `{% if lang_ask() %}`.
 
-### 3.9 Celebrations — PARTIAL; the verbatim files are not in the repo
-```
-cmp H/design/assets/celebration/celebration.js  public/assets/js/celebration.js
-  → No such file or directory
-cmp H/design/assets/celebration/celebration.css public/assets/css/components/celebration.css
-  → No such file or directory
-```
-- Bundle files: `celebration.js` 19,848 B (sha256 `903d690b…5c7a145f3c8`), `celebration.css` 4,776 B
-  (sha256 `1e00d2fb…b016eada06a`). No `AGCelebrate` or `data-agc-` anywhere in the repo.
-- What ran instead, **all destroyed 3 Oct 2026** (the partial with the first orphan pass, the two scripts
-  with the second; inventories in `inventory/_partials.md` and `inventory/_scripts.md`): `public/assets/js/celebrate.js` (217 lines, `window.agCelebrate`, on vendored
-  `canvas-confetti-1.9.3`), kinds `win`/`nominate` only, seen keys `ag-celebrated:<key>`
-  (`celebrate.js:57-62, 89-119`); partial `partials/celebrate.twig` (`key` only); call sites
-  `partials/success.twig:179`, `vote-nominee.twig:1407`, `account/dashboard.twig:1051`,
-  `events/ticket.twig:1037`, `results/show.twig:685`, `results/edition.twig:385`, and
-  `nominate-success.twig:167` directly (all destroyed). Guarded by `CelebrationTest` (17 tests; 4 remain, all on
-  `MemberActivityService::backedWinners()` — the rest were destroyed with the pages and the script and are
-  recorded in the inventories). Nothing celebrates anywhere now, and the `ag-celebrated:` storage row in
-  `CookieRegistry` has no writer (DESTROYED.md, "Stale declarations on `/cookies`").
-- **Rules to carry across the destroy:** no celebration on a held or delayed result, play once, never
-  instead of the page (`CelebrationTest`'s docblock).
+### 3.9 Celebrations — BUILT in Phase 3 (3 Oct 2026); no page wires it yet
+- **Shipped byte-identical** (`cmp` clean against `H/design/assets/celebration/*`): `public/assets/js/celebration.js`
+  (sha256 `903d690b…5c7a145f3c8`) and `public/assets/css/components/celebration.css` (sha256 `1e00d2fb…b016eada06a`).
+  `Tests\Support\VerbatimAssets` pins both by path and hash; `ColourLiteralTest` skips the sheet only while the hash
+  holds. Q7 is **not answered**: every hex, px size, capital and word in them that disagrees with the house rules is
+  listed in `PHASE-3.md`, "Celebrations" §5.
+- Built around it: `partials/celebration.twig` (the DC's card; draws nothing unless `celebration_allowed()`),
+  `components/celebration-card.css`, `celebration-boot.js`, `Services\Celebration` (the decision, the one seen-key
+  resolver, the kind's palette family), `/_dev/celebration` (dev only). `ag-cel-` declared under Preferences in
+  `CookieRegistry`; the boot hands the engine a key only with Preferences, so with it refused nothing is stored and
+  the burst replays (Q-C1 in `PHASE-3.md`).
+- **The refusal rules are restored as a decision, not by placement:** no celebration on a delayed, unreleased, held
+  (no quorum or community dark), sandbox or someone-else's result, nor an unconfirmed payment, nor any of §7.8's
+  never-celebrate moments — asked through `PublicResults` (the result pages' own gate). `CelebrationTest` rebuilt (26:
+  22 new, the 4 `backedWinners()` kept); 21 mutations, 21 caught.
+- **Who wires it:** `award_won`/`edition_won`/`vote_cast` Phase 5, `gift_confirmed`/`ticket_confirmed` Phase 7,
+  `nomination_sent` Phase 8 (`PHASE-3.md`, "Celebrations" §2).
+- Open for the owner: Q7, Q-C1 (play once vs consent), Q-C2 (four DC tints off §6.1), Q-C3 (≤12 visible exceeded by
+  the verbatim win and desktop nominate — measured 26 and 16; DOM counts 39 and 15–17 as §9.3 states).
 
-### 3.10 Gee — PARTIAL; none of the three asks is done
+### 3.10 Gee — BUILT in Phase 3 (3 Oct 2026); was PARTIAL, none of the three asks done
+**Built (Phase 3, `PHASE-3.md` "Gee"):** `gee.js` destroyed (inventory `_scripts.md`) and rebuilt with
+`partials/gee.twig` and `components/gee.css` from `Gee.dc.html`; mounted by `layout/shell.twig` on every shell
+page except Pulse (`gates_page` or `tab` = `pulse`), the support pages and a chromeless page. Clearance is
+`bottom: calc(var(--ag-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom))` and nothing else — measured
+16px above the tab bar, the cookie notice and a sticky bar at 390/834/1024/1440; `shell.js` now measures how far
+up the screen the bottom UI reaches (bars stack) and sees a bar mounted or removed later; the cookie notice
+carries `data-bottom-ui`. The privacy note is dismissible, `ag-gee-privacy` is in `CookieRegistry`
+(Preferences, kept only with Preferences). `window.AGGee.open({mode, q})`; `?gee=support` opens the desk on any
+page; `/support/assistant` 301s to `/help?gee=support` keeping `q` (and `ref`/`topic`/`ask`). The help desk
+(§8.22) is wired to the real support actions; the work card's steps are what the repair recorded
+(`Services\SupportWork`, `PaymentReconciler::reclaim()` now reports `found`/`asked`); z-index 60 restored.
+`/help` itself still 500s — `pages/help.twig` was destroyed and is Phase 9's.
+
+*As it stood in Phase 0:*
 - Exists: `gee.js` (649 lines), `components/gee.css` (303); mounted only in `gates.twig:448-470`;
   `shell.twig:94` has an empty `{% block gee %}`, so **shell pages have no Gee**. Two modes, label only.
 - Missing: the privacy note (`privacy`, `ag-gee` not in `gee.js`; `ag-gee-privacy` not in
@@ -558,7 +645,7 @@ destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
 4. Display type — fixed rungs per breakpoint (bundle) confirmed, `MIGRATING [10, 11]` deleted outright? (C5) — **Answered (owner, 3 Oct 2026): apply §6.2.** Fixed sizes per breakpoint, never viewport-scaled (`vw`, `clamp()` on `vw`) type; the 10/11px `MIGRATING` allowance is deleted outright. `TypeScaleTest` rebuilt and scoped explicitly to the public surface (admin/judge templates and their CSS are held). Surviving public files still on 10/11px are listed by the test's own failure, owned by the rebuilds of the door, `partials/viz`/`poll` and the mail templates. **Since (owner, 3 Oct 2026):** the mail templates are rebuilt onto the ladder, the door is held, `poll` was destroyed and `viz` is held — `TypeScaleTest` is green; and **screen type is written in rem** (`tokens.css` `--ag-fs-*` steps) so the Display & reading setting reaches it, which `TypeScaleTest` now also holds (PHASE-2.md §10).
 5. Mono and uppercase — which side of the bundle's own contradictions wins? (C6) — **Answered (owner, 3 Oct 2026): the README's §6.2/§18.3–4 wins.** JetBrains Mono only for references and codes (order refs, ticket codes, receipt codes, times inside ticket stubs), never labels, stats or kickers; no uppercase labels except the ticket stub's CONFIRMED stamp; headings sentence case. Guard: `MonoAndCaseTest`; CLAUDE.md's house-style line rewritten.
 6. Event tier colour — five stored columns, or derived from the slot at read time (recommended)? (C9)
-7. `celebration.js` — accept its off-palette hexes and demo defaults as verbatim, or amend the file? (C10)
+7. `celebration.js` — accept its off-palette hexes and demo defaults as verbatim, or amend the file? (C10) — **Still open.** Shipped verbatim in Phase 3 and exempted by name and hash; the full list of what disagrees is in `PHASE-3.md`, "Celebrations" §5, with Q-C1–Q-C3 beside it.
 8. A photo slot with no real image — what renders? (C11)
 9. Ballot fields — make name, phone and message required (REFERENCE §12)? The paid name field is the display-name consent today. (§3.16)
 10. Paid-vote copy states the real rule (tally yes, reach no) — confirm the bundle's "count the same" sentence is overridden. (C12)
@@ -570,7 +657,7 @@ destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
 16. Account and Challenges were rebuilt from DCs not in this bundle — destroyed and rebuilt in a phase of this redesign, or left as they are?
 17. Waitlist hold — 24 h (bundle) or 48 h (`EventWaitlist::OFFER_HOURS`)? (§3.12)
 18. Explore — keep Results (7 items) or the bundle's 6? (§3.15)
-19. Gee on `layout/shell.twig` pages — yes? Today they have none. (§3.10)
+19. Gee on `layout/shell.twig` pages — yes? Today they have none. (§3.10) — **Applied in Phase 3 from the spec, not answered by the owner:** §7.7 says "on every page except Pulse", and the shell is the only public layout, so Gee is on every shell page but Pulse (plus the old layout's two suppressions that still hold: the support pages and a page with no chrome). **Awaiting the owner's confirmation — §8c item 12.**
 
 ---
 
@@ -617,6 +704,25 @@ an answer. Each is detailed in `PHASE-2.md` (deviations list, §9, §10 and "Coo
 10. **Re-opening consent at ≥600px** — there is no in-page way back to the choices until Phase 4 rebuilds
     the footer. Accept the gap until then?
 11. **Admin and judge consoles** — the owner is sending an update; both stay held until it arrives.
+12. **Gee (Phase 3) — confirm the spec's reading, and seven questions it raised** (`PHASE-3.md`, "Gee", §7):
+    Q19 applied from §7.7 (Gee on every shell page but Pulse, and still off the support pages) — confirm; the
+    DC's privacy sentence "kept for 30 days" has no mechanism behind it (the note states what the code does
+    instead); the reply promise reads the one SLA the platform has (`review_sla_hours`, 48h by default) — or a
+    separate support SLA setting?; "A person sees every unresolved message" is the spec's footer, but a chat
+    turn reaches a person only when it is escalated; the spec's "no bar 40px" against its own formula (16px +
+    the safe area); `/help` does not exist until Phase 9, so the 301 lands on a 500 until then; and the
+    deviations listed there.
+
+13. **Celebrations (Phase 3) — four questions** (`PHASE-3.md`, "Celebrations"):
+    **Q7** still open — every hex, px size, capital and English word inside the byte-identical
+    `celebration.js`/`celebration.css` is listed in `PHASE-3.md` §5; the engine takes no colour option, so Accent
+    values cannot be fed in from outside (only `ColourLiteralTest` exempts the stylesheet, and only while its
+    sha256 still matches); **Q-C1** the engine always writes `ag-cel-` to localStorage, so the boot hands it a
+    seen key only when Preferences is allowed — with Preferences refused the burst replays on every view;
+    **Q-C2** four DC card tints are not in §6.1 and are drawn with each family's wash token; **Q-C3** the
+    verbatim file exceeds the §24.6 visible-at-once budget (≤12): win shows 26, desktop nominate 16 (DOM counts
+    39 / 15–17 / ≤8 are within budget). Plus six deviations (no replay under reduced motion, "1st" not counted
+    up, the share button as the default primary, one full stop in the live region, no haptics before a tap).
 
 ---
 
