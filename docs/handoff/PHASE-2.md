@@ -200,7 +200,8 @@ NOTHING (every word is inside `{{ … }}`) — it now reads the rendered palette
 plus `PublicResults|AssetBundle|MonoAndCase|Flash|NestedForm|OneMain|Landmark|Focus|Touch|Target|AccessibilityFloor|AdminContrast|SlotFloor|Alias|Deployed|Passkey|Activity|Status|Sitemap|Security|MenuSheet|Schema|Migration|Users|Account`:
 **862 tests, 11 failures** — `PasskeyTest` ×8 (PHP 8.3 container, environmental), and `TypeScaleTest` ×1 / `MonoAndCaseTest` ×2,
 the other agent's in-flight guards, failing on `door.css`, `viz.twig`, `share.twig`, `poll.twig` and the email
-templates only — no file of this phase. **Full suite: 6,550 tests, 11 failures — the same eleven.**
+templates only — no file of this phase. **Full suite: 6,550 tests, 11 failures — the same eleven.** (All three type
+failures are gone since §10: the door is held, the mail is rebuilt.)
 
 ---
 
@@ -222,7 +223,7 @@ templates only — no file of this phase. **Full suite: 6,550 tests, 11 failures
 | 12 | App bar small title 700 (DC 600), avatar 34 (DC 32), child bar 56 (DC 52), fade 200ms (DC .18s) | §7.2's own numbers outrank the DC | REFERENCE §0 |
 | 13 | Phone search icon links to `/discover` (as the DC) — `/discover` still 302s to the destroyed `/registry` until Phase 4 | the DC's destination | **Flag — Phase 4** |
 | 14 | Header Search is an `<a href="/discover">` upgraded by `search.js` (DC: a button) | something must happen with scripting off | **Needs approval** |
-| 15 | Header controls at the DC/§7.1 sizes: top links, pill, avatar, Sign in 40; toolbar buttons 34; palette Esc 28; shortcuts close 36 | §7.1 states them; §6.7 asks 44 everywhere | **Blocked — REFERENCE conflicts with itself** |
+| 15 | Header controls at the DC/§7.1 sizes: top links, pill, avatar, Sign in 40; toolbar buttons 34; palette Esc 28; shortcuts close 36 | §7.1 states them; §6.7 asks 44 everywhere | **Header: approved by the owner, 3 Oct 2026 — §7.1 as specified** (`TargetSizeTest::OWNER_HEADER`, by selector). Palette Esc 28 and shortcuts close 36 are NOT the header and are **open** (§10.4) |
 | 16 | Display & reading select 44px / 16px (DC 40 / 14) | §6.2/§9.5 inputs ≥16, §6.7 44 | REFERENCE §0 |
 | 17 | Menu profile card drawn whole (the DC renders it clipped to 28px) | a flex-shrink artefact of the DC, not a design | **Needs approval** |
 | 18 | Tab bar top line `--ag-line-2` (HomePageV3.dc.html's `#d6d4cc`); §7.3 says only "a top hairline" | the DC's value where the phase gives none | REFERENCE §5 |
@@ -245,12 +246,8 @@ Phase 1's deviations 1, 7, 9 and 10 remain open.
    attributes), but the catalogues hold only the prompt's two strings. Nothing new was written into them: an unreviewed
    Hausa, Yorùbá or Igbo string is the placeholder the precision contract forbids, and each entry "wants a speaker's
    eye". So Arabic at 390 mirrors correctly with English words (`rtl-390-*.png`). Who writes FR/AR/SW/PT/HA/YO/IG?
-2. **Text size does not reach most type.** `ag-t125`/`ag-t150` set the root to 125/150%, but the DCs — and so the base
-   components and this chrome — are specified in px, which a root percentage does not move
-   (`settings-390-largest-hc.png`: the control and the class work; the type does not grow). Convert the system's type
-   to `rem` (a change across Phase 1's base and every phase), or another mechanism? Not changed here: converting only the
-   chrome would make the chrome the one thing on the page that grows.
-3. **44px floor vs §7.1's 40/34px header controls** (deviation 15).
+2. ~~**Text size does not reach most type.**~~ **Answered (owner, 3 Oct 2026): type in rem — done, §10.1.**
+3. ~~**44px floor vs §7.1's 40/34px header controls** (deviation 15).~~ **Answered: the header as specified — §10.4.**
 4. **Trending**: record a measured signal (e.g. supporters gained in 24h) to earn a "Trending" group, or accept its
    absence permanently?
 5. Not possible here: Lighthouse, a 2 GB Android, VoiceOver/TalkBack. PHP is 8.3 (the app's guard wants 8.4), so the dev
@@ -409,3 +406,106 @@ Full suite: **6,569 tests, 9 failures** — `PasskeyTest` ×8 (PHP 8.3 container
    screen reader can jump to. Move it before `<main>` in the DOM (visual position unchanged)?
 6. **Translations** — every string is `|trans`; no catalogue entries were written (Phase 2's blocked question 1).
 7. Not possible here: Lighthouse, a 2 GB Android, VoiceOver/TalkBack; PHP 8.3 container (`PasskeyTest` ×8).
+
+---
+
+## 10. Owner decisions after Phase 2 (3 Oct 2026) — implemented
+
+Four answers, each destroyed-and-rebuilt rather than patched. Evidence under `docs/handoff/shots/phase-2/rem/`.
+
+### 10.1 Type in rem — the Display & reading setting reaches the words
+
+**Destroyed and written again:** `public/assets/css/tokens.css`, `shell.css`, `components.css`,
+`components/chrome.css`, `dev-ui.css`; `tests/Unit/TypeScaleTest.php`.
+
+- **One conversion, in `tokens.css`:** `--ag-fs-11-5` … `--ag-fs-17` (the closed ladder exactly) and the display steps
+  `--ag-fs-18 · 19 · 23 · 32 · 44`. The NAME is the §6.2 px, the VALUE that px over 16 (`--ag-fs-14-5:.90625rem`).
+  Every font size in the four sheets is `var(--ag-fs-…)` — 95 declarations; no literal px or rem is typed in them.
+- **The root:** `shell.css` states `html{font-size:100%}` (the reader's own default — a px root would replace it) and
+  keeps `html.ag-t125{125%}` / `html.ag-t150{150%}`, the classes the first-paint script and `a11y.js` write.
+- **Decided — what stays px:** spacing, radii, borders, shadows and the HEIGHTS of controls. A 44px target is sized for
+  a finger, not for text, and must not shrink under a smaller root; every chrome control holds one line whose line box
+  is unitless, so it grows with the type. Measured (`p2/clip.js`): at 100/125/150%, at 390 (Menu, Quick settings,
+  rest), 834 (Explore, rest), 1024 (search) and 1440 (Aa), **no chrome element clips its text**.
+- **Decided — `em` and `%` are refused**, except the root's own percentage at 100/125/150. An `em` size is decided by
+  nesting (`.9em` is 13.05px in a 14.5 row and 14.4 in a 16 one, both off the ladder); the ladder can be held only
+  where a declaration names its size, and rem does. Relative keywords (`smaller`/`larger`) likewise.
+- **`TypeScaleTest` (rebuilt):** the closed ladder (rem read at ×16); no fluid type; **no px size on a screen** (mail is
+  exempt from this one rule only); no `em`/`%` but the root; `tokens.css`'s steps ARE the ladder and each name equals
+  its value; **the setting moves the root and the type follows** — the three root rules exactly, nothing else on the
+  public surface sets the root, both writers write the classes, and every resolved screen size is 1.5× at 150%; held
+  sheets and held templates unlinked from the public surface; the door guard (§10.2). Its self-test plants a shorthand,
+  a media query, an inline style, `.72rem` (11.52px), a token reached through the shorthand, `em`/`%`/`smaller`, a
+  `130%` root, an on-ladder px on a screen and px in mail.
+- **Proved failing first** (13 mutations, 13 caught — `scratchpad/mail/mut.py`): an email label back to 11px; a chrome
+  size back to px; `.83rem` typed; `.8em`; `html.ag-t150` at 100%; a sheet pinning `html{font-size:16px}`; a token
+  mis-converted (`.9rem`); the door sheet linked from another template; plus the five mail mutations in §10.3.
+- **Pixel-identical at 100%:** `/_dev/ui` scrolled frame by frame at 390 / 834 / 1440 (child and root bars, 76 frames)
+  plus all 57 chrome states of the Phase 2 capture, before and after, with animations and the caret frozen and the
+  consent notice answered (it now mounts in the shell and would otherwise shrink the scroller): **131 identical, 2
+  differ** (`compare-100.txt`) — `settings-390-largest-hc.png`, which is the 150% setting now working (`150-before-` /
+  `150-after-settings-390-largest-hc.png`), and `header-1024-signedin-rest.png`, 22px in a 2px band at y=50–52, which
+  differs between two captures of the SAME build too (measured noise, before×before2 and after×after2). Against the
+  Phase 2 originals the remaining differences are the search rows' live data and the Menu's status line
+  (`compare-100-vs-phase2-originals.txt`), identical before and after this change.
+- **125% / 150%** (`125-*.png`, `150-*.png`): the root computes to 20px / 24px and every size follows. Observed, not
+  fixed: at 150% on a 390 phone the tab bar's "Discover" and "Nominate" labels run edge to edge (they touch, they do
+  not overlap or clip — measured); iOS caps tab-bar labels for this reason. **Needs approval** if a cap is wanted.
+- **Not changed:** the other agent's `components/consent.css` already reads the new steps.
+
+### 10.2 The door scanner — held like admin
+
+`templates/pages/events/door.twig` and `public/assets/css/components/door.css` are untouched and are now in
+`Tests\Support\PublicSurface::HELD_TEMPLATES` / `HELD_CSS` (`DOOR_TEMPLATE`, `DOOR_CSS`), with the reason in its
+docblock. `TypeScaleTest::test_the_held_door_sheet_is_linked_only_by_the_held_door` reads EVERY template (public,
+admin, judge) and the bundle: the sheet must be linked by the door and nothing else. `MonoAndCaseTest`'s door
+failures are gone with the hold. `a11y.css` (linked only by the admin and judge layouts; GAPS §7.3 lists it held) was
+added to `HELD_CSS` too: its px input floor is console type, and the public floor is `shell.css`'s, in rem.
+
+### 10.3 The emails — destroyed and rebuilt
+
+Inventory first: `docs/handoff/inventory/_emails.md` (renderer, transport, variables, branches, links, preheader,
+unsubscribe, footer lines, translation, the tests that hold each). Then all seven `templates/emails/*.twig` were
+deleted and written again:
+
+- **Type:** every 10px and 11px label is 11.5 (the floor); nothing smaller but the 1px `mso-hide:all` preheader
+  collapse. px, which is right for mail. The mono reference and the tracked uppercase micro-labels keep their voice —
+  `MonoAndCaseTest` scopes mail out, and `InviteInboxCompatTest` asserts the Consolas reference.
+- **Colour:** no literal anywhere — `{{ c.ink }}`, `{{ c['ink-2'] }}`. `Support\Accent::mail()` (new) is every hex
+  token under the handoff's own names; each sender passes it in the render call. The newsletter's private alias table
+  (`Newsletter::palette()`: `card`, `action`, `bar_soft`…) was deleted — the same colours under second names. The
+  four document emails' dark-mode block is now the newsletter's (ink ground, ground words): the handoff names no dark
+  palette and the hexes they carried were in none. 38 typed colours (34 in no palette) mapped by ROLE (word or field), e.g. the old
+  `#1f9d55` → `green`, `#9a9c95` footer grey (2.8:1) → `soft`, `#131a15` bar → `ink`.
+- **The house shell** `OtpService::brandWrap()` (the invitation and reminder arrive in it): labels 10/10.5 → 11.5,
+  eleven typed colours and four `rgba(255,255,255,…)` → Accent (page `tint`, masthead `ground`, card `surface`, footer
+  `ink` with `line-2` words and `surface` links; the shadow is `sh-float`). Structure unchanged.
+- **Kept, by test:** every mail suite is green — `InviteMailerTest`, `InviteInboxCompatTest`, `InviteRemindersTest`,
+  `EmailInboxCompatTest`, `CampaignInboxCompatTest`, `EmailCampaignTest` (the starter campaign still reads exactly like
+  final-hours), `NewsletterTest`, `NewsletterInboxCompatTest`, `QuestionnaireInvitesTest`, `StandNoticeTest`,
+  `MailSendRulesTest`, `CspTest`, `TranslatorTest` (no `|trans` was added — none existed — so no catalogue entry is owed).
+- **New guard `MailPaletteTest`:** the mail environments are not strict, so `{{ c.inc }}` or a sender that forgets
+  `c` renders an EMPTY colour — a button with `background-color:;` on every send. It asserts every `c.<name>` is a
+  palette token, no template types a colour, every sender passes `Accent::mail()` in the render call, a real render
+  (the campaign, the shell) has no empty colour and nothing off the palette, and the shell is on the ladder. Five
+  mutations, five caught. `ColourLiteralTest`'s baseline lost the six email rows (now zero).
+
+### 10.4 Touch targets — the header as specified
+
+No test held 44px on the public surface before (`AccessibilityFloorTest` reads `a11y.css`, which only the consoles
+link). New `TargetSizeTest` reads every class on an interactive element in the chrome partials, the shell and
+/_dev/ui, and every px `height`/`min-height` a rule in `components.css`/`chrome.css` declares for it:
+
+- **Owner's exception, by selector, at §7.1's value** (`OWNER_HEADER`): `.ag-head__top` 40, `.ag-tools__b` 34 (inside
+  the 40px pill), `.ag-head__av` 40, `.ag-head__signin` 40. Held to exactly those numbers, and to the header's block.
+  The app bar avatar needs none: 34px of ink inside the 44px `.ag-appbar__icon` button (asserted).
+- **44 everywhere else, 24 (WCAG 2.5.8) under everything.**
+- **OPEN — shipped under 44 outside the header, NOT approved, awaiting the owner** (held at today's size; the list can
+  only shrink, and anything new fails): `.ag-pop__lang` 40 (the header's language menu rows — a DC value, not §7.1),
+  `.ag-ss__esc` 28 and `.ag-kb__x` 36 (the rest of deviation 15), `.ag-chip` 40 and `.ag-cs__go` 40 at ≥1024 (Phase 1),
+  `.ag-switch` 28 (a button inside a 44px span). Four mutations, four caught.
+
+### 10.5 Not this agent's
+
+`layout/shell.twig`, `CookiePrefs`, `CookieRegistry`, `LegalDocument`, the consent partials and CSS were not touched.
+Nothing here needs `shell.twig` changed.

@@ -710,12 +710,21 @@ HTML;
     {
         $year    = date('Y');
         $base    = $this->base();
-        // #626a6e is the platform's documented AA-safe secondary ink — 5.14:1 on the
-        // paper ground. A 10px tracked label is small text, so it owes the full 4.5:1;
-        // the lighter grey this used to be was chosen against white and does not clear
-        // it on #f0f2f2.
+        // THE SHELL'S COLOURS ARE THE PALETTE'S (rebuilt 3 Oct 2026 with the email
+        // templates it carries — docs/handoff/inventory/_emails.md). It typed eleven
+        // colours of its own, none in Support\Accent; mail cannot read var(), so it asks
+        // Accent for the value by name. Three levels as before: the page on `tint`, the
+        // masthead on `ground`, the card on `surface`; the footer is ink with `line-2`
+        // words and `surface` links.
+        $c = Accent::mail();
+        [$cInk, $cInk2, $cSoft, $cTint, $cGround, $cSurface, $cLine, $cLine2, $cGreen, $cGreenLight]
+            = [$c['ink'], $c['ink-2'], $c['soft'], $c['tint'], $c['ground'], $c['surface'],
+               $c['line'], $c['line-2'], $c['green'], $c['green-light']];
+        $shadow = Accent::shadows()['sh-float'];
+        // The labels are 11.5px, the §6.2 floor — they were 10 and 10.5. A tracked label is
+        // small text and owes the full 4.5:1: `soft` is 4.80 on the ground it sits on.
         $catCell = $category !== ''
-            ? '<div style="margin-top:5px;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#10292C">'
+            ? '<div style="margin-top:5px;font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:' . $cInk . '">'
               . htmlspecialchars($category, ENT_QUOTES) . '</div>'
             : '';
         // HEIGHT as well as width. Outlook desktop blocks remote images by default, and a
@@ -744,7 +753,7 @@ HTML;
         // lockup drawn in CSS, because the shipped artwork is green on OPAQUE white and
         // the band was ink. The band is the paper ground now, so the mark is the real
         // green one; Brand::LOGO_ON_TINT is that artwork with the paper turned to alpha,
-        // because #f0f2f2 is close enough to white that the opaque file's box is
+        // because the masthead's ground is close enough to white that the opaque file's box is
         // invisible in a screenshot and obvious in an inbox. Asking Brand for it rather
         // than typing a path is what keeps the letter and the email it arrives with
         // showing the same logo.
@@ -777,7 +786,7 @@ HTML;
         $postal = htmlspecialchars(MailConfig::postal(), ENT_QUOTES);
         $unsub = $unsubscribeUrl !== ''
             ? ' · <a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES)
-              . '" style="color:rgba(255,255,255,0.8);text-decoration:underline">Unsubscribe</a>'
+              . '" style="color:' . $cSurface . ';text-decoration:underline">Unsubscribe</a>'
             : '';
         // ── THE SKELETON, AND THE THREE THINGS THAT ARE EASY TO GET WRONG IN IT ──
         //
@@ -825,8 +834,8 @@ HTML;
       .ag-pad { padding-left:22px !important; padding-right:22px !important; }
     }
     /* This shell does NOT go dark, and that is a decision rather than an omission.
-       Every body it wraps is a FRAGMENT whose ink is set inline — #10292C headings on
-       white, per-message callouts in their own tints — so a card flipped to #0d1512
+       Every body it wraps is a FRAGMENT whose ink is set inline — ink headings on
+       white, per-message callouts in their own tints — so a card flipped dark
        here would render all of it dark-on-dark in exactly the clients that honour this
        query and nothing else.
        What the block is for is colour-LOCKING. Outlook.com and the Windows Outlook apps
@@ -834,32 +843,32 @@ HTML;
        surface muddy grey with the ink on it untouched. Restating each surface with
        !important is what stops that. */
     @media (prefers-color-scheme: dark) {
-      .ag-ground { background-color:#dfe1dc !important; }
-      .ag-head   { background-color:#f0f2f2 !important; }
-      .ag-card   { background-color:#ffffff !important; }
-      .ag-body   { background-color:#ffffff !important; color:#4a5256 !important; }
-      .ag-foot   { background-color:#0c2225 !important; }
+      .ag-ground { background-color:$cTint !important; }
+      .ag-head   { background-color:$cGround !important; }
+      .ag-card   { background-color:$cSurface !important; }
+      .ag-body   { background-color:$cSurface !important; color:$cInk2 !important; }
+      .ag-foot   { background-color:$cInk !important; }
     }
   </style>
 </head>
-<body style="margin:0;padding:0;background:#dfe1dc;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<body style="margin:0;padding:0;background:$cTint;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
   $preRow
-  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#dfe1dc">
+  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:$cTint">
     <tr><td align="center" style="padding:28px 16px">
       <!--[if mso]>
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px"><tr><td>
       <![endif]-->
-      <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:#ffffff;border-radius:6px;overflow:hidden;border:1px solid rgba(16,41,44,0.06);box-shadow:0 6px 24px -12px rgba(16,41,44,0.3)">
+      <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:$cSurface;border-radius:6px;overflow:hidden;border:1px solid $cLine;box-shadow:$shadow">
 
         <!-- Masthead -->
-        <tr><td class="ag-head" style="background:#f0f2f2;border-bottom:1px solid rgba(16,41,44,0.10);padding:20px 32px">
+        <tr><td class="ag-head" style="background:$cGround;border-bottom:1px solid $cLine;padding:20px 32px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
             <td align="left" style="vertical-align:middle">
               <img src="$logo" width="72" height="83" alt="Africa GATES"
-                   style="display:block;width:72px;max-width:72px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:#006634">
+                   style="display:block;width:72px;max-width:72px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:$cGreen">
             </td>
             <td align="right" style="vertical-align:top;padding-top:12px">
-              <div style="font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#626a6e">Cultural Power Index</div>
+              <div style="font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:$cSoft">Cultural Power Index</div>
               $catCell
             </td>
           </tr></table>
@@ -868,18 +877,18 @@ HTML;
         $heroRow
 
         <!-- Body -->
-        <tr><td class="ag-pad ag-body" style="padding:34px 40px 30px;background:#ffffff;color:#4a5256;font-size:15px;line-height:1.65">
+        <tr><td class="ag-pad ag-body" style="padding:34px 40px 30px;background:$cSurface;color:$cInk2;font-size:15px;line-height:1.65">
           $body
         </td></tr>
 
         <!-- Footer -->
-        <tr><td class="ag-foot" style="background:#0c2225;padding:24px 40px">
-          <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:14px;color:#ffffff">Africa<span style="color:#7FC87C">GATES</span></span>
-          <div style="height:1px;background:rgba(255,255,255,0.1);margin:14px 0"></div>
-          <p style="margin:0;font-size:11.5px;line-height:1.7;color:rgba(255,255,255,0.55)">
+        <tr><td class="ag-foot" style="background:$cInk;padding:24px 40px">
+          <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:14px;color:$cSurface">Africa<span style="color:$cGreenLight">GATES</span></span>
+          <div style="height:1px;background:$cInk2;margin:14px 0"></div>
+          <p style="margin:0;font-size:11.5px;line-height:1.7;color:$cLine2">
             © $year Africa GATES, an Afrovanguard initiative · $postal<br>
-            <a href="{$base}/help" style="color:rgba(255,255,255,0.8);text-decoration:underline">Help Center</a> ·
-            <a href="{$base}/privacy" style="color:rgba(255,255,255,0.8);text-decoration:underline">Privacy</a>$unsub
+            <a href="{$base}/help" style="color:$cSurface;text-decoration:underline">Help Center</a> ·
+            <a href="{$base}/privacy" style="color:$cSurface;text-decoration:underline">Privacy</a>$unsub
           </p>
         </td></tr>
 

@@ -318,6 +318,30 @@ final class Accent
         return $v;
     }
 
+    /**
+     * Every hex token, under the handoff's own names, for a MAIL template.
+     *
+     * An inbox cannot read `var()` — Gmail strips the <style> that would declare one and
+     * most clients never resolve it — so mail carries literal colours. It does not TYPE
+     * them: every sender passes this map to its template as `c`, and the template writes
+     * `{{ c.ink }}` or `{{ c['ink-2'] }}`. Before 3 Oct 2026 the seven templates typed
+     * thirty-eight colours that were in no palette, and the newsletter read the palette
+     * through a second set of names of its own (`card`, `action`, `bar_soft`…) — an alias
+     * table, which is how a renamed token goes on rendering under a name nobody can find.
+     * One map, the palette's names, nothing else. `scrim` is translucent and mail cannot
+     * use it, so it is not here.
+     *
+     * @return array<string,string> token => six-digit hex
+     */
+    public static function mail(): array
+    {
+        $out = [];
+        foreach (self::PALETTE as $name => $v) {
+            if (preg_match('/^#[0-9a-f]{6}$/', $v['value'])) $out[$name] = $v['value'];
+        }
+        return $out;
+    }
+
     /** @return array<string,list<string>> */
     public static function words(): array
     {

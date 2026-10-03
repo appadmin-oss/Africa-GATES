@@ -482,6 +482,8 @@ final class EmailCampaign
             'preheader' => $preheader,
             // Resolved here, so the template never has to know that a link is a key.
             'blocks'    => self::resolve($blocks, $vars),
+            // The palette, by name — mail cannot read var() (Accent::mail()).
+            'c'         => \AfricaGates\Support\Accent::mail(),
         ]);
     }
 
@@ -680,6 +682,9 @@ final class EmailCampaign
             'site_url'        => $site,
             'unsubscribe_url' => $site . '/email/unsubscribe?e=' . str_repeat('a', 44) . '&t=' . str_repeat('b', 64),
             'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
+            // So a preview of the fixed final-hours template, which reads `c` directly,
+            // draws in the palette rather than in blanks.
+            'c'               => \AfricaGates\Support\Accent::mail(),
         ];
     }
 

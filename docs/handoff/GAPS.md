@@ -386,7 +386,10 @@ handler is dead and its middleware never runs); the destroy replaces the route, 
 `/account` (cites `AccountPage.dc.html`, not in this bundle) · `/support/tickets` · `/org/login` · `/org` ·
 `/giving/manage/{token}` · `/support/t/{token}` · `/claim/{id}` · `/claim/dispute/{token}` · `/n/confirm/{token}` ·
 `/my-work/{token}` · `/interview/{token}` · `/stand/{token}` · `/events/{slug}/stands` · `/events/{slug}/stands/apply` ·
-`/door/{token}` · `/form/{token}` · `/f/{key}`. REFERENCE §18.7 leaves these undesigned.
+`/door/{token}` · `/form/{token}` · `/f/{key}`. REFERENCE §18.7 leaves these undesigned. **`/door/{token}` is HELD
+(owner, 3 Oct 2026): a staff tool outside the redesign, like the consoles** — `pages/events/door.twig` and
+`components/door.css` are in `Tests\Support\PublicSurface`'s held lists, and `TypeScaleTest` fails if any other
+template links the door's sheet (PHASE-2.md §10).
 
 ### 5.3 DCs and views with no current route
 DiscoverPage (no page; `/discover` is a 302) · AwardsPage `view=soon` · SignIn `phone`, `profile`, `interests` ·
@@ -535,6 +538,10 @@ destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
   body (its own `pages/error.twig` is destroyed too), and records a `PublicFault` per request.
 - **Held, owner to decide:** the 16 admin/judge templates `a9d963a` patched, `a11y.css`, `components/auth.css`, `partials/viz.twig`
   (shared with admin), the patched `src/` services, and the email templates — no phase rebuilds them.
+  **Decided (owner, 3 Oct 2026):** the seven email templates — and the house shell `OtpService::brandWrap()` they
+  arrive in — were destroyed and rebuilt to the §6.2 ladder with colours from `Accent::mail()` (inventory
+  `inventory/_emails.md`, PHASE-2.md §10); `a11y.css` stays held and is now listed in `PublicSurface::HELD_CSS` (only
+  the consoles link it); the door scanner is held like admin.
 - **This changes §7.2:** the Phase 2–9 lists above name files that no longer exist; a phase now *writes* its pages rather than
   destroying them first. The orphans that did not qualify (`layout/nav.twig`, `layout/footer.twig`, most Phase 2 chrome partials,
   the legacy sheets) are still the owning phase's to destroy — listed in `DESTROYED.md`.
@@ -548,7 +555,7 @@ destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
 1. **One colour source** — rebuild `Support\Accent` as the bundle palette, or make `tokens.css` the source and rebuild the four colour guards to read it? (C1, C2) — **Answered (owner, 2 Oct 2026): Accent is destroyed and rebuilt as the handoff palette**, exact names and values, still PHP-emitted into a nonced `<style>` by every layout; `tokens.css` holds no colour; no compatibility aliases — every reader of a retired name rewritten. Guards rebuilt to see the handoff's names (`AccentTest`, `SlotFloorTest`, `ColourBudgetTest`, `ColourIsNeverAloneTest` via `Tests\Support\ColourFields`) and to sweep CSS as well as templates (`ColourLiteralTest` replaces `NoLiteralHexTest`; C8). Built in Phase 1.
 2. Gold as fill only; `--ag-mute` as disabled text; the 1.48:1 outlined chip/input border — accepted, or corrected? (C3) — **Answered (owner, 2 Oct 2026): ship the handoff exactly, ±0.** Fills, lines/borders, gold as a line, `mute` and the 1.48:1 border are accepted (`Accent::ACCEPTED`); the 4.5:1 floor is kept for every word token on every ground it is drawn on (`Accent::words()`); a failing word is reported, never re-valued.
 3. Shadows — the bundle's seven, or none? (C4) — **Answered (owner, 2 Oct 2026): adopted.** §6.5 plus `--ag-sh-gee`, emitted by Accent (they are rgba of ink); the "no shadows anywhere" doctrine is deleted from Accent, AssetBundle, `lip.css`, `article.css` and CLAUDE.md. The two per-element §6.5 shadows (celebration badge, celebration ticket) belong to Phase 3.
-4. Display type — fixed rungs per breakpoint (bundle) confirmed, `MIGRATING [10, 11]` deleted outright? (C5) — **Answered (owner, 3 Oct 2026): apply §6.2.** Fixed sizes per breakpoint, never viewport-scaled (`vw`, `clamp()` on `vw`) type; the 10/11px `MIGRATING` allowance is deleted outright. `TypeScaleTest` rebuilt and scoped explicitly to the public surface (admin/judge templates and their CSS are held). Surviving public files still on 10/11px are listed by the test's own failure, owned by the rebuilds of the door, `partials/viz`/`poll` and the mail templates.
+4. Display type — fixed rungs per breakpoint (bundle) confirmed, `MIGRATING [10, 11]` deleted outright? (C5) — **Answered (owner, 3 Oct 2026): apply §6.2.** Fixed sizes per breakpoint, never viewport-scaled (`vw`, `clamp()` on `vw`) type; the 10/11px `MIGRATING` allowance is deleted outright. `TypeScaleTest` rebuilt and scoped explicitly to the public surface (admin/judge templates and their CSS are held). Surviving public files still on 10/11px are listed by the test's own failure, owned by the rebuilds of the door, `partials/viz`/`poll` and the mail templates. **Since (owner, 3 Oct 2026):** the mail templates are rebuilt onto the ladder, the door is held, `poll` was destroyed and `viz` is held — `TypeScaleTest` is green; and **screen type is written in rem** (`tokens.css` `--ag-fs-*` steps) so the Display & reading setting reaches it, which `TypeScaleTest` now also holds (PHASE-2.md §10).
 5. Mono and uppercase — which side of the bundle's own contradictions wins? (C6) — **Answered (owner, 3 Oct 2026): the README's §6.2/§18.3–4 wins.** JetBrains Mono only for references and codes (order refs, ticket codes, receipt codes, times inside ticket stubs), never labels, stats or kickers; no uppercase labels except the ticket stub's CONFIRMED stamp; headings sentence case. Guard: `MonoAndCaseTest`; CLAUDE.md's house-style line rewritten.
 6. Event tier colour — five stored columns, or derived from the slot at read time (recommended)? (C9)
 7. `celebration.js` — accept its off-palette hexes and demo defaults as verbatim, or amend the file? (C10)
@@ -564,6 +571,20 @@ destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
 17. Waitlist hold — 24 h (bundle) or 48 h (`EventWaitlist::OFFER_HOURS`)? (§3.12)
 18. Explore — keep Results (7 items) or the bundle's 6? (§3.15)
 19. Gee on `layout/shell.twig` pages — yes? Today they have none. (§3.10)
+
+---
+
+## 8b. Answered after Phase 2 (owner, 3 Oct 2026)
+
+Raised by Phase 2 (`PHASE-2.md` §9 and deviation 15), not in the list above:
+
+- **Text size does not reach px type** — *Answered: type in rem.* `tokens.css` `--ag-fs-*` (px name, rem value),
+  every public screen size reads one; pixel-identical at 100%, scales at 125/150% (`shots/phase-2/rem/`).
+- **44px everywhere (§6.7) vs §7.1's 40px header** — *Answered: the header as specified.* Recorded by selector in
+  `TargetSizeTest::OWNER_HEADER`; 44 holds everywhere else, 24 under everything. Six older sub-44 controls outside the
+  header surfaced and are listed as OPEN, awaiting a ruling (PHASE-2.md §10).
+- **The door scanner** — *Answered: held like admin.* **The email templates** — *Answered: destroy and rebuild to the
+  ladder, colours from Accent.* Both done (PHASE-2.md §10).
 
 ---
 

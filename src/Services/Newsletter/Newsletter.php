@@ -303,39 +303,9 @@ final class Newsletter
             'site_url'        => rtrim($this->site, '/'),
             'unsubscribe_url' => EmailOptOut::url($this->site, $email),
             'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
-            'c'               => self::palette(),
-        ];
-    }
-
-    /**
-     * The issue's colours, as VALUES from {@see Accent}.
-     *
-     * An inbox cannot read a custom property — Gmail strips the <style> block that would
-     * declare one and most clients never resolve `var()` — so mail has to carry literal
-     * colours. It does not have to TYPE them: the template prints these, so the newsletter
-     * is drawn from the same ramp as the site, and moving a role moves the mail with it.
-     * The older skeletons typed their own greys, and one of them (#9a9c95 on white, the
-     * footer's unsubscribe line) is 2.8:1 — under the floor for the one line on a bulk
-     * mail that must be readable.
-     *
-     * @return array<string,string>
-     */
-    public static function palette(): array
-    {
-        return [
-            'ground'     => Accent::hex('ground'),
-            'card'       => Accent::hex('surface'),
-            'ink'        => Accent::hex('ink'),
-            'ink2'       => Accent::hex('ink-2'),
-            'soft'       => Accent::hex('soft'),
-            'line'       => Accent::hex('line'),
-            'surface2'   => Accent::hex('tint'),
-            'action'     => Accent::hex('green'),
-            // The header bar and the dark-mode ground: ink as a field.
-            'bar'        => Accent::hex('ink'),
-            'dark'       => Accent::hex('ink'),
-            'bar_accent' => Accent::hex('green-wash'),
-            'bar_soft'   => Accent::hex('line'),
+            // The palette under the handoff's own names (Accent::mail()): mail cannot read
+            // var(), and a second set of names for the same colours was an alias table.
+            'c'               => Accent::mail(),
         ];
     }
 

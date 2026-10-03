@@ -397,7 +397,13 @@ git history.
 
 **Small text sits on a closed ladder: `11.5 · 12 · 12.5 · 13 · 13.5 · 14 · 14.5 · 15 ·
 15.5 · 16 · 16.5 · 17`.** Micro 11.5–12.5, meta 13–13.5, secondary 14.5, buttons
-14.5–15.5, body and inputs 16. **There is no 10 and no 11.** `TypeScaleTest` used to carry
+14.5–15.5, body and inputs 16. **There is no 10 and no 11.** Those are px at the 16px root,
+but **screen type is WRITTEN in rem** (owner, 3 Oct 2026): `var(--ag-fs-14-5)`, a
+`tokens.css` step named by its px. Display & reading (100/125/150%) scales the root, and a
+px size ignores the root — the first chrome build was all px, the setting's class landed on
+`<html>` and not one letter grew. `TypeScaleTest` refuses a px size on a screen and an
+`em`/`%` size anywhere but the root, and asserts the text-size classes move it. Mail is px
+(no setting reaches an inbox) and still on the ladder; box sizes and targets stay px. `TypeScaleTest` used to carry
 them as a `MIGRATING` allowance for the unconverted pages; those pages were destroyed, the
 allowance went with them, and its test now fails if the constant comes back. An allowance
 that outlives its reason is how a ladder grows a rung nobody chose. The ladder is closed
@@ -436,8 +442,10 @@ kicker on that page.
 **Scope is the public surface, and the consoles are out by name.** The admin and judge
 consoles are not designed by the handoff (§18.7) and are held by the owner, so both guards
 read `Tests\Support\PublicSurface`: every template but `admin/` and `judge/`, every
-stylesheet but the five only those consoles link (`admin.css`, `judge.css`, `main.css`,
-`aurora.css`, `components/auth.css`) and `vendor/`. Everything else is in by default, so a
+stylesheet but the six only those consoles link (`admin.css`, `judge.css`, `main.css`,
+`aurora.css`, `components/auth.css`, `a11y.css`) and `vendor/`. **The door scanner is held
+too** (owner, 3 Oct 2026: a staff tool outside the redesign) — `pages/events/door.twig` and
+`components/door.css`, with a guard that only the door links its sheet. Everything else is in by default, so a
 new sheet is covered the day it lands — and `TypeScaleTest` fails if a public page ever
 links a held sheet, because an exclusion is honest only while nothing public reads what it
 excludes. Mail is in for the scale and out for mono and case, which are rules for screens.
@@ -447,8 +455,9 @@ Things a sweep over type has to know, each of which had one lying here:
 
 - **Most of the type is in the `font:` SHORTHAND**, not in `font-size:` — the 214
   micro-labels were `font:600 11px/1 var(--ag-font-mono)`, invisible to a `font-size:`
-  grep. Inside the shorthand the size is the FIRST length; the only other length in `font`
-  is the line-height, after a `/`.
+  grep. Inside the shorthand the size is the FIRST length — or the first `var()` that
+  resolves to one, now that sizes are tokens; the only other length in `font` is the
+  line-height, after a `/`.
 - **`font-size:1px` in an email is not type.** It is the collapse that keeps the hidden
   preheader from occupying a line in clients that ignore `display:none`; raising it puts a
   stray line of grey text at the top of production mail. Exempt by what it DOES — at most

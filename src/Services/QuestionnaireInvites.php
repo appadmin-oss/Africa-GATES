@@ -462,7 +462,8 @@ final class QuestionnaireInvites
             ['autoescape' => 'html']
         ));
 
-        return $twig->render('emails/questionnaire.twig', self::vars($r, $cycleId, $site));
+        // `c`: the palette, by name — mail cannot read var() (Accent::mail()).
+        return $twig->render('emails/questionnaire.twig', self::vars($r, $cycleId, $site) + ['c' => \AfricaGates\Support\Accent::mail()]);
     }
 
     /** @return array<string,mixed> @param array<string,mixed> $r */
