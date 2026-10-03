@@ -90,6 +90,7 @@ class OtpService
             'reply_to'     => $c->replyTo,
             'transport'    => $c->transport,
             'api_key'      => $c->hasApiKey() ? $c->apiKey : '',
+            'smtp_env'     => $c->envSmtp,
         ], $log);
     }
 
@@ -126,17 +127,34 @@ class OtpService
         $smtp = $this->smtpConfigured();
         $api  = trim((string) ($this->smtp['api_key'] ?? '')) !== '';
         $host = $this->isProduction() && MailConfig::hostMailAvailable();
+        // `.env`'s own login, tried after a different one stored in Settings — see
+        // MailConfig::load(). Only where SMTP is a road at all.
+        $env  = $smtp && is_array($this->smtp['smtp_env'] ?? null);
 
+        /* ── THIS SERVER'S OWN MAIL IS NOT A FALLBACK ─────────────────────────────
+         *
+         * `auto` used to end in `host` whatever came before it, and that one line is why
+         * mail stopped arriving while the log said "sent". mail() on a shared host sends
+         * as the server, not as afrovanguard.org.ng — whose SPF and DKIM are Google's and
+         * Brevo's — so Gmail and Outlook discard it unseen; and mail() returns TRUE the
+         * moment the local MTA accepts it. So every SMTP failure became a "sent" message
+         * nobody received, and the log the operator reads to find the fault showed none.
+         * Before these roads existed a failed SMTP send was a failure, and was fixed.
+         *
+         * It remains a road when it is the only one there is, or when chosen outright. */
         $out = match ($t) {
-            MailConfig::TRANSPORT_SMTP => $smtp ? ['smtp'] : [],
+            MailConfig::TRANSPORT_SMTP => $smtp ? array_values(array_filter(['smtp', $env ? 'smtp-env' : null])) : [],
             MailConfig::TRANSPORT_API  => $api ? ['api'] : [],
             MailConfig::TRANSPORT_HOST => $host ? ['host'] : [],
-            default => array_values(array_filter([
-                $smtp ? 'smtp' : null, $api ? 'api' : null, $host ? 'host' : null,
-            ])),
+            default => ($smtp || $api)
+                ? array_values(array_filter([$smtp ? 'smtp' : null, $env ? 'smtp-env' : null, $api ? 'api' : null]))
+                : ($host ? ['host'] : []),
         };
-        if (count($out) > 1 && $out[0] === 'smtp' && self::smtpResting()) {
-            $out = array_merge(array_slice($out, 1), ['smtp']);
+        /* A rested SMTP road waits behind the API — never behind the server's own mail,
+           which would put every message for half an hour on the road that loses it. */
+        if ($api && count($out) > 1 && $out[0] === 'smtp' && self::smtpResting()) {
+            $out = array_merge(array_values(array_diff($out, ['smtp', 'smtp-env'])),
+                               array_values(array_intersect($out, ['smtp', 'smtp-env'])));
         }
         return $out;
     }
@@ -401,8 +419,11 @@ class OtpService
                 match ($road) {
                     'api'  => $this->transmitApi($m),
                     'host' => (function () use ($m): void { $m->isMail(); $this->transmit($m); })(),
+                    'smtp-env' => (function () use ($m): void { $this->useEnvLogin($m); $m->isSMTP(); $this->transmit($m); })(),
                     default => (function () use ($m): void { $m->isSMTP(); $this->transmit($m); })(),
                 };
+                // Only the stored login succeeding lifts its rest; `.env`'s carrying the
+                // message says nothing about whether the stored one works yet.
                 if ($road === 'smtp') self::restSmtp(false);
                 $note = $failed === [] ? null : 'via ' . $road . ' after: ' . implode(' | ', $failed);
                 $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject, 'via' => $road]);
@@ -427,6 +448,27 @@ class OtpService
             }
         }
         return ['success' => false, 'error' => 'no road delivered it'];
+    }
+
+    /**
+     * Point a built message at `.env`'s SMTP login instead of the stored one. The From
+     * stays what it was: the sender identity is a separate setting, and swapping it here
+     * would make the second road send as somebody else.
+     */
+    private function useEnvLogin(PHPMailer $m): void
+    {
+        $e = (array) ($this->smtp['smtp_env'] ?? []);
+        $m->Host     = (string) ($e['host'] ?? $m->Host);
+        $m->Port     = (int) ($e['port'] ?? $m->Port);
+        $m->Username = (string) ($e['username'] ?? '');
+        $m->Password = (string) ($e['password'] ?? '');
+        $sec = MailConfig::of(['port' => $m->Port, 'secure' => (string) ($e['secure'] ?? MailConfig::SECURE_AUTO)])->security();
+        $m->SMTPSecure  = match ($sec) {
+            MailConfig::SECURE_SMTPS => PHPMailer::ENCRYPTION_SMTPS,
+            MailConfig::SECURE_NONE  => '',
+            default                  => PHPMailer::ENCRYPTION_STARTTLS,
+        };
+        $m->SMTPAutoTLS = $sec !== MailConfig::SECURE_NONE;
     }
 
     /**

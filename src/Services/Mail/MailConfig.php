@@ -107,6 +107,14 @@ final class MailConfig
         public readonly string $transport = self::TRANSPORT_AUTO,
         /** Brevo's API key — a different credential from the SMTP key, from the same dashboard. */
         public readonly string $apiKey = '',
+        /**
+         * `.env`'s own SMTP login, when a DIFFERENT one stored in Settings is in force —
+         * host, port, secure, username, password, as {@see load()} resolves them. Null when
+         * `.env` has no complete login or it is the same one. See {@see load()}.
+         *
+         * @var array{host:string,port:int,secure:string,username:string,password:string}|null
+         */
+        public readonly ?array $envSmtp = null,
     ) {}
 
     /**
@@ -139,24 +147,77 @@ final class MailConfig
             return $default;
         };
 
-        $host = $pick('host', 'mail_smtp_host', 'SMTP_HOST', self::DEFAULT_HOST);
-        // Cast late and floor it: a settings row is a string, and an operator typing
-        // "587 " or nothing must still produce a port somebody can connect to.
-        $port = (int) $pick('port', 'mail_smtp_port', 'SMTP_PORT', (string) self::DEFAULT_PORT);
-        if ($port < 1 || $port > 65535) $port = self::DEFAULT_PORT;
+        /* ── THE SMTP LOGIN IS ONE THING, NOT FIVE ─────────────────────────────
+         *
+         * Each of host, port, security, username and password used to be picked on its
+         * own — Settings if that field was filled, `.env` if not. So a username stored in
+         * Settings went out with `.env`'s password, or a stored host with `.env`'s login:
+         * a combination that existed nowhere, that no provider would accept, and that
+         * every diagnosis then described as "wrong password". The September settings
+         * page made it the common case, because it re-posted the SMTP fields on every
+         * save of any setting.
+         *
+         * So the five are resolved as a GROUP: a complete login stored in Settings (user
+         * AND password) brings its own host, port and security, with the built-in
+         * default where it left one blank — the form says "leave blank for the Brevo
+         * relay". Anything less and `.env` supplies all five. Never a mixture. */
+        $grp = static function (bool $env) use ($settings): array {
+            $get = static fn (string $key, string $envKey): string => trim((string) ($env
+                ? Env::get($envKey, '') : ($settings[$key] ?? '')));
+            return [
+                'host'     => $get('mail_smtp_host', 'SMTP_HOST'),
+                'port'     => $get('mail_smtp_port', 'SMTP_PORT'),
+                'secure'   => strtolower($get('mail_smtp_secure', 'SMTP_SECURE')),
+                'username' => $get('mail_smtp_user', 'SMTP_USER'),
+                'password' => $get('mail_smtp_pass', 'SMTP_PASS'),
+            ];
+        };
+        $complete = static fn (array $g): bool => $g['username'] !== '' && $g['password'] !== ''
+            && !in_array($g['username'], self::PLACEHOLDERS, true) && !in_array($g['password'], self::PLACEHOLDERS, true);
+        $fromSettings = $grp(false);
+        $fromEnv      = $grp(true);
+        $useSettings  = $complete($fromSettings);
+        $g   = $useSettings ? $fromSettings : $fromEnv;
+        $tag = $useSettings ? 'settings' : 'env';
+        foreach (['host', 'port', 'secure', 'username', 'password'] as $f) {
+            $sources[$f] = $g[$f] !== '' ? $tag : 'default';
+        }
+        $norm = static function (array $g): array {
+            $host = $g['host'] !== '' ? $g['host'] : self::DEFAULT_HOST;
+            // Cast late and floor it: a settings row is a string, and an operator typing
+            // "587 " or nothing must still produce a port somebody can connect to.
+            $port = (int) ($g['port'] !== '' ? $g['port'] : (string) self::DEFAULT_PORT);
+            if ($port < 1 || $port > 65535) $port = self::DEFAULT_PORT;
+            $secure = $g['secure'] !== '' ? $g['secure'] : self::SECURE_AUTO;
+            if (!in_array($secure, [self::SECURE_AUTO, self::SECURE_STARTTLS, self::SECURE_SMTPS,
+                                    self::SECURE_NONE, 'ssl', 'tls'], true)) {
+                $secure = self::SECURE_AUTO;
+            }
+            return ['host' => $host, 'port' => $port, 'secure' => $secure,
+                    'username' => $g['username'], 'password' => self::password($host, $g['password'])];
+        };
+        $smtp = $norm($g);
+        $host = $smtp['host']; $port = $smtp['port']; $secure = $smtp['secure'];
 
-        $secure = strtolower($pick('secure', 'mail_smtp_secure', 'SMTP_SECURE', self::SECURE_AUTO));
-        if (!in_array($secure, [self::SECURE_AUTO, self::SECURE_STARTTLS, self::SECURE_SMTPS,
-                                self::SECURE_NONE, 'ssl', 'tls'], true)) {
-            $secure = self::SECURE_AUTO;
+        /* And `.env`'s own login stays within reach. A login stored in Settings by the
+           September page was never tested — that page saved whatever the form held — so
+           it can be wrong while the `.env` beside it is the one that has always worked.
+           When the two differ, the sender tries `.env`'s after Settings' fails on the
+           road, rather than reporting an outage that a file on the server already fixes. */
+        $envSmtp = null;
+        if ($useSettings && $complete($fromEnv)) {
+            $e = $norm($fromEnv);
+            if ([$e['host'], $e['port'], $e['username'], $e['password']] !== [$host, $port, $smtp['username'], $smtp['password']]) {
+                $envSmtp = $e;
+            }
         }
 
         return new self(
             host:          $host,
             port:          $port,
             secureSetting: $secure,
-            username:      $pick('username', 'mail_smtp_user', 'SMTP_USER', ''),
-            password:      self::password($host, $pick('password', 'mail_smtp_pass', 'SMTP_PASS', '')),
+            username:      $smtp['username'],
+            password:      $smtp['password'],
             fromAddress:   $pick('from', 'mail_from_address', 'MAIL_FROM_ADDRESS', self::DEFAULT_FROM),
             fromName:      $pick('from_name', 'mail_from_name', 'MAIL_FROM_NAME', 'Africa GATES'),
             replyTo:       $pick('reply_to', 'mail_reply_to', 'MAIL_REPLY_TO', ''),
@@ -165,6 +226,7 @@ final class MailConfig
             transport:     in_array($t = strtolower($pick('transport', 'mail_transport', 'MAIL_TRANSPORT', self::TRANSPORT_AUTO)),
                                     self::TRANSPORTS, true) ? $t : self::TRANSPORT_AUTO,
             apiKey:        $pick('api_key', 'mail_brevo_api_key', 'BREVO_API_KEY', ''),
+            envSmtp:       $envSmtp,
         );
     }
 
@@ -335,7 +397,7 @@ final class MailConfig
                 self::TRANSPORT_SMTP => 'SMTP only',
                 self::TRANSPORT_API  => 'Brevo API (HTTPS) only',
                 self::TRANSPORT_HOST => 'this server’s own mail only',
-                default              => 'automatic — SMTP, then the Brevo API, then this server’s own mail',
+                default              => 'automatic — SMTP, then the Brevo API; this server’s own mail only when neither is set up',
             },
             'api_key'  => $this->hasApiKey() ? 'set (' . $this->source('api_key') . ')' : '(not set)',
         ];

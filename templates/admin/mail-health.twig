@@ -180,7 +180,7 @@
           <div><label for="mh-transport">Send by</label>
             <select id="mh-transport" name="transport">
               {% for k, l in {
-                'auto': 'Automatic — SMTP, then the Brevo API, then this server’s own mail',
+                'auto': 'Automatic — SMTP, then the Brevo API (this server’s own mail only if neither is set up)',
                 'smtp': 'SMTP only',
                 'api':  'Brevo API over HTTPS only',
                 'host': 'This server’s own mail only'} %}

@@ -118,7 +118,7 @@ final class MailFailure
         self::QUOTA => 'The Google account has used its daily sending allowance — about 500 a day for Gmail, 2,000 for Workspace — '
             . 'and Google refuses every message until the day rolls over. Announcements are now held back to leave room for sign-in codes.',
         self::CONNECT => 'This server cannot reach smtp.gmail.com. Use port 587 with Encryption on Automatic. If every port fails '
-            . 'the host blocks outbound mail: set “Send by” to Automatic, and mail falls back to this server’s own mail.',
+            . 'the host blocks outbound mail: save a Brevo API key, and with “Send by” on Automatic mail goes out over HTTPS instead.',
         self::TLS => 'The port and the encryption do not match. For Google use port 587 with Encryption on Automatic (or 465, also Automatic).',
     ];
 

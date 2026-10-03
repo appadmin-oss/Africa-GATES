@@ -240,11 +240,128 @@ final class MailTransportTest extends TestCase
     public function test_use_env_puts_the_servers_file_back_in_charge(): void
     {
         DB::table('gates_settings')->insert([['key_name' => 'mail_smtp_user', 'value' => 'admin@africagates.org'],
+                                              ['key_name' => 'mail_smtp_pass', 'value' => 'stored-pass'],
                                               ['key_name' => 'mail_smtp_host', 'value' => 'smtp.wrong.example']]);
         $this->assertSame('settings', MailConfig::load()->source('username'));
         MailSetup::useEnv();
         $this->assertNotSame('settings', MailConfig::load()->source('username'));
         $this->assertSame(0, DB::table('gates_settings')->whereIn('key_name', MailSetup::SMTP_KEYS)->count());
+    }
+
+    // ══ What broke on production: half a login, and a road that loses mail ═══
+
+    /** The `.env` login every branch before September sent with. */
+    private static function withEnvLogin(\Closure $fn): void
+    {
+        $keys = ['SMTP_HOST' => 'smtp-relay.brevo.com', 'SMTP_PORT' => '587', 'SMTP_USER' => 'relay-login@smtp-brevo.com', 'SMTP_PASS' => 'env-key'];
+        foreach ($keys as $k => $v) { putenv("$k=$v"); $_ENV[$k] = $v; $_SERVER[$k] = $v; }
+        try { $fn(); }
+        finally { foreach ($keys as $k => $_) { putenv($k); unset($_ENV[$k], $_SERVER[$k]); } }
+    }
+
+    public function test_half_a_login_in_settings_is_never_sent_with_the_other_half_from_env(): void
+    {
+        // What the September page left behind: it re-posted the SMTP fields on every
+        // save, so a username and a host were stored and the password never was.
+        DB::table('gates_settings')->insert([['key_name' => 'mail_smtp_user', 'value' => 'admin@africagates.org'],
+                                              ['key_name' => 'mail_smtp_host', 'value' => 'smtp.wrong.example']]);
+        self::withEnvLogin(function (): void {
+            $c = MailConfig::load();
+            $this->assertSame('relay-login@smtp-brevo.com', $c->username, 'a stored username went out with .env\'s password');
+            $this->assertSame('smtp-relay.brevo.com', $c->host, 'a stored host went out with .env\'s login');
+            $this->assertSame('env-key', $c->password);
+            $this->assertSame('env', $c->source('username'));
+            $this->assertNull($c->envSmtp, '.env is already the login in force');
+        });
+    }
+
+    public function test_a_complete_stored_login_brings_its_own_host_and_keeps_env_as_a_second_road(): void
+    {
+        DB::table('gates_settings')->insert([['key_name' => 'mail_smtp_user', 'value' => 'admin@africagates.org'],
+                                              ['key_name' => 'mail_smtp_pass', 'value' => 'stored-pass']]);
+        self::withEnvLogin(function (): void {
+            $c = MailConfig::load();
+            $this->assertSame('admin@africagates.org', $c->username);
+            $this->assertSame(MailConfig::DEFAULT_HOST, $c->host, 'a blank stored host means the Brevo relay, as the form says — not .env\'s host');
+            $this->assertSame('default', $c->source('host'));
+            $this->assertSame('relay-login@smtp-brevo.com', $c->envSmtp['username'] ?? null);
+            $this->assertSame(['smtp', 'smtp-env'], OtpService::fromConfig($c)->routes());
+        });
+    }
+
+    public function test_when_the_stored_login_is_refused_the_env_login_carries_the_message(): void
+    {
+        $m = new class(['host' => 'smtp.test', 'port' => 587, 'username' => 'stored', 'password' => 'bad',
+                        'from_address' => 'noreply@afrovanguard.org.ng', 'from_name' => 'Africa GATES',
+                        'transport' => MailConfig::TRANSPORT_AUTO, 'api_key' => '',
+                        'smtp_env' => ['host' => 'smtp-relay.brevo.com', 'port' => 587, 'secure' => 'auto',
+                                       'username' => 'env-login', 'password' => 'env-key']]) extends OtpService {
+            /** @var list<string> */
+            public array $logins = [];
+            protected function transmit(PHPMailer $m): void
+            {
+                $this->logins[] = $m->Username . '@' . $m->Host . ($m->Mailer === 'mail' ? ' (host)' : '');
+                if ($m->Username === 'stored') throw new MailException('SMTP Error: Could not authenticate.');
+            }
+        };
+        $r = $m->sendCustom('ada@africagates.org', 'Your sign-in code', '123456');
+        $this->assertTrue($r['success']);
+        $this->assertSame('smtp-env', $r['via'] ?? null);
+        $this->assertSame(['stored@smtp.test', 'env-login@smtp-relay.brevo.com'], $m->logins);
+        $this->assertStringContainsString('via smtp-env after: smtp', (string) DB::table('gates_mail_log')->value('error'),
+            'the stored login is still broken, and the log must say so');
+    }
+
+    public function test_a_failed_smtp_send_is_a_failure_and_never_goes_out_as_the_server(): void
+    {
+        // Production: the host's mail() is available. It used to be `auto`'s last road, so
+        // a failed SMTP send became a "sent" message the server sent as itself and Gmail
+        // discarded unseen.
+        putenv('APP_ENV=production'); $_ENV['APP_ENV'] = 'production';
+        try {
+            $m = $this->mailer(['smtp' => self::throws('SMTP Error: Could not authenticate.')], MailConfig::TRANSPORT_AUTO, '');
+            if (!MailConfig::hostMailAvailable()) $this->markTestSkipped('mail() is not available here');
+            $this->assertSame(['smtp'], $m->routes());
+            $r = $m->sendCustom('ada@africagates.org', 'Your sign-in code', '123456');
+            $this->assertFalse($r['success'], 'a message the server sent as itself was reported as delivered');
+            $this->assertSame(['smtp'], $m->roads);
+            $this->assertSame('failed', DB::table('gates_mail_log')->value('status'));
+
+            // Resting SMTP never moves it behind the server's own mail either.
+            DB::table('gates_settings')->updateOrInsert(['key_name' => OtpService::SMTP_REST_KEY],
+                ['value' => Carbon::now()->addMinutes(10)->toDateTimeString()]);
+            $this->assertSame(['smtp'], $this->mailer([], MailConfig::TRANSPORT_AUTO, '')->routes());
+        } finally {
+            putenv('APP_ENV'); unset($_ENV['APP_ENV']);
+        }
+    }
+
+    public function test_the_servers_own_mail_is_a_road_only_when_nothing_else_is_set_up_or_it_is_chosen(): void
+    {
+        putenv('APP_ENV=production'); $_ENV['APP_ENV'] = 'production';
+        try {
+            if (!MailConfig::hostMailAvailable()) $this->markTestSkipped('mail() is not available here');
+            $none = new OtpService(['transport' => MailConfig::TRANSPORT_AUTO, 'username' => '', 'password' => '', 'api_key' => '']);
+            $this->assertSame(['host'], $none->routes());
+            $chosen = new OtpService(['transport' => MailConfig::TRANSPORT_HOST, 'username' => 'u', 'password' => 'p']);
+            $this->assertSame(['host'], $chosen->routes());
+        } finally {
+            putenv('APP_ENV'); unset($_ENV['APP_ENV']);
+        }
+    }
+
+    public function test_the_check_never_calls_a_failing_smtp_road_healthy_because_mail_is_on_the_server(): void
+    {
+        if (!MailConfig::hostMailAvailable()) $this->markTestSkipped('mail() is not available here');
+        // Port 1 on loopback refuses at once: an SMTP road that is down, with no API key.
+        $c = MailConfig::of(['host' => '127.0.0.1', 'port' => 1, 'secure' => 'none', 'username' => 'u', 'password' => 'p',
+                             'transport' => 'auto', 'api_key' => '']);
+        $r = MailDiagnosis::roads($c, null, true);
+        $this->assertFalse($r['ok'], 'the hourly check called a dead SMTP road healthy because mail() exists');
+        $this->assertNotSame('host', $r['road']);
+
+        $nothing = MailConfig::of(['transport' => 'auto', 'username' => '', 'password' => '', 'api_key' => '']);
+        $this->assertSame('host', MailDiagnosis::roads($nothing, null, true)['road'], 'with nothing set up it is still the only road');
     }
 
     // ══ The check, and the API message ═══════════════════════════════════════

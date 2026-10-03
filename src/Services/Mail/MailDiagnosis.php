@@ -112,7 +112,25 @@ final class MailDiagnosis
 
         $smtp = in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_SMTP], true)
             ? (new self($c))->run() : null;
-        if ($smtp !== null && ($smtp['ok'] || $c->transport === MailConfig::TRANSPORT_SMTP)) {
+        if ($smtp !== null && $smtp['ok']) {
+            return $smtp + ['road' => 'smtp', 'degraded' => false];
+        }
+        /* The login stored in Settings failed and `.env` holds a different one: the sender
+           tries that next (OtpService::routes()), so the check asks it too. A carrying
+           `.env` login is WORKING and DEGRADED — the stored one is still wrong, and the
+           fix is the one press that removes it. */
+        if ($smtp !== null && $c->envSmtp !== null) {
+            $e = $c->envSmtp;
+            $alt = (new self(MailConfig::of(['host' => $e['host'], 'port' => $e['port'], 'secure' => $e['secure'],
+                'username' => $e['username'], 'password' => $e['password'], 'from' => $c->fromAddress,
+                'from_name' => $c->fromName, 'transport' => $c->transport])))->run();
+            if ($alt['ok']) {
+                return array_merge($alt, ['road' => 'smtp-env', 'degraded' => true,
+                    'title' => 'The SMTP login saved in Settings is failing (' . $smtp['title'] . ') — mail is going out with the server’s .env login instead',
+                    'fix' => 'Press “Use the server’s .env settings instead” on Settings → Email health to remove the saved login, or save a working one.']);
+            }
+        }
+        if ($smtp !== null && $c->transport === MailConfig::TRANSPORT_SMTP) {
             return $smtp + ['road' => 'smtp', 'degraded' => false];
         }
 
@@ -139,14 +157,19 @@ final class MailDiagnosis
             }
         }
 
-        if (in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_HOST], true)) {
+        /* The server's own mail is a road only when chosen, or when nothing else is set up
+           at all — see OtpService::routes() for why it stopped being a fallback: it sends
+           as the server, the domain's SPF and DKIM are not the server's, and a "sent" from
+           it is mail Gmail discards unseen. */
+        if ($c->transport === MailConfig::TRANSPORT_HOST
+            || ($c->transport === MailConfig::TRANSPORT_AUTO && !$c->hasCredentials() && !$c->hasApiKey())) {
             $base['steps'][] = ['key' => 'host', 'label' => 'This server can send its own mail',
                                 'state' => $host ? self::OK : self::FAIL,
                                 'detail' => $host ? 'PHP’s mail() is available here.' : 'PHP’s mail() is not available on this server.'];
             if ($host) {
                 return array_merge($base, ['ok' => true, 'road' => 'host', 'degraded' => $c->transport === MailConfig::TRANSPORT_AUTO,
                     'title' => $c->transport === MailConfig::TRANSPORT_AUTO
-                        ? $why . ' — mail is going out by this server’s own mail instead'
+                        ? 'Nothing is set up, so mail is going out by this server’s own mail — which most inboxes discard'
                         : 'Email can be sent by this server’s own mail']);
             }
         }
