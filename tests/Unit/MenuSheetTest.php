@@ -300,6 +300,17 @@ final class MenuSheetTest extends TestCase
                         'rec'  => MenuShortcuts::record($h, $op, self::NOW)];
         }
 
+        // And the ties that decide nothing in a random sample: the same score reached by a
+        // larger count opened a half-life earlier, and equal scores at equal times.
+        $H = MenuShortcuts::HALF_LIFE_DAYS * self::DAY;
+        foreach ([true, false] as $member) {
+            $h = ['n' => 20, 'd' => ['status' => [2.0, self::NOW], 'blog' => [2.0, self::NOW],
+                                     'shop' => [2.0, self::NOW], 'pulse' => [4.0, self::NOW - $H]]];
+            $cases[] = ['h' => $h, 'p' => MenuShortcuts::params($member) + ['all' => $keys], 'op' => 'pulse',
+                        'want' => MenuShortcuts::rank($h, $member, self::NOW),
+                        'rec'  => MenuShortcuts::record($h, 'pulse', self::NOW)];
+        }
+
         $js  = realpath(__DIR__ . '/../../public/assets/js/menu-sheet.js');
         $src = 'const R=require(' . json_encode($js) . ');const C=JSON.parse(require("fs").readFileSync(0,"utf8"));'
              . 'const out=C.map(c=>({rank:R.rank(c.h,' . self::NOW . ',c.p),rec:R.record(c.h,c.op,' . self::NOW . ',c.p)}));'

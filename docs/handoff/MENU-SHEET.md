@@ -116,3 +116,85 @@ Each row: start → gesture → expected end. §5 records what was measured.
   open it.
 - History, Esc, the scrim, the focus trap and focus return stay the shell's: `AGChrome.openSheet`
   → `AGShell.openSheet`. The drag engine calls the same close.
+
+---
+
+## 5. Results (measured 4 Oct 2026, Chromium with touch emulation, CDP touch events)
+
+Driver: `scratchpad/ms/drive.js` (Playwright, `hasTouch`, `isMobile`, 390 × 844 and 834 × 1112; the
+gestures are real `Input.dispatchTouchEvent` sequences, not scripted `scrollTop`). **26 of 26 rows
+pass.** Evidence in `shots/menu-sheet/`.
+
+| # | Measured | Shot |
+|---|---|---|
+| 1 | Opens with 422 of 844px showing (exactly 50%), scrim 1 | `open-medium-390.png` |
+| 2 | A quick swipe up on the list at medium → full (top 10px), list `scrollTop` 0 | `full-390.png` |
+| 3 | At full, the same swipe scrolls the list (+momentum) | `drag-sequence-390.webm` |
+| 4 | Scrolled list, one continuous pull down: list reached 0, then the sheet moved to top 150 in the same gesture | `handoff-mid-gesture-390.png` |
+| 5 | Released slowly from there → a detent (full or medium) | — |
+| 6 | Slow drag 32% of the medium height below medium → closed; quick flick from medium → closed, focus back on the Menu tab; a 20px drag held and released → back to medium | `flick-closed-390.png` |
+| 7 | Quick flick down from full → **medium**, not closed | — |
+| 8 | Drag up on the head at full: stretched to top −78 for 200px of finger travel, springs back to 10 | `rubber-band-390.png` |
+| 9 | A 200px horizontal move did nothing; a tap while the list coasted stopped it (`scrollTop` stayed put) and did not navigate | — |
+| 10 | Mid-drag 233px showing: scrim 0.55 (= 233 / 422) | `mid-drag-down-390.png` |
+| 11 | Grabber tap and keyboard Enter → full, label "Collapse menu"; Esc and browser Back close, focus to "Open menu", URL unchanged | — |
+| 12 | Display & reading from medium → full; Back to the menu keeps full | `display-subview-390.png` |
+| 13 | Focusing a row below the visible edge at medium → full | — |
+| 14 | Rotating 390×844 → 844×390 at medium → medium recomputed (195px) | `rotated-medium-390.png` |
+| 15 | Reduced motion: open and settle are instant (state final 30ms after the tap); dragging still follows the finger | `reduced-motion-full-390.png` |
+| 16 | A drag on the scrim scrolled nothing behind (`main.scrollTop` 0 → 0) | — |
+| 17 | `?lang=ar`: identical | `rtl-medium-390.png`, `rtl-full-390.png` |
+| 834 | No Menu tab — the Menu is phone chrome, below 600px only (Phase 2); the header serves ≥600 | `no-menu-834.png` |
+
+Video of the whole sequence (open → up to full → scroll with momentum → one pull hands over and
+returns to medium → flick closed): `shots/menu-sheet/drag-sequence-390.webm`.
+
+**Most used** (`scratchpad/ms/mostused.js`): guest with Preferences allowed — before: Nominate,
+Vote, Awards, Events ("Participate"); after seven opens (shop ×3, blog ×2, status, pulse): Shop,
+Blog, Nominate, Vote ("Most used"), Awards and Events moved to the head of Explore
+(`most-used-guest-{before,after}-390.png`). Guest refusing Preferences: nothing stored
+(`localStorage` null), defaults unchanged. Member: eight opens counted by beacon in 26ms total
+(navigation never waited), server-ranked to Legacy Vault, Giving, Status, Nominate on the next page
+(`most-used-member-{before,after}-390.png`); "Register a profile" is not offered to a member at all.
+
+**Tests.** `MenuSheetTest` rebuilt (17 tests, was 3 — it is a rebuilt file, `M`, not new):
+Explore, Status, Cookies/Sign out kept; the four squares default and personalised; displaced
+defaults head Explore and nothing leaves the Menu; warm-up, frequency × recency and decay-out;
+decay before the add; tie-break score → recency → catalogue; never a shortcut the visitor cannot
+open; normalisation (future clocks, junk, the 1024-byte bound); **every destination requested
+through the real router as a guest and as a member** (opens for exactly the audience it claims);
+**the JS `Rank` run under Node against the PHP on 402 sampled histories** (ties included); the
+script types no ranking number and writes nothing without Preferences; the beacon counts the
+session's member only (a body `user_id` is ignored, a guest is bounced); the Menu's code is in no
+shared chrome file. **14 mutations, each caught** (two were missed on the first run — the
+tie-break's recency — and the tests were strengthened until they failed).
+
+## 6. Deviations
+
+| What | Why | Decides |
+|---|---|---|
+| Full detent at the top safe area + 10px, not the DC's `top:52px` | §7.4's 52px was a fixed sheet; a detented sheet's large detent is Apple's (status bar + a sliver). At full the app bar is covered | owner |
+| Open height 50% (Apple `.medium`) | Meta's exact open height cannot be measured; this is the platform value its iOS sheets inherit | **owner-confirmable** |
+| Expand-first (a swipe up at medium expands, never scrolls) | Apple's `prefersScrollingExpandsWhenScrolledToEdge` default; coordinator correction | — |
+| List momentum on touch is the script's (0.998/ms), not the platform's | The same-gesture hand-over is impossible with native scrolling (uncancelable `touchmove`s once a scroll starts); wheel and keyboard scroll stay native | owner |
+| "Register a profile" not shown to a signed-in member (Explore and shortcuts) | `/account/register` sends a member to `/account`: a row that goes somewhere other than it says. The Explore list is otherwise §7.4's seven | owner |
+| Settle 260ms (`--ag-dur-2`) on vaul's iOS curve, not vaul's 500ms | the house sheet duration (§6.6); added `--ag-ease-sheet` to `tokens.css` | — |
+| The back button is `hidden` on the main view, not `visibility:hidden` | a visibility-hidden control sat in the shell's focus list; the title keeps its column by `grid-column` | — |
+| Member usage on `gates_users.menu_use_json` (migration `2027_03_01_member_menu_use.php`, VARCHAR(1024), no index), not a table | one bounded document per member, read once per page; no index means no `SchemaIndex` trap | — |
+| Only opens FROM the Menu are counted (not every page view) | "the items you use most" in the menu; counting page views would rank whatever the home page links to | owner |
+
+## 7. Open questions for the owner
+
+1. Confirm the **50%** open height (or name another).
+2. **Pin / hide a shortcut** (Facebook's Pin · Auto · Hide) — not built: it needs an edit mode the
+   DC does not draw. A long-press menu on a tile is the cheap version; approve a design first.
+3. Confirm the frecency numbers: half-life 14 days, two recent opens to qualify, five opens before
+   anything changes.
+4. Should a **member's** device keep a local copy too (so the first menu on a new device is theirs
+   offline)? Today the server is the only copy for members.
+5. Should "Register a profile" leave Explore for members (done) — or should it point members at the
+   registry form instead?
+6. On iOS Safari the sheet was **not** measured on a real device (Chromium touch emulation only):
+   `touch-action` on both the sheet and its scroller, `overscroll-behavior: contain` and the scrim's
+   `touch-action:none` are the standard levers, but iOS rubber-banding of the page behind needs a
+   device check.

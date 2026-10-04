@@ -267,7 +267,9 @@ final class ShellLayoutTest extends TestCase
         // the cookie notice and preferences sheet after the chrome; Phase 4 the site footer
         // after those (it is chrome on every shell page); Phase 3 Gee after all of them.
         $want = ['assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css',
-                 'assets/css/components/chrome.css', 'assets/css/components/consent.css',
+                 'assets/css/components/chrome.css',
+                 // The Menu sheet, rebuilt whole out of chrome.css (4 Oct 2026, MENU-SHEET.md).
+                 'assets/css/components/menu-sheet.css', 'assets/css/components/consent.css',
                  'assets/css/components/footer.css', 'assets/css/components/gee.css'];
         $this->assertSame($want, $shell,
             'the shell must load the base, in the bundle\'s order, and nothing destroyed');

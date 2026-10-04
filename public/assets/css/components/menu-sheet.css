@@ -37,7 +37,9 @@
 .ag-menu[data-dragging]{ -webkit-user-select:none; user-select:none }
 
 /* The handle: the grabber and the head. A mouse drags from here; a finger from anywhere. */
-.ag-menu__top{ position:relative; flex:none; cursor:grab }
+/* A flex column like the sheet itself: the base grabber is a `<span>` sized as a flex item,
+   and in a plain block it is inline and draws at 0 × 0 (measured, before this). */
+.ag-menu__top{ position:relative; flex:none; display:flex; flex-direction:column; cursor:grab }
 .ag-menu[data-dragging] .ag-menu__top{ cursor:grabbing }
 
 /* The grabber as a control, drawn over the 38 × 5 mark: 88 × 44, transparent, symmetric
