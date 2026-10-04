@@ -39,7 +39,7 @@ from it, and where each feature lives in the rebuild.
 
 ---
 
-## 0b. Progress log — what has been done (kept current; last updated 4 Oct 2026, Phase 4 Home)
+## 0b. Progress log — what has been done (kept current; last updated 4 Oct 2026, Phase 4 Home and Discover)
 
 Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed evidence per phase lives in
 `PHASE-1.md`, `PHASE-2.md`, `PHASE-3.md`, `DESTROYED.md`, `inventory/` and `shots/`; this section is the index.
@@ -108,10 +108,23 @@ Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed 
   RESTORE destination, `nations_live()`, Activity removed, Cookies reopens the choices — §8c item 10 closed.
 - Tests: `HomePageTest` (13), `SiteFooterTest` (9), `GlobeBandTest` rebuilt (+9 band rules); 28 mutations caught.
 
+### Phase 4 — Discover, and Activity retired into it (4 Oct 2026)
+- `/discover` built on the shell from DiscoverPage.dc.html (`PHASE-4.md`, "Discover"): sticky search + filters,
+  tabs All · **Live** · People · Organisations · Awards · Results · Events docking beside Filters on scroll (skill
+  §6b), facets as a phone sheet / end panel, every row from an existing reader (`Services\Discover` composes
+  `ActivityFeedService::timeline()`, `SearchLanding`, `PublicResults`, `ProgrammeHost`, `NationsLive`); the one
+  new query is "most nominated this month". Works with no script (links and GET forms, upgraded in place).
+- **`/activity` → 301 `/discover?tab=live`**, keeping `q` and `literal` only; `ActivityController` destroyed;
+  `/discover` and `/discover?tab=live` in the sitemap; no nav links Activity (swept). activity.twig's rules kept:
+  `aria-activedescendant` combobox (script-declared), the status line the only live region, real links with
+  `<time datetime>`, "Understood as" / "Literal.", the partial-sources line (denominator now counted, not typed).
+- Not drawn, blocked: three facets and Recognitions' source — §8c item 19.
+- Tests: `DiscoverPageTest` (22, new), `FindBandTest` rewritten (1 → 8); 29 mutations caught.
+
 ### Menu sheet — rebuilt for the owner's request of 4 Oct 2026 (§8e)
 - `menu-sheet.twig` destroyed and rebuilt; its code moved out of `chrome.js`/`chrome.css` into
   `js/menu-sheet.js` and `css/components/menu-sheet.css` (inventory `inventory/partials--menu-sheet.md`).
-  Detents (opens at 50%, drag up to full, drag/flick down to close, expand-first, same-gesture list
+  Detents (opens content-aware — head, card and the four squares whole, 45–70% of the screen — drag up to full, drag/flick down to close, expand-first, same-gesture list
   hand-over, rubber band, scrim follows), grabber as a button; most-used tiles (`Services\MenuShortcuts`,
   frecency, member: `gates_users.menu_use_json` + `POST /account/menu-use` beacon; guest: `ag-menu-use`
   only with Preferences). 17 scenarios measured, research and open questions in `MENU-SHEET.md`.
@@ -257,7 +270,9 @@ code wins and the phase brief needs correcting.**
 - **Not the source:** `gates_vote_messages` (supporter messages, consented, used by the nominee page's
   roll of honour) and the OrgBrand `quotes` block are different consents for different uses.
 
-### 3.6 Search API + palette — PARTIAL (built in Phase 2 on another URL)
+### 3.6 Search API + palette — BUILT (Phase 2 `/search`; Phase 4 retired `/activity` into Discover's Live tab)
+- **Phase 4 (4 Oct 2026):** `/activity` is a 301 to `/discover?tab=live`; the timeline is
+  `ActivityFeedService::timeline()` — the palette's index — drawn by Discover. The text below is the Phase 0 record.
 - Palette: `partials/site-search.twig` + `public/assets/js/ag-search.js` — scope chips, ≤6 per group,
   combobox ARIA, focus trap, `/` and Cmd-K; mounted once at `gates.twig:540`.
 - JSON: `GET /activity/search?q=&scope=&literal=&limit=` (`routes.php:2149`,
@@ -409,7 +424,8 @@ page; `/support/assistant` 301s to `/help?gee=support` keeping `q` (and `ref`/`t
 | Maintenance windows · status probes by country | **MISSING** | §3.14 |
 | Shop restock alerts | **EXISTS** | §3.13 |
 
-**`/activity` → 301 `/discover?tab=live` (keep `q`, `literal`) — MISSING, and blocked on Phase 4.** `/activity`
+**`/activity` → 301 `/discover?tab=live` (keep `q`, `literal`) — BUILT in Phase 4 (4 Oct 2026)**, one route,
+no twin; `curl` proof in `shots/phase-4/discover/curl-activity-301.txt`. Phase 0 record follows. `/activity`
 is a live page (`routes.php:2148`, `pages/activity.twig`) and `/discover` is a deliberate 302 to `/registry`
 (`routes.php:1851-1853`) with no Discover template. Moving with the redirect: the `/search` and `/find` aliases
 (they would chain), the footer's "Activity search" (`layout/footer.twig:31`), the GET forms in
@@ -454,7 +470,8 @@ handler is dead and its middleware never runs); the destroy replaces the route, 
 | `/legacy/{slug}` | `LegacyController:event` | `pages/legacy/event.twig` | LegacyVault `view=edition` | 6 |
 | `/registry/{slug}` | `RegistryController:profile` | `pages/registry/profile.twig` | ProfilePage (`owner=true` has no view; the phase's `pages/profile.twig` does not exist) | 6 |
 | `/registry` | `RegistryController:index` | `pages/registry/index.twig` | *inferred:* DiscoverPage (directory) | 4? |
-| `/activity` | `ActivityController:index` | `pages/activity.twig` | **retire** → DiscoverPage Live | 4 |
+| `/activity` | 301 → `/discover?tab=live` (Phase 4) | — | **retired** → DiscoverPage Live | 4 ✓ |
+| `/discover` | `DiscoverController:index` (Phase 4) | `pages/discover.twig` | DiscoverPage (All, Live, sections, facets) | 4 ✓ |
 | `/events` | `EventsController:index` | `pages/events.twig` | EventsPage `view=index` | 7 |
 | `/events/{slug}` | `EventsController:show` | `pages/events/detail.twig` | EventsPage `view=detail` × open/waitlist/soldout/closed/ended | 7 |
 | `/events/ticket/{ref}` | `EventsController:ticket` | `pages/events/ticket.twig` | TicketPage `status=valid/checkedin` | 7 |
@@ -501,7 +518,7 @@ handler is dead and its middleware never runs); the destroy replaces the route, 
 template links the door's sheet (PHASE-2.md §10).
 
 ### 5.3 DCs and views with no current route
-DiscoverPage (no page; `/discover` is a 302) · AwardsPage `view=soon` · SignIn `phone`, `profile`, `interests` ·
+~~DiscoverPage (no page; `/discover` is a 302)~~ built in Phase 4 · AwardsPage `view=soon` · SignIn `phone`, `profile`, `interests` ·
 GivingPage `checkout` (an in-page step) · VotePage `verify`/`done` (in-flow states — not confirmed) ·
 ProfilePage `owner=true` · ResultsPage's named `pages/results.twig` · `GET /search` JSON · `/help?gee=support`.
 Components, not pages: SiteHeader, AppBar, MobileMenu, DisplayReading, CookieConsent (`view=admin` out of scope),
@@ -766,6 +783,19 @@ an answer. Each is detailed in `PHASE-2.md` (deviations list, §9, §10 and "Coo
 18. **Home deviations** D2 (hero lead), D3 (record card), D4 ("votes cast"), D6, D10, D12, D13, D17 need approval;
     Q8 (absent photos) is still open.
 
+## 8c (cont.) — raised by Phase 4 Discover (4 Oct 2026)
+
+19. **Discover facets and kinds with no record behind them** (`PHASE-4.md`, "Discover", D7): what do
+    "Identity verified (government ID)", "Vouched for (3+ verified people)" and "Field" mean here (B-1)? Not drawn
+    until answered. The Recognitions chip says none are recorded (D-2) — keep it, or hide it until §3.1 is built?
+20. **"Most nominated"** — count category entries (built), or record `nominee_id` on a nomination at approval so
+    the DC's "N nominations" is honest (B-2)?
+21. **Event accessibility flags** (captions, sign language, audio description) — columns for Phase 7 (B-3)?
+22. **`/registry`** still renders a destroyed template (500): retire it into `/discover?tab=people` (301) or rebuild
+    it in Phase 6 (B-4)?
+23. **Discover deviations** D-1 … D-8 and D-10 need approval — D-10 (kind dots as structure, not colour events)
+    decides whether the page can be drawn as designed at tier 2.
+
 ## 8d. Admin and org consoles — owner decisions (4 Oct 2026)
 
 The admin handoff arrived (`design_handoff_admin_console`: `Admin Console v9.dc.html`, `Org Console v2.dc.html`,
@@ -814,7 +844,7 @@ phase that next touches each one re-points it:
 | `tests/Unit/SiteHeaderTest.php:126` | §9.8 (Results in the header) | §3.15, Q18 |
 | `src/Support/Languages.php` | §5.3 (no translation layer) | Re-pointed: the docblock now describes `Support\Translator` and cites Q12 |
 | `src/Services/NominationRules.php:61` | (no section) the DC's "at least one" | C20 |
-| `src/routes.php:1842` | §5.5 (no Discover page) | §4, §5.3 |
+| ~~`src/routes.php:1842`~~ | §5.5 (no Discover page) | Comment removed with the 302 in Phase 4 |
 
 ---
 

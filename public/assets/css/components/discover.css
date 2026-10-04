@@ -52,6 +52,12 @@
 .dv__bar.ag-sticky[data-scrolled]{ padding-block:6px 10px; border-bottom-color:var(--ag-line) }
 @media (min-width:600px){
   .dv__bar.ag-sticky{ margin-inline:0; padding-inline:0 }
+  /* From 600 the bar does not bleed (the DC), so a row scrolling under it showed its
+     edges — the live dot's halo — in the gutter beside the bar. The ground is carried
+     16px past each edge, behind the bar's own content. */
+  .dv__bar.ag-sticky::before{
+    content:""; position:absolute; inset:0 -16px; z-index:-1; background:var(--ag-ground);
+  }
 }
 
 .dv__form{ margin:0 }

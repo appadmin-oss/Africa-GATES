@@ -169,3 +169,179 @@ Questionnaire/Interview/Shortlist/Stand/Refund/Finance/… render tests, `DoorVo
 - **Q8** (photo slot with no real image) still unanswered; D12 is the interim.
 
 ---
+
+# Discover — `/discover`, and `/activity` retired into its Live tab (4 Oct 2026)
+
+§8.2 and §8.23 are authoritative; every other value is DiscoverPage.dc.html's (REFERENCE §5), except where
+REFERENCE itself outranks the DC (§0) — those are listed under D-, not hidden. Screenshots, overlays, the
+keyboard/screen-reader log and the curl proof: `docs/handoff/shots/phase-4/discover/`. Dev data: a scratch
+SQLite database (setup + every migration) seeded with activity of **every kind the index has**: two
+programmes open for nominations closing in 2–3 days, two in 9–12, one in voting, a 2025 edition released
+with two decided awards, phase transitions (results, voting, nominations, upcoming), nominees this month in
+five nations (two people in several categories, one with a verified dossier item, one recognised before),
+34 older nominees (for "Show older updates"), three upcoming events and a past one, published posts and a
+draft, two community threads, three registry profiles. Not staging.
+
+## D1. Files
+
+**There was never a Discover page to destroy**: `/discover` was a 302 to `/registry` (GAPS §5.3). The
+activity page and the find band were destroyed on 3 Oct with the old layout; their rules were inventoried
+then (`inventory/pages--activity.md`, `_partials.md` "find-band") and every MUST RESTORE rule is re-asserted
+below. What survived and was retired now:
+
+| Destroyed | Why | Replacement |
+|---|---|---|
+| `src/Controllers/ActivityController.php` | nothing reaches it after the 301 | `DiscoverController` |
+| `tools/qa/activity-a11y.js` | drove a page that no longer exists | `DiscoverPageTest` + the Playwright log in shots |
+| `tests/Unit/FindBandTest.php` (1 test left) | its band was destroyed | rewritten whole against Discover's field (8 tests) |
+
+Created: `src/Services/Discover.php` (the page's one resolver — composes existing readers, writes only the
+"most nominated this month" query), `src/Controllers/DiscoverController.php` (`GET /discover`,
+`?fragment=live`, `GET /discover/count`), `templates/pages/discover.twig`, `templates/partials/discover-live.twig`
+(the timeline, rendered by the page AND alone for the combobox — one renderer of a row),
+`public/assets/css/components/discover.css`, `public/assets/js/discover.js`, `tests/Unit/DiscoverPageTest.php`.
+
+Changed (shared files re-read before each edit, minimal and additive):
+`src/Services/ActivityFeedService.php` (`timeline()`, `datedKinds()`, `collect()` reports `asked`, the phase
+source narrows by `to_status` in its query, transition rows carry `phase`); `src/Services/SearchLanding.php`
+(`currentCycles()` and `upcomingEvents()` extracted so the palette and Discover share one read — palette output
+unchanged, `SearchEndpointTest` green); `src/routes.php` (the 302 replaced by the page and `/discover/count`;
+`/activity` → 301 closure; `ActivityController` import removed); `config/container.php` (controller definition;
+Twig functions `discover_url`, `discover_kinds`, `discover_tabs`); `src/Services/SitemapService.php` (`/discover`,
+`/discover?tab=live`); `src/Support/ClientIp.php` (docblock); `tools/browser/csp-check.js` (`/activity` →
+`/discover`, `/discover?tab=live`); `tests/Unit/DeadTokenTest.php` (`--ag-gold-wash` has a reader again).
+
+**Navs:** Activity was already absent from the header, Explore, tab bar, palette scopes and `/_dev` (Phase 2
+rebuilt them without it); `DiscoverPageTest` now sweeps every public template and script for a link to it.
+The menu sheet is being rebuilt by another agent and I did not edit it — it contains no `/activity` link
+today; the coordinator was told. The footer is the Home agent's (no `/activity` link in it).
+
+## D2. What is drawn, on what data
+
+| DC block | Data | Notes |
+|---|---|---|
+| Search field | `GET /discover?q=` form; `ActivityFeedService` through `timeline()` | the site's only search field on the page; coverage sentence + promise from `search_covers()` |
+| Tabs All · **Live** · People · Organisations · Awards · Results · Events | `Discover::TABS` | links (no script) upgraded to in-place tabs with arrow keys and `pushState` |
+| Happening now / Everything happening now | `ActivityFeedService::timeline()` (dated sources only) | All: 4 newest of everything + See everything; Live: 20 a page, cumulative |
+| Kind chips | `Discover::KINDS` | Results = winners + "results published"; Nominations = nominees + "nominations opened"; Voting = "voting opened"; Events; Stories = posts + discussions; **Recognitions: no source** — says so |
+| Open for nominations (+ "All N") | `SearchLanding::currentCycles()` — computed phase | Status facet switches it to Voting now / Decided (decided = *announced*, `PublicResults::RELEASED`) |
+| Just decided | `PublicResults::index(3)` winners (cached 300s) | |
+| Most nominated this month | the one new query: nominees since the 1st, active programmes only, by person (profile, else nominee) | counts categories — see D-5 |
+| Award hosts | `ProgrammeHost` over active programmes | "Africa GATES" where no host is named |
+| Upcoming ceremonies | `SearchLanding::upcomingEvents()` | |
+| Facets | Trust: Recognised before (won/runner-up in an announced award, or a published shortlist), Reviewed evidence (`gates_nominee_evidence.verified_at`); Where: `NationsLive::codes()`; Status | Identity verified, Vouched for, Field: **blocked** (B-1) |
+
+Sandbox: every reader walks to an **active** programme (the sandbox is inactive) and the new query also goes
+through `DemoSeeder::notSandbox()`; `DiscoverPageTest` seeds the real sandbox, moves its nominees into this
+month so the test cannot pass by date, and sweeps five views.
+
+## D3. Every prop combination → screenshot
+
+The DC exposes one prop, `layout` (phone/desktop; tablet when unset), and the phase names three states: tabs
+All and Live, and the facets sheet. Each was rendered from a copy of the DC with only the state default
+changed, served over http with its React/Babel vendored locally and the Google Fonts routed through the
+proxy (both renders use the real faces). Phone DC renders are cropped by the 44px status bar the DC draws.
+
+| State | 390 | 834 | 1024 | 1440 |
+|---|---|---|---|---|
+| All, at rest | `all-390` · `dc-all-390` · `overlay-all-390` | `…-834` | `…-1024` | `…-1440` |
+| Live, at rest | `live-{w}` · `dc-live-{w}` · `overlay-live-{w}` | ✓ | ✓ | ✓ |
+| All, docked (scrolled 260) | `docked-all-{w}` · `dc-…` · `overlay-…` | ✓ | ✓ | ✓ |
+| Live, docked | `docked-live-{w}` · `dc-…` · `overlay-…` | ✓ | ✓ | ✓ |
+| Facets open (sheet <600, end panel ≥600) | `filters-{w}` · `dc-filters-{w}` · `overlay-filters-{w}` | ✓ | ✓ | ✓ |
+
+Build-only states (no DC frame; 390 and 1440): each section tab `tab-{people,orgs,awards,results,events}-{w}`;
+`live-q-` (results for a query), `live-empty-` (nothing matched), `live-literal-` (the Literal line),
+`live-kind-vote-`, `live-kind-recognition-` (no source, said), `live-older-` (page 2, anchored at row 21),
+`filters-applied-` and `filters-applied-open-` (chips + the sheet showing the choice), `combobox-active-`
+(typed, two ArrowDowns: the active option outlined), `status-decided-`. RTL (Arabic) at 390: `rtl-all-390`,
+`rtl-docked-live-390`, `rtl-filters-390` (+ `rtl-filters-1440`, the panel at the start edge). Reduced motion:
+`reduced-docked-390`, `-1440` (the dock state lands without transition). The "Understood as" line needs a
+model provider, which the dev server has none of; it is held by a render test instead
+(`test_understood_as_carries_its_way_out_and_literal_carries_its_way_back`).
+
+**Overlays.** Where the build and the DC disagree on an overlay it is one of three things, all listed under D-:
+the H1 (REFERENCE §6.2 44 vs the DC's 36 at desktop; 32 at tablet in both), the 44px targets (DC 40), and the
+data (the DC's demo rows vs the seed). Column edges, the bar, the field, the list card and the sheet line up
+once the DC's content-box 1180 is honoured (measured, then matched) and the DC's phone sheet top (72 in a
+frame with a 44px status bar = 28 in a viewport).
+
+## D4. Keyboard, screen reader, motion — `keyboard-and-screen-reader.txt`
+
+Playwright, keyboard only, at 390 and 1440. Tab order: skip link → chrome → **search field → the selected tab
+only (roving) → Filters → See everything → the four rows → All N → the cards → the sections**. Arrow keys,
+Home and End move along the tablist and select (mirrored in RTL); Back restores the previous tab. **Dock**:
+at rest the row copy is exposed (`aria-hidden="false"`, its selected tab the stop) and the docked copy is
+`aria-hidden="true"` with every tab `tabindex="-1"`; past 8px the two swap, and focus that was on the copy that
+hid moves to the one that appeared. **Combobox (Live tab only, declared by the script)**: `role=combobox`,
+`aria-controls=dvLiveList`, `aria-expanded`, `aria-activedescendant` moves with ArrowDown while focus stays in
+the field (logged `focus: dvQ`, `activedescendant: dv-r2`); the first Escape closes, the second clears; Enter
+with nothing active submits the form. **The only live region in `<main>` is `#dvStatus`** (logged, every
+step); the list is a listbox, never `aria-live`. What it announced while typing "Amara" then clearing: "Type
+at least 2 characters." → "4 results for “Amara”" → "Showing the 20 most recent updates". **Filters**: Enter
+opens the dialog, focus moves to Close, 14 Tabs stay inside, Escape closes and focus returns to Filters.
+**Scripting off**: the Live tab link, a kind chip, the search, the Filters link (opens by `:target`) and Show
+all work as plain navigation. VoiceOver/TalkBack were not available here; the notes above are what the
+accessibility tree exposes (role/state/live-region), which is what those readers announce.
+
+Reduced motion: the only motion is the dock (grid track, max-width, opacity) and the sheet slide; shell.css
+takes transitions to zero, so the end state is immediate (screenshots). Nothing on the page animates
+continuously; a busy list dims (`aria-busy`) rather than spinning.
+
+## D5. Tests — each new guard watched failing first
+
+`DiscoverPageTest` (22) and `FindBandTest` (rewritten, 8: the file existed with one test — the count is
+1 → 8, +7, plus 22 new). Every one was broken on purpose and seen to fail (scripted; restored after each):
+301→302; `literal` dropped from the redirect; `aria-live` on the list; `role=combobox` in the markup; the
+active option focused; a typed "of 7"; Recognitions given a source; page 2 not cumulative; Where ignored;
+unverified evidence counted; "Decided" by date; the sandbox gates removed (fails once the sandbox is in the
+current month — the first version passed vacuously and was fixed); the dock rule removed; an inline
+`onclick`; the sitemap entry removed; the empty-state query `|raw`; "1 results"; Enter always prevented;
+Escape clearing first; a link to `/activity`; the count endpoint counting the wrong tab; Live moved off
+second; sections capped at 4 on their own tab; and for FindBand: the promise removed, a noun typed, the
+catch-all removed, `aria-describedby` removed, a second field, the hook removed. 29/29 mutations caught.
+
+## D6. Deviations — what, why, approved by (target 0)
+
+Resolved by the order of authority (REFERENCE §0), not by me — listed so nobody reads them as accidents:
+
+| # | What | Authority |
+|---|---|---|
+| A1 | H1 32 (<1024) / 44 (≥1024); DC 32/36. Section H2 19; DC 18 | REFERENCE §6.2 |
+| A2 | Tabs, kind chips, Filters, applied chips, facet options 44px; DC 40/42 | REFERENCE §6.7, §13 |
+| A3 | Selected facet option = 2px ink outline on white; DC dark fill. Applied filters outlined; DC green wash `#e4f6e4` | REFERENCE §6.1, §18.2 |
+| A4 | Event month "Dec" in `--ag-live-ink`; DC "DEC" in `#cc1950` | §18.4 (no capitals); `#cc1950` not in the palette (Q1) |
+| A5 | The bar's "N results" is not `aria-live` (the DC's is) | §8.23: the status line is the ONLY live region |
+
+Deviations needing approval:
+
+| # | What | Why | Approved by |
+|---|---|---|---|
+| D-1 | Facets drawn: Trust (2 of 4), Where, Status. Not drawn: Identity verified, Vouched for, Field | no record behind them (B-1) | **Needs approval** |
+| D-2 | Recognitions chip drawn; selecting it says "No recognitions are recorded on Africa GATES yet." | no source (GAPS §3.1); not faked | **Needs approval** |
+| D-3 | The coverage sentence and "Nothing unannounced is searchable." printed as a footnote at the end of the page and as the field's description | the find band's two claims are MUST RESTORE; the DC has no place for them | **Needs approval** |
+| D-4 | Timeline rows: title is the item (a name, a programme + year), the item's own label leads the detail ("Winner · Musician of the Year", "Voting opened · 7th Edition"); DC writes sentences ("Achieng won …") | the index has no sentence; composing one per kind in a template is a second renderer | **Needs approval** |
+| D-5 | "Most nominated this month": "nominated in N categories", ranked by categories; DC "212 nominations" | a nomination is not linked to the nominee it attached to (no `nominee_id` on `gates_nominations`); the count would have to be rebuilt from names | **Needs approval** (B-2) |
+| D-6 | A registry profile joining is a timeline kind the DC lacks: "Joined", dot `--ag-ink-2`, under Everything only | it is a source of the index; dropping it would hide activity the old page showed | **Needs approval** |
+| D-7 | Relative time "16 minutes ago" (DC "4 min ago") | `ActivityFeedService::relative()` is shared with the palette; changing it changes Phase 2 | **Needs approval** |
+| D-8 | Upcoming ceremonies: meta is the location only; DC adds captions / sign language / audio description | no such columns on `gates_site_events` (REFERENCE §13 asks for them) | **Needs approval** (B-3) |
+| D-9 | The partial-read warning reads "({n} of {m} responded)" with `m` = sources asked (7 dated on Live), not a typed 7 | the old page typed 7 while ten sources ran | — (§19 shape) |
+| D-10 | Kind dots and the "Happening now" dot are coloured through a data custom property (`--dv-dot`), which `ColourBudgetTest` treats as structure, like a programme spine; the page declares tier 2 (gold winners, green action) | the DC's legend is six hues; as fields the page would be tier 4+ | **Needs approval** — if dots are events, the page cannot be drawn as designed |
+| D-11 | Section tabs list up to 48 rows; the All tab hides beyond the DC's slice (4·3·4·4·3) with CSS | a count over unreachable rows is a count of nothing | — |
+| D-12 | Live combobox armed on the Live tab only; on other tabs Enter searches | the list it controls is the Live list | — |
+| D-13 | Home's "Just decided" draws initials on tint (its D10); Discover draws them on gold-wash, as the DC | Discover is tier 2 with gold + green; Home is not | flag for consistency |
+
+## D7. Blocked — not guessed
+
+- **B-1** What do "Identity verified — checked against a government ID", "Vouched for — by 3 or more verified
+  people" and "Field" mean on this platform? `verification_tier` exists but nothing records a government-ID
+  check; no vouch is recorded; awards and categories carry no field taxonomy.
+- **B-2** "Most nominated": count category entries (built), or link nominations to nominees (a `nominee_id`
+  written at approval — a migration on both schemas) so the DC's "N nominations" can be honest?
+- **B-3** Event accessibility flags (captions, sign language, audio description) — add the columns (REFERENCE
+  §13 lists them) in Phase 7?
+- **B-4** `/registry` still renders a destroyed template (500); GAPS §5.1 maps it "4?" to Discover. Retire it
+  into `/discover?tab=people` (301), or rebuild it as the directory in Phase 6?
+- **B-5** The All tab's "Happening now" shows every kind; should "Joined" appear there at all (D-6)?
+
+---
