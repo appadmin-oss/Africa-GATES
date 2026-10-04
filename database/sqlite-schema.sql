@@ -524,6 +524,9 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   early_bird_text TEXT,
   early_bird_deadline TEXT,
   early_bird_url TEXT,
+  livestream_url TEXT NULL DEFAULT NULL,
+  recording_url TEXT NULL DEFAULT NULL,
+  access_notes TEXT NULL,
   created_at TEXT
 );
 
@@ -543,6 +546,24 @@ CREATE TABLE IF NOT EXISTS gates_event_registrations (
   UNIQUE(event_id, email)
 );
 CREATE INDEX IF NOT EXISTS idx_evreg_event ON gates_event_registrations(event_id);
+
+-- ─── "Email me when tickets go on sale" (double opt-in; migrations/2027_03_04_event_sale_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_event_sale_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  email_hash TEXT NOT NULL,
+  token TEXT NOT NULL,
+  ip_hash TEXT NULL,
+  created_at TEXT NULL,
+  confirm_sent_at TEXT NULL,
+  confirmed_at TEXT NULL,
+  notified_at TEXT NULL,
+  cancelled_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_esa_who ON gates_event_sale_alerts(event_id, email_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_esa_token ON gates_event_sale_alerts(token);
+CREATE INDEX IF NOT EXISTS idx_esa_due ON gates_event_sale_alerts(event_id, confirmed_at, notified_at);
 
 -- ─── Gated single-use form links (verified nominees + judge invites) ───
 CREATE TABLE IF NOT EXISTS gates_form_tokens (

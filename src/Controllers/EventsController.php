@@ -53,238 +53,208 @@ class EventsController
         return rtrim(\AfricaGates\Support\SiteUrl::base($req), '/');
     }
 
+    /**
+     * `/events` — upcoming first, coming soon among them, past in its own section (Phase 7,
+     * §8.10; owner, 4 Oct 2026). Every figure from {@see \AfricaGates\Services\EventsFront}.
+     *
+     * Not cached: the state of a row (on sale, coming soon, sold out) moves on its own clock
+     * and on every booking, and a chip that says "on sale" for fifteen minutes after the last
+     * seat went is the stand-call chip's old fault. The page reads at most 84 events.
+     */
     public function index(Request $req, Response $res): Response
     {
         self::captureRef($req);   // ?ref= — the primary referral path
-        $now = Carbon::now()->toDateTimeString();
-        $upcoming = $this->cache->remember('events:upcoming', 900, fn() =>
-            DB::table('gates_site_events')->where('status', 'published')
-                ->where('event_date', '>=', $now)
-                ->orderBy('event_date')->get()->map(fn($r) => (array)$r)->all()
-        );
-        $past = $this->cache->remember('events:past', 1800, fn() =>
-            DB::table('gates_site_events')->where('status', 'published')
-                ->where('event_date', '<', $now)
-                ->orderByDesc('event_date')->limit(12)->get()->map(fn($r) => (array)$r)->all()
-        );
+        $q     = $req->getQueryParams();
+        $front = \AfricaGates\Services\EventsFront::index((string) ($q['f'] ?? 'all'));
+
         return $this->view->render($res, 'pages/events.twig', [
-            // The promo band. Nothing is rendered when there are none — a 188px
-            // strip of empty on a live page is worse than no band at all.
-            'promos' => \AfricaGates\Services\PromoService::forPlacement('events', !empty($_SESSION['user_id'])),
-            'page_title'       => 'Events — Africa GATES',
-            'meta_description' => 'Ceremonies, webinars and community sessions across the Africa GATES cycle.',
+            'page_title'       => \AfricaGates\Support\Translator::t('Events') . ' — Africa GATES',
+            'meta_description' => \AfricaGates\Support\Translator::t('Upcoming ceremonies, live moments and events on Africa GATES — with tickets, dates and how to watch.'),
             'gates_page'       => 'events',
-            'upcoming'         => $upcoming,
-            'past'             => $past,
-            // Which of these are taking stand applications. Deliberately OUTSIDE the two
-            // caches above: a call opens and closes on its own clock, and a chip that says
-            // "stands open" for another fifteen minutes after the deadline sends vendors to a
-            // form that will refuse them. One query for the whole page — see StandCall::openFor().
-            'stand_calls'      => StandCall::openFor(array_column($upcoming, 'id')),
+            'front'            => $front,
+            // Which upcoming events are taking stand applications. Outside any cache, and
+            // one query for the page — see StandCall::openFor().
+            'stand_calls'      => StandCall::openFor(array_merge(
+                $front['featured'] ? [$front['featured']['id']] : [],
+                array_column($front['upcoming'], 'id')
+            )),
         ]);
     }
 
-    /** Public event detail page (with on-platform RSVP). */
+    /** Public event detail page — the redesigned §8.10 page, every state. */
     public function show(Request $req, Response $res, array $args): Response
     {
         self::captureRef($req);   // ?ref= — the primary referral path
-        $slug  = (string)($args['slug'] ?? '');
-        $event = DB::table('gates_site_events')
-            ->where('slug', $slug)->where('status', 'published')->first();
+        $slug  = (string) ($args['slug'] ?? '');
+        $event = \AfricaGates\Services\EventsFront::liveOnly(DB::table('gates_site_events as e')
+            ->where('e.slug', $slug)->where('e.status', 'published'))->first(['e.*']);
 
         if (!$event) {
             throw new \Slim\Exception\HttpNotFoundException($req);
         }
-        $event   = (array)$event;
-        $now      = Carbon::now()->toDateTimeString();
-        $isPast   = $event['event_date'] < $now;
+        $event = (array) $event;
+        $id    = (int) $event['id'];
+        $now   = Carbon::now()->toDateTimeString();
 
         // ── HOW FULL IS THE ROOM, REALLY ─────────────────────────────────────
         //
-        // This was `->where('event_id', …)->count()`, and it was wrong twice over in ways
-        // that compounded:
-        //
-        //   IT COUNTED ROWS, NOT SEATS.      Somebody booking a table of ten counted as one.
-        //                                    A sold-out event kept selling.
-        //   IT COUNTED EVERY STATUS.         Abandoned checkouts, cancelled registrations,
-        //                                    refunded tickets and WAITLIST entries all read
-        //                                    as attendees — so people appeared as registered
-        //                                    without ever having paid, and the count only
-        //                                    ever went up.
-        //
-        // Both numbers below come from EventTicketService, which is also what the tier
-        // arithmetic, the admin screens and the reconciler use — the page had been computing
-        // its own answer beside a correct one it was already being handed as `event_sold`.
-        //
-        // `$seatsTaken` drives capacity: confirmed seats PLUS live holds, because a hold is a
-        // seat somebody else cannot buy. `$attending` drives anything shown to a human: only
-        // seats that are actually paid for, because a hold is not an attendee.
-        $seatsTaken = EventTicketService::soldForEvent((int) $event['id']);
-        $attending  = EventTicketService::attendingForEvent((int) $event['id']);
+        // Seats AND live holds drive capacity (a hold is a seat nobody else can buy); only
+        // PAID seats are ever shown to a person as "registered". Both from
+        // EventTicketService — four implementations of "is it sold out" is the drift this
+        // codebase keeps finding.
+        $seatsTaken = EventTicketService::soldForEvent($id);
+        $attending  = EventTicketService::attendingForEvent($id);
+        $capacity   = ($event['capacity'] ?? null) !== null ? (int) $event['capacity'] : null;
+        $spotsLeft  = $capacity !== null ? max(0, $capacity - $seatsTaken) : null;
+        $roomFull   = $capacity !== null && $seatsTaken >= $capacity;
 
-        $capacity  = ($event['capacity'] ?? null) !== null ? (int) $event['capacity'] : null;
-        $spotsLeft = $capacity !== null ? max(0, $capacity - $seatsTaken) : null;
-        $isFull    = $capacity !== null && $seatsTaken >= $capacity;
-        $pctSold   = ($capacity !== null && $capacity > 0)
-            ? min(100, (int) round($seatsTaken * 100 / $capacity)) : null;
-
-        // ── THE AGENDA ───────────────────────────────────────────────────────
-        //
-        // Sessions are rows now, grouped into days. The old JSON run of show is read only
-        // when there are none, so an organiser who moves to sessions does not see their
-        // agenda printed twice and one who never does keeps the page they had.
-        $agenda   = EventAgenda::days((int) $event['id']);
+        // Sessions are rows grouped into days; the old JSON run of show only when there are none.
+        $agenda   = EventAgenda::days($id);
         $schedule = $agenda === [] ? (json_decode((string) ($event['schedule'] ?? '[]'), true) ?: []) : [];
+        $tracks   = [];
+        foreach ($agenda as $d) {
+            foreach ($d['sessions'] ?? [] as $s) {
+                $t = trim((string) ($s['track'] ?? ''));
+                if ($t !== '' && !in_array($t, $tracks, true)) $tracks[] = $t;
+            }
+        }
 
-        // ── TIERS ARE ROWS NOW, EACH WITH ITS OWN LIMIT ──────────────────────
-        //
-        // The `ticket_tiers` JSON blob is still read as a FALLBACK, for the minutes
-        // between an operator uploading this code and running /__setup/migrate: on this
-        // deployment those are two separate acts and an event page that went blank in
-        // between would be the upgrade breaking the site.
+        // Tiers are rows, each with its own limit; the legacy JSON blob only before migrating.
         $code  = trim((string) ($req->getQueryParams()['code'] ?? ''));
-        $tiers = EventTicketService::tiers((int) $event['id'], $code);
+        $tiers = EventTicketService::tiers($id, $code);
         if ($tiers === []) {
             $legacy = json_decode((string) ($event['ticket_tiers'] ?? '[]'), true);
             $tiers  = is_array($legacy) ? $legacy : [];
         }
-        // The event's own ceiling still applies on top of every tier's, so a tier with
-        // seats left in a room that is full cannot be bought. Same figure as the capacity
-        // arithmetic above, and now literally the same variable — it was being computed
-        // twice, beside a third number the page had worked out for itself and got wrong.
 
-        // Early-bird banner: active when text is set and (no deadline OR deadline still ahead).
-        $ebText  = trim((string)($event['early_bird_text'] ?? ''));
-        $ebUntil = trim((string)($event['early_bird_deadline'] ?? ''));
-        $earlyBird = ($ebText !== '' && !$isPast && ($ebUntil === '' || $ebUntil >= $now))
-            ? ['text' => $ebText, 'deadline' => $ebUntil, 'url' => trim((string)($event['early_bird_url'] ?? ''))]
+        $hosts = \AfricaGates\Services\EventsFront::hosts([$id]);
+        $ev    = \AfricaGates\Services\EventsFront::row($event, $hosts, $now, $tiers, $roomFull);
+        $isPast = $ev['state'] === 'ended';
+
+        // Early-bird row: text set, and no deadline or a deadline still ahead.
+        $ebText  = trim((string) ($event['early_bird_text'] ?? ''));
+        $ebUntil = trim((string) ($event['early_bird_deadline'] ?? ''));
+        $earlyBird = ($ebText !== '' && !$isPast && in_array($ev['state'], ['open', 'soon'], true)
+                      && ($ebUntil === '' || $ebUntil >= $now))
+            ? ['text' => $ebText,
+               'until' => $ebUntil !== '' ? \AfricaGates\Support\EventTime::at($event, $ebUntil, 'j M') : '',
+               'url' => trim((string) ($event['early_bird_url'] ?? ''))]
             : null;
 
         // ── "YOU COULD EARN FROM THIS" ───────────────────────────────────────
-        //
-        // The referral programme existed and nobody knew: a member had to already know it
-        // was there, sign in, and find the panel on their account page. This is the one
-        // place where somebody is looking at a ticket they might tell a friend about — so
-        // it is the one place the offer means anything.
-        //
-        // The rate and the threshold are read LIVE rather than written into the copy,
-        // because an admin can change both and a page promising 10% after a change to 8%
-        // is a promise the ledger will not honour.
+        // Rate and threshold read LIVE — a page promising 10% after a change to 8% is a
+        // promise the ledger will not honour. A link needs an owner, so a visitor is offered
+        // the programme and a way to sign in; a member gets their real link.
         $referral = null;
-        if (ReferralService::enabled() && ReferralService::enabledForEvent((int) $event['id']) && !$isPast) {
+        if (ReferralService::enabled() && ReferralService::enabledForEvent($id) && !$isPast) {
             $me = self::memberId();
             $referral = [
                 'pct'       => ReferralService::ratePct(),
                 'threshold' => ReferralService::threshold(),
-                // Signed in: their real link, ready to copy. Not signed in: the offer and a
-                // route to an account, because a link needs an owner — a code with nobody
-                // behind it is a code with nobody to pay.
-                'code'      => $me !== null ? ReferralService::codeFor($me) : null,
                 'link'      => null,
             ];
-            if ($referral['code'] !== null) {
-                $referral['link'] = ReferralService::link(
-                    \AfricaGates\Support\SiteUrl::base($req),
-                    (string) $referral['code'],
-                    (string) ($event['slug'] ?? '')
-                );
+            $rc = $me !== null ? ReferralService::codeFor($me) : null;
+            if ($rc !== null) {
+                $referral['link'] = ReferralService::link(\AfricaGates\Support\SiteUrl::base($req), (string) $rc, (string) $event['slug']);
             }
         }
 
+        // ── EACH TIER ROW, WITH ITS COLOURS AS CUSTOM PROPERTIES ─────────────
+        //
+        // Tone and colours from PHP: rank is a price question and the list is ordered by
+        // `sort_order` (EventTierTone); the colours are DERIVED from the tier's slot and the
+        // event's accent at read time (EventTierTone::card — GAPS Q6), never stored.
+        $tones = \AfricaGates\Services\EventTierTone::forTiers($tiers);
+        $peak  = \AfricaGates\Services\EventTierTone::peakId($tiers);
+        $rows  = [];
+        foreach ($tiers as $t) {
+            if (!isset($t['id'])) continue;
+            $st   = (string) ($t['state'] ?? 'open');
+            $gone = $st === 'sold_out';
+            $c    = \AfricaGates\Services\EventTierTone::card($t, $event);
+            $rows[] = [
+                'id'      => (int) $t['id'],
+                'name'    => (string) $t['name'],
+                'note'    => (string) ($t['description'] ?? ''),
+                'perks'   => (array) ($t['perks'] ?? []),
+                'price'   => (int) ($t['price_naira'] ?? 0),
+                'price_text' => \AfricaGates\Services\EventSales::money((int) ($t['price_naira'] ?? 0)),
+                'state'   => $st,
+                'why'     => (string) ($t['why'] ?? ''),
+                'left'    => $t['left'] ?? null,
+                'min'     => (int) ($t['min'] ?? 1),
+                'max'     => (int) ($t['max'] ?? 1),
+                'gone'    => $gone,
+                // A sold-out row stays pressable when there is a waiting list (the thing to
+                // do about it is join); otherwise only an open row can be chosen.
+                'enabled' => $st === 'open' || ($gone && EventWaitlist::open((object) $event)),
+                'waiting' => EventWaitlist::length((int) $t['id']),
+                'tone'    => $tones[(int) $t['id']] ?? 'calm',
+                'peak'    => (int) $t['id'] === $peak,
+                // Validated hexes from the palette, so the attribute is safe to write raw.
+                'style'   => '--tier-accent:' . $c['accent'] . ';--tier-light:' . $c['light']
+                           . ';--tier-wash:' . $c['wash'] . ';--tier-deep:' . $c['deep']
+                           . ';--tier-glow:' . $c['glow'] . ';--tier-edge:' . $c['edge'],
+            ];
+        }
+
+        $gcal = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' . rawurlencode((string) $event['title'])
+              . '&dates=' . self::gcalStamp((string) $event['event_date']) . '/'
+              . self::gcalStamp((string) (($event['end_date'] ?? '') ?: $event['event_date']))
+              . '&location=' . rawurlencode($this->calendarWhere((object) $event))
+              . '&details=' . rawurlencode((string) ($event['tagline'] ?? ''));
+
         return $this->view->render($res, 'pages/events/detail.twig', [
-            'referral'         => $referral,
-            // ── WHAT THIS EVENT IS RAISING FOR ───────────────────────────────
-            //
-            // Live appeals only, and empty for most events. An organiser running a
-            // fundraising dinner used to have a ticket page and an appeal page that did not
-            // know about each other; this is the join. The target and the running total
-            // come from OrgCampaign, so there is one progress calculation on the platform
-            // rather than a second one here that would drift from it.
-            'appeals'          => \AfricaGates\Services\OrgCampaign::forEvent((int) $event['id']),
             'page_title'       => $event['title'] . ' — Africa GATES',
             'meta_description' => ($event['tagline'] ?? null)
-                ?: mb_substr(strip_tags((string)($event['description'] ?? '')), 0, 150),
+                ?: mb_substr(strip_tags((string) ($event['description'] ?? '')), 0, 150),
             'gates_page'       => 'events',
-            // Event JSON-LD. The only one of these types with a commercial rich result:
-            // date, venue and PRICE render in the search listing itself, which on a page
-            // that sells tickets is the difference between an impression and a click.
+            // Event JSON-LD: date, venue and PRICE render in the search listing itself.
+            // Everything in it goes through Schema::text() — a partner-typed title is
+            // untrusted in a script element (CLAUDE.md).
             'schema'           => \AfricaGates\Support\Schema::event(
                 $event,
                 \AfricaGates\Support\SiteUrl::base($req),
-                array_map(static fn(array $t): array => [
+                array_map(static fn (array $t): array => [
                     'name'      => (string) ($t['name'] ?? ''),
                     'price'     => (int) ($t['price_naira'] ?? 0),
-                    'available' => ($t['sold_out'] ?? false) === false,
-                ], $tiers ?? []),
-                (string) ($event['cover_path'] ?? $event['image'] ?? '')
+                    'available' => ($t['state'] ?? 'open') === 'open',
+                ], $tiers),
+                (string) ($event['cover_path'] ?? $event['cover_image'] ?? '')
             ),
             'event'            => $event,
+            'ev'               => $ev,
             'member'           => \AfricaGates\Services\UserAccountService::memberForForms(),
-            // Paid seats only. The template prints this as "N registered" on a past event and
-            // hands it to the booking widget, and both are statements to a person — so an
-            // abandoned checkout must not appear in it.
             'reg_count'        => $attending,
-            'is_past'          => $isPast,
             'capacity'         => $capacity,
             'spots_left'       => $spotsLeft,
-            'is_full'          => $isFull,
-            'pct_sold'         => $pctSold,
-            'schedule'         => $schedule,
             'agenda'           => $agenda,
-            'tiers'            => $tiers,
-            // ── HOW LOUDLY THE CARD REACTS TO EACH TIER ──────────────────────
-            //
-            // Computed here, not in the template, because rank is a PRICE question and the
-            // tier list is ordered by `sort_order` — a column an organiser drags rows around
-            // with. Deriving rank from loop position, which is the obvious thing to do in
-            // Twig, makes the cheapest tier sweep hardest for any organiser who puts their
-            // premium row at the top of the list. See EventTierTone.
-            'tier_tones'       => $tierTones = \AfricaGates\Services\EventTierTone::forTiers($tiers),
-            // How heavily that tone lands, per tier. `--tier-heat` was declared on `.ed-tier`
-            // from the day the effect shipped and NOTHING ever set it — the ladder lived only
-            // in the arc's speed, and a custom property with no writer is §17's bug wearing
-            // CSS. It drives the state layer's and the ripple's opacity now, which is where
-            // rank belongs once the press stops being a firework.
-            'tier_heats'       => array_map(
-                static fn (string $tone): float => \AfricaGates\Services\EventTierTone::HEAT[$tone]
-                                                 ?? \AfricaGates\Services\EventTierTone::HEAT['calm'],
-                $tierTones
-            ),
-            // And how fast the ink crosses the row. The template takes .4× of this, which is
-            // the same ordering the tone test holds — peak fastest — rescaled from an arc's
-            // band into a press's. Sent raw rather than pre-scaled so the number here stays
-            // the number in EventTierTone, and the one place the rescale happens is visible
-            // beside the thing it is scaling.
-            'tier_ms'          => array_map(
-                static fn (string $tone): int => \AfricaGates\Services\EventTierTone::MS[$tone]
-                                               ?? \AfricaGates\Services\EventTierTone::MS['calm'],
-                $tierTones
-            ),
-            // And the colour it sweeps in: the colour the organiser set on the tier,
-            // resolved from the event's own accent — so the light on the card is the same
-            // colour as the swatch in the admin and as the dot on the printed ticket.
-            //
-            // Two values per tier, not one. `hue` is the identity and drives the light;
-            // `edge` is the darker variant used for the selected row's border and the
-            // filled radio, which are non-text indicators of state and owe 3:1 against
-            // white (WCAG 1.4.11). Same pair the ticket's own dot draws.
-            'tier_hues'        => array_reduce($tiers, static function (array $c, array $t) use ($event): array {
-                if (isset($t['id'])) {
-                    $c[(int) $t['id']] = \AfricaGates\Services\EventTierTone::hues($t, $event);
-                }
-                return $c;
-            }, []),
-            // ── THE FLIER'S STYLE PICKER, WITH THIS EVENT'S REAL COLOURS ─────
-            //
-            // Every style resolved against the event's own accent, so the chips in the picker
-            // are the palette the render will use rather than approximations written into the
-            // template. A picker showing a generic dark-green chip beside a flier that comes
-            // out teal is a control that lies about its own outcome, and taking the
-            // organiser's colour is the entire point of the feature.
-            //
-            // Keyed by format, because the styles a format can offer differ: `tint` re-colours
-            // a photograph, so the no-photo design cannot draw it and must not offer it. The
-            // generator swaps lists when the shape changes.
+            'schedule'         => $schedule,
+            'tracks'           => $tracks,
+            'tiers'            => $rows,
+            'early_bird'       => $earlyBird,
+            'referral'         => $referral,
+            // Live appeals joined to this event; the card reads "fundraiser" from them, so it
+            // is derived and never a second flag to keep in step.
+            'appeals'          => \AfricaGates\Services\OrgCampaign::forEvent($id),
+            'waitlist_hours'   => EventWaitlist::OFFER_HOURS,
+            'refund_policy'    => trim((string) ($event['refund_policy'] ?? '')),
+            'refund_rule'      => \AfricaGates\Services\EventRefundPolicy::summary((object) $event),
+            'attendee_note'    => trim((string) ($event['attendee_note'] ?? '')),
+            'organiser_email'  => trim((string) ($event['organiser_email'] ?? '')),
+            'organiser_phone'  => trim((string) ($event['organiser_phone'] ?? '')),
+            'access'           => array_values(array_filter(array_map('trim',
+                                    preg_split('/\R/', (string) ($event['access_notes'] ?? '')) ?: []))),
+            'sales_closed'     => self::salesClosed($event, $now),
+            'paid_tiers'       => (bool) array_filter($rows, static fn (array $t): bool => $t['price'] > 0),
+            'access_code'      => $code,
+            'gateway_ready'    => $this->payments()->enabledProviderIds() !== [],
+            'stand_call'       => StandCall::nudge($id, (string) $event['slug'], $isPast),
+            'awards'           => \AfricaGates\Services\EventsFront::awards($id),
+            'gcal'             => $gcal,
+            'alert_waiting'    => $ev['state'] === 'soon' ? \AfricaGates\Services\EventSaleAlert::waiting($id) : 0,
+            'alert_said'       => self::takeAlertSaid(),
+            // The flier's style picker, in THIS event's real colours (EventFlierTheme).
             'flier_styles'     => array_reduce(
                 \AfricaGates\Services\EventFlierLayout::FORMATS,
                 static function (array $c, string $fmt) use ($event): array {
@@ -292,41 +262,80 @@ class EventsController
                     return $c;
                 }, []),
             'flier_style_default' => \AfricaGates\Services\EventFlierTheme::DEFAULTS,
-            'event_sold'       => $seatsTaken,
-            // The waitlist is offered per TIER, because a tier is what sells out — somebody
-            // priced out of the ₦380,000 table is not waiting for it, they are waiting for a
-            // standard seat, and one queue for the whole event would mix them.
-            'waitlist_open'    => EventWaitlist::open((object) $event) && !$isPast,
-            'waitlist_counts'  => array_reduce($tiers, static function (array $c, array $t): array {
-                if (isset($t['id'])) $c[(int) $t['id']] = EventWaitlist::length((int) $t['id']);
-                return $c;
-            }, []),
-            // Shown BEFORE anybody pays, not in a confirmation email nobody reads twice.
-            'refund_policy'    => trim((string) ($event['refund_policy'] ?? '')),
-            // The enforceable half, in one sentence, BEFORE anybody pays. A refund policy a
-            // buyer only discovers when they try to leave is not a policy, it is a surprise.
-            'refund_rule'      => \AfricaGates\Services\EventRefundPolicy::summary((object) $event),
-            'attendee_note'    => trim((string) ($event['attendee_note'] ?? '')),
-            'organiser_email'  => trim((string) ($event['organiser_email'] ?? '')),
-            'organiser_phone'  => trim((string) ($event['organiser_phone'] ?? '')),
-            'sales_closed'     => self::salesClosed($event, $now),
-            // Whether anything on this page costs money, which decides whether the form
-            // says "Register" or "Buy tickets" — and it is per-event rather than a site
-            // setting, because a free community session and a paid gala are both events.
-            'paid_tiers'       => (bool) array_filter($tiers,
-                                    static fn (array $t): bool => (int) ($t['price_naira'] ?? 0) > 0),
-            'access_code'      => $code,
-            'gateway_ready'    => $this->payments()->enabledProviderIds() !== [],
-            'early_bird'       => $earlyBird,
-            // Whether a business can trade here, and on what terms. The call page has always
-            // existed at /events/{slug}/stands and nothing linked to it, so the only vendors
-            // applying were the ones the organiser had already told — which is the failure a
-            // published quota is meant to prevent.
-            'stand_call'       => StandCall::nudge((int) $event['id'], (string) $event['slug'], $isPast),
         ] + array_filter([
             'og_image'     => \AfricaGates\Support\Assets::absoluteOg($event['cover_image'] ?? null),
             'og_image_alt' => (string) $event['title'],
         ], fn($v) => $v !== null));
+    }
+
+    /** The sale-alert reply, read once (a flash): a refresh must not repeat it. */
+    private static function takeAlertSaid(): string
+    {
+        if (!isset($_SESSION) || !is_array($_SESSION)) return '';
+        $v = (string) ($_SESSION['ev_alert_said'] ?? '');
+        unset($_SESSION['ev_alert_said']);
+        return $v;
+    }
+
+    /** A stored UTC datetime in Google Calendar's form, with the `Z` (see the .ics note). */
+    private static function gcalStamp(string $stored): string
+    {
+        try { return Carbon::parse($stored, 'UTC')->format('Ymd\THis\Z'); }
+        catch (\Throwable) { return ''; }
+    }
+
+    // ══ "EMAIL ME WHEN TICKETS GO ON SALE" ═══════════════════════════════════
+    //
+    // A plain form that posts (no script needed), throttled per connection, answering the
+    // same sentence whatever happened. See EventSaleAlert for the double opt-in.
+
+    public function alertWant(Request $req, Response $res, array $args): Response
+    {
+        $slug  = (string) ($args['slug'] ?? '');
+        $event = DB::table('gates_site_events')->where('slug', $slug)->where('status', 'published')->first();
+        if (!$event) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $b  = (array) $req->getParsedBody();
+        $ip = hash('sha256', \AfricaGates\Support\ClientIp::from($req));
+        if ($this->rateLimit && !$this->rateLimit->check($ip, 'event_sale_alert', 10, 3600)) {
+            $_SESSION['ev_alert_said'] = 'Too many requests from this connection in the last hour. Try again later.';
+        } else {
+            $r = \AfricaGates\Services\EventSaleAlert::want(
+                (int) $event->id, (string) ($b['email'] ?? ''), $ip, $this->base($req),
+                $this->mailer ? \AfricaGates\Services\Newsletter\NewsletterAudience::transport($this->mailer) : null
+            );
+            $_SESSION['ev_alert_said'] = $r['message'];
+        }
+        // Post / redirect / get: a refresh does not resubmit and the address is not in the URL.
+        return $res->withHeader('Location', '/events/' . rawurlencode($slug) . '#ev-rsvp')->withStatus(303);
+    }
+
+    /** GET shows, POST confirms — mail scanners fetch every link (the newsletter's rule). */
+    public function alertPage(Request $req, Response $res, array $args): Response
+    {
+        $token  = (string) ($args['token'] ?? '');
+        $action = (string) ($args['action'] ?? '');
+        $done   = false;
+        $row    = \AfricaGates\Services\EventSaleAlert::find($token);
+        if ($row && $req->getMethod() === 'POST') {
+            $row  = $action === 'stop'
+                ? \AfricaGates\Services\EventSaleAlert::stop($token)
+                : \AfricaGates\Services\EventSaleAlert::confirm($token);
+            $done = true;
+        }
+        $event = $row ? DB::table('gates_site_events')->where('id', (int) $row->event_id)->first(['slug', 'title']) : null;
+
+        return $this->view->render($res->withStatus($row ? 200 : 404), 'pages/events/alert.twig', [
+            'page_title' => \AfricaGates\Support\Translator::t('Ticket alert') . ' — Africa GATES',
+            'gates_page' => 'events',
+            'meta_robots'=> 'noindex, nofollow',
+            'alert'      => $row ? ['token' => (string) $row->token, 'action' => $action,
+                                    'confirmed' => $row->confirmed_at !== null,
+                                    'stopped' => $row->cancelled_at !== null] : null,
+            'done'       => $done,
+            'alert_event' => $event ? ['title' => (string) $event->title,
+                                       'url' => '/events/' . rawurlencode((string) $event->slug)] : null,
+        ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
     /**
@@ -788,64 +797,74 @@ class EventsController
             // No hint about whether the reference is unknown or merely not ours: the
             // difference is a way to test references.
             return $this->view->render($res->withStatus(404), 'pages/events/ticket.twig', [
-                'page_title' => 'Ticket', 'gates_page' => 'events', 'reg' => null, 'event' => null, 'lite_page' => true, 'task_page' => true,
-                // The template prints this as the ticket's own web address. It was never
-                // passed, so its |default() fired and every ticket on every deployment
-                // showed africagates.org. SiteUrl falls back to the request host, so this
-                // is right even where APP_URL was never set.
-                'site_url' => \AfricaGates\Support\SiteUrl::base($req),
-                // The template reads `design` unconditionally, including on this branch —
-                // a "we cannot find this ticket" page that throws because there is no event
-                // to take a colour from would turn a mistyped link into a 500.
-                'design' => EventTicketDesign::forEvent(null),
+                'page_title'    => \AfricaGates\Support\Translator::t('Ticket') . ' — Africa GATES',
+                'gates_page'    => 'events',
+                'meta_robots'   => 'noindex, nofollow',
+                'reg'           => null,
+                'support_email' => Notifier::supportEmail(),
             ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
         }
 
         $event  = DB::table('gates_site_events')->where('id', (int) $reg->event_id)->first();
         $design = EventTicketDesign::forEvent($event);
+        $now    = Carbon::now();
 
-        // The tier's colour, recomputed from the event's accent on every read — never
-        // stored as a hex. That is the whole point of the slot: change the event's accent
-        // and every tier moves with it, so "colours that match the event" is a property of
-        // the storage rather than a rule somebody has to remember. Null when the tier has
-        // no slot, when there is no tier, or when the event is gone; the template renders
-        // no dot in all three cases rather than a grey one that means nothing.
+        // The tier's colour, recomputed from the event's accent on every read — never a hex
+        // stored on the tier. Null when the tier has no slot: the template then draws the
+        // name and no dot, never a grey one that means nothing.
         $tierSwatch = null;
         if ((int) ($reg->tier_id ?? 0) > 0 && $event) {
             $tierSwatch = \AfricaGates\Services\EventTierPalette::forTier(
-                \AfricaGates\Services\EventTicketService::tier((int) $reg->tier_id), $event
+                EventTicketService::tier((int) $reg->tier_id), $event
             );
         }
 
+        $start = $event ? (string) ($event->event_date ?? '') : '';
+        $days  = null;
+        if ($start !== '') {
+            try {
+                $days = (int) floor((Carbon::parse($start)->startOfDay()->getTimestamp()
+                        - $now->copy()->startOfDay()->getTimestamp()) / 86400);
+            } catch (\Throwable) {}
+        }
+        $where = $event ? $this->calendarWhere($event) : '';
+
         return $this->view->render($res, 'pages/events/ticket.twig', [
-            'page_title'   => 'Your ticket — ' . (string) ($event->title ?? 'Africa GATES'),
-            'gates_page'   => 'events',
-            'site_url'     => \AfricaGates\Support\SiteUrl::base($req),
-            // LITE. This page uses none of the heavy stack — no map, no carousel, no video
-            // player, no scroll cinema — and it is the one page in the site whose whole
-            // design premise is that it renders on a phone with one bar of signal at a door.
-            // Every library it does not fetch is a request that cannot time out there.
-            'lite_page'    => true,
-            // And no entrance animation. Somebody is holding this up at a door with a queue
-            // behind them; a logo drawing itself is an obstacle wearing a brand.
-            'task_page'    => true,
-            'reg'          => (array) $reg,
-            'event'        => $event ? (array) $event : null,
-            'tier_swatch'  => $tierSwatch,
-            'support_email'=> Notifier::supportEmail(),
+            'page_title'    => \AfricaGates\Support\Translator::t('Your ticket') . ' — ' . (string) ($event->title ?? 'Africa GATES'),
+            'gates_page'    => 'events',
+            'meta_robots'   => 'noindex, nofollow',
+            'site_url'      => \AfricaGates\Support\SiteUrl::base($req),
+            'reg'           => (array) $reg,
+            'event'         => $event ? (array) $event : null,
+            'tier_swatch'   => $tierSwatch,
+            'support_email' => Notifier::supportEmail(),
             // Colours, image, which rows show — resolved and VALIDATED in PHP, because the
             // accent lands inside a style attribute. See EventTicketDesign.
-            'design'       => $design,
-            // The code as a QR, so a door reads it in half a second instead of nine keystrokes.
-            // Only for a confirmed ticket: a pending payment rendered as a scannable ticket is
-            // an argument at a door. Null when the code cannot be encoded, and the template
-            // shows the code alone in that case — see AfricaGates\Support\Qr.
+            'design'        => $design,
+            // The kicker's countdown, worked out here so the ticket needs no script to say it.
+            'days'          => $days,
+            'when'          => $event ? [
+                'kick'  => \AfricaGates\Support\EventTime::at($event, $start, 'd.m.y'),
+                'date'  => \AfricaGates\Support\EventTime::at($event, $start, 'D j M Y'),
+                'doors' => \AfricaGates\Support\EventTime::zoned($event, $start, 'g:i a')
+                         . (($event->end_date ?? '') ? ' – ' . \AfricaGates\Support\EventTime::at($event, (string) $event->end_date, 'g:i a') : ''),
+                'print' => \AfricaGates\Support\EventTime::zoned($event, $start, 'd M Y · g:i a'),
+            ] : null,
+            'where'         => $where,
+            // Directions: the organiser's own map link where one is set, otherwise a map
+            // search for the address. A link out — nothing is embedded.
+            'directions'    => $event ? (\AfricaGates\Services\EventsFront::link((string) ($event->map_embed ?? ''))
+                                 ?: ($where !== '' ? 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($where) : '')) : '',
+            // The code as a QR, only for a confirmed ticket: a pending payment rendered as a
+            // scannable ticket is an argument at a door. Null when it cannot be encoded, and
+            // the template shows the code alone (Support\Qr::encode — a ticket code, folded).
             'qr' => $design['show_qr']
                 && (string) $reg->status === 'confirmed'
                 && trim((string) ($reg->ticket_code ?? '')) !== ''
                 ? \AfricaGates\Support\Qr::svg((string) $reg->ticket_code, 6,
                     'Ticket code ' . (string) $reg->ticket_code)
                 : null,
+            'can_manage'    => (string) $reg->status === 'confirmed' && trim((string) ($reg->checked_in_at ?? '')) === '',
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 

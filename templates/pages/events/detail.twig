@@ -1,0 +1,331 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/events/{slug}` — ONE EVENT · Phase 7 · EventsPage.dc.html (view: detail) · §8.10
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Written from the DC after the old page was destroyed. Every feature in its inventory
+  (docs/handoff/inventory/pages--events--detail.md) is here: tiers with their own limits and
+  colours, seats, the discount check (a preview — reserve() prices the row), the waiting list,
+  the fundraiser reading derived from live appeals, agenda with a track filter, venue and map,
+  the small print before anybody pays, the vendor call, share, the .ics file and Google
+  Calendar, the "I will be there" flier, the referral offer read live, and the appeal links.
+
+  ── THE ORDER (§8.10) ─────────────────────────────────────────────────────
+
+  Phone: photo · head · tickets card · About · Agenda · Venue · Access · Good to know ·
+  Vendor call · Share/save · (appeals) · Earn · Livestream, and the fixed "From … · Get
+  tickets" bar. From 1024: the main column and a sticky 380px rail (the card, then the
+  extras). Between, the rail dissolves (`display:contents`) and `order` puts the card first,
+  exactly as the DC's `asideDisplay`/`rsvpOrder`/`mainOrder` do.
+
+  ── THE CARD'S STATE IS EventSales' ONE ANSWER ─────────────────────────────
+
+  open · waitlist · soldout · closed · ended · soon (`ev.state`), the same word the index
+  row's tag and the fixed bar read. Coming soon is every public tier's sales not yet started
+  (`sale_starts_at`), which reserve() already refuses — so the card and the checkout cannot
+  disagree about whether tickets are on sale.
+
+  ── COLOUR ──────────────────────────────────────────────────────────────
+
+  Each tier row carries `--tier-accent/-light/-wash/-deep/-glow/-edge`, derived at read time
+  from its slot (EventTierTone::card, GAPS Q6). Picking a row copies its six onto the card,
+  which re-tints ONLY the card's accents — the eyebrow, the fundraising figure, the selected
+  row's border and wash, "Only N left", Apply, the total and the CTA. Radios stay neutral
+  (ink). Words in the tier's colour use `deep` (4.5:1 on white and on its wash, sampled in
+  EventTierGlowTest); the conic ring and the halo use `accent`/`light`/`glow` and are
+  aria-hidden. Everything else is Accent tokens.
+
+  `is_fundraiser` and `_rsvp` are at TEMPLATE scope: a set inside a block is invisible to
+  every other block (CLAUDE.md), and the head, the content and the bar all read them.
+#}
+
+{% set colour_tier = '2' %}
+{% set flow_page = true %}
+{% set is_fundraiser = appeals|default([]) is not empty %}
+{% set appeal_for = is_fundraiser ? (appeals|first).campaign.title : '' %}
+{% set st = ev.state %}
+{% set _first = tiers|filter(t => t.enabled)|first %}
+{% set _one = tiers|length == 1 and _first %}
+{% set _open_tiers = tiers|filter(t => t.state == 'open') %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/events.css') }}">
+  {% if og_image is defined %}<meta property="og:image" content="{{ og_image }}"><meta property="og:image:alt" content="{{ og_image_alt|default('') }}">{% endif %}
+  {# JSON-LD: JSON_HEX_TAG, so a partner-typed `</script>` cannot close the element. #}
+  <script type="application/ld+json" nonce="{{ csp_nonce }}">{{ schema|json_encode(constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
+{% endblock %}
+
+{# The phone detail has no app bar: the photo is full-bleed with its own floating buttons. #}
+{% block app_bar %}{% endblock %}
+
+{% block content %}
+<div class="ed" data-ed data-slug="{{ event.slug }}" data-csrf="{{ csrf_token }}" data-state="{{ st }}"
+     data-t-busy="{{ 'Working…'|trans }}" data-t-net="{{ 'Network error. Please try again.'|trans }}">
+
+  {# ── The early-bird banner (desktop) ── #}
+  {% if early_bird %}
+  <div class="ed-eb ed-eb--wide">
+    <span>{{ early_bird.text }}{% if early_bird.until %} · {{ 'ends %date%'|trans({'%date%': early_bird.until}) }}{% endif %}</span>
+    <a href="{{ early_bird.url ?: '#ev-rsvp' }}">{{ 'Get tickets'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+  </div>
+  {% endif %}
+
+  {# ── The head: a 4:3 photo with floating buttons and a sheet on a phone; a hero from 600 ── #}
+  <header class="ed-hero">
+    <div class="ed-hero__media">
+      {% include 'partials/photo.twig' with {kind: 'thing', src: ev.image, name: ev.title, tone: ev.cover, title: false, eager: true} only %}
+    </div>
+    <div class="ed-hero__btns">
+      <a class="ed-fab" href="/events" aria-label="{{ 'All events'|trans }}">
+        <svg class="ag-ico-dir" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+        <span class="ed-fab__l">{{ 'Events'|trans }}</span>
+      </a>
+      <span class="ed-hero__end">
+        {% if st != 'ended' %}
+        <a class="ed-fab" href="/events/{{ event.slug|url_encode }}/calendar.ics" aria-label="{{ 'Add to calendar'|trans }}">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg>
+        </a>
+        {% endif %}
+        <button type="button" class="ed-fab" data-ag-share aria-label="{{ 'Share'|trans }}" data-ag-copied="{{ 'Link copied'|trans }}">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 8 5-5 5 5"></path><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"></path></svg>
+        </button>
+      </span>
+    </div>
+    <div class="ed-hero__text">
+      <span class="ev-dateline ed-hero__date">{{ ev.when }}</span>
+      <h1 class="ed-hero__h1">{{ event.title }}</h1>
+      <span class="ed-hero__by">
+        {{- ev.where -}}
+        {%- if ev.where and ev.host %} · {% endif -%}
+        {%- if ev.host %}{{ 'Hosted by %host%'|trans({'%host%': ev.host}) }}{% endif -%}
+      </span>
+      {% if early_bird %}
+      <a class="ed-eb ed-eb--row" href="{{ early_bird.url ?: '#ev-rsvp' }}">
+        <span><b>{{ early_bird.text }}</b>{% if early_bird.until %} · {{ 'ends %date%'|trans({'%date%': early_bird.until}) }}{% endif %}</span>
+        <span class="ed-eb__go">{{ 'Get tickets'|trans }}</span>
+      </a>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="ed-grid">
+    {# ══ MAIN ══════════════════════════════════════════════════════════════ #}
+    <div class="ed-main">
+      {% if event.description %}
+      <section class="ed-sec" aria-labelledby="h-about">
+        <h2 class="ed-sec__h" id="h-about">{{ 'About this event'|trans }}</h2>
+        <p class="ed-about">{{ event.description|nl2br }}</p>
+      </section>
+      {% endif %}
+
+      {% if agenda|length %}
+      <section class="ed-sec" aria-labelledby="h-ag" data-ed-agenda>
+        <h2 class="ed-sec__h" id="h-ag">{{ 'Agenda'|trans }}</h2>
+        {# A filter with one option is a control that cannot do anything, so it is offered
+           only when there is more than one track. #}
+        {% if tracks|length > 1 %}
+        <div class="ed-tracks" role="group" aria-label="{{ 'Track'|trans }}">
+          <button type="button" class="ed-track" data-ed-track="" aria-pressed="true">{{ 'All'|trans }}</button>
+          {% for t in tracks %}<button type="button" class="ed-track" data-ed-track="{{ t }}" aria-pressed="false">{{ t }}</button>{% endfor %}
+        </div>
+        {% endif %}
+        {% for d in agenda %}
+          {% if agenda|length > 1 or d.key == '' %}<h3 class="ed-ag__day">{{ d.label }}</h3>{% endif %}
+          <ol class="ed-ag">
+            {% for s in d.sessions %}
+            <li class="ed-ag__row" data-track="{{ s.track }}">
+              <span class="ed-ag__time">{{ s.when ?: '—' }}</span>
+              <span class="ed-ag__body">
+                <span class="ed-ag__t">{{ s.title }}</span>
+                {% if s.speakers %}<span class="ed-ag__who">{{ s.speakers|join(', ') }}</span>{% endif %}
+                {% if s.description %}<span class="ed-ag__who">{{ s.description }}</span>{% endif %}
+                {% if s.track or s.room %}<span class="ed-ag__who">{{ [s.track, s.room]|filter(v => v)|join(' · ') }}</span>{% endif %}
+              </span>
+            </li>
+            {% endfor %}
+          </ol>
+        {% endfor %}
+      </section>
+      {% elseif schedule %}
+      <section class="ed-sec" aria-labelledby="h-ag">
+        <h2 class="ed-sec__h" id="h-ag">{{ 'Agenda'|trans }}</h2>
+        <ol class="ed-ag">
+          {% for s in schedule %}
+          <li class="ed-ag__row"><span class="ed-ag__time">{{ s.time|default('—') }}</span>
+            <span class="ed-ag__body"><span class="ed-ag__t">{{ s.title|default('') }}</span>{% if s.body|default('') %}<span class="ed-ag__who">{{ s.body }}</span>{% endif %}</span></li>
+          {% endfor %}
+        </ol>
+      </section>
+      {% endif %}
+
+      {% if event.venue or event.location %}
+      <section class="ed-sec" aria-labelledby="h-venue">
+        <h2 class="ed-sec__h" id="h-venue">{{ 'Venue'|trans }}</h2>
+        <span class="ed-venue"><b>{{ event.venue|default(event.location) }}</b>
+          {% if event.venue and event.location %}<span>{{ event.location }}</span>{% endif %}</span>
+        <a class="ed-link" href="{{ event.map_embed ?: 'https://www.google.com/maps/search/?api=1&query=' ~ ([event.venue, event.location]|filter(v => v)|join(', '))|url_encode }}" target="_blank" rel="noopener">{{ 'View on map'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+      </section>
+      {% endif %}
+
+      {% if access|length %}
+      <section class="ed-sec" aria-labelledby="h-acc">
+        <h2 class="ed-sec__h" id="h-acc">{{ 'Access'|trans }}</h2>
+        <ul class="ed-access">
+          {% for a in access %}<li><svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5 8.5 15 16 5.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ a }}</li>{% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {# The small print BEFORE anybody pays: a refund policy discovered after a charge is a
+         complaint waiting to be made; the rule first (what the platform will do), then the
+         organiser's own words. A question about parking goes to the organiser. #}
+      {% if refund_rule or refund_policy or attendee_note or organiser_email or organiser_phone %}
+      <section class="ed-sec" aria-labelledby="h-know">
+        <h2 class="ed-sec__h" id="h-know">{{ 'Good to know'|trans }}</h2>
+        <dl class="ed-fine">
+          {% if attendee_note %}<div><dt>{{ 'Before you come'|trans }}</dt><dd>{{ attendee_note|nl2br }}</dd></div>{% endif %}
+          {% if refund_rule or refund_policy %}<div><dt>{{ 'Refunds and transfers'|trans }}</dt>
+            <dd>{% if refund_rule %}<b>{{ refund_rule }}</b>{% endif %}{% if refund_rule and refund_policy %} {% endif %}{{ refund_policy }}</dd></div>{% endif %}
+          {% if organiser_email or organiser_phone %}<div><dt>{{ 'Questions about this event'|trans }}</dt>
+            <dd>{% if organiser_email %}<a href="mailto:{{ organiser_email }}">{{ organiser_email }}</a>{% endif %}
+              {%- if organiser_email and organiser_phone %} · {% endif -%}
+              {% if organiser_phone %}<a href="tel:{{ organiser_phone|replace({' ': ''}) }}">{{ organiser_phone }}</a>{% endif %}</dd></div>{% endif %}
+        </dl>
+      </section>
+      {% endif %}
+
+      {# ── The vendor call: LAST in the main column — this page sells a seat, and the person
+         reading it came for one. Closed: the date and the published terms, no button. ── #}
+      {% if stand_call %}
+        {% if stand_call.state == 'closed' %}
+        <section class="ed-vend ed-vend--shut" aria-labelledby="h-vend">
+          <h2 class="ed-sec__h" id="h-vend">{{ 'Vendor stands'|trans }}</h2>
+          <p>{% if stand_call.closes_at %}{{ 'Applications closed on %date%.'|trans({'%date%': stand_call.closes_at|date('j F Y')}) }}{% else %}{{ 'This event is not taking stand applications.'|trans }}{% endif %}
+            <a href="{{ stand_call.url }}">{{ 'See what was on offer'|trans }}</a></p>
+        </section>
+        {% else %}
+        <section class="ed-vend" aria-labelledby="h-vend">
+          <h2 class="ed-sec__h" id="h-vend">{{ 'Sell something at this event?'|trans }}</h2>
+          <ul class="ed-vend__facts">
+            {% if stand_call.left > 0 %}<li>{{ '%left% of %quota% stands open'|trans({'%left%': stand_call.left, '%quota%': stand_call.quota}) }}</li>
+            {% elseif stand_call.quota > 0 %}<li>{{ 'All %quota% held · waiting list'|trans({'%quota%': stand_call.quota}) }}</li>{% endif %}
+            {% if stand_call.from > 0 %}<li>{{ 'From ₦%price%'|trans({'%price%': stand_call.from|number_format}) }}</li>{% endif %}
+            {% if stand_call.kinds > 1 %}<li>{{ '%n% stand sizes'|trans({'%n%': stand_call.kinds}) }}</li>{% endif %}
+            {% if stand_call.state == 'open' and stand_call.closes_at %}<li>{{ 'Closes %date%'|trans({'%date%': stand_call.closes_at|date('j M')}) }}</li>
+            {% elseif stand_call.state == 'soon' and stand_call.opens_at %}<li>{{ 'Opens %date%'|trans({'%date%': stand_call.opens_at|date('j M')}) }}</li>{% endif %}
+          </ul>
+          <p class="ed-vend__note">{% if stand_call.state == 'open' %}{{ 'Applying is free and needs no account first. Stands are allocated against published quotas, not sold to whoever pays first.'|trans }}{% else %}{{ 'The terms are published now, so you can decide before it opens.'|trans }}{% endif %}</p>
+          <a class="ed-vend__go" href="{{ stand_call.url }}">{{ stand_call.state == 'open' ? 'Apply for a stand'|trans : 'See the terms'|trans }}</a>
+        </section>
+        {% endif %}
+      {% endif %}
+
+      {% if awards.voting %}
+      <a class="ed-vote" href="{{ awards.voting.url }}">
+        <span class="ed-vote__dot" aria-hidden="true"></span>
+        <span class="ed-vote__t"><b>{{ 'Voting is still open'|trans }}</b>{% if awards.voting.detail %}<span>{{ awards.voting.detail }}</span>{% endif %}</span>
+        <span class="ed-vote__go">{{ 'Vote'|trans }}</span>
+      </a>
+      {% endif %}
+    </div>
+
+    {# ══ THE RAIL ═══════════════════════════════════════════════════════════ #}
+    <aside class="ed-rail" aria-label="{{ 'Tickets'|trans }}">
+      <div class="ed-card ed-card--{{ st }}" id="ev-rsvp" tabindex="-1"{% if _first %} style="{{ _first.style }}"{% endif %} data-ed-card>
+        {% include 'pages/events/_card.twig' %}
+      </div>
+
+      <div class="ed-extras">
+        {% if st != 'ended' %}
+        <section class="ed-box" aria-labelledby="h-share">
+          <h2 class="ed-box__k" id="h-share">{{ 'Share and save the date'|trans }}</h2>
+          <div class="ed-box__row">
+            <button type="button" class="ed-mini" data-ag-share data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share'|trans }}</button>
+            <a class="ed-mini" href="/events/{{ event.slug|url_encode }}/calendar.ics">{{ 'Add to calendar'|trans }}</a>
+          </div>
+          <p class="ed-box__alt">{{ 'Uses Google Calendar?'|trans }} <a href="{{ gcal }}" target="_blank" rel="noopener">{{ 'Add it there instead'|trans }}</a>.</p>
+          <button type="button" class="ed-mini ed-mini--dash" data-ag-do="flier-open" aria-haspopup="dialog" aria-controls="flier">{{ 'Make an “I will be there” flier'|trans }}</button>
+        </section>
+        {% endif %}
+
+        {# The appeal is a link, never a payment form: the money moves on the appeal, with
+           its own terms. A ticket is not a donation. #}
+        {% for a in appeals %}
+        <section class="ed-box" aria-label="{{ 'Raising for %t%'|trans({'%t%': a.campaign.title}) }}">
+          <span class="ed-box__k">{{ 'Raising for'|trans }}</span>
+          <b class="ed-fund__t">{{ a.campaign.title }}</b>
+          {% if a.campaign.summary %}<p class="ed-box__p">{{ a.campaign.summary }}</p>{% endif %}
+          {% if a.progress.target > 0 %}
+            <span class="ed-fund__bar" role="img" aria-label="{{ '₦%raised% raised of a ₦%target% target'|trans({'%raised%': a.progress.raised|number_format, '%target%': a.progress.target|number_format}) }}"><span style="--ed-pct:{{ a.progress.pct }}%"></span></span>
+            <p class="ed-box__p"><b>₦{{ a.progress.raised|number_format }}</b> {{ 'of ₦%t%'|trans({'%t%': a.progress.target|number_format}) }}{% if a.progress.count %} · {{ a.progress.count == 1 ? '1 gift'|trans : '%n% gifts'|trans({'%n%': a.progress.count}) }}{% endif %}{% if a.days_left is not null %} · {{ a.days_left == 1 ? '1 day left'|trans : '%n% days left'|trans({'%n%': a.days_left}) }}{% endif %}</p>
+          {% elseif a.progress.count %}
+            <p class="ed-box__p"><b>₦{{ a.progress.raised|number_format }}</b> {{ 'raised so far'|trans }}</p>
+          {% endif %}
+          <a class="ed-mini" href="{{ a.url }}">{{ 'Give to this appeal'|trans }}</a>
+          <p class="ed-box__alt">{{ 'Raised by %org%. A ticket is not a donation — this is separate.'|trans({'%org%': a.org}) }}</p>
+        </section>
+        {% endfor %}
+
+        {# Earn: the rate and the threshold are read LIVE (ReferralService). The link is a real
+           input first, so a refused clipboard still leaves it to select. #}
+        {% if referral %}
+        <section class="ed-box ed-box--earn" aria-labelledby="h-earn">
+          <h2 class="ed-box__h" id="h-earn">{{ 'Share your link'|trans }}</h2>
+          {% if referral.link %}
+            <p class="ed-box__p">{{ 'When someone buys a ticket through your link, you earn %pct%% of it.'|trans({'%pct%': referral.pct}) }}</p>
+            <label class="ag-sr" for="edRefLink">{{ 'Your referral link for this event'|trans }}</label>
+            <div class="ed-earn__row">
+              <input class="ed-earn__in" id="edRefLink" type="text" readonly value="{{ referral.link }}">
+              <button type="button" class="ed-earn__btn" data-ag-do="copy-ref" data-target="edRefLink" data-done="{{ 'Copied'|trans }}">{{ 'Copy my link'|trans }}</button>
+            </div>
+            <p class="ed-box__alt">
+              {%- if referral.threshold > 1 %}{{ 'Paid once you have %n% referrals — backdated, so the %n%th makes all of them payable.'|trans({'%n%': referral.threshold}) }}
+              {%- else %}{{ 'Paid from your first referral.'|trans }}{% endif %}
+              <a href="/account#me-referral">{{ 'Your referrals'|trans }}</a></p>
+          {% else %}
+            <p class="ed-box__p">{{ 'Tell people about this event and earn %pct%% of every ticket bought through your link.'|trans({'%pct%': referral.pct}) }}</p>
+            <a class="ed-earn__btn" href="/account/login?next=/events/{{ event.slug|url_encode }}">{{ 'Sign in to get your link'|trans }}</a>
+            <p class="ed-box__alt">{{ 'Free, and your link works on every event.'|trans }}</p>
+          {% endif %}
+        </section>
+        {% endif %}
+
+        {% if ev.livestream and st != 'ended' %}
+        <a class="ed-stream" href="{{ ev.livestream }}" target="_blank" rel="noopener">{{ 'Watch the livestream'|trans }}</a>
+        {% elseif ev.recording and st == 'ended' %}
+        <a class="ed-stream" href="{{ ev.recording }}" target="_blank" rel="noopener">{{ 'Watch the recording'|trans }}</a>
+        {% endif %}
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block bottom_bar %}
+  {# The phone's fixed bar (§8.10): "From {lowest} · Get tickets". `data-bottom-ui`, so Gee
+     and every toast clear it by measurement (shell.js), never by a typed offset. Only where
+     there is something to get. #}
+  {% if st in ['open', 'soon', 'waitlist'] %}
+  <div class="ed-bar" data-bottom-ui>
+    <span class="ed-bar__t">
+      {% if st == 'open' %}<span class="ed-bar__k">{{ 'From'|trans }}</span><b>{{ ev.from_text }}</b>
+      {% elseif st == 'soon' %}<span class="ed-bar__k">{{ 'Tickets on sale'|trans }}</span><b>{{ ev.opens_text ?: 'soon'|trans }}</b>
+      {% else %}<span class="ed-bar__k">{{ 'Sold out'|trans }}</span><b>{{ 'Waiting list open'|trans }}</b>{% endif %}
+    </span>
+    <a class="ed-bar__go" href="#ev-rsvp">{{ st == 'open' ? 'Get tickets'|trans : (st == 'soon' ? 'Notify me'|trans : 'Join the list'|trans) }}</a>
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block sheets %}
+  {{ parent() }}
+  {% if st not in ['ended'] %}{% include 'pages/events/_flier.twig' %}{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}
+  <script type="application/json" id="ed-flier-data">{{ {styles: flier_styles, defaults: flier_style_default, title: event.title, date: event.event_date|slice(0, 10), pct: referral ? referral.pct : 0}|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
+  <script defer src="{{ asset('/assets/js/event-detail.js') }}"></script>
+  {% if st != 'ended' %}<script defer src="{{ asset('/assets/js/event-flier.js') }}"></script>{% endif %}
+{% endblock %}

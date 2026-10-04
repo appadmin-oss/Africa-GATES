@@ -237,6 +237,24 @@ final class EventTierTone
     }
 
     /**
+     * The pair above and the five custom properties the redesigned registration card reads
+     * per row (Phase 7, §8.10: `accent`, `accent_light`, `wash`, `deep`, `glow`).
+     *
+     * Derived from the same fill by {@see EventTierPalette::ramp()} at read time — GAPS Q6's
+     * recommendation and CLAUDE.md's rule — so there is still one resolver, and the card, the
+     * conic ring and the printed ticket's dot cannot disagree about a tier.
+     *
+     * @return array{hue:string, edge:string, accent:string, light:string, wash:string,
+     *               deep:string, glow:string}
+     */
+    public static function card(array|object|null $tier, array|object|null $event): array
+    {
+        $pair = self::hues($tier, $event);
+
+        return $pair + EventTierPalette::ramp($pair['hue']);
+    }
+
+    /**
      * The colour the organiser set, for the light.
      *
      * Kept as its own call because the light is the thing most callers want, and a

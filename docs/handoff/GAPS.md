@@ -129,6 +129,14 @@ Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed 
   frecency, member: `gates_users.menu_use_json` + `POST /account/menu-use` beacon; guest: `ag-menu-use`
   only with Preferences). 17 scenarios measured, research and open questions in `MENU-SHEET.md`.
 
+### Admin console stage 1 — tokens, shell, navigation, Home, overlays (4 Oct 2026; `PHASE-ADMIN.md`)
+- Console palette in `Support\Accent` (`--cn-*`, `css('console')`), console tokens/sheet; `admin.css`, the old layout,
+  dashboard, palette, copilot and `admin.js` inventoried (`inventory/_admin.md`), destroyed and rebuilt from the DC.
+  Per-page gates read from the guard; `health` = superadmin/admin/viewer for Integrations, Email health, Alerts;
+  pins and sidebar per admin (migration `2027_03_01_admin_console_pins.php`); viewer read-only client- and
+  server-side; confirm-with-reason → `_reason` on the audit row; alerts derived on read. **Found:** the old rail
+  offered 15 pages the guard refused (PHASE-ADMIN.md §6 Q1). Hosts and the console switcher awaiting the owner.
+
 ### Test status
 - Full suite after Phase 3: **6,633 tests, 8 failures — all `PasskeyTest`**, which needs PHP 8.4 (this
   container runs 8.3; dependencies installed with `--ignore-platform-req=php`). Not a code fault.
@@ -814,6 +822,12 @@ README). The consoles leave the "held" list and are destroyed and rebuilt like e
   partner organisations (`gates_partner_orgs`, `org_id` on campaigns, stands, catalogue, payouts, documents)
   are already a tenant with their own login. Hosts are not built until the owner chooses.
 - **Org capabilities — to be discussed** with the owner before the org console is rebuilt beyond what exists.
+- **Console type — decided in stage 1, flagged for the owner to confirm:** the console follows its OWN ladder
+  (README §10 + 10.5 and 16, in rem), never vw/clamp, NO capitals, mono only for figures, references, times and
+  keycaps; held by `ConsoleTypeTest` over the rebuilt console files. The public ladder and guards are unchanged.
+- **Stage 1 raised** (`PHASE-ADMIN.md` §4, §6): 18 deviations and 7 questions — chiefly the 15 pages the old rail
+  offered to roles the guard refused (each mapping is an access change), Review queue's route, and four console
+  words the handoff draws under 4.5:1 (reported in `Accent::consoleReported()`, not re-valued).
 
 ## 8e. Public menu sheet — owner request (4 Oct 2026)
 

@@ -23,12 +23,13 @@
   people, and this platform has neither the records nor the consent to show one
   (docs/handoff/PHASE-4.md, "Home"). Nothing on this page is a DC figure.
 
-  ── WHAT A PHOTO SLOT SHOWS WITH NO REAL PHOTO (GAPS Q8, UNANSWERED) ───────
+  ── WHAT A PHOTO SLOT SHOWS WITH NO REAL PHOTO (GAPS Q8, ANSWERED 4 OCT 2026) ──
 
-  No stock photography (REFERENCE §14: the Unsplash URLs are placeholders, never ship
-  them). A slot with a real image — a winner's photo, a programme's cover, a partner's
-  logo — shows it; one without shows initials on the neutral tint, as Phase 2 did in the
-  palette, and the hero shows the continent's outline. Flagged for the owner.
+  No stock photography (REFERENCE §14). Every slot goes through `partials/photo.twig`,
+  the one answer: a person with no photo is a monogram, a thing (a programme, a
+  campaign) a generated cover. A partner's logo is shown as a logo. Only when there is no
+  decided award at all does the hero show the continent's outline — that is decoration
+  in an empty slot, not a photo standing in for somebody.
 
   Colour tier 2 (transactional: it asks to nominate and to give): green is the call to
   action, live is "voting open". Gold is spent nowhere here — the decided rows say
@@ -57,15 +58,15 @@
       </div>
     </div>
     <div class="hm-hero__media">
-      {% if _hero and _hero.photo %}
-        <img class="hm-hero__img" src="{{ _hero.photo|media_url('portrait') }}" alt="{{ 'Photo of %name%'|trans({'%name%': _hero.name}) }}">
+      {% if _hero %}
+        {% include 'partials/photo.twig' with {kind: 'person', src: _hero.photo ? _hero.photo|media_url('portrait') : '', name: _hero.name, ini: _hero.ini, alt: _hero.photo ? 'Photo of %name%'|trans({'%name%': _hero.name}) : '', eager: true} only %}
       {% else %}
         <img class="hm-hero__mark" src="{{ asset('/assets/img/africa-silhouette.svg') }}" alt="" aria-hidden="true">
       {% endif %}
       {% if _hero %}
         <a class="hm-rec" href="{{ _hero.url }}">
           <span class="hm-rec__who">
-            <span class="hm-av hm-av--44" aria-hidden="true">{{ _hero.ini }}{% if _hero.photo %}<img src="{{ _hero.photo|media_url('avatar') }}" alt="" loading="lazy">{% endif %}</span>
+            <span class="hm-av hm-av--44" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'person', src: _hero.photo ? _hero.photo|media_url('avatar') : '', name: _hero.name, ini: _hero.ini} only %}</span>
             <span class="hm-rec__t"><span class="hm-rec__n">{{ _hero.name }}</span><span class="hm-rec__s">{{ _hero.category }}</span></span>
           </span>
           <span class="hm-rec__by">
@@ -106,7 +107,7 @@
         <ul class="hm-list">
           {% for v in voting.rows %}
           <li><a class="hm-row" href="{{ v.url }}">
-            <span class="hm-thumb" aria-hidden="true">{{ v.ini }}{% if v.cover %}<img src="{{ v.cover|media_url('thumb') }}" alt="" loading="lazy">{% endif %}</span>
+            <span class="hm-thumb" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'thing', src: v.cover ? v.cover|media_url('thumb') : '', name: v.title, title: false} only %}</span>
             <span class="hm-row__t"><span class="hm-row__n">{{ v.title }}</span>{% if v.meta %}<span class="hm-row__m">{{ v.meta }}</span>{% endif %}</span>
             {% if v.left %}<span class="hm-row__left">{{ v.left }}</span>{% endif %}
           </a></li>
@@ -123,7 +124,7 @@
         <ul class="hm-list">
           {% for d in decided %}
           <li><a class="hm-row hm-row--dec" href="{{ d.url }}">
-            <span class="hm-av hm-av--44" aria-hidden="true">{{ d.ini }}{% if d.photo %}<img src="{{ d.photo|media_url('avatar') }}" alt="" loading="lazy">{% endif %}</span>
+            <span class="hm-av hm-av--44" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'person', src: d.photo ? d.photo|media_url('avatar') : '', name: d.name, ini: d.ini} only %}</span>
             <span class="hm-row__t"><span class="hm-row__n hm-row__n--sm">{{ d.name }}</span><span class="hm-row__m hm-row__m--one">{{ 'Winner'|trans }} · {{ d.what }}</span></span>
           </a></li>
           {% endfor %}
@@ -146,7 +147,7 @@
     </div>
     <a class="hm-give" href="{{ campaign.url }}">
       <span class="hm-give__media">
-        {% if campaign.logo %}<img class="hm-give__logo" src="{{ campaign.logo }}" alt="{{ campaign.org }}">{% else %}<span class="hm-give__ini" aria-hidden="true">{{ campaign.ini }}</span>{% endif %}
+        {% if campaign.logo %}<img class="hm-give__logo" src="{{ campaign.logo }}" alt="{{ campaign.org }}">{% else %}{% include 'partials/photo.twig' with {kind: 'thing', src: '', name: campaign.org} only %}{% endif %}
       </span>
       <span class="hm-give__body">
         <span class="hm-give__org">{{ campaign.org }}</span>

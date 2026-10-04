@@ -461,7 +461,8 @@ return function(App $app) {
                 ['What needs a person today',   'src/Admin/Services/AttentionBoard.php', 'function probes'],
                 ['A zero is never a card',      'src/Admin/Services/AttentionBoard.php', 'function items'],
                 ['No door a role cannot open',  'src/Admin/Services/AttentionBoard.php', 'function forRole'],
-                ['The board on the page',       'templates/admin/dashboard.twig', 'db-board'],
+                ['The board on the page',       'templates/admin/dashboard.twig', 'cn-board'],
+                ['Home, from real figures',     'src/Admin/Services/HomeBoard.php', 'function board'],
                 ['A questionnaire to rehearse', 'src/Services/QuestionnaireService.php', 'function openTest'],
             ],
             // ── THE RELEASE THAT PROVED WHY THIS PAGE EXISTS ─────────────────
@@ -2057,6 +2058,13 @@ return function(App $app) {
         // The call page is public and stays reachable after the deadline: a vendor who
         // arrives a week late is owed "this closed on the 14th" rather than a 404 that reads
         // as though the whole thing was imaginary.
+        // "Email me when tickets go on sale" (Phase 7, coming soon): the form posts here, and
+        // the signed links in the two mails land on one page that shows on GET and acts on
+        // POST — mail scanners fetch every link. See EventSaleAlert. Before the bare
+        // /events/{slug} for the reason given above.
+        $g->post('/events/{slug}/notify', EventsController::class.':alertWant');
+        $g->map(['GET', 'POST'], '/events/alerts/{token:[a-f0-9]{32}}/{action:confirm|stop}',
+                EventsController::class.':alertPage');
         $S = \AfricaGates\Controllers\StandApplyController::class;
         $g->get ('/events/{slug}/stands',       $S.':call');
         $g->get ('/events/{slug}/stands/apply', $S.':form');

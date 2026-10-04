@@ -1,0 +1,53 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE PHOTO SLOT — real image, or the decided fallback (GAPS §8 Q8, owner, 4 Oct 2026)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Every page asks "what goes here when there is no photo?" and every page used to answer
+  it differently (initials on one, a continent outline on another, a gradient on a third).
+  This partial is the one answer:
+
+    · a real image ............ shown, `object-fit: cover`, filling the slot the caller sized
+    · PEOPLE without one ...... a monogram: up to two initials in Playfair 700, ink on the
+                                neutral `tint` ground, inside a hairline ring. Never an
+                                invented face, never a stock photo, never a broken-image box.
+    · THINGS without one ...... a generated cover (events, campaigns, awards, products): the
+                                thing's own accent through EventFlierTheme — PhotoCover::style()
+                                hands the four contrast-checked colours in as custom properties
+                                (`tone`), so nothing here is a hex — with the title set in it.
+                                Without a tone the cover is drawn in the house ink family.
+                                Drawn in CSS, so it is never a request that can fail.
+
+  Args (with … only):
+    kind     'person' | 'thing'                       required
+    src      image URL, or empty                     the caller validates it (EventTicketDesign::image)
+    name     the person's name, or the thing's title  required — the initials and the cover title
+    ini      the person's initials, where the caller already holds them (HomeFront::initials,
+             which skips a leading mark of punctuation); otherwise worked out from `name`
+    alt      text alternative for a real image        default '' (decorative)
+    tone     PhotoCover::style() string              things only; optional
+    title    false to set no title in a cover        default true (off for small slots)
+    eager    true for the largest above-the-fold paint (no lazy loading)
+    class    extra classes on the slot
+
+  The slot fills its container: the CALLER decides the size and the aspect ratio, because a
+  4:3 hero, a 52px row thumb and a 44px avatar are different decisions made by their pages.
+  A slot that names a person or a thing in words beside it should pass no `alt` — the
+  name is said once, not twice.
+#}
+{%- set _person = (kind|default('thing')) == 'person' -%}
+{%- set _src = src|default('') -%}
+{%- set _ini = ini|default(name|default('')|split(' ')|filter(w => w|trim != '')|map(w => w|first)|join|upper|slice(0, 2)) -%}
+{%- if _src -%}
+<span class="ag-photo{{ _person ? ' ag-photo--person' }}{{ class is defined ? ' ' ~ class }}">
+  <img class="ag-photo__img" src="{{ _src }}" alt="{{ alt|default('') }}"{% if eager|default(false) %} fetchpriority="high"{% else %} loading="lazy"{% endif %} decoding="async">
+</span>
+{%- elseif _person -%}
+<span class="ag-photo ag-photo--person ag-photo--mono{{ class is defined ? ' ' ~ class }}"{% if alt|default('') %} role="img" aria-label="{{ alt }}"{% else %} aria-hidden="true"{% endif %}>
+  <span class="ag-photo__ini">{{ _ini }}</span>
+</span>
+{%- else -%}
+<span class="ag-photo ag-photo--cover{{ class is defined ? ' ' ~ class }}"{% if tone|default('') %} style="{{ tone }}"{% endif %}{% if alt|default('') %} role="img" aria-label="{{ alt }}"{% else %} aria-hidden="true"{% endif %}>
+  {%- if title|default(true) %}<span class="ag-photo__rule"></span><span class="ag-photo__title">{{ name }}</span>{% endif -%}
+</span>
+{%- endif -%}

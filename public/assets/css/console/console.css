@@ -375,7 +375,7 @@ body[data-side="closed"] .cn-side { display: none; }
   color: var(--cn-surface); font-size: var(--cn-fs-13); font-weight: 600; cursor: pointer;
 }
 
-.cn-confirm { z-index: var(--cn-z-modal); border: 0; padding: 20px; background: transparent; max-width: 480px; width: 100%; }
+.cn-confirm { z-index: var(--cn-z-modal); border: 0; padding: 20px; background: transparent; max-width: 524px; width: 100%; }
 .cn-confirm::backdrop { background: var(--cn-scrim); }
 .cn-confirm[open] { animation: cnIn var(--cn-dur-modal) ease-out; }
 .cn-confirm__card {
@@ -434,10 +434,10 @@ body[data-side="closed"] .cn-side { display: none; }
   width: 100%; padding: 16px 18px; border: 0; border-bottom: 1px solid var(--cn-line-row);
   font-size: var(--cn-fs-15); line-height: 1.3; outline: none; background: var(--cn-surface);
 }
-.cn-pal__list { list-style: none; margin: 0; max-height: 360px; overflow: auto; padding: 6px; }
+.cn-pal__list { list-style: none; margin: 0; max-height: 360px; overflow-y: auto; overflow-x: hidden; padding: 6px; }
 .cn-pal__i {
   display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px;
-  border-radius: var(--cn-r-8); font-size: var(--cn-fs-14); text-decoration: none;
+  border-radius: var(--cn-r-8); font-size: var(--cn-fs-14); line-height: 1.3; text-decoration: none; min-width: 0;
 }
 .cn-pal__i:hover, [aria-selected="true"] > .cn-pal__i { background: var(--cn-fill-subtle); }
 .cn-pal__k { font-size: var(--cn-fs-12); color: var(--cn-grey-500); white-space: nowrap; }

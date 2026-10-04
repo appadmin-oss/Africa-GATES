@@ -343,6 +343,8 @@
       return;
     }
     if (e.key === 'Escape') {
+      // A search input eats the first Escape to clear itself; the palette closes anyway.
+      if (pal && pal.open) { e.preventDefault(); pal.close(); }
       closeAcct();
       closeAssist();
       if (body.hasAttribute('data-side-open')) setOverlay(false);

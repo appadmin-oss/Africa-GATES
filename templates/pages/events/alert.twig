@@ -1,0 +1,49 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  The two links in a ticket alert's mails land here: /events/alerts/{token}/confirm and
+  …/stop. GET SHOWS, POST ACTS — mail scanners fetch every link, and a confirmation that
+  fired on the GET would be "confirmed" by Outlook's Safe Links for anybody whose employer
+  scans their mail, the exact person double opt-in exists to ask (the newsletter's rule).
+  A token that names nothing is a 404 that says so, and nothing about which event it was.
+#}
+
+{% set app_bar = {variant: 'child', title: 'Ticket alert'|trans, back: '/events', share: false} %}
+{% set flow_page = true %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/events.css') }}">{% endblock %}
+
+{% block content %}
+<div class="ev-alert">
+  {% if not alert %}
+    <h1 class="ev-alert__h">{{ 'This link is not working'|trans }}</h1>
+    <p class="ev-alert__p">{{ 'It may have been mistyped or copied only in part. You can ask again from the event’s page.'|trans }}</p>
+    <a class="ev-btn ev-btn--line" href="/events">{{ 'See upcoming events'|trans }}</a>
+  {% elseif alert.action == 'stop' %}
+    {% if done or alert.stopped %}
+      <h1 class="ev-alert__h">{{ 'Alerts stopped'|trans }}</h1>
+      <p class="ev-alert__p">{{ 'You will not be emailed about tickets for %t%.'|trans({'%t%': alert_event.title|default('this event')}) }}</p>
+    {% else %}
+      <h1 class="ev-alert__h">{{ 'Stop alerts for this event?'|trans }}</h1>
+      <p class="ev-alert__p">{{ 'You will not be emailed when tickets for %t% go on sale.'|trans({'%t%': alert_event.title|default('this event')}) }}</p>
+      <form method="post" action="/events/alerts/{{ alert.token }}/stop">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button type="submit" class="ev-btn ev-btn--go">{{ 'Stop the alerts'|trans }}</button>
+      </form>
+    {% endif %}
+  {% else %}
+    {% if done or alert.confirmed %}
+      <h1 class="ev-alert__h">{{ 'You’re on the list'|trans }}</h1>
+      <p class="ev-alert__p">{{ 'We will email you once, on the day tickets for %t% go on sale.'|trans({'%t%': alert_event.title|default('this event')}) }}</p>
+    {% else %}
+      <h1 class="ev-alert__h">{{ 'Confirm your ticket alert'|trans }}</h1>
+      <p class="ev-alert__p">{{ 'Press the button and we will email you once, on the day tickets for %t% go on sale.'|trans({'%t%': alert_event.title|default('this event')}) }}</p>
+      <form method="post" action="/events/alerts/{{ alert.token }}/confirm">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button type="submit" class="ev-btn ev-btn--go">{{ 'Yes, email me'|trans }}</button>
+      </form>
+    {% endif %}
+  {% endif %}
+  {% if alert_event %}<a class="ev-alert__back" href="{{ alert_event.url }}">{{ 'Back to %t%'|trans({'%t%': alert_event.title}) }}</a>{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,174 @@
+{#
+  The registration card — every state of EventSales (see detail.twig's header). Included
+  inside `.ed-card`, which carries the selected tier's colour properties.
+
+  The glow (§8.10): `@property --ev-a` turned 0→360° over 3.2s, a blurred halo (inset −10px,
+  blur 22px, .55, breathing) and a 2px conic ring (white padding-box over a conic
+  border-box). event-detail.js replays it on each pick by replacing the element — a finished
+  CSS animation does not restart when the same name is re-applied — and it settles to .35.
+  Without @property the angle does not interpolate and the ring is a static gradient border,
+  which is the specified fallback. aria-hidden and untouchable: the border, the wash and the
+  radio say everything it says, which is what makes it safe to remove under reduced motion.
+#}
+{% if st in ['open', 'waitlist'] and tiers|length %}
+  <span class="ed-glow" data-ev-glow aria-hidden="true" hidden><span class="ed-glow__halo"></span><span class="ed-glow__ring"></span></span>
+{% endif %}
+
+{% if st == 'ended' %}
+  <span class="ed-card__k ed-card__k--mute">{{ 'Ended'|trans }}</span>
+  <h2 class="ed-card__h">{{ 'This event has ended'|trans }}</h2>
+  <p class="ed-card__p">
+    {%- if reg_count %}{{ reg_count == 1 ? 'Thanks to the 1 person who joined.'|trans : 'Thanks to the %n% people who joined.'|trans({'%n%': reg_count|number_format}) }}{% else %}{{ 'Thanks to everyone who joined.'|trans }}{% endif %}
+    {%- if awards.results %} {{ 'The results are published.'|trans }}{% endif %}
+    {%- if ev.recording %} {{ 'The recording is available.'|trans }}{% endif %}</p>
+  {% if awards.results %}<a class="ed-cta" href="{{ awards.results }}">{{ 'See the results'|trans }}</a>{% endif %}
+  {% if ev.recording %}<a class="ed-cta{{ awards.results ? ' ed-cta--line' }}" href="{{ ev.recording }}" target="_blank" rel="noopener">{{ 'Watch the recording'|trans }}</a>{% endif %}
+  <a class="ed-cta ed-cta--line" href="/events">{{ 'See what is coming up'|trans }}</a>
+
+{% elseif st == 'closed' %}
+  <span class="ed-card__k ed-card__k--stop">{{ 'Registration closed'|trans }}</span>
+  <h2 class="ed-card__h">{{ 'Bookings have closed'|trans }}</h2>
+  <p class="ed-card__p">{{ sales_closed ?: 'Ticket sales for this event have ended.'|trans }} {{ 'The event still goes ahead. If you need to attend, contact the organiser.'|trans }}</p>
+  {% if organiser_email %}<a class="ed-cta ed-cta--line" href="mailto:{{ organiser_email }}">{{ 'Email the organiser'|trans }}</a>{% endif %}
+  {% if ev.livestream %}<a class="ed-cta" href="{{ ev.livestream }}" target="_blank" rel="noopener">{{ 'Watch the livestream'|trans }}</a>{% endif %}
+
+{% elseif st == 'soldout' %}
+  <span class="ed-card__k ed-card__k--stop">{{ 'Fully booked'|trans }}</span>
+  <h2 class="ed-card__h">{{ 'This event is full'|trans }}</h2>
+  <p class="ed-card__p">{% if capacity %}{{ 'All %n% places have been reserved.'|trans({'%n%': capacity|number_format}) }}{% else %}{{ 'Every ticket has been reserved.'|trans }}{% endif %} {{ 'Places that come back are not held for anybody, so it is worth checking again.'|trans }}</p>
+  {% if ev.livestream %}<a class="ed-cta" href="{{ ev.livestream }}" target="_blank" rel="noopener">{{ 'Watch the livestream'|trans }}</a>{% endif %}
+  <a class="ed-cta ed-cta--line" href="/newsletter">{{ 'Hear about the next one'|trans }}</a>
+
+{% elseif st == 'soon' %}
+  {# ── COMING SOON: announced, not on sale. The date, the prices to come, and one action. ── #}
+  <span class="ed-card__k">{{ 'Coming soon'|trans }}</span>
+  <h2 class="ed-card__h">{{ ev.opens_text ? 'Tickets go on sale %when%'|trans({'%when%': ev.opens_text}) : 'Tickets are not on sale yet'|trans }}</h2>
+  {% if tiers|length %}
+  <ul class="ed-soon">
+    {% for t in tiers %}<li><span>{{ t.name }}</span><span class="ed-soon__p">{{ t.price_text }}</span></li>{% endfor %}
+  </ul>
+  {% endif %}
+  <form class="ed-notify" method="post" action="/events/{{ event.slug|url_encode }}/notify" novalidate data-ag-validate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label class="ed-label" for="edNotify">{{ 'Email me when tickets go on sale'|trans }}</label>
+    <input class="ed-input" id="edNotify" type="email" name="email" required autocomplete="email" inputmode="email"
+           value="{{ member ? member.email : '' }}" aria-describedby="edNotifyHint">
+    <p class="ed-hint" id="edNotifyHint">{{ 'We send a link to confirm first, then one email on the day. Nothing else.'|trans }}</p>
+    <button type="submit" class="ed-cta">{{ 'Notify me'|trans }}</button>
+    {% if alert_said %}<p class="ed-said" role="status">{{ alert_said|trans }}</p>{% endif %}
+    {% if alert_waiting > 1 %}<p class="ed-card__note">{{ '%n% people are waiting for tickets.'|trans({'%n%': alert_waiting|number_format}) }}</p>{% endif %}
+  </form>
+
+{% else %}
+  {# ── OPEN or WAITLIST: the registration form. One endpoint, JSON in and out; a paid tier
+     answers with the gateway's URL (EventsController::register). Waitlist is the same form
+     with every row a sold-out tier — choosing one switches the card to joining the list. ── #}
+  <div data-ed-form
+       data-t-cta-free="{{ 'Get my ticket'|trans }}" data-t-cta-reg="{{ 'Register — free'|trans }}"
+       data-t-cta-pay="{{ 'Reserve %n% · %price%'|trans }}" data-t-cta-one="{{ 'Reserve · %price%'|trans }}"
+       data-t-cta-code="{{ 'Get my ticket — free with code'|trans }}" data-t-cta-wait="{{ 'Join the waiting list'|trans }}"
+       data-t-busy-pay="{{ 'Taking you to payment…'|trans }}" data-t-busy-reg="{{ 'Registering…'|trans }}" data-t-busy-wait="{{ 'Adding you…'|trans }}"
+       data-t-name="{{ 'Please enter your name.'|trans }}" data-t-email="{{ 'Please enter a valid email.'|trans }}"
+       data-t-phone="{{ 'Please enter a valid phone number.'|trans }}" data-t-tier="{{ 'Please choose a ticket type.'|trans }}"
+       data-t-code-no="{{ 'That code could not be applied.'|trans }}" data-t-code-net="{{ 'We could not check that code just now.'|trans }}"
+       data-t-place="{{ 'You are number %n% in the queue.'|trans }}" data-has-tiers="{{ tiers|length ? '1' : '0' }}" data-code="{{ access_code }}">
+    <div class="ed-card__top">
+      <span class="ed-card__k ed-card__k--tier">
+        {%- if st == 'waitlist' %}{{ 'Sold out · waiting list open'|trans }}
+        {%- elseif is_fundraiser %}{{ (paid_tiers ? 'Fundraiser · tickets' : 'Fundraiser · free registration')|trans }}
+        {%- else %}{{ (paid_tiers ? 'Tickets' : 'Free registration')|trans }}{% endif -%}
+      </span>
+      {% if reg_count %}<span class="ed-card__count">{{ '%n% registered'|trans({'%n%': reg_count|number_format}) }}</span>{% endif %}
+    </div>
+    <h2 class="ed-card__h">{{ st == 'waitlist' ? 'Join the waiting list'|trans : 'Reserve your place'|trans }}</h2>
+
+    {# The panel names what kind of event this is — and never calls the ticket a donation:
+       the money moves through the ticket flow with its own refund terms. #}
+    {% if is_fundraiser %}
+      <p class="ed-card__p ed-card__p--sm">{{ 'This event raises money.'|trans }}
+        {%- if appeal_for %} {{ 'Your place helps fund'|trans }} <b class="ed-tint">{{ appeal_for }}</b>.{% endif %}
+        {{ 'Giving directly is separate — the appeal is on this page.'|trans }}</p>
+    {% endif %}
+    {% if st == 'waitlist' %}
+      <p class="ed-card__p ed-card__p--sm">{{ 'Seats come back — a failed payment, an expired hold, a cancellation. Join and you are emailed the moment one does; you will have %h% hours to take it.'|trans({'%h%': waitlist_hours}) }}</p>
+    {% endif %}
+
+    {% if tiers|length %}
+    <div class="ed-tiers" role="radiogroup" aria-label="{{ 'Ticket type'|trans }}" data-ed-tiers>
+      {% for t in tiers %}
+      <button type="button" class="ed-tier{{ t.peak ? ' ed-tier--peak' }}" role="radio" data-ed-tier
+              aria-checked="{{ _one and t.enabled ? 'true' : 'false' }}"
+              tabindex="{{ (_first and t.id == _first.id) ? '0' : '-1' }}"
+              {{ t.enabled ? '' : 'disabled' }} style="{{ t.style }}"
+              data-id="{{ t.id }}" data-price="{{ t.price }}" data-min="{{ t.min }}" data-max="{{ t.max }}"
+              data-gone="{{ t.gone ? '1' : '0' }}" data-waiting="{{ t.waiting }}" data-tone="{{ t.tone }}">
+        <span class="ed-tier__radio" aria-hidden="true"></span>
+        <span class="ed-tier__t">
+          <span class="ed-tier__n">{{ t.name }}</span>
+          {% if t.state != 'open' and t.why %}<span class="ed-tier__s">{{ t.why }}</span>
+            {% if t.gone and t.enabled %}<span class="ed-tier__s ed-tier__s--tint">{{ t.waiting ? 'Join the waiting list · %n% waiting'|trans({'%n%': t.waiting}) : 'Join the waiting list'|trans }}</span>{% endif %}
+          {% elseif t.left is not null and t.left <= 10 %}<span class="ed-tier__s ed-tier__s--tint">{{ 'Only %n% left'|trans({'%n%': t.left}) }}</span>
+          {% elseif t.note %}<span class="ed-tier__s">{{ t.note }}</span>{% endif %}
+          {% for p in t.perks %}<span class="ed-tier__s">{{ p }}</span>{% endfor %}
+        </span>
+        <span class="ed-tier__p">{{ t.price_text }}</span>
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if spots_left is not null and st == 'open' and spots_left <= 25 %}<p class="ed-card__note ed-tint">{{ spots_left == 1 ? 'Only 1 place left'|trans : 'Only %n% places left'|trans({'%n%': spots_left}) }}</p>{% endif %}
+
+    <div class="ed-field" data-ed-qty-wrap{% if not _first or _first.max <= 1 or _first.gone %} hidden{% endif %}>
+      <label class="ed-label" for="edQty">{{ 'How many seats'|trans }}</label>
+      <select class="ed-input" id="edQty" data-ed-qty>
+        {% if _first %}{% for n in _first.min.._first.max %}<option value="{{ n }}">{{ n }}</option>{% endfor %}{% endif %}
+      </select>
+    </div>
+
+    {# A preview only: EventTicketService::reserve() prices the row again, so a forged reply
+       changes what somebody is shown, never what they are charged. Paid tiers only. #}
+    <div class="ed-field" data-ed-disc-wrap{% if not _first or _first.price == 0 or _first.gone %} hidden{% endif %}>
+      <label class="ed-label" for="edDisc">{{ 'Discount code'|trans }} <span class="ed-opt">{{ '(optional)'|trans }}</span></label>
+      <span class="ed-disc">
+        <input class="ed-input" id="edDisc" autocomplete="off" data-ed-disc>
+        <button type="button" class="ed-apply" data-ag-do="ed-code">{{ 'Apply'|trans }}</button>
+      </span>
+      <p class="ed-said" role="status" data-ed-code-said></p>
+    </div>
+
+    <div class="ed-total" data-ed-total-wrap{% if not _first or _first.price == 0 or _first.gone %} hidden{% endif %}>
+      <span>{{ 'Total'|trans }}</span>
+      <span class="ed-total__n"><s data-ed-was hidden></s> <b data-ed-total>{{ _first ? _first.price_text : '' }}</b></span>
+    </div>
+
+    {% if paid_tiers and not gateway_ready %}
+      <p class="ed-warn" data-ed-nogate>{{ 'Card payment is not available on this site right now, so paid tickets cannot be bought here. Contact the organiser and they can register you.'|trans }}</p>
+    {% endif %}
+
+    <div class="ed-field">
+      <label class="ed-label" for="edName">{{ 'Full name'|trans }}</label>
+      <input class="ed-input" id="edName" autocomplete="name" value="{{ member ? member.name : '' }}" data-ed-name>
+    </div>
+    <div class="ed-field">
+      <label class="ed-label" for="edEmail">{{ 'Email'|trans }}</label>
+      <input class="ed-input" id="edEmail" type="email" inputmode="email" autocomplete="email" value="{{ member ? member.email : '' }}" data-ed-email>
+    </div>
+    <div class="ed-field">
+      <label class="ed-label" for="edPhone">{{ 'Phone'|trans }}</label>
+      <input class="ed-input" id="edPhone" type="tel" inputmode="tel" autocomplete="tel" value="{{ member ? member.phone : '' }}" data-ed-phone>
+    </div>
+    <p class="ed-err" role="alert" data-ed-err></p>
+    <button type="button" class="ed-cta ed-cta--tier" data-ag-do="ed-submit">{{ st == 'waitlist' ? 'Join the waiting list'|trans : (paid_tiers ? 'Reserve your place'|trans : 'Register — free'|trans) }}</button>
+    <p class="ed-private"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>{{ 'Your details are kept private'|trans }}</p>
+    <noscript><p class="ed-card__note">{{ 'Booking needs JavaScript. Contact the organiser to register another way.'|trans }}</p></noscript>
+  </div>
+
+  {# Success. The ticket, not just a thank-you: it is what they need at the door. #}
+  <div class="ed-done" data-ed-done hidden tabindex="-1">
+    <h2 class="ed-card__h" data-ed-done-h data-t-reg="{{ 'You’re registered'|trans }}" data-t-wait="{{ 'You’re on the list'|trans }}"></h2>
+    <p class="ed-card__p" data-ed-done-msg></p>
+    <a class="ed-cta" data-ed-ticket hidden href="#">{{ 'View your ticket'|trans }}</a>
+    <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-open" aria-haspopup="dialog" aria-controls="flier">{{ 'Make your “I will be there” flier'|trans }}</button>
+  </div>
+{% endif %}

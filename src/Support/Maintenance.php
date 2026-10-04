@@ -158,6 +158,13 @@ final class Maintenance
             // told it would move — and a list that only moves at 06:00 is a list that does
             // not move on the day the organiser is filling the last three pitches.
             $ran[] = ['standoffers',   $this->task('standoffers',   fn() => $this->expireStandOffers())];
+            // "Email me when tickets go on sale". Every tick, because the moment sales open
+            // is a tier's `sale_starts_at` passing — a clock, not a save — and somebody who
+            // asked to be told is told within one tick of it. Two queries when nothing is
+            // due; each row is CLAIMED before it is sent, so overlapping ticks cannot double
+            // a message (EventSaleAlert).
+            $ran[] = ['event-sale-alerts', $this->task('event-sale-alerts',
+                fn() => \AfricaGates\Services\EventSaleAlert::sweep($this->mailer()))];
             // The interview recording bot. On every tick, and it has to be: this is the
             // path that sends a bot to a sitting starting in ten minutes, reads the
             // transcript out of one that is running, and pulls a bot out of one that

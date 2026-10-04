@@ -1,0 +1,191 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/events/ticket/{ref}` — THE TICKET · Phase 7 · TicketPage.dc.html · §8.11
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Written from the DC after the old page was destroyed (inventory:
+  docs/handoff/inventory/pages--events--ticket.md). Reachable with the reference alone — an
+  attendee has no account, and a login between somebody and the door they are standing at is
+  how a queue stops moving. `noindex`.
+
+  ── THE RULES IT KEEPS, BECAUSE THEY MUST NOT CHANGE (§8.11) ────────────────
+
+    · QR AND PRINTED CODE, ALWAYS BOTH, for a confirmed ticket: a camera fails, a printed
+      code does not, and they carry the same string. Selectable text, not an image.
+    · NO SCANNABLE TICKET UNLESS CONFIRMED. A pending payment shows no QR and no code — a
+      pending payment rendered as a ticket is an argument at a door. `paid` only where the
+      status confirms it; a priced booking not yet confirmed reads "Price".
+    · IT PRINTS at the PDF's card size (TicketPdf::one — 180 × 86 mm on the sheet; the brief's
+      "190 × 86" was its earlier width, narrowed so the cut line fits A4's printable area),
+      dark theme forced light, date and venue on white, the QR at 30 mm, the recovery URL as
+      text, the manage panel and the actions dropped. The PDF is the fixed-size path.
+    · NO SCRIPT IS NEEDED TO SHOW ANY OF IT. ticket.js only drives "Manage this ticket".
+
+  ── WHAT §8.11 ADDS ─────────────────────────────────────────────────────────
+
+  A status chip (Valid · admits N / Checked in), the countdown in the kicker (worked out in
+  PHP — no script), tear notches and the tier's dot with its ring, the 2×2 actions, the
+  collapsed "Manage this ticket" (transfer, name change, refund), and the offline note.
+  "Add to wallet" is NOT built: a wallet pass needs an Apple signing certificate and a Google
+  issuer account this platform does not hold — a blocked question, never a dead button.
+
+  Type: the reference, the code and the recovery URL are mono (references and codes —
+  MonoAndCaseTest's `ref`/`code`/`stub` segments); the kicker is not, and nothing is in
+  capitals. Colour: the hero wash is the event's validated accent (`--tk-accent`, written by
+  EventTicketDesign); everything else is Accent tokens.
+#}
+
+{% set app_bar = {variant: 'child', title: 'Your ticket'|trans, back: event and event.slug|default('') ? '/events/' ~ event.slug : '/events', share: false} %}
+{% set flow_page = true %}
+{% set D = design|default({}) %}
+{% set _ok = reg and reg.status == 'confirmed' %}
+{% set _in = reg and reg.checked_in_at|default('') %}
+{% set _qty = reg ? (reg.quantity|default(1)) : 1 %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ticket.css') }}">{% endblock %}
+
+{% block content %}
+<div class="tk-page{{ D.theme|default('') == 'dark' ? ' tk-page--dark' }}">
+{% if reg is null %}
+  <div class="tk-lost">
+    <h1 class="tk-lost__h">{{ 'This ticket link is not working'|trans }}</h1>
+    <p>{{ 'It may have been mistyped, or belong to a registration that was cancelled. Nothing has gone wrong with any payment you made.'|trans }}</p>
+    <p>{{ 'Write to %email% with the name and email you registered with and a person will find it.'|trans({'%email%': support_email|default('the team')}) }}</p>
+  </div>
+{% else %}
+  {% set _priced = (reg.amount_naira|default(0)) > 0 %}
+  {% set _paid = _priced and _ok %}
+
+  {% if event and event.slug|default('') %}<a class="tk-back" href="/events/{{ event.slug }}"><span class="ag-ico-dir" aria-hidden="true">←</span> {{ 'Event page'|trans }}</a>{% endif %}
+
+  {% if _in %}
+    <p class="tk-flag tk-flag--in" role="status"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5 8.5 15 16 5.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ 'Checked in at %t%. Welcome.'|trans({'%t%': reg.checked_in_at|date('H:i')}) }}</p>
+  {% endif %}
+
+  <article class="tk" aria-label="{{ 'Ticket'|trans }}" style="--tk-accent:{{ D.accent }};--tk-ink:{{ D.ink }}">
+    <section class="tk-hero">
+      {% if D.image %}<img class="tk-hero__img" src="{{ D.image }}" alt="" fetchpriority="high" decoding="async">{% endif %}
+      <span class="tk-hero__wash" aria-hidden="true"></span>
+      <div class="tk-hero__t">
+        <p class="tk-hero__kick">
+          {{- when.kick|default('') -}}
+          {%- if when and event.location|default('') %} · {{ event.location }}{% endif -%}
+          {%- if days is not null and days >= 0 %} · <span class="tk-hero__in">{{ days == 0 ? 'today'|trans : (days == 1 ? 'tomorrow'|trans : 'in %n% days'|trans({'%n%': days})) }}</span>{% endif -%}
+        </p>
+        <h1 class="tk-hero__h">{{ event.title|default('Event ticket'|trans) }}</h1>
+        {% if event.tagline|default('') %}<p class="tk-hero__sub">{{ event.tagline }}</p>{% endif %}
+      </div>
+    </section>
+
+    <div class="tk-tear" aria-hidden="true"><span></span></div>
+
+    <section class="tk-stub">
+      <span class="tk-chip tk-chip--{{ _in ? 'in' : (_ok ? 'ok' : 'wait') }}">
+        {%- if _in %}{{ 'Checked in'|trans }}
+        {%- elseif _ok %}{{ _qty > 1 ? 'Valid · admits %n%'|trans({'%n%': _qty}) : 'Valid · admits 1'|trans }}
+        {%- elseif reg.status == 'pending' %}{{ 'Payment not seen yet'|trans }}
+        {%- elseif reg.status == 'waitlisted' %}{{ 'On the waiting list'|trans }}
+        {%- elseif reg.status == 'cancelled' %}{{ 'Cancelled'|trans }}
+        {%- else %}{{ reg.status|default('Incomplete')|capitalize }}{% endif -%}
+      </span>
+      {% if _ok %}
+        {% if qr %}<div class="tk-qr">{{ qr|raw }}</div>{% endif %}
+        <b class="tk-code">{{ reg.ticket_code|default('—') }}</b>
+        <span class="tk-stub__note">{{ qr ? 'Scan it, or read the code out · turn your brightness up'|trans : 'Read the code out at the door'|trans }}</span>
+        <span class="tk-stub__who">{{ reg.name }}</span>
+      {% endif %}
+    </section>
+
+    <dl class="tk-facts">
+      {% if when %}
+        <div class="tk-fact tk-fact--screen"><dt>{{ 'Date'|trans }}</dt><dd>{{ when.date }}</dd></div>
+        <div class="tk-fact tk-fact--screen"><dt>{{ 'Doors'|trans }}</dt><dd>{{ when.doors }}</dd></div>
+        <div class="tk-fact tk-fact--print"><dt>{{ 'Date'|trans }}</dt><dd>{{ when.print }}</dd></div>
+      {% endif %}
+      {% if reg.tier|default('') %}
+        <div class="tk-fact"><dt>{{ 'Ticket type'|trans }}</dt><dd>
+          {%- if tier_swatch %}<span class="tk-dot" aria-hidden="true" style="--tk-dot:{{ tier_swatch.fill }};--tk-ring:{{ tier_swatch.edge }}"></span>{% endif -%}
+          {{ reg.tier }}</dd></div>
+      {% endif %}
+      {% if 'seat' in D.rows and reg.seat_label|default('') %}<div class="tk-fact"><dt>{{ 'Seat'|trans }}</dt><dd>{{ reg.seat_label }}</dd></div>{% endif %}
+      {% if 'price' in D.rows %}<div class="tk-fact tk-fact--nopaper"><dt>{{ _paid ? 'Paid'|trans : 'Price'|trans }}</dt><dd>{{ _priced ? '₦' ~ reg.amount_naira|number_format : 'Free'|trans }}</dd></div>{% endif %}
+      {% if 'seats' in D.rows and _qty > 1 %}<div class="tk-fact tk-fact--nopaper"><dt>{{ 'Seats'|trans }}</dt><dd>{{ _qty }}</dd></div>{% endif %}
+      {% if 'phone' in D.rows and reg.phone|default('') %}<div class="tk-fact tk-fact--nopaper"><dt>{{ 'Phone'|trans }}</dt><dd>{{ reg.phone }}</dd></div>{% endif %}
+      {% if 'bought' in D.rows and reg.created_at|default('') %}<div class="tk-fact tk-fact--nopaper"><dt>{{ 'Booked'|trans }}</dt><dd>{{ reg.created_at|slice(0, 10) }}</dd></div>{% endif %}
+      {% if 'email' in D.rows and reg.email|default('') %}<div class="tk-fact tk-fact--wide tk-fact--nopaper"><dt>{{ 'Email'|trans }}</dt><dd>{{ reg.email }}</dd></div>{% endif %}
+      {% if where %}<div class="tk-fact tk-fact--wide"><dt>{{ 'Where'|trans }}</dt><dd>{{ where }}</dd></div>{% endif %}
+      <div class="tk-fact tk-fact--wide"><dt>{{ 'Ticket holder'|trans }}</dt><dd>{{ reg.name }}{% if _qty > 1 %} · {{ '%n% seats'|trans({'%n%': _qty}) }}{% endif %}</dd></div>
+    </dl>
+    {# Paper cannot be clicked: the link that recovers a lost ticket, printed as text. #}
+    <span class="tk-ref">{{ site_url }}/events/ticket/{{ reg.reference|url_encode }}</span>
+    {% if D.note %}<p class="tk-note"><b>{{ D.note }}</b></p>{% endif %}
+  </article>
+
+  {% if reg.status == 'pending' %}
+    <p class="tk-flag tk-flag--wait">{{ 'We have not seen your payment yet. If your bank has debited you it can take a few minutes to reach us — this page shows your ticket code as soon as it does, so keep the link. Nothing further is needed from you.'|trans }}</p>
+  {% elseif reg.status == 'cancelled' %}
+    <p class="tk-flag tk-flag--wait">{{ 'This registration was cancelled. If that is a surprise, it is usually a checkout that was never completed — nothing was charged. You are welcome to book again.'|trans }}</p>
+  {% elseif reg.status == 'waitlisted' %}
+    <p class="tk-flag tk-flag--wait">{{ 'You are on the waiting list. If a seat comes free the longest-waiting person is offered it first and you are emailed — the offer appears here too, so keep this link.'|trans }}</p>
+  {% endif %}
+
+  {# The 2×2 actions — outside the document, so print drops them without leaving a hole. The
+     second is the generated PDF, not the browser's print dialogue: "Fit to page" rescales the
+     QR below what a scanner resolves, and nobody finds out until the gate. #}
+  <div class="tk-acts">
+    {% if when %}<a class="tk-act tk-act--go" href="/events/ticket/{{ reg.reference|url_encode }}/calendar.ics"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v15H4zM4 10h16M9 3v4M15 3v4"></path></svg>{{ 'Add to calendar'|trans }}</a>{% endif %}
+    {% if _ok %}<a class="tk-act" href="/events/ticket/{{ reg.reference|url_encode }}/ticket.pdf"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 17H4v-6h16v6h-2M8 14h8v7H8z"></path></svg>{{ 'Save or print'|trans }}</a>{% endif %}
+    {% if directions %}<a class="tk-act" href="{{ directions }}" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"></path></svg>{{ 'Directions'|trans }}</a>{% endif %}
+    {% if event and event.slug|default('') %}<a class="tk-act" href="/events/{{ event.slug }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h5"></path></svg>{{ 'Event details'|trans }}</a>{% endif %}
+  </div>
+
+  {# ── MANAGE: collapsed, outside the ticket, confirmed and not yet checked in. Changes are
+     confirmed with a code sent to the booking email, so somebody who has only seen the QR
+     cannot alter it. The refund figure is fetched when the panel opens — never after the
+     irreversible press. ── #}
+  {% if can_manage %}
+  <details class="tk-manage" data-tk-manage data-base="/events/ticket/{{ reg.reference|url_encode }}/" data-csrf="{{ csrf_token }}"
+           data-t-working="{{ 'Working…'|trans }}" data-t-net="{{ 'That did not go through. Check your connection and try again.'|trans }}"
+           data-t-checking="{{ 'We could not check the refund policy just now.'|trans }}"
+           data-t-contact="{{ 'To cancel, contact %c%.'|trans }}"
+           data-t-cancel0="{{ 'Give up your place? Nothing is refunded, and your ticket code stops working.'|trans }}"
+           data-t-cancel="{{ 'Give up your place and refund ₦%n%? Your ticket code stops working.'|trans }}"
+           data-t-transfer="{{ 'Transfer this ticket to %name%? Your own code will stop working at the door.'|trans }}">
+    <summary class="tk-manage__s">{{ 'Manage this ticket'|trans }}<span class="tk-manage__sign" aria-hidden="true"></span></summary>
+    <div class="tk-manage__b">
+      <p class="tk-manage__note">{{ 'Changes are confirmed with a code sent to the email this ticket was booked with.'|trans }}</p>
+      <button type="button" class="tk-row" data-tk="resend"><b>{{ 'Email me this ticket again'|trans }}</b><span>{{ 'To the address it was booked with'|trans }}</span></button>
+      <button type="button" class="tk-row" data-tk="code"><b>{{ 'Send me a code to make a change'|trans }}</b><span>{{ 'Transfer it, change the name, or ask for a refund'|trans }}</span></button>
+      <div class="tk-change" id="tkChange" hidden>
+        <label class="tk-lab" for="tkCode">{{ '6-digit code'|trans }}</label>
+        <input class="tk-in" id="tkCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+        <fieldset class="tk-fs"><legend>{{ 'Transfer the ticket'|trans }}</legend>
+          <p class="tk-manage__note">{{ 'Send it to someone else. Your code stops working.'|trans }}</p>
+          <label class="tk-lab" for="tkTName">{{ 'Their name'|trans }}</label><input class="tk-in" id="tkTName" maxlength="160">
+          <label class="tk-lab" for="tkTMail">{{ 'Their email'|trans }}</label><input class="tk-in" id="tkTMail" type="email">
+          <button type="button" class="tk-btn" data-tk="transfer">{{ 'Transfer the ticket'|trans }}</button>
+        </fieldset>
+        <fieldset class="tk-fs"><legend>{{ 'Change the holder’s name'|trans }}</legend>
+          <label class="tk-lab" for="tkName">{{ 'Name'|trans }}</label><input class="tk-in" id="tkName" maxlength="160" value="{{ reg.name }}">
+          <button type="button" class="tk-btn" data-tk="rename">{{ 'Save the new name'|trans }}</button>
+        </fieldset>
+        <fieldset class="tk-fs"><legend>{{ 'Ask for a refund'|trans }}</legend>
+          <p class="tk-manage__note" id="tkCancelWhy">{{ 'Checking what the organiser’s policy gives back…'|trans }}</p>
+          <button type="button" class="tk-btn tk-btn--quiet" data-tk="cancel" id="tkCancelGo" hidden>{{ 'Cancel and give up my place'|trans }}</button>
+        </fieldset>
+      </div>
+      <p class="tk-said" id="tkSaid" role="status" aria-live="polite"></p>
+    </div>
+  </details>
+  {% endif %}
+
+  <p class="tk-cut">{{ 'Cut along the dotted line. At the door the stub tears off down the dashes — or just show the code on your phone.'|trans }}</p>
+  <p class="tk-foot">{{ 'Keep this link — it is your ticket, and it opens without signing in. Save or print it and it works with no signal at all. Only the ticket holder named above can transfer it.'|trans }}</p>
+  <p class="tk-foot"><b>{{ 'Nothing about attending costs more than the price above.'|trans }}</b> {{ 'If anybody asks you for a further payment to attend, it is not the organiser and it is not us.'|trans }}</p>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}{% if reg and can_manage %}<script defer src="{{ asset('/assets/js/ticket.js') }}"></script>{% endif %}{% endblock %}

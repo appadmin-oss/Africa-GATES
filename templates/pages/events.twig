@@ -1,0 +1,170 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/events` — THE EVENTS INDEX · Phase 7 · EventsPage.dc.html (view: index) · §8.10
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Written from the DC after the old page was destroyed (inventory:
+  docs/handoff/inventory/pages--events.md). Every figure from EventsFront.
+
+  ── UPCOMING FIRST, COMING SOON AMONG THEM, PAST NEVER MIXED (owner, 4 Oct 2026) ──
+
+  The owner: "there's nothing like upcoming events or coming soon events on the site". So:
+  the next event is the featured card ("Next up"), every other upcoming event follows in
+  date order as a ≥76px row, an announced event whose tickets are not on sale yet says
+  "Coming soon" and the date they go on sale, and past events are their own section — the
+  DC's "All" list ran a past staff event straight on from the ceremonies to come.
+
+  ── THE FILTERS ARE LINKS ──────────────────────────────────────────────────
+
+  All · Upcoming · Coming soon · Livestreams · Past. The DC draws them as a tablist of
+  buttons; here each is a link (`?f=`), so a filter works with no script, survives Back and
+  can be sent to somebody, and `aria-current` says which is showing. Coming soon is added to
+  the DC's four because the owner asked for it by name.
+
+  Phone: the root app bar's large title is the <h1> (§7.2); the page's own head shows from
+  600px, where the app bar does not. Colour tier 2: green is the call to action, live-ink the
+  date line; the row tags carry a word, never colour alone.
+#}
+
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'root', title: 'Events'|trans} %}
+{# Hoisted: read by content only today, but a set inside a block is invisible to every other
+   block (CLAUDE.md) and the filter is the page's one piece of state. #}
+{% set _f = front.filter %}
+{% set _feat = front.featured %}
+{% set _chips = [
+  {key: 'all', label: 'All'|trans},
+  {key: 'upcoming', label: 'Upcoming'|trans},
+  {key: 'soon', label: 'Coming soon'|trans},
+  {key: 'live', label: 'Livestreams'|trans},
+  {key: 'past', label: 'Past'|trans},
+] %}
+
+{% macro row(e, sc) %}
+  <li><a class="ev-row{{ e.state == 'ended' ? ' ev-row--past' }}" href="{{ e.url }}">
+    <span class="ev-row__date" aria-hidden="true"><span class="ev-row__mon">{{ e.mon }}</span><span class="ev-row__day">{{ e.day }}</span></span>
+    <span class="ev-row__t">
+      <span class="ev-row__n">{{ e.title }}</span>
+      <span class="ev-row__m">
+        {{- e.date -}}
+        {%- if e.where %} · {{ e.where }}{% endif -%}
+        {%- if e.state == 'soon' and e.opens_text %} · {{ 'tickets on sale %when%'|trans({'%when%': e.opens_text}) }}
+        {%- elseif e.state == 'open' and e.from_text %} · {{ e.from == 0 ? 'free'|trans : 'from %price%'|trans({'%price%': e.from_text}) }}
+        {%- elseif e.state == 'ended' and e.recording %} · {{ 'watch the recording'|trans }}{% endif -%}
+      </span>
+      {% if e.host %}<span class="ev-row__m">{{ 'Hosted by %host%'|trans({'%host%': e.host}) }}</span>{% endif %}
+      {% if sc %}<span class="ev-row__stand">{{ 'Vendor stands open'|trans }}{% if sc.closes_at %} · {{ 'to %date%'|trans({'%date%': sc.closes_at|date('j M')}) }}{% endif %}</span>{% endif %}
+    </span>
+    <span class="ev-tag ev-tag--{{ e.state }}">{{ e.tag }}</span>
+  </a></li>
+{% endmacro %}
+{% import _self as m %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/events.css') }}">{% endblock %}
+
+{% block content %}
+<div class="ev">
+  <div class="ev__head">
+    <span class="ev__eyebrow">{{ 'Events'|trans }}</span>
+    <h1 class="ev__h1">{{ 'Ceremonies and live moments'|trans }}</h1>
+  </div>
+
+  <nav class="ev__chips" aria-label="{{ 'Filter events'|trans }}">
+    {% for c in _chips %}
+      <a class="ev-chip" href="/events{{ c.key == 'all' ? '' : '?f=' ~ c.key }}"{% if _f == c.key %} aria-current="page"{% endif %}>
+        {{- c.label -}}
+        {%- if c.key != 'all' and front.counts[c.key] is defined %}<span class="ev-chip__n">{{ front.counts[c.key] }}</span>{% endif -%}
+      </a>
+    {% endfor %}
+  </nav>
+
+  {# ── The featured event: the next one, on "All" only ─────────────────────── #}
+  {% if _feat %}
+  <article class="ev-feat" aria-labelledby="ev-feat-t">
+    <a class="ev-feat__media" href="{{ _feat.url }}" tabindex="-1" aria-hidden="true">
+      {% include 'partials/photo.twig' with {kind: 'thing', src: _feat.image, name: _feat.title, tone: _feat.cover, eager: true} only %}
+      <span class="ev-feat__when">
+        {%- if _feat.days == 0 %}{{ 'Next up · today'|trans }}
+        {%- elseif _feat.days == 1 %}{{ 'Next up · tomorrow'|trans }}
+        {%- else %}{{ 'Next up · in %n% days'|trans({'%n%': _feat.days}) }}{% endif -%}
+      </span>
+    </a>
+    <div class="ev-feat__body">
+      <span class="ev-dateline">{{ _feat.when }}</span>
+      <h2 class="ev-feat__t" id="ev-feat-t"><a href="{{ _feat.url }}">{{ _feat.title }}</a></h2>
+      <p class="ev-feat__m">
+        {{- _feat.where -}}
+        {%- if _feat.where and (_feat.host or _feat.livestream) %} · {% endif -%}
+        {%- if _feat.host %}{{ 'Hosted by %host%'|trans({'%host%': _feat.host}) }}{% if _feat.livestream %} · {% endif %}{% endif -%}
+        {%- if _feat.livestream %}{{ 'Livestreamed'|trans }}{% endif -%}
+      </p>
+      {% if _feat.state == 'soon' %}
+        <p class="ev-feat__soon"><span class="ev-tag ev-tag--soon">{{ _feat.tag }}</span>
+          {%- if _feat.opens_text %} {{ 'Tickets go on sale %when%.'|trans({'%when%': _feat.opens_text}) }}{% endif %}</p>
+      {% endif %}
+      <div class="ev-feat__acts">
+        {% if _feat.state == 'open' %}
+          <a class="ev-btn ev-btn--go" href="{{ _feat.url }}#ev-rsvp">{{ _feat.from == 0 ? 'Get tickets · free'|trans : 'Get tickets · from %price%'|trans({'%price%': _feat.from_text}) }}</a>
+        {% elseif _feat.state == 'soon' %}
+          <a class="ev-btn ev-btn--go" href="{{ _feat.url }}#ev-rsvp">{{ 'Email me when tickets go on sale'|trans }}</a>
+        {% elseif _feat.state == 'waitlist' %}
+          <a class="ev-btn ev-btn--go" href="{{ _feat.url }}#ev-rsvp">{{ 'Join the waiting list'|trans }}</a>
+        {% else %}
+          <a class="ev-btn ev-btn--go" href="{{ _feat.url }}">{{ 'See the event'|trans }}</a>
+        {% endif %}
+        {# "Remind me" is the calendar file: understood by every calendar, no account, and it
+           works offline on the day. #}
+        <a class="ev-btn ev-btn--line" href="{{ _feat.url }}/calendar.ics">{{ 'Remind me'|trans }}</a>
+      </div>
+      {% set _fsc = stand_calls[_feat.id]|default(null) %}
+      {% if _fsc %}<p class="ev-feat__stand"><a href="{{ _feat.url }}/stands">{{ 'Vendor stands are open'|trans }}{% if _fsc.closes_at %} · {{ 'apply by %date%'|trans({'%date%': _fsc.closes_at|date('j M')}) }}{% endif %}</a></p>{% endif %}
+    </div>
+  </article>
+  {% endif %}
+
+  {# ── Everything else still to come ───────────────────────────────────────── #}
+  {% if _f != 'past' %}
+  <section class="ev-sec" aria-labelledby="ev-up">
+    <h2 class="ev-sec__t" id="ev-up">
+      {%- if _f == 'soon' %}{{ 'Coming soon'|trans }}
+      {%- elseif _f == 'live' %}{{ 'Livestreamed events'|trans }}
+      {%- elseif _feat %}{{ 'Also coming up'|trans }}
+      {%- else %}{{ 'Upcoming'|trans }}{% endif -%}
+    </h2>
+    {% if front.upcoming|length %}
+      <ul class="ev-list">
+        {% for e in front.upcoming %}{{ m.row(e, stand_calls[e.id]|default(null)) }}{% endfor %}
+      </ul>
+    {% elseif not _feat %}
+      <div class="ev-empty">
+        <p class="ev-empty__t">
+          {%- if _f == 'soon' %}{{ 'Nothing is waiting to go on sale right now.'|trans }}
+          {%- elseif _f == 'live' %}{{ 'No upcoming event is being livestreamed yet.'|trans }}
+          {%- else %}{{ 'No upcoming events have been announced yet.'|trans }}{% endif -%}
+        </p>
+        <p class="ev-empty__p">{{ 'The newsletter says when the next one is announced.'|trans }}</p>
+        <a class="ev-btn ev-btn--line" href="/newsletter">{{ 'Get the newsletter'|trans }}</a>
+      </div>
+    {% else %}
+      <p class="ev-sec__none">{{ 'Nothing else is announced yet.'|trans }}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {# ── Past: its own section, never in the list above ──────────────────────── #}
+  {% if front.past|length or _f == 'past' %}
+  <section class="ev-sec" aria-labelledby="ev-past">
+    <h2 class="ev-sec__t" id="ev-past">{{ _f == 'live' ? 'Recordings'|trans : 'Past events'|trans }}</h2>
+    {% if front.past|length %}
+      <ul class="ev-list">
+        {% for e in front.past %}{{ m.row(e, null) }}{% endfor %}
+      </ul>
+    {% else %}
+      <p class="ev-sec__none">{{ 'No past events yet.'|trans }}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

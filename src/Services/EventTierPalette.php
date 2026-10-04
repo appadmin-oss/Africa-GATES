@@ -311,6 +311,53 @@ final class EventTierPalette
         return self::fromHsl($h, $s, 0.0);
     }
 
+    /**
+     * The five custom properties one tier row supplies on the redesigned events page
+     * (Phase 7, §8.10: `accent`, `accent_light`, `wash`, `deep`, `glow`), DERIVED from the
+     * row's fill at read time — the owner's Q6 recommendation, and the only reading that
+     * keeps CLAUDE.md's rule that a tier stores a slot and never a hex. Change the event's
+     * accent and all five move with it.
+     *
+     * The floors are the point, and EventTierGlowTest samples the whole accent space for
+     * them rather than checking the three colours somebody had in mind:
+     *
+     *   wash  the selected row's ground — the fill at 9% over white, so it is visibly the
+     *         tier's colour and never a field that competes with the words on it.
+     *   deep  every WORD drawn in the tier's colour (the eyebrow, "Only N left", the total,
+     *         the fundraising figure) and the CTA's ground under white text: darkened from
+     *         the fill until it clears 4.5:1 on white AND on `wash`. Contrast is symmetric,
+     *         so the same value carries white text when it is the ground.
+     *   light, glow  decoration only — the conic ring and the halo, which are aria-hidden
+     *         and carry no meaning the border and the radio do not also carry.
+     *
+     * @return array{accent:string, light:string, wash:string, deep:string, glow:string}
+     */
+    public static function ramp(string $fill): array
+    {
+        $fill = EventTicketDesign::colour($fill, EventTierTone::DEFAULT_HUE);
+        [$h, $s, $l] = self::toHsl($fill);
+
+        [$r, $g, $b] = EventTicketDesign::channels($fill);
+        $mix  = static fn (int $c): int => (int) round(255 + ($c - 255) * 0.09);
+        $wash = sprintf('#%02X%02X%02X', $mix($r), $mix($g), $mix($b));
+
+        $deep = $fill;
+        $dl   = $l;
+        for ($i = 0; $i < 40; $i++) {
+            $deep = self::fromHsl($h, $s, $dl);
+            if (self::contrast($deep, '#FFFFFF') >= 4.5 && self::contrast($deep, $wash) >= 4.5) break;
+            $dl = max(0.0, $dl - 0.025);
+        }
+
+        return [
+            'accent' => $fill,
+            'light'  => self::fromHsl($h, $s, min(0.74, max($l, 0.40) + 0.20)),
+            'wash'   => $wash,
+            'deep'   => $deep,
+            'glow'   => self::fromHsl($h, min(1.0, $s + 0.10), 0.86),
+        ];
+    }
+
     /** WCAG relative-luminance contrast ratio between two hexes. */
     public static function contrast(string $a, string $b): float
     {

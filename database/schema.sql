@@ -600,6 +600,11 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   early_bird_text VARCHAR(255) NULL,
   early_bird_deadline DATETIME NULL,
   early_bird_url VARCHAR(500) NULL,
+  -- Phase 7: a link out to the broadcast and the recording, and the access provisions
+  -- (one per line). See migrations/2027_03_04_event_page_links.php.
+  livestream_url VARCHAR(500) NULL DEFAULT NULL,
+  recording_url VARCHAR(500) NULL DEFAULT NULL,
+  access_notes TEXT NULL,
   created_at DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_site_events_slug (slug)
@@ -621,6 +626,25 @@ CREATE TABLE IF NOT EXISTS gates_event_registrations (
   PRIMARY KEY (id),
   UNIQUE KEY uq_evreg_event_email (event_id, email),
   KEY idx_evreg_event (event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── "Email me when tickets go on sale" (double opt-in; migrations/2027_03_04_event_sale_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_event_sale_alerts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  event_id INT UNSIGNED NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  email_hash CHAR(64) NOT NULL,
+  token CHAR(32) NOT NULL,
+  ip_hash CHAR(64) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  confirm_sent_at TIMESTAMP NULL DEFAULT NULL,
+  confirmed_at TIMESTAMP NULL DEFAULT NULL,
+  notified_at TIMESTAMP NULL DEFAULT NULL,
+  cancelled_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_esa_who (event_id, email_hash),
+  UNIQUE KEY uq_esa_token (token),
+  KEY idx_esa_due (event_id, confirmed_at, notified_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── Gated single-use form links (verified nominees + judge invites) ───

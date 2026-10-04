@@ -130,7 +130,9 @@ time. Hoist anything used by more than one block to template scope.
 
 So no `onclick=`, no inline `<script>` without a nonce. The convention is
 `data-ag-do="..."` with a delegated listener in `public/assets/js/admin.js`; `data-confirm`
-on a form routes it through `agConfirm`.
+on a form routes it through `agConfirm` — since the console rebuild a confirm-with-reason
+dialog: a POSTing form cannot be confirmed without a reason, which travels as `_reason` and
+`AuditService::record()` attaches to the audit row (one place, not 124 call sites).
 
 ## A header can switch a feature off in a way nothing on the page can see
 
@@ -203,14 +205,21 @@ use `requestSubmit(submitter)`.
 
 ## The admin console's shape, and the two directions a nav can be wrong
 
-The rail is **seven headings, and seven is a floor rather than a taste call**: there are
-exactly seven `admin_sections` gates and a section can carry only one, so fewer sections
-means moving a page to a different gate. That is an access change and **must never ride
-along inside a navigation change** — `AdminNav` records `gate` per section and
-`AdminNavTest` asserts it against the original mapping. Sections are uneven by design
-(three items in Programmes, eleven in Content); one opens at a time, the tail is in the
-in-page sub-nav and the `⌘K` palette, which is the documented hybrid resolution to NN/g's
-finding that hidden navigation roughly halves discoverability.
+**Access is per PAGE, and the nav reads the guard rather than typing a gate** (admin
+handoff rule 7; rebuilt 4 Oct 2026, superseding the old "seven sections is a floor" rule).
+The rail is Home plus seven groups named for the job — Daily work, Programmes, Entries,
+Money, Publishing, Monitoring, Settings (README §2.2, exact order and labels) — and a group
+carries NO gate. Each page's gate is `Permissions::sectionForPath()` of its own href, and
+every surface (rail, `⌘K` palette, Home's shortcuts and "needs a person", the alert pill,
+pins) asks `Permissions::canOpen()`, the guard's own function. So moving a page between
+groups changes nobody's access, by construction. **An access change must still never ride
+along inside a navigation change:** `AdminNavTest` diffs every page's gate against the
+GUARD's mapping recorded before the rebuild (the old test pinned the RAIL's mapping, which
+disagreed with the guard on fifteen pages — Handbook, Support tickets, Audit log, Integrity,
+Payouts and others were offered to roles the guard then bounced) and only the owner-approved
+`health` pages (Integrations, Email health, Alerts) may differ; it also runs
+`SectionGuardMiddleware` over every href for every role. A group with more than five pages
+shows four and a "··· N more" row, forced open when the current page is past the fourth.
 
 **And a nav can be wrong in two directions.** `AdminNavTest`'s fourteen tests all read
 NAV → ROUTES — every entry is a real route, no page twice, every item has a sprite icon.
@@ -243,12 +252,15 @@ whole roles. Raise it as a product decision; never do it inside a navigation cha
 ### Admin documentation lives in the console, not in `docs/`
 
 There is no SSH on production, so an administrator cannot open a Markdown file — `docs/` is
-for whoever changes the code. The handbook is `/admin/handbook`, in the always-visible
-section so every role can read it, because somebody whose permissions do not reach Money
-still needs to know Money exists and why their rail is shorter than a colleague's.
+for whoever changes the code. The handbook is `/admin/handbook`, reached from the
+account menu, and it is MEANT for every role — somebody whose permissions do not reach Money
+still needs to know Money exists and why their rail is shorter than a colleague's. **It is
+not yet:** `/admin/handbook` has no path mapping, so the guard fails it closed to superadmin,
+and the old rail offering it to everyone was the bug. Mapping it to `overview` is an access
+change awaiting the owner (`docs/handoff/PHASE-ADMIN.md`, open questions).
 
 **Its structural facts are LOOPED FROM THE CODE, and that rule is the whole design.** Areas
-from `AdminNav::sections()`, roles from `Permissions::MATRIX`, weights and quorum from
+from `AdminNav::groups()`, roles from `Permissions::MATRIX`, weights and quorum from
 `RuleEngine`, verification words from `RegistryCheck::STATES`, the grace window from
 `ANNOUNCE_GRACE_DAYS`. This repo has paid four times for prose outliving the rule it
 describes, and a handbook is that hazard with people actively told to trust it — the
@@ -315,6 +327,11 @@ nonced `<style>` that EVERY layout writes before its stylesheets — shell and t
 admin/judge sign-in screens. `public/assets/css/tokens.css` holds sizes, radii, motion and
 layers and **no colour at all**. Mail and GD cannot read `var()`; they ask `Accent::hex('soft')`
 by name, and an unknown name throws rather than painting a button blank.
+**The admin console has a second set in the same file** (owner, 4 Oct 2026): the admin
+handoff's monochrome palette (README §10) as `Accent::console()`, emitted as `--cn-*` by
+`ag_accents('console')` in the admin layout only — the two surfaces share no name. Its words
+are measured by `ConsolePaletteTest`; four the handoff draws under 4.5:1 are REPORTED in
+`Accent::consoleReported()`, never re-valued.
 
 Why PHP and not a stylesheet: the values the page receives and the values the tests measure
 must be the same values. A colour with two sources is decided by load order, which is how
@@ -439,11 +456,16 @@ a lie somebody had to type. Mono is recognised by VALUE and resolved through ali
 door defines its own `--dr-mono`, and a sweep knowing only `--ag-font-mono` passes every
 kicker on that page.
 
-**Scope is the public surface, and the consoles are out by name.** The admin and judge
-consoles are not designed by the handoff (§18.7) and are held by the owner, so both guards
-read `Tests\Support\PublicSurface`: every template but `admin/` and `judge/`, every
-stylesheet but the six only those consoles link (`admin.css`, `judge.css`, `main.css`,
-`aurora.css`, `components/auth.css`, `a11y.css`) and `vendor/`. **The door scanner is held
+**Scope is the public surface, and the consoles are out by name.** The judge console is
+held by the owner; the ADMIN console was rebuilt from its own handoff (4 Oct 2026) and has
+its OWN ladder (README §10, plus 10.5 and 16), held by `ConsoleTypeTest` over
+`Tests\Support\ConsoleSurface` (`public/assets/css/console/` and the rebuilt templates),
+which also holds the two shared rules — no capitals, mono only for figures, references,
+times and keycaps (by a class-segment naming rule: `n`, `num`, `badge`, `v`, `kbd`, `time`,
+`ref`, `code`). Both public guards read `Tests\Support\PublicSurface`: every template but
+`admin/` and `judge/`, every stylesheet but the console's directory, the five only the judge
+console links (`judge.css`, `main.css`, `aurora.css`, `components/auth.css`, `a11y.css`)
+and `vendor/`. **The door scanner is held
 too** (owner, 3 Oct 2026: a staff tool outside the redesign) — `pages/events/door.twig` and
 `components/door.css`, with a guard that only the door links its sheet. Everything else is in by default, so a
 new sheet is covered the day it lands — and `TypeScaleTest` fails if a public page ever
