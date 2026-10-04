@@ -726,6 +726,34 @@ an answer. Each is detailed in `PHASE-2.md` (deviations list, §9, §10 and "Coo
 
 ---
 
+## 8d. Admin and org consoles — owner decisions (4 Oct 2026)
+
+The admin handoff arrived (`design_handoff_admin_console`: `Admin Console v9.dc.html`, `Org Console v2.dc.html`,
+README). The consoles leave the "held" list and are destroyed and rebuilt like every other surface.
+
+- **§1a tokens — (A), with DM Sans instead of Geist.** The monochrome palette of README §10 replaces the teal
+  `--ad-*` set; the face is DM Sans (the house face), and the mono role is the house JetBrains Mono, not Geist
+  Mono. The console colours live in `Support\Accent` as a separate console set, so there is still exactly one
+  file a colour may be typed in.
+- **`health` gate — widened as designed.** New MATRIX key `health` = superadmin, admin, viewer; Integrations,
+  Email health and the new Alerts page move to it. `workspaces` (superadmin) only if Hosts is built.
+  **And integrations are extensible from the UI**: an admin can add and configure more providers from the
+  console, not only the hard-coded set (design to be proposed).
+- **Hosts — not decided.** The owner asked for an assessment of feasibility first (given in chat, 4 Oct 2026):
+  nothing in the schema owns a programme, event or challenge today — every one is platform-owned — while
+  partner organisations (`gates_partner_orgs`, `org_id` on campaigns, stands, catalogue, payouts, documents)
+  are already a tenant with their own login. Hosts are not built until the owner chooses.
+- **Org capabilities — to be discussed** with the owner before the org console is rebuilt beyond what exists.
+
+## 8e. Public menu sheet — owner request (4 Oct 2026)
+
+"The menu for mobile should be smarter. You cannot currently drag down to close."
+- **Most used**: a frequency + recency ("frecency") ranked set of the member's most-used destinations, shown
+  where the four Participate tiles are today (Facebook's "Your shortcuts" pattern).
+- **Drag**: the same structure as now, but dragging behaves like Meta's sheets — opens at a medium height,
+  drags up to full, drags down (or flicks) to close, with the inner list scrolling first and handing the pull
+  to the sheet at its top. The open height follows Meta. Research and the chosen numbers: `MENU-SHEET.md`.
+
 ## 8a. Code that cites this file
 
 Four comments cite section numbers of the GAPS.md this file replaces. Phase 0 edits no other file, so the
