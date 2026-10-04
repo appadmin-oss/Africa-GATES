@@ -39,7 +39,7 @@ from it, and where each feature lives in the rebuild.
 
 ---
 
-## 0b. Progress log — what has been done (kept current; last updated 3 Oct 2026, after Phase 3)
+## 0b. Progress log — what has been done (kept current; last updated 4 Oct 2026, Phase 4 Home)
 
 Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed evidence per phase lives in
 `PHASE-1.md`, `PHASE-2.md`, `PHASE-3.md`, `DESTROYED.md`, `inventory/` and `shots/`; this section is the index.
@@ -97,6 +97,25 @@ Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed 
   yet** — Phases 5, 7 and 8 wire the moments.
 - Tests: `GeeTest` (27), `CelebrationTest` rebuilt (26); 59 mutations across both, all caught.
 
+### Phase 4 — Home and the site footer (4 Oct 2026; Discover is the other agent's entry)
+- `/` rebuilt on the shell from HomePageV3.dc.html + WeAreAfrica.dc.html (`PHASE-4.md`, "Home"): hero with a
+  real decided award as its record card, four counted stats, the globe on GlobeBand's markers (own canvas
+  projection, no vendored library; mouse and keyboard reach every marker), Happening now, one featured campaign,
+  the Recognise band. Every figure from `Services\HomeFront` (memoised, computed phases, sandbox contained) or
+  `GlobeBand`; no DC figure ships. `HomeController` and `docs/GLOBE-BAND.md` inventoried, destroyed, rewritten.
+- **Not drawn, blocked:** "Who recognises" (§3.1) and the Wall (§3.5) — §8c item 14.
+- **The site footer** (`partials/site-footer.twig`, on every shell page): the DC's columns plus every MUST
+  RESTORE destination, `nations_live()`, Activity removed, Cookies reopens the choices — §8c item 10 closed.
+- Tests: `HomePageTest` (13), `SiteFooterTest` (9), `GlobeBandTest` rebuilt (+9 band rules); 28 mutations caught.
+
+### Menu sheet — rebuilt for the owner's request of 4 Oct 2026 (§8e)
+- `menu-sheet.twig` destroyed and rebuilt; its code moved out of `chrome.js`/`chrome.css` into
+  `js/menu-sheet.js` and `css/components/menu-sheet.css` (inventory `inventory/partials--menu-sheet.md`).
+  Detents (opens at 50%, drag up to full, drag/flick down to close, expand-first, same-gesture list
+  hand-over, rubber band, scrim follows), grabber as a button; most-used tiles (`Services\MenuShortcuts`,
+  frecency, member: `gates_users.menu_use_json` + `POST /account/menu-use` beacon; guest: `ag-menu-use`
+  only with Preferences). 17 scenarios measured, research and open questions in `MENU-SHEET.md`.
+
 ### Test status
 - Full suite after Phase 3: **6,633 tests, 8 failures — all `PasskeyTest`**, which needs PHP 8.4 (this
   container runs 8.3; dependencies installed with `--ignore-platform-req=php`). Not a code fault.
@@ -104,7 +123,7 @@ Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed 
 
 ### Known gaps in the meantime
 - `/help` returns 500 until Phase 9 rebuilds it (the Gee 301 lands there).
-- No footer anywhere until Phase 4, so cookie choices cannot be re-opened at ≥600px.
+- ~~No footer anywhere until Phase 4~~ — the footer is on every shell page since Phase 4 (Home).
 - No translations written: every new string is `|trans`-ready with no catalogue entries.
 - Public pages destroyed and not yet rebuilt are simply absent until their phase (4–9).
 
@@ -181,6 +200,8 @@ code wins and the phase brief needs correcting.**
 | 16 | Nominee race, ballot, winner state | EXISTS; restyle | **EXISTS** — ballot field rules differ from REFERENCE §12 | pre-redesign |
 
 ### 3.1 Recognitions + verified issuers — MISSING
+- **Phase 4 (4 Oct 2026):** the homepage's "Who recognises" section is not drawn and its hero record card shows a
+  published award winner instead of an issuer's recognition (`PHASE-4.md` B1, D3); §8c item 14.
 - Searched `src/`, `database/`, `templates/`, `public/assets/js`, `config/` for `gates_recognitions`,
   `issuer_type`, `withdrawn_reason`, `commendation`, `issuer`, `recogni` as a table/service/kind:
   nothing but payout and judge-COI wording. No `CREATE TABLE` for recognitions or issuers in any
@@ -228,6 +249,7 @@ code wins and the phase brief needs correcting.**
   not exist; the real set is `pages/results/{index,edition,show,hall,open,late}.twig`.
 
 ### 3.5 Wall of recognition — MISSING
+- **Phase 4 (4 Oct 2026):** the homepage does not draw the Wall; blocked for the owner (§8c item 14, `PHASE-4.md` B2).
 - Searched `wall`, `masonry`, `testimon`, `Who recognis`, `gates_testimonials` (excluding firewall/
   swallow/paywall) over `home.twig`, `HomeController`, `src/Services`: nothing; `gates_testimonials` is in
   no schema file or migration. The DC's cards need quote, name, role, photo or initials, tag (Winner,
@@ -646,7 +668,13 @@ destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
 5. Mono and uppercase — which side of the bundle's own contradictions wins? (C6) — **Answered (owner, 3 Oct 2026): the README's §6.2/§18.3–4 wins.** JetBrains Mono only for references and codes (order refs, ticket codes, receipt codes, times inside ticket stubs), never labels, stats or kickers; no uppercase labels except the ticket stub's CONFIRMED stamp; headings sentence case. Guard: `MonoAndCaseTest`; CLAUDE.md's house-style line rewritten.
 6. Event tier colour — five stored columns, or derived from the slot at read time (recommended)? (C9)
 7. `celebration.js` — accept its off-palette hexes and demo defaults as verbatim, or amend the file? (C10) — **Still open.** Shipped verbatim in Phase 3 and exempted by name and hash; the full list of what disagrees is in `PHASE-3.md`, "Celebrations" §5, with Q-C1–Q-C3 beside it.
-8. A photo slot with no real image — what renders? (C11)
+8. A photo slot with no real image — what renders? (C11) — **Answered (owner delegated, 4 Oct 2026: "think of something"). Decision:** never a stock photo, never an
+   invented face, never a broken-image box. **People** (nominees, judges, members): a monogram — initials in Playfair 700,
+   ink on the neutral `tint` ground with a hairline ring, sized to the slot; the person (or their claimer) is offered
+   "Add a photo" where they can act. **Things** (events, campaigns, awards, products): a generated cover — the event's
+   own accent through `EventFlierTheme` (already one accent → a whole contrast-checked palette), the title set in the
+   cover, drawn in CSS so it is never a request that can fail; awards use the programme's identity family. One shared
+   partial (`partials/photo.twig`) decides real image vs fallback, so every page answers the question the same way.
 9. Ballot fields — make name, phone and message required (REFERENCE §12)? The paid name field is the display-name consent today. (§3.16)
 10. Paid-vote copy states the real rule (tally yes, reach no) — confirm the bundle's "count the same" sentence is overridden. (C12)
 11. Consent — keep the `ag_privacy` single-switch model, or build the four-category `ag_consent` (CookiePrefs, legal copy, a repair migration of the stored policy)? (C14) — **Answered (owner, 3 Oct 2026): build the handoff's four categories in `ag_consent`** — Essential (always on) plus Preferences, Analytics, Marketing — keeping "if anything said no, the answer is no" (GPC/DNT beats a stored yes; GPC shown as "Respected your browser's privacy signal"), both controls plain forms that post, the notice's answers one identical class string, no dismiss-without-answering. Built in Phase 2 item 6: `CookiePrefs` and `CookieRegistry` rebuilt, `ag_privacy` carried over (a no stays a no) and retired, the generated `/cookies` section rebuilt, `2027_02_27_cookie_consent_policy_repair.php`, `partials/cookie-consent.twig`. Marketing is drawn as "Not used" with no switch (nothing here does marketing) — see PHASE-2.md, "Cookie consent", for that judgement.
@@ -701,7 +729,8 @@ an answer. Each is detailed in `PHASE-2.md` (deviations list, §9, §10 and "Coo
    - who writes the translations (every new string goes through `|trans`, but no catalogue entries exist yet);
    - trending in the empty search palette has no measured signal (Q13, second half);
    - the change to how `/cookies` describes the `ag-a11y` text-size setting.
-10. **Re-opening consent at ≥600px** — there is no in-page way back to the choices until Phase 4 rebuilds
+10. **~~Re-opening consent at ≥600px~~ — closed in Phase 4:** the footer's Cookies link reopens the choices
+    (`data-ag-do="consent-open"`). Was: **Re-opening consent at ≥600px** — there is no in-page way back to the choices until Phase 4 rebuilds
     the footer. Accept the gap until then?
 11. **Admin and judge consoles** — the owner is sending an update; both stay held until it arrives.
 12. **Gee (Phase 3) — confirm the spec's reading, and seven questions it raised** (`PHASE-3.md`, "Gee", §7):
@@ -725,6 +754,17 @@ an answer. Each is detailed in `PHASE-2.md` (deviations list, §9, §10 and "Coo
     up, the share button as the default primary, one full stop in the live region, no haptics before a tap).
 
 ---
+
+## 8c (cont.) — raised by Phase 4 Home (4 Oct 2026)
+
+14. **Homepage sections that need a data model** (`PHASE-4.md`, "Home", H8): "Who recognises" needs
+    recognitions + verified issuers and a decision on what Businesses/Governments are offered (B1); the Wall needs
+    approved testimonials with consent for that use (B2). Build them (migration → service → admin) or drop them?
+15. **Recognise band** — what may it promise, and where does "Start recognising" go (B3)?
+16. **Home phone bar** — the DC's logo bar (built) or §7.2's large-title root (B4)?
+17. **Featured campaign rule** — the open one closing soonest (built), or a "featured" flag (B5)?
+18. **Home deviations** D2 (hero lead), D3 (record card), D4 ("votes cast"), D6, D10, D12, D13, D17 need approval;
+    Q8 (absent photos) is still open.
 
 ## 8d. Admin and org consoles — owner decisions (4 Oct 2026)
 
@@ -753,6 +793,16 @@ README). The consoles leave the "held" list and are destroyed and rebuilt like e
 - **Drag**: the same structure as now, but dragging behaves like Meta's sheets — opens at a medium height,
   drags up to full, drags down (or flicks) to close, with the inner list scrolling first and handing the pull
   to the sheet at its top. The open height follows Meta. Research and the chosen numbers: `MENU-SHEET.md`.
+
+## 8f. Hosts and events — owner (4 Oct 2026)
+
+- **Hosts: yes.** "Businesses, governments and so on should be able to use it for events, awards and so on." One
+  award has already run on production, so the existing programme (and every event, challenge and campaign) must
+  become owned by the platform's own host in a migration that changes no published figure. Design first
+  (`HOSTS.md`), then build after admin stage 1.
+- **Events: "there's nothing like upcoming events or coming soon events on the site."** Build the Phase 7 events
+  index and detail now (§8.10), including an upcoming list and an announced-but-not-on-sale ("coming soon") state,
+  end to end, plus the §8.11 ticket polish.
 
 ## 8a. Code that cites this file
 
