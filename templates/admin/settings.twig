@@ -51,6 +51,8 @@
   .pay-route__bad{background:#fbeceb;color:#9a2a1e}
   .pay-route__warn{margin:0 0 10px;padding:9px 12px;border-left:3px solid #c2410c;background:#fff7ed;
     border-radius:0 5px 5px 0;font-size:13px;line-height:1.6;color:#7c2d12}
+  /* What finance says about this stream — reference, so it recedes next to the warning. */
+  .pay-route__note{margin:0 0 9px;font-size:12px;line-height:1.5;color:var(--ad-text-mute,#61728e)}
   .pay-route input,.pay-route select{box-sizing:border-box;max-width:100%}
   .st-tier{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
   .st-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#D8A33C;margin-left:6px;vertical-align:middle}
@@ -1005,8 +1007,43 @@
 
      Blank = today's behaviour exactly: no `subaccount` field is sent, so an operator who never
      opens this card sees no change to their settlements. #}
-  <div class="ad-card" data-sec="money" data-keys="paystack subaccount subaccounts payout payouts settlement split bearer fees where money settles events shop votes bank account" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Where the money settles<small>Send ticket, shop and vote income to different Paystack subaccounts. Leave blank to settle everything to the main account, as now.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="money" data-keys="paystack subaccount subaccounts payout payouts settlement split bearer fees where money settles events shop votes bank account cfis cacentre finance membership dues fines training stream streams" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Where the money settles<small>Send each kind of income to its own Paystack subaccount. The list comes from CACENTRE finance, so a new kind of money appears here without a deployment — <a href="/admin/settings?streams=refresh#money">check for new ones</a>. Leave blank to settle to the main account, as now.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="payout_settings" value="1">
+
+    {# ── WHERE THE LIST COMES FROM ───────────────────────────────────────────
+       The kinds of money below are finance's list, not this platform's, so the
+       three values that reach it belong on the same card: an operator looking at
+       a short or stale list needs to see the address it was asked for. Readable
+       only from .env until now, which on a host with no shell means unsettable —
+       the same fault that left the calendar integration dead behind screens that
+       explained themselves correctly. #}
+    <details{% if not cfis_secret_set %} open{% endif %} style="margin-bottom:12px">
+      <summary style="cursor:pointer;font-weight:600;font-size:13px;display:flex;align-items:center;gap:9px">
+        CACENTRE finance
+        <span class="pay-route__{{ cfis_secret_set ? 'on' : 'off' }}">{{ cfis_secret_set ? 'connected' : 'not connected' }}</span>
+      </summary>
+      <div class="row">
+        <div><label for="f-cfis_url">Finance address</label>
+          <input type="url" name="cfis_url" id="f-cfis_url" value="{{ values.cfis_url|default('') }}"
+                 placeholder="https://finance.cacentre.org" spellcheck="false" autocomplete="off"></div>
+        <div><label for="f-cfis_source">This property's code <small>finance issued it</small></label>
+          <input type="text" name="cfis_source" id="f-cfis_source" value="{{ values.cfis_source|default('') }}"
+                 placeholder="gates" spellcheck="false" autocomplete="off"></div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-cfis_secret">Signing key <small>stored write-only — never shown again</small></label>
+          <input type="password" name="cfis_secret" id="f-cfis_secret" autocomplete="new-password"
+                 placeholder="{% if cfis_secret_set %}•••••••••• (leave blank to keep){% else %}the 64-character value finance gave you{% endif %}">
+          {% if cfis_secret_set %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="secret_clear[cfis_secret]" value="1"> remove</label>{% endif %}
+        </div>
+      </div>
+      <p class="pay-route__note">
+        Without these the three built-in kinds below still work exactly as they always
+        have — nothing here is required to take a payment.
+      </p>
+    </details>
+
     <div class="ad-form">
       {% for p in payouts|default([]) %}
       <div class="pay-route">
@@ -1014,8 +1051,23 @@
           <strong>{{ p.label }}</strong>
           {% if p.refusal %}<span class="pay-route__bad">Paystack is refusing this</span>
           {% elseif p.routed %}<span class="pay-route__on">routed</span>
+          {% elseif p.expects %}<span class="pay-route__bad">finance is waiting on this</span>
           {% else %}<span class="pay-route__off">main account</span>{% endif %}
         </div>
+        {# With the list coming from finance there can be a dozen rows, and a row nobody is
+           meant to fill in looks exactly like one somebody has forgotten. Finance says which
+           ones it expects a subaccount for; that is the difference, so it is shown. #}
+        {% if p.about or p.settles_to %}
+        <p class="pay-route__note">{{ p.about }}{% if p.settles_to %}{% if p.about %} · {% endif %}Finance posts this to <strong>{{ p.settles_to }}</strong>.{% endif %}</p>
+        {% endif %}
+        {% if p.expects and not p.routed and not p.refusal %}
+        <p class="pay-route__warn">
+          Finance expects this kind of money to settle into its own subaccount. Until a code is
+          set here it goes to the <strong>main account</strong> with everything else, and the
+          month-end question — how much of this is {{ p.label|lower }} — can only be answered
+          from this platform's own records rather than from the bank.
+        </p>
+        {% endif %}
         {# A refused subaccount is the failure that used to take a whole stream offline with
            nothing on any screen to say so. Payments now fall back to the main account rather
            than failing, which is the right trade and also makes the problem invisible — so it

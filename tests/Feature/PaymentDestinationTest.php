@@ -33,7 +33,7 @@ final class PaymentDestinationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        foreach (array_keys(D::STREAMS) as $s) {
+        foreach (array_keys(D::streams()) as $s) {
             DB::table('gates_settings')->where('key_name', 'paystack_sub_' . $s)->delete();
             DB::table('gates_settings')->where('key_name', 'paystack_bearer_' . $s)->delete();
         }
@@ -45,7 +45,7 @@ final class PaymentDestinationTest extends TestCase
     {
         // The whole of rule 2. Merging an empty array changes nothing about the payload that
         // goes to Paystack, so an operator who never opens the screen sees no change at all.
-        foreach (array_keys(D::STREAMS) as $stream) {
+        foreach (array_keys(D::streams()) as $stream) {
             $this->assertSame([], D::initFields($stream));
             $this->assertSame('', D::forStream($stream));
         }
@@ -143,6 +143,64 @@ final class PaymentDestinationTest extends TestCase
             'a stream missing from the submitted form was cleared');
     }
 
+    // ══ 2b. a kind of money finance added, routed end to end ═════════════════
+    //
+    // THE POINT OF THE WHOLE CHANGE, and the one thing a mutation survived without.
+    // `STREAMS` used to be a const of three, so membership fees, fines, dues and
+    // training fees had nowhere to settle and no deployment could be avoided. Every
+    // other case here would still pass against a `streams()` that quietly ignored
+    // finance and answered the same three — which is exactly what this asserts is not
+    // happening: a stream that exists ONLY in the catalogue takes a subaccount, keeps
+    // it, reports it, and reaches Paystack.
+
+    /** Put a catalogue in the cache as though finance had answered with it. */
+    private function financeOffers(array $streams): void
+    {
+        DB::table('gates_cache')->updateOrInsert(['cache_key' => 'cfis_stream_catalogue_last_good'], [
+            'payload' => json_encode(['streams' => $streams, 'cache_seconds' => 900]),
+            'expires_at' => date('Y-m-d H:i:s', time() + 86400),
+            'tags' => 'cfis',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        \AfricaGates\Services\CfisCatalogue::refresh();
+        (function (): void { self::$memo = null; })->bindTo(null, \AfricaGates\Services\CfisCatalogue::class)();
+    }
+
+    public function test_a_stream_finance_added_can_be_routed_like_any_other(): void
+    {
+        $this->financeOffers([
+            ['code' => 'membership', 'name' => 'Membership fees', 'expects_subaccount' => true],
+        ]);
+
+        // It is offered at all — the admin screen draws a row per stream.
+        $this->assertArrayHasKey('membership', D::streams());
+        $this->assertTrue(D::knowsStream('membership'));
+        $this->assertSame('Membership fees', D::labelFor('membership'));
+
+        // It takes a subaccount, keeps it, and reports it on the screen's own rows.
+        $r = D::save(['membership' => 'ACCT_members00001']);
+        $this->assertSame(['membership'], $r['saved']);
+        $this->assertSame('ACCT_members00001', D::forStream('membership'));
+        $this->assertTrue(D::anyRouted());
+        $this->assertSame('ACCT_members00001',
+            array_column(D::all(), 'code', 'stream')['membership']);
+
+        // And it reaches Paystack, which is the only part a buyer can feel.
+        $this->assertSame(['subaccount' => 'ACCT_members00001'], D::initFields('membership'));
+    }
+
+    public function test_a_stream_finance_has_never_heard_of_is_still_refused(): void
+    {
+        // The dynamic list is not an open door: a code this platform invents is the
+        // thing that gets a batch refused at settlement, days after the money was taken.
+        $this->financeOffers([['code' => 'membership', 'name' => 'Membership fees']]);
+
+        $this->assertFalse(D::knowsStream('nonsense'));
+        $this->assertSame([], D::save(['nonsense' => 'ACCT_nonsense0001'])['saved']);
+        $this->assertSame('', D::forStream('nonsense'));
+        $this->assertSame([], D::initFields('nonsense'));
+    }
+
     // ══ 3. the fields that reach Paystack ════════════════════════════════════
 
     public function test_a_routed_stream_sends_its_subaccount(): void
@@ -213,7 +271,7 @@ final class PaymentDestinationTest extends TestCase
         D::save(['shop' => 'ACCT_shopacct001'], ['shop' => 'subaccount']);
         $all = D::all();
 
-        $this->assertCount(count(D::STREAMS), $all);
+        $this->assertCount(count(D::streams()), $all);
         $byStream = array_column($all, null, 'stream');
 
         $this->assertTrue($byStream['shop']['routed']);

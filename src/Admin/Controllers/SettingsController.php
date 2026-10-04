@@ -22,6 +22,15 @@ class SettingsController
 
     public function form(Request $req, Response $res): Response
     {
+        /* A stream added in finance this morning should be usable this morning.
+           The catalogue is cached for the TTL finance nominates, which is right for
+           every checkout and wrong for the one operator who has just been told to
+           route a new kind of money and is looking at a screen that does not list
+           it yet. This is the way to say "ask again now" without waiting it out. */
+        if ((string) ($req->getQueryParams()['streams'] ?? '') === 'refresh') {
+            \AfricaGates\Services\CfisCatalogue::refresh();
+        }
+
         // `gates_admin_settings` used to be read in full here and passed as
         // `admin_settings`, which no template has ever mentioned — a table scan and a
         // schema probe on every render of the settings screen, for a variable Twig
@@ -219,6 +228,10 @@ class SettingsController
             'invite_reminder_line_judge_default'   => \AfricaGates\Services\InviteReminders::copy(
                 \AfricaGates\Services\InviteAudience::JUDGE)['line_default'],
             'cloudinary_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cloudinary_api_secret')->value('value') ?? '')) !== '',
+            // Whether finance's signing key is stored — never the key. `values` is the
+            // whole settings table, so anything echoed from it lands in the page source;
+            // a credential gets a boolean and a placeholder, like Cloudinary's above.
+            'cfis_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cfis_secret')->value('value') ?? '')) !== '',
             // Flash renders from the Twig globals via the layout — do not shadow them.
             // Where each revenue stream settles. Resolved, so the screen shows the code that
             // WILL be used rather than a raw setting somebody has to interpret.
@@ -602,7 +615,10 @@ class SettingsController
         // would put the credential in the page source of every settings render.
         foreach (['cloudinary_api_secret' => 'cloudinary_secret',
                   'cloudinary_url' => 'cloudinary_url',
-                  'azure_speech_key' => 'azure_key'] as $settingKey => $clearName) {
+                  'azure_speech_key' => 'azure_key',
+                  // The CFIS signing key. Write-only like every other credential here:
+                  // it is what proves to finance which property is reporting money.
+                  'cfis_secret' => 'cfis_secret'] as $settingKey => $clearName) {
             $clear = (array) ($b['secret_clear'] ?? []);
             if (!empty($clear[$clearName])) { $this->settings->set($settingKey, '', $adminId); continue; }
             $val = trim((string) ($b[$settingKey] ?? ''));
@@ -723,10 +739,20 @@ class SettingsController
         // rejects an initialise with a bad subaccount, so a typo here would take that stream's
         // payments offline with no visible cause. Refusing to route is recoverable; refusing to
         // sell is not.
+        // Where finance is, and who we are to it. Not secrets — the key beside them is —
+        // so they save on the plain path and are echoed back, which is what lets an
+        // operator SEE the address a refused catalogue was asked for.
+        foreach (['cfis_url', 'cfis_source'] as $k) {
+            if (array_key_exists($k, $b)) {
+                $this->settings->set($k, trim((string) $b[$k]), $adminId);
+                \AfricaGates\Services\CfisCatalogue::refresh();
+            }
+        }
+
         if (array_key_exists('payout_settings', $b)) {
             $codes = [];
             $bearers = [];
-            foreach (array_keys(\AfricaGates\Services\PaymentDestination::STREAMS) as $stream) {
+            foreach (array_keys(\AfricaGates\Services\PaymentDestination::streams()) as $stream) {
                 if (array_key_exists('sub_' . $stream, $b)) {
                     $codes[$stream] = (string) $b['sub_' . $stream];
                 }
@@ -743,7 +769,7 @@ class SettingsController
             if ($r['refused'] !== []) {
                 $lines = [];
                 foreach ($r['refused'] as $stream => $why) {
-                    $lines[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                    $lines[] = \AfricaGates\Services\PaymentDestination::labelFor($stream)
                              . ': ' . $why;
                 }
                 // Paystack's own words, per stream, and the old value kept. "Subaccount not
@@ -756,7 +782,7 @@ class SettingsController
                 // wrong one recognises the wrong name far faster than the wrong code.
                 $ok = [];
                 foreach ($r['checked'] as $stream => $who) {
-                    $ok[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                    $ok[] = \AfricaGates\Services\PaymentDestination::labelFor($stream)
                           . ' → ' . $who;
                 }
                 $verified = 'Verified with Paystack: ' . implode(' · ', $ok);

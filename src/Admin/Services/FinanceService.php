@@ -506,7 +506,7 @@ final class FinanceService
         foreach ($ledgers as $stream => [$table, $refCol, $amtCol, $paid]) {
             $row = [
                 'stream'     => $stream,
-                'label'      => \AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream,
+                'label'      => \AfricaGates\Services\PaymentDestination::labelFor($stream),
                 'configured' => \AfricaGates\Services\PaymentDestination::forStream($stream),
                 'bearer'     => \AfricaGates\Services\PaymentDestination::bearerFor($stream),
                 'routed_count' => 0, 'routed_naira' => 0,
