@@ -30,11 +30,11 @@
    Every part of this integration can be configured correctly and still do nothing,
    and from the .env file the five ways it fails look identical. #}
 {% if not meet %}
-<div class="ad-card" style="margin-bottom:16px;border-left:4px solid var(--ad-gold,#c79a3a)">
+<div class="ad-card" style="margin-bottom:16px;border-left:4px solid var(--cn-warning-dot)">
   <div class="ad-card__body">
     <p style="margin:0;font-size:13px"><strong>The calendar cannot be checked from here.</strong>
       {{ meet_why }}</p>
-    <p style="margin:7px 0 0;font-size:13px;color:var(--ad-text-mute,#61728e)">
+    <p style="margin:7px 0 0;font-size:13px;color:var(--cn-grey-500)">
       The schedule below is still what this platform holds — it just cannot be compared
       against Google until the Apps Script side answers. The reminders do not need it.</p>
   </div>
@@ -56,7 +56,7 @@
     {% if judges is empty %}
       {# Not an error state and not an empty table: nothing is scheduled, which is a
          different fact and has a different next step. #}
-      <p style="margin:0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:0;font-size:13px;color:var(--cn-grey-500)">
         Nobody has a sitting in the next few days, so there is nothing to remind anybody
         about. Schedule the interviews first —
         <a href="/admin/interviews">the interview queue</a> is where that happens.</p>
@@ -103,7 +103,7 @@
         {% endif %}
       </div>
 
-      <p style="margin:11px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)">
+      <p style="margin:11px 0 0;font-size:12px;color:var(--cn-grey-500)">
         A judge with nothing scheduled is never mailed, even by “remind all” — a reminder
         about no meetings is the fastest way to teach a panel to ignore us.
       </p>
@@ -121,7 +121,7 @@
             {% for j in judges %}
             <tr>
               <td><strong style="font-size:13px">{{ j.name }}</strong>
-                <div style="font-size:12px;color:var(--ad-text-mute,#61728e)">{{ j.email }}</div></td>
+                <div style="font-size:12px;color:var(--cn-grey-500)">{{ j.email }}</div></td>
               <td style="font-family:'Space Mono',monospace">{{ j.sittings }}</td>
               <td style="font-family:'Space Mono',monospace;white-space:nowrap">
                 {{ j.next ? j.next|when_zoned('D j M, H:i') : '—' }}</td>
@@ -171,10 +171,10 @@
         <tr>
           <td style="font-family:'Space Mono',monospace;white-space:nowrap">
             {{ s.when|when('H:i') }} {{ tz_abbr() }}
-            <div style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ s.minutes }} min</div></td>
+            <div style="font-size:11px;color:var(--cn-grey-500)">{{ s.minutes }} min</div></td>
           <td>
             <a href="{{ s.admin_url }}" style="font-weight:600;font-size:13px">{{ s.nominee }}</a>
-            {% if s.category %}<div style="font-size:12px;color:var(--ad-text-mute,#61728e)">{{ s.category }}</div>{% endif %}
+            {% if s.category %}<div style="font-size:12px;color:var(--cn-grey-500)">{{ s.category }}</div>{% endif %}
           </td>
           <td>
             {% if s.panel is empty %}
@@ -225,7 +225,7 @@
 {% endif %}
 
 <div class="ad-card"><div class="ad-card__body">
-  <p style="margin:0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+  <p style="margin:0;font-size:13px;color:var(--cn-grey-500)">
     <strong>“Check Google” answers three different things.</strong> That the calendar agrees;
     that it holds the sitting at a <em>different</em> time, which means somebody moved it
     there and every invitation we have already sent carries ours; or that the event is gone.

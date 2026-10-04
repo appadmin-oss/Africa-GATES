@@ -105,7 +105,9 @@
      THE SHEET
      ════════════════════════════════════════════════════════════════════════ */
 
-  var MEDIUM   = 0.5;    /* of the visual viewport — Apple .medium, Material halfExpandedRatio */
+  var LOW      = 0.45;   /* the open height never under 45% of the visual viewport … */
+  var HIGH     = 0.70;   /* … nor over 70% (owner, 4 Oct 2026: "the open height varies") */
+  var BREATH   = 12;     /* px shown past the last whole block, so the edge reads as an edge */
   var SLOP     = 8;      /* px before anything moves; the axis is decided then */
   var FLICK    = 0.5;    /* px/ms — Material's 500 px/s */
   var CLOSE    = 0.25;   /* of the medium height, below medium — vaul */
@@ -151,13 +153,56 @@
 
     /* ── Geometry ────────────────────────────────────────────────────────── */
 
+    /* ── THE OPEN HEIGHT FOLLOWS THE CONTENT ─────────────────────────────────
+       Owner, 4 Oct 2026: Meta's sheets do not open at one fixed fraction. The medium
+       detent is tall enough to show the head, the account or join card and the four
+       squares WHOLE, and it ends on the bottom of a whole block or row — never through
+       one — inside 45–70% of the visual viewport. Shorter content opens at its own height.
+       Read from the layout on every open, resize and sub-view, so 150% text, a join card
+       twice the height of a profile card, and a 640px phone each get their own answer.
+
+       `boundaries()` are the bottoms of every block of the visible view and of every list
+       row in it, in sheet coordinates (the transform moves sheet and child alike, and the
+       list's own scroll is added back). */
+    function boundaries(view) {
+      var top = sheet.getBoundingClientRect().top, sc = body ? body.scrollTop : 0, box = [];
+      all(':scope > *, .ag-list__row', view).forEach(function (el) {
+        if (el.hidden || !el.getClientRects().length || el.tagName === 'TEMPLATE') return;
+        var r = el.getBoundingClientRect();
+        box.push([r.top - top + sc, r.bottom - top + sc]);
+      });
+      /* An edge is a bottom plus the breath — but never past the TOP of whatever comes next:
+         the rows of a list touch, and 12px past one row is 12px into the next (measured). */
+      return box.map(function (b) {
+        var room = BREATH;
+        box.forEach(function (o) { if (o[0] >= b[1] - 0.5) room = Math.min(room, o[0] - b[1]); });
+        return Math.round(b[1] + Math.max(0, room));
+      }).sort(function (x, y) { return x - y; });
+    }
+
+    function openHeight(V, fullH) {
+      var lo = Math.round(V * LOW), hi = Math.round(V * HIGH);
+      if (fullH <= lo) return fullH;
+      var view = sheet.querySelector('[data-ag-menu-view]:not([hidden])');
+      var edges = view ? boundaries(view) : [];
+      var tiles = view && view.querySelector('[data-ag-menu-tiles]');
+      var need = tiles ? tiles.getBoundingClientRect().bottom - sheet.getBoundingClientRect().top + (body ? body.scrollTop : 0) : 0;
+      var fits = edges.filter(function (x) { return x >= lo && x <= hi; });
+      var past = fits.filter(function (x) { return x >= need; });
+      var want;
+      if (past.length) want = past[0];                          /* the squares whole, ending on the next edge */
+      else if (fits.length) want = fits[fits.length - 1];       /* the squares cannot fit: the most that fits whole */
+      else want = clamp(need, lo, hi);                          /* no whole edge in range: a block taller than the band */
+      return Math.min(fullH, want);
+    }
+
     function measure() {
       var vv = window.visualViewport;
       var V = vv ? vv.height : window.innerHeight;
       var H = sheet.offsetHeight;
       var content = (handle ? handle.offsetHeight : 0) + (body ? body.scrollHeight : 0);
       var fullH = Math.min(H, content);
-      var medH = Math.min(Math.round(V * MEDIUM), fullH);
+      var medH = openHeight(V, fullH);
       geo.H = H;
       geo.full = H - fullH;
       geo.medium = H - medH;

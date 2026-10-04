@@ -29,14 +29,18 @@ recordings vary by device and content. What can be cited is the platform model t
 | Firefox frecency — [Mozilla source docs](https://firefox-source-docs.mozilla.org/browser/urlbar/ranking.html), [MDN archive](http://www.devdoc.net/web/developer.mozilla.org/en-US/docs/The_Places_frecency_algorithm.html) | Frequency × recency with **exponential decay, half-life one month** (λ = ln 2 / 30 days). | Decayed-counter frecency |
 | NN/g, [Bottom sheets](https://www.nngroup.com/articles/bottom-sheet/); WCAG 2.2 SC 2.5.7 | A sheet needs a visible close; every drag needs a single-pointer alternative. | Close button, grabber button, Esc, Back |
 
-**The 50% open height is Apple's `.medium` (and Material's `halfExpandedRatio`), which Meta's
-iOS sheets inherit natively. It is an owner-confirmable number, not a measurement of Meta.**
+**The open height is content-aware (owner, 4 Oct 2026: "The open height varies sometimes").** The
+first build opened at a fixed 50% — Apple's `.medium` and Material's `halfExpandedRatio`. The owner
+observed that Meta's sheets do not: they open to what the content needs. Apple has the same idea
+in custom detents (iOS 16 `.custom { context in … }`, a resolver that returns a height from the
+content), and pure-web-bottom-sheet calls it `content-height`. So the medium detent is now
+resolved from the layout, inside a 45–70% band (§2).
 
 ## 2. The numbers chosen
 
 | Quantity | Value | Source / reason |
 |---|---|---|
-| Open (medium) detent | **50% of the visual viewport**, or the content's own height when that is shorter (fit) | Apple `.medium`, Material 0.5, pure-web `content-height` |
+| Open (medium) detent | **Content-aware**: tall enough to show the head, the account or join card and the four squares **whole**, ending on the bottom of a whole block or list row (never through one), plus up to 12px of breath that never reaches into the next row; clamped to **45–70% of the visual viewport**; the content's own height when that is shorter. If the squares cannot fit inside 70% (very large text on a short phone), the most that fits whole. Recomputed on every open, resize/rotation and sub-view | owner, 4 Oct 2026; Apple custom detents; pure-web `content-height` |
 | Full detent | the visual viewport **minus the top safe area minus 10px** | Apple `.large` leaves the status bar and a sliver above the sheet. **Deviation:** the DC pins the sheet from `top:52px`; see §6 |
 | Drag slop | **8px** before anything moves; the axis is decided then — mostly horizontal never drags | platform touch slop (Android 8dp) |
 | Flick | **0.5 px/ms** (500 px/s) | Material `significantVelocityThreshold`; vaul uses 0.4 |
@@ -46,6 +50,7 @@ iOS sheets inherit natively. It is an owner-confirmable number, not a measuremen
 | Settle / open / close | **`--ag-dur-2` (260ms)** on `cubic-bezier(.32,.72,0,1)` (`--ag-ease-sheet`) | vaul/Ionic iOS curve; the house sheet duration (§6.5) instead of vaul's 500ms |
 | List momentum (JS-driven, see §4) | velocity × 0.998 per ms, stops under 0.02 px/ms | UIScrollView normal deceleration |
 | Scrim | opacity = visible height ÷ medium height, clamped 0–1 — tracks closed→medium, holds above | coordinator scenario 10 |
+| Close line | 25% of **this** open height below it (it moves with the content-aware detent) | vaul |
 | Reduced motion | duration 0 — an instant snap; dragging still follows the finger | skill §13, §17 |
 
 ### Most used (frecency)
@@ -79,7 +84,7 @@ Each row: start → gesture → expected end. §5 records what was measured.
 
 | # | Start | Gesture | Expected |
 |---|---|---|---|
-| 1 | closed | tap Menu | opens at **medium** (50% of the visual viewport, or content height if shorter); full = viewport − top safe area − 10px |
+| 1 | closed | tap Menu | opens at the **content-aware medium**: head + account/join card + the four squares whole, ending on a whole block/row, within 45–70% of the visual viewport (content height if shorter); full = viewport − top safe area − 10px. Checked on 640/844/932px phones, guest and member, 100% and 150% text |
 | 2 | medium | swipe up anywhere, the list included | sheet follows the finger and settles at **full**; the list does **not** scroll at medium |
 | 3 | full | swipe up on the list | the list scrolls (with momentum) |
 | 4 | full, list scrolled | swipe down | the list scrolls back first; when `scrollTop` reaches 0 **in the same gesture** the rest of the pull moves the sheet |
@@ -127,7 +132,7 @@ pass.** Evidence in `shots/menu-sheet/`.
 
 | # | Measured | Shot |
 |---|---|---|
-| 1 | Opens with 422 of 844px showing (exactly 50%), scrim 1 | `open-medium-390.png` |
+| 1 | Guest at 390×844: opens with 464 of 844px (55%) — the squares whole, ending 12px past them; scrim 1. The full matrix is below | `open-medium-390.png`, `open-*.png` |
 | 2 | A quick swipe up on the list at medium → full (top 10px), list `scrollTop` 0 | `full-390.png` |
 | 3 | At full, the same swipe scrolls the list (+momentum) | `drag-sequence-390.webm` |
 | 4 | Scrolled list, one continuous pull down: list reached 0, then the sheet moved to top 150 in the same gesture | `handoff-mid-gesture-390.png` |
@@ -140,11 +145,28 @@ pass.** Evidence in `shots/menu-sheet/`.
 | 11 | Grabber tap and keyboard Enter → full, label "Collapse menu"; Esc and browser Back close, focus to "Open menu", URL unchanged | — |
 | 12 | Display & reading from medium → full; Back to the menu keeps full | `display-subview-390.png` |
 | 13 | Focusing a row below the visible edge at medium → full | — |
-| 14 | Rotating 390×844 → 844×390 at medium → medium recomputed (195px) | `rotated-medium-390.png` |
+| 14 | Rotating 390×844 → 844×390 at medium → medium recomputed (236 of 390px, 61%) | `rotated-medium-390.png` |
 | 15 | Reduced motion: open and settle are instant (state final 30ms after the tap); dragging still follows the finger | `reduced-motion-full-390.png` |
 | 16 | A drag on the scrim scrolled nothing behind (`main.scrollTop` 0 → 0) | — |
 | 17 | `?lang=ar`: identical | `rtl-medium-390.png`, `rtl-full-390.png` |
 | 834 | No Menu tab — the Menu is phone chrome, below 600px only (Phase 2); the header serves ≥600 | `no-menu-834.png` |
+
+**Open height across phones, audiences and text size** (`scratchpad/ms/openmatrix.js`; pass =
+45–70%, account/join card and squares wholly visible, nothing cut by the edge). **12 of 12 pass.**
+
+| Phone | Visitor | 100% text | 150% text |
+|---|---|---|---|
+| 390 × 640 | guest (join card) | 373px · 58.3% | 438px · 68.4% |
+| 390 × 640 | member (profile card) | 296px · 46.3% | 321px · 50.2% |
+| 390 × 844 | guest | 464px · 55.0% | 438px · 51.9% |
+| 390 × 844 | member | 387px · 45.9% | 420px · 49.8% |
+| 430 × 932 | guest | 443px · 47.5% | 438px · 47.0% |
+| 430 × 932 | member | 426px · 45.7% | 420px · 45.1% |
+
+Shots: `open-{390x640,390x844,430x932}-{guest,member}-{100,150}.png`. Found on the way and fixed:
+the first cut added its 12px of breath after a list row, which is 12px INTO the next row (rows
+touch) — the breath now stops at the next element's top; and at 150% "Nominate" broke mid-word in
+its square (`overflow-wrap:anywhere`) — it hyphenates now.
 
 Video of the whole sequence (open → up to full → scroll with momentum → one pull hands over and
 returns to medium → flick closed): `shots/menu-sheet/drag-sequence-390.webm`.
@@ -174,7 +196,7 @@ tie-break's recency — and the tests were strengthened until they failed).
 | What | Why | Decides |
 |---|---|---|
 | Full detent at the top safe area + 10px, not the DC's `top:52px` | §7.4's 52px was a fixed sheet; a detented sheet's large detent is Apple's (status bar + a sliver). At full the app bar is covered | owner |
-| Open height 50% (Apple `.medium`) | Meta's exact open height cannot be measured; this is the platform value its iOS sheets inherit | **owner-confirmable** |
+| Open height content-aware, 45–70% (was a fixed 50% in the first build) | owner, 4 Oct 2026: "the open height varies"; the band is the owner's | — |
 | Expand-first (a swipe up at medium expands, never scrolls) | Apple's `prefersScrollingExpandsWhenScrolledToEdge` default; coordinator correction | — |
 | List momentum on touch is the script's (0.998/ms), not the platform's | The same-gesture hand-over is impossible with native scrolling (uncancelable `touchmove`s once a scroll starts); wheel and keyboard scroll stay native | owner |
 | "Register a profile" not shown to a signed-in member (Explore and shortcuts) | `/account/register` sends a member to `/account`: a row that goes somewhere other than it says. The Explore list is otherwise §7.4's seven | owner |
@@ -185,7 +207,7 @@ tie-break's recency — and the tests were strengthened until they failed).
 
 ## 7. Open questions for the owner
 
-1. Confirm the **50%** open height (or name another).
+1. ~~Confirm the 50% open height~~ — answered: content-aware, 45–70% (built, §2, §5).
 2. **Pin / hide a shortcut** (Facebook's Pin · Auto · Hide) — not built: it needs an edit mode the
    DC does not draw. A long-press menu on a tile is the cheap version; approve a design first.
 3. Confirm the frecency numbers: half-life 14 days, two recent opens to qualify, five opens before

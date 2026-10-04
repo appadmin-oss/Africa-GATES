@@ -18,11 +18,11 @@
 <div class="ad-card" style="margin-bottom:16px"><div class="ad-card__body"
      style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">
   <div>
-    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Status</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--cn-grey-600)">Status</div>
     <span class="ad-chip ad-chip--{{ chip }}" style="margin-top:5px">{{ org.status|capitalize }}</span>
   </div>
   <div>
-    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Kind</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--cn-grey-600)">Kind</div>
     <div style="margin-top:5px;font-weight:600">
       {{ kinds[org.kind]|default('Donation partner') }}{% if individual %} · individual{% endif %}
       {% if org.self_registered %}
@@ -32,25 +32,25 @@
     </div>
   </div>
   <div>
-    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Collecting</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--cn-grey-600)">Collecting</div>
     <div style="margin-top:5px;font-weight:600">{{ live ? 'Yes' : 'No' }}</div>
   </div>
   <div>
-    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Received</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--cn-grey-600)">Received</div>
     <div style="margin-top:5px;font-family:'Space Mono',monospace;font-weight:700">₦{{ totals.gross|number_format }}</div>
   </div>
   <div>
-    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Our share</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--cn-grey-600)">Our share</div>
     <div style="margin-top:5px;font-family:'Space Mono',monospace;font-weight:700">₦{{ totals.platform_fee|number_format }}</div>
   </div>
   <div>
-    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Theirs</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--cn-grey-600)">Theirs</div>
     <div style="margin-top:5px;font-family:'Space Mono',monospace;font-weight:700">₦{{ totals.net|number_format }}</div>
   </div>
 </div></div>
 
 {% if org.status == 'suspended' and org.suspended_reason %}
-  <div class="ad-card" style="margin-bottom:16px;border-left:4px solid var(--ad-danger)">
+  <div class="ad-card" style="margin-bottom:16px;border-left:4px solid var(--cn-danger)">
     <div class="ad-card__body"><strong>Suspended.</strong> {{ org.suspended_reason }}</div>
   </div>
 {% endif %}
@@ -76,12 +76,12 @@
             <td>{{ org.legal_name|default(org.name) }}</td></tr>
         <tr><th scope="row">Name match</th>
             <td>
-              {% if name_match is null %}<span style="color:var(--ad-text-soft)">Not compared</span>
+              {% if name_match is null %}<span style="color:var(--cn-grey-600)">Not compared</span>
               {% elseif name_match >= 0.86 %}
                 <span class="ad-chip ad-chip--green">Strong ({{ (name_match * 100)|round }}%)</span>
               {% else %}
                 <span class="ad-chip ad-chip--red">Weak ({{ (name_match * 100)|round }}%)</span>
-                <div style="margin-top:6px;font-size:13px;line-height:1.6;color:var(--ad-text-soft)">
+                <div style="margin-top:6px;font-size:13px;line-height:1.6;color:var(--cn-grey-600)">
                   {% if individual %}
                     The bank's name does not match the name this person gave. Names are compared
                     as a set of parts, so surname-first ordering and an extra middle name already
@@ -105,7 +105,7 @@
       </tbody>
     </table>
   {% elseif may_decide %}
-    <p style="font-size:14px;line-height:1.7;color:var(--ad-text-soft);margin:0 0 12px">
+    <p style="font-size:14px;line-height:1.7;color:var(--cn-grey-600);margin:0 0 12px">
       The account number is sent to Paystack once and <strong>never stored here</strong>. We keep
       the subaccount code, the bank, the last four digits and the name the bank resolved.
     </p>
@@ -129,7 +129,7 @@
         <div>
           <label for="poFee">Platform share (%)</label>
           <input id="poFee" name="fee_percent" type="number" min="0" max="100" step="0.01" value="0">
-          <small style="color:var(--ad-text-mute)">0 keeps the “100% goes to the cause” promise</small>
+          <small style="color:var(--cn-grey-500)">0 keeps the “100% goes to the cause” promise</small>
         </div>
         <div>
           <label for="poSched">Settlement schedule</label>
@@ -146,7 +146,7 @@
       </div>
     </form>
   {% else %}
-    <p style="color:var(--ad-text-soft);margin:0">No settlement account attached.</p>
+    <p style="color:var(--cn-grey-600);margin:0">No settlement account attached.</p>
   {% endif %}
   </div>
 </div>
@@ -161,7 +161,7 @@
   <div class="ad-card__body">
 
     {% if not verifier_on %}
-      <p style="font-size:13px;line-height:1.7;color:var(--ad-text-soft);margin:0 0 14px">
+      <p style="font-size:13px;line-height:1.7;color:var(--cn-grey-600);margin:0 0 14px">
         No automatic verifier is configured, so a number is <strong>confirmed by you</strong>
         rather than verified by a machine. Search the register below — the result lands on this
         page, beside the number it is about. Set <code>CAC_VERIFY_URL</code> and
@@ -194,13 +194,13 @@
         {# Unreachable is UNKNOWN, and the wording has to say so. On a screen where somebody
            decides whether a charity is real, an outage that reads as a refusal is the most
            dangerous thing this page could do. #}
-        <div style="margin-bottom:14px;border-left:4px solid var(--ad-gold);background:#fffdf5;
+        <div style="margin-bottom:14px;border-left:4px solid var(--cn-warning-dot);background:#fffdf5;
                     border-radius:0 10px 10px 0;padding:12px 15px;font-size:14px;line-height:1.65;
                     color:#6b5312" role="status">
           {{ cac_results.message }}
         </div>
       {% elseif cac_results.results is empty %}
-        <div style="margin-bottom:14px;font-size:14px;line-height:1.65;color:var(--ad-text-soft)">
+        <div style="margin-bottom:14px;font-size:14px;line-height:1.65;color:var(--cn-grey-600)">
           {{ cac_results.message }}
         </div>
       {% else %}
@@ -215,10 +215,10 @@
             {% for r in cac_results.results %}
               <tr>
                 <td><strong>{{ r.name }}</strong>
-                  {% if r.address %}<div style="font-size:12px;color:var(--ad-text-soft);margin-top:3px">{{ r.address }}</div>{% endif %}</td>
+                  {% if r.address %}<div style="font-size:12px;color:var(--cn-grey-600);margin-top:3px">{{ r.address }}</div>{% endif %}</td>
                 <td style="font-family:'Space Mono',monospace">{{ r.rc|default('—') }}</td>
                 <td>{{ r.type|default('—') }}
-                  {% if r.date %}<div style="font-size:12px;color:var(--ad-text-soft)">{{ r.date }}</div>{% endif %}</td>
+                  {% if r.date %}<div style="font-size:12px;color:var(--cn-grey-600)">{{ r.date }}</div>{% endif %}</td>
                 <td>{{ r.status|default('—') }}</td>
                 <td class="col-actions">
                   {% if may_decide %}
@@ -236,7 +236,7 @@
             </tbody>
           </table>
         </div>
-        <p style="font-size:13px;line-height:1.65;color:var(--ad-text-soft);margin:0 0 14px">
+        <p style="font-size:13px;line-height:1.65;color:var(--cn-grey-600);margin:0 0 14px">
           {{ cac_results.message }} Recording one stores the register's spelling of the name,
           which is what the bank account name is later compared against — so it must not be
           retyped by hand.
@@ -258,7 +258,7 @@
               <div style="font-size:12px;color:#84610b;margin-top:4px">{{ cac_format.message }}</div>
             {% endif %}
             {% if org.cac_registered_name %}
-              <div style="font-size:12px;color:var(--ad-text-soft);margin-top:4px">
+              <div style="font-size:12px;color:var(--cn-grey-600);margin-top:4px">
                 Register says: <strong>{{ org.cac_registered_name }}</strong></div>
             {% endif %}
             {# ── WHAT THE BACKGROUND CHECK FOUND ───────────────────────────────
@@ -304,7 +304,7 @@
         <tr>
           <th scope="row">SCUML</th>
           <td>{{ org.scuml_number|default('—') }}
-            <div style="font-size:12px;color:var(--ad-text-soft);margin-top:4px">
+            <div style="font-size:12px;color:var(--cn-grey-600);margin-top:4px">
               No public lookup exists. Check the certificate itself.</div>
           </td>
           <td>
@@ -327,7 +327,7 @@
     </table>
 
     {% if org.checked_at %}
-      <p style="font-size:13px;color:var(--ad-text-soft);margin:12px 0 0">
+      <p style="font-size:13px;color:var(--cn-grey-600);margin:12px 0 0">
         Last recorded {{ org.checked_at }}{% if org.checked_by %} by admin #{{ org.checked_by }}{% endif %}.
       </p>
     {% endif %}
@@ -355,21 +355,21 @@
           <td>
             <a href="/admin/documents/org-doc/{{ d.id }}" target="_blank" rel="noopener">{{ d.original_name|default('document') }}</a>
             <a href="/admin/documents/org-doc/{{ d.id }}?download=1"
-               style="margin-left:8px;font-size:12px;color:var(--ad-text-soft)">download</a>
+               style="margin-left:8px;font-size:12px;color:var(--cn-grey-600)">download</a>
           </td>
           <td>
             {% if d.expires_on %}
               <span class="ad-chip ad-chip--{{ expired ? 'red' : 'green' }}">
                 {{ expired ? 'Expired ' : '' }}{{ d.expires_on }}</span>
-            {% else %}<span style="color:var(--ad-text-soft)">—</span>{% endif %}
+            {% else %}<span style="color:var(--cn-grey-600)">—</span>{% endif %}
           </td>
-          <td style="font-size:13px;color:var(--ad-text-soft)">{{ d.created_at }}</td>
+          <td style="font-size:13px;color:var(--cn-grey-600)">{{ d.created_at }}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
   {% else %}
-    <p style="color:var(--ad-text-soft);margin:0 0 12px">Nothing uploaded yet.</p>
+    <p style="color:var(--cn-grey-600);margin:0 0 12px">Nothing uploaded yet.</p>
   {% endif %}
 
   {% if may_decide %}
@@ -421,21 +421,21 @@
           <tr>
             <td>
               <strong>{{ c.row.title }}</strong>
-              {% if c.row.summary %}<div style="font-size:12px;color:var(--ad-text-soft)">{{ c.row.summary }}</div>{% endif %}
-              <div style="font-size:12px;color:var(--ad-text-soft)">
+              {% if c.row.summary %}<div style="font-size:12px;color:var(--cn-grey-600)">{{ c.row.summary }}</div>{% endif %}
+              <div style="font-size:12px;color:var(--cn-grey-600)">
                 /donate/{{ org.slug }}/{{ c.row.slug }}
                 {%- if c.row.closes_on %} · closes {{ c.row.closes_on }}{% endif %}
               </div>
             </td>
             <td style="font-family:'Space Mono',monospace">
               ₦{{ c.progress.raised|number_format }}
-              {%- if c.progress.target > 0 %}<div style="font-size:12px;color:var(--ad-text-soft)">of ₦{{ c.progress.target|number_format }} ({{ c.progress.pct }}%)</div>{% endif %}
+              {%- if c.progress.target > 0 %}<div style="font-size:12px;color:var(--cn-grey-600)">of ₦{{ c.progress.target|number_format }} ({{ c.progress.pct }}%)</div>{% endif %}
             </td>
             <td style="font-size:13px">{{ shortfall[c.row.shortfall_policy]|default('—') }}</td>
             <td>
               <span class="ad-chip ad-chip--{{ chip }}">{{ camp_states[st]|default(st) }}</span>
               {% if st == 'live' and not c.open %}
-                <div style="font-size:12px;color:var(--ad-text-soft);margin-top:3px">Outside its dates</div>
+                <div style="font-size:12px;color:var(--cn-grey-600);margin-top:3px">Outside its dates</div>
               {% endif %}
             </td>
             <td class="col-actions">
@@ -461,7 +461,7 @@
       </table>
     </div>
   {% else %}
-    <p style="color:var(--ad-text-soft);margin:0">
+    <p style="color:var(--cn-grey-600);margin:0">
       No appeals. This organisation collects to its general fund at /donate/{{ org.slug }}.
     </p>
   {% endif %}
@@ -484,13 +484,13 @@
           <td>{{ u.email }}</td>
           <td>{{ u.name|default('—') }}</td>
           <td><span class="ad-chip ad-chip--{{ u.role == 'owner' ? 'blue' : 'grey' }}">{{ u.role }}</span></td>
-          <td style="font-size:13px;color:var(--ad-text-soft)">{{ u.last_login_at|default('never') }}</td>
+          <td style="font-size:13px;color:var(--cn-grey-600)">{{ u.last_login_at|default('never') }}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
   {% else %}
-    <p style="color:var(--ad-text-soft);margin:0 0 12px">No logins yet.</p>
+    <p style="color:var(--cn-grey-600);margin:0 0 12px">No logins yet.</p>
   {% endif %}
 
   {% if may_decide %}
@@ -505,7 +505,7 @@
       </div>
       <div><button class="ad-btn" type="submit">Create login</button></div>
     </form>
-    <p style="font-size:13px;color:var(--ad-text-soft);margin:10px 0 0">
+    <p style="font-size:13px;color:var(--cn-grey-600);margin:10px 0 0">
       A password is generated and shown <strong>once</strong> on the next screen. It is never
       emailed — a credential that can request payouts should not live in two mailboxes.
     </p>
@@ -529,7 +529,7 @@
           Approve and go live
         </button>
       </div>
-      <p style="font-size:13px;color:var(--ad-text-soft);margin:10px 0 0">
+      <p style="font-size:13px;color:var(--cn-grey-600);margin:10px 0 0">
         Refused unless a settlement account, a CAC number and a SCUML number are all on file.
       </p>
     </form>

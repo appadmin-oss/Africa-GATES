@@ -47,13 +47,13 @@
      "what is left" are answered without scrolling. On a phone it becomes a horizontal strip,
      because a vertical rail would take the whole screen before the form began. */
   .af__rail{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none;
-    padding:2px 0 14px; margin-bottom:4px; border-bottom:1px solid var(--ad-line,#e2e8e6) }
+    padding:2px 0 14px; margin-bottom:4px; border-bottom:1px solid var(--cn-line-card) }
   .af__rail::-webkit-scrollbar{ display:none }
   .af__tab{ flex:none; cursor:pointer; display:flex; align-items:center; gap:9px;
-    border:1px solid var(--ad-line,#e2e8e6); background:var(--ad-surface,#fff);
+    border:1px solid var(--cn-line-card); background:var(--cn-surface);
     border-radius:999px; padding:8px 15px 8px 10px; font-family:inherit; font-size:13px;
-    font-weight:600; color:var(--ad-text-mute,#5a6d6f) }
-  .af__tab:hover{ border-color:rgba(16,41,44,.28); color:var(--ad-text,#10292C) }
+    font-weight:600; color:var(--cn-grey-500) }
+  .af__tab:hover{ border-color:rgba(16,41,44,.28); color:var(--cn-ink) }
   .af__tab.is-on{ background:#10292C; border-color:#10292C; color:#fff }
   .af__n{ flex:none; width:21px; height:21px; border-radius:50%; display:flex;
     align-items:center; justify-content:center; font-size:11px; font-weight:700;
@@ -79,13 +79,13 @@
   @media (prefers-reduced-motion: reduce){ .af__step{ animation:none } }
 
   .af__head{ margin:4px 0 14px }
-  .af__head h2{ margin:0; font-size:17px; font-weight:700; color:var(--ad-text,#10292C) }
-  .af__head p{ margin:5px 0 0; font-size:13px; line-height:1.6; color:var(--ad-text-mute,#5a6d6f) }
+  .af__head h2{ margin:0; font-size:17px; font-weight:700; color:var(--cn-ink) }
+  .af__head p{ margin:5px 0 0; font-size:13px; line-height:1.6; color:var(--cn-grey-500) }
 
   /* Required fields marked, once, consistently. The absence of this was most of the confusion:
      an admin cannot tell a mandatory field from an optional one by looking at it. */
   .af-req{ color:#a4243a; font-weight:700; margin-left:2px }
-  .af-opt{ font-weight:400; color:var(--ad-text-mute,#61728e); font-size:12px; margin-left:4px }
+  .af-opt{ font-weight:400; color:var(--cn-grey-500); font-size:12px; margin-left:4px }
 
   /* ── the bar ─────────────────────────────────────────────────────────────
      Sticky, so Save is never a scroll away, and it SAYS whether there is anything unsaved.
@@ -93,20 +93,20 @@
      you press again just in case. */
   .af__bar{ position:sticky; bottom:0; z-index:5; display:flex; align-items:center; gap:12px;
     flex-wrap:wrap; margin-top:18px; padding:13px 0;
-    background:linear-gradient(to top, var(--ad-bg,#f4f7f4) 62%, rgba(244,247,244,0));
-    border-top:1px solid var(--ad-line,#e2e8e6);
+    background:linear-gradient(to top, var(--cn-fill-panel) 62%, rgba(244,247,244,0));
+    border-top:1px solid var(--cn-line-card);
     /* Room for the assistant button, which is `position:fixed` at right:20px / bottom:20px on
        every admin page (admin/partials/copilot.twig). Without this it sits directly on top of
        Save — seen in a screenshot, with the word "changes" disappearing under it. A sticky bar
        and a fixed button both anchored to the bottom-right WILL collide; the bar is the one
        that can move. */
     padding-right:88px }
-  .af__state{ flex:1; min-width:150px; font-size:13px; color:var(--ad-text-mute,#5a6d6f) }
+  .af__state{ flex:1; min-width:150px; font-size:13px; color:var(--cn-grey-500) }
   .af__state.is-dirty{ color:#8a5a00; font-weight:600 }
   .af__state.is-blocked{ color:#a4243a; font-weight:600 }
   .af__steps{ display:flex; gap:8px }
-  .af__ghost{ cursor:pointer; border:1px solid var(--ad-line,#e2e8e6);
-    background:var(--ad-surface,#fff); color:var(--ad-text,#10292C); font-family:inherit;
+  .af__ghost{ cursor:pointer; border:1px solid var(--cn-line-card);
+    background:var(--cn-surface); color:var(--cn-ink); font-family:inherit;
     font-size:13px; font-weight:600; padding:10px 16px; border-radius:999px }
   .af__ghost:disabled{ opacity:.4; cursor:not-allowed }
 

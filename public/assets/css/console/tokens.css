@@ -43,18 +43,17 @@
   --cn-fs-15:   .9375rem;
   --cn-fs-16:   1rem;
   --cn-fs-17:   1.0625rem;
-  --cn-fs-18:   1.125rem;
   --cn-fs-22:   1.375rem;
   --cn-fs-24:   1.5rem;
   --cn-fs-26:   1.625rem;
   --cn-fs-30:   1.875rem;
 
   /* §10: 3–4 (bars) · 6 · 8 (nav, inputs) · 10 · 12 (tiles, menus) · 16 (cards) ·
-     20 (modals, dark bands) · 999 (all buttons and pills). */
+     20 (modals, dark bands) · 999 (all buttons and pills). A step lands with its first
+     reader (DeadTokenTest): 10 and the 18px type step arrive with stage 2's screens. */
   --cn-r-4: 4px;
   --cn-r-6: 6px;
   --cn-r-8: 8px;
-  --cn-r-10: 10px;
   --cn-r-12: 12px;
   --cn-r-16: 16px;
   --cn-r-20: 20px;

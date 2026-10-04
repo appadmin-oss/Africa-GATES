@@ -3,66 +3,88 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use AfricaGates\Controllers\ActivityController;
 use AfricaGates\Services\ActivityFeedService;
-use DI\ContainerBuilder;
-use Slim\Psr7\Factory\ServerRequestFactory;
-use Slim\Psr7\Response;
-use Slim\Views\Twig;
+use Tests\Support\ChromeRender;
 use Tests\TestCase;
 
 /**
- * "WHO ARE YOU LOOKING FOR?" — the band, and the two claims printed on it.
+ * THE SITE'S SEARCH FIELD, AND THE TWO CLAIMS PRINTED BESIDE IT — now Discover's.
  *
- * ══════════════════════════════════════════════════════════════════════════════
- * WHY A BAND NEEDS A TEST AT ALL
- * ══════════════════════════════════════════════════════════════════════════════
+ * Destroyed and rewritten in Phase 4. The band this file guarded ("Who are you looking
+ * for?", `partials/find-band.twig`) was destroyed with the old pages, and §8.23 makes
+ * Discover's own field the find band: "the search field is Discover's own (the site
+ * find-band); there is no second field". Every rule the old file held that still has a
+ * subject is re-asserted here against that field (inventory: _partials.md, find-band).
  *
- * Because it makes two statements about the platform, in the reader's own language,
- * on the homepage — and this repository's most expensive documented failures are
- * exactly that: a true sentence outliving the rule it described.
+ * ── WHY A SEARCH FIELD NEEDS A TEST AT ALL ─────────────────────────────────
  *
- * `/cookies` said in bold "We set one cookie" while three were being set and "We run
- * no analytics" while every arrival's source, campaign, device and country was being
- * recorded. Both were true the day they were typed. A search box that says what it
- * searches is the same document making the same kind of claim, and it will go stale
- * the same way — the day somebody adds a source, or removes one.
- *
- * So the coverage sentence is GENERATED from `ActivityFeedService::SOURCES` and this
- * file asserts the generation, not the wording. The test moves when the rule moves.
- *
- * ── AND ONE SENTENCE IS A GUARANTEE RATHER THAN A DESCRIPTION ───────────────
- *
- * "Nothing unannounced is searchable" is the platform's central promise, printed
- * where a stranger reads it. {@see UnannouncedResultTest} is the evidence for it;
- * this file only holds that the claim and the evidence stay on the same page as each
- * other — a promise with no test behind it should not be printed, and a gate with
- * nothing saying so is a courtesy nobody knows they have.
+ * Because it makes two statements about the platform, and this repository's most
+ * expensive documented failures are exactly that: a true sentence outliving the rule it
+ * described (`/cookies` said "We set one cookie" while three were set). So the coverage
+ * sentence is GENERATED from `ActivityFeedService::SOURCES` and this file asserts the
+ * generation, not the wording; and "Nothing unannounced is searchable" — the platform's
+ * central promise — must stay printed beside the evidence for it.
  */
 final class FindBandTest extends TestCase
 {
-    /** The band as the activity surface renders it — the live, opted-in variant. */
-    private function render(): string
+    private function page(): string
     {
-        $builder = new ContainerBuilder();
-        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
-        $c = $builder->build();
-
-        $controller = new ActivityController($c->get(Twig::class), new ActivityFeedService());
-        $req = (new ServerRequestFactory())->createServerRequest('GET', '/activity');
-
-        return (string) $controller->index($req, new Response())->getBody();
+        return ChromeRender::html('/discover');
     }
 
-    private function partial(): string
+    /** The coverage sentence as a reader sees it, tags removed. */
+    private function sentence(): string
     {
-        return (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/partials/find-band.twig');
+        $this->assertMatchesRegularExpression('~<p class="dv__note" id="dvNote">(.*?)</p>~s', $this->page());
+        preg_match('~<p class="dv__note" id="dvNote">(.*?)</p>~s', $this->page(), $m);
+
+        return trim((string) preg_replace('/\s+/', ' ', strip_tags(html_entity_decode($m[1]))));
     }
 
-    // ── What it says it covers ───────────────────────────────────────────────
+    public function test_the_field_posts_to_discover_and_is_the_only_one(): void
+    {
+        $html = $this->page();
+        $this->assertMatchesRegularExpression('~<form class="dv__form" method="get" action="/discover" role="search"~', $html);
+        $main = substr($html, (int) strpos($html, '<main'), (int) strpos($html, '</main>') - (int) strpos($html, '<main'));
+        $this->assertSame(1, preg_match_all('~<input[^>]*type="search"~', $main), 'one search field on the surface, never a second');
+    }
 
-    // ── The promise ──────────────────────────────────────────────────────────
+    public function test_the_field_carries_a_real_label_and_the_sentence_describes_it(): void
+    {
+        $html = $this->page();
+        $this->assertMatchesRegularExpression('~<label class="dv__field" for="dvQ">~', $html);
+        $this->assertMatchesRegularExpression('~id="dvQ"[^>]*aria-describedby="dvNote"~', $html,
+            'the coverage sentence is the field\'s description, so a screen reader hears it on focus');
+    }
+
+    public function test_every_named_source_appears_in_the_sentence(): void
+    {
+        $nouns = ActivityFeedService::nouns();
+        $this->assertNotEmpty($nouns);
+        foreach ($nouns as $n) $this->assertStringContainsString($n, $this->sentence());
+    }
+
+    public function test_a_source_with_no_public_noun_is_still_covered_by_the_sentence(): void
+    {
+        $unnamed = array_filter(ActivityFeedService::SOURCES, static fn (array $s): bool => $s['noun'] === null);
+        $this->assertNotEmpty($unnamed, 'this test is vacuous if every source is named');
+        $this->assertStringContainsString('and everything else published here.', $this->sentence(),
+            'sources are searched that the sentence neither names nor admits to');
+    }
+
+    public function test_the_sentence_is_not_typed_into_the_template(): void
+    {
+        $src = ChromeRender::source('templates/pages/discover.twig');
+        $this->assertStringContainsString('search_covers()', $src, 'the field must generate its coverage sentence');
+        foreach (ActivityFeedService::nouns() as $n) {
+            $this->assertStringNotContainsString($n, $src, "'$n' is typed into the template");
+        }
+    }
+
+    public function test_the_promise_is_printed(): void
+    {
+        $this->assertStringContainsString('Nothing unannounced is searchable.', $this->sentence());
+    }
 
     public function test_the_promise_has_a_test_behind_it(): void
     {
@@ -70,8 +92,17 @@ final class FindBandTest extends TestCase
         // Named by file rather than by re-testing the behaviour here: two tests with
         // their own idea of what "announced" means is how they come to disagree.
         $this->assertFileExists(dirname(__DIR__) . '/Unit/UnannouncedResultTest.php',
-            'the band promises nothing unannounced is searchable and nothing proves it');
+            'the field promises nothing unannounced is searchable and nothing proves it');
     }
 
-    // ── The things that fail silently ────────────────────────────────────────
+    public function test_the_live_search_hooks_survive_and_are_bound(): void
+    {
+        $html = $this->page();
+        foreach (['data-dv-form', 'data-dv-q'] as $hook) {
+            $this->assertStringContainsString($hook, $html, "the search field lost the hook $hook");
+        }
+        $js = ChromeRender::code('public/assets/js/discover.js');
+        $this->assertStringContainsString("root.querySelector('[data-dv-q]')", $js);
+        $this->assertStringContainsString("root.querySelector('[data-dv-form]')", $js);
+    }
 }

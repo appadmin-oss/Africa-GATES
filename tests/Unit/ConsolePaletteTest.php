@@ -173,4 +173,13 @@ final class ConsolePaletteTest extends TestCase
         $this->assertLessThan($sheet, $at, 'the palette is emitted after the stylesheets');
         $this->assertStringNotContainsString('ag_accents()', $body, 'the public palette in the console');
     }
+
+    public function test_the_rebuilt_console_types_no_colour(): void
+    {
+        foreach (\Tests\Support\ConsoleSurface::files() as $rel => $abs) {
+            $this->assertSame(0, ColourLiteralTest::literals((string) file_get_contents($abs)),
+                "$rel types a colour. The console's colours are Accent's console set — var(--cn-*), "
+              . 'or color-mix() of one.');
+        }
+    }
 }

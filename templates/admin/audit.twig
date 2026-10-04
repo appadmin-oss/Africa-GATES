@@ -27,7 +27,7 @@
   <div class="ad-card__body" style="display:flex;gap:26px;flex-wrap:wrap;align-items:baseline">
     <div>
       <div class="aud__k">Recorded</div>
-      <div class="aud__v">{{ result.total|number_format }}{% if active %} <span style="font-weight:400;color:var(--ad-text-mute)">of {{ facets.total|number_format }}</span>{% endif %}</div>
+      <div class="aud__v">{{ result.total|number_format }}{% if active %} <span style="font-weight:400;color:var(--cn-grey-500)">of {{ facets.total|number_format }}</span>{% endif %}</div>
     </div>
     <div>
       <div class="aud__k">First</div>
@@ -52,7 +52,7 @@
    `devices` is the count of distinct ip_hash values. That column has been written
    on every row since the table shipped and rendered nowhere until now. ─────── #}
 {% if actor is defined and actor %}
-<div class="ad-card" style="margin-bottom:14px;border-left:3px solid var(--ad-gold,#f3b416)">
+<div class="ad-card" style="margin-bottom:14px;border-left:3px solid var(--cn-warning-dot)">
   <div class="ad-card__head"><div class="ad-card__title">
     {{ result.rows|length ? (result.rows[0].admin_name ?? result.rows[0].admin_email ?? 'Admin #' ~ actor_id) : 'Admin #' ~ actor_id }}
     <small>{{ actor.total|number_format }} recorded action{{ actor.total == 1 ? '' : 's' }}</small>
@@ -89,7 +89,7 @@
 
 {# ── ONE RECORD'S WHOLE HISTORY ───────────────────────────────────────────── #}
 {% if subject %}
-<div class="ad-card" style="margin-bottom:14px;border-left:3px solid var(--ad-primary,#237b22)">
+<div class="ad-card" style="margin-bottom:14px;border-left:3px solid var(--cn-ink)">
   <div class="ad-card__body" style="display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap">
     <div>
       <div class="aud__k">{{ subject.label }} #{{ subject.id }}</div>
@@ -286,54 +286,54 @@
 <style nonce="{{ csp_nonce }}">
   /* Micro-label + figure, the house pattern for a stat. */
   .aud__k{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.09em;
-          text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
-  .aud__v{font-size:22px;font-weight:600;color:var(--ad-text,#12211f);line-height:1.25}
+          text-transform:uppercase;color:var(--cn-grey-500)}
+  .aud__v{font-size:22px;font-weight:600;color:var(--cn-ink);line-height:1.25}
   .aud__v--sm{font-size:14px;font-weight:500}
-  .aud__note{font-size:13px;color:var(--ad-text-soft,#42514f);margin:0 0 12px;line-height:1.5}
+  .aud__note{font-size:13px;color:var(--cn-grey-600);margin:0 0 12px;line-height:1.5}
 
   .aud__filters{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
   .aud__refine{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
-               border-top:1px solid var(--ad-line,#dfe4e3);padding-top:12px}
+               border-top:1px solid var(--cn-line-card);padding-top:12px}
   /* A chip is a link and therefore a target: the 24px floor applies (WCAG 2.5.8). */
   .aud__off{text-decoration:none;min-height:24px;display:inline-flex;align-items:center}
   .aud__field{display:flex;flex-direction:column;gap:4px;min-width:150px}
   .aud__field--narrow{min-width:110px}
   .aud__field--actions{flex-direction:row;gap:8px;align-items:flex-end;min-width:0}
   .aud__field label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.09em;
-                    text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
+                    text-transform:uppercase;color:var(--cn-grey-500)}
   .aud__field input,.aud__field select{
-    padding:9px 11px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;
-    background:#fff;font:inherit;font-size:14px;color:var(--ad-text,#12211f);
+    padding:9px 11px;border:1px solid var(--cn-line-card);border-radius:9px;
+    background:#fff;font:inherit;font-size:14px;color:var(--cn-ink);
     /* 24px is the WCAG 2.5.8 floor; this clears it with room for a fingertip. */
     min-height:40px}
   .aud__field input:focus-visible,.aud__field select:focus-visible{
-    outline:2px solid var(--ad-primary,#237b22);outline-offset:1px}
+    outline:2px solid var(--cn-ink);outline-offset:1px}
 
   .aud__table td{vertical-align:top}
   .aud__when{font-family:'Space Mono',monospace;font-size:12px;
-             color:var(--ad-text-soft,#42514f);white-space:nowrap}
-  .aud__muted{color:var(--ad-text-mute,#5a6d6f)}
+             color:var(--cn-grey-600);white-space:nowrap}
+  .aud__muted{color:var(--cn-grey-500)}
   .aud__target{text-decoration:none;display:inline-flex;flex-direction:column;gap:1px}
   .aud__target__k{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.08em;
-                  text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
-  .aud__target__n{color:var(--ad-text,#12211f);font-size:13px}
+                  text-transform:uppercase;color:var(--cn-grey-500)}
+  .aud__target__n{color:var(--cn-ink);font-size:13px}
   .aud__target:hover .aud__target__n{text-decoration:underline}
-  .aud__open{margin-left:6px;text-decoration:none;color:var(--ad-text-mute,#5a6d6f);
+  .aud__open{margin-left:6px;text-decoration:none;color:var(--cn-grey-500);
              /* A bare glyph is a 12px target; pad it to the 24px floor. */
              display:inline-block;min-width:24px;min-height:24px;line-height:24px;text-align:center}
 
   .aud__meta{max-width:320px}
-  .aud__kv{display:block;font-size:12px;color:var(--ad-text-soft,#42514f);
+  .aud__kv{display:block;font-size:12px;color:var(--cn-grey-600);
            line-height:1.5;word-break:break-word}
   .aud__kv b{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.06em;
-             text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f);margin-right:6px;font-weight:400}
+             text-transform:uppercase;color:var(--cn-grey-500);margin-right:6px;font-weight:400}
 
   .aud__from{white-space:nowrap}
   .aud__dev{font-family:'Space Mono',monospace;font-size:11px;padding:2px 6px;
-            border:1px solid var(--ad-line,#dfe4e3);border-radius:5px;
-            color:var(--ad-text-soft,#42514f)}
-  .aud__ua{display:block;font-size:11px;color:var(--ad-text-mute,#5a6d6f);margin-top:3px}
-  .aud__empty{text-align:center;padding:34px 16px;color:var(--ad-text-mute,#5a6d6f)}
+            border:1px solid var(--cn-line-card);border-radius:5px;
+            color:var(--cn-grey-600)}
+  .aud__ua{display:block;font-size:11px;color:var(--cn-grey-500);margin-top:3px}
+  .aud__empty{text-align:center;padding:34px 16px;color:var(--cn-grey-500)}
 
   @media (max-width:760px){
     .aud__meta{max-width:200px}

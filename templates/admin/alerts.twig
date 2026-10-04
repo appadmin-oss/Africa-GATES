@@ -1,0 +1,65 @@
+{% extends "admin/layout.twig" %}
+{#
+  ALERTS — README §4.3, stage 1 (4 Oct 2026). The list, Open · High, and each alert's
+  detail and next step, from Admin\Services\ConsoleAlerts — facts the platform already
+  records, derived on read. The Closed tab, Assign to me, Close-with-reason and the
+  seven-day timeline need alert STATE and are the Alerts screen's own build in stage 2
+  (docs/handoff/PHASE-ADMIN.md). Every severity is a dot AND its word (rule 3).
+#}
+{% block content %}
+<nav class="cn-tabs" aria-label="Which alerts">
+  <a class="cn-tab" href="/admin/alerts"{% if tab == 'open' %} aria-current="page"{% endif %}>Open <span class="cn-tab__n">{{ n_open }}</span></a>
+  <a class="cn-tab" href="/admin/alerts?tab=high"{% if tab == 'high' %} aria-current="page"{% endif %}>High <span class="cn-tab__n">{{ n_high }}</span></a>
+</nav>
+
+{% if alerts is empty %}
+  <div class="cn-empty">
+    <span class="cn-empty__t">Nothing here</span>
+    <span class="cn-empty__m">{% if tab == 'high' %}No high-severity alert is open.{% else %}The checks this page reads are all passing.{% endif %}</span>
+  </div>
+{% else %}
+  <div class="cn-split">
+    <div class="cn-card cn-split__list">
+      <table class="cn-table">
+        <thead><tr><th scope="col">Severity</th><th scope="col">Alert</th><th scope="col">Source</th><th scope="col">Raised</th></tr></thead>
+        <tbody>
+          {% for a in alerts %}
+            <tr{% if focus and a.key == focus.key %} aria-current="true"{% endif %}>
+              <td><span class="cn-status cn-status--{{ a.severity }}">{{ a.severity|capitalize }}</span></td>
+              <td><a class="cn-table__main" href="/admin/alerts?{{ tab == 'high' ? 'tab=high&' : '' }}alert={{ a.key|url_encode }}">{{ a.title }}</a></td>
+              <td>{{ a.source }}</td>
+              <td class="cn-table__time">{{ a.raised ? a.raised|when : 'Now' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if focus %}
+      <section class="cn-card cn-split__detail" aria-labelledby="cnAlertT">
+        <div class="cn-detail__head">
+          <span class="cn-status cn-status--{{ focus.severity }}">{{ focus.severity|capitalize }} · {{ focus.source }}</span>
+          <h2 class="cn-detail__t" id="cnAlertT">{{ focus.title }}</h2>
+          <span class="cn-detail__s">Raised {{ focus.raised ? focus.raised|when : 'now' }} · open while its check fails</span>
+        </div>
+        <div class="cn-detail__body">
+          <p class="cn-detail__p"><strong>What happened.</strong> {{ focus.summary }}</p>
+          {% if focus.facts %}
+            <dl class="cn-facts">
+              {% for f in focus.facts %}<div><dt>{{ f[0] }}</dt><dd>{{ f[1] }}</dd></div>{% endfor %}
+            </dl>
+          {% endif %}
+          {% if focus.href and focus.can_act %}
+            <div class="cn-rec">
+              <span class="cn-rec__t">Recommended action</span>
+              <a class="cn-btn cn-btn--primary" href="{{ focus.href }}">{{ focus.cta }}</a>
+            </div>
+          {% elseif focus.href %}
+            <p class="cn-detail__s">The page that fixes this is outside what your role can open. Tell an administrator who can.</p>
+          {% endif %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

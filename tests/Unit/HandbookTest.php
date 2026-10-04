@@ -61,7 +61,8 @@ final class HandbookTest extends TestCase
         $html = $twig->render('admin/handbook.twig', [
             'page_title'   => 'Handbook',
             'admin_page'   => 'handbook',
-            'areas'        => AdminNav::sections(),
+            'areas'        => AdminNav::groups(),
+            'home_area'    => AdminNav::home(),
             'roles'        => Permissions::ROLES,
             'matrix'       => Permissions::MATRIX,
             'your_role'    => 'admin',
@@ -95,15 +96,25 @@ final class HandbookTest extends TestCase
      * function with no caller. A handbook in `docs/` would be worse still: there is no SSH
      * on production, so an administrator cannot open one at all.
      */
-    public function test_the_handbook_is_in_the_rail_for_every_role(): void
+    public function test_the_handbook_is_offered_by_the_shell_to_every_role_that_can_open_it(): void
     {
-        $overview = AdminNav::sections()[0];
-        $this->assertNull($overview['gate'],
-            'the handbook lives in the always-visible section: a role that cannot reach an '
-            . 'area still needs to know it exists and why their rail is shorter');
+        // Rebuilt with the console (4 Oct 2026). The handbook is reached from the account
+        // menu, and only where the GUARD lets the role open it — the old test asserted it
+        // sat in an ungated rail section while SectionGuardMiddleware, finding no mapping
+        // for `/admin/handbook`, refused it to every role but superadmin. The rail promised
+        // what the guard denied. Whether to map it to `overview` (every role, as CLAUDE.md
+        // intends) is an ACCESS change the owner has to make: PHASE-ADMIN.md, open
+        // question 1. Until then the shell offers it exactly where it opens.
+        $this->assertContains('handbook', array_column(AdminNav::elsewhere(), 'page'));
+        $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/layout.twig');
+        $this->assertStringContainsString('{% if shell.handbook %}', $layout);
+        $this->assertStringContainsString('href="/admin/handbook"', $layout);
 
-        $pages = array_column($overview['items'], 'page');
-        $this->assertContains('handbook', $pages);
+        foreach (array_keys(Permissions::ROLES) as $role) {
+            $_SESSION['admin_role'] = $role;
+            $this->assertSame(Permissions::canOpen($role, '/admin/handbook'),
+                \AfricaGates\Admin\Support\ConsoleShell::context('handbook')['handbook'], $role);
+        }
 
         $routes = (string) file_get_contents(dirname(__DIR__, 2) . '/src/routes.php');
         $this->assertStringContainsString("'/handbook'", $routes);
@@ -114,7 +125,7 @@ final class HandbookTest extends TestCase
     /**
      * EVERY AREA IN THE RAIL IS DESCRIBED.
      *
-     * Looped from `AdminNav::sections()` in the template, so an area added to the console
+     * Looped from `AdminNav::groups()` in the template, so an area added to the console
      * appears here with no edit. This asserts the loop is still a loop — a heading typed
      * by hand would pass on the day it was written and silently omit the next one.
      */
@@ -122,7 +133,7 @@ final class HandbookTest extends TestCase
     {
         $html = $this->render();
 
-        foreach (AdminNav::sections() as $section) {
+        foreach (AdminNav::groups() as $section) {
             // `&` in a label arrives escaped, which is Twig doing its job.
             $label = str_replace('&', '&amp;', $section['label']);
             $this->assertStringContainsString($label, $html,

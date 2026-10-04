@@ -1,3 +1,26 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE ADMIN CONSOLE SHELL — destroyed and rebuilt 4 Oct 2026 from the admin handoff
+  (`design_handoff_admin_console`, README §2 and `Admin Console v9.dc.html`).
+  What the old layout did, rule by rule, and where each rule lives now:
+  docs/handoff/inventory/_admin.md. Decisions and deviations: docs/handoff/PHASE-ADMIN.md.
+  ══════════════════════════════════════════════════════════════════════════════
+
+  · Grid `auto minmax(0,1fr)`, the viewport's height; ONLY the rail's nav and <main>
+    scroll (§2). The top bar is 56px and its right-hand group never takes `min-width:0`,
+    which is the overlap the handoff warns about.
+  · Colour is `ag_accents('console')` — the console set of Support\Accent — in a nonced
+    <style> BEFORE the stylesheets. The public palette is never emitted here.
+  · Everything the shell knows comes from ONE call, `console_shell()` (ConsoleShell):
+    the rail for this role, where the request is, pins, the counts, the alert pill. It is
+    set at template scope, never inside a block (TwigBlockScopeTest), so every block reads it.
+  · No inline handlers and no inline <script> without the nonce (admin CSP). Behaviour is
+    delegated in admin.js on `data-ag-do`.
+  · Every control works without script: the pin toggle, unpin and the sidebar toggle are
+    forms that post; the palette and the drawer are enhancements over the rail and the
+    assistant's own page.
+#}
+{% set shell = console_shell(admin_page|default(null)) %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,263 +28,298 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ page_title|default('Admin — Africa GATES') }}</title>
 <meta name="csrf-token" content="{{ csrf_token }}">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1220'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Georgia' font-size='34' font-weight='700' fill='%23f3b416'%3EG%3C/text%3E%3C/svg%3E">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<script nonce="{{ csp_nonce }}">document.documentElement.classList.add('cn-js');</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Montserrat:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
 <link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">
-<link rel="stylesheet" href="{{ asset('/assets/css/admin.css') }}">
-{# Accessibility layer — loaded LAST so its corrections win (WCAG 2.2 AA), the same
-   order gates.twig uses. It was reaching only the public site: the admin got none of
-   the 44px coarse-pointer target minimums, the forced-colors (Windows High Contrast)
-   handling, the prefers-contrast strengthening, or the aria-invalid field styling —
-   on the surface staff use every day, and the one where a misread number moves money.
-   admin.css defines its own .sr-only; this sheet's copy is identical, so the duplicate
-   is harmless and the two cannot drift apart into a broken visually-hidden class. #}
-<link rel="stylesheet" href="{{ asset('/assets/css/a11y.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/console.css') }}">
 {% block head_styles %}{% endblock %}
 </head>
-<body data-page-admin>
+<body class="cn" data-console{% if not shell.can_write %} data-readonly{% endif %}{% if shell.sidebar_closed %} data-side="closed"{% endif %}>
 
-<a href="#adMain" class="skip-link">Skip to content</a>
+<a href="#cnMain" class="cn-skip">Skip to content</a>
+{% include 'admin/partials/nav-icons.twig' %}
 
-<div class="ad-shell">
+<div class="cn-shell" id="cnShell">
 
-  {% include 'admin/partials/nav-icons.twig' %}
-
-  {# ── THE COMMAND PALETTE ─────────────────────────────────────────────────────
-     Cmd/Ctrl+K. The reason the rail can hold seven headings instead of thirty-seven
-     links: NN/g measured discoverability halving when navigation is hidden, and the
-     documented resolution is a hybrid — a few destinations visible, the tail reachable
-     another way. This is that other way, and for an interface somebody is in all day it
-     is the expected one (VS Code and Sublime first, now Figma, Notion and Linear).
-
-     Built as a <dialog> so focus trapping, Escape and the backdrop are the browser's job
-     rather than ours. Progressive: with no JavaScript the rail and the in-page sub-nav
-     still reach every page, and this simply never opens. #}
-  <dialog class="ad-cmd" id="adCmd" aria-label="Jump to a page">
-    <form method="dialog" class="ad-cmd__box">
-      <input class="ad-cmd__in" id="adCmdIn" type="search" autocomplete="off"
-             placeholder="Jump to…  (type a page name)" aria-label="Search admin pages"
-             aria-controls="adCmdList" aria-expanded="true">
-      <ul class="ad-cmd__list" id="adCmdList" role="listbox" aria-label="Pages">
-        {% for sec in admin_nav %}
-          {% for item in sec.items %}
-            <li role="option" aria-selected="false">
-              <a class="ad-cmd__i" href="{{ item.href }}"
-                 data-cmd="{{ (item.label ~ ' ' ~ sec.label)|lower }}">
-                <svg class="ico" aria-hidden="true" focusable="false"><use href="#ic-{{ item.page }}"/></svg>
-                <span class="ad-cmd__l">{{ item.label }}</span>
-                <span class="ad-cmd__s">{{ sec.label }}</span>
-              </a>
-            </li>
-          {% endfor %}
-        {% endfor %}
-      </ul>
-      <p class="ad-cmd__none" id="adCmdNone" hidden>Nothing matches that.</p>
-    </form>
-  </dialog>
-
-  {# Sidebar #}
-  <aside class="ad-side" id="adSide">
-    <div class="ad-side__brand">
-      <span class="mark">G</span>
-      <span class="label">Africa GATES<small>Admin Console</small></span>
+  {# ── THE SIDEBAR (§2.1, §2.2) ─────────────────────────────────────────────── #}
+  <aside class="cn-side" id="cnSide" aria-label="Console">
+    <div class="cn-side__brand">
+      <img src="/assets/img/logo-mark.png" alt="" width="24" height="24">
+      <span>Africa GATES</span>
     </div>
+    <nav class="cn-nav" aria-label="Console pages">
+      {% if shell.home %}
+        <a class="cn-nav__i" href="{{ shell.home.href }}"{% if shell.current == 'dashboard' %} aria-current="page"{% endif %}>
+          <svg aria-hidden="true" focusable="false"><use href="#ic-home"/></svg>
+          <span class="cn-nav__l">Home</span>
+        </a>
+      {% endif %}
 
-    {# ── THE NAVIGATION ─────────────────────────────────────────────────────
-       Was thirty-six hand-written links, every group expanded at once, each repeating
-       its own active test and its own inline SVG. The tree now lives in
-       AdminNav::sections() and this loops it; the icons live in one sprite.
+      {% if shell.pins %}
+        <div class="cn-nav__group">
+          <span class="cn-nav__label" id="cnPinsLabel">Pinned</span>
+          <ul aria-labelledby="cnPinsLabel">
+            {% for p in shell.pins %}
+              <li class="cn-pin">
+                <a class="cn-nav__i" href="{{ p.href }}"{% if p.href == shell.here %} aria-current="page"{% endif %}>
+                  <svg aria-hidden="true" focusable="false"><use href="#ic-shortlists"/></svg>
+                  <span class="cn-nav__l">{{ p.label }}</span>
+                  {% if p.count is not null %}<span class="cn-nav__n">{{ p.count }}</span>{% endif %}
+                </a>
+                <form method="post" action="/admin/me/pins/{{ p.id }}/unpin" data-cn-safe data-ag-do="unpin">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="back" value="{{ shell.here }}">
+                  <button type="submit" class="cn-pin__x" aria-label="Unpin {{ p.label }}" title="Unpin">✕</button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
 
-       <details>/<summary>, not a JS accordion. It collapses, it is keyboard operable
-       and it is announced correctly by a screen reader with no script at all — which
-       matters on the page an operator opens to find out why the site is broken. The
-       section holding the current page is `open`, so arriving anywhere shows you where
-       you are without a click. #}
-    {% for sec in admin_nav %}
-      {% set here = sec.items|filter(i => i.page == admin_page)|length > 0 %}
-      <details class="ad-side__sec" {% if here %}open{% endif %}>
-        {# The (i) badge that used to sit here is gone. Twelve of them competed with the
-           labels they were explaining; the text is on the heading itself, which a screen
-           reader reads and a pointer surfaces without adding a second target. #}
-        <summary class="ad-side__sectitle" title="{{ sec.tip }}">
-          <span>{{ sec.label }}</span>
-          <svg class="ad-side__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="6 9 12 15 18 9"/></svg>
-        </summary>
-        <nav aria-label="{{ sec.label }}">
-          {% for item in sec.items %}
-            <a class="ad-side__link {% if admin_page == item.page %}is-active{% endif %}"
-               href="{{ item.href }}"{% if admin_page == item.page %} aria-current="page"{% endif %}>
-              <svg class="ico" aria-hidden="true" focusable="false"><use href="#ic-{{ item.page }}"/></svg>
-              {{ item.label }}
-            </a>
-          {% endfor %}
-        </nav>
-      </details>
-    {% endfor %}
-
-    <div class="ad-side__foot">
-      <span class="avatar">{{ admin_name|default('A')|first|upper }}</span>
-      <div class="who">
-        <div class="n">{{ admin_name|default('Admin') }}</div>
-        <div class="e">{{ admin_email|default('') }}</div>
-        {% if admin_role_label %}<div class="e" style="margin-top:3px;font-weight:700;color:#7FC87C;text-transform:uppercase;letter-spacing:.08em;font-size:10px">{{ admin_role_label }}</div>{% endif %}
-      </div>
-      <a href="/admin/logout" class="out" data-tip="Sign out" aria-label="Sign out">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      </a>
-    </div>
+      {% for g in shell.groups %}
+        <div class="cn-nav__group"{% if g.fold %} data-fold{% if g.forced_open %} data-open{% endif %}{% endif %}>
+          <span class="cn-nav__label" id="cnGroup{{ loop.index }}">{{ g.label }}</span>
+          <ul aria-labelledby="cnGroup{{ loop.index }}">
+            {% for i in g.items %}
+              <li{% if i.folded %} data-folded{% endif %}>
+                <a class="cn-nav__i" href="{{ i.href }}"{% if shell.current == i.page %} aria-current="page"{% endif %}>
+                  <svg aria-hidden="true" focusable="false"><use href="#ic-{{ i.icon }}"/></svg>
+                  <span class="cn-nav__l">{{ i.label }}</span>
+                  {% set n = i.page == 'review' ? shell.counts.review : (i.page == 'payments' ? shell.counts.payments : (i.page == 'alerts' ? shell.counts.alerts : null)) %}
+                  {% if n %}<span class="cn-nav__n">{{ n }}</span>{% endif %}
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+          {% if g.fold %}
+            <button type="button" class="cn-nav__more" data-ag-do="nav-more"
+                    aria-expanded="{{ g.forced_open ? 'true' : 'false' }}"
+                    data-more="{{ g.hidden_count }} more" data-less="Show less">
+              <span aria-hidden="true">···</span><span class="cn-nav__more-l">{{ g.forced_open ? 'Show less' : g.hidden_count ~ ' more' }}</span>
+            </button>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </nav>
   </aside>
+  <div class="cn-scrim" data-ag-do="side-close" hidden></div>
 
-  {# Main #}
-  <main class="ad-main" id="adMain" tabindex="-1">
+  <div class="cn-col">
 
-    <div class="ad-topbar">
-      <button class="ad-mobile-toggle" id="adMobileToggle" aria-label="Open menu" aria-controls="adSide" aria-expanded="false">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
-      {% set admin_help = {
-        'dashboard': 'Your at-a-glance overview — key metrics and recent activity.',
-        'profiles': 'Registry profiles. Review, approve, edit or remove community profiles.',
-        'nominations': 'Review submitted nominations and approve them into nominees.',
-        'nominees': 'Approved nominees — manage status, link profiles and set winners.',
-        'programmes': 'Award programmes, their cycles, categories and editable terms.',
-        'awards-page': 'Edit the content shown on the public Awards landing page.',
-        'judges': 'Invite and manage the judging panel and their programme assignments.',
-        'interviews': 'Schedule and run the judging interviews over Google Meet, then publish the transcript to the panel.',
-        'questionnaires': 'Ask each nominee about their own work and let them attach evidence, per award programme.',
-        'events': 'Create and customise events — schedule, ticket tiers and the early-bird banner.',
-        'posts': 'Write and publish blog posts (audio and polls supported).',
-        'legacy': 'Past-edition recaps shown in the Legacy Vault.',
-        'opportunities': 'Opportunities listings surfaced to the community.',
-        'partners': 'Partnership enquiries submitted from the public site.',
-        'partner-orgs': 'Organisations collecting donations through the platform — vetting, settlement accounts and dashboard logins.',
-        'media': 'Uploaded images and files used across the site.',
-        'products': 'Shop products, pricing and delivery regions.',
-        'forms': 'Build custom forms with field types, conditional logic and validation — published at /f/{key}.',
-        'data': 'Browse every dataset collected — paginated tables, full-detail pages and CSV export.',
-        'registrations': 'Event RSVP / ticket registrations — filterable and exportable.',
-        'finance': 'Every naira taken — donations, paid votes, shop orders and event tickets, with what still needs chasing.',
-        'admins': 'Manage admin accounts and their access levels.',
-        'settings': 'Site-wide configuration — branding, email, AI, points, pricing and eligibility.',
-        'webhooks': 'Outbound webhooks to integrations and AI agents.'
-      } %}
-      <h1 class="ad-h1">
-        {% block topbar_eyebrow %}{% endblock %}
-        {% block topbar_title %}{{ page_title }}{% endblock %}
-        {% if admin_help[admin_page] is defined %}<span class="ad-info" data-tip="{{ admin_help[admin_page] }}" tabindex="0" role="img" aria-label="About this page: {{ admin_help[admin_page] }}">i</span>{% endif %}
-      </h1>
-      <div class="ad-actions">
-        {# The hint is visible on purpose: an unlabelled shortcut is a feature only the
-           person who built it has. #}
-        <button class="ad-cmd__open" id="adCmdOpen" type="button" aria-haspopup="dialog">
-          <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <span>Jump to…</span><kbd>⌘K</kbd>
-        </button>
-        {% block topbar_actions %}{% endblock %}
+    {# ── THE TOP BAR (§2.3) ─────────────────────────────────────────────────── #}
+    <header class="cn-bar">
+      <div class="cn-bar__left">
+        <form method="post" action="/admin/me/sidebar" class="cn-bar__toggle-form" data-cn-safe>
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="closed" value="{{ shell.sidebar_closed ? '0' : '1' }}">
+          <input type="hidden" name="back" value="{{ shell.here }}">
+          <button type="submit" class="cn-iconbtn" data-ag-do="side-toggle" aria-controls="cnSide"
+                  aria-expanded="{{ shell.sidebar_closed ? 'false' : 'true' }}" aria-label="Toggle sidebar">
+            <svg aria-hidden="true" focusable="false"><use href="#ic-sidebar"/></svg>
+          </button>
+        </form>
+        <span class="cn-bar__title">{{ block('topbar_title') }}</span>
       </div>
-    </div>
 
-    {# ── THE SECOND LEVEL ───────────────────────────────────────────────────
-       This page's siblings, as a strip under the title. The sidebar answers "where
-       else can I go"; this answers "what else is part of THIS job", which is the
-       question somebody actually has while doing it — and it survives the sidebar
-       being collapsed on a phone.
+      <button type="button" class="cn-search" data-ag-do="palette-open" aria-haspopup="dialog" aria-controls="cnPal">
+        <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
+        <span class="cn-search__l">Search everything</span>
+        <kbd class="cn-kbd" data-cn-kbd>⌘K</kbd>
+      </button>
 
-       Rendered from the same AdminNav tree as the sidebar, so a page cannot appear in
-       one and not the other. Omitted for a lone page rather than drawn as a bar with a
-       single tab in it. #}
-    {% set here_sec = admin_nav|filter(s => s.items|filter(i => i.page == admin_page)|length > 0)|first %}
-    {% set siblings = here_sec ? here_sec.items : [] %}
-    {% if siblings|length > 1 %}
-      <nav class="ad-subnav" aria-label="{{ here_sec.label }}">
-        {% for item in siblings %}
-          <a class="ad-subnav__link {% if admin_page == item.page %}is-active{% endif %}"
-             href="{{ item.href }}"{% if admin_page == item.page %} aria-current="page"{% endif %}>
-            <svg class="ico" aria-hidden="true" focusable="false"><use href="#ic-{{ item.page }}"/></svg>
-            {{ item.label }}
+      <div class="cn-bar__right">
+        {% if shell.alert_pill %}
+          <a class="cn-alertpill cn-alertpill--{{ shell.alert_pill.tone }}" href="{{ shell.alert_pill.href }}">
+            <span class="cn-dot" aria-hidden="true"></span><span class="cn-alertpill__l">{{ shell.alert_pill.label }}</span>
           </a>
-        {% endfor %}
-      </nav>
-    {% endif %}
+        {% endif %}
+        {% if shell.assistant %}
+          <button type="button" class="cn-pillbtn cn-askpill" data-ag-do="assist-open" aria-haspopup="dialog" aria-controls="cnAssist">
+            <svg aria-hidden="true" focusable="false"><use href="#ic-assistant"/></svg><span class="cn-askpill__l">Ask</span>
+          </button>
+        {% endif %}
+        <div class="cn-acct">
+          <button type="button" class="cn-avatar" data-ag-do="acct-toggle" aria-haspopup="menu"
+                  aria-expanded="false" aria-controls="cnAcct" aria-label="Account: {{ shell.name }}">{{ shell.initials }}</button>
+          <div class="cn-menu" id="cnAcct" role="menu" hidden>
+            <div class="cn-menu__who">
+              <span class="cn-menu__name">{{ shell.name }}</span>
+              {% if shell.email %}<span class="cn-menu__meta">{{ shell.email }}</span>{% endif %}
+              <span class="cn-menu__meta">{{ shell.role_label }} · {{ shell.role_blurb }}</span>
+            </div>
+            {% if shell.handbook %}<a class="cn-menu__i" role="menuitem" href="/admin/handbook">Handbook</a>{% endif %}
+            {% if shell.assistant %}<a class="cn-menu__i" role="menuitem" href="/admin/assistant">Assistant, full page</a>{% endif %}
+            <a class="cn-menu__i" role="menuitem" href="/" target="_blank" rel="noopener">View the site</a>
+            <a class="cn-menu__i cn-menu__i--out" role="menuitem" href="/admin/logout">Sign out</a>
+          </div>
+        </div>
+      </div>
+    </header>
 
-    {% if migrations_pending is defined and migrations_pending|length > 0 %}
-    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
-      <span aria-hidden="true">🗄️</span>
-      <span><strong>{{ migrations_pending|length }} database migration step{{ migrations_pending|length == 1 ? '' : 's' }} not yet recorded as applied.</strong>
-        If admin actions that write new data — <strong>approving/rejecting nominations, creating judges, building forms</strong> — are failing with errors while pages still load, this is why: the schema is behind the code.
-        Apply &amp; reconcile now: run <code>php bin/console db:migrate</code> on the server, or (no SSH) open <code>/__setup/migrate?token=YOUR_SETUP_TOKEN</code>. It is idempotent — safe to re-run, and clears this notice.
-        <span style="display:block;margin-top:4px;opacity:.85;font-size:12px">Pending: {{ migrations_pending|slice(0,6)|join(', ') }}{% if migrations_pending|length > 6 %} +{{ migrations_pending|length - 6 }} more{% endif %}</span>
-      </span>
-    </div>
-    {% endif %}
-    {#
-      THE SCHEDULE HAS STOPPED — and nothing else on the site would show it.
-      Reconciliation and automatic refunds only happen inside the maintenance run,
-      so when it stalls, supporters who are owed money stop being paid while every
-      page keeps serving normally. A stalled run cannot alert about itself, so the
-      check happens here, where traffic still arrives.
-    #}
-    {% set cron = cron_health() %}
-    {% if not cron.ok %}
-    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
-      <span aria-hidden="true">⏱</span>
-      <span><strong>{{ cron.never ? 'Scheduled maintenance has never run' : 'Scheduled maintenance has stopped' }}</strong>
-        — {{ cron.say }}
-        {% if cron.last %}<span style="display:block;margin-top:4px;opacity:.85;font-size:12px">Last run: {{ cron.last }}</span>{% endif %}
-      </span>
-    </div>
-    {% endif %}
-    {#
-      EMAIL IS DOWN. On every console page, for the reason the schedule banner above
-      is: the outage this describes is invisible from any public page, and the alert
-      that would otherwise announce it is sent by the transport that has failed.
-      The page it links to has the diagnosis.
-    #}
-    {% set mail = mail_health() %}
-    {% if mail and not mail_page|default(false) %}
-    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
-      <span aria-hidden="true">✉</span>
-      <span><strong>Email is not sending{% if mail.since %} since {{ mail.since|when }}{% endif %} — {{ mail.title }}</strong>
-        <span style="display:block;margin-top:4px">{{ mail.fix }}</span>
-        <a href="/admin/settings/mail" style="display:inline-block;margin-top:6px;font-weight:600">See the diagnosis</a>
-      </span>
-    </div>
-    {% endif %}
-    {% if flash_ok %}<div class="ad-flash ad-flash--ok" role="status">✓ {{ flash_ok }}</div>{% endif %}
-    {% if flash_error %}<div class="ad-flash ad-flash--err" role="alert">⚠ {{ flash_error }}</div>{% endif %}
-    {% if flash_notice %}<div class="ad-flash ad-flash--note" role="status">ℹ {{ flash_notice }}</div>{% endif %}
+    {# ── THE PAGE (§2.4) ───────────────────────────────────────────────────── #}
+    <main class="cn-main" id="cnMain" tabindex="-1">
+      <div class="cn-main__in">
 
-    {% block content %}{% endblock %}
+        <div class="cn-head">
+          <div class="cn-head__text">
+            <div class="cn-head__eyebrow">{% block topbar_eyebrow %}{% endblock %}</div>
+            <h1 class="cn-h1">{% block topbar_title %}{{ shell.label|default(page_title|default('Admin')) }}{% endblock %}</h1>
+            {% if shell.sub %}<p class="cn-head__sub">{{ shell.sub }}</p>{% endif %}
+          </div>
+          <div class="cn-head__side">
+            <div class="cn-head__actions">{% block topbar_actions %}{% endblock %}</div>
+            {% if not shell.can_write %}<span class="cn-chip">Read-only for {{ shell.role_label }}</span>{% endif %}
+            {% if shell.here %}
+              {% if shell.pinned %}
+                <form method="post" action="/admin/me/pins/{{ shell.pinned.id }}/unpin" data-cn-safe data-ag-do="unpin">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="back" value="{{ shell.here }}">
+                  <button type="submit" class="cn-pillbtn cn-pillbtn--sm" aria-pressed="true">Pinned ✓</button>
+                </form>
+              {% else %}
+                <form method="post" action="/admin/me/pins" data-cn-safe data-ag-do="pin">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="href" value="{{ shell.here }}">
+                  <input type="hidden" name="label" value="{{ shell.label|default(page_title|default('Pinned view')) }}">
+                  <button type="submit" class="cn-pillbtn cn-pillbtn--sm" aria-pressed="false">+ Pin this view</button>
+                </form>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
 
-  </main>
+        {% if shell.related %}
+          <nav class="cn-related" aria-label="Also here">
+            {% for r in shell.related %}
+              <a class="cn-related__i" href="{{ r.href }}"{% if r.on %} aria-current="page"{% endif %}>{{ r.label }}</a>
+            {% endfor %}
+          </nav>
+        {% endif %}
 
+        {% if flash_error %}
+          <div class="cn-error" role="alert">
+            <span class="cn-error__t">That did not work</span>
+            <span class="cn-error__m">{{ flash_error }}</span>
+            <a class="cn-pillbtn cn-pillbtn--sm" href="{{ shell.here|default('/admin/dashboard') }}">Try again</a>
+          </div>
+        {% endif %}
+        {% if flash_notice %}<div class="cn-note" role="status">{{ flash_notice }}</div>{% endif %}
+
+        {% block content %}{% endblock %}
+
+      </div>
+    </main>
+  </div>
 </div>
 
-{# Ambient console copilot — floating assistant on every admin page except the
-   dedicated full-page one (which would otherwise double it up). #}
-{% if admin_page is not defined or admin_page != 'assistant' %}{% include 'admin/partials/copilot.twig' %}{% endif %}
+{# ── OVERLAYS (§7) ─────────────────────────────────────────────────────────── #}
 
-{# Alpine.js powers the admin's rich interactivity — the AI console + AI-assist
-   drafting, the form builder, and the post/event editors all use x-data/@click.
-   Without it those surfaces silently do nothing (admin.js notes it depends on
-   Alpine). Loaded before admin.js, same pinned version as the public layout. #}
-{# ag-chat MUST load before Alpine: Alpine's build calls start() as soon as it
-   runs, and because these are deferred the document is already "interactive",
-   so Alpine walks the DOM and evaluates x-data="agChat({…})" immediately. If
-   Alpine ran first, window.agChat wouldn't exist yet and the copilot/assistant
-   would throw "agChat is not defined". #}
+{# Toast — a black pill at the bottom centre, 5.2 s, optional Undo. A flash from the
+   last request arrives as one; without script it simply stays. #}
+<div class="cn-toasts" id="cnToasts" aria-live="polite">
+  {% if flash_ok %}<div class="cn-toast" role="status"><span>{{ flash_ok }}</span></div>{% endif %}
+</div>
+
+{# Confirm with reason — the reason is for the audit log, and the confirm stays disabled
+   at 45% until it holds a non-space character (rule 5). Filled by admin.js. #}
+<dialog class="cn-confirm" id="cnConfirm" aria-labelledby="cnConfirmT" aria-describedby="cnConfirmB">
+  <form method="dialog" class="cn-confirm__card">
+    <span class="cn-confirm__t" id="cnConfirmT">Are you sure?</span>
+    <span class="cn-confirm__b" id="cnConfirmB"></span>
+    <label class="cn-confirm__reason" data-cn-reason>Reason, for the audit log
+      <input type="text" name="reason" maxlength="500" autocomplete="off" placeholder="e.g. Requested by the host, ticket &#35;4821">
+    </label>
+    <div class="cn-confirm__acts">
+      <button type="button" class="cn-btn" value="cancel" data-cn-cancel>Cancel</button>
+      <button type="submit" class="cn-btn cn-btn--primary" value="ok" data-cn-ok disabled>Confirm</button>
+    </div>
+  </form>
+</dialog>
+
+{# The assistant drawer — the same conversation, endpoint and session key as the old
+   copilot and the assistant's own page. Alpine-driven, which is why ag-chat.js loads
+   before Alpine below. #}
+{% if shell.assistant %}
+<div class="cn-drawer-scrim" data-ag-do="assist-close" hidden></div>
+<aside class="cn-drawer" id="cnAssist" role="dialog" aria-modal="true" aria-labelledby="cnAssistT" hidden
+       x-data="agChat({storageKey:'ag-copilot',logId:'cnAssistLog',focusId:'cnAssistIn',csrf:'{{ csrf_token }}'})">
+  <div class="cn-drawer__head">
+    <div class="cn-drawer__ht">
+      <span class="cn-drawer__t" id="cnAssistT">Assistant</span>
+      <span class="cn-drawer__s">Reads this console as {{ shell.role_label }}</span>
+    </div>
+    <a class="cn-drawer__full" href="/admin/assistant">Full page</a>
+    <button type="button" class="cn-roundbtn" data-ag-do="assist-close" aria-label="Close">✕</button>
+  </div>
+  <div class="cn-drawer__body" id="cnAssistLog" role="log" aria-live="polite">
+    <template x-for="(m, i) in msgs" :key="i">
+      <div class="cn-msg" :class="m.role === 'user' ? 'cn-msg--me' : ''"><span class="sr-only" x-text="m.role === 'user' ? 'You said:' : 'Assistant said:'"></span><span x-text="m.text"></span></div>
+    </template>
+    <div class="cn-msg" x-show="busy" x-cloak>Thinking…</div>
+    <p class="cn-drawer__err" role="alert" x-show="error" x-cloak x-text="error"></p>
+    <div class="cn-suggest" x-show="!msgs.length">
+      {% for q in ['What should I do first this morning?', 'Why are payments stuck?', 'Which results are ready to release?', 'Anything suspicious in the queue?'] %}
+        <button type="button" class="cn-suggest__q" data-ag-do="assist-ask" data-q="{{ q }}">{{ q }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  <form class="cn-drawer__ask" data-cn-safe @submit.prevent="send()">
+    <label for="cnAssistIn" class="sr-only">Ask the assistant</label>
+    <input id="cnAssistIn" x-model="draft" maxlength="2000" placeholder="Ask about the queue, money, results…" autocomplete="off">
+    <button type="submit" class="cn-send" aria-label="Ask" x-bind:disabled="busy || !draft.trim()">↑</button>
+  </form>
+  <div class="cn-drawer__foot">Answers from live figures. It can't approve, refund or publish; it links you to the page that can.</div>
+</aside>
+{% endif %}
+
+{# The command palette (§7) — ⌘K / Ctrl+K. Generated from the same tree as the rail
+   (AdminNav::destinations), so a page this role cannot open is never listed. #}
+<dialog class="cn-pal" id="cnPal" aria-label="Search the console">
+  <form method="dialog" class="cn-pal__card">
+    <input class="cn-pal__in" id="cnPalIn" type="search" autocomplete="off" spellcheck="false"
+           placeholder="Search {{ shell.destinations|length }} pages and commands" aria-label="Search the console"
+           aria-controls="cnPalList" aria-autocomplete="list">
+    <ul class="cn-pal__list" id="cnPalList" role="listbox" aria-label="Results">
+      {% for r in shell.recent %}
+        <li role="option" aria-selected="false" data-recent><a class="cn-pal__i" href="{{ r.href }}" data-cmd="{{ r.label|lower }}">{{ r.label }}<span class="cn-pal__k">Recent</span></a></li>
+      {% endfor %}
+      {% for d in shell.destinations %}
+        <li role="option" aria-selected="false"><a class="cn-pal__i" href="{{ d.href }}" data-cmd="{{ (d.label ~ ' ' ~ d.group)|lower }}">{{ d.label }}<span class="cn-pal__k">{{ d.group }}</span></a></li>
+      {% endfor %}
+      {% for f in [
+          ['Show nominations waiting longest', '/admin/nominations?status=pending&sort=oldest', 'late old overdue waiting oldest 4h'],
+          ['Show paid orders with no votes', '/admin/payments', 'refund owed no votes paid stuck'],
+          ['Show high alerts', '/admin/alerts?tab=high', 'alert high urgent broken down'],
+        ] %}
+        {% if f[1] in shell.destinations|map(d => d.href) or (f[1]|split('?')|first) in shell.destinations|map(d => d.href) %}
+          <li role="option" aria-selected="false" data-filter hidden><a class="cn-pal__i" href="{{ f[1] }}" data-cmd="{{ f[2] }}">{{ f[0] }}<span class="cn-pal__k">Filter</span></a></li>
+        {% endif %}
+      {% endfor %}
+      {% if shell.assistant %}
+        <li role="option" aria-selected="false" data-ask hidden><a class="cn-pal__i" href="/admin/assistant" data-ag-do="palette-ask"><span data-ask-label>Ask the assistant</span><span class="cn-pal__k">AI</span></a></li>
+        <li role="option" aria-selected="false" data-first><a class="cn-pal__i" href="/admin/assistant" data-ag-do="assist-ask" data-q="What should I do first this morning?">What should I do first?<span class="cn-pal__k">AI</span></a></li>
+      {% endif %}
+    </ul>
+    <p class="cn-pal__none" id="cnPalNone" hidden>Nothing matches. Pages your role can't open aren't listed.</p>
+    <div class="cn-pal__foot"><span>↑↓ move</span><span>↵ open</span><span>esc close</span></div>
+  </form>
+</dialog>
+
+{# Script order is load-bearing: ag-chat BEFORE Alpine (Alpine evaluates x-data on load,
+   and agChat must exist by then); Popper before Tippy; admin.js last. #}
 <script defer src="{{ asset('/assets/js/ag-chat.js') }}"></script>
 <script defer src="{{ asset('/assets/js/vendor/alpine-3.13.5.min.js') }}"></script>
-{# Popper + Tippy vendored locally (not CDN): the production CSP is 'self'-only
-   for scripts, so a CDN load is blocked. Popper defines window.Popper, which
-   Tippy consumes; admin.js then inits tippy on [data-tip]. #}
 <script defer src="{{ asset('/assets/js/vendor/popper-2.11.8.min.js') }}"></script>
 <script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}"></script>
 {% block foot_scripts %}{% endblock %}
 <script defer src="{{ asset('/assets/js/admin.js') }}"></script>
-{% include 'admin/partials/cmdk.twig' %}
 {% include 'admin/partials/richtext.twig' %}
 {% include 'admin/partials/ui.twig' %}
 </body>

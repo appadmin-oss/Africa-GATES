@@ -17,7 +17,7 @@
       <div class="row">
         <div><label for="f-name">Full name *</label><input type="text" name="name" id="f-name" value="{{ row.name|default('') }}" required placeholder="e.g. Dr. Adaobi Nwosu"></div>
         <div><label for="f-email">Email *</label><input type="email" name="email" id="f-email" value="{{ row.email|default('') }}" required placeholder="Their sign-in identity — must be unique on the panel">
-          <small style="font-size:12px;color:var(--ad-text-mute,#61728e)">This is how they sign in to the judging portal, and where their invitation lands. One email per judge.</small>
+          <small style="font-size:12px;color:var(--cn-grey-500)">This is how they sign in to the judging portal, and where their invitation lands. One email per judge.</small>
         </div>
       </div>
       <div class="row">
@@ -31,7 +31,7 @@
             <option value="">— Select —</option>
             {% for code, cname in COUNTRIES %}<option value="{{ code }}" {% if row.country_code|default('') == code %}selected{% endif %}>{{ cname }}</option>{% endfor %}
           </select>
-          <small style="font-size:12px;color:var(--ad-text-mute,#61728e)">Shown as the full country name on their public nameplate.</small>
+          <small style="font-size:12px;color:var(--cn-grey-500)">Shown as the full country name on their public nameplate.</small>
         </div>
         <div style="display:flex;align-items:flex-end">
           <label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> <span><strong>Seated on the panel</strong> — unchecked judges keep their record but disappear from the public jury page and cannot score.</span></label>
@@ -65,25 +65,25 @@
   {# ── 3 · Panel assignment ── #}
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Panel assignment<small>The programmes whose nominees this judge scores. Assignments can change any time.</small></div></div><div class="ad-card__body">
     {% if programmes is empty %}
-      <p style="margin:0;color:var(--ad-text-mute,#5a6d6f)">No programmes exist yet — <a href="/admin/programmes" style="color:var(--ad-accent,#237b22);font-weight:600">create one first</a>, then assign the judge.</p>
+      <p style="margin:0;color:var(--cn-grey-500)">No programmes exist yet — <a href="/admin/programmes" style="color:var(--cn-ink);font-weight:600">create one first</a>, then assign the judge.</p>
     {% else %}
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px">
-      {% for p in programmes %}<label class="checkbox" style="padding:10px 12px;background:var(--ad-bg);border:1px solid var(--ad-line,#e5eae8);border-radius:9px"><input type="checkbox" name="programme_ids[]" value="{{ p.id }}" {% if row.programme_ids is iterable and p.id in row.programme_ids %}checked{% endif %}> {{ p.icon_emoji }} {{ p.title }}</label>{% endfor %}
+      {% for p in programmes %}<label class="checkbox" style="padding:10px 12px;background:var(--cn-fill-panel);border:1px solid var(--cn-line-card);border-radius:9px"><input type="checkbox" name="programme_ids[]" value="{{ p.id }}" {% if row.programme_ids is iterable and p.id in row.programme_ids %}checked{% endif %}> {{ p.icon_emoji }} {{ p.title }}</label>{% endfor %}
     </div>
-    <p style="margin:10px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A judge with no assignment can sign in but sees an empty desk — assign at least one programme so their invitation means something.</p>
+    <p style="margin:10px 0 0;font-size:12px;color:var(--cn-grey-500)">A judge with no assignment can sign in but sees an empty desk — assign at least one programme so their invitation means something.</p>
     {% endif %}
   </div></div>
 
   {# ── What saving does (new judges) ── #}
   {% if is_new %}
-  <div class="ad-card" style="border-left:4px solid var(--ad-accent,#237b22)"><div class="ad-card__body">
+  <div class="ad-card" style="border-left:4px solid var(--cn-ink)"><div class="ad-card__body">
     <strong style="font-size:14px">What happens when you save</strong>
-    <ol style="margin:10px 0 0;padding-left:1.3em;font-size:13px;line-height:1.8;color:var(--ad-text-soft,#4a5256)">
+    <ol style="margin:10px 0 0;padding-left:1.3em;font-size:13px;line-height:1.8;color:var(--cn-grey-600)">
       <li>An <strong>assignment email</strong> goes to them with their programmes and the portal sign-in link (they sign in with a one-time code — no password to manage).</li>
       <li>A separate <strong>single-use onboarding form link</strong> lets them complete their own citation and portrait if you leave those blank.</li>
       <li>They appear on <a href="/judges" target="_blank" rel="noopener">the public jury page</a> immediately (while “Seated on the panel” is ticked).</li>
     </ol>
-    <p style="margin:10px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)">Both emails need working delivery — check <a href="/admin/settings" style="color:var(--ad-accent,#237b22)">Settings → Email → Delivery health</a> if invitations don't arrive. You can resend the onboarding link any time from the panel list (✉).</p>
+    <p style="margin:10px 0 0;font-size:12px;color:var(--cn-grey-500)">Both emails need working delivery — check <a href="/admin/settings" style="color:var(--cn-ink)">Settings → Email → Delivery health</a> if invitations don't arrive. You can resend the onboarding link any time from the panel list (✉).</p>
   </div></div>
   {% endif %}
 

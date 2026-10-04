@@ -119,6 +119,18 @@ on the band, types a hex, drops Nigeria from AFRICA, drops the focus-turn, drops
 snap, gains a city list, strokes every African country; the sheet sets `touch-action:none`; the card
 gains a "Verification node" row; the canvas loses `tabindex`; the controller stops passing the note.
 
+**Runs** (no `.env`; lock files cleared): the brief's filter plus Accent/SlotFloor/SiteHeader/TwigBlock/
+NestedForm/OneMain/PublicResults/Legal/Newsletter/AssetBundle/RouteTable — 576 tests; the only failures are
+other agents' in-flight work (`DeadTokenTest` on `console/tokens.css`, `ShellLayoutTest` on `menu-sheet.css`,
+`TemplateContextTest` on the admin dashboard, `EventTierColourFieldTest` on `admin/layout.twig`). **Full suite
+(4 Oct): 6,704 tests, 144 errors, 23 failures** — attributed: `PasskeyTest` ×8 (PHP 8.3, environmental); the
+admin-console rebuild in flight (`admin.css` gone, `admin/layout.twig` nav, AdminNav/AdminIa/Handbook/
+Questionnaire/Interview/Shortlist/Stand/Refund/Finance/… render tests, `DoorVoiceTierTest`, `NestedFormTest`'s
+`admin.js` half, `DeployedEndpointTest`'s `admin/dashboard.twig`, `TypeScaleTest`'s held-sheet list,
+`CookieRegistryTest`'s `ag-copilot`); the menu sheet (`ShellLayoutTest`). **None in a Home or footer file**;
+`HomePageTest`, `SiteFooterTest`, `GlobeBandTest`, `NationsLiveTest`, `StatsServiceTest`, `PublicResultsTest`,
+`PublicIaTest` all pass.
+
 ## H7. Deviations — what, why, approved by (target 0)
 
 | # | What | Why | Approved by |

@@ -31,27 +31,27 @@
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  .aw-lede{ background:var(--ad-surface); border:1px solid var(--ad-line);
+  .aw-lede{ background:var(--cn-surface); border:1px solid var(--cn-line-card);
     border-radius:14px; padding:18px 20px; margin-bottom:16px }
-  .aw-lede h2{ margin:0 0 6px; font-size:14px; color:var(--ad-text) }
+  .aw-lede h2{ margin:0 0 6px; font-size:14px; color:var(--cn-ink) }
   .aw-lede p{ margin:8px 0 0; font-size:13px; line-height:1.7;
-    color:var(--ad-text-mute); max-width:76ch }
-  .aw-card{ background:var(--ad-surface); border:1px solid var(--ad-line);
+    color:var(--cn-grey-500); max-width:76ch }
+  .aw-card{ background:var(--cn-surface); border:1px solid var(--cn-line-card);
     border-radius:14px; padding:18px 20px; margin-bottom:16px }
-  .aw-card h3{ margin:0 0 4px; font-size:14px; color:var(--ad-text) }
+  .aw-card h3{ margin:0 0 4px; font-size:14px; color:var(--cn-ink) }
   .aw-card > p{ margin:0 0 14px; font-size:13px; line-height:1.6;
-    color:var(--ad-text-mute); max-width:76ch }
+    color:var(--cn-grey-500); max-width:76ch }
 
   .aw-field{ margin-bottom:18px }
   .aw-field:last-child{ margin-bottom:0 }
   .aw-field label{ display:block; font-size:13px; font-weight:600;
-    color:var(--ad-text); margin-bottom:3px }
+    color:var(--cn-ink); margin-bottom:3px }
   .aw-field .aw-help{ display:block; font-size:12px; line-height:1.6;
-    color:var(--ad-text-mute); margin-bottom:6px }
-  .aw-field input[type="text"]{ width:100%; border:1px solid var(--ad-line);
+    color:var(--cn-grey-500); margin-bottom:6px }
+  .aw-field input[type="text"]{ width:100%; border:1px solid var(--cn-line-card);
     border-radius:8px; padding:9px 11px; font:inherit; font-size:14px;
-    color:var(--ad-text); background:var(--ad-surface) }
-  .aw-field input[type="text"]:focus-visible{ outline:3px solid var(--ad-primary);
+    color:var(--cn-ink); background:var(--cn-surface) }
+  .aw-field input[type="text"]:focus-visible{ outline:3px solid var(--cn-ink);
     outline-offset:1px }
 
   /* The house word, shown as the placeholder AND named in the hint. A placeholder
@@ -59,36 +59,36 @@
      stated alone — the eight-character password minimum lived in one and the only
      person who saw it had not started. */
   .aw-foot{ display:flex; justify-content:space-between; gap:12px; margin-top:4px }
-  .aw-fallback{ font-size:12px; color:var(--ad-text-mute) }
+  .aw-fallback{ font-size:12px; color:var(--cn-grey-500) }
   .aw-count{ font-family:var(--ag-font-mono, ui-monospace, monospace);
-    font-size:11px; font-weight:700; color:var(--ad-text-mute); white-space:nowrap }
-  .aw-count[data-over]{ color:var(--ad-danger) }
+    font-size:11px; font-weight:700; color:var(--cn-grey-500); white-space:nowrap }
+  .aw-count[data-over]{ color:var(--cn-danger) }
 
   .aw-kinds{ display:flex; flex-wrap:wrap; gap:10px }
   .aw-kind{ display:flex; align-items:flex-start; gap:9px; flex:1 1 220px;
-    border:1px solid var(--ad-line); border-radius:12px; padding:11px 13px;
+    border:1px solid var(--cn-line-card); border-radius:12px; padding:11px 13px;
     line-height:1.5; cursor:pointer }
   .aw-kind input{ width:18px; height:18px; margin:1px 0 0; flex:none;
-    accent-color:var(--ad-primary) }
+    accent-color:var(--cn-ink) }
   /* EACH PART NAMED. `.aw-kind span` matched the wrapper as well as the hint, so
      the kind's name inherited the muted colour through it and the two lines came
      out identical — the card had a heading that did not read as one. A descendant
      selector cannot tell a wrapper from the thing it wraps. */
   .aw-kind__txt{ display:flex; flex-direction:column; gap:2px; min-width:0 }
-  .aw-kind__name{ font-size:13px; font-weight:600; color:var(--ad-text) }
-  .aw-kind__how{ font-size:12px; color:var(--ad-text-mute) }
+  .aw-kind__name{ font-size:13px; font-weight:600; color:var(--cn-ink) }
+  .aw-kind__how{ font-size:12px; color:var(--cn-grey-500) }
 
-  .aw-preview{ border:1px solid var(--ad-line); border-radius:12px;
-    padding:14px 16px; background:var(--ad-bg) }
+  .aw-preview{ border:1px solid var(--cn-line-card); border-radius:12px;
+    padding:14px 16px; background:var(--cn-fill-panel) }
   .aw-preview dt{ font-family:var(--ag-font-mono, ui-monospace, monospace);
     font-size:10px; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--ad-text-mute); margin-bottom:3px }
+    color:var(--cn-grey-500); margin-bottom:3px }
   .aw-preview dd{ margin:0 0 12px; font-size:15px; line-height:1.4;
-    color:var(--ad-text) }
+    color:var(--cn-ink) }
   .aw-preview dd:last-of-type{ margin-bottom:0 }
 
   .aw-actions{ display:flex; justify-content:flex-end; gap:10px; align-items:center }
-  .aw-actions .aw-spacer{ margin-right:auto; font-size:12px; color:var(--ad-text-mute) }
+  .aw-actions .aw-spacer{ margin-right:auto; font-size:12px; color:var(--cn-grey-500) }
 </style>
 {% endblock %}
 

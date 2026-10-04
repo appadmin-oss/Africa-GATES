@@ -1,23 +1,368 @@
-// ═══ Admin shell behaviours ═══════════════════════════════════════
-// Light helpers — relies on Alpine.js for rich interactivity.
+// ═══ The admin console — shell, overlays, and the page behaviours ══════════════
+//
+// Destroyed and rebuilt 4 Oct 2026 with the console shell (admin handoff README §2, §7,
+// §8). What the old file did, rule by rule: docs/handoff/inventory/_admin.md. The page
+// behaviours below the shell section are carried over unchanged in substance — the
+// tier swatch, the size boxes, the door's voice preview — because they are pinned by
+// their own tests and are not the shell's to redesign.
+//
+// The admin CSP has no 'unsafe-inline', so there is no inline handler anywhere: every
+// control is delegated here on `data-ag-do`. Every shell control also works with this
+// file absent — the pin, unpin and sidebar toggles are forms that post, the rail is
+// links, the assistant has its own page.
 
 (function () {
   'use strict';
 
-  // Mobile sidebar toggle
-  const toggle = document.getElementById('adMobileToggle');
-  const side   = document.getElementById('adSide');
-  if (toggle && side) {
-    const syncExpanded = () => toggle.setAttribute('aria-expanded', side.classList.contains('is-open') ? 'true' : 'false');
-    toggle.addEventListener('click', () => { side.classList.toggle('is-open'); syncExpanded(); });
-    document.addEventListener('click', (e) => {
-      if (window.innerWidth > 880) return;
-      if (side.classList.contains('is-open') && !side.contains(e.target) && e.target !== toggle && !toggle.contains(e.target)) {
-        side.classList.remove('is-open');
-        syncExpanded();
+  var body = document.body;
+  var readOnly = body.hasAttribute('data-readonly');
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var phone = window.matchMedia ? window.matchMedia('(max-width: 768px)') : { matches: false };
+
+  // ── TOAST (§7): a black pill at the bottom centre, 5.2 s, optional Undo ────────
+  var toastMs = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cn-toast-ms'), 10) || 5200;
+  var toasts = document.getElementById('cnToasts');
+  function agToast(msg, undo) {
+    if (!toasts) return;
+    var t = document.createElement('div');
+    t.className = 'cn-toast';
+    t.setAttribute('role', 'status');
+    var s = document.createElement('span');
+    s.textContent = msg;
+    t.appendChild(s);
+    if (typeof undo === 'function') {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = 'Undo';
+      b.addEventListener('click', function () { t.remove(); undo(); });
+      t.appendChild(b);
+    }
+    toasts.appendChild(t);
+    setTimeout(function () { t.remove(); }, toastMs);
+  }
+  window.agToast = agToast;
+  // A flash from the previous request arrives as a toast already in the markup.
+  if (toasts) toasts.querySelectorAll('.cn-toast').forEach(function (t) { setTimeout(function () { t.remove(); }, toastMs); });
+
+  // ── A VIEWER READS AND CHANGES NOTHING (rule 8) ─────────────────────────────
+  //
+  // Every write control is drawn at 45% (console.css); pressing one shows this toast and
+  // posts nothing. The server refuses it regardless (AdminAuthMiddleware) — this is the
+  // explanation, not the enforcement. `data-cn-safe` forms change nothing on the platform.
+  var READ_ONLY_SAY = 'Viewers can read but not change anything';
+  function isWriteForm(form) {
+    if (!(form instanceof HTMLFormElement) || form.hasAttribute('data-cn-safe')) return false;
+    var m = (form.getAttribute('method') || 'get').toLowerCase();
+    return m !== 'get' && m !== 'dialog';
+  }
+  if (readOnly) {
+    document.addEventListener('submit', function (e) {
+      if (!isWriteForm(e.target)) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      agToast(READ_ONLY_SAY);
+    }, true);
+    document.addEventListener('click', function (e) {
+      var w = e.target.closest('[data-write]');
+      if (!w) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      agToast(READ_ONLY_SAY);
+    }, true);
+  }
+
+  // ── THE SIDEBAR: toggle (persisted), fold, phone overlay ─────────────────────
+  var side = document.getElementById('cnSide');
+  var scrim = document.querySelector('.cn-scrim');
+  function setOverlay(open) {
+    if (open) { body.setAttribute('data-side-open', ''); if (scrim) scrim.hidden = false; }
+    else { body.removeAttribute('data-side-open'); if (scrim) scrim.hidden = true; }
+    var t = document.querySelector('[data-ag-do="side-toggle"]');
+    if (t) t.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-ag-do="side-toggle"]');
+    if (t) {
+      e.preventDefault();
+      if (phone.matches) { setOverlay(!body.hasAttribute('data-side-open')); return; }
+      var closing = body.getAttribute('data-side') !== 'closed';
+      if (closing) body.setAttribute('data-side', 'closed'); else body.removeAttribute('data-side');
+      t.setAttribute('aria-expanded', closing ? 'false' : 'true');
+      var f = t.form;
+      if (f) {
+        f.querySelector('[name="closed"]').value = closing ? '1' : '0';
+        fetch(f.action, { method: 'POST', credentials: 'same-origin',
+          headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf },
+          body: new FormData(f) }).catch(function () {});
+        f.querySelector('[name="closed"]').value = closing ? '0' : '1';
       }
+      return;
+    }
+    if (e.target.closest('[data-ag-do="side-close"]')) { setOverlay(false); return; }
+    var more = e.target.closest('[data-ag-do="nav-more"]');
+    if (more) {
+      var g = more.closest('[data-fold]');
+      var open = !g.hasAttribute('data-open');
+      if (open) g.setAttribute('data-open', ''); else g.removeAttribute('data-open');
+      more.setAttribute('aria-expanded', open ? 'true' : 'false');
+      more.querySelector('.cn-nav__more-l').textContent = open ? more.getAttribute('data-less') : more.getAttribute('data-more');
+    }
+  });
+
+  // ── THE ACCOUNT MENU ─────────────────────────────────────────────────────────
+  var acctBtn = document.querySelector('[data-ag-do="acct-toggle"]');
+  var acct = document.getElementById('cnAcct');
+  function closeAcct() { if (acct && !acct.hidden) { acct.hidden = true; acctBtn.setAttribute('aria-expanded', 'false'); } }
+  if (acctBtn && acct) {
+    acctBtn.addEventListener('click', function () {
+      var open = acct.hidden;
+      acct.hidden = !open;
+      acctBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) { var first = acct.querySelector('[role="menuitem"]'); if (first) first.focus(); }
+    });
+    document.addEventListener('click', function (e) { if (!e.target.closest('.cn-acct')) closeAcct(); });
+  }
+
+  // ── PIN / UNPIN WITHOUT A RELOAD, AND UNDO ───────────────────────────────────
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!(f instanceof HTMLFormElement)) return;
+    var kind = f.getAttribute('data-ag-do');
+    if (kind !== 'pin' && kind !== 'unpin') return;
+    e.preventDefault();
+    fetch(f.action, { method: 'POST', credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf }, body: new FormData(f) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) { agToast((d && d.why) || 'That did not work.'); return; }
+        if (kind === 'pin') { agToast('Pinned to the sidebar'); setTimeout(function () { location.reload(); }, 600); return; }
+        var p = d.pin;
+        agToast('Unpinned', function () {
+          var fd = new FormData();
+          fd.append('_token', csrf); fd.append('href', p.href); fd.append('label', p.label);
+          fetch('/admin/me/pins', { method: 'POST', credentials: 'same-origin',
+            headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf }, body: fd })
+            .then(function () { location.reload(); });
+        });
+        setTimeout(function () { location.reload(); }, toastMs);
+      })
+      .catch(function () { f.submit(); });
+  });
+
+  // ── CONFIRM WITH A REASON (§7, rule 5) ───────────────────────────────────────
+  //
+  // `agConfirm(message, onYes, opts)` is the one confirm. For a form that POSTS, a reason
+  // is REQUIRED — the confirm stays disabled at 45% until it holds a non-space character
+  // — and it travels as `_reason`, which AuditService::record() attaches to whatever the
+  // action writes to the audit log. A link has nowhere to carry a reason, so asking for
+  // one would be collecting words that go nowhere; it gets the same dialog without it.
+  var dlg = document.getElementById('cnConfirm');
+  function agConfirm(message, onYes, opts) {
+    opts = opts || {};
+    if (!dlg || typeof dlg.showModal !== 'function') { if (window.confirm(message)) onYes(''); return; }
+    var title = dlg.querySelector('#cnConfirmT'), bodyEl = dlg.querySelector('#cnConfirmB');
+    var wrap = dlg.querySelector('[data-cn-reason]'), input = wrap.querySelector('input');
+    var ok = dlg.querySelector('[data-cn-ok]'), no = dlg.querySelector('[data-cn-cancel]');
+    var needReason = !!opts.reason;
+    title.textContent = opts.title || message;
+    bodyEl.textContent = opts.title ? message : (opts.body || '');
+    ok.textContent = opts.yesText || 'Confirm';
+    ok.classList.toggle('cn-btn--danger-fill', opts.danger !== false);
+    ok.classList.toggle('cn-btn--primary', opts.danger === false);
+    wrap.hidden = !needReason;
+    input.value = '';
+    ok.disabled = needReason;
+    input.oninput = function () { ok.disabled = needReason && input.value.trim() === ''; };
+    no.onclick = function () { dlg.close('cancel'); };
+    dlg.onclose = function () {
+      if (dlg.returnValue === 'ok' && (!needReason || input.value.trim() !== '')) onYes(input.value.trim());
+    };
+    dlg.returnValue = '';
+    dlg.showModal();
+    (needReason ? input : ok).focus();
+  }
+  window.agConfirm = agConfirm;
+
+  function carryReason(form, why) {
+    if (!why) return;
+    var h = form.querySelector('input[name="_reason"]');
+    if (!h) { h = document.createElement('input'); h.type = 'hidden'; h.name = '_reason'; form.appendChild(h); }
+    h.value = why;
+  }
+
+  // Forms that opt into confirmation via data-confirm (e.g. delete forms).
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirm') || form.dataset.ok === '1') return;
+    e.preventDefault();
+    // Captured now: the confirm is answered later, when the event is long finished.
+    var by = e.submitter || undefined;
+    agConfirm(form.getAttribute('data-confirm') || 'Are you sure?', function (why) {
+      carryReason(form, why);
+      form.dataset.ok = '1';
+      // requestSubmit(submitter), not submit(): submit() posts to the form's OWN action
+      // and drops the pressed button's formaction — a confirmed Delete sharing a form
+      // with Save would save (NestedFormTest).
+      if (typeof form.requestSubmit === 'function') form.requestSubmit(by);
+      else form.submit();
+    }, { reason: isWriteForm(form), title: form.getAttribute('data-confirm-title') || null });
+  }, true);
+
+  // Standalone links / buttons with data-confirm (not inside a confirming form).
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('a[data-confirm], button[data-confirm]');
+    if (!el || el.closest('form[data-confirm]')) return;
+    if (readOnly && el.form && isWriteForm(el.form)) return;   // the read-only toast answers
+    e.preventDefault();
+    var post = !!(el.form && isWriteForm(el.form));
+    agConfirm(el.getAttribute('data-confirm') || 'Are you sure?', function (why) {
+      if (el.tagName === 'A' && el.href) { location.href = el.href; return; }
+      if (el.form) {
+        carryReason(el.form, why);
+        el.form.dataset.ok = '1';
+        // Same reason as above: this button may carry its own formaction.
+        if (typeof el.form.requestSubmit === 'function') el.form.requestSubmit(el);
+        else el.form.submit();
+      }
+    }, { reason: post });
+  }, true);
+
+  // ── THE ASSISTANT DRAWER (§7) ────────────────────────────────────────────────
+  var drawer = document.getElementById('cnAssist');
+  var dScrim = document.querySelector('.cn-drawer-scrim');
+  var lastFocus = null;
+  function chat() { return drawer && window.Alpine ? window.Alpine.$data(drawer) : null; }
+  function openAssist(q) {
+    if (!drawer) { location.href = '/admin/assistant'; return; }
+    lastFocus = document.activeElement;
+    drawer.hidden = false; if (dScrim) dScrim.hidden = false;
+    var c = chat();
+    if (q && c) { c.draft = q; c.send(); }
+    var inp = document.getElementById('cnAssistIn'); if (inp) inp.focus();
+  }
+  function closeAssist() {
+    if (!drawer || drawer.hidden) return;
+    drawer.hidden = true; if (dScrim) dScrim.hidden = true;
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-ag-do="assist-open"]')) { e.preventDefault(); openAssist(); return; }
+    if (e.target.closest('[data-ag-do="assist-close"]')) { e.preventDefault(); closeAssist(); return; }
+    var ask = e.target.closest('[data-ag-do="assist-ask"]');
+    if (ask) { e.preventDefault(); if (pal && pal.open) pal.close(); openAssist(ask.getAttribute('data-q')); }
+  });
+  // The hero's ask box on Home is a real form to the assistant's page; with the drawer
+  // here it opens the drawer with the question instead.
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!(f instanceof HTMLFormElement) || f.getAttribute('data-ag-do') !== 'hero-ask' || !drawer) return;
+    e.preventDefault();
+    var q = (f.querySelector('input[name="q"]') || {}).value || '';
+    if (q.trim()) openAssist(q.trim()); else openAssist();
+  });
+  document.querySelectorAll('[data-ag-do="hero-ask"] input[name="q"]').forEach(function (inp) {
+    var send = inp.form.querySelector('.cn-send');
+    var sync = function () { if (send) send.disabled = inp.value.trim() === ''; };
+    inp.addEventListener('input', sync); sync();
+  });
+
+  // ── THE COMMAND PALETTE (§7): ⌘K / Ctrl+K ────────────────────────────────────
+  //
+  // Plain JS, no framework: the control that has to work when something else on the page
+  // has broken. Substring matching over a page's name and its group, so "money" finds
+  // every payment screen. An empty query shows Recent first; two or more words add an
+  // "Ask the assistant" row; a few phrases add a filter row.
+  var pal = document.getElementById('cnPal');
+  var palIn = document.getElementById('cnPalIn');
+  var palNone = document.getElementById('cnPalNone');
+  var shown = [], at = 0;
+  if (!/Mac|iPhone|iPad/.test(navigator.platform || '')) {
+    document.querySelectorAll('[data-cn-kbd]').forEach(function (k) { k.textContent = 'Ctrl K'; });
+  }
+  function rows() { return Array.prototype.slice.call(pal.querySelectorAll('.cn-pal__list > li')); }
+  function mark() {
+    shown.forEach(function (li, i) {
+      li.setAttribute('aria-selected', i === at ? 'true' : 'false');
+      if (i === at) li.scrollIntoView({ block: 'nearest' });
     });
   }
+  function filter() {
+    var q = palIn.value.trim().toLowerCase();
+    var words = q.split(/\s+/).filter(Boolean);
+    shown = [];
+    rows().forEach(function (li) {
+      var a = li.querySelector('a');
+      var cmd = a.getAttribute('data-cmd') || '';
+      var hit;
+      if (li.hasAttribute('data-recent') || li.hasAttribute('data-first')) hit = q === '';
+      else if (li.hasAttribute('data-filter')) hit = q !== '' && words.some(function (w) { return w.length > 2 && cmd.indexOf(w) !== -1; });
+      else if (li.hasAttribute('data-ask')) {
+        hit = words.length >= 2;
+        if (hit) li.querySelector('[data-ask-label]').textContent = 'Ask the assistant: “' + palIn.value.trim() + '”';
+      } else hit = q === '' || cmd.indexOf(q) !== -1;
+      li.hidden = !hit;
+      if (hit) shown.push(li);
+    });
+    // Filters and the question first, as the HTML orders them.
+    shown.sort(function (x, y) { return rank(x) - rank(y); });
+    shown = shown.slice(0, 10);
+    rows().forEach(function (li) { if (shown.indexOf(li) === -1) li.hidden = true; });
+    at = 0;
+    if (palNone) palNone.hidden = shown.length > 0;
+    mark();
+  }
+  function rank(li) {
+    if (li.hasAttribute('data-filter')) return 0;
+    if (li.hasAttribute('data-recent')) return 1;
+    if (li.hasAttribute('data-ask')) return 3;
+    return 2;
+  }
+  function openPal() {
+    if (!pal || typeof pal.showModal !== 'function') return;
+    closeAcct();
+    palIn.value = '';
+    filter();
+    pal.showModal();
+    palIn.focus();
+  }
+  if (pal) {
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('[data-ag-do="palette-open"]')) { e.preventDefault(); openPal(); return; }
+      var pa = e.target.closest('[data-ag-do="palette-ask"]');
+      if (pa) { e.preventDefault(); var q = palIn.value.trim(); pal.close(); openAssist(q); }
+    });
+    pal.addEventListener('click', function (e) { if (e.target === pal) pal.close(); });
+    palIn.addEventListener('input', filter);
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      if (!pal) return;
+      e.preventDefault();
+      if (pal.open) pal.close(); else openPal();
+      return;
+    }
+    if (e.key === 'Escape') {
+      closeAcct();
+      closeAssist();
+      if (body.hasAttribute('data-side-open')) setOverlay(false);
+      return;
+    }
+    if (!pal || !pal.open) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!shown.length) return;
+      at = (at + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
+      mark();
+    } else if (e.key === 'Enter') {
+      // The form is method="dialog": without this, Enter would close the palette and go
+      // nowhere, which reads as the palette ignoring you.
+      var a = shown[at] && shown[at].querySelector('a');
+      if (a) { e.preventDefault(); a.click(); }
+    }
+  });
+
+  // ══ the page behaviours, carried over (inventory: docs/handoff/inventory/_admin.md) ══
 
   // File-zone previews
   document.querySelectorAll('[data-file-zone]').forEach(zone => {
@@ -25,7 +370,7 @@
     const preview = zone.parentElement.querySelector('[data-file-preview]');
     if (!input) return;
     zone.addEventListener('click', () => input.click());
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--ad-primary)'; });
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--cn-ink)'; });
     zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
     zone.addEventListener('drop', e => {
       e.preventDefault(); zone.style.borderColor = '';
@@ -45,73 +390,6 @@
       });
     }
   });
-
-  // ── Non-blocking confirm dialog (replaces native confirm()) ──
-  function agConfirm(message, onYes, opts) {
-    opts = opts || {};
-    let ov = document.getElementById('agConfirm');
-    if (!ov) {
-      ov = document.createElement('div');
-      ov.id = 'agConfirm';
-      ov.style.cssText = 'position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(8,18,20,.55);padding:20px';
-      ov.innerHTML = '<div role="dialog" aria-modal="true" style="background:#fff;border-radius:16px;max-width:400px;width:100%;padding:24px;box-shadow:0 24px 60px -20px rgba(0,0,0,.5)">'
-        + '<p data-msg style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#10292c"></p>'
-        + '<div style="display:flex;gap:10px;justify-content:flex-end">'
-        + '<button type="button" data-no style="border:1px solid rgba(16,41,44,.16);background:#fff;color:#5a6d6f;font:600 14px/1 inherit;padding:10px 18px;border-radius:999px;cursor:pointer">Cancel</button>'
-        + '<button type="button" data-yes style="border:none;color:#fff;font:600 14px/1 inherit;padding:10px 18px;border-radius:999px;cursor:pointer">Confirm</button>'
-        + '</div></div>';
-      document.body.appendChild(ov);
-    }
-    const msg = ov.querySelector('[data-msg]'), yes = ov.querySelector('[data-yes]'), no = ov.querySelector('[data-no]');
-    msg.textContent = message;
-    yes.textContent = opts.yesText || 'Confirm';
-    yes.style.background = opts.danger === false ? '#237b22' : '#b42318';
-    const close = () => { ov.style.display = 'none'; document.removeEventListener('keydown', onKey); };
-    const onKey = e => { if (e.key === 'Escape') close(); };
-    yes.onclick = () => { close(); onYes(); };
-    no.onclick = close;
-    ov.onclick = e => { if (e.target === ov) close(); };
-    document.addEventListener('keydown', onKey);
-    ov.style.display = 'flex';
-    yes.focus();
-  }
-  window.agConfirm = agConfirm;
-
-  // Forms that opt into confirmation via data-confirm (e.g. delete forms).
-  document.addEventListener('submit', e => {
-    const form = e.target;
-    if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirm') || form.dataset.ok === '1') return;
-    e.preventDefault();
-    // Captured now rather than read inside the callback: the confirm is answered a second
-    // or a minute later, and the event is long finished by then.
-    const by = e.submitter || undefined;
-    // requestSubmit(submitter), not submit(): form.submit() posts to the form's OWN
-    // action and drops the pressed button's formaction and its name/value. A confirmed
-    // "Delete" that shares a form with "Save" would then save. Falls back where
-    // requestSubmit is missing, which is the pre-2021 browser this admin does not target.
-    agConfirm(form.getAttribute('data-confirm') || 'Are you sure?', () => {
-      form.dataset.ok = '1';
-      if (typeof form.requestSubmit === 'function') form.requestSubmit(by);
-      else form.submit();
-    });
-  }, true);
-
-  // Standalone links / buttons with data-confirm (not inside a confirming form).
-  document.addEventListener('click', e => {
-    const el = e.target.closest('a[data-confirm], button[data-confirm]');
-    if (!el || el.closest('form[data-confirm]')) return;
-    e.preventDefault();
-    agConfirm(el.getAttribute('data-confirm') || 'Are you sure?', () => {
-      if (el.tagName === 'A' && el.href) location.href = el.href;
-      else if (el.form) {
-        el.form.dataset.ok = '1';
-        // Same reason as above: this button may carry its own formaction, and it is
-        // exactly the destructive buttons that do — a delete sharing a form with a save.
-        if (typeof el.form.requestSubmit === 'function') el.form.requestSubmit(el);
-        else el.form.submit();
-      }
-    });
-  }, true);
 
   // NProgress-style top loading bar on form submit
   if (window.NProgress) {

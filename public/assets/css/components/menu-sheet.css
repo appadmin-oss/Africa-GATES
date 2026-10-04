@@ -120,8 +120,9 @@
   display:flex; align-items:center; justify-content:center;
 }
 /* A shortcut's label can be longer than a Participate word ("Integrity Center"); it wraps
-   to two centred lines rather than overflowing a quarter of a phone. */
-.ag-menu__tile-l{ max-width:100%; font-size:var(--ag-fs-13); font-weight:600; line-height:1.25; text-align:center; overflow-wrap:anywhere }
+   to two centred lines rather than overflowing a quarter of a phone, and a word too long
+   for the square at 150% text ("Nominate") is hyphenated rather than broken anywhere. */
+.ag-menu__tile-l{ max-width:100%; font-size:var(--ag-fs-13); font-weight:600; line-height:1.25; text-align:center; overflow-wrap:break-word; -webkit-hyphens:auto; hyphens:auto }
 
 .ag-menu__h{ margin:0; padding:0 6px 8px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
 /* The DC's lists are white with no border — the base list's hairline is the card's. */

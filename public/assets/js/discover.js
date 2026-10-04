@@ -187,6 +187,13 @@
     });
     sec.removeAttribute('aria-busy');
     if (st && nst) st.textContent = nst.textContent;
+    // The bar's count follows the list it counts on the Live tab (the server's figure
+    // was for the page as first drawn).
+    if (tab() === 'live') {
+      var n = sec.querySelectorAll('.dv-row').length, count = root.querySelector('[data-dv-count]');
+      root.setAttribute('data-count-live', String(n));
+      if (count) count.textContent = plural(root, n);
+    }
     bindLive();
   }
 
@@ -223,6 +230,10 @@
         });
       });
     }
+    // The pressed kind is scrolled into the row's view: on a phone the row scrolls, and
+    // a chosen "Recognitions" off the edge reads as nothing chosen.
+    var pressed = sec.querySelector('.dv-kind[aria-pressed="true"]');
+    if (pressed && pressed.scrollIntoView) pressed.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     markOptions();
   }
 

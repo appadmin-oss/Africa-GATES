@@ -45,8 +45,9 @@ use Tests\TestCase;
  * ── WHAT IS NOT COUNTED, AS KINDS ───────────────────────────────────────────
  *
  * Comments (`{# #}` and `/* *\/`) reach no reader, so a comment may name the literal it
- * removed. The admin console (`templates/admin/`, `admin.css`) is a separate operator
- * tool with its own `--ad-*` palette and is not part of the handoff. Vendored and built
+ * removed. The admin console's unrebuilt templates (`templates/admin/`) are a kind of
+ * their own — the console's REBUILT files, its sheets included, are held at zero by
+ * ConsolePaletteTest, and its sheets are swept here like any other (4 Oct 2026). Vendored and built
  * files are not authored here, and neither is the handoff's celebration sheet, which the
  * spec ships byte-identical — exempt only while its hash is the bundle's
  * (`Tests\Support\VerbatimAssets`, GAPS Q7).
@@ -85,7 +86,6 @@ final class ColourLiteralTest extends TestCase
                 $rel = str_replace($root . '/', '', $f->getPathname());
 
                 if (str_contains($rel, 'templates/admin/')) continue;          // a kind: the console
-                if ($rel === 'public/assets/css/admin.css') continue;         // the console's sheet
                 if (str_contains($rel, '/vendor/') || str_contains($rel, '/dist/')) continue;
                 // A kind, pinned by name AND hash: the handoff's verbatim celebration sheet
                 // (Tests\Support\VerbatimAssets — awaiting the owner, GAPS Q7). An edited

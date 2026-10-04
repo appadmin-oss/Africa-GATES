@@ -1,5 +1,5 @@
 {% extends "admin/layout.twig" %}
-{% block topbar_title %}Settings{% endblock %}
+{% block topbar_title %}Site &amp; keys{% endblock %}
 {% block content %}
 {# ── THIRTEEN CARDS IN ONE SCROLL WAS THE PROBLEM ────────────────────────────
 
@@ -32,17 +32,17 @@
    any host where the script fails — the wrong side of that bargain for the screen
    that holds the SMTP and gateway configuration. #}
 <style nonce="{{ csp_nonce }}">
-  .st-bar{position:sticky;top:0;z-index:20;background:var(--ad-bg,#f6f8f5);padding:12px 0 14px;margin-bottom:4px;border-bottom:1px solid var(--ad-line,#e5eae8)}
+  .st-bar{position:sticky;top:0;z-index:20;background:var(--cn-fill-panel);padding:12px 0 14px;margin-bottom:4px;border-bottom:1px solid var(--cn-line-card)}
   .st-tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-  .st-tab{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font:inherit;font-size:13px;line-height:1.2}
-  .st-tab[aria-pressed="true"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
-  .st-search{flex:1;min-width:170px;max-width:280px;padding:7px 12px;border:1px solid var(--ad-line,#e5eae8);border-radius:999px;font-size:13px;background:var(--ad-surface,#fff);color:inherit}
-  .st-hint{margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)}
+  .st-tab{border:1px solid var(--cn-line-card);background:var(--cn-surface);color:var(--cn-ink);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font:inherit;font-size:13px;line-height:1.2}
+  .st-tab[aria-pressed="true"]{background:var(--cn-ink);border-color:transparent;color:#fff}
+  .st-search{flex:1;min-width:170px;max-width:280px;padding:7px 12px;border:1px solid var(--cn-line-card);border-radius:999px;font-size:13px;background:var(--cn-surface);color:inherit}
+  .st-hint{margin:8px 0 0;font-size:12px;color:var(--cn-grey-500)}
   /* ── one revenue stream's routing ──────────────────────────────────────────
      Boxed per stream rather than as six loose fields, because the pairing is the whole point:
      a code belongs to a fee-bearer choice, and reading them as two separate lists is how
      somebody sets the shop's bearer against the event's account. */
-  .pay-route{border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--ad-surface,#fff)}
+  .pay-route{border:1px solid var(--cn-line-card);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--cn-surface)}
   .pay-route__h{display:flex;align-items:center;gap:9px;margin-bottom:8px}
   .pay-route__h strong{font-size:14px}
   .pay-route__on,.pay-route__off,.pay-route__bad{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 9px}
@@ -56,8 +56,8 @@
   .st-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#D8A33C;margin-left:6px;vertical-align:middle}
   .st-tab[aria-pressed="true"] .st-dot{background:#fff}
   .st-dirty{font-size:12px;font-weight:600;color:#8a6a1e;background:#fdf3dc;border:1px solid #ecd9a6;border-radius:999px;padding:5px 11px}
-  .st-kbd{font:600 11px/1 ui-monospace,monospace;border:1px solid var(--ad-line,#e5eae8);border-bottom-width:2px;border-radius:4px;padding:2px 4px;background:var(--ad-surface,#fff)}
-  .st-none{padding:22px;text-align:center;color:var(--ad-text-mute,#61728e);font-size:13px;border:1px dashed var(--ad-line,#e5eae8);border-radius:12px}
+  .st-kbd{font:600 11px/1 ui-monospace,monospace;border:1px solid var(--cn-line-card);border-bottom-width:2px;border-radius:4px;padding:2px 4px;background:var(--cn-surface)}
+  .st-none{padding:22px;text-align:center;color:var(--cn-grey-500);font-size:13px;border:1px dashed var(--cn-line-card);border-radius:12px}
   @media (max-width:640px){ .st-bar{position:static} }
 </style>
 {# The tab list, once, so the strip and the change-tracker cannot disagree about
@@ -191,11 +191,11 @@
         {# Display timezone. Storage stays UTC; this is what the console SHOWS and how the
            datetimes typed into it are READ. Labelled with the live abbreviation so an
            operator setting a deadline can see which clock they are setting it on. #}
-        <div><label for="f-display_timezone">Timezone <span style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">— shown and entered in this zone (now: {{ tz_abbr }})</span></label>
+        <div><label for="f-display_timezone">Timezone <span style="font-weight:400;color:var(--cn-grey-500)">— shown and entered in this zone (now: {{ tz_abbr }})</span></label>
           <select name="display_timezone" id="f-display_timezone">
             {% for tz in tz_choices|default([]) %}<option value="{{ tz }}"{% if tz == tz_current %} selected{% endif %}>{{ tz }}</option>{% endfor %}
           </select>
-          <div style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px">Stored times stay in UTC, so changing this re-labels what you see — it does not move any existing deadline.</div>
+          <div style="font-size:12px;color:var(--cn-grey-500);margin-top:4px">Stored times stay in UTC, so changing this re-labels what you see — it does not move any existing deadline.</div>
         </div>
       </div>
     </div>
@@ -226,7 +226,7 @@
          branch before the fields existed.
          They live on /admin/settings/mail now, saved by themselves, and a login is
          stored only after the provider has accepted it. #}
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--cn-line-card)">
         <p style="margin:0 0 6px;font-size:13px"><strong>How mail is sent:</strong> {{ mail_config.transport }}.</p>
         <p style="margin:0 0 6px;font-size:13px">SMTP {{ mail_config.host }}, port {{ mail_config.port }} ({{ mail_config.security }}),
           login {{ mail_config.username }} — {{ mail_config.login_source }}.</p>
@@ -240,7 +240,7 @@
       </div>
 
       {# ── Delivery health: is mail ACTUALLY leaving the building? ── #}
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--cn-line-card)">
         <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
           <strong style="font-size:13px">Delivery — last 24h:</strong>
           <span class="ad-chip ad-chip--green">{{ mail_health.sent_24h }} sent</span>
@@ -252,7 +252,7 @@
         {% endif %}
         {% if mail_health.recent is not empty %}
         <details>
-          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--ad-text-soft)">Recent sends ({{ mail_health.recent|length }})</summary>
+          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--cn-grey-600)">Recent sends ({{ mail_health.recent|length }})</summary>
           <div class="ad-table-wrap" style="margin-top:8px">
             <table class="ad-table" style="font-size:13px">
               <thead><tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Status</th></tr></thead>
@@ -286,7 +286,7 @@
       </div>
       <div><label for="f-invite_discount_percent">Guest discount <small>per cent off any tier</small></label><input type="number" name="invite_discount_percent" id="f-invite_discount_percent" value="{{ values.invite_discount_percent|default('') }}" placeholder="10" min="1" max="100"></div>
 
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--cn-line-card)">
         <p class="hint" style="margin:0 0 10px">
           The sentence that names why the hall is being filled. It reads
           <em>&ldquo;We want the hall packed&nbsp;&hellip;&rdquo;</em>, so write the continuation.
@@ -302,7 +302,7 @@
          switch, the schedule and the sentence are all on the same card as the letter
          they follow — an operator editing what a guest of honour is promised should
          be able to see, without leaving, what else that guest will receive. #}
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--cn-line-card)">
         <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
           <input type="checkbox" name="invite_reminder_enabled" id="f-invite_reminder_enabled" value="1"{% if invite_reminder_on %} checked{% endif %} style="margin-top:3px">
           <span>Send reminders as the evening approaches
@@ -346,9 +346,9 @@
          WHY → VALUES → RESPONSIBILITY → MESSAGE → ACTION. They go to NOMINEES; a
          judge is honoured for how they judged, and "your nomination represents
          trust" is not addressed to them, so judges keep the short reminder above. #}
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--cn-line-card)">
         <p class="hint" style="margin:0 0 10px">
-          <strong style="color:var(--ad-text)">The countdown letters.</strong>
+          <strong style="color:var(--cn-ink)">The countdown letters.</strong>
           In the final {{ invite_seq_days|length }} days a nominee and a judge each receive one letter a day, building
           from why they were trusted to what they will say when asked. Same arc, written
           twice: a nominee is honoured for work they did and a judge for a decision they
@@ -385,7 +385,7 @@
           event's <strong>Invitations</strong> screen.
         </p>
         {% for a in invite_seq_audiences %}
-          <p class="hint" style="margin:16px 0 4px;font-weight:600;color:var(--ad-text)">
+          <p class="hint" style="margin:16px 0 4px;font-weight:600;color:var(--cn-ink)">
             {% if a == 'judge' %}To the panel{% else %}To the nominees{% endif %}
             <small style="display:block;font-weight:400">{% if a == 'judge' %}Honoured for the decision they made about somebody else's work — they were never nominated, so these are written separately.{% else %}Honoured for work they did.{% endif %}</small>
           </p>
@@ -479,7 +479,7 @@
           </select>
         </div>
       </div>
-      <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--cn-grey-500)">
         OpenAI uses the key under <strong>AI providers</strong> below — there is no second key to add.
         Changing who speaks <strong>retires every greeting already made</strong>: they are cached by
         voice, so the next scheduled run remakes them in the new one.</p>
@@ -577,7 +577,7 @@
       {% if door_readiness.blocker %}
         <p class="hint" style="margin:10px 0 0;padding:10px 12px;border-radius:8px;background:rgba(138,32,32,.08);border:1px solid rgba(138,32,32,.25);color:#8a2020">
           <strong>{{ door_readiness.blocker }}</strong><br>
-          <span style="color:var(--ad-text-mute,#5a6d6f)">{{ door_readiness.fix }}</span>
+          <span style="color:var(--cn-grey-500)">{{ door_readiness.fix }}</span>
         </p>
       {% elseif door_readiness.on and door_readiness.voice and door_readiness.writable %}
         <p class="hint" style="margin:10px 0 0;padding:10px 12px;border-radius:8px;background:rgba(35,123,34,.08);border:1px solid rgba(35,123,34,.25);color:#1a6118">
@@ -597,7 +597,7 @@
         <p class="hint" style="margin:10px 0 0;padding:9px 11px;border-radius:8px;background:rgba(138,32,32,.08);border:1px solid rgba(138,32,32,.25);color:#8a2020">
           <strong>The key is set, and {{ door_voice_label|split(' —')|first }} refused the last attempt.</strong><br>
           {{ door_voice_error }}<br>
-          <span style="color:var(--ad-text-mute,#5a6d6f)">Press <strong>Hear it</strong> below to try again — this clears itself on the first success.</span>
+          <span style="color:var(--cn-grey-500)">Press <strong>Hear it</strong> below to try again — this clears itself on the first success.</span>
         </p>
       {% endif %}
 
@@ -674,7 +674,7 @@
 
         {# The line itself, always. Read it even with no key. #}
         <p id="voice-try-line" role="status" aria-live="polite"
-           style="margin:10px 0 0;min-height:1.2em;font-size:14px;color:var(--ad-text,#10292C)"></p>
+           style="margin:10px 0 0;min-height:1.2em;font-size:14px;color:var(--cn-ink)"></p>
         <p class="hint" id="voice-try-out" style="margin:4px 0 0;min-height:1.2em">
           {%- if not door_voice_on %}{{ door_voice_why ?: 'No key set' }} — so this shows the wording without speaking it.{% endif -%}
         </p>
@@ -982,7 +982,7 @@
   <div class="ad-card" data-sec="money" data-keys="shop location based pricing region multiplier currency conversion naira" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Shop · location-based pricing<small>Per-region price multiplier — 1.0 = base price. Leave all at 1.0 to disable.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="currency_conversion" value="1" {% if values.currency_conversion == '1' %}checked{% endif %}> <span><strong>Currency conversion</strong> — let shoppers view prices in their local currency (USD, GBP, EUR…). Orders are still charged in Naira (₦); rates are fetched live and cached.</span></label>
-      <p style="margin:0 0 4px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Each product's base naira price is multiplied by its delivery region's factor at checkout (computed server-side). e.g. <strong>1.25</strong> charges +25% in that region; <strong>0.9</strong> charges −10%.</p>
+      <p style="margin:0 0 4px;font-size:13px;color:var(--cn-grey-500)">Each product's base naira price is multiplied by its delivery region's factor at checkout (computed server-side). e.g. <strong>1.25</strong> charges +25% in that region; <strong>0.9</strong> charges −10%.</p>
       <div class="row">
         {% for r in shop_regions %}
         <div><label>{{ r }}</label><input type="number" aria-label="Price multiplier for {{ r }}" name="region_mult[{{ r }}]" min="0.1" max="10" step="0.05" value="{{ shop_mults[r]|default('1') }}"></div>
@@ -997,7 +997,7 @@
         <div><label for="f-points_per_1000_naira">Points earned per ₦1,000 spent</label><input type="number" name="points_per_1000_naira" id="f-points_per_1000_naira" min="0" step="1" value="{{ values.points_per_1000_naira|default('50') }}"></div>
         <div><label for="f-points_per_vote">Points to redeem one vote</label><input type="number" name="points_per_vote" id="f-points_per_vote" min="1" step="1" value="{{ values.points_per_vote|default('500') }}"></div>
       </div>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A redeemed vote counts toward the public tally <strong>and, through it, the community half of the index</strong> — the CPI normalises over a nominee's full tally, whatever any single vote cost. It never reaches the judging half: judges are not shown a vote count. This line used to say redeemed votes could not affect rank, which stopped being true when the index started reading every vote.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">A redeemed vote counts toward the public tally <strong>and, through it, the community half of the index</strong> — the CPI normalises over a nominee's full tally, whatever any single vote cost. It never reaches the judging half: judges are not shown a vote count. This line used to say redeemed votes could not affect rank, which stopped being true when the index started reading every vote.</p>
     </div>
   </div></div>
   {# ── WHERE THE MONEY SETTLES ─────────────────────────────────────────────────
@@ -1106,7 +1106,7 @@
           <input type="number" name="paid_vote_grace_hours" id="f-paid_vote_grace_hours" min="0" max="168" step="1" value="{{ values.paid_vote_grace_hours|default('6') }}">
         </div>
       </div>
-      <p style="margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>The grace window decides whether a stranded payment can still be recovered.</strong> A supporter who paid while voting was open, but whose confirmation reached us after it closed, is delivered only if we are still inside this window — otherwise minting refuses with <code>CONFIRMED_TOO_LATE</code> and the order becomes a refund instead. Raise it before running a backlog recovery in <a href="/admin/payments" style="color:var(--ad-accent,#237b22)">Payments</a> for a cycle that has already closed; the ceiling is 168 hours (7 days). It never lets a payment <em>started</em> after voting closed through — that is a separate check.</p>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--cn-grey-500)"><strong>The grace window decides whether a stranded payment can still be recovered.</strong> A supporter who paid while voting was open, but whose confirmation reached us after it closed, is delivered only if we are still inside this window — otherwise minting refuses with <code>CONFIRMED_TOO_LATE</code> and the order becomes a refund instead. Raise it before running a backlog recovery in <a href="/admin/payments" style="color:var(--cn-ink)">Payments</a> for a cycle that has already closed; the ceiling is 168 hours (7 days). It never lets a payment <em>started</em> after voting closed through — that is a separate check.</p>
 
       {# ── ONE LADDER, THREE THINGS THAT USED TO DISAGREE ────────────────────
 
@@ -1122,7 +1122,7 @@
          learn what they had set, and its meaning changed silently whenever that
          price moved. Any existing bundle rate was converted to an equivalent row
          by `2026_07_31_vote_tiers_from_bundle.php`, so nothing was repriced. #}
-      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)"
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--cn-line-card)"
            x-data="{
              per: {{ values.vote_price_naira|default(100) }},
              {# NOT |raw — see the ballot's copy of this line. Double quotes inside a
@@ -1137,7 +1137,7 @@
              remove(i){ if (this.rows.length > 1) this.rows.splice(i,1) },
              price(r){ return Math.max(100, Math.ceil(Math.max(1, r.qty|0) * this.per * (100 - Math.max(0, Math.min(90, r.off|0))) / 100)) } }">
         <strong style="font-size:13px;display:block;margin-bottom:3px">Quantity &amp; discount ladder</strong>
-        <p style="margin:0 0 10px;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Each row is a quick-pick button on the ballot <em>and</em> the discount that starts at that quantity. Set 0% for a plain button with no discount. Rows are sorted by quantity when you save; clear a quantity to delete the row.</p>
+        <p style="margin:0 0 10px;font-size:12px;color:var(--cn-grey-500)">Each row is a quick-pick button on the ballot <em>and</em> the discount that starts at that quantity. Set 0% for a plain button with no discount. Rows are sorted by quantity when you save; clear a quantity to delete the row.</p>
         <template x-for="(r, i) in rows" :key="i">
           <div class="st-tier">
             <div>
@@ -1153,7 +1153,7 @@
                  the admin is actually deciding is what the supporter will be asked
                  to pay — so it is shown here rather than left to be discovered on
                  the ballot. Same formula as PaidVoteService::price(). #}
-              <span style="font-size:13px;color:var(--ad-text-mute,#5a6d6f);white-space:nowrap" x-text="'₦' + price(r).toLocaleString()"></span>
+              <span style="font-size:13px;color:var(--cn-grey-500);white-space:nowrap" x-text="'₦' + price(r).toLocaleString()"></span>
               <button type="button" class="ad-btn" @click="remove(i)" :disabled="rows.length <= 1" :aria-label="'Remove tier ' + (i+1)" style="padding:6px 10px;font-size:12px">Remove</button>
             </div>
           </div>
@@ -1161,9 +1161,9 @@
         <button type="button" class="ad-btn" @click="add()" style="margin-top:4px;font-size:13px">+ Add a tier</button>
       </div>
 
-      <p style="margin:12px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A bulk buyer purchasing {{ paid_max_qty|default(1000)|number_format }} votes in one order is <strong>one database row</strong>, so a large order costs the site no more work than a small one. The effective maximum is currently <strong>{{ paid_max_qty|default(1000)|number_format }}</strong> — the lower of this field and the quantity whose price stays under ₦{{ (paid_max_order_naira|default(100000000))|number_format }} per transaction. Your payment gateway and the buyer's bank impose their own, usually lower, per-transaction limits.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Every total is computed server-side from this ladder — the browser never decides a price. Discounts are capped at 90% (a 100% discount is a ₦0 order no gateway will accept) and every charge is floored at ₦100. A paid vote counts toward the Cultural Power Index <strong>exactly as a free one does</strong> in the 30% of the community half that is the total tally, with no ceiling &mdash; measured against the largest tally in the cycle. The other 70% counts PEOPLE, and a buyer is one person however many orders they place. What money cannot reach is the judging half — judges never see a vote count. Every result publishes the full tally beside how much of it was bought, so the composition is visible without being penalised.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Buyers appear on the nominee's public <strong>supporters list</strong> when they fill in the optional name field; leaving it blank gives anonymously. Free OTP votes are never listed (that path requires a name, so giving one is not a choice). Orders placed before the field said this are treated as not consented and stay private. See <a href="/privacy#supporters" style="color:var(--ad-accent,#237b22)">the supporter-names policy</a>.</p>
+      <p style="margin:12px 0 0;font-size:12px;color:var(--cn-grey-500)">A bulk buyer purchasing {{ paid_max_qty|default(1000)|number_format }} votes in one order is <strong>one database row</strong>, so a large order costs the site no more work than a small one. The effective maximum is currently <strong>{{ paid_max_qty|default(1000)|number_format }}</strong> — the lower of this field and the quantity whose price stays under ₦{{ (paid_max_order_naira|default(100000000))|number_format }} per transaction. Your payment gateway and the buyer's bank impose their own, usually lower, per-transaction limits.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Every total is computed server-side from this ladder — the browser never decides a price. Discounts are capped at 90% (a 100% discount is a ₦0 order no gateway will accept) and every charge is floored at ₦100. A paid vote counts toward the Cultural Power Index <strong>exactly as a free one does</strong> in the 30% of the community half that is the total tally, with no ceiling &mdash; measured against the largest tally in the cycle. The other 70% counts PEOPLE, and a buyer is one person however many orders they place. What money cannot reach is the judging half — judges never see a vote count. Every result publishes the full tally beside how much of it was bought, so the composition is visible without being penalised.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Buyers appear on the nominee's public <strong>supporters list</strong> when they fill in the optional name field; leaving it blank gives anonymously. Free OTP votes are never listed (that path requires a name, so giving one is not a choice). Orders placed before the field said this are treated as not consented and stay private. See <a href="/privacy#supporters" style="color:var(--cn-ink)">the supporter-names policy</a>.</p>
     </div>
   </div></div>
   {# ── THE SCORING CURVES ────────────────────────────────────────────────────
@@ -1199,7 +1199,7 @@
               term it feeds is read only by the two older bases. A field that looks like a
               live control and is inert is how an operator comes to distrust the screen. -#}
           <label for="f-community_full_credit_votes">Votes that earn the full community half
-            <small style="display:block;font-weight:400;color:var(--ad-text-mute,#5a6d6f)">Used only by the two older bases &mdash; inert under the default</small></label>
+            <small style="display:block;font-weight:400;color:var(--cn-grey-500)">Used only by the two older bases &mdash; inert under the default</small></label>
           <input type="number" name="community_full_credit_votes" id="f-community_full_credit_votes" min="1" step="1" value="{{ scoring.community_full_credit_votes|default(1000) }}">
         </div>
       </div>
@@ -1215,7 +1215,7 @@
         <div></div>
       </div>
 
-      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>The highest in the whole cycle</strong> is the default, and it applies to every basis above. Per <em>category</em>, each category is normalised to its own leader &mdash; so every category&rsquo;s leader takes the full {{ (scoring.community_weight|default(0.45) * 1000)|round }} community points however small their field, and a leader on 1,955 votes and a leader on 89 are paid identically. Both figures are right inside their own categories; the overall standing puts them in one column, and there the second is being paid for a field rather than for support. Per <em>cycle</em> the number means the same thing everywhere &mdash; and a category with little public participation is then decided very largely by its panel. That is the trade, and only you can price it. The category scope is kept so a cycle that has already announced its standings can reproduce them to the digit; reproducing an old cycle means setting this, the basis and the panel scale together.</p>
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--cn-grey-500)"><strong>The highest in the whole cycle</strong> is the default, and it applies to every basis above. Per <em>category</em>, each category is normalised to its own leader &mdash; so every category&rsquo;s leader takes the full {{ (scoring.community_weight|default(0.45) * 1000)|round }} community points however small their field, and a leader on 1,955 votes and a leader on 89 are paid identically. Both figures are right inside their own categories; the overall standing puts them in one column, and there the second is being paid for a field rather than for support. Per <em>cycle</em> the number means the same thing everywhere &mdash; and a category with little public participation is then decided very largely by its panel. That is the trade, and only you can price it. The category scope is kept so a cycle that has already announced its standings can reproduce them to the digit; reproducing an old cycle means setting this, the basis and the panel scale together.</p>
 
       <div class="row" style="margin-top:12px">
         <div>
@@ -1228,11 +1228,11 @@
         <div></div>
       </div>
 
-      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Both against the edition&rsquo;s biggest tally</strong> is the default, and it is the published formula: <em>315 &times; (unique voters &divide; highest total votes in the edition)</em> plus <em>135 &times; (total votes &divide; the same figure)</em>. One yardstick for both terms, so a full 450 means as many separate supporters as the biggest total anybody in the cycle managed &mdash; and nothing softer. A supporter who buys ten separate orders is <em>one</em> person; a granted bonus vote is nobody. Two nominees on 2,000 votes each, where 2,000 is also the cycle&rsquo;s largest tally: one backed by a thousand people scores <strong>293</strong>, one backed by two scores <strong>135</strong>.</p>
-      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Against the most people / the most votes</strong> gives the 315 its own denominator &mdash; the most <em>people</em> any nominee has rather than the largest tally. That yardstick sags: where nobody in an edition has broad support, the least narrow nominee still collects the whole 315 because the denominator falls to meet them. Kept so a cycle announced under it can be reproduced to the digit. On the same pair above it pays <strong>450</strong> and <strong>136</strong>.</p>
-      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>The mark, straight</strong> is the default for the panel: 550 &times; the average out of ten, with no floor and no exponent. It is the rule a judge already thinks they are applying when they write 8, and it is the only version a nominee can check without being walked through an exponent. The curved form is kept so an already-announced cycle can be reproduced digit for digit.</p>
-      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Share of the leader, curved</strong> is the older tally-only form, kept so an announced cycle can be reproduced from the settings that produced it. Note that its denominator follows the setting below, not the category: with the scope left at the cycle it is a curved share of the cycle&rsquo;s largest tally, which is <em>not</em> what an older cycle was scored on.</p>
-      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Their own turnout</strong> is the other older basis, kept for the same reason: it measures a nominee against the full-credit mark rather than against anybody else. Set that mark above your largest realistic tally, or every nominee past it ties on the community half and the panel decides between them. Note there is no <em>category</em> discount in any of this &mdash; the default never reads the full-credit mark, and under &ldquo;share of the leader&rdquo; it applies one factor to the whole cycle.</p>
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--cn-grey-500)"><strong>Both against the edition&rsquo;s biggest tally</strong> is the default, and it is the published formula: <em>315 &times; (unique voters &divide; highest total votes in the edition)</em> plus <em>135 &times; (total votes &divide; the same figure)</em>. One yardstick for both terms, so a full 450 means as many separate supporters as the biggest total anybody in the cycle managed &mdash; and nothing softer. A supporter who buys ten separate orders is <em>one</em> person; a granted bonus vote is nobody. Two nominees on 2,000 votes each, where 2,000 is also the cycle&rsquo;s largest tally: one backed by a thousand people scores <strong>293</strong>, one backed by two scores <strong>135</strong>.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--cn-grey-500)"><strong>Against the most people / the most votes</strong> gives the 315 its own denominator &mdash; the most <em>people</em> any nominee has rather than the largest tally. That yardstick sags: where nobody in an edition has broad support, the least narrow nominee still collects the whole 315 because the denominator falls to meet them. Kept so a cycle announced under it can be reproduced to the digit. On the same pair above it pays <strong>450</strong> and <strong>136</strong>.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--cn-grey-500)"><strong>The mark, straight</strong> is the default for the panel: 550 &times; the average out of ten, with no floor and no exponent. It is the rule a judge already thinks they are applying when they write 8, and it is the only version a nominee can check without being walked through an exponent. The curved form is kept so an already-announced cycle can be reproduced digit for digit.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--cn-grey-500)"><strong>Share of the leader, curved</strong> is the older tally-only form, kept so an announced cycle can be reproduced from the settings that produced it. Note that its denominator follows the setting below, not the category: with the scope left at the cycle it is a curved share of the cycle&rsquo;s largest tally, which is <em>not</em> what an older cycle was scored on.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--cn-grey-500)"><strong>Their own turnout</strong> is the other older basis, kept for the same reason: it measures a nominee against the full-credit mark rather than against anybody else. Set that mark above your largest realistic tally, or every nominee past it ties on the community half and the panel decides between them. Note there is no <em>category</em> discount in any of this &mdash; the default never reads the full-credit mark, and under &ldquo;share of the leader&rdquo; it applies one factor to the whole cycle.</p>
 
       <div class="row">
         <div>
@@ -1241,7 +1241,7 @@
         </div>
         <div>
           <label>What that does</label>
-          <p style="margin:9px 0 0;font-size:13px;line-height:1.55;color:var(--ad-text-mute,#5a6d6f)">1.0 is linear. At <strong>2.0</strong>, half the leader&rsquo;s support is worth a quarter of the weight. Ignored when the basis is turnout.</p>
+          <p style="margin:9px 0 0;font-size:13px;line-height:1.55;color:var(--cn-grey-500)">1.0 is linear. At <strong>2.0</strong>, half the leader&rsquo;s support is worth a quarter of the weight. Ignored when the basis is turnout.</p>
         </div>
       </div>
 
@@ -1255,8 +1255,8 @@
           <input type="number" name="judge_curve" id="f-judge_curve" min="0.1" max="6" step="0.1" value="{{ scoring.judge_curve|default(1.5) }}">
         </div>
       </div>
-      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">The floor is a statement about the scale, not a pass mark. Panels rarely award below five, so treating 0&ndash;5 as live range handed every judged nominee a third of the judge weight for turning up. A mark at or below the floor is worth nothing; ten is worth all of it.</p>
-      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">Every value here is overridable per programme and per cycle in <code>gates_rule_sets</code>; this form writes the global default. The <a href="/integrity#index" style="color:var(--ad-accent,#237b22)">integrity page</a> publishes whatever is in force.</p>
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--cn-grey-500)">The floor is a statement about the scale, not a pass mark. Panels rarely award below five, so treating 0&ndash;5 as live range handed every judged nominee a third of the judge weight for turning up. A mark at or below the floor is worth nothing; ten is worth all of it.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--cn-grey-500)">Every value here is overridable per programme and per cycle in <code>gates_rule_sets</code>; this form writes the global default. The <a href="/integrity#index" style="color:var(--cn-ink)">integrity page</a> publishes whatever is in force.</p>
     </div>
   </div></div>
   {# ── COMMUNITY RETURN ──────────────────────────────────────────────────────
@@ -1276,7 +1276,7 @@
          tuning a share of a revenue stream that does not exist, while /integrity and the
          Help Centre published the rule to nominees in the present tense. #}
       {% if community_return.off_reason|default('') == 'no_paid_voting' %}
-        <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:13px;line-height:1.55;color:var(--ad-text,#10292c)"><strong>Nothing is accruing.</strong> The return is a share of what supporters contribute for votes, and <strong>paid voting is switched off</strong> — so there is no contribution to take a share of. These settings are saved and will apply the moment vote contribution is enabled above. Both <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">the integrity page</a> and the Help Centre say so to the public while it is off.</p>
+        <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:13px;line-height:1.55;color:var(--cn-ink)"><strong>Nothing is accruing.</strong> The return is a share of what supporters contribute for votes, and <strong>paid voting is switched off</strong> — so there is no contribution to take a share of. These settings are saved and will apply the moment vote contribution is enabled above. Both <a href="/integrity#return" style="color:var(--cn-ink)">the integrity page</a> and the Help Centre say so to the public while it is off.</p>
       {% endif %}
       <div class="row">
         <div>
@@ -1295,18 +1295,18 @@
         </div>
         <div>
           <label>What that works out as</label>
-          <p style="margin:9px 0 0;font-size:13px;line-height:1.55;color:var(--ad-text-mute,#5a6d6f)">
+          <p style="margin:9px 0 0;font-size:13px;line-height:1.55;color:var(--cn-grey-500)">
             One supporter counts for at most <strong>{{ community_return.cap_votes|default(25)|number_format }} votes</strong>,
             so qualifying takes at least <strong>{{ community_return.min_supporters|default(10) }} different people</strong>.
           </p>
         </div>
       </div>
 
-      <p style="margin:12px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>How qualifying support is counted.</strong> Votes, not heads — somebody who bought twenty-five votes did more than somebody who cast one. But no single supporter's votes count for more than the ceiling above, so a raw threshold cannot be bought by one person in one order. The minimum number of people is <em>derived</em> from that ceiling, never set separately: two knobs describing one rule is how a page publishes one number while the engine enforces another.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Free votes and contributions are added together per person, so splitting an order cannot buy a second allowance. Refunded and undelivered orders count for nothing.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>Qualifying support is a turnout test, not a revenue test.</strong> It counts every vote a nominee has — free, bought, or awarded — because what it is checking is that a real community showed up. What the nominee then earns is a share of money, and only money accrues.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Earning is <strong>prospective</strong>: crossing the line changes what happens next, never what already happened. Contributions made before a nominee qualified stay unshared however many times accrual is re-run over them.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Nothing is payable until a cycle reaches its results, and <strong>no payout path exists yet</strong> — the ledger accrues and displays. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">integrity page</a> exactly as set here.</p>
+      <p style="margin:12px 0 0;font-size:12px;color:var(--cn-grey-500)"><strong>How qualifying support is counted.</strong> Votes, not heads — somebody who bought twenty-five votes did more than somebody who cast one. But no single supporter's votes count for more than the ceiling above, so a raw threshold cannot be bought by one person in one order. The minimum number of people is <em>derived</em> from that ceiling, never set separately: two knobs describing one rule is how a page publishes one number while the engine enforces another.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Free votes and contributions are added together per person, so splitting an order cannot buy a second allowance. Refunded and undelivered orders count for nothing.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)"><strong>Qualifying support is a turnout test, not a revenue test.</strong> It counts every vote a nominee has — free, bought, or awarded — because what it is checking is that a real community showed up. What the nominee then earns is a share of money, and only money accrues.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Earning is <strong>prospective</strong>: crossing the line changes what happens next, never what already happened. Contributions made before a nominee qualified stay unshared however many times accrual is re-run over them.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Nothing is payable until a cycle reaches its results, and <strong>no payout path exists yet</strong> — the ledger accrues and displays. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--cn-ink)">integrity page</a> exactly as set here.</p>
     </div>
   </div></div>
   <div class="ad-card" data-sec="site" data-keys="display values nations count cpi recompute interval review sla nomination seconds otp expiry processing fee donation goal target fundraising" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">
@@ -1335,7 +1335,7 @@
         <div><label for="f-donation_goal_naira">Donation target (₦)</label><input type="number" name="donation_goal_naira" id="f-donation_goal_naira" min="0" step="1000" value="{{ values.donation_goal_naira|default('0') }}"></div>
         <div></div>
       </div>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">The target the <a href="/giving" style="color:var(--ad-accent,#237b22)">donation page</a> shows progress against. <strong>0 means no target</strong> — the page then prints the raised figure alone, exactly as it did before, because an invented target is worse than none. Progress is summed from confirmed donations on every page load, so it can never drift from the rows underneath it.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">The target the <a href="/giving" style="color:var(--cn-ink)">donation page</a> shows progress against. <strong>0 means no target</strong> — the page then prints the raised figure alone, exactly as it did before, because an invented target is worse than none. Progress is summed from confirmed donations on every page load, so it can never drift from the rows underneath it.</p>
     </div>
   </div></div>
   <div class="ad-card" data-sec="site" data-keys="fund allocation where donations go destinations giving page scholarships mentorship grants" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Where donations go<small>The destinations printed on <a href="/giving">the giving page</a>, under &ldquo;Where donations go&rdquo;.</small></div></div><div class="ad-card__body">
@@ -1357,7 +1357,7 @@
                    value="{{ alloc[i].body|default('') }}" placeholder="One sentence."></div>
         </div>
       {% endfor %}
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A destination with
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">A destination with
         no name is dropped. <strong>Leave every row empty to publish nothing</strong> &mdash; the
         section then does not draw at all, which is the right answer for a fund that has not
         decided, because a heading over nothing is worse than no heading. This never appears on a
@@ -1372,7 +1372,7 @@
         <div><label for="f-mod_q">Quarantine at ≥</label><input type="number" name="mod_threshold_quarantine" id="f-mod_q" min="0.05" max="0.90" step="0.05" value="{{ values.mod_threshold_quarantine|default('0.30') }}"></div>
         <div><label for="f-mod_r">Auto-reject at ≥</label><input type="number" name="mod_threshold_reject" id="f-mod_r" min="0.10" max="0.99" step="0.05" value="{{ values.mod_threshold_reject|default('0.65') }}"></div>
       </div>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Lower = stricter. Below the quarantine line content publishes instantly; between the lines it waits in <a href="/admin/moderation" style="color:var(--ad-accent,#237b22)">the review queue</a>; above the reject line it is blocked outright. Values are clamped so moderation can never be switched off by accident.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Lower = stricter. Below the quarantine line content publishes instantly; between the lines it waits in <a href="/admin/moderation" style="color:var(--cn-ink)">the review queue</a>; above the reject line it is blocked outright. Values are clamped so moderation can never be switched off by accident.</p>
     </div>
   </div></div>
   <div class="ad-card" data-sec="integrity" data-keys="nomination eligibility threshold minimum distinct locations approve nominee" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Nomination eligibility<small>Require nominations from multiple locations before a nominee can be approved.</small></div></div><div class="ad-card__body">
@@ -1380,7 +1380,7 @@
     <div class="ad-form">
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="nomination_eligibility_enabled" value="1" {% if values.nomination_eligibility_enabled == '1' %}checked{% endif %}> <span><strong>Enforce eligibility threshold</strong> — block approving a nominee until they have enough nominations from different locations.</span></label>
       <div><label for="f-nomination_min_locations">Minimum distinct locations</label><input type="number" name="nomination_min_locations" id="f-nomination_min_locations" min="1" step="1" value="{{ values.nomination_min_locations|default('5') }}"></div>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">"Different locations" = distinct nominator country + state. The eligibility count shows on every nomination; when enforced, approval is blocked below the threshold.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">"Different locations" = distinct nominator country + state. The eligibility count shows on every nomination; when enforced, approval is blocked below the threshold.</p>
     </div>
   </div></div>
   {# ── AI governance ─────────────────────────────────────────────────────────
@@ -1403,20 +1403,20 @@
             {% set spend = ai_spend|filter(s => s.capability == c.name)|first %}
             {% set agree = ai_agreement|filter(a => a.capability == c.name)|first %}
             <tr>
-              <td><strong>{{ c.name }}</strong><div style="font-size:12px;color:var(--ad-text-mute,#61728e)">{{ c.purpose }}</div></td>
+              <td><strong>{{ c.name }}</strong><div style="font-size:12px;color:var(--cn-grey-500)">{{ c.purpose }}</div></td>
               <td><code style="font-size:11px">{{ c.model }}</code></td>
               <td>
                 {# Declared per feature, not assumed: silent degradation is right
                    for optional writing help and wrong for moderation. #}
                 <span class="ad-chip ad-chip--{{ c.on_failure == 'announce' ? 'blue' : 'grey' }}">{{ c.on_failure }}</span>
               </td>
-              <td>{{ spend ? spend.calls : 0 }} <span style="color:var(--ad-text-mute,#61728e)">/ {{ c.calls|number_format }}</span></td>
-              <td>{{ spend ? spend.tokens|number_format : 0 }} <span style="color:var(--ad-text-mute,#61728e)">/ {{ c.tokens|number_format }}</span></td>
+              <td>{{ spend ? spend.calls : 0 }} <span style="color:var(--cn-grey-500)">/ {{ c.calls|number_format }}</span></td>
+              <td>{{ spend ? spend.tokens|number_format : 0 }} <span style="color:var(--cn-grey-500)">/ {{ c.tokens|number_format }}</span></td>
               <td>{% if spend and spend.failures > 0 %}<span class="ad-chip ad-chip--gold">{{ spend.failures }}</span>{% else %}—{% endif %}</td>
               <td>
                 {% if agree and agree.rate is not null %}
-                  {{ agree.rate }}% <span style="color:var(--ad-text-mute,#61728e)">({{ agree.decisions }} decisions)</span>
-                {% else %}<span style="color:var(--ad-text-mute,#61728e)">no decisions yet</span>{% endif %}
+                  {{ agree.rate }}% <span style="color:var(--cn-grey-500)">({{ agree.decisions }} decisions)</span>
+                {% else %}<span style="color:var(--cn-grey-500)">no decisions yet</span>{% endif %}
               </td>
               <td>{% if c.enabled %}<span class="ad-chip ad-chip--green">on</span>{% else %}<span class="ad-chip ad-chip--red">off</span>{% endif %}</td>
             </tr>
@@ -1438,7 +1438,7 @@
     {% if ai_failures is defined and ai_failures %}
     <div class="ad-table-wrap">
       <table class="ad-table">
-        <caption style="text-align:left;padding:12px 0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+        <caption style="text-align:left;padding:12px 0;font-size:13px;color:var(--cn-grey-500)">
           The last {{ ai_failures|length }} failure{{ ai_failures|length == 1 ? '' : 's' }} in 24 hours —
           what the provider actually said, and the one thing to change.
         </caption>
@@ -1450,7 +1450,7 @@
           {% for f in ai_failures %}
           <tr>
             <td style="white-space:nowrap">{{ f.at|when_zoned('j M, H:i') }}
-              {% if f.latency_ms > 0 %}<div style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ (f.latency_ms / 1000)|number_format(1) }}s</div>{% endif %}</td>
+              {% if f.latency_ms > 0 %}<div style="font-size:11px;color:var(--cn-grey-500)">{{ (f.latency_ms / 1000)|number_format(1) }}s</div>{% endif %}</td>
             <td><strong style="font-size:13px">{{ f.capability }}</strong></td>
             <td><span class="ad-chip ad-chip--gold">{{ f.outcome }}</span></td>
             <td><code style="font-size:11px">{{ f.provider|default('—') }}{% if f.model %} / {{ f.model }}{% endif %}</code></td>
@@ -1459,7 +1459,7 @@
                  interpretation. A guess that displaces the evidence is how somebody
                  rotates a working key while the real fault is an egress block. #}
               <code style="font-size:11px;word-break:break-word">{{ f.error|default('no detail recorded') }}</code>
-              {% if f.cause %}<div style="margin-top:5px;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">{{ f.cause }}</div>{% endif %}
+              {% if f.cause %}<div style="margin-top:5px;font-size:12px;color:var(--cn-grey-500)">{{ f.cause }}</div>{% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -1468,19 +1468,19 @@
     </div>
     {% endif %}
     <div class="ad-card__body">
-      <p style="margin:0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:0;font-size:13px;color:var(--cn-grey-500)">
         Every AI call is recorded in <code>gates_ai_calls</code>; the prompt itself is not stored, only a hash.
         Switch everything off with <code>ai_enabled = 0</code>, or one feature with
         <code>ai_cap_disabled_&lt;feature&gt;</code> (dots become underscores).
       </p>
-      <p style="margin:8px 0 0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:8px 0 0;font-size:13px;color:var(--cn-grey-500)">
         <strong>Reading a timeout:</strong> <code>TIMEOUT after Ns</code> means the provider
         connected and was answering — the job simply needed longer than the feature allows.
         Nothing is wrong with the key or the network; raise that capability's timeout, or ask
         it for a shorter answer. <code>HTTP 0</code> is the different fault: the request never
         left this server.
       </p>
-      <p style="margin:8px 0 0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:8px 0 0;font-size:13px;color:var(--cn-grey-500)">
         <strong>Reading agreement:</strong> a LOW rate is the clear signal — the suggestion is not earning its
         cost and the feature should be switched off rather than tuned indefinitely. A rate near 100% is
         ambiguous: it may mean the suggestion is good, or that reviewers are deferring to it. Treat it as a
@@ -1509,7 +1509,7 @@
        So the provider is no longer NAMED here. It is interpolated from the same value the
        picker below is bound to, which is the same value AiCapability::primaryProvider()
        resolves — one resolver, and a paragraph that cannot disagree with it. #}
-    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Keys are stored server-side and never shown again. Every AI feature leads with <strong>{{ ai_primary_choices[ai_primary]|default('your primary provider') }}</strong> unless it names its own, then falls back through the others you hold a key for. The pin decides preference, not eligibility: a feature only goes dark when none of them work. {% if ai_status.active %}Configured now: <strong>{{ ai_status.active|capitalize }}</strong>{% if ai_status.model %} ({{ ai_status.model }}){% endif %}.{% else %}No provider configured — using built-in heuristics.{% endif %}</p>
+    <p style="margin:0 0 10px;font-size:13px;color:var(--cn-grey-500)">Keys are stored server-side and never shown again. Every AI feature leads with <strong>{{ ai_primary_choices[ai_primary]|default('your primary provider') }}</strong> unless it names its own, then falls back through the others you hold a key for. The pin decides preference, not eligibility: a feature only goes dark when none of them work. {% if ai_status.active %}Configured now: <strong>{{ ai_status.active|capitalize }}</strong>{% if ai_status.model %} ({{ ai_status.model }}){% endif %}.{% else %}No provider configured — using built-in heuristics.{% endif %}</p>
     {# ── WHICH PROVIDER LEADS ────────────────────────────────────────────────
        This was a constant, and the screen described it wrongly twice — first as OpenAI
        when the code pinned Groq, then as Groq after it had moved. A setting an operator
@@ -1543,10 +1543,10 @@
       ] %}
       {% for p in ai_providers %}
       <div>
-        <label>{{ p.label }} {% if ai_status[p.name] %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">not set</span>{% endif %}</label>
+        <label>{{ p.label }} {% if ai_status[p.name] %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--cn-grey-500)">not set</span>{% endif %}</label>
         <input type="password" name="ai_{{ p.name }}_key" aria-label="{{ p.label }} API key" autocomplete="new-password" placeholder="{% if ai_status[p.name] %}•••••••••• (leave blank to keep){% else %}paste key to enable{% endif %}">
         <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
-          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ p.hint|raw }}{% if ai_primary == p.name %} &mdash; <strong>primary</strong>{% endif %}</small>
+          <small style="font-size:11px;color:var(--cn-grey-500)">{{ p.hint|raw }}{% if ai_primary == p.name %} &mdash; <strong>primary</strong>{% endif %}</small>
           {% if ai_status[p.name] %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[{{ p.name }}]" value="1"> remove</label>{% endif %}
         </div>
       </div>
@@ -1562,15 +1562,15 @@
         <div><label for="f-ai_anthropic_model">Anthropic model <small>optional — point at your best Claude</small></label><input type="text" name="ai_anthropic_model" id="f-ai_anthropic_model" value="{{ values.ai_anthropic_model|default('') }}" placeholder="{{ ai_default_models.anthropic }}"></div>
         <div><label for="f-ai_groq_model">Groq model <small>general / public — fast &amp; cheap</small></label><input type="text" name="ai_groq_model" id="f-ai_groq_model" value="{{ values.ai_groq_model|default('') }}" placeholder="{{ ai_default_models.groq }}"></div>
       </div>
-      <p style="margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)">Every provider's model is yours to set — leave blank for the default shown. Setting one here overrides the per-feature pin for that provider, so moving to a newer model is a settings change rather than a deploy. Point each at the strongest model your plan allows.</p>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--cn-grey-500)">Every provider's model is yours to set — leave blank for the default shown. Setting one here overrides the per-feature pin for that provider, so moving to a newer model is a settings change rather than a deploy. Point each at the strongest model your plan allows.</p>
 
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--cn-line-card)">
         <label style="font-weight:600">Dedicated moderation Groq key
-          {% if ai_mod_dedicated %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">using the general key as a free backup</span>{% endif %}
+          {% if ai_mod_dedicated %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--cn-grey-500)">using the general key as a free backup</span>{% endif %}
         </label>
         <input type="password" name="ai_groq_key_mod" aria-label="Dedicated moderation Groq API key" autocomplete="new-password" placeholder="{% if ai_mod_dedicated %}•••••••••• (leave blank to keep){% else %}optional — a 2nd Groq key just for moderation{% endif %}">
         <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
-          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">A separate Groq key for the spam/abuse classifier — isolates safety decisions from public AI traffic and runs the <strong>best model</strong>. Free-falls back to the general Groq key when blank.</small>
+          <small style="font-size:11px;color:var(--cn-grey-500)">A separate Groq key for the spam/abuse classifier — isolates safety decisions from public AI traffic and runs the <strong>best model</strong>. Free-falls back to the general Groq key when blank.</small>
           {% if ai_mod_dedicated %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[groq_mod]" value="1"> remove</label>{% endif %}
         </div>
         <div style="margin-top:8px"><label for="f-ai_groq_model_mod">Moderation model <small>defaults to the best available</small></label><input type="text" name="ai_groq_model_mod" id="f-ai_groq_model_mod" value="{{ values.ai_groq_model_mod|default('') }}" placeholder="{{ ai_mod_model }}"></div>
@@ -1581,13 +1581,13 @@
          and this is a different capability entirely. With no key here the questionnaire is
          exactly the text conversation it was before — a nominee is never shown a microphone
          the platform cannot use. #}
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--cn-line-card)">
         <label style="font-weight:600">ElevenLabs — read the questionnaire aloud, and let a nominee answer by talking
-          {% if voice_status.configured %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">off — the questionnaire stays text-only</span>{% endif %}
+          {% if voice_status.configured %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--cn-grey-500)">off — the questionnaire stays text-only</span>{% endif %}
         </label>
         <input type="password" name="voice_elevenlabs_key" aria-label="ElevenLabs API key" autocomplete="new-password" placeholder="{% if voice_status.configured %}•••••••••• (leave blank to keep){% else %}paste your ElevenLabs API key{% endif %}">
         <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
-          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">A nominee who can talk for an hour about the work of their life should not lose the nomination to a phone keyboard. With a key set, each question can be <strong>read out</strong> and an answer can be <strong>spoken</strong> — the transcription goes into the answer box for them to correct and send themselves, never straight into the record.</small>
+          <small style="font-size:11px;color:var(--cn-grey-500)">A nominee who can talk for an hour about the work of their life should not lose the nomination to a phone keyboard. With a key set, each question can be <strong>read out</strong> and an answer can be <strong>spoken</strong> — the transcription goes into the answer box for them to correct and send themselves, never straight into the record.</small>
           {% if voice_status.configured %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[voice]" value="1"> remove</label>{% endif %}
         </div>
         <div class="row" style="margin-top:8px">
@@ -1595,7 +1595,7 @@
           <div><label for="f-voice_model">Voice model <small>optional</small></label><input type="text" name="voice_elevenlabs_model" id="f-voice_model" value="{{ values.voice_elevenlabs_model|default('') }}" placeholder="{{ voice_defaults.tts }}"></div>
         </div>
         <div style="margin-top:8px"><label for="f-voice_stt">Transcription model <small>for spoken answers</small></label><input type="text" name="voice_elevenlabs_stt_model" id="f-voice_stt" value="{{ values.voice_elevenlabs_stt_model|default('') }}" placeholder="{{ voice_defaults.stt }}"></div>
-        <p style="margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)">
+        <p style="margin:8px 0 0;font-size:12px;color:var(--cn-grey-500)">
           The default voice is a placeholder, not a recommendation — it is an American one. Copy a voice ID from your ElevenLabs library and paste it here; for a continental African panel the accent is not a cosmetic choice.
           Currently reading with <code>{{ voice_status.tts }}</code> and transcribing with <code>{{ voice_status.stt }}</code>.
         </p>
@@ -1610,14 +1610,14 @@
           <label for="f-gee_make_key">Make.com bridge key {% if values.gee_make_agent_key|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
           <input type="password" name="gee_make_agent_key" id="f-gee_make_key" autocomplete="new-password" placeholder="{% if values.gee_make_agent_key|default('') != '' %}•••••••••• (leave blank to keep){% else %}shared secret (16+ chars){% endif %}">
           <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
-            <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Same key authenticates Make's inbound calls to <code>/api/v1/agent/gee</code></small>
+            <small style="font-size:11px;color:var(--cn-grey-500)">Same key authenticates Make's inbound calls to <code>/api/v1/agent/gee</code></small>
             {% if values.gee_make_agent_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[make_key]" value="1"> remove</label>{% endif %}
           </div>
         </div>
       </div>
       <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <button class="ad-btn" type="submit" formaction="/admin/settings/test-ai" formnovalidate>Test AI now</button>
-        <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Makes one live call and reports which provider answered — the quickest way to confirm keys + network. Save any new key first.</small>
+        <small style="font-size:11px;color:var(--cn-grey-500)">Makes one live call and reports which provider answered — the quickest way to confirm keys + network. Save any new key first.</small>
       </div>
 
       {# ── AND THE SAME TEST, ONE PROVIDER AT A TIME ────────────────────────
@@ -1629,11 +1629,11 @@
          pinned to a decommissioned model for months, and the only symptom is that failover
          quietly does nothing on the day the primary goes down. This button stands on every
          rung. It costs one real call per configured key, which is why it is separate. #}
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e2e7e8)"
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--cn-line-card)"
            id="ai-probe">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <button class="ad-btn" type="submit" name="probe" value="ai" formnovalidate>Test each provider separately</button>
-          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">One live call per configured key, reported one by one — the only way to see that a <em>fallback</em> is broken while the primary is fine.</small>
+          <small style="font-size:11px;color:var(--cn-grey-500)">One live call per configured key, reported one by one — the only way to see that a <em>fallback</em> is broken while the primary is fine.</small>
         </div>
 
         {% if ai_probe|default([]) %}
@@ -1648,7 +1648,7 @@
                 <td><code style="font-size:12px">{{ p.model ?: '—' }}</code></td>
                 <td>
                   {% if not p.configured %}
-                    <span style="color:var(--ad-text-mute,#61728e)">No key set</span>
+                    <span style="color:var(--cn-grey-500)">No key set</span>
                   {% elseif p.ok %}
                     <span style="color:#16794d;font-weight:600">● Answered</span>
                   {% else %}
@@ -1664,12 +1664,12 @@
                     <div style="margin-top:4px;font-size:12px;line-height:1.5;color:#3c4649">{{ p.cause }}</div>
                   {% endif %}
                 </td>
-                <td style="text-align:right;font-family:var(--ag-font-mono,monospace);font-size:12px;color:var(--ad-text-mute,#61728e)">{{ p.configured ? p.ms ~ 'ms' : '—' }}</td>
+                <td style="text-align:right;font-family:var(--ag-font-mono,monospace);font-size:12px;color:var(--cn-grey-500)">{{ p.configured ? p.ms ~ 'ms' : '—' }}</td>
               </tr>
             {% endfor %}
             </tbody>
           </table>
-          <small style="display:block;margin-top:8px;font-size:11px;color:var(--ad-text-mute,#61728e)">Measured just now, and not kept — press the button again rather than trusting this after you change a key.</small>
+          <small style="display:block;margin-top:8px;font-size:11px;color:var(--cn-grey-500)">Measured just now, and not kept — press the button again rather than trusting this after you change a key.</small>
         {% endif %}
       </div>
     </div>
@@ -1731,9 +1731,9 @@
        its markup, lost its action, and submitted to /admin/settings instead. Pressing
        "Check the sync" saved the page and returned no rows, which reads exactly like a
        broken integration. The AI probe above uses `formaction` for the same reason. #}
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e2e7e8)">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--cn-line-card)">
       <button class="ad-btn" type="submit" name="probe" value="sync" formnovalidate>Check the sync</button>
-      <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Read-only. Nothing is written to your calendar and nobody is emailed. The page is saved first, so you can paste the address and the secret and press this straight away.</small>
+      <small style="font-size:11px;color:var(--cn-grey-500)">Read-only. Nothing is written to your calendar and nobody is emailed. The page is saved first, so you can paste the address and the secret and press this straight away.</small>
     </div>
 
     {% if sync_probe|default([]) %}
@@ -1746,7 +1746,7 @@
             <td data-col="Result">
               {# Never colour alone — the word is the signal and the dot is decoration. #}
               {% if not r.tested %}
-                <span style="color:var(--ad-text-mute,#61728e);font-weight:600">● Not tested</span>
+                <span style="color:var(--cn-grey-500);font-weight:600">● Not tested</span>
               {% elseif r.ok %}
                 <span style="color:#16794d;font-weight:600">● Working</span>
               {% else %}
@@ -1758,14 +1758,14 @@
               {# The fix, and only when there is one to give. A row that prints advice on a
                  passing check teaches the reader to stop reading the column. #}
               {% if r.fix %}
-                <div style="margin-top:6px;padding:8px 10px;border-left:3px solid var(--ad-gold,#d49a0e);background:#fffaf0;font-size:12px;line-height:1.6;color:#5a4a1f">{{ r.fix }}</div>
+                <div style="margin-top:6px;padding:8px 10px;border-left:3px solid var(--cn-warning-dot);background:#fffaf0;font-size:12px;line-height:1.6;color:#5a4a1f">{{ r.fix }}</div>
               {% endif %}
             </td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
-      <small style="display:block;margin-top:8px;font-size:11px;color:var(--ad-text-mute,#61728e)">Measured just now and not kept. Re-deploy the script, then press it again — the result above describes the deployment that was live a moment ago.</small>
+      <small style="display:block;margin-top:8px;font-size:11px;color:var(--cn-grey-500)">Measured just now and not kept. Re-deploy the script, then press it again — the result above describes the deployment that was live a moment ago.</small>
     {% endif %}
   </div></div>
 
@@ -1785,7 +1785,7 @@
              {% if values.referrals_enabled is not defined or values.referrals_enabled == '1' %}checked{% endif %}>
       <span>
         <strong>Referrals are live</strong><br>
-        <small style="color:var(--ad-text-mute,#5a6d6f)">
+        <small style="color:var(--cn-grey-500)">
           Members get a link from their account page and earn on tickets bought through it.
           Turning this off stops new commission and stops new links being issued — it does
           not delete balances already earned, and links already shared keep working for
@@ -1799,7 +1799,7 @@
         Commission
         <input type="number" name="referral_rate_pct" min="0" max="50" step="0.5"
                value="{{ ((values.referral_rate_bps|default('1000'))|number_format(0,'.','')) / 100 }}">
-        <small style="color:var(--ad-text-mute,#5a6d6f)">
+        <small style="color:var(--cn-grey-500)">
           Percent of what a referred buyer pays. Applies to <strong>future</strong> referrals —
           every credit already earned keeps the rate it was earned at, so this cannot restate
           what somebody was told they had.
@@ -1810,7 +1810,7 @@
         Referrals before earning unlocks
         <input type="number" name="referral_threshold" min="1" max="1000" step="1"
                value="{{ values.referral_threshold|default('10') }}">
-        <small style="color:var(--ad-text-mute,#5a6d6f)">
+        <small style="color:var(--cn-grey-500)">
           <strong>This one moves money that is already owed.</strong> It is checked live against
           everybody's count, so lowering it makes locked balances payable and raising it locks
           balances that were payable. Crossing it is retroactive — the whole balance unlocks,
@@ -1822,7 +1822,7 @@
 
   <div class="ad-card" data-sec="ops" data-keys="automation cron webcron maintenance run now schedule token reconcile credit paid votes pending payments queue cpi snapshots reminders" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Automation &amp; cron<small>Keep the platform self-running — no SSH or server cron needed.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="automation_settings" value="1">
-    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+    <p style="margin:0 0 10px;font-size:13px;color:var(--cn-grey-500)">
       The platform needs a periodic “maintenance” run (advance award cycles, drain the queue, recompute the CPI, purge expired tokens, snapshots, reminders).
       Last run:
       {% if cron_last %}<strong>{{ cron_last.ran_at }}</strong> ({{ cron_last.status }}, {{ cron_last.runtime_ms }}ms){% else %}<strong style="color:#b4452f">never</strong>{% endif %}.
@@ -1835,7 +1835,7 @@
 
     <div style="margin:12px 0">
       <button class="ad-btn ad-btn--primary" type="submit" formaction="/admin/settings/run-cron" formnovalidate>Run maintenance now</button>
-      <small style="font-size:11px;color:var(--ad-text-mute,#61728e);margin-left:8px">Runs the full hub immediately, once.</small>
+      <small style="font-size:11px;color:var(--cn-grey-500);margin-left:8px">Runs the full hub immediately, once.</small>
     </div>
 
     {# The one task behind "I paid and my votes did not appear". A bank transfer to
@@ -1846,7 +1846,7 @@
        it twice cannot double-credit anyone. #}
     <div style="margin:12px 0">
       <button class="ad-btn" type="submit" formaction="/admin/settings/reconcile-payments" formnovalidate>Credit paid votes now</button>
-      <small style="font-size:11px;color:var(--ad-text-mute,#61728e);margin-left:8px">
+      <small style="font-size:11px;color:var(--cn-grey-500);margin-left:8px">
         Re-checks every pending payment with the gateway and credits the ones that really paid.
         Safe to press repeatedly — it can never double-credit. Use it when a supporter says their transfer did not add up.
       </small>
@@ -1854,7 +1854,7 @@
 
     <details style="margin-top:8px">
       <summary style="cursor:pointer;font-size:13px;font-weight:600">Prefer an external scheduler? (optional)</summary>
-      <p style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin:8px 0">
+      <p style="font-size:12px;color:var(--cn-grey-500);margin:8px 0">
         Point a free webcron service (cron-job.org, EasyCron) or a cPanel “fetch a URL” job at this URL every ~15 minutes:
       </p>
       {% if values.cron_token|default('') %}
@@ -1871,25 +1871,25 @@
   </div></div>
 
   <div class="ad-card" data-sec="integrity" data-keys="voting integrity disposable emails throwaway blocked domains mx deliverability otp" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Voting integrity — disposable emails<small>Block throwaway inboxes used to stuff votes. A built-in list + your additions.</small></div></div><div class="ad-card__body">
-    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">The OTP + registration gates already reject known disposable-mail providers. Add any new ones here (comma- or line-separated domains) to block them immediately — no deploy needed.</p>
+    <p style="margin:0 0 10px;font-size:13px;color:var(--cn-grey-500)">The OTP + registration gates already reject known disposable-mail providers. Add any new ones here (comma- or line-separated domains) to block them immediately — no deploy needed.</p>
     <label for="f-disposable">Extra blocked domains</label>
     <textarea name="disposable_domains_extra" id="f-disposable" rows="3" placeholder="e.g. newtrashmail.com, another-temp.io" style="width:100%;font-family:'Space Mono',monospace;font-size:13px">{{ values.disposable_domains_extra|default('') }}</textarea>
     <label style="display:inline-flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
       <input type="checkbox" name="disposable_require_mx" value="1" {% if values.disposable_require_mx|default('') in ['1','true','on','yes'] %}checked{% endif %}>
       Also reject domains with no mail server (MX/A) — an undeliverable address can't receive the OTP anyway.
     </label>
-    <p style="margin:8px 0 0;font-size:11px;color:var(--ad-text-mute,#61728e)">The MX check fails open: a DNS hiccup never blocks a real voter. Leave off unless your host has reliable outbound DNS.</p>
+    <p style="margin:8px 0 0;font-size:11px;color:var(--cn-grey-500)">The MX check fails open: a DNS hiccup never blocks a real voter. Leave off unless your host has reliable outbound DNS.</p>
   </div></div>
 
   <div class="ad-card" data-sec="mail" data-keys="messaging sms whatsapp twilio meta cloud api sender phone number id access token notifications texts" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Messaging — SMS &amp; WhatsApp<small>Nomination &amp; notification texts. Off by default; nothing sends until a channel is enabled and configured.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="messaging_settings" value="1">
-    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+    <p style="margin:0 0 10px;font-size:13px;color:var(--cn-grey-500)">
       Secrets are stored server-side and never shown again.
       {# The provider, not a guess. This said "(Twilio)" unconditionally, so a deployment
          sending through Africa's Talking read "active (Twilio)" — which is exactly the
          wrong thing to tell somebody trying to work out why their texts are not arriving. #}
-      SMS: {% if sms_status.sms %}<strong style="color:#16794d">● active ({{ sms_status.sms_provider }})</strong>{% else %}<span style="color:var(--ad-text-mute,#61728e)">inactive</span>{% endif %} ·
-      WhatsApp: {% if sms_status.whatsapp %}<strong style="color:#16794d">● active ({{ sms_status.wa_provider == 'meta' ? 'WhatsApp Business Cloud API' : 'Twilio WhatsApp' }})</strong>{% else %}<span style="color:var(--ad-text-mute,#61728e)">inactive</span>{% endif %}.
+      SMS: {% if sms_status.sms %}<strong style="color:#16794d">● active ({{ sms_status.sms_provider }})</strong>{% else %}<span style="color:var(--cn-grey-500)">inactive</span>{% endif %} ·
+      WhatsApp: {% if sms_status.whatsapp %}<strong style="color:#16794d">● active ({{ sms_status.wa_provider == 'meta' ? 'WhatsApp Business Cloud API' : 'Twilio WhatsApp' }})</strong>{% else %}<span style="color:var(--cn-grey-500)">inactive</span>{% endif %}.
       When both channels are configured, recipients with a phone get the SMS first, then the WhatsApp message.
     </p>
     <div class="ad-form">
@@ -1901,7 +1901,7 @@
          per message to a Nigerian handset than either of the two above it, and almost
          every recipient here is on an African network. Configure one; configure two and
          the higher one is the fallback. #}
-      <p style="margin:0 0 8px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:0 0 8px;font-size:13px;color:var(--cn-grey-500)">
         Texts go out through the first of these that is set up:
         <strong>Africa&rsquo;s Talking</strong> &rarr; <strong>Termii</strong> &rarr; <strong>Twilio</strong> &mdash;
         cheapest per African number first.
@@ -1947,7 +1947,7 @@
           {% if values.sms_at_api_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_at_api_key]" value="1"> remove</label>{% endif %}
         </div>
         <div>
-          <label for="f-sms_at_from">Africa&rsquo;s Talking sender ID <em style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">optional</em></label>
+          <label for="f-sms_at_from">Africa&rsquo;s Talking sender ID <em style="font-weight:400;color:var(--cn-grey-500)">optional</em></label>
           <input type="text" name="sms_at_from" id="f-sms_at_from" value="{{ values.sms_at_from|default('') }}" placeholder="leave blank for the shared shortcode">
         </div>
       </div>
@@ -1958,9 +1958,9 @@
           {% if values.sms_termii_api_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_termii_api_key]" value="1"> remove</label>{% endif %}
         </div>
         <div>
-          <label for="f-sms_termii_from">Termii sender ID <em style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">required for Termii</em></label>
+          <label for="f-sms_termii_from">Termii sender ID <em style="font-weight:400;color:var(--cn-grey-500)">required for Termii</em></label>
           <input type="text" name="sms_termii_from" id="f-sms_termii_from" value="{{ values.sms_termii_from|default('') }}" placeholder="an ID already approved on your account">
-          <p style="margin:4px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Termii is skipped without one: a key with no approved sender ID answers 200 and sends nothing.</p>
+          <p style="margin:4px 0 0;font-size:12px;color:var(--cn-grey-500)">Termii is skipped without one: a key with no approved sender ID answers 200 and sends nothing.</p>
         </div>
       </div>
       <div class="row">
@@ -1987,19 +1987,19 @@
           {% if values.wa_access_token|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[wa_access_token]" value="1"> remove</label>{% endif %}
         </div>
       </div>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Delivery is best-effort with automatic retries; every send is audited (numbers stored hashed &amp; masked). Recipients are normalised to E.164, compatible with Twilio and the WhatsApp Business API.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Delivery is best-effort with automatic retries; every send is audited (numbers stored hashed &amp; masked). Recipients are normalised to E.164, compatible with Twilio and the WhatsApp Business API.</p>
 
       {# ── THE TEXT SOMEBODY GETS FOR WALKING IN ─────────────────────────────
          Off by default, like every outbound channel on this page: an upgrade must
          never start texting an existing event's attendees because a feature shipped.
          The "Reply STOP" line is appended by the code and is not in the box, so a
          rewrite here cannot remove the way out of the message. #}
-      <hr style="border:0;border-top:1px solid var(--ad-line,rgba(16,41,44,.1));margin:16px 0">
+      <hr style="border:0;border-top:1px solid var(--cn-line-card);margin:16px 0">
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px"><input type="checkbox" name="checkin_sms_enabled" value="1" {% if values.checkin_sms_enabled == '1' %}checked{% endif %}> <span><strong>Text attendees when they check in</strong> — one message per ticket, thanking them and pointing at open opportunities. Needs SMS enabled above.</span></label>
       <div>
         <label for="f-checkin_sms_template">Check-in message</label>
         <textarea name="checkin_sms_template" id="f-checkin_sms_template" rows="3" placeholder="{{ checkin_sms_default }}">{{ values.checkin_sms_template|default('') }}</textarea>
-        <p style="margin:5px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">
+        <p style="margin:5px 0 0;font-size:12px;color:var(--cn-grey-500)">
           Leave blank for the wording shown. <code>{name}</code> is their first name,
           <code>{count}</code> the number of opportunities open today, <code>{url}</code> the
           opportunities page, <code>{event}</code> the event title.

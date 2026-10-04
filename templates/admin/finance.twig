@@ -19,7 +19,7 @@
      by descent, which an earlier `.fi-tabs input` selector failed to do: it matched
      nothing and left five bare radio dots sitting above the tab strip. */
   .fi-tabs__radio{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-  .fi-tabs label{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 15px;font-size:13px;font-weight:600;cursor:pointer;user-select:none}
+  .fi-tabs label{border:1px solid var(--cn-line-card);background:var(--cn-surface);color:var(--cn-ink);border-radius:999px;padding:7px 15px;font-size:13px;font-weight:600;cursor:pointer;user-select:none}
   #fi-t-summary:checked ~ .fi-tabs label[for="fi-t-summary"],
   #fi-t-sources:checked ~ .fi-tabs label[for="fi-t-sources"],
   #fi-t-tx:checked      ~ .fi-tabs label[for="fi-t-tx"],
@@ -30,7 +30,7 @@
   #fi-t-people:checked  ~ .fi-tabs label[for="fi-t-people"],
   #fi-t-leak:checked    ~ .fi-tabs label[for="fi-t-leak"],
   #fi-t-ref:checked     ~ .fi-tabs label[for="fi-t-ref"],
-  #fi-t-giving:checked  ~ .fi-tabs label[for="fi-t-giving"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
+  #fi-t-giving:checked  ~ .fi-tabs label[for="fi-t-giving"]{background:var(--cn-ink);border-color:transparent;color:#fff}
 
   /* ── The wider read. Same CSS-only tab machinery as above; no new JS. ───── */
   .fx-note{margin:0 0 12px;font-size:13px;line-height:1.6;color:#5a6d6f;max-width:86ch}
@@ -74,7 +74,7 @@
   .fi-danger{border:1px solid #f0c9c9;background:#fdf3f3;border-radius:12px;padding:12px 14px}
   /* Focus must survive the visually-hidden input — the strip is keyboard-navigable
      with arrow keys, and without this the focused tab is invisible. */
-  .fi-tabs__radio:focus-visible ~ .fi-tabs label{outline:1px dashed var(--ad-accent,#237b22);outline-offset:2px}
+  .fi-tabs__radio:focus-visible ~ .fi-tabs label{outline:1px dashed var(--cn-ink);outline-offset:2px}
   .fi-panel{display:none}
   #fi-t-summary:checked ~ .fi-body #fi-p-summary,
   #fi-t-sources:checked ~ .fi-body #fi-p-sources,
@@ -89,45 +89,45 @@
   #fi-t-giving:checked  ~ .fi-body #fi-p-giving{display:block}
 
   .fi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
-  .fi-kpi{background:var(--ad-surface,#fff);border:1px solid var(--ad-line,#e5eae8);border-radius:14px;padding:14px 16px}
-  .fi-kpi__l{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
+  .fi-kpi{background:var(--cn-surface);border:1px solid var(--cn-line-card);border-radius:14px;padding:14px 16px}
+  .fi-kpi__l{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--cn-grey-500)}
   .fi-kpi__v{font-size:26px;font-weight:800;margin-top:6px;line-height:1.1}
-  .fi-kpi__s{font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px}
-  .fi-kpi--good .fi-kpi__v{color:var(--ad-accent,#237b22)}
+  .fi-kpi__s{font-size:12px;color:var(--cn-grey-500);margin-top:4px}
+  .fi-kpi--good .fi-kpi__v{color:var(--cn-ink)}
   .fi-kpi--warn .fi-kpi__v{color:#a8730a}
   .fi-kpi--bad  .fi-kpi__v{color:#a32020}
 
   .fi-bars{display:grid;gap:10px}
   .fi-bar__top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
-  .fi-bar__track{height:12px;border-radius:999px;background:var(--ad-line,#eef2f0);overflow:hidden}
-  .fi-bar__fill{height:100%;border-radius:999px;background:var(--ad-accent,#237b22)}
+  .fi-bar__track{height:12px;border-radius:999px;background:var(--cn-line-card);overflow:hidden}
+  .fi-bar__fill{height:100%;border-radius:999px;background:var(--cn-ink)}
 
   /* The daily chart. Bars, because the series is a count of naira per day and a line
      between two zero days implies a value that was never taken. */
   .fi-spark{display:flex;align-items:flex-end;gap:2px;height:120px;padding:8px 0}
-  .fi-spark__b{flex:1;min-width:2px;background:var(--ad-accent,#237b22);border-radius:2px 2px 0 0;opacity:.85}
-  .fi-spark__b[data-zero="1"]{background:var(--ad-line,#e5eae8)}
+  .fi-spark__b{flex:1;min-width:2px;background:var(--cn-ink);border-radius:2px 2px 0 0;opacity:.85}
+  .fi-spark__b[data-zero="1"]{background:var(--cn-line-card)}
 
-  .fi-note{font-size:13px;color:var(--ad-text-mute,#5a6d6f);margin:0 0 12px}
-  .fi-empty{text-align:center;color:var(--ad-text-mute,#61728e);padding:34px 10px}
+  .fi-note{font-size:13px;color:var(--cn-grey-500);margin:0 0 12px}
+  .fi-empty{text-align:center;color:var(--cn-grey-500);padding:34px 10px}
   .fi-num{font-family:'Space Mono',monospace;font-size:13px;white-space:nowrap}
   .fi-right{text-align:right}
 </style>
 
 <form method="get" action="/admin/finance" class="ad-card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
   <div>
-    <label for="fiRange" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Period</label>
-    <select id="fiRange" name="range" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+    <label for="fiRange" style="display:block;font-size:12px;font-weight:600;color:var(--cn-grey-500);margin-bottom:4px">Period</label>
+    <select id="fiRange" name="range" style="padding:9px 12px;border:1px solid var(--cn-line-card);border-radius:9px">
       {% for k, label in ranges %}<option value="{{ k }}" {% if range == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
   </div>
   <div>
-    <label for="fiFrom" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">From</label>
-    <input id="fiFrom" type="date" name="from" value="{{ from }}" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+    <label for="fiFrom" style="display:block;font-size:12px;font-weight:600;color:var(--cn-grey-500);margin-bottom:4px">From</label>
+    <input id="fiFrom" type="date" name="from" value="{{ from }}" style="padding:9px 12px;border:1px solid var(--cn-line-card);border-radius:9px">
   </div>
   <div>
-    <label for="fiTo" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">To</label>
-    <input id="fiTo" type="date" name="to" value="{{ to }}" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+    <label for="fiTo" style="display:block;font-size:12px;font-weight:600;color:var(--cn-grey-500);margin-bottom:4px">To</label>
+    <input id="fiTo" type="date" name="to" value="{{ to }}" style="padding:9px 12px;border:1px solid var(--cn-line-card);border-radius:9px">
   </div>
   <button class="ad-btn ad-btn--primary" type="submit">Apply</button>
   <a class="ad-btn" href="/admin/finance">Reset</a>
@@ -199,7 +199,7 @@
                    title="{{ d.date }} — ₦{{ d.naira|number_format }}"></div>
             {% endfor %}
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--cn-grey-500)">
             <span>{{ daily|first.date }}</span><span>peak ₦{{ peak|number_format }}</span><span>{{ daily|last.date }}</span>
           </div>
         </div>
@@ -215,8 +215,8 @@
             {% for s in sources %}
             <div>
               <div class="fi-bar__top">
-                <span><strong>{{ s.label }}</strong> <span style="color:var(--ad-text-mute,#5a6d6f)">· {{ s.count|number_format }} payment{{ s.count == 1 ? '' : 's' }}</span></span>
-                <span><strong>₦{{ s.gross|number_format }}</strong> <span style="color:var(--ad-text-mute,#5a6d6f)">{{ s.pct }}%</span></span>
+                <span><strong>{{ s.label }}</strong> <span style="color:var(--cn-grey-500)">· {{ s.count|number_format }} payment{{ s.count == 1 ? '' : 's' }}</span></span>
+                <span><strong>₦{{ s.gross|number_format }}</strong> <span style="color:var(--cn-grey-500)">{{ s.pct }}%</span></span>
               </div>
               <div class="fi-bar__track"><div class="fi-bar__fill" style="width:{{ s.pct }}%"></div></div>
             </div>
@@ -255,12 +255,12 @@
                 <td>
                   <strong>{{ s.label }}</strong>
                   {% if s.configured and s.bearer == 'subaccount' %}
-                  <br><span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">subaccount bears the fee</span>
+                  <br><span style="font-size:12px;color:var(--cn-grey-500)">subaccount bears the fee</span>
                   {% endif %}
                 </td>
                 <td style="font-family:var(--ag-font-mono,monospace);font-size:12px">
                   {% if s.configured %}{{ s.configured }}
-                  {% else %}<span style="color:var(--ad-text-mute,#5a6d6f)">main account</span>{% endif %}
+                  {% else %}<span style="color:var(--cn-grey-500)">main account</span>{% endif %}
                   {# A stream whose code CHANGED mid-period shows every code the period's
                      payments actually used — the one case a single figure would hide, and
                      the reason the code is stored per payment rather than looked up now. #}
@@ -272,11 +272,11 @@
                 </td>
                 <td class="fi-right fi-num">
                   ₦{{ s.routed_naira|number_format }}
-                  <br><span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">{{ s.routed_count|number_format }} payment{{ s.routed_count == 1 ? '' : 's' }}</span>
+                  <br><span style="font-size:12px;color:var(--cn-grey-500)">{{ s.routed_count|number_format }} payment{{ s.routed_count == 1 ? '' : 's' }}</span>
                 </td>
                 <td class="fi-right fi-num">
                   ₦{{ s.main_naira|number_format }}
-                  <br><span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">{{ s.main_count|number_format }} payment{{ s.main_count == 1 ? '' : 's' }}</span>
+                  <br><span style="font-size:12px;color:var(--cn-grey-500)">{{ s.main_count|number_format }} payment{{ s.main_count == 1 ? '' : 's' }}</span>
                 </td>
               </tr>
               {% endfor %}
@@ -343,7 +343,7 @@
                   {% elseif t.status == 'refunded' %}<span class="ad-chip">refunded</span>
                   {% else %}<span class="ad-chip ad-chip--red">{{ t.status }}</span>{% endif %}
                 </td>
-                <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ t.ref|default('—') }}</td>
+                <td class="fi-num" style="color:var(--cn-grey-500)">{{ t.ref|default('—') }}</td>
               </tr>
               {% else %}<tr><td colspan="7" class="fi-empty">No payments recorded yet.</td></tr>{% endfor %}
             </tbody>
@@ -376,7 +376,7 @@
                 <td>{{ r.donor_email }}</td>
                 <td class="fi-right fi-num">₦{{ r.amount_naira|number_format }}</td>
                 <td class="fi-right fi-num">{{ r.bonus_votes|number_format }}</td>
-                <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ r.payment_ref|default('—') }}</td>
+                <td class="fi-num" style="color:var(--cn-grey-500)">{{ r.payment_ref|default('—') }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -390,7 +390,7 @@
             A checkout still pending a minute later is someone mid-flow. Still pending an hour
             later is either an abandoned cart or a bank transfer that settled after the callback —
             and the second kind is real money sitting uncredited. The row cannot tell you which,
-            so re-ask the gateway: <a href="/admin/settings#maintenance" style="color:var(--ad-accent,#237b22)">Settings → Credit paid votes now</a>.
+            so re-ask the gateway: <a href="/admin/settings#maintenance" style="color:var(--cn-ink)">Settings → Credit paid votes now</a>.
           </p>
           {% if uncredited %}
           <table class="ad-table">
@@ -403,7 +403,7 @@
                 <td><strong>{{ u.who }}</strong></td>
                 <td>{{ u.email }}</td>
                 <td class="fi-right fi-num">₦{{ u.naira|number_format }}</td>
-                <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ u.ref|default('—') }}</td>
+                <td class="fi-num" style="color:var(--cn-grey-500)">{{ u.ref|default('—') }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -454,8 +454,8 @@
             <input type="hidden" name="_token" value="{{ csrf_token }}">
             <input type="hidden" name="mode" value="check">
             <div>
-              <label for="rcMin" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Older than</label>
-              <select id="rcMin" name="minutes" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+              <label for="rcMin" style="display:block;font-size:12px;font-weight:600;color:var(--cn-grey-500);margin-bottom:4px">Older than</label>
+              <select id="rcMin" name="minutes" style="padding:9px 12px;border:1px solid var(--cn-line-card);border-radius:9px">
                 <option value="15">15 minutes</option>
                 <option value="60" selected>1 hour</option>
                 <option value="1440">24 hours</option>
@@ -490,7 +490,7 @@
                   <td><span class="fi-act fi-act--{{ i.action }}">{{ i.action }}</span></td>
                   <td>{{ i.kind }}</td>
                   <td><strong>{{ i.who }}</strong></td>
-                  <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ i.ref }}</td>
+                  <td class="fi-num" style="color:var(--cn-grey-500)">{{ i.ref }}</td>
                   <td class="fi-right fi-num">₦{{ i.amount_ours|number_format }}</td>
                   <td class="fi-right fi-num">{{ i.amount_gateway > 0 ? '₦' ~ i.amount_gateway|number_format : '—' }}</td>
                   <td style="font-size:13px">{{ i.note }}</td>
@@ -518,7 +518,7 @@
               <input type="hidden" name="minutes" value="{{ recon.minutes|default(60) }}">
               <label for="rcConfirm" style="font-size:13px;font-weight:600">Type <code>APPLY</code> to confirm</label>
               <input id="rcConfirm" name="confirm" autocomplete="off" placeholder="APPLY"
-                     style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;width:120px;font-family:'Space Mono',monospace">
+                     style="padding:9px 12px;border:1px solid var(--cn-line-card);border-radius:9px;width:120px;font-family:'Space Mono',monospace">
               <button class="ad-btn ad-btn--primary" type="submit">Apply reconciliation</button>
             </form>
           </div>

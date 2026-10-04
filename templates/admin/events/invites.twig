@@ -133,7 +133,7 @@
                    from "the nominee half is broken". The banner above carries the
                    detail; this puts the fact next to the number it explains. #}
                 {% if g.ready|length == 0 and g.unreachable|length == 0 and g.already == 0 %}
-                  <small style="display:block;color:var(--ad-text-soft)">
+                  <small style="display:block;color:var(--cn-grey-600)">
                     {% if key == 'nominee' %}No published shortlist to draw from — see above.
                     {% else %}Nobody on this list yet — see above.{% endif %}
                   </small>
@@ -241,9 +241,9 @@
     <form class="ad-form" method="post" action="/admin/events/{{ event.id }}/invites/test" style="margin-top:16px">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <fieldset style="border:0;padding:0;margin:0;min-width:0">
-        <legend style="display:block;font-weight:600;font-size:13px;color:var(--ad-text);margin-bottom:6px;padding:0">
+        <legend style="display:block;font-weight:600;font-size:13px;color:var(--cn-ink);margin-bottom:6px;padding:0">
           Send one to yourself
-          <small style="display:block;font-weight:400;color:var(--ad-text-soft)">the real invitation, with the letter and the picture attached — nothing is marked sent</small>
+          <small style="display:block;font-weight:400;color:var(--cn-grey-600)">the real invitation, with the letter and the picture attached — nothing is marked sent</small>
         </legend>
         <div class="iv-act">
           <input type="email" name="to" value="{{ admin_email|default('') }}"
@@ -269,7 +269,7 @@
     {% if event.cover_image %}
       <p style="margin-top:12px">
         <img src="/{{ event.cover_image|trim('/') }}" alt="The current invitation image"
-             style="display:block;max-width:320px;width:100%;height:auto;border-radius:10px;border:1px solid var(--ad-line,#e5eae8)">
+             style="display:block;max-width:320px;width:100%;height:auto;border-radius:10px;border:1px solid var(--cn-line-card)">
       </p>
       <form method="post" action="/admin/events/{{ event.id }}/invites/image"
             data-confirm="Remove the invitation image? The ticket and the event page use it too.">
@@ -489,7 +489,7 @@
             <div style="margin-top:12px">
               <label for="d-{{ d }}" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px">
                 Day {{ d }}
-                <small style="display:block;font-weight:400;color:var(--ad-text-soft)">{% if d == 1 %}the eve — action{% elseif d == 2 %}message{% elseif d == 3 %}responsibility{% elseif d == 4 %}values{% else %}why{% endif %}</small>
+                <small style="display:block;font-weight:400;color:var(--cn-grey-600)">{% if d == 1 %}the eve — action{% elseif d == 2 %}message{% elseif d == 3 %}responsibility{% elseif d == 4 %}values{% else %}why{% endif %}</small>
               </label>
               <textarea id="d-{{ d }}" name="invite_seq_body_{{ draft_audience }}_{{ d }}" rows="10" style="width:100%">{{ drafts[d] }}</textarea>
             </div>
@@ -510,7 +510,7 @@
         <div style="margin-top:6px">
           <label for="steer" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px">
             Anything the letters should carry
-            <small style="display:block;font-weight:400;color:var(--ad-text-soft)">optional — the ceremony's own name, theme, date and venue are already known</small>
+            <small style="display:block;font-weight:400;color:var(--cn-grey-600)">optional — the ceremony's own name, theme, date and venue are already known</small>
           </label>
           <input type="text" id="steer" name="steer" maxlength="600" style="width:100%"
                  placeholder="e.g. these are head teachers, keep it plain and avoid corporate language">

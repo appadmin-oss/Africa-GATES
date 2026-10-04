@@ -80,7 +80,7 @@
      editor (the stage offset, the filter, the wash) is bound. */
   .tka{ margin:2px 0 14px }
   .tka__frame{ position:relative; width:100%; aspect-ratio:3/2; overflow:hidden;
-    border-radius:12px; border:1px solid var(--ad-line,#e2e8e6); background:#0f1c1e;
+    border-radius:12px; border:1px solid var(--cn-line-card); background:#0f1c1e;
     /* `touch-action:none` or a drag on a phone scrolls the page instead of moving the
        picture, and the frame becomes decoration on the device most organisers use. */
     cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none }
@@ -108,7 +108,7 @@
     border-top:1px solid rgba(255,255,255,.32); border-bottom:1px solid rgba(255,255,255,.32) }
   .tka__drop{ display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:6px; width:100%; aspect-ratio:3/2; box-sizing:border-box; padding:16px; text-align:center;
-    border:2px dashed var(--ad-line,#cbd8d4); border-radius:12px; background:#f7faf9;
+    border:2px dashed var(--cn-line-card); border-radius:12px; background:#f7faf9;
     color:#5a6d6f; font-size:13px; cursor:pointer }
   .tka__drop:hover, .tka__drop.is-over{ border-color:#237b22; background:#f1f8f1; color:#10292C }
   .tka__drop strong{ font-size:14px; color:#10292C }
@@ -120,7 +120,7 @@
      and a target you hit four times in a row wants more room than a target you hit once. */
   .tka__btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px;
     min-width:38px; height:38px; padding:0 11px; box-sizing:border-box; cursor:pointer;
-    border:1px solid var(--ad-line,#e2e8e6); border-radius:9px; background:#fff;
+    border:1px solid var(--cn-line-card); border-radius:9px; background:#fff;
     color:#10292C; font-size:13px; font-weight:600; line-height:1 }
   .tka__btn:hover{ border-color:#10292C }
   .tka__btn:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
@@ -148,7 +148,7 @@
      So the state is the native `disabled` attribute and the look is `[disabled]` —
      nothing to bind, nothing to clobber, and the control is correctly inert for a
      keyboard and a screen reader rather than merely faded. */
-  .ev-move{ border:1px solid var(--ad-line,#e2e8e6); background:#fff; color:#3d4b4d;
+  .ev-move{ border:1px solid var(--cn-line-card); background:#fff; color:#3d4b4d;
     font-size:11px; line-height:1; width:26px; height:34px; cursor:pointer }
   .ev-move:first-child{ border-radius:8px 0 0 8px }
   .ev-move:last-child{ border-radius:0 8px 8px 0 }
@@ -239,7 +239,7 @@
               <button class="ad-btn" type="submit"
                       formaction="/admin/events/{{ row.id }}/invites/repair?back=form"
                       formnovalidate>Create the awards link now</button>
-              <span style="margin-left:8px;color:var(--ad-text-soft)">Applies
+              <span style="margin-left:8px;color:var(--cn-grey-600)">Applies
                 <code>{{ programme_link.rerun }}</code> again. Safe to press twice.</span>
             </div>
           {% endif %}
@@ -258,9 +258,9 @@
            answering one question, which is exactly what a group label is for — a screen
            reader reading the fourth checkbox otherwise has no idea what the four are. #}
         <fieldset style="grid-column:1/-1;border:0;padding:0;margin:0;min-width:0">
-          <legend style="display:block;font-weight:600;font-size:13px;color:var(--ad-text);margin-bottom:6px;padding:0">
+          <legend style="display:block;font-weight:600;font-size:13px;color:var(--cn-ink);margin-bottom:6px;padding:0">
             Awards presented at this event
-            <small style="display:block;font-weight:400;color:var(--ad-text-soft)">the invitation run draws its guests of honour from these — leave all unticked when the event is not a ceremony</small>
+            <small style="display:block;font-weight:400;color:var(--cn-grey-600)">the invitation run draws its guests of honour from these — leave all unticked when the event is not a ceremony</small>
           </legend>
           {# An empty value first, so CLEARING every box actually clears the set: unchecked
              boxes send nothing at all, and a save with none ticked would otherwise be
@@ -492,7 +492,7 @@
        A tier with a price is CHARGED: the registration goes to the gateway and no ticket
        exists until Paystack confirms it. Leave the price at 0 for a free RSVP, which is
        confirmed on the spot. #}
-    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ tier_seed|json_encode|e('html_attr') }}, {name:'',price:0,perk:'',cap:'',code:'',colour:'',active:true,sold:0})">
+    <div style="border:1px solid var(--cn-line-card);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ tier_seed|json_encode|e('html_attr') }}, {name:'',price:0,perk:'',cap:'',code:'',colour:'',active:true,sold:0})">
       <strong style="font-size:14px">Ticket tiers <small style="font-weight:400;color:#8a9a9c">(a price of 0 is a free RSVP — leave the list empty for one simple free ticket)</small></strong>
       {% if tier_colour_missing is empty %}
       {# ── WHAT THE COLOURS ARE, ONCE ────────────────────────────────────────
@@ -501,7 +501,7 @@
          at. Change the ticket accent below and this strip moves with it on the next load —
          which is the whole reason the column stores a slot and not a hex. #}
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;
-                  padding:8px 10px;background:#fff;border:1px solid var(--ad-line,#e2e8e6);border-radius:9px">
+                  padding:8px 10px;background:#fff;border:1px solid var(--cn-line-card);border-radius:9px">
         <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a9a9c">Your colours</span>
         {% for key, sw in tier_palette %}
           <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#3d4b4d">
@@ -512,7 +512,7 @@
       </div>
       {% endif %}
       <template x-for="(r, i) in rows" :key="r.id">
-        <div style="border-top:1px solid var(--ad-line,#e2e8e6);margin-top:10px;padding-top:10px">
+        <div style="border-top:1px solid var(--cn-line-card);margin-top:10px;padding-top:10px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="hidden" name="tier_id[]" :value="r.tid || ''">
             <input type="hidden" name="tier_active[]" :value="r.active ? '1' : '0'">
@@ -602,7 +602,7 @@
     </div>
 
     {# Early-bird banner (the promo strip across the top of the event page) #}
-    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa">
+    <div style="border:1px solid var(--cn-line-card);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa">
       <strong style="font-size:14px">Early-bird banner <small style="font-weight:400;color:#8a9a9c">(optional — auto-hides after the deadline)</small></strong>
       <label style="margin-top:8px">Banner text<input type="text" name="early_bird_text" value="{{ row.early_bird_text|default('') }}" maxlength="255" placeholder="Save ₦8,000 with Early Bird tickets"></label>
       <div class="row">
@@ -626,10 +626,10 @@
        there are no sessions. Sessions exist for the day an event has two rooms: a blob
        cannot be grouped by day, filtered by track, or attached to — two parallel items at
        14:00 read as a contradiction rather than a choice. #}
-    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ session_seed|default([])|json_encode|e('html_attr') }}, {sid:0,title:'',body:'',from:'',until:'',room:'',track:'',who:'',live:true})">
+    <div style="border:1px solid var(--cn-line-card);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ session_seed|default([])|json_encode|e('html_attr') }}, {sid:0,title:'',body:'',from:'',until:'',room:'',track:'',who:'',live:true})">
       <strong style="font-size:14px">Agenda <small style="font-weight:400;color:#8a9a9c">(sessions — use this instead of the run of show for anything with tracks or more than one room)</small></strong>
       <template x-for="(r, i) in rows" :key="r.id">
-        <div style="border-top:1px solid var(--ad-line,#e2e8e6);margin-top:10px;padding-top:10px">
+        <div style="border-top:1px solid var(--cn-line-card);margin-top:10px;padding-top:10px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="hidden" name="ses_id[]" :value="r.sid || ''">
             <input type="hidden" name="ses_live[]" :value="r.live ? '1' : '0'">
@@ -670,7 +670,7 @@
     </div>
 
     {# Run-of-show repeater #}
-    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ sched_seed|json_encode|e('html_attr') }}, {time:'',title:'',body:''})">
+    <div style="border:1px solid var(--cn-line-card);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ sched_seed|json_encode|e('html_attr') }}, {time:'',title:'',body:''})">
       <strong style="font-size:14px">Run of show <small style="font-weight:400;color:#8a9a9c">(optional — renders as a timeline)</small></strong>
       <template x-for="(r, i) in rows" :key="r.id">
         <div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px">
@@ -728,7 +728,7 @@
         </p>
       </div>
     {% else %}
-    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa"
+    <div style="border:1px solid var(--cn-line-card);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa"
          {# `imageField` is the RAW column and `image` is the resolved one. The address box is
             bound to the raw value on purpose: seeded with the resolved one, opening any event
             with a cover photo and pressing Save copied the cover into `ticket_image` — after
@@ -937,7 +937,7 @@
           <label>Line on the stub <small>(printed — “Doors 5pm · Black tie”)</small>
             <input type="text" name="ticket_note" x-model="note" maxlength="160"></label>
 
-          <fieldset style="border:1px solid var(--ad-line,#e2e8e6);border-radius:10px;padding:10px 12px;margin:10px 0 0">
+          <fieldset style="border:1px solid var(--cn-line-card);border-radius:10px;padding:10px 12px;margin:10px 0 0">
             <legend style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a9a9c;padding:0 4px">Show on the ticket</legend>
             <div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:4px">
               {% for key, label in design_rows %}
@@ -1038,7 +1038,7 @@
     {# The sibling screens, out of the save bar. They are navigation, not actions on this form,
        and sitting beside Save is how somebody loses an edit by pressing one of them. #}
     {% if row.id is defined %}
-    <p style="margin:12px 0 0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+    <p style="margin:12px 0 0;font-size:13px;color:var(--cn-grey-500)">
       Also for this event:
       <a href="/admin/events/{{ row.id }}/tickets" style="font-weight:600">Who is coming</a> ·
       <a href="/admin/events/{{ row.id }}/codes" style="font-weight:600">Discount codes</a> ·

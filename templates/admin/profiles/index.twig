@@ -33,7 +33,7 @@
 <form id="pmergeForm" method="post" action="/admin/profiles/merge" style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap"
       data-confirm="Merge the ticked profiles into the KEEP one? Their linked nominees, CPI history and community reactions combine; duplicates are hidden but can be restored with Undo merge.">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
-  <span style="font-size:12px;color:var(--ad-text-soft)">Tick duplicate profiles + one KEEP, then</span>
+  <span style="font-size:12px;color:var(--cn-grey-600)">Tick duplicate profiles + one KEEP, then</span>
   <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit">Merge selected</button>
 </form>
 {% endif %}
@@ -55,13 +55,13 @@
           {% endif %}
           <td>
             <strong>{{ r.display_name }}</strong>
-            <div style="font-size:12px;color:var(--ad-text-soft)">{{ r.email }} · {{ r.category }}</div>
+            <div style="font-size:12px;color:var(--cn-grey-600)">{{ r.email }} · {{ r.category }}</div>
           </td>
           <td><span class="ad-chip ad-chip--grey">{{ r.profile_type|capitalize }}</span></td>
           <td><span style="font-family:'Space Mono',monospace">{{ r.country_code }}</span> · {{ r.region|capitalize }}</td>
           <td>
             <strong style="font-family:'Space Mono',monospace">{{ r.cpi_score }}</strong>
-            <div style="font-size:11px;color:var(--ad-text-soft);text-transform:uppercase">{{ r.cpi_tier }}</div>
+            <div style="font-size:11px;color:var(--cn-grey-600);text-transform:uppercase">{{ r.cpi_tier }}</div>
           </td>
           <td>
             {% set chip = {'approved':'green','pending':'gold','suspended':'red','rejected':'red'}[r.status]|default('grey') %}
@@ -74,7 +74,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="{{ admin_role in ['superadmin','admin'] ? 7 : 6 }}" style="text-align:center;color:var(--ad-text-mute);padding:30px">No profiles match.</td></tr>
+        <tr><td colspan="{{ admin_role in ['superadmin','admin'] ? 7 : 6 }}" style="text-align:center;color:var(--cn-grey-500);padding:30px">No profiles match.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -95,7 +95,7 @@
 {% if admin_role in ['superadmin','admin'] and merged is defined and merged|length %}
 <details class="ad-card" style="margin-top:18px">
   <summary style="cursor:pointer;font-weight:600;font-size:13px">↩ Recently merged profiles ({{ merged|length }}) — undo a merge</summary>
-  <p style="font-size:12px;color:var(--ad-text-mute,#61728e);margin:6px 0 10px">
+  <p style="font-size:12px;color:var(--cn-grey-500);margin:6px 0 10px">
     These profiles were folded into a survivor and hidden from the registry, leaderboard and search.
     Undoing restores the profile and moves its linked nominees + reactions back off the survivor.
   </p>
@@ -103,7 +103,7 @@
     {% for m in merged %}
     <li style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px">
       <span><strong>{{ m.name }}</strong> → kept as <strong>{{ m.keep_name ?? ('#' ~ m.keep_id) }}</strong>
-        {% if m.merged_at %}<small style="color:var(--ad-text-mute,#61728e)"> · {{ m.merged_at }}</small>{% endif %}</span>
+        {% if m.merged_at %}<small style="color:var(--cn-grey-500)"> · {{ m.merged_at }}</small>{% endif %}</span>
       <form method="post" action="/admin/profiles/unmerge" style="margin-left:auto">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <input type="hidden" name="merged_id" value="{{ m.id }}">

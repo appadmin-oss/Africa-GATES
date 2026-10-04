@@ -22,24 +22,24 @@
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   .pv-lead{ margin:0 0 18px; max-width:62ch; font-size:14px; line-height:1.65;
-            color:var(--ad-text-mute,#5a6d6f); }
+            color:var(--cn-grey-500); }
   .pv-grp{ margin:0 0 22px; }
-  .pv-grp h3{ margin:0 0 8px; font:600 11px/1 var(--ad-font-mono,ui-monospace,monospace);
-              letter-spacing:.14em; text-transform:uppercase; color:var(--ad-text-mute,#5a6d6f); }
+  .pv-grp h3{ margin:0 0 8px; font:600 11px/1 var(--cn-mono);
+              letter-spacing:.14em; text-transform:uppercase; color:var(--cn-grey-500); }
   .pv-t{ width:100%; border-collapse:collapse; }
   .pv-t td{ padding:11px 10px; border-top:1px solid rgba(16,41,44,.09); vertical-align:top;
             font-size:14px; }
   .pv-t tr:first-child td{ border-top:0; }
   .pv-n{ font-weight:600; white-space:nowrap; }
-  .pv-d{ color:var(--ad-text-mute,#5a6d6f); line-height:1.55; }
-  .pv-ms{ text-align:right; white-space:nowrap; font:12px/1 var(--ad-font-mono,ui-monospace,monospace);
-          color:var(--ad-text-mute,#5a6d6f); }
+  .pv-d{ color:var(--cn-grey-500); line-height:1.55; }
+  .pv-ms{ text-align:right; white-space:nowrap; font:12px/1 var(--cn-mono);
+          color:var(--cn-grey-500); }
   .pv-s{ display:inline-block; min-width:74px; padding:3px 9px; border-radius:999px;
-         font:600 11px/1.6 var(--ad-font-mono,ui-monospace,monospace); letter-spacing:.06em;
+         font:600 11px/1.6 var(--cn-mono); letter-spacing:.06em;
          text-align:center; }
   .pv-s--ok{ background:rgba(35,123,34,.12); color:#1a6118; border:1px solid rgba(35,123,34,.3); }
   .pv-s--no{ background:rgba(138,32,32,.10); color:#8a2020; border:1px solid rgba(138,32,32,.3); }
-  .pv-s--off{ background:rgba(16,41,44,.05); color:var(--ad-text-mute,#5a6d6f);
+  .pv-s--off{ background:rgba(16,41,44,.05); color:var(--cn-grey-500);
               border:1px solid rgba(16,41,44,.12); }
   .pv-s--run{ background:rgba(243,180,22,.14); color:#8a6a00; border:1px solid rgba(243,180,22,.35); }
   .pv-bar{ display:flex; gap:10px; align-items:center; margin:0 0 16px; flex-wrap:wrap; }
@@ -48,23 +48,23 @@
      this is neither, so it must not read as one more row in the table. */
   .pv-send{ margin:26px 0 0; padding:18px 18px 16px; border:1px solid rgba(243,180,22,.45);
             border-radius:10px; background:rgba(243,180,22,.05); }
-  .pv-send h3{ margin:0 0 6px; font:600 11px/1 var(--ad-font-mono,ui-monospace,monospace);
+  .pv-send h3{ margin:0 0 6px; font:600 11px/1 var(--cn-mono);
                letter-spacing:.14em; text-transform:uppercase; color:#8a6a00; }
   .pv-send p{ margin:0 0 14px; max-width:60ch; font-size:13px; line-height:1.6;
-              color:var(--ad-text-mute,#5a6d6f); }
+              color:var(--cn-grey-500); }
   .pv-send__row{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
   .pv-f{ display:flex; flex-direction:column; gap:5px; }
-  .pv-f label{ font:600 11px/1 var(--ad-font-mono,ui-monospace,monospace); letter-spacing:.1em;
-               text-transform:uppercase; color:var(--ad-text-mute,#5a6d6f); }
+  .pv-f label{ font:600 11px/1 var(--cn-mono); letter-spacing:.1em;
+               text-transform:uppercase; color:var(--cn-grey-500); }
   .pv-f input, .pv-f select{ min-height:40px; padding:8px 11px; font-size:14px;
                border:1px solid rgba(16,41,44,.22); border-radius:7px; background:#fff; }
-  .pv-f input{ min-width:210px; font-family:var(--ad-font-mono,ui-monospace,monospace); }
+  .pv-f input{ min-width:210px; font-family:var(--cn-mono); }
   .pv-out{ margin:14px 0 0; padding:12px 13px; border-radius:8px; font-size:13px;
            line-height:1.6; border:1px solid transparent; }
   .pv-out--ok{ background:rgba(35,123,34,.09); border-color:rgba(35,123,34,.3); color:#1a5518; }
   .pv-out--no{ background:rgba(138,32,32,.08); border-color:rgba(138,32,32,.3); color:#7a1c1c; }
   .pv-out b{ display:block; margin:0 0 3px; font-size:12px; letter-spacing:.04em;
-             text-transform:uppercase; font-family:var(--ad-font-mono,ui-monospace,monospace); }
+             text-transform:uppercase; font-family:var(--cn-mono); }
   .pv-note{ margin:8px 0 0; padding-top:8px; border-top:1px solid rgba(16,41,44,.12);
             color:#8a6a00; }
 </style>

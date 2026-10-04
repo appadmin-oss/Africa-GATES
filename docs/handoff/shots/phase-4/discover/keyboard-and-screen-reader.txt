@@ -1,0 +1,103 @@
+
+== Tab order from the top of /discover at 390 (first 22 stops) ==
+ 1 a "Skip to content"
+ 2 button "Account, language and display"
+ 3 input#dvQ ""
+ 4 a#dvTab-all[role=tab] "All"
+ 5 a[role=button] "Filters"
+ 6 a "See everything"
+ 7 a#dv-r1 "Result 13 minutes ago African Business Excellence "
+ 8 a#dv-r2 "Nomination 20 minutes ago Amara Okonkwo Academic E"
+ 9 a#dv-r3 "Voting 47 minutes ago Carol Awards 2026 Voting ope"
+10 a#dv-r4 "Event 1 hour ago SME Champions ceremony Upcoming e"
+11 a "All 4"
+12 a "Incredible Principal Awards Afrovanguard · 2025 Ed"
+13 a "Incorruptible Awards Afrovanguard · 4th Edition 12"
+14 a "Heritage Keepers Awards Maghreb Heritage Foundatio"
+15 a "SME Champions Sahel Enterprise Council · 2nd Editi"
+16 a "RM Ruth MbekiMusician of the Year · African Busine"
+17 a "QC Queens CollegeSchool of the Year · African Busi"
+18 a "AO Amara OkonkwoEnugu Girls School · Nigeria · nom"
+19 a "WK Wanjiru KamauSoko Labs · Kenya · nominated in 2"
+20 a "TN Thandiwe NkosiDurban Clinic · South Africa · no"
+21 a "KM Kwame MensahAccra Choral Society · Ghana · nomi"
+22 a "A Afrovanguard2 awards · 2 editions · Continental"
+
+== Arrow keys on the tablist at 390 ==
+ArrowRight from All -> a#dvTab-live[role=tab] "Live" | data-tab = live | url = ?tab=live
+End -> a#dvTab-events[role=tab] "Events" | data-tab = events
+Home -> a#dvTab-all[role=tab] "All"
+Back -> data-tab = events
+
+== Dock at 390: which copy is exposed ==
+at rest {"row":"false","dock":"true","tabstops":["row:all"]}
+scrolled {"row":"true","dock":"false","tabstops":["dock:all"]} | focus moved to a[role=tab] "All"
+
+== Live combobox + status announcements at 390 ==
+on load {"role":"combobox","expanded":"true","controls":"dvLiveList","activedescendant":null,"listRole":"listbox","listLive":null,"liveRegionsInMain":["dvStatus"],"focus":""}
+typed "Amara" {"role":"combobox","expanded":"true","controls":"dvLiveList","activedescendant":null,"listRole":"listbox","listLive":null,"liveRegionsInMain":["dvStatus"],"focus":"dvQ"}
+ArrowDown x2 {"role":"combobox","expanded":"true","controls":"dvLiveList","activedescendant":"dv-r2","listRole":"listbox","listLive":null,"liveRegionsInMain":["dvStatus"],"focus":"dvQ"}
+Escape 1 (closes) {"role":"combobox","expanded":"false","controls":"dvLiveList","activedescendant":null,"listRole":"listbox","listLive":null,"liveRegionsInMain":["dvStatus"],"focus":"dvQ"} value= Amara
+Escape 2 (clears) value= ""
+status line said, in order: ["Type at least 2 characters.","4 results for “Amara”","Showing the 20 most recent updates"]
+Enter with nothing active submits -> /discover?tab=live&q=zz
+
+== Filters dialog at 390 ==
+opened, focus -> a[role=button] "Close filters" | aria-expanded = true
+after 14 Tabs focus is still inside: true a[role=button] "Close filters"
+Escape closes, focus returns -> a[role=button] "Filters"
+
+== Tab order from the top of /discover at 1440 (first 22 stops) ==
+ 1 a "Skip to content"
+ 2 a "Africa GATES home"
+ 3 button#ag-mega-participate-trigger "Participate"
+ 4 button#ag-mega-explore-trigger "Explore"
+ 5 a "Search Africa GATES"
+ 6 a "Sign in"
+ 7 input#dvQ ""
+ 8 a#dvTab-all[role=tab] "All"
+ 9 a[role=button] "Filters"
+10 a "See everything"
+11 a#dv-r1 "Result 13 minutes ago African Business Excellence "
+12 a#dv-r2 "Nomination 20 minutes ago Amara Okonkwo Academic E"
+13 a#dv-r3 "Voting 47 minutes ago Carol Awards 2026 Voting ope"
+14 a#dv-r4 "Event 1 hour ago SME Champions ceremony Upcoming e"
+15 a "All 4"
+16 a "Incredible Principal Awards Afrovanguard · 2025 Ed"
+17 a "Incorruptible Awards Afrovanguard · 4th Edition 12"
+18 a "Heritage Keepers Awards Maghreb Heritage Foundatio"
+19 a "SME Champions Sahel Enterprise Council · 2nd Editi"
+20 a "RM Ruth MbekiMusician of the Year · African Busine"
+21 a "QC Queens CollegeSchool of the Year · African Busi"
+22 a "AO Amara OkonkwoEnugu Girls School · Nigeria · nom"
+
+== Arrow keys on the tablist at 1440 ==
+ArrowRight from All -> a#dvTab-live[role=tab] "Live" | data-tab = live | url = ?tab=live
+End -> a#dvTab-events[role=tab] "Events" | data-tab = events
+Home -> a#dvTab-all[role=tab] "All"
+Back -> data-tab = events
+
+== Dock at 1440: which copy is exposed ==
+at rest {"row":"false","dock":"true","tabstops":["row:all"]}
+scrolled {"row":"true","dock":"false","tabstops":["dock:all"]} | focus moved to a[role=tab] "All"
+
+== Live combobox + status announcements at 1440 ==
+on load {"role":"combobox","expanded":"true","controls":"dvLiveList","activedescendant":null,"listRole":"listbox","listLive":null,"liveRegionsInMain":["dvStatus"],"focus":""}
+typed "Amara" {"role":"combobox","expanded":"true","controls":"dvLiveList","activedescendant":null,"listRole":"listbox","listLive":null,"liveRegionsInMain":["dvStatus"],"focus":"dvQ"}
+ArrowDown x2 {"role":"combobox","expanded":"true","controls":"dvLiveList","activedescendant":"dv-r2","listRole":"listbox","listLive":null,"liveRegionsInMain":["dvStatus"],"focus":"dvQ"}
+Escape 1 (closes) {"role":"combobox","expanded":"false","controls":"dvLiveList","activedescendant":null,"listRole":"listbox","listLive":null,"liveRegionsInMain":["dvStatus"],"focus":"dvQ"} value= Amara
+Escape 2 (clears) value= ""
+status line said, in order: ["Type at least 2 characters.","4 results for “Amara”","Showing the 20 most recent updates"]
+Enter with nothing active submits -> /discover?tab=live&q=zz
+
+== Filters dialog at 1440 ==
+opened, focus -> a[role=button] "Close filters" | aria-expanded = true
+after 14 Tabs focus is still inside: true a[role=button] "Close filters"
+Escape closes, focus returns -> a[role=button] "Filters"
+
+== Scripting off ==
+Live tab link -> /discover?tab=live
+Voting chip submits -> /discover?tab=live&kind=vote
+search submits -> /discover?tab=live&kind=vote&q=Carol
+Filters link opens the panel by :target -> visible
+Show submits -> /discover?tab=all&where=KE

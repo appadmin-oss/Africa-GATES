@@ -401,12 +401,29 @@ final class DiscoverPageTest extends TestCase
             ->pluck('n.name')->all();
         $title = (string) DB::table('gates_award_programmes')->where('id', DemoSeeder::programmeId())->value('title');
         $this->assertNotEmpty($names, 'the sandbox seeded nobody — this test would pass vacuously');
+        // The seeder dates its nominees twenty days back, which early in a month is LAST
+        // month — and "Most nominated this month" would then exclude them by date rather
+        // than by containment, passing for the wrong reason. Bring them into this month.
+        DB::table('gates_nominees')->whereIn('name', $names)->update(['nominated_at' => Carbon::now()->subMinutes(1)->toDateTimeString()]);
 
         foreach (['/discover', '/discover?tab=live', '/discover?tab=people', '/discover?tab=orgs', '/discover?tab=awards&status=voting'] as $uri) {
             $main = $this->main($this->html($uri));
             $this->assertStringNotContainsString($title, $main, "$uri names the sandbox programme");
             foreach ($names as $n) $this->assertStringNotContainsString((string) $n, $main, "$uri shows sandbox nominee $n");
         }
+    }
+
+    public function test_a_section_tab_lists_what_it_counts_and_the_all_tab_draws_the_dcs_slice(): void
+    {
+        $cat = $this->seedAward();
+        for ($i = 1; $i <= 6; $i++) $this->nominee($cat, "Counted Person $i");
+        $html = $this->html('/discover?tab=people');
+        $this->assertSame(6, substr_count($this->section($this->main($html), 'people'), 'class="dv-item"'),
+            'a count of six over four reachable rows is a count of nothing');
+        $this->assertStringContainsString('data-count-people="6"', $html);
+
+        $css = ChromeRender::code('public/assets/css/components/discover.css');
+        $this->assertStringContainsString('.dv[data-tab="all"] .dv-only--people .dv-item:nth-child(n+5)', $css);
     }
 
     public function test_no_inline_handler_and_every_inline_style_is_a_data_custom_property(): void

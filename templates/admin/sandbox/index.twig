@@ -33,7 +33,7 @@
 
 {% if exists %}
 <div class="ad-card">
-  <div class="ad-card__head"><div class="ad-card__title" style="color:var(--ad-accent,#237b22)">
+  <div class="ad-card__head"><div class="ad-card__title" style="color:var(--cn-ink)">
     A sandbox is live
     <small>Walk these in order — it is roughly the path a real nominee takes.</small>
   </div>
@@ -49,9 +49,9 @@
       <tbody>
         {% for l in current.links %}
         <tr>
-          <td style="color:var(--ad-text-mute);font-variant-numeric:tabular-nums">{{ loop.index }}</td>
-          <td><a href="{{ l.href }}" style="color:var(--ad-accent,#237b22);font-weight:600">{{ l.label }} →</a>
-            <br><span style="font-size:12px;color:var(--ad-text-mute)"><code>{{ l.href }}</code></span></td>
+          <td style="color:var(--cn-grey-500);font-variant-numeric:tabular-nums">{{ loop.index }}</td>
+          <td><a href="{{ l.href }}" style="color:var(--cn-ink);font-weight:600">{{ l.label }} →</a>
+            <br><span style="font-size:12px;color:var(--cn-grey-500)"><code>{{ l.href }}</code></span></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -79,7 +79,7 @@
 
     {# ── the judge ─────────────────────────────────────────────────────────── #}
     <h3 style="margin:0 0 6px;font-size:14px">Sign in as the test judge</h3>
-    <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:var(--ad-text-mute,#5a6d6f)">
+    <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:var(--cn-grey-500)">
       The real sign-in screen, the real code, the real fifteen-minute expiry — it just is not
       emailed, because <code>{{ doors.judge_email }}</code> is at a domain no mail server
       will ever accept.
@@ -92,7 +92,7 @@
         <strong>Your code — this is the only time it is shown</strong>
         <div style="font-family:var(--ag-font-mono,ui-monospace,Consolas,monospace);font-weight:700;font-size:30px;letter-spacing:.3em;padding:10px 0 4px">{{ judge_code }}</div>
         <p style="margin:0;font-size:13px">
-          Go to <a href="{{ doors.judge_login }}" target="_blank" rel="noopener" style="color:var(--ad-accent,#237b22);font-weight:600">{{ doors.judge_login }}</a>,
+          Go to <a href="{{ doors.judge_login }}" target="_blank" rel="noopener" style="color:var(--cn-ink);font-weight:600">{{ doors.judge_login }}</a>,
           enter <code>{{ doors.judge_email }}</code>, then this code. It expires in 15 minutes.
         </p>
       </div>
@@ -104,37 +104,37 @@
     </form>
 
     {# ── the interviewee ───────────────────────────────────────────────────── #}
-    <h3 style="margin:0 0 6px;font-size:14px;padding-top:16px;border-top:1px solid var(--ad-line)">The interviewee's own page</h3>
+    <h3 style="margin:0 0 6px;font-size:14px;padding-top:16px;border-top:1px solid var(--cn-line-card)">The interviewee's own page</h3>
     {% if doors.interview %}
-      <p style="margin:0 0 6px;font-size:13px;line-height:1.65;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:0 0 6px;font-size:13px;line-height:1.65;color:var(--cn-grey-500)">
         Consent, the appointment, and rescheduling — what <strong>{{ doors.interview.label }}</strong>
         opens{% if doors.interview.when %}, for the sitting on {{ doors.interview.when }}{% endif %}.
       </p>
       <a href="{{ doors.interview.href }}" target="_blank" rel="noopener"
-         style="color:var(--ad-accent,#237b22);font-weight:600;font-size:13px">Open it →</a>
-      <div><code style="font-size:12px;color:var(--ad-text-mute)">{{ doors.interview.href }}</code></div>
+         style="color:var(--cn-ink);font-weight:600;font-size:13px">Open it →</a>
+      <div><code style="font-size:12px;color:var(--cn-grey-500)">{{ doors.interview.href }}</code></div>
     {% else %}
-      <p style="margin:0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:0;font-size:13px;color:var(--cn-grey-500)">
         No sitting is scheduled. Rebuild the sandbox — it opens one three days out.
       </p>
     {% endif %}
 
     {# ── the nominee ───────────────────────────────────────────────────────── #}
-    <h3 style="margin:22px 0 6px;font-size:14px;padding-top:16px;border-top:1px solid var(--ad-line)">The questionnaire, as the nominee sees it</h3>
-    <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:var(--ad-text-mute,#5a6d6f)">
+    <h3 style="margin:22px 0 6px;font-size:14px;padding-top:16px;border-top:1px solid var(--cn-line-card)">The questionnaire, as the nominee sees it</h3>
+    <p style="margin:0 0 10px;font-size:13px;line-height:1.65;color:var(--cn-grey-500)">
       One in each state, because they are three different experiences: a submitted one is
       read-only, a draft is the form mid-flight, and an untouched one is what a nominee meets
       on the first open. Walking one tells you nothing about the other two.
     </p>
     {% for q in doors.questionnaires %}
-      <div style="padding:7px 0;border-bottom:1px solid var(--ad-line)">
+      <div style="padding:7px 0;border-bottom:1px solid var(--cn-line-card)">
         <a href="{{ q.href }}" target="_blank" rel="noopener"
-           style="color:var(--ad-accent,#237b22);font-weight:600;font-size:13px">{{ q.label }}</a>
-        <span style="font-size:12px;color:var(--ad-text-mute);margin-left:8px">{{ q.state }}</span>
-        <div><code style="font-size:12px;color:var(--ad-text-mute)">{{ q.href }}</code></div>
+           style="color:var(--cn-ink);font-weight:600;font-size:13px">{{ q.label }}</a>
+        <span style="font-size:12px;color:var(--cn-grey-500);margin-left:8px">{{ q.state }}</span>
+        <div><code style="font-size:12px;color:var(--cn-grey-500)">{{ q.href }}</code></div>
       </div>
     {% else %}
-      <p style="margin:0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">None yet — build the sandbox.</p>
+      <p style="margin:0;font-size:13px;color:var(--cn-grey-500)">None yet — build the sandbox.</p>
     {% endfor %}
   </div>
 </div>
@@ -160,7 +160,7 @@
   </form>
   </div>
   <div class="ad-card__body">
-    <p style="margin:0;font-size:13px;color:var(--ad-text-soft)">
+    <p style="margin:0;font-size:13px;color:var(--cn-grey-600)">
       Takes a moment. When it is done this page lists every screen the sandbox makes
       reachable, so you can click straight through instead of hunting for the rows.
     </p>

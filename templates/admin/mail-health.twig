@@ -18,36 +18,36 @@
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   .mh{ display:flex; flex-direction:column; gap:18px; max-width:980px }
-  .mh-lead{ margin:0; max-width:68ch; font-size:14px; line-height:1.65; color:var(--ad-text-mute) }
+  .mh-lead{ margin:0; max-width:68ch; font-size:14px; line-height:1.65; color:var(--cn-grey-500) }
   .mh-state{ display:flex; gap:14px; align-items:flex-start; padding:18px 20px;
-    border-radius:var(--ad-radius); border:1px solid var(--ad-line); background:var(--ad-surface) }
+    border-radius:var(--cn-r-12); border:1px solid var(--cn-line-card); background:var(--cn-surface) }
   .mh-state--bad{ border-color:#f1c4c4; background:#fef6f6 }
   .mh-state--ok{ border-color:rgba(35,123,34,.3); background:rgba(35,123,34,.05) }
   .mh-state h2{ margin:0 0 4px; font-size:17px }
   .mh-state p{ margin:4px 0 0; font-size:14px; line-height:1.6; max-width:72ch }
   .mh-fix{ font-weight:600 }
-  .mh-meta{ font-size:12.5px; color:var(--ad-text-mute) }
+  .mh-meta{ font-size:12.5px; color:var(--cn-grey-500) }
   .mh-s{ display:inline-block; min-width:62px; padding:3px 9px; border-radius:999px;
-    font:600 11px/1.6 var(--ad-font-mono,ui-monospace,monospace); letter-spacing:.06em; text-align:center; white-space:nowrap }
+    font:600 11px/1.6 var(--cn-mono); letter-spacing:.06em; text-align:center; white-space:nowrap }
   .mh-s--ok{ background:rgba(35,123,34,.12); color:#1a6118; border:1px solid rgba(35,123,34,.3) }
   .mh-s--fail{ background:rgba(138,32,32,.10); color:#8a2020; border:1px solid rgba(138,32,32,.3) }
   .mh-s--warn{ background:rgba(243,180,22,.14); color:#7a5600; border:1px solid rgba(243,180,22,.35) }
-  .mh-s--skip{ background:rgba(16,41,44,.05); color:var(--ad-text-mute); border:1px solid rgba(16,41,44,.12) }
+  .mh-s--skip{ background:rgba(16,41,44,.05); color:var(--cn-grey-500); border:1px solid rgba(16,41,44,.12) }
   .mh-t{ width:100%; border-collapse:collapse; font-size:14px }
-  .mh-t th{ text-align:start; font-size:12px; font-weight:600; color:var(--ad-text-mute);
-    padding:8px 10px; border-bottom:1px solid var(--ad-line) }
-  .mh-t td{ padding:10px; border-top:1px solid var(--ad-line-soft); vertical-align:top; line-height:1.5 }
+  .mh-t th{ text-align:start; font-size:12px; font-weight:600; color:var(--cn-grey-500);
+    padding:8px 10px; border-bottom:1px solid var(--cn-line-card) }
+  .mh-t td{ padding:10px; border-top:1px solid var(--cn-line-row); vertical-align:top; line-height:1.5 }
   .mh-t tr:first-child td{ border-top:0 }
-  .mh-d{ color:var(--ad-text-mute); word-break:break-word }
+  .mh-d{ color:var(--cn-grey-500); word-break:break-word }
   .mh-kv{ display:grid; grid-template-columns:max-content 1fr; gap:6px 16px; margin:0; font-size:14px }
-  .mh-kv dt{ color:var(--ad-text-mute) }
-  .mh-kv dd{ margin:0; font-family:var(--ad-font-mono,ui-monospace,monospace); font-size:13px; word-break:break-all }
+  .mh-kv dt{ color:var(--cn-grey-500) }
+  .mh-kv dd{ margin:0; font-family:var(--cn-mono); font-size:13px; word-break:break-all }
   .mh-bar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
   .mh-list{ margin:0 0 14px; padding-inline-start:18px; font-size:14px; line-height:1.6; max-width:78ch }
   .mh-list li + li{ margin-top:4px }
   .mh-h3{ margin:20px 0 6px; font-size:14px }
-  .mh-h3 small{ display:block; font-weight:400; color:var(--ad-text-mute) }
-  .mh-url{ padding:6px 10px; border-radius:8px; background:var(--ad-line-soft); font-size:13px; word-break:break-all }
+  .mh-h3 small{ display:block; font-weight:400; color:var(--cn-grey-500) }
+  .mh-url{ padding:6px 10px; border-radius:8px; background:var(--cn-line-row); font-size:13px; word-break:break-all }
 </style>
 {% endblock %}
 

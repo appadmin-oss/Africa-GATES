@@ -4424,7 +4424,7 @@ return function(App $app) {
         // follows somebody to another browser. `/admin/me/` changes nothing on the
         // platform, which is why AdminAuthMiddleware lets a read-only role write here.
         $a->post('/me/pins',                     \AfricaGates\Admin\Controllers\ConsoleMeController::class.':pin');
-        $a->post('/me/pins/{id:[0-9]+}/delete',  \AfricaGates\Admin\Controllers\ConsoleMeController::class.':unpin');
+        $a->post('/me/pins/{id:[0-9]+}/unpin',   \AfricaGates\Admin\Controllers\ConsoleMeController::class.':unpin');
         $a->post('/me/sidebar',                  \AfricaGates\Admin\Controllers\ConsoleMeController::class.':sidebar');
 
         $a->group('/settings', function (RouteCollectorProxy $s) {

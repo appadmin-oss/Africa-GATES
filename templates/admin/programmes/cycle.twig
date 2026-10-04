@@ -49,8 +49,8 @@
           <span class="ad-chip ad-chip--{{ phase.is_open ? 'green' : (phase.is_finished ? 'grey' : 'gold') }}">{{ phase.label }}</span>
         </div>
         <div class="ad-card__body">
-          <p style="margin:0;font-size:14px;color:var(--ad-text)">{{ phase.detail }}</p>
-          <p style="margin:8px 0 0;font-size:13px;color:var(--ad-text-mute)">
+          <p style="margin:0;font-size:14px;color:var(--cn-ink)">{{ phase.detail }}</p>
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-grey-500)">
             Votes accepted: <strong>{{ phase.is_voting_open ? 'yes' : 'no' }}</strong> ·
             Nominations accepted: <strong>{{ phase.is_nominations_open ? 'yes' : 'no' }}</strong>
             {% if cycle.next_boundary_at %} · Next change <strong>{{ cycle.next_boundary_at|date('j M Y, H:i') }}</strong>{% endif %}
@@ -264,7 +264,7 @@
               and order, from the most recent edition that has any. Nothing else comes with
               them: no nominees, no votes, no shortlists, no scorecards.</span>
           </label>
-          <p style="margin:10px 0 0;font-size:12px;line-height:1.65;color:var(--ad-text-mute,#5a6d6f)">
+          <p style="margin:10px 0 0;font-size:12px;line-height:1.65;color:var(--cn-grey-500)">
             The new edition opens as <strong>upcoming with no dates</strong>. A results date
             inherited from last year is a promise nobody made, arriving already passed
             &mdash; the public site would publish a &ldquo;this award is late&rdquo; notice
@@ -278,10 +278,10 @@
     <div class="ad-card">
       <div class="ad-card__head"><div class="ad-card__title">Categories<small>For the current cycle</small></div></div>
       <div class="ad-card__body">
-        {% if categories|length == 0 %}<p style="color:var(--ad-text-mute);font-size:13px">No categories yet.</p>{% endif %}
+        {% if categories|length == 0 %}<p style="color:var(--cn-grey-500);font-size:13px">No categories yet.</p>{% endif %}
         {% for c in categories %}
-        <details style="border:1px solid var(--ad-line);border-radius:8px;padding:12px;margin-bottom:8px">
-          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--ad-text-mute);font-weight:500">· {{ c.slug }}</span></summary>
+        <details style="border:1px solid var(--cn-line-card);border-radius:8px;padding:12px;margin-bottom:8px">
+          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--cn-grey-500);font-weight:500">· {{ c.slug }}</span></summary>
           <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:12px">
             <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ c.id }}">
             <div class="row">
@@ -310,7 +310,7 @@
         </details>
         {% endfor %}
 
-        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--ad-bg);border-radius:8px">
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--cn-fill-panel);border-radius:8px">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <strong style="font-size:13px">+ Add category</strong>
           <div class="row">

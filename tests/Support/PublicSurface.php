@@ -10,21 +10,24 @@ namespace Tests\Support;
  * about which files they cover is worse than either being loose — the same reason
  * `ColourFields` exists.
  *
- * ── THE SCOPE IS BY EXCLUSION, AND THE EXCLUSIONS ARE HELD SURFACES ─────────
+ * ── THE SCOPE IS BY EXCLUSION, AND THE EXCLUSIONS ARE OTHER SURFACES ─────────
  *
  * The owner decided the handoff's type rules (3 Oct 2026, GAPS §8 Q4/Q5) for the PUBLIC
- * site. The admin console and the judge console are not designed by the handoff
- * (REFERENCE §18.7, "Admin screens are not designed") and are held by the owner, so a
- * sweep over them would either fail on screens nobody may touch or teach somebody to
- * edit them inside a type change. They are excluded BY NAME, as surfaces:
+ * site. Two consoles sit outside it, for two different reasons:
  *
- *  - `templates/admin/` and `templates/judge/`;
- *  - the stylesheets only those consoles link: `admin.css`, `judge.css`, `main.css` and
- *    `aurora.css` (the judge layout's), and `components/auth.css`, whose only remaining
- *    readers are `admin/login.twig`, `admin/magic.twig` and `judge/login.twig` — the
- *    member sign-in it once also served was destroyed with the old pages; and
- *    `a11y.css`, linked by `admin/layout.twig` and `judge/layout.twig` alone since the
- *    public layout it was written for was destroyed (GAPS §7.3 lists it as held). Its
+ *  - THE ADMIN CONSOLE is no longer held (owner, 4 Oct 2026, GAPS §8d): it was destroyed
+ *    and rebuilt from its own handoff, which has its OWN ladder (README §10). The owner
+ *    asked for the public rules to be held strictly on the public surface, so the console
+ *    is out of THIS scope by name and inside {@see ConsoleSurface}, where ConsoleTypeTest
+ *    holds the console's ladder and the two rules the surfaces share — no capitals, and
+ *    monospace only for what is copied or counted. Its templates are `templates/admin/`
+ *    and its sheets are `public/assets/css/console/`.
+ *  - THE JUDGE CONSOLE is still held: `templates/judge/` and the stylesheets only it
+ *    links — `judge.css`, `main.css` and `aurora.css` (the judge layout's), and
+ *    `components/auth.css`, whose only remaining readers are `admin/login.twig`,
+ *    `admin/magic.twig` and `judge/login.twig` — the member sign-in it once also served
+ *    was destroyed with the old pages; and `a11y.css`, linked by `judge/layout.twig` alone
+ *    since the admin console carries its own corrections (GAPS §7.3 lists it as held). Its
  *    16px input floor is in px, which the rem rule (TypeScaleTest) refuses on a public
  *    screen; the public input floor is shell.css's, in rem;
  *  - `templates/partials/viz.twig`, which sits in `partials/` but whose only includers
@@ -71,7 +74,6 @@ final class PublicSurface
 
     /** Stylesheets only the held consoles link, with the reason in the docblock above. */
     public const HELD_CSS = [
-        'public/assets/css/admin.css',
         'public/assets/css/judge.css',
         'public/assets/css/main.css',
         'public/assets/css/aurora.css',
@@ -108,6 +110,7 @@ final class PublicSurface
                 if (!preg_match('~\.(twig|css)$~', $abs)) continue;
                 $rel = ltrim(str_replace($root, '', $abs), '/');
                 if (str_contains($rel, '/vendor/')) continue;
+                if (str_starts_with($rel, ConsoleSurface::CSS_DIR)) continue;   // the admin console's own surface
                 if (in_array($rel, self::HELD_CSS, true)) continue;
                 if (in_array($rel, self::HELD_TEMPLATES, true)) continue;
                 foreach (self::HELD_TEMPLATE_DIRS as $held) {

@@ -18,8 +18,10 @@
    Nothing here is a colour literal (ColourLiteralTest).
    ══════════════════════════════════════════════════════════════════════════════ */
 
+/* The DC's 1180 is a CONTENT-box width (its canvas has no border-box reset), so the
+   column is 1180 of content plus the gutters either side — measured, not assumed. */
 .dv{
-  max-width:1180px; margin:0 auto;
+  max-width:calc(1180px + var(--ag-gutter) * 2); margin:0 auto;
   padding:4px var(--ag-gutter) 28px;
   display:flex; flex-direction:column; gap:30px;
 }
@@ -163,7 +165,15 @@
 .dv[data-tab="people"]  .dv-only--people,
 .dv[data-tab="orgs"]    .dv-only--orgs,
 .dv[data-tab="events"]  .dv-only--events{ display:flex }
+/* The All tab draws the DC's slice of each section (4 · 3 · 4 · 4 · 3); a section's own
+   tab draws everything the section carries. */
+.dv[data-tab="all"] .dv-only--awards .dv-card:nth-child(n+5),
+.dv[data-tab="all"] .dv-only--results .dv-item:nth-child(n+4),
+.dv[data-tab="all"] .dv-only--people .dv-item:nth-child(n+5),
+.dv[data-tab="all"] .dv-only--orgs .dv-item:nth-child(n+5),
+.dv[data-tab="all"] .dv-only--events .dv-item:nth-child(n+4){ display:none }
 .dv:not([data-tab="all"]) .dv-body{ display:block }
+.dv-only--live{ flex-direction:column; min-width:0 }
 .dv:not([data-tab="all"]) .dv-col{ display:contents }
 
 
@@ -257,6 +267,10 @@
 .dv-row__when{ flex:none; font-size:var(--ag-fs-12-5); color:var(--ag-soft); font-variant-numeric:tabular-nums }
 .dv-row__t{ font-size:var(--ag-fs-15); font-weight:600; line-height:1.35 }
 .dv-row__d{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+/* Each piece of a row is its own bidi paragraph: a timeline row is DATA in whatever
+   script it was written in, and inside an RTL page "16 minutes ago" otherwise reorders to
+   "minutes ago 16" (measured at 390 in Arabic). */
+.dv-row__when, .dv-row__t, .dv-row__d, .dv-item__t, .dv-item__m, .dv-card__t, .dv-card__l{ unicode-bidi:plaintext }
 .dv-list__empty{ padding:20px 16px; font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }
 
 .dv-older{
@@ -351,14 +365,16 @@
 
 
 /* ══ Filters · a bottom sheet on a phone, a full-height end panel from 600 ═════
-   The DC: from the top 72px on a phone, radius 22 at the top; from 600, 440 wide, the
+   The DC: 72px from the top of its phone frame (28 here — see below), radius 22 at the top; from 600, 440 wide, the
    full height, radius 0. White (the DC's `#fff`), not the base sheet's ground. Shown by
    `[data-open]` (discover.js) or by `:target` — the no-script way in. */
 
 .dv-scrim{ z-index:var(--ag-z-scrim) }
 .dv-facets{
   position:fixed; z-index:var(--ag-z-sheet);
-  inset:72px 0 0 0;
+  /* The DC's 72 is measured from the top of its device frame, which includes a 44px
+     status bar a web page never has: 28 from the top of the viewport is the same place. */
+  inset:28px 0 0 0;
   display:flex; flex-direction:column;
   background:var(--ag-surface);
   border-radius:22px 22px 0 0;

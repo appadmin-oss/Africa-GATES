@@ -339,10 +339,22 @@ final class MailHealthTest extends TestCase
         $this->assertSame(MailFailure::title(MailFailure::CONFIG), $b['title']);
         $this->assertStringNotContainsString('.env', $b['fix'], 'there is no shell to edit .env with');
 
+        // Since the console rebuild (4 Oct 2026) the outage reaches every console page as
+        // a HIGH alert — the red pill in the top bar and Home's "needs a person" — read from
+        // ONE place, ConsoleAlerts, which reads the banner once. One reader, never two.
+        $alerts = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Admin/Services/ConsoleAlerts.php');
+        $this->assertSame(1, substr_count($alerts, 'MailHealth::banner()'));
         $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/layout.twig');
-        $this->assertSame(1, substr_count($layout, 'mail_health()'));
+        $this->assertStringNotContainsString('mail_health()', $layout, 'a second mail reader in the layout');
         $this->assertStringNotContainsString('Email delivery is OFF', $layout,
             'the older mail banner is back beside the new one');
+        \AfricaGates\Admin\Services\ConsoleAlerts::reset();
+        $mail = array_values(array_filter(\AfricaGates\Admin\Services\ConsoleAlerts::open(),
+            static fn (array $a): bool => $a['key'] === 'mail'));
+        $this->assertCount(1, $mail, 'the outage did not become an alert');
+        $this->assertSame('high', $mail[0]['severity']);
+        $this->assertStringNotContainsString('.env', $mail[0]['summary']);
+        $this->assertSame('/admin/settings/mail', $mail[0]['href']);
     }
 
     public function test_the_banner_reads_the_log_when_no_incident_was_opened(): void

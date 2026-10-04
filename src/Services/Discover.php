@@ -107,8 +107,13 @@ final class Discover
         'ev'  => ['Reviewed evidence', 'At least one item reviewed by our team'],
     ];
 
-    /** How many rows each section draws (the DC's own slices). */
-    private const SHOW = ['awards' => 4, 'results' => 3, 'people' => 4, 'orgs' => 4, 'events' => 3];
+    /**
+     * How many rows a section carries. On the All tab the DC draws a slice of each (4, 3,
+     * 4, 4, 3) and discover.css hides the rest; a section's own tab shows them all — a
+     * count of "8 results" over four visible rows would be a count of nothing a reader can
+     * reach. The ceiling keeps one page one page.
+     */
+    public const MAX_ROWS = 48;
 
     public function __construct(private readonly ActivityFeedService $feed = new ActivityFeedService()) {}
 
@@ -380,7 +385,7 @@ final class Discover
         }
 
         return ['status' => $status, 'heading' => Translator::t(self::STATUS[$status]),
-                'items' => array_slice($rows, 0, self::SHOW['awards']), 'total' => count($rows)];
+                'items' => array_slice($rows, 0, self::MAX_ROWS), 'total' => count($rows)];
     }
 
     /** "Just decided": winners of the newest announced awards. */
@@ -406,7 +411,7 @@ final class Discover
         foreach ($rows as &$r) $r['initials'] = self::initials($r['name']);
         unset($r);
 
-        return ['items' => array_slice($rows, 0, self::SHOW['results']), 'total' => count($rows)];
+        return ['items' => array_slice($rows, 0, self::MAX_ROWS), 'total' => count($rows)];
     }
 
     /**
@@ -483,7 +488,7 @@ final class Discover
             ];
         }
 
-        return ['items' => array_slice($out, 0, self::SHOW['people']), 'total' => count($out)];
+        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out)];
     }
 
     /** Trust · "Recognised before": won, runner-up in an ANNOUNCED award, or on a published shortlist. */
@@ -579,7 +584,7 @@ final class Discover
             ];
         }
 
-        return ['items' => array_slice($out, 0, self::SHOW['orgs']), 'total' => count($out)];
+        return ['items' => array_slice($out, 0, self::MAX_ROWS), 'total' => count($out)];
     }
 
     /** "Upcoming ceremonies": published events still to come, soonest first. */
@@ -600,7 +605,7 @@ final class Discover
             ];
         }
 
-        return ['items' => array_slice($rows, 0, self::SHOW['events']), 'total' => count($rows)];
+        return ['items' => array_slice($rows, 0, self::MAX_ROWS), 'total' => count($rows)];
     }
 
     // ── Facets ───────────────────────────────────────────────────────────────────

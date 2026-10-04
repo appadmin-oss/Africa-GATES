@@ -4,7 +4,7 @@
 
 {% block content %}
 
-<p style="margin:0 0 14px;font-size:14px;color:var(--ad-text-mute,#5a6d6f)">
+<p style="margin:0 0 14px;font-size:14px;color:var(--cn-grey-500)">
   What we offer vendors, priced once. On an event's stands screen you pick a preset and say
   how many that hall has — the size, price and terms come from here.
   <strong>Editing a preset does not change an event that already uses it</strong>, because a
@@ -93,19 +93,19 @@
         <td>
           <strong>{{ r.name }}</strong>
           {% if not r.is_active %} <span class="ad-chip ad-chip--grey">retired</span>{% endif %}
-          {% if r.note %}<br><span style="font-size:12px;color:var(--ad-text-mute)">{{ r.note }}</span>{% endif %}
+          {% if r.note %}<br><span style="font-size:12px;color:var(--cn-grey-500)">{{ r.note }}</span>{% endif %}
         </td>
         <td style="font-variant-numeric:tabular-nums">{{ p.label }}
-          <br><span style="font-size:12px;color:var(--ad-text-mute)">{{ categories[r.category]|default(r.category) }}</span></td>
+          <br><span style="font-size:12px;color:var(--cn-grey-500)">{{ categories[r.category]|default(r.category) }}</span></td>
         <td style="text-align:right;font-variant-numeric:tabular-nums">{{ p.area }} m²</td>
         <td style="text-align:right;font-variant-numeric:tabular-nums">
-          {% if r.price_naira %}₦{{ r.price_naira|number_format }}{% else %}<span style="color:var(--ad-text-mute)">not priced</span>{% endif %}
-          {% if r.deposit_naira %}<br><span style="font-size:11px;color:var(--ad-text-mute)">₦{{ r.deposit_naira|number_format }} deposit</span>{% endif %}
+          {% if r.price_naira %}₦{{ r.price_naira|number_format }}{% else %}<span style="color:var(--cn-grey-500)">not priced</span>{% endif %}
+          {% if r.deposit_naira %}<br><span style="font-size:11px;color:var(--cn-grey-500)">₦{{ r.deposit_naira|number_format }} deposit</span>{% endif %}
         </td>
         <td style="font-size:12px">
           {% if r.includes_power %}<span class="ad-chip ad-chip--blue">power</span>{% endif %}
           {% if r.step_free %}<span class="ad-chip ad-chip--green">step-free</span>{% endif %}
-          {% if r.default_quota %}<br><span style="color:var(--ad-text-mute)">usually {{ r.default_quota }}</span>{% endif %}
+          {% if r.default_quota %}<br><span style="color:var(--cn-grey-500)">usually {{ r.default_quota }}</span>{% endif %}
         </td>
         <td class="col-actions">
           <details class="ad-photo-edit">
@@ -155,7 +155,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No presets yet — add the first one above.</td></tr>
+      <tr><td colspan="6" style="text-align:center;color:var(--cn-grey-500);padding:30px">No presets yet — add the first one above.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -19,18 +19,18 @@
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   .st-strip{ display:grid; grid-template-columns:repeat(auto-fit,minmax(122px,1fr)); gap:1px;
-             background:var(--ad-line); border-radius:12px; overflow:hidden; }
-  .st-strip__c{ background:var(--ad-surface); padding:14px 16px; }
+             background:var(--cn-line-card); border-radius:12px; overflow:hidden; }
+  .st-strip__c{ background:var(--cn-surface); padding:14px 16px; }
   .st-strip__n{ font-family:'Space Mono',monospace; font-weight:700; font-size:21px; line-height:1.1; }
   .st-strip__l{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-                color:var(--ad-text-soft); margin-top:5px; }
+                color:var(--cn-grey-600); margin-top:5px; }
 
   /* Capacity. The bar is decoration — the figures beside it are the fact, because a width
      is not readable and a screen reader user is entitled to the same number. */
   .st-cap{ display:flex; align-items:center; gap:12px; }
-  .st-cap__bar{ flex:1; min-width:80px; height:8px; border-radius:99px; background:var(--ad-line);
+  .st-cap__bar{ flex:1; min-width:80px; height:8px; border-radius:99px; background:var(--cn-line-card);
                 overflow:hidden; }
-  .st-cap__fill{ height:100%; background:var(--ad-primary); }
+  .st-cap__fill{ height:100%; background:var(--cn-ink); }
   .st-cap__fill.is-full{ background:#b91c1c; }
   .st-cap__n{ font-family:'Space Mono',monospace; font-size:13px; white-space:nowrap; }
 
@@ -42,24 +42,24 @@
      every row is unreadable, and the reason to open one is a correction, not a habit. */
   .st-editrow > td{ border-top:none; }
   .st-edit__sum{ cursor:pointer; padding:8px 0 12px; font-size:13px; font-weight:600;
-    color:var(--ad-text-soft); list-style:none; }
+    color:var(--cn-grey-600); list-style:none; }
   .st-edit__sum::-webkit-details-marker{ display:none; }
   .st-edit__sum::before{ content:'✎ '; }
-  .st-edit__sum:hover{ color:var(--ad-primary); text-decoration:underline; }
+  .st-edit__sum:hover{ color:var(--cn-ink); text-decoration:underline; }
   .st-edit__body{ padding:4px 0 18px; }
   /* A disabled custom box is greyed rather than hidden: hiding it would leave somebody
      hunting for where the size went when they pick Custom. */
   [data-ag-size-wrap]:has(input:disabled){ opacity:.45; }
 
-  .st-locked{ border-left:4px solid var(--ad-gold); }
-  .st-app__meta{ font-size:12px; color:var(--ad-text-soft); line-height:1.55; }
+  .st-locked{ border-left:4px solid var(--cn-warning-dot); }
+  .st-app__meta{ font-size:12px; color:var(--cn-grey-600); line-height:1.55; }
   .st-miss{ color:#b91c1c; font-size:12px; }
   .st-tabs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
   .st-tab{ display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:6px 13px;
-           border-radius:99px; border:1px solid var(--ad-line); background:var(--ad-surface);
-           font-size:13px; font-weight:600; color:var(--ad-text); text-decoration:none; }
+           border-radius:99px; border:1px solid var(--cn-line-card); background:var(--cn-surface);
+           font-size:13px; font-weight:600; color:var(--cn-ink); text-decoration:none; }
     /* #086411 on white is 6.9:1; white on #086411 is the same pair inverted. */
-  .st-tab.is-on{ background:var(--ad-primary); color:#fff; border-color:transparent; }
+  .st-tab.is-on{ background:var(--cn-ink); color:#fff; border-color:transparent; }
   .st-dec{ display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; }
 
   /* ── VISUALS ──────────────────────────────────────────────────────────────
@@ -70,26 +70,26 @@
   .viz-sw{ display:block; }
   .viz-swatches{ display:flex; flex-wrap:wrap; gap:22px; align-items:flex-end; }
   .viz-swatch{ text-align:center; }
-  .viz-swatch__l{ margin-top:7px; font-size:12px; font-weight:600; color:var(--ad-text); }
-  .viz-swatch__d{ font-size:12px; color:var(--ad-text-soft);
+  .viz-swatch__l{ margin-top:7px; font-size:12px; font-weight:600; color:var(--cn-ink); }
+  .viz-swatch__d{ font-size:12px; color:var(--cn-grey-600);
                   font-family:'Space Mono',monospace; }
   .viz-bar{ display:block; overflow:visible; }
   .viz-plan{ display:block; max-width:100%; height:auto; }
   .viz-planwrap{ overflow-x:auto; padding:14px 4px 4px; }
   .viz-legend{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 18px;
-               margin:12px 0 0; padding:0; font-size:13px; color:var(--ad-text); }
+               margin:12px 0 0; padding:0; font-size:13px; color:var(--cn-ink); }
   .viz-legend li{ display:flex; align-items:center; gap:7px; }
-  .viz-legend em{ font-style:normal; color:var(--ad-text-soft);
+  .viz-legend em{ font-style:normal; color:var(--cn-grey-600);
                   font-family:'Space Mono',monospace; }
   .viz-legend__dot{ width:11px; height:11px; border-radius:3px; flex:none; }
   .viz-figs{ display:flex; flex-wrap:wrap; gap:26px; margin-top:4px; }
   .viz-fig__n{ font-family:'Space Mono',monospace; font-weight:700; font-size:19px; }
   .viz-fig__l{ font-size:11px; font-weight:700; letter-spacing:.12em;
-               text-transform:uppercase; color:var(--ad-text-soft); margin-top:4px; }
+               text-transform:uppercase; color:var(--cn-grey-600); margin-top:4px; }
   .viz-warn{ margin-top:14px; border-left:4px solid #d03b3b; background:#fdf2f2;
              border-radius:0 10px 10px 0; padding:12px 15px; font-size:14px;
              line-height:1.65; color:#7f1d1d; }
-  .viz-caveat{ margin-top:12px; font-size:13px; line-height:1.65; color:var(--ad-text-soft); }
+  .viz-caveat{ margin-top:12px; font-size:13px; line-height:1.65; color:var(--cn-grey-600); }
 </style>
 {% endblock %}
 
@@ -137,7 +137,7 @@
   <div class="ad-card__body">
 
   {% if call and call.locked_at %}
-    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--ad-text-soft)">
+    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--cn-grey-600)">
       These terms were <strong>locked on {{ call.locked_at|slice(0,16) }}</strong> and cannot be
       edited. That is not a limitation of this screen — it is the mechanism. A rule that can be
       changed once you know who applied is not a rule, and every rejection made under this call
@@ -203,14 +203,14 @@
           </div>
           <button class="ad-btn ad-btn--sm" type="submit">Reopen</button>
         </form>
-        <p style="margin:10px 0 0;font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
+        <p style="margin:10px 0 0;font-size:13px;line-height:1.7;color:var(--cn-grey-600)">
           The published terms do not change. Only the closing date moves — everything a
           vendor was shown when they applied stays exactly as it was.</p>
       </details>
     {% endif %}
 
   {% elseif may_decide %}
-    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--ad-text-soft)">
+    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--cn-grey-600)">
       A draft. Nothing here is public and everything is editable. Publishing locks the closing
       date, the prices and the quotas <strong>permanently</strong> — read them once more first.
     </p>
@@ -226,7 +226,7 @@
           <label for="stCloses">Closes <span aria-hidden="true">*</span></label>
           <input id="stCloses" name="closes_at" type="datetime-local" required
                  value="{{ call and call.closes_at ? call.closes_at|when_input : '' }}" step="1">
-          <small style="color:var(--ad-text-mute)">A window with no deadline is an appeal that never resolves</small>
+          <small style="color:var(--cn-grey-500)">A window with no deadline is an appeal that never resolves</small>
         </div>
       </div>
       <div style="margin-top:12px">
@@ -247,12 +247,12 @@
            here would be a confirmation that silently never fires. #}
         <button class="ad-btn" type="submit"
                 data-confirm="Publish this call? The closing date, the prices and the quotas can never be edited afterwards — changing them means closing this call and opening another.">Publish and lock the terms</button>
-        <small style="display:block;margin-top:6px;color:var(--ad-text-mute)">
+        <small style="display:block;margin-top:6px;color:var(--cn-grey-500)">
           Needs a closing date and at least one stand type.</small>
       </form>
     {% endif %}
   {% else %}
-    <p style="margin:0;color:var(--ad-text-soft)">No call has been set up for this event.</p>
+    <p style="margin:0;color:var(--cn-grey-600)">No call has been set up for this event.</p>
   {% endif %}
   </div>
 </div>
@@ -398,7 +398,7 @@
                     <input id="eQ{{ c.type.id }}" name="quota" type="number" min="1" required
                            value="{{ c.type.quota }}">
                     {% if c.taken > 0 %}
-                      <small style="color:var(--ad-text-mute)">{{ c.taken }} already allocated —
+                      <small style="color:var(--cn-grey-500)">{{ c.taken }} already allocated —
                         a quota below that leaves them over the cap.</small>
                     {% endif %}
                   </div>
@@ -423,7 +423,7 @@
         </tr>
         {% endif %}
       {% else %}
-        <tr><td colspan="8" style="color:var(--ad-text-soft)">
+        <tr><td colspan="8" style="color:var(--cn-grey-600)">
           Nothing on offer yet. A call with no stand types is a form with no options.</td></tr>
       {% endfor %}
       </tbody>
@@ -432,7 +432,7 @@
 
   {% if may_decide %}
     {% if call and call.status == 'open' %}
-      <div class="ad-card__body" style="border-top:1px solid var(--ad-line);color:var(--ad-text-soft);font-size:14px;line-height:1.7">
+      <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card);color:var(--cn-grey-600);font-size:14px;line-height:1.7">
         The call is open, so prices and quotas are locked. They were published before anybody
         applied, and that is the whole of what makes the allocation defensible.
       </div>
@@ -443,7 +443,7 @@
          this hall holds — which is the one number a catalogue cannot know. Retyping a
          size and a price per event is how the ₦10,000 pitch quietly becomes ₦12,000. #}
       {% if presets|default([])|length > 0 %}
-      <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
+      <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card)">
         <form method="post" action="/admin/events/{{ event.id }}/stands/preset"
               style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -467,12 +467,12 @@
           <p class="hint" style="flex:1 1 100%;margin:0">
             Terms are copied, not linked — repricing a preset later never rewrites what a
             vendor applied for. Manage the catalogue in
-            <a href="/admin/stand-presets" style="color:var(--ad-accent,#237b22);font-weight:600">Stand presets</a>.
+            <a href="/admin/stand-presets" style="color:var(--cn-ink);font-weight:600">Stand presets</a>.
           </p>
         </form>
       </div>
       {% endif %}
-      <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
+      <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card)">
         <form method="post" action="/admin/events/{{ event.id }}/stands/type">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <div class="st-grid">
@@ -488,7 +488,7 @@
                 {% endfor %}
                 <option value="custom">Custom — use the boxes beside this</option>
               </select>
-              <small style="color:var(--ad-text-mute)">A market is built from stock parts: hired
+              <small style="color:var(--cn-grey-500)">A market is built from stock parts: hired
                 gazebos and multiples of them. 2.8m fits nothing and orders nothing.</small>
             </div>
             {# ── THE BOXES ARE DISABLED UNTIL “CUSTOM” IS CHOSEN ──────────────
@@ -507,14 +507,14 @@
               <label for="stD">Custom depth (m)</label>
               <input id="stD" name="depth_m" type="number" min="0.5" max="50" step="0.01"
                      data-ag-size-custom value="3">
-              <small style="color:var(--ad-text-mute)">Live only when the size is “Custom”</small>
+              <small style="color:var(--cn-grey-500)">Live only when the size is “Custom”</small>
             </div>
             <div>
               <label for="stCat">Category</label>
               <select id="stCat" name="category">
                 {% for slug, label in categories %}<option value="{{ slug }}">{{ label }}</option>{% endfor %}
               </select>
-              <small style="color:var(--ad-text-mute)">Quotas are what stop twelve of one thing</small>
+              <small style="color:var(--cn-grey-500)">Quotas are what stop twelve of one thing</small>
             </div>
             <div>
               <label for="stPrice">Price (₦)</label>
@@ -540,7 +540,7 @@
               <input type="checkbox" name="step_free" value="1"> Step-free pitch</label>
             <button class="ad-btn ad-btn--primary" type="submit">Add stand type</button>
           </div>
-          <small style="display:block;margin-top:8px;color:var(--ad-text-mute)">
+          <small style="display:block;margin-top:8px;color:var(--cn-grey-500)">
             Step-free pitches are inventory, not a favour — marking them here is what lets a
             vendor request one on the form instead of asking and hoping.</small>
         </form>
@@ -581,13 +581,13 @@
       column of numbers cannot do.
     </p>
   {% else %}
-    <p style="margin:0;color:var(--ad-text-soft)">Add a stand type and its size appears here.</p>
+    <p style="margin:0;color:var(--cn-grey-600)">Add a stand type and its size appears here.</p>
   {% endif %}
 
   {# ── the venue ──────────────────────────────────────────────────────── #}
   {% if may_decide %}
     <form method="post" action="/admin/events/{{ event.id }}/stands/venue"
-          style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+          style="margin-top:20px;padding-top:18px;border-top:1px solid var(--cn-line-card)">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px">
         <div>
@@ -604,7 +604,7 @@
           <label for="flA">Aisles and circulation (%)</label>
           <input id="flA" name="aisle_pct" type="number" min="0" max="80" step="1"
                  value="{{ plan.aisle_pct }}">
-          <small style="color:var(--ad-text-mute)">The floor no pitch can stand on. 35% is
+          <small style="color:var(--cn-grey-500)">The floor no pitch can stand on. 35% is
             deliberately generous — a market with nowhere to walk is one a fire officer closes.</small>
         </div>
       </div>
@@ -615,7 +615,7 @@
       </div>
       <div style="margin-top:14px">
         <button class="ad-btn ad-btn--primary" type="submit">Save the venue</button>
-        <small style="display:block;margin-top:6px;color:var(--ad-text-mute)">
+        <small style="display:block;margin-top:6px;color:var(--cn-grey-500)">
           Editable at any time, including after the call locks. The lock stops the
           <em>rules</em> changing once you know who applied; how wide the hall is, is a fact
           somebody may measure better next week.</small>
@@ -625,7 +625,7 @@
 
   {# ── the budget ─────────────────────────────────────────────────────── #}
   {% if plan.measured %}
-    <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+    <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--cn-line-card)">
       <div class="viz-figs">
         <div><div class="viz-fig__n">{{ plan.gross_sqm }} m²</div>
           <div class="viz-fig__l">Hall</div></div>
@@ -658,7 +658,7 @@
     </div>
 
     {# ── the block layout ────────────────────────────────────────────── #}
-    <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+    <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--cn-line-card)">
       <div class="ad-card__title" style="margin-bottom:2px">Indicative block layout</div>
       <p class="viz-caveat" style="margin-top:6px">
         <strong>This is not a site plan.</strong> It packs rows of pitches into a plain
@@ -686,7 +686,7 @@
 
     {# ── the mix ─────────────────────────────────────────────────────── #}
     {% if plan.categories|length > 1 %}
-      <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+      <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--cn-line-card)">
         {{ vz.chart(viz_mix) }}
       </div>
     {% endif %}
@@ -884,12 +884,12 @@
                 </form>
               {% endif %}
             {% else %}
-              <span style="color:var(--ad-text-soft)">Read only</span>
+              <span style="color:var(--cn-grey-600)">Read only</span>
             {% endif %}
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="5" style="color:var(--ad-text-soft)">
+        <tr><td colspan="5" style="color:var(--cn-grey-600)">
           {% if summary.total > 0 %}No application matches that filter.
           {% else %}Nobody has applied yet.{% endif %}</td></tr>
       {% endfor %}
@@ -897,7 +897,7 @@
     </table>
   </div>
 
-  <div class="ad-card__body" style="border-top:1px solid var(--ad-line);font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
+  <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card);font-size:13px;line-height:1.7;color:var(--cn-grey-600)">
     An offer is held for <strong>{{ offer_hours }} hours</strong>. After that the maintenance run
     returns the place to the waiting list automatically — a place held by somebody who stopped
     replying is a place the waiting list was promised and never got.
@@ -965,7 +965,7 @@
     </table>
   </div>
 
-  <div class="ad-card__body" style="border-top:1px solid var(--ad-line);font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
+  <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card);font-size:13px;line-height:1.7;color:var(--cn-grey-600)">
     A vendor pays from their own offer link, which is in the email that told them they had
     been offered a pitch. Nothing here is marked paid by hand — the amount comes from the
     gateway's own verification, so a row saying Paid is a row the gateway confirmed.

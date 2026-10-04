@@ -90,6 +90,11 @@ final class DeadTokenTest extends TestCase
                              array_keys(\AfricaGates\Support\Accent::shadows())) as $name) {
             $decls['--ag-' . $name][] = 'src/Support/Accent.php';
         }
+        // And the admin console's set, emitted as `--cn-*` by css('console') (4 Oct 2026).
+        foreach (array_merge(array_keys(\AfricaGates\Support\Accent::console()),
+                             array_keys(\AfricaGates\Support\Accent::consoleShadows())) as $name) {
+            $decls['--cn-' . $name][] = 'src/Support/Accent.php (console)';
+        }
 
         return [$decls, $reads];
     }
@@ -199,6 +204,10 @@ final class DeadTokenTest extends TestCase
         // Phase 3 (Gee) gave green-edge, info-wash and green-light their readers; Phase 4
         // (Discover) gave gold-wash its reader back — the winner's chip and avatar.
         '--ag-gold-edge',
+        // The admin console's palette (README §10, owner 4 Oct 2026): four of its tokens
+        // are drawn first by stage 2's screens — the provider pills' danger text, and
+        // the info, success and softest warning dots and fields.
+        '--cn-danger-pill', '--cn-info-dot', '--cn-success-dot', '--cn-warning-tint-3',
     ];
 
     public function test_the_awaiting_rebuild_list_only_shrinks(): void
