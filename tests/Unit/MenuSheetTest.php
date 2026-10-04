@@ -352,6 +352,24 @@ final class MenuSheetTest extends TestCase
         $this->assertMatchesRegularExpression("~fd\.append\('_token'.*?navigator\.sendBeacon\('/account/menu-use', fd\)~s", $js);
     }
 
+    /**
+     * Owner, 4 Oct 2026: "the open height varies". The medium detent is resolved from the
+     * layout inside a 45–70% band — never a fixed fraction. The geometry itself is browser
+     * behaviour, measured on three phones × two audiences × two text sizes (MENU-SHEET.md §5);
+     * this holds the rule's shape so a "simplification" back to one number fails here.
+     */
+    public function test_the_open_height_is_resolved_from_the_content_inside_the_owners_band(): void
+    {
+        $js = ChromeRender::code('public/assets/js/menu-sheet.js');
+        $this->assertMatchesRegularExpression('~var LOW\s*=\s*0\.45;~', $js);
+        $this->assertMatchesRegularExpression('~var HIGH\s*=\s*0\.70;~', $js);
+        $this->assertMatchesRegularExpression('~var medH = openHeight\(V, fullH\);~', $js,
+            'the medium detent must come from openHeight(), which reads the layout');
+        // The squares are what the open height must show whole.
+        $this->assertStringContainsString("querySelector('[data-ag-menu-tiles]')", $js);
+        $this->assertDoesNotMatchRegularExpression('~Math\.round\(V \* (?!LOW|HIGH)~', $js, 'a fixed fraction of the viewport is back');
+    }
+
     // ══ The beacon ═══════════════════════════════════════════════════════════
 
     public function test_the_beacon_counts_the_sessions_member_and_nobody_else(): void
