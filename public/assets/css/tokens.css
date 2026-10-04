@@ -85,6 +85,11 @@
   --ag-fs-44:2.75rem;   --ag-fs-48:3rem;
   /* Gee (Phase 3, Gee.dc.html): 25 the panel's greeting, Playfair (§8.22 "Playfair 25"). */
   --ag-fs-25:1.5625rem;
+  /* Home (Phase 4, HomePageV3.dc.html + WeAreAfrica.dc.html): 26 → 30 → 34 a section
+     headline (phone, tablet, desktop), 28 → 30 → 36 a live stat's figure, 40 the tablet
+     H1, 38 → 64 "We are Africa". */
+  --ag-fs-26:1.625rem;  --ag-fs-28:1.75rem;   --ag-fs-30:1.875rem;  --ag-fs-36:2.25rem;
+  --ag-fs-38:2.375rem;  --ag-fs-40:2.5rem;    --ag-fs-64:4rem;
 
   /* ── Spacing · §6.3 — the px name is the px value ──────────────────────── */
   /* 20 and 22 (§6.3), the 22 radius (§6.4) and the bar 30 layer (§6.7)
@@ -116,6 +121,7 @@
 
   --ag-ease:cubic-bezier(.2,0,0,1);        /* every UI transition */
   --ag-ease-pop:cubic-bezier(.2,.9,.3,1.2); /* badges, stars */
+  --ag-ease-sheet:cubic-bezier(.32,.72,0,1); /* a dragged sheet settling — the iOS sheet curve (MENU-SHEET.md) */
   --ag-dur-1:200ms;                         /* opacity, colour */
   --ag-dur-2:260ms;                         /* collapse and expand, sheets */
   --ag-dur-3:500ms;                         /* celebration text rise */

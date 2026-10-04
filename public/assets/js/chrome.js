@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════════
-   THE PHONE CHROME — Menu sheet · Quick settings · Display & reading controls ·
+   THE PHONE CHROME — the sheet helper · Quick settings · Display & reading controls ·
    the first-visit language prompt · share
    REFERENCE §7.2–§7.5 · MobileMenu.dc.html · AppBar.dc.html · skill §3, §4, §10
    ══════════════════════════════════════════════════════════════════════════════
@@ -7,7 +7,9 @@
    A classic `defer` script, like every script here. It owns no state: every setting is
    `AGA11y`'s store and every language is a link the server acts on, so this file opens
    things, closes things, and keeps what is on screen agreeing with what is stored. The
-   desktop header's controller is `header.js`; the palette is `search.js`.
+   desktop header's controller is `header.js`; the palette is `search.js`; the Menu sheet
+   — its detents, its drag and its most-used tiles — is `menu-sheet.js`, which opens through
+   `AGChrome.openSheet` below and publishes `AGChrome.openMenu` for Quick settings' hand-over.
 
    ── SHEETS CLOSE ON BACK ────────────────────────────────────────────────────
 
@@ -150,54 +152,6 @@
 
   window.addEventListener('popstate', function () { if (live) live.close('pop'); else pushed = false; });
 
-  /* ── The Menu and its pushed sub-views ─────────────────────────────────── */
-
-  function bindMenu() {
-    var sheet = document.querySelector('[data-ag-menu-sheet]');
-    var scrim = document.querySelector('[data-ag-menu-scrim]');
-    if (!sheet) return;
-    var from = null;   /* the row that pushed the current sub-view */
-
-    function view(name, focusTo) {
-      all('[data-ag-menu-view]', sheet).forEach(function (v) {
-        v.hidden = v.getAttribute('data-ag-menu-view') !== name;
-      });
-      var main = name === 'main';
-      var back = sheet.querySelector('[data-ag-menu-back]');
-      if (back) back.toggleAttribute('data-hide', main);
-      var title = sheet.querySelector('[data-ag-menu-title]');
-      if (title) title.textContent = sheet.getAttribute('data-title-' + name) || title.textContent;
-      var body = sheet.querySelector('[data-ag-menu-body]');
-      if (body) body.scrollTop = 0;
-
-      /* A push that leaves focus on a row no longer on screen is a push a screen-reader
-         user cannot follow: focus moves to the first control of the new view — and back
-         to the row that opened it on the way out. */
-      var target = focusTo;
-      if (!target) {
-        var v = sheet.querySelector('[data-ag-menu-view="' + name + '"]');
-        target = v ? v.querySelector('a[href],button:not([disabled]),select,input:not([disabled])') : null;
-      }
-      if (target) target.focus();
-    }
-
-    function openMenu(trigger, name) {
-      from = null;
-      open(sheet, scrim, trigger, function () { view(name || 'main'); });
-    }
-
-    document.addEventListener('click', function (e) {
-      var t = closest(e, '[data-ag-menu]');
-      if (t) { e.preventDefault(); openMenu(t); return; }
-      if (closest(e, '[data-ag-menu-close]')) { if (live) live.close(); return; }
-      if (closest(e, '[data-ag-menu-back]')) { view('main', from); from = null; return; }
-      var to = closest(e, '[data-ag-menu-to]');
-      if (to) { from = to; view(to.getAttribute('data-ag-menu-to')); }
-    });
-
-    window.AGChrome.openMenu = openMenu;
-  }
-
   /* ── Quick settings ────────────────────────────────────────────────────── */
 
   function bindQuick() {
@@ -279,7 +233,6 @@
   function boot() {
     if (window.AGA11y) bindA11y();
     bindLangForm();
-    bindMenu();
     bindQuick();
     bindShare();
     bindLangAsk();

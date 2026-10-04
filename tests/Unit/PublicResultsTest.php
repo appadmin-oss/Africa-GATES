@@ -744,6 +744,13 @@ final class PublicResultsTest extends TestCase
         $header = (string) file_get_contents($root . '/templates/partials/site-header.twig');
         $this->assertStringContainsString('data-ag-search-open', $header,
             'the header no longer opens the palette, so the search index is no door');
+        // And the footer, rebuilt in Phase 4, is back on the list of doors: on every shell
+        // page, a literal link to the results (its inventory's "must link /results").
+        $footer = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($root . '/templates/partials/site-footer.twig'));
+        $this->assertStringContainsString('href="/results"', $footer,
+            'the site footer no longer links the results — a browsing door closed');
+        $this->assertStringContainsString("include 'partials/site-footer.twig'", $shell,
+            'the footer left the shell, so its link to the results is on no page');
     }
 
     /**

@@ -4,7 +4,7 @@ use AfricaGates\Support\Env;
 use AfricaGates\Services\SystemStatus;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController,HonourController,ResultsController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController,HonourController,ResultsController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -1823,22 +1823,15 @@ return function(App $app) {
         $g->get('/judges',        JudgesController::class.':index');
         $g->get('/judges/{slug}', JudgesController::class.':show');
         $g->get('/registry',      RegistryController::class.':index');
-        // ── DISCOVER, UNTIL PHASE 4 BUILDS IT ────────────────────────────────
+        // ── DISCOVER (Phase 4, design/DiscoverPage.dc.html) ──────────────────
         //
-        // The redesign's chrome puts Discover on the phone tab bar, in the desktop
-        // Explore panel and in the Menu — three surfaces, one href — and there is no
-        // such page yet (docs/handoff/GAPS.md §5.5). A link to a 404 from the tab bar
-        // is the worst of the options, and hard-coding `/registry` into those three
-        // places is the second worst: Phase 4 would have to find all three, and the
-        // failure mode is forgetting.
-        //
-        // So `/discover` is the one canonical address from today and Phase 4 replaces
-        // this line with the real handler. 302 and not 301 deliberately — 301 says this
-        // address is never the page, and it is about to be. See PublicIaTest, which
-        // reads exactly that distinction.
-        $g->get('/discover', function ($req, $res) {
-            return $res->withHeader('Location', '/registry')->withStatus(302);
-        });
+        // Was a 302 to /registry while no page existed — 302 deliberately, because a 301
+        // says the address is never the page and it was about to be (PublicIaTest reads
+        // exactly that distinction). The page is here now. `/discover/count` is the
+        // filter panel's live "Show N results"; it is a literal with no placeholder
+        // anywhere above it, so nothing can shadow it (RouteTableIntegrityTest).
+        $g->get('/discover',       \AfricaGates\Controllers\DiscoverController::class.':index');
+        $g->get('/discover/count', \AfricaGates\Controllers\DiscoverController::class.':count');
         $g->get('/registry/{slug}',RegistryController::class.':profile');
         // ── NEAR-MISS URLS ───────────────────────────────────────────────────
         //
@@ -2122,8 +2115,23 @@ return function(App $app) {
         // Members post to the feed. Goes through CommunityService::postThread, so it
         // inherits the spam filter, the moderation verdict and the moderation queue.
         $g->post('/pulse',         PulseController::class.':post');
-        // Activity — the searchable timeline's page, retired into Discover by Phase 4.
-        $g->get('/activity',       ActivityController::class.':index');
+        // ── /activity IS RETIRED INTO DISCOVER'S LIVE TAB (Phase 4, §8.23) ──────
+        //
+        // 301, because this address will never be the page again (PublicIaTest's
+        // distinction), and it keeps exactly the two keys the timeline reads — `q` and
+        // `literal` — so a search somebody bookmarked or was sent lands on the same
+        // search. Nothing else in a stranger's query string is carried. Its controller
+        // and template were destroyed; the index behind it (ActivityFeedService) is the
+        // one Discover reads. One route, never a twin beside a live handler.
+        $g->get('/activity', function ($req, $res) {
+            $keep = ['tab' => 'live'];
+            foreach (['q', 'literal'] as $k) {
+                $v = $req->getQueryParams()[$k] ?? null;
+                if (is_string($v)) $keep[$k] = $v;
+            }
+            return $res->withHeader('Location', '/discover?' . http_build_query($keep, '', '&', PHP_QUERY_RFC3986))
+                       ->withStatus(301);
+        });
         // ── THE SEARCH PALETTE'S DATA (REFERENCE §7.1) ───────────────────────
         // `GET /search?q=&scope=` IS the endpoint, as JSON. It replaced
         // `/activity/search` on 3 Oct 2026 (owner, GAPS C16) — one search URL, the one
@@ -3581,6 +3589,9 @@ return function(App $app) {
         // Display & reading, saved to the member so it follows them between devices
         // (REFERENCE §7.5). JSON, from a11y.js; the member is the session's, never a param.
         $a->post('/display',      \AfricaGates\Controllers\DisplayReadingController::class.':save');
+        // One open of a Menu destination, for the Menu's most-used tiles (MenuShortcuts). A
+        // beacon from menu-sheet.js as the link is followed; 204, never a redirect.
+        $a->post('/menu-use',     \AfricaGates\Controllers\MenuUseController::class.':record');
         // The member's own points history as a file. Above the catch-all below, which would
         // otherwise swallow it — and reachable by the owner alone, because there is no id in
         // the path to change.
@@ -4384,6 +4395,38 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/toggle', AdminAdminsController::class.':toggle');
         })->add(new RoleMiddleware('superadmin'));
 
+        // ── HEALTH: READ BY superadmin, admin AND viewer (owner, 4 Oct 2026, GAPS §8d) ──
+        //
+        // The integrations check and email health, and only their READS: the page and the
+        // read-only diagnostics (every probe is a read; the mail diagnosis stops at MAIL
+        // FROM). Their published URLs stay under /settings — every mail alert ever sent
+        // links /admin/settings/mail — and Permissions::SUBPATH_SECTIONS maps them to the
+        // `health` gate. Everything on those pages that CHANGES configuration or costs
+        // money (the transport switch, the send rules, rotating the events token, lifting
+        // a suppression, sending a real test message) stays in the superadmin group below.
+        $a->group('/settings', function (RouteCollectorProxy $s) {
+            $s->get('/providers',      AdminSettingsController::class.':providers');
+            $s->post('/providers/run', AdminSettingsController::class.':providersRun');
+            $s->get('/mail',           \AfricaGates\Admin\Controllers\MailHealthController::class.':index');
+            $s->post('/mail/diagnose', \AfricaGates\Admin\Controllers\MailHealthController::class.':diagnose');
+        });
+
+        // ── WHAT THE PLATFORM NOTICED ON ITS OWN ───────────────────────────────
+        //
+        // Derived on read from the platform's own records (Admin\Services\ConsoleAlerts):
+        // an email outage, a stalled schedule, chargebacks on a clock, schema behind the
+        // code. The top bar's alert pill and Home's "needs a person" read the same list.
+        $a->get('/alerts', \AfricaGates\Admin\Controllers\AlertsController::class.':index');
+
+        // ── THE ADMIN'S OWN CONSOLE: PINNED VIEWS AND THE SIDEBAR ─────────────────
+        //
+        // Stored per admin, server-side (gates_admin_pins, gates_admin_prefs), so a pin
+        // follows somebody to another browser. `/admin/me/` changes nothing on the
+        // platform, which is why AdminAuthMiddleware lets a read-only role write here.
+        $a->post('/me/pins',                     \AfricaGates\Admin\Controllers\ConsoleMeController::class.':pin');
+        $a->post('/me/pins/{id:[0-9]+}/delete',  \AfricaGates\Admin\Controllers\ConsoleMeController::class.':unpin');
+        $a->post('/me/sidebar',                  \AfricaGates\Admin\Controllers\ConsoleMeController::class.':sidebar');
+
         $a->group('/settings', function (RouteCollectorProxy $s) {
             $s->get('',  AdminSettingsController::class.':form');
             $s->post('', AdminSettingsController::class.':save');
@@ -4393,8 +4436,6 @@ return function(App $app) {
             // will say which link is broken. Every probe is a READ — a balance, an account,
             // a model list — so pressing it never sends an SMS, opens a transaction or
             // synthesises audio. See ProviderProbe.
-            $s->get('/providers',      AdminSettingsController::class.':providers');
-            $s->post('/providers/run', AdminSettingsController::class.':providersRun');
             // ── AND THE ONE THING ON THAT PAGE THAT ACTUALLY SENDS ───────────
             //
             // A gateway can pass every read this platform can perform and still deliver
@@ -4407,8 +4448,6 @@ return function(App $app) {
             //
             // Where every mail alert points. The diagnosis walks the SMTP conversation
             // to MAIL FROM and stops: it never sends, so it can run by itself hourly.
-            $s->get('/mail',           \AfricaGates\Admin\Controllers\MailHealthController::class.':index');
-            $s->post('/mail/diagnose', \AfricaGates\Admin\Controllers\MailHealthController::class.':diagnose');
             $s->post('/mail/sending',  \AfricaGates\Admin\Controllers\MailHealthController::class.':sending');
             $s->post('/mail/use-env',  \AfricaGates\Admin\Controllers\MailHealthController::class.':useEnv');
             $s->post('/mail/rules',    \AfricaGates\Admin\Controllers\MailHealthController::class.':rules');

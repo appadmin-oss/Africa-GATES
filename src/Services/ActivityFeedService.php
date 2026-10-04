@@ -262,6 +262,101 @@ final class ActivityFeedService
         return $result + ['query' => $q, 'live' => true, 'understood' => $understood];
     }
 
+    /** Rows per page of the timeline, and how deep "Show older updates" may go. */
+    public const TIMELINE_PER  = 20;
+    public const TIMELINE_DEPTH = 10;
+
+    /**
+     * The sources that carry a real timestamp — the only ones a TIMELINE may hold.
+     *
+     * Derived from {@see SOURCES}' `dated`, never listed again. An award programme, an
+     * organisation and a page are destinations; a timeline row has to say WHEN, in a
+     * `<time datetime>`, and a destination has no honest answer.
+     *
+     * @return list<string>
+     */
+    public static function datedKinds(): array
+    {
+        return array_keys(array_filter(self::SOURCES, static fn (array $s): bool => $s['dated'] === true));
+    }
+
+    /**
+     * One page of the timeline — Discover's Live tab (Phase 4; `/activity` retired into it).
+     *
+     * The same index as {@see search()}, so the palette and the timeline can never disagree
+     * about what happened. Three differences, each for a reason:
+     *
+     *  · ONLY DATED SOURCES ({@see datedKinds()}). `$kinds` narrows within them.
+     *  · `$phases` narrows the phase source IN ITS QUERY — "Voting" is the voting rows of the
+     *    transitions ledger, not every phase change filtered afterwards.
+     *  · PAGED (cumulatively) over the merged order. Each source is asked for its newest
+     *    `page × per + 1` rows, which always covers the global newest `page × per`, so the
+     *    page is exact; the `+ 1` says whether an older page exists without a count query.
+     *    The cost grows with depth, so depth is capped ({@see TIMELINE_DEPTH}) and the page
+     *    says where it stops rather than reaching further. Offset, not a timestamp cursor:
+     *    two rows with the same second would straddle a cursor and one would be lost.
+     *
+     * The interpretation, when asked for, may narrow the kinds further but never past the
+     * caller's: a chip the person pressed beats a guess the model made (as in search()).
+     *
+     * @param list<string>      $kinds  subset of datedKinds(); [] = all of them
+     * @param list<string>|null $phases transitions' `to_status` values, or null for any
+     * @return array{items:list<array>, more:bool, page:int, sources:int, asked:int,
+     *               query:string, understood:?array, deepest:bool}
+     */
+    public function timeline(?string $query, bool $interpret, array $kinds, ?array $phases,
+                             int $page = 1, int $per = self::TIMELINE_PER): array
+    {
+        $q     = trim((string) $query);
+        $q     = mb_strlen($q) < self::MIN_QUERY ? '' : $q;
+        $page  = max(1, min(self::TIMELINE_DEPTH, $page));
+        $per   = max(1, min(self::MAX_LIMIT, $per));
+        $dated = self::datedKinds();
+        $only  = $kinds === [] ? $dated : array_values(array_intersect($dated, $kinds));
+
+        $understood = ($interpret && $q !== '') ? $this->interpret($q) : null;
+        $narrow = ($understood ?? []) + ['terms' => $q, 'country' => null, 'days' => null, 'note' => ''];
+        $both   = array_values(array_intersect($narrow['kinds'] ?? [], $only));
+        $narrow['kinds'] = $both !== [] ? $both : $only;
+
+        if ($narrow['kinds'] === []) {
+            return ['items' => [], 'more' => false, 'page' => $page, 'sources' => 0, 'asked' => 0,
+                    'query' => $q, 'understood' => $understood, 'deepest' => false];
+        }
+
+        $limit = $page * $per + 1;
+        $read  = fn (): array => $this->collect($q === '' ? null : ($understood['terms'] ?? $q), $limit, $narrow, $phases);
+        // The UNFILTERED pages are identical for every visitor, so they share the
+        // LATEST_TTL cache the latest feed has always had; a search never touches it.
+        if ($q === '') {
+            try {
+                $result = (new CacheService())->remember(
+                    'activity:timeline:' . md5(json_encode([$narrow['kinds'], $phases, $limit])),
+                    self::LATEST_TTL, $read, ['registry', 'leaderboard']);
+            } catch (\Throwable) {
+                $result = $read();
+            }
+        } else {
+            $result = $read();
+        }
+        $items = array_values(array_filter($result['items'],
+            static fn (array $i): bool => in_array($i['kind'], $dated, true)));
+
+        return [
+            // CUMULATIVE: page 2 is the newest 2 × per, not rows 21–40. "Show older updates"
+            // reached without a script reloads the page, and a page that then showed only
+            // the older rows would have dropped everything the reader had just been looking at.
+            'items'      => array_slice($items, 0, $page * $per),
+            'more'       => count($items) > $page * $per && $page < self::TIMELINE_DEPTH,
+            'deepest'    => count($items) > $page * $per && $page >= self::TIMELINE_DEPTH,
+            'page'       => $page,
+            'sources'    => (int) ($result['sources'] ?? 0),
+            'asked'      => (int) ($result['asked'] ?? 0),
+            'query'      => $q,
+            'understood' => $understood,
+        ];
+    }
+
     /**
      * Read a plain-English query for intent: which kinds, which country, how recent.
      *
@@ -362,7 +457,7 @@ final class ActivityFeedService
      * answered, so "no activity" and "six of seven sources are unavailable" are
      * distinguishable.
      */
-    private function collect(?string $q, int $limit, ?array $understood = null): array
+    private function collect(?string $q, int $limit, ?array $understood = null, ?array $phases = null): array
     {
         $q = ($q === null || trim($q) === '') ? null : trim($q);
 
@@ -379,7 +474,7 @@ final class ActivityFeedService
             'org'     => fn (): array => $this->organisations($q, $limit),
             'nominee' => fn (): array => $this->nominees($q, $limit),
             'profile' => fn (): array => $this->profiles($q, $limit),
-            'phase'   => fn (): array => $this->transitions($q, $limit),
+            'phase'   => fn (): array => $this->transitions($q, $limit, $phases),
             'post'    => fn (): array => $this->posts($q, $limit),
             'event'   => fn (): array => $this->events($q, $limit),
             'thread'  => fn (): array => $this->threads($q, $limit),
@@ -397,6 +492,7 @@ final class ActivityFeedService
 
         $items = [];
         $ok    = 0;
+        $asked = count($sources);
         foreach ($sources as $source) {
             try {
                 foreach ($source() as $item) $items[] = $item;
@@ -414,7 +510,10 @@ final class ActivityFeedService
 
         usort($items, static fn (array $a, array $b): int => strcmp($b['at'], $a['at']));
 
-        return ['items' => self::withSignposts($items, $limit), 'sources' => $ok];
+        // `asked` travels with `sources` so a page can say "{n} of {asked} responded"
+        // without typing the denominator. The old activity page printed "of 7" while ten
+        // sources ran — the §19 shape on the one sentence that admits a partial read.
+        return ['items' => self::withSignposts($items, $limit), 'sources' => $ok, 'asked' => $asked];
     }
 
     /**
@@ -723,14 +822,19 @@ final class ActivityFeedService
      * the transitions ledger rather than computed from the cycle's current phase, so
      * the timeline shows when it actually changed.
      */
-    private function transitions(?string $q, int $limit): array
+    private function transitions(?string $q, int $limit, ?array $phases = null): array
     {
+        $base = DemoSeeder::notSandbox(
+            DB::table('gates_cycle_transitions as t')
+                ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 't.cycle_id')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id'),
+            'cy.programme_id');
+        // Narrowed IN THE QUERY, never after it: a paged timeline asks each source for
+        // its newest N rows, and a filter applied afterwards would make "Show older
+        // updates" stop early while older matching rows still existed.
+        if ($phases !== null) $base->whereIn('t.to_status', $phases === [] ? [''] : $phases);
         $rows = $this->filter(
-            DemoSeeder::notSandbox(
-                DB::table('gates_cycle_transitions as t')
-                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 't.cycle_id')
-                    ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id'),
-                'cy.programme_id'),
+            $base,
             $q,
             ['p.title', 't.to_status', 'cy.edition_label'],
         )
@@ -744,7 +848,7 @@ final class ActivityFeedService
             detail: (string) ($r->edition_label ?? ''),
             url:    '/awards',
             at:     (string) ($r->observed_at ?? ''),
-        ), $rows);
+        ) + ['phase' => (string) $r->to_status], $rows);
     }
 
     /** Phase name a visitor recognises, not the internal status token. */

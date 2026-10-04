@@ -39,8 +39,8 @@
   <div class="ag-qs__body">
     {% if is_member %}
       <a class="ag-qs__me" href="/account">
-        <span class="ag-menu__av ag-qs__av" aria-hidden="true">{{ _ini }}</span>
-        <span class="ag-menu__who">
+        <span class="ag-qs__av" aria-hidden="true">{{ _ini }}</span>
+        <span class="ag-qs__who">
           <b class="ag-qs__name">{{ member_name|default('Your account'|trans) }}</b>
           <span class="ag-qs__sub">{{ 'Profile'|trans }}</span>
         </span>
@@ -48,8 +48,8 @@
       </a>
     {% else %}
       <a class="ag-qs__me" href="/account/login">
-        <span class="ag-menu__av ag-qs__av" aria-hidden="true">{{ _ini }}</span>
-        <span class="ag-menu__who">
+        <span class="ag-qs__av" aria-hidden="true">{{ _ini }}</span>
+        <span class="ag-qs__who">
           <b class="ag-qs__name">{{ 'Sign in or join'|trans }}</b>
           <span class="ag-qs__sub">{{ 'Nominate, vote and keep your recognitions in one place.'|trans }}</span>
         </span>

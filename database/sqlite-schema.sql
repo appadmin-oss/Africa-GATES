@@ -599,7 +599,9 @@ CREATE TABLE IF NOT EXISTS gates_users (
   -- feature stores — see AfricaGates\Services\AlertService.
   alerts_read_at TEXT NULL DEFAULT NULL,
   -- Display & reading, saved to the member (REFERENCE §7.5). NULL = never saved.
-  display_json TEXT NULL DEFAULT NULL
+  display_json TEXT NULL DEFAULT NULL,
+  -- The Menu's most-used tiles (MenuShortcuts). NULL = no history.
+  menu_use_json TEXT NULL DEFAULT NULL
 );
 CREATE TABLE IF NOT EXISTS gates_points_ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

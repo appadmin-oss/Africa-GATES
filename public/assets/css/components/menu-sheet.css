@@ -1,0 +1,157 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE MENU SHEET — REFERENCE §7.4 · MobileMenu.dc.html · docs/handoff/MENU-SHEET.md
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Destroyed with the Menu's block in chrome.css and written here whole on 4 Oct 2026
+   (owner: "you cannot currently drag down to close"). The base `.ag-sheet` (components.css)
+   supplies the ground, the top radii, the sheet shadow, the safe-area padding and the
+   closed state; this sheet is the base specialised to detents.
+
+   ── THE SHEET IS ITS FULL HEIGHT, AND A TRANSFORM SAYS HOW MUCH SHOWS ────────
+
+   Pinned from the top safe area plus 10px (Apple's large detent; the DC's `top:52px` is a
+   recorded deviation, MENU-SHEET.md §6) to the bottom edge. `menu-sheet.js` writes
+   `transform: translateY(…)` on the element itself — the medium detent is the sheet moved
+   down by half its visible room — and the transition with it, because a drag must follow
+   the finger with no transition and a release must settle with one. Nothing here animates
+   `height` or `top` (skill §17).
+
+   ── THE BROWSER MUST NOT TAKE THE VERTICAL PAN ───────────────────────────────
+
+   `touch-action: pan-x pinch-zoom` on the sheet: a vertical touch is the script's — the
+   sheet's position and the list's scroll both — which is the only way the list can hand a
+   pull to the sheet inside one gesture (MENU-SHEET.md §4). Wheel and keyboard scrolling are
+   untouched: the body is still `overflow-y:auto`. The scrim refuses every touch action so
+   the page behind cannot scroll or pull-to-refresh while the sheet is up.
+
+   Every colour a token, every size of type a `--ag-fs-*` step, logical properties only.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ag-menu-scrim{ touch-action:none }
+
+.ag-menu{
+  top:calc(env(safe-area-inset-top) + 10px); max-height:none;
+  overflow:hidden;
+  touch-action:pan-x pinch-zoom;
+}
+.ag-menu[data-dragging]{ -webkit-user-select:none; user-select:none }
+
+/* The handle: the grabber and the head. A mouse drags from here; a finger from anywhere. */
+.ag-menu__top{ position:relative; flex:none; cursor:grab }
+.ag-menu[data-dragging] .ag-menu__top{ cursor:grabbing }
+
+/* The grabber as a control, drawn over the 38 × 5 mark: 88 × 44, transparent, symmetric
+   so it needs no mirroring. */
+.ag-menu__grab{
+  position:absolute; top:0; left:0; right:0; margin-inline:auto;
+  width:88px; height:44px; padding:0;
+  border:0; border-radius:var(--ag-r-12);
+  background:transparent; cursor:inherit;
+}
+.ag-menu__grab:focus-visible{ outline-offset:-4px }
+
+.ag-menu__head{ padding:0 8px 6px }
+.ag-menu__back { grid-column:1; grid-row:1 }
+.ag-menu__title{ grid-column:2; grid-row:1; margin:0; font-size:var(--ag-fs-16-5); font-weight:700; text-align:center }
+.ag-menu__close{ grid-column:3; grid-row:1 }
+.ag-menu__x{
+  width:30px; height:30px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-tint);
+}
+
+.ag-menu__body{
+  overflow-x:hidden; overflow-y:auto;
+  overscroll-behavior:contain;
+  /* Again here, and it is not a repeat: a browser intersects `touch-action` only up to the
+     nearest SCROLL CONTAINER, so the sheet's value stops at this element and the list
+     would scroll natively under the finger (measured: Chromium, before this line). */
+  touch-action:pan-x pinch-zoom;
+  padding:6px 16px 40px;
+}
+.ag-menu__view{ display:flex; flex-direction:column; gap:22px }
+
+/* Profile card. `flex:none`, or the column squeezes it (the DC's own render clips it). */
+.ag-menu__me,
+.ag-menu__me:hover{
+  flex:none; display:flex; align-items:center; gap:14px;
+  padding:14px; border-radius:var(--ag-r-18);
+  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
+}
+.ag-menu__av{
+  flex:none; width:52px; height:52px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-ink); color:var(--ag-ground);
+  font-weight:700; font-size:var(--ag-fs-16);
+}
+.ag-menu__who{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.ag-menu__name{ font-size:var(--ag-fs-17); font-weight:700 }
+.ag-menu__view-p{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.ag-menu__pts{ flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:1px }
+.ag-menu__pts > b{ font-size:var(--ag-fs-15); font-weight:700; line-height:1 }
+.ag-menu__pts > span{ font-size:var(--ag-fs-11-5); color:var(--ag-soft) }
+
+.ag-menu__join{
+  flex:none; display:flex; flex-direction:column; gap:12px;
+  padding:18px; border-radius:var(--ag-r-18); background:var(--ag-surface);
+}
+.ag-menu__join-t{ font-size:var(--ag-fs-17); font-weight:700 }
+.ag-menu__join-p{ font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+.ag-menu__join-b,
+.ag-menu__join-b:hover{
+  display:flex; align-items:center; justify-content:center;
+  height:50px; border-radius:var(--ag-r-14);
+  background:var(--ag-ink); color:var(--ag-surface);
+  font-weight:700; font-size:var(--ag-fs-15-5); text-decoration:none;
+}
+
+/* The four squares — most used, or the Participate four. */
+.ag-menu__quick{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px }
+.ag-menu__tile,
+.ag-menu__tile:hover{
+  min-width:0; display:flex; flex-direction:column; align-items:center; gap:8px;
+  padding:14px 4px 12px; border-radius:var(--ag-r-18);
+  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
+}
+.ag-menu__tile-i{
+  width:44px; height:44px; border-radius:var(--ag-r-14);
+  display:flex; align-items:center; justify-content:center;
+}
+/* A shortcut's label can be longer than a Participate word ("Integrity Center"); it wraps
+   to two centred lines rather than overflowing a quarter of a phone. */
+.ag-menu__tile-l{ max-width:100%; font-size:var(--ag-fs-13); font-weight:600; line-height:1.25; text-align:center; overflow-wrap:anywhere }
+
+.ag-menu__h{ margin:0; padding:0 6px 8px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
+/* The DC's lists are white with no border — the base list's hairline is the card's. */
+.ag-menu__list{ border:0 }
+.ag-menu__list .ag-list__row,
+.ag-menu__list .ag-list__row:hover{ color:var(--ag-ink) }
+.ag-menu__list .ag-list__value{ font-size:var(--ag-fs-14) }
+
+/* Status: the word is the state; the dot repeats it. */
+.ag-menu__live{ flex:none; display:flex; align-items:center; gap:6px; font-size:var(--ag-fs-13-5); font-weight:600 }
+.ag-menu__dot{ width:8px; height:8px; border-radius:50% }
+.ag-menu__live--operational{ color:var(--ag-green-deep) }
+.ag-menu__live--operational .ag-menu__dot{ background:var(--ag-green) }
+.ag-menu__live--degraded{ color:var(--ag-gold-ink) }
+.ag-menu__live--degraded .ag-menu__dot{ background:var(--ag-gold) }
+.ag-menu__live--down{ color:var(--ag-error) }
+.ag-menu__live--down .ag-menu__dot{ background:var(--ag-live) }
+
+.ag-menu__foot{ display:flex; flex-direction:column; align-items:center; gap:14px; padding-top:4px }
+.ag-menu__legal{ display:flex; flex-wrap:wrap; justify-content:center; gap:4px 18px; font-size:var(--ag-fs-13-5) }
+.ag-menu__legal a,
+.ag-menu__legal a:hover{
+  min-height:44px; display:flex; align-items:center;
+  color:var(--ag-ink-2); text-decoration:underline; text-underline-offset:3px;
+}
+.ag-menu__out{ margin:0 }
+.ag-menu__signout{
+  height:44px; padding:0 18px; border:0; background:transparent;
+  color:var(--ag-error); font-weight:600; font-size:var(--ag-fs-15); cursor:pointer;
+}
+.ag-menu__mark{ font-size:var(--ag-fs-12); color:var(--ag-soft) }
+
+.ag-menu__card{ padding:16px; border-radius:var(--ag-r-18); background:var(--ag-surface) }
+.ag-menu__en{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.ag-menu__tick{ flex:none; color:var(--ag-green) }

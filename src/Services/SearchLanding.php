@@ -48,11 +48,15 @@ final class SearchLanding
     public const PER_GROUP = 6;
 
     /**
-     * Programmes whose current cycle is open for nominations or votes.
+     * Every active programme's CURRENT cycle, with its computed phase — the one read
+     * behind both the palette's "Open now" and Discover's awards section (Phase 4), so the
+     * two cannot disagree about which awards are open.
      *
-     * @return list<array{kind:string,title:string,detail:string,url:string}>
+     * @return list<array{programme_id:int, slug:string, title:string, cover:string,
+     *               edition:string, year:int, phase:CyclePhase, status:string, nominations_close:string,
+     *               voting_close:string, results_date:string, cycle_id:int}>
      */
-    public static function openNow(?Carbon $now = null): array
+    public static function currentCycles(?Carbon $now = null): array
     {
         $now = $now ?? Carbon::now();
         try {
@@ -64,10 +68,10 @@ final class SearchLanding
                 // so the first row met for a programme is its current cycle.
                 ->orderBy('p.sort_order')->orderBy('p.id')
                 ->orderByDesc('c.year')->orderByDesc('c.id')
-                ->limit(60)
+                ->limit(240)
                 ->get(['c.id', 'c.year', 'c.edition_label', 'c.status', 'c.nominations_open',
                        'c.nominations_close', 'c.voting_open', 'c.voting_close', 'c.results_date',
-                       'p.id as programme_id', 'p.slug', 'p.title'])
+                       'p.id as programme_id', 'p.slug', 'p.title', 'p.cover_path'])
                 ->all();
         } catch (\Throwable) {
             return [];
@@ -81,23 +85,79 @@ final class SearchLanding
             if (isset($seen[(int) $r->programme_id])) continue;
             $seen[(int) $r->programme_id] = true;
 
-            $phase = CyclePolicy::phaseFor($r, $now);
-            if (!$phase->isVotingOpen() && !$phase->isNominationsOpen()) continue;
+            $out[] = [
+                'cycle_id'          => (int) $r->id,
+                // The STORED status, for the one question a computed phase must not answer:
+                // whether a result was announced (PublicResults::RELEASED).
+                'status'            => (string) ($r->status ?? ''),
+                'programme_id'      => (int) $r->programme_id,
+                'slug'              => (string) $r->slug,
+                'title'             => (string) $r->title,
+                'cover'             => (string) ($r->cover_path ?? ''),
+                'edition'           => trim((string) ($r->edition_label ?? '')) !== ''
+                    ? (string) $r->edition_label : (string) ($r->year ?? ''),
+                'year'              => (int) ($r->year ?? 0),
+                'phase'             => CyclePolicy::phaseFor($r, $now),
+                'nominations_close' => (string) ($r->nominations_close ?? ''),
+                'voting_close'      => (string) ($r->voting_close ?? ''),
+                'results_date'      => (string) ($r->results_date ?? ''),
+            ];
+        }
 
-            $edition = trim((string) ($r->edition_label ?? '')) !== ''
-                ? (string) $r->edition_label
-                : (string) ($r->year ?? '');
+        return $out;
+    }
+
+    /**
+     * Programmes whose current cycle is open for nominations or votes.
+     *
+     * @return list<array{kind:string,title:string,detail:string,url:string}>
+     */
+    public static function openNow(?Carbon $now = null): array
+    {
+        $out = [];
+        foreach (self::currentCycles($now) as $c) {
+            $phase = $c['phase'];
+            if (!$phase->isVotingOpen() && !$phase->isNominationsOpen()) continue;
 
             $out[] = [
                 'kind'   => 'award',
-                'title'  => (string) $r->title,
-                'detail' => trim(\AfricaGates\Support\Translator::t($phase->label()) . ' · ' . $edition, ' ·'),
-                'url'    => '/awards/' . $r->slug,
+                'title'  => $c['title'],
+                'detail' => trim(\AfricaGates\Support\Translator::t($phase->label()) . ' · ' . $c['edition'], ' ·'),
+                'url'    => '/awards/' . $c['slug'],
             ];
             if (count($out) >= self::PER_GROUP) break;
         }
 
         return $out;
+    }
+
+    /**
+     * Published events that have not started yet, soonest first — the one read behind
+     * the palette's "Coming up" and Discover's "Upcoming ceremonies" (Phase 4).
+     *
+     * @return list<array{slug:string,title:string,location:string,at:string}>
+     */
+    public static function upcomingEvents(?Carbon $now = null, int $limit = self::PER_GROUP): array
+    {
+        $now = $now ?? Carbon::now();
+        try {
+            $rows = DB::table('gates_site_events')
+                ->where('status', 'published')
+                ->where('event_date', '>=', $now->toDateTimeString())
+                ->orderBy('event_date')
+                ->limit(max(1, $limit))
+                ->get(['slug', 'title', 'location', 'event_date'])
+                ->all();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        return array_map(static fn (object $r): array => [
+            'slug'     => (string) $r->slug,
+            'title'    => (string) $r->title,
+            'location' => (string) ($r->location ?? ''),
+            'at'       => (string) $r->event_date,
+        ], $rows);
     }
 
     /**
@@ -107,32 +167,19 @@ final class SearchLanding
      */
     public static function comingUp(?Carbon $now = null): array
     {
-        $now = $now ?? Carbon::now();
-        try {
-            $rows = DB::table('gates_site_events')
-                ->where('status', 'published')
-                ->where('event_date', '>=', $now->toDateTimeString())
-                ->orderBy('event_date')
-                ->limit(self::PER_GROUP)
-                ->get(['slug', 'title', 'location', 'event_date'])
-                ->all();
-        } catch (\Throwable) {
-            return [];
-        }
-
-        return array_map(static function (object $r): array {
+        return array_map(static function (array $r): array {
             try {
-                $when = Carbon::parse((string) $r->event_date)->format('j M');
+                $when = Carbon::parse($r['at'])->format('j M');
             } catch (\Throwable) {
                 $when = '';
             }
 
             return [
                 'kind'   => 'event',
-                'title'  => (string) $r->title,
-                'detail' => trim($when . ' · ' . (string) ($r->location ?? ''), ' ·'),
-                'url'    => '/events/' . $r->slug,
+                'title'  => $r['title'],
+                'detail' => trim($when . ' · ' . $r['location'], ' ·'),
+                'url'    => '/events/' . $r['slug'],
             ];
-        }, $rows);
+        }, self::upcomingEvents($now));
     }
 }

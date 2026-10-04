@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Admin\Middleware;
 
 use AfricaGates\Admin\Services\AuthService;
+use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Support\Session;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -36,11 +37,20 @@ use Slim\Psr7\Response as Psr7Response;
 class AdminAuthMiddleware
 {
     /**
-     * Roles permitted to perform state-changing (non-GET) admin requests.
-     * Moderators write within their section (approve/reject); the per-section
-     * SectionGuardMiddleware constrains WHERE each writer role may act.
+     * POSTs that change nothing on the platform, so a read-only role may make them.
+     *
+     * The writer allowlist ({@see Permissions::WRITERS}) refuses every non-GET for a
+     * viewer, which is right for the platform's data and wrong for two things that are
+     * not data: the admin's OWN console preferences (a pinned view, whether the sidebar
+     * is open — `/admin/me/…`), and asking the assistant a question. The assistant is in
+     * the `overview` section, documented as "every role may use the assistant", and the
+     * allowlist had quietly made it answer every viewer with "Read-only role" — the
+     * drawer the console handoff draws on every page would have been a dead control for
+     * exactly the role it describes as "reads everything it can see". Exact paths and
+     * one prefix, nothing broader.
      */
-    private const WRITER_ROLES = ['superadmin', 'admin', 'editor', 'moderator'];
+    private const READ_ONLY_SAFE_POSTS = ['/admin/assistant/chat'];
+    private const READ_ONLY_SAFE_PREFIX = '/admin/me/';
 
     /**
      * @param AuthService $auth the one reader of the live admin row — see the class note
@@ -129,7 +139,9 @@ class AdminAuthMiddleware
         // role — is read-only here. Superadmin-only areas keep their own
         // RoleMiddleware('superadmin') gate layered on top of this.
         $isWrite = !in_array(strtoupper($req->getMethod()), ['GET', 'HEAD', 'OPTIONS'], true);
-        if ($isWrite && !in_array($role, self::WRITER_ROLES, true)) {
+        $safe = in_array($path, self::READ_ONLY_SAFE_POSTS, true)
+             || str_starts_with($path, self::READ_ONLY_SAFE_PREFIX);
+        if ($isWrite && !$safe && !Permissions::canWrite($role)) {
             $isJson = str_contains($req->getHeaderLine('Accept'), 'application/json')
                    || str_starts_with($path, '/admin/api/');
             if ($isJson) {

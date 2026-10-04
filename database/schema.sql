@@ -687,6 +687,9 @@ CREATE TABLE IF NOT EXISTS gates_users (
   -- Display & reading, saved to the member so it follows them between devices
   -- (REFERENCE §7.5). NULL = never saved. Written only by DisplayReadingPrefs.
   display_json VARCHAR(255) NULL DEFAULT NULL,
+  -- The Menu's most-used tiles: a decayed open count per menu destination (MenuShortcuts).
+  -- NULL = no history. Bounded by the catalogue, so 1024 ASCII bytes always hold it.
+  menu_use_json VARCHAR(1024) NULL DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

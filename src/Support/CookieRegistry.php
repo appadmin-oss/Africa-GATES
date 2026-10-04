@@ -61,7 +61,7 @@ final class CookieRegistry
             self::ESSENTIAL => ['Essential',
                 'Keeps you signed in, protects forms from forgery, and remembers the choices you make here.'],
             self::PREFERENCES => ['Preferences',
-                'Remembers your language and your display and reading settings on this device between visits. Without it they still work, until you close your browser.'],
+                'Remembers your language, your display and reading settings and the places you open most from the Menu on this device between visits. Without it the first two still work until you close your browser, and the Menu shows its usual four.'],
             self::ANALYTICS => ['Analytics',
                 'Counts visits ourselves — where a visit came from and whether it led to a vote, a nomination or a ticket — so whoever shared a link can see if it worked. No IP address is kept and nothing reaches anyone else.'],
             self::MARKETING => ['Marketing',
@@ -189,6 +189,11 @@ final class CookieRegistry
             // Preferences is allowed, and with no key it writes nothing.
             ['key' => 'ag-cel-', 'category' => self::PREFERENCES, 'where' => 'local', 'audience' => 'everyone',
              'purpose' => 'That you have already seen a celebration — a vote counted, a nomination sent, a gift, a ticket, a win — so it plays its burst once and goes straight to its quiet loop the next time you open the same page. Kept only if you allow Preferences; without it nothing is stored and the celebration plays in full each time.'],
+            // The phone Menu's most-used tiles (MenuShortcuts, 4 Oct 2026). For a guest only,
+            // and only with Preferences allowed — refused, nothing is written and the Menu shows
+            // its four defaults. A signed-in member's count is kept on their account instead.
+            ['key' => 'ag-menu-use', 'category' => self::PREFERENCES, 'where' => 'local', 'audience' => 'everyone',
+             'purpose' => 'Which places you open from the Menu on your phone, and roughly how often and how recently, so the four squares at the top of the Menu become the ones you use most. Kept on this device only if you allow Preferences, and only while you are not signed in; without it nothing is stored and the Menu shows its usual four.'],
             // Gee (Phase 3): its transcript and the privacy note's dismissal.
             ['key' => 'ag-gee-chat:', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'everyone',
              'purpose' => 'Your conversation with Gee, the site guide and help desk — one for each — so it survives moving between pages and an accidental reload in this tab. Gone when you close the tab. Nothing you type is kept on our server unless you pass it to a person, when it is kept with your support ticket.'],

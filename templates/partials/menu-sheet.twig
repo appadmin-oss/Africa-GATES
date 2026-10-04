@@ -1,60 +1,106 @@
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  THE MENU — a bottom sheet with pushed sub-views
-  REFERENCE §7.4 · design/MobileMenu.dc.html · skill §4
+  THE MENU — a bottom sheet with detents, pushed sub-views and most-used tiles
+  REFERENCE §7.4 · design/MobileMenu.dc.html · skill §4, §10 · docs/handoff/MENU-SHEET.md
   ══════════════════════════════════════════════════════════════════════════════
 
-  Opened by the tab bar's fifth tab. From `top:52px`, so the app bar behind it stays in
-  view and the sheet reads as something OVER the page. Sub-views push inside the sheet
-  with a back button — never an accordion, which hides a menu's own contents behind a
-  second guess. `chrome.js` pushes one history entry on open, so the phone's back gesture
-  closes the sheet before it leaves the page.
+  Destroyed and written again on 4 Oct 2026 for the owner's request ("The menu for mobile
+  should be smarter. You cannot currently drag down to close." — GAPS §8e). What the Phase 2
+  sheet did is inventoried in docs/handoff/inventory/partials--menu-sheet.md and every
+  MUST RESTORE row lives here, in menu-sheet.css or in menu-sheet.js.
+
+  ── DETENTS, NOT A FIXED TOP ─────────────────────────────────────────────────
+
+  The sheet is laid out at its FULL height and `menu-sheet.js` moves it with a transform:
+  it opens at the medium detent (50% of the screen, Apple's `.medium` and Material's
+  half-expanded ratio), drags up to full, and drags or flicks down to close. Every gesture
+  has a control beside it (WCAG 2.5.7): the grabber is a button that toggles the two
+  heights, and close, Esc and Back close. Without script the sheet never opens at all — the
+  Menu tab is a script control — so none of this has a no-script half to fall back to.
+
+  ── ONE CATALOGUE ────────────────────────────────────────────────────────────
+
+  Every destination drawn here — tile, Explore row, Help row, Notifications — comes from
+  `menu_shortcuts()` (Services\MenuShortcuts), which knows who may open each one. So a
+  most-used tile is always a destination this visitor could have scrolled to, and a
+  signed-in member is not offered "Register a profile", which would send them to /account.
+
+  The four squares are the visitor's most used (`personal`) or the Participate four until
+  there is enough history. A Participate default pushed out of the squares heads Explore,
+  so nothing becomes unreachable for not having been used. A member's are ranked on the
+  server; a guest's in the browser, from the `<template>` below and the numbers in
+  `data-ag-menu-params` — only when Preferences allows keeping anything.
 
   ── WHAT IS THE PHASE FILE'S AND WHAT IS THE DC'S ───────────────────────────
 
-  The Explore list is §7.4's — Discover, Pulse, Giving, Shop, Legacy Vault, Blog,
-  Register. The DC draws Leaderboard where the phase file says Blog; the phase file
-  outranks the DC (REFERENCE §0). Every size, gap and radius is the DC's.
-
-  The points figure is DM Sans with tabular figures, not the DC's JetBrains Mono: mono is
-  for references and codes only, never a stat (REFERENCE §6.2, §18.3; owner, GAPS Q5).
-  The wordmark line is `--ag-soft`, not the DC's `#8b9295` — that is `--ag-mute`, which
-  is never a word (Accent::ACCEPTED).
+  The Explore list is §7.4's — Discover, Pulse, Giving, Shop, Legacy Vault, Blog, Register.
+  The DC draws Leaderboard where the phase file says Blog; the phase file outranks the DC
+  (REFERENCE §0). Every size, gap and radius is the DC's. The points figure is DM Sans with
+  tabular figures, not the DC's mono (owner, GAPS Q5); the wordmark line is `--ag-soft`, not
+  the DC's `--ag-mute`, which is never a word.
 
   ── STATUS SAYS WHAT WAS MEASURED, OR NOTHING ───────────────────────────────
 
-  The DC draws a live dot and "Working". `status_light()` is the last state the
-  scheduled check RECORDED, and null when that record is stale or missing — and then the
-  row carries no state at all. A typed "Working" is the cached all-clear that outlives
-  the outage it missed (SystemStatus::light()).
+  `status_light()` is the last state the scheduled check RECORDED, and null when that record
+  is stale or missing — and then the row carries no state at all.
 
-  ── COOKIES IS A HOOK, NOT A FEATURE ───────────────────────────────────────
+  ── COOKIES IS THE CONSENT HOOK ─────────────────────────────────────────────
 
-  The Cookies link goes to `/cookies#choices` and carries `data-ag-do="consent-open"`,
-  the hook the cookie preferences (§7.9, built after this phase) bind to re-open the
-  choice in place. With nothing bound it is an ordinary link to the policy's choices.
+  `/cookies#choices` with `data-ag-do="consent-open"`: consent.js opens the preferences sheet
+  in place over this one and hands focus back to the Menu tab.
 #}
+{% import _self as ui %}
+
+{% macro tile(q) %}
+  <a class="ag-menu__tile" href="{{ q.href }}" data-ag-dest="{{ q.key }}">
+    <span class="ag-menu__tile-i ag-tone--{{ q.tone }}" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ q.d }}"></path></svg></span>
+    <span class="ag-menu__tile-l">{{ q.label|trans }}</span>
+  </a>
+{% endmacro %}
+
+{% macro row(i, extra) %}
+  <a class="ag-list__row" href="{{ i.href }}" data-ag-dest="{{ i.key }}">
+    <span class="ag-icon-tile ag-tone--{{ i.tone }}" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ i.d }}"></path></svg></span>
+    <span class="ag-list__label">{{ i.label|trans }}</span>
+    {{ extra|default('') }}
+    <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+  </a>
+{% endmacro %}
+
 {% set _ini = member_name ? (member_name|split(' ')|filter(w => w != '')|map(w => w|first)|join|upper|slice(0, 2)) : 'AG' %}
 {% set _status = status_light() %}
-<div class="ag-scrim" data-ag-menu-scrim></div>
+{% set _m = menu_shortcuts() %}
+{% set _chev %}<span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>{% endset %}
+
+<div class="ag-scrim ag-menu-scrim" data-ag-menu-scrim></div>
 
 <div class="ag-sheet ag-menu" id="ag-menu" data-ag-menu-sheet role="dialog" aria-modal="true"
      aria-labelledby="ag-menu-title" inert
+     data-ag-menu-who="{{ is_member ? 'member' : 'guest' }}"
+     data-ag-menu-params="{{ _m.params|json_encode }}"
      data-title-main="{{ 'Menu'|trans }}" data-title-display="{{ 'Display & reading'|trans }}"
-     data-title-lang="{{ 'Language'|trans }}">
+     data-title-lang="{{ 'Language'|trans }}"
+     data-label-expand="{{ 'Expand menu'|trans }}" data-label-collapse="{{ 'Collapse menu'|trans }}">
 
-  <span class="ag-sheet__grabber" aria-hidden="true"></span>
-
-  <div class="ag-sheet__head ag-menu__head">
-    {# `visibility`, never `hidden`: the head is a `44px 1fr 44px` grid, and `display:none`
-       would take the cell with it and slide the title into the back button's column. #}
-    <button type="button" class="ag-appbar__icon ag-menu__back" data-ag-menu-back aria-label="{{ 'Back to menu'|trans }}" data-hide>
-      <svg class="ag-ico-dir" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
-    </button>
-    <h2 class="ag-menu__title" id="ag-menu-title" data-ag-menu-title>{{ 'Menu'|trans }}</h2>
-    <button type="button" class="ag-appbar__icon" data-ag-menu-close aria-label="{{ 'Close menu'|trans }}">
-      <span class="ag-menu__x"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></span>
-    </button>
+  {# The top of the sheet is the handle a mouse drags by; a finger may drag anywhere. #}
+  <div class="ag-menu__top" data-ag-menu-handle>
+    <span class="ag-sheet__grabber" aria-hidden="true"></span>
+    <div class="ag-sheet__head ag-menu__head">
+      {# `hidden` on the main view, and the title keeps its column by `grid-column`, not by a
+         placeholder: a `visibility:hidden` button is still in the focus list the shell
+         builds on open, and focusing it fails silently, leaving focus on the tab behind. #}
+      <button type="button" class="ag-appbar__icon ag-menu__back" data-ag-menu-back aria-label="{{ 'Back to menu'|trans }}" hidden>
+        <svg class="ag-ico-dir" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+      </button>
+      <h2 class="ag-menu__title" id="ag-menu-title" data-ag-menu-title>{{ 'Menu'|trans }}</h2>
+      <button type="button" class="ag-appbar__icon ag-menu__close" data-ag-menu-close aria-label="{{ 'Close menu'|trans }}">
+        <span class="ag-menu__x"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></span>
+      </button>
+    </div>
+    {# The grabber as a control: Material's drag handle takes expand/collapse actions, and
+       WCAG 2.5.7 asks a single-pointer way to do what the drag does. Drawn over the
+       grabber, 44px tall; after the head in the DOM so focus on open lands on Close. #}
+    <button type="button" class="ag-menu__grab" data-ag-menu-grab aria-label="{{ 'Expand menu'|trans }}"></button>
   </div>
 
   <div class="ag-sheet__body ag-menu__body" data-ag-menu-body>
@@ -69,9 +115,7 @@
             <b class="ag-menu__name">{{ member_name|default('Your account'|trans) }}</b>
             <span class="ag-menu__view-p">{{ 'View your profile'|trans }}</span>
           </span>
-          {# A function, so a page whose Menu is never opened still costs one memoised
-             read; null when unknown, and the figure is then left out rather than printed
-             as a confident nought. #}
+          {# Null when unknown: left out rather than printed as a confident nought. #}
           {% set _pts = member_points() %}
           {% if _pts is not null %}
             <span class="ag-menu__pts"><b class="ag-num">{{ _pts|number_format }}</b><span>{{ 'points'|trans }}</span></span>
@@ -85,38 +129,17 @@
         </div>
       {% endif %}
 
-      <nav class="ag-menu__quick" aria-label="{{ 'Participate'|trans }}">
-        {% for q in [
-          {href:'/nominate', label:'Nominate', tone:'grow',   d:'M12 5v14M5 12h14'},
-          {href:'/vote',     label:'Vote',     tone:'act',    d:'M4 12.5 9 17.5 20 6.5'},
-          {href:'/awards',   label:'Awards',   tone:'honour', d:'M5 16 3 6l5 4 4-6 4 6 5-4-2 10z'},
-          {href:'/events',   label:'Events',   tone:'act',    d:'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4'}
-        ] %}
-          <a class="ag-menu__tile" href="{{ q.href }}">
-            <span class="ag-menu__tile-i ag-tone--{{ q.tone }}" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ q.d }}"></path></svg></span>
-            <span class="ag-menu__tile-l">{{ q.label|trans }}</span>
-          </a>
-        {% endfor %}
+      <nav class="ag-menu__quick" data-ag-menu-tiles
+           aria-label="{{ _m.personal ? 'Most used'|trans : 'Participate'|trans }}"
+           data-label-personal="{{ 'Most used'|trans }}">
+        {% for q in _m.tiles %}{{ ui.tile(q) }}{% endfor %}
       </nav>
 
       <section class="ag-menu__sec" aria-labelledby="ag-menu-h-explore">
         <h3 class="ag-menu__h" id="ag-menu-h-explore">{{ 'Explore'|trans }}</h3>
-        <div class="ag-list ag-menu__list">
-          {% for i in [
-            {href:'/discover',         label:'Discover',           tone:'plain',  d:'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6'},
-            {href:'/pulse',            label:'Pulse',              tone:'give',   d:'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM10 8.5l5 3.5-5 3.5z'},
-            {href:'/giving',           label:'Giving',             tone:'give',   d:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z'},
-            {href:'/shop',             label:'Shop',               tone:'act',    d:'M6 7h12l-1 13H7zM9 7a3 3 0 0 1 6 0'},
-            {href:'/legacy',           label:'Legacy Vault',       tone:'honour', d:'M4 8h16v12H4zM2 4h20v4H2z'},
-            {href:'/blog',             label:'Blog',               tone:'plain',  d:'M4 5h16M4 10h16M4 15h10'},
-            {href:'/account/register', label:'Register a profile', tone:'honour', d:'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0'}
-          ] %}
-            <a class="ag-list__row" href="{{ i.href }}">
-              <span class="ag-icon-tile ag-tone--{{ i.tone }}" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ i.d }}"></path></svg></span>
-              <span class="ag-list__label">{{ i.label|trans }}</span>
-              <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
-            </a>
-          {% endfor %}
+        <div class="ag-list ag-menu__list" data-ag-menu-explore>
+          {% for i in _m.displaced %}{{ ui.row(i) }}{% endfor %}
+          {% for i in _m.explore %}{{ ui.row(i) }}{% endfor %}
         </div>
       </section>
 
@@ -128,46 +151,26 @@
             <span class="ag-list__label">{{ 'Display & reading'|trans }}</span>
             <span class="ag-list__value" data-ag-size-label
                   data-l0="{{ 'Standard'|trans }}" data-l1="{{ 'Large'|trans }}" data-l2="{{ 'Largest'|trans }}">{{ 'Standard'|trans }}</span>
-            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+            {{ _chev }}
           </button>
           <button type="button" class="ag-list__row" data-ag-menu-to="lang">
             <span class="ag-icon-tile ag-tone--set" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z"></path></svg></span>
             <span class="ag-list__label">{{ 'Language'|trans }}</span>
             <span class="ag-list__value" lang="{{ lang() }}">{{ lang_name() }}</span>
-            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+            {{ _chev }}
           </button>
-          {% if is_member %}
-            <a class="ag-list__row" href="/account#notifications">
-              <span class="ag-icon-tile ag-tone--set" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"></path></svg></span>
-              <span class="ag-list__label">{{ 'Notifications'|trans }}</span>
-              <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
-            </a>
-          {% endif %}
+          {% for i in _m.settings %}{{ ui.row(i) }}{% endfor %}
         </div>
       </section>
 
       <section class="ag-menu__sec" aria-labelledby="ag-menu-h-help">
         <h3 class="ag-menu__h" id="ag-menu-h-help">{{ 'Help'|trans }}</h3>
         <div class="ag-list ag-menu__list">
-          <a class="ag-list__row" href="/help">
-            <span class="ag-icon-tile ag-tone--set" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14"></path></svg></span>
-            <span class="ag-list__label">{{ 'Help Centre'|trans }}</span>
-            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
-          </a>
-          <a class="ag-list__row" href="/integrity">
-            <span class="ag-icon-tile ag-tone--set" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"></path></svg></span>
-            <span class="ag-list__label">{{ 'Integrity Center'|trans }}</span>
-            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
-          </a>
-          <a class="ag-list__row" href="/status">
-            <span class="ag-icon-tile ag-tone--set" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-7 4 14 3-7h4"></path></svg></span>
-            <span class="ag-list__label">{{ 'Status'|trans }}</span>
-            {% if _status %}
-              {# Never the colour alone: the word is the state, the dot repeats it. #}
-              <span class="ag-menu__live ag-menu__live--{{ _status.status }}"><span class="ag-menu__dot" aria-hidden="true"></span>{{ _status.label|trans }}</span>
-            {% endif %}
-            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
-          </a>
+          {% for i in _m.help %}
+            {# Never the colour alone: the word is the state, the dot repeats it. #}
+            {% set _live %}{% if i.key == 'status' and _status %}<span class="ag-menu__live ag-menu__live--{{ _status.status }}"><span class="ag-menu__dot" aria-hidden="true"></span>{{ _status.label|trans }}</span>{% endif %}{% endset %}
+            {{ ui.row(i, _live) }}
+          {% endfor %}
         </div>
       </section>
 
@@ -186,6 +189,16 @@
         {% endif %}
         <span class="ag-menu__mark">{{ 'Africa GATES · An Afrovanguard initiative'|trans }}</span>
       </div>
+
+      {# A guest's tiles are ranked in the browser: every destination they may open, as a
+         tile and as a row, for the script to clone. Inert by nature — a <template>'s
+         content is not in the document — and absent for a member, whose tiles the server
+         ranked. #}
+      {% if _m.all %}
+        <template data-ag-menu-tpl>
+          {% for q in _m.all %}<div data-for="{{ q.key }}">{{ ui.tile(q) }}{{ ui.row(q) }}</div>{% endfor %}
+        </template>
+      {% endif %}
     </div>
 
     {# ── DISPLAY & READING ─────────────────────────────────────────────────── #}
@@ -196,8 +209,8 @@
     </div>
 
     {# ── LANGUAGE ──────────────────────────────────────────────────────────── #}
-    {# Links, not radios: following one navigates and the middleware stores the choice,
-       so this works with scripting off. The name is in its own language with `lang`, and
+    {# Links, not radios: following one navigates and the middleware stores the choice, so
+       this works with scripting off. The name is in its own language with `lang`, and
        English below for somebody choosing on another person's behalf. #}
     <div class="ag-menu__view" data-ag-menu-view="lang" hidden>
       <div class="ag-list ag-menu__list" role="group" aria-label="{{ 'Language'|trans }}">

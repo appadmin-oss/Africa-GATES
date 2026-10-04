@@ -4,252 +4,402 @@ declare(strict_types=1);
 namespace AfricaGates\Admin\Support;
 
 /**
- * The admin navigation, in one place.
+ * The admin console's navigation, in one place — rebuilt from the admin handoff (README
+ * §2.2) on 4 Oct 2026.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * WHY THIS IS A CLASS AND NOT MARKUP
+ * GROUPED BY TASK, GATED BY PAGE — AND THE GATE IS NOT TYPED HERE AT ALL
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * It used to be thirty-six hand-written `<a>` tags in `admin/layout.twig`, each repeating
- * its own active-state test and its own inline SVG. Three consequences, all of which had
- * already happened:
+ * The rail used to be seven sections, one per permission gate, and that file argued
+ * seven was a floor: "a section can carry only one gate, so fewer sections would move a
+ * page to a different gate". The handoff's rule 7 removes the premise — **access is per
+ * page, not per sidebar group** — so the groups are now named for the job ("Daily work",
+ * "Money", "Monitoring") and each PAGE carries its own gate.
  *
- *   · A new page could be built, routed and permissioned and still not appear in the nav,
- *     because adding it there was a separate manual step nothing checked.
- *   · The same icon could not be shown anywhere else without copying its path data.
- *   · Nothing could ask "what else is in this section?", so a second level of navigation
- *     was impossible to build without writing the tree a second time.
+ * And that gate is not typed here. The old tree typed one per section while the guard
+ * ({@see \AfricaGates\Admin\Middleware\SectionGuardMiddleware}) read the PATH, and the
+ * two had drifted on fifteen pages: the rail offered Handbook, Support tickets, Audit
+ * log, Integrity, Payouts and ten more to roles the guard then bounced, because those
+ * paths were never mapped and an unmapped path fails closed to superadmin. So here every
+ * item's gate is {@see Permissions::sectionForPath()} of its own href, and visibility is
+ * {@see Permissions::canOpen()} — the guard's own function. The rail, the palette, Home's
+ * shortcuts and its "needs a person" list all ask it; none of them can offer a door the
+ * guard will close, by construction rather than by care.
  *
- * One tree fixes all three. {@see \Tests\Unit\AdminNavTest} then holds the properties that
- * matter: every page a controller declares has an entry, every entry points at a real
- * route, and no entry moves a page into a section its permission gate does not cover.
- *
- * ══════════════════════════════════════════════════════════════════════════════
- * WHY SEVEN SECTIONS, AND WHY THAT IS THE FLOOR
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * This was thirty-six links in one flat rail, then twelve collapsed groups, and the
- * twelve were wrong for a reason worth writing down: NN/g's study with WhatUsersDo (179
- * participants, six live sites) measured discoverability dropping by roughly half when
- * main navigation is hidden — on desktop as well as mobile, with users about 39% slower
- * on desktop. Twelve accordions is hidden navigation. The documented resolution is a
- * HYBRID: a few destinations visible, the tail behind something else.
- *
- * So the tail moved to two other places — the in-page sub-nav under the page title, and
- * the Cmd+K palette — and the rail holds seven headings.
- *
- * Seven is the floor, not a taste call. There are exactly seven distinct
- * `admin_sections` gates, and a section can only carry one gate, so fewer sections would
- * mean moving a page to a different gate. That is an access change, and it must never
- * ride along inside a navigation change.
- *
- * Sections are therefore uneven — two items in Programmes, ten in Content. That is fine
- * and deliberate: only one is open at a time, the sub-nav repeats it inside the page, and
- * the palette reaches any of the thirty-seven pages in one keystroke. Labels use task
- * vocabulary rather than the org chart ("Money", not "Finance & Payments"), which is what
- * information-foraging predicts people scan for.
+ * Moving a page between groups therefore changes nothing about who can open it, which is
+ * exactly what rule 7 asks. `AdminNavTest` diffs every page's gate against the mapping
+ * recorded before this rebuild: only the three `health` pages may differ (an
+ * owner-approved widening, GAPS §8d).
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * AND WHY NOTHING CROSSED A PERMISSION BOUNDARY WHILE THAT HAPPENED
+ * THE TAIL IS LINKED FROM ITS PARENT, NOT ADDED TO THE RAIL
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Every item keeps the exact `admin_sections` gate it had before. Splitting a group is a
- * presentation change; moving an item between gates would silently grant or remove access,
- * which is not a navigation decision and must never ride along inside one. `gate` is
- * recorded per SECTION and asserted against the original mapping in the test.
+ * The handoff's rail names 37 pages; the console has more. Each of the rest is a CHILD of
+ * the page it belongs under — Shortlists under Awards, Disputes under Refunds & disputes,
+ * the judging rubric under Judges & rubric — and is drawn as the "also here" strip under
+ * that page's header, and in the palette. That is CLAUDE.md's "a sub-page is linked from
+ * the page it belongs under": the rail stays scannable and every page stays findable
+ * (`AdminIaTest`).
+ *
+ * Labels and order are §2.2's, exactly. Purpose lines are the HTML's `static SUBS`,
+ * verbatim except where a sentence describes host organisations, which are not built
+ * (owner, 4 Oct 2026) — those are listed in docs/handoff/PHASE-ADMIN.md as deviations.
  */
 final class AdminNav
 {
+    /** The one item above the groups. */
+    private const HOME = [
+        'page' => 'dashboard', 'label' => 'Home', 'href' => '/admin/dashboard', 'icon' => 'home',
+        'sub'  => 'Every job waiting on a person, across everything your role can reach, most urgent first.',
+    ];
+
     /**
-     * Sections, in sidebar order.
+     * README §2.2, in order. `sub` is the page's purpose line; `tip` is the group's,
+     * used where a page has none of its own (the HTML does the same).
      *
-     * `gate` is the `admin_sections` key that must be present for the section to appear;
-     * null means always visible. `page` is the value a controller passes as `admin_page`,
-     * and doubles as the icon id (`#ic-<page>`) in `admin/partials/nav-icons.twig`.
-     *
-     * @return list<array{key:string, label:string, gate:?string, tip:string,
-     *                    items:list<array{page:string, label:string, href:string}>}>
+     * @var list<array{key:string, label:string, tip:string, items:list<array<string,mixed>>}>
      */
-    public static function sections(): array
+    private const GROUPS = [
+        ['key' => 'daily', 'label' => 'Daily work', 'tip' => 'Every job waiting on a person.', 'items' => [
+            // The handoff routes this to /admin/moderation. In this codebase that path is the
+            // COMMUNITY moderation queue; the nomination review the handoff draws (nominee,
+            // nominator, approve/reject) is the review desk. The codebase wins on routing
+            // (README §0) — recorded as a question for the owner.
+            ['page' => 'review', 'label' => 'Review queue', 'href' => '/admin/nominations/review', 'icon' => 'moderation',
+             'sub' => 'Nominations wait here until a person approves them. Target: under 4 hours.',
+             'children' => [
+                 ['page' => 'moderation', 'label' => 'Moderation queue', 'href' => '/admin/moderation'],
+             ]],
+            ['page' => 'payments', 'label' => 'Payment issues', 'href' => '/admin/payments', 'icon' => 'payments',
+             'sub' => 'Our records against the gateway\'s. Fix the ones that disagree before someone pays twice.'],
+            ['page' => 'alerts', 'label' => 'Alerts', 'href' => '/admin/alerts', 'icon' => 'bell',
+             'sub' => 'Everything the platform noticed on its own, most severe first. Each one says what to do next.'],
+            ['page' => 'support', 'label' => 'Support tickets', 'href' => '/admin/support', 'icon' => 'support',
+             'sub' => 'Questions from voters, nominees and vendors. Oldest open first.'],
+        ]],
+        ['key' => 'programmes', 'label' => 'Programmes', 'tip' => 'Each edition from nominations to sealed results.', 'items' => [
+            ['page' => 'programmes', 'label' => 'Awards', 'href' => '/admin/programmes', 'icon' => 'shortlists',
+             'sub' => 'Every award on the platform.',
+             'children' => [
+                 ['page' => 'shortlists',     'label' => 'Shortlists',     'href' => '/admin/shortlists'],
+                 ['page' => 'result-release', 'label' => 'Result release', 'href' => '/admin/result-release'],
+             ]],
+            ['page' => 'events', 'label' => 'Events & stands', 'href' => '/admin/events', 'icon' => 'stand_presets',
+             'sub' => 'Every event on the platform, with tickets and stands.',
+             'children' => [
+                 ['page' => 'stand_presets', 'label' => 'Stand presets',       'href' => '/admin/stand-presets'],
+                 ['page' => 'registrations', 'label' => 'Event registrations', 'href' => '/admin/registrations'],
+             ]],
+            ['page' => 'challenges', 'label' => 'Challenges', 'href' => '/admin/challenges', 'icon' => 'challenges',
+             'sub' => 'Paid challenges and where each one stands.'],
+        ]],
+        ['key' => 'entries', 'label' => 'Entries', 'tip' => 'Nominations, nominees and profiles waiting on a person.', 'items' => [
+            ['page' => 'nominations', 'label' => 'Nominations', 'href' => '/admin/nominations', 'icon' => 'nominations',
+             'sub' => 'Every nomination, with the decision and who made it.'],
+            ['page' => 'nominees', 'label' => 'Nominees', 'href' => '/admin/nominees', 'icon' => 'nominees',
+             'sub' => 'Everyone on a ballot, and whether they have claimed their profile.',
+             'children' => [
+                 ['page' => 'campaigns', 'label' => 'Campaigns', 'href' => '/admin/campaigns'],
+             ]],
+            ['page' => 'profiles', 'label' => 'Profiles', 'href' => '/admin/profiles', 'icon' => 'profiles',
+             'sub' => 'People and organisations with an Africa GATES profile.'],
+            ['page' => 'interviews', 'label' => 'Interviews', 'href' => '/admin/interviews', 'icon' => 'interviews',
+             'sub' => 'Nominee interviews, from booking to a published transcript.',
+             'children' => [
+                 ['page' => 'questionnaires', 'label' => 'Questionnaires', 'href' => '/admin/questionnaires'],
+                 ['page' => 'invitations',    'label' => 'Invitations',    'href' => '/admin/questionnaires/invitations'],
+             ]],
+        ]],
+        ['key' => 'money', 'label' => 'Money', 'tip' => 'Every naira taken and owed.', 'items' => [
+            ['page' => 'finance', 'label' => 'Revenue', 'href' => '/admin/finance', 'icon' => 'finance',
+             'sub' => 'What has been taken and what the platform kept.'],
+            ['page' => 'payouts', 'label' => 'Payouts', 'href' => '/admin/payouts', 'icon' => 'payouts',
+             'sub' => 'Money going out to partners and referrers.',
+             'children' => [
+                 ['page' => 'partner-orgs', 'label' => 'Partner organisations', 'href' => '/admin/partner-orgs'],
+             ]],
+            ['page' => 'payments-ledger', 'label' => 'Ledger', 'href' => '/admin/payments/ledger', 'icon' => 'payments-ledger',
+             'sub' => 'Every payment exactly as the gateway reported it.'],
+            ['page' => 'refunds', 'label' => 'Refunds & disputes', 'href' => '/admin/refunds', 'icon' => 'refunds',
+             'sub' => 'Refund requests and card chargebacks.',
+             'children' => [
+                 ['page' => 'payments-disputes', 'label' => 'Disputes', 'href' => '/admin/payments/disputes'],
+             ]],
+            ['page' => 'vote-delivery', 'label' => 'Vote delivery', 'href' => '/admin/vote-delivery', 'icon' => 'vote-delivery',
+             'sub' => 'Paid votes that have not reached their nominee yet.',
+             'children' => [
+                 ['page' => 'vote-recovery', 'label' => 'Vote recovery', 'href' => '/admin/vote-recovery'],
+             ]],
+            ['page' => 'vendor-policy', 'label' => 'Vendor rules', 'href' => '/admin/vendor-policy', 'icon' => 'vendor-policy'],
+        ]],
+        ['key' => 'publishing', 'label' => 'Publishing', 'tip' => 'Everything the public sees.', 'items' => [
+            ['page' => 'posts', 'label' => 'Blog', 'href' => '/admin/posts', 'icon' => 'posts', 'sub' => 'The blog.'],
+            ['page' => 'media', 'label' => 'Media', 'href' => '/admin/media', 'icon' => 'media'],
+            ['page' => 'awards_page', 'label' => 'Awards page', 'href' => '/admin/awards-page', 'icon' => 'awards_page'],
+            ['page' => 'opportunities', 'label' => 'Opportunities', 'href' => '/admin/opportunities', 'icon' => 'opportunities',
+             'sub' => 'Fellowships, grants and calls listed on the site.'],
+            ['page' => 'forms', 'label' => 'Forms', 'href' => '/admin/forms', 'icon' => 'forms',
+             'sub' => 'Submissions from the site’s forms.',
+             'children' => [
+                 ['page' => 'partners', 'label' => 'Partner enquiries', 'href' => '/admin/partners'],
+             ]],
+            ['page' => 'products', 'label' => 'Shop', 'href' => '/admin/products', 'icon' => 'products',
+             'children' => [
+                 ['page' => 'shop_orders', 'label' => 'Shop orders', 'href' => '/admin/shop/orders'],
+             ]],
+            ['page' => 'legal', 'label' => 'Legal', 'href' => '/admin/legal', 'icon' => 'legal',
+             'sub' => 'Terms and policies. Each version is kept, and acceptances are counted.'],
+            ['page' => 'legacy', 'label' => 'Legacy vault', 'href' => '/admin/legacy', 'icon' => 'legacy'],
+        ]],
+        ['key' => 'monitoring', 'label' => 'Monitoring', 'tip' => 'Is everything the platform depends on working?', 'items' => [
+            ['page' => 'providers', 'label' => 'Integrations', 'href' => '/admin/settings/providers', 'icon' => 'webhooks',
+             'sub' => 'Each check asks the provider a real question and prints their answer. Every check is a read, so running them sends nothing and is safe during an event.'],
+            ['page' => 'mail-health', 'label' => 'Email health', 'href' => '/admin/settings/mail', 'icon' => 'campaigns',
+             'sub' => 'Is email sending, since when, why not, and what to change.'],
+            ['page' => 'audit', 'label' => 'Audit log', 'href' => '/admin/audit', 'icon' => 'audit',
+             'sub' => 'Every change made in this console, with who, when and why. Entries can\'t be edited.'],
+            ['page' => 'integrity', 'label' => 'Integrity', 'href' => '/admin/integrity', 'icon' => 'integrity',
+             'sub' => 'Votes and scores the checks have questioned, and what was decided.',
+             'children' => [
+                 ['page' => 'judging-audit', 'label' => 'Judging audit', 'href' => '/admin/judging-audit'],
+             ]],
+            ['page' => 'analytics', 'label' => 'Analytics', 'href' => '/admin/analytics', 'icon' => 'analytics',
+             'sub' => 'How people move from arriving to a counted vote.'],
+            ['page' => 'data', 'label' => 'All data', 'href' => '/admin/data', 'icon' => 'data',
+             'sub' => 'Every dataset the platform keeps. Exports are logged.'],
+        ]],
+        ['key' => 'settings', 'label' => 'Settings', 'tip' => 'People, roles and keys. Superadmin only.', 'items' => [
+            ['page' => 'admins', 'label' => 'People & roles', 'href' => '/admin/admins', 'icon' => 'admins',
+             'sub' => 'Who can sign in to this console and what each role reaches.'],
+            ['page' => 'judges', 'label' => 'Judges & rubric', 'href' => '/admin/judges', 'icon' => 'judges',
+             'sub' => 'Judging panels and who still owes a scorecard.',
+             'children' => [
+                 ['page' => 'rubric', 'label' => 'Judging rubric', 'href' => '/admin/rubric'],
+             ]],
+            ['page' => 'settings', 'label' => 'Site & keys', 'href' => '/admin/settings', 'icon' => 'settings'],
+            ['page' => 'webhooks', 'label' => 'Webhooks', 'href' => '/admin/webhooks', 'icon' => 'webhooks',
+             'sub' => 'Where the platform sends events, and whether they arrive.'],
+            ['page' => 'ai', 'label' => 'AI & interview bot', 'href' => '/admin/ai-prompts', 'icon' => 'ai',
+             'children' => [
+                 ['page' => 'attendee', 'label' => 'Interview bot', 'href' => '/admin/attendee'],
+             ]],
+            ['page' => 'sandbox', 'label' => 'Test data', 'href' => '/admin/sandbox', 'icon' => 'sandbox'],
+        ]],
+    ];
+
+    /**
+     * Pages the shell reaches OUTSIDE the rail: the handbook from the account menu, the
+     * assistant's full page from its drawer. Gated like everything else.
+     */
+    private const ELSEWHERE = [
+        ['page' => 'handbook',  'label' => 'Handbook',     'href' => '/admin/handbook',  'icon' => 'handbook'],
+        ['page' => 'assistant', 'label' => 'AI assistant', 'href' => '/admin/assistant', 'icon' => 'assistant'],
+    ];
+
+    /** A group with more than this many pages shows four and folds the rest (§2.1). */
+    public const FOLD_OVER = 5;
+    public const FOLD_SHOW = 4;
+
+    /** The guard's own gate for a path; null means unmapped, i.e. superadmin-only. */
+    public static function gateOf(string $href): ?string
     {
-        return [
-            [
-                'key' => 'overview', 'label' => 'Overview', 'gate' => null,
-                'tip' => 'Dashboard and key platform metrics.',
-                'items' => [
-                    ['page' => 'dashboard', 'label' => 'Dashboard',    'href' => '/admin/dashboard'],
-                    ['page' => 'assistant', 'label' => 'AI assistant', 'href' => '/admin/assistant'],
-                    ['page' => 'handbook',  'label' => 'Handbook',
-                     'href' => '/admin/handbook'],
-                ],
-            ],
-            [
-                'key' => 'entries', 'label' => 'Entries & panel', 'gate' => 'moderation',
-                'tip' => 'Everything that moves a nomination from arriving to being judged.',
-                'items' => [
-                    ['page' => 'profiles',       'label' => 'Profiles',         'href' => '/admin/profiles'],
-                    ['page' => 'nominations',    'label' => 'Nominations',      'href' => '/admin/nominations'],
-                    ['page' => 'nominees',       'label' => 'Nominees',         'href' => '/admin/nominees'],
-                    ['page' => 'moderation',     'label' => 'Moderation queue', 'href' => '/admin/moderation'],
-                    ['page' => 'interviews',     'label' => 'Interviews',       'href' => '/admin/interviews'],
-                    ['page' => 'questionnaires', 'label' => 'Questionnaires',   'href' => '/admin/questionnaires'],
-                    ['page' => 'invitations',    'label' => 'Invitations',     'href' => '/admin/questionnaires/invitations'],
-                    ['page' => 'campaigns',      'label' => 'Campaigns',        'href' => '/admin/campaigns'],
-                    ['page' => 'support',        'label' => 'Support tickets',  'href' => '/admin/support'],
-                ],
-            ],
-            [
-                'key' => 'programmes', 'label' => 'Programmes', 'gate' => 'programmes',
-                'tip' => 'Award programmes, cycles, categories and the judging panel.',
-                'items' => [
-                    ['page' => 'programmes',  'label' => 'Awards & cycles', 'href' => '/admin/programmes'],
-                    ['page' => 'shortlists',  'label' => 'Shortlists',      'href' => '/admin/shortlists'],
-                    // A challenge hangs off an award or an event, so it belongs under the
-                    // gate those are under. NOT a new heading: seven is a floor, each
-                    // section carries exactly one gate, and an eighth would move pages
-                    // between gates — an access change riding inside a nav change.
-                    ['page' => 'challenges',  'label' => 'Challenges',      'href' => '/admin/challenges'],
-                    ['page' => 'awards_page', 'label' => 'Awards page',     'href' => '/admin/awards-page'],
-                ],
-            ],
-            [
-                'key' => 'content', 'label' => 'Content', 'gate' => 'content',
-                'tip' => 'Everything the public sees — pages, events, shop and legal.',
-                'items' => [
-                    ['page' => 'events',        'label' => 'Events',            'href' => '/admin/events'],
-                    ['page' => 'stand_presets', 'label' => 'Stand presets',   'href' => '/admin/stand-presets'],
-                    ['page' => 'posts',         'label' => 'Blog posts',        'href' => '/admin/posts'],
-                    ['page' => 'legacy',        'label' => 'Legacy events',     'href' => '/admin/legacy'],
-                    ['page' => 'opportunities', 'label' => 'Opportunities',     'href' => '/admin/opportunities'],
-                    ['page' => 'media',         'label' => 'Media',             'href' => '/admin/media'],
-                    ['page' => 'products',      'label' => 'Shop products',     'href' => '/admin/products'],
-                    ['page' => 'shop_orders',   'label' => 'Shop orders',       'href' => '/admin/shop/orders'],
-                    ['page' => 'forms',         'label' => 'Forms',             'href' => '/admin/forms'],
-                    ['page' => 'partners',      'label' => 'Partner enquiries', 'href' => '/admin/partners'],
-                    ['page' => 'legal',         'label' => 'Legal & policies',  'href' => '/admin/legal'],
-                ],
-            ],
-            [
-                'key' => 'money', 'label' => 'Money', 'gate' => 'finance',
-                'tip' => 'Every naira taken, what is owed out, and everything needing chasing.',
-                'items' => [
-                    ['page' => 'finance',           'label' => 'Revenue',           'href' => '/admin/finance'],
-                    ['page' => 'payouts',           'label' => 'Referral payouts',  'href' => '/admin/payouts'],
-                    ['page' => 'partner-orgs',      'label' => 'Partner organisations',      'href' => '/admin/partner-orgs'],
-                    ['page' => 'vendor-policy',     'label' => 'Vendor rules',      'href' => '/admin/vendor-policy'],
-                    ['page' => 'payments',          'label' => 'Payment triage',    'href' => '/admin/payments'],
-                    ['page' => 'payments-ledger',   'label' => 'Gateway ledger',    'href' => '/admin/payments/ledger'],
-                    ['page' => 'payments-disputes', 'label' => 'Disputes',          'href' => '/admin/payments/disputes'],
-                    ['page' => 'refunds',           'label' => 'Refunds',           'href' => '/admin/refunds'],
-                    ['page' => 'vote-delivery',     'label' => 'Vote delivery',     'href' => '/admin/vote-delivery'],
-                    // Beside Vote Delivery because they are the two halves of one
-                    // failure: that one re-sends a code while it can still be used,
-                    // this one repairs the tally after the ballot has closed and
-                    // re-sending can no longer help anybody.
-                    ['page' => 'vote-recovery',     'label' => 'Vote recovery',     'href' => '/admin/vote-recovery'],
-                ],
-            ],
-            [
-                'key' => 'data', 'label' => 'Data', 'gate' => 'data',
-                'tip' => 'Every dataset collected — browse, view details and export.',
-                'items' => [
-                    ['page' => 'integrity',     'label' => 'Integrity',           'href' => '/admin/integrity'],
-                    // Beside Integrity, because they answer the same kind of question at
-                    // different altitudes: that one asks whether a cycle's result is
-                    // sound, this one whether an award's judging can be defended across
-                    // every cycle it has run.
-                    ['page' => 'judging-audit', 'label' => 'Judging audit',       'href' => '/admin/judging-audit'],
-                    // The scores that crown every winner. They had no screen at all —
-                    // scoreCategory() was read by the promotion, a snapshot writer and a
-                    // console command on a host with no shell.
-                    ['page' => 'result-release','label' => 'Result release',      'href' => '/admin/result-release'],
-                    // The record of every admin action. 124 places write it; the only
-                    // things that could read it were the dashboard's last twelve rows
-                    // and a raw table dump where the admin and the target are bare
-                    // integers. Same roles as that dump, so this adds a reader
-                    // rather than access.
-                    ['page' => 'audit',        'label' => 'Audit log',           'href' => '/admin/audit'],
-                    ['page' => 'data',          'label' => 'All data',            'href' => '/admin/data'],
-                    ['page' => 'analytics',     'label' => 'Analytics',           'href' => '/admin/analytics'],
-                    ['page' => 'registrations', 'label' => 'Event registrations', 'href' => '/admin/registrations'],
-                ],
-            ],
-            [
-                'key' => 'configuration', 'label' => 'System', 'gate' => 'configuration',
-                'tip' => 'Admin accounts, site settings and integrations — superadmin only.',
-                'items' => [
-                    ['page' => 'admins',   'label' => 'Admins',       'href' => '/admin/admins'],
-                    ['page' => 'settings', 'label' => 'Settings',     'href' => '/admin/settings'],
-                    ['page' => 'webhooks', 'label' => 'Webhooks',     'href' => '/admin/webhooks'],
-                    ['page' => 'ai',          'label' => 'AI instructions', 'href' => '/admin/ai-prompts'],
-                    ['page' => 'attendee',    'label' => 'Interview bot',   'href' => '/admin/attendee'],
-                    ['page' => 'sandbox',     'label' => 'Test data',       'href' => '/admin/sandbox'],
-                    ['page' => 'judges',   'label' => 'Judges panel', 'href' => '/admin/judges'],
-                    // Directly under the panel, because the two are one job: who judges,
-                    // and what they are asked. The rubric had no entry anywhere — no
-                    // screen, no route, no link — so the table the entire scoring system
-                    // runs on was editable only by hand in the database.
-                    ['page' => 'rubric',   'label' => 'Judging rubric', 'href' => '/admin/rubric'],
-                ],
-            ],
-        ];
+        return Permissions::sectionForPath((string) (parse_url($href, PHP_URL_PATH) ?? $href));
+    }
+
+    /** @param array<string,mixed> $i @return array<string,mixed> */
+    private static function dress(array $i, string $group, string $tip): array
+    {
+        $i['gate']     = self::gateOf($i['href']);
+        $i['group']    = $group;
+        $i['sub']      = $i['sub'] ?? $tip;
+        $i['children'] = array_map(static fn (array $c): array => $c + ['gate' => self::gateOf($c['href'])],
+                                   $i['children'] ?? []);
+        return $i;
+    }
+
+    /** The Home item, dressed. @return array<string,mixed> */
+    public static function home(): array
+    {
+        return self::dress(self::HOME, '', self::HOME['sub']);
     }
 
     /**
-     * The sections this admin may see.
+     * Every group, every item, every gate — unfiltered. The handbook and the tests read
+     * this; a screen draws {@see forRole()}.
      *
-     * @param  list<string> $allowed the request's `admin_sections`
-     * @return list<array<string,mixed>>
+     * @return list<array{key:string, label:string, tip:string, items:list<array<string,mixed>>}>
      */
-    public static function visible(array $allowed): array
-    {
-        return array_values(array_filter(
-            self::sections(),
-            static fn (array $s): bool => $s['gate'] === null || in_array($s['gate'], $allowed, true)
-        ));
-    }
-
-    /**
-     * The section a page belongs to, or null for a page with no nav entry.
-     *
-     * A detail page — `/admin/interviews/12` — passes its LIST's `admin_page`, so it
-     * lights the same entry and carries the same sub-nav. That is deliberate: a person
-     * three levels into a record still wants the way back out.
-     *
-     * @return array<string,mixed>|null
-     */
-    public static function sectionFor(string $page): ?array
-    {
-        foreach (self::sections() as $s) {
-            foreach ($s['items'] as $i) {
-                if ($i['page'] === $page) return $s;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The other pages in this page's section — the in-page second level.
-     *
-     * Empty for a lone page, and the template omits the strip entirely rather than drawing
-     * a bar with one tab in it.
-     *
-     * @return list<array{page:string, label:string, href:string}>
-     */
-    public static function siblings(string $page): array
-    {
-        $s = self::sectionFor($page);
-
-        return $s === null || count($s['items']) < 2 ? [] : $s['items'];
-    }
-
-    /** Every page key in the tree. @return list<string> */
-    public static function pages(): array
+    public static function groups(): array
     {
         $out = [];
-        foreach (self::sections() as $s) {
-            foreach ($s['items'] as $i) $out[] = $i['page'];
+        foreach (self::GROUPS as $g) {
+            $g['items'] = array_map(static fn (array $i): array => self::dress($i, $g['label'], $g['tip']), $g['items']);
+            $out[] = $g;
         }
+        return $out;
+    }
+
+    /** @return list<array<string,mixed>> the shell's off-rail destinations, dressed */
+    public static function elsewhere(): array
+    {
+        return array_map(static fn (array $i): array => $i + ['gate' => self::gateOf($i['href'])], self::ELSEWHERE);
+    }
+
+    /**
+     * What this role is shown: Home, then each group with only the pages the guard will
+     * let it open (children too). A group left with nothing is not drawn.
+     *
+     * @return array{home: ?array<string,mixed>, groups: list<array<string,mixed>>}
+     */
+    public static function forRole(string $role): array
+    {
+        $home = Permissions::canOpen($role, self::HOME['href']) ? self::home() : null;
+        $groups = [];
+        foreach (self::groups() as $g) {
+            $items = [];
+            foreach ($g['items'] as $i) {
+                if (!Permissions::canOpen($role, $i['href'])) continue;
+                $i['children'] = array_values(array_filter($i['children'],
+                    static fn (array $c): bool => Permissions::canOpen($role, $c['href'])));
+                $items[] = $i;
+            }
+            if ($items !== []) { $g['items'] = $items; $groups[] = $g; }
+        }
+        return ['home' => $home, 'groups' => $groups];
+    }
+
+    /**
+     * Every destination this role can open — rail items, their children, and the shell's
+     * off-rail pages — flat, for the palette. `group` is what the palette prints beside
+     * a page so "Disputes" says where it lives.
+     *
+     * @return list<array{page:string, label:string, href:string, group:string}>
+     */
+    public static function destinations(string $role): array
+    {
+        $nav = self::forRole($role);
+        $out = [];
+        if ($nav['home']) $out[] = ['page' => 'dashboard', 'label' => 'Home', 'href' => self::HOME['href'], 'group' => 'Home'];
+        foreach ($nav['groups'] as $g) {
+            foreach ($g['items'] as $i) {
+                $out[] = ['page' => $i['page'], 'label' => $i['label'], 'href' => $i['href'], 'group' => $g['label']];
+                foreach ($i['children'] as $c) {
+                    $out[] = ['page' => $c['page'], 'label' => $c['label'], 'href' => $c['href'],
+                              'group' => $g['label'] . ' · ' . $i['label']];
+                }
+            }
+        }
+        foreach (self::elsewhere() as $e) {
+            if (Permissions::canOpen($role, $e['href'])) {
+                $out[] = ['page' => $e['page'], 'label' => $e['label'], 'href' => $e['href'], 'group' => 'Console'];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Which rail item and which page a request is on.
+     *
+     * By PATH first — exact, then the longest href the path sits under — and only then by
+     * the `admin_page` a controller passed. Several controllers pass a neighbour's key so
+     * the old rail lit the right section (the integrations check passes `settings`), and
+     * the review desk passes `nominations`; the path is the fact, the key is a hint.
+     *
+     * @return array{item: ?array<string,mixed>, page: ?array<string,mixed>, exact: bool}
+     */
+    public static function current(string $path, ?string $adminPage = null): array
+    {
+        $path = rtrim((string) (parse_url($path, PHP_URL_PATH) ?? $path), '/');
+        if ($path === '/admin' || $path === '') $path = '/admin/dashboard';
+
+        $candidates = [];
+        $home = self::home();
+        $candidates[] = [$home, $home];
+        foreach (self::groups() as $g) {
+            foreach ($g['items'] as $i) {
+                $candidates[] = [$i, $i];
+                foreach ($i['children'] as $c) $candidates[] = [$i, $c];
+            }
+        }
+
+        $best = null; $bestLen = -1; $exact = false;
+        foreach ($candidates as [$item, $page]) {
+            $href = $page['href'];
+            if ($path === $href) { return ['item' => $item, 'page' => $page, 'exact' => true]; }
+            if (str_starts_with($path, $href . '/') && strlen($href) > $bestLen) {
+                $best = [$item, $page]; $bestLen = strlen($href);
+            }
+        }
+        if ($best !== null) return ['item' => $best[0], 'page' => $best[1], 'exact' => $exact];
+
+        if ($adminPage !== null && $adminPage !== '') {
+            foreach ($candidates as [$item, $page]) {
+                if ($page['page'] === $adminPage) return ['item' => $item, 'page' => $page, 'exact' => false];
+            }
+        }
+        return ['item' => null, 'page' => null, 'exact' => false];
+    }
+
+    /**
+     * The "also here" strip for the page a request is on: its rail item and that item's
+     * children this role can open. Empty when there is nothing else to show — a strip
+     * with one entry in it is noise.
+     *
+     * @return list<array{page:string, label:string, href:string, on:bool}>
+     */
+    public static function related(string $role, string $path, ?string $adminPage = null): array
+    {
+        $cur = self::current($path, $adminPage);
+        if ($cur['item'] === null) return [];
+        $item = $cur['item'];
+        $kids = array_values(array_filter($item['children'] ?? [],
+            static fn (array $c): bool => Permissions::canOpen($role, $c['href'])));
+        if ($kids === []) return [];
+
+        $out = [];
+        foreach (array_merge([$item], $kids) as $p) {
+            if (!Permissions::canOpen($role, $p['href'])) continue;
+            $out[] = ['page' => $p['page'], 'label' => $p['label'], 'href' => $p['href'],
+                      'on' => $cur['page'] !== null && $cur['page']['page'] === $p['page']];
+        }
+        return count($out) > 1 ? $out : [];
+    }
+
+    /** Every page key the console names — rail, children and off-rail. @return list<string> */
+    public static function pages(): array
+    {
+        $out = [self::HOME['page']];
+        foreach (self::GROUPS as $g) {
+            foreach ($g['items'] as $i) {
+                $out[] = $i['page'];
+                foreach ($i['children'] ?? [] as $c) $out[] = $c['page'];
+            }
+        }
+        foreach (self::ELSEWHERE as $e) $out[] = $e['page'];
+        return $out;
+    }
+
+    /** Every href the console names, keyed by page. @return array<string,string> */
+    public static function hrefs(): array
+    {
+        $out = [self::HOME['page'] => self::HOME['href']];
+        foreach (self::GROUPS as $g) {
+            foreach ($g['items'] as $i) {
+                $out[$i['page']] = $i['href'];
+                foreach ($i['children'] ?? [] as $c) $out[$c['page']] = $c['href'];
+            }
+        }
+        foreach (self::ELSEWHERE as $e) $out[$e['page']] = $e['href'];
+        return $out;
+    }
+
+    /** The rail's own items — Home plus the groups' items, not children. @return list<array<string,mixed>> */
+    public static function railItems(): array
+    {
+        $out = [self::home()];
+        foreach (self::groups() as $g) foreach ($g['items'] as $i) $out[] = $i;
         return $out;
     }
 }

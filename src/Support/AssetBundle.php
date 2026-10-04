@@ -69,8 +69,12 @@ final class AssetBundle
         // Phase 2: the shared chrome — header, app bar, tab bar, Menu, Quick settings,
         // Display & reading, the search palette. After the base, which it specialises.
         'assets/css/components/chrome.css',
+        // The phone Menu sheet, rebuilt whole out of chrome.css (4 Oct 2026, MENU-SHEET.md).
+        'assets/css/components/menu-sheet.css',
         // Phase 2 item 6: the cookie notice and preferences sheet, on the chrome.
         'assets/css/components/consent.css',
+        // Phase 4: the site footer — chrome on every shell page, after the notice.
+        'assets/css/components/footer.css',
         // Phase 3: Gee, the guide and the help desk — the launcher and the panel that sit
         // over every shell page but Pulse. Last: it floats above all of the above.
         'assets/css/components/gee.css',

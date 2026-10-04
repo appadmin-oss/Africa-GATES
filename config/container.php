@@ -4,7 +4,7 @@ use AfricaGates\Support\Env;
 use Psr\Container\ContainerInterface;
 use Slim\Views\Twig;
 use AfricaGates\Services\{CacheService,ProfileService,AwardService,LegacyService,OpportunityService,OtpService,VoteService,BonusVoteService,RateLimitService,SpamService,AiService,CommunityService,GoogleSheetsService,TurnstileService,StatsService,FraudService,EventService,MilestoneService,PaymentService,GuideService,CurrencyService,UserAccountService};
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,ResultsController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,ResultsController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,FlierController};
 use AfricaGates\Judge\Services\JudgeService;
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
@@ -179,11 +179,9 @@ return [
                 : [],
             // The nav tree, filtered to this role. One definition — see AdminNav for why
             // thirty-six hand-written links in the layout was the thing to remove.
-            'admin_nav'         => \AfricaGates\Admin\Support\AdminNav::visible(
-                isset($_SESSION['admin_role'])
-                    ? \AfricaGates\Admin\Support\Permissions::allowedSections((string)$_SESSION['admin_role'])
-                    : []
-            ),
+            // Filtered per PAGE by the guard's own function (Permissions::canOpen) since the
+            // console rebuild — see AdminNav. The shell itself reads console_shell() below.
+            'admin_nav'         => \AfricaGates\Admin\Support\AdminNav::forRole((string) ($_SESSION['admin_role'] ?? '')),
             'admin_role_label'  => isset($_SESSION['admin_role'])
                 ? \AfricaGates\Admin\Support\Permissions::label((string)$_SESSION['admin_role'])
                 : null,
@@ -332,6 +330,18 @@ return [
                 return $v;
             }
         ));
+        // The phone Menu's destinations and its four most-used tiles (MenuShortcuts, owner
+        // 4 Oct 2026). A function, like the reads above: one read of one column, for a
+        // member, at render time — a page that never draws the Menu never asks. The tiles
+        // are ranked here for a member; a guest's are ranked in their browser from the
+        // `params` this hands over, so the script types no number of its own.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'menu_shortcuts',
+            static function (): array {
+                $id = (int) ($_SESSION['user_id'] ?? 0);
+                return \AfricaGates\Services\MenuShortcuts::menu($id > 0, $id);
+            }
+        ));
         // The Menu's Status row light — the last RECORDED overall state, or null when the
         // record is stale or missing (SystemStatus::light() says why it is not report()).
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
@@ -351,6 +361,21 @@ return [
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'search_scopes',
             static fn (): array => array_keys(\AfricaGates\Services\ActivityFeedService::SCOPES)
+        ));
+        // Discover (Phase 4): the ONE builder of a Discover URL, so a tab, a chip, a
+        // "remove filter" link and "Show older updates" cannot disagree about which
+        // parameters survive a click — and the Live tab's kind chips, from the service.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'discover_url',
+            static fn (array $s, array $with = []): string => \AfricaGates\Services\Discover::url($s, $with)
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'discover_kinds',
+            static fn (): array => \AfricaGates\Services\Discover::KINDS
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'discover_tabs',
+            static fn (): array => \AfricaGates\Services\Discover::TABS
         ));
         // Is any capability that processes PUBLIC-SUBMITTED content actually running on
         // this deployment? Drives the point-of-collection notice beside the nomination
@@ -598,6 +623,13 @@ return [
             'mail_health',
             [\AfricaGates\Services\Mail\MailHealth::class, 'banner']
         ));
+        // `{{ console_shell(admin_page) }}` → everything the admin console's shell draws
+        // around a page: the rail for this role, where the request is, pins, counts, the
+        // alert pill. A function for the cron_health reason — only console pages ask.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'console_shell',
+            [\AfricaGates\Admin\Support\ConsoleShell::class, 'context']
+        ));
         // Consume one-shot flash. `flash` included — it was leaking for the whole session.
         unset($_SESSION['flash_ok'], $_SESSION['flash'],
               $_SESSION['flash_error'], $_SESSION['flash_notice'],
@@ -680,7 +712,7 @@ return [
     AuthService::class      => fn(ContainerInterface $c)=>new AuthService($c->get(LogService::class), $c->get(AuditService::class), $c->get(RateLimitService::class)),
 
     // Public controllers
-    HomeController::class        => fn(ContainerInterface $c)=>new HomeController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(StatsService::class)),
+    HomeController::class        => fn(ContainerInterface $c)=>new HomeController($c->get(Twig::class), $c->get(CacheService::class)),
     ApiController::class         => fn(ContainerInterface $c)=>new ApiController($c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(VoteService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(TurnstileService::class), $c->get(FraudService::class), $c->get(EventService::class), $c->get(MilestoneService::class), $c->get(LegacyService::class), $c->get(OpportunityService::class)),
     RegistryController::class    => fn(ContainerInterface $c)=>new RegistryController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(OtpService::class)),
     AwardsController::class      => fn(ContainerInterface $c)=>new AwardsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(SettingsService::class)),
@@ -739,7 +771,7 @@ return [
     \AfricaGates\Controllers\HonourController::class  => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\HonourController($c->get(Twig::class)),
     \AfricaGates\Admin\Controllers\InvitesController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\InvitesController($c->get(Twig::class)),
     \AfricaGates\Controllers\EmailPrefsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\EmailPrefsController($c->get(Twig::class)),
-    ActivityController::class     => fn(ContainerInterface $c)=>new ActivityController($c->get(Twig::class), new \AfricaGates\Services\ActivityFeedService()),
+    \AfricaGates\Controllers\DiscoverController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\DiscoverController($c->get(Twig::class)),
     // Support assistant. The agent gets AiService (Groq + Gemini, whichever the
     // admin configured) and the ticket service; the ticket service gets the
     // mailer so an escalation can actually reach somebody.
