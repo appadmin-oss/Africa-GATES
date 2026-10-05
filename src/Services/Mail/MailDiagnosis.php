@@ -74,12 +74,15 @@ final class MailDiagnosis
     private $resolve;
     /** @var callable(string,int,int):bool */
     private $reach;
+    /** @var callable(MailConfig):?array */
+    private $certify;
 
     public function __construct(
         private readonly MailConfig $config,
         ?callable $smtp = null,
         ?callable $resolve = null,
         ?callable $reach = null,
+        ?callable $certify = null,
     ) {
         $this->smtp    = $smtp    ?? static fn (): SMTP => new SMTP();
         $this->resolve = $resolve ?? static fn (string $h): array => (array) (@gethostbynamel($h) ?: []);
@@ -89,6 +92,7 @@ final class MailDiagnosis
             fclose($s);
             return true;
         };
+        $this->certify = $certify ?? static fn (MailConfig $c): ?array => PeerCertificate::of($c);
     }
 
     /**
@@ -163,17 +167,45 @@ final class MailDiagnosis
      * every hour. Same shape as the CONNECT advice above it: the diagnosis has measured
      * the answer, so it says the measured thing.
      *
-     * When the pairing is the conventional one, a STARTTLS that is not offered, or a
-     * certificate that is not the provider's, is almost always the web host intercepting
-     * outbound SMTP (cPanel's "SMTP Restrictions" answers port 587 itself) — and no port or
-     * encryption setting on this side can fix that. The remedy is a road that is not SMTP.
+     * ── AND THEN IT SAID A SECOND THING IT HAD NOT MEASURED ──────────────────────────
+     *
+     * Its replacement read any cert-shaped word in PHPMailer's error and announced, as a
+     * fact, "the web host is intercepting outbound mail and answering it itself". Nothing
+     * had looked at a certificate. Run against the three error strings OpenSSL actually
+     * emits — a stale CA bundle, a genuine name mismatch, an expired intermediate — the
+     * screen printed one identical sentence, and it is the right answer to exactly one of
+     * them. So an operator was sent to their web host with an accusation two times in
+     * three; the host replied with boilerplate, because they had been handed a conclusion
+     * rather than an observation, and the real fault went on being invisible.
+     *
+     * The commonest of the three is the one that reads as "mail stopped working after an
+     * update": a PHP version change on a shared host swaps the OpenSSL trust store, and
+     * every outbound TLS verification starts failing against certificates that are
+     * perfectly genuine. Nothing is intercepting anything, and no amount of asking the
+     * host to disable SMTP Restrictions will fix it.
+     *
+     * So {@see PeerCertificate} LOOKS, and this says only what came back:
+     *
+     *   · names that do not cover the host  → somebody else is answering, named.
+     *   · names that DO cover the host      → our own trust store, not the host.
+     *   · no certificate to look at         → the server's own words, no cause invented.
+     *
+     * `$cert` is null when the probe could not reach that far, which is a different
+     * finding from "we looked and it was wrong" and must not read like it.
+     *
+     * @param array{subject:string,issuer:string,names:list<string>,matches:bool,
+     *              expired:bool,valid_to:string}|null $cert
      */
     /** The detail recorded when the server answered EHLO without offering STARTTLS. */
     private const NO_STARTTLS = 'The server does not offer STARTTLS.';
 
-    private static function tlsFix(MailConfig $c, string $detail): string
+    /** OpenSSL's way of saying "this certificate may be fine; I cannot check it". */
+    private const UNTRUSTED = '~unable to get local issuer|self.signed certificate|unable to verify the first certificate|certificate verify failed~i';
+
+    private static function tlsFix(MailConfig $c, string $detail, ?array $cert = null): string
     {
-        $sec = $c->security();
+        $sec   = $c->security();
+        $pair  = 'Port ' . $c->port . ' with ' . ($sec === MailConfig::SECURE_SMTPS ? 'SMTPS' : 'STARTTLS');
         $mismatched = ($c->port === 465 && $sec !== MailConfig::SECURE_SMTPS)
                    || ($c->port !== 465 && $sec === MailConfig::SECURE_SMTPS);
         if ($mismatched) {
@@ -182,26 +214,79 @@ final class MailDiagnosis
                 . ' (465 is SMTPS, 587 and 2525 are STARTTLS).';
         }
 
-        $bare = $detail === self::NO_STARTTLS;
-        $intercepted = $bare
-            || preg_match('~certificate|peer|CN=|verify failed|subject name~i', $detail);
         $road = $c->hasApiKey()
             ? 'set “Send by” to Automatic so mail goes out by the Brevo API'
             : 'set “Send by” to Automatic and save a Brevo API key, so mail goes out over HTTPS'
               . (MailConfig::hostMailAvailable() ? ' (or by this server’s own mail)' : '');
+        $settled = $pair . ' is already the right pairing, so changing the port or the encryption will not help. ';
 
-        if ($intercepted) {
-            return 'Port ' . $c->port . ' with ' . ($sec === MailConfig::SECURE_SMTPS ? 'SMTPS' : 'STARTTLS')
-                . ' is already the right pairing, so changing the port or the encryption will not help. '
-                . ($bare ? 'The server answering on ' . $c->port . ' offered no encryption at all'
-                                  : 'The server answering presented a certificate that is not ' . $c->host . '’s')
+        // A server that answers 587 and offers no encryption at all, where the provider
+        // does, is not the provider. Nothing to measure: the absence IS the measurement.
+        if ($detail === self::NO_STARTTLS) {
+            return $settled . 'The server answering on ' . $c->port . ' offered no encryption at all'
                 . ' — the web host is intercepting outbound mail and answering it itself (cPanel calls this'
                 . ' “SMTP Restrictions”). Ask the host to turn that off for this account, or ' . $road . '.';
         }
-        return 'Port ' . $c->port . ' with ' . ($sec === MailConfig::SECURE_SMTPS ? 'SMTPS' : 'STARTTLS')
-            . ' is already the right pairing, so the settings are not the fault: the encrypted handshake itself'
-            . ' failed' . ($detail !== '' ? ' (' . mb_substr($detail, 0, 160) . ')' : '') . '. If it persists, the web host may be interfering with'
-            . ' outbound mail — ' . $road . '.';
+
+        if ($cert !== null && !$cert['matches']) {
+            return $settled . 'We looked at what the server on ' . $c->host . ':' . $c->port . ' presents: a'
+                . ' certificate for ' . self::names($cert) . ', issued by ' . $cert['issuer'] . '. That is not '
+                . $c->host . ', so something between this server and your mail provider is answering in its'
+                . ' place — usually the web host (cPanel calls this “SMTP Restrictions”). Send them those'
+                . ' certificate details and ask them to stop intercepting outbound mail for this account, or '
+                . $road . '.';
+        }
+
+        if ($cert !== null && $cert['expired']) {
+            return $settled . 'The certificate ' . $c->host . ' presents expired on ' . $cert['valid_to']
+                . ', so this server is right to refuse it. That is the mail provider’s to renew — nothing here'
+                . ' can be set to fix it. Until they do, ' . $road . '.';
+        }
+
+        // ── A MATCHING NAME IS NOT A CLEARED NAME ───────────────────────────────────
+        // Measured against this container's own egress while writing it: the proxy
+        // intercepting outbound HTTPS presented a certificate whose SUBJECT was exactly
+        // the host asked for — *.google.com — and whose ISSUER was the proxy's own CA.
+        // An interceptor forges the name; that is the entire trick. So a draft of this
+        // branch that read a matching name as "nothing is intercepting the connection"
+        // would have cleared a live interception in the one sentence written to catch it.
+        //
+        // The name therefore proves nothing on its own and the issuer is the evidence,
+        // and we cannot decide it here: "Google Trust Services" means our trust store is
+        // stale, "QServers" means somebody is re-signing the connection, and only the
+        // reader knows which their provider uses. So the issuer is NAMED and both
+        // readings are given, rather than one of them being guessed at.
+        if ($cert !== null) {
+            return $settled . 'The server answering is presenting a certificate for ' . self::names($cert)
+                . ' — the right name — issued by ' . $cert['issuer'] . '. This server could not verify it,'
+                . ' and which fault that is depends on that issuer. If ' . $cert['issuer'] . ' is not the'
+                . ' certificate authority your mail provider uses, something is re-signing the connection'
+                . ' between this server and them (an interceptor forges the name, so a matching name clears'
+                . ' nothing). If it IS theirs, the certificate is genuine and this server’s CA trust store is'
+                . ' out of date — the usual cause is a PHP version change on the host, and the fix is for them'
+                . ' to update the CA bundle for the PHP version this site runs (openssl.cafile / curl.cainfo).'
+                . ' Either way, ' . $road . '.';
+        }
+
+        // Nothing was measured. Say the server's words and name both possibilities as
+        // possibilities — an unmeasured cause stated as fact is what this method is for.
+        $trust = preg_match(self::UNTRUSTED, $detail)
+            ? ' That wording is usually this server’s CA trust store being out of date rather than anything'
+              . ' at the provider, and a host PHP update is the usual cause.'
+            : '';
+        return $settled . 'The encrypted handshake itself failed'
+            . ($detail !== '' ? ' (' . mb_substr($detail, 0, 160) . ')' : '') . '.' . $trust
+            . ' We could not read the certificate the server presented, so this is the server’s own wording and'
+            . ' not a diagnosis. Run Email health again to retry the check, or ' . $road . '.';
+    }
+
+    /** The presented names, trimmed to something a sentence can hold. */
+    private static function names(array $cert): string
+    {
+        $n = $cert['names'] ?: [$cert['subject']];
+        return count($n) > 3
+            ? implode(', ', array_slice($n, 0, 3)) . ' and ' . (count($n) - 3) . ' more'
+            : implode(', ', $n);
     }
 
     /**
@@ -244,7 +329,24 @@ final class MailDiagnosis
                       . ', or move sending to a provider that delivers over HTTPS.';
             }
             if ($cause === MailFailure::TLS) {
-                $fix = self::tlsFix($c, $detail);
+                // Only now, and only for this cause: the probe costs a second handshake,
+                // and it has nothing to say about a port that never connected. A server
+                // that offered no STARTTLS has no certificate to show, so it is not asked.
+                $cert = $detail === self::NO_STARTTLS ? null : ($this->certify)($c);
+                if ($cert !== null) {
+                    // Onto the step that already failed, not a second row for the same
+                    // step: the screen walks the conversation in order, and a duplicate
+                    // key appended after the not-reached filler reads as a later stage.
+                    foreach ($steps as $i => $st) {
+                        if ($st['key'] !== 'tls') continue;
+                        $steps[$i]['detail'] = rtrim($st['detail'], ' .') . '. Presented '
+                            . self::names($cert) . ' (issued by ' . $cert['issuer']
+                            . ($cert['valid_to'] !== '' ? ', valid to ' . $cert['valid_to'] : '') . ') — '
+                            . ($cert['matches'] ? 'this IS ' . $c->host : 'this is NOT ' . $c->host) . '.';
+                        break;
+                    }
+                }
+                $fix = self::tlsFix($c, $detail, $cert);
             }
             return [
                 'ok'      => $cause === null,
