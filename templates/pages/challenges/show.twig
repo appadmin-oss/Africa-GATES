@@ -1,0 +1,236 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/challenges/{slug}` — ONE CHALLENGE
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt 5 Oct 2026 on `layout/shell.twig`, from
+  `docs/handoff/inventory/pages--challenges--show.md` and the pre-destroy template
+  at `882d768^`. `ChallengePage.dc.html` is not in the handoff bundle (Q16), so no
+  phase owned this page and nothing was coming to rebuild it — see the index.
+
+  ── HOW THIS PAGE IS PUT TOGETHER ──────────────────────────────────────────
+
+    partials/ui.twig            steps · ticks · notice · faq · row · meter · facts
+    components.css              the card, the list, the button — on every page
+    components/library.css      what those macros look like. REBUILT WITH THIS PAGE:
+                                `ui.twig` survived the destroy and its stylesheet did
+                                not, so every macro here was emitting correct, correctly
+                                labelled markup that nothing styled.
+    components/challenge.css    the hero, the rail and the theme — the three things
+                                only a challenge has
+
+  ── NOT ONE SENTENCE IS WRITTEN HERE ───────────────────────────────────────
+
+  Every word a reader sees comes out of `copy`, which is `ChallengeCopy::for()`. A
+  string typed into this file would be a second place a challenge's terms are
+  written, and the two would disagree the first time somebody edited one.
+
+  ── THREE THINGS THAT ARE DELIBERATE ───────────────────────────────────────
+
+  1. "Included" is built here; §3 of the handoff lists it and no comp draws it.
+  2. The FAQ is `<details>`, open on the first question. A disclosure needing a
+     script to open is a question some people never read.
+  3. The root is a `<div>`. The layout already owns `<main id="main">`, and this
+     page once opened a second one with the same id — two main landmarks, and a
+     skip link with two targets. `ChallengePageTest::test_one_main_landmark`.
+#}
+
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'sub', title: c.title} %}
+{# The page carries its own fixed bar on a phone, so the shell must not also render
+   the tab bar: two elements at `bottom:0` and the order decides which is reachable.
+   Same declaration the event detail page makes for the same reason. #}
+{% set flow_page = true %}
+
+{# Hoisted to template scope: a `{% set %}` inside a block is invisible to every
+   other block and renders as null in silence (CLAUDE.md). The meter is drawn twice
+   — the phone card and the rail — from this one count, so the two cannot disagree
+   about how many places are gone. #}
+{% set claimed_n = copy.has_meter ? (spots|filter(t => t)|length) : 0 %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/library.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/challenge.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import "partials/ui.twig" as ui %}
+
+<div class="ch" style="{{ challenge_style(c.theme) }}">
+
+  {# ══ HERO ═══════════════════════════════════════════════════════════════ #}
+  <section class="ch-hero" aria-labelledby="ch-h1">
+    <div class="ch-hero__in">
+      {% if c.art_url %}
+        <img class="ch-hero__art" src="{{ c.art_url }}" alt="{{ c.art_alt|default('') }}"
+             width="420" height="420" fetchpriority="high" decoding="async">
+      {% else %}
+        <span class="ch-hero__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="{{ c.icon|default('M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6') }}"/>
+          </svg>
+        </span>
+      {% endif %}
+
+      <div class="ch-hero__b">
+        <p class="ch-hero__k">
+          {# The flag is drawn, not an emoji: 🇳🇬 has no glyph on Windows and renders
+             as the two letters "NG". #}
+          {% if c.flag %}<span class="ch-flag" aria-hidden="true"></span>{% endif %}
+          {{ c.kicker }}
+          <span class="ch-state" data-state="{{ copy.state }}">{{ copy.state_label }}</span>
+        </p>
+        <h1 class="ch-hero__h" id="ch-h1">{{ c.title }}</h1>
+        <p class="ch-hero__p">{{ copy.promise }}</p>
+
+        {# WHO RUNS THE AWARD THIS COUNTS INSIDE. Resolved through the scope chain by
+           `ProgrammeHost`, never stored on the challenge — two copies of a host's
+           name is one copy nobody updates. Only when a host is NAMED: a logo on its
+           own is an unexplained picture. #}
+        {% if host %}
+          <p class="ch-host">
+            {% if host.logo %}<img src="{{ host.logo }}" alt="" height="28" loading="lazy" decoding="async">{% endif %}
+            <span>{{ 'Hosted by'|trans }}
+              {%- if host.url %} <a href="{{ host.url }}" rel="noopener">{{ host.name }}</a>
+              {%- else %} <b>{{ host.name }}</b>{% endif %}</span>
+          </p>
+        {% endif %}
+
+        {{ ui.facts(copy.facts, 'text') }}
+      </div>
+    </div>
+  </section>
+
+  {# ══ BODY ═══════════════════════════════════════════════════════════════ #}
+  <div class="ch-body">
+    <div class="ch-main">
+
+      {# The meter, phone only — from 600px the rail carries it. #}
+      <div class="ch-meter ch-meter--phone">
+        <span class="ag-between"><b>{{ copy.meter_title }}</b><span class="ag-list__value">{{ copy.time_left }}</span></span>
+        {% if copy.has_meter and spots|length %}{{ ui.meter(claimed_n, spots|length, copy.meter_aria, 'outline') }}{% endif %}
+        {% if entry %}<span class="ch-mine"><b>{{ 'You:'|trans }}</b> {{ copy.mine }}</span>{% endif %}
+      </div>
+
+      {% if copy.steps|length %}
+        <section class="ch-sec" aria-labelledby="h-how">
+          <h2 class="ch-h2" id="h-how">{{ 'How to take part'|trans }}</h2>
+          {{ ui.steps(copy.steps, true) }}
+        </section>
+      {% endif %}
+
+      <section class="ch-sec" aria-labelledby="h-count">
+        <h2 class="ch-h2" id="h-count">{{ copy.count_title }}</h2>
+        {{ ui.ticks(copy.rules) }}
+      </section>
+
+      <section class="ch-sec" aria-labelledby="h-win">
+        <div class="ag-between">
+          <h2 class="ch-h2" id="h-win">{{ copy.win_title }}</h2>
+          <span class="ag-list__value">{{ copy.win_sub }}</span>
+        </div>
+        {% if winners|length %}
+          <ol class="ch-winners">
+            {% for w in winners %}
+              <li>
+                <span class="ch-winners__n">#{{ w.standing }}</span>
+                {# Area and time only. A full name beside a published cash amount is an
+                   invitation addressed to whoever reads it; `ChallengeService::winners()`
+                   enforces it and this template must not widen it. #}
+                <span class="ch-winners__b"><b>{{ w.name }}</b><span>{{ w.where }}</span></span>
+                <span class="ch-winners__t">{{ w.when }}</span>
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          {{ ui.notice('trophy', copy.empty_title, copy.empty_sub) }}
+        {% endif %}
+      </section>
+
+      {% if included|length %}
+        <section class="ch-sec" aria-labelledby="h-inc">
+          <h2 class="ch-h2" id="h-inc">{{ 'Included'|trans }}</h2>
+          <p class="ag-hint">{{ 'Only what you do inside these counts towards this challenge.'|trans }}</p>
+          <div class="ag-list">
+            {% for i in included %}{{ ui.row({label: i.name, sub: i.kind, href: i.href}) }}{% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      <section class="ch-sec" aria-labelledby="h-faq">
+        <h2 class="ch-h2" id="h-faq">{{ 'Questions'|trans }}</h2>
+        {{ ui.faq(copy.faq, true) }}
+        {% if copy.terms_version %}
+          <a class="ch-terms" href="/terms">{{ 'Full challenge terms'|trans }} · {{ copy.terms_version }}</a>
+        {% endif %}
+      </section>
+
+      {% if others|length %}
+        <section class="ch-sec" aria-labelledby="h-more">
+          <h2 class="ch-h2" id="h-more">{{ 'More challenges'|trans }}</h2>
+          <div class="ch-more">
+            {#
+              ONE TONE, NOT EACH ROW'S OWN. These rows used to take the listed
+              challenge's theme, which put up to four accents in one short list — and
+              `ColourBudgetTest` charges a tier-2 page two. It was right to: a list of
+              four differently-coloured rows is the noise the budget exists to stop, and
+              the theme belongs to the page a reader is ON, not to a pointer at another.
+              The state still arrives as a WORD in the pill.
+            #}
+            {% for o in others %}
+              {{ ui.row({icon: 'trophy',
+                         label: o.title, sub: o.line, href: '/challenges/' ~ o.slug,
+                         pill: {label: o.state_label, tone: o.state == 'open' ? 'ok' : (o.state == 'full' ? 'warn' : '')}}) }}
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </div>
+
+    {# ══ THE RAIL — beside the column from 1024px ════════════════════════ #}
+    <aside class="ch-rail" aria-label="{{ 'Take part'|trans }}">
+      <span class="ch-rail__k">{{ 'Prize'|trans }}</span>
+      <b class="ch-rail__prize">{{ copy.prize_big }} <span>{{ copy.prize_unit }}</span></b>
+
+      <div class="ch-meter">
+        <span class="ag-between"><b>{{ copy.meter_title }}</b><span class="ag-list__value">{{ copy.time_left }}</span></span>
+        {% if copy.has_meter and spots|length %}{{ ui.meter(claimed_n, spots|length, copy.meter_aria, 'outline') }}{% endif %}
+      </div>
+
+      {% if entry %}
+        <div class="ch-rail__mine">
+          <span><b>{{ 'You:'|trans }}</b> {{ copy.mine }}</span>
+          {{ ui.bar(copy.mine_pct, copy.mine) }}
+        </div>
+      {% endif %}
+
+      <a class="ag-btn {{ copy.cta_primary ? 'ch-cta' : 'ag-btn--secondary' }} ag-btn--block" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
+      <p class="ag-hint">{{ copy.cta_note }}</p>
+
+      {# The flier is a FILE rather than a share sheet: it is posted to WhatsApp and
+         Instagram, where a link preview is not the point. #}
+      <div class="ch-rail__acts">
+        <button class="ag-btn ag-btn--secondary ag-btn--sm" type="button"
+                data-ag-share data-share-url="/challenges/{{ c.slug }}"
+                data-share-title="{{ c.title }}">{{ 'Share'|trans }}</button>
+        <a class="ag-btn ag-btn--secondary ag-btn--sm" href="/challenges/{{ c.slug }}/flier.png" download>{{ 'Get the flier'|trans }}</a>
+      </div>
+    </aside>
+  </div>
+
+  {# ══ THE PHONE'S ACTION BAR ══════════════════════════════════════════════
+     Fixed by the stylesheet so it is there on first paint: a bar placed from a
+     measured property is missing for anybody whose script did not run, which this
+     codebase shipped once on the nomination form. #}
+  <div class="ag-actionbar ch-bar" data-bottom-ui>
+    <span class="ag-actionbar__sum">
+      <b>{{ copy.prize_big }} {{ copy.prize_unit }}</b>
+      <span>{{ copy.bar_sub }}</span>
+    </span>
+    <a class="ag-btn {{ copy.cta_primary ? 'ch-cta' : 'ag-btn--secondary' }}" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
+  </div>
+</div>
+{% endblock %}

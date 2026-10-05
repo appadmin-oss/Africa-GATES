@@ -2449,11 +2449,36 @@ return function(App $app) {
         // The query string is carried on every one of these — losing it drops the `?ref=`
         // a gateway appends to a callback, and the `?give=` that explains a refusal.
         //
-        // The RETURNED closure is not static, and that is not a style choice: Slim binds
-        // the container to a route callable, and binding to a static closure is a PHP
-        // warning it emits on every request to each of these seven redirects. Nothing
-        // here uses `$this`, so the warning bought nothing and cost a line in the error
-        // log per hit — invisible on a host with no shell, which is where these run.
+        // ── THE RETURNED CLOSURE MAY NOT BE `static`, AND IT IS A 500 ────────
+        //
+        // Slim resolves every route handler through `CallableResolver::bindToContainer()`,
+        // which calls `$callable->bindTo($this->container)` on any Closure. `bindTo` on a
+        // STATIC closure cannot work — there is no `$this` to bind — so PHP emits
+        // "Cannot bind an instance to a static closure" as a WARNING and the call returns
+        // NULL. Slim then hands that null on as the route's callable, and the request dies
+        // with a 500.
+        //
+        // THE WARNING IS NOT THE COST, AND THAT IS WHY THIS COMMENT IS LONG. It was first
+        // read here as log noise — "nothing uses `$this`, so the warning bought nothing and
+        // cost a line in the error log per hit" — which is the natural reading and is wrong
+        // in the one way that matters: every one of these paths was answering 500. Measured
+        // by dispatching the whole route table: EIGHTEEN verb-path pairs, not seven.
+        // `/donate` and `/gift`, the `/apply`, `/redirect`, `/callback` and `/success`
+        // under each, the partner-appeal slugs, and `/donate/giving/{token}` — the link a
+        // donor follows to stop a monthly gift.
+        //
+        // These redirects are permanent rather than a tidy-up for the reason stated above:
+        // twenty-two files link to `/donate`, and the manage link is printed in receipts
+        // already sent. So the failure landed on people following a link this platform
+        // sent them.
+        //
+        // Nothing points at it: a warning rather than an error, a 500 rendered as the
+        // site's own error page, and a server log naming a line in a vendor file with no
+        // mention of which route. The OUTER closure may stay static — it is a factory and
+        // never reaches the resolver — and `static fn` is correct in dozens of other places
+        // in this file, all of them helpers called from inside a handler.
+        // `RouteTableIntegrityTest::test_no_route_handler_is_a_static_closure` holds the
+        // rule for the whole table rather than for these eighteen.
         $bounce = static function (callable $to, int $code) {
             return function ($req, $res, array $args = []) use ($to, $code) {
                 $qs  = $req->getUri()->getQuery();

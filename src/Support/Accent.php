@@ -690,4 +690,66 @@ final class Accent
         return '--pg-fill:var(--ag-' . $c['fill'] . ');--pg-edge:var(--ag-' . $c['edge']
              . ');--pg-ink:var(--ag-' . $c['ink'] . ');--pg-wash:var(--ag-' . $c['wash'] . ')';
     }
+
+    /**
+     * A CHALLENGE'S THEME — the one table, read by the page and by the flier.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS HERE AND NOT FOUR BLOCKS IN A STYLESHEET
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The rebuilt page first carried `[data-theme="green|blue|gold|rose"]` blocks in
+     * `components/challenge.css`, and two things were wrong with it.
+     *
+     * The first `ColourBudgetTest` found: a sheet naming four families charges the
+     * page four colour events, and a tier-2 page may spend two. That is the counter
+     * measuring the STYLESHEET rather than the screen — a challenge page draws one
+     * theme — but the index genuinely does show cards of four themes at once, so the
+     * objection is real and not a blind spot to work around.
+     *
+     * The second is worse and the counter could never have found it: the flier held
+     * the SAME four themes as hexes in `ChallengeFlier::THEMES`, because there is no
+     * CSS in a PNG. Two tables, one rule, and nothing but a test between them — "a
+     * blue challenge whose page is blue and whose flier is green is two products".
+     *
+     * So the theme is resolved here, once, and emitted per element exactly as
+     * {@see programmeStyle()} emits a programme's. The flier reads the same table.
+     * There is no second copy left to drift.
+     *
+     * ── `solid` IS NOT `fill`, AND THAT IS THE WHOLE POINT OF IT ─────────────
+     *
+     * `fill` is the identity and owes no contrast floor. `solid` carries WHITE TEXT
+     * on the primary action, so it owes 4.5:1 — gold's fill is `#f3b416`, which holds
+     * white at 1.9:1, so a gold challenge's main button had a label nobody could
+     * read. `ChallengePageTest::test_each_themes_solid_holds_white_text` re-derives
+     * every floor from these token names rather than trusting this paragraph.
+     *
+     * @return array{fill:string, edge:string, wash:string, solid:string} token names
+     */
+    public static function challengeTheme(?string $theme): array
+    {
+        return match ((string) $theme) {
+            'blue' => ['fill' => 'info',  'edge' => 'info',     'wash' => 'info-wash',  'solid' => 'info'],
+            'gold' => ['fill' => 'gold',  'edge' => 'gold-ink', 'wash' => 'gold-wash',  'solid' => 'gold-ink'],
+            'rose' => ['fill' => 'live',  'edge' => 'live-ink', 'wash' => 'live-wash',  'solid' => 'live-ink'],
+            // Green is the house accent and the default, so an unknown name — an older
+            // row, a hand-edited column — draws plain rather than drawing with every
+            // property undefined: a transparent hero and a `currentColor` kicker.
+            default => ['fill' => 'green', 'edge' => 'green-deep', 'wash' => 'green-wash', 'solid' => 'green'],
+        };
+    }
+
+    /**
+     * That theme as inline custom properties, per element.
+     *
+     * Safe in a `style` attribute: every value is a `var()` of a palette token, so
+     * nothing a challenge's own typed fields contain can reach a stylesheet.
+     */
+    public static function challengeStyle(?string $theme): string
+    {
+        $c = self::challengeTheme($theme);
+
+        return '--ch-fill:var(--ag-' . $c['fill'] . ');--ch-edge:var(--ag-' . $c['edge']
+             . ');--ch-wash:var(--ag-' . $c['wash'] . ');--ch-solid:var(--ag-' . $c['solid'] . ')';
+    }
 }

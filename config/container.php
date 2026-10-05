@@ -269,6 +269,14 @@ return [
             'programme_style',
             [\AfricaGates\Support\Accent::class, 'programmeStyle']
         ));
+        // A challenge's theme, per card and per page. Same shape as `programme_style`,
+        // and the same reason: four blocks in a stylesheet charge every page that links
+        // it for four colour events, and the flier — which cannot read CSS — would need
+        // its own second copy of the table.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'challenge_style',
+            [\AfricaGates\Support\Accent::class, 'challengeStyle']
+        ));
         // The help surface's audiences, for the masthead's scope line. A FUNCTION and
         // not a global: it is read by one partial on six surfaces, and a global is a
         // variable every one of four hundred routes carries in order to serve those six.
