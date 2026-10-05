@@ -120,6 +120,9 @@ final class MailDiagnosis
             return $smtp + ['road' => 'smtp', 'degraded' => false];
         }
 
+        // See degraded(): from here on, mail may still be reaching people by another road,
+        // and `$base` is carrying the SMTP run's own `fix` — which is written for an
+        // outage. Every working return below passes it through degraded().
         $base = $smtp ?? ['ok' => false, 'cause' => MailFailure::CONFIG, 'title' => '', 'fix' => '', 'detail' => '',
             'steps' => [], 'config' => $c->describe(), 'ports' => [], 'ran_at' => gmdate('Y-m-d H:i:s'), 'took_ms' => 0];
         $why = $smtp !== null ? 'SMTP is failing (' . $smtp['title'] . ')' : 'SMTP is not used';
@@ -130,8 +133,9 @@ final class MailDiagnosis
                 $base['steps'][] = ['key' => 'api', 'label' => 'The Brevo API accepts our key',
                                     'state' => $r['ok'] ? self::OK : self::FAIL, 'detail' => $r['detail']];
                 if ($r['ok']) {
-                    return array_merge($base, ['ok' => true, 'road' => 'api', 'degraded' => $smtp !== null,
-                        'title' => $smtp !== null ? $why . ' — mail is going out by the Brevo API instead' : 'Email can be sent by the Brevo API']);
+                    return self::degraded(array_merge($base, ['ok' => true, 'road' => 'api', 'degraded' => $smtp !== null,
+                        'title' => $smtp !== null ? $why . ' — mail is going out by the Brevo API instead' : 'Email can be sent by the Brevo API']),
+                        'api', $smtp !== null);
                 }
                 if ($c->transport === MailConfig::TRANSPORT_API) {
                     return array_merge($base, ['ok' => false, 'cause' => MailFailure::AUTH, 'road' => 'api', 'degraded' => false,
@@ -148,10 +152,11 @@ final class MailDiagnosis
                                 'state' => $host ? self::OK : self::FAIL,
                                 'detail' => $host ? 'PHP’s mail() is available here.' : 'PHP’s mail() is not available on this server.'];
             if ($host) {
-                return array_merge($base, ['ok' => true, 'road' => 'host', 'degraded' => $c->transport === MailConfig::TRANSPORT_AUTO,
+                return self::degraded(array_merge($base, ['ok' => true, 'road' => 'host', 'degraded' => $c->transport === MailConfig::TRANSPORT_AUTO,
                     'title' => $c->transport === MailConfig::TRANSPORT_AUTO
                         ? $why . ' — mail is going out by this server’s own mail instead'
-                        : 'Email can be sent by this server’s own mail']);
+                        : 'Email can be sent by this server’s own mail']),
+                    'host', $c->transport === MailConfig::TRANSPORT_AUTO);
             }
         }
         return $base + ['road' => null, 'degraded' => false];
@@ -214,10 +219,19 @@ final class MailDiagnosis
                 . ' (465 is SMTPS, 587 and 2525 are STARTTLS).';
         }
 
-        $road = $c->hasApiKey()
-            ? 'set “Send by” to Automatic so mail goes out by the Brevo API'
-            : 'set “Send by” to Automatic and save a Brevo API key, so mail goes out over HTTPS'
-              . (MailConfig::hostMailAvailable() ? ' (or by this server’s own mail)' : '');
+        // ── THE ROAD THAT COSTS NOTHING COMES FIRST ─────────────────────────────────
+        // Every branch below used to end "save a Brevo API key", with this server's own
+        // mail in a parenthesis after it. On a cPanel host PHP's mail() is always there,
+        // needs no account, no key and no third party, and "Send by: Automatic" ALREADY
+        // falls through to it — so an SMTP fault is not a reason to go and open an
+        // account anywhere. Read twice as though the paid relay were the only way out,
+        // which is what naming it first does.
+        $road = MailConfig::hostMailAvailable()
+            ? 'leave “Send by” on Automatic, which already falls through to this server’s own mail'
+              . ($c->hasApiKey() ? ' (and to the Brevo API, whose key is saved)' : '')
+            : ($c->hasApiKey()
+                ? 'set “Send by” to Automatic so mail goes out by the Brevo API'
+                : 'set “Send by” to Automatic and save a Brevo API key, so mail goes out over HTTPS');
         $settled = $pair . ' is already the right pairing, so changing the port or the encryption will not help. ';
 
         // A server that answers 587 and offers no encryption at all, where the provider
@@ -287,6 +301,31 @@ final class MailDiagnosis
         return count($n) > 3
             ? implode(', ', array_slice($n, 0, 3)) . ' and ' . (count($n) - 3) . ' more'
             : implode(', ', $n);
+    }
+
+    /**
+     * ── A WORKING SCREEN MUST NOT READ LIKE AN OUTAGE ───────────────────────────────
+     *
+     * When SMTP fails under `auto`, roads() concludes `ok: true, degraded: true` — mail
+     * IS reaching people, by the API or by this server's own mail. But the fix it
+     * carried was the SMTP run's, written for a total outage, so the screen said "mail
+     * is going out by this server's own mail instead" in its title and then, underneath,
+     * handed the operator an emergency and a relay to go and buy. Measured against a
+     * real reader: they took the second half for the state of the platform, because an
+     * instruction to act outranks a sentence saying everything is fine.
+     *
+     * So a degraded fix leads with what is TRUE — nobody is missing mail — and only then
+     * describes the SMTP fault as the thing it is: one road of several, worth repairing,
+     * costing nobody a message while it is down.
+     */
+    private static function degraded(array $r, string $road, bool $degraded): array
+    {
+        if (!$degraded || trim((string) ($r['fix'] ?? '')) === '') return $r;
+        $by = $road === 'api' ? 'the Brevo API' : 'this server’s own mail';
+        $r['fix'] = 'Nobody is missing mail: it is going out by ' . $by . ', and sign-in codes, '
+            . 'receipts and announcements are all being delivered. What follows is about the SMTP '
+            . 'road only, which is worth repairing but is not an outage. ' . $r['fix'];
+        return $r;
     }
 
     /**

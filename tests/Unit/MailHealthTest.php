@@ -550,6 +550,59 @@ final class MailHealthTest extends TestCase
         $this->assertFalse($covers->invoke(null, ['mail.qservers.net'], 'smtp.gmail.com'));
     }
 
+    /**
+     * ── THE ADVICE SENT THE OPERATOR SHOPPING WHEN A FREE ROAD WAS ALREADY OPEN ──
+     *
+     * Every TLS branch ended "save a Brevo API key", with this server's own mail in a
+     * parenthesis behind it. On a cPanel host PHP's mail() is always available, needs no
+     * account and no third party, and "Send by: Automatic" already falls through to it.
+     * Read twice as though the paid relay were the only way out — which is what naming a
+     * paid service first does to a sentence somebody reads during an incident.
+     */
+    public function test_the_tls_advice_offers_the_free_road_before_the_paid_one(): void
+    {
+        $r = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: 'handshake failed'),
+            cert: self::cert(['names' => ['mail.qservers.net'], 'matches' => false]));
+
+        $this->assertStringContainsString('this server’s own mail', $r['fix']);
+        $own   = mb_strpos($r['fix'], 'this server’s own mail');
+        $brevo = mb_strpos($r['fix'], 'Brevo');
+        $this->assertTrue($brevo === false || $own < $brevo,
+            'the road that costs nothing is named before the one that costs money');
+    }
+
+    /**
+     * ── A SCREEN THAT HAS JUST CONCLUDED "MAIL IS FLOWING" MUST NOT READ AS AN OUTAGE ──
+     *
+     * Under `auto`, a failing SMTP road returns ok:true degraded:true — the API or this
+     * server's own mail is carrying every message. The fix carried through from the SMTP
+     * run was written for a total outage, so the title said mail was going out and the
+     * paragraph under it handed over an emergency and a relay to go and buy. An
+     * instruction to act outranks a sentence saying everything is fine.
+     */
+    public function test_a_degraded_roll_up_says_nobody_is_missing_mail_before_anything_else(): void
+    {
+        $c = MailConfig::of(['host' => 'smtp.test', 'port' => 587, 'username' => 'l@x', 'password' => 'k',
+                             'transport' => MailConfig::TRANSPORT_AUTO]);
+        $r = MailDiagnosis::roads($c, static fn () => ['ok' => false, 'detail' => 'no key'], true);
+
+        if (!MailConfig::hostMailAvailable()) {
+            $this->markTestSkipped('this runner has mail() disabled, so there is no fallback road');
+        }
+        $this->assertTrue($r['ok'], 'the host road is carrying it');
+        $this->assertTrue($r['degraded']);
+        $this->assertStringStartsWith('Nobody is missing mail', $r['fix'],
+            'the true thing comes first, or the remedy below it is read as the state of the platform');
+        $this->assertStringContainsString('not an outage', $r['fix']);
+    }
+
+    /** A real outage keeps its remedy unprefixed — the reassurance must not be universal. */
+    public function test_a_real_outage_is_not_told_that_nobody_is_missing_mail(): void
+    {
+        $r = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: 'handshake failed'));
+        $this->assertStringNotContainsString('Nobody is missing mail', $r['fix']);
+    }
+
     private function diagnose(FakeSmtp $fake, ?callable $reach = null, array $over = [],
                              ?array $cert = null): array
     {
