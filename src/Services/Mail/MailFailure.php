@@ -51,8 +51,14 @@ final class MailFailure
             'Check the SMTP host in Settings → Email & sender for a typo. For Brevo it is smtp-relay.brevo.com.'],
         self::CONNECT => ['The mail server cannot be reached from this host',
             'Most often the web host blocks outbound mail ports. Try port 2525 or 587 in Settings → Email & sender; if every port fails, ask the host to allow outbound SMTP to your provider.'],
+        // NOT "the port and the encryption do not match". This table is static: it has
+        // never seen the port, the encryption or the certificate, and it was printed on
+        // six screens to operators whose pairing was already correct — the same fault
+        // MailDiagnosis::tlsFix() was written to kill, surviving everywhere but there.
+        // So it names the two real causes as causes and sends them to the one screen
+        // that measures which. A fix that cannot know must not sound like one that does.
         self::TLS => ['The encrypted connection failed',
-            'The port and the encryption do not match. Port 465 needs “SMTPS”, 587 and 2525 need “STARTTLS” — leave Encryption on “Automatic” unless your provider says otherwise.'],
+            'Run the check on Settings → Email health: it reads the certificate the server presents and says which of these it is — the port paired with the wrong encryption (465 is “SMTPS”, 587 and 2525 are “STARTTLS”), this server’s CA trust store being out of date after a host PHP update, or something answering in your provider’s place.'],
         self::AUTH => ['The mail provider rejected the login',
             'Re-enter the SMTP username and password. For Brevo the password is an SMTP KEY from Settings → SMTP & API in your Brevo account — not your Brevo login password — and the username is the login shown on that same page.'],
         self::SENDER => ['The provider refused our From address',
@@ -119,7 +125,9 @@ final class MailFailure
             . 'and Google refuses every message until the day rolls over. Announcements are now held back to leave room for sign-in codes.',
         self::CONNECT => 'This server cannot reach smtp.gmail.com. Use port 587 with Encryption on Automatic. If every port fails '
             . 'the host blocks outbound mail: set “Send by” to Automatic, and mail falls back to this server’s own mail.',
-        self::TLS => 'The port and the encryption do not match. For Google use port 587 with Encryption on Automatic (or 465, also Automatic).',
+        self::TLS => 'The encrypted connection to Google failed. Port 587 with Encryption on Automatic is already right, so check that before changing it — '
+            . 'Google’s certificate is genuine, so the usual cause is this server’s CA trust store being out of date (a host PHP update does it) '
+            . 'or something answering in Google’s place. Run the check on Settings → Email health: it reads the certificate and says which.',
     ];
 
     /**

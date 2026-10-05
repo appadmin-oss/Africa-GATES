@@ -427,12 +427,197 @@ final class MailHealthTest extends TestCase
 
     // ══════════════════════════════════════════════════════════════════════════
 
-    private function diagnose(FakeSmtp $fake, ?callable $reach = null, array $over = []): array
+    /**
+     * ── THE ADVICE SAID "THE WEB HOST IS INTERCEPTING" ABOUT A CERTIFICATE NOBODY READ ──
+     *
+     * Three OpenSSL failures that mean three different things — a stale CA bundle here, a
+     * genuine name mismatch, an expired certificate at the provider — produced ONE
+     * identical sentence, and it named interception as a fact. Measured: the operator was
+     * sent to their web host with an accusation in two cases out of three, and the host
+     * answered with boilerplate because they had been given a conclusion, not an
+     * observation. The commonest of the three is also the one that reads as "mail stopped
+     * after an update", which is the case the wrong advice buried hardest.
+     *
+     * Deleting any branch of tlsFix() fails this: the three must not agree.
+     */
+    public function test_tls_advice_distinguishes_interception_from_our_own_trust_store(): void
+    {
+        $err = 'stream_socket_enable_crypto(): SSL operation failed with code 1';
+
+        $theirs = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: $err),
+            cert: self::cert(['names' => ['mail.qservers.net'], 'subject' => 'mail.qservers.net',
+                              'matches' => false, 'issuer' => "Let's Encrypt"]));
+        $ours   = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: $err), cert: self::cert());
+        $stale  = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: $err),
+            cert: self::cert(['expired' => true, 'valid_to' => '2026-09-01']));
+
+        foreach ([$theirs, $ours, $stale] as $r) $this->assertSame(MailFailure::TLS, $r['cause']);
+
+        // Somebody else is answering — and it is NAMED, which is the only form of this
+        // finding a web host cannot wave away.
+        $this->assertStringContainsString('mail.qservers.net', $theirs['fix']);
+        $this->assertStringContainsString('answering in its', $theirs['fix']);
+
+        // The right name, which on its own clears NOTHING: measured against this
+        // container's own egress, an intercepting proxy presents a forged certificate
+        // carrying exactly the name asked for. So the issuer is what the sentence hands
+        // the reader, and both readings are offered rather than one being guessed.
+        $this->assertStringContainsString('Test CA', $ours['fix'], 'the issuer is the evidence');
+        $this->assertStringContainsString('CA trust store', $ours['fix']);
+        $this->assertStringContainsString('re-signing', $ours['fix'],
+            'a matching name must not be reported as proof that nothing is intercepting');
+
+        $this->assertStringContainsString('expired on 2026-09-01', $stale['fix']);
+
+        $this->assertNotSame($theirs['fix'], $ours['fix'], 'these are different faults');
+        $this->assertNotSame($ours['fix'], $stale['fix'], 'these are different faults');
+    }
+
+    /**
+     * ── AN INTERCEPTOR FORGES THE NAME, SO A MATCHING NAME CLEARS NOTHING ──
+     *
+     * Found by running the probe against this container's own egress: the proxy answered
+     * for `www.google.com` with a certificate whose subject was `*.google.com` and whose
+     * issuer was its own CA. A draft of tlsFix() read a matching name as "nothing is
+     * intercepting the connection" — which would have cleared a live interception in the
+     * exact sentence written to catch one. The issuer is the evidence and must be printed.
+     */
+    public function test_a_forged_matching_name_is_not_reported_as_proof_of_innocence(): void
+    {
+        $r = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: 'certificate verify failed'),
+            cert: self::cert(['names' => ['smtp.test'], 'matches' => true,
+                              'issuer' => 'QServers Proxy CA']));
+
+        $this->assertStringContainsString('QServers Proxy CA', $r['fix'],
+            'the reader cannot judge the issuer they are not shown');
+        $this->assertStringNotContainsString('nothing is intercepting', $r['fix']);
+    }
+
+    /**
+     * "We could not look" and "we looked and it was wrong" are different findings, and the
+     * screen must not print the second when it has only the first.
+     */
+    public function test_tls_advice_invents_no_cause_when_the_certificate_could_not_be_read(): void
+    {
+        $r = $this->diagnose(new FakeSmtp(tlsOk: false,
+                tlsError: 'OpenSSL: error:1416F086 certificate verify failed'), cert: null);
+
+        $this->assertStringNotContainsString('intercepting', $r['fix'],
+            'an unmeasured cause must never be stated as a fact');
+        $this->assertStringContainsString('could not read the certificate', $r['fix']);
+        // The wording IS a real signal, so it is offered as one — as a likelihood.
+        $this->assertStringContainsString('usually', $r['fix']);
+    }
+
+    /** A server answering 587 with no encryption at all has no certificate to read. */
+    public function test_a_bare_587_is_still_called_interception_without_a_probe(): void
+    {
+        $asked = false;
+        $c = MailConfig::of(['host' => 'smtp.test', 'port' => 587, 'username' => 'l@x', 'password' => 'k']);
+        $r = (new MailDiagnosis($c, static fn () => new FakeSmtp(offersTls: false),
+                                static fn () => ['203.0.113.9'], static fn () => false,
+                                static function () use (&$asked) { $asked = true; return null; }))->run();
+
+        $this->assertFalse($asked, 'nothing presented a certificate, so nothing should be asked for one');
+        $this->assertStringContainsString('intercepting', $r['fix']);
+    }
+
+    /** The measurement lands on the step that failed, not as a second row after it. */
+    public function test_the_certificate_is_reported_on_the_tls_step_itself(): void
+    {
+        $r = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: 'handshake failed'),
+            cert: self::cert(['names' => ['mail.qservers.net'], 'matches' => false]));
+
+        $tls = array_values(array_filter($r['steps'], static fn ($s) => $s['key'] === 'tls'));
+        $this->assertCount(1, $tls, 'one row per step');
+        $this->assertStringContainsString('mail.qservers.net', $tls[0]['detail']);
+        $this->assertStringContainsString('is NOT smtp.test', $tls[0]['detail']);
+    }
+
+    /**
+     * A wildcard covers ONE label. Without that, an interception certificate issued for
+     * `*.qservers.net` would clear itself against a host in a sub-sub-domain.
+     */
+    public function test_wildcard_names_match_one_label_only(): void
+    {
+        $covers = new \ReflectionMethod(\AfricaGates\Services\Mail\PeerCertificate::class, 'covers');
+        $covers->setAccessible(true);
+
+        $this->assertTrue($covers->invoke(null, ['*.brevo.com'], 'smtp-relay.brevo.com'));
+        $this->assertFalse($covers->invoke(null, ['*.brevo.com'], 'a.smtp.brevo.com'));
+        $this->assertFalse($covers->invoke(null, ['*.brevo.com'], 'brevo.com'));
+        $this->assertTrue($covers->invoke(null, ['smtp.gmail.com'], 'SMTP.GMAIL.COM'));
+        $this->assertFalse($covers->invoke(null, ['mail.qservers.net'], 'smtp.gmail.com'));
+    }
+
+    /**
+     * ── THE ADVICE SENT THE OPERATOR SHOPPING WHEN A FREE ROAD WAS ALREADY OPEN ──
+     *
+     * Every TLS branch ended "save a Brevo API key", with this server's own mail in a
+     * parenthesis behind it. On a cPanel host PHP's mail() is always available, needs no
+     * account and no third party, and "Send by: Automatic" already falls through to it.
+     * Read twice as though the paid relay were the only way out — which is what naming a
+     * paid service first does to a sentence somebody reads during an incident.
+     */
+    public function test_the_tls_advice_offers_the_free_road_before_the_paid_one(): void
+    {
+        $r = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: 'handshake failed'),
+            cert: self::cert(['names' => ['mail.qservers.net'], 'matches' => false]));
+
+        $this->assertStringContainsString('this server’s own mail', $r['fix']);
+        $own   = mb_strpos($r['fix'], 'this server’s own mail');
+        $brevo = mb_strpos($r['fix'], 'Brevo');
+        $this->assertTrue($brevo === false || $own < $brevo,
+            'the road that costs nothing is named before the one that costs money');
+    }
+
+    /**
+     * ── A SCREEN THAT HAS JUST CONCLUDED "MAIL IS FLOWING" MUST NOT READ AS AN OUTAGE ──
+     *
+     * Under `auto`, a failing SMTP road returns ok:true degraded:true — the API or this
+     * server's own mail is carrying every message. The fix carried through from the SMTP
+     * run was written for a total outage, so the title said mail was going out and the
+     * paragraph under it handed over an emergency and a relay to go and buy. An
+     * instruction to act outranks a sentence saying everything is fine.
+     */
+    public function test_a_degraded_roll_up_says_nobody_is_missing_mail_before_anything_else(): void
+    {
+        $c = MailConfig::of(['host' => 'smtp.test', 'port' => 587, 'username' => 'l@x', 'password' => 'k',
+                             'transport' => MailConfig::TRANSPORT_AUTO]);
+        $r = MailDiagnosis::roads($c, static fn () => ['ok' => false, 'detail' => 'no key'], true);
+
+        if (!MailConfig::hostMailAvailable()) {
+            $this->markTestSkipped('this runner has mail() disabled, so there is no fallback road');
+        }
+        $this->assertTrue($r['ok'], 'the host road is carrying it');
+        $this->assertTrue($r['degraded']);
+        $this->assertStringStartsWith('Nobody is missing mail', $r['fix'],
+            'the true thing comes first, or the remedy below it is read as the state of the platform');
+        $this->assertStringContainsString('not an outage', $r['fix']);
+    }
+
+    /** A real outage keeps its remedy unprefixed — the reassurance must not be universal. */
+    public function test_a_real_outage_is_not_told_that_nobody_is_missing_mail(): void
+    {
+        $r = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: 'handshake failed'));
+        $this->assertStringNotContainsString('Nobody is missing mail', $r['fix']);
+    }
+
+    private function diagnose(FakeSmtp $fake, ?callable $reach = null, array $over = [],
+                             ?array $cert = null): array
     {
         $c = MailConfig::of($over + ['host' => 'smtp.test', 'port' => 587, 'username' => 'login@x', 'password' => 'k',
                              'from' => 'noreply@afrovanguard.org.ng']);
         return (new MailDiagnosis($c, static fn () => $fake, static fn () => ['203.0.113.9'],
-                                  $reach ?? static fn () => false))->run();
+                                  $reach ?? static fn () => false,
+                                  static fn () => $cert))->run();
+    }
+
+    /** A certificate as PeerCertificate::of() reports one. */
+    private static function cert(array $over = []): array
+    {
+        return $over + ['subject' => 'smtp.test', 'issuer' => 'Test CA', 'names' => ['smtp.test'],
+                        'matches' => true, 'expired' => false, 'valid_to' => '2027-01-01'];
     }
 
     private static function state(array $r, string $key): ?string
