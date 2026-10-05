@@ -320,6 +320,11 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   nominator_state VARCHAR(100) DEFAULT NULL,
   nominator_lga VARCHAR(100) DEFAULT NULL,
   nominator_age_range VARCHAR(20) DEFAULT NULL,
+  -- "How do you know them?" (NominationFlow.dc.html step 5): one key of
+  -- NominationRules::RELATIONS. For the review desk, in the operator brief.
+  nominator_relation VARCHAR(40) DEFAULT NULL,
+  -- "Keep my name private from the nominee": the nominee's confirmation names nobody.
+  nominator_private TINYINT(1) NOT NULL DEFAULT 0,
   decision_reason TEXT,
   nominator_ack_at TIMESTAMP NULL DEFAULT NULL,
   -- WIDENED FOR CHALLENGES, NEVER REPLACED. The handoff specifies
@@ -348,7 +353,9 @@ CREATE TABLE IF NOT EXISTS gates_legacy_events (
   attendee_count INT UNSIGNED NOT NULL DEFAULT 0, award_count INT UNSIGNED NOT NULL DEFAULT 0,
   highlight_reel JSON DEFAULT NULL, icon VARCHAR(10) DEFAULT '🏆',
   is_published TINYINT(1) NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), UNIQUE KEY uq_slug(slug), KEY idx_published(is_published), KEY idx_date(event_date DESC)
+  -- The released cycle this night was, and where (2027_03_06_legacy_edition_link.php).
+  cycle_id BIGINT UNSIGNED NULL DEFAULT NULL, country_code CHAR(2) NULL DEFAULT NULL,
+  PRIMARY KEY(id), UNIQUE KEY uq_slug(slug), KEY idx_published(is_published), KEY idx_date(event_date DESC), KEY idx_legacy_cycle(cycle_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_opportunities (
@@ -1171,4 +1178,46 @@ CREATE TABLE IF NOT EXISTS gates_promos (
   updated_at DATETIME DEFAULT NULL,
   PRIMARY KEY(id),
   KEY idx_promo_slot(placement, active, priority)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Recognitions from verified issuers (REFERENCE §11; 2027_03_06_recognitions.php) ───
+-- Seeded from sealed, announced releases only (Services\Recognitions). Immutable apart
+-- from the withdrawal fields; every withdrawal is a row in the public log below.
+CREATE TABLE IF NOT EXISTS gates_recognition_issuers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  issuer_type VARCHAR(20) NOT NULL DEFAULT 'organisation',
+  name VARCHAR(200) NOT NULL,
+  programme_id BIGINT UNSIGNED NULL, partner_org_id BIGINT UNSIGNED NULL,
+  url VARCHAR(400) NULL,
+  verified_at TIMESTAMP NULL DEFAULT NULL, verified_basis VARCHAR(40) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY(id), UNIQUE KEY uq_rci_programme(programme_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_recognitions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  issuer_id BIGINT UNSIGNED NOT NULL,
+  recipient_profile_id BIGINT UNSIGNED NULL, recipient_nominee_id BIGINT UNSIGNED NULL,
+  recipient_name VARCHAR(200) NOT NULL,
+  kind VARCHAR(20) NOT NULL DEFAULT 'award', standing VARCHAR(20) NULL,
+  title VARCHAR(300) NOT NULL, citation TEXT NULL,
+  issued_at TIMESTAMP NULL DEFAULT NULL,
+  reference VARCHAR(64) NOT NULL,
+  visibility VARCHAR(20) NOT NULL DEFAULT 'public',
+  evidence_ids TEXT NULL,
+  cycle_id BIGINT UNSIGNED NULL, category_id BIGINT UNSIGNED NULL,
+  withdrawn_at TIMESTAMP NULL DEFAULT NULL, withdrawn_reason TEXT NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY(id), UNIQUE KEY uq_rec_reference(reference),
+  KEY idx_rec_profile(recipient_profile_id), KEY idx_rec_nominee(recipient_nominee_id),
+  KEY idx_rec_issued(issued_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_recognition_withdrawals (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  recognition_id BIGINT UNSIGNED NOT NULL,
+  reason TEXT NOT NULL,
+  withdrawn_at TIMESTAMP NOT NULL,
+  actor_admin_id BIGINT UNSIGNED NULL,
+  PRIMARY KEY(id), KEY idx_rcw_rec(recognition_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

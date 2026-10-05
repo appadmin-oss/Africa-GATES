@@ -137,6 +137,7 @@
 
   --ag-z-sticky:5;
   --ag-z-appbar:20;
+  --ag-z-bar:30;      /* §6.7 buy/vote bars — read by the nomination flow's action bar (Phase 8) */
   --ag-z-header:40;
   --ag-z-gee:60;      /* restored with its reader, components/gee.css (Phase 3) */
   --ag-z-scrim:79;

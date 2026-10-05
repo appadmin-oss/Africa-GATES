@@ -24,7 +24,7 @@
 {% set _chips = [{key: 'all', label: 'All', dot: 'ink', n: front.total}] %}
 {% for k, p in phases %}{% set _chips = _chips|merge([{key: k, label: p[0], dot: p[1], n: front.counts[k]}]) %}{% endfor %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">{% endblock %}
 
 {% block content %}
 <div class="aw">

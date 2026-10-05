@@ -1,0 +1,37 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ONE AWARD, PROMISED AND NOT YET ANNOUNCED — `/results/{id-category}` for a late award.
+  Inventory: docs/handoff/inventory/pages--results--late.md.
+
+  A results date is a promise, not an announcement (CLAUDE.md): a cycle still with the panel
+  past its date publishes nothing — no standing, no winner, no celebration — and this page
+  says so instead of 404ing, because the result's URL was in front of people before the date
+  and whoever follows it on the day is owed the explanation. Derived (PublicResults), so it
+  goes the moment the cycle is announced and the real result takes this same URL; noindex
+  (the controller's X-Robots-Tag) for that reason. No invented second date. With no
+  operator's note it still stands, without inventing a cause.
+#}
+
+{% set colour_tier = '1' %}
+{% set meta_robots = 'noindex, follow' %}
+{% set app_bar = {variant: 'child', title: 'Results'|trans, sub: late.edition ?: late.programme, back: '/results'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% endblock %}
+
+{% block content %}
+<div class="rs rs--narrow">
+  <a class="rs-back" href="/results"><span class="ag-ico-dir" aria-hidden="true">←</span> {{ 'All results'|trans }}</a>
+  <section class="rs-late" aria-labelledby="rs-late-h">
+    <span class="rs-late__k">{{ late.programme }}{% if late.edition %} · {{ late.edition }}{% endif %}</span>
+    <h1 class="rs-late__h" id="rs-late-h">{{ late.award ? '%a% has not been decided yet'|trans({'%a%': late.award}) : 'This award has not been decided yet'|trans }}</h1>
+    <p class="rs-late__p">{{ 'The results were expected on %d%. The award has not been announced, so no standing and no winner are published here yet.'|trans({'%d%': late.promised|when_zoned('j F Y')}) }}</p>
+    {% if late.note %}<div class="rs-late__note"><b>{{ 'From the organisers'|trans }}</b><p>{{ late.note }}</p></div>{% endif %}
+    <p class="rs-late__p">{{ 'This page becomes the result the moment it is announced.'|trans }}</p>
+    <div class="rs-late__acts">
+      <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/results">{{ 'Where every award stands'|trans }}</a>
+      <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/awards">{{ 'All awards'|trans }}</a>
+    </div>
+  </section>
+</div>
+{% endblock %}

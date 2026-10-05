@@ -236,6 +236,10 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   nominator_state TEXT,
   nominator_lga TEXT,
   nominator_age_range TEXT,
+  -- "How do you know them?" — a NominationRules::RELATIONS key (Phase 8).
+  nominator_relation TEXT,
+  -- "Keep my name private from the nominee" (Phase 8).
+  nominator_private INTEGER NOT NULL DEFAULT 0,
   decision_reason TEXT,
   nominator_ack_at TEXT,
   -- The union of the live vocabulary and the challenge handoff's. SQLite enforces
@@ -268,6 +272,8 @@ CREATE TABLE IF NOT EXISTS gates_legacy_events (
   highlight_reel TEXT,
   icon TEXT DEFAULT '🏆',
   is_published INTEGER NOT NULL DEFAULT 0,
+  cycle_id INTEGER NULL,
+  country_code TEXT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_legacy_published ON gates_legacy_events(is_published);
@@ -1187,3 +1193,42 @@ CREATE TABLE IF NOT EXISTS gates_promos (
   created_at TEXT NULL, updated_at TEXT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_promo_slot ON gates_promos(placement, active, priority);
+
+-- ─── Recognitions from verified issuers (REFERENCE §11; 2027_03_06_recognitions.php) ───
+CREATE TABLE IF NOT EXISTS gates_recognition_issuers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  issuer_type TEXT NOT NULL DEFAULT 'organisation',
+  name TEXT NOT NULL,
+  programme_id INTEGER NULL, partner_org_id INTEGER NULL,
+  url TEXT NULL,
+  verified_at TEXT NULL, verified_basis TEXT NULL,
+  created_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_rci_programme ON gates_recognition_issuers(programme_id);
+CREATE TABLE IF NOT EXISTS gates_recognitions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  issuer_id INTEGER NOT NULL,
+  recipient_profile_id INTEGER NULL, recipient_nominee_id INTEGER NULL,
+  recipient_name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'award', standing TEXT NULL,
+  title TEXT NOT NULL, citation TEXT NULL,
+  issued_at TEXT NULL,
+  reference TEXT NOT NULL,
+  visibility TEXT NOT NULL DEFAULT 'public',
+  evidence_ids TEXT NULL,
+  cycle_id INTEGER NULL, category_id INTEGER NULL,
+  withdrawn_at TEXT NULL, withdrawn_reason TEXT NULL,
+  created_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_rec_reference ON gates_recognitions(reference);
+CREATE INDEX IF NOT EXISTS idx_rec_profile ON gates_recognitions(recipient_profile_id);
+CREATE INDEX IF NOT EXISTS idx_rec_nominee ON gates_recognitions(recipient_nominee_id);
+CREATE INDEX IF NOT EXISTS idx_rec_issued ON gates_recognitions(issued_at);
+CREATE TABLE IF NOT EXISTS gates_recognition_withdrawals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  recognition_id INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  withdrawn_at TEXT NOT NULL,
+  actor_admin_id INTEGER NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rcw_rec ON gates_recognition_withdrawals(recognition_id);

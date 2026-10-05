@@ -93,35 +93,112 @@ class NominationController {
             catch (\Throwable) { $prefill = null; }
         }
 
-        return $this->view->render($res, 'pages/nominate-award.twig', [
+        $name = trim((string) ($req->getQueryParams()['name'] ?? ''));
+
+        return $this->view->render($res, 'pages/nominate-award.twig', $this->flowContext($prog, [
             'page_title'       => ($open ? 'Nominate for ' : '') . $prog['title'] . ' — Africa GATES',
             'meta_description' => $open
                 ? 'Put someone forward for the ' . $prog['title'] . ' on Africa GATES.'
                 : $prog['title'] . ' on Africa GATES — nominations are not open right now.',
+            // The hub's "Who do you want to nominate?" travels here as `?name=`, so what was
+            // typed there is the first field here rather than typed twice.
+            'old'              => $name !== '' ? ['nominee_name' => mb_substr($name, 0, 200)] : [],
+            'prefill'          => $prefill,
+            'share_expired'    => $share !== '' && $prefill === null,
+        ]));
+    }
+
+    /**
+     * Everything the flow draws for one award, for the GET and for the error re-render
+     * alike — two copies of this list is how a re-render comes to draw a form the first
+     * render did not (and a counter that disagrees with the refusal beside it).
+     *
+     * @param array<string,mixed> $prog
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
+     */
+    private function flowContext(array $prog, array $extra): array
+    {
+        $accepts = $prog['wording']['accepts'] ?? ['person'];
+        $member  = \AfricaGates\Services\UserAccountService::memberForForms();
+        return $extra + [
             'gates_page'       => 'nominate',
             'programme'        => $prog,
             'wording'          => $prog['wording'],
-            'nominations_open' => $open,
-            'kinds'            => \AfricaGates\Support\NomineeKind::options(),
-            // The FIRST accepted kind's words, so the form is correct before a single
-            // chip is pressed and on a browser that never runs the script.
-            'name_label'       => \AfricaGates\Support\NomineeKind::nameLabel($prog['wording']['accepts'][0] ?? 'person'),
-            'name_hint'        => \AfricaGates\Support\NomineeKind::ALL[$prog['wording']['accepts'][0] ?? 'person']['name_hint'],
+            'edition'          => self::editionLine($prog),
+            'nominations_open' => !empty($prog['phase']['is_nominations_open']),
+            'kinds'            => array_values(array_filter(\AfricaGates\Support\NomineeKind::options(),
+                                    static fn (array $k): bool => in_array($k['kind'], $accepts, true))),
+            'name_hints'       => array_map(static fn (array $k): array => [
+                                    'label' => $k['name_label'], 'hint' => $k['name_hint']], \AfricaGates\Support\NomineeKind::ALL),
             'rules'            => self::ruleBundle(),
-            'regions'          => \AfricaGates\Support\Regions::MAP,
-            'member'           => \AfricaGates\Services\UserAccountService::memberForForms(),
-            'prefill'          => $prefill,
-            'share_expired'    => $share !== '' && $prefill === null,
+            'relations'        => \AfricaGates\Services\NominationRules::RELATIONS,
+            'countries'        => self::countries(),
+            'member'           => $member,
+            'live'             => self::happening((int) ($prog['id'] ?? 0)),
+            'old'              => $extra['old'] ?? [],
+            'error'            => $extra['error'] ?? null,
+            'prefill'          => $extra['prefill'] ?? null,
+            'share_expired'    => $extra['share_expired'] ?? false,
             // "Counts toward Celebrate Nigeria · 6/10", for a member who has JOINED a
-            // challenge this award counts inside — the October handoff's wording. On the
-            // award page the same strip tells everybody; on a form somebody is halfway
-            // through, it is a progress line and not an advertisement, so nobody else
-            // sees it here.
+            // challenge this award counts inside. On a form somebody is halfway through it
+            // is a progress line and not an advertisement, so nobody else sees it here.
             'challenge'        => (static function (?array $s): ?array {
                 return $s !== null && $s['joined'] ? $s : null;
             })(\AfricaGates\Services\ChallengeService::stripFor(
                 (int) ($prog['id'] ?? 0), (int) ($_SESSION['user_id'] ?? 0))),
-        ]);
+        ];
+    }
+
+    /** "4th Edition · 2026" — the cycle's own label where an operator wrote one. */
+    private static function editionLine(array $prog): string
+    {
+        $label = '';
+        try {
+            $label = (string) (\Illuminate\Database\Capsule\Manager::table('gates_award_cycles')
+                ->where('id', (int) ($prog['cycle_id'] ?? 0))->value('edition_label') ?? '');
+        } catch (\Throwable) {}
+        return trim($label . ($label !== '' ? ' · ' : '') . (string) ($prog['year'] ?? ''), ' ·');
+    }
+
+    /** Every country a nominee may be from, ISO code => name, from the one table of names. */
+    private static function countries(): array
+    {
+        $out = [];
+        foreach (array_keys(\AfricaGates\Support\Regions::MAP) as $cc) $out[$cc] = \AfricaGates\Support\NationsLive::name((string) $cc);
+        asort($out);
+        return $out;
+    }
+
+    /**
+     * "Happening now" — the newest nominations in LIVE awards: the category and the country
+     * the nominator gave, never a name. Reached only through an active programme, so the
+     * sandbox (an inactive programme) cannot appear (DemoSeeder's containment is the chain).
+     *
+     * @return list<array{what:string,where:string,at:string}>
+     */
+    private static function happening(int $programmeId = 0): array
+    {
+        try {
+            $q = \Illuminate\Database\Capsule\Manager::table('gates_nominations as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+                ->where('p.is_active', 1);
+            if ($programmeId > 0) $q->where('p.id', $programmeId);
+            $rows = $q->orderByDesc('n.id')->limit(4)
+                ->get(['c.title', 'n.nominator_country', 'n.country_code', 'n.created_at'])->all();
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $cc = strtoupper((string) ($r->nominator_country ?: $r->country_code ?: ''));
+            $out[] = ['what' => (string) $r->title,
+                      'where' => $cc !== '' ? \AfricaGates\Support\NationsLive::name($cc) : '',
+                      'at' => (string) $r->created_at];
+        }
+        return $out;
     }
 
     /**
@@ -166,7 +243,7 @@ class NominationController {
             return $this->render($res, $progs, true);
         }
 
-        return $this->render($res, $progs, false);
+        return $this->render($res, $progs, false, $req->getQueryParams());
     }
 
     /**
@@ -178,26 +255,81 @@ class NominationController {
      *
      * @param list<array<string,mixed>> $progs
      */
-    private function render(Response $res, array $progs, bool $shareExpired): Response
+    private function render(Response $res, array $progs, bool $shareExpired, array $q = []): Response
     {
         $open = self::openForNominations($progs);
         $openIds = array_map(static fn (array $p): int => (int) $p['id'], $open);
 
+        // Awards in the member's areas first (MemberInterests — the promise the joining
+        // step makes), then soonest to close: a reorder, never a filter.
+        $closesAt = static fn (array $p): int => ($t = strtotime((string) ($p['nominations_close'] ?? ''))) ? $t : PHP_INT_MAX;
+        usort($open, static fn ($a, $b) => $closesAt($a) <=> $closesAt($b));
+        $about = static fn (array $p): string => $p['title'] . ' ' . implode(' ',
+            array_map(static fn ($c) => (string) ($c->title ?? ''), (array) ($p['categories'] ?? [])));
+        $mine = \AfricaGates\Services\MemberInterests::of((int) ($_SESSION['user_id'] ?? 0));
+        $open = \AfricaGates\Services\MemberInterests::rank($open, $about, $mine);
+
+        // Browse by field: the same ten areas, each with how many open awards it touches.
+        $field  = (string) ($q['field'] ?? '');
+        $fields = [];
+        foreach (\AfricaGates\Services\MemberInterests::options() as $o) {
+            $n = count(array_filter($open, static fn ($p) => \AfricaGates\Services\MemberInterests::matches($about($p), [$o['key']])));
+            if ($n > 0) $fields[] = $o + ['n' => $n];
+        }
+        $shown = isset(\AfricaGates\Services\MemberInterests::FIELDS[$field])
+            ? array_values(array_filter($open, static fn ($p) => \AfricaGates\Services\MemberInterests::matches($about($p), [$field])))
+            : $open;
+        foreach ($shown as &$p) $p['edition_line'] = self::editionLine($p);
+        unset($p);
+
+        $name = mb_substr(trim((string) ($q['name'] ?? '')), 0, 200);
+        $user = \AfricaGates\Services\UserAccountService::memberForForms();
+
         return $this->view->render($res, 'pages/nominate.twig', [
-            // The promo band. Nothing is rendered when there are none — a 188px
-            // strip of empty on a live page is worse than no band at all.
-            'promos' => \AfricaGates\Services\PromoService::forPlacement('nominate', !empty($_SESSION['user_id'])),
             'page_title'       => 'Nominate — Africa GATES',
             'meta_description' => 'Put someone forward for continental recognition. Choose the '
                                 . 'Africa GATES award you are nominating for.',
             'gates_page'       => 'nominate',
-            'programmes'       => $open,
+            'programmes'       => $shown,
+            'open_count'       => count($open),
+            'show_all'         => !empty($q['all']),
+            'field'            => isset(\AfricaGates\Services\MemberInterests::FIELDS[$field]) ? $field : '',
+            'fields'           => $fields,
+            'name'             => $name,
+            'matches'          => $name !== '' ? self::matches($name) : [],
+            'mine'             => $user ? \AfricaGates\Services\MemberActivityService::nominationsFor((string) $user['email'], 5) : [],
+            'live'             => self::happening(),
             'closed'           => array_values(array_filter(
                 $progs,
                 static fn (array $p): bool => !in_array((int) $p['id'], $openIds, true)
             )),
             'share_expired'    => $shareExpired,
         ]);
+    }
+
+    /**
+     * "Or is it someone already here?" — approved public registry profiles whose name holds
+     * what was typed. The wildcards are defused (Support\Like), so `100%` is not "everybody".
+     *
+     * @return list<array{name:string,slug:string,meta:string,kind:string}>
+     */
+    private static function matches(string $name): array
+    {
+        if (mb_strlen($name) < 2) return [];
+        try {
+            $rows = \Illuminate\Database\Capsule\Manager::table('gates_profiles')->where('status', 'approved')
+                ->whereRaw(\AfricaGates\Support\Like::clause('display_name'), [\AfricaGates\Support\Like::contains($name)])
+                ->orderBy('display_name')->limit(3)
+                ->get(['display_name', 'slug', 'category', 'location_city', 'country_code', 'profile_type'])->all();
+        } catch (\Throwable) {
+            return [];
+        }
+        return array_map(static fn ($r) => [
+            'name' => (string) $r->display_name, 'slug' => (string) $r->slug,
+            'meta' => trim(implode(' · ', array_filter([(string) $r->category,
+                        trim((string) $r->location_city . ', ' . \AfricaGates\Support\NationsLive::name((string) $r->country_code), ', ')]))),
+            'kind' => (string) $r->profile_type === 'individual' ? 'person' : 'org',
+        ], $rows);
     }
 
     /**
@@ -221,6 +353,7 @@ class NominationController {
             'min_categories' => $R::MIN_CATEGORIES,
             'max_categories' => $R::MAX_CATEGORIES,
             'min_reason'     => $R::MIN_REASON,
+            'max_reason'     => $R::MAX_REASON,
             'max_evidence'   => $R::MAX_EVIDENCE,
             'short_reason'   => $R::SHORT_REASON,
             'max_file_mb'    => (int) round($R::MAX_FILE_BYTES / 1048576),
@@ -305,20 +438,10 @@ class NominationController {
             if($prog===null){
                 return $this->render($res->withStatus($status), $progs, false);
             }
-            return $this->view->render($res,'pages/nominate-award.twig',[
+            return $this->view->render($res,'pages/nominate-award.twig',$this->flowContext($prog,[
                 'page_title'=>'Nominate for '.$prog['title'].' — Africa GATES',
-                'gates_page'=>'nominate',
                 'error'=>$msg,'old'=>$b,
-                'programme'=>$prog,
-                'wording'=>$prog['wording'],
-                'nominations_open'=>!empty($prog['phase']['is_nominations_open']),
-                'kinds'=>\AfricaGates\Support\NomineeKind::options(),
-                'name_label'=>\AfricaGates\Support\NomineeKind::nameLabel($prog['wording']['accepts'][0] ?? 'person'),
-                'name_hint'=>\AfricaGates\Support\NomineeKind::ALL[$prog['wording']['accepts'][0] ?? 'person']['name_hint'],
-                'rules'=>self::ruleBundle(),
-                'regions'=>\AfricaGates\Support\Regions::MAP,
-                'member'=>\AfricaGates\Services\UserAccountService::memberForForms(),
-            ])->withStatus($status);
+            ]))->withStatus($status);
         };
         if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $rerender("You've reached today's nomination limit (5 per day). Please try again tomorrow.",429);
         // ── THE FIELDS THIS DOOR ASKS FOR ───────────────────────────────────
@@ -333,16 +456,37 @@ class NominationController {
         // a person needs a first and last name and "Andela" is a whole registered
         // name. Demanding a second word of an organisation is the stricter-in-the-
         // browser-than-on-the-server shape this codebase has already paid for.
+        // ── WHO IS NOMINATING ────────────────────────────────────────────────
+        //
+        // A signed-in member is the nominator — "Signed in as" (NominationFlow.dc.html
+        // step 5) — so their name, address and number come from the ACCOUNT, never from
+        // fields a stranger could edit to file in somebody else's name. A guest types the
+        // three. The location and age fields the old form demanded are not in the design
+        // and are not asked; the columns stay, written blank, for the rows that have them.
+        $member = \AfricaGates\Services\UserAccountService::memberForForms();
+        if ($member) {
+            $b['nominator_name']  = $member['name'];
+            $b['nominator_email'] = $member['email'];
+            $b['nominator_phone'] = $member['phone'];
+        }
+        // "Their email or phone" is ONE field in the design; it is split here into the two
+        // the record has. An @ makes it an address; anything else is read as a number.
+        if (isset($b['nominee_contact']) && !isset($b['nominee_email']) && !isset($b['nominee_phone'])) {
+            $c = trim((string) $b['nominee_contact']);
+            if (str_contains($c, '@')) $b['nominee_email'] = $c; else $b['nominee_phone'] = $c;
+        }
         $required = [
             'programme_id'=>'a programme', 'country_code'=>"the nominee's country",
-            'nominee_state'=>"the nominee's state/region", 'nominee_lga'=>"the nominee's LGA",
-            'nominator_name'=>'your full name', 'nominator_email'=>'your email', 'nominator_phone'=>'your phone',
-            'nominator_country'=>'your country', 'nominator_state'=>'your state/region', 'nominator_lga'=>'your LGA', 'nominator_age_range'=>'your age range',
+            'nominator_name'=>'your full name', 'nominator_email'=>'your email',
         ];
         foreach ($required as $f=>$lbl) if (trim((string)($b[$f] ?? '')) === '') return $rerender('Please provide ' . $lbl . '.');
         if (count(preg_split('/\s+/', trim((string)($b['nominator_name'] ?? '')))) < 2)
             return $rerender('Please enter your full name — first and last name.');
         if (!filter_var(strtolower(trim((string)$b['nominator_email'])), FILTER_VALIDATE_EMAIL)) return $rerender('Please enter a valid email address.');
+        // "I confirm this nomination is genuine and accept the award terms." It was a
+        // required box the server never read (GAPS §3.2) — a consent nothing checks is a
+        // sentence, not a consent.
+        if (empty($b['consent'])) return $rerender('Please confirm the nomination is genuine and that you accept the award terms.');
         // Nominee contact: EMAIL OR PHONE — at least one is required; anything the
         // nominator actually typed must validate (never silently dropped).
         $neRaw = strtolower(trim((string)($b['nominee_email'] ?? '')));
@@ -443,5 +587,56 @@ class NominationController {
                 ]];
         }
         return $res->withHeader('Location', '/nominate/success')->withStatus(302);
+    }
+
+    /**
+     * GET /nominate/success — "Nomination received" (NominationFlow.dc.html step 6, §8.16).
+     *
+     * One render from the server-side flash `submit()` leaves (`nom_done`), so a reference
+     * never sits in a URL and a refresh does not replay the moment. With nothing in the
+     * flash it is still a page — somebody arriving here from history is told where their
+     * nominations are, never shown a blank celebration.
+     *
+     * The share link is minted HERE, once, from the nominee-side fields only
+     * (NominationLinkService): somebody opening it starts their own nomination of the same
+     * person, in their own name — "rally more nominations".
+     */
+    public function success(Request $req, Response $res): Response
+    {
+        $d = $_SESSION['nom_done'] ?? null;
+        unset($_SESSION['nom_done']);
+        $d = is_array($d) ? $d : null;
+
+        $prog = null;
+        $shareUrl = '';
+        if ($d) {
+            $pid = (int) ($d['share']['programme_id'] ?? 0);
+            $progs = $this->cache->remember('awards:active', 1800, fn () => $this->awards->getActiveProgrammesWithStatus());
+            foreach ($progs as $p) if ((int) $p['id'] === $pid) { $prog = $p; break; }
+            if (is_array($d['share'] ?? null)) {
+                try {
+                    $token = (new \AfricaGates\Services\NominationLinkService())->create($d['share'], (string) ($req->getServerParams()['REMOTE_ADDR'] ?? ''));
+                    $shareUrl = \AfricaGates\Support\SiteUrl::base($req) . '/nominate?share=' . $token;
+                } catch (\Throwable) {
+                    $shareUrl = '';   // the page stands without a link; nothing is pretended
+                }
+            }
+        }
+
+        return $this->view->render($res, 'pages/nominate-success.twig', [
+            'page_title'       => 'Nomination received — Africa GATES',
+            'meta_description' => 'Your nomination is in. Thank you for putting someone forward for recognition.',
+            'meta_robots'      => 'noindex',
+            'gates_page'       => 'nominate',
+            'done'             => $d !== null,
+            'ref'              => (string) ($d['ref'] ?? ''),
+            'nominee'          => (string) ($d['nominee'] ?? ''),
+            'category'         => (string) ($d['cat'] ?? ''),
+            'programme'        => $prog,
+            'edition'          => $prog ? self::editionLine($prog) : '',
+            'share_url'        => $shareUrl,
+            // The review promise, from its one resolver (CLAUDE.md, review_sla_hours).
+            'sla_hours'        => \AfricaGates\Services\NominationFeedbackService::slaHours(),
+        ]);
     }
 }

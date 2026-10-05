@@ -1,0 +1,333 @@
+{% extends 'layout/shell.twig' %}
+{% import 'partials/field.twig' as f %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE AWARD'S NOMINATION — /nominate/{slug} · Phase 8 §8.16, design/NominationFlow.dc.html
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed and rebuilt (inventory pages--nominate-award.md). The DC's five steps —
+  Nominee · Award · Categories · Evidence · You — then the done screen
+  (/nominate/success). The award step is confirmation, not a choice: this is the award's own
+  door, already chosen on the hub, a poster or a closing-soon email; "Change award" goes
+  back to the hub with the name carried.
+
+  ── IT IS ONE FORM, AND THE STEPS ARE AN ENHANCEMENT ────────────────────────
+
+  Every field is in the document from the first render and the whole thing posts to
+  `POST /nominate` with no script: the five steps are five sections of one long form.
+  nominate.js shows them one at a time, checks a step on the way out (the error in the bar,
+  beside a step that still has the field), counts the reason live, and keeps the category
+  cap. It decides nothing — NominationRules does, on the server, for this door and the API
+  door alike (NominationDoorsAgreeTest).
+
+  ── THE RULES, FROM ONE PLACE ───────────────────────────────────────────────
+
+  2 or 3 categories, a reason of at least 40 characters for EACH, "N/40" turning green at
+  40, "Tell us a little more (at least 40 characters)." — all from NominationRules through
+  `rules` (the controller's ruleBundle()), never typed here. Evidence is optional: links,
+  and PDF/JPG/PNG files, up to 10 MB each and 5 pieces in all (the phase spec, which the
+  DC's "video · up to 50 MB" contradicts and loses to — REFERENCE §0).
+
+  ── WHAT ELSE IT OWES ───────────────────────────────────────────────────────
+
+  · A closed award draws NO form, names its phase and says when nominations open.
+  · The reason fields carry the point-of-collection notice (partials/ai-collection-notice,
+    MUST RESTORE); no feature here is named for what does the reading (REFERENCE §4.8).
+  · Each reason box is named by its own question ("Why Amara for Teacher of the Year?") and
+    each evidence link input by its own label (FormAccessibilityTest's rules).
+  · A signed-in member IS the nominator ("Signed in as"); the server takes their details
+    from the account, not from fields. A guest types name, email and phone.
+  · The consent is a real box the server reads (it was never read before — GAPS §3.2), and
+    it links the award's terms tab (`?tab=terms`, where they actually are).
+  · "Counts toward …" appears only for a member who has JOINED a challenge this award
+    counts inside — on a half-filled form anything else is an advertisement.
+  · A shared prefill link fills the nominee fields; a dead one says so.
+
+  Not built (PHASE-8.md, deviations): the DC's live "already on Africa GATES" suggestions
+  inside step 1 (the hub's search carries them), category groups (no group in the data
+  model), and the evidence "Supports" chips (no column, and no reader on the review desk).
+#}
+{% set _o = old|default({}) %}
+{% set _pf = prefill|default({}) ?: {} %}
+{% set _kind = _o.nominee_kind|default(kinds[0].kind|default('person')) %}
+{% set _name = _o.nominee_name|default(_pf.nominee_name|default('')) %}
+{% set _country = _o.country_code|default(_pf.country_code|default('')) %}
+{% set _city = _o.nominee_lga|default(_pf.nominee_lga|default('')) %}
+{% set _contact = _o.nominee_contact|default(_pf.nominee_email|default(_pf.nominee_phone|default(''))) %}
+{% set _cats = _o.categories|default({}) %}
+{% set _links = _o.evidence_links|default([])|filter(l => l) %}
+{% set app_bar = {variant: 'child', title: 'Nominate'|trans, sub: programme.title, back: '/nominate', share: false} %}
+{% set flow_page = nominations_open %}
+{% set colour_tier = '2' %}
+{% set _steps = [
+  {k: 'nominee', label: 'Nominee'|trans},
+  {k: 'award', label: 'Award'|trans},
+  {k: 'categories', label: 'Categories'|trans},
+  {k: 'evidence', label: 'Evidence'|trans},
+  {k: 'you', label: 'You'|trans}
+] %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/nominate.css') }}">
+{% endblock %}
+
+{% block content %}
+{% if not nominations_open %}
+  {# ── Closed: the phase, the date, a next action — and no form in the DOM ── #}
+  <div class="nh">
+    <div class="nf-closed">
+      <h1 class="nh__h1">{{ programme.title }}</h1>
+      <p class="nf-closed__p">{{ 'Nominations are not open right now.'|trans }}
+        {% if programme.phase.label|default('') %}{{ 'This award is in its %phase% phase.'|trans({'%phase%': programme.phase.label|lower}) }}{% endif %}
+        {% if programme.nominations_open and programme.nominations_open|date('U') > 'now'|date('U') %}{{ 'Nominations open on %d%.'|trans({'%d%': programme.nominations_open|date('j F Y')}) }}{% endif %}</p>
+      <div class="nf-closed__go">
+        <a class="ag-btn ag-btn--primary ag-btn--pill" href="/awards/{{ programme.slug }}">{{ 'See the award'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/nominate">{{ 'Awards open now'|trans }}</a>
+      </div>
+    </div>
+  </div>
+{% else %}
+<form class="nf" method="post" action="/nominate" enctype="multipart/form-data" novalidate data-ag-validate data-nf
+      data-min-cats="{{ rules.min_categories }}" data-max-cats="{{ rules.max_categories }}" data-min="{{ rules.min_reason }}"
+      data-max-evidence="{{ rules.max_evidence }}" data-max-mb="{{ rules.max_file_mb }}"
+      data-short-reason="{{ rules.short_reason|trans }}"
+      data-err-who="{{ 'Add their full name and their country.'|trans }}"
+      data-err-cat="{{ 'Choose %min% or %max% categories and give each a reason of %n% characters or more.'|trans({'%min%': rules.min_categories, '%max%': rules.max_categories, '%n%': rules.min_reason}) }}"
+      data-err-you="{{ 'Tell us how you know them and confirm the nomination.'|trans }}"
+      data-l-more="{{ '%n% more characters needed'|trans }}" data-l-ok="{{ 'Good — %n% characters'|trans }}"
+      data-l-sel="{{ '%n% of %max% selected'|trans({'%max%': rules.max_categories}) }}"
+      data-l-step="{{ 'Step %n% of 5'|trans }}" data-l-next="{{ 'Continue'|trans }}" data-l-submit="{{ 'Submit nomination'|trans }}">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <input type="hidden" name="programme_id" value="{{ programme.id }}">
+
+  <div class="nf__bars" aria-hidden="true">{% for s in _steps %}<span class="nf__bar" data-nf-bar="{{ loop.index }}"></span>{% endfor %}</div>
+
+  <div class="nf__grid">
+    {# ── The rail: the five steps, each with what was chosen (desktop and tablet) ── #}
+    <aside class="nf__rail" aria-label="{{ 'Nomination steps'|trans }}">
+      <span class="nf__railk">{{ 'Nominate'|trans }}</span>
+      <ol class="nf__steps">
+        {% for s in _steps %}
+          <li><a class="nf__step" href="#nf-{{ s.k }}" data-nf-go="{{ loop.index }}">
+            <span class="nf__mark" aria-hidden="true">{{ loop.index }}</span>
+            <span class="nf__stepb"><span class="nf__stepl">{{ s.label }}</span><span class="nf__steps-sum" data-nf-sum="{{ s.k }}">{{ s.k == 'award' ? programme.title : (s.k == 'evidence' ? 'Optional'|trans : '—') }}</span></span>
+          </a></li>
+        {% endfor %}
+      </ol>
+    </aside>
+
+    <div class="nf__main">
+      {% if error %}<p class="nf__err" role="alert">{{ error }}</p>{% endif %}
+      {% if share_expired %}<p class="nf__say" role="status">{{ 'That nomination link has expired — the fields below are empty. You can still nominate.'|trans }}</p>{% endif %}
+      {% if challenge %}<p class="nf__say">{{ 'Counts toward %c% · %n%/%t%'|trans({'%c%': challenge.title|default(''), '%n%': challenge.mine|default(0), '%t%': challenge.target|default(0)}) }}</p>{% endif %}
+
+      {# ══ 1 · NOMINEE ══════════════════════════════════════════════════════════ #}
+      <section class="nf-step" id="nf-nominee" data-nf-step="1" aria-labelledby="nf-h1">
+        <div class="nf-step__head">
+          <span class="nf-step__of">{{ 'Step %n% of 5'|trans({'%n%': 1}) }}</span>
+          <h1 class="nf-step__h" id="nf-h1">{{ wording.who_question|default('Who are you nominating?')|trans }}</h1>
+          <p class="nf-step__lead">{{ wording.who_hint|default('Most nominees are new to Africa GATES — just tell us who they are.')|trans }}</p>
+        </div>
+        {% if kinds|length > 1 %}
+          <div class="nf-seg" role="radiogroup" aria-label="{{ 'Who they are'|trans }}">
+            {% for k in kinds %}
+              <label class="nf-seg__o"><input type="radio" name="nominee_kind" value="{{ k.kind }}"{% if k.kind == _kind %} checked{% endif %} data-nf-kind
+                data-name-label="{{ name_hints[k.kind].label|trans }}" data-name-hint="{{ name_hints[k.kind].hint|trans }}"><span>{{ k.one|trans }}</span></label>
+            {% endfor %}
+          </div>
+        {% else %}
+          <input type="hidden" name="nominee_kind" value="{{ _kind }}">
+        {% endif %}
+        <div class="nf-card">
+          <div class="ag-fieldset">
+            <label class="ag-label" for="nominee_name" data-nf-name-label>{{ name_hints[_kind].label|default('Full name')|trans }}</label>
+            <input class="ag-input nf-in nf-in--big" id="nominee_name" name="nominee_name" value="{{ _name }}" required maxlength="200" autocomplete="off" aria-describedby="nominee_name-hint">
+            <p class="ag-hint" id="nominee_name-hint" data-nf-name-hint>{{ name_hints[_kind].hint|default('')|trans }}</p>
+          </div>
+          <div class="nf-two">
+            <div class="ag-fieldset">
+              <label class="ag-label" for="country_code">{{ 'Country'|trans }}</label>
+              <select class="ag-input nf-in" id="country_code" name="country_code" required>
+                <option value="">—</option>
+                {% for cc, nm in countries %}<option value="{{ cc }}"{% if cc == _country %} selected{% endif %}>{{ nm }}</option>{% endfor %}
+              </select>
+            </div>
+            {{ f.text({id: 'nominee_lga', name: 'nominee_lga', label: 'City or town'|trans, value: _city, maxlength: 120, autocomplete: 'off', class: 'nf-f'}, '') }}
+          </div>
+          {{ f.text({id: 'nominee_contact', name: 'nominee_contact', label: 'Their email or phone'|trans, value: _contact, required: true, maxlength: 190, autocomplete: 'off',
+                     hint: 'So we can tell them. Never shown publicly.'|trans, class: 'nf-f'}, '') }}
+        </div>
+      </section>
+
+      {# ══ 2 · AWARD ════════════════════════════════════════════════════════════ #}
+      <section class="nf-step" id="nf-award" data-nf-step="2" aria-labelledby="nf-h2">
+        <div class="nf-step__head">
+          <span class="nf-step__of">{{ 'Step %n% of 5'|trans({'%n%': 2}) }}</span>
+          <h2 class="nf-step__h" id="nf-h2">{{ 'Which award?'|trans }}</h2>
+          <p class="nf-step__lead">{{ 'You are nominating for this award. Change it if you meant another.'|trans }}</p>
+        </div>
+        <div class="nf-award">
+          <span class="nf-award__media">{% include 'partials/photo.twig' with {kind: 'thing', name: programme.title, title: false} only %}</span>
+          <div class="nf-award__b">
+            <b class="nf-award__t">{{ programme.title }}</b>
+            <span class="nf-award__l">{{ edition }}</span>
+            {% if programme.phase.seconds_left %}<span class="nf-award__c">{{ 'Closes in %n% days'|trans({'%n%': programme.phase.seconds_left // 86400}) }}</span>{% endif %}
+          </div>
+          <span class="nf-award__ok" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M4 10.5 8.5 15 16 5.5" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+        </div>
+        {% include 'partials/nominate-timeline.twig' with {p: programme} only %}
+        <a class="nf__change" href="/nominate{{ _name ? '?name=' ~ _name|url_encode : '' }}" data-nf-change>{{ 'Change award'|trans }}</a>
+      </section>
+
+      {# ══ 3 · CATEGORIES ═══════════════════════════════════════════════════════ #}
+      <section class="nf-step" id="nf-categories" data-nf-step="3" aria-labelledby="nf-h3">
+        <div class="nf-step__head">
+          <span class="nf-step__of">{{ 'Step %n% of 5'|trans({'%n%': 3}) }}</span>
+          <h2 class="nf-step__h" id="nf-h3">{{ 'Choose %min% or %max% categories'|trans({'%min%': rules.min_categories, '%max%': rules.max_categories}) }}</h2>
+          <p class="nf-step__lead">{{ 'Pick where their work fits best in %award%. Each category needs its own reason.'|trans({'%award%': programme.title}) }}</p>
+          <div class="nf-catbar">
+            <label class="nf-search"><span class="ag-sr">{{ 'Search categories'|trans }}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+              <input type="search" placeholder="{{ 'Search categories'|trans }}" data-nf-catq autocomplete="off" enterkeyhint="search">
+            </label>
+            <span class="nf-sel" data-nf-selpill role="status">{{ '%n% of %max% selected'|trans({'%n%': _cats|filter(r => r|trim)|length, '%max%': rules.max_categories}) }}</span>
+          </div>
+        </div>
+        {% include 'partials/ai-collection-notice.twig' with {where: 'What you write about why they deserve it'|trans} only %}
+        <p class="nf__note" data-nf-maxed hidden>{{ 'You’ve chosen %max%. Remove one to swap.'|trans({'%max%': rules.max_categories}) }}</p>
+        <div class="nf-cats">
+          {% for c in programme.categories %}
+            {% set _r = _cats[c.id]|default('') %}
+            <div class="nf-cat" data-nf-cat data-title="{{ c.title|lower }}">
+              <label class="nf-cat__row">
+                <input type="checkbox" class="nf-cat__box" data-nf-pick value="{{ c.id }}"{% if _r|trim %} checked{% endif %}>
+                <span class="nf-cat__t">{{ c.title }}</span>
+                <span class="nf-cat__n" data-nf-order></span>
+              </label>
+              <div class="nf-cat__why" data-nf-why>
+                <label class="nf-cat__q" for="nf-why-{{ c.id }}" data-nf-q="{{ 'Why %name% for %cat%?'|trans({'%cat%': c.title}) }}">{{ 'Why %name% for %cat%?'|trans({'%name%': _name ?: 'them'|trans, '%cat%': c.title}) }}</label>
+                <textarea class="nf-cat__ta" id="nf-why-{{ c.id }}" name="categories[{{ c.id }}]" rows="3" maxlength="{{ rules.max_reason }}"
+                          aria-describedby="nf-why-{{ c.id }}-count" data-nf-reason>{{ _r }}</textarea>
+                <div class="nf-cat__cnt">
+                  <span class="nf-cat__msg" id="nf-why-{{ c.id }}-count" data-nf-msg aria-live="polite"></span>
+                  <span class="nf-cat__len" data-nf-len>{{ _r|trim|length }}/{{ rules.min_reason }}</span>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      {# ══ 4 · EVIDENCE ═════════════════════════════════════════════════════════ #}
+      <section class="nf-step" id="nf-evidence" data-nf-step="4" aria-labelledby="nf-h4">
+        <div class="nf-step__head">
+          <span class="nf-step__of">{{ 'Step %n% of 5'|trans({'%n%': 4}) }}</span>
+          <h2 class="nf-step__h" id="nf-h4">{{ 'Add evidence'|trans }} · <span class="nf-step__opt">{{ 'Optional'|trans }}</span></h2>
+          <p class="nf-step__lead">{{ 'Links, documents or photos that show the work. Up to %n% in all.'|trans({'%n%': rules.max_evidence}) }}</p>
+        </div>
+        <div class="nf-links" data-nf-links>
+          {% for i in 1..3 %}
+            {% set _v = _links[loop.index0]|default('') %}
+            <div class="nf-link"{% if i > 1 and not _v %} data-nf-spare{% endif %}>
+              <label class="ag-sr" for="nf-link-{{ i }}">{{ 'Evidence link %n%'|trans({'%n%': i}) }}</label>
+              <input class="ag-input nf-in" id="nf-link-{{ i }}" type="url" name="evidence_links[]" value="{{ _v }}" inputmode="url" dir="ltr"
+                     placeholder="{{ 'Paste a link — article, video, website'|trans }}">
+            </div>
+          {% endfor %}
+          <button type="button" class="nf-add" data-nf-addlink hidden>{{ 'Add another link'|trans }}</button>
+        </div>
+        <label class="nf-up" for="nf-files">
+          <span class="nf-up__i" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"></path></svg></span>
+          <span class="nf-up__b"><b>{{ 'Upload a file'|trans }}</b><span id="nf-files-hint">{{ 'PDF, JPG or PNG · up to %mb% MB each'|trans({'%mb%': rules.max_file_mb}) }}</span></span>
+          <input class="nf-up__in" id="nf-files" type="file" name="evidence[]" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" aria-describedby="nf-files-hint" data-nf-files>
+        </label>
+        <ul class="nf-files" data-nf-filelist aria-live="polite"></ul>
+      </section>
+
+      {# ══ 5 · YOU ══════════════════════════════════════════════════════════════ #}
+      <section class="nf-step" id="nf-you" data-nf-step="5" aria-labelledby="nf-h5">
+        <div class="nf-step__head">
+          <span class="nf-step__of">{{ 'Step %n% of 5'|trans({'%n%': 5}) }}</span>
+          <h2 class="nf-step__h" id="nf-h5">{{ 'About you'|trans }}</h2>
+          <p class="nf-step__lead">{{ 'Every nominator is verified, so every nomination counts.'|trans }}</p>
+        </div>
+        {% if member %}
+          <div class="nf-me">
+            <span class="nf-me__av">{% include 'partials/photo.twig' with {kind: 'person', name: member.name} only %}</span>
+            <span class="nf-me__b"><span class="nf-me__k">{{ 'Signed in as'|trans }}</span><b>{{ member.name }}</b><span>{{ member.email }}</span></span>
+          </div>
+        {% else %}
+          <div class="nf-card">
+            {{ f.text({id: 'nominator_name', name: 'nominator_name', label: 'Your full name'|trans, value: _o.nominator_name|default(''), required: true, maxlength: 160, autocomplete: 'name'}, '') }}
+            <div class="nf-two">
+              {{ f.text({id: 'nominator_email', name: 'nominator_email', label: 'Your email'|trans, type: 'email', value: _o.nominator_email|default(''), required: true, autocomplete: 'email', inputmode: 'email'}, '') }}
+              {{ f.text({id: 'nominator_phone', name: 'nominator_phone', label: 'Your phone'|trans, type: 'tel', value: _o.nominator_phone|default(''), autocomplete: 'tel', inputmode: 'tel', optional: true}, '') }}
+            </div>
+            <p class="ag-hint">{{ 'Have an account?'|trans }} <a href="/account/login?next={{ ('/nominate/' ~ programme.slug)|url_encode }}">{{ 'Sign in'|trans }}</a> {{ 'and we fill these in.'|trans }}</p>
+          </div>
+        {% endif %}
+        <fieldset class="nf-rel">
+          <legend class="nf-rel__q">{{ 'How do you know them?'|trans }}</legend>
+          <div class="nf-rel__chips">
+            {% for k, label in relations %}
+              <label class="ag-chip nf-chip"><input type="radio" name="nominator_relation" value="{{ k }}"{% if _o.nominator_relation|default('') == k %} checked{% endif %} required data-nf-rel>{{ label|trans }}</label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <label class="nf-anon">
+          <span class="nf-anon__t">{{ 'Keep my name private from the nominee'|trans }}</span>
+          <input class="nf-anon__in" type="checkbox" name="nominator_private" value="1" role="switch"{% if _o.nominator_private|default('') %} checked{% endif %}>
+          <span class="nf-anon__sw" aria-hidden="true"></span>
+        </label>
+        <div class="nf-sum" aria-labelledby="nf-sum-h">
+          <span class="nf-sum__k" id="nf-sum-h">{{ 'Your nomination'|trans }}</span>
+          <div class="nf-sum__r"><span>{{ 'Nominee'|trans }}</span><b data-nf-s="nominee">{{ _name ?: '—' }}</b></div>
+          <div class="nf-sum__r"><span>{{ 'Award'|trans }}</span><b>{{ programme.title }}{% if edition %} · {{ edition }}{% endif %}</b></div>
+          <div class="nf-sum__r"><span>{{ 'Categories'|trans }}</span><b data-nf-s="categories">—</b></div>
+          <div class="nf-sum__r"><span>{{ 'Evidence'|trans }}</span><b data-nf-s="evidence">{{ _links|length ? '%n% evidence items'|trans({'%n%': _links|length}) : 'None'|trans }}</b></div>
+        </div>
+        <label class="nf-consent">
+          <input type="checkbox" name="consent" value="1" required{% if _o.consent|default('') %} checked{% endif %}>
+          <span>{{ 'I confirm this nomination is genuine and accept the'|trans }} <a href="/awards/{{ programme.slug }}?tab=terms">{{ 'award terms'|trans }}</a>.</span>
+        </label>
+      </section>
+    </div>
+
+    {# ── The context column (≥1200): the award, its clock, its timeline, the live feed ── #}
+    <aside class="nf__ctx" aria-label="{{ 'About this award'|trans }}">
+      <div class="nf-ed">
+        <span class="nf-ed__media">{% include 'partials/photo.twig' with {kind: 'thing', name: programme.title, title: false} only %}</span>
+        <div class="nf-ed__b"><b class="nf-ed__t">{{ programme.title }}</b><span class="nf-ed__l">{{ edition }}</span></div>
+        {% include 'partials/nominate-timeline.twig' with {p: programme, class: 'nf-tl--ed'} only %}
+      </div>
+      {% if live|length %}
+        <div class="nf-live">
+          <span class="nf-live__k"><span class="nh__dot" aria-hidden="true"></span>{{ 'Right now in this edition'|trans }}</span>
+          <ul class="nh-rows">
+            {% for l in live %}
+              <li class="nh-rows__i nh-rows__i--live"><span class="nh-rows__b nh-rows__b--sm"><b>{{ l.what }}</b><span>{{ l.where ? ('A nominator in %where%'|trans({'%where%': l.where})) : 'A nominator'|trans }}</span></span><time class="nh-rows__t" datetime="{{ l.at|date('c') }}">{{ l.at|date('j M') }}</time></li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </aside>
+  </div>
+
+  {# ── The action bar: Back · Continue (Submit on the last step). With no script it is
+     the form's one submit button, at the foot of the whole long form. ── #}
+  <div class="nf-bar" data-bottom-ui>
+    <div class="nf-bar__in">
+      <p class="nf-bar__err" role="alert" data-nf-err hidden></p>
+      <div class="nf-bar__row">
+        <button type="button" class="nf-bar__back" data-nf-back hidden>{{ 'Back'|trans }}</button>
+        <span class="nf-bar__note" data-nf-note></span>
+        <button type="submit" class="nf-bar__go" data-nf-next>{{ 'Submit nomination'|trans }}</button>
+      </div>
+    </div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}{% if nominations_open %}<script defer src="{{ asset('/assets/js/nominate.js') }}"></script>{% endif %}{% endblock %}

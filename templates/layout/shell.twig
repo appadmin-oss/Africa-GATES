@@ -75,7 +75,9 @@
   {% if meta_description is defined %}<meta name="description" content="{{ meta_description }}">{% endif %}
   {% if meta_robots is defined %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
   {# Only for a signed-in member: the token a11y.js sends with POST /account/display. #}
-  {% if _member_sync %}<meta name="ag-csrf" content="{{ csrf_token }}">{% endif %}
+  {# …and on a page that posts by script with no session to speak of (the account-free
+     support-ticket link, Phase 9): `csrf_meta`, so the token comes from this one tag. #}
+  {% if _member_sync or csrf_meta|default(false) %}<meta name="ag-csrf" content="{{ csrf_token }}">{% endif %}
 
   {# Before any stylesheet — see the partial for why. #}
   {% block a11y_head %}{% include 'partials/a11y-head.twig' %}{% endblock %}

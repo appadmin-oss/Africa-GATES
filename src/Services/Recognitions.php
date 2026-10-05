@@ -88,7 +88,7 @@ final class Recognitions
     {
         $q = self::base();
         if ($q === null) return [];
-        return self::shape($q->whereNull('r.withdrawn_at')
+        return self::shape($q->select('r.id')->whereNull('r.withdrawn_at')
             ->orderByDesc('r.issued_at')->orderByDesc('r.id')
             ->limit(max(1, min(100, $limit)))->get()->all());
     }
@@ -192,7 +192,7 @@ final class Recognitions
               ->orWhereRaw(Like::clause('i.name'), [$like])
               ->orWhereRaw(Like::clause('r.reference'), [$like]);
         });
-        return self::shape($b->orderByDesc('r.issued_at')->orderByDesc('r.id')
+        return self::shape($b->select('r.id')->orderByDesc('r.issued_at')->orderByDesc('r.id')
             ->limit(max(1, min(100, $limit)))->get()->all());
     }
 
@@ -377,7 +377,11 @@ final class Recognitions
         return (int) DB::table('gates_recognition_issuers')->where('programme_id', $programmeId)->value('id');
     }
 
-    /** The contained base query, or null where the tables are not there yet. */
+    /**
+     * The contained base query, or null where the tables are not there yet. It selects
+     * nothing: every join carries an `id`, so a caller names its columns (`r.id` for the
+     * row readers, which {@see shape()} then completes) or the last join's id wins.
+     */
     private static function base(): ?object
     {
         if (!SchemaHas::table('gates_recognitions') || !SchemaHas::table('gates_recognition_issuers')) return null;
@@ -399,7 +403,7 @@ final class Recognitions
     private static function split(object $q): array
     {
         try {
-            $rows = self::shape($q->orderByDesc('r.issued_at')->orderByDesc('r.id')->get()->all());
+            $rows = self::shape($q->select('r.id')->orderByDesc('r.issued_at')->orderByDesc('r.id')->get()->all());
         } catch (\Throwable) {
             return ['active' => [], 'withdrawn' => []];
         }
@@ -420,8 +424,12 @@ final class Recognitions
                 ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'r.cycle_id')
                 ->leftJoin('gates_award_categories as cat', 'cat.id', '=', 'r.category_id')
                 ->leftJoin('gates_nominees as n', 'n.id', '=', 'r.recipient_nominee_id')
+                // The person's CURRENT registry profile: a nominee who registers after the
+                // award is linked later, and their recognition should lead to the page
+                // they now have rather than to the one they had on the night.
                 ->leftJoin('gates_profiles as pr', function ($j) {
-                    $j->on('pr.id', '=', 'r.recipient_profile_id')->where('pr.status', '=', 'approved');
+                    $j->on(DB::raw('COALESCE(n.profile_id, r.recipient_profile_id)'), '=', 'pr.id')
+                      ->where('pr.status', '=', 'approved');
                 })
                 ->whereIn('r.id', $ids)
                 ->get([
@@ -429,7 +437,7 @@ final class Recognitions
                     'i.programme_id', 'p.slug', 'p.title as programme_title',
                     'cy.year', 'cy.edition_label', 'cy.edition_number', 'cy.id as cyid',
                     'cat.title as category_title', 'n.photo_path', 'n.country_code',
-                    'pr.slug as profile_slug', 'pr.avatar_path',
+                    'pr.slug as profile_slug', 'pr.avatar_path', 'pr.id as profile_live_id',
                 ])->keyBy('id');
         } catch (\Throwable) {
             return [];
@@ -457,7 +465,7 @@ final class Recognitions
                 'recipient' => [
                     'name'       => (string) $d->recipient_name,
                     'nominee_id' => $nid,
-                    'profile_id' => $d->recipient_profile_id !== null ? (int) $d->recipient_profile_id : null,
+                    'profile_id' => $d->profile_live_id !== null ? (int) $d->profile_live_id : null,
                     'url'        => $url,
                     'photo'      => (string) ($d->avatar_path ?: ($d->photo_path ?? '')),
                     'country'    => (string) ($d->country_code ?? ''),
@@ -472,7 +480,8 @@ final class Recognitions
                     'category'  => (string) ($d->category_title ?? ''),
                     'edition'   => $d->cyid ? EditionName::full($cycleObj) : '',
                     'year'      => $d->year !== null ? (int) $d->year : null,
-                    'url'       => $d->cyid ? '/results/' . (int) $d->cyid : '',
+                    // The award's own result page — the sealed standing this was issued from.
+                    'url'       => $d->category_id ? '/results/' . PublicResults::slug((int) $d->category_id, (string) ($d->category_title ?? '')) : '',
                 ],
             ];
         }

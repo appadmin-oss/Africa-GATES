@@ -48,6 +48,6 @@
 </span>
 {%- else -%}
 <span class="ag-photo ag-photo--cover{{ class is defined ? ' ' ~ class }}"{% if tone|default('') %} style="{{ tone }}"{% endif %}{% if alt|default('') %} role="img" aria-label="{{ alt }}"{% else %} aria-hidden="true"{% endif %}>
-  {%- if title|default(true) %}<span class="ag-photo__rule"></span><span class="ag-photo__title">{{ name }}</span>{% endif -%}
+  {%- if title is not defined or title %}<span class="ag-photo__rule"></span><span class="ag-photo__title">{{ name }}</span>{% endif -%}
 </span>
 {%- endif -%}

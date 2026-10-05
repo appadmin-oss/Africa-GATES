@@ -1,0 +1,104 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/winners` — EVERYONE AFRICA GATES HAS HONOURED (the hall of fame)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  No DC draws this page (GAPS §5.1); it is rebuilt in ResultsPage.dc.html's vocabulary —
+  the overall winner's gold band, the category winners' cards — after the old one was
+  destroyed (inventory: docs/handoff/inventory/pages--results--hall.md). Data:
+  Services\HallOfFame::build(), which reads ANNOUNCED results only, through the same gate as
+  the result pages, never the sandbox.
+
+  Rules kept from its guard tests: a winner with no photograph still gets a card (the
+  monogram); a repeat winner is marked in WORDS; the two sections — overall winners, then
+  category winners — are told apart by their headings and order, not by colour; the empty
+  hall says so plainly and does not read as a fault; every filter is a link or a GET form.
+  Colour tier 1 under the band privilege (the decided edition and this page, a list of two).
+#}
+
+{% set colour_tier = '1' %}
+{% set colour_band = true %}
+{% set app_bar = {variant: 'child', title: 'Hall of fame'|trans, back: '/results'} %}
+{% set _v = hall.view %}
+{% set base = '/winners' %}
+
+{% macro card(p, overall) %}
+  {% set w = p.wins|first %}
+  <li class="hf-card{{ overall ? ' hf-card--ov' }}">
+    <span class="hf-card__av">{% include 'partials/photo.twig' with {kind: 'person', src: p.photo, name: p.name, alt: 'Portrait of %n%'|trans({'%n%': p.name})} only %}</span>
+    <span class="hf-card__t">
+      <b class="hf-card__n">{{ p.name }}</b>
+      <span class="hf-card__m">{{ overall ? 'Overall winner'|trans : w.category }} · {{ w.programme }}{% if w.edition %} · {{ w.edition }}{% endif %}</span>
+      {% if overall and w.overall_provisional %}<span class="hf-card__m">{{ 'Provisional'|trans }}</span>{% endif %}
+      {% if p.count > 1 %}<span class="hf-card__rep">{{ 'Honoured %n% times'|trans({'%n%': p.count}) }}</span>{% endif %}
+      <span class="hf-card__links">
+        <a href="{{ w.url }}">{{ 'See how it was decided'|trans }}</a>
+        {% if w.edition_url %}<a href="{{ w.edition_url }}">{{ 'The edition'|trans }}</a>{% endif %}
+      </span>
+    </span>
+    <span class="hf-card__idx"><b>{{ w.cpi }}</b><span>{{ 'of 1000'|trans }}</span></span>
+  </li>
+{% endmacro %}
+{% import _self as m %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+
+{% block content %}
+<div class="rs">
+  <div class="rs-top rs-top--index">
+    <h1 class="rs-h1 rs-h1--index">{{ 'Everyone Africa GATES has honoured'|trans }}</h1>
+    {% if hall.people|length %}
+      <p class="rs-lede">
+        {{- hall.awards == 1 ? '1 award'|trans : '%n% awards'|trans({'%n%': hall.awards}) }} · {{ hall.programmes == 1 ? '1 programme'|trans : '%n% programmes'|trans({'%n%': hall.programmes}) -}}
+        {%- if hall.reach.from and hall.reach.to and hall.reach.from != hall.reach.to %} · {{ '%a%–%b%'|trans({'%a%': hall.reach.from, '%b%': hall.reach.to}) }}{% elseif hall.reach.to %} · {{ hall.reach.to }}{% endif -%}
+      </p>
+    {% endif %}
+  </div>
+
+  <form class="rs-tools" method="get" action="{{ base }}" role="search" aria-label="{{ 'Find a winner'|trans }}">
+    <label class="ag-field ag-field--search rs-search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+      <input type="search" name="q" value="{{ _v.q }}" autocomplete="off" aria-label="{{ 'Search winners'|trans }}" placeholder="{{ 'Search winners'|trans }}">
+    </label>
+    <nav class="ag-chip-row rs-progs" aria-label="{{ 'Filter'|trans }}">
+      <a class="ag-chip" href="{{ base }}"{% if not _v.programme and not _v.edition and not _v.repeat and not _v.q and not _v.letter %} aria-current="page"{% endif %}>{{ 'Everyone'|trans }}</a>
+      {% for p in hall.programme_chips %}<a class="ag-chip" href="{{ base }}?programme={{ p.name|url_encode }}"{% if _v.programme == p.name %} aria-current="page"{% endif %}>{{ p.name }}</a>{% endfor %}
+      {% for ed in hall.edition_chips %}<a class="ag-chip" href="{{ base }}?edition={{ ed.year }}"{% if _v.edition == ed.year %} aria-current="page"{% endif %}>{{ ed.year }}</a>{% endfor %}
+      {% if hall.repeat %}<a class="ag-chip" href="{{ base }}?repeat=1"{% if _v.repeat %} aria-current="page"{% endif %}>{{ 'Honoured more than once'|trans }}</a>{% endif %}
+    </nav>
+  </form>
+
+  {% if hall.overall_people|default([])|length %}
+  <section class="rs-sec" aria-labelledby="hf-ov">
+    <h2 class="rs-sec__t" id="hf-ov">{{ 'Overall winners'|trans }}</h2>
+    <ul class="hf-grid hf-grid--ov">{% for p in hall.overall_people %}{{ m.card(p, true) }}{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if hall.category_people|default([])|length %}
+  <section class="rs-sec" aria-labelledby="hf-cat">
+    <h2 class="rs-sec__t" id="hf-cat">{{ 'Category winners'|trans }}</h2>
+    {% if hall.letters|length > 1 %}
+    <nav class="hf-letters" aria-label="{{ 'By first letter'|trans }}">
+      {% for l in hall.letters %}<a href="{{ base }}?letter={{ l }}"{% if _v.letter == l %} aria-current="page"{% endif %}>{{ l }}</a>{% endfor %}
+    </nav>
+    {% endif %}
+    <ul class="hf-grid">{% for p in hall.category_people %}{{ m.card(p, false) }}{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if not hall.people|length %}
+    <div class="rs-empty">
+      <p><b>{{ 'No award has been announced yet.'|trans }}</b> {{ 'Winners appear here the moment their result is published — never before.'|trans }}</p>
+      <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/awards">{{ 'See every award'|trans }}</a>
+    </div>
+  {% elseif not hall.shown %}
+    <div class="rs-empty"><p>{{ 'Nobody here matches that.'|trans }}</p><a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ base }}">{{ 'Show everyone'|trans }}</a></div>
+  {% endif %}
+  {% if hall.held %}<p class="rs-method">{{ 'Some awards are being checked before their results are published, and are not listed yet.'|trans }}</p>{% endif %}
+  {% if hall.truncated %}<p class="rs-method">{{ 'Showing the most recent editions.'|trans }}</p>{% endif %}
+  <p class="rs-method"><a href="/integrity">{{ 'How results are decided and checked'|trans }}</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,188 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  NOMINATE — THE HUB · /nominate · Phase 8 §8.16, design/NominateHub.dc.html
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed and rebuilt (inventory pages--nominate.md). One question first — who? — and
+  then which award, because the award's own page (`/nominate/{slug}`) holds its words, its
+  categories and the kinds of nominee it accepts. What the DC draws, from real data:
+
+  · "Who do you want to nominate?" — a GET form (`?name=`), so it works with no script;
+    what was typed rides into the award's own flow as its first field. With a name, the
+    DC's two rows: "Nominate “…”" and, from APPROVED registry profiles only, "Or is it
+    someone already here?" (wildcards defused, Support\Like).
+  · "Closing soon" — every award open for nominations by the POLICY's predicate
+    (CyclePhase, never a status column), soonest first, the member's areas first
+    (MemberInterests::rank — the promise the joining step makes). Three on a desktop with
+    "All N open"; a scrolling row on a phone.
+  · "Browse by field" — the same ten areas, each with how many open awards it touches;
+    a field is a URL (`?field=`), so the list it filters survives Back.
+  · "Your nominations" — the member's own, with their status in words.
+  · "Happening now" — the newest nominations in live awards: a category and the country
+    the nominator gave, never a name; reached only through an active programme, so the
+    sandbox cannot appear.
+
+  And what the inventory's tests held, each kept: a programme not taking nominations is
+  NEVER offered as open, yet stays findable with its real phase and its next opening date
+  ("Not open right now" — not in the DC, required); with nothing open there is no form in
+  the DOM, only that list and a next action; a dead share link says so.
+
+  Not drawn: the DC's "Continue" (resume a half-finished nomination). Nothing stores a
+  draft, and a draft kept in the browser would need a storage key and Preferences consent;
+  recorded in PHASE-8.md as a question rather than built on a guess. Category photographs:
+  awards carry a generated cover (partials/photo.twig), never stock.
+#}
+{% set app_bar = {variant: 'root', title: 'Nominate'|trans} %}
+{% set tab = 'nominate' %}
+{% set colour_tier = '2' %}
+{% set _first = name ? name|split(' ')|first : '' %}
+{% set _start = programmes|length == 1
+     ? '/nominate/' ~ programmes[0].slug ~ (name ? '?name=' ~ name|url_encode : '')
+     : '#nh-awards' %}
+{% set _startLabel = _first ? 'Nominate %name%'|trans({'%name%': _first}) : 'Start a nomination'|trans %}
+{% set _q = name ? '?name=' ~ name|url_encode : '' %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/nominate.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="nh">
+  <div class="nh__top"><h1 class="nh__h1">{{ 'Nominate'|trans }}</h1></div>
+
+  {% if share_expired %}
+    <p class="nh__say" role="alert">{{ 'That nomination link has expired or no longer points at an open award. You can still nominate below.'|trans }}</p>
+  {% endif %}
+
+  {% if programmes|length or name %}
+  <form class="nh-ask" method="get" action="/nominate" role="search">
+    <label class="nh-ask__l" for="nh-name">{{ 'Who do you want to nominate?'|trans }}</label>
+    <div class="nh-ask__row">
+      <input class="nh-ask__in" id="nh-name" name="name" value="{{ name }}" autocomplete="off" enterkeyhint="go"
+             placeholder="{{ 'Their full name, or an organisation'|trans }}">
+      <button class="nh-ask__go" type="submit">{{ _startLabel }}</button>
+    </div>
+    {% if name %}
+      <div class="nh-ask__list">
+        <a class="nh-ask__new" href="{{ _start }}">
+          <span class="nh-ask__plus" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
+          <span class="nh-ask__b"><b>{{ 'Nominate “%name%”'|trans({'%name%': name}) }}</b><span>{{ 'We’ll create their profile — they don’t need an account'|trans }}</span></span>
+        </a>
+        {% if matches|length %}
+          <span class="nh-ask__or">{{ 'Or is it someone already here?'|trans }}</span>
+          {% for m in matches %}
+            <a class="nh-ask__m" href="{{ programmes|length == 1 ? '/nominate/' ~ programmes[0].slug ~ '?name=' ~ m.name|url_encode : '/nominate?name=' ~ m.name|url_encode ~ '#nh-awards' }}">
+              <span class="nh-ask__av nh-ask__av--{{ m.kind }}">{% include 'partials/photo.twig' with {kind: 'person', name: m.name} only %}</span>
+              <span class="nh-ask__b"><b>{{ m.name }}</b><span>{{ m.meta }}</span></span>
+            </a>
+          {% endfor %}
+        {% endif %}
+      </div>
+    {% endif %}
+  </form>
+  {% endif %}
+
+  <div class="nh__body">
+    <div class="nh__main">
+      {% if programmes|length %}
+        <section class="nh__sec" id="nh-awards" aria-labelledby="nh-close-h">
+          <div class="nh__secrow">
+            <h2 class="nh__k" id="nh-close-h">{{ field ? ('Open in %field%'|trans({'%field%': (fields|filter(x => x.key == field)|first).label|default(field)|trans})) : 'Closing soon'|trans }}</h2>
+            {% if field %}<a class="nh__more" href="/nominate{{ _q }}">{{ 'All open'|trans }}</a>
+            {% elseif open_count > 3 %}<a class="nh__more nh__more--desk" href="/nominate?all=1{{ name ? '&name=' ~ name|url_encode }}#nh-awards">{{ 'All %n% open'|trans({'%n%': open_count}) }}</a>{% endif %}
+          </div>
+          <div class="nh-cards{{ show_all or field ? ' nh-cards--all' }}">
+            {% for p in programmes %}
+              {% set _days = p.phase.seconds_left ? (p.phase.seconds_left // 86400) : null %}
+              <a class="nh-card" href="/nominate/{{ p.slug }}{{ _q }}">
+                <span class="nh-card__media">{% include 'partials/photo.twig' with {kind: 'thing', name: p.title, title: false} only %}</span>
+                <span class="nh-card__b">
+                  <b class="nh-card__t">{{ p.title }}</b>
+                  <span class="nh-card__l">{{ p.edition_line }}</span>
+                  {% if _days is not null %}
+                    <span class="nh-card__c{{ _days <= 5 ? ' nh-card__c--soon' }}">{{ _days <= 2 ? ('Closes in %n% days'|trans({'%n%': max(_days, 0)})) : ('%n% days left'|trans({'%n%': _days})) }}</span>
+                  {% endif %}
+                </span>
+              </a>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if fields|length %}
+        <section class="nh__sec" aria-labelledby="nh-field-h">
+          <h2 class="nh__k" id="nh-field-h">{{ 'Browse by field'|trans }}</h2>
+          <nav class="nh-fields" aria-labelledby="nh-field-h">
+            {% for f in fields %}
+              <a class="nh-fields__i" href="/nominate?field={{ f.key }}{{ name ? '&name=' ~ name|url_encode }}#nh-awards"{% if f.key == field %} aria-current="true"{% endif %}>
+                <span>{{ f.label|trans }}</span><span class="nh-fields__n">{{ f.n }}</span>
+              </a>
+            {% endfor %}
+          </nav>
+        </section>
+      {% endif %}
+
+      {% if closed|length %}
+        {# Never offered as open, always findable: the phase in words and the next date. #}
+        <section class="nh__sec" aria-labelledby="nh-closed-h">
+          <h2 class="nh__k" id="nh-closed-h">{{ 'Not open right now'|trans }}</h2>
+          <div class="nh-rows">
+            {% for p in closed %}
+              <a class="nh-rows__i" href="/nominate/{{ p.slug }}">
+                <span class="nh-rows__b"><b>{{ p.title }}</b>
+                  <span>{{ p.phase.label|default('Not taking nominations')|trans }}{% if p.nominations_open and p.nominations_open|date('U') > 'now'|date('U') %} · {{ 'Nominations open %d%'|trans({'%d%': p.nominations_open|date('j M Y')}) }}{% endif %}</span></span>
+              </a>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if not programmes|length %}
+        <div class="ag-empty nh__empty">
+          <p class="ag-empty__t">{{ 'No award is taking nominations right now.'|trans }}</p>
+          <p>{{ 'Each award opens its nominations on its own dates — the list above says when.'|trans }}</p>
+          <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/awards">{{ 'See every award'|trans }}</a>
+        </div>
+      {% endif %}
+    </div>
+
+    <aside class="nh__side">
+      {% if mine|length %}
+        <section class="nh__sec" aria-labelledby="nh-mine-h">
+          <h2 class="nh__k" id="nh-mine-h">{{ 'Your nominations'|trans }}</h2>
+          <div class="nh-rows">
+            {% for m in mine %}
+              <a class="nh-rows__i" href="/account">
+                <span class="nh-rows__b"><b>{{ m.nominee }}</b><span>{{ m.created_at|date('j M Y') }}</span></span>
+                <span class="nh-rows__s nh-rows__s--{{ m.status }}">{{ m.status|replace({'_': ' '})|capitalize|trans }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+      {% if live|length %}
+        <section class="nh__sec" aria-labelledby="nh-live-h">
+          <h2 class="nh__k nh__k--live" id="nh-live-h"><span class="nh__dot" aria-hidden="true"></span>{{ 'Happening now'|trans }}</h2>
+          <ul class="nh-rows">
+            {% for l in live %}
+              <li class="nh-rows__i nh-rows__i--live">
+                <span class="nh-rows__b nh-rows__b--sm"><b>{{ l.what }}</b><span>{{ l.where ? ('A nominator in %where%'|trans({'%where%': l.where})) : 'A nominator'|trans }}</span></span>
+                <time class="nh-rows__t" datetime="{{ l.at|date('c') }}">{{ l.at|date('j M') }}</time>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block bottom_bar %}
+  {% if programmes|length %}
+    <div class="nh-cta" data-bottom-ui><a class="nh-cta__go" href="{{ _start }}">{{ _startLabel }}</a></div>
+  {% endif %}
+  {{ parent() }}
+{% endblock %}

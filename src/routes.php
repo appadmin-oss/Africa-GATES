@@ -2154,7 +2154,9 @@ return function(App $app) {
         $g->get('/search',         \AfricaGates\Controllers\SearchController::class.':search');
         $g->get('/nominate',      NominationController::class.':form');
         $g->post('/nominate',     NominationController::class.':submit');
-        $g->get('/nominate/success',function($req,$res) use ($tv){ $d=$_SESSION['nom_done']??null; unset($_SESSION['nom_done']); return $tv($req)->render($res,'pages/nominate-success.twig',['page_title'=>'Nomination Submitted — Africa GATES','meta_description'=>'Your nomination is in. Thank you for championing African excellence — our team will review it for the Africa GATES awards cycle. Nominate someone else too.','gates_page'=>'nominate','ref'=>$d['ref']??'','nominee'=>$d['nominee']??'','category'=>$d['cat']??'','share_payload'=>$d['share']??null]); });
+        // The done screen (NominationFlow.dc.html step 6): a controller method now, because it
+        // draws the award's own timeline and mints the share link once on the server.
+        $g->get('/nominate/success', NominationController::class.':success');
         // ── ONE AWARD'S OWN NOMINATION PAGE ──────────────────────────────────
         //
         // AFTER `/nominate/success`, and the order is the whole of it: a literal

@@ -1,0 +1,55 @@
+{% extends 'layout/auth.twig' %}
+{% import 'layout/auth.twig' as auth %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE ORGANISATION SIGN-IN — /org/login · Phase 8 (no DC; SignIn.dc.html's frame)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed and rebuilt (inventory pages--org--login.md). A separate trust domain from the
+  member sign-in — its own route, its own session, and no link to it from the member
+  screens — built in the same frame so it is recognisably the same platform. Deliberately
+  plain: its only job is to be unambiguous about which organisation's money is behind it.
+
+  The rules it carries (CLAUDE.md, "Two sign-ins"):
+  · ONE sentence for every failure — unknown address, wrong password, locked account,
+    suspended organisation (OrgAuth::attempt() returns one null for all of them).
+  · A FAILURE IS AN EVENT, NOT A URL: it arrives through a dedicated session key read once
+    by the controller (`org_login_failed`), never `?e=1`, and never `org_flash_error`, which
+    is aliased into the shell's flash global.
+  · The address comes back after a failure; the password does not.
+  · It names who it is for — organisations receiving gifts AND stand vendors — so a trader
+    is not told on the way in that this door is for somebody else.
+  · The lockout remedy is actionable: there is deliberately no self-service reset (this
+    sign-in can request payouts), so "write to us" carries the address and a mailto.
+  · Somebody with no account has a way to one: the organisation branch of the one
+    registration door, and the stands, which are applied for from an event.
+#}
+{% block auth_body %}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Sign in to your organisation'|trans }}</h1>
+    <p class="si__lede">{{ 'For organisations receiving gifts through Africa GATES, and for stand vendors at our events.'|trans }}</p>
+  </div>
+  {{ auth.say(error, null) }}
+  <form class="si__form-step" method="post" action="/org/login" novalidate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input class="si__in" id="org-email" type="email" name="email" value="{{ old_email }}" required
+           autocomplete="username" inputmode="email" aria-label="{{ 'Email'|trans }}" placeholder="you@organisation.org"
+           {% if error %}aria-invalid="true"{% endif %} data-ag-error-group="org-signin"{% if not old_email %} autofocus{% endif %}>
+    <input class="si__in" id="org-password" type="password" name="password" required autocomplete="current-password"
+           aria-label="{{ 'Password'|trans }}" placeholder="{{ 'Password'|trans }}"
+           {% if error %}aria-invalid="true"{% endif %} data-ag-error-group="org-signin"{% if old_email %} autofocus{% endif %}>
+    <button class="si__go" type="submit">{{ 'Sign in'|trans }}</button>
+  </form>
+  <p class="si__fine">
+    {{ 'Locked out or lost the password? There is no reset link for this sign-in, because it can request payouts — write to'|trans }}
+    <a href="mailto:{{ support_email }}?subject={{ 'Organisation sign-in'|url_encode }}">{{ support_email }}</a>
+    {{ 'from the address on the account and we will restore it with you.'|trans }}
+  </p>
+  <section class="si__head" aria-labelledby="org-new-h">
+    <h2 class="si__lede" id="org-new-h"><b>{{ 'No account yet?'|trans }}</b></h2>
+    <p class="si__alt">
+      <a href="/account/register?as=organisation">{{ 'Register your organisation'|trans }}</a>
+      <a href="/events">{{ 'Apply for a stand at an event'|trans }}</a>
+    </p>
+  </section>
+{% endblock %}

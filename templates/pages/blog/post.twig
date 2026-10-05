@@ -1,0 +1,119 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE STORY — /blog/{slug} · Phase 9 · design/BlogPage.dc.html (`view=post`) · §8.14
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt from the DC after the destroy (inventory: pages--blog--post.md).
+
+  · A reading-progress bar (a real `progressbar`, updated by blog.js from <main>'s scroll).
+  · Listen: the post's own recording when it has one (`audio_path`), played through the
+    DC's floating player — play/pause, elapsed / length, speed, close; otherwise the
+    browser's speech synthesis reads the story. Hidden until blog.js has found one of the
+    two, so the button never offers what the device cannot do. `<audio>` is never
+    autoplayed; it starts on the press.
+  · `read_minutes` is counted from the body. "In this story" lists the registry profiles
+    the body itself links (BlogController::people), so a tag cannot name somebody the
+    story does not mention.
+  · The body is admin HTML from `gates_posts`, run through the same sanitiser as every
+    other authored document before it is printed.
+  · A poll attached to the post is drawn by partials/poll.twig (MUST RESTORE).
+
+  Colour tier 1: the green progress bar; the tag is green WORDS.
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Blog'|trans, back: '/blog'} %}
+
+{% block head_styles %}
+{% include 'partials/seo-head.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/blog.css') }}">
+{% if poll %}<link rel="stylesheet" href="{{ asset('/assets/css/components/poll.css') }}">{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="bl-prog" role="progressbar" aria-label="{{ 'Reading progress'|trans }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-blog-progress><span class="bl-prog__fill" data-blog-fill></span></div>
+<article class="bp" data-blog>
+  <header class="bp__head">
+    <a class="bp__back" href="/blog"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>{{ 'Blog'|trans }}</a>
+    {% if post.tag %}<span class="bl-tag">{{ post.tag }}</span>{% endif %}
+    <h1 class="bp__h1">{{ post.title }}</h1>
+    {% if post.excerpt %}<p class="bp__dek">{{ post.excerpt }}</p>{% endif %}
+    <div class="bp__by">
+      <span class="bl-by">
+        {% include 'partials/photo.twig' with {kind: 'person', src: '', name: post.author|default('Africa GATES'), class: 'bl-by__av bl-by__av--lg'} only %}
+        <span class="bl-by__w"><span class="bl-by__n">{{ post.author|default('Africa GATES') }}</span><span class="bl-meta">{% if post.published_at %}<time datetime="{{ post.published_at|date('Y-m-d') }}">{{ post.published_at|date('j M Y') }}</time> · {% endif %}{{ '%n% min read'|trans({'%n%': post.read_minutes}) }}</span></span>
+      </span>
+      <span class="bp__tools">
+        <button class="bp__listen" type="button" hidden data-blog-listen aria-pressed="false"
+                data-listen="{{ 'Listen · %n% min'|trans({'%n%': post.read_minutes}) }}" data-pause="{{ 'Pause'|trans }}" data-resume="{{ 'Resume'|trans }}"
+                {% if post.audio %}data-audio="{{ post.audio }}"{% endif %}>
+          <svg class="bp__i-play" width="12" height="12" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"/></svg>
+          <svg class="bp__i-pause" width="12" height="12" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><rect x="2" y="1" width="3.5" height="12" rx="1"/><rect x="8.5" y="1" width="3.5" height="12" rx="1"/></svg>
+          <span data-blog-listen-label>{{ 'Listen · %n% min'|trans({'%n%': post.read_minutes}) }}</span>
+        </button>
+        <button class="bp__share" type="button" data-ag-share aria-label="{{ 'Share'|trans }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></button>
+      </span>
+    </div>
+  </header>
+
+  {% if post.cover %}
+    <figure class="bp__cover">{% include 'partials/photo.twig' with {kind: 'thing', src: post.cover, name: post.title, eager: true} only %}</figure>
+  {% endif %}
+
+  <div class="bp__body" data-blog-read>{{ post.body|default('')|sanitize_html }}</div>
+
+  {% if poll %}<div class="bp__narrow">{% include 'partials/poll.twig' with {poll: poll} only %}</div>{% endif %}
+
+  {% if people|length %}
+    <section class="bp__narrow bp__people" aria-labelledby="bp-people">
+      <h2 class="bp__h2s" id="bp-people">{{ 'In this story'|trans }}</h2>
+      <div class="bp__plist">
+        {% for p in people %}
+          <a class="bp__p" href="/registry/{{ p.slug }}">
+            <span class="bp__pav">{% include 'partials/photo.twig' with {kind: 'person', src: p.photo, name: p.name} only %}</span>
+            <span class="bp__pw"><span class="bp__pn">{{ p.name }}</span>{% if p.meta %}<span class="bl-meta">{{ p.meta }}</span>{% endif %}</span>
+            <svg class="bp__chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if more|length %}
+    <section class="bp__more" aria-labelledby="bp-more">
+      <h2 class="bl__h2" id="bp-more">{{ 'More stories'|trans }}</h2>
+      <div class="bl-grid">
+        {% for p in more %}
+          <a class="bl-card" href="/blog/{{ p.slug }}">
+            <span class="bl-card__img">{% include 'partials/photo.twig' with {kind: 'thing', src: p.cover, name: p.title, title: false} only %}</span>
+            <span class="bl-card__w">{% if p.tag %}<span class="bl-tag">{{ p.tag }}</span>{% endif %}<span class="bl-card__t">{{ p.title }}</span><span class="bl-meta">{{ '%n% min read'|trans({'%n%': p.read_minutes}) }}</span></span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+</article>
+
+{# The DC's floating player, for a post with its own recording. #}
+{% if post.audio %}
+<div class="bp-player" role="region" aria-label="{{ 'Audio player'|trans }}" hidden data-blog-player data-bottom-ui>
+  <button class="bp-player__pp" type="button" data-blog-pp aria-label="{{ 'Pause'|trans }}" data-play="{{ 'Play'|trans }}" data-pause="{{ 'Pause'|trans }}">
+    <svg class="bp__i-play" width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"/></svg>
+    <svg class="bp__i-pause" width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><rect x="2" y="1" width="3.5" height="12" rx="1"/><rect x="8.5" y="1" width="3.5" height="12" rx="1"/></svg>
+  </button>
+  <span class="bp-player__w">
+    <span class="bp-player__top"><span class="bp-player__t">{{ post.title }}</span><span class="bp-player__time" data-blog-time>0:00</span></span>
+    <span class="bp-player__bar"><span class="bp-player__fill" data-blog-pfill></span></span>
+  </span>
+  <button class="bp-player__sp" type="button" data-blog-speed aria-label="{{ 'Playback speed'|trans }}">1×</button>
+  <button class="bp-player__x" type="button" data-blog-close aria-label="{{ 'Close player'|trans }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}
+<script defer src="{{ asset('/assets/js/blog.js') }}"></script>
+{% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}"></script>{% endif %}
+{% endblock %}

@@ -556,6 +556,32 @@ final class SystemStatus
         // Newest first: the thing somebody is on this page about happened recently.
         usort($out, static fn (array $a, array $b): int => strcmp($b['from'], $a['from']));
 
+        // ── THE LIVE TIMELINE OF A PROBLEM STILL HAPPENING (Phase 9, StatusPageV2) ──
+        //
+        // What the page can honestly put under "Happening now" is what the record SAW: the
+        // check that first found the fault, each check where its state changed, and the
+        // latest check — measured transitions, never a narrative somebody typed. A run's
+        // steps are walked from the same snapshots as the run itself, so the timeline and
+        // the incident line above it cannot disagree about when it began.
+        foreach ($out as $k => $i) {
+            if (!$i['ongoing']) continue;
+            $steps = [];
+            $prev  = null;
+            foreach ($snaps as $snap) {
+                if (strcmp($snap['at'], $i['from']) < 0) continue;
+                $st = $snap['parts'][$i['name']] ?? null;
+                if ($st === null || $st === $prev) continue;
+                $steps[] = ['at' => $snap['at'], 'status' => $st, 'label' => self::LABELS[$st]];
+                $prev = $st;
+            }
+            $last = $snaps === [] ? null : $snaps[count($snaps) - 1];
+            if ($last !== null && ($steps === [] || end($steps)['at'] !== $last['at'])) {
+                $st = $last['parts'][$i['name']] ?? $i['status'];
+                $steps[] = ['at' => $last['at'], 'status' => $st, 'label' => self::LABELS[$st], 'latest' => true];
+            }
+            $out[$k]['steps'] = array_reverse($steps);   // newest first, as the DC lists updates
+        }
+
         return array_slice($out, 0, max(1, $limit));
     }
 

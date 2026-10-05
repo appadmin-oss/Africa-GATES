@@ -67,6 +67,13 @@ final class Maintenance
     public const TASK_FAILED = -1;
 
     /**
+     * How often the CPI is recomputed, in hours. The leaderboard PRINTS this ("recomputed
+     * every 6 hours", "next update in …"), so it is the one constant both the schedule and
+     * the sentence read — a typed 6 in a template is a promise nothing keeps in step.
+     */
+    public const CPI_EVERY_HOURS = 6;
+
+    /**
      * Run one task in isolation.
      *
      * ── THE FAILURE THIS REMOVES ────────────────────────────────────────────────
@@ -285,7 +292,7 @@ final class Maintenance
                     fn() => \AfricaGates\Services\InviteReminders::sweep())];
             }
             // Every 6 hours: CPI recompute + tamper-evident standings snapshot
-            if ($now->hour % 6 === 0 && (int)$now->minute < 15) {
+            if ($now->hour % self::CPI_EVERY_HOURS === 0 && (int)$now->minute < 15) {
                 $ran[] = ['cpi',      $this->task('cpi',      fn() => $this->recomputeCpi())];
                 $ran[] = ['snapshot', $this->task('snapshot', fn() => $this->captureSnapshots())];
             }

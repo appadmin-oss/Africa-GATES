@@ -183,6 +183,14 @@ class SnapshotService
         // sides of that, and it draws the cycle before it seals it.
         ReleasedStanding::forget($cycleId);
 
+        // The announcement is also the issue of its recognitions (winner, runner-up,
+        // published finalists) — from this seal and nothing else. Evidence about a result
+        // is never a precondition for having one, so a failure here is swallowed.
+        try {
+            Recognitions::syncCycle($cycleId);
+        } catch (\Throwable) {
+        }
+
         return $written;
     }
 

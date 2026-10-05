@@ -17,7 +17,7 @@
 .vp-clock__c b, .vh__total, .vh-row__count b, .vp-row__figs b, .vp-card__n, .vh-ring span{ font-variant-numeric:tabular-nums }
 
 /* ── The hub ───────────────────────────────────────────────────────────────── */
-.ag-main:has(.vh){ background:var(--ag-bar) }
+.ag-main:has(.vh), .ag-shell:has(.vh) .ag-appbar{ background:var(--ag-bar) }
 .vh{
   max-width:880px; margin:0 auto; padding:4px 16px 48px;
   display:grid; grid-template-columns:minmax(0,1fr); gap:40px; align-items:start;
@@ -301,6 +301,7 @@
 @media (min-width:1200px){
   .vp-body{ grid-template-columns:200px minmax(0,1fr) 300px }
   .vp-rail{ grid-column:auto; position:sticky; top:68px; flex-direction:column }
+  .vp-rail .vp-card{ flex:none }
   .vp-row{ grid-template-columns:60px minmax(0,1fr) 104px auto }
   .vp-row__av{ width:60px; height:60px }
   .vp-row__figs--in{ display:none }

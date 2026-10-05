@@ -26,7 +26,7 @@
 {% set _f = front.filter %}
 {% set _filters = [{k: 'all', l: 'All'}, {k: 'voting', l: 'Voting now'}, {k: 'soon', l: 'Coming up'}] %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
 
 {% block content %}
 <div class="vh" data-vote-hub data-open-categories="{{ front.open_categories }}">

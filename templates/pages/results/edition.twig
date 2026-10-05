@@ -1,0 +1,96 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/results/{programme-year}` — A DECIDED EDITION · Phase 5 · ResultsPage.dc.html · §8.7
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Written from the DC after the old page was destroyed (inventory:
+  docs/handoff/inventory/pages--results--edition.md). Data: PublicResults::edition(), which
+  serves only a RELEASED cycle (status results/archived, written by CycleMaterialiser in the
+  transaction that crowns and seals), never the sandbox, with every category laid over by its
+  SEAL (ReleasedStanding) — the figures are the ones announced, not today's arithmetic.
+
+  · The overall edition winner comes FIRST with the top three (§8.7), all of it from
+    `e.overall` — one resolver for the headline (GAPS §3.4: the old page took the name from
+    `e.top` and the runners-up from `e.overall`). Then the summary, then every category
+    winner. A provisional overall (an award still withheld) and a dead heat say so in words
+    about the PROCESS, never about the person.
+  · A withheld award is a ROW, drawn as an outline, and its reason is the process's.
+  · The winner with no photograph still gets a card (the monogram, partials/photo.twig).
+  · No celebration here: the DC draws none on the results page; the winner's own page carries
+    the `win` celebration, asked of this same published result.
+  · Colour: the gold family is the honour band — the overall card. Everything else is ink.
+#}
+
+{% set colour_tier = '1' %}
+{% set colour_band = true %}
+{% set app_bar = {variant: 'child', title: 'Results'|trans, sub: e.edition ?: e.year, back: '/results'} %}
+{% set _o = e.overall %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+
+{% block content %}
+<div class="rs">
+  {% include 'pages/results/_head.twig' with {e: e, switcher: switcher, host: host} only %}
+
+  {% if _o and _o.winner %}
+  {% set w = _o.winner %}
+  <section class="rs-ov" aria-labelledby="rs-ov-h">
+    <div class="rs-ov__photo">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, alt: 'Portrait of %n%'|trans({'%n%': w.name}), eager: true} only %}</div>
+    <div class="rs-ov__body">
+      <span class="rs-ov__k"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"/></svg>{{ 'Overall winner · %ed%'|trans({'%ed%': e.edition ?: e.year}) }}</span>
+      <h2 class="rs-ov__name" id="rs-ov-h">{{ w.name }}</h2>
+      <p class="rs-ov__why">{{ 'The highest Cultural Power Index in this edition: %cpi% of 1,000, with %c% from community support and %j% from the judges. Winner of %cat%.'|trans({'%cpi%': w.cpi, '%c%': w.community_points, '%j%': w.judge_points, '%cat%': w.category}) }}</p>
+      {% if _o.provisional %}<p class="rs-note" role="note">{{ 'Provisional: an award in this edition is still being checked, so the overall order can still change.'|trans }}</p>{% endif %}
+      {% if _o.dead_heat %}<p class="rs-note" role="note">{{ 'The top two finished level on the index.'|trans }}</p>{% endif %}
+      <ol class="rs-pod">
+        {% for p in _o.top4|slice(0, 3) %}
+          <li class="rs-pod__r{{ loop.first ? ' rs-pod__r--first' }}">
+            <span class="rs-pod__n">{{ loop.index }}</span>
+            <span class="rs-pod__t"><b>{{ p.name }}</b><span>{{ p.category }}</span></span>
+            <span class="rs-pod__v">{{ p.cpi }}</span>
+          </li>
+        {% endfor %}
+      </ol>
+      {% if _o.reconstructed %}<p class="rs-ov__fine">{{ 'The overall order is worked out from each category’s sealed result.'|trans }}</p>{% endif %}
+      <div class="rs-ov__acts">
+        {% set _wc = e.categories|filter(c => c.id == w.category_id)|first %}
+        <a class="ag-btn ag-btn--ink ag-btn--pill" href="{{ _wc ? _wc.url : e.url }}">{{ 'See how it was decided'|trans }}</a>
+      </div>
+    </div>
+  </section>
+  {% elseif e.awards|length > 1 %}
+  <section class="rs-pend" role="note"><b>{{ 'No overall winner is named for this edition.'|trans }}</b><span>{{ 'Every category result is below.'|trans }}</span></section>
+  {% endif %}
+
+  <dl class="rs-sum">
+    <div><dt>{{ 'categories decided'|trans }}</dt><dd>{{ e.awards|length }}</dd></div>
+    <div><dt>{{ 'nominees'|trans }}</dt><dd>{{ e.nominees|number_format }}</dd></div>
+    <div><dt>{{ 'votes cast'|trans }}</dt><dd>{{ e.votes|number_format }}</dd></div>
+    <div><dt>{{ 'judges per nominee · quorum'|trans }}</dt><dd>{{ e.top.quorum|default(2) }}</dd></div>
+  </dl>
+
+  <section class="rs-sec" aria-labelledby="rs-all">
+    <div class="rs-sec__row"><h2 class="rs-sec__t" id="rs-all">{{ 'Every winner in this edition'|trans }}</h2><span class="rs-sec__n">{{ e.categories|length == 1 ? '1 category'|trans : '%n% categories'|trans({'%n%': e.categories|length}) }}</span></div>
+    <ul class="rs-cats">
+      {% for c in e.categories %}
+        {% set _w = c.award.winner|default(null) %}
+        <li>
+          <a class="rs-cat{{ c.status.key == 'withheld' ? ' rs-cat--held' }}" href="{{ c.url ?: '/results/' ~ c.id }}">
+            <span class="rs-cat__av">{% if _w %}{% include 'partials/photo.twig' with {kind: 'person', src: _w.photo, name: _w.name} only %}{% endif %}</span>
+            <span class="rs-cat__t">
+              <span class="rs-cat__k">{{ c.title }}</span>
+              <b>{{ _w ? _w.name : c.status.label|trans }}</b>
+              <span class="rs-cat__s">{{ _w ? 'Winner · see how it was decided'|trans : (c.status.note ?: c.status.label)|trans }}</span>
+            </span>
+            <svg class="ag-ico-dir rs-cat__chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <p class="rs-method">{{ 'Every result is published with the working behind it, and the standing that was announced is sealed.'|trans }} <a href="/integrity">{{ 'Read the method'|trans }}</a></p>
+</div>
+{% endblock %}

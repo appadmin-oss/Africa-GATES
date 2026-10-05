@@ -34,7 +34,7 @@
 {% set app_bar = {variant: 'child', title: _p.title, sub: _f.sub, back: '/vote'} %}
 {% set _base = '/vote/' ~ _p.slug %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
 
 {% macro clock(left, cls) %}
   <span class="{{ cls }}" role="timer" dir="ltr" data-tick data-tick-left="{{ left }}"
@@ -61,7 +61,7 @@
         <div class="vp-hero__text">
           <div class="vp-hero__chips">
             <span class="vp-hero__chip vp-hero__chip--{{ _f.open ? 'live' : 'quiet' }}"><span class="vp-hero__dot" aria-hidden="true"></span>{{ _f.chip }}</span>
-            {% if _f.open and _f.closes %}<span class="vp-hero__chip vp-hero__chip--glass">{{ 'Closes %d%'|trans({'%d%': _f.closes|when_zoned('j M, H:i T')}) }}</span>{% endif %}
+            {% if _f.open and _f.closes %}<span class="vp-hero__chip vp-hero__chip--glass">{{ 'Closes %d%'|trans({'%d%': _f.closes|when_zoned('j M, H:i')}) }}</span>{% endif %}
           </div>
           <h1 class="vp-hero__h1">{{ _p.title }}</h1>
           <span class="vp-hero__meta">{{ _f.meta }}</span>
@@ -71,7 +71,7 @@
     </div>
     {% if _f.open and _f.left > 0 %}
     <div class="vp-count">
-      <span class="vp-count__t"><span>{{ 'Voting closes in'|trans }}</span><b>{{ _f.closes|when_zoned('j M, H:i T') }}</b></span>
+      <span class="vp-count__t"><span>{{ 'Voting closes in'|trans }}</span><b>{{ _f.closes|when_zoned('j M, H:i') }}</b></span>
       {{ m.clock(_f.left, 'vp-clock') }}
     </div>
     {% endif %}

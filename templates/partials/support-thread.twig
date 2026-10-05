@@ -1,0 +1,48 @@
+{#
+  One support conversation's turns — the member desk and the account-free link both draw
+  it (Phase 9; inventory: pages--support-tickets.md, pages--support-ticket-link.md). It
+  renders turns and nothing else: no list, no navigation, no capability, so sharing it
+  cannot widen what a link may do.
+
+  · The opening is the FIRST TURNS, parsed into speakers by the service: an escalated
+    conversation opens with several, and one block would put the assistant's words in the
+    member's mouth.
+  · An automated turn is labelled as itself, always. Somebody told a person read their
+    support ticket who later learns it was a machine has been lied to about the one thing
+    support cannot lie about.
+  · Attachments are links to /support/attachment/{id}, which checks access before writing
+    a byte; the files live outside the web root.
+
+  Args: t (thread.ticket), messages, attachments (by message id), me (the member's or
+  visitor's own label).
+#}
+<ol class="st-thread">
+  {% for o in t.opening|default([]) %}
+    <li class="st-turn{{ o.staff ? '' : ' st-turn--me' }}">
+      <span class="st-av{{ o.staff ? ' st-av--staff' : '' }}" aria-hidden="true">{{ o.staff ? 'G' : me|first|upper }}</span>
+      <div class="st-turn__b">
+        <p class="st-who"><span>{{ o.staff ? 'Support assistant'|trans : 'You'|trans }}</span>{% if loop.first %}<time class="st-when" datetime="{{ t.created_at|date('c') }}">{{ t.created_at|date('j M Y, H:i') }}</time>{% endif %}</p>
+        <p class="st-say">{{ o.body }}</p>
+      </div>
+    </li>
+  {% endfor %}
+  {% for m in messages|default([]) %}
+    <li class="st-turn{{ m.staff ? '' : ' st-turn--me' }}">
+      <span class="st-av{{ m.staff ? ' st-av--staff' : '' }}" aria-hidden="true">{{ m.staff ? 'G' : (m.from|default(me))|first|upper }}</span>
+      <div class="st-turn__b">
+        <p class="st-who"><span>{{ m.from }}</span>{% if m.agent %}<span class="st-bot" title="{{ 'Written by the support assistant, not by a person'|trans }}">{{ 'automated'|trans }}</span>{% endif %}<time class="st-when" datetime="{{ m.created_at|date('c') }}">{{ m.created_at|date('j M, H:i') }}</time></p>
+        <p class="st-say">{{ m.body }}</p>
+        {% if attachments[m.id]|default([])|length %}
+          <div class="st-att">
+            {% for a in attachments[m.id] %}
+              <a class="st-att__a" href="/support/attachment/{{ a.id }}" target="_blank" rel="noopener">
+                {% if a.mime starts with 'image/' %}<img src="/support/attachment/{{ a.id }}" alt="{{ a.original_name }}" loading="lazy">{% endif %}
+                <span>{{ a.original_name }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </li>
+  {% endfor %}
+</ol>
