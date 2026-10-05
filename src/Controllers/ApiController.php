@@ -91,6 +91,12 @@ class ApiController {
         if(!$nominee) return $this->err($res,'Nominee not found.','INVALID_NOMINEE',404);
         try { \AfricaGates\Services\BallotGuard::assertVotable((int)$nominee->category_id); }
         catch(\AfricaGates\Services\PhaseError $e) { return $this->err($res,\AfricaGates\Support\PublicFault::line($e,'Voting is not open for this nominee.','api.otp'),$e->errorCode,403); }
+        // ── THE AWARD'S TERMS, WHERE IT HAS PUBLISHED ANY (Phase 5, §8.3) ────────
+        // Asked before a code is minted and mailed, for the reason the gate above is: a
+        // refusal that arrives after the email is a code nothing can spend. Only where the
+        // programme has terms — an award with none has nothing to accept (AwardTerms).
+        if(($tp=self::programmeOfCategory((int)$nominee->category_id))>0 && \AfricaGates\Services\AwardTerms::required($tp) && empty($b['accept_terms']))
+            return $this->err($res,'Please accept the award terms to vote.','TERMS_REQUIRED',422);
         $r=$this->otp->generate($email,$nId,$aId,'vote');
         if($r['success']) {
             $this->events?->otpRequested($fp,$nId,$ipFp);
@@ -136,8 +142,18 @@ class ApiController {
         // above), so giving one is not a choice to be published. Only the paid ballot,
         // where the field is optional, treats filling it in as consent. See
         // \AfricaGates\Services\SupportersService.
+        $termsProgramme=self::programmeOfCategory((int)(DB::table('gates_nominees')->where('id',$nId)->value('category_id') ?? 0));
+        if($termsProgramme>0 && \AfricaGates\Services\AwardTerms::required($termsProgramme) && empty($b['accept_terms']))
+            return $this->err($res,'Please accept the award terms to vote.','TERMS_REQUIRED',422);
         $r=$this->votes->castVote($email,$otp,$nId,$aId,$ip,$deviceHash,$idemKey?:null,$name,$phone);
         if(!$r['success']) return $this->err($res,$r['message'],$r['code']);
+
+        // Recorded only once the vote counted, and never at the cost of it (AwardTerms::accept
+        // does not throw). The session line is what lets the ballot page draw the `vote`
+        // celebration as CONFIRMED by the server rather than by the script that asked
+        // (Services\Celebration: money and votes celebrate only once the record says so).
+        if($termsProgramme>0) \AfricaGates\Services\AwardTerms::accept($termsProgramme,\AfricaGates\Services\AwardTerms::KIND_VOTE,$email,$nId);
+        if(isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_cast'][$nId]=time();
 
         // Post-vote: record fraud score, events, milestones, cache invalidation
         if($this->fraud && isset($fs)) {
@@ -256,6 +272,15 @@ HTML;
             // `message_status` / `message_note` / `message_url` ride along only when the
             // voter actually wrote something — see the block above.
         ] + ($msg ?? []));
+    }
+
+    /** The programme a category belongs to, through its cycle; 0 when unresolvable. */
+    private static function programmeOfCategory(int $categoryId): int {
+        if($categoryId<1) return 0;
+        try {
+            return (int) (DB::table('gates_award_categories as c')->join('gates_award_cycles as cy','cy.id','=','c.cycle_id')
+                ->where('c.id',$categoryId)->value('cy.programme_id') ?? 0);
+        } catch(\Throwable) { return 0; }
     }
 
     public function trackFunnel(Request $req,Response $res):Response {

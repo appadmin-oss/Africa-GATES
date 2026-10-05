@@ -121,6 +121,16 @@ final class PaidVoteController
         if (!PaidVoteService::checkoutOpenFor((int) $nominee->category_id))   return $bail('cutoff');
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
+        // The award's terms, where it has published any (Phase 5, §8.3, AwardTerms): asked
+        // before the gateway is, and recorded at the moment of the act — the buyer ticked it
+        // before paying, whatever the gateway then does.
+        $termsProgramme = (int) (DB::table('gates_award_categories as c')
+            ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+            ->where('c.id', (int) $nominee->category_id)->value('cy.programme_id') ?? 0);
+        if ($termsProgramme > 0 && \AfricaGates\Services\AwardTerms::required($termsProgramme)) {
+            if (empty($b['accept_terms']))                                    return $bail('terms');
+            \AfricaGates\Services\AwardTerms::accept($termsProgramme, \AfricaGates\Services\AwardTerms::KIND_PAID_VOTE, $email, $nomineeId);
+        }
         if ($qty > $maxQty) {
             return $bail('toomany', number_format($maxQty) . ' votes');
         }

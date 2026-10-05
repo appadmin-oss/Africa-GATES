@@ -295,6 +295,7 @@ class VoteController {
                        . 'Free voting is still open — use the ballot above.',
         'unavailable' => 'That payment method is unavailable right now. Please try another.',
         'email'       => 'Please enter a valid email address for your receipt.',
+        'terms'       => 'Please accept the award terms before contributing. No payment was taken.',
         'start'       => 'We could not start the checkout. No payment was taken — please try again.',
         'error'       => 'Something went wrong starting the checkout. No payment was taken.',
         'failed'      => 'That payment did not complete, so no votes were added.',
@@ -467,7 +468,40 @@ class VoteController {
         $pointsEnabled = PointsService::enabled();
         $memberPoints  = ($memberId > 0 && $pointsEnabled) ? PointsService::balance($memberId) : 0;
 
+        // ── Phase 5 additions (NomineePage + VoteBallot DCs) ────────────────────
+        //
+        // A vote this browser just confirmed: written by ApiController::castVote() only
+        // after the vote counted, read and cleared here, so the inline `vote` celebration
+        // is drawn as CONFIRMED by the server (Services\Celebration) and plays once. Fifteen
+        // minutes, so a stale flag from yesterday's session cannot congratulate anybody.
+        $castAt = (int) ($_SESSION['vote_cast'][$id] ?? 0);
+        if (isset($_SESSION['vote_cast'][$id])) unset($_SESSION['vote_cast'][$id]);
+        $voteConfirmed = $castAt > 0 && (time() - $castAt) < 900;
+
+        // The panel's reviewed evidence, as COUNTS by kind and nothing more. The rows are
+        // the judges' dossier (`visible_to_judges`); titles and links can be private, and no
+        // column says a row may be published — so the page says what was reviewed, never
+        // what it said (docs/handoff/PHASE-5.md, blocked question B-3).
+        $evidence = [];
+        try {
+            foreach (DB::table('gates_nominee_evidence')->where('nominee_id', $id)->where('verified', 1)
+                         ->selectRaw('kind, COUNT(*) AS n')->groupBy('kind')->get() as $e) {
+                $evidence[(string) $e->kind] = (int) $e->n;
+            }
+        } catch (\Throwable) {}
+
+        $nomShortlisted = isset(\AfricaGates\Services\ShortlistService::shortlistedIn((int) $nom->cycle_id)[(int) $nom->id]);
+
         return $this->view->render($res, 'pages/vote-nominee.twig', [
+            'terms'            => \AfricaGates\Services\AwardTerms::current((int) $nom->programme_id),
+            'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence((int) $nom->programme_id, (int) $nom->cycle_id),
+            'vote_confirmed'   => $voteConfirmed,
+            'evidence'         => $evidence,
+            'shortlisted'      => $nomShortlisted,
+            'result_url'       => '/results/' . \AfricaGates\Services\PublicResults::slug((int) $nom->category_id, (string) $nom->category),
+            'tier_prices'      => array_map(static fn (array $t): array => $t + ['price' => PaidVoteService::price((int) $t['qty'])],
+                                            array_values(array_filter(PaidVoteService::tiers(), static fn (array $t): bool => (int) $t['qty'] <= PaidVoteService::maxQtyForOrder()))),
+            'edition_label'    => \AfricaGates\Support\EditionName::label(DB::table('gates_award_cycles')->where('id', (int) $nom->cycle_id)->first() ?? []),
             'page_title'       => 'Vote for ' . $nom->name . ' — Africa GATES',
             'meta_description' => 'Cast your verified vote for ' . $nom->name . ' in ' . $nom->category . ' — Africa GATES, the continental Cultural Power Index.',
             'gates_page'       => 'awards',
