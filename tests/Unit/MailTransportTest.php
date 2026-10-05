@@ -197,14 +197,63 @@ final class MailTransportTest extends TestCase
     {
         DB::table('gates_settings')->insert([['key_name' => 'mail_smtp_user', 'value' => 'office@gmail.com'],
                                               ['key_name' => 'mail_smtp_pass', 'value' => 'abcdefghijklmnop']]);
-        $no = new MailSetup(static fn (MailConfig $c): array => ['ok' => false, 'title' => 'The provider refused our login', 'fix' => 'Use an App Password.', 'steps' => []]);
+        // The cause matters now: only a provider that ANSWERED and judged the login may
+        // refuse the save. See MailSetup::judgedTheLogin().
+        $no = new MailSetup(static fn (MailConfig $c): array => ['ok' => false, 'cause' => MailFailure::AUTH,
+            'title' => 'The provider refused our login', 'fix' => 'Use an App Password.', 'steps' => []]);
         $r = $no->save(['transport' => 'auto', 'host' => 'smtp.gmail.com', 'username' => 'admin@africagates.org', 'password' => 'hunter2']);
 
         $this->assertFalse($r['ok']);
         $this->assertSame('office@gmail.com', DB::table('gates_settings')->where('key_name', 'mail_smtp_user')->value('value'),
             'a refused login replaced the working one');
         $this->assertSame('abcdefghijklmnop', DB::table('gates_settings')->where('key_name', 'mail_smtp_pass')->value('value'));
-        $this->assertStringContainsString('NOT saved', implode(' ', $r['messages']));
+        $this->assertStringContainsString('not saved', implode(' ', $r['messages']));
+    }
+
+    /**
+     * ── THE GUARD WAS BLOCKING THE ONLY FIX AVAILABLE ───────────────────────────────
+     *
+     * The save was gated on the whole diagnosis passing, so while SMTP was broken the
+     * SMTP settings could not be changed at all. The host blocks 587; the operator moves
+     * to 465 or 2525, which is the one change that would fix it; the check still fails on
+     * the road, so the save is refused. The only fields that can route around a blocked
+     * road were the only fields a blocked road prevented changing — and the refusal told
+     * them "what was working before still is", to somebody for whom nothing had worked in
+     * days.
+     *
+     * A road failure never reaches the login, so the check has formed no opinion of it and
+     * has no standing to refuse it.
+     */
+    public function test_a_road_failure_does_not_block_changing_the_road(): void
+    {
+        DB::table('gates_settings')->insert([['key_name' => 'mail_smtp_host', 'value' => 'smtp.gmail.com'],
+                                              ['key_name' => 'mail_smtp_port', 'value' => '587'],
+                                              ['key_name' => 'mail_smtp_user', 'value' => 'office@gmail.com'],
+                                              ['key_name' => 'mail_smtp_pass', 'value' => 'abcdefghijklmnop']]);
+        $blocked = new MailSetup(static fn (MailConfig $c): array => ['ok' => false, 'cause' => MailFailure::TLS,
+            'title' => 'The encrypted connection failed', 'fix' => 'Something is answering in their place.', 'steps' => []]);
+
+        $r = $blocked->save(['transport' => 'auto', 'host' => 'smtp.gmail.com', 'port' => '2525',
+                             'secure' => 'auto', 'username' => 'office@gmail.com', 'password' => '']);
+
+        $this->assertSame('2525', DB::table('gates_settings')->where('key_name', 'mail_smtp_port')->value('value'),
+            'the operator could not move off a blocked port while it was blocked');
+        $this->assertContains('mail_smtp_port', $r['saved']);
+        // Saved is not the same as working, and the screen must not imply it is.
+        $this->assertStringContainsString('unverified', implode(' ', $r['messages']));
+        $this->assertStringContainsString('The encrypted connection failed', implode(' ', $r['messages']));
+    }
+
+    /** The refusal must never claim a working configuration that does not exist. */
+    public function test_a_refusal_does_not_claim_something_was_working_before(): void
+    {
+        $no = new MailSetup(static fn (MailConfig $c): array => ['ok' => false, 'cause' => MailFailure::AUTH,
+            'title' => 'The provider refused our login', 'fix' => '', 'steps' => []]);
+        $r = $no->save(['transport' => 'auto', 'host' => 'smtp.gmail.com',
+                        'username' => 'a@b.com', 'password' => 'hunter2']);
+
+        $this->assertStringNotContainsString('was working before', implode(' ', $r['messages']),
+            'nothing here knows whether anything was working before');
     }
 
     public function test_a_login_the_provider_accepts_is_stored_and_the_check_saw_it(): void

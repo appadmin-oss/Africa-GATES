@@ -22,9 +22,20 @@ use Illuminate\Support\Carbon;
  *
  * So the transport is saved HERE, by itself, and:
  *
- *   · an SMTP login is stored only after `MailDiagnosis` has walked the real conversation
- *     with it to `MAIL FROM` and the provider has said yes — never a message, `RSET` at the
- *     end; a refusal keeps whatever was there before and says which step failed;
+ *   · an SMTP login is stored once `MailDiagnosis` has walked the real conversation with
+ *     it — never a message, `RSET` at the end. The gate is on the PROVIDER'S VERDICT, not
+ *     on the run completing: only a refusal that reached the provider and judged what was
+ *     typed (auth, sender, quota) keeps the old value. A run that stopped earlier — DNS,
+ *     the port, the handshake — never presented the login, so it has no opinion of it, and
+ *     the settings are stored unverified with the fault stated.
+ *
+ *     That last clause is a REPAIR, not a relaxation. Gating on the whole run made a
+ *     deadlock out of the situation this screen exists for: the host blocks 587, the
+ *     diagnosis fails on the road, the operator moves to 465 — the one change that would
+ *     fix it — and the save is refused BECAUSE the road is broken. The only fields that
+ *     can route around a blocked road were the only fields a blocked road prevented
+ *     changing, and the refusal read "what was working before still is" to somebody for
+ *     whom nothing had worked in days. Nothing here knows that, so it no longer says it;
  *   · an API key is stored only after Brevo's account endpoint (a READ) accepts it;
  *   · `useEnv()` removes every stored SMTP value, which puts the server's `.env` back in
  *     charge — the configuration that is known to have worked here.
@@ -86,13 +97,35 @@ final class MailSetup
                 $messages[] = 'The SMTP login was not saved: it needs both a username and a password.';
             } else {
                 $report = ($this->smtpCheck)($candidate);
+                $cause  = (string) ($report['cause'] ?? '');
                 if (!empty($report['ok'])) {
                     foreach ($changed as $k => $v) self::put($k, $v, $adminId);
                     $saved = array_merge($saved, array_keys($changed));
                     $messages[] = 'SMTP saved — the provider accepted the login and the From address.';
-                } else {
+                } elseif (self::judgedTheLogin($cause)) {
                     $ok = false;
-                    $messages[] = 'The SMTP settings were NOT saved, so what was working before still is. '
+                    $messages[] = 'The SMTP login was not saved — the provider answered and refused it, so the '
+                        . 'stored settings are unchanged. '
+                        . trim((string) ($report['title'] ?? '')) . '. ' . trim((string) ($report['fix'] ?? ''));
+                } else {
+                    // ── THE GUARD WAS BLOCKING THE FIX ──────────────────────────────────
+                    // Saved anyway, deliberately. The check never reached the login: it
+                    // stopped at DNS, at the port, or at the handshake, so it has learned
+                    // NOTHING about what was typed and has no standing to refuse it.
+                    //
+                    // Refusing everything made a deadlock out of exactly the situation
+                    // this screen exists for. The host blocks 587, so the diagnosis fails
+                    // on the road; the operator moves to 465 or 2525 — the one change that
+                    // would fix it — and the save is refused because the road is broken.
+                    // The only fields that can route around a broken road are the only
+                    // fields a broken road prevents changing, and the refusal said "what
+                    // was working before still is" to somebody for whom nothing had worked
+                    // in days. Stored, with the fault stated: it is no worse than what is
+                    // there, which does not work either, and it can now be iterated.
+                    foreach ($changed as $k => $v) self::put($k, $v, $adminId);
+                    $saved = array_merge($saved, array_keys($changed));
+                    $messages[] = 'Saved, but mail still cannot be sent by SMTP: the check stopped before the '
+                        . 'provider was asked about the login, so these settings are stored unverified. '
                         . trim((string) ($report['title'] ?? '')) . '. ' . trim((string) ($report['fix'] ?? ''));
                 }
             }
@@ -143,6 +176,22 @@ final class MailSetup
         // A rested SMTP road would otherwise go on being skipped for half an hour.
         DB::table('gates_settings')->where('key_name', \AfricaGates\Services\OtpService::SMTP_REST_KEY)->delete();
         return array_values(array_map('strval', $had));
+    }
+
+    /**
+     * Did the provider actually answer and judge what was typed?
+     *
+     * Only an AUTH or SENDER refusal is the provider saying no to a VALUE: it answered,
+     * read the login or the From address, and rejected it — which is the fault this
+     * class's whole gate exists to keep out of the table. Everything earlier in the
+     * conversation (config, DNS, the port, the handshake) is a fault of the ROAD, and the
+     * check formed no opinion of the credentials because it never got to present them.
+     *
+     * The distinction is the difference between a guard and a deadlock. See save().
+     */
+    private static function judgedTheLogin(string $cause): bool
+    {
+        return in_array($cause, [MailFailure::AUTH, MailFailure::SENDER, MailFailure::QUOTA], true);
     }
 
     /** @return array<string,string> */
