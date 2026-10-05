@@ -90,6 +90,8 @@
      H1, 38 → 64 "We are Africa". */
   --ag-fs-26:1.625rem;  --ag-fs-28:1.75rem;   --ag-fs-30:1.875rem;  --ag-fs-36:2.25rem;
   --ag-fs-38:2.375rem;  --ag-fs-40:2.5rem;    --ag-fs-64:4rem;
+  /* Events (Phase 7, EventsPage.dc.html): 21 the registration card's heading, Playfair. */
+  --ag-fs-21:1.3125rem;
 
   /* ── Spacing · §6.3 — the px name is the px value ──────────────────────── */
   /* 20 and 22 (§6.3), the 22 radius (§6.4) and the bar 30 layer (§6.7)

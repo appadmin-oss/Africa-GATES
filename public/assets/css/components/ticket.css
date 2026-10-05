@@ -1,0 +1,188 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE TICKET · Phase 7 · TicketPage.dc.html · §8.11
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Colour: Accent tokens, plus the two values EventTicketDesign validates and writes on the
+   article — `--tk-accent` (the event's accent, the hero's wash) and `--tk-ink` (the ink that
+   stays legible on it) — and the tier dot's `--tk-dot`/`--tk-ring` (the palette's fill and
+   3:1 edge). Mono only for the code and the reference (`.tk-code`, `.tk-ref`); no capitals.
+
+   `organiser theme: dark` frames the ticket on ink, as the old page did; the ticket itself is
+   the same document on both, and paper is always light.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.tk-page{
+  --tk-ground:var(--ag-ground);
+  max-width:440px; margin:0 auto; padding:20px 16px 48px; box-sizing:border-box;
+  display:flex; flex-direction:column; gap:16px;
+}
+.tk-page--dark{ --tk-ground:var(--ag-ink); background:var(--ag-ink); color:var(--ag-ground); max-width:none }
+.tk-page--dark > *{ width:100%; max-width:408px; margin-inline:auto }
+.tk-page--dark .tk-back, .tk-page--dark .tk-foot, .tk-page--dark .tk-foot a{ color:var(--ag-ground) }
+.tk-back{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; min-height:44px; font-weight:600; font-size:var(--ag-fs-14) }
+
+.tk-flag{ margin:0; display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:var(--ag-r-14); font-size:var(--ag-fs-14); line-height:1.5 }
+.tk-flag--in{ background:var(--ag-green-wash); border:1px solid var(--ag-green-edge); color:var(--ag-green-deep); font-weight:600 }
+.tk-flag--in svg{ flex:none; color:var(--ag-green) }
+.tk-flag--wait{ background:var(--ag-gold-wash-2); border:1px solid var(--ag-gold-edge); color:var(--ag-ink) }
+
+/* ── The document ── */
+.tk{
+  display:flex; flex-direction:column; border-radius:var(--ag-r-24); overflow:hidden;
+  background:var(--ag-surface); color:var(--ag-ink); box-shadow:var(--ag-sh-pop);
+}
+.tk-hero{ position:relative; min-height:248px; display:flex; align-items:flex-end; color:var(--tk-ink); background:var(--tk-accent) }
+.tk-hero__img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.tk-hero__wash{
+  position:absolute; inset:0;
+  background:linear-gradient(to top,
+    color-mix(in srgb, var(--tk-accent) 97%, transparent) 0%,
+    color-mix(in srgb, var(--tk-accent) 95%, transparent) 44%,
+    color-mix(in srgb, var(--tk-accent) 69%, transparent) 60%,
+    color-mix(in srgb, var(--tk-accent) 0%, transparent) 80%);
+}
+.tk-hero__t{ position:relative; display:flex; flex-direction:column; gap:6px; padding:20px 22px }
+.tk-hero__kick{ margin:0; font-size:var(--ag-fs-12); font-weight:700; letter-spacing:.06em }
+.tk-hero__in{ opacity:.88 }
+.tk-hero__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.12 }
+.tk-hero__sub{ margin:0; font-size:var(--ag-fs-14); opacity:.92 }
+
+/* The tear: a dashed rule and two notches punched in the page's own ground. */
+.tk-tear{ position:relative; height:0; margin:0 18px; border-top:2px dashed var(--ag-line-2) }
+.tk-tear::before,
+.tk-tear::after{
+  content:''; position:absolute; top:-12px; width:22px; height:22px; border-radius:50%; background:var(--tk-ground);
+}
+.tk-tear::before{ inset-inline-start:-30px }
+.tk-tear::after{ inset-inline-end:-30px }
+.tk-tear span{ display:none }
+
+.tk-stub{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:20px 22px 16px }
+.tk-chip{
+  display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 12px; border-radius:var(--ag-r-pill);
+  font-size:var(--ag-fs-12-5); font-weight:700;
+}
+.tk-chip::before{ content:''; width:7px; height:7px; border-radius:50%; background:currentColor }
+.tk-chip--ok{ background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.tk-chip--in{ background:var(--ag-ground); color:var(--ag-ink-2) }
+.tk-chip--wait{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink) }
+.tk-qr{
+  width:188px; height:188px; padding:8px; box-sizing:border-box; background:var(--ag-surface);
+  border-radius:var(--ag-r-12); box-shadow:0 0 0 1px var(--ag-line);
+}
+.tk-qr svg{ display:block; width:100%; height:100% }
+.tk-code{ font-family:var(--ag-font-mono); font-weight:700; font-size:var(--ag-fs-18); line-height:1; letter-spacing:.14em; user-select:all }
+.tk-stub__note{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); text-align:center }
+.tk-stub__who{ display:none }
+
+.tk-facts{ margin:0; display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--ag-line-3); border-top:1px solid var(--ag-line-3) }
+.tk-fact{ display:flex; flex-direction:column; gap:3px; padding:12px 18px; background:var(--ag-surface) }
+.tk-fact--wide{ grid-column:1 / -1 }
+.tk-fact--print{ display:none }
+.tk-fact dt{ font-size:var(--ag-fs-11-5); letter-spacing:.04em; color:var(--ag-soft) }
+.tk-fact dd{ margin:0; display:flex; align-items:center; gap:7px; font-weight:700; font-size:var(--ag-fs-14-5) }
+/* The tier's own colour, ringed: the fill, a white gap, the 3:1 edge — the same object the
+   registration row draws (EventTierTone::hues). */
+.tk-dot{ flex:none; width:10px; height:10px; border-radius:50%; background:var(--tk-dot); box-shadow:0 0 0 2px var(--ag-surface), 0 0 0 3px var(--tk-ring) }
+.tk-ref{ padding:10px 18px 14px; font-family:var(--ag-font-mono); font-weight:500; font-size:var(--ag-fs-11-5); line-height:1.4; color:var(--ag-soft); border-top:1px solid var(--ag-line-3); word-break:break-all }
+.tk-note{ margin:0; padding:0 18px 14px; font-size:var(--ag-fs-13) }
+
+/* ── 2×2 actions ── */
+.tk-acts{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+.tk-act,
+.tk-act:hover{
+  display:flex; align-items:center; justify-content:center; gap:8px; min-height:50px; padding:0 10px;
+  border-radius:var(--ag-r-14); border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink);
+  font-weight:600; font-size:var(--ag-fs-14); text-decoration:none; text-align:center;
+}
+.tk-act--go,
+.tk-act--go:hover{ background:var(--ag-ink); border-color:var(--ag-ink); color:var(--ag-surface) }
+
+/* ── Manage this ticket ── */
+.tk-manage{ background:var(--ag-surface); color:var(--ag-ink); border:1px solid var(--ag-line); border-radius:var(--ag-r-16) }
+.tk-manage__s{
+  display:flex; align-items:center; justify-content:space-between; min-height:54px; padding:0 16px;
+  font-weight:600; font-size:var(--ag-fs-15); cursor:pointer; list-style:none;
+}
+.tk-manage__s::-webkit-details-marker{ display:none }
+.tk-manage__sign::before{ content:'+'; color:var(--ag-soft); font-size:var(--ag-fs-18) }
+.tk-manage[open] .tk-manage__sign::before{ content:'−' }
+.tk-manage__b{ display:flex; flex-direction:column; gap:1px; background:var(--ag-line-3); border-top:1px solid var(--ag-line-3) }
+.tk-manage__b > *{ background:var(--ag-surface) }
+.tk-manage__note{ margin:0; padding:10px 16px; font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-soft) }
+.tk-row{
+  display:flex; flex-direction:column; gap:2px; min-height:56px; padding:12px 16px; border:0; background:var(--ag-surface);
+  color:var(--ag-ink); text-align:start; font-family:inherit; cursor:pointer;
+}
+.tk-row b{ font-size:var(--ag-fs-14-5) }
+.tk-row span{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.tk-change{ display:flex; flex-direction:column; gap:8px; padding:12px 16px }
+.tk-change[hidden]{ display:none }
+.tk-fs{ margin:0; padding:10px 0 0; border:0; border-top:1px solid var(--ag-line-3); display:flex; flex-direction:column; gap:6px }
+.tk-fs legend{ font-weight:700; font-size:var(--ag-fs-14-5); padding:0 }
+.tk-fs .tk-manage__note{ padding:0 }
+.tk-lab{ font-weight:600; font-size:var(--ag-fs-13) }
+.tk-in{ min-height:46px; padding:0 12px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12); font-family:inherit; font-size:var(--ag-fs-16); color:var(--ag-ink) }
+.tk-btn{
+  min-height:46px; padding:0 16px; border:0; border-radius:var(--ag-r-pill); background:var(--ag-ink); color:var(--ag-surface);
+  font-family:inherit; font-weight:700; font-size:var(--ag-fs-14-5); cursor:pointer; align-self:flex-start;
+}
+.tk-btn--quiet{ background:var(--ag-surface); color:var(--ag-error); border:1px solid var(--ag-error) }
+.tk-btn[hidden]{ display:none }
+.tk-said{ margin:0; padding:10px 16px; font-size:var(--ag-fs-13-5); font-weight:600 }
+.tk-said:empty{ display:none }
+.tk-said.is-no{ color:var(--ag-error) }
+.tk-said.is-ok{ color:var(--ag-green-deep) }
+
+.tk-cut{ display:none }
+.tk-foot{ margin:0; text-align:center; font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-soft) }
+.tk-page--dark .tk-foot{ color:var(--ag-line-2) }
+.tk-lost{ display:flex; flex-direction:column; gap:10px; font-size:var(--ag-fs-15); line-height:1.6 }
+.tk-lost__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26) }
+.tk-lost p{ margin:0 }
+
+/* ══ PAPER ═══════════════════════════════════════════════════════════════════
+   The PDF's card (TicketPdf::one): 180 × 86 mm, art left with the details beneath it,
+   the stub right at 56 mm holding a 30 mm QR (the size below which a venue's scanners
+   start hunting), the code, the holder and the recovery URL as text. `@page` gets a
+   margin only — a card-sized page is what no home printer has, and an invalid `size`
+   is silently dropped. Both themes print light; every fact lands on white, because
+   `print-color-adjust` is a request a driver may refuse. Everything outside the
+   document (the actions, the manage panel, the chrome) is dropped. */
+@page{ margin:10mm }
+@media print{
+  .ag-shell > :not(.ag-main), .ag-skip, .ag-main > :not(.tk-page), .tk-back, .tk-acts, .tk-manage,
+  .tk-foot, .tk-flag, .ag-foot, [data-ag-gee], .gee, .ag-consent{ display:none !important }
+  .tk-page, .tk-page--dark{ --tk-ground:var(--ag-surface); background:var(--ag-surface); color:var(--ag-ink); padding:0; max-width:none }
+  .tk{
+    width:180mm; height:86mm; margin:0 auto; border-radius:0; box-shadow:none; overflow:hidden;
+    display:grid; grid-template-columns:1fr 56mm; grid-template-rows:1fr auto auto;
+    outline:.25mm dashed var(--ag-chevron); outline-offset:2mm;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  .tk-hero{ grid-area:1 / 1; min-height:0 }
+  /* The artwork leaves the positioned layer on paper, so a driver that drops the fill
+     still prints the picture in flow. */
+  .tk-hero__img{ position:static; display:block; width:100%; height:100% }
+  .tk-hero__t{ position:absolute; inset-inline:0; bottom:0; padding:3mm 4mm }
+  .tk-hero__h{ font-size:16pt }
+  .tk-hero__kick{ font-size:7.5pt }
+  .tk-hero__sub{ font-size:8pt }
+  .tk-tear{ display:none }
+  .tk-stub{ grid-area:1 / 2 / 4 / 3; border-inline-start:.3mm dashed var(--ag-chevron); padding:3mm; gap:1.5mm; justify-content:center }
+  .tk-chip{ display:none }
+  .tk-qr{ width:30mm; height:30mm; padding:0; box-shadow:none }
+  .tk-code{ font-size:10pt; letter-spacing:.1em }
+  .tk-stub__note{ display:none }
+  .tk-stub__who{ display:block; font-size:8pt; font-weight:700; text-align:center }
+  .tk-facts{ grid-area:2 / 1; grid-template-columns:repeat(3, 1fr); background:var(--ag-surface); border-top:.3mm solid var(--ag-line-2) }
+  .tk-fact{ padding:1.5mm 3mm }
+  .tk-fact--screen, .tk-fact--nopaper{ display:none }
+  .tk-fact--print{ display:flex }
+  .tk-fact--wide{ grid-column:auto }
+  .tk-fact dt{ font-size:6pt }
+  .tk-fact dd{ font-size:8pt }
+  .tk-ref{ grid-area:3 / 1; padding:1mm 3mm 2mm; font-size:6.5pt; border-top:0; color:var(--ag-ink) }
+  .tk-note{ display:none }
+  .tk-cut{ display:block; width:180mm; margin:7mm auto 0; font-size:7.5pt; line-height:1.4; text-align:center; color:var(--ag-soft) }
+}
