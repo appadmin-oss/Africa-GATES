@@ -139,8 +139,9 @@
   background:var(--ag-surface); color:var(--ag-ink);
   font-weight:600; font-size:var(--ag-fs-16); appearance:none; cursor:pointer;
 }
+.si__tel > .si__in{ flex:1 }
 .si__in{
-  flex:1; min-width:0; width:100%; height:56px; padding:0 16px;
+  min-width:0; width:100%; height:56px; padding:0 16px;
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
   background:var(--ag-surface); color:var(--ag-ink);
   font-size:var(--ag-fs-17);
@@ -208,7 +209,6 @@
 }
 /* The box the next digit lands in, while the field has focus: the DC's 2px green. */
 .si-code[data-focus] .si-code__box[data-next]{ border:2px solid var(--ag-green) }
-.si-code[data-focus]:has(.si-code__real:focus-visible){ outline:3px solid var(--ag-green); outline-offset:4px; border-radius:var(--ag-r-14) }
 .si-code__real:is([aria-invalid="true"]) ~ .si-code__boxes .si-code__box{ border-color:var(--ag-error) }
 
 .si__again{ display:flex; flex-direction:column; gap:6px; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }

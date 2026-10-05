@@ -21,8 +21,8 @@
 {% set colour_tier = '2' %}
 {% set app_bar = {variant: 'root', title: 'Awards'|trans, search: false} %}
 {% set _v = front.view %}
-{% set _chips = [{key: 'all', label: 'All'|trans, dot: 'ink', n: front.total}]
-   |merge(phases|map((p, k) => {key: k, label: p[0]|trans, dot: p[1], n: front.counts[k]})|values) %}
+{% set _chips = [{key: 'all', label: 'All', dot: 'ink', n: front.total}] %}
+{% for k, p in phases %}{% set _chips = _chips|merge([{key: k, label: p[0], dot: p[1], n: front.counts[k]}]) %}{% endfor %}
 
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">{% endblock %}
 
@@ -54,7 +54,7 @@
       {% for c in _chips %}
         <a class="ag-chip aw-chip" href="/awards{{ (c.key != 'all' or _v.q) ? '?' }}{{ c.key != 'all' ? 'ph=' ~ c.key }}{{ (c.key != 'all' and _v.q) ? '&' }}{{ _v.q ? 'q=' ~ _v.q|url_encode }}"
            {% if _v.ph == c.key %}aria-current="page"{% endif %}>
-          <span class="ag-chip__dot" style="--ag-dot:var(--ag-{{ c.dot }})"></span>{{ c.label }}<span class="ag-chip__n">{{ c.n }}</span>
+          <span class="ag-chip__dot" style="--ag-dot:var(--ag-{{ c.dot }})"></span>{{ c.label|trans }}<span class="ag-chip__n">{{ c.n }}</span>
         </a>
       {% endfor %}
     </nav>

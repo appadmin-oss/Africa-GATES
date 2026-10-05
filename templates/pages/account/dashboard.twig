@@ -1,0 +1,318 @@
+{% extends 'layout/shell.twig' %}
+{% import 'partials/field.twig' as f %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  YOUR ACCOUNT — /account · Phase 8 (GAPS Q16: rebuilt on the shell; no DC in this bundle)
+  built in SignIn.dc.html's and ProfilePage.dc.html's language with the base components
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The page it replaces (inventory pages--account--dashboard.md) was built from
+  AccountPage.dc.html, which this bundle does not contain; the owner answered Q16 with
+  "rebuild it on the shell". So: a profile head in the record's manner (monogram, Playfair
+  name, what they do · where they are), a list of the account's own pages — each pushed as
+  its own screen with a back button, never a tab inside this one (REFERENCE §7.2) — then
+  what this member has DONE, section by section, each section drawn only when it has rows,
+  and a first-run list of next steps instead of six empty panels.
+
+  What it must keep, from the inventory and the rules beside each:
+  · `#me-referral` and `#me-security` — the controller's redirects after minting a code,
+    a payout request, saving bank details and removing a passkey land on them, and the event
+    page links the first. The payout and bank forms with their four states
+    (account-payout, MUST RESTORE): a request already open, able to withdraw, the reason
+    they cannot, and no saved details yet.
+  · Every form posts to a route that exists. The page this replaces posted the referral and
+    the passkey removal to `/account/referral/code` and `/account/passkey/{id}/delete`;
+    neither was ever routed (the routes are `/account/referral` and
+    `/account/passkeys/{id}/delete`), so both buttons had been dead. AccountPageTest holds it.
+  · Sign out is a POST with the token, never a link a prefetch could follow.
+  · Backed winners come only from a released cycle (MemberActivityService::backedWinners).
+  · The CSV of points is the owner's alone (no id in the path).
+#}
+{% set app_bar = {variant: 'child', title: 'Your account'|trans, back: '/', share: false} %}
+{% set colour_tier = '2' %}
+{% set _u = user %}
+{% set _labels = {} %}
+{% for o in interest_options %}{% set _labels = _labels|merge({(o.key): o.label}) %}{% endfor %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/account.css') }}">{% endblock %}
+
+{% block content %}
+<div class="acc">
+  <header class="acc__head">
+    {% include 'partials/photo.twig' with {kind: 'person', name: _u.name, class: 'acc__av'} only %}
+    <div class="acc__who">
+      <h1 class="acc__h1">{{ _u.name }}</h1>
+      {% set _line = [_u.headline|default(''), _u.based_in|default('')]|filter(x => x) %}
+      {% if _line|length %}<p class="acc__line">{{ _line|join(' · ') }}</p>{% endif %}
+      <p class="acc__meta">
+        {{ _u.email }}
+        {% if not _u.email_verified %}· <span class="acc__warn">{{ 'Not confirmed yet'|trans }}</span>{% endif %}
+      </p>
+    </div>
+  </header>
+
+  {% if not _u.email_verified %}
+    <form class="acc__note" method="post" action="/account/verify/resend">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="email" value="{{ _u.email }}">
+      <p>{{ 'Confirm your email so receipts, tickets and results reach you. The link lasts %n% hours.'|trans({'%n%': verify_ttl_hours}) }}</p>
+      <button class="ag-btn ag-btn--secondary ag-btn--pill" type="submit">{{ 'Send the link again'|trans }}</button>
+    </form>
+  {% endif %}
+
+  {# ── The account's own pages ─────────────────────────────────────────────── #}
+  <nav class="ag-list acc__rows" aria-label="{{ 'Your account'|trans }}">
+    {% set _rows = [
+      {href: '/account/notifications', label: 'Notifications'|trans, value: unread ? ('%n% new'|trans({'%n%': unread})) : ''},
+      {href: '/account/points', label: 'Points'|trans, value: points_enabled ? points|number_format : ''},
+      {href: '/account/interests', label: 'What you care about'|trans, value: interests|length ? interests|map(k => _labels[k]|default(k)|trans)|join(', ') : 'Not chosen'|trans},
+      {href: '/account/display', label: 'Display & reading'|trans, value: ''},
+      {href: '#profile', label: 'Your details'|trans, value: ''},
+      {href: '#me-security', label: 'Signing in'|trans, value: ''}
+    ] %}
+    {% for r in _rows %}
+      <a class="ag-list__row" href="{{ r.href }}">
+        <span class="ag-list__label">{{ r.label }}</span>
+        {% if r.value %}<span class="ag-list__value acc__val">{{ r.value }}</span>{% endif %}
+        <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+      </a>
+    {% endfor %}
+  </nav>
+
+  {% if points_enabled and redeemable > 0 %}
+    <section class="ag-card acc__card" aria-labelledby="acc-pts-h">
+      <h2 class="acc__h2" id="acc-pts-h">{{ 'You can spend points on votes'|trans }}</h2>
+      <p class="acc__p">{{ redeemable == 1 ? 'Your balance covers 1 vote.'|trans : 'Your balance covers %n% votes.'|trans({'%n%': redeemable}) }}</p>
+      <a class="ag-btn ag-btn--primary ag-btn--pill" href="/vote">{{ 'Choose who to vote for'|trans }}</a>
+    </section>
+  {% endif %}
+
+  {% if is_new %}
+    {# A first screen of next steps, not six empty panels. #}
+    <section class="acc__sec" aria-labelledby="acc-start-h">
+      <h2 class="acc__h2" id="acc-start-h">{{ 'Where to start'|trans }}</h2>
+      <div class="ag-list">
+        {% for c in checklist %}
+          <a class="ag-list__row" href="{{ c.href }}">
+            <span class="ag-list__label">{{ c.label|trans }}</span>
+            <span class="ag-list__value">{{ c.done ? 'Done'|trans : '' }}</span>
+            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if backed_winners|length %}
+    <section class="acc__sec" aria-labelledby="acc-won-h">
+      <h2 class="acc__h2" id="acc-won-h">{{ 'People you backed who won'|trans }}</h2>
+      <ul class="ag-list acc__plain">
+        {% for w in backed_winners %}
+          <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ w.nominee }}</span><span class="ag-list__sub">{{ w.category }}</span></span><span class="ag-list__value">{{ w.kind == 'winner' ? 'Winner'|trans : 'Runner-up'|trans }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if my_nominations|length %}
+    <section class="acc__sec" aria-labelledby="acc-nom-h">
+      <h2 class="acc__h2" id="acc-nom-h">{{ 'Your nominations'|trans }}</h2>
+      <ul class="ag-list acc__plain">
+        {% for n in my_nominations %}
+          <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ n.nominee }}</span><span class="ag-list__sub">{{ n.created_at|date('j M Y') }}{% if n.reference %} · <span class="acc__ref">{{ n.reference }}</span>{% endif %}</span></span><span class="ag-list__value">{{ n.status|replace({'_': ' '})|trans }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if my_votes|length %}
+    <section class="acc__sec" aria-labelledby="acc-vote-h">
+      <h2 class="acc__h2" id="acc-vote-h">{{ 'Your votes'|trans }}</h2>
+      <ul class="ag-list acc__plain">
+        {% for v in my_votes %}
+          <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ v.nominee }}</span><span class="ag-list__sub">{{ v.category }}</span></span><span class="ag-list__value">{{ v.voted_at|date('j M Y') }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if my_orders|length or my_tickets|length %}
+    <section class="acc__sec" aria-labelledby="acc-buy-h">
+      <h2 class="acc__h2" id="acc-buy-h">{{ 'What you bought'|trans }}</h2>
+      <div class="ag-list">
+        {% for t in my_tickets %}
+          <a class="ag-list__row" href="{{ t.url }}">
+            <span class="ag-list__b"><span class="ag-list__label">{{ t.event }}</span><span class="ag-list__sub">{{ t.tier }}{% if t.seats > 1 %} · {{ '%n% seats'|trans({'%n%': t.seats}) }}{% endif %}{% if t.where %} · {{ t.where }}{% endif %}</span></span>
+            <span class="ag-list__value">{{ t.state|replace({'_': ' '})|trans }}</span>
+            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+          </a>
+        {% endfor %}
+        {% for o in my_orders %}
+          <a class="ag-list__row" href="{{ o.url }}">
+            <span class="ag-list__b"><span class="ag-list__label">{{ o.what }}</span><span class="ag-list__sub"><span class="acc__ref">{{ o.reference }}</span> · ₦{{ o.total|number_format }}</span></span>
+            <span class="ag-list__value">{{ o.fulfilment|replace({'_': ' '})|trans }}</span>
+            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if my_challenges|length %}
+    <section class="acc__sec" aria-labelledby="acc-ch-h">
+      <h2 class="acc__h2" id="acc-ch-h">{{ 'Your challenges'|trans }}</h2>
+      <div class="ag-list">
+        {% for c in my_challenges %}
+          <a class="ag-list__row" href="/challenges/{{ c.slug }}">
+            <span class="ag-list__b"><span class="ag-list__label">{{ c.title }}</span><span class="ag-list__sub">{{ c.state_label }}{% if c.checking %} · {{ '%n% being checked'|trans({'%n%': c.checking}) }}{% endif %}</span></span>
+            <span class="ag-list__value">{{ c.verified }}/{{ c.target }}</span>
+            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if my_links|length %}
+    <section class="acc__sec" aria-labelledby="acc-links-h">
+      <h2 class="acc__h2" id="acc-links-h">{{ 'Links you shared'|trans }}</h2>
+      <ul class="ag-list acc__plain">
+        {% for l in my_links %}
+          <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ l.nominee }}</span><span class="ag-list__sub">{{ l.expired ? 'Expired'|trans : ('Open until %d%'|trans({'%d%': l.expires_at|date('j M Y')})) }}</span></span><span class="ag-list__value">{{ l.hits == 1 ? '1 visit'|trans : '%n% visits'|trans({'%n%': l.hits}) }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if bookmarks|length %}
+    <section class="acc__sec" aria-labelledby="acc-saved-h">
+      <h2 class="acc__h2" id="acc-saved-h">{{ 'Saved conversations'|trans }}</h2>
+      <div class="ag-list">
+        {% for b in bookmarks %}
+          <a class="ag-list__row" href="/community/{{ b.slug }}">
+            <span class="ag-list__b"><span class="ag-list__label">{{ b.title }}</span><span class="ag-list__sub">{{ b.reply_count == 1 ? '1 reply'|trans : '%n% replies'|trans({'%n%': b.reply_count}) }}</span></span>
+            <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if vendor %}
+    {# A stand vendor's stall, where a trader already looks. Read-only here; the
+       documents and the offers are acted on from the links each one carries. #}
+    <section class="acc__sec" id="me-vendor" aria-labelledby="acc-stall-h">
+      <h2 class="acc__h2" id="acc-stall-h">{{ 'Your stall'|trans }}</h2>
+      <p class="acc__p">{{ vendor.org.name }}{% if vendor.owed > 0 %} · {{ '₦%n% owing'|trans({'%n%': vendor.owed|number_format}) }}{% endif %}</p>
+      {% if vendor.missing_docs|length %}<p class="acc__warn-p">{{ 'Still needed before a pitch can be confirmed: %list%.'|trans({'%list%': vendor.missing_docs|join(', ')}) }}</p>{% endif %}
+      {% if vendor.applications|length %}
+        <ul class="ag-list acc__plain">
+          {% for a in vendor.applications %}
+            <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ a.event.title|default('An event'|trans) }}</span><span class="ag-list__sub">{{ a.type.name|default('') }}{% if a.live_offer and a.expires_at %} · {{ 'take it by %d%'|trans({'%d%': a.expires_at|date('j M Y, H:i')}) }}{% endif %}</span></span><span class="ag-list__value">{{ a.app.decision|default('pending')|replace({'_': ' '})|trans }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {# ── Referrals, and the money they earned (account-payout, MUST RESTORE) ──── #}
+  <section class="acc__sec" id="me-referral" aria-labelledby="acc-ref-h">
+    <h2 class="acc__h2" id="acc-ref-h">{{ 'Invite people'|trans }}</h2>
+    {% if referral.code %}
+      <p class="acc__p">{{ 'Your link'|trans }}: <span class="acc__ref">{{ referral_site }}/?ref={{ referral.code }}</span></p>
+      <p class="acc__p">{{ referral.referrals == 1 ? '1 person joined through it.'|trans : '%n% people joined through it.'|trans({'%n%': referral.referrals}) }}
+        {% if not referral.unlocked %}{{ '%n% more and earnings unlock.'|trans({'%n%': referral.remaining}) }}{% endif %}</p>
+      {% if referral.accrued_naira > 0 %}<p class="acc__p">{{ 'Earned so far: ₦%a%. Paid out: ₦%p%.'|trans({'%a%': referral.accrued_naira|number_format, '%p%': referral.paid_out_naira|number_format}) }}</p>{% endif %}
+    {% else %}
+      <form method="post" action="/account/referral" class="acc__inline">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <p class="acc__p">{{ 'Get a link to share. Nothing is created until you ask for it.'|trans }}</p>
+        <button class="ag-btn ag-btn--secondary ag-btn--pill" type="submit">{{ 'Get my link'|trans }}</button>
+      </form>
+    {% endif %}
+
+    {% if referral.code %}
+      <div class="acc__pay">
+        <h3 class="acc__h3">{{ 'Withdrawals'|trans }}</h3>
+        {% if payout_open %}
+          <p class="acc__p" role="status">{{ 'A withdrawal of ₦%a% is being processed'|trans({'%a%': payout_open.amount_naira|number_format}) }}{% if payout_open.requested_at %} — {{ 'asked for on %d%'|trans({'%d%': payout_open.requested_at|date('j M Y')}) }}{% endif %}{% if payout_open.account_name %}, {{ 'to %n%'|trans({'%n%': payout_open.account_name}) }}{% endif %}.</p>
+        {% elseif payout_can %}
+          <form method="post" action="/account/payout" class="acc__form" novalidate data-ag-validate>
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <p class="acc__p">{{ 'You can withdraw ₦%a%.'|trans({'%a%': payout_amount|number_format}) }}</p>
+            {{ f.text({id: 'po-bank', name: 'bank', label: 'Bank'|trans, value: payout_bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
+            {{ f.text({id: 'po-name', name: 'account_name', label: 'Account name'|trans, value: payout_bank.account_name, required: true, maxlength: 120, autocomplete: 'name'}, '') }}
+            {{ f.text({id: 'po-num', name: 'account_number', label: 'Account number'|trans, value: payout_bank.account_number, required: true, maxlength: 10, pattern: '[0-9]{10}', inputmode: 'numeric', autocomplete: 'off', hint: 'The 10-digit NUBAN.'|trans}, '') }}
+            <button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Request payout'|trans }}</button>
+          </form>
+        {% elseif payout_why %}
+          <p class="acc__p">{{ payout_why }}</p>
+        {% endif %}
+        {% if not payout_open and not payout_can %}
+          <form method="post" action="/account/bank" class="acc__form" novalidate data-ag-validate>
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <p class="acc__p">{{ payout_bank.account_number ? 'The account a withdrawal goes to.'|trans : 'Save the account a withdrawal should go to, so it is ready when you can.'|trans }}</p>
+            {{ f.text({id: 'bk-bank', name: 'bank', label: 'Bank'|trans, value: payout_bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
+            {{ f.text({id: 'bk-name', name: 'account_name', label: 'Account name'|trans, value: payout_bank.account_name, required: true, maxlength: 120, autocomplete: 'name'}, '') }}
+            {{ f.text({id: 'bk-num', name: 'account_number', label: 'Account number'|trans, value: payout_bank.account_number, required: true, maxlength: 10, pattern: '[0-9]{10}', inputmode: 'numeric', autocomplete: 'off', hint: 'The 10-digit NUBAN.'|trans}, '') }}
+            <button class="ag-btn ag-btn--secondary ag-btn--pill" type="submit">{{ 'Save details'|trans }}</button>
+          </form>
+        {% endif %}
+        {% if payout_history|length %}
+          <ul class="ag-list acc__plain">
+            {% for p in payout_history %}
+              <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">₦{{ p.amount_naira|number_format }}</span><span class="ag-list__sub">{{ p.requested_at ? p.requested_at|date('j M Y') : '' }}{% if p.payment_ref %} · <span class="acc__ref">{{ p.payment_ref }}</span>{% endif %}</span></span><span class="ag-list__value">{{ p.status|trans }}</span></li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+
+  {# ── Your details ──────────────────────────────────────────────────────────── #}
+  <section class="acc__sec" id="profile" aria-labelledby="acc-prof-h">
+    <h2 class="acc__h2" id="acc-prof-h">{{ 'Your details'|trans }}</h2>
+    <form method="post" action="/account/profile" class="acc__form" novalidate data-ag-validate>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      {{ f.text({id: 'p-name', name: 'name', label: 'Your name'|trans, value: _u.name, required: true, maxlength: 160, autocomplete: 'name', pattern: name_pattern, hint: 'Your first and last name.'|trans}, '') }}
+      {{ f.text({id: 'p-headline', name: 'headline', label: 'What you do'|trans, value: _u.headline|default(''), maxlength: 120, optional: true}, '') }}
+      {{ f.text({id: 'p-based', name: 'based_in', label: 'Where you’re based'|trans, value: _u.based_in|default(''), maxlength: 120, optional: true}, '') }}
+      {{ f.text({id: 'p-phone', name: 'phone', label: 'Phone'|trans, type: 'tel', value: _u.phone|default(''), maxlength: 40, autocomplete: 'tel', inputmode: 'tel', optional: true, hint: 'With it on file you can sign in with a code by text.'|trans}, '') }}
+      {% if has_password %}
+        {{ f.text({id: 'p-cur', name: 'current_password', label: 'Current password'|trans, type: 'password', autocomplete: 'current-password', optional: true, hint: 'Only to change your password.'|trans}, '') }}
+      {% endif %}
+      {{ f.text({id: 'p-new', name: 'new_password', label: has_password ? 'New password'|trans : 'Set a password'|trans, type: 'password', minlength: 8, autocomplete: 'new-password', optional: true, hint: 'At least 8 characters. You can always sign in with a code instead.'|trans}, '') }}
+      <button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Save'|trans }}</button>
+    </form>
+  </section>
+
+  {# ── Signing in ────────────────────────────────────────────────────────────── #}
+  <section class="acc__sec" id="me-security" aria-labelledby="acc-sec-h">
+    <h2 class="acc__h2" id="acc-sec-h">{{ 'Signing in'|trans }}</h2>
+    <p class="acc__p">{{ 'You can always sign in with a code sent to your email or phone.'|trans }}</p>
+    {% if passkeys_available %}
+      {% if passkeys|length %}
+        <ul class="ag-list acc__plain">
+          {% for k in passkeys %}
+            <li class="ag-list__row">
+              <span class="ag-list__b"><span class="ag-list__label">{{ k.label|default('Passkey'|trans) }}</span><span class="ag-list__sub">{{ k.last_used_at ? 'Last used %d%'|trans({'%d%': k.last_used_at|date('j M Y')}) : 'Not used yet'|trans }}</span></span>
+              <form method="post" action="/account/passkeys/{{ k.id }}/delete">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <button class="ag-btn ag-btn--danger" type="submit">{{ 'Remove'|trans }}</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <button class="ag-btn ag-btn--secondary ag-btn--pill" type="button" data-passkey-add data-csrf="{{ csrf_token }}" hidden>{{ 'Add a passkey on this device'|trans }}</button>
+      <p class="acc__p" data-passkey-note role="status"></p>
+    {% endif %}
+    <form method="post" action="/account/logout" class="acc__out">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="ag-btn ag-btn--danger" type="submit">{{ 'Sign out'|trans }}</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}{% if passkeys_available %}<script defer src="{{ asset('/assets/js/passkeys.js') }}"></script>{% endif %}{% endblock %}

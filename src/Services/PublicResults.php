@@ -766,6 +766,20 @@ final class PublicResults
      */
     private static function edition_(object $ctx): string
     {
+        // Through Support\EditionName (Phase 5): the operator's label, else "3rd Edition ·
+        // 2025" from the stored edition number, else the year. The rows reaching here are
+        // narrow selects, so the cycle is read whole once per id — memoised for the request.
+        static $memo = [];
+        $id = (int) ($ctx->cycle_id ?? $ctx->id ?? 0);
+        if ($id > 0 && !isset($memo[$id])) {
+            try {
+                $row = DB::table('gates_award_cycles')->where('id', $id)->first();
+                $memo[$id] = $row ? \AfricaGates\Support\EditionName::full($row) : '';
+            } catch (\Throwable) {
+                $memo[$id] = '';
+            }
+        }
+        if ($id > 0 && $memo[$id] !== '') return $memo[$id];
         $label = trim((string) ($ctx->edition_label ?? ''));
         return $label !== '' ? $label : (string) ((int) ($ctx->year ?? 0) ?: '');
     }

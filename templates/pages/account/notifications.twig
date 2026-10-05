@@ -1,0 +1,46 @@
+{% extends 'layout/shell.twig' %}
+{#
+  NOTIFICATIONS — /account/notifications · Phase 8 (no DC; built on the shell, base list rows)
+
+  What happened to this member's things while they were away, from AlertService — DERIVED
+  on read from the tables that already record each event, so an alert cannot outlive what
+  it is about. Grouped ("Amaka and 42 others cheered your post"). The unread state is a WORD
+  ("New"), never the dot alone. "Mark all as read" is a plain form that posts; the Pulse
+  bell reads the same watermark, so the two cannot disagree.
+#}
+{% set app_bar = {variant: 'child', title: 'Notifications'|trans, back: '/account', share: false} %}
+{% set colour_tier = '1' %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/account.css') }}">{% endblock %}
+{% block content %}
+<div class="acc">
+  <div class="acc__top">
+    <h1 class="acc__h1">{{ 'Notifications'|trans }}</h1>
+    {% if unread %}
+      <form method="post" action="/account/notifications/read">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ag-btn ag-btn--secondary ag-btn--pill" type="submit">{{ 'Mark all as read'|trans }}</button>
+      </form>
+    {% endif %}
+  </div>
+  {% if items|length %}
+    <div class="ag-list">
+      {% for a in items %}
+        <a class="ag-list__row acc__alert{{ a.unread ? ' acc__alert--new' }}" href="{{ a.href }}">
+          <span class="ag-list__b">
+            <span class="ag-list__label acc__wrap">{{ a.text }}</span>
+            <span class="ag-list__sub"><time datetime="{{ a.at|date('c') }}">{{ a.at|date('j M Y, H:i') }}</time></span>
+          </span>
+          {% if a.unread %}<span class="acc__new">{{ 'New'|trans }}</span>{% endif %}
+          <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="ag-empty acc__empty">
+      <p class="ag-empty__t">{{ 'Nothing yet.'|trans }}</p>
+      <p>{{ 'When people cheer, reply to or follow what you post, it shows up here.'|trans }}</p>
+      <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/pulse">{{ 'Go to Pulse'|trans }}</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -80,7 +80,6 @@ final class HelpController
                 ], true)
             )),
             'index'            => $this->searchIndex($shelf),
-            'total'            => count($shelf),
         ]);
     }
 
@@ -130,7 +129,7 @@ final class HelpController
     }
 
     /** Titles a category card shows before deferring to its own page. */
-    private const PREVIEW = 5;
+    private const PREVIEW = 3;   // HelpCentre.dc.html: three 48px links, then "All N"
 
     /**
      * The corpus, flattened for instant narrowing in the browser.
@@ -217,6 +216,9 @@ final class HelpController
             // reassurance for somebody who is about to give up and open a ticket;
             // an honest small number is worth more here than precision.
             'read_minutes'     => max(1, (int) ceil(str_word_count(HelpCentre::plainText($article)) / 200)),
+            // "Updated …" is the corpus file's own date — the same exact `lastmod` the
+            // sitemap publishes for every answer — never a date typed beside an article.
+            'updated'          => date('Y-m-d', (int) (filemtime((string) (new \ReflectionClass(HelpCentre::class))->getFileName()) ?: time())),
             // The trail the page prints. The middle crumb points at /help/c/{cat} —
             // the visible one used to link `/help?q={category title}`, a search URL,
             // which is now `noindex` (see Support\Canonical) and was always a worse

@@ -137,6 +137,15 @@ Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed 
   server-side; confirm-with-reason → `_reason` on the audit row; alerts derived on read. **Found:** the old rail
   offered 15 pages the guard refused (PHASE-ADMIN.md §6 Q1). Hosts and the console switcher awaiting the owner.
 
+### Phase 7 — Events index, detail and ticket (4–5 Oct 2026; `PHASE-7.md`, "Events")
+- `/events` (upcoming soonest first, featured "Next up", coming soon among them, past in its own section, sandbox
+  excluded), `/events/{slug}` in every state incl. **coming soon** (derived from the tiers' `sale_starts_at` by
+  `Services\EventSales` — no second date column) with a double-opt-in "email me when tickets go on sale"
+  (`gates_event_sale_alerts`, `EventSaleAlert`, maintenance sweep, SendPolicy), and the §8.11 ticket. Tier colours
+  derived at read time (`EventTierTone::card()`, Q6). `partials/photo.twig` (Q8) used by events and home. New columns
+  `livestream_url`, `recording_url`, `access_notes` + three admin fields. 38 tests, 24 mutations caught. Blocked:
+  wallet passes (B1), Q17 (48 h kept), hosts' own ownership of events.
+
 ### Test status
 - Full suite after Phase 3: **6,633 tests, 8 failures — all `PasskeyTest`**, which needs PHP 8.4 (this
   container runs 8.3; dependencies installed with `--ignore-platform-req=php`). Not a code fault.

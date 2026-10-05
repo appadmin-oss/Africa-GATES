@@ -51,13 +51,32 @@ final class AwardsFront
     private const FILED = [
         'upcoming' => 'soon', 'nominations' => 'nominations', 'shortlisting' => 'nominations',
         'voting' => 'voting', 'judging' => 'judging', 'results' => 'results', 'archived' => 'results',
+        'late' => 'judging',
     ];
 
     /** Computed phase → what the card's badge says. */
     private const BADGE = [
         'upcoming' => 'Coming soon', 'nominations' => 'Nominations open', 'shortlisting' => 'Shortlisting',
         'voting' => 'Voting open', 'judging' => 'Judging', 'results' => 'Results out', 'archived' => 'Results out',
+        'late' => 'Results delayed',
     ];
+
+    /**
+     * The phase a READER is owed, which is not always the computed one. A results date that
+     * has passed computes as `results`, but a results date is a promise, not an announcement
+     * (CLAUDE.md): until `CycleMaterialiser` has written `results`, the award is late, and a
+     * card saying "Results out" over a page that has none is the fault PublicResults::delayed()
+     * exists to prevent.
+     */
+    public static function phaseKey(object $cycle): string
+    {
+        $phase = CyclePolicy::phaseFor($cycle)->value;
+        if (in_array($phase, ['results', 'archived'], true)
+            && !in_array((string) ($cycle->status ?? ''), ['results', 'archived'], true)) {
+            return 'late';
+        }
+        return $phase;
+    }
 
     /**
      * The index: every active award as a card, filtered by chip and query.
@@ -91,7 +110,7 @@ final class AwardsFront
     private static function card(object $p): array
     {
         $cycle = BallotGuard::currentCycleForProgramme((int) $p->id);
-        $phase = $cycle ? CyclePolicy::phaseFor($cycle)->value : 'upcoming';
+        $phase = $cycle ? self::phaseKey($cycle) : 'upcoming';
         $host  = ProgrammeHost::forProgramme((int) $p->id);
         $filed = self::FILED[$phase] ?? 'soon';
 
@@ -146,6 +165,7 @@ final class AwardsFront
             'shortlisting' => ($o = $d($c->voting_open ?? null)) !== '' ? $t('Voting from %date%', $o) : $t('Voting next'),
             'voting'       => ($o = $d($c->voting_close ?? null)) !== '' ? $t('Closes %date%', $o) : $t('Open now'),
             'judging'      => ($o = $d($c->results_date ?? null)) !== '' ? $t('Results %date%', $o) : $t('Results to be announced'),
+            'late'         => ($o = $d($c->results_date ?? null)) !== '' ? $t('Results were due %date%', $o) : $t('Results delayed'),
             'results', 'archived' => ($o = $d($c->results_date ?? null)) !== '' ? $t('Decided %date%', $o) : $t('Decided'),
             default        => '',
         };
@@ -171,7 +191,13 @@ final class AwardsFront
         }
 
         $phase   = $cycle ? CyclePolicy::stateFor($cycle) : null;
-        $phaseK  = (string) ($phase['phase'] ?? 'upcoming');
+        $phaseK  = $cycle ? self::phaseKey($cycle) : 'upcoming';
+        // A late edition is still with the panel as far as anybody may be told: its steps
+        // and its one action are judging's, and the delay is stated beside them.
+        if ($phaseK === 'late' && $phase !== null) {
+            $phase['phase'] = 'judging';
+            $phase['detail'] = '';
+        }
         $host    = ProgrammeHost::forProgramme($pid);
         $rules   = new RuleEngine();
         $weights = $rules->weights($pid, $cycle ? (int) $cycle->id : null);
@@ -225,8 +251,11 @@ final class AwardsFront
             'terms'      => $terms,
             'terms_log'  => $terms ? AwardTerms::history($pid) : [],
             'plan'       => $cycle ? self::plan($cycle) : [],
-            'opens_at'   => $cycle ? self::opensAt($cycle) : null,
+            'opens_at'   => ($o = $cycle ? self::opensAt($cycle) : null),
+            // Seconds, computed HERE: the browser only decrements (VoteCountdownTest).
+            'opens_in'   => $o ? max(0, Carbon::parse($o)->getTimestamp() - Carbon::now()->getTimestamp()) : 0,
             'waiting'    => AwardAlert::waiting($pid),
+            'delay'      => ($phaseK === 'late' && $cycle) ? PublicResults::delayFor((int) $cycle->id) : null,
         ];
     }
 

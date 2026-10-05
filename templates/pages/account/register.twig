@@ -1,0 +1,142 @@
+{% extends 'layout/auth.twig' %}
+{% import 'layout/auth.twig' as auth %}
+{% import 'partials/field.twig' as f %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE ONE REGISTRATION DOOR — /account/register · Phase 8, design/SignIn.dc.html
+  (chooser) · ?as=individual = SignIn view=profile · ?as=organisation (no DC)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed and rebuilt (inventory pages--account--register.md). Three screens on one
+  route, and every rule CLAUDE.md's "One door" sections hold:
+
+  · THE CHOOSER offers every kind of account the platform has — a person, an organisation
+    that receives gifts, a stand vendor, a sponsor — and the one way to take part with no
+    account at all (a vote). A door nobody can find is this codebase's oldest fault.
+  · `?as=individual` IS STEP 3 OF "SIGN IN OR JOIN" (the DC's "Tell us about you"), drawn
+    only for an identity a one-time code has just proved; the controller sends everybody
+    else to step 1. An email joiner is not asked for the address again — it is the proved
+    one, and nothing posted can swap it. A phone joiner is (every member record is keyed on
+    an email), and that one field is the only addition to the DC's step.
+  · `?as=organisation` is the application that used to be /giving/apply. It states what it
+    will ask for ABOVE the form, refuses a second organisation for somebody already signed
+    in to one before the form is drawn, keeps its own values in its OWN bag (`reg_old_org`),
+    and the branch travels in the BODY (`as`), because a submit carries no query string.
+  · Each branch names itself in the body: a heading that says which form this is.
+  · The name rule in the browser IS the server's (`name_pattern` from
+    UserAccountService::NAME_PATTERN); the eight- and twelve-character password minimums are
+    in `minlength` with the reason in a hint that stays on screen; the disposable-inbox
+    refusal is stated before it is met.
+#}
+{% set _error  = error|default(null) ?: flash_error|default(null) %}
+{% set _notice = notice|default(null) ?: flash_notice|default(null) %}
+{% set _old = old|default({}) %}
+{% set _errs = errors|default({}) %}
+
+{% block auth_top %}
+  {% if as == 'individual' %}
+    {{ auth.back('/account/login', 'Start again'|trans) }}
+  {% elseif as == 'organisation' %}
+    {{ auth.back('/account/register') }}
+  {% else %}
+    {{ parent() }}
+  {% endif %}
+{% endblock %}
+
+{% block auth_bars %}{% if as == 'individual' %}{{ auth.bars(2) }}{% endif %}{% endblock %}
+
+{% block auth_body %}
+{% if as == 'individual' %}
+  {# ══ STEP 3 · TELL US ABOUT YOU ════════════════════════════════════════════ #}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Tell us about you'|trans }}</h1>
+    <p class="si__lede">{{ 'This starts your profile. You can change it any time.'|trans }}</p>
+  </div>
+  {{ auth.say(_error, _notice) }}
+  <form class="si__form-step" method="post" action="/account/register" novalidate data-ag-validate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="as" value="individual">
+    {{ f.summary(_errs) }}
+    {{ f.text({name: 'name', label: 'Your name'|trans, value: _old.name|default(''), required: true,
+               autocomplete: 'name', placeholder: 'As people know you'|trans, pattern: name_pattern,
+               maxlength: 160, hint: 'Your first and last name — it is what a ballot and a receipt print.'|trans, autofocus: true},
+             _errs.name|default('')) }}
+    {{ f.text({name: 'headline', label: 'What you do'|trans, value: _old.headline|default(''),
+               maxlength: 120, placeholder: 'e.g. Teacher, nurse, founder'|trans, autocomplete: 'organization-title'},
+             _errs.headline|default('')) }}
+    {{ f.text({name: 'based_in', label: 'Where you’re based'|trans, value: _old.based_in|default(''),
+               maxlength: 120, placeholder: 'City, country'|trans, autocomplete: 'address-level2'},
+             _errs.based_in|default('')) }}
+    {% if join.via == 'phone' %}
+      {{ f.text({name: 'email', label: 'Your email'|trans, type: 'email', value: _old.email|default(''), required: true,
+                 autocomplete: 'email', inputmode: 'email', placeholder: 'you@example.com',
+                 hint: 'Where your vote receipts and tickets go. We send a link to confirm it; disposable inboxes are not accepted.'|trans},
+               _errs.email|default('')) }}
+    {% endif %}
+    <button class="si__go" type="submit">{{ 'Continue'|trans }}</button>
+  </form>
+
+{% elseif as == 'organisation' %}
+  {# ══ AN ORGANISATION APPLYING TO RECEIVE GIFTS ════════════════════════════ #}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Register your organisation'|trans }}</h1>
+    <p class="si__lede">{{ 'Raise through Giving, with gifts settled into your own registered account. Before you start, have these to hand:'|trans }}</p>
+  </div>
+  <ul class="si__needs">
+    <li>{{ 'Your CAC registration number — only an incorporated body may collect charitable gifts in Nigeria.'|trans }}</li>
+    <li>{{ 'Your SCUML number if you have it. You can apply without it, but you cannot be approved until it is on file.'|trans }}</li>
+    <li>{{ 'A bank account in your registered name, which we check with your bank before any gift reaches it.'|trans }}</li>
+  </ul>
+  {{ auth.say(_error, _notice) }}
+  {% if org_signed_in %}
+    <p class="si__say" role="status">{{ 'You are already signed in to an organisation. Continue from its dashboard — a second application would sit beside the first with nothing to say which is real.'|trans }}</p>
+    <a class="si__go" href="/org">{{ 'Go to your dashboard'|trans }}</a>
+  {% else %}
+    <form class="si__form-step" method="post" action="/account/register" novalidate data-ag-validate>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="as" value="organisation">
+      {{ f.summary(_errs) }}
+      {{ f.text({name: 'name', label: 'Name supporters will know you by'|trans, value: _old.name|default(''), required: true, maxlength: 200,
+                 hint: 'This appears on your donation page.'|trans}, _errs.name|default('')) }}
+      {{ f.text({name: 'legal_name', label: 'Registered name'|trans, value: _old.legal_name|default(''), required: true, maxlength: 200, autocomplete: 'organization',
+                 hint: 'Exactly as it appears at the CAC.'|trans}, _errs.legal_name|default('')) }}
+      {{ f.text({name: 'cac_number', label: 'CAC registration number'|trans, value: _old.cac_number|default(''), required: true, maxlength: 60,
+                 hint: 'For example IT 1234567 or RC 123456.'|trans}, _errs.cac_number|default('')) }}
+      {{ f.text({name: 'scuml_number', label: 'SCUML number'|trans, value: _old.scuml_number|default(''), maxlength: 60, optional: true}, _errs.scuml_number|default('')) }}
+      {{ f.text({name: 'contact_name', label: 'Your name'|trans, value: _old.contact_name|default(''), maxlength: 160, autocomplete: 'name', optional: true}, _errs.contact_name|default('')) }}
+      {{ f.text({name: 'contact_email', label: 'Email for this sign-in'|trans, type: 'email', value: _old.contact_email|default(''), required: true, maxlength: 190,
+                 autocomplete: 'email', inputmode: 'email', hint: 'We use it to verify the registration and to sign you in.'|trans}, _errs.contact_email|default('')) }}
+      {{ f.text({name: 'contact_phone', label: 'Phone'|trans, type: 'tel', value: _old.contact_phone|default(''), maxlength: 40, autocomplete: 'tel', inputmode: 'tel', optional: true}, _errs.contact_phone|default('')) }}
+      {{ f.text({name: 'password', label: 'Password'|trans, type: 'password', required: true, minlength: 12, autocomplete: 'new-password',
+                 hint: 'At least 12 characters — this sign-in can later request payouts.'|trans}, _errs.password|default('')) }}
+      {{ f.textarea({name: 'description', label: 'What you do'|trans, value: _old.description|default(''), maxlength: 2000, rows: 4, optional: true}, _errs.description|default('')) }}
+      <button class="si__go" type="submit">{{ 'Send application'|trans }}</button>
+      <p class="si__fine">{{ 'By continuing you accept the'|trans }} <a href="/terms">{{ 'Terms'|trans }}</a> {{ 'and the'|trans }} <a href="/privacy">{{ 'Privacy notice'|trans }}</a>.</p>
+    </form>
+  {% endif %}
+  <p class="si__alt"><a href="/org/login">{{ 'Already registered? Sign in to your organisation'|trans }}</a></p>
+
+{% else %}
+  {# ══ THE CHOOSER ═══════════════════════════════════════════════════════════ #}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Join Africa GATES'|trans }}</h1>
+    <p class="si__lede">{{ 'Choose what you are joining as. You can do most things here without an account at all.'|trans }}</p>
+  </div>
+  {{ auth.say(_error, _notice) }}
+  <nav class="ag-list si__list" aria-label="{{ 'Kinds of account'|trans }}">
+    {% for o in [
+      {href: '/account/login', t: 'As a person'|trans, s: 'Nominate, vote, give and keep your recognitions — sign in with a code, no password.'|trans},
+      {href: '/account/register?as=organisation', t: 'As an organisation'|trans, s: 'Receive gifts through a Giving page. Needs a CAC registration.'|trans},
+      {href: '/events', t: 'As a stand vendor'|trans, s: 'Apply for a stand at an event — from the event’s own page.'|trans},
+      {href: '/partner', t: 'As a sponsor or partner'|trans, s: 'Back an award or an edition. Tell us what you have in mind.'|trans},
+      {href: '/vote', t: 'Just to vote'|trans, s: 'No account needed: a code to your email confirms each vote.'|trans}
+    ] %}
+      <a class="ag-list__row" href="{{ o.href }}">
+        <span class="ag-list__b"><b>{{ o.t }}</b><span class="ag-list__sub">{{ o.s }}</span></span>
+        <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+      </a>
+    {% endfor %}
+  </nav>
+  <p class="si__alt"><a href="/account/login">{{ 'Already have an account? Sign in'|trans }}</a></p>
+{% endif %}
+{% endblock %}

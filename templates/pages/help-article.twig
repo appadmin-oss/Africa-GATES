@@ -1,0 +1,121 @@
+{% extends 'layout/shell.twig' %}
+{% import 'partials/help.twig' as h %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE ANSWER — /help/{slug} · Phase 9 · design/HelpCentre.dc.html (`view=article`) · §8.21
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt from the DC after the destroy (inventory: pages--help-article.md). Every part
+  earns its space for somebody about to give up and open a ticket:
+
+  · the breadcrumb links /help/c/{cat}, never `/help?q=` — a search URL is noindex, and a
+    crumb must not walk a crawler into "do not index";
+  · "N min read · Updated …" before the scroll; Copy link, because pasting an answer into
+    a reply is a stated workflow for this team;
+  · the body is the corpus's own blocks (p, steps, note), already resolved against the
+    running system by HelpCentre::resolve();
+  · "Did this answer it?" is ROUTING, not rating: "No, ask Gee" opens the help desk in
+    place seeded with this article's title; nothing is recorded, and the page says
+    nothing that implies otherwise;
+  · prev / next within the topic, Related, "This is a general answer" with
+    "Ask Gee about my case", and every sibling with this one marked;
+  · HIGHLIGHT TO ASK (help.js): select a sentence inside the answer and a pill offers to
+    ask Gee about that exact passage — both ends of the selection inside the answer, at
+    least twelve characters, capped at 240, clamped into the viewport and flipped below
+    when there is no room above, repositioned on scroll and resize, dropped when the
+    selection leaves the screen;
+  · the FAQPage JSON-LD is built from this article's own words (the controller's
+    `schema`), printed by seo-head through JSON_HEX_TAG.
+
+  Colour tier 1: the green Ask Gee button.
+#}
+{% set colour_tier = '1' %}
+{# Gee mounts in help-desk mode here (HelpCentre.dc.html: `<Gee mode="support">`). #}
+{% set gee_mode = 'support' %}
+{% set app_bar = {variant: 'child', title: category.title|default('Help Centre')|trans, sub: 'Help Centre'|trans, back: '/help/c/' ~ category_key} %}
+
+{% block head_styles %}
+{% include 'partials/seo-head.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/help.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="hc hc--article" data-help>
+  <div class="ha">
+    <article class="ha__main">
+      <nav class="ha__crumb" aria-label="{{ 'Breadcrumb'|trans }}">
+        <a href="/help">{{ 'Help Centre'|trans }}</a><span aria-hidden="true">/</span>
+        {% if category %}<a href="/help/c/{{ category_key|url_encode }}">{{ category.title|trans }}</a>{% endif %}
+      </nav>
+      <h1 class="ha__h1">{{ article.title }}</h1>
+      <div class="ha__meta">
+        <span class="ha__read">{{ '%n% min read'|trans({'%n%': read_minutes}) }} · {{ 'Updated %d%'|trans({'%d%': updated|date('j M Y')}) }}</span>
+        <button class="ha__copy" type="button" hidden data-help-copy="/help/{{ article.slug }}"
+                data-done="{{ 'Link copied'|trans }}" data-label="{{ 'Copy link'|trans }}">{{ 'Copy link'|trans }}</button>
+      </div>
+      <p class="ha__sum">{{ article.summary|raw }}</p>
+
+      <div class="ha__body" data-help-answer>
+        {% for b in article.body %}
+          {% if b.p is defined %}
+            <p>{{ b.p|raw }}</p>
+          {% elseif b.steps is defined %}
+            <ol class="ha__steps">{% for s in b.steps %}<li><span class="ha__n" aria-hidden="true">{{ loop.index }}</span><span>{{ s|raw }}</span></li>{% endfor %}</ol>
+          {% elseif b.note is defined %}
+            <p class="ha__note">{{ b.note|raw }}</p>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <section class="ha__fb" aria-labelledby="ha-fb" data-help-fb>
+        <div data-help-fb-ask>
+          <b class="ha__fb-q" id="ha-fb">{{ 'Did this answer it?'|trans }}</b>
+          <div class="ha__fb-act">
+            <button class="hc-btn hc-btn--out" type="button" data-help-yes hidden>{{ 'Yes, thanks'|trans }}</button>
+            {{ h.ask('No, ask Gee'|trans, article.title, 'hc-btn--ink') }}
+          </div>
+        </div>
+        <p class="ha__fb-ok" role="status" data-help-fb-ok hidden>{{ 'Good. Nothing else to do.'|trans }}</p>
+      </section>
+
+      {% if prev or next %}
+        <nav class="ha__pn" aria-label="{{ 'More in this topic'|trans }}">
+          {% if prev %}<a class="ha__pn-a" href="/help/{{ prev.slug }}"><span class="ha__pn-l">{{ '← Previous'|trans }}</span><b>{{ prev.title }}</b></a>{% else %}<span></span>{% endif %}
+          {% if next %}<a class="ha__pn-a ha__pn-a--next" href="/help/{{ next.slug }}"><span class="ha__pn-l">{{ 'Next →'|trans }}</span><b>{{ next.title }}</b></a>{% endif %}
+        </nav>
+      {% endif %}
+    </article>
+
+    <aside class="ha__side" aria-label="{{ 'More help'|trans }}">
+      <div class="ha__card">
+        <b class="ha__card-h">{{ 'This is a general answer'|trans }}</b>
+        <span class="ha__card-p">{{ 'Gee can look at your own payment with its reference and fix it on the spot.'|trans }}</span>
+        {{ h.ask('Ask Gee about my case'|trans, article.title, '') }}
+      </div>
+      {% if related|length %}
+        <div class="ha__box">
+          <b class="ha__box-h">{{ 'Related'|trans }}</b>
+          {% for r in related %}<a class="ha__box-a" href="/help/{{ r.slug }}">{{ r.title }}</a>{% endfor %}
+        </div>
+      {% endif %}
+      {% if siblings|length %}
+        <div class="ha__box">
+          <b class="ha__box-h">{{ 'All of %c%'|trans({'%c%': category.title|default('')|trans}) }}</b>
+          {% for s in siblings %}<a class="ha__box-a" href="/help/{{ s.slug }}"{% if s.slug == article.slug %} aria-current="page"{% endif %}>{{ s.title }}</a>{% endfor %}
+        </div>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+
+{# The selection pill. Hidden until help.js places it; a link so it also works as one. #}
+<div class="ha-pill" hidden data-help-pill>
+  <a class="ha-pill__a" href="/help?gee=support" data-help-pill-a>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>
+    {{ 'Ask Gee about this'|trans }}
+  </a>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/help.js') }}"></script>{% endblock %}

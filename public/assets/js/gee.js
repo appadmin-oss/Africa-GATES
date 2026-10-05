@@ -855,7 +855,8 @@
   /* ══ Boot ══════════════════════════════════════════════════════════════════ */
   restore('guide');
   restore('support');
-  setMode('guide');
+  /* A page may default to the help desk's face (the Help Centre: data-gee-default). */
+  setMode(root.getAttribute('data-gee-default') === 'support' ? 'support' : 'guide');
   paint();
   syncSend();
   fab.hidden = false;

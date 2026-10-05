@@ -117,7 +117,7 @@
       {% if 'bought' in D.rows and reg.created_at|default('') %}<div class="tk-fact tk-fact--nopaper"><dt>{{ 'Booked'|trans }}</dt><dd>{{ reg.created_at|slice(0, 10) }}</dd></div>{% endif %}
       {% if 'email' in D.rows and reg.email|default('') %}<div class="tk-fact tk-fact--wide tk-fact--nopaper"><dt>{{ 'Email'|trans }}</dt><dd>{{ reg.email }}</dd></div>{% endif %}
       {% if where %}<div class="tk-fact tk-fact--wide"><dt>{{ 'Where'|trans }}</dt><dd>{{ where }}</dd></div>{% endif %}
-      <div class="tk-fact tk-fact--wide"><dt>{{ 'Ticket holder'|trans }}</dt><dd>{{ reg.name }}{% if _qty > 1 %} · {{ '%n% seats'|trans({'%n%': _qty}) }}{% endif %}</dd></div>
+      <div class="tk-fact tk-fact--wide tk-fact--holder"><dt>{{ 'Ticket holder'|trans }}</dt><dd>{{ reg.name }}{% if _qty > 1 %} · {{ '%n% seats'|trans({'%n%': _qty}) }}{% endif %}</dd></div>
     </dl>
     {# Paper cannot be clicked: the link that recovers a lost ticket, printed as text. #}
     <span class="tk-ref">{{ site_url }}/events/ticket/{{ reg.reference|url_encode }}</span>

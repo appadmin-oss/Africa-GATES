@@ -57,7 +57,7 @@
     <h1 class="aw-d__h1">{{ a.title }}</h1>
     {% if a.subtitle or a.description %}<p class="aw-soon__p">{{ a.subtitle ?: a.description }}</p>{% endif %}
     {% if a.opens_at %}
-      {% set _left = a.phase.seconds_left|default(0) %}
+      {% set _left = a.opens_in %}
       <div class="aw-soon__when">
         <span class="aw-soon__k">{{ 'Nominations open in'|trans }}</span>
         <div class="aw-clock" role="timer" dir="ltr" data-tick data-tick-left="{{ _left }}"
@@ -209,6 +209,13 @@
     </ol>
     {% endif %}
     {% if a.phase and a.phase.detail %}<p class="aw-ed__detail">{{ a.phase.detail }}</p>{% endif %}
+    {% if a.delay %}
+      <div class="aw-late" role="note">
+        <b>{{ 'The results were due on %date% and have not been announced yet.'|trans({'%date%': a.delay.promised|when_zoned('j M Y')}) }}</b>
+        {% if a.delay.note %}<span>{{ a.delay.note }}</span>{% endif %}
+        <span>{{ 'Nothing is decided until the result is published.'|trans }}</span>
+      </div>
+    {% endif %}
     {% if a.action %}<a class="ag-btn ag-btn--primary ag-btn--pill aw-ed__cta" href="{{ a.action.href }}">{{ a.action.label|trans }}</a>{% endif %}
   </section>
 

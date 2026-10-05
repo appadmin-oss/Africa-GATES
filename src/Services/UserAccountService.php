@@ -264,9 +264,16 @@ final class UserAccountService
     {
         $name = trim($name);
         $phone = trim($phone);
-        if ($name === '' || !preg_match('/\S+\s+\S+/u', $name)) return ['ok' => false, 'error' => 'Please enter your full name (first and last).'];
-        if (strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'error' => 'Please enter a valid phone number.'];
-        DB::table('gates_users')->where('id', $userId)->update(['name' => mb_substr($name, 0, 160), 'phone' => mb_substr($phone, 0, 40)]);
+        if (!self::isFullName($name)) return ['ok' => false, 'error' => self::NAME_RULE];
+        // Optional now — an account made with an emailed code has no number until its owner
+        // adds one — but a number that IS given must be one: a code may be sent to it.
+        if ($phone !== '' && strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'error' => 'Please enter a valid phone number.'];
+        $row = ['name' => mb_substr($name, 0, 160), 'phone' => $phone !== '' ? mb_substr($phone, 0, 40) : null];
+        // The normalised copy moves with it, or the sign-in by phone would go on finding the
+        // number the member has just replaced.
+        $row += \AfricaGates\Support\OptionalColumn::filter('gates_users',
+            ['phone_e164' => $phone !== '' ? \AfricaGates\Support\Phone::normalize($phone, 'NG') : null], ['phone_e164']);
+        DB::table('gates_users')->where('id', $userId)->update($row);
         if ((int) ($_SESSION['user_id'] ?? 0) === $userId) $_SESSION['user_name'] = $name;
         return ['ok' => true];
     }

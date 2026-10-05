@@ -36,6 +36,11 @@
 #}
 {% set _phoneOk = phone_channels.sms or phone_channels.whatsapp %}
 {% set _step = sent ? 1 : 0 %}
+{# The flash arrives as the Twig globals (config/container.php consumes the session keys
+   when the environment is built, before the controller runs); `error`/`notice` are what a
+   test passing context directly hands in. #}
+{% set _error  = error|default(null) ?: flash_error|default(null) %}
+{% set _notice = notice|default(null) ?: flash_notice|default(null) %}
 {% set _dest = code_via == 'phone' ? login_phone : login_email %}
 
 {% block auth_top %}
@@ -62,7 +67,7 @@
     {% endif %}
   </div>
 
-  {{ auth.say(error, notice) }}
+  {{ auth.say(_error, _notice) }}
 
   <form class="si__form-step" method="post" action="/account/login/verify" novalidate>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -81,7 +86,7 @@
       <label class="ag-sr" for="si-otp">{{ '6-digit code'|trans }}</label>
       <input class="si-code__real" id="si-otp" name="otp" type="text" required
              inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"
-             aria-describedby="si-otp-hint"{% if error %} aria-invalid="true"{% endif %} data-ag-error-group="otp"
+             aria-describedby="si-otp-hint"{% if _error %} aria-invalid="true"{% endif %} data-ag-error-group="otp"
              {% if _dest %}autofocus{% endif %}>
       <div class="si-code__boxes" aria-hidden="true">
         {%- for i in 1..6 %}<span class="si-code__box"></span>{% endfor -%}
@@ -129,15 +134,15 @@
     <h1 class="si__h1">{{ 'Sign in with your password'|trans }}</h1>
     <p class="si__lede">{{ 'Or go back and have a code sent instead — no password needed.'|trans }}</p>
   </div>
-  {{ auth.say(error, notice) }}
+  {{ auth.say(_error, _notice) }}
   <form class="si__form-step" method="post" action="/account/login" novalidate>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input class="si__in" id="si-pw-email" type="email" name="email" value="{{ login_email }}" required
            autocomplete="email" inputmode="email" aria-label="{{ 'Email'|trans }}" placeholder="you@example.com"
-           {% if error %}aria-invalid="true"{% endif %} data-ag-error-group="signin">
+           {% if _error %}aria-invalid="true"{% endif %} data-ag-error-group="signin">
     <input class="si__in" id="si-pw" type="password" name="password" autocomplete="current-password"
            aria-label="{{ 'Password'|trans }}" placeholder="{{ 'Password'|trans }}"
-           {% if error %}aria-invalid="true"{% endif %} data-ag-error-group="signin">
+           {% if _error %}aria-invalid="true"{% endif %} data-ag-error-group="signin">
     <button class="si__go" type="submit">{{ 'Sign in'|trans }}</button>
     <p class="si__alt">
       <a href="/account/forgot">{{ 'Forgotten your password?'|trans }}</a>
@@ -163,7 +168,7 @@
     </div>
   {% endif %}
 
-  {{ auth.say(error, notice) }}
+  {{ auth.say(_error, _notice) }}
 
   {% if _phoneOk %}
     <form class="si__form-step si__panel" method="post" action="/account/login/otp" novalidate data-si-panel="phone"{% if via != 'phone' %} hidden{% endif %}>

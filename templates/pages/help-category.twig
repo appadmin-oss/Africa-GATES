@@ -1,0 +1,57 @@
+{% extends 'layout/shell.twig' %}
+{% import 'partials/help.twig' as h %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE TOPIC, EVERY ANSWER IN IT — /help/c/{cat} · Phase 9 · §8.21
+  ══════════════════════════════════════════════════════════════════════════════
+
+  HelpCentre.dc.html draws no category view, so this is the index's own parts: the
+  breadcrumb, a white list of every answer WITH ITS SUMMARY (a topic page is a decision
+  point, not a directory — somebody who chose "Payments" is choosing between answers),
+  the other topics with their counts ("Privacy · 2" sets an honest expectation before the
+  click), and the desk band. An unknown topic is sent to /help by the controller: a stale
+  link is a person with a question, not a 404. Rebuilt after the destroy (inventory:
+  pages--help-category.md). Colour tier 1.
+#}
+{% set colour_tier = '1' %}
+{# Gee mounts in help-desk mode here (HelpCentre.dc.html: `<Gee mode="support">`). #}
+{% set gee_mode = 'support' %}
+{% set app_bar = {variant: 'child', title: category.title|trans, sub: 'Help Centre'|trans, back: '/help'} %}
+
+{% block head_styles %}
+{% include 'partials/seo-head.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/help.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="hc hc--topic" data-help>
+  <nav class="ha__crumb" aria-label="{{ 'Breadcrumb'|trans }}"><a href="/help">{{ 'Help Centre'|trans }}</a></nav>
+  <div class="hc__head hc__head--start">
+    <h1 class="hc__h1">{{ category.title|trans }}</h1>
+    <p class="hc__lede">{{ category.blurb|default('')|trans }} {{ articles|length == 1 ? '1 answer.'|trans : '%n% answers.'|trans({'%n%': articles|length}) }}</p>
+  </div>
+
+  <ul class="hc-list hc-list--sum">
+    {% for a in articles %}
+      <li><a class="hc-list__a" href="/help/{{ a.slug }}"><span class="hc-list__w"><span class="hc-list__t">{{ a.title }}</span><span class="hc-list__c">{{ a.summary|striptags }}</span></span><svg class="hc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
+    {% endfor %}
+  </ul>
+
+  <section class="hc__sec" aria-labelledby="hc-other">
+    <h2 class="hc__h2" id="hc-other">{{ 'Other topics'|trans }}</h2>
+    <div class="hc-others">
+      {% for key, c in categories %}
+        {% if key != category_key and counts[key]|default(0) > 0 %}
+          <a class="hc-others__a" href="/help/c/{{ key }}">
+            <span class="hc-tile hc-tile--sm" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{{ c.icon|raw }}</svg></span>
+            <span class="hc-cat__w"><b class="hc-cat__t">{{ c.title|trans }}</b><span class="hc-cat__n">{{ counts[key] == 1 ? '1 answer'|trans : '%n% answers'|trans({'%n%': counts[key]}) }}</span></span>
+          </a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+
+  {{ h.stuck() }}
+</div>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/vote` — THE VOTE HUB · Phase 5 · VoteHub.dc.html · §8.4
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Written from the DC after the old hub was destroyed (inventory:
+  docs/handoff/inventory/pages--vote.md). Every figure from VoteFront::hub().
+
+  · A light list (the DC's `#fbfbfa` ground is `--ag-bar`), a live total with a pulsing dot,
+    filters, and rows whose WHOLE row is the target: 88px on a phone (60px thumb · text ·
+    count · 18px chevron), no inline Vote button there; desktop adds the button and a rail.
+  · The filters are links (`?f=`), sticky at top:0 on a phone with 10px vertical padding and
+    44px chips — a filter works with no script and survives Back.
+  · "Your ballot" counts what THIS DEVICE recorded at each confirmed vote (`ag-voted:`,
+    written by vote.js only after the server said the vote counted). The denominator — open
+    categories — is the server's. With no record the line says so rather than "0 of 19".
+  · The split in the rail is RuleEngine's (the destroyed hub's rule: "a voter about to pay
+    is shown the split, and it must be the live one"), linked to /philosophy.
+  · The DC's mono totals are DM Sans with tabular figures (Q5).
+#}
+
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'root', title: 'Vote'|trans} %}
+{% set _f = front.filter %}
+{% set _filters = [{k: 'all', l: 'All'}, {k: 'voting', l: 'Voting now'}, {k: 'soon', l: 'Coming up'}] %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+
+{% block content %}
+<div class="vh" data-vote-hub data-open-categories="{{ front.open_categories }}">
+  <div class="vh__main">
+    <div class="vh__head">
+      <h1 class="vh__h1">{{ 'Vote'|trans }}</h1>
+      <p class="vh__live">
+        {% if front.open_awards > 0 %}<span class="vh__pulse" aria-hidden="true"></span>{% endif %}
+        <b class="vh__total">{{ front.votes_total|number_format }}</b>
+        {{ front.votes_total == 1 ? 'vote cast'|trans : 'votes cast'|trans }}{% if front.open_awards > 0 %} {{ 'live'|trans }}{% endif %} ·
+        {{ front.open_awards == 1 ? '1 award open'|trans : '%n% awards open'|trans({'%n%': front.open_awards}) }}
+      </p>
+    </div>
+
+    {% if front.open_categories > 0 %}
+    <div class="vh-mine" data-ballot-line hidden>
+      <span class="vh-mine__t" data-ballot-words data-of="{{ 'You’ve voted in %n% of %m% open categories'|trans }}"></span>
+      <span class="vh-mine__bar" aria-hidden="true"><span data-ballot-fill></span></span>
+    </div>
+    {% endif %}
+
+    <nav class="vh-filters" aria-label="{{ 'Filter awards'|trans }}">
+      {% for c in _filters %}
+        <a class="ag-chip vh-chip" href="/vote{{ c.k != 'all' ? '?f=' ~ c.k }}"{% if _f == c.k %} aria-current="page"{% endif %}>{{ c.l|trans }}</a>
+      {% endfor %}
+    </nav>
+
+    {% if front.rows|length %}
+    <ul class="vh-list">
+      {% for p in front.rows %}
+        <li>
+          <a class="vh-row" href="{{ p.href }}">
+            <span class="vh-row__thumb">{% include 'partials/photo.twig' with {kind: 'thing', src: p.cover, name: p.title, tone: p.tone, title: false} only %}</span>
+            <span class="vh-row__text">
+              <span class="vh-row__top">
+                <span class="vh-row__t">{{ p.title }}</span>
+                {% if p.left %}<span class="vh-row__left">{{ p.left }}</span>{% endif %}
+              </span>
+              {% if p.meta %}<span class="vh-row__meta">{{ p.meta }}</span>{% endif %}
+              <span class="vh-row__status">{{ p.status }}</span>
+            </span>
+            <span class="vh-row__count{{ p.open ? '' : ' vh-row__count--off' }}">
+              <b>{{ p.open ? p.votes|number_format : '—' }}</b>
+              <span>{{ p.open ? (p.votes == 1 ? 'vote'|trans : 'votes'|trans) : 'not open'|trans }}</span>
+            </span>
+            <span class="vh-row__btn{{ p.open ? ' vh-row__btn--go' }}" aria-hidden="true">{{ p.open ? 'Vote'|trans : 'View'|trans }}</span>
+            <svg class="vh-row__chev ag-ico-dir" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <div class="vh-empty">
+        <p class="vh-empty__t">{{ _f == 'voting' ? 'No award is open for voting right now.'|trans : 'No awards are listed yet.'|trans }}</p>
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/awards">{{ 'See every award'|trans }}</a>
+      </div>
+    {% endif %}
+
+    <p class="vh-note">{{ 'Totals update live. Community support is %c% of each result; the judges decide the rest after voting closes.'|trans({'%c%': split.community ~ '%'}) }} <a href="/philosophy">{{ 'How scoring works'|trans }}</a></p>
+  </div>
+
+  <aside class="vh-rail" aria-label="{{ 'Your ballot'|trans }}">
+    <div class="vh-card">
+      <div class="vh-card__head">
+        <span class="vh-ring" data-ballot-ring role="img" aria-label="{{ 'Categories voted on this device'|trans }}"><span data-ballot-ratio>0/{{ front.open_categories }}</span></span>
+        <span class="vh-card__hd">
+          <b>{{ 'Your ballot'|trans }}</b>
+          <span>{{ 'Open categories voted in, on this device'|trans }}</span>
+        </span>
+      </div>
+      <ul class="vh-mine-list">
+        {% for p in front.all|filter(p => p.open) %}
+          <li data-ballot-prog="{{ p.id }}" data-cats="{{ p.cats }}">
+            <span class="vh-mine-list__r"><span class="vh-mine-list__t">{{ p.title }}</span><span class="vh-mine-list__n" data-n data-of="{{ '%n% of %m%'|trans }}">{{ '%n% of %m%'|trans({'%n%': 0, '%m%': p.cats}) }}</span></span>
+            <span class="vh-mine-list__bar" aria-hidden="true"><span data-fill></span></span>
+          </li>
+        {% endfor %}
+      </ul>
+      <span class="vh-card__lock">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        {{ 'Verified by email code · one vote per category'|trans }}
+      </span>
+    </div>
+    <div class="vh-card">
+      <b class="vh-card__how">{{ 'How results are decided'|trans }}</b>
+      <div class="vh-split" role="img" aria-label="{{ 'Community %c%, judges %j%'|trans({'%c%': split.community ~ '%', '%j%': split.judge ~ '%'}) }}">
+        <span class="vh-split__c" style="flex:{{ split.community }}">{{ 'Votes %n%'|trans({'%n%': split.community ~ '%'}) }}</span>
+        <span class="vh-split__j" style="flex:{{ split.judge }}">{{ 'Jury %n%'|trans({'%n%': split.judge ~ '%'}) }}</span>
+      </div>
+      <span class="vh-card__p">{{ 'The jury scores the nominees after voting closes.'|trans }}</span>
+      <a class="vh-card__a" href="/philosophy">{{ 'How scoring works'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+    </div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/vote.js') }}"></script>{% endblock %}

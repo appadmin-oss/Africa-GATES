@@ -52,6 +52,7 @@
 
 {% block head_styles %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/events.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
   {% if og_image is defined %}<meta property="og:image" content="{{ og_image }}"><meta property="og:image:alt" content="{{ og_image_alt|default('') }}">{% endif %}
   {# JSON-LD: JSON_HEX_TAG, so a partner-typed `</script>` cannot close the element. #}
   <script type="application/ld+json" nonce="{{ csp_nonce }}">{{ schema|json_encode(constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>

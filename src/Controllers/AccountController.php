@@ -1382,122 +1382,154 @@ class AccountController
         // check asks whether they are all empty — three call sites for one query each.
         $orders    = \AfricaGates\Services\MemberActivityService::ordersFor((string) $user->email, 10);
         $tickets   = \AfricaGates\Services\MemberActivityService::ticketsFor((string) $user->email, 10);
-        $ledger    = PointsService::ledger((int) $user->id, 60);
-        // Fetched once and drawn twice, at two sizes — see 'points_spark' below.
-        $pointsSeries = PointsService::series((int) $user->id, 90);
-        $pointsMove   = $pointsSeries === [] ? 0
-            : (int) end($pointsSeries)['balance'] - (int) $pointsSeries[0]['balance'];
+        $ledger    = PointsService::ledger((int) $user->id, 1);
         $bookmarks = $this->community ? $this->community->bookmarkedThreads((int) $user->id, 12) : [];
 
+        $pa = \AfricaGates\Services\ReferralPayout::available((int) $user->id);
+        $bal = PointsService::balance((int) $user->id);
+        $alerts = (new \AfricaGates\Services\AlertService())->forMember((int) $user->id, (string) $user->email);
+
         return $this->view->render($res, 'pages/account/dashboard.twig', [
-            // The promo band. Nothing is rendered when there are none — a 188px
-            // strip of empty on a live page is worse than no band at all.
-            'promos' => \AfricaGates\Services\PromoService::forPlacement('account', !empty($_SESSION['user_id'])),
-            // The Challenges tab (§2). Ended ones are kept — this tab is what you did,
-            // not what you can still do.
-            'my_challenges' => \AfricaGates\Services\ChallengeService::minePublic(
-                (int) ($_SESSION['user_id'] ?? 0)),
+            'page_title' => 'Your account — Africa GATES', 'gates_page' => 'account',
+            'user'           => array_diff_key((array) $user, ['password_hash' => 1, 'last_login_ip' => 1]),
+            'interests'      => \AfricaGates\Services\MemberInterests::of((int) $user->id),
+            'interest_options' => \AfricaGates\Services\MemberInterests::options(),
+            'unread'         => count(array_filter($alerts, static fn ($x) => $x['unread'])),
+            'points'         => $bal,
+            'points_enabled' => PointsService::enabled(),
+            'redeemable'     => PointsService::votesForPoints($bal),
+            // Has this member ever done ANYTHING? It decides between the sections and a
+            // first-run list of next steps — six empty panels is the worst possible welcome.
+            'is_new'         => $ledger === [] && $orders === [] && $tickets === []
+                             && $votes === [] && $nominations === [] && $shareLinks === [],
+            'checklist'      => \AfricaGates\Services\MemberActivityService::checklist($user, $votes, $nominations, $communityC),
             // Nominees this member voted for who were promoted. Only ever non-empty for a
             // cycle CycleMaterialiser actually released, so it cannot congratulate anybody
             // on an award nobody has been told about.
             'backed_winners' => \AfricaGates\Services\MemberActivityService::backedWinners((string) $user->email),
-            // Security section. Both halves asked separately: the library on the server,
-            // and the API in the browser (asked in the page) — a server that can verify a
-            // ceremony no browser here can run is still nothing to offer.
-            'passkeys_available' => \AfricaGates\Services\Passkeys::available(),
-            'passkeys' => \AfricaGates\Services\Passkeys::listFor((int) ($_SESSION['user_id'] ?? 0)),
-            'page_title' => 'Your account — Africa GATES', 'gates_page' => 'account',
-            'user'           => (array) $user,
-            'points'         => PointsService::balance((int) $user->id),
-            'points_enabled' => PointsService::enabled(),
-            'points_per_vote'=> PointsService::pointsPerVote(),
-            'redeemable'     => PointsService::votesForPoints(PointsService::balance((int) $user->id)),
-            'summary'        => PointsService::summary((int) $user->id),
-            'ledger'         => $ledger,
-            'bookmarks'      => $bookmarks,
             'my_votes'       => $votes,
             'my_nominations' => $nominations,
             'my_links'       => $shareLinks,
-            // What they BOUGHT — absent until now. The dashboard was an accurate picture of
-            // everything a member had contributed and said nothing about anything they had
-            // paid for, so the only route to "has my order shipped" was a link in an email.
-            // Event referrals. Read here rather than minted here: a code appears when the
-            // member asks for one, so a dashboard visit does not create a row for every
-            // account that ever loads this page.
-            // ── THE VENDOR, WHERE A TRADER ACTUALLY LOOKS ────────────────────
-            //
-            // /org was built for a DONATION PARTNER — confirmed-gift totals, appeals,
-            // payout schedules, settlement accounts — and a stand vendor has none of that
-            // and never will: they PAY for a pitch rather than receiving anything through
-            // it. What is left over there is a console a market trader has to remember a
-            // second password for, while THIS is the page they already open.
-            //
-            // Null when this member is not linked to a vendor account, and the section is
-            // not rendered at all. Linked by VERIFIED email — see VendorAccount, where the
-            // verification is load-bearing rather than decorative.
-            'vendor'         => \AfricaGates\Services\VendorAccount::panel($user),
-            'vendor_cats'    => \AfricaGates\Services\VendorPolicy::categories(),
-            'vendor_max'     => \AfricaGates\Services\VendorCatalogue::MAX_ITEMS,
+            // What they BOUGHT — so "has my order shipped" has an answer that is not a link
+            // in an email.
+            'my_orders'      => $orders,
+            'my_tickets'     => $tickets,
+            'my_challenges'  => \AfricaGates\Services\ChallengeService::minePublic((int) $user->id),
+            'bookmarks'      => $bookmarks,
+            // ── REFERRALS AND THE MONEY THEY EARNED (account-payout, MUST RESTORE) ──
+            // `available()` answers both "can they" and "why not", so the page says the
+            // reason instead of hiding the form with no explanation.
             'referral'       => \AfricaGates\Services\ReferralService::stats((int) $user->id),
             'referral_site'  => \AfricaGates\Support\SiteUrl::base($req),
-            // Withdrawing. `available()` answers both "can they" and "why not", so the
-            // page can say the reason instead of hiding the form with no explanation.
             'payout_open'    => \AfricaGates\Services\ReferralPayout::openFor((int) $user->id),
-            'payout_can'     => ($pa = \AfricaGates\Services\ReferralPayout::available((int) $user->id))['ok'],
+            'payout_can'     => $pa['ok'],
             'payout_amount'  => $pa['amount'],
             'payout_why'     => $pa['reason'],
             'payout_history' => \AfricaGates\Services\ReferralPayout::historyFor((int) $user->id, 8),
-            // Saved defaults, so a ten-digit account number is typed once rather than
-            // once per withdrawal.
             'payout_bank'    => \AfricaGates\Services\ReferralPayout::bankFor((int) $user->id),
-            'my_orders'      => $orders,
-            'my_tickets'     => $tickets,
-            'completeness'   => \AfricaGates\Services\MemberActivityService::completeness($user),
-            'checklist'      => \AfricaGates\Services\MemberActivityService::checklist($user, $votes, $nominations, $communityC),
-            'flash_ok'       => $this->flash('flash_ok'), 'flash_error' => $this->flash('flash_error'),
+            // A stand vendor's stall, where a trader already looks (VendorAccount). Null for
+            // everybody else, and the section is not drawn.
+            'vendor'         => \AfricaGates\Services\VendorAccount::panel($user),
+            // Security: both halves asked separately — the library on the server, the API in
+            // the browser (asked in the page).
+            'passkeys_available' => \AfricaGates\Services\Passkeys::available(),
+            'passkeys'       => \AfricaGates\Services\Passkeys::listFor((int) $user->id),
+            'verify_ttl_hours' => UserAccountService::VERIFY_TTL_HOURS,
+            'name_pattern'   => UserAccountService::NAME_PATTERN,
+            // Whether a password is set, never the hash: the form asks for the current one
+            // only when there is one to ask for.
+            'has_password'   => !empty($user->password_hash),
+        ]);
+    }
 
-            // ── WHAT THE NEW LAYOUT NEEDS ────────────────────────────────────
-            //
-            // The page is sections now rather than one column of cards, and a section rail
-            // with no counts on it is a list of words: "Purchases" tells nobody whether
-            // there is anything behind it, so half of them get opened to find out. The
-            // counts are the information scent that stops that.
-            'counts' => [
-                'purchases' => count($orders) + count($tickets),
-                'activity'  => count($votes) + count($nominations) + count($shareLinks),
-                'saved'     => count($bookmarks),
-                'points'    => count($ledger),
-            ],
-            // Ninety days, by TIME and not by row count — see PointsService::series() for
-            // why a chart of "the last 30 entries" is not a chart of anything.
-            // The shared chart spec — same component the partner dashboard and the stands
-            // admin render, so there is one answer on this site to "what is a hover".
-            'points_chart' => \AfricaGates\Support\Viz::area(
-                'viz-points', 'Balance, last 90 days', $pointsSeries,
-                [
-                    // The direction of travel, in a sentence. It is the one thing a reader
-                    // takes from a balance chart at a glance, and reading it off a line is
-                    // slower than reading it off four words.
-                    'sub' => match (true) {
-                        $pointsMove > 0 => 'Up ' . number_format($pointsMove) . ' points over the period.',
-                        $pointsMove < 0 => 'Down ' . number_format(-$pointsMove) . ' points over the period.',
-                        default         => 'Unchanged over the period.',
-                    },
-                    'empty' => 'Points appear here once something arrives.',
-                ]
-            ),
-            // `points_spark` WAS here — a second, decorative copy of the chart for the
-            // overview summary panel. The rebuilt page follows the DC, whose overview
-            // balance card carries no chart at all, so it had no reader and
-            // `TemplateContextTest` said so. Deleted rather than left as weight: an
-            // unread variable is the shape `basis_ideal` had, and `Spark` is still
-            // reached through `Viz::area()` for the one chart that is drawn.
-            'member_since' => (string) ($user->created_at ?? ''),
-            // Has this member ever done ANYTHING? It decides between the dashboard and a
-            // first-run screen, and a dashboard of six empty sections is the worst possible
-            // welcome — it reads as a product that is not working.
-            'is_new' => $ledger === [] && $orders === [] && $tickets === []
-                     && $votes === [] && $nominations === [] && $shareLinks === [],
+    // ══════════════════════════════════════════════════════════════════════
+    // THE ACCOUNT'S OWN PAGES (Phase 8) — each pushed from /account, each its own screen
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * GET /account/interests — "What do you care about?". With `?first=1` it is step 4 of
+     * joining (SignIn.dc.html view=interests: the four bars, "Skip for now"); otherwise the
+     * same choice reopened from the account page.
+     */
+    public function interests(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $first = ($req->getQueryParams()['first'] ?? '') === '1';
+
+        return $this->view->render($res, 'pages/account/interests.twig', [
+            'page_title' => 'What do you care about? — Africa GATES', 'gates_page' => 'account',
+            'hide_chrome' => true, 'first' => $first,
+            'options' => \AfricaGates\Services\MemberInterests::options(),
+            'chosen'  => \AfricaGates\Services\MemberInterests::of((int) $user->id),
+            'auth_art' => $this->art(),
+        ]);
+    }
+
+    /** POST /account/interests — the choice, then on to wherever they were going. */
+    public function interestsSave(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $b = (array) $req->getParsedBody();
+        $ok = \AfricaGates\Services\MemberInterests::save((int) $user->id, (array) ($b['interests'] ?? []));
+        $_SESSION[$ok ? 'flash_ok' : 'flash_error'] = $ok
+            ? 'Saved. Awards in those areas come first on Nominate.'
+            : 'That could not be saved just now. Try again in a moment.';
+        // The end of joining goes where the visitor was headed before they signed in.
+        return $res->withHeader('Location', !empty($b['first']) ? $this->nextTarget() : '/account')->withStatus(303);
+    }
+
+    /** GET /account/notifications — what happened to your things (AlertService, derived). */
+    public function notifications(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $items = (new \AfricaGates\Services\AlertService())->forMember((int) $user->id, (string) $user->email);
+        $unread = count(array_filter($items, static fn ($a) => $a['unread']));
+
+        return $this->view->render($res, 'pages/account/notifications.twig', [
+            'page_title' => 'Notifications — Africa GATES', 'gates_page' => 'account',
+            'items' => $items, 'unread' => $unread,
+        ]);
+    }
+
+    /** POST /account/notifications/read — everything up to now, read. A form, no script. */
+    public function notificationsRead(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        (new \AfricaGates\Services\AlertService())->markRead((int) $user->id);
+        return $res->withHeader('Location', '/account/notifications')->withStatus(303);
+    }
+
+    /** GET /account/points — the balance, how it is earned and spent, and its whole history. */
+    public function points(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $bal = PointsService::balance((int) $user->id);
+
+        return $this->view->render($res, 'pages/account/points.twig', [
+            'page_title' => 'Points — Africa GATES', 'gates_page' => 'account',
+            'points'          => $bal,
+            'points_enabled'  => PointsService::enabled(),
+            'points_per_vote' => PointsService::pointsPerVote(),
+            'redeemable'      => PointsService::votesForPoints($bal),
+            'ledger'          => PointsService::ledger((int) $user->id, 200),
+        ]);
+    }
+
+    /**
+     * GET /account/display — Display & reading as a page (REFERENCE §7.5). The same controls
+     * the Menu's sheet draws (`partials/display-reading.twig`), saved to the member by
+     * a11y.js through POST /account/display — one store, two ways to reach it.
+     */
+    public function display(Request $req, Response $res): Response
+    {
+        if (!$this->accounts->current()) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        return $this->view->render($res, 'pages/account/display.twig', [
+            'page_title' => 'Display & reading — Africa GATES', 'gates_page' => 'account',
         ]);
     }
 
@@ -1562,7 +1594,15 @@ class AccountController
         $r = $this->accounts->updateProfile((int) $user->id, (string) ($b['name'] ?? ''), (string) ($b['phone'] ?? ''));
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['error'];
-            return $res->withHeader('Location', '/account')->withStatus(302);
+            return $res->withHeader('Location', '/account#profile')->withStatus(302);
+        }
+        // "What you do" and "Where you're based" — the profile basics joining asked for.
+        if (array_key_exists('headline', $b) || array_key_exists('based_in', $b)) {
+            $a = $this->accounts->saveAbout((int) $user->id, (string) ($b['headline'] ?? ''), (string) ($b['based_in'] ?? ''));
+            if (!$a['ok']) {
+                $_SESSION['flash_error'] = $a['error'];
+                return $res->withHeader('Location', '/account#profile')->withStatus(302);
+            }
         }
 
         // Optional password change — require the current password when one is already set.

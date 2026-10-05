@@ -162,12 +162,13 @@
     outline:.25mm dashed var(--ag-chevron); outline-offset:2mm;
     -webkit-print-color-adjust:exact; print-color-adjust:exact;
   }
-  .tk-hero{ grid-area:1 / 1; min-height:0 }
+  html, body{ background:var(--ag-surface) !important }
+  .tk-hero{ grid-area:1 / 1; min-height:0; overflow:hidden }
   /* The artwork leaves the positioned layer on paper, so a driver that drops the fill
      still prints the picture in flow. */
   .tk-hero__img{ position:static; display:block; width:100%; height:100% }
   .tk-hero__t{ position:absolute; inset-inline:0; bottom:0; padding:3mm 4mm }
-  .tk-hero__h{ font-size:16pt }
+  .tk-hero__h{ font-size:13pt }
   .tk-hero__kick{ font-size:7.5pt }
   .tk-hero__sub{ font-size:8pt }
   .tk-tear{ display:none }
@@ -177,9 +178,9 @@
   .tk-code{ font-size:10pt; letter-spacing:.1em }
   .tk-stub__note{ display:none }
   .tk-stub__who{ display:block; font-size:8pt; font-weight:700; text-align:center }
-  .tk-facts{ grid-area:2 / 1; grid-template-columns:repeat(3, 1fr); background:var(--ag-surface); border-top:.3mm solid var(--ag-line-2) }
+  .tk-facts{ grid-area:2 / 1; grid-template-columns:1fr 1fr 2fr; background:var(--ag-surface); border-top:.3mm solid var(--ag-line-2) }
   .tk-fact{ padding:1.5mm 3mm }
-  .tk-fact--screen, .tk-fact--nopaper{ display:none }
+  .tk-fact--screen, .tk-fact--nopaper, .tk-fact--holder{ display:none }
   .tk-fact--print{ display:flex }
   .tk-fact--wide{ grid-column:auto }
   .tk-fact dt{ font-size:6pt }

@@ -66,11 +66,14 @@ final class EventSaleAlertTest extends TestCase
         $this->assertStringContainsString('/events/alerts/', $this->sent[0]['body']);
         $this->assertSame(1, DB::table('gates_event_sale_alerts')->where('event_id', $e)->count());
 
-        // On sale now — but the row was never confirmed, so it is never told.
+        // On sale now — but the row was never confirmed, so it is never told, even while a
+        // confirmed neighbour on the same event is.
+        EventSaleAlert::want($e, 'other@mail.test', 'ip', 'https://site.test', $this->send());
+        EventSaleAlert::confirm((string) DB::table('gates_event_sale_alerts')->where('email', 'other@mail.test')->value('token'));
         DB::table('gates_event_tiers')->where('event_id', $e)->update(['sale_starts_at' => null]);
         $this->sent = [];
-        $this->assertSame(0, EventSaleAlert::sweep($this->mailer(), 'https://site.test'));
-        $this->assertSame([], $this->sent);
+        $this->assertSame(1, EventSaleAlert::sweep($this->mailer(), 'https://site.test'));
+        $this->assertSame(['other@mail.test'], array_column($this->sent, 'to'));
     }
 
     public function test_the_reply_is_the_same_whatever_happened(): void

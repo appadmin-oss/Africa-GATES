@@ -2585,13 +2585,39 @@ return function(App $app) {
         $g->get('/legal/{slug}.md',  fn($req,$res,$args)=>$legalFile($req,$res,strtolower((string)($args['slug']??'')),'md'));
         $g->get('/legal/{slug}', fn($req,$res,$args)=>$legalRender($req,$res,strtolower((string)($args['slug']??''))));
         // Per-programme terms (admin-editable). Unknown slug falls back to the general terms.
+        // Per-programme terms (DocPage `doc=programme-terms`, Phase 9). The text is the
+        // version in force from AwardTerms — the one reader of gates_award_terms — with its
+        // number, effective date and changelog, because "which words did I agree to?" is the
+        // question every dispute arrives with. Unknown slug falls back to the general terms.
         $g->get('/terms/{slug}', function($req,$res,$args) use ($tv){
             $p = \Illuminate\Database\Capsule\Manager::table('gates_award_programmes')->where('slug',(string)($args['slug']??''))->where('is_active',1)->first();
             if (!$p) return $res->withHeader('Location','/terms')->withStatus(302);
+            $L     = \AfricaGates\Services\LegalDocument::class;
+            $cur   = \AfricaGates\Services\AwardTerms::current((int) $p->id);
+            $url   = \AfricaGates\Support\SiteUrl::base($req) . '/terms/' . $p->slug;
+            $host  = \AfricaGates\Support\ProgrammeHost::forProgramme((int) $p->id);
+            // Cut and sanitised by the same walk as every policy, so the contents and the
+            // headings cannot disagree and an operator's markup is held to the same tag set.
+            $doc   = $cur ? ['slug' => 'terms-' . $p->slug, 'title' => $p->title,
+                             'body_html' => $cur['body'], 'updated_at' => $cur['effective_at']] : null;
+            $cut   = $doc ? $L::sections($doc) : ['lead' => '', 'sections' => []];
+            $by    = $host['name'] ?? $L::AUTHOR;
             return $tv($req)->render($res,'pages/programme-terms.twig',[
                 'page_title'=>$p->title.' — Terms — Africa GATES',
                 'meta_description'=>'The terms for the '.$p->title.' programme on Africa GATES — eligibility, voting and nomination rules.',
-                'gates_page'=>'legal','programme'=>(array)$p,
+                'gates_page'=>'legal',
+                'programme'=>['title' => (string) $p->title, 'slug' => (string) $p->slug],
+                'terms'=>$cur,
+                'terms_log'=>$cur ? \AfricaGates\Services\AwardTerms::history((int) $p->id) : [],
+                'doc_lead'=>$cut['lead'],
+                'doc_sections'=>$cut['sections'],
+                'doc_author'=>$by,
+                'doc_url'=>$url,
+                'doc_citations'=>$cur ? \AfricaGates\Support\Citation::formats([
+                    'title' => $p->title . ' terms', 'author' => $by, 'publisher' => $L::PUBLISHER,
+                    'version' => (string) $cur['version'], 'published' => substr($cur['effective_at'], 0, 10),
+                    'updated' => substr($cur['effective_at'], 0, 10), 'url' => $url, 'key' => 'terms-' . $p->slug,
+                ]) : [],
             ]);
         });
         $g->get('/cookies', fn($req,$res)=>$legalRender($req,$res,'cookies'));
@@ -3623,6 +3649,16 @@ return function(App $app) {
         // otherwise swallow it — and reachable by the owner alone, because there is no id in
         // the path to change.
         $a->get('/points.csv',    AccountController::class.':pointsCsv');
+        // ── THE ACCOUNT'S OWN PAGES (Phase 8) ─────────────────────────────────
+        // Each a sub-page linked from the account page, never a tab inside it: a phone
+        // pushes a screen with its own back button (REFERENCE §7.2 child bar). Interests is
+        // also step 4 of joining (`?first=1`, SignIn.dc.html view=interests).
+        $a->get('/interests',          AccountController::class.':interests');
+        $a->post('/interests',         AccountController::class.':interestsSave');
+        $a->get('/notifications',      AccountController::class.':notifications');
+        $a->post('/notifications/read', AccountController::class.':notificationsRead');
+        $a->get('/points',             AccountController::class.':points');
+        $a->get('/display',            AccountController::class.':display');
         $a->get('[/]',            AccountController::class.':dashboard');
     })->add(new UserAuthMiddleware());
 

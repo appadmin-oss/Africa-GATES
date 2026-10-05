@@ -1,0 +1,70 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE MEMBER ACCOUNT — /account and its own pages · Phase 8
+   No DC in this bundle (GAPS Q16): built on the shell with the base components (card,
+   list row, button, field) in SignIn.dc.html's and ProfilePage.dc.html's language — the
+   ground, white cards on a hairline, a Playfair name over a DM Sans line, 16px phone
+   gutter and 28/32 from 600/1024 (`--ag-gutter`), sections 22–28px apart (§6.3).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.acc{
+  max-width:720px; margin:0 auto;
+  padding:var(--ag-sp-16) var(--ag-gutter) var(--ag-sp-40);
+  display:flex; flex-direction:column; gap:var(--ag-sp-24);
+}
+@media (min-width:1024px){ .acc{ padding-top:var(--ag-sp-40); gap:var(--ag-sp-28) } }
+
+.acc__head{ display:flex; align-items:center; gap:var(--ag-sp-16) }
+.acc__av{ flex:none; width:72px; height:72px; border-radius:50% }
+.acc__who{ min-width:0; display:flex; flex-direction:column; gap:4px }
+.acc__h1{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-32); line-height:1.1;
+}
+@media (min-width:1024px){ .acc__h1{ font-size:var(--ag-fs-44); line-height:1.06 } }
+.acc__line{ margin:0; font-size:var(--ag-fs-16); color:var(--ag-ink-2) }
+.acc__meta{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-soft); overflow-wrap:anywhere }
+.acc__warn{ color:var(--ag-error); font-weight:600 }
+.acc__warn-p{ margin:0; font-size:var(--ag-fs-14-5); color:var(--ag-error) }
+
+.acc__top{ display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-12); flex-wrap:wrap }
+.acc__top form{ margin:0 }
+
+.acc__note{
+  margin:0; display:flex; flex-direction:column; gap:var(--ag-sp-12); align-items:flex-start;
+  padding:var(--ag-sp-16); background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+}
+.acc__note p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.5 }
+
+.acc__val{ max-width:46%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+
+.acc__card{ padding:var(--ag-sp-18); display:flex; flex-direction:column; gap:var(--ag-sp-10); align-items:flex-start }
+.acc__big{ margin:0; font-weight:700; font-size:var(--ag-fs-34); line-height:1 }
+
+.acc__sec{ display:flex; flex-direction:column; gap:var(--ag-sp-12) }
+.acc__h2{ margin:0; font-size:var(--ag-fs-19); font-weight:700; line-height:1.3 }
+.acc__h3{ margin:var(--ag-sp-8) 0 0; font-size:var(--ag-fs-16); font-weight:700 }
+.acc__p{ margin:0; font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
+
+/* A list that is information, not navigation: the rows are not targets. */
+.acc__plain{ margin:0; padding:0; list-style:none }
+.acc__plain > .ag-list__row{ min-height:56px; padding-block:8px }
+.acc__plain form{ margin:0 }
+
+/* References are codes: mono, so `0` is told from `O` (REFERENCE §6.2). */
+.acc__ref{ font-family:var(--ag-font-mono); font-weight:500; font-size:var(--ag-fs-13); overflow-wrap:anywhere }
+
+.acc__wrap{ white-space:normal }
+.acc__alert--new .ag-list__label{ font-weight:700 }
+.acc__new{ flex:none; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-green-deep) }
+
+.acc__form,
+.acc__inline{ margin:0; display:flex; flex-direction:column; gap:var(--ag-sp-14); align-items:stretch }
+.acc__form > .ag-btn,
+.acc__inline > .ag-btn{ align-self:flex-start }
+.acc__pay{ display:flex; flex-direction:column; gap:var(--ag-sp-12) }
+.acc__out{ margin:0 }
+
+.acc__empty{ display:flex; flex-direction:column; gap:var(--ag-sp-8); align-items:flex-start }
+.acc__empty p{ margin:0 }
+.acc__dr{ padding:var(--ag-sp-16) }

@@ -1,0 +1,45 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE PHOTO SLOT · partials/photo.twig · GAPS §8 Q8 (owner, 4 Oct 2026)
+   ══════════════════════════════════════════════════════════════════════════════
+   Its own sheet, not components.css (that file is the Phase 1 base and DevUiTest holds it
+   to that). Every page that includes the partial links this sheet — PhotoSlotTest holds it.
+
+   Fills the box its caller sized. A real image covers it; a PERSON with none gets a
+   monogram (Playfair initials, ink on tint, hairline ring); a THING with none gets a
+   generated cover in its own accent — the four colours arrive as --ph-* from
+   PhotoCover::style(), and the house ink family stands in where a thing has no accent.
+   The cover's title is real text (it is the thing's name), sized by the slot's own
+   container query so a 52px thumb and a 4:3 hero both set it legibly. */
+.ag-photo{
+  position:relative; display:block; width:100%; height:100%;
+  overflow:hidden; background:var(--ag-tint); border-radius:inherit;
+  container-type:size;
+}
+.ag-photo__img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.ag-photo--person{ border-radius:inherit }
+.ag-photo--mono{
+  display:flex; align-items:center; justify-content:center;
+  color:var(--ag-ink); box-shadow:inset 0 0 0 1px var(--ag-line-2);
+}
+.ag-photo__ini{
+  font-family:var(--ag-font-display); font-weight:700; line-height:1;
+  font-size:var(--ag-fs-16);
+}
+@container (min-width:72px){ .ag-photo__ini{ font-size:var(--ag-fs-26) } }
+@container (min-width:140px){ .ag-photo__ini{ font-size:var(--ag-fs-44) } }
+.ag-photo--cover{
+  --ph-top:var(--ag-ink); --ph-bottom:var(--ag-ink); --ph-ink:var(--ag-surface); --ph-rule:var(--ag-green-light);
+  display:flex; flex-direction:column; justify-content:flex-end; gap:10px;
+  padding:16px; box-sizing:border-box;
+  background:linear-gradient(160deg, var(--ph-top), var(--ph-bottom));
+  color:var(--ph-ink);
+}
+.ag-photo__rule{ display:block; width:36px; height:3px; border-radius:2px; background:var(--ph-rule) }
+.ag-photo__title{
+  font-family:var(--ag-font-display); font-weight:700; line-height:1.15;
+  font-size:var(--ag-fs-16);
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+@container (max-width:120px){ .ag-photo__rule, .ag-photo__title{ display:none } }
+@container (min-width:320px){ .ag-photo__title{ font-size:var(--ag-fs-22) } .ag-photo--cover{ padding:22px } }
+@container (min-width:560px){ .ag-photo__title{ font-size:var(--ag-fs-28) } .ag-photo--cover{ padding:32px } }

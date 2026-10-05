@@ -67,47 +67,19 @@ class VoteController {
     public function index(Request $req, Response $res): Response {
         $hub = $this->cache->remember('vote:hub', 600, fn() => $this->awards->voteHub());
 
-        // Hero/sidebar meta. Every figure here comes from the SAME phase
-        // view-model the cards render, so the page cannot contradict itself.
-        // It used to derive open/closed from the status column while deriving
-        // the countdown from voting_close, so when those disagreed — the exact
-        // reported failure — the hub simultaneously showed "Voting open",
-        // "0 Days left" and a close date already in the past.
-        $votesTotal = 0; $votingCount = 0; $year = (int) date('Y');
-        $soonest = null;   // the phase view-model of the next thing to close
-        foreach ($hub as $p) {
-            $votesTotal += (int) ($p['total_votes'] ?? 0);
-            $phase = $p['phase'] ?? null;
-            if (!$phase || empty($phase['is_voting_open'])) continue;
-            $votingCount++;
-            $year = (int) ($p['year'] ?? $year);
-            if ($phase['closes_at'] === null) continue;
-            if ($soonest === null || $phase['closes_at'] < $soonest['closes_at']) {
-                $soonest = $phase;
-            }
-        }
+        $front = \AfricaGates\Services\VoteFront::hub($hub, (string) ($req->getQueryParams()['f'] ?? 'all'));
 
+        // Phase 5 (VoteHub.dc.html): one view-model, so the live total, the rows and the
+        // rail cannot contradict each other — the reported failure this method's comment
+        // above records ("Voting open", "0 Days left" and a past close date at once).
         return $this->view->render($res, 'pages/vote.twig', [
-            // The promo band. Nothing is rendered when there are none — a 188px
-            // strip of empty on a live page is worse than no band at all.
-            'promos' => \AfricaGates\Services\PromoService::forPlacement('vote', !empty($_SESSION['user_id'])),
-            'page_title'       => 'Vote — Africa GATES | Afrovanguard',
+            'page_title'       => \AfricaGates\Support\Translator::t('Vote') . ' — Africa GATES',
             'meta_description' => 'Cast your verified vote in the Africa GATES awards. Browse the live programmes and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
-            'hub'              => $hub,
+            'front'            => $front,
             'split'            => $this->splitPct(),
-            'meta'             => [
-                'count'        => count($hub),
-                'votes_total'  => $votesTotal,
-                'voting_count' => $votingCount,
-                'year'         => $year,
-                // One object, or null. The template must not recompute any of it.
-                'soonest'      => $soonest,
-            ],
             'breadcrumbs' => [
-                ['label' => 'Afrovanguard', 'url' => '/'],
                 ['label' => 'Africa GATES', 'url' => '/'],
-                ['label' => 'Awards',       'url' => '/awards'],
                 ['label' => 'Vote',         'url' => '/vote'],
             ],
         ]);
@@ -169,21 +141,18 @@ class VoteController {
             unset($c);
         }
 
+        $q   = $req->getQueryParams();
+        $tab = ($q['tab'] ?? '') === 'about' ? 'about' : 'vote';
+        $catId = isset($q['cat']) && ctype_digit((string) $q['cat']) ? (int) $q['cat'] : null;
+
         return $this->view->render($res, 'pages/vote-program.twig', [
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
             'programme'        => $p,
             'categories'       => $cats,
-            // The computed phase, not the stored column. `voting_open` is kept
-            // as a convenience boolean but is now derived from the same source.
-            'phase'            => $p['phase'] ?? null,
-            'voting_open'      => (bool) ($p['phase']['is_voting_open'] ?? false),
-            'total_nominees'   => count($noms),
-            // Mirrors the trail this page already SHOWS. Every one of these pages had
-            // a visible breadcrumb and no BreadcrumbList, so the SERP printed a bare
-            // URL where it could have printed Vote › programme — and the trail is how
-            // a searcher sees that a nominee page belongs to an awards programme.
+            'front'            => \AfricaGates\Services\VoteFront::programme($p, $cats, $catId),
+            'tab'              => $tab,
             'breadcrumbs'      => [
                 ['label' => 'Vote',      'url' => '/vote'],
                 ['label' => $p['title'], 'url' => null],
