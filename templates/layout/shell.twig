@@ -95,6 +95,10 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/components/chrome.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/menu-sheet.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/consent.css') }}">
+  {# The field macros' sheet (partials/field.twig): error, hint, counter and summary. Beside
+     form-validate.js below, because a form saying `novalidate data-ag-validate` turns the
+     browser's messages off on the promise that these replace them (FormErrorStateTest). #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/forms.css') }}">
   {% if not hide_chrome|default(false) %}<link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">{% endif %}
   {% if not _gee_off %}<link rel="stylesheet" href="{{ asset('/assets/css/components/gee.css') }}">{% endif %}
   {% block head_styles %}{% endblock %}

@@ -153,6 +153,7 @@ final class EventsFront
             'opens_at'   => $opens,
             'opens_text' => $opens !== null ? EventTime::zoned($e, $opens, 'D j M, H:i') : '',
             'when'       => EventTime::zoned($e, $start, 'D j M Y · H:i'),
+            'time'       => EventTime::zoned($e, $start, 'H:i'),
             'date'       => EventTime::at($e, $start, 'j F Y'),
             'mon'        => EventTime::at($e, $start, 'M'),
             'day'        => EventTime::at($e, $start, 'j'),

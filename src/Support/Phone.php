@@ -91,6 +91,21 @@ final class Phone
         return (strlen($digits) >= 11 && self::validLength($digits)) ? '+' . $digits : null;
     }
 
+    /**
+     * The countries a number may be typed against, for the sign-in screen's country picker
+     * (SignIn.dc.html's "NG +234"). Read from the SAME table normalize() resolves with, so a
+     * country the picker offers is always one a typed number can be resolved against.
+     *
+     * @return list<array{code:string,dial:string}>  ISO alpha-2 and dial code, Nigeria first
+     */
+    public static function dialCodes(): array
+    {
+        $out = [];
+        foreach (self::DIAL as $iso => $dial) $out[] = ['code' => $iso, 'dial' => $dial];
+        usort($out, static fn ($a, $b) => [$a['code'] !== 'NG', $a['code']] <=> [$b['code'] !== 'NG', $b['code']]);
+        return $out;
+    }
+
     /** True when the value normalises to E.164 as-is. */
     public static function isValid(?string $raw, ?string $country = null): bool
     {

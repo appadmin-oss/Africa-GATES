@@ -26,6 +26,7 @@
       <div><label for="f-terms">Terms &amp; conditions <small>(surfaced on this programme's nominate/vote forms; editable anytime)</small></label>
         {% include 'admin/partials/ai-assist.twig' with { target: 'f-terms', kind: 'programme terms & conditions' } only %}
         <textarea name="terms" id="f-terms" rows="8" data-richtext placeholder="By participating you agree…">{{ row.terms|default('') }}</textarea></div>
+        <div><label for="f-terms-log">What changed in the terms <span class="hint">(optional; shown in the public changelog when the wording changes)</span></label><input type="text" name="terms_changelog" id="f-terms-log" maxlength="500"></div>
       {% if not is_new and row.slug %}<p style="margin:-4px 0 0;font-size:12px;color:var(--cn-grey-500)"><a href="/terms/{{ row.slug }}" target="_blank" rel="noopener" style="color:var(--cn-ink);font-weight:600">Preview public terms page →</a></p>{% endif %}
     </div>
   </div></div>

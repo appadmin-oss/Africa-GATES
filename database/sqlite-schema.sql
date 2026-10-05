@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS gates_award_cycles (
   -- announced) so the site admits it with or without this; the note is the part only a
   -- person can write, and it stops being shown the moment the cycle is announced.
   results_delay_note TEXT,
+  -- Which edition this is ("11th Edition"); migrations/2027_03_05_edition_number.php.
+  edition_number INTEGER NULL,
   -- The next declared boundary this cycle is waiting on. A computed phase
   -- cannot be indexed (NOW() is non-deterministic and rejected in generated
   -- columns), so this materialises the one question an operator needs indexed:
@@ -547,6 +549,48 @@ CREATE TABLE IF NOT EXISTS gates_event_registrations (
 );
 CREATE INDEX IF NOT EXISTS idx_evreg_event ON gates_event_registrations(event_id);
 
+-- ─── Award terms, versioned, and who accepted which version (migrations/2027_03_05_award_terms.php) ───
+CREATE TABLE IF NOT EXISTS gates_award_terms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  programme_id INTEGER NOT NULL,
+  version INTEGER NOT NULL,
+  body TEXT NOT NULL,
+  changelog TEXT NULL,
+  effective_at TEXT NOT NULL,
+  created_at TEXT NULL,
+  created_by INTEGER NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_terms_version ON gates_award_terms(programme_id, version);
+CREATE INDEX IF NOT EXISTS idx_terms_effective ON gates_award_terms(programme_id, effective_at);
+CREATE TABLE IF NOT EXISTS gates_award_terms_acceptance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  terms_id INTEGER NOT NULL,
+  programme_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  email_hash TEXT NOT NULL,
+  subject_id INTEGER NULL,
+  accepted_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_terms_accept ON gates_award_terms_acceptance(terms_id, email_hash, kind, subject_id);
+
+-- ─── "Notify me" on a coming-soon award (double opt-in; migrations/2027_03_05_award_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_award_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  programme_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  email_hash TEXT NOT NULL,
+  token TEXT NOT NULL,
+  ip_hash TEXT NULL,
+  created_at TEXT NULL,
+  confirm_sent_at TEXT NULL,
+  confirmed_at TEXT NULL,
+  notified_at TEXT NULL,
+  cancelled_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_awa_who ON gates_award_alerts(programme_id, email_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_awa_token ON gates_award_alerts(token);
+CREATE INDEX IF NOT EXISTS idx_awa_due ON gates_award_alerts(programme_id, confirmed_at, notified_at);
+
 -- ─── "Email me when tickets go on sale" (double opt-in; migrations/2027_03_04_event_sale_alerts.php) ───
 CREATE TABLE IF NOT EXISTS gates_event_sale_alerts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -622,7 +666,13 @@ CREATE TABLE IF NOT EXISTS gates_users (
   -- Display & reading, saved to the member (REFERENCE §7.5). NULL = never saved.
   display_json TEXT NULL DEFAULT NULL,
   -- The Menu's most-used tiles (MenuShortcuts). NULL = no history.
-  menu_use_json TEXT NULL DEFAULT NULL
+  menu_use_json TEXT NULL DEFAULT NULL,
+  -- Passwordless sign-in by phone (Phase 8), E.164 via Support\Phone. Not unique.
+  phone_e164 TEXT NULL DEFAULT NULL,
+  -- Joining, steps 3 and 4: what you do, where you are based, interests (JSON keys).
+  headline TEXT NULL DEFAULT NULL,
+  based_in TEXT NULL DEFAULT NULL,
+  interests_json TEXT NULL DEFAULT NULL
 );
 CREATE TABLE IF NOT EXISTS gates_points_ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -819,6 +869,7 @@ CREATE INDEX IF NOT EXISTS idx_nominations_device ON gates_nominations(device_fp
 CREATE INDEX IF NOT EXISTS idx_votes_nominee ON gates_votes(nominee_id);
 CREATE INDEX IF NOT EXISTS idx_votes_voted_at ON gates_votes(voted_at);
 CREATE INDEX IF NOT EXISTS idx_points_user ON gates_points_ledger(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_phone_e164 ON gates_users(phone_e164);
 CREATE INDEX IF NOT EXISTS idx_donations_created ON gates_donations(created_at);
 CREATE INDEX IF NOT EXISTS idx_users_created ON gates_users(created_at);
 CREATE INDEX IF NOT EXISTS idx_formsub_formid ON gates_form_submissions(form_id);

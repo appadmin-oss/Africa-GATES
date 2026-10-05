@@ -1796,6 +1796,12 @@ return function(App $app) {
         $g->get('[/]',            HomeController::class.':index');
         $g->get('/awards',        AwardsController::class.':index');
         $g->get('/awards/{p}',    AwardsController::class.':programme');
+        // "Notify me" on a coming-soon award (Phase 5): the form posts here, and the signed
+        // links in the two mails land on one page that shows on GET and acts on POST — mail
+        // scanners fetch every link (AwardAlert, the event alerts' rule).
+        $g->post('/awards/{p}/notify', AwardsController::class.':notify');
+        $g->map(['GET', 'POST'], '/awards/alerts/{token:[a-f0-9]{32}}/{action:confirm|stop}',
+                AwardsController::class.':alertPage');
         $g->get('/leaderboard',   LeaderboardController::class.':index');
         // ── THE PUBLIC RECORD OF AN AWARD ────────────────────────────────────
         //
@@ -2506,33 +2512,29 @@ return function(App $app) {
             $today = date('Y-m-d');
             $eff   = $L::effectiveDate($doc);
 
+            // DocPage (Phase 9): the body arrives already cut into its numbered sections,
+            // from the same walk that anchors it — so a contents entry and the heading it
+            // jumps to cannot disagree. The .txt and .md are built from the same body.
+            $cut = $L::sections($doc);
+
             return $tv($req)->render($res,'pages/legal.twig',[
                 'page_title'=>$doc['title'].' — Africa GATES',
                 'meta_description'=>'The '.$doc['title'].' for Africa GATES — the continental Cultural Power Index recognising African excellence.',
-                'og_type'=>'article',
-                'gates_page'=>'legal', 'breadcrumbs'=>[['label'=>'Home','url'=>'/'],['label'=>$doc['title']]],
+                'gates_page'=>'legal',
                 'legal_doc'=>$doc,
                 'legal_tabs'=>\AfricaGates\Services\LegalService::published(),
-
-                // ── ONE SOURCE FOR THREE RENDERINGS ──────────────────────────
-                // The body the page shows is the body the .txt and .md contain —
-                // including the generated AI disclosure, which used to be assembled
-                // in the template and would therefore have been missing from every
-                // download of the privacy policy. See LegalDocument.
-                'legal_body'=>$L::bodyWithAnchors($doc),
-                'doc_outline'=>$L::outline($doc),
+                'doc_lead'=>$cut['lead'],
+                'doc_sections'=>$cut['sections'],
+                'doc_read_minutes'=>$L::readMinutes($doc),
+                'doc_contact'=>$L::contact($doc),
                 'doc_author'=>$L::AUTHOR,
                 'doc_publisher'=>$L::PUBLISHER,
                 'doc_effective'=>$eff,
                 'doc_url'=>$url,
-                'doc_accessed'=>$today,
                 'doc_citations'=>$L::citations($doc, $url, $today),
                 'doc_file_stem'=>$L::fileStem($doc),
                 'doc_txt_url'=>'/'.$slug.'/download/txt',
                 'doc_md_url'=>'/'.$slug.'/download/md',
-                'doc_standfirst'=>($doc['updated_label'] ?? '') !== ''
-                    ? 'Last updated '.$doc['updated_label'].', and effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.'
-                    : 'Effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.',
             ]);
         };
 
@@ -3026,6 +3028,23 @@ return function(App $app) {
                 // cannot quote different figures; see the class for why it is a
                 // separate rendering rather than the first N sections.
                 'doc_summary'      => $phil::summary($figs),
+                // WHICH rule the prose may describe as the rule (Phase 9). RuleEngine still
+                // resolves the older bases and the curved scale for reproducing announced
+                // standings; a page stating `ideal` and the linear mark as plain fact while
+                // either is switched on is the handbook's fault again (CLAUDE.md, template
+                // variables). The template states the default's arithmetic only when it is
+                // the arithmetic in force, and says so plainly when it is not.
+                // The split inside the community half and the exchange rate it fixes, read
+                // from the one constant the scorer uses rather than typed as "70%" and "2.33".
+                'people_pct'       => (int) round(\AfricaGates\Services\CpiService::REACH_PEOPLE_SHARE * 100),
+                'supporter_votes'  => rtrim(rtrim(number_format(\AfricaGates\Services\CpiService::REACH_PEOPLE_SHARE
+                                        / (1 - \AfricaGates\Services\CpiService::REACH_PEOPLE_SHARE), 2), '0'), '.'),
+                'rule_is_default'  => (static function (): bool {
+                    $e = (new \AfricaGates\Services\RuleEngine())->effective();
+                    return ($e['community_basis'] ?? \AfricaGates\Services\CpiService::BASIS_IDEAL) === \AfricaGates\Services\CpiService::BASIS_IDEAL
+                        && ($e['community_scope'] ?? \AfricaGates\Services\CpiService::SCOPE_EDITION) === \AfricaGates\Services\CpiService::SCOPE_EDITION
+                        && ($e['judge_scale'] ?? \AfricaGates\Services\CpiService::SCALE_LINEAR) === \AfricaGates\Services\CpiService::SCALE_LINEAR;
+                })(),
                 // No reading time. The philosophy can count its own words because it
                 // IS its data; this page's prose is in its template, so any figure
                 // here would be typed, and a typed reading time is one more number

@@ -177,6 +177,7 @@ class EventsController
             'extras_missing' => OptionalColumn::missing('gates_site_events', [
                 'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
                 'organiser_email', 'organiser_phone',
+                'livestream_url', 'recording_url', 'access_notes',
             ]),
             // The enforceable half of the refund policy, hidden until migrated for the same
             // reason as the rest — an organiser setting "50% up to 48 hours" and having it
@@ -295,6 +296,11 @@ class EventsController
                 'refund_policy'   => mb_substr(trim((string) ($b['refund_policy'] ?? '')), 0, 1000) ?: null,
                 'organiser_email' => mb_substr(trim((string) ($b['organiser_email'] ?? '')), 0, 190) ?: null,
                 'organiser_phone' => mb_substr(trim((string) ($b['organiser_phone'] ?? '')), 0, 40) ?: null,
+                // Phase 7 (the public page's Livestream, Recording and Access sections). Links
+                // out, http(s) only — EventsFront::link() validates them again on the way out.
+                'livestream_url'  => \AfricaGates\Services\EventsFront::link(mb_substr(trim((string) ($b['livestream_url'] ?? '')), 0, 500)) ?: null,
+                'recording_url'   => \AfricaGates\Services\EventsFront::link(mb_substr(trim((string) ($b['recording_url'] ?? '')), 0, 500)) ?: null,
+                'access_notes'    => mb_substr(trim((string) ($b['access_notes'] ?? '')), 0, 2000) ?: null,
                 // ── THE REFUND POLICY, AS A RULE ─────────────────────────
                 //
                 // `refund_policy` above stays: it is the prose a buyer reads, and it can say
@@ -317,6 +323,7 @@ class EventsController
         $data = OptionalColumn::filter('gates_site_events', $data, [
             'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
             'organiser_email', 'organiser_phone',
+            'livestream_url', 'recording_url', 'access_notes',
             'self_cancel', 'refund_mode', 'refund_percent', 'refund_cutoff_hours',
         ]);
         // The ticket's appearance. Validated in the service rather than here, because the

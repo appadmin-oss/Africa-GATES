@@ -80,7 +80,7 @@
       {# 5 · GENERATING — nothing pressable but Cancel. #}
       <div data-flo-stage="busy" hidden>
         <p class="flo__p" role="status">{{ 'Drawing your flier…'|trans }}</p>
-        <div class="flo__prog" role="progressbar" aria-label="{{ 'Making your flier'|trans }}"><span></span></div>
+        <div class="flo__prog" role="progressbar" aria-label="{{ 'Making your flier'|trans }}"><span aria-hidden="true"></span><span class="ag-sr">{{ 'In progress'|trans }}</span></div>
         <div class="flo__row"><button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-cancel">{{ 'Cancel'|trans }}</button></div>
       </div>
 

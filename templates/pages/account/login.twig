@@ -1,0 +1,212 @@
+{% extends 'layout/auth.twig' %}
+{% import 'layout/auth.twig' as auth %}
+{% import 'partials/field.twig' as f %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  SIGN IN OR JOIN — /account/login · Phase 8 §8.17, design/SignIn.dc.html
+  view=phone (step 1) · view=code (step 2, `?sent=1`) · the password door (`?with=password`)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed and rebuilt (inventory pages--account--login.md). The DC is passwordless: a
+  code by phone or by email, then the six digits. Every rule the old screen carried is
+  here, each against a test that names it:
+
+  · NO LINK to the admin console, the judges' panel or the organisation sign-in — separate
+    trust domains on their own routes, and a shared public door is what makes one of them
+    a target (AccountJoinTest).
+  · THE CODE SCREEN POSTS THE ADDRESS THE CODE WENT TO, and with nothing remembered it ASKS
+    for it rather than posting an empty one; it offers no resend it cannot perform
+    (OneTimeCodeScreenTest).
+  · A NEW CODE IS ASKED FOR BY POST, never by a link a mail scanner can follow.
+  · ONE REAL CODE FIELD, visible until the script paints the boxes; its `pattern` and
+    `maxlength` are the boxes' six (signin.css).
+  · THE WINDOW AND THE CAP ARE STATED, read from UserAccountService::OTP_TTL_MINUTES and
+    the controller's cap — never typed here, never through `|default()`.
+  · THE PASSKEY ROW is absent when the server cannot verify one, and hidden until the
+    script confirms this browser can run the ceremony (passkeys.js).
+  · RECOVERY: the password door carries "Forgotten your password?" to a real route.
+
+  Two things the DC does not draw are kept, because members already depend on them: the
+  password door (accounts made before this flow have passwords) and the passkey — a step
+  away from the passwordless screen rather than on it (PHASE-8.md deviations).
+
+  The phone tab is drawn only while a text or WhatsApp gateway is configured
+  (SmsService::boot()); "Send by WhatsApp" only while WhatsApp is. "Call me with it" is not
+  drawn at all: this codebase integrates no voice-call transport (PHASE-8.md, blocked).
+#}
+{% set _phoneOk = phone_channels.sms or phone_channels.whatsapp %}
+{% set _step = sent ? 1 : 0 %}
+{% set _dest = code_via == 'phone' ? login_phone : login_email %}
+
+{% block auth_top %}
+  {% if sent or with_password %}
+    {{ auth.back('/account/login?via=' ~ (sent ? code_via : 'email'), sent ? 'Use a different address'|trans : 'Back'|trans) }}
+  {% else %}
+    {{ parent() }}
+  {% endif %}
+{% endblock %}
+
+{% block auth_bars %}{% if not with_password %}{{ auth.bars(_step) }}{% endif %}{% endblock %}
+
+{% block auth_body %}
+{% if sent %}
+  {# ══ STEP 2 · ENTER THE CODE ═══════════════════════════════════════════════ #}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Enter the code'|trans }}</h1>
+    {% if _dest %}
+      <p class="si__lede">{{ 'We sent 6 digits to %dest%.'|trans({'%dest%': _dest}) }}</p>
+    {% else %}
+      {# The session no longer holds the address (a code requested on one device and read
+         on another). The code is still live, so ask for the one thing that is missing. #}
+      <p class="si__lede">{{ 'Tell us the email the code went to, then type the 6 digits.'|trans }}</p>
+    {% endif %}
+  </div>
+
+  {{ auth.say(error, notice) }}
+
+  <form class="si__form-step" method="post" action="/account/login/verify" novalidate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {% if _dest and code_via == 'phone' %}
+      <input type="hidden" name="via" value="phone">
+      <input type="hidden" name="phone" value="{{ login_phone }}">
+      <input type="hidden" name="country" value="{{ login_country }}">
+    {% elseif _dest %}
+      <input type="hidden" name="email" value="{{ login_email }}">
+    {% else %}
+      <input class="si__in" id="si-email" type="email" name="email" required autocomplete="email" inputmode="email"
+             aria-label="{{ 'Email'|trans }}" placeholder="you@example.com" data-ag-error-group="otp">
+    {% endif %}
+
+    <div class="si-code" data-si-code>
+      <label class="ag-sr" for="si-otp">{{ '6-digit code'|trans }}</label>
+      <input class="si-code__real" id="si-otp" name="otp" type="text" required
+             inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"
+             aria-describedby="si-otp-hint"{% if error %} aria-invalid="true"{% endif %} data-ag-error-group="otp"
+             {% if _dest %}autofocus{% endif %}>
+      <div class="si-code__boxes" aria-hidden="true">
+        {%- for i in 1..6 %}<span class="si-code__box"></span>{% endfor -%}
+      </div>
+    </div>
+    <p class="ag-hint" id="si-otp-hint">{{ 'It works for %n% minutes and %t% tries. Asking for a new one cancels this one.'|trans({'%n%': otp_ttl_minutes, '%t%': max_tries}) }}</p>
+
+    <button class="si__go" type="submit">{{ 'Continue'|trans }}</button>
+  </form>
+
+  {% if _dest %}
+    {# The fallbacks. Each is a POST that mints a fresh code (cancelling this one), so a
+       mail scanner following links can never spend the code that was just sent. #}
+    <div class="si__again">
+      <span>
+        {%- if resend_in > 0 -%}
+          <span data-si-wait="{{ resend_in }}" data-si-done="{{ 'Didn’t get it?'|trans }}">{{ 'Didn’t get it? Resend in %t%, or'|trans({'%t%': (resend_in // 60) ~ ':' ~ ('%02d'|format(resend_in % 60))}) }}</span>
+        {%- else -%}
+          {{ 'Didn’t get it?'|trans }}
+        {%- endif -%}
+      </span>
+      <form class="si__again-row" method="post" action="/account/login/otp">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {% if code_via == 'phone' %}
+          <input type="hidden" name="via" value="phone">
+          <input type="hidden" name="phone" value="{{ login_phone }}">
+          <input type="hidden" name="country" value="{{ login_country }}">
+        {% else %}
+          <input type="hidden" name="email" value="{{ login_email }}">
+        {% endif %}
+        <button class="si__pill" type="submit" data-si-resend{% if resend_in > 0 %} hidden{% endif %}>{{ 'Send a new code'|trans }}</button>
+        {% if code_via == 'phone' and phone_channels.whatsapp %}
+          <button class="si__pill" type="submit" name="channel" value="whatsapp">{{ 'Send by WhatsApp'|trans }}</button>
+        {% endif %}
+      </form>
+    </div>
+  {% endif %}
+
+{% elseif with_password %}
+  {# ══ THE PASSWORD DOOR ═════════════════════════════════════════════════════
+     For an account that has one. The email AND the password carry the error together
+     (`data-ag-error-group`): reddening only the password would say "that address has an
+     account" — one sentence for all four ways of failing (SignInScreensTest). #}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Sign in with your password'|trans }}</h1>
+    <p class="si__lede">{{ 'Or go back and have a code sent instead — no password needed.'|trans }}</p>
+  </div>
+  {{ auth.say(error, notice) }}
+  <form class="si__form-step" method="post" action="/account/login" novalidate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input class="si__in" id="si-pw-email" type="email" name="email" value="{{ login_email }}" required
+           autocomplete="email" inputmode="email" aria-label="{{ 'Email'|trans }}" placeholder="you@example.com"
+           {% if error %}aria-invalid="true"{% endif %} data-ag-error-group="signin">
+    <input class="si__in" id="si-pw" type="password" name="password" autocomplete="current-password"
+           aria-label="{{ 'Password'|trans }}" placeholder="{{ 'Password'|trans }}"
+           {% if error %}aria-invalid="true"{% endif %} data-ag-error-group="signin">
+    <button class="si__go" type="submit">{{ 'Sign in'|trans }}</button>
+    <p class="si__alt">
+      <a href="/account/forgot">{{ 'Forgotten your password?'|trans }}</a>
+      <button class="si__link" type="submit" formaction="/account/login/otp" formnovalidate>{{ 'Email me a one-time code'|trans }}</button>
+    </p>
+  </form>
+
+{% else %}
+  {# ══ STEP 1 · SIGN IN OR JOIN ══════════════════════════════════════════════ #}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Sign in or join'|trans }}</h1>
+    <p class="si__lede">{{ 'One account to nominate, vote, give and keep your recognitions.'|trans }}</p>
+  </div>
+
+  {% if _phoneOk %}
+    {# Links that work with no script (each is the page with the other tab); signin.js
+       switches the panel in place and keeps the URL in step. #}
+    <div class="si__via" role="radiogroup" aria-label="{{ 'Sign in with'|trans }}" data-si-via>
+      <a class="si__via-o" role="radio" href="/account/login?via=phone" data-si-tab="phone"
+         aria-checked="{{ via == 'phone' ? 'true' : 'false' }}" tabindex="{{ via == 'phone' ? '0' : '-1' }}">{{ 'Phone'|trans }}</a>
+      <a class="si__via-o" role="radio" href="/account/login?via=email" data-si-tab="email"
+         aria-checked="{{ via == 'email' ? 'true' : 'false' }}" tabindex="{{ via == 'email' ? '0' : '-1' }}">{{ 'Email'|trans }}</a>
+    </div>
+  {% endif %}
+
+  {{ auth.say(error, notice) }}
+
+  {% if _phoneOk %}
+    <form class="si__form-step si__panel" method="post" action="/account/login/otp" novalidate data-si-panel="phone"{% if via != 'phone' %} hidden{% endif %}>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="via" value="phone">
+      <input type="hidden" name="channel" value="{{ phone_channels.sms ? 'sms' : 'whatsapp' }}">
+      <div class="si__tel">
+        <select class="si__cc" name="country" aria-label="{{ 'Country code'|trans }}">
+          {% for c in countries %}<option value="{{ c.code }}"{% if c.code == login_country %} selected{% endif %}>{{ c.code }} +{{ c.dial }}</option>{% endfor %}
+        </select>
+        <input class="si__in" id="phone" type="tel" name="phone" required inputmode="tel" autocomplete="tel-national"
+               enterkeyhint="send" aria-label="{{ 'Phone number'|trans }}" placeholder="801 234 5678"
+               {% if errors.phone|default('') %}aria-invalid="true" aria-describedby="phone-err"{% endif %}>
+      </div>
+      {{ f.message('phone', errors.phone|default('')) }}
+      <button class="si__go" type="submit">{{ 'Send me a code'|trans }}</button>
+    </form>
+  {% endif %}
+
+  <form class="si__form-step si__panel" method="post" action="/account/login/otp" novalidate data-si-panel="email"{% if via != 'email' %} hidden{% endif %}>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="via" value="email">
+    <input class="si__in" id="email" type="email" name="email" value="{{ login_email }}" required
+           inputmode="email" autocomplete="email" enterkeyhint="send"
+           aria-label="{{ 'Email'|trans }}" placeholder="you@example.com"
+           {% if errors.email|default('') %}aria-invalid="true" aria-describedby="email-err"{% endif %}>
+    {{ f.message('email', errors.email|default('')) }}
+    <button class="si__go" type="submit">{{ 'Send me a code'|trans }}</button>
+  </form>
+
+  <p class="si__fine">{{ 'No password to remember. By continuing you agree to the'|trans }} <a href="/terms">{{ 'Terms'|trans }}</a> {{ 'and'|trans }} <a href="/privacy">{{ 'Privacy policy'|trans }}</a>.</p>
+
+  <p class="si__alt">
+    <a href="/account/login?with=password">{{ 'Sign in with a password'|trans }}</a>
+    {% if passkeys_available %}
+      {# Hidden until passkeys.js confirms this browser can run the ceremony; absent when
+         the server cannot verify one. A row that opens nothing reads as the account being
+         broken rather than as the feature being absent. #}
+      <button class="si__link" type="button" data-passkey-signin data-csrf="{{ csrf_token }}" hidden>{{ 'Use a passkey'|trans }}</button>
+    {% endif %}
+  </p>
+  {% if passkeys_available %}<p class="si__fine" data-passkey-note role="status"></p>{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block auth_scripts %}{% if passkeys_available %}<script defer src="{{ asset('/assets/js/passkeys.js') }}"></script>{% endif %}{% endblock %}

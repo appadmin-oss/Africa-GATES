@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS gates_award_cycles (
   -- announced) so the site admits it with or without this; the note is the part only a
   -- person can write, and it stops being shown the moment the cycle is announced.
   results_delay_note TEXT NULL DEFAULT NULL,
+  -- Which edition this is ("11th Edition"), stored because a programme may have run for
+  -- years before it came here; migrations/2027_03_05_edition_number.php, Support\EditionName.
+  edition_number SMALLINT UNSIGNED NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_prog_year(programme_id,year),
   CONSTRAINT fk_cycle_prog FOREIGN KEY(programme_id) REFERENCES gates_award_programmes(id) ON DELETE CASCADE
@@ -628,6 +631,48 @@ CREATE TABLE IF NOT EXISTS gates_event_registrations (
   KEY idx_evreg_event (event_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ─── Award terms, versioned, and who accepted which version (migrations/2027_03_05_award_terms.php) ───
+CREATE TABLE IF NOT EXISTS gates_award_terms (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  programme_id INT UNSIGNED NOT NULL,
+  version SMALLINT UNSIGNED NOT NULL,
+  body MEDIUMTEXT NOT NULL,
+  changelog VARCHAR(500) NULL DEFAULT NULL,
+  effective_at DATETIME NOT NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  created_by INT UNSIGNED NULL DEFAULT NULL,
+  UNIQUE KEY uq_terms_version (programme_id, version),
+  KEY idx_terms_effective (programme_id, effective_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS gates_award_terms_acceptance (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  terms_id BIGINT UNSIGNED NOT NULL,
+  programme_id INT UNSIGNED NOT NULL,
+  kind VARCHAR(20) NOT NULL,
+  email_hash CHAR(64) NOT NULL,
+  subject_id BIGINT UNSIGNED NULL DEFAULT NULL,
+  accepted_at DATETIME NOT NULL,
+  UNIQUE KEY uq_terms_accept (terms_id, email_hash, kind, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── "Notify me" on a coming-soon award (double opt-in; migrations/2027_03_05_award_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_award_alerts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  programme_id INT UNSIGNED NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  email_hash CHAR(64) NOT NULL,
+  token CHAR(32) NOT NULL,
+  ip_hash CHAR(64) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  confirm_sent_at TIMESTAMP NULL DEFAULT NULL,
+  confirmed_at TIMESTAMP NULL DEFAULT NULL,
+  notified_at TIMESTAMP NULL DEFAULT NULL,
+  cancelled_at TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY uq_awa_who (programme_id, email_hash),
+  UNIQUE KEY uq_awa_token (token),
+  KEY idx_awa_due (programme_id, confirmed_at, notified_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ─── "Email me when tickets go on sale" (double opt-in; migrations/2027_03_04_event_sale_alerts.php) ───
 CREATE TABLE IF NOT EXISTS gates_event_sale_alerts (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -714,7 +759,18 @@ CREATE TABLE IF NOT EXISTS gates_users (
   -- The Menu's most-used tiles: a decayed open count per menu destination (MenuShortcuts).
   -- NULL = no history. Bounded by the catalogue, so 1024 ASCII bytes always hold it.
   menu_use_json VARCHAR(1024) NULL DEFAULT NULL,
+  -- Passwordless sign-in by phone (Phase 8): the number a code is sent to, normalised to
+  -- E.164 by Support\Phone. NOT unique — a family or an office may share a line; see
+  -- UserAccountService::byPhone(). `phone` beside it stays as the member typed it.
+  phone_e164 VARCHAR(20) NULL DEFAULT NULL,
+  -- Joining, steps 3 and 4 (SignIn.dc.html): "What you do", "Where you're based", and the
+  -- areas they care about (MemberInterests::FIELDS keys, JSON). Read by the account page
+  -- and by the nomination hub's ordering.
+  headline VARCHAR(120) NULL DEFAULT NULL,
+  based_in VARCHAR(120) NULL DEFAULT NULL,
+  interests_json VARCHAR(255) NULL DEFAULT NULL,
   PRIMARY KEY (id),
+  KEY idx_users_phone_e164 (phone_e164),
   UNIQUE KEY uq_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

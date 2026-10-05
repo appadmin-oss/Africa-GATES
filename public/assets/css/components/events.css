@@ -258,7 +258,7 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
   color:var(--ag-ink); text-decoration:none;
 }
-.ed-vote__dot{ flex:none; width:8px; height:8px; border-radius:50%; background:var(--ag-live) }
+.ed-vote__dot{ flex:none; width:8px; height:8px; border-radius:50%; background:var(--ag-green) }
 .ed-vote__t{ flex:1; display:flex; flex-direction:column; gap:2px; font-size:var(--ag-fs-15-5) }
 .ed-vote__t span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .ed-vote__go{ font-weight:600; font-size:var(--ag-fs-14); color:var(--ag-green) }
@@ -305,7 +305,6 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
    The card carries the selected tier's six properties (copied from the row on a pick);
    these are the only places they are read — the accents §8.10 lists, nothing else. */
 .ed-card{
-  --ev-accent:var(--tier-accent, var(--ag-green));
   --ev-deep:var(--tier-deep, var(--ag-green-deep));
   position:relative; isolation:isolate;
   display:flex; flex-direction:column; gap:12px; padding:22px;

@@ -258,7 +258,7 @@
           <b class="ed-fund__t">{{ a.campaign.title }}</b>
           {% if a.campaign.summary %}<p class="ed-box__p">{{ a.campaign.summary }}</p>{% endif %}
           {% if a.progress.target > 0 %}
-            <span class="ed-fund__bar" role="img" aria-label="{{ '₦%raised% raised of a ₦%target% target'|trans({'%raised%': a.progress.raised|number_format, '%target%': a.progress.target|number_format}) }}"><span style="--ed-pct:{{ a.progress.pct }}%"></span></span>
+            <span class="ed-fund__bar" role="img" aria-label="{{ '₦%raised% raised of a ₦%target% target'|trans({'%raised%': a.progress.raised|number_format, '%target%': a.progress.target|number_format}) }}"><span aria-hidden="true" style="--ed-pct:{{ a.progress.pct }}%"></span><span class="ag-sr">{{ '%pct%% of the target'|trans({'%pct%': a.progress.pct}) }}</span></span>
             <p class="ed-box__p"><b>₦{{ a.progress.raised|number_format }}</b> {{ 'of ₦%t%'|trans({'%t%': a.progress.target|number_format}) }}{% if a.progress.count %} · {{ a.progress.count == 1 ? '1 gift'|trans : '%n% gifts'|trans({'%n%': a.progress.count}) }}{% endif %}{% if a.days_left is not null %} · {{ a.days_left == 1 ? '1 day left'|trans : '%n% days left'|trans({'%n%': a.days_left}) }}{% endif %}</p>
           {% elseif a.progress.count %}
             <p class="ed-box__p"><b>₦{{ a.progress.raised|number_format }}</b> {{ 'raised so far'|trans }}</p>
@@ -325,7 +325,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-  <script type="application/json" id="ed-flier-data">{{ {styles: flier_styles, defaults: flier_style_default, title: event.title, date: event.event_date|slice(0, 10), pct: referral ? referral.pct : 0}|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
+  <script type="application/json" id="ed-flier-data" nonce="{{ csp_nonce }}">{{ {styles: flier_styles, defaults: flier_style_default, title: event.title, date: event.event_date|slice(0, 10), pct: referral ? referral.pct : 0}|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
   <script defer src="{{ asset('/assets/js/event-detail.js') }}"></script>
   {% if st != 'ended' %}<script defer src="{{ asset('/assets/js/event-flier.js') }}"></script>{% endif %}
 {% endblock %}

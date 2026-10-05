@@ -465,6 +465,23 @@
         </label>
         {% endif %}
       </div>
+      {# Phase 7: the public page's Livestream / Recording links (links out, never embeds)
+         and its Access section. Coming soon needs no field here: it is every public tier's
+         "Sales open at" in the tier editor below (EventSales). #}
+      <div class="row">
+        {% if 'livestream_url' not in extras_missing %}
+        <label>Livestream link <span class="af-opt">where people watch it live</span>
+          <input type="url" name="livestream_url" maxlength="500" value="{{ row.livestream_url|default('') }}"></label>
+        {% endif %}
+        {% if 'recording_url' not in extras_missing %}
+        <label>Recording link <span class="af-opt">shown once the event has ended</span>
+          <input type="url" name="recording_url" maxlength="500" value="{{ row.recording_url|default('') }}"></label>
+        {% endif %}
+      </div>
+      {% if 'access_notes' not in extras_missing %}
+      <label>Access <span class="af-opt">one per line — step-free venue, live captions, quiet room</span>
+        <textarea name="access_notes" rows="3">{{ row.access_notes|default('') }}</textarea></label>
+      {% endif %}
       {% if 'attendee_note' not in extras_missing %}
       <label>Note to attendees <span class="af-opt">joining links, parking, dress code</span>
         <textarea name="attendee_note" rows="3">{{ row.attendee_note|default('') }}</textarea></label>

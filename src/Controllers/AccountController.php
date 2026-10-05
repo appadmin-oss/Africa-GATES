@@ -154,8 +154,20 @@ class AccountController
         $q  = (string) ($req->getQueryParams()['as'] ?? '');
         $as = in_array($q, ['individual', 'organisation'], true) ? $q : '';
 
+        // ── THE INDIVIDUAL BRANCH IS STEP 3 OF "SIGN IN OR JOIN" ──────────────
+        //
+        // SignIn.dc.html makes an account the passwordless way: a code to the address or
+        // the number, then "Tell us about you", then the interests. So `?as=individual` is
+        // that third step, drawn for an identity a code has just PROVED — and with no proved
+        // identity there is nothing to attach the account to yet, so it goes back to the
+        // first step rather than drawing a form whose address nobody has checked.
+        $join = $as === 'individual' ? $this->joinIdentity() : null;
+        if ($as === 'individual' && $join === null) {
+            return $res->withHeader('Location', '/account/login?via=email')->withStatus(302);
+        }
+
         $title = match ($as) {
-            'individual'   => 'Create your account — Africa GATES',
+            'individual'   => 'Tell us about you — Africa GATES',
             'organisation' => 'Register your organisation — Africa GATES',
             default        => 'Join Africa GATES',
         };
@@ -173,8 +185,42 @@ class AccountController
             // the review queue, with nothing to say which is real. The apply page guarded
             // this on POST only, so the form still drew for them.
             'org_signed_in' => \AfricaGates\Services\OrgAuth::user() !== null,
-            'auth_wide'     => $as === 'organisation',
+            'join'          => $join,
+            // The browser half of the name rule, from the server's own constant — two
+            // regexes claiming one rule is this codebase's most expensive shape.
+            'name_pattern'  => UserAccountService::NAME_PATTERN,
+            'auth_art'      => $this->art(),
         ]);
+    }
+
+    /**
+     * How long a proved identity may wait on "Tell us about you". Long enough to look up
+     * what to write; short enough that a shared computer left on step 3 is not an open door
+     * into somebody else's new account for the rest of the day.
+     */
+    private const JOIN_WINDOW_SECONDS = 1800;
+
+    /** The identity a join code proved, while it is fresh: ['via','value','at'] or null. */
+    private function joinIdentity(): ?array
+    {
+        $j = $_SESSION['join_identity'] ?? null;
+        if (!is_array($j) || !in_array($j['via'] ?? '', ['email', 'phone'], true) || (string) ($j['value'] ?? '') === '') return null;
+        if (time() - (int) ($j['at'] ?? 0) > self::JOIN_WINDOW_SECONDS) { unset($_SESSION['join_identity']); return null; }
+        return $j;
+    }
+
+    /**
+     * The desktop half of every sign-in screen (SignIn.dc.html, `showArt`): a REAL decided
+     * award — the newest published winner, through HomeFront::decided(), which publishes only
+     * what PublicResults would (released, sealed, never held, never the sandbox). The DC's
+     * quote and name are invented, and nothing here holds a quote from a winner, so the panel
+     * names the winner and the award and says nothing in their voice. With nothing decided
+     * there is no panel at all — an empty dark half is not a design, it is a gap.
+     */
+    private function art(): ?array
+    {
+        try { $d = \AfricaGates\Services\HomeFront::decided(); } catch (\Throwable) { return null; }
+        return $d[0] ?? null;
     }
 
     public function registerSubmit(Request $req, Response $res): Response
@@ -217,6 +263,10 @@ class AccountController
             return $res->withHeader('Location', '/account/register?as=individual')->withStatus(302);
         }
 
+        // Step 3 of "Sign in or join": an account for an identity a code has just proved.
+        $join = $this->joinIdentity();
+        if ($join !== null) return $this->joinSubmit($req, $res, $b, $join);
+
         $r = $this->accounts->register((string) ($b['name'] ?? ''), (string) ($b['email'] ?? ''), (string) ($b['phone'] ?? ''), (string) ($b['password'] ?? '') ?: null);
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['error'];
@@ -246,6 +296,62 @@ class AccountController
             'email_hash' => hash('sha256', $email),
         ]);
         return $res->withHeader('Location', '/account/verify')->withStatus(302);
+    }
+
+    /**
+     * "Tell us about you" — the account is made here, for the identity the code proved.
+     *
+     * The address comes from the PROOF, never from the form, for an email joiner: the field
+     * is not even drawn, so nothing posted can swap the inbox that was checked for another.
+     * A phone joiner types an address (every member record is keyed on one — votes,
+     * receipts, verification), and it is stored unverified with a link sent, exactly as a
+     * registration's would be. The throttle above already counted this request.
+     */
+    private function joinSubmit(Request $req, Response $res, array $b, array $join): Response
+    {
+        $byPhone = $join['via'] === 'phone';
+        $email   = $byPhone ? strtolower(trim((string) ($b['email'] ?? ''))) : (string) $join['value'];
+        $r = $this->accounts->join([
+            'name'           => (string) ($b['name'] ?? ''),
+            'email'          => $email,
+            'phone'          => $byPhone ? (string) $join['value'] : null,
+            'phone_e164'     => $byPhone ? (string) $join['value'] : null,
+            'headline'       => (string) ($b['headline'] ?? ''),
+            'based_in'       => (string) ($b['based_in'] ?? ''),
+            'email_verified' => !$byPhone,
+        ]);
+        if (!$r['ok']) {
+            $_SESSION['flash_error'] = $r['error'];
+            $_SESSION[self::oldKey('individual')] = [
+                'name' => $b['name'] ?? '', 'email' => $byPhone ? $email : '',
+                'headline' => $b['headline'] ?? '', 'based_in' => $b['based_in'] ?? '',
+            ];
+            if (!empty($r['field'])) {
+                \AfricaGates\Support\FormErrors::for('register_individual')
+                    ->add((string) $r['field'], (string) $r['error'])->flash();
+            }
+            return $res->withHeader('Location', '/account/register?as=individual')->withStatus(302);
+        }
+
+        unset($_SESSION['join_identity'], $_SESSION['user_login_email'], $_SESSION['user_login_phone'],
+              $_SESSION['user_login_via'], $_SESSION['user_login_country']);
+        $user = $this->accounts->findById((int) $r['id']);
+        \AfricaGates\Services\WebhookService::dispatch('member.registered', [
+            'member_id' => (int) $r['id'], 'email_hash' => hash('sha256', $email),
+        ]);
+        if ($user) {
+            $this->accounts->startSession($user, $this->ip($req));
+            if ($byPhone) {
+                $sent = $this->sendVerification($req, (int) $user->id, $email, (string) $user->name);
+                $_SESSION['flash_notice'] = $sent
+                    ? 'Your account is ready. We sent a link to confirm your email — open it when you can.'
+                    : 'Your account is ready. We could not send the link to confirm your email just now; ask for another from your account.';
+            } else {
+                $this->sendWelcome($req, $user);
+            }
+        }
+        // Step 4: the interests. A first visit, so the page draws the progress and "Skip".
+        return $res->withHeader('Location', '/account/interests?first=1')->withStatus(302);
     }
 
     /**
@@ -341,6 +447,7 @@ class AccountController
             $_SESSION['flash_error'] = 'That verification link is invalid or has expired — request a fresh one below.';
         }
         return $this->view->render($res, 'pages/account/verify-notice.twig', [
+            'auth_art' => $this->art(),
             'page_title' => 'Verify your email — Africa GATES', 'gates_page' => 'account', 'hide_chrome' => true,
             'email'  => $_SESSION['pending_verify_email'] ?? '',
             // Looped from the code, never typed onto the page: the link's life is decided
@@ -447,6 +554,7 @@ class AccountController
         $bag = \AfricaGates\Support\FormErrors::take('forgot');
 
         return $this->view->render($res, 'pages/account/forgot.twig', [
+            'auth_art' => $this->art(),
             'errors' => $bag['errors'],
             'page_title' => 'Reset your password — Africa GATES', 'gates_page' => 'account',
             'hide_chrome' => true,
@@ -519,6 +627,7 @@ class AccountController
         $bag = \AfricaGates\Support\FormErrors::take('reset');
 
         return $this->view->render($res, 'pages/account/reset.twig', [
+            'auth_art' => $this->art(),
             'errors' => $bag['errors'],
             'page_title' => 'Set a new password — Africa GATES', 'gates_page' => 'account',
             'hide_chrome' => true,
@@ -739,24 +848,51 @@ class AccountController
         // so every sign-in path — password, code, or email verify — can return them.
         $next = $this->safeNext($req->getQueryParams()['next'] ?? null);
         if ($next !== null) $_SESSION['login_next'] = $next;
+        $q = $req->getQueryParams();
+        $channels = $this->phoneChannels();
+        $phoneOk  = $channels['sms'] || $channels['whatsapp'];
+        // Which tab: what was asked for, else what the last request used, else the DC's own
+        // default (Phone) — but never a phone tab with no wire behind it.
+        $via = (string) ($q['via'] ?? ($_SESSION['user_login_via'] ?? ($phoneOk ? 'phone' : 'email')));
+        if ($via !== 'phone' || !$phoneOk) $via = 'email';
+
+        $sent = ($q['sent'] ?? null) !== null;
+        $loginEmail = (string) ($_SESSION['user_login_email'] ?? '');
+        $loginPhone = (string) ($_SESSION['user_login_phone'] ?? '');
+        $codeVia    = (string) ($_SESSION['user_login_via'] ?? 'email') === 'phone' && $loginPhone !== '' ? 'phone' : 'email';
+        $remembered = $codeVia === 'phone' ? $loginPhone : $loginEmail;
+        $resendIn   = $remembered !== '' ? $this->resendIn($this->liveCode(UserAccountService::identityHash($codeVia, $remembered))) : 0;
+
+        $bag = \AfricaGates\Support\FormErrors::take('login');
         return $this->view->render($res, 'pages/account/login.twig', [
-            'page_title' => 'Sign in — Africa GATES', 'gates_page' => 'account', 'hide_chrome' => true,
-            'sent'  => $req->getQueryParams()['sent'] ?? null,
-            // READ, never flashed: {@see otpVerify} falls back to this same key, so
-            // consuming it here would make the screen that shows the address the
-            // thing that stops the address being usable. The code screen prints it,
-            // posts it back, and offers one click to change it — without that, a
-            // mistyped address produced a code screen for an inbox the visitor does
-            // not own, and the only feedback available was "invalid or expired
-            // code": a message about the code, for a fault in the address.
-            'login_email' => (string) ($_SESSION['user_login_email'] ?? ''),
+            'page_title' => $sent ? 'Enter the code — Africa GATES' : 'Sign in or join — Africa GATES',
+            'gates_page' => 'account', 'hide_chrome' => true,
+            'sent'  => $sent,
+            'via'   => $via,
+            // The password door is kept — members made one before this flow existed, and a
+            // passkey and a reset link hang off it — but it is a step away, not the screen:
+            // the design is passwordless.
+            'with_password' => ($q['with'] ?? '') === 'password',
+            // READ, never flashed: {@see otpVerify} falls back to these keys, so consuming
+            // them here would make the screen that shows the address the thing that stops
+            // the address being usable.
+            'login_email'   => $loginEmail,
+            'login_phone'   => $loginPhone,
+            'login_country' => (string) ($_SESSION['user_login_country'] ?? 'NG'),
+            'code_via'      => $codeVia,
+            'phone_channels'=> $channels,
+            'countries'     => \AfricaGates\Support\Phone::dialCodes(),
+            'resend_in'     => $resendIn,
+            'errors'        => $bag['errors'],
             // READ from the rule rather than typed into the page. A window stated on
             // the screen and separately in the code is two rules claiming to be one,
             // and the screen is the copy that goes stale silently.
             'otp_ttl_minutes' => UserAccountService::OTP_TTL_MINUTES,
+            'max_tries'       => self::MAX_OTP_ATTEMPTS,
             // The server half. The browser half is asked in the page, because a server
             // that can verify a ceremony no browser here can run is still nothing to offer.
             'passkeys_available' => \AfricaGates\Services\Passkeys::available(),
+            'auth_art' => $this->art(),
             'error' => $this->flash('flash_error'), 'notice' => $this->flash('flash_notice'),
         ]);
     }
@@ -832,68 +968,231 @@ class AccountController
         return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }
 
-    // ── Login (one-time email code) ───────────────────────────────────────────
-    public function otpRequest(Request $req, Response $res): Response
+    // ══════════════════════════════════════════════════════════════════════
+    // SIGN IN OR JOIN — ONE CODE, BY EMAIL OR BY PHONE (SignIn.dc.html, Phase 8)
+    //
+    // The design is passwordless: "Send me a code", then the six digits, then — for somebody
+    // new — their name and their interests. So a code is minted for ANY address or number,
+    // not only for one that has an account: a `user_login` code for an account that exists,
+    // a `user_join` code for an identity nobody holds yet. That is also the better answer to
+    // enumeration than the one it replaces — the request is told one sentence either way, and
+    // which kind of code was sent is learned only by the person who received it.
+    //
+    // ── WHAT EACH CHANNEL IS SENT THROUGH, AND WHAT IS NOT OFFERED ────────────────
+    //
+    // Email through OtpService, as every member mail. A text through SmsService's SMS
+    // gateways (Africa's Talking, Termii, Twilio — first configured wins) and WhatsApp
+    // through its WhatsApp transport (Meta Cloud API, then Twilio). Each is offered on the
+    // screen only while `SmsService::boot()` says it is configured, so a channel nobody has
+    // set up is never a button that does nothing. "Call me with it" — a voice call reading
+    // the code — has NO transport in this codebase (SmsService integrates no voice API), so
+    // it is not drawn; docs/handoff/PHASE-8.md records it as blocked rather than faked.
+    //
+    // A phone code is sent with `deliver()` directly and never through the retry queue:
+    // a queued retry stores the message body — the code — in clear in a jobs table, and a
+    // code that arrives ten minutes late is a code for a screen the person has left.
+    // ══════════════════════════════════════════════════════════════════════
+
+    /** The channels a code can reach a phone by, right now. */
+    private function phoneChannels(): array
     {
-        $b = (array) $req->getParsedBody();
+        try { $sms = \AfricaGates\Services\SmsService::boot(); }
+        catch (\Throwable) { return ['sms' => false, 'whatsapp' => false]; }
+        return ['sms' => $sms->smsConfigured(), 'whatsapp' => $sms->whatsappConfigured()];
+    }
+
+    /** The newest live code filed under an identity hash, of either purpose. */
+    private function liveCode(string $hash): ?object
+    {
+        $row = DB::table('gates_otp_tokens')->where('email_hash', $hash)
+            ->whereIn('purpose', [UserAccountService::LOGIN_PURPOSE, UserAccountService::JOIN_PURPOSE])
+            ->where('is_used', 0)->where('expires_at', '>', Carbon::now()->toDateTimeString())
+            ->orderByDesc('id')->first();
+        return $row ?: null;
+    }
+
+    /** Seconds until the same channel may send again (0 = now). Read by the code screen. */
+    private function resendIn(?object $tok): int
+    {
+        if (!$tok || empty($tok->created_at)) return 0;
+        $age = Carbon::now()->getTimestamp() - Carbon::parse((string) $tok->created_at)->getTimestamp();
+        return max(0, UserAccountService::RESEND_AFTER_SECONDS - $age);
+    }
+
+    /**
+     * The identity a request is about: ['via' => 'email'|'phone', 'value' => …, 'country' => …]
+     * or ['error' => …]. A phone is resolved to E.164 by Support\Phone against the chosen
+     * country, the one normaliser every messaging path here uses.
+     */
+    private function identityFrom(array $b): array
+    {
+        if ((string) ($b['via'] ?? '') === 'phone') {
+            $country = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) ($b['country'] ?? 'NG')) ?: 'NG');
+            $raw = (string) ($b['phone'] ?? '');
+            $e164 = \AfricaGates\Support\Phone::normalize($raw, $country);
+            if ($e164 === null) {
+                return ['error' => 'Enter the number your phone uses, with its country.', 'field' => 'phone',
+                        'via' => 'phone', 'country' => $country, 'raw' => $raw];
+            }
+            return ['via' => 'phone', 'value' => $e164, 'country' => $country];
+        }
         $email = strtolower(trim((string) ($b['email'] ?? '')));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $_SESSION['flash_error'] = 'Please enter a valid email.';
-            return $res->withHeader('Location', '/account/login')->withStatus(302);
+            return ['error' => 'Please enter a valid email.', 'field' => 'email', 'via' => 'email', 'raw' => $email];
         }
-        $ip = $this->ip($req);
-        if ($this->rateLimit && (!$this->rateLimit->check(hash('sha256', $ip), 'user_otp_ip', 5, 3600)
-            || !$this->rateLimit->check(hash('sha256', $email), 'user_otp_email', 3, 3600))) {
-            $_SESSION['flash_notice'] = 'If that email has an account, a 6-digit code is on the way.';
-            return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
+        return ['via' => 'email', 'value' => $email];
+    }
+
+    /** Remember the identity the code screen is about, for the next GET. */
+    private function remember(array $id): void
+    {
+        $_SESSION['user_login_via'] = $id['via'];
+        if ($id['via'] === 'phone') {
+            $_SESSION['user_login_phone']   = $id['value'];
+            $_SESSION['user_login_country'] = $id['country'] ?? 'NG';
+        } else {
+            $_SESSION['user_login_email'] = $id['value'];
         }
-        $user = $this->accounts->findByEmail($email);
-        if ($user && $this->otp) {
-            $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-            DB::table('gates_otp_tokens')->where('email_hash', hash('sha256', $email))->where('purpose', 'user_login')->where('is_used', 0)->update(['is_used' => 1]);
-            DB::table('gates_otp_tokens')->insert([
-                'email_hash' => hash('sha256', $email), 'token_hash' => hash('sha256', $code), 'purpose' => 'user_login',
-                'nominee_id' => (int) $user->id, 'award_id' => 0, 'attempts' => 0, 'is_used' => 0,
-                'expires_at' => Carbon::now()->addMinutes(UserAccountService::OTP_TTL_MINUTES)->toDateTimeString(), 'created_at' => Carbon::now()->toDateTimeString(),
-            ]);
-            $nm  = htmlspecialchars((string) $user->name, ENT_QUOTES, 'UTF-8');
-            $ttl = UserAccountService::OTP_TTL_MINUTES;
-            $html = "<p>Hello <strong>{$nm}</strong>,</p><p>Your Africa GATES sign-in code is below — it expires in {$ttl} minutes.</p>"
-                . "<div style=\"font:700 34px/1 'JetBrains Mono',monospace;letter-spacing:.3em;color:#10292C;margin:18px 0\">{$code}</div>"
-                . "<p style=\"font-size:13px;color:#92a6a7\">Didn't request this? Ignore this email.</p>";
-            // Surface delivery failure honestly — the previous version discarded
-            // this result and told the user "code sent" while nothing left the
-            // building. (Member-account existence is already discoverable via
-            // registration, so this does not open a new enumeration channel.)
-            $sendFailed = false;
-            try {
-                $r = $this->otp->sendBranded($email, 'Your Africa GATES sign-in code', $html, "Your sign-in code is {$code} (valid {$ttl} minutes).", 'Accounts');
-                $sendFailed = !($r['success'] ?? false);
-            } catch (\Throwable $e) { $sendFailed = true; }
-            if ($sendFailed) {
-                $_SESSION['user_login_email'] = $email;
-                // The sentence does not branch on the account any more. This whole
-                // block is reachable only when the address HAS an account, and the
-                // clause that used to hang off `password_hash` therefore told an
-                // attacker probing during a mail outage which accounts have no
-                // password — i.e. which ones a grind is pointless against and which
-                // are worth phishing a code for. The comment above defends disclosing
-                // that the account exists (registration already does); it does not
-                // defend disclosing its shape. "If you have one" helps the owner just
-                // as well and says nothing about anybody else.
-                $_SESSION['flash_error'] = 'We could not send your sign-in code — our email service is having trouble. Try again in a few minutes, or sign in with your password if you have one.';
-                return $res->withHeader('Location', '/account/login')->withStatus(302);
+    }
+
+    public function otpRequest(Request $req, Response $res): Response
+    {
+        $b  = (array) $req->getParsedBody();
+        $id = $this->identityFrom($b);
+        if (isset($id['error'])) {
+            $_SESSION['flash_error'] = $id['error'];
+            \AfricaGates\Support\FormErrors::for('login')->add((string) $id['field'], $id['error'])->flash();
+            return $res->withHeader('Location', '/account/login' . ($id['via'] === 'phone' ? '?via=phone' : '?via=email'))->withStatus(302);
+        }
+        $via   = $id['via'];
+        $value = $id['value'];
+        $hash  = UserAccountService::identityHash($via, $value);
+        $this->remember($id);
+
+        // Which wire. A phone asks for a text unless it asked for WhatsApp; a channel that is
+        // not configured falls to the one that is, and neither is a refusal said plainly —
+        // the tab that leads here is only drawn when one exists, so this is the stale-form case.
+        $channel = 'email';
+        if ($via === 'phone') {
+            $ch = $this->phoneChannels();
+            $want = (string) ($b['channel'] ?? 'sms') === 'whatsapp' ? 'whatsapp' : 'sms';
+            $channel = $ch[$want] ? $want : ($ch['sms'] ? 'sms' : ($ch['whatsapp'] ? 'whatsapp' : ''));
+            if ($channel === '') {
+                $_SESSION['flash_error'] = 'Codes by phone are not available right now. Use your email instead.';
+                return $res->withHeader('Location', '/account/login?via=email')->withStatus(302);
             }
         }
-        $_SESSION['user_login_email'] = $email;
-        $_SESSION['flash_notice'] = 'If that email has an account, a 6-digit code is on the way.';
+
+        $sentNotice = $via === 'phone'
+            ? 'A 6-digit code is on the way to that number.'
+            : 'A 6-digit code is on the way to that address.';
+
+        // Both limits, per connection AND per identity, before anything is sent — what a
+        // free code-sender costs is not rows, it is mail to addresses and texts to numbers
+        // somebody else chose (and a text costs money per message: the shape SMS pumping
+        // fraud lives on). The refusal is the same sentence as success, so a limit cannot be
+        // used to learn which identities are worth trying.
+        $ip = $this->ip($req);
+        if ($this->rateLimit && (!$this->rateLimit->check(hash('sha256', $ip), 'user_otp_ip', 5, 3600)
+            || !$this->rateLimit->check($hash, $via === 'phone' ? 'user_otp_phone' : 'user_otp_email', 3, 3600))) {
+            $_SESSION['flash_notice'] = $sentNotice;
+            return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
+        }
+
+        // The resend clock. A second press inside it must not cancel the code that is on its
+        // way — that is the commonest way somebody ends up typing a correct code into a
+        // screen that refuses it. The WhatsApp fallback is exempt: it is offered beside the
+        // countdown precisely because the first wire did not arrive (the per-number limit
+        // above still bounds it).
+        $live = $this->liveCode($hash);
+        if ($channel !== 'whatsapp' && $this->resendIn($live) > 0) {
+            $_SESSION['flash_notice'] = $sentNotice;
+            return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
+        }
+
+        if ($via === 'email') {
+            $user = $this->accounts->findByEmail($value);
+            if (!$user && \AfricaGates\Support\DisposableEmail::isDisposable($value)) {
+                // Said at the request, not at the end of the profile step: a code sent to an
+                // inbox the join will then refuse is a code nobody could use.
+                $_SESSION['flash_error'] = 'Please use a permanent email address — disposable inboxes are not accepted.';
+                \AfricaGates\Support\FormErrors::for('login')->add('email', (string) $_SESSION['flash_error'])->flash();
+                return $res->withHeader('Location', '/account/login?via=email')->withStatus(302);
+            }
+            $shared = false;
+        } else {
+            $p = $this->accounts->byPhone($value);
+            $user = $p['user'];
+            $shared = $p['shared'];
+        }
+
+        // A sign-in code for an account; a join code for an identity nobody holds. A number on
+        // two accounts is filed as a sign-in with no account, and the verifier says why once
+        // the code is proved.
+        $purpose = ($user || $shared) ? UserAccountService::LOGIN_PURPOSE : UserAccountService::JOIN_PURPOSE;
+        $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        DB::table('gates_otp_tokens')->where('email_hash', $hash)
+            ->whereIn('purpose', [UserAccountService::LOGIN_PURPOSE, UserAccountService::JOIN_PURPOSE])
+            ->where('is_used', 0)->update(['is_used' => 1]);
+        DB::table('gates_otp_tokens')->insert([
+            'email_hash' => $hash, 'token_hash' => hash('sha256', $code), 'purpose' => $purpose,
+            'nominee_id' => $user ? (int) $user->id : 0, 'award_id' => 0, 'attempts' => 0, 'is_used' => 0,
+            'expires_at' => Carbon::now()->addMinutes(UserAccountService::OTP_TTL_MINUTES)->toDateTimeString(),
+            'created_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        $ttl = UserAccountService::OTP_TTL_MINUTES;
+        $sendFailed = false;
+        if ($channel === 'email') {
+            if ($this->otp) {
+                $nm = htmlspecialchars($user ? (string) $user->name : 'there', ENT_QUOTES, 'UTF-8');
+                $html = "<p>Hello <strong>{$nm}</strong>,</p><p>Your Africa GATES code is below — it expires in {$ttl} minutes.</p>"
+                    . "<div style=\"font:700 34px/1 'JetBrains Mono',monospace;letter-spacing:.3em;color:#10292C;margin:18px 0\">{$code}</div>"
+                    . "<p style=\"font-size:13px;color:#92a6a7\">Didn't request this? Ignore this email.</p>";
+                try {
+                    $r = $this->otp->sendBranded($value, 'Your Africa GATES sign-in code', $html, "Your sign-in code is {$code} (valid {$ttl} minutes).", 'Accounts');
+                    $sendFailed = !($r['success'] ?? false);
+                } catch (\Throwable) { $sendFailed = true; }
+            } else {
+                $sendFailed = true;
+            }
+        } else {
+            $body = "Your Africa GATES code is {$code}. It expires in {$ttl} minutes. Do not share it with anybody.";
+            try {
+                // A login code is something this person asked for, so an opt-out from event
+                // texts must not lock them out of their own account (SmsService::sendSms()).
+                \AfricaGates\Services\SmsService::boot()->deliver($channel, $value, $body, 'member_login');
+            } catch (\Throwable) { $sendFailed = true; }
+        }
+
+        if ($sendFailed) {
+            // Not "a code is on the way" for a message that never left. The sentence does not
+            // branch on the account (see OneTimeCodeScreenTest): "if you have one" helps the
+            // owner and says nothing about anybody else.
+            $_SESSION['flash_error'] = $channel === 'email'
+                ? 'We could not send your sign-in code — our email service is having trouble. Try again in a few minutes, or sign in with your password if you have one.'
+                : 'We could not send a code to that number just now. Try again in a few minutes, or use your email.';
+            return $res->withHeader('Location', '/account/login' . ($via === 'phone' ? '?via=phone' : ''))->withStatus(302);
+        }
+
+        $_SESSION['flash_notice'] = $sentNotice;
         return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
     }
 
     public function otpVerify(Request $req, Response $res): Response
     {
         $b = (array) $req->getParsedBody();
-        $email = strtolower(trim((string) ($b['email'] ?? ($_SESSION['user_login_email'] ?? ''))));
+        // The identity travels WITH the code, from the form. A session that has rolled over
+        // (a code requested on a laptop and read on a phone) still verifies, and a screen
+        // with nothing remembered asks for the address rather than posting an empty one.
+        if ((string) ($b['via'] ?? '') === 'phone') {
+            $via = 'phone';
+            $value = \AfricaGates\Support\Phone::normalize((string) ($b['phone'] ?? ($_SESSION['user_login_phone'] ?? '')),
+                (string) ($b['country'] ?? ($_SESSION['user_login_country'] ?? 'NG'))) ?? '';
+        } else {
+            $via = 'email';
+            $value = strtolower(trim((string) ($b['email'] ?? ($_SESSION['user_login_email'] ?? ''))));
+        }
         $code  = trim((string) ($b['otp'] ?? ''));
         if (!preg_match('/^\d{6}$/', $code)) {
             $_SESSION['flash_error'] = 'Code must be 6 digits.';
@@ -903,62 +1202,31 @@ class AccountController
             $_SESSION['flash_error'] = 'Too many attempts. Please try again later.';
             return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
         }
-        $tok = DB::table('gates_otp_tokens')->where('email_hash', hash('sha256', $email))->where('purpose', 'user_login')
-            ->where('is_used', 0)->where('expires_at', '>', Carbon::now()->toDateTimeString())->orderByDesc('id')->first();
+        $tok = $value === '' ? null : $this->liveCode(UserAccountService::identityHash($via, $value));
         if (!$tok) {
             $_SESSION['flash_error'] = 'Invalid or expired code. Request a new one.';
             return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
         }
-        // COUNT THE GUESS AND CAP IT IN ONE STATEMENT.
+        // COUNT THE GUESS AND CAP IT IN ONE STATEMENT (Support\OtpAttempt — CLAUDE.md, "A cap
+        // fixed on one door and left standing on three"). Reading `attempts` and comparing the
+        // value read lets concurrent guesses all believe they are the first.
         //
-        // This used to read `attempts` off the row above, increment, then compare the
-        // value it had READ — and nothing serialised the gap. Fire the guesses together
-        // and every one of them holds a snapshot saying attempts = 0, so every one
-        // concludes it is the first and every one reaches the hash comparison below.
-        // The counter recorded them all; the cap never consulted it.
-        //
-        // The judges' door had the identical two lines, and they were replaced there
-        // with a paragraph explaining exactly this. Nothing asked whether the member
-        // door — a complete credential that needs no password, for an account holding
-        // voting points, a purchase history and a phone number — had the same shape. It
-        // did, and an attacker mints a code for any address by posting it to the public
-        // form above. `user_otp_verify` throttles per IP and is the outer bound; this is
-        // the inner one, and it is the one that does not care where the traffic is from.
-        //
-        // This branch reads as unreachable and is not: the wrong-guess path below spends
-        // the code as soon as the budget runs out, so a SEQUENTIAL sixth guess finds no
-        // live token at all. What reaches here is a guess that arrives while the budget
-        // is already gone and the burn has not landed — which is the concurrency this
-        // whole change is about. Do not delete it as dead.
+        // This branch reads as unreachable and is not: the wrong-guess path below spends the
+        // code as soon as the budget runs out, so a SEQUENTIAL sixth guess finds no live token
+        // at all. What reaches here is a guess that arrives while the budget is already gone
+        // and the burn has not landed — the concurrency the clause exists for. Do not delete it.
         if (!OtpAttempt::claim((int) $tok->id, self::MAX_OTP_ATTEMPTS)) {
             DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
             $_SESSION['flash_error'] = 'Too many attempts. Request a new code.';
             return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
         }
         if (!hash_equals((string) $tok->token_hash, hash('sha256', $code))) {
-            // COUNT DOWN OUT LOUD. The five-guess cap was stated nowhere until it
-            // fired, and when it fires the code is already dead and the person has to
-            // go back to their inbox — the rule arrives only as its own punishment.
-            // The number is no use to an attacker, who can count their own guesses;
-            // it is the only thing that lets somebody mistyping a code off a phone
-            // screen know they are near the end of it.
-            //
-            // IT DOES WIDEN AN ORACLE THAT ALREADY EXISTED, and that is accepted rather
-            // than answered. A guess against an address with no account finds no token
-            // and is told "Invalid or expired code. Request a new one."; a guess against
-            // a real one is told how many tries remain. The two already differed in
-            // wording before this ("Request a new one" against "Try again"), and
-            // `otpRequest` above states this platform's position in as many words:
-            // member existence is discoverable through registration and is not defended
-            // here. Minting the token first costs three requests an hour per address.
-            // If that position ever changes, this countdown is one of the places it has
-            // to change with it.
+            // COUNT DOWN OUT LOUD. The five-guess cap stated nowhere until it fired arrives
+            // only as its own punishment. It widens an oracle that already existed and that
+            // the platform accepts (member existence is discoverable through registration);
+            // if that position changes, this countdown has to change with it.
             $left = max(0, self::MAX_OTP_ATTEMPTS - (int) DB::table('gates_otp_tokens')->where('id', $tok->id)->value('attempts'));
             if ($left === 0) {
-                // Spend it here rather than leaving it alive-but-unusable until the
-                // next guess trips the cap. No further attempt can succeed, so a code
-                // in that state is one more way for the screen to answer a question
-                // about the code when the answer is about the budget.
                 DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
                 $_SESSION['flash_error'] = 'That was the last try on that code. Ask for a new one.';
             } else {
@@ -967,15 +1235,41 @@ class AccountController
             }
             return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
         }
-        DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
-        $user = $this->accounts->findByEmail($email);
-        if (!$user) {
+        // Spent by a guarded update: two presses of the same code must not both go on.
+        if (DB::table('gates_otp_tokens')->where('id', $tok->id)->where('is_used', 0)->update(['is_used' => 1]) !== 1) {
+            $_SESSION['flash_error'] = 'Invalid or expired code. Request a new one.';
+            return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
+        }
+
+        // ── A CODE FOR SOMEBODY NEW: on to "Tell us about you" ──────────────────
+        if ((string) $tok->purpose === UserAccountService::JOIN_PURPOSE) {
+            // An account may have been made for this identity since the code was sent (the
+            // same person in another tab). Then this is a sign-in after all.
+            $existing = $via === 'email' ? $this->accounts->findByEmail($value) : $this->accounts->byPhone($value)['user'];
+            if (!$existing) {
+                $_SESSION['join_identity'] = ['via' => $via, 'value' => $value, 'at' => time()];
+                return $res->withHeader('Location', '/account/register?as=individual')->withStatus(302);
+            }
+            $user = $existing;
+        } elseif ($via === 'email') {
+            $user = $this->accounts->findByEmail($value);
+        } else {
+            $user = (int) $tok->nominee_id > 0 ? $this->accounts->findById((int) $tok->nominee_id) : null;
+            if (!$user) {
+                // Proved the handset, and the handset is on more than one account. Said only
+                // now, to the person holding the phone.
+                $_SESSION['flash_error'] = 'That number is on more than one account. Sign in with your email instead.';
+                return $res->withHeader('Location', '/account/login?via=email')->withStatus(302);
+            }
+        }
+
+        if (!$user || !$this->accounts->canSignIn($user)) {
             $_SESSION['flash_error'] = 'No active account for that email. Create one first.';
             return $res->withHeader('Location', '/account/register')->withStatus(302);
         }
-        // A successful one-time code proves the user controls this inbox, so it
-        // also satisfies email verification (covers members created pre-verification).
-        if (!$this->accounts->isVerified($user)) {
+        // An emailed code proves the inbox, so it verifies the address. A texted one proves
+        // the handset and says nothing about the inbox.
+        if ($via === 'email' && !$this->accounts->isVerified($user)) {
             $this->accounts->markVerified((int) $user->id);
             \AfricaGates\Services\WebhookService::dispatch('member.verified', [
                 'member_id'  => (int) $user->id,
@@ -983,7 +1277,7 @@ class AccountController
             ]);
             $this->sendWelcome($req, $user);
         }
-        unset($_SESSION['user_login_email']);
+        unset($_SESSION['user_login_email'], $_SESSION['user_login_phone'], $_SESSION['user_login_via'], $_SESSION['user_login_country']);
         $this->accounts->startSession($user, $this->ip($req));
         return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }

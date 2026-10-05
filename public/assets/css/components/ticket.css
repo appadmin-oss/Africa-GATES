@@ -75,8 +75,8 @@
 .tk-stub__note{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); text-align:center }
 .tk-stub__who{ display:none }
 
-.tk-facts{ margin:0; display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--ag-line-3); border-top:1px solid var(--ag-line-3) }
-.tk-fact{ display:flex; flex-direction:column; gap:3px; padding:12px 18px; background:var(--ag-surface) }
+.tk-facts{ margin:0; display:grid; grid-template-columns:1fr 1fr; background:var(--ag-surface); border-top:1px solid var(--ag-line-3) }
+.tk-fact{ display:flex; flex-direction:column; gap:3px; padding:12px 18px; background:var(--ag-surface); box-shadow:0 0 0 .5px var(--ag-line-3) }
 .tk-fact--wide{ grid-column:1 / -1 }
 .tk-fact--print{ display:none }
 .tk-fact dt{ font-size:var(--ag-fs-11-5); letter-spacing:.04em; color:var(--ag-soft) }
@@ -137,6 +137,8 @@
 .tk-cut{ display:none }
 .tk-foot{ margin:0; text-align:center; font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-soft) }
 .tk-page--dark .tk-foot{ color:var(--ag-line-2) }
+.tk-page--dark .tk-act--go,
+.tk-page--dark .tk-act--go:hover{ background:var(--ag-green); border-color:var(--ag-green) }
 .tk-lost{ display:flex; flex-direction:column; gap:10px; font-size:var(--ag-fs-15); line-height:1.6 }
 .tk-lost__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26) }
 .tk-lost p{ margin:0 }

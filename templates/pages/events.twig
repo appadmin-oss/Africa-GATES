@@ -48,8 +48,8 @@
     <span class="ev-row__t">
       <span class="ev-row__n">{{ e.title }}</span>
       <span class="ev-row__m">
-        {{- e.date -}}
-        {%- if e.where %} · {{ e.where }}{% endif -%}
+        {{- e.city ?: e.where -}}
+        {%- if e.city or e.where %} · {% endif %}{{ e.state == 'ended' ? e.date : e.time -}}
         {%- if e.state == 'soon' and e.opens_text %} · {{ 'tickets on sale %when%'|trans({'%when%': e.opens_text}) }}
         {%- elseif e.state == 'open' and e.from_text %} · {{ e.from == 0 ? 'free'|trans : 'from %price%'|trans({'%price%': e.from_text}) }}
         {%- elseif e.state == 'ended' and e.recording %} · {{ 'watch the recording'|trans }}{% endif -%}

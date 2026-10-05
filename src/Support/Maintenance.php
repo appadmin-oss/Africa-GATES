@@ -165,6 +165,11 @@ final class Maintenance
             // a message (EventSaleAlert).
             $ran[] = ['event-sale-alerts', $this->task('event-sale-alerts',
                 fn() => \AfricaGates\Services\EventSaleAlert::sweep($this->mailer()))];
+            // "Notify me" on a coming-soon award (Phase 5): the moment an edition leaves
+            // `upcoming` is a date passing, not a save, so it is checked every tick like the
+            // ticket alerts beside it, and each row is CLAIMED before it is sent (AwardAlert).
+            $ran[] = ['award-alerts', $this->task('award-alerts',
+                fn() => \AfricaGates\Services\AwardAlert::sweep($this->mailer()))];
             // The interview recording bot. On every tick, and it has to be: this is the
             // path that sends a bot to a sitting starting in ten minutes, reads the
             // transcript out of one that is running, and pulls a bot out of one that

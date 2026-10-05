@@ -1,0 +1,348 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE DOCUMENT FAMILY — /integrity · /philosophy · every legal document · award terms
+   Phase 9 · design/DocPage.dc.html · REFERENCE §8.20 · partials/article.twig
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Mobile first, logical properties, no colour literal: every colour is an Accent token.
+
+   ── TIER 0: NO GREEN ANYWHERE ──────────────────────────────────────────────
+   A document asks for nothing (§8.20). Links are ink, underlined 1px at a 3px offset and
+   2px on hover; the focus ring is ink (`.ag-doc`, shell.css); the /cookies switches are
+   ink when on. The old article.css carried green on its eyebrow chip, its download button,
+   its rail and its inline code, invisible to every sweep because the sweep read templates;
+   DocPageTest reads THIS file and fails on any green, gold, live or info token in it.
+
+   ── LAYOUT (DC `cols`) ─────────────────────────────────────────────────────
+   ≥1200   240px | ≤680px | 280px, gap 48, max 1320; both rails sticky.
+   1024+   230px | 1fr, gap 40, max 1100; the right card moves inline under the masthead.
+   <1024   one column, max 680; the sticky 48px Contents bar opens the bottom sheet.
+   The 2px ink progress bar sits at the top of <main> at every width.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.dp{ color:var(--ag-ink) }
+.dp a{ color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px; text-decoration-thickness:1px }
+.dp a:hover{ color:var(--ag-ink); text-decoration-thickness:2px }
+
+/* ── Progress + Contents bar ─────────────────────────────────────────────── */
+.dp-progress{ position:sticky; top:0; z-index:7; height:2px }
+.dp-progress__fill{
+  display:block; height:100%; width:100%; background:var(--ag-ink);
+  transform:scaleX(0); transform-origin:left center;
+  transition:transform .12s linear;
+}
+[dir="rtl"] .dp-progress__fill{ transform-origin:right center }
+
+.dp-cbar{
+  position:sticky; top:2px; z-index:6;
+  padding:0 var(--ag-sp-16);
+  background:var(--ag-ground); border-bottom:1px solid var(--ag-line);
+}
+.dp a.dp-cbar__btn{
+  width:100%; max-width:680px; margin:0 auto; height:48px;
+  display:flex; align-items:center; gap:var(--ag-sp-10);
+  color:var(--ag-ink); text-decoration:none;
+}
+.dp-cbar__t{ font-size:var(--ag-fs-14); font-weight:700 }
+.dp-cbar__cur{
+  flex:1; min-width:0; font-size:var(--ag-fs-14); color:var(--ag-ink-2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums;
+}
+
+/* ── The shell grid ──────────────────────────────────────────────────────── */
+.dp-shell{
+  /* content-box, as the DC measures it: 1100 / 1320 is the CONTENT, padding outside. */
+  box-sizing:content-box;
+  max-width:1100px; margin:0 auto; padding:20px var(--ag-sp-16) var(--ag-sp-32);
+  display:grid; grid-template-columns:minmax(0,1fr); gap:40px; align-items:start;
+}
+.dp-rail, .dp-aside--rail{ display:none }
+.dp-doc{ min-width:0; width:100%; max-width:680px; justify-self:center; display:flex; flex-direction:column }
+
+/* ── Masthead ────────────────────────────────────────────────────────────── */
+.dp-head{ display:flex; flex-direction:column; gap:var(--ag-sp-14); padding-bottom:22px; border-bottom:1px solid var(--ag-line) }
+.dp-head__eyebrow{ margin:0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
+.dp-head__h1{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-32); line-height:1.08; letter-spacing:-.015em; text-wrap:balance;
+}
+.dp-head__sub{ margin:0; font-size:var(--ag-fs-17); line-height:1.45; color:var(--ag-ink-2); text-wrap:balance }
+.dp-head__stand{ margin:0; font-size:var(--ag-fs-16-5); line-height:1.65; color:var(--ag-ink); text-wrap:pretty }
+.dp-head__by{
+  margin:0; display:flex; flex-wrap:wrap; gap:4px var(--ag-sp-14);
+  font-size:var(--ag-fs-13-5); color:var(--ag-soft); font-variant-numeric:tabular-nums;
+}
+.dp-tools{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8); padding-top:2px }
+
+/* The 44px outlined pill: Listen, Download, Cite, and the cite block's actions. */
+.dp .dp-pill{
+  display:inline-flex; align-items:center; gap:var(--ag-sp-8);
+  height:44px; padding:0 var(--ag-sp-16);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14-5); font-weight:600; text-decoration:none; cursor:pointer;
+}
+.dp .dp-pill:hover{ border-color:var(--ag-ink) }
+.dp-pill[hidden]{ display:none }
+.dp-pill__pause{ display:none }
+.dp-pill--listen[aria-pressed="true"]{ background:var(--ag-ink); border-color:var(--ag-ink); color:var(--ag-surface) }
+.dp-pill--listen[aria-pressed="true"] .dp-pill__play{ display:none }
+.dp-pill--listen[aria-pressed="true"] .dp-pill__pause{ display:inline }
+
+/* ── The card ("Live settings" / "This document") ────────────────────────── */
+.dp-aside{ display:flex; flex-direction:column; gap:var(--ag-sp-14) }
+.dp-aside--inline{ padding-top:22px }
+.dp-card{
+  display:flex; flex-direction:column; padding:6px 18px 14px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
+}
+.dp-card__h{ margin:0; padding:10px 0 4px; font-size:var(--ag-fs-15); font-weight:700 }
+.dp-card__rows{ margin:0 }
+.dp-card__row{
+  display:flex; justify-content:space-between; gap:var(--ag-sp-12); padding:10px 0;
+  font-size:var(--ag-fs-14); border-top:1px solid var(--ag-line-3);
+}
+.dp-card__row:first-child{ border-top:0 }
+.dp-card__row dt{ color:var(--ag-soft) }
+.dp-card__row dd{ margin:0; font-weight:700; text-align:end; font-variant-numeric:tabular-nums }
+.dp-card__note{ margin:0; padding-top:6px; font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-soft) }
+.dp a.dp-card--link{ gap:4px; padding:14px 18px; text-decoration:none }
+.dp-card--link b{ font-size:var(--ag-fs-14-5) }
+.dp-card--link span{ font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-ink-2) }
+
+/* ── /cookies: "Your choices, right now" ─────────────────────────────────── */
+.dp-choices{
+  margin-top:22px; display:flex; flex-direction:column; gap:4px; padding:16px 18px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
+}
+.dp-choices__h{ margin:0 0 6px; font-size:var(--ag-fs-16); font-weight:700 }
+.dp-choices__signal{ margin:0 0 6px; font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-ink-2) }
+.dp-choices__form{ display:flex; flex-direction:column }
+.dp-choices__row{ display:flex; align-items:center; gap:var(--ag-sp-14); min-height:56px; border-top:1px solid var(--ag-line-3) }
+.dp-choices__row:first-of-type{ border-top:0 }
+.dp-choices__text{ flex:1; display:flex; flex-direction:column; gap:2px; padding:8px 0 }
+.dp-choices__name{ font-size:var(--ag-fs-15); font-weight:700 }
+.dp-choices__desc{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.dp-choices__state{ flex:none; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
+.dp-choices__act{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8); padding-top:var(--ag-sp-10); border-top:1px solid var(--ag-line-3) }
+
+/* The DC's switch (46 × 28, a 22px thumb), drawn over a real checkbox that is grown to a
+   44px target. Ink when on — tier 0 — and the track `mute` when off. */
+.dp-switch{ position:relative; flex:none; width:46px; height:44px; display:flex; align-items:center }
+.dp-switch__input{ position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; z-index:1 }
+.dp-switch__track{
+  width:46px; height:28px; padding:3px; border-radius:var(--ag-r-pill);
+  background:var(--ag-mute); display:flex; justify-content:flex-start;
+  transition:background-color var(--ag-dur-1) var(--ag-ease);
+}
+.dp-switch__thumb{ width:22px; height:22px; border-radius:50%; background:var(--ag-surface) }
+.dp-switch__input:checked + .dp-switch__track{ background:var(--ag-ink); justify-content:flex-end }
+.dp-switch__input:focus-visible + .dp-switch__track{ outline:3px solid var(--ag-ink); outline-offset:2px }
+
+/* ── Sections ────────────────────────────────────────────────────────────── */
+.dp-sec{
+  display:flex; flex-direction:column; gap:var(--ag-sp-14); padding:28px 0;
+  border-bottom:1px solid var(--ag-line);
+  /* The DC's `scroll-margin-top:64px` is already on the scroller: shell.css gives
+     `.ag-main` `scroll-padding-top:64px` (WCAG 2.4.11), and the two ADD — a margin here
+     as well landed every jump 64px too low. */
+}
+.dp-sec__h{
+  margin:0; display:flex; align-items:baseline; gap:var(--ag-sp-12);
+  font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22); line-height:1.2;
+}
+.dp-sec__h:focus{ outline:none }
+.dp-sec__n{ font-family:var(--ag-font-ui); font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.dp-lead{ padding-top:28px }
+
+/* The body. Free HTML for a policy, block kinds for the Integrity Centre — the same
+   reading measure for both: 16/17, line-height 1.7, ink. */
+.dp-rich{ display:flex; flex-direction:column; gap:var(--ag-sp-14); font-size:var(--ag-fs-16); line-height:1.7 }
+.dp-rich > *{ margin:0 }
+.dp-rich p{ text-wrap:pretty }
+.dp-rich strong, .dp-rich b{ color:var(--ag-ink) }
+.dp-rich h3{ margin:6px 0 0; font-size:var(--ag-fs-16-5); font-weight:700; line-height:1.4 }
+.dp-rich h4{ margin:4px 0 0; font-size:var(--ag-fs-16); font-weight:700 }
+.dp-rich code{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-15); padding:1px 5px; border-radius:var(--ag-r-7); background:var(--ag-tint) }
+.dp-rich ul:not([class]), .dp-list{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:var(--ag-sp-10) }
+.dp-rich ul:not([class]) > li, .dp-list > li{ position:relative; padding-inline-start:24px; line-height:1.65 }
+.dp-rich ul:not([class]) > li::before, .dp-list > li::before{
+  content:""; position:absolute; inset-inline-start:4px; top:11px;
+  width:6px; height:6px; border-radius:50%; background:var(--ag-ink);
+}
+.dp-rich ol:not([class]){ margin:0; padding-inline-start:22px; display:flex; flex-direction:column; gap:var(--ag-sp-10) }
+.dp-steps{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:var(--ag-sp-12) }
+.dp-steps > li{ display:grid; grid-template-columns:30px 1fr; gap:var(--ag-sp-12); align-items:start; line-height:1.6 }
+.dp-steps > li > span:last-child{ padding-top:2px }
+.dp-steps__n{
+  width:28px; height:28px; border-radius:50%; border:1.5px solid var(--ag-ink);
+  display:flex; align-items:center; justify-content:center; font-size:var(--ag-fs-13); font-weight:700;
+}
+/* Asides are white hairline cards — no coloured left border (§8.20). */
+.dp-note, .dp-quote, .dp-rich blockquote{
+  margin:0; padding:16px 18px; background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+  font-size:var(--ag-fs-15); line-height:1.6;
+}
+.dp-note{ display:flex; flex-direction:column; gap:var(--ag-sp-8) }
+.dp-note > *, .dp-quote > *{ margin:0 }
+.dp-note h3{ margin:0; font-size:var(--ag-fs-15-5) }
+.dp-quote p{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-18); line-height:1.4 }
+
+/* Tables: a real <table> from 600; below it every row is a stacked card row — label and
+   value on one line, the description underneath — and nothing scrolls sideways (§8.20).
+   The authored policy tables carry `data-label` per cell (LegalDocument::cookiesHtml), so
+   the stacked row can still say what each value is. */
+.dp-fig{ margin:0; display:flex; flex-direction:column; gap:var(--ag-sp-8) }
+.dp-fig__cap{ font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-ink-2) }
+.dp-fig__foot{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+.dp-rich table{
+  width:100%; border-collapse:separate; border-spacing:0;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+  overflow:hidden; font-size:var(--ag-fs-14-5); line-height:1.55;
+}
+.dp-rich thead{ display:none }
+.dp-rich table, .dp-rich tbody, .dp-rich tr, .dp-rich td, .dp-rich tbody th{ display:block }
+.dp-rich tr{ padding:14px 16px; border-top:1px solid var(--ag-line-3) }
+.dp-rich tr:first-child{ border-top:0 }
+.dp-rich td, .dp-rich tbody th{ padding:0; text-align:start }
+.dp-rich td[data-label]::before{ content:attr(data-label) " · "; color:var(--ag-soft); font-weight:600 }
+/* DocPage's three-column shape (label · figure · what it means): label and figure share
+   the first line, the description is underneath. */
+.dp-table tr{ display:grid; grid-template-columns:1fr auto; gap:4px var(--ag-sp-12) }
+.dp-table tbody th{ font-size:var(--ag-fs-15); font-weight:700 }
+.dp-table .dp-table__n{ font-size:var(--ag-fs-15); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap }
+.dp-table .dp-table__d{ grid-column:1 / -1; color:var(--ag-ink-2) }
+.dp-table caption{ display:none }
+
+.dp-cols{ display:grid; grid-template-columns:minmax(0,1fr); gap:var(--ag-sp-10) }
+.dp-cols__c{
+  display:flex; flex-direction:column; gap:var(--ag-sp-10); padding:16px 18px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+}
+.dp-cols__c h3{ margin:0; display:flex; align-items:center; gap:var(--ag-sp-8); font-size:var(--ag-fs-15-5) }
+.dp-cols__mark{
+  flex:none; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--ag-ink);
+  display:flex; align-items:center; justify-content:center; font-size:var(--ag-fs-12);
+}
+.dp-cols__c ul{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:var(--ag-sp-8); font-size:var(--ag-fs-14-5); line-height:1.55 }
+.dp-refs{ display:flex; flex-direction:column; gap:6px; padding-top:2px }
+.dp-refs__h{ font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
+.dp-refs a{ font-size:var(--ag-fs-14-5); line-height:1.5; min-height:24px }
+
+.dp a.dp-next{
+  display:grid; grid-template-columns:1fr 20px; gap:var(--ag-sp-12); align-items:center;
+  padding:16px 18px; background:var(--ag-surface); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-16);
+  text-decoration:none;
+}
+.dp-next__w{ display:flex; flex-direction:column; gap:4px }
+.dp-next__k{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.dp-next__t{ font-family:var(--ag-font-display); font-size:var(--ag-fs-18); line-height:1.3 }
+.dp-next__b{ font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+[dir="rtl"] .dp-next__go{ transform:scaleX(-1) }
+
+/* ── Cite + end ──────────────────────────────────────────────────────────── */
+.dp-cite{ display:flex; flex-direction:column; gap:var(--ag-sp-10); padding:28px 0 }
+.dp-cite__h{ margin:0; font-size:var(--ag-fs-16-5); font-weight:700 }
+.dp-cite__tabs{ display:flex; flex-wrap:wrap; gap:6px }
+.dp-cite__tab{
+  min-height:44px; padding:0 var(--ag-sp-14); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:transparent; color:var(--ag-ink); font-size:var(--ag-fs-13); font-weight:600; cursor:pointer;
+}
+.dp-cite__tab[aria-selected="true"]{ background:var(--ag-surface); border-color:var(--ag-ink) }
+.dp-cite__panel[hidden]{ display:none }
+.dp-cite__text{
+  margin:0; padding:14px 16px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+  font-size:var(--ag-fs-14-5); line-height:1.6; overflow-wrap:anywhere;
+}
+.dp-cite__act{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8) }
+.dp .dp-cite__act .dp-pill{ font-size:var(--ag-fs-14) }
+.dp-cite__note{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.6; color:var(--ag-soft) }
+.dp-cite__say{ margin:0; min-height:1.5em; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+.dp-end{ display:flex; flex-direction:column; gap:6px; padding:8px 0 24px; font-size:var(--ag-fs-14-5); line-height:1.6; color:var(--ag-ink-2) }
+.dp-end p{ margin:0 }
+.dp-end__place{ font-style:italic }
+
+/* ── The contents sheet (below 1024) ─────────────────────────────────────── */
+.dp-sheet{ max-height:78dvh }
+.dp-sheet__t{ margin:0; font-size:var(--ag-fs-16-5); font-weight:700; text-align:center }
+.dp a.dp-sheet__x, .dp-sheet__x{ width:44px; height:44px; display:flex; align-items:center; justify-content:center; color:var(--ag-ink); text-decoration:none }
+.dp-sheet__x > span{ width:30px; height:30px; border-radius:50%; background:var(--ag-tint); display:flex; align-items:center; justify-content:center }
+.dp-sheet__list{ margin:0; padding:0; list-style:none; background:var(--ag-surface); border-radius:var(--ag-r-18); overflow:hidden }
+.dp-sheet__list li + li{ border-top:1px solid var(--ag-line-3) }
+.dp-sheet__a{
+  display:grid; grid-template-columns:28px 1fr 18px; gap:var(--ag-sp-8); align-items:center;
+  min-height:52px; padding:0 var(--ag-sp-14); color:var(--ag-ink); text-decoration:none;
+  font-size:var(--ag-fs-15-5); font-weight:500;
+}
+.dp-sheet__a:hover{ color:var(--ag-ink) }
+.dp-sheet__n{ font-size:var(--ag-fs-13); color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.dp-sheet__a[aria-current="location"]{ font-weight:700 }
+.dp-sheet__a[aria-current="location"] .dp-sheet__dot{ width:8px; height:8px; border-radius:50%; background:var(--ag-ink) }
+/* No script: the sheet opens on its own id. */
+.dp-sheet-layer:target .ag-scrim{ opacity:1; pointer-events:auto }
+.dp-sheet-layer:target .ag-sheet{ transform:none; visibility:visible }
+
+/* ── Rail (≥1024) ────────────────────────────────────────────────────────── */
+.dp-rail{ position:sticky; top:28px; flex-direction:column; gap:18px }
+.dp-rail__group{ display:flex; flex-direction:column; gap:2px }
+.dp-rail__h{ padding:0 10px 8px; font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-ink-2) }
+.dp-rail__list{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:2px }
+.dp a.dp-rail__a{
+  display:grid; grid-template-columns:24px 1fr; gap:6px; align-items:baseline;
+  min-height:36px; padding:7px 10px; border-radius:var(--ag-r-10);
+  font-size:var(--ag-fs-14); line-height:1.35; font-weight:500; text-decoration:none;
+}
+.dp a.dp-rail__a:hover{ background:color-mix(in srgb, var(--ag-surface) 60%, transparent) }
+.dp a.dp-rail__a[aria-current="location"]{ background:var(--ag-surface); font-weight:700 }
+.dp-rail__n{ font-size:var(--ag-fs-12); color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.dp-rail__also{ display:flex; flex-direction:column; gap:6px; padding:14px 10px 0; border-top:1px solid var(--ag-line) }
+.dp-rail__also .dp-rail__h{ padding:0 }
+.dp a.dp-rail__sib{ min-height:32px; display:flex; align-items:center; font-size:var(--ag-fs-14); font-weight:500; text-decoration:none }
+.dp a.dp-rail__sib:hover{ text-decoration:underline }
+.dp a.dp-rail__sib.is-current{ font-weight:700 }
+
+/* ── Breakpoints ─────────────────────────────────────────────────────────── */
+@media (min-width:600px){
+  .dp-cbar{ padding:0 var(--ag-sp-28) }
+  .dp-shell{ padding:var(--ag-sp-32) var(--ag-sp-28) var(--ag-sp-56) }
+  .dp-head__h1{ font-size:var(--ag-fs-40) }
+  .dp-head__sub{ font-size:var(--ag-fs-19) }
+  .dp-head__stand{ font-size:var(--ag-fs-18) }
+  .dp-sec, .dp-cite{ padding:36px 0 }
+  .dp-lead{ padding-top:36px }
+  .dp-sec__h{ font-size:var(--ag-fs-26) }
+  .dp-rich{ font-size:var(--ag-fs-17) }
+  .dp-cols{ grid-template-columns:1fr 1fr }
+
+  /* A real table from here up. */
+  .dp-rich table{ display:table }
+  .dp-rich thead{ display:table-header-group }
+  .dp-rich tbody{ display:table-row-group }
+  .dp-rich tr, .dp-table tr{ display:table-row; padding:0 }
+  .dp-rich td, .dp-rich th{ display:table-cell; padding:14px 16px; vertical-align:top; border-top:1px solid var(--ag-line-3) }
+  .dp-rich tbody tr:first-child > *{ border-top:0 }
+  .dp-rich thead th{
+    padding:12px 16px; text-align:start; font-size:var(--ag-fs-13); font-weight:600;
+    color:var(--ag-soft); border-top:0; border-bottom:1px solid var(--ag-line); white-space:nowrap;
+  }
+  .dp-rich td[data-label]::before{ content:none }
+  .dp-table tbody th{ font-size:inherit; white-space:nowrap }
+  .dp-table .dp-table__n{ font-size:inherit }
+}
+
+@media (min-width:1024px){
+  .dp-cbar, .dp-sheet-layer{ display:none }
+  .dp-shell{ grid-template-columns:230px minmax(0,1fr); padding:40px var(--ag-sp-32) var(--ag-sp-64) }
+  .dp-rail{ display:flex }
+  .dp-head__h1{ font-size:var(--ag-fs-44) }
+}
+
+@media (min-width:1200px){
+  .dp-shell{ max-width:1320px; grid-template-columns:240px minmax(0,680px) 280px; gap:48px }
+  .dp-aside--inline{ display:none }
+  .dp-aside--rail{ display:flex; position:sticky; top:28px }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .dp-progress__fill, .dp-switch__track{ transition:none }
+}

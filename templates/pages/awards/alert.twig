@@ -1,0 +1,49 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  The two links in an award alert's mails land here: /awards/alerts/{token}/confirm and …/stop.
+  GET SHOWS, POST ACTS — mail scanners fetch every link, and a confirmation that fired on the
+  GET would be "confirmed" by a corporate link scanner for the exact person double opt-in
+  exists to ask (the newsletter's and the event alerts' rule). A token that names nothing is a
+  404 that says so, and nothing about which award it was.
+#}
+
+{% set app_bar = {variant: 'child', title: 'Award alert'|trans, back: '/awards', share: false} %}
+{% set flow_page = true %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">{% endblock %}
+
+{% block content %}
+<div class="aw-alert">
+  {% if not alert %}
+    <h1 class="aw-alert__h">{{ 'This link is not working'|trans }}</h1>
+    <p class="aw-alert__p">{{ 'It may have been mistyped or copied only in part. You can ask again from the award’s page.'|trans }}</p>
+    <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/awards">{{ 'See every award'|trans }}</a>
+  {% elseif alert.action == 'stop' %}
+    {% if done or alert.stopped %}
+      <h1 class="aw-alert__h">{{ 'Alerts stopped'|trans }}</h1>
+      <p class="aw-alert__p">{{ 'You will not be emailed when %t% opens.'|trans({'%t%': award.title|default('this award')}) }}</p>
+    {% else %}
+      <h1 class="aw-alert__h">{{ 'Stop alerts for this award?'|trans }}</h1>
+      <p class="aw-alert__p">{{ 'You will not be emailed when %t% opens.'|trans({'%t%': award.title|default('this award')}) }}</p>
+      <form method="post" action="/awards/alerts/{{ alert.token }}/stop">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Stop the alerts'|trans }}</button>
+      </form>
+    {% endif %}
+  {% else %}
+    {% if done or alert.confirmed %}
+      <h1 class="aw-alert__h">{{ 'You’re on the list'|trans }}</h1>
+      <p class="aw-alert__p">{{ 'We will email you once, on the day %t% opens.'|trans({'%t%': award.title|default('this award')}) }}</p>
+    {% else %}
+      <h1 class="aw-alert__h">{{ 'Confirm your award alert'|trans }}</h1>
+      <p class="aw-alert__p">{{ 'Press the button and we will email you once, on the day %t% opens.'|trans({'%t%': award.title|default('this award')}) }}</p>
+      <form method="post" action="/awards/alerts/{{ alert.token }}/confirm">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Yes, email me'|trans }}</button>
+      </form>
+    {% endif %}
+  {% endif %}
+  {% if award %}<a class="aw-back" href="{{ award.url }}">{{ 'Back to %t%'|trans({'%t%': award.title}) }}</a>{% endif %}
+</div>
+{% endblock %}

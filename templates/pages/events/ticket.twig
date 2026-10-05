@@ -38,6 +38,7 @@
 #}
 
 {% set app_bar = {variant: 'child', title: 'Your ticket'|trans, back: event and event.slug|default('') ? '/events/' ~ event.slug : '/events', share: false} %}
+{% set colour_tier = '3' %}
 {% set flow_page = true %}
 {% set D = design|default({}) %}
 {% set _ok = reg and reg.status == 'confirmed' %}

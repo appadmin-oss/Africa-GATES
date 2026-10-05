@@ -83,6 +83,7 @@
               </div>
             </div>
             <div><label for="f-edition_label">Edition label</label><input type="text" name="edition_label" id="f-edition_label" value="{{ cycle.edition_label|default('') }}"></div>
+            <div><label for="f-edition_number">Edition number</label><input type="number" min="1" max="999" name="edition_number" id="f-edition_number" value="{{ cycle.edition_number|default('') }}"></div>
             <div class="row">
               <div><label for="f-nominations_open">Nominations open</label><input type="datetime-local" name="nominations_open" id="f-nominations_open" value="{{ cycle.nominations_open|default('')|when_input }}" step="1"></div>
               <div><label for="f-nominations_close">Nominations close</label><input type="datetime-local" name="nominations_close" id="f-nominations_close" value="{{ cycle.nominations_close|default('')|when_input }}" step="1"></div>

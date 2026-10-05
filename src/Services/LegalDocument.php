@@ -493,6 +493,67 @@ final class LegalDocument
     }
 
     /**
+     * The body cut at its <h2>s, for the page's numbered sections (DocPage.dc.html).
+     *
+     * A view on the same {@see walk()} as the outline and the anchored body, so a section's
+     * id is the contents entry's id by construction. The authored body is free HTML, so
+     * whatever precedes the first heading comes back as `lead` and is drawn unnumbered —
+     * dropping it would lose a paragraph an operator wrote, and numbering it would give the
+     * contents a section with no title.
+     *
+     * @return array{lead:string, sections:list<array{id:string,title:string,html:string}>}
+     */
+    public static function sections(array $doc): array
+    {
+        $w     = self::walk($doc);
+        $parts = preg_split('#(?=<h2\b)#i', $w['body']) ?: [];
+        $lead  = '';
+        $out   = [];
+        $i     = 0;
+
+        foreach ($parts as $part) {
+            if (!preg_match('#^<h2\b[^>]*>(.*?)</h2>#is', $part, $m)) {
+                $lead .= $part;
+                continue;
+            }
+            // The outline came out of the same walk in the same order, so the n-th heading
+            // here IS the n-th entry there; a heading the walk skipped (empty text) stays
+            // with the section before it rather than inventing an untitled one.
+            $o = $w['outline'][$i] ?? null;
+            if ($o === null || trim(DocText::inline($m[1])) === '') {
+                if ($out === []) { $lead .= $part; } else { $out[count($out) - 1]['html'] .= $part; }
+                continue;
+            }
+            $out[] = ['id' => $o['id'], 'title' => $o['title'],
+                      'html' => (string) substr($part, strlen($m[0]))];
+            $i++;
+        }
+
+        return ['lead' => trim($lead), 'sections' => $out];
+    }
+
+    /**
+     * Who answers questions about this document. The two addresses the seeded policies
+     * already publish in their own bodies, so the page's footer cannot name a third.
+     */
+    public static function contact(array $doc): string
+    {
+        return in_array((string) ($doc['slug'] ?? ''), ['privacy', 'cookies'], true)
+            ? 'privacy@afrovanguard.org.ng'
+            : 'legal@afrovanguard.org.ng';
+    }
+
+    /**
+     * Reading time from the words the reader is actually given — the generated sections
+     * included — at the 210 wpm {@see CommunityVotingPhilosophy::readMinutes()} uses, so two
+     * documents filed side by side are timed the same way.
+     */
+    public static function readMinutes(array $doc): int
+    {
+        return max(1, (int) ceil(str_word_count(DocText::toText(self::bodyHtml($doc))) / 210));
+    }
+
+    /**
      * A heading's anchor.
      *
      * {@see Slug::make()} rather than a local `[^a-z0-9]+` replacement, because that

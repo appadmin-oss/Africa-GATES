@@ -92,6 +92,9 @@
   --ag-fs-38:2.375rem;  --ag-fs-40:2.5rem;    --ag-fs-64:4rem;
   /* Events (Phase 7, EventsPage.dc.html): 21 the registration card's heading, Playfair. */
   --ag-fs-21:1.3125rem;
+  /* Awards and voting (Phase 5, AwardsPage / VotePage DCs): 42 the award page's desktop H1,
+     46 the vote page's desktop hero title, 52 the awards index's desktop H1. */
+  --ag-fs-42:2.625rem;  --ag-fs-46:2.875rem;  --ag-fs-52:3.25rem;
 
   /* ── Spacing · §6.3 — the px name is the px value ──────────────────────── */
   /* 20 and 22 (§6.3), the 22 radius (§6.4) and the bar 30 layer (§6.7)
@@ -115,7 +118,7 @@
      names it, and the badges that read it are real. */
 
   --ag-r-pill:999px;
-  --ag-r-24:24px; --ag-r-20:20px; --ag-r-18:18px;
+  --ag-r-24:24px; --ag-r-22:22px; --ag-r-20:20px; --ag-r-18:18px;
   --ag-r-16:16px; --ag-r-14:14px; --ag-r-12:12px; --ag-r-10:10px; --ag-r-7:7px;
 
   /* ── Motion · §6.6 ─────────────────────────────────────────────────────────

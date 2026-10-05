@@ -202,8 +202,8 @@ final class DeadTokenTest extends TestCase
     // the mega panel's shadow (sh-mega) — and they left the list as it requires.
     private const AWAITING_REBUILD = [
         // Phase 3 (Gee) gave green-edge, info-wash and green-light their readers; Phase 4
-        // (Discover) gave gold-wash its reader back — the winner's chip and avatar.
-        '--ag-gold-edge',
+        // (Discover) gave gold-wash its reader back — the winner's chip and avatar; Phase 7
+        // (Events) gave gold-edge its reader — the early-bird banner's rule.
         // The admin console's palette (README §10, owner 4 Oct 2026): four of its tokens
         // are drawn first by stage 2's screens — the provider pills' danger text, and
         // the info, success and softest warning dots and fields.

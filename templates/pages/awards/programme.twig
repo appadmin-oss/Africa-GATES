@@ -1,0 +1,273 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/awards/{slug}` — ONE AWARD · Phase 5 · AwardsPage.dc.html (view: detail · soon) · §8.3
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Written from the DC after the old page was destroyed (inventory:
+  docs/handoff/inventory/pages--awards--programme.md). Every fact from AwardsFront::detail().
+
+  ── THREE TABS, EACH A URL ─────────────────────────────────────────────────
+
+  Overview | Award details | Terms are links to `?tab=` (with `?edition=` carried), so each
+  has an address and Back undoes it. Terms is offered only where terms are published.
+  Hierarchy (§8.3): Organisation (the host line) → Award (the H1) → Edition (the picker) →
+  Category (the list).
+
+  · Award details is PLATFORM-GENERATED: the host's own description, then the rules read
+    from the code that enforces them — nomination limits (NominationRules), the split
+    (RuleEngine, for this programme and edition), the panel quorum, the contribution rule
+    (PaidVoteService). Nothing typed here can disagree with the scorer.
+  · Terms is VERSIONED (AwardTerms): version, effective date, the text, and every earlier
+    version's changelog line. Accepting it is recorded at the vote (and nomination).
+  · Coming soon is not a tab: an award whose edition is `upcoming` is drawn as the soon view
+    at this same URL — countdown (role="timer", seconds from the server, never the visitor's
+    clock), the notify-me form (double opt-in, AwardAlert), the plan from the edition's own
+    dates and the categories already set.
+
+  The DC's mono figures (the chip counts, the vote totals, the plan dates, the countdown)
+  are DM Sans: §18.3 / Q5 reserve mono for references and codes.
+#}
+
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', title: a.title, sub: a.soon ? 'Coming soon'|trans : (a.host.name|default('') ?: a.edition), back: '/awards'} %}
+{% set _ed = a.is_current ? '' : (a.cycle.year|default('')) %}
+{% set _q = _ed ? '&edition=' ~ _ed : '' %}
+{% set _fam = {'gold-ink': 'gold', 'live': 'live', 'info': 'info', 'green': 'green', 'gold': 'gold'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">{% endblock %}
+
+{% macro host_line(a) %}
+  <span class="aw-d__host">
+    {%- if a.host and a.host.name %}{% if a.host.url %}<a href="{{ a.host.url }}" rel="noopener">{{ a.host.name }}</a>{% else %}{{ a.host.name }}{% endif %} · {% endif -%}
+    {{ a.where|trans }}
+  </span>
+{% endmacro %}
+{% import _self as m %}
+
+{% block content %}
+{% if a.soon %}
+{# ══ COMING SOON ═══════════════════════════════════════════════════════════════ #}
+<div class="aw-d aw-soon">
+  <a class="aw-back" href="/awards"><span class="ag-ico-dir" aria-hidden="true">←</span> {{ 'All awards'|trans }}</a>
+  <div class="aw-soon__hero">
+    <span class="aw-soon__badge"><span class="aw-badge__dot" style="--ag-dot:var(--ag-gold)"></span>{{ 'Coming soon'|trans }}{% if a.edition %} · {{ a.edition }}{% endif %}</span>
+    {{ m.host_line(a) }}
+    <h1 class="aw-d__h1">{{ a.title }}</h1>
+    {% if a.subtitle or a.description %}<p class="aw-soon__p">{{ a.subtitle ?: a.description }}</p>{% endif %}
+    {% if a.opens_at %}
+      {% set _left = a.phase.seconds_left|default(0) %}
+      <div class="aw-soon__when">
+        <span class="aw-soon__k">{{ 'Nominations open in'|trans }}</span>
+        <div class="aw-clock" role="timer" dir="ltr" data-tick data-tick-left="{{ _left }}"
+             aria-label="{{ 'Nominations open in %d% days %h% hours %m% minutes'|trans({'%d%': _left // 86400, '%h%': (_left % 86400) // 3600, '%m%': (_left % 3600) // 60}) }}">
+          <span class="aw-clock__c"><b data-tick-d>{{ '%02d'|format(_left // 86400) }}</b><span>{{ 'days'|trans }}</span></span>
+          <span class="aw-clock__c"><b data-tick-h>{{ '%02d'|format((_left % 86400) // 3600) }}</b><span>{{ 'hours'|trans }}</span></span>
+          <span class="aw-clock__c"><b data-tick-m>{{ '%02d'|format((_left % 3600) // 60) }}</b><span>{{ 'mins'|trans }}</span></span>
+          <span class="aw-clock__c"><b data-tick-s>{{ '%02d'|format(_left % 60) }}</b><span>{{ 'secs'|trans }}</span></span>
+        </div>
+        <span class="aw-soon__date"><time datetime="{{ a.opens_at|date('c') }}">{{ a.opens_at|when_zoned('D j M Y · H:i') }}</time></span>
+      </div>
+    {% endif %}
+  </div>
+
+  <section class="aw-notify" id="aw-notify" aria-labelledby="aw-notify-t">
+    <div class="aw-notify__head">
+      <h2 class="aw-notify__t" id="aw-notify-t">{{ 'Be first to know'|trans }}</h2>
+      <p class="aw-notify__p">{{ 'We’ll email you once, on the day nominations open. Nothing is sent until you confirm the link we send.'|trans }}</p>
+    </div>
+    {% if alert_said %}<p class="aw-notify__said" role="status">{{ alert_said }}</p>{% endif %}
+    <form class="aw-notify__form" method="post" action="/awards/{{ a.slug }}/notify" novalidate data-ag-validate>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label class="ag-sr" for="aw-notify-email">{{ 'Email address'|trans }}</label>
+      <input class="aw-input" id="aw-notify-email" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="you@example.com">
+      <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill aw-notify__go">{{ 'Notify me'|trans }}</button>
+    </form>
+    <span class="aw-notify__n">
+      {%- if a.waiting > 0 %}{{ a.waiting == 1 ? '1 person is waiting.'|trans : '%n% people are waiting.'|trans({'%n%': a.waiting|number_format}) }} {% endif -%}
+      {{ 'We won’t use your address for anything else.'|trans }}
+    </span>
+  </section>
+
+  {% if a.plan|length %}
+  <section class="aw-sec" aria-labelledby="aw-plan">
+    <h2 class="aw-sec__t" id="aw-plan">{{ 'What’s planned'|trans }}</h2>
+    <ol class="aw-plan">
+      {% for t in a.plan %}<li class="aw-plan__i"><time class="aw-plan__d" datetime="{{ t.at|date('c') }}">{{ t.date }}</time><span class="aw-plan__t">{{ t.label|trans }}</span></li>{% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
+  {% if a.categories|length %}
+  <section class="aw-sec" aria-labelledby="aw-cats2">
+    <div class="aw-sec__row"><h2 class="aw-sec__t" id="aw-cats2">{{ 'Planned categories'|trans }}</h2><span class="aw-sec__aside">{{ 'May change before launch'|trans }}</span></div>
+    <ul class="aw-tags">{% for c in a.categories %}<li class="aw-tag">{{ c.title }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  <section class="aw-prep" aria-labelledby="aw-prep">
+    <h2 class="aw-prep__t" id="aw-prep">{{ 'Thinking of nominating someone?'|trans }}</h2>
+    <p class="aw-prep__p">{{ 'Start gathering evidence now: links, photos, press or letters. You’ll need a reason of at least %n% characters for each category.'|trans({'%n%': constant('AfricaGates\\Services\\NominationRules::MIN_REASON')}) }}</p>
+    <a class="aw-prep__a" href="/nominate">{{ 'How nominating works'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+  </section>
+
+  <div class="aw-foot">
+    {% if a.terms %}<a href="/awards/{{ a.slug }}?tab=terms">{{ 'Award terms'|trans }}</a>{% endif %}
+    <a href="/partner">{{ 'Become a sponsor'|trans }}</a>
+    {% if a.host and a.host.url %}<a href="{{ a.host.url }}" rel="noopener">{{ 'Contact the host'|trans }}</a>{% endif %}
+  </div>
+</div>
+
+{% else %}
+{# ══ THE AWARD ═════════════════════════════════════════════════════════════════ #}
+<div class="aw-d">
+  <a class="aw-back" href="/awards"><span class="ag-ico-dir" aria-hidden="true">←</span> {{ 'All awards'|trans }}</a>
+  <div class="aw-d__head">
+    <div class="aw-d__intro">
+      {{ m.host_line(a) }}
+      <h1 class="aw-d__h1">{{ a.title }}</h1>
+      {% if a.subtitle %}<p class="aw-d__sub">{{ a.subtitle }}</p>{% endif %}
+    </div>
+    <div class="aw-d__cover">
+      {% include 'partials/photo.twig' with {kind: 'thing', src: a.cover, name: a.title, tone: a.tone, eager: true} only %}
+    </div>
+  </div>
+
+  <nav class="aw-tabs" aria-label="{{ 'Award sections'|trans }}">
+    {% for k, label in tabs %}
+      <a class="aw-tab" href="/awards/{{ a.slug }}{{ k == 'overview' ? (_ed ? '?edition=' ~ _ed) : '?tab=' ~ k ~ _q }}"{% if tab == k %} aria-current="page"{% endif %}>{{ label|trans }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if tab == 'details' %}
+  {# ── AWARD DETAILS: platform-generated from the rules that decide it ───────── #}
+  <article class="aw-doc" aria-label="{{ 'Award details'|trans }}">
+    <p class="aw-doc__by">{{ 'Written from this award’s own rules'|trans }}{% if a.host and a.host.name %} · {{ 'hosted by %h%'|trans({'%h%': a.host.name}) }}{% endif %}{% if a.edition %} · {{ a.edition }}{% endif %}</p>
+    {% if a.description %}
+    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'What the award celebrates'|trans }}</h2>{% for para in a.description|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}</section>
+    {% endif %}
+    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'How nominations work'|trans }}</h2>
+      <p>{{ 'Anyone can nominate. Each nomination names between %min% and %max% categories, with a reason of at least %reason% characters for each. Evidence such as links, recordings or press is optional, up to %ev% items, and helps the judges. Nominations are checked before anything is published.'|trans({'%min%': constant('AfricaGates\\Services\\NominationRules::MIN_CATEGORIES'), '%max%': constant('AfricaGates\\Services\\NominationRules::MAX_CATEGORIES'), '%reason%': constant('AfricaGates\\Services\\NominationRules::MIN_REASON'), '%ev%': constant('AfricaGates\\Services\\NominationRules::MAX_EVIDENCE')}) }}</p>
+    </section>
+    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'How the winner is decided'|trans }}</h2>
+      <p>{{ 'Verified community support counts for %c% of the final score and the judges’ marks for %j%. After voting closes, the panel scores the nominees in each category; a nominee needs complete scorecards from at least %q% judges to be eligible to win. The weights are set before voting opens.'|trans({'%c%': a.weights.community ~ '%', '%j%': a.weights.judge ~ '%', '%q%': a.quorum}) }}</p>
+    </section>
+    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'Voting'|trans }}</h2>
+      <p>{{ 'Each person verified by an email code has one free vote per category.'|trans }}{% if a.paid %} {{ 'Supporters can also add contributed votes on a nominee’s page.'|trans }} {{ a.paid }}{% endif %}</p>
+    </section>
+    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'After the results'|trans }}</h2>
+      <p>{{ 'The full standing behind every result is published with the working, and the standing that was announced is sealed: a later change to the rules cannot change a published result.'|trans }} <a href="/integrity">{{ 'How results are checked'|trans }}</a></p>
+    </section>
+  </article>
+
+  {% elseif tab == 'terms' %}
+  {# ── TERMS: versioned, with the effective date and the changelog ─────────────── #}
+  <article class="aw-terms" aria-label="{{ 'Award terms'|trans }}">
+    <div class="aw-terms__ver">
+      <b>{{ 'Award terms · version %v%'|trans({'%v%': a.terms.version}) }}</b>
+      <span>{{ 'Effective %date% · applies to nominators, nominees and voters'|trans({'%date%': a.terms.effective_at|when_zoned('j M Y')}) }}</span>
+    </div>
+    <div class="aw-terms__body">{{ a.terms.body|sanitize_html|nl2br }}</div>
+    {% if a.terms_log|length %}
+    <section class="aw-sec" aria-labelledby="aw-log">
+      <h2 class="aw-sec__t" id="aw-log">{{ 'Changes'|trans }}</h2>
+      <ol class="aw-log">
+        {% for v in a.terms_log %}<li><b>{{ 'Version %v%'|trans({'%v%': v.version}) }}</b> · <time datetime="{{ v.effective_at|date('c') }}">{{ v.effective_at|when_zoned('j M Y') }}</time>{% if v.changelog %} — {{ v.changelog }}{% endif %}</li>{% endfor %}
+      </ol>
+    </section>
+    {% endif %}
+    <p class="aw-terms__foot">{{ 'Voting or nominating in this award asks you to accept the version in force, and records which one you accepted. Integrity concerns go to the'|trans }} <a href="/integrity">{{ 'Integrity Center'|trans }}</a>.</p>
+  </article>
+
+  {% else %}
+  {# ── OVERVIEW ───────────────────────────────────────────────────────────────── #}
+  <section class="aw-ed" aria-label="{{ 'This edition'|trans }}">
+    <div class="aw-ed__top">
+      {% if a.editions|length > 1 %}
+      <form class="aw-ed__pick" method="get" action="/awards/{{ a.slug }}" data-aw-autosubmit>
+        <label for="aw-ed">{{ 'Edition'|trans }}</label>
+        <select id="aw-ed" name="edition" class="aw-select">
+          {% for e in a.editions %}<option value="{{ e.year }}"{% if e.on %} selected{% endif %}>{{ e.label }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="ag-btn ag-btn--secondary ag-btn--pill aw-ed__go" data-aw-nojs>{{ 'Show'|trans }}</button>
+      </form>
+      {% else %}
+        <span class="aw-ed__one">{{ 'Edition'|trans }} <b>{{ a.edition_full }}</b></span>
+      {% endif %}
+      {% if a.badge %}<span class="aw-pill aw-pill--{{ _fam[a.badge_family] }}"><span class="aw-badge__dot" style="--ag-dot:var(--ag-{{ a.badge_family }})"></span>{{ a.badge|trans }}</span>{% endif %}
+    </div>
+    {% if a.timeline|length %}
+    <ol class="aw-tl" aria-label="{{ 'Edition progress'|trans }}">
+      {% for t in a.timeline %}
+        <li class="aw-tl__i aw-tl__i--{{ t.state }}"{% if t.state == 'now' %} aria-current="step"{% endif %}>
+          <span class="aw-tl__bar" aria-hidden="true"></span>
+          <span class="aw-tl__t">{{ t.label|trans }}</span>
+          <span class="aw-tl__d">{{ t.sub|trans }}</span>
+        </li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+    {% if a.phase and a.phase.detail %}<p class="aw-ed__detail">{{ a.phase.detail }}</p>{% endif %}
+    {% if a.action %}<a class="ag-btn ag-btn--primary ag-btn--pill aw-ed__cta" href="{{ a.action.href }}">{{ a.action.label|trans }}</a>{% endif %}
+  </section>
+
+  {% if a.categories|length %}
+  <section class="aw-sec" aria-labelledby="aw-cats">
+    <h2 class="aw-sec__t" id="aw-cats">{{ a.decided ? 'Winners'|trans : 'Categories'|trans }}</h2>
+    <ul class="aw-cats">
+      {% for c in a.categories %}
+        <li>
+          {% if c.href %}<a class="aw-cat" href="{{ c.href }}">{% else %}<span class="aw-cat">{% endif %}
+            <span class="aw-cat__main">
+              <span class="aw-cat__t">{{ c.title }}</span>
+              {% if c.who %}
+              <span class="aw-cat__who">
+                <span class="aw-cat__av{{ c.won ? ' aw-cat__av--won' }}">{% include 'partials/photo.twig' with {kind: 'person', src: c.photo, name: c.who} only %}</span>
+                <span class="aw-cat__name">{{ c.kicker|trans }} {{ c.who }}</span>
+              </span>
+              {% endif %}
+            </span>
+            {% if c.meta %}<span class="aw-cat__meta">{{ c.won ? 'Result'|trans : c.meta }}{% if c.won %} <span class="ag-ico-dir" aria-hidden="true">→</span>{% endif %}</span>{% endif %}
+          {% if c.href %}</a>{% else %}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="aw-sec" aria-labelledby="aw-about">
+    <h2 class="aw-sec__t" id="aw-about">{{ 'About the award'|trans }}</h2>
+    <dl class="aw-facts">
+      {% for f in a.facts %}<div class="aw-facts__c"><dt>{{ f.k|trans }}</dt><dd>{{ f.v }}</dd></div>{% endfor %}
+    </dl>
+    <a class="aw-more" href="/awards/{{ a.slug }}?tab=details{{ _q }}">{{ 'Read the full award details'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+  </section>
+
+  <section class="aw-sec" aria-labelledby="aw-backed">
+    <div class="aw-sec__row">
+      <h2 class="aw-sec__t" id="aw-backed">{{ 'Backed by'|trans }}</h2>
+      <a class="aw-sec__link" href="/partner">{{ 'Become a sponsor'|trans }}</a>
+    </div>
+    {% if a.sponsors|length %}
+    <ul class="aw-spon">
+      {% for s in a.sponsors %}
+        <li>
+          {% if s.website %}<a class="aw-spon__c" href="{{ s.website }}" rel="sponsored noopener">{% else %}<span class="aw-spon__c">{% endif %}
+            {% if s.logo_path %}<img class="aw-spon__logo" src="{{ s.logo_path }}" alt="" loading="lazy">{% endif %}
+            <span class="aw-spon__n">{{ s.name }}</span>
+            <span class="aw-spon__tier">{{ (constant('AfricaGates\\Services\\ProgrammeSponsor::TIERS')[s.tier]|default('Partner'))|trans }}</span>
+          {% if s.website %}</a>{% else %}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="aw-sec__none">{{ 'No sponsor is named for this edition.'|trans }}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/awards.js') }}"></script>{% endblock %}
