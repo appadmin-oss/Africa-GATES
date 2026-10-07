@@ -422,7 +422,15 @@ final class GeeTest extends TestCase
         $this->assertSame(1, preg_match('/function drawWork\(m\) \{(.*?)\n  \}/s', $js, $draw));
         $this->assertStringContainsString('w.steps.forEach', $draw[1], 'the answer draws the server\'s steps');
         $this->assertDoesNotMatchRegularExpression('/setTimeout\([^)]*\b(700|1500|2300)\b/', $js, 'the design file\'s demo timers');
-        $this->assertSame(1, substr_count($js, 'setTimeout('), 'the only timer is the focus hand-off on open');
+        // The waiting line changes its words on TIME ("Still working…"), which is honest;
+        // what must never exist is a timer that ticks a repair STEP over. So the waiting
+        // line's timers are allowed by name, may only write its own text, and every other
+        // timer in the file is still the focus hand-off.
+        $this->assertSame(1, preg_match('/function typing\(\) \{(.*?)\n  \}/s', $js, $wait));
+        $this->assertSame(2, substr_count($wait[1], 'setTimeout('));
+        $this->assertDoesNotMatchRegularExpression('/data-state|stepRow|finishWork|step-/', $wait[1],
+            'the waiting line never touches a step');
+        $this->assertSame(1, substr_count(str_replace($wait[1], '', $js), 'setTimeout('), 'the only other timer is the focus hand-off on open');
     }
 
     // ══ THE DESK ═════════════════════════════════════════════════════════════

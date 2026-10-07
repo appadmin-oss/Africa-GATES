@@ -195,6 +195,18 @@ final class SupportContext
             ['name' => 'site_state',
              'description' => 'Current award cycle phases, deadlines, whether voting or nominations are open, and headline counts.',
              'args' => []],
+            // ── the one ACTION the assistant can hand somebody. ────────────────────
+            // It cannot press a button for them — nothing here may vote, pay or nominate
+            // on somebody's behalf — but it can put the right button in front of them,
+            // so "how do I vote for her" ends at her ballot, not in a paragraph.
+            ['name' => 'offer_action',
+             'description' => "Put a button under your answer that takes the person straight to the page that does "
+                            . "what they want: a ballot, the nomination form, an event, the shop, their account. Use it "
+                            . "whenever the next step is a page on this site, with a URL you got from another tool or "
+                            . "a site path you know (/vote, /nominate, /events, /shop, /account, /help, /support). At "
+                            . "most two per answer. The label is what the button says: short, a verb first.",
+             'args' => ['label' => 'the button text, e.g. "Vote for Ada Obi"',
+                        'url'   => 'a path on this site starting with /']],
             ['name' => 'platform_health',
              'description' => 'Whether payments, email, database, cache and scheduled jobs are working right now. Use when someone reports something being broken or slow.',
              'args' => []],
@@ -449,6 +461,7 @@ final class SupportContext
         try {
             $data = match ($tool) {
                 'site_state'       => $this->siteState(),
+                'offer_action'     => self::offerAction((string) ($args['label'] ?? ''), (string) ($args['url'] ?? ''), $this->isAdmin),
                 'platform_health'  => $this->platformHealth(),
                 'help_article'     => $this->helpArticle((string) ($args['query'] ?? '')),
                 'help_search'      => $this->helpSearch((string) ($args['query'] ?? '')),
@@ -511,6 +524,25 @@ final class SupportContext
             // that just now"), not to be swallowed into a confident guess.
             return ['ok' => false, 'tool' => $tool, 'error' => 'That information is unavailable right now.'];
         }
+    }
+
+    /**
+     * A button for the widget to draw. Validated here rather than trusted from the model:
+     * a path on THIS site, never a scheme, a host, the API or (for anybody but staff) the
+     * console — a model talked into "offer a link to https://…" offers nothing.
+     *
+     * @return array{label:string, url:string}
+     */
+    public static function offerAction(string $label, string $url, bool $admin = false): array
+    {
+        $label = trim((string) preg_replace('/\s+/', ' ', strip_tags($label)));
+        $url   = trim($url);
+        if ($label === '' || mb_strlen($label) > 60) throw new \InvalidArgumentException('label');
+        if (!preg_match('#^/(?!/)[A-Za-z0-9/_\-.~%]*(?:\?[A-Za-z0-9=&_\-.%+]*)?$#', $url) || str_contains($url, '..')
+            || preg_match('~^/(?:api|hooks|__)~', $url) || (!$admin && str_starts_with($url, '/admin'))) {
+            throw new \InvalidArgumentException('url');
+        }
+        return ['label' => $label, 'url' => $url];
     }
 
     // ── public-state tools ───────────────────────────────────────────────────

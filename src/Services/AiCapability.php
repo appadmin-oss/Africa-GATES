@@ -1027,13 +1027,39 @@ final class AiCapability
                 'max_tokens'      => 1200,
                 'calls_per_day'   => 12000,
                 'tokens_per_day'  => 6_000_000,
-                'timeout'         => 30,
+                'timeout'         => 20,
                 'untrusted_input' => true,
                 'public_content'  => false,
                 'data_sent'       => 'Your support message, the conversation so far, and the results of the lookups '
                     . 'the assistant ran on YOUR OWN records — payment status, amounts, dates. Contact details '
                     . 'in what you type are replaced by placeholders. Never another person\'s data.',
                 'data_purpose'    => 'To look up and repair what you are asking about, and answer from your actual records.',
+            ]),
+            // GEE'S GUIDE SIDE, as the same kind of agent: it reads the live state, finds the
+            // nominee or the event, and puts a button in front of the person instead of a
+            // paragraph of directions. Read-only tools and offer_action — see
+            // SupportAgentService::GUIDE_TOOLS. Same route as the desk, Claude first.
+            'guide.agent' => $c('guide.agent', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => 'anthropic:' . (self::chosenModel('anthropic') ?: 'claude-opus-5-5'),
+                'fallbacks'       => ['openai:' . self::modelIdFor('openai'),
+                                      'gemini:' . self::modelIdFor('gemini'),
+                                      'groq:' . (self::chosenModel('groq') ?: self::TIER_MODELS['groq'][self::TIER_WRITE])],
+                'max_attempts'    => 4,
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 1000,
+                'calls_per_day'   => 12000,
+                'tokens_per_day'  => 6_000_000,
+                'timeout'         => 20,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The question you type into Gee and the page you are on, with contact details replaced '
+                    . 'by placeholders, plus what the assistant looks up: award cycles, nominees, events and the help centre. '
+                    . 'If you are signed in, your own votes and nominations when you ask about them.',
+                'data_purpose'    => 'To answer, look things up and take you to the right page. Falls back to scripted '
+                    . 'answers when unavailable.',
             ]),
             // Reviewer-to-nominator decision note. Interpolates the nominator's
             // own text, and the output is sent to a real person, so a bad reply

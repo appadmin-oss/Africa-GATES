@@ -247,6 +247,7 @@ final class SupportAgentService implements SupportAnswerer
             // rather than from how the answer reads. SupportAutoResolver only
             // closes a ticket when a repair here returned ok.
             'results'   => array_values($facts),
+            'actions'   => self::actionsFrom($facts),
             'provider'  => $this->ai?->lastProvider(),
         ];
     }
@@ -441,6 +442,11 @@ final class SupportAgentService implements SupportAnswerer
       arguments twice.
     - If they ask for a person, say you will pass it on — the platform does that, you do not
       need a tool for it.
+    - When the next step is a page on this site — a ballot, the nomination form, an event,
+      the shop, their account — call offer_action so a button takes them there. Do not
+      also paste the URL into your text.
+    - For a task with several steps (find the nominee, check voting is open, take them to
+      the ballot), do the steps with the tools, in order, before you answer.
 
     HOW YOU ANSWER
     - Start with the answer or the outcome, not a greeting and not a restatement of the
@@ -462,10 +468,11 @@ final class SupportAgentService implements SupportAnswerer
      *
      * @return array{reply:string, facts:array<string,array>}|null
      */
-    private function agentTurn(string $message, array $history, SupportContext $ctx, array $only): ?array
+    private function agentTurn(string $message, array $history, SupportContext $ctx, array $only,
+                               ?string $system = null, string $capability = 'support.agent'): ?array
     {
-        if ($this->ai === null || !$this->ai->configured() || !AiGateway::available('support.agent')) return null;
-        $cap = AiCapability::find('support.agent');
+        if ($this->ai === null || !$this->ai->configured() || !AiGateway::available($capability)) return null;
+        $cap = AiCapability::find($capability);
         if ($cap === null) return null;
 
         // The context's tools, as schemas. The allowlist is applied HERE and again on
@@ -482,9 +489,11 @@ final class SupportAgentService implements SupportAnswerer
         }
         if ($tools === []) return null;
 
-        $now = SupportSignals::brief();
-        $system = $this->writerSystem($ctx) . "\n\n" . self::AGENT_RULES . "\n\n" . SupportKnowledge::playbooks()
-                . ($now !== '' ? "\n\n" . $now : '');
+        if ($system === null) {
+            $now = SupportSignals::brief();
+            $system = $this->writerSystem($ctx) . "\n\n" . self::AGENT_RULES . "\n\n" . SupportKnowledge::playbooks()
+                    . ($now !== '' ? "\n\n" . $now : '');
+        }
 
         // What the person typed is data, every turn of it: fenced, with contact details
         // replaced, exactly as the gateway does for a one-shot capability.
@@ -536,6 +545,51 @@ final class SupportAgentService implements SupportAnswerer
         return ['reply' => self::fromFactsAlone($facts, $message), 'facts' => $facts];
     }
 
+    /**
+     * The tools Gee's GUIDE side may call: everything that reads, and the one action that
+     * puts a button in front of somebody. No repair and no lookup by somebody else's
+     * reference — a payment problem is routed to the desk, which has those.
+     */
+    public const GUIDE_TOOLS = ['site_state', 'platform_health', 'help_article', 'help_search', 'pricing',
+        'voting_deadlines', 'find_nominee', 'category_state', 'nominee_tally', 'event_details', 'convert_currency',
+        'free_vote_help', 'my_votes', 'my_nominations', 'my_tickets',
+        'shop_suggest', 'shop_availability', 'shop_quote', 'shop_compare', 'shop_delivery', 'shop_link',
+        'offer_action'];
+
+    /**
+     * One Gee turn by the same tool loop, under the guide's own voice.
+     *
+     * @return array{reply:string, actions:list<array{label:string,url:string}>, used:list<string>, provider:?string}|null
+     */
+    public function converse(string $message, array $history, SupportContext $ctx, string $system): ?array
+    {
+        $this->trace = [];
+        $message = mb_substr(trim($message), 0, self::MAX_MESSAGE);
+        if ($message === '') return null;
+        $r = $this->agentTurn($message, array_slice($history, -self::MAX_HISTORY), $ctx, self::GUIDE_TOOLS,
+                              $system . "\n\n" . self::AGENT_RULES, 'guide.agent');
+        if ($r === null) return null;
+        return ['reply' => $r['reply'], 'actions' => self::actionsFrom($r['facts']),
+                'used' => array_values(array_unique(array_column($this->trace, 'tool'))),
+                'provider' => $this->ai?->lastProvider()];
+    }
+
+    /**
+     * The buttons the model offered this turn, validated, de-duplicated, at most two.
+     *
+     * @param array<string,array> $facts
+     * @return list<array{label:string,url:string}>
+     */
+    public static function actionsFrom(array $facts): array
+    {
+        $out = [];
+        foreach ($facts as $f) {
+            if (($f['tool'] ?? '') !== 'offer_action' || empty($f['ok']) || !is_array($f['data'] ?? null)) continue;
+            $out[(string) $f['data']['url']] = ['label' => (string) $f['data']['label'], 'url' => (string) $f['data']['url']];
+        }
+        return array_slice(array_values($out), 0, 2);
+    }
+
     /** One round, recorded against the capability's budget and decision log. */
     private function agentCall(array $messages, array $tools, AiCapability $cap): ?\AfricaGates\Support\AiReply
     {
@@ -548,11 +602,11 @@ final class SupportAgentService implements SupportAnswerer
         ]);
         $ms = (int) round((microtime(true) - $t0) * 1000);
         if ($reply === null) {
-            AiGateway::record('support.agent', 'PROVIDER_ERROR', ['latency_ms' => $ms,
+            AiGateway::record($cap->name, 'PROVIDER_ERROR', ['latency_ms' => $ms,
                 'error' => AiService::describeHops($this->ai->hopErrors())]);
             return null;
         }
-        AiGateway::record('support.agent', 'OK', [
+        AiGateway::record($cap->name, 'OK', [
             'provider' => $reply->provider, 'model' => $reply->model,
             'tokens_in' => (int) ($reply->usage['in'] ?? 0), 'tokens_out' => (int) ($reply->usage['out'] ?? 0),
             'latency_ms' => $ms, 'output_summary' => $reply->hasTools()

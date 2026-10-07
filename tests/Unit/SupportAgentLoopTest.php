@@ -205,6 +205,49 @@ final class SupportAgentLoopTest extends TestCase
         $this->assertStringContainsString('UNTRUSTED user-submitted content', $ai->sent[0]['json']);
     }
 
+    /** A button may only ever take somebody somewhere on this site. */
+    public function test_an_offered_action_is_a_path_on_this_site_and_nothing_else(): void
+    {
+        $this->assertSame(['label' => 'Vote for Ada', 'url' => '/vote/12?c=3'],
+            \AfricaGates\Services\SupportContext::offerAction(' Vote  for Ada ', '/vote/12?c=3'));
+        foreach (['https://evil.example/', '//evil.example', 'javascript:alert(1)', '/api/v1/votes', '/hooks/x',
+                  '/__setup/errors', '/admin/settings', '/../etc', ''] as $bad) {
+            try {
+                \AfricaGates\Services\SupportContext::offerAction('Go', $bad);
+                $this->fail('accepted ' . $bad);
+            } catch (\InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+        // And the widget holds the line again, whatever the server sent.
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/gee.js');
+        $this->assertSame(1, preg_match('/function actions\(list\) \{(.*?)\n  \}/s', $js, $fn));
+        $this->assertStringContainsString('/^\\/(?!\\/)', $fn[1], 'a same-site path, never a scheme or a host');
+        // Staff may be taken into the console; nobody else may.
+        $this->assertSame('/admin/support', \AfricaGates\Services\SupportContext::offerAction('Open', '/admin/support', true)['url']);
+    }
+
+    /** Gee's guide side: looks it up, then hands over a button — with no repair tool in reach. */
+    public function test_gee_looks_it_up_and_offers_the_page_that_does_it(): void
+    {
+        DB::table('gates_settings')->insert(['key_name' => 'ai_enabled', 'value' => '1']);
+        $act = static fn (): array => ['stop_reason' => 'tool_use', 'usage' => ['input_tokens' => 1, 'output_tokens' => 1],
+            'content' => [['type' => 'tool_use', 'id' => 't2', 'name' => 'offer_action',
+                           'input' => ['label' => 'Start a nomination', 'url' => '/nominate']]]];
+        $ai = $this->ai([self::claudeTool('site_state'), $act, self::claudeSays('Nominations are open — start here.')]);
+        $r = (new SupportAgentService($ai))->converse('how do I nominate someone', [], SupportContext::fromSession(),
+                                                      'You are Gee, the guide.');
+
+        $this->assertSame('Nominations are open — start here.', $r['reply']);
+        $this->assertSame([['label' => 'Start a nomination', 'url' => '/nominate']], $r['actions']);
+        $this->assertSame(['site_state', 'offer_action'], $r['used']);
+        $names = array_column($ai->sent[0]['payload']['tools'], 'name');
+        $this->assertContains('offer_action', $names);
+        $this->assertNotContains('fix_payment', $names, 'the guide side holds no repair');
+        $this->assertNotContains('resend_receipt', $names);
+        $this->assertStringContainsString('You are Gee, the guide.', $ai->sent[0]['json']);
+    }
+
     /** "Has no idea what is going on": the floor offered a person twice, in two phrasings. */
     public function test_the_written_answer_offers_a_person_once(): void
     {
