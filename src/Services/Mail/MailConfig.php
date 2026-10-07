@@ -78,7 +78,13 @@ final class MailConfig
     public const TRANSPORT_SMTP = 'smtp';
     public const TRANSPORT_API  = 'api';
     public const TRANSPORT_HOST = 'host';
-    public const TRANSPORTS = [self::TRANSPORT_AUTO, self::TRANSPORT_SMTP, self::TRANSPORT_API, self::TRANSPORT_HOST];
+    /**
+     *   gas   The platform's own Google Apps Script web app (MailApp), the road for when
+     *         Google SMTP fails — one-to-one mail only, because MailApp's allowance is
+     *         about 100 recipients a day. See AppsScriptMail.
+     */
+    public const TRANSPORT_GAS  = 'gas';
+    public const TRANSPORTS = [self::TRANSPORT_AUTO, self::TRANSPORT_SMTP, self::TRANSPORT_GAS, self::TRANSPORT_API, self::TRANSPORT_HOST];
 
     /** What `.env.example` ships with. A login equal to one of these is not a login. */
     private const PLACEHOLDERS = ['your_brevo_login@email.com', 'your_brevo_smtp_key',
@@ -335,7 +341,8 @@ final class MailConfig
                 self::TRANSPORT_SMTP => 'SMTP only',
                 self::TRANSPORT_API  => 'Brevo API (HTTPS) only',
                 self::TRANSPORT_HOST => 'this server’s own mail only',
-                default              => 'automatic — SMTP, then the Brevo API, then this server’s own mail',
+                self::TRANSPORT_GAS  => 'Google Apps Script only (sign-in codes, receipts and confirmations; announcements wait)',
+                default              => 'automatic — SMTP, then Google Apps Script, then the Brevo API, then this server’s own mail',
             },
             'api_key'  => $this->hasApiKey() ? 'set (' . $this->source('api_key') . ')' : '(not set)',
         ];

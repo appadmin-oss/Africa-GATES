@@ -109,6 +109,7 @@ final class MailHealthController
                 default    => 'no login is set',
             },
             'has_stored_smtp' => $stored !== [],
+            'gas_set' => \AfricaGates\Services\Mail\AppsScriptMail::configured(),
             'env_has_login' => $env->hasCredentials(),
         ];
     }
@@ -188,9 +189,14 @@ final class MailHealthController
         $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.diagnose', null, null,
             ['ok' => $r['ok'], 'cause' => $r['cause']]);
 
-        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
-            ? 'Every step passed — the server accepted our login and our From address. No message was sent.'
-            : $r['title'] . '. ' . $r['fix'];
+        // A pass by a FALLBACK is said as one: "every step passed" over a broken SMTP is
+        // the sentence that would stop anybody fixing it.
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = match (true) {
+            !$r['ok']                      => $r['title'] . '. ' . $r['fix'],
+            !empty($r['degraded'])         => $r['title'] . '. No message was sent.',
+            ($r['road'] ?? 'smtp') !== 'smtp' => $r['title'] . '. No message was sent.',
+            default => 'Every step passed — the server accepted our login and our From address. No message was sent.',
+        };
 
         return $res->withHeader('Location', '/admin/settings/mail')->withStatus(302);
     }

@@ -108,9 +108,10 @@ final class MailDiagnosis
      * @param \Closure(string):array{ok:bool,detail:string}|null $api
      * @return array<string,mixed> run()'s shape, plus `road` and `degraded`
      */
-    public static function roads(MailConfig $c, ?\Closure $api = null, ?bool $production = null): array
+    public static function roads(MailConfig $c, ?\Closure $api = null, ?bool $production = null, ?\Closure $gas = null): array
     {
         $api ??= static fn (string $k): array => (new BrevoApi($k))->check();
+        $gas ??= static fn (): ?array => AppsScriptMail::configured() ? AppsScriptMail::boot()->check() : null;
         $production ??= strtolower((string) \AfricaGates\Support\Env::get('APP_ENV', 'production')) === 'production';
         $host = $production && MailConfig::hostMailAvailable();
 
@@ -126,6 +127,29 @@ final class MailDiagnosis
         $base = $smtp ?? ['ok' => false, 'cause' => MailFailure::CONFIG, 'title' => '', 'fix' => '', 'detail' => '',
             'steps' => [], 'config' => $c->describe(), 'ports' => [], 'ran_at' => gmdate('Y-m-d H:i:s'), 'took_ms' => 0];
         $why = $smtp !== null ? 'SMTP is failing (' . $smtp['title'] . ')' : 'SMTP is not used';
+
+        // ── Google Apps Script: the road for when Google SMTP fails ─────────────
+        if (in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_GAS], true)) {
+            $g = $gas();
+            if ($g !== null) {
+                $base['steps'][] = ['key' => 'gas', 'label' => 'Google Apps Script can send for us',
+                                    'state' => $g['ok'] ? self::OK : self::FAIL, 'detail' => $g['detail']];
+                if ($g['ok']) {
+                    return array_merge($base, ['ok' => true, 'road' => 'gas', 'degraded' => $smtp !== null,
+                        'title' => $smtp !== null
+                            ? $why . ' — sign-in codes, receipts and confirmations are going out by Google Apps Script; announcements wait for SMTP'
+                            : 'Email can be sent by Google Apps Script (announcements wait for SMTP)']);
+                }
+            } elseif ($c->transport === MailConfig::TRANSPORT_GAS) {
+                return array_merge($base, ['ok' => false, 'cause' => MailFailure::CONFIG, 'road' => 'gas', 'degraded' => false,
+                    'title' => 'Google Apps Script is not set up',
+                    'fix' => 'Set the Apps Script URL and secret in Settings → Google Calendar and Meet, and deploy the latest config/AfricaGATES_AppScript.gs.']);
+            }
+            if ($c->transport === MailConfig::TRANSPORT_GAS) {
+                return array_merge($base, ['ok' => false, 'cause' => MailFailure::CONFIG, 'road' => 'gas', 'degraded' => false,
+                    'title' => 'Google Apps Script could not send', 'fix' => (string) ($g['detail'] ?? '')]);
+            }
+        }
 
         if (in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_API], true)) {
             if ($c->hasApiKey()) {

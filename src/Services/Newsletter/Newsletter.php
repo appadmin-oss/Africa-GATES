@@ -355,7 +355,7 @@ final class Newsletter
      */
     public function blocker(): ?string
     {
-        if ($this->mailer === null || !$this->mailer->canSend()) {
+        if ($this->mailer === null || !$this->mailer->canSend(true)) {
             return 'Paused: email is not configured. Settings → Email & sender.';
         }
         if ($this->site === '')   return 'Paused: the site address (APP_URL) is not set, and every link in an issue is absolute.';

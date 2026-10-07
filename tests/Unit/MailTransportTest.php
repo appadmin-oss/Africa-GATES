@@ -59,11 +59,12 @@ final class MailTransportTest extends TestCase
      *
      * @param array<string,\Closure|null> $fail road => throw this
      */
-    private function mailer(array $fail = [], string $transport = MailConfig::TRANSPORT_AUTO, string $apiKey = 'xkeysib-test'): OtpService
+    private function mailer(array $fail = [], string $transport = MailConfig::TRANSPORT_AUTO, string $apiKey = 'xkeysib-test',
+                            bool $gas = false): OtpService
     {
         return new class(['host' => 'smtp.test', 'port' => 587, 'username' => 'u', 'password' => 'p',
                           'from_address' => 'news@africagates.org', 'from_name' => 'Africa GATES',
-                          'transport' => $transport, 'api_key' => $apiKey], $fail) extends OtpService {
+                          'transport' => $transport, 'api_key' => $apiKey, 'gas' => $gas], $fail) extends OtpService {
             /** @var list<string> */
             public array $roads = [];
             public function __construct(array $smtp, private array $fail) { parent::__construct($smtp); }
@@ -77,6 +78,11 @@ final class MailTransportTest extends TestCase
             {
                 $this->roads[] = 'api';
                 if (isset($this->fail['api'])) ($this->fail['api'])();
+            }
+            protected function transmitGas(PHPMailer $m): void
+            {
+                $this->roads[] = 'gas';
+                if (isset($this->fail['gas'])) ($this->fail['gas'])();
             }
         };
     }
@@ -346,5 +352,148 @@ final class MailTransportTest extends TestCase
             $this->assertSame(MailFailure::AUTH, MailFailure::classify($e->getMessage()));
         }
         $this->assertSame('key', $calls[0]['h']['api-key']);
+    }
+
+    // ══ Google Apps Script — the road when Google SMTP fails ══════════════════
+
+    public function test_when_google_smtp_fails_a_sign_in_code_goes_by_apps_script(): void
+    {
+        $m = $this->mailer(['smtp' => self::throws('535-5.7.8 Username and Password not accepted.')],
+                           MailConfig::TRANSPORT_AUTO, '', true);
+        $r = $m->sendCustom('ada@africagates.org', 'Your sign-in code', '123456');
+        $this->assertTrue($r['success']);
+        $this->assertSame(['smtp', 'gas'], $m->roads, 'Apps Script must be the next road after Google SMTP');
+        $this->assertStringContainsString('via gas after: smtp', (string) DB::table('gates_mail_log')->value('error'));
+    }
+
+    public function test_an_announcement_never_spends_the_apps_script_allowance(): void
+    {
+        $m = $this->mailer(['smtp' => self::throws('SMTP connect() failed.')], MailConfig::TRANSPORT_AUTO, '', true);
+        $m->sendRawHtml('reader@africagates.org', 'This week', '<p>news</p>', 'news', 'newsletter',
+                        'https://africagates.org/u/1');
+        $this->assertNotContains('gas', $m->roads, 'a newsletter took the road sign-in codes depend on');
+
+        $only = $this->mailer([], MailConfig::TRANSPORT_GAS, '', true);
+        $r = $only->sendRawHtml('reader@africagates.org', 'This week', '<p>news</p>', 'news', 'newsletter',
+                                'https://africagates.org/u/1');
+        $this->assertSame('deferred', $r['held'] ?? null, 'an announcement with only Apps Script open is held, not failed');
+        $this->assertSame([], $only->roads);
+        $this->assertTrue($only->canSend(), 'one-to-one mail can go');
+        $this->assertFalse($only->canSend(true), 'the newsletter run would start with nowhere to send it');
+    }
+
+    public function test_the_apps_script_gets_the_message_that_was_built_and_the_secret(): void
+    {
+        $m = new PHPMailer(true);
+        $m->setFrom('news@africagates.org', 'Africa GATES');
+        $m->addAddress('ada@africagates.org');
+        $m->addReplyTo('help@africagates.org');
+        $m->isHTML(true);
+        $m->Subject = 'Your code';
+        $m->Body = '<p>123456</p>';
+        $m->AltBody = '123456';
+        $m->addStringAttachment('PDF', 'receipt.pdf', 'base64', 'application/pdf');
+
+        $sent = null;
+        $gas = new \AfricaGates\Services\Mail\AppsScriptMail('https://script.google.com/macros/s/x/exec', 's3cret',
+            static function (string $url, array $payload) use (&$sent): array {
+                $sent = $payload;
+                return ['status' => 200, 'body' => '{"success":true,"ok":true,"message":"Sent","remaining":97}', 'error' => ''];
+            });
+        $gas->send($m);
+
+        $this->assertSame('mail.send', $sent['action']);
+        $this->assertSame('s3cret', $sent['token'], 'the script refuses mail without its secret');
+        $this->assertSame('ada@africagates.org', $sent['data']['to']);
+        $this->assertSame('<p>123456</p>', $sent['data']['html']);
+        $this->assertSame('123456', $sent['data']['text']);
+        $this->assertSame('help@africagates.org', $sent['data']['reply_to']);
+        $this->assertSame('application/pdf', $sent['data']['attachments'][0]['mime']);
+        $this->assertSame(base64_encode('PDF'), $sent['data']['attachments'][0]['content']);
+    }
+
+    public function test_an_old_deployment_is_named_as_such(): void
+    {
+        $gas = new \AfricaGates\Services\Mail\AppsScriptMail('https://x/exec', 's',
+            static fn (): array => ['status' => 200, 'body' => '{"success":false,"message":"Unknown action: mail.send"}', 'error' => '']);
+        $r = $gas->check();
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('New version', $r['detail']);
+
+        $none = new \AfricaGates\Services\Mail\AppsScriptMail('https://x/exec', '', static fn (): array => ['status' => 200, 'body' => '{}', 'error' => '']);
+        $this->assertStringContainsString('secret', $none->check()['detail']);
+    }
+
+    public function test_the_health_check_counts_apps_script_as_a_working_road(): void
+    {
+        $c = MailConfig::of(['transport' => 'auto', 'username' => '', 'password' => '']);
+        $r = MailDiagnosis::roads($c, null, false, static fn (): array => ['ok' => true, 'detail' => 'ok', 'remaining' => 90]);
+        $this->assertTrue($r['ok']);
+        $this->assertSame('gas', $r['road']);
+    }
+
+    /** The shipped script carries the action, behind the secret, using MailApp. */
+    public function test_the_shipped_script_sends_mail_behind_its_secret(): void
+    {
+        $gs = (string) file_get_contents(dirname(__DIR__, 2) . '/config/AfricaGATES_AppScript.gs');
+        $this->assertStringContainsString("action === 'mail.send'", $gs);
+        $this->assertStringContainsString('MailApp.sendEmail', $gs);
+        $this->assertLessThan(strpos($gs, "action === 'mail.send'"), strpos($gs, "if(body.token !== SECRET)"),
+            'the mail action must sit behind the token check — an open relay on a public URL');
+    }
+
+    /**
+     * A failed SMTP attempt runs preSend(), which rewrites ContentType from text/html to
+     * multipart/alternative — and every fallback road runs after one. The roads asked the
+     * type and sent the branded HTML as plain text: a sign-in code as five kilobytes of
+     * markup. Measured end to end before this test existed.
+     */
+    public function test_after_a_failed_smtp_attempt_the_fallback_still_sends_html(): void
+    {
+        $seen = [];
+        $m = new class(['host' => 'smtp.test', 'port' => 587, 'username' => 'u', 'password' => 'p',
+                        'from_address' => 'news@africagates.org', 'transport' => 'auto', 'api_key' => 'k', 'gas' => true], $seen)
+            extends OtpService {
+            public function __construct(array $smtp, private array &$seen) { parent::__construct($smtp); }
+            protected function transmit(PHPMailer $m): void
+            {
+                $m->preSend();
+                throw new MailException('SMTP connect() failed.');
+            }
+            protected function transmitGas(PHPMailer $m): void
+            {
+                $this->seen['gas'] = \AfricaGates\Services\Mail\AppsScriptMail::payload($m);
+                throw new MailException('Apps Script: could not reach it');
+            }
+            protected function transmitApi(PHPMailer $m): void
+            {
+                $this->seen['api'] = BrevoApi::payload($m);
+            }
+        };
+        $r = $m->sendBranded('ada@africagates.org', 'Your sign-in code', '<p>Your code is <b>123456</b></p>', 'Your code is 123456');
+
+        $this->assertTrue($r['success']);
+        $this->assertStringContainsString('<b>123456</b>', $seen['gas']['html'], 'Apps Script got the HTML as text');
+        $this->assertSame('Your code is 123456', trim($seen['gas']['text']));
+        $this->assertStringContainsString('<b>123456</b>', $seen['api']['htmlContent'] ?? '', 'the API got the HTML as text');
+    }
+
+    /** The screen an operator fixes mail from: the roads, the form, and the Apps Script steps. */
+    public function test_email_health_offers_every_road_and_the_apps_script_setup(): void
+    {
+        DB::table('gates_settings')->whereIn('key_name', ['gas_url', 'gas_secret'])->delete();
+        $b = new \DI\ContainerBuilder();
+        $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $ctl = $b->build()->get(\AfricaGates\Admin\Controllers\MailHealthController::class);
+        $html = (string) $ctl->index((new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/admin/settings/mail'),
+                                     new \Slim\Psr7\Response())->getBody();
+
+        $this->assertStringContainsString('action="/admin/settings/mail/sending"', $html);
+        foreach (MailConfig::TRANSPORTS as $t) {
+            $this->assertStringContainsString('<option value="' . $t . '"', $html, "no way to choose $t");
+        }
+        $this->assertStringContainsString('Set up Google Apps Script as the road when Google SMTP fails', $html);
+        $this->assertStringContainsString('const SECRET', $html);
+        $this->assertStringNotContainsString('name="mail_smtp_pass"', $html);
     }
 }
