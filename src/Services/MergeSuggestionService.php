@@ -369,17 +369,6 @@ final class MergeSuggestionService
         $crowded = 0;
         $groups  = self::ruleGroups($nominees, $crowded);
 
-        $usedAi = false;
-        // The gateway decides whether AI runs (key present, switch on, in budget)
-        // and records the outcome either way; the caller only bounds the input.
-        if ($withAi && count($names) >= 2 && count($names) <= 120) {
-            $aiGroups = self::aiGroups($names, $ai);
-            if ($aiGroups !== null) {
-                $usedAi = true;
-                $groups = self::dedupeGroups(array_merge($groups, $aiGroups));
-            }
-        }
-
         // Index the rows so each group can carry the facts an admin needs to choose
         // a survivor, rather than only a list of names.
         $byId = [];
@@ -387,32 +376,17 @@ final class MergeSuggestionService
 
         $out = [];
         foreach ($groups as $g) {
-            $ids = array_values(array_filter($g['nominee_ids'], fn($i) => isset($names[$i])));
-            if (count($ids) < 2) continue;
-            $members = [];
-            foreach ($ids as $i) {
-                $row = $byId[$i] ?? null;
-                $members[] = [
-                    'id'        => $i,
-                    'name'      => $names[$i],
-                    'votes'     => (int) ($row->vote_count ?? 0),
-                    'country'   => strtoupper(trim((string) ($row->country_code ?? ''))),
-                    'has_photo' => trim((string) ($row->photo_path ?? '')) !== '',
-                    'linked'    => (int) ($row->profile_id ?? 0) > 0,
-                    'status'    => (string) ($row->status ?? ''),
-                ];
-            }
-            $out[] = [
-                'nominee_ids' => $ids,
-                'names'       => array_map(fn($i) => $names[$i], $ids),
-                'members'     => $members,
-                // A RECOMMENDATION, not a decision — the UI lets the admin change it.
-                'keep_id'     => self::recommendSurvivor($members),
-                'confidence'  => $g['confidence'],
-                'reason'      => $g['reason'],
-                'source'      => $g['source'],
-            ];
+            $h = self::hydrate($g, $byId, $names);
+            if ($h !== null) $out[] = $h;
         }
+
+        $usedAi = false; $batches = 0; $partial = false;
+        if ($withAi && count($names) >= 2) {
+            $catOf = array_fill_keys(array_keys($names), '');
+            $r = self::aiPass($out, $names, $byId, $catOf, $ai);
+            $out = $r['groups']; $usedAi = $r['used']; $batches = $r['batches']; $partial = $r['partial'];
+        }
+        $out = self::withoutDismissed($out);
 
         // Highest confidence first, so the clearest duplicates are actioned first.
         usort($out, static fn (array $a, array $b): int => $b['confidence'] <=> $a['confidence']);
@@ -432,6 +406,10 @@ final class MergeSuggestionService
             // detection cannot say anything useful about them.
             'crowded' => $crowded,
             'ai'      => $usedAi,
+            'ai_batches' => $batches,
+            'ai_partial' => $partial,
+            // Internal, like names_by_id: forCycle() hydrates the AI's groups from it.
+            'rows_by_id' => $byId,
         ];
     }
 
@@ -455,8 +433,8 @@ final class MergeSuggestionService
         } catch (\Throwable) {}
 
         $groups = []; $scanned = 0; $capped = false; $skipped = 0; $crowded = 0;
-        // id => [name, category title] across the whole cycle, for the single AI pass.
-        $allNames = []; $catOf = [];
+        // id => name / row / category title across the whole cycle, for the AI pass.
+        $allNames = []; $rows = []; $catOf = [];
 
         foreach ($cats as $c) {
             $r = self::forCategory((int) $c->id, $ai, withAi: false);
@@ -465,35 +443,15 @@ final class MergeSuggestionService
             $capped   = $capped || $r['capped'];
             $skipped += $r['skipped'];
             $crowded += $r['crowded'];
-            foreach ($r['groups'] as $g) {
-                foreach ($g['nominee_ids'] as $i) $catOf[$i] = (string) $c->title;
-            }
             foreach ($r['names_by_id'] ?? [] as $id => $name) {
                 $allNames[$id] = $name;
-                $catOf[$id]  ??= (string) $c->title;
+                $catOf[$id]  = (string) $c->title;
             }
+            $rows += $r['rows_by_id'] ?? [];
         }
 
-        // One AI pass over the whole cycle. Bounded the same way a single category
-        // was, because the constraint is the prompt size, not the category count.
-        $usedAi = false;
-        if (count($allNames) >= 2 && count($allNames) <= 120) {
-            $aiGroups = self::aiGroups($allNames, $ai);
-            if ($aiGroups !== null) {
-                $usedAi = true;
-                // A model given the whole cycle can propose a cross-category pair,
-                // which MergeService cannot execute — merges are within a category.
-                // Dropped rather than shown, so the UI never offers a merge that
-                // would fail on submit.
-                foreach ($aiGroups as $g) {
-                    $cats1 = array_unique(array_map(static fn (int $i): string => $catOf[$i] ?? '?', $g['nominee_ids']));
-                    if (count($cats1) !== 1) continue;
-                    $g['category'] = reset($cats1);
-                    $groups[] = $g;
-                }
-                $groups = self::dedupeGroups($groups);
-            }
-        }
+        $ai = self::aiPass($groups, $allNames, $rows, $catOf, $ai);
+        $groups = self::withoutDismissed($ai['groups']);
 
         usort($groups, static fn (array $a, array $b): int => $b['confidence'] <=> $a['confidence']);
         return [
@@ -502,9 +460,262 @@ final class MergeSuggestionService
             'capped'     => $capped,
             'skipped'    => $skipped,
             'crowded'    => $crowded,
-            'ai'         => $usedAi,
+            'ai'         => $ai['used'],
+            // How much the AI actually saw. "AI-assisted" over a cycle it only sampled
+            // is the same lie as "no duplicates" over a partial scan.
+            'ai_batches' => $ai['batches'],
+            'ai_partial' => $ai['partial'],
             'categories' => count($cats),
         ];
+    }
+
+    /** Names per AI call: the prompt's size, not the category count, is the constraint. */
+    private const AI_BATCH = 120;
+
+    /**
+     * AI calls per scan at most. A 48-category cycle used to spend 48 of a 500-per-day
+     * budget on one click; this keeps a scan to a handful however large the edition.
+     */
+    private const AI_MAX_BATCHES = 6;
+
+    /**
+     * The AI pass: find what the rules missed, and say whether it agrees with what they found.
+     *
+     * ── WHY IT USED TO SEE NOTHING ───────────────────────────────────────────
+     *
+     * The AI ran only when the WHOLE cycle held 120 names or fewer. Any real edition is
+     * larger, so "AI-assisted" duplicate detection had, in practice, never run on a live
+     * cycle, while the screen offered it. And the groups it did return carried ids and a
+     * reason but not the members, so they could not show votes or a recommended survivor.
+     *
+     * Now: one call for a small cycle (cross-category pairs dropped, as before); otherwise
+     * per category, sending every name in a small category and, in a large one, the names
+     * that share a word with another name there — the nicknames, married names and
+     * transliterations the rules miss always share SOMETHING, a surname or a given name.
+     * Capped at {@see AI_MAX_BATCHES}, and `partial` says when the cap bit.
+     *
+     * A rule group whose every member the AI saw gets a verdict: `agrees` when the AI put
+     * them together, `unconfirmed` when it saw them and did not. The rules stay the floor;
+     * the verdict is what an admin reads before trusting a 97%.
+     *
+     * @param list<array<string,mixed>> $groups hydrated rule groups
+     * @param array<int,string> $names
+     * @param array<int,object> $rows
+     * @param array<int,string> $catOf id => category title ('' when one category)
+     * @return array{groups:list<array<string,mixed>>, used:bool, batches:int, partial:bool}
+     */
+    private static function aiPass(array $groups, array $names, array $rows, array $catOf, ?AiService $ai): array
+    {
+        if (count($names) < 2) return ['groups' => $groups, 'used' => false, 'batches' => 0, 'partial' => false];
+
+        $inGroups = [];
+        foreach ($groups as $g) foreach ($g['nominee_ids'] as $i) $inGroups[$i] = true;
+
+        // ── which names go to the model, in which calls ──
+        $batches = []; $partial = false;
+        if (count($names) <= self::AI_BATCH) {
+            $batches[] = array_keys($names);
+        } else {
+            $byCat = [];
+            foreach ($names as $id => $_) $byCat[$catOf[$id] ?? ''][] = $id;
+            foreach ($byCat as $ids) {
+                if (count($ids) < 2) continue;
+                $pick = count($ids) <= self::AI_BATCH ? $ids : self::candidates($ids, $names, $inGroups);
+                // A large category is sampled by shared words; say so rather than imply it was read whole.
+                if (count($pick) < count($ids)) $partial = true;
+                foreach (array_chunk($pick, self::AI_BATCH) as $chunk) if (count($chunk) >= 2) $batches[] = $chunk;
+            }
+        }
+        if (count($batches) > self::AI_MAX_BATCHES) { $partial = true; $batches = array_slice($batches, 0, self::AI_MAX_BATCHES); }
+
+        $used = false; $seen = []; $found = [];
+        foreach ($batches as $ids) {
+            $sub = [];
+            foreach ($ids as $i) {
+                $country = strtoupper(trim((string) ($rows[$i]->country_code ?? '')));
+                $sub[$i] = $names[$i] . ($country !== '' ? ' [' . $country . ']' : '');
+            }
+            $r = self::aiGroups($sub, $ai);
+            if ($r === null) { $partial = true; continue; }
+            $used = true;
+            foreach ($ids as $i) $seen[$i] = true;
+            foreach ($r as $g) {
+                // Merges happen within a category, so a pair across two is never offered:
+                // the UI must not show a merge that fails on submit.
+                $cats = array_unique(array_map(static fn (int $i): string => $catOf[$i] ?? '?', $g['nominee_ids']));
+                if (count($cats) !== 1) continue;
+                $found[] = $g + ['category' => (string) reset($cats)];
+            }
+        }
+        if (!$used) return ['groups' => $groups, 'used' => false, 'batches' => count($batches), 'partial' => $partial || $batches !== []];
+
+        // ── verdicts on the rule groups ──
+        foreach ($groups as &$g) {
+            $ids = $g['nominee_ids'];
+            if (array_diff($ids, array_keys($seen)) !== []) continue;   // the AI did not see them all
+            $agree = null;
+            foreach ($found as $f) {
+                if (array_diff($ids, $f['nominee_ids']) === []) { $agree = $f; break; }
+            }
+            if ($agree !== null) {
+                $g['ai_verdict'] = 'agrees';
+                $g['confidence'] = max((float) $g['confidence'], (float) $agree['confidence']);
+                $g['reason'] .= ' The AI agrees: ' . rtrim((string) $agree['reason'], '.') . '.';
+            } else {
+                $g['ai_verdict'] = 'unconfirmed';
+                $g['reason'] .= ' The AI looked at these and did not call them the same — check before merging.';
+            }
+        }
+        unset($g);
+
+        // ── what only the AI found, with the same facts as a rule group ──
+        foreach ($found as $f) {
+            $h = self::hydrate($f, $rows, $names);
+            if ($h === null) continue;
+            $h['category'] = $f['category'];
+            $h['ai_verdict'] = 'found';
+            $groups[] = $h;
+        }
+        return ['groups' => self::dedupeGroups($groups), 'used' => true, 'batches' => count($batches), 'partial' => $partial];
+    }
+
+    /**
+     * In a category too large to send whole: the names worth the model's attention.
+     * Rule-group members first, then names sharing a word (three letters or more) with
+     * another name — but not a word so common it joins half the category.
+     *
+     * @param list<int> $ids
+     * @return list<int>
+     */
+    private static function candidates(array $ids, array $names, array $inGroups): array
+    {
+        $byToken = [];
+        foreach ($ids as $i) {
+            foreach (self::tokens((string) $names[$i]) as $t) {
+                if (mb_strlen($t) >= 3) $byToken[$t][$i] = true;
+            }
+        }
+        $pick = [];
+        foreach ($ids as $i) if (isset($inGroups[$i])) $pick[$i] = true;
+        uasort($byToken, static fn (array $a, array $b): int => count($a) <=> count($b));
+        foreach ($byToken as $set) {
+            if (count($set) < 2 || count($set) > 30) continue;
+            foreach ($set as $i => $_) $pick[$i] = true;
+        }
+        return array_keys($pick);
+    }
+
+    /**
+     * A group with the facts an admin decides on: names, votes, country, photo, linked
+     * profile, status, and a recommended survivor. Null when fewer than two members exist.
+     *
+     * @param array<string,mixed> $g
+     * @param array<int,object> $rows
+     * @param array<int,string> $names
+     * @return array<string,mixed>|null
+     */
+    private static function hydrate(array $g, array $rows, array $names): ?array
+    {
+        $ids = array_values(array_filter($g['nominee_ids'], static fn ($i) => isset($names[$i])));
+        if (count($ids) < 2) return null;
+        $members = [];
+        foreach ($ids as $i) {
+            $row = $rows[$i] ?? null;
+            $members[] = [
+                'id'        => $i,
+                'name'      => $names[$i],
+                'votes'     => (int) ($row->vote_count ?? 0),
+                'country'   => strtoupper(trim((string) ($row->country_code ?? ''))),
+                'has_photo' => trim((string) ($row->photo_path ?? '')) !== '',
+                'linked'    => (int) ($row->profile_id ?? 0) > 0,
+                'status'    => (string) ($row->status ?? ''),
+            ];
+        }
+        return [
+            'nominee_ids' => $ids,
+            'names'       => array_map(static fn ($i) => $names[$i], $ids),
+            'members'     => $members,
+            // A RECOMMENDATION, not a decision — the UI lets the admin change it.
+            'keep_id'     => self::recommendSurvivor($members),
+            'confidence'  => (float) $g['confidence'],
+            'reason'      => (string) $g['reason'],
+            'source'      => (string) $g['source'],
+        ] + (isset($g['category']) ? ['category' => $g['category']] : []);
+    }
+
+    // ── "not the same person", remembered ────────────────────────────────────
+
+    /** The sorted pair key a dismissal is stored under. */
+    public static function pairKey(int $a, int $b): string
+    {
+        return min($a, $b) . '-' . max($a, $b);
+    }
+
+    /**
+     * An admin says these are different people: every pair among them stops being
+     * suggested. A nominee added to the group later is a new pair, and is still offered.
+     *
+     * @param list<int> $ids
+     * @return int pairs recorded
+     */
+    public static function dismiss(array $ids, ?int $adminId = null, string $reason = ''): int
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn ($i) => $i > 0)));
+        $n = 0;
+        try {
+            for ($x = 0; $x < count($ids); $x++) {
+                for ($y = $x + 1; $y < count($ids); $y++) {
+                    $n += DB::table('gates_merge_dismissals')->insertOrIgnore([
+                        'pair_key'     => self::pairKey($ids[$x], $ids[$y]),
+                        'nominee_a'    => min($ids[$x], $ids[$y]),
+                        'nominee_b'    => max($ids[$x], $ids[$y]),
+                        'reason'       => mb_substr(trim($reason), 0, 500) ?: null,
+                        // A foreign-key-shaped column; there is no admin 0.
+                        'dismissed_by' => ($adminId ?? 0) > 0 ? $adminId : null,
+                        'created_at'   => date('Y-m-d H:i:s'),
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[merge] dismissal not stored: ' . $e->getMessage());
+        }
+        return $n;
+    }
+
+    /**
+     * Groups an admin has not already ruled on. A group whose EVERY pair was dismissed is
+     * dropped; one where only some were says so, because a third entry can join two people
+     * an admin already told apart.
+     *
+     * @param list<array<string,mixed>> $groups
+     * @return list<array<string,mixed>>
+     */
+    private static function withoutDismissed(array $groups): array
+    {
+        $keys = [];
+        foreach ($groups as $g) {
+            $ids = $g['nominee_ids'];
+            for ($x = 0; $x < count($ids); $x++) for ($y = $x + 1; $y < count($ids); $y++) $keys[] = self::pairKey($ids[$x], $ids[$y]);
+        }
+        if ($keys === []) return $groups;
+        try {
+            $done = array_fill_keys(DB::table('gates_merge_dismissals')->whereIn('pair_key', array_values(array_unique($keys)))
+                ->pluck('pair_key')->all(), true);
+        } catch (\Throwable) {
+            return $groups;   // table not migrated yet: nothing has been dismissed
+        }
+        $out = [];
+        foreach ($groups as $g) {
+            $ids = $g['nominee_ids']; $pairs = 0; $hit = 0;
+            for ($x = 0; $x < count($ids); $x++) for ($y = $x + 1; $y < count($ids); $y++) {
+                $pairs++;
+                if (isset($done[self::pairKey($ids[$x], $ids[$y])])) $hit++;
+            }
+            if ($pairs > 0 && $hit === $pairs) continue;
+            if ($hit > 0) $g['reason'] .= ' ' . $hit . ' pair' . ($hit === 1 ? '' : 's') . ' here were marked as different people before.';
+            $out[] = $g;
+        }
+        return $out;
     }
 
     /**
@@ -724,7 +935,9 @@ final class MergeSuggestionService
         $system = 'You detect DUPLICATE award nominees — entries that are the SAME real person or organisation listed more than once '
             . '(nicknames, married/maiden names, transliteration, honorifics, spelling variants). '
             . 'Reply ONLY with JSON: {"groups":[{"ids":[<nominee ids that are the same entity>],"confidence":<0-1>,"reason":"<short why>"}]}. '
-            . 'Each group MUST have 2+ ids. Do NOT group merely-similar but different people. If unsure, omit. Empty groups array if none.';
+            . 'Each group MUST have 2+ ids. A [XX] after a name is the country it was entered under: the same name in two '
+            . 'countries is usually two people. Do NOT group merely-similar but different people. If unsure, omit. '
+            . 'Empty groups array if none.';
         // Nominee names are admin-approved data, but they originate from public
         // nominations, so they are fenced. Every returned id is checked against
         // the allow-list — the model cannot introduce a nominee that was not sent.
