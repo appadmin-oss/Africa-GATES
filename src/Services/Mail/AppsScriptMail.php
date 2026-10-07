@@ -113,10 +113,10 @@ final class AppsScriptMail
     private function call(string $action, array $data, int $timeout): array
     {
         if (trim($this->url) === '') {
-            return ['ok' => false, 'message' => 'no Apps Script URL is set (Settings → Google Calendar and Meet)'];
+            return ['ok' => false, 'message' => 'no Apps Script address is set (Email health → Google Apps Script)'];
         }
         if (trim($this->secret) === '') {
-            return ['ok' => false, 'message' => 'no Apps Script secret is set (Settings → Google Calendar and Meet) — the script refuses mail without one'];
+            return ['ok' => false, 'message' => 'no Apps Script secret is set (Email health → Google Apps Script) — the script refuses mail without one'];
         }
         $r = ($this->http)($this->url, ['action' => $action, 'token' => $this->secret, 'data' => $data, 'source' => 'web'], $timeout);
         if ($r['error'] !== '' || $r['status'] < 200 || $r['status'] >= 400) {

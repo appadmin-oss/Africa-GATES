@@ -492,8 +492,85 @@ final class MailTransportTest extends TestCase
         foreach (MailConfig::TRANSPORTS as $t) {
             $this->assertStringContainsString('<option value="' . $t . '"', $html, "no way to choose $t");
         }
-        $this->assertStringContainsString('Set up Google Apps Script as the road when Google SMTP fails', $html);
         $this->assertStringContainsString('const SECRET', $html);
         $this->assertStringNotContainsString('name="mail_smtp_pass"', $html);
+        // The two Apps Script boxes are on THIS page, in a form of their own.
+        $this->assertStringContainsString('action="/admin/settings/mail/apps-script"', $html);
+        $this->assertStringContainsString('name="gas_url"', $html);
+        $this->assertStringContainsString('name="gas_secret"', $html);
+        $this->assertStringContainsString('href="#apps-script"', $html, 'the sending card points down to it');
+    }
+
+    private const GAS = 'https://script.google.com/macros/s/AKfyTEST/exec';
+
+    /** @return \Closure(string,string):array{ok:bool,detail:string} */
+    private static function answers(array $r, ?array &$asked = null): \Closure
+    {
+        return static function (string $u, string $s) use ($r, &$asked): array { $asked = [$u, $s]; return $r; };
+    }
+
+    private static function stored(string $k): ?string
+    {
+        $v = DB::table('gates_settings')->where('key_name', $k)->value('value');
+        return $v === null ? null : (string) $v;
+    }
+
+    public function test_apps_script_is_stored_once_the_script_answers(): void
+    {
+        DB::table('gates_settings')->whereIn('key_name', ['gas_url', 'gas_secret'])->delete();
+        $r = MailSetup::saveAppsScript(self::GAS, 'long-secret', null,
+            self::answers(['ok' => true, 'detail' => 'The Apps Script answered; it may send to 99 more recipients today.'], $asked));
+        $this->assertTrue($r['ok']);
+        $this->assertSame([self::GAS, 'long-secret'], $asked, 'the CANDIDATE is what is asked');
+        $this->assertSame(self::GAS, self::stored('gas_url'));
+        $this->assertSame('long-secret', self::stored('gas_secret'));
+        $this->assertStringContainsString('99 more', $r['message']);
+    }
+
+    /** The calendar uses this secret too: one the script refuses must not replace one it accepts. */
+    public function test_a_secret_the_script_refuses_is_not_stored(): void
+    {
+        DB::table('gates_settings')->whereIn('key_name', ['gas_url', 'gas_secret'])->delete();
+        DB::table('gates_settings')->insert([['key_name' => 'gas_url', 'value' => self::GAS], ['key_name' => 'gas_secret', 'value' => 'the-good-one']]);
+        $r = MailSetup::saveAppsScript('', 'typo', null, self::answers(['ok' => false, 'detail' => 'Bad token']));
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('refused the secret', $r['message']);
+        $this->assertSame('the-good-one', self::stored('gas_secret'));
+    }
+
+    public function test_a_test_address_or_a_non_address_is_refused_before_anything_is_asked(): void
+    {
+        DB::table('gates_settings')->whereIn('key_name', ['gas_url', 'gas_secret'])->delete();
+        foreach (['https://script.google.com/macros/s/AKfyTEST/dev', 'script.google.com/exec',
+                  'http://script.google.com/macros/s/AKfyTEST/exec', 'https://script.google.com/home/projects/abc/edit'] as $bad) {
+            $asked = null;
+            $r = MailSetup::saveAppsScript($bad, 'long-secret', null, self::answers(['ok' => true, 'detail' => ''], $asked));
+            $this->assertFalse($r['ok'], $bad);
+            $this->assertNull($asked, "$bad must be refused without asking");
+        }
+        $this->assertNull(self::stored('gas_url'));
+    }
+
+    /** Unreachable, or an older deployment: nothing judged the values, so they are kept with the fault stated. */
+    public function test_a_script_that_cannot_be_reached_is_still_stored_with_the_fault_stated(): void
+    {
+        DB::table('gates_settings')->whereIn('key_name', ['gas_url', 'gas_secret'])->delete();
+        $r = MailSetup::saveAppsScript(self::GAS, 'long-secret', null,
+            self::answers(['ok' => false, 'detail' => 'the deployed script is older than the mail action']));
+        $this->assertFalse($r['ok']);
+        $this->assertStringStartsWith('Saved, but', $r['message']);
+        $this->assertSame(self::GAS, self::stored('gas_url'));
+    }
+
+    public function test_a_blank_secret_keeps_the_stored_one(): void
+    {
+        DB::table('gates_settings')->whereIn('key_name', ['gas_url', 'gas_secret'])->delete();
+        DB::table('gates_settings')->insert([['key_name' => 'gas_url', 'value' => self::GAS], ['key_name' => 'gas_secret', 'value' => 'kept']]);
+        $asked = null;
+        MailSetup::saveAppsScript('https://script.google.com/macros/s/AKfyNEW/exec', '', null,
+            self::answers(['ok' => true, 'detail' => ''], $asked));
+        $this->assertSame('kept', $asked[1]);
+        $this->assertSame('kept', self::stored('gas_secret'));
+        $this->assertSame('https://script.google.com/macros/s/AKfyNEW/exec', self::stored('gas_url'));
     }
 }

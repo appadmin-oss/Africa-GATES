@@ -110,6 +110,8 @@ final class MailHealthController
             },
             'has_stored_smtp' => $stored !== [],
             'gas_set' => \AfricaGates\Services\Mail\AppsScriptMail::configured(),
+            'gas_url' => \AfricaGates\Services\GoogleMeetService::gasUrl(),
+            'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
             'env_has_login' => $env->hasCredentials(),
         ];
     }
@@ -124,6 +126,21 @@ final class MailHealthController
         $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['messages'] !== []
             ? implode(' ', $r['messages']) : 'Nothing changed.';
         return $res->withHeader('Location', '/admin/settings/mail#sending')->withStatus(302);
+    }
+
+    /**
+     * POST — the Apps Script address and secret, from this page. Tried before stored; see
+     * MailSetup::saveAppsScript(). The same two values Settings → Google Calendar and Meet
+     * holds, kept there too because the calendar is theirs as much as the mail's.
+     */
+    public function appsScript(Request $req, Response $res): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $r = MailSetup::saveAppsScript((string) ($b['gas_url'] ?? ''), (string) ($b['gas_secret'] ?? ''),
+            (int) ($_SESSION['admin_id'] ?? 0) ?: null);
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.apps_script', null, null, ['ok' => $r['ok']]);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        return $res->withHeader('Location', '/admin/settings/mail#apps-script')->withStatus(302);
     }
 
     /** POST — forget the SMTP values saved here; the server's .env decides again. */

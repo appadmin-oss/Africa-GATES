@@ -143,7 +143,7 @@ final class MailDiagnosis
             } elseif ($c->transport === MailConfig::TRANSPORT_GAS) {
                 return array_merge($base, ['ok' => false, 'cause' => MailFailure::CONFIG, 'road' => 'gas', 'degraded' => false,
                     'title' => 'Google Apps Script is not set up',
-                    'fix' => 'Set the Apps Script URL and secret in Settings → Google Calendar and Meet, and deploy the latest config/AfricaGATES_AppScript.gs.']);
+                    'fix' => 'Paste the Apps Script web-app address (ending /exec) and its secret into Email health → Google Apps Script, and deploy the latest config/AfricaGATES_AppScript.gs.']);
             }
             if ($c->transport === MailConfig::TRANSPORT_GAS) {
                 return array_merge($base, ['ok' => false, 'cause' => MailFailure::CONFIG, 'road' => 'gas', 'degraded' => false,

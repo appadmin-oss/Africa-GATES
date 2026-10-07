@@ -164,6 +164,74 @@ final class MailSetup
     }
 
     /**
+     * Save the Google Apps Script address and secret from Email health — tried first.
+     *
+     * The same two rows Settings → Google Calendar and Meet writes, and the same resolver
+     * reads them ({@see \AfricaGates\Services\GoogleMeetService::gasUrl()}), so the
+     * calendar and the mail cannot disagree. They are on this page too because this is
+     * the page an operator is on when mail is failing, and sending them to another
+     * screen to paste two values was a step that lost people.
+     *
+     * Which raises the stakes on a typo: the calendar uses this secret too. So the
+     * candidate is asked first, and the one answer that JUDGES the secret — the script's
+     * own "Bad token" — keeps the stored values. An address that cannot be reached, or a
+     * deployment older than the mail action, has said nothing against what was typed, and
+     * it is stored with the fault stated (the deadlock rule in save()).
+     *
+     * @param \Closure(string,string):array{ok:bool,detail:string}|null $check
+     * @return array{ok:bool, message:string}
+     */
+    public static function saveAppsScript(string $url, string $secret, ?int $adminId = null, ?\Closure $check = null): array
+    {
+        $current = self::settings();
+        // A blank box keeps what is in force (the secret is never drawn back), and only a
+        // value somebody TYPED is written — otherwise pressing the button would copy the
+        // server's .env into the table, where it would outrank the file from then on.
+        $typedUrl = trim($url);
+        $typedSecret = trim($secret);
+        $url = $typedUrl !== '' ? $typedUrl : \AfricaGates\Services\GoogleMeetService::gasUrl();
+        $secret = $typedSecret !== '' ? $typedSecret : \AfricaGates\Services\GoogleMeetService::gasSecret();
+
+        if ($url === '' || $secret === '') {
+            return ['ok' => false, 'message' => 'Nothing was saved: Apps Script needs both the web-app address and the secret.'];
+        }
+        $parts = parse_url($url);
+        if (filter_var($url, FILTER_VALIDATE_URL) === false || strtolower((string) ($parts['scheme'] ?? '')) !== 'https') {
+            return ['ok' => false, 'message' => 'Nothing was saved: “' . mb_substr($url, 0, 80) . '” is not a web address. '
+                . 'Copy the whole Web app URL, starting https://script.google.com/.'];
+        }
+        // `/dev` is the test address: it answers only the script's owner, signed in, in a
+        // browser — so it works when they try it and never from this server.
+        if (!str_ends_with(rtrim((string) ($parts['path'] ?? ''), '/'), '/exec')) {
+            return ['ok' => false, 'message' => 'Nothing was saved: the address must end in /exec. '
+                . 'In Apps Script, Deploy → Manage deployments shows it as “Web app” — not the editor’s address, '
+                . 'and not the one ending /dev, which only works for you.'];
+        }
+
+        $check ??= static fn (string $u, string $s): array => (new AppsScriptMail($u, $s))->check();
+        $r = $check($url, $secret);
+        $detail = trim((string) ($r['detail'] ?? ''));
+
+        if (empty($r['ok']) && stripos($detail, 'Bad token') !== false) {
+            return ['ok' => false, 'message' => 'Nothing was saved: the script refused the secret. It must be exactly the text '
+                . 'between the quotes in const SECRET = \'…\'; at the top of the script — and if you changed it there, '
+                . 'deploy a New version so Google is running it.'];
+        }
+        if (empty($r['ok']) && stripos($detail, 'no SECRET set') !== false) {
+            return ['ok' => false, 'message' => 'Nothing was saved: the deployed script has no secret of its own yet. Put a long '
+                . 'random text between the quotes in const SECRET = \'\'; at the top, save, deploy a New version, and paste '
+                . 'the same text here.'];
+        }
+
+        if ($typedUrl !== '' && $typedUrl !== trim((string) ($current['gas_url'] ?? ''))) self::put('gas_url', $typedUrl, $adminId);
+        if ($typedSecret !== '' && $typedSecret !== trim((string) ($current['gas_secret'] ?? ''))) self::put('gas_secret', $typedSecret, $adminId);
+
+        return !empty($r['ok'])
+            ? ['ok' => true, 'message' => 'Saved. ' . $detail . ' When Google SMTP fails, codes, receipts and confirmations go out through it.']
+            : ['ok' => false, 'message' => 'Saved, but mail cannot go through Apps Script yet: ' . $detail];
+    }
+
+    /**
      * Forget every stored SMTP value, so the server's `.env` decides again.
      *
      * @return list<string> the rows that were removed

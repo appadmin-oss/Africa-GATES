@@ -4549,6 +4549,7 @@ return function(App $app) {
             // Where every mail alert points. The diagnosis walks the SMTP conversation
             // to MAIL FROM and stops: it never sends, so it can run by itself hourly.
             $s->post('/mail/sending',  \AfricaGates\Admin\Controllers\MailHealthController::class.':sending');
+            $s->post('/mail/apps-script', \AfricaGates\Admin\Controllers\MailHealthController::class.':appsScript');
             $s->post('/mail/use-env',  \AfricaGates\Admin\Controllers\MailHealthController::class.':useEnv');
             $s->post('/mail/rules',    \AfricaGates\Admin\Controllers\MailHealthController::class.':rules');
             $s->post('/mail/events/rotate', \AfricaGates\Admin\Controllers\MailHealthController::class.':rotate');
