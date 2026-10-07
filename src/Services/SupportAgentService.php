@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\Env;
+use Illuminate\Database\Capsule\Manager as DB;
 
 /**
  * The support agent — two models, one job each.
@@ -954,37 +955,83 @@ final class SupportAgentService implements SupportAnswerer
     private function faultTurn(string $ref, string $message, array $history, SupportContext $ctx,
                                bool $escalate): array
     {
-        $entry = \AfricaGates\Support\PublicFault::find($ref);
-        $reply = \AfricaGates\Support\PublicFault::chatReply($ref, $entry);
+        $entry  = \AfricaGates\Support\PublicFault::find($ref);
+        $where  = $entry !== null ? (string) $entry['where'] : '';
+        $path   = $entry !== null ? (string) $entry['path'] : '';
+        $money  = $path !== '' && \AfricaGates\Support\PublicFault::aboutMoney($path);
+        $others = \AfricaGates\Support\PublicFault::others($ref, $where);
+        $reply  = \AfricaGates\Support\PublicFault::chatReply($ref, $entry, $others);
+        $facts  = [];
 
-        // Once per reference per conversation: pressing "Tell Gee" twice is one report.
-        $already = false;
-        foreach ($history as $h) {
-            $c = (string) ($h['content'] ?? '');
-            if (($h['role'] ?? '') === 'assistant' && str_contains($c, $ref) && str_contains($c, 'passed it to the team')) {
-                $already = true; break;
+        // ── A FAILED PAYMENT PAGE, FOR SOMEBODY WE CAN SEE ───────────────────
+        // A member does not need to go and find a reference: their own most recent
+        // unconfirmed payment is re-checked on the spot, which is the answer to the
+        // question they actually have ("did I pay?").
+        if ($money && $ctx->isMember()) {
+            $mine = $ctx->run('my_transactions');
+            $facts['my_transactions:[]'] = $mine;
+            $this->trace[] = ['tool' => 'my_transactions', 'args' => [], 'ok' => (bool) ($mine['ok'] ?? false)];
+            $pending = null;
+            foreach ((array) ($mine['data']['donations'] ?? []) as $d) {
+                if (!in_array((string) ($d['status'] ?? ''), ['confirmed', 'refunded'], true) && !empty($d['reference'])) { $pending = $d; break; }
+            }
+            if ($pending !== null) {
+                $fix = $ctx->run('fix_payment', ['reference' => (string) $pending['reference']]);
+                $facts['fix_payment:' . json_encode(['reference' => (string) $pending['reference']])] = $fix;
+                $this->trace[] = ['tool' => 'fix_payment', 'args' => ['reference' => $pending['reference']], 'ok' => (bool) ($fix['ok'] ?? false)];
+                $said = trim((string) ($fix['data']['say'] ?? $fix['say'] ?? $fix['data']['message'] ?? ''));
+                $reply = (string) preg_replace('/\n\nIf you were paying[^\n]*/', '', $reply);
+                $reply .= "\n\nI have re-checked your most recent payment, **" . $pending['reference'] . '**'
+                        . ($said !== '' ? ': ' . $said : '.');
+            } elseif ($mine['ok'] ?? false) {
+                $reply = (string) preg_replace('/\n\nIf you were paying[^\n]*/', '', $reply);
+                $reply .= "\n\nI have looked at your account: there is no payment of yours waiting to be confirmed, "
+                        . 'so nothing was left half-done.';
             }
         }
 
-        $ticket = null;
-        if ($escalate && !$already && $this->tickets !== null) {
-            $where = $entry !== null ? trim((string) $entry['where']) : '';
-            $ticket = $this->tickets->open($message, $history, $ctx, $this->trace, [
+        // One ticket per reference, however many times it is reported or by whom.
+        $ticket = $this->ticketFor($ref);
+        $existing = $ticket !== null;
+        if ($ticket === null && $escalate && $this->tickets !== null) {
+            $ticket = $this->tickets->open($message, $history, $ctx, $this->trace, $ctx->ticketIdentity() + [
                 'subject_override' => 'Error page, reference ' . $ref . ($where !== '' ? ' (' . $where . ')' : ''),
-                'severity' => 'high',
+                // A fault on a payment page is somebody's money until proven otherwise.
+                'severity' => $money ? 'urgent' : 'high',
+                'page_url' => $path,
             ]);
         }
-        $reply .= $ticket !== null
-            ? "\n\nI have passed it to the team with your reference, so they can open exactly what failed. "
-              . "Your ticket is **{$ticket}**; they reply by email, usually within a working day. "
-              . "Meanwhile, trying again in a minute usually works."
-            : ($already
-                ? "\n\nThe team already has it from earlier in this conversation."
-                : "\n\nTry again in a minute — that usually works. If it does not, say “talk to a human” "
-                  . "and quote **{$ref}**: it takes the team straight to what failed.");
 
-        return ['reply' => $reply, 'escalated' => $ticket !== null, 'ticket' => $ticket,
-                'used' => [], 'results' => [], 'provider' => null];
+        if ($ticket !== null) {
+            $reply .= "\n\n" . ($existing
+                ? "The team already has this one as **{$ticket}**, with everything they need to see what failed."
+                : "I have passed it to the team as **{$ticket}**, with the reference, so they can open exactly what failed.");
+            $email = $ctx->ticketIdentity()['email'] ?? '';
+            $team  = $this->teamEmail();
+            $reply .= $email !== ''
+                ? ' They will reply to the email on your account, usually within a working day.'
+                : ($team !== ''
+                    ? " You are not signed in, so they cannot write back to you here — if you want a reply, email {$team} and quote {$ticket}."
+                    : ' Keep that number: it is how they will find this.');
+        } else {
+            $reply .= "\n\nIf it keeps happening, say “talk to a human” and quote **{$ref}** — it takes the team straight to what failed.";
+        }
+
+        return ['reply' => $reply, 'escalated' => $ticket !== null && !$existing, 'ticket' => $ticket,
+                'used' => array_values(array_unique(array_column($this->trace, 'tool'))),
+                'results' => array_values($facts), 'provider' => null];
+    }
+
+    /** The ticket already holding this error reference, if any. */
+    private function ticketFor(string $ref): ?string
+    {
+        try {
+            $hit = DB::table('gates_support_tickets')->where('subject', 'like', '%reference ' . $ref . '%')
+                ->orderByDesc('id')->value('reference');
+            return $hit !== null ? (string) $hit : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /** @return array{reply:string, escalated:bool, ticket:null, used:list<string>, results:list<array>, provider:null} */

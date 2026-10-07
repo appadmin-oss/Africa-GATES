@@ -166,6 +166,21 @@ final class SupportContext
     public function isAdmin(): bool  { return $this->isAdmin; }
 
     /**
+     * Who to file a ticket under — for SupportTicketService, never for a model or a reply.
+     *
+     * A ticket opened by the desk carried no account and no address, so "they reply by
+     * email" was a promise made to somebody nobody could write back to.
+     *
+     * @return array{user_id?:int, email?:string}
+     */
+    public function ticketIdentity(): array
+    {
+        if (!$this->isMember()) return [];
+        $email = trim((string) $this->viewerEmail);
+        return ['user_id' => (int) $this->viewerId] + ($email !== '' ? ['email' => $email] : []);
+    }
+
+    /**
      * The tools this viewer may call, as a JSON-schema-ish list for the planner.
      *
      * Built from the viewer's actual rights, so a guest is never even TOLD that

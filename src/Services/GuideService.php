@@ -178,9 +178,11 @@ final class GuideService
         // An error-page reference is not a payment reference, whatever the search thinks.
         $fault = \AfricaGates\Support\PublicFault::quoted($message);
         if ($fault !== null) {
-            return ['reply' => \AfricaGates\Support\PublicFault::chatReply($fault, \AfricaGates\Support\PublicFault::find($fault))
-                . "\n\nTry again in a minute — that usually works. If it does not, /support takes it to the team; "
-                . "quote **{$fault}** and they can open exactly what failed.", 'source' => 'help'];
+            $e = \AfricaGates\Support\PublicFault::find($fault);
+            return ['reply' => \AfricaGates\Support\PublicFault::chatReply($fault, $e,
+                    \AfricaGates\Support\PublicFault::others($fault, (string) ($e['where'] ?? '')))
+                . "\n\nIf it keeps happening, /support takes it to the team; quote **{$fault}** and they can open "
+                . "exactly what failed.", 'source' => 'help'];
         }
         $written = HelpCentre::writtenAnswer($message);
 

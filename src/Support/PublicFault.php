@@ -181,12 +181,21 @@ final class PublicFault
     public static function quoted(string $message): ?string
     {
         $a = self::ALPHABET;
-        if (!preg_match('/(?<![A-Za-z0-9-])([' . $a . ']{4}-[' . $a . ']{4})(?![A-Za-z0-9-])/i', $message, $m)) {
+        // Typed the way people type it off a screen: lower case, a space for the dash, or
+        // no dash at all. Read back to the one canonical form before anything compares it.
+        if (!preg_match_all('/(?<![A-Za-z0-9-])([' . $a . ']{4})[-\s]?([' . $a . ']{4})(?![A-Za-z0-9-])/i', $message, $all, PREG_SET_ORDER)) {
             return null;
         }
-        $ref = strtoupper($m[1]);
-        if (self::find($ref) !== null) return $ref;
-        return preg_match('/\b(ref|reference|error|went wrong|wrong|broke|failed|failing|crash)/i', $message) ? $ref : null;
+        $about = (bool) preg_match('/\b(ref|reference|error|went wrong|wrong|broke|failed|failing|crash)/i', $message);
+        foreach ($all as $m) {
+            $ref = strtoupper($m[1] . '-' . $m[2]);
+            if (self::find($ref) !== null) return $ref;
+            // Eight letters from this alphabet is also an ordinary WORD — "appeared",
+            // "accepted" — and two four-letter words make a dashed one. A reference with
+            // no digit in it is believed only when the log holds it.
+            if ($about && preg_match('/\d/', $ref)) return $ref;
+        }
+        return null;
     }
 
     /**
@@ -195,45 +204,170 @@ final class PublicFault
      * Reads the tail of the log only: a reference somebody is quoting is minutes or days
      * old, and the file grows for ever on a host where nobody rotates it.
      *
-     * @return array{at:string, where:string}|null
+     * @return array{at:string, where:string, method:string, path:string}|null
      */
     public static function find(string $ref, ?string $file = null): ?array
     {
-        $file ??= dirname(__DIR__, 2) . '/var/logs/error-detail.log';
-        if (!preg_match('/^[' . self::ALPHABET . ']{4}-[' . self::ALPHABET . ']{4}$/', $ref) || !is_file($file)) return null;
-        $size = (int) @filesize($file);
-        $h = @fopen($file, 'rb');
-        if ($h === false) return null;
-        $tail = 4 * 1024 * 1024;
-        if ($size > $tail) fseek($h, $size - $tail);
-        $raw = (string) stream_get_contents($h);
-        fclose($h);
-        if (!preg_match('/^\[([^\]]+)\] \[ref ' . preg_quote($ref, '/') . '\](?: \[([^\]]*)\])?/m', $raw, $m)) return null;
-        return ['at' => $m[1], 'where' => (string) ($m[2] ?? '')];
+        $e = self::entry($ref, $file);
+        return $e === null ? null : ['at' => $e['at'], 'where' => $e['where'], 'method' => $e['method'], 'path' => $e['path']];
+    }
+
+    /**
+     * The whole entry, for STAFF: what failed and where in the code. Read by the admin
+     * ticket screen, so whoever picks up the ticket sees the fault without the token page.
+     * Never put any of `detail` or `trace` in front of the person who reported it.
+     *
+     * @return array{at:string, where:string, method:string, path:string, detail:string, trace:list<string>}|null
+     */
+    public static function entry(string $ref, ?string $file = null): ?array
+    {
+        if (!preg_match('/^[' . self::ALPHABET . ']{4}-[' . self::ALPHABET . ']{4}$/', $ref)) return null;
+        $raw = self::tail($file);
+        if ($raw === '' || !preg_match('/^\[([^\]]+)\] \[ref ' . preg_quote($ref, '/') . '\](?: \[([^\]]*)\])? ([^\n]*)((?:\n(?!\n|\[\d{4}-)[^\n]*)*)/m', $raw, $m)) {
+            return null;
+        }
+        $where = (string) ($m[2] ?? '');
+        [$method, $path] = preg_match('/^([A-Z]+)\s+(\S+)/', $where, $w) ? [$w[1], $w[2]] : ['', ''];
+        $trace = array_values(array_filter(array_map('trim', explode("\n", (string) ($m[4] ?? ''))), 'strlen'));
+        return ['at' => $m[1], 'where' => $where, 'method' => $method, 'path' => $path,
+                'detail' => trim((string) $m[3]), 'trace' => array_slice($trace, 0, 8)];
+    }
+
+    /**
+     * How many OTHER references were written for the same request in the last day.
+     *
+     * The question a person cannot answer for themselves: is it my phone, or is it you?
+     */
+    public static function others(string $ref, string $where, ?string $file = null, ?\DateTimeImmutable $now = null): int
+    {
+        if ($where === '') return 0;
+        $since = ($now ?? new \DateTimeImmutable('now'))->modify('-24 hours');
+        $n = 0;
+        if (preg_match_all('/^\[([^\]]+)\] \[ref ([A-Z0-9-]+)\] \[' . preg_quote($where, '/') . '\]/m', self::tail($file), $all, PREG_SET_ORDER)) {
+            foreach ($all as $hit) {
+                if ($hit[2] === $ref) continue;
+                try { if (new \DateTimeImmutable($hit[1]) >= $since) $n++; } catch (\Throwable) {}
+            }
+        }
+        return $n;
+    }
+
+    /** Was this request about money — paying, voting, giving, buying, a ticket? */
+    public static function aboutMoney(string $path): bool
+    {
+        return (bool) preg_match('~^/(?:api/(?:v1/)?)?(?:pay|payments?|checkout|donate|gift|giving|shop|orders?|vote|votes|tickets?|hooks/pay)(?:/|$)|^/events/[^/]+/(?:register|tickets?|pay)~', $path);
+    }
+
+    /**
+     * What the person was doing, in their words rather than ours — "creating a challenge in
+     * the admin console", not "POST /admin/challenges". Null when the path says nothing
+     * a person would recognise; the caller then says less rather than printing a route.
+     */
+    public static function activity(string $method, string $path): ?string
+    {
+        $send = $method !== '' && $method !== 'GET' && $method !== 'HEAD';
+        foreach ([
+            '~^/admin/challenges~'          => [$send ? 'saving a challenge' : 'opening challenges', ' in the admin console'],
+            '~^/admin/nominees/(?:duplicate|merge)~' => [$send ? 'merging nominees' : 'checking for duplicate nominees', ' in the admin console'],
+            '~^/admin/settings~'            => [$send ? 'saving settings' : 'opening settings', ' in the admin console'],
+            '~^/admin/support~'             => [$send ? 'replying to a ticket' : 'opening a support ticket', ' in the admin console'],
+            '~^/admin~'                     => [$send ? 'saving something' : 'opening a page', ' in the admin console'],
+            '~^/(?:api/(?:v1/)?)?(?:pay|payments?|checkout)~' => ['paying', ''],
+            '~^/(?:api/(?:v1/)?)?votes?~'   => ['voting', ''],
+            '~^/(?:donate|gift|giving)~'    => ['giving', ''],
+            '~^/shop~'                      => [$send ? 'placing an order' : 'browsing', ' in the shop'],
+            '~^/nominat~'                   => [$send ? 'sending a nomination' : 'nominating', ''],
+            '~^/account/login|^/login~'     => ['signing in', ''],
+            '~^/account/register|^/register~' => ['registering', ''],
+            '~^/account~'                   => [$send ? 'saving' : 'opening', ' your account'],
+            '~^/org~'                       => [$send ? 'saving' : 'opening', ' your organisation console'],
+            '~^/events~'                    => [$send ? 'registering' : 'opening', ' an event'],
+            '~^/challenges?~'               => [$send ? 'entering' : 'opening', ' a challenge'],
+            '~^/results~'                   => ['opening', ' a result'],
+            '~^/(?:help|support)~'          => ['asking', ' for help'],
+        ] as $re => [$verb, $where]) {
+            if (preg_match($re, $path)) return $verb . $where;
+        }
+        return null;
     }
 
     /**
      * What the help desk says to a quoted reference. One sentence set, shared by the
      * support agent and the no-provider floor, so the two cannot describe it differently.
      *
-     * @param array{at:string, where:string}|null $entry
+     * Honest in the places the old reply was not: it never says payments were unaffected
+     * about a request that WAS a payment, and it never tells somebody to resend a form that
+     * may already have gone through.
+     *
+     * @param array{at:string, where:string, method?:string, path?:string}|null $entry
      */
-    public static function chatReply(string $ref, ?array $entry): string
+    public static function chatReply(string $ref, ?array $entry, int $others = 0, ?\DateTimeImmutable $now = null): string
     {
-        $out = '**Thank you — reference ' . $ref . ' is from our error page, so this one is our fault, not '
-             . 'anything you did.** Your votes, entries and payments are unaffected.';
+        $method = (string) ($entry['method'] ?? '');
+        $path   = (string) ($entry['path'] ?? '');
+        $money  = $path !== '' && self::aboutMoney($path);
+
+        $first = '**Thank you — that one is our fault, not anything you did.**';
         if ($entry !== null) {
-            $when = '';
-            try {
-                $when = (new \DateTimeImmutable($entry['at']))->setTimezone(new \DateTimeZone('Africa/Lagos'))
-                    ->format('j M \a\t H:i') . ' (Lagos time)';
-            } catch (\Throwable) {}
-            // The method is machinery; the address is the page they were on.
-            $path = trim((string) preg_replace('/^[A-Z]+\s+/', '', $entry['where']));
-            $out .= "\n\nI can see it in our records" . ($when !== '' ? ': it happened on ' . $when : '')
-                  . ($path !== '' ? ($when !== '' ? ', on ' : ': it happened on ') . $path : '') . '.';
+            $doing = self::activity($method, $path);
+            $when  = self::when($entry['at'], $now);
+            $first .= ' Reference ' . $ref . ' was ' . ($when !== '' ? 'written ' . $when : 'recorded')
+                    . ($doing !== null ? ', while you were ' . $doing : '') . '.';
+        } else {
+            $first .= ' I cannot find reference ' . $ref . ' in our records yet. References never contain 0, 1, O, I, L '
+                    . 'or U, so check it was copied exactly — the team will look for it either way.';
         }
-        return $out;
+        if (!$money) $first .= ' Your votes, entries and payments are not affected by it.';
+        $out = [$first];
+
+        if ($others > 0) {
+            $out[] = $others === 1
+                ? 'One other person hit the same fault on that page in the last day, so it is on our side — not your phone or your connection.'
+                : $others . ' other people hit the same fault on that page in the last day, so it is on our side — not your phone or your connection.';
+        }
+
+        if ($money) {
+            $out[] = 'If you were paying, your money is safe either way: a payment that went through is credited '
+                   . 'automatically, and one that did not go through is never taken. Send me the reference that '
+                   . 'starts with **AFG-** — it is in your payment email and your bank alert — and I will check it now.';
+        } elseif ($entry !== null && $method !== '' && $method !== 'GET') {
+            $out[] = 'What you sent may or may not have been saved. Check before you send it again, so it does not go in twice.';
+        } elseif ($entry !== null && preg_match('~^/[a-z0-9/-]{1,80}$~', $path)) {
+            $out[] = 'Opening it again in a minute usually works: [try it again](' . $path . ').';
+        }
+        return implode("\n\n", $out);
+    }
+
+    /** "12 minutes ago", "at 14:32 today", "on 7 Oct at 14:32" — Lagos time. */
+    private static function when(string $at, ?\DateTimeImmutable $now): string
+    {
+        try {
+            $lagos = new \DateTimeZone('Africa/Lagos');
+            $t = (new \DateTimeImmutable($at))->setTimezone($lagos);
+            $n = ($now ?? new \DateTimeImmutable('now'))->setTimezone($lagos);
+        } catch (\Throwable) {
+            return '';
+        }
+        $mins = intdiv($n->getTimestamp() - $t->getTimestamp(), 60);
+        if ($mins >= 0 && $mins < 1) return 'just now';
+        if ($mins >= 0 && $mins < 60) return $mins . ' minute' . ($mins === 1 ? '' : 's') . ' ago';
+        if ($t->format('Y-m-d') === $n->format('Y-m-d')) return 'at ' . $t->format('H:i') . ' today (Lagos time)';
+        return 'on ' . $t->format('j M \a\t H:i') . ' (Lagos time)';
+    }
+
+    /** The last 4 MB of the log, or ''. */
+    private static function tail(?string $file): string
+    {
+        $file ??= dirname(__DIR__, 2) . '/var/logs/error-detail.log';
+        if (!is_file($file)) return '';
+        $size = (int) @filesize($file);
+        $h = @fopen($file, 'rb');
+        if ($h === false) return '';
+        $max = 4 * 1024 * 1024;
+        if ($size > $max) fseek($h, $size - $max);
+        $raw = (string) stream_get_contents($h);
+        fclose($h);
+        return $raw;
     }
 
     /** Were these words written for a person by us? */

@@ -46,11 +46,15 @@ final class HelpDeskErrorReferenceTest extends TestCase
     {
         $this->assertSame('EC4Y-Y8Y7', PublicFault::quoted(self::ASKED));
         $this->assertSame('EC4Y-Y8Y7', PublicFault::quoted('got an error, ec4y-y8y7'), 'typed in lower case');
+        $this->assertSame('EC4Y-Y8Y7', PublicFault::quoted('error EC4Y Y8Y7'), 'a space for the dash');
+        $this->assertSame('EC4Y-Y8Y7', PublicFault::quoted('error EC4YY8Y7'), 'no dash at all');
         $this->assertNull(PublicFault::quoted('I paid, reference AFG-PVOTE-957ef35ed73d'));
         $this->assertNull(PublicFault::quoted('my reference is AFG-4c1e9a0b2d3f4e5a'));
         // The right shape and nothing else to say it is one: not in the log, no mention of
         // an error or a reference.
         $this->assertNull(PublicFault::quoted('NYSC-TEAM is nominated'));
+        // Eight letters of the alphabet is also a word. This one cost a payment repair.
+        $this->assertNull(PublicFault::quoted('I paid but my votes have not appeared, reference AFG-PVOTE-957ef35ed73d'));
         // A reference minted here always round-trips.
         $ref = PublicFault::reference();
         $this->assertSame($ref, PublicFault::quoted('Reference ' . $ref));
@@ -65,7 +69,7 @@ final class HelpDeskErrorReferenceTest extends TestCase
 
         $reply = PublicFault::chatReply($ref, $hit);
         $this->assertStringContainsString($ref, $reply);
-        $this->assertStringContainsString('/admin/challenges', $reply);
+        $this->assertStringContainsString('saving a challenge in the admin console', $reply);
         $this->assertStringNotContainsString('POST', $reply, 'the method is machinery');
         $this->assertStringNotContainsString('SQLSTATE', $reply, 'never what failed, only where');
         $this->assertNull(PublicFault::find('ZZZZ-ZZZZ'));
@@ -99,11 +103,60 @@ final class HelpDeskErrorReferenceTest extends TestCase
         $this->assertStringContainsString('EC4Y-Y8Y7', (string) $row->subject);
         $this->assertSame('high', $row->severity);
 
-        // Pressing "Tell Gee" again in the same conversation is the same report.
-        $again = $desk->ask(self::ASKED, [['role' => 'user', 'content' => self::ASKED],
-            ['role' => 'assistant', 'content' => $r['reply']]], SupportContext::fromSession());
-        $this->assertNull($again['ticket']);
+        // Reported again — in this conversation or anybody else's — it is the same ticket.
+        $again = $desk->ask('ec4y y8y7 broke again', [], SupportContext::fromSession());
+        $this->assertSame($r['ticket'], $again['ticket']);
+        $this->assertStringContainsString('already has this one', $again['reply']);
         $this->assertSame($before + 1, DB::table('gates_support_tickets')->count());
+        // Nobody signed in, so nobody is promised an email they cannot receive.
+        $this->assertStringNotContainsString('reply to the email on your account', $r['reply']);
+    }
+
+    private function logAt(string $ref, string $where, string $at): void
+    {
+        @mkdir(dirname($this->log), 0775, true);
+        file_put_contents($this->log, '[' . $at . '] [ref ' . $ref . '] [' . $where . '] RuntimeException: SQLSTATE secret in /x.php:9'
+            . "\n#0 /x.php(9): f()\n#1 {main}\n\n", FILE_APPEND);
+    }
+
+    public function test_the_reply_says_what_they_were_doing_and_whether_it_is_just_them(): void
+    {
+        $now = new \DateTimeImmutable('2026-10-07T12:30:00+01:00');
+        $this->logAt('AAAA-2222', 'POST /admin/challenges', '2026-10-07T12:18:00+01:00');
+        $this->logAt('AAAA-3333', 'POST /admin/challenges', '2026-10-07T11:00:00+01:00');
+        $this->logAt('AAAA-4444', 'POST /admin/challenges', '2026-10-01T11:00:00+01:00');   // older than a day
+
+        $e = PublicFault::find('AAAA-2222');
+        $reply = PublicFault::chatReply('AAAA-2222', $e, PublicFault::others('AAAA-2222', $e['where'], null, $now), $now);
+        $this->assertStringContainsString('12 minutes ago, while you were saving a challenge in the admin console', $reply);
+        $this->assertStringContainsString('One other person hit the same fault', $reply);
+        $this->assertStringContainsString('may or may not have been saved', $reply, 'a form is never simply "try again"');
+        $this->assertStringNotContainsString('/admin/challenges', $reply, 'the route is ours, the words are theirs');
+        $this->assertStringNotContainsString('SQLSTATE', $reply);
+    }
+
+    public function test_a_payment_page_is_never_called_unaffected(): void
+    {
+        $this->logAt('AAAA-5555', 'POST /pay/paystack/init', date('c'));
+        $reply = PublicFault::chatReply('AAAA-5555', PublicFault::find('AAAA-5555'));
+        $this->assertStringNotContainsString('payments are not affected', $reply);
+        $this->assertStringContainsString('your money is safe either way', $reply);
+        $this->assertStringContainsString('AFG-', $reply);
+    }
+
+    public function test_a_page_that_was_opening_gets_a_link_to_open_it_again(): void
+    {
+        $this->logAt('AAAA-6666', 'GET /results/42', date('c'));
+        $this->assertStringContainsString('[try it again](/results/42)', PublicFault::chatReply('AAAA-6666', PublicFault::find('AAAA-6666')));
+    }
+
+    public function test_staff_see_what_failed_and_the_member_never_does(): void
+    {
+        $this->logAt('AAAA-7777', 'GET /results/42', date('c'));
+        $e = PublicFault::entry('AAAA-7777');
+        $this->assertStringContainsString('SQLSTATE secret', $e['detail']);
+        $this->assertSame(['#0 /x.php(9): f()', '#1 {main}'], $e['trace']);
+        $this->assertArrayNotHasKey('detail', PublicFault::find('AAAA-7777'), 'find() is the member-safe half');
     }
 
     public function test_a_result_looks_wrong_reaches_the_dispute_answer(): void

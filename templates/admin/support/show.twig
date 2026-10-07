@@ -100,6 +100,7 @@
   .tk-file{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#3d4b4c; cursor:pointer }
   .tk-file input{ max-width:190px; font-size:12px }
   .tk-hint{ margin:9px 0 0; font-size:12px; line-height:1.55; color:#7a8a86 }
+  .tk-code{ margin:10px 0 0; font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto }
   .tk-sep{ border:none; border-top:1px solid rgba(16,41,44,.08); margin:20px 0 }
 
   /* ── evidence rail ──────────────────────────────────────────────────────── */
@@ -327,6 +328,23 @@
         {% endfor %}
       </div>
     </div>
+
+    {% if fault %}
+      <div class="tk-card">
+        <h2>What failed</h2>
+        {% if fault.found %}
+          <div class="tk-verdict tk-verdict--bad"><strong>{{ fault.where ?: 'A request' }}</strong> failed {{ fault.at }}.
+            {% if fault.others > 0 %}{{ fault.others }} other reference{{ fault.others == 1 ? '' : 's' }} on the same request in the last day — it is the page, not the person.{% endif %}</div>
+          <div class="tk-kv"><span class="tk-kv__k">Reference</span><span class="tk-kv__v">{{ fault.ref }}</span></div>
+          <pre class="tk-code">{{ fault.detail }}{% for line in fault.trace %}
+{{ line }}{% endfor %}</pre>
+        {% else %}
+          <div class="tk-verdict tk-verdict--wait"><strong>{{ fault.ref }}</strong> is not in the recent error log —
+            mistyped, or the log was cleared since.</div>
+        {% endif %}
+        <p class="tk-hint">Staff only. Never paste this into a reply: it names our code.</p>
+      </div>
+    {% endif %}
 
     {% if proof %}
       <div class="tk-card">
