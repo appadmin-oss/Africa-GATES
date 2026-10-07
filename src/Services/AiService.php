@@ -424,14 +424,17 @@ class AiService
     }
 
     /**
-     * Tools cannot be carried by every provider's API in the same shape, and Gemini's is
-     * different enough that a translation layer for it would be a third code path serving one
-     * key nobody has configured for this feature. So the tool-capable set is named, and a route
-     * asking for tools skips anything outside it rather than silently dropping them — a model
-     * that never sees the tools would answer in prose forever and the ledger would stay empty
-     * with nothing in the log to say why.
+     * The providers whose adapter carries tools. A route asking for tools skips anything outside
+     * this set rather than silently dropping the tools — a model that never sees them answers in
+     * prose forever, and nothing in the log says why.
+     *
+     * Gemini was left out once, as "a third code path serving one key nobody has configured for
+     * this feature". It is the provider this platform LEADS with by default, so the help desk's
+     * tool loop skipped the one key most deployments hold, fell to a JSON planner that a small
+     * model answers in prose, and the person was told an article title. It has its own adapter
+     * now ({@see geminiToolChat()}).
      */
-    public const TOOL_PROVIDERS = ['openai', 'groq', 'anthropic'];
+    public const TOOL_PROVIDERS = ['anthropic', 'openai', 'gemini', 'groq'];
 
     /**
      * A conversational turn is not a 6-second job. Nor is a summary.
@@ -539,6 +542,8 @@ class AiService
         $maxTokens = max(16, (int) ($opts['max_tokens'] ?? 900));
         $temp      = (float) ($opts['temperature'] ?? 0.4);
         $choice    = (string) ($opts['tool_choice'] ?? 'auto');
+        // Claude only, and only the models that take it: how hard to think. See anthropicToolChat().
+        $effort    = (string) ($opts['effort'] ?? '');
 
         $hops = $this->resolveRoute((array) ($opts['route'] ?? []),
                                     (int) ($opts['max_attempts'] ?? 0));
@@ -570,7 +575,9 @@ class AiService
                         'openai', 'groq' => $this->openAiStyleChat($provider, $messages, $tools,
                                                                    $maxTokens, $temp, $choice, $model),
                         'anthropic'      => $this->anthropicToolChat($messages, $tools,
-                                                                     $maxTokens, $temp, $choice, $model),
+                                                                     $maxTokens, $temp, $choice, $model, $effort),
+                        'gemini'         => $this->geminiToolChat($messages, $tools,
+                                                                  $maxTokens, $temp, $choice, $model),
                         default          => null,
                     };
                     if ($reply !== null) {
@@ -617,7 +624,7 @@ class AiService
                 'function' => [
                     'name'        => (string) $t['name'],
                     'description' => (string) ($t['description'] ?? ''),
-                    'parameters'  => (array) ($t['parameters'] ?? ['type' => 'object', 'properties' => []]),
+                    'parameters'  => self::schemaOf($t),
                 ],
             ], $tools);
             $payload['tool_choice'] = $choice === 'required' ? 'required' : 'auto';
@@ -665,38 +672,76 @@ class AiService
      * Kept as a real adapter rather than a "close enough" one because the difference is not
      * cosmetic: a tool result posted in OpenAI's shape is rejected outright, so a fallback that
      * only looked like it worked would fail on exactly the turn the primary provider went down.
+     *
+     * ── THE CURRENT MODELS REFUSE THREE THINGS THE OLD ONES TOOK ─────────────
+     *
+     * Opus 4.7 onward, the Sonnet 5 line, Fable and Mythos answer 400 to a `temperature`, and
+     * the newest of them to a forced `tool_choice` as well. This adapter sent both on every
+     * call — harmless on Haiku 4.5, which is what it was written against, and a guaranteed
+     * failure the day a deployment pointed it at a current model: the help desk's lead would
+     * have failed every turn and fallen through to the next provider, silently, forever. So
+     * sampling and forced choice are sent only to a model that accepts them
+     * ({@see claudeTakesSampling()}), and depth is set by `output_config.effort` instead.
+     *
+     * Those models also think on every turn, and a tool loop must hand their thinking blocks
+     * back unchanged beside the tool call they led to. They travel in {@see AiReply::$raw}
+     * and are replayed by {@see toAnthropicMessages()}.
      */
     private function anthropicToolChat(array $messages, array $tools, int $maxTokens,
-                                       float $temp, string $choice, ?string $model = null): ?AiReply
+                                       float $temp, string $choice, ?string $model = null,
+                                       string $effort = ''): ?AiReply
     {
         [$system, $turns] = self::toAnthropicMessages($messages);
+        $id     = $this->modelFor('anthropic', $model);
+        $legacy = self::claudeTakesSampling($id);
 
         $payload = [
-            'model'       => $this->modelFor('anthropic', $model),
-            'max_tokens'  => $maxTokens,
-            'temperature' => $temp,
-            'messages'    => $turns,
+            'model'      => $id,
+            // Thinking counts against max_tokens on the current models; a budget sized for a
+            // reply alone cuts the reply off once the model has thought.
+            'max_tokens' => $legacy ? $maxTokens : max($maxTokens, 4096),
+            'messages'   => $turns,
         ];
+        if ($legacy) {
+            $payload['temperature'] = $temp;
+        } elseif (in_array($effort, ['low', 'medium', 'high', 'xhigh', 'max'], true)) {
+            $payload['output_config'] = ['effort' => $effort];
+        }
         if ($system !== '') $payload['system'] = $system;
         if ($tools !== []) {
             $payload['tools'] = array_map(static fn(array $t): array => [
                 'name'         => (string) $t['name'],
                 'description'  => (string) ($t['description'] ?? ''),
-                'input_schema' => (array) ($t['parameters'] ?? ['type' => 'object', 'properties' => []]),
+                'input_schema' => self::schemaOf($t),
             ], $tools);
-            if ($choice === 'required') $payload['tool_choice'] = ['type' => 'any'];
+            // Forced choice is a 400 on the current models: `auto`, steered by the prompt.
+            if ($choice === 'required' && $legacy) $payload['tool_choice'] = ['type' => 'any'];
         }
 
-        $j = $this->httpPost('https://api.anthropic.com/v1/messages', [
-            'x-api-key: ' . $this->anthropicKey,
-            'anthropic-version: 2023-06-01',
-        ], $payload);
+        $headers = ['x-api-key: ' . $this->anthropicKey, 'anthropic-version: 2023-06-01'];
+        // A classifier that declines a request returns `refusal`, and on these models the API
+        // can route the declined request to a model whose classifiers suit it instead.
+        if (self::claudeHasServerFallback($id)) {
+            $payload['fallbacks'] = 'default';
+            $headers[] = 'anthropic-beta: server-side-fallback-2026-07-01';
+        }
+
+        $j = $this->httpPost('https://api.anthropic.com/v1/messages', $headers, $payload);
         if ($j === null) return null;
         $this->captureUsage($j);
 
+        // A refusal is a 200 with no answer in it. Reported as a failure, so the chain moves
+        // on to the next provider rather than showing somebody an empty bubble.
+        if ((string) ($j['stop_reason'] ?? '') === 'refusal') {
+            $this->lastError = 'the model declined (' . (string) ($j['stop_details']['category'] ?? 'no category') . ')';
+            return null;
+        }
+
         $text = '';
         $calls = [];
+        $raw = [];
         foreach ((array) ($j['content'] ?? []) as $block) {
+            if (!is_array($block)) continue;
             $type = (string) ($block['type'] ?? '');
             if ($type === 'text') {
                 $text .= (string) ($block['text'] ?? '');
@@ -705,15 +750,186 @@ class AiService
                 if ($name === '') continue;
                 $calls[] = ['id' => (string) ($block['id'] ?? ''), 'name' => $name,
                             'arguments' => (array) ($block['input'] ?? [])];
+                // json_decode() turned `{}` into `[]`; sent back as a list it is a 400.
+                $block['input'] = self::object((array) ($block['input'] ?? []));
             }
+            $raw[] = $block;
         }
 
         $text = trim($text);
         if ($text === '' && $calls === []) return null;
 
-        return new AiReply($text, $calls, $this->lastUsage, 'anthropic',
-                           $this->modelFor('anthropic', $model),
-                           self::stopReasonFrom((string) ($j['stop_reason'] ?? '')));
+        return new AiReply($text, $calls, $this->lastUsage, 'anthropic', $id,
+                           self::stopReasonFrom((string) ($j['stop_reason'] ?? '')), $raw);
+    }
+
+    /**
+     * Does this Claude model take `temperature` and a forced `tool_choice`?
+     *
+     * The ones that refuse them are named by family rather than listed by id, so a release in
+     * a family that refuses is refused here too: Opus 4.7 and 4.8, everything Opus 5 and
+     * Sonnet 5 onward, Fable and Mythos. Haiku 4.5, Sonnet 4.6 and Opus 4.6 take both.
+     */
+    public static function claudeTakesSampling(string $model): bool
+    {
+        return !preg_match('/claude-(?:fable|mythos)|claude-(?:opus|sonnet)-(?:[5-9]|\d{2})|claude-opus-4-[7-9]/', $model);
+    }
+
+    /** The models that accept server-side refusal fallback in its `"default"` form. */
+    private static function claudeHasServerFallback(string $model): bool
+    {
+        return (bool) preg_match('/^claude-(?:fable-5-1|opus-5-5|opus-5|sonnet-5-5)$/', $model);
+    }
+
+    /**
+     * Gemini, which calls a tool with a `functionCall` part and hears back with a
+     * `functionResponse`, and whose system prompt is its own field.
+     *
+     * Gemini 3 signs each function call (`thoughtSignature`) and refuses the next round unless
+     * the signed part comes back exactly as it was sent, so the model turn is replayed from
+     * {@see AiReply::$raw} rather than rebuilt — the same reason as Claude's thinking blocks.
+     */
+    private function geminiToolChat(array $messages, array $tools, int $maxTokens,
+                                    float $temp, string $choice, ?string $model = null): ?AiReply
+    {
+        $id = $this->modelFor('gemini', $model);
+        [$system, $contents] = self::toGeminiContents($messages);
+
+        $payload = [
+            'contents'         => $contents,
+            'generationConfig' => ['temperature' => $temp,
+                                   'maxOutputTokens' => max($maxTokens, self::GEMINI_MIN_OUTPUT)]
+                                  + self::geminiThinking($id),
+        ];
+        if ($system !== '') $payload['systemInstruction'] = ['parts' => [['text' => $system]]];
+        if ($tools !== []) {
+            $decls = [];
+            foreach ($tools as $t) {
+                $d = ['name' => (string) $t['name'], 'description' => (string) ($t['description'] ?? '')];
+                $schema = self::schemaOf($t);
+                // A function with no parameters omits the field: an object schema with no
+                // properties is refused by the stricter Gemini validators.
+                if ((array) $schema['properties'] !== []) $d['parameters'] = $schema;
+                $decls[] = $d;
+            }
+            $payload['tools'] = [['functionDeclarations' => $decls]];
+            $payload['toolConfig'] = ['functionCallingConfig' => ['mode' => $choice === 'required' ? 'ANY' : 'AUTO']];
+        }
+
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $id
+             . ':generateContent?key=' . urlencode((string) $this->geminiKey);
+        $j = $this->httpPost($url, [], $payload);
+        if ($j === null) return null;
+        $this->captureUsage($j);
+
+        $cand = $j['candidates'][0] ?? [];
+        $stop = (string) ($cand['finishReason'] ?? '');
+        $text = '';
+        $calls = [];
+        $raw = [];
+        foreach ((array) ($cand['content']['parts'] ?? []) as $i => $part) {
+            if (!is_array($part)) continue;
+            if (isset($part['functionCall']) && is_array($part['functionCall'])) {
+                $name = (string) ($part['functionCall']['name'] ?? '');
+                if ($name === '') continue;
+                $args = (array) ($part['functionCall']['args'] ?? []);
+                $calls[] = ['id' => (string) ($part['functionCall']['id'] ?? ('gemini-' . $i)), 'name' => $name,
+                            'arguments' => $args];
+                $part['functionCall']['args'] = self::object($args);
+            } elseif (isset($part['text']) && is_string($part['text']) && empty($part['thought'])) {
+                $text .= $part['text'];
+            }
+            $raw[] = $part;
+        }
+
+        $text = trim($text);
+        if ($text === '' && $calls === []) {
+            $block = (string) ($j['promptFeedback']['blockReason'] ?? '');
+            $this->lastError = 'Gemini returned no answer (' . ($block !== '' ? 'blocked: ' . $block : ($stop !== '' ? $stop : 'empty')) . ')';
+            return null;
+        }
+
+        return new AiReply($text, $calls, $this->lastUsage, 'gemini', $id,
+                           $calls !== [] ? 'tools' : self::stopReasonFrom($stop === 'MAX_TOKENS' ? 'length' : 'stop'), $raw);
+    }
+
+    /**
+     * The neutral message list as Gemini wants it: system hoisted, assistant turns as `model`,
+     * tool results as `functionResponse` parts in a user turn.
+     *
+     * @param list<array<string,mixed>> $messages
+     * @return array{0:string, 1:list<array<string,mixed>>}
+     */
+    private static function toGeminiContents(array $messages): array
+    {
+        $system = [];
+        $out = [];
+        $names = [];   // tool_call_id => function name, which a functionResponse must carry
+        foreach ($messages as $m) {
+            $role = (string) ($m['role'] ?? 'user');
+            $body = (string) ($m['content'] ?? '');
+            if ($role === 'system') {
+                if (trim($body) !== '') $system[] = $body;
+                continue;
+            }
+            if ($role === 'assistant') {
+                foreach ((array) ($m['tool_calls'] ?? []) as $c) $names[(string) ($c['id'] ?? '')] = (string) ($c['name'] ?? '');
+                if (($m['raw']['provider'] ?? '') === 'gemini' && !empty($m['raw']['content'])) {
+                    $out[] = ['role' => 'model', 'parts' => array_values((array) $m['raw']['content'])];
+                    continue;
+                }
+                $parts = [];
+                if (trim($body) !== '') $parts[] = ['text' => $body];
+                foreach ((array) ($m['tool_calls'] ?? []) as $c) {
+                    $parts[] = ['functionCall' => ['name' => (string) ($c['name'] ?? ''),
+                                                   'args' => self::object((array) ($c['arguments'] ?? []))]];
+                }
+                if ($parts !== []) $out[] = ['role' => 'model', 'parts' => $parts];
+                continue;
+            }
+            if ($role === 'tool') {
+                $id = (string) ($m['tool_call_id'] ?? '');
+                $decoded = json_decode($body, true);
+                $resp = ['name' => (string) ($m['name'] ?? ($names[$id] ?? '')),
+                         'response' => is_array($decoded) && !array_is_list($decoded) ? $decoded : ['result' => $decoded ?? $body]];
+                if ($id !== '' && !str_starts_with($id, 'gemini-')) $resp['id'] = $id;
+                $part = ['functionResponse' => $resp];
+                $last = array_key_last($out);
+                if ($last !== null && $out[$last]['role'] === 'user' && isset($out[$last]['parts'][0]['functionResponse'])) {
+                    $out[$last]['parts'][] = $part;
+                } else {
+                    $out[] = ['role' => 'user', 'parts' => [$part]];
+                }
+                continue;
+            }
+            $out[] = ['role' => 'user', 'parts' => [['text' => $body]]];
+        }
+        return [implode("\n\n", $system), $out];
+    }
+
+    /**
+     * A tool's parameter schema, with `properties` an OBJECT however it was written.
+     *
+     * PHP's `[]` is a JSON list. A tool with no parameters declared as `'properties' => []`
+     * goes out as `"properties": []`, which every provider's schema validator refuses — and
+     * the refusal fails the whole request, not just the one tool.
+     *
+     * @param array<string,mixed> $tool
+     * @return array<string,mixed>
+     */
+    private static function schemaOf(array $tool): array
+    {
+        $s = (array) ($tool['parameters'] ?? []);
+        $s['type'] = $s['type'] ?? 'object';
+        $s['properties'] = self::object((array) ($s['properties'] ?? []));
+        if (isset($s['required']) && $s['required'] === []) unset($s['required']);
+        return $s;
+    }
+
+    /** An associative array that encodes as a JSON object even when it is empty. */
+    private static function object(array $a): array|\stdClass
+    {
+        return $a === [] ? new \stdClass() : $a;
     }
 
     /**
@@ -739,7 +955,7 @@ class AiService
                     'id'       => (string) ($c['id'] ?? ''),
                     'type'     => 'function',
                     'function' => ['name' => (string) ($c['name'] ?? ''),
-                                   'arguments' => (string) json_encode((array) ($c['arguments'] ?? []))],
+                                   'arguments' => (string) json_encode(self::object((array) ($c['arguments'] ?? [])))],
                 ], (array) $m['tool_calls']);
                 // OpenAI rejects a null content on an assistant turn that carries tool_calls,
                 // and accepts an empty string. A model that called a tool without saying
@@ -794,13 +1010,20 @@ class AiService
                 continue;
             }
 
+            // Claude's own turn, verbatim: its thinking blocks have to come back beside the
+            // tool call they led to, unchanged, or the next round is refused.
+            if ($role === 'assistant' && ($m['raw']['provider'] ?? '') === 'anthropic' && !empty($m['raw']['content'])) {
+                $turns[] = ['role' => 'assistant', 'content' => array_values((array) $m['raw']['content'])];
+                continue;
+            }
+
             if ($role === 'assistant' && !empty($m['tool_calls'])) {
                 $blocks = [];
                 if (trim($body) !== '') $blocks[] = ['type' => 'text', 'text' => $body];
                 foreach ((array) $m['tool_calls'] as $c) {
                     $blocks[] = ['type' => 'tool_use', 'id' => (string) ($c['id'] ?? ''),
                                  'name' => (string) ($c['name'] ?? ''),
-                                 'input' => (array) ($c['arguments'] ?? [])];
+                                 'input' => self::object((array) ($c['arguments'] ?? []))];
                 }
                 $turns[] = ['role' => 'assistant', 'content' => $blocks];
                 continue;

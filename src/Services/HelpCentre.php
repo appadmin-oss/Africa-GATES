@@ -1506,8 +1506,14 @@ final class HelpCentre
         // Worded so a linkified label reads as part of the sentence: Gee's widget
         // renders an article URL as "the Help Centre answer", so "Full answer:
         // /help/x" would have come out as "Full answer: the Help Centre answer".
-        $lines[] = 'Read it here: ' . self::url((string) $top['slug'])
-                 . ' — if that is not your case, say so and I will pass it to the team at /support.';
+        //
+        // ONE offer of a person, and it is this one. The support agent used to append its own
+        // "say “talk to a human”" under this line, so the reply offered the team twice in two
+        // different phrasings — the thing a reader takes for a bot that does not know what it
+        // just said.
+        $lines[] = 'Read the rest in ' . self::url((string) $top['slug']) . '. If that is not what is '
+                 . 'happening to you, tell me what you see — or say “talk to a human” and I will pass '
+                 . 'it to the team.';
 
         return implode("\n\n", $lines);
     }

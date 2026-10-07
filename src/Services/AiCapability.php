@@ -1004,6 +1004,37 @@ final class AiCapability
                     . 'on YOUR OWN records — payment status, amounts, dates. Never another person\'s data.',
                 'data_purpose'    => 'To write an answer grounded in your actual records rather than a guess.',
             ]),
+            // ANSWERING, as one agent: the model reads the question, calls the platform's
+            // own tools (re-check a payment, read the live state, find the written answer)
+            // and writes from what they returned — the loop `support.plan` and
+            // `support.answer` approximated in two separate calls, one of which had to
+            // return JSON from a small model. Those two remain, behind it, for the day no
+            // provider here can carry tools.
+            //
+            // CLAUDE LEADS, by the owner's decision: the operator's chosen Claude model when
+            // they have set one, otherwise the current Opus. Then OpenAI, Gemini and Groq,
+            // each on the model the settings screen names, so any one key runs the desk.
+            'support.agent' => $c('support.agent', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => 'anthropic:' . (self::chosenModel('anthropic') ?: 'claude-opus-5-5'),
+                'fallbacks'       => ['openai:' . self::modelIdFor('openai'),
+                                      'gemini:' . self::modelIdFor('gemini'),
+                                      'groq:' . (self::chosenModel('groq') ?: self::TIER_MODELS['groq'][self::TIER_WRITE])],
+                'max_attempts'    => 4,
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 1200,
+                'calls_per_day'   => 12000,
+                'tokens_per_day'  => 6_000_000,
+                'timeout'         => 30,
+                'untrusted_input' => true,
+                'public_content'  => false,
+                'data_sent'       => 'Your support message, the conversation so far, and the results of the lookups '
+                    . 'the assistant ran on YOUR OWN records — payment status, amounts, dates. Contact details '
+                    . 'in what you type are replaced by placeholders. Never another person\'s data.',
+                'data_purpose'    => 'To look up and repair what you are asking about, and answer from your actual records.',
+            ]),
             // Reviewer-to-nominator decision note. Interpolates the nominator's
             // own text, and the output is sent to a real person, so a bad reply
             // must be discardable rather than merely clamped.
