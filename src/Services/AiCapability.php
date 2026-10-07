@@ -102,6 +102,11 @@ final class AiCapability
         public readonly string $dataSent,
         /** Plain-language description of what it is used for, same audience. */
         public readonly string $dataPurpose,
+        /**
+         * Seconds the gateway may answer a REPEAT of the same request from its own cache
+         * (0 = never). See {@see CACHE_TTL} for which capabilities and why.
+         */
+        public readonly int $cacheTtl = 0,
     ) {}
 
     /**
@@ -146,6 +151,44 @@ final class AiCapability
         'groq'      => 'Groq',
         'openai'    => 'OpenAI',
         'anthropic' => 'Anthropic',
+    ];
+
+    /**
+     * How long the gateway may answer an IDENTICAL request from cache, per capability.
+     *
+     * ── THE QUESTION THAT DECIDES IT ─────────────────────────────────────────
+     *
+     * "Is the same answer to the same input still right?" The key is the whole request —
+     * prompt version, system prompt, the fenced input, model route, temperature — so a
+     * cached answer is only ever served for a request that is byte-for-byte the one that
+     * produced it. That makes it safe for anything that CLASSIFIES or ANALYSES what it is
+     * given: the verdict on a comment does not change because the same comment arrives a
+     * second time, and the spam that arrives forty times in an hour is paid for once.
+     *
+     * Not listed, deliberately: every CONVERSATION (each turn is new), and every DRAFTING
+     * capability, where pressing the button again means "give me another one" — a cache
+     * there would return the draft the operator just rejected.
+     *
+     * @var array<string,int>
+     */
+    public const CACHE_TTL = [
+        'moderation.classify'      => 7 * 86400,
+        'nomination.triage'        => 86400,
+        'nomination.category_fit'  => 7 * 86400,
+        'nomination.suggest_category' => 86400,
+        'nomination.polish'        => 86400,
+        'admin.filter_parse'       => 30 * 86400,
+        'search.interpret'         => 86400,
+        'vendor.category_match'    => 7 * 86400,
+        'nominee.merge_suggest'    => 6 * 3600,
+        'evidence.analyse'         => 7 * 86400,
+        'judge.orientation'        => 86400,
+        'integrity.brief'          => 3600,
+        'community.thread_summary' => 86400,
+        'questionnaire.summary'    => 86400,
+        'interview.brief'          => 86400,
+        'interview.review'         => 86400,
+        'door.name_pronounce'      => 30 * 86400,
     ];
 
     /** Where an operator's choice is kept. `.env` AI_PRIMARY is the fallback. */
@@ -509,6 +552,7 @@ final class AiCapability
             publicContent:  $o['public_content'] ?? false,
             dataSent:       $o['data_sent'] ?? 'Nothing submitted by the public.',
             dataPurpose:    $o['data_purpose'] ?? $o['purpose'],
+            cacheTtl:       (int) ($o['cache_ttl'] ?? (self::CACHE_TTL[$name] ?? 0)),
         );
 
         return self::$memo = [

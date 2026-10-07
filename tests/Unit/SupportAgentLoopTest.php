@@ -100,7 +100,11 @@ final class SupportAgentLoopTest extends TestCase
         $this->assertStringNotContainsString('"properties":[]', $first['json']);
 
         $this->assertSame('Voting is open until the end of the month.', $r['reply']);
-        $this->assertSame(['site_state'], $r['used']);
+        // The deadline lookups ran BEFORE the model was asked (SupportPlan knows that
+        // mapping in code); the model added the one it chose.
+        $this->assertContains('voting_deadlines', $r['used']);
+        $this->assertContains('site_state', $r['used']);
+        $this->assertStringContainsString('ALREADY LOOKED UP for this message', $first['json']);
         $this->assertSame('anthropic', $r['provider']);
     }
 
@@ -183,6 +187,31 @@ final class SupportAgentLoopTest extends TestCase
         $this->assertTrue(AiService::claudeTakesSampling('claude-sonnet-4-6'));
         $this->assertFalse(AiService::claudeTakesSampling('claude-sonnet-5-5'));
         $this->assertFalse(AiService::claudeTakesSampling('claude-opus-4-8'));
+    }
+
+    /**
+     * Fixed text first, live text second, as separate system blocks — so the provider's
+     * prompt cache can hold the rules — and an obvious question answered in ONE round.
+     */
+    public function test_the_rules_lead_the_prompt_and_the_obvious_lookup_costs_no_round(): void
+    {
+        $ai = $this->ai([self::claudeSays('Voting closes on the date shown.')]);
+        $r = (new SupportAgentService($ai))->ask('when does voting close', [], SupportContext::fromSession());
+
+        $this->assertCount(1, $ai->sent, 'the lookup ran in code; the model only had to answer');
+        $system = (string) $ai->sent[0]['payload']['system'];
+        $this->assertLessThan(strpos($system, 'ALREADY LOOKED UP'), strpos($system, 'GROUNDING'),
+            'the rules come before anything that changes per turn');
+        $this->assertSame(['type' => 'ephemeral'], $ai->sent[0]['payload']['cache_control']);
+        $this->assertStringNotContainsString('"properties":[]', $ai->sent[0]['json']);
+        $this->assertSame('Voting closes on the date shown.', $r['reply']);
+    }
+
+    /** An empty field is not sent to the model; a long result is cut. */
+    public function test_tool_results_are_compacted(): void
+    {
+        $this->assertSame('{"a":1,"c":{"d":"x"}}', SupportAgentService::compact(['a' => 1, 'b' => null, 'c' => ['d' => 'x', 'e' => ''], 'f' => []]));
+        $this->assertStringEndsWith('…(truncated)', SupportAgentService::compact(['t' => str_repeat('y', 5000)]));
     }
 
     /** An invented reference is asked about once, and never reaches the person. */

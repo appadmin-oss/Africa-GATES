@@ -80,6 +80,9 @@ final class DuplicateTriageTest extends TestCase
         $this->assertSame('unconfirmed', $g[0]['ai_verdict']);
         $this->assertStringContainsString('did not call them the same', $g[0]['reason']);
 
+        // The same names are the same request, which the gateway now answers from cache —
+        // emptied here because this half of the test is a DIFFERENT model's answer.
+        DB::table('gates_cache')->delete();
         $agree = $this->ai(static fn () => '{"groups":[{"ids":[9011,9012],"confidence":0.9,"reason":"Spelling variant"}]}');
         $g = MergeSuggestionService::forCycle(71, $agree)['groups'];
         $this->assertCount(1, $g, 'one group, not the rule one and the AI one side by side');

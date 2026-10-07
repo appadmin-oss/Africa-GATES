@@ -324,10 +324,18 @@ class AiService
         $out = (int) ($u['completion_tokens'] ?? $u['output_tokens'] ?? $u['candidatesTokenCount'] ?? 0);
         $out += (int) ($u['thoughtsTokenCount'] ?? 0);
 
-        $this->lastUsage = [
-            'in'  => (int) ($u['prompt_tokens'] ?? $u['input_tokens']  ?? $u['promptTokenCount'] ?? 0),
-            'out' => $out,
-        ];
+        // ── WHAT THE CACHE SAVED ──────────────────────────────────────────────
+        // Each provider reports prompt-cache reads its own way. Anthropic's input_tokens
+        // EXCLUDES them (and excludes the one-off write), OpenAI's and Gemini's include
+        // them. `in` is normalised to what was billed at the full rate and `cached` to
+        // what was read from cache, so a daily token budget counts real spend and the
+        // admin screen can say how much caching is saving.
+        $cached = (int) ($u['cache_read_input_tokens'] ?? $u['prompt_tokens_details']['cached_tokens']
+                       ?? $u['cachedContentTokenCount'] ?? 0);
+        $in = isset($u['input_tokens'])
+            ? (int) $u['input_tokens'] + (int) ($u['cache_creation_input_tokens'] ?? 0)
+            : max(0, (int) ($u['prompt_tokens'] ?? $u['promptTokenCount'] ?? 0) - $cached);
+        $this->lastUsage = ['in' => $in, 'out' => $out, 'cached' => $cached];
     }
 
     /** Configured providers in priority order. */
@@ -630,6 +638,7 @@ class AiService
             $payload['tool_choice'] = $choice === 'required' ? 'required' : 'auto';
         }
 
+        if ($provider === 'openai') $payload = self::openAiShape($payload, (string) $payload['model'], $maxTokens, $temp);
         [$url, $auth] = $provider === 'groq'
             ? ['https://api.groq.com/openai/v1/chat/completions', 'Bearer ' . $this->groqKey]
             : ['https://api.openai.com/v1/chat/completions',      'Bearer ' . $this->openaiKey];
@@ -701,6 +710,10 @@ class AiService
             // reply alone cuts the reply off once the model has thought.
             'max_tokens' => $legacy ? $maxTokens : max($maxTokens, 4096),
             'messages'   => $turns,
+            // A tool loop re-sends the tools, the system prompt and the whole exchange on
+            // every round. With the breakpoint placed by the API, each round after the
+            // first reads that prefix from cache instead of paying for it again.
+            'cache_control' => ['type' => 'ephemeral'],
         ];
         if ($legacy) {
             $payload['temperature'] = $temp;
@@ -1513,19 +1526,79 @@ class AiService
     }
 
     // ── Provider: Anthropic (Claude Haiku) ─────────────────────────────────
+    /**
+     * The one-shot path — the one roughly thirty capabilities take.
+     *
+     * ── IT WAS BROKEN FOR EVERY CURRENT CLAUDE MODEL, TWICE OVER ─────────────
+     *
+     * It sent `temperature` (a 400 on Opus 4.7 onward, the Sonnet 5 line, Fable and Mythos)
+     * and read `content[0]['text']` — but those models think on every turn, so the first
+     * block is a THINKING block and the text was never read. Either fault alone made every
+     * capability pinned to a current Claude fail and fall through the chain, silently, on a
+     * deployment whose operator had chosen Claude on purpose. Sampling goes only to a model
+     * that takes it; depth is `output_config.effort` (low: these are short, single answers);
+     * the reply is read by block TYPE; a refusal moves the chain on.
+     *
+     * ── AND IT PAYS FOR A SYSTEM PROMPT ONCE, NOT PER CALL ───────────────────
+     *
+     * Top-level `cache_control` lets the API place the cache breakpoint itself. The system
+     * prompts here are fixed per capability and re-sent on every call — moderation sends the
+     * same instructions ahead of every comment — so the repeated prefix is billed at the
+     * cache-read rate. Below the model's minimum cacheable length it simply does nothing.
+     */
     private function anthropicChat(string $system, string $user, int $maxTokens, bool $json, float $temp, ?string $model = null): ?string
     {
+        $id = $this->modelFor('anthropic', $model);
+        $legacy = self::claudeTakesSampling($id);
         $payload = [
-            'model'      => $this->modelFor('anthropic', $model),
-            'max_tokens' => $maxTokens,
-            'temperature'=> $temp,
-            'system'     => $system . ($json ? ' Reply with ONLY a valid JSON object.' : ''),
-            'messages'   => [['role' => 'user', 'content' => $user]],
+            'model'         => $id,
+            // Thinking counts against max_tokens on the current models.
+            'max_tokens'    => $legacy ? $maxTokens : max($maxTokens, 2048),
+            'system'        => $system . ($json ? ' Reply with ONLY a valid JSON object.' : ''),
+            'messages'      => [['role' => 'user', 'content' => $user]],
+            'cache_control' => ['type' => 'ephemeral'],
         ];
-        $j = $this->httpPost('https://api.anthropic.com/v1/messages', ['x-api-key: ' . $this->anthropicKey, 'anthropic-version: 2023-06-01'], $payload);
+        if ($legacy) $payload['temperature'] = $temp;
+        else         $payload['output_config'] = ['effort' => 'low'];
+        $headers = ['x-api-key: ' . $this->anthropicKey, 'anthropic-version: 2023-06-01'];
+        if (self::claudeHasServerFallback($id)) {
+            $payload['fallbacks'] = 'default';
+            $headers[] = 'anthropic-beta: server-side-fallback-2026-07-01';
+        }
+        $j = $this->httpPost('https://api.anthropic.com/v1/messages', $headers, $payload);
         $this->captureUsage($j);
-        $c = $j['content'][0]['text'] ?? null;
-        return (is_string($c) && $c !== '') ? $c : null;
+        if ($j === null) return null;
+        if ((string) ($j['stop_reason'] ?? '') === 'refusal') {
+            $this->lastError = 'the model declined (' . (string) ($j['stop_details']['category'] ?? 'no category') . ')';
+            return null;
+        }
+        $text = '';
+        foreach ((array) ($j['content'] ?? []) as $b) {
+            if (is_array($b) && ($b['type'] ?? 'text') === 'text') $text .= (string) ($b['text'] ?? '');
+        }
+        return trim($text) !== '' ? $text : null;
+    }
+
+    /**
+     * OpenAI's reasoning models (the GPT-5 line, o-series) take `max_completion_tokens`
+     * and no `temperature`; sending the old pair is a 400 on every call. Groq is not
+     * OpenAI and keeps the old shape.
+     */
+    public static function openAiReasons(string $model): bool
+    {
+        return (bool) preg_match('/^(?:gpt-5|o\d)/', $model);
+    }
+
+    /** @param array<string,mixed> $payload */
+    private static function openAiShape(array $payload, string $model, int $maxTokens, float $temp): array
+    {
+        if (self::openAiReasons($model)) {
+            unset($payload['max_tokens'], $payload['temperature']);
+            // Reasoning counts against the completion budget, as thinking does on Claude.
+            $payload['max_completion_tokens'] = max($maxTokens, 1024);
+            $payload['reasoning_effort'] = 'low';
+        }
+        return $payload;
     }
 
     // ── Provider: OpenAI (chat completions) ────────────────────────────────
@@ -1541,6 +1614,7 @@ class AiService
             ],
         ];
         if ($json) $payload['response_format'] = ['type' => 'json_object'];
+        $payload = self::openAiShape($payload, (string) $payload['model'], $maxTokens, $temp);
         $j = $this->httpPost('https://api.openai.com/v1/chat/completions', ['Authorization: Bearer ' . $this->openaiKey], $payload);
         $this->captureUsage($j);
         $c = $j['choices'][0]['message']['content'] ?? null;

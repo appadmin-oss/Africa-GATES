@@ -456,8 +456,37 @@ final class SupportAgentService implements SupportAnswerer
       just fixed the problem.
     TXT;
 
-    /** Longest tool result handed back to the model, in characters. */
-    private const MAX_TOOL_RESULT = 6000;
+    /**
+     * Longest tool result handed back to the model, in characters — AFTER empty fields are
+     * dropped ({@see compact()}). Was 6,000 of pretty JSON; a tool result is re-sent on
+     * every later round, so its size is paid once per round, not once.
+     */
+    private const MAX_TOOL_RESULT = 3000;
+
+    /** Turns of earlier conversation the agent is shown, and the characters per turn. */
+    private const AGENT_HISTORY = 8;
+    private const AGENT_TURN_CHARS = 1200;
+
+    /**
+     * A tool result as the model needs it: no null, no empty string, no empty list —
+     * often a third of a result — and capped. The model reads "absent" correctly; it does
+     * not need to be told forty times that a field has no value.
+     */
+    public static function compact(mixed $v): string
+    {
+        $strip = static function ($x) use (&$strip) {
+            if (!is_array($x)) return $x;
+            $out = [];
+            foreach ($x as $k => $val) {
+                $val = $strip($val);
+                if ($val === null || $val === '' || $val === []) continue;
+                $out[$k] = $val;
+            }
+            return array_is_list($x) ? array_values($out) : $out;
+        };
+        $json = (string) json_encode($strip($v), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        return mb_strlen($json) > self::MAX_TOOL_RESULT ? mb_substr($json, 0, self::MAX_TOOL_RESULT) . '…(truncated)' : $json;
+    }
 
     /**
      * One support turn by an agent that calls the tools itself.
@@ -469,7 +498,8 @@ final class SupportAgentService implements SupportAnswerer
      * @return array{reply:string, facts:array<string,array>}|null
      */
     private function agentTurn(string $message, array $history, SupportContext $ctx, array $only,
-                               ?string $system = null, string $capability = 'support.agent'): ?array
+                               ?string $system = null, string $capability = 'support.agent',
+                               string $volatile = '', bool $prefetch = true): ?array
     {
         if ($this->ai === null || !$this->ai->configured() || !AiGateway::available($capability)) return null;
         $cap = AiCapability::find($capability);
@@ -489,26 +519,58 @@ final class SupportAgentService implements SupportAnswerer
         }
         if ($tools === []) return null;
 
+        // ── STABLE FIRST, LIVE LAST — what the provider's prompt cache needs ──
+        //
+        // Every provider caches a repeated PREFIX: Claude where the breakpoint lands,
+        // OpenAI and Gemini automatically past about a thousand tokens. The rules, the
+        // grounding and the playbooks are the same on every turn and every round; the brief
+        // (the live cycle) and the incident report are not. They used to be interleaved —
+        // the brief second, the rules after it — so the cacheable prefix ended forty tokens
+        // in and every round paid full price for two thousand tokens it had sent a second
+        // earlier. The fixed text goes first now, in its own message, and the live part
+        // after it.
         if ($system === null) {
-            $now = SupportSignals::brief();
-            $system = $this->writerSystem($ctx) . "\n\n" . self::AGENT_RULES . "\n\n" . SupportKnowledge::playbooks()
-                    . ($now !== '' ? "\n\n" . $now : '');
+            $system   = "You are the Africa GATES support assistant.\n\n" . self::writerRules() . "\n\n"
+                      . self::AGENT_RULES . "\n\n" . SupportKnowledge::playbooks();
+            $now      = SupportSignals::brief();
+            $volatile = SupportKnowledge::brief($ctx) . ($now !== '' ? "\n\n" . $now : '');
+        }
+
+        // ── THE OBVIOUS LOOKUPS, BEFORE THE FIRST CALL ──────────────────────
+        //
+        // A model's first move on "I paid, ref AFG-…, no votes" is always the same tool, and
+        // each round re-sends the whole prompt. SupportPlan already knows that mapping in
+        // code, so its steps run first and the model is handed the results: most turns are
+        // then answered in ONE round instead of two, which is roughly half the tokens. The
+        // tools stay available for anything the rules did not foresee.
+        $facts = [];
+        if ($prefetch) {
+            foreach (SupportPlan::steps($message, $ctx, $only) as $step) {
+                $key = $step['tool'] . ':' . json_encode($step['args']);
+                if (isset($facts[$key])) continue;
+                $facts[$key] = $ctx->run($step['tool'], $step['args']);
+                $this->trace[] = ['tool' => $step['tool'], 'args' => $step['args'], 'ok' => (bool) ($facts[$key]['ok'] ?? false)];
+            }
+        }
+        if ($facts !== []) {
+            $volatile .= "\n\nALREADY LOOKED UP for this message (the platform ran these before asking you — do not run them again):\n"
+                       . self::compact(array_values($facts));
         }
 
         // What the person typed is data, every turn of it: fenced, with contact details
         // replaced, exactly as the gateway does for a one-shot capability.
         $messages = [['role' => 'system', 'content' => $system]];
-        foreach ($history as $h) {
-            $text = trim((string) ($h['content'] ?? ''));
+        if (trim($volatile) !== '') $messages[] = ['role' => 'system', 'content' => trim($volatile)];
+        foreach (array_slice($history, -self::AGENT_HISTORY) as $h) {
+            $text = mb_substr(trim((string) ($h['content'] ?? '')), 0, self::AGENT_TURN_CHARS);
             if ($text === '') continue;
             $role = ($h['role'] ?? '') === 'assistant' ? 'assistant' : 'user';
-            if ($role === 'assistant' && count($messages) === 1) continue;   // a model turn cannot open the exchange
+            if ($role === 'assistant' && count(array_filter($messages, static fn ($m) => $m['role'] !== 'system')) === 0) continue;   // a model turn cannot open the exchange
             $messages[] = ['role' => $role, 'content' => $role === 'user'
                 ? AiGateway::fence(AiPrivacy::minimise($text)['text']) : $text];
         }
         $messages[] = ['role' => 'user', 'content' => AiGateway::fence(AiPrivacy::minimise($message)['text'])];
 
-        $facts = [];
         $reply = null;
         for ($round = 1; $round <= self::MAX_ROUNDS; $round++) {
             $reply = $this->agentCall($messages, $tools, $cap);
@@ -567,7 +629,7 @@ final class SupportAgentService implements SupportAnswerer
         $message = mb_substr(trim($message), 0, self::MAX_MESSAGE);
         if ($message === '') return null;
         $r = $this->agentTurn($message, array_slice($history, -self::MAX_HISTORY), $ctx, self::GUIDE_TOOLS,
-                              $system . "\n\n" . self::AGENT_RULES, 'guide.agent');
+                              self::AGENT_RULES, 'guide.agent', $system, prefetch: false);
         if ($r === null) return null;
         return ['reply' => $r['reply'], 'actions' => self::actionsFrom($r['facts']),
                 'used' => array_values(array_unique(array_column($this->trace, 'tool'))),
@@ -636,8 +698,7 @@ final class SupportAgentService implements SupportAnswerer
             $this->trace[] = ['tool' => $tool, 'args' => $args, 'ok' => (bool) ($result['ok'] ?? false)];
             $facts[$key] = $result;
         }
-        $out = (string) json_encode($facts[$key], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        return mb_strlen($out) > self::MAX_TOOL_RESULT ? mb_substr($out, 0, self::MAX_TOOL_RESULT) . '…(truncated)' : $out;
+        return self::compact($facts[$key]);
     }
 
     /**
@@ -646,13 +707,13 @@ final class SupportAgentService implements SupportAnswerer
      */
     private function writerSystem(SupportContext $ctx): string
     {
-        $brief = SupportKnowledge::brief($ctx);
+        return "You are the Africa GATES support assistant.\n\n" . SupportKnowledge::brief($ctx) . "\n\n" . self::writerRules();
+    }
 
-        return <<<SYS
-        You are the Africa GATES support assistant.
-
-        {$brief}
-
+    /** The writer's fixed rules: the same text on every call, so the part a cache can hold. */
+    private static function writerRules(): string
+    {
+        return <<<'SYS'
         GROUNDING — the rule that outranks every other instruction here:
         - Every fact you state must come from the LOOKED UP section.
         - If it is not there, say you do not know and say what you will do next.
