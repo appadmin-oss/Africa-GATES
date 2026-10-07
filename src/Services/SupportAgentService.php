@@ -107,6 +107,13 @@ final class SupportAgentService implements SupportAnswerer
         $history = array_slice($history, -self::MAX_HISTORY);
         $facts   = [];
 
+        // An error-page reference, quoted back. Answered before any planner or search,
+        // because both read it as a PAYMENT reference: the Help Centre matched the word
+        // "reference" to the wallet-app article, and a person whose page had just failed
+        // was told about OPay. See PublicFault::quoted().
+        $fault = \AfricaGates\Support\PublicFault::quoted($message);
+        if ($fault !== null) return $this->faultTurn($fault, $message, $history, $ctx, $escalate);
+
         if (!$this->available()) {
             // ── NO PROVIDER, BUT THE TOOLS STILL WORK ────────────────────────
             //
@@ -745,6 +752,48 @@ final class SupportAgentService implements SupportAnswerer
     private function teamEmail(): string
     {
         return Notifier::supportEmail();
+    }
+
+    /**
+     * A quoted error reference: say whose fault it was, what we can see, and put it in
+     * front of a person — always, not when shouldEscalate() reads the words as upset.
+     * A reference exists to be quoted to the team; someone who quoted it to us has
+     * already done the one thing the error page asked of them.
+     */
+    private function faultTurn(string $ref, string $message, array $history, SupportContext $ctx,
+                               bool $escalate): array
+    {
+        $entry = \AfricaGates\Support\PublicFault::find($ref);
+        $reply = \AfricaGates\Support\PublicFault::chatReply($ref, $entry);
+
+        // Once per reference per conversation: pressing "Tell Gee" twice is one report.
+        $already = false;
+        foreach ($history as $h) {
+            $c = (string) ($h['content'] ?? '');
+            if (($h['role'] ?? '') === 'assistant' && str_contains($c, $ref) && str_contains($c, 'passed it to the team')) {
+                $already = true; break;
+            }
+        }
+
+        $ticket = null;
+        if ($escalate && !$already && $this->tickets !== null) {
+            $where = $entry !== null ? trim((string) $entry['where']) : '';
+            $ticket = $this->tickets->open($message, $history, $ctx, $this->trace, [
+                'subject_override' => 'Error page, reference ' . $ref . ($where !== '' ? ' (' . $where . ')' : ''),
+                'severity' => 'high',
+            ]);
+        }
+        $reply .= $ticket !== null
+            ? "\n\nI have passed it to the team with your reference, so they can open exactly what failed. "
+              . "Your ticket is **{$ticket}**; they reply by email, usually within a working day. "
+              . "Meanwhile, trying again in a minute usually works."
+            : ($already
+                ? "\n\nThe team already has it from earlier in this conversation."
+                : "\n\nTry again in a minute — that usually works. If it does not, say “talk to a human” "
+                  . "and quote **{$ref}**: it takes the team straight to what failed.");
+
+        return ['reply' => $reply, 'escalated' => $ticket !== null, 'ticket' => $ticket,
+                'used' => [], 'results' => [], 'provider' => null];
     }
 
     /** @return array{reply:string, escalated:bool, ticket:null, used:list<string>, results:list<array>, provider:null} */

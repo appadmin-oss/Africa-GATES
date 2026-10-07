@@ -175,6 +175,13 @@ final class GuideService
      */
     public function supportFallback(string $message): array
     {
+        // An error-page reference is not a payment reference, whatever the search thinks.
+        $fault = \AfricaGates\Support\PublicFault::quoted($message);
+        if ($fault !== null) {
+            return ['reply' => \AfricaGates\Support\PublicFault::chatReply($fault, \AfricaGates\Support\PublicFault::find($fault))
+                . "\n\nTry again in a minute — that usually works. If it does not, /support takes it to the team; "
+                . "quote **{$fault}** and they can open exactly what failed.", 'source' => 'help'];
+        }
         $written = HelpCentre::writtenAnswer($message);
 
         return ['reply' => $written ?? (

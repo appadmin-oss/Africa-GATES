@@ -162,6 +162,80 @@ final class PublicFault
             : $x['message'] . ' If you tell us about it, quote ' . $x['reference'] . '.';
     }
 
+    /**
+     * A reference somebody has QUOTED back to us — usually by pressing "Tell Gee" on the
+     * error page, which sends "Something went wrong. Reference XXXX-XXXX".
+     *
+     * ── WHY THE HELP DESK HAS TO ASK THIS FIRST ──────────────────────────────────
+     *
+     * That sentence reached the Help Centre search, which matched the word "reference" to
+     * "The reference my wallet app shows is different" and quoted it at the person — an
+     * answer about payment numbers, to somebody whose page had just failed, with our own
+     * markup printed raw in the bubble. The one person who had done exactly what the
+     * error page asked was told about OPay.
+     *
+     * A string of this SHAPE is not enough on its own — a reference is eight characters
+     * from a 27-letter alphabet, and the odd word pair fits it — so it must also either be
+     * in the log or arrive in a sentence about a reference or an error.
+     */
+    public static function quoted(string $message): ?string
+    {
+        $a = self::ALPHABET;
+        if (!preg_match('/(?<![A-Za-z0-9-])([' . $a . ']{4}-[' . $a . ']{4})(?![A-Za-z0-9-])/i', $message, $m)) {
+            return null;
+        }
+        $ref = strtoupper($m[1]);
+        if (self::find($ref) !== null) return $ref;
+        return preg_match('/\b(ref|reference|error|went wrong|wrong|broke|failed|failing|crash)/i', $message) ? $ref : null;
+    }
+
+    /**
+     * The log entry a reference was written against — when and where, never what.
+     *
+     * Reads the tail of the log only: a reference somebody is quoting is minutes or days
+     * old, and the file grows for ever on a host where nobody rotates it.
+     *
+     * @return array{at:string, where:string}|null
+     */
+    public static function find(string $ref, ?string $file = null): ?array
+    {
+        $file ??= dirname(__DIR__, 2) . '/var/logs/error-detail.log';
+        if (!preg_match('/^[' . self::ALPHABET . ']{4}-[' . self::ALPHABET . ']{4}$/', $ref) || !is_file($file)) return null;
+        $size = (int) @filesize($file);
+        $h = @fopen($file, 'rb');
+        if ($h === false) return null;
+        $tail = 4 * 1024 * 1024;
+        if ($size > $tail) fseek($h, $size - $tail);
+        $raw = (string) stream_get_contents($h);
+        fclose($h);
+        if (!preg_match('/^\[([^\]]+)\] \[ref ' . preg_quote($ref, '/') . '\](?: \[([^\]]*)\])?/m', $raw, $m)) return null;
+        return ['at' => $m[1], 'where' => (string) ($m[2] ?? '')];
+    }
+
+    /**
+     * What the help desk says to a quoted reference. One sentence set, shared by the
+     * support agent and the no-provider floor, so the two cannot describe it differently.
+     *
+     * @param array{at:string, where:string}|null $entry
+     */
+    public static function chatReply(string $ref, ?array $entry): string
+    {
+        $out = '**Thank you — reference ' . $ref . ' is from our error page, so this one is our fault, not '
+             . 'anything you did.** Your votes, entries and payments are unaffected.';
+        if ($entry !== null) {
+            $when = '';
+            try {
+                $when = (new \DateTimeImmutable($entry['at']))->setTimezone(new \DateTimeZone('Africa/Lagos'))
+                    ->format('j M \a\t H:i') . ' (Lagos time)';
+            } catch (\Throwable) {}
+            // The method is machinery; the address is the page they were on.
+            $path = trim((string) preg_replace('/^[A-Z]+\s+/', '', $entry['where']));
+            $out .= "\n\nI can see it in our records" . ($when !== '' ? ': it happened on ' . $when : '')
+                  . ($path !== '' ? ($when !== '' ? ', on ' : ': it happened on ') . $path : '') . '.';
+        }
+        return $out;
+    }
+
     /** Were these words written for a person by us? */
     public static function isOurs(Throwable $e): bool
     {

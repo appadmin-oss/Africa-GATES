@@ -1566,6 +1566,16 @@ return function(App $app) {
             // lines alone, because a stack trace contains blank lines of its own.
             $parts = preg_split('/\n(?=\[\d{4}-\d{2}-\d{2}T)/', trim($raw)) ?: [];
             $parts = array_values(array_filter(array_map('trim', $parts)));
+            // `&ref=EC4Y-Y8Y7` — the reference a person quoted from the error page, which
+            // is the question this page is opened with nine times in ten.
+            $wantRef = strtoupper(trim((string) ($req->getQueryParams()['ref'] ?? '')));
+            if ($wantRef !== '') {
+                $parts = array_values(array_filter($parts, static fn ($p) => str_contains($p, '[ref ' . $wantRef . ']')));
+                if ($parts === []) {
+                    $h .= '<pre>No entry carries reference <code>' . $e($wantRef) . '</code>. Check it was copied '
+                        . 'exactly (no O, I, L, U, 0 or 1 are ever used), or that the log has not been cleared since.</pre>';
+                }
+            }
             $total = count($parts);
             $show  = array_slice(array_reverse($parts), 0, $want);
 
@@ -1580,7 +1590,7 @@ return function(App $app) {
             }
         }
 
-        $h .= '<p class="n">Add <code>&amp;n=30</code> for more. This page is token-gated and '
+        $h .= '<p class="n">Add <code>&amp;n=30</code> for more, or <code>&amp;ref=XXXX-XXXX</code> for the entry a person quoted. This page is token-gated and '
             . 'noindex. Delete <code>var/logs/error-detail.log</code> to clear it.</p>';
 
         $res->getBody()->write($h);
