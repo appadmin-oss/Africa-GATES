@@ -275,7 +275,7 @@
   function actions(list) {
     var box = el('div', 'gee__acts');
     list.slice(0, 2).forEach(function (a) {
-      if (!a || !a.url || !/^\/(?!\/)[A-Za-z0-9\/_\-.~%?=&+]*$/.test(String(a.url)) || !a.label) return;
+      if (!a || !a.url || !/^\/(?!\/)[A-Za-z0-9\/_\-.~%?=&+]*(?:#[A-Za-z0-9_-]*)?$/.test(String(a.url)) || !a.label) return;
       var l = el('a', 'gee__act', String(a.label));
       l.href = a.url;
       box.appendChild(l);

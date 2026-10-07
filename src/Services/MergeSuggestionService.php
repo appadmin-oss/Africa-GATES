@@ -425,7 +425,7 @@ final class MergeSuggestionService
      *
      * @return array{groups: list<array{nominee_ids:int[],names:string[],confidence:float,reason:string,source:string,category:string}>, scanned:int, capped:bool, skipped:int, ai:bool, categories:int}
      */
-    public static function forCycle(int $cycleId, ?AiService $ai = null): array
+    public static function forCycle(int $cycleId, ?AiService $ai = null, bool $withAi = true): array
     {
         $cats = [];
         try {
@@ -450,7 +450,10 @@ final class MergeSuggestionService
             $rows += $r['rows_by_id'] ?? [];
         }
 
-        $ai = self::aiPass($groups, $allNames, $rows, $catOf, $ai);
+        // `withAi: false` is the rules alone — free, for a caller (the ops scripts) that
+        // only needs to know whether anything is waiting.
+        $ai = $withAi ? self::aiPass($groups, $allNames, $rows, $catOf, $ai)
+                      : ['groups' => $groups, 'used' => false, 'batches' => 0, 'partial' => false];
         $groups = self::withoutDismissed($ai['groups']);
 
         usort($groups, static fn (array $a, array $b): int => $b['confidence'] <=> $a['confidence']);

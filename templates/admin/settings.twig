@@ -1410,7 +1410,11 @@
                    for optional writing help and wrong for moderation. #}
                 <span class="ad-chip ad-chip--{{ c.on_failure == 'announce' ? 'blue' : 'grey' }}">{{ c.on_failure }}</span>
               </td>
-              <td>{{ spend ? spend.calls : 0 }} <span style="color:var(--cn-grey-500)">/ {{ c.calls|number_format }}</span></td>
+              <td>{{ spend ? spend.calls : 0 }} <span style="color:var(--cn-grey-500)">/ {{ c.calls|number_format }}</span>
+                {# A repeat of an identical request answered from cache costs nothing and
+                   counts against no budget — said here, so the saving is visible. #}
+                {% if spend and spend.cached > 0 %}<div style="font-size:12px;color:var(--cn-grey-500)">+{{ spend.cached|number_format }} from cache, free</div>
+                {% elseif c.cache_hours > 0 %}<div style="font-size:12px;color:var(--cn-grey-500)">repeats cached {{ c.cache_hours >= 24 ? (c.cache_hours / 24)|round ~ ' d' : c.cache_hours ~ ' h' }}</div>{% endif %}</td>
               <td>{{ spend ? spend.tokens|number_format : 0 }} <span style="color:var(--cn-grey-500)">/ {{ c.tokens|number_format }}</span></td>
               <td>{% if spend and spend.failures > 0 %}<span class="ad-chip ad-chip--gold">{{ spend.failures }}</span>{% else %}—{% endif %}</td>
               <td>

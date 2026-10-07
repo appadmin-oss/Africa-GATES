@@ -44,7 +44,13 @@ window.agChat = function (opts) {
           body: JSON.stringify({ message: text, history: this.msgs.slice(0, -1).slice(-10) })
         });
         var j = await r.json();
-        if (j && j.ok && j.reply) { this.msgs.push({ role: 'assistant', text: j.reply }); }
+        /* `ran`: the checks the assistant ran to answer — shown, so an answer can be traced
+           to its evidence. `actions`: console pages it offers, held to /admin paths here as
+           well as on the server. */
+        if (j && j.ok && j.reply) {
+          var acts = (j.actions || []).filter(function (a) { return a && /^\/admin(?:[\/?#]|$)/.test(String(a.url || '')) && a.label; }).slice(0, 2);
+          this.msgs.push({ role: 'assistant', text: j.reply, ran: (j.ran || []).slice(0, 6), actions: acts });
+        }
         else { this.error = (j && j.error) || 'The assistant did not answer — try again.'; }
       } catch (e) { this.error = 'Network error — try again.'; }
       finally { this.busy = false; this.persist(); this.$nextTick(() => this.scroll()); }

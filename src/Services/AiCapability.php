@@ -1079,6 +1079,29 @@ final class AiCapability
                     . 'in what you type are replaced by placeholders. Never another person\'s data.',
                 'data_purpose'    => 'To look up and repair what you are asking about, and answer from your actual records.',
             ]),
+            // THE ADMIN ASSISTANT, as an agent that runs the platform's own checks
+            // (OpsScripts) before it answers, instead of being handed the whole
+            // operational snapshot with every message. Same route, Claude first.
+            'admin.agent' => $c('admin.agent', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => 'anthropic:' . (self::chosenModel('anthropic') ?: 'claude-opus-5-5'),
+                'fallbacks'       => ['openai:' . self::modelIdFor('openai'),
+                                      'gemini:' . self::modelIdFor('gemini'),
+                                      'groq:' . (self::chosenModel('groq') ?: self::TIER_MODELS['groq'][self::TIER_WRITE])],
+                'max_attempts'    => 4,
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 1200,
+                'calls_per_day'   => 3000,
+                'tokens_per_day'  => 3_000_000,
+                'timeout'         => 25,
+                'untrusted_input' => false,
+                'public_content'  => false,
+                'data_sent'       => 'The operator\'s question and the output of the read-only checks the assistant runs: '
+                    . 'queue counts, payment and vote-delivery reports, error summaries. Staff only.',
+                'data_purpose'    => 'To answer operations questions from the platform\'s own evidence.',
+            ]),
             // GEE'S GUIDE SIDE, as the same kind of agent: it reads the live state, finds the
             // nominee or the event, and puts a button in front of the person instead of a
             // paragraph of directions. Read-only tools and offer_action — see

@@ -267,6 +267,8 @@ class SettingsController
                     'calls'      => $c->callsPerDay,
                     'tokens'     => $c->tokensPerDay,
                     'enabled'    => \AfricaGates\Services\AiGateway::capabilityEnabled($c->name),
+                    // Hours a repeated, identical request is answered from cache (0 = never).
+                    'cache_hours' => (int) round($c->cacheTtl / 3600),
                 ],
                 \AfricaGates\Services\AiCapability::all()
             ),

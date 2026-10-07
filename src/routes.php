@@ -3906,6 +3906,8 @@ return function(App $app) {
         // AI assistant — console copilot (all roles; superadmin unlimited)
         $a->get('/assistant',       \AfricaGates\Admin\Controllers\AssistantController::class.':index');
         $a->post('/assistant/chat', \AfricaGates\Admin\Controllers\AssistantController::class.':chat');
+        $a->get('/assistant/scripts', \AfricaGates\Admin\Controllers\AssistantController::class.':scripts');
+        $a->post('/assistant/scripts/{key:[a-z_]+}', \AfricaGates\Admin\Controllers\AssistantController::class.':runScript');
 
         $a->get('/programmes',                       AdminProgrammesController::class.':index');
         $a->get('/programmes/new',                   AdminProgrammesController::class.':form');

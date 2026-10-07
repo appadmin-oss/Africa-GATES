@@ -538,7 +538,7 @@ final class SupportContext
         $label = trim((string) preg_replace('/\s+/', ' ', strip_tags($label)));
         $url   = trim($url);
         if ($label === '' || mb_strlen($label) > 60) throw new \InvalidArgumentException('label');
-        if (!preg_match('#^/(?!/)[A-Za-z0-9/_\-.~%]*(?:\?[A-Za-z0-9=&_\-.%+]*)?$#', $url) || str_contains($url, '..')
+        if (!preg_match('~^/(?!/)[A-Za-z0-9/_\-.%]*(?:\?[A-Za-z0-9=&_\-.%+]*)?(?:\#[A-Za-z0-9_\-]*)?$~', $url) || str_contains($url, '..')
             || preg_match('~^/(?:api|hooks|__)~', $url) || (!$admin && str_starts_with($url, '/admin'))) {
             throw new \InvalidArgumentException('url');
         }
