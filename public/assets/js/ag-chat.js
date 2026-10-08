@@ -40,7 +40,7 @@ window.agChat = function (opts) {
       try {
         var r = await fetch(ENDPOINT, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': ((document.querySelector('meta[name="csrf-token"], meta[name="ag-csrf"]') || {}).content || CSRF) },
           body: JSON.stringify({ message: text, history: this.msgs.slice(0, -1).slice(-10) })
         });
         var j = await r.json();

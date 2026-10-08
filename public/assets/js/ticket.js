@@ -25,7 +25,7 @@
     try {
       var r = await fetch(base + path, {
         method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrf },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': box.getAttribute('data-csrf') || csrf },
         body: JSON.stringify(payload || {})
       });
       var j = await r.json();
@@ -42,7 +42,7 @@
     var why = document.getElementById('tkCancelWhy'), go = document.getElementById('tkCancelGo');
     try {
       var r = await fetch(base + 'cancel-quote', { method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': csrf }, body: '{}' });
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': box.getAttribute('data-csrf') || csrf }, body: '{}' });
       var q = await r.json();
       why.textContent = (q.message || '') + (q.policy_text ? ' ' + q.policy_text : '')
         + (!q.success && q.contact ? ' ' + T('contact').replace('%c%', q.contact) : '');

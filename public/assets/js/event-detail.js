@@ -36,7 +36,7 @@
   function naira(n) { return '₦' + Number(n || 0).toLocaleString('en'); }
   function post(path, data) {
     var body = new URLSearchParams();
-    body.append('_token', csrf);
+    body.append('_token', root.getAttribute('data-csrf') || csrf);   // current: csrf-fresh.js updates the attribute
     Object.keys(data).forEach(function (k) { body.append(k, data[k]); });
     return fetch('/events/' + encodeURIComponent(slug) + '/' + path, {
       method: 'POST', credentials: 'same-origin',

@@ -2164,6 +2164,18 @@ return function(App $app) {
         // a browser's site search sends them there — so it 301s to Discover with only the
         // query kept, as `/activity` does.
         $g->get('/search.json',    \AfricaGates\Controllers\SearchController::class.':search');
+        // ── THE PAGE'S CURRENT TOKEN (csrf-fresh.js) ─────────────────────────
+        // A page left open keeps the token it was drawn with; this hands it the session's
+        // current one so a form posts with what the server will accept. Same-origin only
+        // by the browser's own rule (no CORS here), `no-store`, and it reveals nothing a
+        // page of this site did not already print. Reading it also touches the session,
+        // which is what keeps an open page's session from being collected under it.
+        $g->get('/session/token.json', function ($req, $res) {
+            $res->getBody()->write(json_encode(['token' => (string) ($_SESSION['csrf_token'] ?? '')]));
+            return $res->withHeader('Content-Type', 'application/json')
+                       ->withHeader('Cache-Control', 'no-store')
+                       ->withHeader('X-Robots-Tag', 'noindex');
+        });
         $g->get('/search', function ($req, $res) {
             $q = $req->getQueryParams()['q'] ?? null;
             return $res->withHeader('Location', '/discover' . (is_string($q) && trim($q) !== '' ? '?' . http_build_query(['q' => $q], '', '&', PHP_QUERY_RFC3986) : ''))

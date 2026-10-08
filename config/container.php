@@ -235,6 +235,9 @@ return [
             'csp_nonce'         => \AfricaGates\Support\Csp::nonce(),
             'flash_error'       => $_SESSION['flash_error'] ?? $_SESSION['org_flash_error'] ?? null,
             'flash_notice'      => $_SESSION['flash_notice'] ?? null,
+            // What a refused form had in it, for the page it is sent back to (FormReplay,
+            // CsrfMiddleware). Consumed by reading, like the flash beside it.
+            'form_replay'       => \AfricaGates\Support\FormReplay::take(),
             // The built CSS bundle, or null when the layout must fall back to the
             // fifteen individual stylesheets. Null on ANY doubt — no manifest, missing
             // file, or a source edited since the build — because stale CSS is a far
