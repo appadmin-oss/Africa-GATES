@@ -67,9 +67,11 @@ final class EventsFront
             ->orderByDesc('e.event_date')->orderByDesc('e.id')->limit(self::MAX_PAST)
             ->get(['e.*'])->map(fn ($r) => (array) $r)->all();
 
-        $hosts = self::hosts(array_merge(array_column($up, 'id'), array_column($past, 'id')));
-        $up    = array_map(fn (array $e) => self::row($e, $hosts, $now), $up);
-        $past  = array_map(fn (array $e) => self::row($e, $hosts, $now), $past);
+        $ids    = array_merge(array_column($up, 'id'), array_column($past, 'id'));
+        $hosts  = self::hosts($ids);
+        $linked = self::linked($ids);
+        $up    = array_map(fn (array $e) => self::row($e + ['award_linked' => isset($linked[(int) $e['id']])], $hosts, $now), $up);
+        $past  = array_map(fn (array $e) => self::row($e + ['award_linked' => isset($linked[(int) $e['id']])], $hosts, $now), $past);
 
         $counts = [
             'upcoming' => count($up),
@@ -165,8 +167,10 @@ final class EventsFront
             // What the default cover draws when there is no image (DEFAULT-GRAPHICS §4–§5):
             // the organiser's KIND, never their accent, and the event's own local day — the
             // ISO string above is UTC, and an evening event elsewhere would tile the wrong date.
-            'cover_kind'   => CoverKind::eventKind($e['cover_kind'] ?? null, !empty($e['programme_id'])),
-            'award_linked' => !empty($e['programme_id']),
+            // `award_linked` is the caller's, from linked(): the event table has no programme
+            // column (one ceremony honours several awards), so a row cannot know it alone.
+            'cover_kind'   => CoverKind::eventKind($e['cover_kind'] ?? null, !empty($e['award_linked'])),
+            'award_linked' => !empty($e['award_linked']),
             'cover_date'   => $start !== '' ? EventTime::at($e, $start, 'Y-m-d') : '',
             'livestream' => self::link((string) ($e['livestream_url'] ?? '')),
             'recording'  => self::link((string) ($e['recording_url'] ?? '')),
@@ -198,6 +202,31 @@ final class EventsFront
         $host = parse_url($v, PHP_URL_HOST);
         if (!is_string($host) || $host === '' || filter_var($v, FILTER_VALIDATE_URL) === false) return '';
         return $v;
+    }
+
+    /**
+     * Which of these events are tied to an award — the fact a NULL `cover_kind` resolves on
+     * (an award-linked event is a ceremony; DEFAULT-GRAPHICS §4). One query for a list.
+     * Only live programmes count, as everywhere on this page.
+     *
+     * @param list<int|string> $ids
+     * @return array<int,true>
+     */
+    public static function linked(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === [] || !SchemaHas::table('gates_event_programmes')) return [];
+
+        try {
+            $rows = DB::table('gates_event_programmes as ep')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'ep.programme_id')
+                ->whereIn('ep.event_id', $ids)->where('p.is_active', 1)
+                ->distinct()->pluck('ep.event_id');
+        } catch (\Throwable) {
+            return [];
+        }
+
+        return array_fill_keys(array_map('intval', $rows->all()), true);
     }
 
     /**

@@ -177,8 +177,11 @@ class EventsController
             'extras_missing' => OptionalColumn::missing('gates_site_events', [
                 'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
                 'organiser_email', 'organiser_phone',
-                'livestream_url', 'recording_url', 'access_notes',
+                'livestream_url', 'recording_url', 'access_notes', 'cover_kind',
             ]),
+            // The kinds an organiser may pick for the default cover (DEFAULT-GRAPHICS §4):
+            // the list and its labels from the one resolver, never typed into the form.
+            'cover_kinds'    => array_map(static fn ($k) => $k[0], \AfricaGates\Support\CoverKind::KINDS),
             // The enforceable half of the refund policy, hidden until migrated for the same
             // reason as the rest — an organiser setting "50% up to 48 hours" and having it
             // silently dropped would be worse than not offering it.
@@ -301,6 +304,11 @@ class EventsController
                 'livestream_url'  => \AfricaGates\Services\EventsFront::link(mb_substr(trim((string) ($b['livestream_url'] ?? '')), 0, 500)) ?: null,
                 'recording_url'   => \AfricaGates\Services\EventsFront::link(mb_substr(trim((string) ($b['recording_url'] ?? '')), 0, 500)) ?: null,
                 'access_notes'    => mb_substr(trim((string) ($b['access_notes'] ?? '')), 0, 2000) ?: null,
+                // What the default cover draws when there is no image. A KIND, never a colour;
+                // anything not in CoverKind::KINDS is stored as NULL (nobody chose), which the
+                // cover resolves by whether the event is tied to an award.
+                'cover_kind'      => \AfricaGates\Support\CoverKind::isKind($b['cover_kind'] ?? null)
+                                        ? strtolower(trim((string) $b['cover_kind'])) : null,
                 // ── THE REFUND POLICY, AS A RULE ─────────────────────────
                 //
                 // `refund_policy` above stays: it is the prose a buyer reads, and it can say
@@ -323,7 +331,7 @@ class EventsController
         $data = OptionalColumn::filter('gates_site_events', $data, [
             'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
             'organiser_email', 'organiser_phone',
-            'livestream_url', 'recording_url', 'access_notes',
+            'livestream_url', 'recording_url', 'access_notes', 'cover_kind',
             'self_cancel', 'refund_mode', 'refund_percent', 'refund_cutoff_hours',
         ]);
         // The ticket's appearance. Validated in the service rather than here, because the

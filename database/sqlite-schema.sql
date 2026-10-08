@@ -534,6 +534,7 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   early_bird_url TEXT,
   livestream_url TEXT NULL DEFAULT NULL,
   recording_url TEXT NULL DEFAULT NULL,
+  cover_kind TEXT NULL DEFAULT NULL,
   access_notes TEXT NULL,
   created_at TEXT
 );

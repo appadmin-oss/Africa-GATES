@@ -2234,6 +2234,8 @@ return function(App $app) {
                        ->withHeader('Cache-Control', 'public, max-age=86400')
                        ->withHeader('X-Content-Type-Options', 'nosniff');
         });
+        // The default cover as a share image, for an event with no uploaded photo (§7).
+        $g->get('/og/{subject:[a-z]+}/{id:[0-9]+}-{ratio:[0-9]+x[0-9]+}.png', \AfricaGates\Controllers\CoverImageController::class.':show');
         $g->get('/honour/{reference}/tick',   HonourController::class.':tick');
         $g->get('/honour/{reference}',        HonourController::class.':page');
 

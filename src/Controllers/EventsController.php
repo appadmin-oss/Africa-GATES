@@ -128,6 +128,7 @@ class EventsController
         }
 
         $hosts = \AfricaGates\Services\EventsFront::hosts([$id]);
+        $event['award_linked'] = isset(\AfricaGates\Services\EventsFront::linked([$id])[$id]);
         $ev    = \AfricaGates\Services\EventsFront::row($event, $hosts, $now, $tiers, $roomFull);
         $isPast = $ev['state'] === 'ended';
 
@@ -198,6 +199,10 @@ class EventsController
             ];
         }
 
+        // An uploaded photo wins everywhere a share image is read; cover_path is the newer
+        // column, cover_image the one older rows carry.
+        $uploaded = trim((string) ($event['cover_path'] ?? '')) ?: trim((string) ($event['cover_image'] ?? ''));
+
         $gcal = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' . rawurlencode((string) $event['title'])
               . '&dates=' . self::gcalStamp((string) $event['event_date']) . '/'
               . self::gcalStamp((string) (($event['end_date'] ?? '') ?: $event['event_date']))
@@ -220,7 +225,7 @@ class EventsController
                     'price'     => (int) ($t['price_naira'] ?? 0),
                     'available' => ($t['state'] ?? 'open') === 'open',
                 ], $tiers),
-                (string) ($event['cover_path'] ?? $event['cover_image'] ?? '')
+                $uploaded !== '' ? $uploaded : CoverImageController::eventImages($id)
             ),
             'event'            => $event,
             'ev'               => $ev,
@@ -263,8 +268,17 @@ class EventsController
                 }, []),
             'flier_style_default' => \AfricaGates\Services\EventFlierTheme::DEFAULTS,
         ] + array_filter([
-            'og_image'     => \AfricaGates\Support\Assets::absoluteOg($event['cover_image'] ?? null),
-            'og_image_alt' => (string) $event['title'],
+            // No upload → the default cover, drawn by GD at the share ratio, and an alt that
+            // says what the picture says rather than repeating the title (§7).
+            'og_image'     => \AfricaGates\Support\Assets::absoluteOg($uploaded !== '' ? $uploaded
+                                : '/og/event/' . $id . '-1200x630.png'),
+            'og_image_alt' => $uploaded !== '' ? (string) $event['title'] : (static function () use ($event): string {
+                $f = CoverImageController::facts($event);
+                return \AfricaGates\Services\CoverImage::alt($f['title'], $f['date'], $f['place']);
+            })(),
+            // Our own image has a known shape, so the FIRST fetch renders it right.
+            'og_image_w'   => $uploaded !== '' ? null : 1200,
+            'og_image_h'   => $uploaded !== '' ? null : 630,
         ], fn($v) => $v !== null));
     }
 

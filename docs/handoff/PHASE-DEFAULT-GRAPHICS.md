@@ -18,6 +18,13 @@ never a stock photo, a grey box or a broken `<img>`.
 | `templates/partials/photo.twig` | Kept as the one slot partial; its no-upload branches now route to the cover and the avatar, so its 18 callers moved at once. Callers now say their `subject` (award, blog, event, campaign). |
 | `src/Services/PhotoCover.php` | **Deleted** — the 4 Oct accent cover, which §4 replaces ("tone by kind, never organiser-editable"). `EventsFront` hands the cover its kind, award link and LOCAL date instead. |
 | Route `GET /img/patterns/games-{tone}.svg` | The challenge pattern tile, built from Accent. |
+| `database/migrations/2027_03_08_event_cover_kind.php` | `cover_kind` on `gates_site_events`, VARCHAR(24) NULL (not an ENUM — the SQLite trap), in both schema files. PHP (`CoverKind::isKind`) is the guard. |
+| `templates/admin/events/form.twig` | "Kind of event": the twelve kinds, or none (NULL → ceremony when tied to an award, community otherwise). An organiser never picks a colour. |
+| `src/Services/EventsFront.php` `linked()` | Which events are tied to a live award, from `gates_event_programmes`. The event row has no programme column, so the first cut's `!empty($e['programme_id'])` was false for every event and a NULL kind never drew a ceremony. |
+| `src/Services/CoverImage.php` | The GD `full` cover (§7): 1200×630, 1200×675, 1200×900, 1200×1200. Pattern, fade, pill, lockup, place · host, title (CoverKind's scale), date row. Every colour from Accent. `alt()` is §7's "{title}, {weekday} {day} {month}, {place}". |
+| `src/Controllers/CoverImageController.php` | `GET /og/{subject}/{id}-{ratio}.png` — `event` only; the same `liveOnly()` + published lookup as the page (a draft or sandbox event 404s). Cached under `var/cache/og` keyed by a hash of what it prints (the table has no `updated_at`). |
+| `EventsController::show()` | With no upload: `og:image` is the 1200×630 default with its width/height, `og:image:alt` is §7's sentence, and the JSON-LD `image` lists the 16:9, 4:3 and 1:1. An upload still wins everywhere. |
+| `tests/Unit/CoverImageTest.php` | PNG per ratio at its size; the route's 404s (id, ratio, subject, draft, sandbox); NULL kind on an award event → ceremony; the alt; JSON-LD; the event page through the real router, with and without an upload. |
 | `tests/Unit/CoverKindTest.php` | The §4 table, the tones' exact hex, no hex in `cover.css`, NULL-kind rule, no date tile without a date, rendering per mode, initials, tone hashing, badges, the pattern. |
 
 ## Deviations — what, why, needs approval
@@ -29,12 +36,7 @@ never a stock photo, a grey box or a broken `<img>`.
 | DG-3 | The cover's month and pill never go under **11.5px** (the DC's minimum is 10.5px and 11px); avatar letters snap to the type tokens (24px avatar: 11.5px, not 9–11px). | The closed small-text ladder has no 10.5 or 11. |
 | DG-4 | **A verified organisation keeps its kind badge** (the DC draws the tick for any verified record). | §8's text: "a verified organisation keeps its kind badge and shows the verified shield beside its name". The written spec outranks the DC. |
 | DG-5 | The `games` pattern is **a route, not five static SVG files**. | A static SVG would be a second place each colour is typed; the route reads Accent and is cached a day. CSP is unchanged (`img-src 'self'`). |
-
-## Still to do (next commit)
-
-`cover_kind` column on `gates_site_events` (both schema files, VARCHAR not ENUM) with the admin
-picker; the GD `full` variant (`Services\CoverImage`) behind `GET /og/{subject}/{id}-{ratio}.png`
-with the Event JSON-LD `image` array and `og:image:alt`.
+| DG-6 | **The GD share image draws Latin-shaped text only, and no `games` tile.** | GD has no text shaping, so an Arabic title renders unjoined and left-to-right; the page's CSS cover is right, the share image is not. The challenge's `games` pattern (an SVG tile) is not rasterised: a challenge has no share-image fallback yet, and the route 404s every subject but `event`. |
 
 ## Verification
 

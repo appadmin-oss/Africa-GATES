@@ -614,6 +614,7 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   -- (one per line). See migrations/2027_03_04_event_page_links.php.
   livestream_url VARCHAR(500) NULL DEFAULT NULL,
   recording_url VARCHAR(500) NULL DEFAULT NULL,
+  cover_kind VARCHAR(24) NULL DEFAULT NULL,
   access_notes TEXT NULL,
   created_at DATETIME NULL,
   PRIMARY KEY (id),
