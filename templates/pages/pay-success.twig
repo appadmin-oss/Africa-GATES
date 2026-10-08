@@ -1,0 +1,76 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /pay/success — the receipt for a contribution (PaymentController::success). No DC
+  (GAPS §5.1); rebuilt on the shell with the other receipts (components/receipt.css).
+
+  Destroyed on 3 Oct 2026, and this is where the gateway SENDS somebody who has just
+  paid — so a confirmed payment was answered with "500 · Reference …", which reads as
+  the money having gone missing at the one moment a supporter is deciding whether it
+  has. The help desk then saw the error reference and the wallet's own reference side
+  by side and could reconcile neither.
+
+  Two states, from the record and never from the URL: `confirmed` is a donation row the
+  gateway has verified. Nothing is celebrated — a contribution is not one of the moments
+  §7.8 names, and money is the last place to perform a feeling.
+
+  THE UNCONFIRMED STATE IS THE INCIDENT THIS PAGE WAS BUILT AFTER. Somebody who paid
+  inside a wallet app lands here, reads "awaiting confirmation", and has no way of
+  knowing a single re-check against the gateway would settle it. The primary action
+  carries the reference into the assistant with `ask=1`, so the repair costs them one
+  tap and no typing (SupportSurfaceRenderTest held this before the destroy).
+#}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', share: false, title: confirmed ? 'Payment confirmed'|trans : 'Checking your payment'|trans, back: '/'} %}
+{% set _bonus = bonus_votes|default(0) %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/receipt.css') }}">
+  <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<div class="rc">
+  <section class="rc__card" aria-labelledby="rcH">
+    {% if confirmed %}
+      <div class="rc__verdict rc__verdict--ok" role="status">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Payment confirmed'|trans }}</p>
+          <p class="rc__verdict-s">{{ 'The gateway has verified it. This page is your copy; the emailed receipt is the record.'|trans }}</p></div>
+      </div>
+      <h1 class="rc__h1" id="rcH">{{ _bonus > 0 ? 'Your votes are in'|trans : 'Thank you'|trans }}</h1>
+      <p class="rc__p">
+        {%- if _bonus > 0 -%}
+          {{ (_bonus == 1 ? 'Your %n% vote is credited to this email — cast it in any open category.' : 'Your %n% votes are credited to this email — cast them across any open category.')|trans({'%n%': _bonus|number_format}) }}
+        {%- else -%}
+          {{ 'We have received your contribution. A receipt is on its way to your inbox.'|trans }}
+        {%- endif -%}
+      </p>
+      <dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd>
+        {%- if amount_naira|default(0) > 0 %}<dd class="rc__ref-amount">₦{{ amount_naira|number_format }}</dd>{% endif -%}
+      </dl>
+      <div class="rc__do">
+        {% if _bonus > 0 %}
+          <a class="ag-btn ag-btn--primary" href="/vote">{{ 'Cast your votes'|trans }}</a>
+        {% else %}
+          <a class="ag-btn ag-btn--primary" href="/leaderboard">{{ 'See the leaderboard'|trans }}</a>
+        {% endif %}
+        <a class="ag-btn ag-btn--secondary" href="/">{{ 'Back home'|trans }}</a>
+      </div>
+    {% else %}
+      <div class="rc__verdict rc__verdict--wait" role="status">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.2 1.9"/></svg>
+        <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Not confirmed yet'|trans }}</p>
+          <p class="rc__verdict-s">{{ 'No charge is confirmed until you receive an emailed receipt.'|trans }}</p></div>
+      </div>
+      <h1 class="rc__h1" id="rcH">{{ 'We’re checking your payment'|trans }}</h1>
+      <p class="rc__p">{{ 'If you completed payment, the gateway can take a moment to tell us. One re-check asks it directly and credits everything if the money arrived.'|trans }}</p>
+      {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
+      <div class="rc__do">
+        <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Re-check this payment'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary" href="/support">{{ 'Contact support'|trans }}</a>
+      </div>
+      <p class="rc__fine">{{ 'Paid inside a wallet or bank app? Its own transaction number is different from ours — either one works with support.'|trans }}</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

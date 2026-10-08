@@ -1,0 +1,135 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /vote/verify — THE RECEIPT A SUPPORTER CAN SHOW SOMEBODY ELSE (VoteProof::forReference).
+  No DC (GAPS §5.1); rebuilt on the shell with the receipts after the 3 Oct destroy. It is
+  the page the paid-vote receipt, the help desk and the "paid but no votes" article all
+  send people to, so for those days every route to proof ended in a 500.
+
+  Three rules, because it is EVIDENCE rather than a status page:
+
+  1. IT SHOWS THE VOTE ROWS. Not a total we assert — the actual entries, each with its own
+     timestamp. Where the counter and the rows disagree, that is shown too, never smoothed.
+  2. THE FAILING STATES ARE AS LOUD AS THE GOOD ONE. A proof page that renders reassurance
+     for a broken order converts an angry supporter into one lied to in writing, so
+     `awaiting_delivery`, `claimed_but_missing` and `partial` get the error treatment and a
+     button that RUNS the repair (`ref=` + `ask=1`, which the assistant acts on — `q=` only
+     opened an empty chat box; SupportHandoffLinksTest held this before the destroy).
+  3. NO PII. A reference is unguessable but it is a BEARER token — anyone holding it opens
+     this. So it shows the order and nothing about the payer: no name, email or phone.
+#}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', share: false, title: 'Verify a payment'|trans, back: '/vote'} %}
+{% set st = proof.found|default(false) ? proof.state : '' %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/receipt.css') }}">
+  <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<div class="rc" data-page="verify">
+  <section class="rc__card" aria-labelledby="rcH">
+    <p class="rc__kicker">{{ 'Verify a payment'|trans }}</p>
+    <h1 class="rc__h1" id="rcH">{{ 'What happened to your votes'|trans }}</h1>
+    <p class="rc__p">{{ 'Paste your reference and see exactly what was paid, what was delivered, and when. This page reads the live record — it is not a copy of an email.'|trans }}</p>
+    <form class="rc__find" method="get" action="/vote/verify">
+      <label class="ag-label" for="rcRef">{{ 'Payment reference'|trans }}</label>
+      <div class="rc__find-row">
+        <input class="ag-field" id="rcRef" type="text" name="ref" value="{{ ref }}" placeholder="AFG-PVOTE-…"
+               autocapitalize="characters" autocomplete="off" spellcheck="false" enterkeyhint="search">
+        <button type="submit" class="ag-btn ag-btn--ink">{{ 'Verify'|trans }}</button>
+      </div>
+    </form>
+    {% if ref and not proof.found %}
+      <div class="rc__verdict rc__verdict--wait" role="status">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <div class="rc__verdict-b"><h2 class="rc__verdict-t">{{ 'Nothing on record for that reference'|trans }}</h2>
+          <p class="rc__verdict-s">{{ proof.say|default('') }}</p></div>
+      </div>
+    {% endif %}
+  </section>
+
+  {% if proof.found|default(false) %}
+    <section class="rc__card" aria-labelledby="rcV">
+      {% if st == 'delivered' %}
+        <div class="rc__verdict rc__verdict--ok">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ (proof.delivered == 1 ? 'Delivered — %n% vote is on the tally' : 'Delivered — %n% votes are on the tally')|trans({'%n%': proof.delivered|number_format}) }}</h2>
+            <p class="rc__verdict-s">{{ 'Your payment was confirmed and the votes were added. The entries below are the actual records, each with the time it was written.'|trans }}</p></div>
+        </div>
+      {% elseif st == 'refunded' %}
+        <div class="rc__verdict rc__verdict--wait">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg>
+          <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ 'Refunded'|trans }}</h2>
+            <p class="rc__verdict-s">{{ 'The votes could not be counted, so the money went back on %when%. Banks usually take 5–10 working days to show it.'|trans({'%when%': proof.refunded_at|default('')}) }}</p></div>
+        </div>
+      {% elseif st == 'pending' %}
+        <div class="rc__verdict rc__verdict--wait">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ 'Not confirmed yet'|trans }}</h2>
+            <p class="rc__verdict-s">{{ 'We have the order but no confirmation from the bank. If you have been debited, use the button below — it re-asks the bank directly and credits the votes if the money arrived.'|trans }}</p></div>
+        </div>
+      {% elseif st == 'not_paid' %}
+        <div class="rc__verdict rc__verdict--wait">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+          <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ 'This payment did not complete'|trans }}</h2>
+            <p class="rc__verdict-s">{{ 'No money reached us on this reference, so nothing was charged and no votes were added. If your bank shows a debit it is usually a pending authorisation that reverses itself — check anyway with the button below.'|trans }}</p></div>
+        </div>
+      {% else %}
+        {# awaiting_delivery, claimed_but_missing, partial — all genuinely wrong. #}
+        <div class="rc__verdict rc__verdict--bad">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+          <div class="rc__verdict-b"><h2 class="rc__verdict-t" id="rcV">{{ 'Paid, and the votes are not there'|trans }}</h2>
+            <p class="rc__verdict-s">{{ 'This is our fault, not yours, and it is fixable. Use the button below — it re-checks the payment with the bank and adds the votes on the spot. If they cannot be added, the money goes back; we do not keep payment for votes we did not count.'|trans }}</p></div>
+        </div>
+      {% endif %}
+
+      <ul class="rc__rows">
+        <li class="rc__row"><span class="rc__row-k">{{ 'Reference'|trans }}</span><span class="rc__row-v rc__row-ref">{{ proof.reference }}</span></li>
+        {% if proof.nominee %}<li class="rc__row"><span class="rc__row-k">{{ 'For'|trans }}</span><span class="rc__row-v">{{ proof.nominee }}</span></li>{% endif %}
+        <li class="rc__row"><span class="rc__row-k">{{ 'Votes ordered'|trans }}</span><span class="rc__row-v">{{ proof.ordered|number_format }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'Votes on the tally'|trans }}</span><span class="rc__row-v">{{ proof.delivered|number_format }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'Amount'|trans }}</span><span class="rc__row-v">₦{{ proof.amount|number_format }}</span></li>
+        {% if proof.paid_at %}<li class="rc__row"><span class="rc__row-k">{{ 'Checkout started'|trans }}</span><span class="rc__row-v">{{ proof.paid_at }}</span></li>{% endif %}
+        {% if proof.confirmed_at %}<li class="rc__row"><span class="rc__row-k">{{ 'Payment confirmed'|trans }}</span><span class="rc__row-v">{{ proof.confirmed_at }}</span></li>{% endif %}
+      </ul>
+
+      {% if proof.votes %}
+        <h3 class="rc__h2">{{ 'The vote records'|trans }}</h3>
+        <p class="rc__fine">{{ 'These are the actual entries on the tally, read live. Not a summary of an email.'|trans }}</p>
+        <ul class="rc__votes">
+          {% for v in proof.votes %}
+            <li class="rc__vote">
+              <span class="rc__vote-w" aria-hidden="true">{{ v.weight }}</span>
+              <span>
+                <span class="rc__vote-t">{{ v.nominee ?: 'Nominee'|trans }}</span>
+                <span class="rc__vote-d">{{ (v.weight == 1 ? '%n% vote' : '%n% votes')|trans({'%n%': v.weight}) }}{% if v.at %} · {{ 'recorded %when%'|trans({'%when%': v.at}) }}{% endif %}</span>
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {# Shown, never smoothed away. A counter that disagrees with the rows is a mint that
+         died half-way, and hiding it is how it stays hidden. #}
+      {% if proof.mismatch %}
+        <div class="rc__verdict rc__verdict--bad">
+          <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Our counter and the tally disagree on this order.'|trans }}</p>
+            <p class="rc__verdict-s">{{ 'The counter says %c%; the tally holds %d%. We would rather show you that than quietly report the larger number. Use the repair button, and if it does not resolve it, open a support ticket and quote this reference.'|trans({'%c%': proof.claimed, '%d%': proof.delivered}) }}</p></div>
+        </div>
+      {% endif %}
+
+      <div class="rc__do">
+        {% if st != 'delivered' and st != 'refunded' %}
+          <a class="ag-btn ag-btn--primary" href="/support/assistant?ref={{ proof.reference|url_encode }}&amp;ask=1">{{ 'Re-check and fix this payment'|trans }}</a>
+        {% endif %}
+        {% if proof.nominee %}<a class="ag-btn ag-btn--secondary" href="/vote">{{ 'See the ballot'|trans }}</a>{% endif %}
+        <a class="ag-btn ag-btn--secondary" href="/help/paid-but-no-votes">{{ 'Why does this happen?'|trans }}</a>
+      </div>
+    </section>
+  {% endif %}
+
+  <p class="rc__fine">{{ 'This page shows no payer details — anyone with the reference can open it, so it contains only the order.'|trans }}
+    <a href="/support">{{ 'Support and appeals'|trans }}</a></p>
+</div>
+{% endblock %}

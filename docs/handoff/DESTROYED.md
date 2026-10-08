@@ -34,6 +34,21 @@ Feature inventories, taken from each file at `a9d963a^` before deletion, are in 
 - **Everything that is not a page**: the 86 301-aliases, payment hand-offs and callbacks, webhooks, `/ping`, `robots.txt`, `sitemap.xml`, `*.txt`/`*.md` legal documents, `status.json`, images/cards/fliers (GD), `.ics`, the API, and **every POST handler** — voting, payments, nominations, sign-in. A POST that answers with a redirect still works; a POST that re-renders its form on a validation error now 500s on that branch.
 - **Admin and judge consoles** — untouched (own layouts, held below).
 
+## Rebuilt since: the seven receipts (8 Oct 2026)
+
+`/nominate/success`, `/pay/success`, `/vote/paid/success`, `/giving/success`, `/shop/success`,
+`/partner/success` and `/vote/verify` are back, on `layout/shell.twig` with one sheet
+(`components/receipt.css`). They were rebuilt ahead of their phases because each is where a
+gateway or a submitted form SENDS somebody: a confirmed payment and a saved nomination were
+both answered "500 · Reference …", and the help desk was handed error references for money
+that had arrived. The celebrations are `partials/celebration.twig` (nominate, vote, give);
+the destroyed tests' rules are re-asserted in `ReceiptPagesTest`. When Phase 7 builds
+GivingPage/ShopPage `view=done`, those replace two of these, not the other way round.
+
+`PublicPagesRenderTest` now walks every public GET route, signed out and as a member, and
+fails on any 500 that is not a destroyed template — counted apart under a ceiling that may
+only fall.
+
 ## What a request to a destroyed page returns now
 
 Routes were left in place. Walked through the real router (DemoSeeder data, its programme flipped active), every public GET:

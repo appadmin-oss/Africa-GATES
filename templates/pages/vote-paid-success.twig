@@ -1,0 +1,142 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /vote/paid/success — the receipt for bought votes (PaidVoteController::success).
+  Celebration kind=vote (GAPS route map 5/3, inferred); rebuilt on the shell with the other
+  receipts after the 3 Oct destroy left every paid vote landing on a 500.
+
+  ── THREE STATES, BECAUSE TWO WAS A LIE ──────────────────────────────────────
+
+  `confirmed` says the money arrived; `minted` says the votes landed. They come apart
+  whenever a payment begun inside the voting window confirms after it closes —
+  PaidVoteService::mint() refuses that on purpose rather than pushing weighted votes into
+  a closed tally. This page once branched on `confirmed` alone and told that buyer their
+  votes were "already in the public tally".
+
+    paid + minted     → celebrate (`vote_cast`, confirmed only), the message box, share.
+    paid + NOT minted → nothing was counted and a refund is owed, plainly. No celebration.
+    not confirmed     → the gateway has not landed yet; the re-check, with the reference.
+
+  The rules the destroyed PaidVoteReceiptTest held are re-asserted in ReceiptPagesTest.
+
+  ── WHAT IS SHARED, AND WHY NOT THIS PAGE ────────────────────────────────────
+
+  This URL carries the payment reference, which opens the proof page for the order. So
+  the share button names the BALLOT (`data-ag-share-url`), never `location.href`.
+#}
+{% set colour_tier = '2' %}
+{% set _who = nominee_name|default('') %}
+{% set _ballot = ballot_url|default('/vote') %}
+{% set _ctx = {moment: 'vote_cast', confirmed: minted|default(false), subject: reference|default('') ? 'paidvote-' ~ reference : ''} %}
+{% set _cel = minted and reference and celebration_allowed('vote', _ctx) %}
+{% set app_bar = {variant: 'child', share: false, title: minted ? 'Votes confirmed'|trans : (confirmed ? 'Payment received'|trans : 'Checking your payment'|trans), back: _ballot} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/receipt.css') }}">
+  <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<div class="rc">
+  {% if minted %}
+    {% set _title = (votes == 1 ? '%n% vote counted' : '%n% votes counted')|trans({'%n%': votes|number_format})
+                    ~ (_who ? ' ' ~ 'for %who%'|trans({'%who%': _who}) : '') %}
+    {% if _cel %}
+      {% include 'partials/celebration.twig' with {
+        kind: 'vote', heading: 'h1', context: _ctx, title: _title,
+        sub: 'They are already in the public tally.'|trans,
+        primary: {label: 'Back to the ballot'|trans, href: _ballot},
+        secondary: {label: 'See the leaderboard'|trans, href: '/leaderboard'}
+      } only %}
+    {% endif %}
+    <section class="rc__card" aria-labelledby="{{ _cel ? 'rcNext' : 'rcH' }}">
+      {% if not _cel %}
+        <p class="rc__kicker">{{ 'Votes confirmed'|trans }}</p>
+        <h1 class="rc__h1" id="rcH">{{ _title }}</h1>
+      {% endif %}
+      <p class="rc__p">{{ 'Your payment of ₦%amt% was verified and the votes are in the public tally. Paid votes raise the tally — the independent jury score, %pct%% of the index, is never affected by them.'|trans({'%amt%': amount_naira|number_format, '%pct%': judge_pct|default(55)}) }}</p>
+      <dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>
+      <h2 class="rc__h2" id="rcNext">{{ 'What happens next'|trans }}</h2>
+      <ul class="rc__rows">
+        <li class="rc__row"><span class="rc__row-k">{{ 'The public tally updates immediately; leaderboards refresh every few minutes.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'A receipt is on its way to your email.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k"><a href="/vote/verify?ref={{ reference|url_encode }}">{{ 'See the vote records for this order'|trans }}</a> · <a href="/philosophy">{{ 'Why voting works this way'|trans }}</a></span></li>
+      </ul>
+      {% if not _cel %}
+        <div class="rc__do">
+          <a class="ag-btn ag-btn--primary" href="{{ _ballot }}">{{ 'Back to the ballot'|trans }}</a>
+          <a class="ag-btn ag-btn--secondary" href="/leaderboard">{{ 'See the leaderboard'|trans }}</a>
+        </div>
+      {% endif %}
+    </section>
+
+    {#
+      SAY SOMETHING — only where votes actually landed. Collected here rather than before
+      checkout because a checkout leaves for a bank and may never come back, and a message
+      stored for a payment that never completed is already on a real person's page. The
+      reference is what authorises it (VoteMessageController::post()). The buyer's naming
+      choice was made at checkout and the server carries it; it is not asked again.
+      `hidden` until receipt.js runs: the endpoint answers JSON, and a form that posted to
+      it without script would land somebody on raw JSON.
+    #}
+    <section class="rc__card" aria-labelledby="rcMsg" data-rc-msg data-ref="{{ reference }}" data-max="{{ msg_max|default(400) }}" data-open="{{ 'Open your message'|trans }}"{% if msg_posted|default(false) %} data-sent{% endif %} hidden>
+      <h2 class="rc__h2" id="rcMsg">{{ 'Say something about %who%'|trans({'%who%': _who ?: 'them'|trans}) }}</h2>
+      <div data-rc-msg-form{% if msg_posted|default(false) %} hidden{% endif %}>
+        <p class="rc__p">{{ 'Optional, and it appears on their page once checked. Other supporters read these. No links or phone numbers, please.'|trans }}</p>
+        <label class="ag-label" for="rcMsgBody">{{ 'Your message'|trans }}</label>
+        <textarea class="ag-field" id="rcMsgBody" rows="4" maxlength="{{ msg_max|default(400) }}" data-rc-msg-body></textarea>
+        <p class="ag-hint"><span data-rc-msg-n>0</span>/{{ msg_max|default(400) }}</p>
+        <p class="ag-err" role="alert" data-rc-msg-err hidden></p>
+        <button type="button" class="ag-btn ag-btn--ink" data-rc-msg-go data-busy="{{ 'Posting…'|trans }}" data-short="{{ 'Write a few words first.'|trans }}">{{ 'Post my message'|trans }}</button>
+      </div>
+      <p class="rc__p" role="status" data-rc-msg-done{% if not msg_posted|default(false) %} hidden{% endif %}>{{ msg_posted|default(false) ? 'Thank you — the message you wrote on the ballot was saved with this order.'|trans : '' }}</p>
+    </section>
+
+    <section class="rc__card" aria-labelledby="rcRally">
+      <h2 class="rc__h2" id="rcRally">{{ _who ? 'Rally more votes for %who%'|trans({'%who%': _who}) : 'Rally more votes'|trans }}</h2>
+      <div class="rc__do">
+        <button type="button" class="ag-btn ag-btn--secondary" data-ag-share data-ag-share-url="{{ site_url|default('') }}{{ _ballot }}"
+                data-ag-share-text="{{ 'I just backed %who% at Africa GATES. Add your vote:'|trans({'%who%': _who ?: 'a nominee'|trans}) }}"
+                aria-label="{{ 'Share the ballot'|trans }}" data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share the ballot'|trans }}</button>
+      </div>
+    </section>
+  {% elseif confirmed %}
+    <section class="rc__card" aria-labelledby="rcH">
+      <div class="rc__verdict rc__verdict--wait" role="status">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.2 1.9"/></svg>
+        <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Payment received · no votes added'|trans }}</p>
+          <p class="rc__verdict-s">{{ 'Nothing was added to the public tally — the standings are unchanged.'|trans }}</p></div>
+      </div>
+      <h1 class="rc__h1" id="rcH">{{ 'Voting closed before this payment confirmed'|trans }}</h1>
+      <p class="rc__p">{{ 'Your payment of ₦%amt% went through, but voting for %who% had already closed by the time it reached us — so no votes were added. We will not count votes in a closed category, which means this order is refundable.'|trans({'%amt%': amount_naira|number_format, '%who%': _who ?: 'this nominee'|trans}) }}</p>
+      {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
+      <ul class="rc__rows">
+        <li class="rc__row"><span class="rc__row-k">{{ 'Quote the reference above and we will refund the full amount. A person decides every refund; the assistant opens the ticket with the reference attached.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'If the category reopens before then, we can deliver the votes instead — your choice.'|trans }}</span></li>
+      </ul>
+      <div class="rc__do">
+        <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Arrange the refund'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary" href="{{ _ballot }}">{{ 'Back to the ballot'|trans }}</a>
+      </div>
+    </section>
+  {% else %}
+    <section class="rc__card" aria-labelledby="rcH">
+      <div class="rc__verdict rc__verdict--wait" role="status">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.2 1.9"/></svg>
+        <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Not confirmed yet'|trans }}</p>
+          <p class="rc__verdict-s">{{ 'Payments are verified with the gateway before any vote counts.'|trans }}</p></div>
+      </div>
+      <h1 class="rc__h1" id="rcH">{{ 'We could not confirm that payment yet'|trans }}</h1>
+      <p class="rc__p">{{ 'If you completed the payment, the confirmation can take a moment to land. If you were charged and see no votes within a few minutes, the re-check asks the gateway directly and adds them if the money arrived.'|trans }}</p>
+      {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
+      <div class="rc__do">
+        <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Re-check this payment'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary" href="{{ _ballot }}">{{ 'Try again'|trans }}</a>
+      </div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+  {% if minted and reference %}<script defer src="{{ asset('/assets/js/receipt.js') }}"></script>{% endif %}
+{% endblock %}
