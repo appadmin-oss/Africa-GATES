@@ -48,4 +48,43 @@ class AuthServiceTest extends TestCase
         // ...but a different IP with correct credentials still works.
         $this->assertNotNull($svc->attemptLogin('a@x.io', 'secret', '8.8.8.8'));
     }
+    /**
+     * A magic link is single-use, and the spend has to be the check. Two requests
+     * presenting the same link together both read it unused; with a bare update-by-id
+     * after the SELECT both stamped it and both signed in. Here the other request's stamp
+     * lands immediately before ours — after our read — and ours must lose.
+     */
+    public function test_a_magic_link_spent_between_the_read_and_the_stamp_signs_nobody_in(): void
+    {
+        $this->seedAdmin();
+        $svc = $this->service();
+        [$raw] = $svc->createMagicLink('a@x.io');
+
+        $armed = true;
+        DB::connection()->beforeExecuting(function (string $sql) use (&$armed): void {
+            if (!$armed) return;
+            if (stripos(ltrim($sql), 'update') === 0 && str_contains($sql, 'gates_magic_links')) {
+                $armed = false;
+                DB::table('gates_magic_links')->update(['used_at' => date('Y-m-d H:i:s')]);
+            }
+        });
+        try {
+            $admin = $svc->consumeMagicLink($raw);
+            $fired = !$armed;
+        } finally {
+            $armed = false;   // the callback outlives this test on the shared connection
+        }
+
+        $this->assertTrue($fired, 'the interleaving never happened, so this test proves nothing');
+        $this->assertNull($admin, 'one magic link signed two requests in');
+    }
+
+    public function test_a_magic_link_still_signs_in_once(): void
+    {
+        $this->seedAdmin();
+        $svc = $this->service();
+        [$raw] = $svc->createMagicLink('a@x.io');
+        $this->assertNotNull($svc->consumeMagicLink($raw));
+        $this->assertNull($svc->consumeMagicLink($raw), 'a spent link worked again');
+    }
 }

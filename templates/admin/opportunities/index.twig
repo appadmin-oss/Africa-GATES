@@ -4,11 +4,11 @@
 {% block content %}
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th>Opportunity</th><th>Type</th><th>Provider</th><th>Deadline</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Opportunity</th><th scope="col">Type</th><th scope="col">Provider</th><th scope="col">Deadline</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
-        <td><strong>{{ r.title }}</strong><div style="font-size:12px;color:var(--ad-text-soft)">{{ r.scope }} · {{ r.value }}</div></td>
+        <td><strong>{{ r.title }}</strong><div style="font-size:12px;color:var(--cn-grey-600)">{{ r.scope }} · {{ r.value }}</div></td>
         <td><span class="ad-chip ad-chip--grey">{{ r.opportunity_type|capitalize }}</span></td>
         <td>{{ r.provider }}</td>
         <td style="font-family:'Space Mono',monospace;font-size:12px">{{ r.deadline ?: '—' }}</td>
@@ -18,10 +18,10 @@
         </td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/opportunities/{{ r.id }}">Edit</a>
-          <form method="post" action="/admin/opportunities/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete?">×</button></form>
+          <form method="post" action="/admin/opportunities/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ r.title }}” permanently? This cannot be undone.">×</button></form>
         </td>
       </tr>
-      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">None yet.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--cn-grey-500);padding:30px">None yet.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>

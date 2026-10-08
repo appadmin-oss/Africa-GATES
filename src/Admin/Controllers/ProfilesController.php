@@ -27,6 +27,7 @@ class ProfilesController
         $per    = 25;
 
         $base = DB::table('gates_profiles');
+        \AfricaGates\Services\ProfileMergeService::notMerged($base);   // hide merge tombstones
         if ($status) $base->where('status', $status);
         if ($tier)   $base->where('cpi_tier', $tier);
         if ($q !== '') $base->where(function ($x) use ($q) {
@@ -45,12 +46,60 @@ class ProfilesController
             'per'         => $per,
             'filters'     => ['status' => $status, 'tier' => $tier, 'q' => $q],
             'counts'      => [
-                'all'       => (int)DB::table('gates_profiles')->count(),
-                'pending'   => (int)DB::table('gates_profiles')->where('status','pending')->count(),
-                'approved'  => (int)DB::table('gates_profiles')->where('status','approved')->count(),
-                'suspended' => (int)DB::table('gates_profiles')->where('status','suspended')->count(),
+                'all'       => (int)\AfricaGates\Services\ProfileMergeService::notMerged(DB::table('gates_profiles'))->count(),
+                'pending'   => (int)\AfricaGates\Services\ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','pending'))->count(),
+                'approved'  => (int)\AfricaGates\Services\ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','approved'))->count(),
+                'suspended' => (int)\AfricaGates\Services\ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','suspended'))->count(),
             ],
+            'merged'      => \AfricaGates\Services\ProfileMergeService::recentlyMerged(),
         ]);
+    }
+
+    /**
+     * Merge duplicate registry profiles into one survivor (reversible). Reassigns
+     * linked nominees, CPI history and community references, then tombstones the
+     * folded profiles via ProfileMergeService. Admin+ only — it moves the CPI
+     * rollup, an integrity decision.
+     */
+    public function merge(Request $req, Response $res): Response
+    {
+        $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/profiles';
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            $_SESSION['flash_error'] = 'Only an admin can merge profiles (it moves linked nominees and the CPI rollup).';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $b        = (array) $req->getParsedBody();
+        $keepId   = (int) ($b['keep_id'] ?? 0);
+        $mergeIds = array_map('intval', (array) ($b['merge_ids'] ?? []));
+        if (!$keepId) {
+            $_SESSION['flash_error'] = 'Choose which profile to keep before merging.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $r = \AfricaGates\Services\ProfileMergeService::mergeProfiles($keepId, $mergeIds, (int)($_SESSION['admin_id'] ?? 0) ?: null);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+            ? sprintf('Merged %d duplicate profile%s into one. The CPI rollup refreshes on the next recompute.', $r['merged'], $r['merged'] === 1 ? '' : 's')
+            : ($r['error'] ?? 'The merge could not be completed.');
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /** Undo a profile merge — restore a tombstoned profile and its moved rows. Admin+ only. */
+    public function unmerge(Request $req, Response $res): Response
+    {
+        $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/profiles';
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            $_SESSION['flash_error'] = 'Only an admin can undo a profile merge.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $mergedId = (int) (((array) $req->getParsedBody())['merged_id'] ?? 0);
+        if (!$mergedId) {
+            $_SESSION['flash_error'] = 'Choose which merged profile to restore.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $r = \AfricaGates\Services\ProfileMergeService::unmerge($mergedId, (int)($_SESSION['admin_id'] ?? 0) ?: null);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+            ? sprintf('Profile merge undone — the profile is live again and %d row%s moved back.', $r['restored'], $r['restored'] === 1 ? '' : 's')
+            : ($r['error'] ?? 'The merge could not be undone.');
+        return $res->withHeader('Location', $back)->withStatus(302);
     }
 
     public function edit(Request $req, Response $res, array $args): Response
@@ -61,8 +110,8 @@ class ProfilesController
             'page_title' => 'Edit Profile — Admin',
             'admin_page' => 'profiles',
             'profile'    => (array)$row,
-            'flash_ok'   => $_SESSION['flash_ok']    ?? null,
-            'flash_err'  => $_SESSION['flash_error'] ?? null,
+            // Flash renders from the Twig globals via the layout — do not shadow them.
+            // (The old 'flash_err' key was also a typo: the template uses flash_error.)
         ]);
     }
 
@@ -86,7 +135,17 @@ class ProfilesController
             'completeness_pct'  => max(0, min(100, (int)($b['completeness_pct'] ?? 0))),
             'updated_at'        => Carbon::now()->toDateTimeString(),
         ];
-        DB::table('gates_profiles')->where('id',$id)->update($patch);
+        // Integrity fields are admin+ only — a moderator may edit descriptive
+        // fields and moderate status, but never rewrite the score/verification.
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            unset($patch['cpi_score'], $patch['cpi_tier'], $patch['verification_tier'], $patch['completeness_pct']);
+        }
+        try {
+            DB::table('gates_profiles')->where('id',$id)->update($patch);
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ActionError::dbMessage($e);
+            return $res->withHeader('Location', '/admin/profiles/' . $id)->withStatus(302);
+        }
         $this->audit->record((int)$_SESSION['admin_id'], 'profile.update', 'profile', $id, ['fields' => array_keys($patch)]);
         $_SESSION['flash_ok'] = 'Profile updated.';
         return $res->withHeader('Location', '/admin/profiles/' . $id)->withStatus(302);

@@ -1,17 +1,74 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE ERROR PAGE — 404 · 403 · 405 · 5xx · 503 (planned work) · Handlers\ErrorHandler
+  Rebuilt in Phase 9 on the shell (inventory: pages--error.md). No DC draws it; it is
+  the house's own parts: a code, a Playfair heading, one paragraph, two ways on.
+  ══════════════════════════════════════════════════════════════════════════════
+
+  ── WHAT IT MUST NEVER SAY ──────────────────────────────────────────────────
+  "Our team has been notified and is on it." Nobody is notified: the exception goes to a
+  log whose only reader is a diagnostics route, on a host with no shell. Telling somebody
+  their problem is already being handled is the most effective way to stop them
+  reporting it. So a 5xx says plainly that this is ours, that nothing of theirs is lost,
+  and gives them something to DO — the reference PublicFault::record() wrote first on the
+  log line, so whatever they quote finds the entry. It never prints a stack trace: the
+  handler passes the exception's message only when APP_ENV=development.
+
+  ── AND WHERE IT SENDS PEOPLE ───────────────────────────────────────────────
+  A 5xx catches somebody mid-something, very often paying, so it offers the Gee help desk
+  carrying the reference (`?gee=support&ref=`), which can say what is degraded and repair a
+  stuck payment, and /status. A 404 offers home and Discover. A 403 offers sign-in.
+  Colour tier 1: the primary button.
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Africa GATES', back: '/'} %}
+{% set _five = code >= 500 and code != 503 %}
+
+{% if code == 404 %}
+  {% set _m = 'The page you’re looking for has moved or never existed. Everything else is still here.'|trans %}
+{% elseif code == 403 %}
+  {% set _m = 'You may need to be signed in, or to hold permissions this page needs. Signing in with the right account usually fixes it.'|trans %}
+{% elseif code == 503 %}
+  {% set _m = 'Part of the site is paused while we finish some work. Nothing of yours is lost — try again shortly.'|trans %}
+{% elseif _five %}
+  {% set _m = 'This one is ours, not anything you did — your votes, entries and payments are unaffected. Try again in a moment; if it happens twice, tell us the reference below and we can see exactly what failed.'|trans %}
+{% else %}
+  {% set _m = 'That didn’t work as expected. Let’s get you back on track.'|trans %}
+{% endif %}
+{# `message` is an empty string for every case the template owns, so test it rather than
+   default it — `|default` does not fire on '' and the page would print an empty line. #}
+{% set _msg = (message is defined and message) ? message : _m %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/error.css') }}"><meta name="robots" content="noindex">{% endblock %}
+
 {% block content %}
-<section class="r26-hero" style="padding-block:clamp(3rem,7vw,5rem) clamp(2rem,4vw,3rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex;font-family:var(--font-mono)">Error {{ code|default(404) }}</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">{{ heading|default('Something went sideways.') }}</h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">{{ message|default('The page you were after isn\'t here. Let\'s get you back on track.') }}</p>
-      <div class="r26-reveal r26-d4" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-top:1.9rem">
-        <a href="/" class="btn btn--emerald">Back home <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <a href="/leaderboard" class="btn btn--ghost">Leaderboard</a>
-      </div>
-    </div>
+<section class="er" aria-labelledby="er-h">
+  <p class="er__code">{{ 'Error %c%'|trans({'%c%': code}) }}</p>
+  <h1 class="er__h" id="er-h">{{ heading|trans }}</h1>
+  <p class="er__m">{{ _msg }}</p>
+
+  <div class="er__act">
+    {% if _five or code == 503 %}
+      <a class="er__btn er__btn--p" href="{{ request_path|default('/') }}">{{ 'Try again'|trans }}</a>
+      <a class="er__btn" href="/status">{{ 'Is it working?'|trans }}</a>
+    {% elseif code == 403 %}
+      <a class="er__btn er__btn--p" href="/account/login?next={{ request_path|default('/')|url_encode }}">{{ 'Sign in'|trans }}</a>
+      <a class="er__btn" href="/">{{ 'Back to home'|trans }}</a>
+    {% else %}
+      <a class="er__btn er__btn--p" href="/">{{ 'Back to home'|trans }}</a>
+      <a class="er__btn" href="/discover">{{ 'Search Africa GATES'|trans }}</a>
+    {% endif %}
   </div>
+
+  {% if error_ref is defined and error_ref %}
+    <div class="er__ref">
+      <p class="er__ref-l">{{ 'Your reference'|trans }} <code class="er__ref-code">{{ error_ref }}</code></p>
+      <p class="er__ref-p">{{ 'Quote it and we can find exactly what failed.'|trans }}
+        <a href="/help?{{ {gee: 'support', q: ('Something went wrong. Reference '|trans) ~ error_ref}|url_encode }}">{{ 'Tell Gee'|trans }}</a> {{ 'or'|trans }}
+        <a href="/support">{{ 'reach a person'|trans }}</a>.</p>
+    </div>
+  {% endif %}
 </section>
 {% endblock %}

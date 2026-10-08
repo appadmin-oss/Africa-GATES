@@ -1,0 +1,66 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE JUDGES — /judges · JudgesController::index · Phase 8
+  Built without a DC (PHASE-8.md "built without a DC")
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct (inventory pages--judges.md); rebuilt on the shell.
+  · THE ROSTER IS JudgeService::publicRoster() — real judges only (realJudges(): the
+    sandbox's rehearsal judges never reach a public page).
+  · A photo where the judge gave one, their initials otherwise (partials/photo.twig) — never
+    an invented face.
+  · The programme chips are URLs (`?programme=`), the current one `aria-current`, so the
+    filter works with no script; the old one was Alpine and did nothing without it.
+  · An empty panel says it is being assembled, and links how judging works (/integrity).
+  · One h1, then h2 per judge (HeadingHierarchyTest).
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Judges'|trans, back: '/awards'} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="cm cm--narrow">
+  <div class="cm-col cm-col--pad">
+    <h1 class="cm-h1">{{ 'Meet the judges'|trans }}</h1>
+    <p class="cm-lede">{{ 'An independent panel marks every finalist against published criteria. Their marks and the public’s support decide each result together.'|trans }} <a class="cm-link" href="/integrity">{{ 'How judging works'|trans }}</a></p>
+
+    {% if filters is not empty %}
+      <nav class="ag-chip-row cm-spaces" aria-label="{{ 'Filter by award'|trans }}">
+        <a class="ag-chip" href="/judges"{% if not selected %} aria-current="true"{% endif %}>{{ 'All awards'|trans }}</a>
+        {% for slug, title in filters %}
+          <a class="ag-chip" href="/judges?programme={{ slug|url_encode }}"{% if selected == slug %} aria-current="true"{% endif %}>{{ title }}</a>
+        {% endfor %}
+      </nav>
+    {% endif %}
+
+    {% if judges is not empty %}
+      <ul class="cm-cards cm-cards--2">
+        {% for j in judges %}
+          <li class="ag-card cm-judge">
+            <a class="cm-judge__a" href="/judges/{{ j.slug }}">
+              <span class="cm-judge__ph">{% include 'partials/photo.twig' with {kind: 'person', src: j.avatar_path, name: j.name, id: j.id, size: 56} only %}</span>
+              <span class="cm-judge__b">
+                <h2 class="cm-judge__n">{{ j.name }}</h2>
+                {% if j.title or j.organisation %}<span class="cm-judge__r">{{ [j.title, j.organisation]|filter(x => x)|join(', ') }}</span>{% endif %}
+                {% if j.country %}<span class="cm-judge__c">{{ j.country }}</span>{% endif %}
+              </span>
+            </a>
+            {% if j.bio %}<p class="cm-opp__p">{{ j.bio|length > 200 ? j.bio|slice(0, 200)|trim ~ '…' : j.bio }}</p>{% endif %}
+            {% if j.programmes|length %}<p class="cm-judge__on">{{ 'Judging: %list%'|trans({'%list%': j.programmes|map(p => p.title)|join(', ')}) }}</p>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="ag-empty ag-card cm-empty">
+        <p class="ag-empty__t">{{ selected ? 'No judges are listed for this award yet.'|trans : 'Our panel is being assembled. Judges are listed here once they accept.'|trans }}</p>
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/integrity">{{ 'How judging works'|trans }}</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

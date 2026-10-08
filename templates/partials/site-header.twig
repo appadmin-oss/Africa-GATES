@@ -1,0 +1,148 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  SITE HEADER — tablet and desktop · REFERENCE §7.1 · design/SiteHeader.dc.html
+  ══════════════════════════════════════════════════════════════════════════════
+
+  A 64px bar: the logo, TWO panel triggers (Participate, Explore), a toolbar pill
+  (Search | Aa | language) and the account control. Hidden below 600px, where the phone
+  has the app bar and the tab bar (chrome.css). Mounted by `layout/shell.twig`, never by
+  a page, and it mounts no phone sheet (SiteHeaderTest).
+
+  ── NO GREEN BUTTON, IN EITHER SIGNED-IN STATE ──────────────────────────────
+
+  §6.1: green is THE primary action inside the page. A green pill in the chrome sits
+  beside every page's own call to action and wins. Signed out is an outlined ink pill;
+  signed in is the ink avatar.
+
+  ── THE TWO LISTS ARE THE HANDOFF'S, EXACTLY ───────────────────────────────
+
+  §7.1's six and six — and Explore is Discover, Pulse, Events, Legacy Vault, Blog,
+  Status. The previous header carried a seventh, Results; the owner removed it on
+  3 Oct 2026, and the guards that held it there were rewritten to the new rule. The DC
+  draws Leaderboard and Shop where the phase file says Blog and Status; the phase file
+  outranks the DC (REFERENCE §0). Status is not in the DC's list, so its line is the
+  status page's own words from the DC's search data ("Is everything working?").
+
+  Every tile's colour is a pair of Accent tokens named by a TONE class (chrome.css),
+  never one of the DC's hexes: `#eef7ee`, `#a47306`, `#e9efef`, `#2b373d`, `#f0f2f2` and
+  `#5d7374` are not in the palette, and a colour is typed in one file (CLAUDE.md).
+
+  And a comment cannot go INSIDE the array below — Twig lexes a comment only between
+  tags, and answers a stray hash in an array literal with a SyntaxError.
+
+  ── THE CONTROLLER ─────────────────────────────────────────────────────────
+
+  `public/assets/js/header.js`, binding the `data-ag-mega*` and `data-ag-pop*` hooks:
+  click toggles, opening one closes every other panel and popover, Esc and the scrim
+  close, focus returns to the trigger, arrow keys move inside a panel and along the
+  toolbar (a `role="toolbar"` that only answers Tab is a toolbar in name).
+
+  Search is an ANCHOR to Discover that the script upgrades to open the palette, so with
+  scripting off it still goes somewhere a search can happen.
+#}
+{% set _ini = member_name ? (member_name|split(' ')|filter(w => w != '')|map(w => w|first)|join|upper|slice(0, 2)) : 'AG' %}
+{% set _megas = [
+  {k:'participate', label:'Participate', items:[
+    {href:'/nominate',         label:'Nominate',           sub:'Put someone forward in under 90 seconds', tone:'grow',   d:'M12 5v14M5 12h14'},
+    {href:'/vote',             label:'Vote',               sub:'One verified voter, one vote per category', tone:'act',  d:'M4 12.5 9 17.5 20 6.5'},
+    {href:'/awards',           label:'Awards',             sub:'Every award, edition and category',       tone:'honour', d:'M5 16 3 6l5 4 4-6 4 6 5-4-2 10z'},
+    {href:'/giving',           label:'Giving',             sub:'Back the programmes behind the awards',   tone:'give',   d:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z'},
+    {href:'/account/register', label:'Register a profile', sub:'Join the continental registry, free',     tone:'honour', d:'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0'},
+    {href:'/integrity',        label:'Integrity Center',   sub:'How voting, judging and audits work',     tone:'plain',  d:'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z'}
+  ]},
+  {k:'explore', label:'Explore', items:[
+    {href:'/discover', label:'Discover',     sub:'People, organisations and awards',     tone:'plain',  d:'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6'},
+    {href:'/pulse',    label:'Pulse',        sub:'Posts and live moments',               tone:'give',   d:'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM10 8.5l5 3.5-5 3.5z'},
+    {href:'/events',   label:'Events',       sub:'Ceremonies, livestreams and sessions', tone:'act',    d:'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4'},
+    {href:'/legacy',   label:'Legacy Vault', sub:'Every edition, permanently archived',  tone:'honour', d:'M4 8h16v12H4zM2 4h20v4H2z'},
+    {href:'/blog',     label:'Blog',         sub:'Stories and methodology notes',        tone:'plain',  d:'M4 5h16M4 10h16M4 15h10'},
+    {href:'/status',   label:'Status',       sub:'Is everything working?',               tone:'plain',  d:'M3 12h4l3-7 4 14 3-7h4'}
+  ]}
+] %}
+<div class="ag-head" data-ag-head>
+  <header class="ag-head__bar">
+    <a class="ag-logo" href="/" aria-label="{{ 'Africa GATES home'|trans }}">
+      <img class="ag-logo__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="32" height="32" alt="">
+      <span class="ag-logo__word" aria-hidden="true"><span class="ag-logo__africa">Africa</span><span class="ag-logo__gates">GATES</span></span>
+    </a>
+
+    <nav class="ag-head__nav" aria-label="{{ 'Primary'|trans }}">
+      {% for m in _megas %}
+        <button type="button" class="ag-head__top" id="ag-mega-{{ m.k }}-trigger"
+                data-ag-mega-trigger="{{ m.k }}" aria-haspopup="true" aria-expanded="false"
+                aria-controls="ag-mega-{{ m.k }}">{{ m.label|trans }}<svg class="ag-head__chev" width="11" height="11" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"></path></svg></button>
+      {% endfor %}
+    </nav>
+
+    <span class="ag-head__gap"></span>
+
+    <div class="ag-head__end">
+      <div class="ag-tools-wrap">
+        <div class="ag-tools" role="toolbar" aria-label="{{ 'Search, accessibility and language'|trans }}" data-ag-toolbar>
+          <a class="ag-tools__b ag-tools__search" href="/discover" data-ag-search-open
+             aria-haspopup="dialog" aria-label="{{ 'Search Africa GATES'|trans }}" title="{{ 'Search (/)'|trans }}">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+          </a>
+          <span class="ag-tools__div" aria-hidden="true"></span>
+          <button type="button" class="ag-tools__b ag-tools__aa" data-ag-pop="aa" aria-haspopup="dialog"
+                  aria-expanded="false" aria-controls="ag-pop-aa" aria-label="{{ 'Display and reading'|trans }}"
+                  title="{{ 'Display and reading'|trans }}">Aa</button>
+          <span class="ag-tools__div" aria-hidden="true"></span>
+          {# The CODE on the pill, the language in full in the name: two letters fit a 40px
+             pill and eight names do not, and nobody should need to know "ig" is Igbo. #}
+          <button type="button" class="ag-tools__b ag-tools__lang" data-ag-pop="lang" aria-haspopup="menu"
+                  aria-expanded="false" aria-controls="ag-pop-lang"
+                  aria-label="{{ 'Language: %name%'|trans({'%name%': lang_name()}) }}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z"></path></svg>{{ lang()|upper }}
+          </button>
+        </div>
+
+        {# Display & reading is the SHARED partial — the same one the Menu's sub-view
+           uses — because two copies of seven switches is how the halves of a setting
+           come to disagree. `uid` keeps its ids unique in a document holding both. #}
+        <div class="ag-pop ag-pop--aa" id="ag-pop-aa" data-ag-pop-panel="aa" role="dialog"
+             aria-label="{{ 'Display and reading'|trans }}" hidden>
+          {% include 'partials/display-reading.twig' with { uid: 'aa' } %}
+        </div>
+
+        {# Links, so the middleware stores the choice on a plain navigation and the menu
+           works with scripting off. Each name carries its own `lang`, so a screen reader
+           says "Français" in French. #}
+        <div class="ag-pop ag-pop--lang" id="ag-pop-lang" data-ag-pop-panel="lang" role="menu"
+             aria-label="{{ 'Language'|trans }}" hidden>
+          {% for l in languages() %}
+            <a class="ag-pop__lang" role="menuitemradio" href="{{ lang_url(l.code) }}" hreflang="{{ l.code }}"
+               aria-checked="{{ l.code == lang() ? 'true' : 'false' }}"><span lang="{{ l.code }}" dir="{{ l.dir }}">{{ l.name }}</span><span class="ag-pop__code" aria-hidden="true">{{ l.code|upper }}</span></a>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# REFERENCE §7.1 puts a cart icon with a count badge here "on shop routes, or
+         whenever the cart isn't empty". There is no basket to read: the only one was a
+         browser store written by the shop pages destroyed on 3 Oct 2026, and no server
+         service holds one. A badge with nothing behind it would be a fake count, so
+         there is none until Phase 7 builds the basket (docs/handoff/PHASE-2.md). #}
+      {% if is_member %}
+        <a class="ag-head__av" href="/account" aria-label="{{ 'Your account'|trans }}">{{ _ini }}</a>
+      {% else %}
+        <a class="ag-head__signin" href="/account/login">{{ 'Sign in'|trans }}</a>
+      {% endif %}
+    </div>
+  </header>
+
+  {% for m in _megas %}
+    <div class="ag-mega" id="ag-mega-{{ m.k }}" data-ag-mega-panel="{{ m.k }}" role="menu"
+         aria-labelledby="ag-mega-{{ m.k }}-trigger" hidden>
+      <div class="ag-mega__in">
+        {% for i in m.items %}
+          <a class="ag-mega__item" role="menuitem" href="{{ i.href }}">
+            <span class="ag-mega__tile ag-tone--{{ i.tone }}" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ i.d }}"></path></svg></span>
+            <span class="ag-mega__txt"><span class="ag-mega__t">{{ i.label|trans }}</span><span class="ag-mega__s">{{ i.sub|trans }}</span></span>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+  {# The transparent scrim below an open panel: a click anywhere off it closes it. #}
+  <div class="ag-mega-scrim" data-ag-mega-scrim hidden></div>
+</div>

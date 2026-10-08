@@ -1,0 +1,42 @@
+{% extends 'layout/auth.twig' %}
+{% import 'layout/auth.twig' as auth %}
+{% import 'partials/field.twig' as f %}
+{#
+  SET A NEW PASSWORD — /account/reset?token=… · Phase 8, in SignIn.dc.html's frame
+
+  Destroyed and rebuilt (inventory pages--account--reset.md). TWO SCREENS, AND THE DEAD-LINK
+  ONE IS THE POINT: the controller passes `token` only while it is live, so a password field
+  is never drawn against a link that cannot work — somebody would type a new password, press
+  the button and only then learn the link had expired. The eight-character rule is in
+  `minlength` and in a hint that stays on screen. The owner is told after the change
+  (AccountController::notifyPasswordChanged), and the reset ends every outstanding code.
+#}
+{% set _error = error|default(null) ?: flash_error|default(null) %}
+{% block auth_top %}{{ auth.back('/account/login?with=password', 'Back to sign in'|trans) }}{% endblock %}
+{% block auth_body %}
+  {% if token %}
+    <div class="si__head">
+      <h1 class="si__h1">{{ 'Set a new password'|trans }}</h1>
+      <p class="si__lede">{% if email %}{{ 'For %email%. You will be signed in as soon as it is saved.'|trans({'%email%': email}) }}{% else %}{{ 'You will be signed in as soon as it is saved.'|trans }}{% endif %}</p>
+    </div>
+    {{ auth.say(_error, null) }}
+    <form class="si__form-step" method="post" action="/account/reset" novalidate data-ag-validate>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      {# For the password manager: it saves the new password against this account. #}
+      <input type="hidden" name="email" value="{{ email }}" autocomplete="username">
+      {{ f.text({name: 'password', label: 'New password'|trans, type: 'password', required: true, minlength: 8,
+                 autocomplete: 'new-password', autofocus: true, hint: 'At least 8 characters.'|trans},
+               errors.password|default('')) }}
+      <button class="si__go" type="submit">{{ 'Save it and sign me in'|trans }}</button>
+    </form>
+  {% else %}
+    <div class="si__head">
+      <h1 class="si__h1">{{ 'That link has expired'|trans }}</h1>
+      <p class="si__lede">{{ 'A reset link works once, for an hour. Ask for a fresh one — it takes a moment.'|trans }}</p>
+    </div>
+    {{ auth.say(_error, null) }}
+    <a class="si__go" href="/account/forgot">{{ 'Send me a new link'|trans }}</a>
+    <p class="si__alt"><a href="/account/login">{{ 'Or sign in with a one-time code'|trans }}</a></p>
+  {% endif %}
+{% endblock %}

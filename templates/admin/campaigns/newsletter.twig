@@ -1,0 +1,238 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Newsletter{% endblock %}
+
+{#
+  ══ THE NEWSLETTER ══════════════════════════════════════════════════════════════
+
+  Read top to bottom it answers, in order: is it on, and when does it next go out; who
+  will it reach; what does the current issue say; and what happened to the last few.
+
+  Every figure is read from the code that acts on it — the schedule sentence from
+  NewsletterSchedule::describe(), the batch size and grace window from Newsletter's and
+  NewsletterSchedule's constants — so this screen and the tick cannot disagree.
+
+  Each action is its own form. A <form> inside a <form> is silently dropped by the parser
+  and its button posts the OUTER action, which is how a "Skip" once ran an "Approve".
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .nlx{ display:flex; flex-direction:column; gap:18px; max-width:980px }
+  .nlx-lead{ margin:0; max-width:72ch; font-size:14px; line-height:1.65; color:var(--cn-grey-500) }
+  .nlx-card{ padding:18px 20px; border-radius:var(--cn-r-12); border:1px solid var(--cn-line-card); background:var(--cn-surface) }
+  .nlx-card h2{ margin:0 0 6px; font-size:17px }
+  .nlx-card p{ margin:4px 0 0; font-size:14px; line-height:1.6; max-width:72ch }
+  .nlx-warn{ border-color:rgba(243,180,22,.45); background:rgba(243,180,22,.07) }
+  .nlx-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-top:12px }
+  .nlx-grid label{ display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--cn-grey-500) }
+  .nlx-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px }
+  .nlx-kv{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:12px 0 0 }
+  .nlx-kv div{ padding:10px 12px; border:1px solid var(--cn-line-row); border-radius:10px }
+  .nlx-kv dt{ font-size:12px; color:var(--cn-grey-500) }
+  .nlx-kv dd{ margin:2px 0 0; font-size:17px; font-weight:700 }
+  .nlx-sec{ margin:14px 0 0 }
+  .nlx-sec h3{ margin:0 0 4px; font:600 11px/1.4 var(--cn-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--cn-grey-500) }
+  .nlx-sec ul{ margin:0; padding:0; list-style:none }
+  .nlx-sec li{ padding:8px 0; border-top:1px solid var(--cn-line-row); font-size:14px; line-height:1.5 }
+  .nlx-new{ margin-inline-start:6px; font:600 10px/1 var(--cn-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--cn-grey-500) }
+  .nlx-mute{ color:var(--cn-grey-500); font-size:13px }
+  .nlx-t{ width:100%; border-collapse:collapse; font-size:14px }
+  .nlx-t th{ text-align:start; font-size:12px; font-weight:600; color:var(--cn-grey-500); padding:8px 10px; border-bottom:1px solid var(--cn-line-card) }
+  .nlx-t td{ padding:10px; border-top:1px solid var(--cn-line-row); vertical-align:top; line-height:1.5 }
+  .nlx-plain{ margin:12px 0 0; padding:12px; max-height:260px; overflow:auto; white-space:pre-wrap;
+    font:13px/1.55 var(--cn-mono); background:var(--cn-fill-panel); border-radius:10px }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="nlx">
+
+  <p class="nlx-lead">Composed from what the site is doing — awards open for nominations,
+    voting deadlines, results as they are announced, live challenges and events — and sent
+    only to people who confirmed they want it. Each line links to the page that states it.
+    <a href="/admin/campaigns">Back to campaigns</a></p>
+
+  {# ── IS IT ON ──────────────────────────────────────────────────────────── #}
+  <section class="nlx-card{{ schedule.on and blocker ? ' nlx-warn' : '' }}" aria-labelledby="nlxSched">
+    <h2 id="nlxSched">
+      {% if not schedule.on %}Off{% elseif schedule.sendsItself %}Sending automatically{% else %}Composing for approval{% endif %}
+    </h2>
+    {% if schedule.on %}
+      <p>{{ describe }}. Next: <b>{{ next }}</b>. A missed slot still goes out within
+        {{ grace }} hours; after that it waits for the next one. Each tick sends
+        {{ batch }}, so a long list is sent across the morning rather than in one burst.</p>
+      {% if blocker %}<p><b>{{ blocker }}</b></p>{% endif %}
+    {% else %}
+      <p>Nothing is composed or sent, and nobody is asked to confirm. Choose a schedule to
+        start.</p>
+    {% endif %}
+
+    <form method="post" action="/admin/campaigns/newsletter/settings">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="nlx-grid">
+        <label>Mode
+          <select name="newsletter_mode">
+            {% for k, label in modes %}<option value="{{ k }}"{{ schedule.mode == k ? ' selected' }}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>How often
+          <select name="newsletter_cadence">
+            {% for k, label in cadences %}<option value="{{ k }}"{{ schedule.cadence == k ? ' selected' }}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Day
+          <select name="newsletter_weekday">
+            {% for k, label in weekdays %}<option value="{{ k }}"{{ schedule.weekday == k ? ' selected' }}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Hour ({{ zone }})
+          <select name="newsletter_hour">
+            {% for h in 0..23 %}<option value="{{ h }}"{{ schedule.hour == h ? ' selected' }}>{{ '%02d'|format(h) }}:00</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="nlx-row"><button class="ad-btn ad-btn--primary" type="submit">Save schedule</button></div>
+    </form>
+  </section>
+
+  {# ── HOLIDAYS ──────────────────────────────────────────────────────────────
+     Dates are HolidayCalendar's: computed for the fixed days and Easter, typed only for
+     the two Eids, which follow the moon and are declared by the government days before. #}
+  <section class="nlx-card" id="holidays" aria-labelledby="nlxHol">
+    <h2 id="nlxHol">Holiday issues</h2>
+    <p>On each ticked holiday a greeting issue goes out at the newsletter’s hour, with what is
+      open on the site beneath it — in the same mode as the regular issue{% if not schedule.sendsItself %}, so it
+      waits here for approval that morning{% endif %}. A regular issue due within {{ spacing }} hours of one is skipped.
+      The greeting members see on their own pages has its own dates: <a href="/admin/campaigns/greetings">Seasonal greetings</a>.</p>
+    <form method="post" action="/admin/campaigns/newsletter/holidays">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <table class="nlx-t">
+        <thead><tr><th scope="col">Send</th><th scope="col">Holiday</th><th scope="col">Date</th></tr></thead>
+        <tbody>
+          {% for h in holidays %}
+            <tr>
+              <td><input type="checkbox" name="on[]" value="{{ h.key }}" id="nlxH-{{ h.key }}"{{ h.enabled ? ' checked' }}></td>
+              <td><label for="nlxH-{{ h.key }}">{{ h.name }}</label></td>
+              <td>
+                {% if h.rule == 'set' %}
+                  <label class="nlx-mute" for="nlxD-{{ h.key }}">Declared date</label>
+                  <input type="date" id="nlxD-{{ h.key }}" name="date[{{ h.key }}]" value="{{ h.date }}">
+                  {% if not h.date %}<span class="nlx-mute"> · not set, so not sent</span>{% endif %}
+                {% else %}
+                  {{ h.date|date('l j F Y') }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="nlx-row"><button class="ad-btn" type="submit">Save holidays</button></div>
+    </form>
+  </section>
+
+  {# ── WHO IT REACHES ────────────────────────────────────────────────────── #}
+  <section class="nlx-card" aria-labelledby="nlxWho">
+    <h2 id="nlxWho">Who it reaches</h2>
+    <p>Only confirmed subscribers receive an issue. Signups from before confirmation existed
+      are each asked once, a few at a time; anybody who ignores the question is not asked again.
+      Signups come from <a href="/newsletter" target="_blank" rel="noopener">the newsletter page</a>,
+      linked in every page's footer.</p>
+    <dl class="nlx-kv">
+      <div><dt>Confirmed</dt><dd>{{ counts.confirmed|number_format }}</dd></div>
+      <div><dt>Asked, not yet confirmed</dt><dd>{{ counts.awaiting|number_format }}</dd></div>
+      <div><dt>Not yet asked</dt><dd>{{ counts.unasked|number_format }}</dd></div>
+      <div><dt>Unsubscribed</dt><dd>{{ counts.stopped|number_format }}</dd></div>
+    </dl>
+  </section>
+
+  {# ── THE CURRENT ISSUE ─────────────────────────────────────────────────── #}
+  <section class="nlx-card" aria-labelledby="nlxIssue">
+    {% if focus %}
+      <h2 id="nlxIssue">Issue #{{ focus.id }} · {{ statuses[focus.status]|default(focus.status) }}</h2>
+      <p><b>{{ focus.subject }}</b></p>
+      {% if focus.preheader %}<p class="nlx-mute">{{ focus.preheader }}</p>{% endif %}
+      {% if focus.note %}<p class="nlx-mute">{{ focus.note }}</p>{% endif %}
+      {% if focus.status == 'sending' %}<p>{{ focus.sent|number_format }} sent, {{ focus.failed|number_format }} failed, of {{ focus.recipients|number_format }}.</p>{% endif %}
+
+      {% for s in focus_content.sections|default([]) %}
+        <div class="nlx-sec">
+          <h3>{{ s.title }}</h3>
+          <ul>
+            {% for it in s.items %}
+              <li><b>{{ it.title }}</b>{% if it.new %}<span class="nlx-new">New</span>{% endif %}<br>
+                <span class="nlx-mute">{{ it.line }} · <a href="{{ it.path }}" target="_blank" rel="noopener">{{ it.path }}</a></span></li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endfor %}
+
+      <div class="nlx-row">
+        <a class="ad-btn" href="/admin/campaigns/newsletter/{{ focus.id }}/preview" target="_blank" rel="noopener">Open as a reader sees it</a>
+        {% if focus.status == 'draft' %}
+          <form method="post" action="/admin/campaigns/newsletter/{{ focus.id }}/approve"
+                data-confirm="Approve issue #{{ focus.id }}? It goes to {{ counts.confirmed|number_format }} confirmed subscribers.">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button class="ad-btn ad-btn--primary" type="submit">Approve and send</button>
+          </form>
+        {% endif %}
+        {% if focus.status in ['approved', 'sending'] %}
+          <form method="post" action="/admin/campaigns/newsletter/{{ focus.id }}/send">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button class="ad-btn ad-btn--primary" type="submit" data-confirm="Send the next batch of this newsletter now? It goes to real inboxes the moment you confirm, and a sent email cannot be called back.">Send a batch now</button>
+          </form>
+        {% endif %}
+        {% if focus.status in ['draft', 'approved'] %}
+          <form method="post" action="/admin/campaigns/newsletter/{{ focus.id }}/skip"
+                data-confirm="Skip issue #{{ focus.id }}? Nobody receives it, and this period gets no newsletter unless you compose another.">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button class="ad-btn" type="submit">Skip this issue</button>
+          </form>
+        {% endif %}
+      </div>
+
+      <form class="nlx-row" method="post" action="/admin/campaigns/newsletter/{{ focus.id }}/test">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <label class="nlx-mute" for="nlxTo">Send one test copy to</label>
+        <input id="nlxTo" type="email" name="to" required autocomplete="email" placeholder="you@example.org">
+        <button class="ad-btn" type="submit">Send test</button>
+      </form>
+
+      <details>
+        <summary class="nlx-mute">Plain-text version</summary>
+        <pre class="nlx-plain">{{ focus_plain }}</pre>
+      </details>
+    {% else %}
+      <h2 id="nlxIssue">No issue waiting</h2>
+      <p>The next one is composed at its slot. To read what it would say now, compose it
+        early — it is held for approval whatever the mode.</p>
+    {% endif %}
+    {% if not focus %}
+      <form class="nlx-row" method="post" action="/admin/campaigns/newsletter/compose">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ad-btn" type="submit">Compose this period’s issue now</button>
+      </form>
+    {% endif %}
+  </section>
+
+  {# ── HISTORY ───────────────────────────────────────────────────────────── #}
+  {% if issues %}
+    <section aria-labelledby="nlxHist">
+      <h2 id="nlxHist" class="nlx-mute">Recent issues</h2>
+      <table class="nlx-t">
+        <thead><tr><th scope="col">Issue</th><th scope="col">Subject</th><th scope="col">Status</th><th scope="col">Sent</th><th scope="col">Composed</th></tr></thead>
+        <tbody>
+          {% for i in issues %}
+            <tr>
+              <td><a href="/admin/campaigns/newsletter/{{ i.id }}/preview" target="_blank" rel="noopener">#{{ i.id }}</a></td>
+              <td>{{ i.subject }}{% if i.note %}<br><span class="nlx-mute">{{ i.note }}</span>{% endif %}</td>
+              <td>{{ statuses[i.status]|default(i.status) }}</td>
+              <td>{{ i.sent ? i.sent|number_format : '—' }}{% if i.failed %} <span class="nlx-mute">· {{ i.failed }} failed</span>{% endif %}</td>
+              <td class="nlx-mute">{{ i.composed_at|when_zoned }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends 'layout/shell.twig' %}
+{% import 'partials/article.twig' as art %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE PHILOSOPHY — /philosophy
+  Phase 9 · design/DocPage.dc.html (`doc=philosophy`) · §8.20
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt from the DC after the destroy (inventory: pages--philosophy.md). The argument the
+  methodology enforces, and the one document in the Integrity Centre that is wholly data:
+  every section, the standfirst and both downloads come from CommunityVotingPhilosophy with
+  the live figures resolved into it, so the page, the .txt and the .md cannot quote
+  different shares (PhilosophyDocumentTest: "the anti-drift promise").
+
+  · Download is a plain anchor to the extensionless path — an extension-shaped URL is at
+    the mercy of the web server before PHP sees it.
+  · The anti-pyramid disclaimer is a section of the document, so it is in every rendering.
+  · Tools: Listen, Download, Cite (the DC's three). Colour tier 0.
+#}
+{% set colour_tier = '0' %}
+{% set app_bar = {variant: 'child', title: 'Philosophy'|trans, sub: 'Integrity Centre'|trans, back: '/integrity'} %}
+
+{% set _toc = [] %}
+{% for s in doc_sections %}{% set _toc = _toc|merge([{id: s.id, title: s.nav_title|default(s.title|striptags)}]) %}{% endfor %}
+
+{% set d = {
+  key: 'philosophy',
+  eyebrow: 'Integrity Centre · Philosophy'|trans,
+  title: doc_title,
+  subtitle: doc_subtitle,
+  standfirst: doc_standfirst,
+  byline: [doc_author, 'Version %v%'|trans({'%v%': doc_version}), 'Updated %d%'|trans({'%d%': doc_updated|date('j M Y')}), '%n% min read'|trans({'%n%': doc_read_minutes})],
+  listen: true,
+  download: {txt: '/philosophy/download/txt', md: '/philosophy/download/md', stem: doc_file_stem},
+  cite_tool: true,
+  toc: _toc,
+  siblings: [
+    {label: 'How a winner is decided'|trans, href: '/integrity', current: false},
+    {label: 'The philosophy'|trans, href: '/philosophy', current: true},
+    {label: 'Terms of use'|trans, href: '/terms', current: false},
+    {label: 'Privacy policy'|trans, href: '/privacy', current: false},
+    {label: 'Cookie policy'|trans, href: '/cookies', current: false}
+  ],
+  aside: {
+    label: 'This document'|trans,
+    rows: [
+      {k: 'Version'|trans, v: doc_version},
+      {k: 'Published'|trans, v: doc_published|date('j M Y')},
+      {k: 'Updated'|trans, v: doc_updated|date('j M Y')},
+      {k: 'Public vote'|trans, v: '%c%% of the outcome'|trans({'%c%': community_pct|default(45)})}
+    ],
+    note: 'The share is read from the scoring engine, so this document cannot quote a figure the engine has changed.'|trans
+  },
+  cite: {
+    word: 'essay'|trans,
+    citations: doc_citations,
+    note: 'Please cite the version you read. The figures in it track live programme settings, so an undated reference may not describe what you saw.'|trans,
+    action: 'download', url: doc_url, txt: '/philosophy/download/txt', md: '/philosophy/download/md', stem: doc_file_stem
+  },
+  contact: 'integrity@afrovanguard.org.ng',
+  end: 'Questions? Write to'|trans
+} %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/doc.css') }}">
+{{ art.cite_meta({title: doc_title, author: doc_author, publisher: doc_publisher, published: doc_published, updated: doc_updated, url: doc_url}) }}
+{{ art.article_ld({title: doc_title, subtitle: doc_subtitle, description: meta_description, author: doc_author, publisher: doc_publisher,
+                   published: doc_published, updated: doc_updated, version: doc_version, url: doc_url}, csp_nonce) }}
+{# Only questions this page visibly answers, from the same figures as the prose. #}
+<script nonce="{{ csp_nonce }}" type="application/ld+json">
+{% set _faq = [
+  {q: 'Why is the public vote only ' ~ community_pct|default(45) ~ '% of the decision?', a: 'Because popularity is not the same thing as excellence. A larger following is not greater impact, and some deserving people come from communities with fewer financial and digital resources. The remaining ' ~ judge_pct|default(55) ~ '% is independent assessment.'},
+  {q: 'Is Africa GATES a pyramid or Ponzi scheme?', a: 'No. Nobody is promised a financial return for recruiting other participants, and no participant earns money by introducing another person into the programme.'},
+  {q: 'Do nominees receive any of the money supporters contribute?', a: 'A nominee keeps ' ~ return_pct|default('50') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support from at least ' ~ return_people|default(10) ~ ' different verified people.'}
+] %}
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in _faq %}{"@type":"Question","name":{{ f.q|json_encode|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="ag-doc dp" data-doc>
+  {{ art.top(d) }}
+  <div class="dp-shell">
+    {{ art.rail(d) }}
+    <article class="dp-doc" data-doc-article>
+      {{ art.masthead(d) }}
+      {{ art.aside(d, 'inline') }}
+      <div data-doc-read>
+        {% for s in doc_sections %}
+          {% set _body = art.blocks(s.blocks) %}
+          {% if loop.last %}
+            {% set _body = _body ~ art.next({href: '/integrity', kicker: 'The method this argues for'|trans, title: 'How a winner is decided'|trans,
+              blurb: 'Every rule, figure and safeguard, read live from the scoring engine.'|trans}) %}
+          {% endif %}
+          {{ art.section(s.id, loop.index, _toc[loop.index0].title, _body) }}
+        {% endfor %}
+      </div>
+      {{ art.cite(d) }}
+      {{ art.foot(d) }}
+    </article>
+    {{ art.aside(d, 'rail') }}
+  </div>
+</div>
+{% endblock %}
+
+{% block sheets %}{{ parent() }}{{ art.sheet(d) }}{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/doc.js') }}"></script>{% endblock %}

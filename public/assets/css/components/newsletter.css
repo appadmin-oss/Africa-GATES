@@ -1,0 +1,20 @@
+/* /newsletter · /email/confirm · /email/unsubscribe (Phase 9). The document family's quiet
+   idiom: ground, one 640px column, a white hairline card, the base field and buttons. */
+.nl{ box-sizing:content-box; max-width:640px; margin:0 auto; padding:24px var(--ag-sp-16) 56px; display:flex; flex-direction:column; gap:28px; color:var(--ag-ink) }
+.nl--task{ max-width:560px; padding-top:40px }
+.nl__head{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
+.nl__kicker{ margin:0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
+.nl__kicker--ok{ display:inline-flex; align-items:center; gap:var(--ag-sp-8) }
+.nl__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-32); line-height:1.1; letter-spacing:-.015em; text-wrap:balance }
+.nl__card .nl__h1{ font-size:var(--ag-fs-26) }
+.nl__lede{ margin:0; font-size:var(--ag-fs-17); line-height:1.6; color:var(--ag-ink-2) }
+.nl__card{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding:22px 20px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
+.nl__card > *{ margin:0 }
+.nl__h2{ margin:0; font-size:var(--ag-fs-17); font-weight:700 }
+.nl__p{ margin:0; font-size:var(--ag-fs-16); line-height:1.65 }
+.nl__mail{ word-break:break-all }
+.nl__form{ display:flex; flex-direction:column; gap:var(--ag-sp-6); margin:0 }
+.nl__go{ margin-top:var(--ag-sp-10); align-self:flex-start }
+.nl__sec{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
+.nl a.nl__alt{ align-self:flex-start; display:inline-flex; align-items:center; min-height:44px; color:var(--ag-ink); font-weight:600; text-decoration:underline; text-underline-offset:3px }
+@media (min-width:600px){ .nl{ padding-top:44px } .nl__h1{ font-size:var(--ag-fs-40) } .nl__card{ padding:28px 30px } }

@@ -1,0 +1,27 @@
+privacy note after reload, Preferences refused: hidden=true, stores={"local":null,"session":"1"}
+active ring, normal motion: {"animation":"geeSpin 0.9s","top":"rgb(16, 41, 44)","right":"rgb(16, 41, 44)","bottom":"rgb(214, 212, 204)"}
+active ring, reduced motion: {"animation":"none 0s","top":"rgb(16, 41, 44)","right":"rgb(16, 41, 44)","bottom":"rgb(214, 212, 204)"}
+keyboard 1440: first focus "Message Gee"; Tab ×30 left the panel 0 times; Shift+Tab inside: true; Esc → focus on launcher: true; aria-expanded=false
+keyboard 1440 tab order: Privacy → Talk to a person → New conversation → Close Gee → Privacy → Dismiss privacy notice → How do I vote?
+              → → My payment didn’t go through
+            → Find tickets for an event
+               → Nominate someone
+              → → Message Gee → Privacy → Talk to a person → New conversation → Close Gee → Privacy → Dismiss privacy notice → How do I vote?
+              → → My payment didn’t go through
+            → Find tickets for an event
+               → Nominate someone
+              → → Message Gee → Privacy → Talk to a person
+keyboard 1440: browser Back closes the panel: true, still on /_dev/ui
+keyboard 390: first focus "Message Gee"; Tab ×30 left the panel 0 times; Shift+Tab inside: true; Esc → focus on launcher: true; aria-expanded=false
+keyboard 390 tab order: Privacy → Talk to a person → New conversation → Close Gee → Privacy → Dismiss privacy notice → How do I vote?
+              → → My payment didn’t go through
+            → Find tickets for an event
+               → Nominate someone
+              → → Message Gee → Privacy → Talk to a person → New conversation → Close Gee → Privacy → Dismiss privacy notice → How do I vote?
+              → → My payment didn’t go through
+            → Find tickets for an event
+               → Nominate someone
+              → → Message Gee → Privacy → Talk to a person
+keyboard 390: browser Back closes the panel: true, still on /_dev/ui
+
+errors: []

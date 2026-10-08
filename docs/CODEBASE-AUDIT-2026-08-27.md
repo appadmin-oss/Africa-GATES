@@ -1,0 +1,626 @@
+# Africa GATES — Structure & Flaw Audit
+
+> **Date:** 2026-08-27 · **Scope:** analysis only, no behaviour changed.
+> **Method:** every number below was measured against the working tree at `35e2e97`. Nothing is
+> carried over from the 2026-08-08 audit — where that document's method could not be reproduced
+> (see §7 on error handling) this one says so rather than quoting a figure it cannot stand behind.
+> **Companion docs:** [`CODEBASE-INDEX.md`](CODEBASE-INDEX.md) (the map),
+> [`CODEBASE-AUDIT-2026-08-08.md`](CODEBASE-AUDIT-2026-08-08.md) (the previous pass).
+
+---
+
+## 1. Summary
+
+**The core is healthy, and measurably so.** The suite is green on a clean install with no `.env`:
+**4,881 tests, 30,464 assertions, 0 failures, 2m32s.** All 966 tracked PHP files parse. All 496
+route-handler registrations resolve to a real method on a real class. Every template referenced
+from PHP or from another template exists. MySQL and SQLite are at exact **76/76** table parity
+across all three schema pairs. Every one of the six "declared with no reader" bugs recorded in
+`CODEBASE-INDEX.md` §17 now has a verified reader — those fixes landed.
+
+The tree has roughly doubled since the last audit (245 → 404 source files, 135 → 201 templates,
+220 → 403 test files). The test culture scaled with it, which is why the mechanical checks come
+back clean.
+
+**What is wrong is concentrated in one theme, and it is the theme this codebase already knows it
+has:** a mechanism that is complete, correct, and connected to nothing. Four of the findings below
+are that shape, and two of them are the *documented* failure repeating in a new place:
+
+1. **The sandbox reaches the public** (§3.1). `VoteController` is a public reader that does not
+   filter `is_active`, so demo nominees have live, votable pages.
+2. **SMTP credentials and Cloudinary cannot be set without a shell** (§3.2) — the `GAS_URL`
+   failure, twice over, on screens that explain the rule while breaking it.
+3. **`gates_events` is written and read by nothing** (§3.3).
+4. **The canonical datetime round-trip is dead code** and has been reimplemented twice (§3.4).
+
+Nothing found is a remotely exploitable security defect. CSP, CSRF, the setup-token gate and the
+upload path all hold up under re-check (§6).
+
+---
+
+## 2. Structure, measured
+
+| Area | Files | Lines |
+|---|---:|---:|
+| `src/` (PHP) | 404 | 137,150 |
+| `templates/` (Twig) | 201 | 54,941 |
+| `tests/` | 403 | 100,718 |
+| `public/assets/` (css + js) | — | 23,779 |
+| `database/migrations/` | 147 | — |
+| `docs/` | — | 10,888 |
+
+```
+src/routes.php     3,716 lines · 496 handler registrations (459 unique class:method)
+src/
+  Services/    211    Controllers/  43
+  Admin/        65    Judge/         5
+  Support/      45    Console/      27
+  Middleware/    6
+database/  76 tables · MySQL 52+9+15, SQLite 52+9+15 — exact parity
+```
+
+### Mechanical health — all green
+
+| Check | Result |
+|---|---|
+| `php -l` across `src public config cron bin database tests` | 966 files, **0 parse errors** |
+| Route handlers resolve to a real method | **496/496** |
+| Templates referenced from PHP exist | **all** |
+| Twig `extends`/`include`/`embed`/`import` targets exist | **0 missing** |
+| MySQL ↔ SQLite table parity | **76/76**, no drift either way |
+| `./vendor/bin/phpunit --no-coverage` | **4,881 tests, 30,464 assertions, OK** |
+
+The guard tests named in `CLAUDE.md` are all present and passing: `NestedFormTest`,
+`TwigBlockScopeTest`, `RouteHandlerExistsTest`, `TemplateSyntaxTest`, `SchemaTest`, `CspTest`.
+Naive re-implementations of those scans produce false positives that the real tests correctly
+reject; the tests are the authority and they are green.
+
+---
+
+## 3. Findings
+
+### 3.1 The sandbox reaches the public — `VoteController` has no `is_active` filter
+
+**Severity: high.** Violates a stated invariant: *"The sandbox must never reach the public."*
+
+> **Resolved after this audit was written.** Both handlers now carry `->where('p.is_active', 1)`,
+> and `PublicSurfaceSandboxTest` gained two guards that fail without it — the ballot returned `200`
+> and `/vote/{id}` redirected to `/vote/demo-sandbox/1-demo-kigali-signal` with the filter removed.
+> The rest of this section is left as written, because it is the record of what was found. Note the
+> one consequence beyond the sandbox: "Active" is an operator checkbox, so deactivating a real
+> programme now takes its nominee pages down too — consistent with the hub, the programme page and
+> the sitemap, which already dropped them.
+
+`DemoSeeder` contains the sandbox by construction rather than by flag, and says so:
+
+> `is_active = 0` is the whole public-invisibility mechanism. Both public readers already
+> require 1, so nothing new has to know about the demo.
+
+There are no longer two public readers. `is_active` appears **nowhere in
+`src/Controllers/VoteController.php`**, and two of its handlers join
+`gates_award_programmes` without it:
+
+- `nomineeBallot()` (`VoteController.php:356`, reached from `:271`) — the public per-nominee
+  vote page with the OTP ballot inline.
+- `nomineeRedirect()` (`VoteController.php:286`, reached from `:125`) — the legacy `/vote/{id}`
+  bounce, which resolves *any* nominee id to its canonical URL.
+
+Both filter only `whereIn('n.status', PUBLIC_STATUSES)` — `['approved','winner','runner_up']`.
+`DemoSeeder` writes its nominees at `status = 'approved'` (`DemoSeeder.php:175`) inside a cycle at
+`status = 'voting'` (`:122`). Every condition the ballot checks, a demo nominee satisfies.
+
+So `/vote/demo-sandbox/{id}-{name}` renders a live, votable page for sandbox data. The programme
+slug is a public constant (`DemoSeeder::PROGRAMME_SLUG`) and ids are enumerable through the legacy
+redirect.
+
+**Scope, precisely.** The listings are safe — `/vote` goes through `AwardService`, which does
+filter `is_active`, and `SitemapService` filters it too, so the sandbox is neither browsable nor
+indexed. The exposure is direct-URL only. That is a real limit on the blast radius and not a
+reason to leave it: the page accepts votes, so a demo nominee can accumulate real ballots and a
+real voter's OTP can be spent against a row that exists to be deleted.
+
+**The wider pattern.** Of 81 sites that touch `gates_award_programmes`, 54 have no `is_active` in
+the surrounding query. Most are admin-side and correct — the operator *should* see the sandbox.
+
+> **All eight public-side candidates have since been reviewed.** Three were real and are fixed;
+> five were not leaks. The review also turned up `DemoSeeder::notSandbox()`, a NULL-safe helper
+> that already existed for readers which reach the programme through a LEFT JOIN or not at all —
+> which is why `ActivityFeedService` was a false positive in this scan.
+>
+> | Site | Verdict |
+> |---|---|
+> | `VoteMessageController::nomineeFor()` | **Leak — fixed.** The messages and supporters pages gated on nominee status alone, so closing the ballot only moved the sandbox to a neighbouring URL. |
+> | `FlierService::forNominee()` | **Leak — fixed.** The og:image every share link renders. All four flier surfaces (`page`, `svg`, `png`, `card`) route through this one resolver. |
+> | `NomineeBroadcast::cycles()` | **Leak — fixed**, and outward rather than inward: the rehearsal is seeded `voting` with `voting_close` 20 days out, exactly the shape this selects, so the broadcast mailed `@demo.invalid` — a non-resolving domain, so every send is a hard bounce against the sending domain's reputation. Gated with `notSandbox()` rather than `is_active`, because the LEFT JOIN makes a bare comparison NULL-unsafe. |
+> | `ActivityFeedService:524` | Not a leak — already uses `DemoSeeder::notSandbox()`. |
+> | `PulseFeedService::channelNames()` | Not a leak — a lookup map that only names programmes which have posts, and `DemoSeeder` creates none. |
+> | `VoteMessageController::ballotPath()` | Not a leak — a URL builder reached only for a nominee `nomineeFor()` has already gated. |
+> | `Support/NomineeUrl::path()` | Not a leak — called from the paid-vote flow, checkout receipts and support context, never as a public lookup on an arbitrary id. |
+> | `GatedFormService::subjectTermsUrl()` | Not a leak — returns `/terms/{slug}`, reached through a single-use token that is itself the credential. |
+> | `SupporterHonours::nominee()` | Not a leak — a mail path scoped to one nominee's own supporters, and LEFT-joined, so `is_active` would be the NULL-unsafe form anyway. |
+
+---
+
+### 3.2 Two operational credentials are `.env`-only — the `GAS_URL` failure, repeated
+
+**Severity: high.** Violates a stated rule: *"Anything operational must be settable from
+`/admin/settings`."*
+
+> **Resolved after this audit was written.** `OtpService::boot()` is now the one resolver for
+> every mail value, credentials included, and `CloudinaryService::config()` reads
+> `gates_settings` before `.env`. The six hand-built SMTP arrays are gone — `container.php`,
+> `CheckoutMailer`, `CycleAnnouncer`, `SupporterHonours` and two closures in `routes.php` all
+> call `boot()` — and `SupportContext`'s capability readout, which asked
+> `Env::has('SMTP_HOST')`, now asks the resolver. Both sets of fields are on
+> `/admin/settings` (SMTP under Email & sender, Cloudinary under a new Media tab), with the
+> secrets write-only on the established provider-key pattern: never echoed back, blank keeps,
+> a "remove" box clears. The Media panel's "add `CLOUDINARY_URL` to `.env`" now links to the
+> form instead, and `OtpService`'s own failure text stops naming environment variables.
+>
+> `tests/Unit/OperationalCredentialsTest.php` holds ten guards, five of which were verified to
+> fail with the fix reverted. Two of them generalise the rule rather than the instance: one
+> tokenises `src/` and `config/` and fails if anything reads `SMTP_*` outside the resolver, and
+> one fails if **any** admin template answers "not configured" with an instruction to edit
+> `.env`. The rest of this section is left as written, because it is the record of what was
+> found.
+
+The rule exists because `GAS_URL`/`GAS_SECRET` were readable only from `.env`, there is no SSH on
+production, and so the whole Google integration was dead while every screen explained itself
+correctly and told the operator to edit a file they cannot open. That lesson is written out at
+length in `templates/admin/settings.twig:757–776`. Two integrations on the same site still work
+the old way.
+
+**SMTP credentials.** `CheckoutMailer::boot()` builds exactly the right resolver —
+
+```php
+$pick = static fn (string $key, string $env, string $dft): string =>
+    trim((string) ($settings[$key] ?? '')) ?: (string) Env::get($env, $dft);
+```
+
+— and then applies it only to the cosmetic fields. The four values that actually authenticate the
+connection do not use it (`CheckoutMailer.php:137–140`):
+
+```php
+'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
+'port'         => Env::int('SMTP_PORT', 587),
+'username'     => Env::get('SMTP_USER', ''),
+'password'     => Env::get('SMTP_PASS', ''),
+'from_address' => $pick('mail_from_address', 'MAIL_FROM_ADDRESS', '…'),   // settings-aware
+'from_name'    => $pick('mail_from_name',    'MAIL_FROM_NAME',    '…'),   // settings-aware
+```
+
+`/admin/settings` offers `mail_from_address`, `mail_from_name`, `mail_reply_to`, `contact_email`,
+`support_email`, `admin_alert_email` — and no host, user or password field at all. The same card
+reports the consequence back to the operator (`settings.twig:178`):
+
+> SMTP not set — mail is written to `var/logs/outgoing-mail.log`.
+
+An operator who pastes credentials into the admin gets the from-name applied and the login
+ignored. Email is not a peripheral here: OTP codes gate voting.
+
+**A second reader of the same setting.** `CycleAnnouncer::email()` (`:145`) builds its own
+`OtpService` transport from `Env::get` only, with no `gates_settings` lookup whatsoever — so the
+two mailers disagree about where configuration comes from. `CLAUDE.md` names this precisely: *"One
+resolver per value, never two: two readers of one setting is how the halves of an integration come
+to disagree about whether it is configured."*
+
+**Cloudinary.** `CloudinaryService` never touches `gates_settings` — `CLOUDINARY_CLOUD_NAME`,
+`_API_KEY`, `_API_SECRET`, `_URL` and `_FOLDER` are all `Env::get`. `MediaController` renders a
+panel that reports `configured: true|false`, and the template's remedy is
+(`templates/admin/media/index.twig:72`):
+
+> add `CLOUDINARY_URL=cloudinary://key:secret@cloud` to `.env`
+
+That is the `GAS_URL` sentence, verbatim in shape: a screen that diagnoses correctly and prescribes
+something the operator cannot do.
+
+The fix in both cases is the documented one — one static resolver per service, `gates_settings`
+first and `.env` as the fallback, plus the fields on the settings page.
+
+---
+
+### 3.3 `gates_events` is written on every major action and read by nothing
+
+**Severity: medium.** The §17 trap class, in a fresh instance.
+
+> **Resolved after this audit was written.** The table has a reader:
+> `AnalyticsService::platformEvents()`, rendered as a **Recorded actions** panel on
+> `/admin/analytics`. It reports distinct actors and devices beside the volume rather than a
+> bare count, because the count of votes is already on that page — better — from the votes
+> table; what this log holds that no domain table does is the actor beside the action, which
+> is what makes "eleven OTP requests and one vote from one device" a sentence somebody can
+> act on.
+>
+> The constructor's guard is fixed: it discarded `hasTable()`'s return value and set
+> `$enabled = true` whenever the call did not throw.
+>
+> Two things were **deleted** rather than wired. `funnelReport()` read
+> `gates_funnel_events`, which `AnalyticsService::ballotFunnel()` already reads and renders —
+> a second reader of one table, invisible because it had no caller. And the four emitters
+> nothing called (`nominationReceived`, `nomineeApproved`, `registrationCompleted`,
+> `shareClicked`) are gone, because their content is not missing: registrations and
+> nominations are counted straight off the domain tables by `audience()` and
+> `nominationFunnel()`, which beats a parallel log that can be forgotten at a call site.
+>
+> `tests/Unit/EventLogReaderTest.php` holds nine guards. The important one asserts the
+> reader returns what a writer actually wrote — a panel rendering an empty table over a full
+> log would pass a test of its own and be the same bug. The guard on the constructor was
+> verified to fail against the original code.
+
+`EventService` is fully wired: registered in `config/container.php:350`, injected into
+`ApiController` and `MilestoneService`. Four of its emitters fire in production — `voteCast`,
+`milestoneReached`, `fraudFlagged`, `otpRequested` — so `gates_events` accumulates rows for the
+life of the install.
+
+Nothing ever reads them. The only reader in the codebase is `EventService::funnelReport()`, and
+`funnelReport()` **has no caller**. The sole other query naming the table is
+`MergeService.php:275`, which reassigns `subject_id` during a nominee merge — bookkeeping over data
+no screen renders. This is `gates_status_log.components_json` again: written on a schedule for the
+life of the log so a question could be answered, and never wired to the thing that asks it.
+
+Five further emitters are declared and never called at all: `nominationReceived`, `nomineeApproved`,
+`registrationCompleted`, `shareClicked`, and the generic `dispatch()` (only reached internally).
+So the class's own docblock — *"Every major platform action should dispatch an event"* — describes
+an intent the wiring only half keeps.
+
+**And the enable guard does not guard.** The constructor:
+
+```php
+try {
+    DB::getSchemaBuilder()->hasTable('gates_events');   // return value discarded
+    $this->enabled = true;
+} catch (\Throwable) {}
+```
+
+The comment above it reads *"Silently disable if the events table doesn't exist yet"*. It does not:
+`hasTable()`'s boolean is thrown away and `$enabled` is set to `true` whenever the call does not
+throw. The effect is currently masked because `dispatch()` and `funnelStep()` each wrap their
+insert in their own silent `catch` — but the guard is a comment describing behaviour the code does
+not have, and `funnelStep()`/`funnelReport()` both branch on it.
+
+Note the contrast that makes this worth fixing rather than deleting: `gates_funnel_events`, written
+by the *same* class, **is** read — by `Admin\Services\AnalyticsService:425–431` and
+`VoteRecoveryService:612`, and surfaced in `templates/admin/analytics.twig`. The pattern works. One
+table got its screen; the other did not.
+
+---
+
+### 3.4 The canonical datetime round-trip is dead, and reimplemented twice
+
+**Severity: medium.** Touches the `T`-separator divergence documented in `CLAUDE.md`.
+
+> **Correction, and then resolved.** The claim below that **`forInput()` has zero callers is
+> wrong.** It is registered in `config/container.php` as the `|when_input` Twig filter, wired
+> straight to `DisplayTime::forInput`. The audit's scan searched `src/` and `templates/` and
+> missed `config/`. Only `toStored()` — the write half — was genuinely dead, because there is no
+> write-side filter. That makes the finding sharper rather than softer: the read half was
+> already available as a one-word filter, and **nine call sites across seven templates
+> hand-rolled `|replace({' ': 'T'})|slice(0,16)` anyway** — six more templates than this section
+> found.
+>
+> Fixed: every one of those now uses `|when_input`; `cycleSave()`, `PostsController`,
+> `InterviewsController`, `QuestionnairePolicy`, the `EventScanPass` windows and three
+> `EventsController` fields that bypassed its own converter all run their input through
+> `DisplayTime::toStored()`; `EventsController`'s private Carbon pair delegates instead of
+> duplicating; and every `datetime-local` input gained `step="1"`, without which the browser
+> hands back a value one minute coarser than the one it was given.
+>
+> **No data migration was needed, and that is worth recording.** The cycle form was labelled
+> with `Clock::timezone()` — the *process* zone, UTC — and stored what was typed, so the rows it
+> produced are already correct UTC. `toStored()` converts from the display zone to UTC, so the
+> rows it produces are correct UTC too. Only what the operator types and sees changes. The form
+> now says "Entered in WAT · stored as UTC" instead of asking a Lagos operator to convert five
+> deadlines in their head.
+>
+> `tests/Unit/DeadlineRoundTripTest.php` holds seven guards, including two scanning ones: no
+> template may convert a datetime by hand, and no `datetime-local` input may omit `step="1"`.
+> `CycleEditorTest`'s timezone assertion was updated — it asserted the literal string
+> `All times are UTC`; it now asserts the page names both the entry zone and the storage zone,
+> which is what it always said it was for.
+
+`Support/DisplayTime` exists to solve exactly one problem, and its docblocks state it clearly:
+
+> an operator typing "23:59" into a cycle's `voting_close` means 23:59 in THEIR zone, and storing
+> that string verbatim closes the vote an hour early in WAT.
+
+**`DisplayTime::toStored()` has zero callers. `DisplayTime::forInput()` has zero callers.** Both
+are unreferenced anywhere in production code, including from each other's documentation, which
+still asserts the round-trip happens.
+
+In their place, two reimplementations:
+
+1. **`Admin\Controllers\EventsController`** carries a private `forInput()`/`fromInput()` pair
+   (`:429`, `:437`) built on `Carbon`. They are symmetric, so nothing drifts — but `forInput()`
+   formats `'Y-m-d\TH:i'`, dropping seconds. That is the precise 59-second-per-save drift that
+   `DisplayTime::forInput()`'s comment says it includes seconds specifically to prevent.
+2. **`templates/admin/programmes/cycle.twig`** does it inline in Twig, five times:
+   `{{ cycle.voting_close|…|replace({' ': 'T'})|slice(0,16) }}`.
+
+The save side does nothing at all. `ProgrammesController::cycleSave()` (`:160–163`) writes the raw
+POST value straight through:
+
+```php
+'voting_open'  => $b['voting_open']  ?: null,
+'voting_close' => $b['voting_close'] ?: null,
+```
+
+So `2026-01-01T09:00` — `T` separator, no seconds, no timezone conversion — lands in
+`gates_award_cycles.voting_close`. In production that column is `DATETIME`, and MySQL normalises
+the value on the way in, so **production is not currently broken by this**. In dev and in the test
+harness the column is `TEXT` and SQLite stores the string verbatim, where `'2026-01-01T09:00'`
+sorts *after* every space-separated timestamp of the same date, because `T` (0x54) > `' '` (0x20).
+That is the divergence `CLAUDE.md` warns about, sitting one schema-type decision away from the
+deadline column that decides whether a vote counted.
+
+The timezone conversion `toStored()` was written to perform never happens anywhere. The cycle form
+is at least honest about it — *"Entered and stored in {{ timezone }} — your browser's timezone is
+not applied"* — but that is a note explaining an absence, not the behaviour the helper exists for.
+
+Three implementations, one of them canonical and unused: this is the "one resolver per value"
+rule again, in the time domain.
+
+---
+
+### 3.5 Forty-eight methods have no production caller
+
+**Severity: medium in aggregate.** Measured by tokenising every `.php`, `.twig`, `.js`, `.json`,
+`.sql`, `.md`, `.gs` and `.html` file in the tree and counting call, property-access and
+string-callable references outside the declaration itself. String-dispatch forms (`':method'`) and
+Twig `->prop` access are included, so route handlers and template calls do not show up as false
+positives — the 496/496 route check in §2 confirms that.
+
+Several are individually consequential, and each is a mechanism rather than a stray helper:
+
+| Method | What is not happening |
+|---|---|
+| `GoogleMeetService::cancelEvent()` | A cancelled interview never cancels its calendar event, so the Meet link stays live and the invitees keep the slot. |
+| `OtpService::sendNominationConfirmation()` | A nominator never receives the confirmation the method composes. |
+| `TicketLinkService::revokeForTicket()` | Ticket links are never revoked. Same class as the documented `prune()` bug (§17) — the second no-caller found in it. |
+| `ReferralService::clearSession()` | Referral attribution is never cleared from the session, so a source can outlive the journey that set it. |
+| `MilestoneService::getForNominee()`, `nextMilestone()` | Milestones are computed and stored; neither reader is called. |
+| `BallotGuard::isNominable()`, `stateForProgramme()` | Two judging guards that never run. |
+| `Admin\Services\AuthService::hasRole()`, `currentAdmin()` | Role helpers unused — role checks are done another way, so there are two answers to one question. |
+| `AttendeeBot::transcriptReady()` | Transcript readiness is never polled. |
+| `EventService` × 5 | See §3.3. |
+
+The remainder are lower-stakes but the same shape: `Support/Pdf::pageWidth()`, `pageHeight()`,
+`hasFont()`; `AiResult::valueOr()`; `SupportAttachmentService::humanBytes()`;
+`QuestionnaireChat::noteSource()`; `VendorCatalogue::forOrgs()`. A further 25 have test coverage but
+no production caller — a test proving a mechanism works is not the same as the mechanism being
+reachable, and `AiCapability::$timeout` is the standing proof of how expensive that gap gets.
+
+The full list is reproducible with the scan described above; it is not reproduced here because the
+value is in the nine rows in the table, not the tail.
+
+> **Resolved after this audit was written.** Triaged one by one; the scan now reports **24**, down
+> from 48, and every remaining entry is in the tested-but-uncalled tail rather than the table.
+>
+> **Wired up — four mechanisms an operator or a member believed were running:**
+>
+> - **`AuthService::currentAdmin()`** → `AdminAuthMiddleware`. This was the serious one, and it was
+>   worse than "a helper is unused". `admin_role` and `is_active` were stamped into `$_SESSION` at
+>   login and never compared against the row again, and *every* downstream guard — the judge
+>   refusal, the writer allowlist, `SectionGuardMiddleware`, the sidebar — read that copy. So
+>   deactivating an admin ended no session and demoting a superadmin left them writing, until their
+>   cookie expired. The middleware now re-reads the account on every request (fail-closed if the row
+>   cannot be read) and writes the live role back over the login copy. Six new cases in
+>   `AdminAuthMiddlewareTest` fail without it.
+> - **`GoogleMeetService::cancelEvent()`** → `InterviewService::cancel()`. Two halves were broken.
+>   `cancel()` changed one column, so a cancelled interview stayed in the nominee's, the panel's and
+>   the guests' calendars with a Meet link that still opened a room. And the method could not have
+>   helped anyway: it demanded the `agatesKey` that only `calendar.sync` sets, while the interviews
+>   screen books through `meet.create`, which sets none and returns an event id. `calendar.cancel`
+>   now takes `eventId` as well as `key` — the pair `calendarRead` has always taken — and the
+>   calendar leg is best-effort but never silent: an unreachable script says so in the message the
+>   operator reads, and the interview cancels regardless. **Requires the Apps Script to be
+>   redeployed** before the calendar half takes effect.
+> - **`AttendeeBot::transcriptReady()`** → a third arm on `InterviewBot::sweep()`. The sweep polled
+>   `requested`, `joining` and `in_call`; the tick that saw the bot leave wrote `bot_state = 'done'`
+>   and thereby removed the sitting from the only query that would ever fetch from it again. But
+>   transcription *lags* the audio, so the last stretch of every recorded interview — the closing
+>   answer, and whatever the panel said after — was fetched once, too early, and never again. The
+>   failure was invisible: there is a transcript, it reads as a whole conversation, and only somebody
+>   who was in the room knows it stops short. Finished sittings are now read until the provider says
+>   the transcript is complete, or twenty minutes pass.
+> - **`ReferralService::clearSession()`** → both paid callbacks. The rule is written on the method
+>   itself — *"after it has been credited, so one link cannot earn on two purchases"* — and nothing
+>   called it, so it was a comment. One click on a referral link earned commission on every purchase
+>   for the rest of the session. Cleared at the paid callback rather than at reserve, so a buyer who
+>   abandons a hold keeps the attribution they arrived with, and guarded on the row actually carrying
+>   a code, so a refused self-referral or a free ticket spends nothing.
+>
+> **Deleted — thirteen methods whose absence removes nothing:**
+>
+> - `AuthService::hasRole()` — the third answer to a question `Permissions` owns, and the only one
+>   that read `$_SESSION` from inside a service.
+> - `OtpService::sendNominationConfirmation()` — a strictly worse second implementation.
+>   `NominationAftercare` already sends the nominator a confirmation, and unlike this one it carries
+>   the reference and the watch link.
+> - `TicketLinkService::revokeForTicket()` — written for two cases that cannot arise: nothing in this
+>   codebase changes a ticket's email, and there is no "that wasn't me" surface. The security
+>   property never rested on it — `resolve()` re-checks the address on every read — and `revoked_at`
+>   is still honoured, so a revoke surface built later needs nothing else.
+> - `MilestoneService::getForNominee()`, `nextMilestone()` and `VendorCatalogue::publicFor()`,
+>   `forOrgs()` — readers for pages that were never built. The nominee campaign page does not exist,
+>   and neither does any public vendor catalogue: **a vendor's sold-out toggle is seen by their own
+>   dashboard and by nobody else.** That is a product gap, recorded here rather than papered over
+>   with two readers standing ready for it.
+> - `BallotGuard::isNominable()`, `stateForProgramme()` — non-throwing wrappers nothing composes.
+>   `assertNominable()` runs and the gate holds.
+> - `QuestionnaireChat::noteSource()` — the only writer of `chat_source`, inside the guided chat that
+>   was **deliberately retired** (see the note in `MyWorkController`). Wiring it would have been
+>   wiring a writer into a mechanism with no door.
+> - `Pdf::pageWidth()`, `pageHeight()`, `hasFont()` — every consumer passes the page size in and holds
+>   its own constant, and `font()` already returns whether registration worked.
+> - `AiResult::valueOr()`, `SupportAttachmentService::humanBytes()` — one-line conveniences nothing
+>   composes.
+>
+> **Left, and why.** The 24 that remain all have test coverage and are the third class the finding
+> named: a tested method with no caller is an API awaiting a consumer, not a mechanism silently not
+> running. The three most alarming names were checked individually and are convenience doors onto
+> paths that *are* live — `PointsService::spend()` (redemption goes through `redeemForVote()`),
+> `CommunityService::toggleCheer()` (the controller calls `react()` directly) and
+> `ShortlistService::isShortlisted()` (cards use the bulk sibling). Nothing an operator or a member
+> believes is happening is failing to happen in that tail.
+>
+> **Two findings this triage turned up that are not §3.5.** `QuestionnaireChat::say()` and `open()`
+> have no route either — the retired guided chat is a whole subsystem still carrying `chat_json`,
+> `chat_probes` and `chat_source`, and `spokenTurn()` reads turns only `say()` writes. And
+> `redeemForVote()` writes the points ledger inline rather than through `award()`, which is a second
+> write path to money-adjacent rows. Both are left alone deliberately: each is a change larger than
+> this finding, and speculative surgery on either is worse than the naming.
+>
+> `tests/Unit/DeadMechanismTest.php` holds the wiring structurally, because a behavioural test cannot
+> catch this class — every one of these methods already had a passing test of its own logic. What was
+> missing was a caller, and only the call graph shows that.
+
+---
+
+### 3.6 The test suite makes live outbound calls to `api.openai.com`
+
+**Severity: medium.** Not a product defect; a CI-integrity one.
+
+> **Resolved after this audit was written.** `AiService::httpPost()` — already the single
+> network seam, and already protected so a test can intercept it — now refuses a credential
+> that cannot work, before `curl_init`. A full suite run afterwards contains **zero**
+> occurrences of `api.openai.com`; it previously carried OpenAI's own 401 body.
+>
+> Refused at the transport and deliberately not at `boot()`: a placeholder must still count
+> as *configured*, because the screens showing "AI is set up" are driven by that and the
+> three tests seed a key precisely to render that state. What must not happen is the round
+> trip.
+>
+> Two rules, both chosen so they cannot catch a real key — shorter than 20 characters (the
+> smallest credential any of the four providers issues is a Gemini key at 39), or containing
+> a marker no issued key does, the same shape as the placeholder list in
+> `OtpService::smtpConfigured()`. Deliberately not a prefix format check: providers change
+> those, and rejecting a real key is a far worse failure than dialling a fake one.
+>
+> The URL is inspected as well as the headers, which is not belt-and-braces — Gemini passes
+> its key as a `?key=` query parameter and calls the transport with no headers at all, so a
+> header-only check would have left one of the four providers still dialling.
+>
+> Production gets the same benefit: an unedited placeholder can only ever return 401, so
+> dialling it is pure latency on a request somebody is waiting for.
+
+Three tests — `QuestionnaireAdminRenderTest:44`, `InterviewPageTest:56`,
+`QuestionnaireInterviewTest:82` — seed a `gates_settings` row with
+`['value' => 'sk-test-not-a-real-key']`. `AiService` resolves it as a real credential and calls
+`curl_exec` (`AiService.php:1226`). The run log carries OpenAI's own reply:
+
+```
+[AiService] chat() failed — openai/gpt-4o-mini → HTTP 401 {
+  "error": { "message": "Incorrect API key provided: sk-test-**********-key. …
+```
+
+That response came back over the network, so the request left the machine. Three consequences: the
+suite depends on outbound reachability and will behave differently on an isolated runner; it pays
+connection latency and a retry budget on every run; and it sends traffic to a third party on every
+CI build. The suite is green either way, which is what makes it easy to miss — the failure path
+under test is reached whether the call is refused locally or refused in Virginia.
+
+The fix is a transport seam or a sentinel key that `AiService` refuses before dialling, so the
+no-provider path is exercised without egress.
+
+---
+
+## 4. Smaller findings
+
+- **Four orphan templates.** `pages/privacy.twig` and `pages/terms.twig` are dead: legal documents
+  are now database-backed and rendered through `LegalService` + `partials/article.twig` (see the
+  `$legalRender` closure in `routes.php:2324`). `pages/registry/register-success.twig` and
+  `partials/comments.twig` have no reference anywhere in the tree.
+- **One un-versioned script tag.** `templates/admin/dashboard.twig:252` loads
+  `<script src="/assets/vendor/chart.min.js">` with a literal path while every other script in the
+  admin goes through `{{ asset(...) }}`. The file exists, so nothing is broken — but it is outside
+  the cache-busting scheme, which is how a stale vendor bundle survives a deploy.
+- **`SETUP_TOKEN` travels in the query string.** The gate itself is correct — `hash_equals`,
+  minimum length, `404` when unset (`routes.php:88`) — but a query parameter lands in access logs,
+  browser history and any outbound `Referer`. The token is bootstrap-only and the migrate page
+  tells the operator to delete it afterwards, which is the mitigation; worth knowing it is the only
+  one.
+- **Admin-authored HTML renders through `|raw`.** `partials/article.twig` renders standfirsts,
+  paragraphs, headings and list items unescaped. Its inputs are developer- and superadmin-authored
+  (`LegalService`, `HelpCentre`, `CommunityVotingPhilosophy`), so this sits inside the admin trust
+  boundary and is deliberate. Noted only so the boundary stays explicit: a superadmin can put
+  markup on a public legal page.
+
+---
+
+## 5. Error handling and schema drift, measured
+
+**Silent catches: 259 of 1,248.** 21% of catch blocks in `src/` are `catch (…) {}` with an empty
+body — no log, no rethrow, no comment. The 2026-08-08 audit reported 222 empty against 92 that log
+or rethrow; those two figures sum to 314, well short of the 1,248 catch blocks now present, so the
+methods are not comparable and no trend is claimed here. What is true today: a fifth of all error
+handling discards the error, on a system with no metrics, no tracing and no shell.
+
+Some of that is deliberate and correct — `EventService::dispatch()` swallowing an insert failure is
+the right call for a telemetry write that must never break a vote. The concern is that the
+deliberate cases and the accidental ones are written identically, so neither `grep` nor review can
+separate them. A one-line comment inside the brace, which several already carry, is the whole fix.
+
+**Schema-drift probes: 179.** `OptionalColumn` / `hasColumn()` call sites, up from the 54 recorded
+on 2026-08-08 against roughly half the source. The last audit called this a reasonable response to
+hand-applied migrations on shared cPanel hosting, and that reasoning still holds — but the ratio is
+now one probe for every 2.3 source files, and each one is a branch that the test suite must either
+cover twice or leave half-covered.
+
+**Persistence coupling.** 250 of 404 source files call `DB::` directly; 2,294 quoted `gates_*` table
+literals across 138 distinct tables. Unchanged in character from the last audit and unchanged in
+consequence: a column rename is a whole-tree search-and-replace with no compiler help.
+
+---
+
+## 6. Security posture — re-checked, holds
+
+| Surface | Finding |
+|---|---|
+| **CSP** | Nonce-based. `'unsafe-inline'` is absent from `script-src`. Zero real inline handlers in 201 templates — the single `onclick=` match is inside a comment explaining why there are none. |
+| **CSRF** | Exemptions are enumerated and each is justified in comment: OTP-gated API routes, the payment webhook, the live-interview endpoints, `/email/unsubscribe`. The one non-exact-match exemption is documented as carrying its credential in the path. |
+| **Setup routes** | `hash_equals` against `SETUP_TOKEN`, minimum 12 chars, `404` (not `403`) when unset — invisible without the credential. |
+| **Uploads** | MIME sniffed from bytes with `finfo`, restricted to JPEG/PNG/WebP/GIF/PDF, rasters re-encoded. `public/uploads/.htaccess` now ships (negated in `.gitignore`) and uses only universally-available directives after an earlier version 500'd a deployment. |
+| **Secrets** | No `.env` tracked. No high-entropy literal assigned to a key/secret/password/token name anywhere in `src/`, `config/` or `public/`. |
+| **JSON-LD** | `Support/Schema.php` routes 16 fields through `text()`; the layout renders with `JSON_UNESCAPED_SLASHES` as documented, so the escaping is load-bearing and present. |
+
+---
+
+## 7. What the previous audit claimed, re-checked
+
+| 2026-08-08 claim | Status today |
+|---|---|
+| Suite green on clean install | **Holds** — 4,881 tests (was 2,103), 0 failures |
+| Every route handler resolves | **Holds** — 496/496 (was 289) |
+| Every template named in PHP exists | **Holds** |
+| MySQL/SQLite table parity exact | **Holds** — 76/76 (was 75/75) |
+| No parse errors | **Holds** — 966 files |
+| No unreferenced service classes | **Holds** at class level; **fails at method level** — see §3.5 |
+| Nothing found is a live security defect | **Holds** |
+| The six §17 no-reader bugs | **All fixed** — `components_json` read at `SystemStatus:290`, `gates_ai_calls` at `:977` and `AiGateway:356,379`, `AiCapability::$model`/`$timeout` consumed on the wire |
+
+The recent flier and ticket-tier work was spot-checked against the invariants in `CLAUDE.md` and is
+clean: `fill` is used for backgrounds and `edge` only for borders (`events/form.twig:347`,
+`events/detail.twig:940`, `events/ticket.twig:819`); `detail.twig:927` carries an explicit comment
+that `loop.last` is not the dearest tier; and `FlierRaster` still holds the only `cover()` and the
+only `imagecopyresampled()` in the tree.
+
+---
+
+## 8. Suggested order of work
+
+1. **§3.1** — ~~add `->where('p.is_active', 1)` to both `VoteController` handlers, and walk the
+   eight other public readers.~~ **Done.** Five guards now live in `PublicSurfaceSandboxTest`,
+   each verified to fail with its fix removed.
+2. **§3.2** — ~~one static resolver per service, `gates_settings` first and `.env` as the
+   fallback; point `CycleAnnouncer` at the same resolver; add the fields to `/admin/settings`
+   and replace the "add it to `.env`" copy.~~ **Done**, via `OtpService::boot()` and
+   `CloudinaryService::config()`, with a scanning guard against a seventh reader.
+3. **§3.4** — ~~call `DisplayTime::toStored()` from `cycleSave()`, delete the two
+   reimplementations, and cover the round-trip with a test.~~ **Done**, across nine call sites in
+   seven templates and six write paths, with two scanning guards.
+4. **§3.3** — ~~either surface the funnel report, or drop `gates_events` and its emitters. Fix the
+   discarded `hasTable()` either way.~~ **Done** — a reader on the analytics page, the duplicate
+   funnel reader and four uncalled emitters deleted, the guard fixed.
+5. **§3.6** — ~~give `AiService` a sentinel it refuses before `curl_exec`.~~ **Done** — a full run
+   now contains zero occurrences of `api.openai.com`.
+6. ~~**§3.5** — triage the nine rows in the table; each is a decision to wire up or delete, not a fix.~~ **Done** — see the block under §3.5.

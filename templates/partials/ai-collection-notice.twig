@@ -1,0 +1,19 @@
+{#
+  THE POINT-OF-COLLECTION NOTICE — rebuilt Phase 8 (inventory _partials.md, MUST RESTORE)
+
+  A legal obligation, not a feature (NDPA 2023, GDPR art. 13): where somebody writes free
+  text that a third-party model may process, they are told so beside the field, before they
+  write it. Gated on `ai_collection_notice()` — the SAME predicate `/privacy` is generated
+  from (AiPrivacy::disclosure()), so the two documents cannot disagree, and not on whether a
+  provider is configured today, which would flip silently on an outage. REFERENCE §4.8's "no
+  AI wording" is about how features are named; a disclosure of data processing is exactly
+  what that rule does not reach (GAPS C13).
+
+  Args: where — what is being collected, in the words of the field it sits under.
+#}
+{% if ai_collection_notice() %}
+  <p class="ag-ai-note">
+    {{ '%where% may be sent to a third-party AI service so our reviewers can check it for spam and completeness, and place it in the right category for judging. Contact details are replaced with placeholders first, and a person makes every decision —'|trans({'%where%': where|default('What you write here'|trans)}) }}
+    <a href="/privacy#automated-processing">{{ 'see exactly what we send'|trans }}</a>.
+  </p>
+{% endif %}

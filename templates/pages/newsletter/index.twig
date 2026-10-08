@@ -1,0 +1,68 @@
+{% extends 'layout/shell.twig' %}
+{% import 'partials/ui.twig' as ui %}
+
+{#
+  /newsletter — what the newsletter is, and the form to join it. Rebuilt in Phase 9 on the
+  shell (inventory: pages--newsletter--index.md), in the document family's quiet idiom.
+
+  Every structural fact is read from the code that acts on it: the day it goes out from
+  NewsletterSchedule::describe(), what is in it from NewsletterComposer::SECTIONS, the
+  holiday greetings from HolidayCalendar. A page that types "every Thursday" goes on saying
+  it the week somebody moves the send to Monday.
+
+  DOUBLE OPT-IN: the form posts (no script needed), and the page it lands on says the one
+  thing the person must do next — open the confirmation email — because NewsletterAudience
+  mails nobody who has not confirmed. Colour tier 1: the one green submit.
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Newsletter'|trans, back: '/'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/newsletter.css') }}">{% endblock %}
+
+{% block content %}
+<div class="nl">
+  <header class="nl__head">
+    <p class="nl__kicker">{{ 'Newsletter'|trans }}</p>
+    <h1 class="nl__h1">{{ 'Africa GATES in your inbox'|trans }}</h1>
+    <p class="nl__lede">{{ 'What is open for nominations, when voting closes, results as they are announced, and the events around them. Every line links to the page that states it.'|trans }}</p>
+  </header>
+
+  {% if sent %}
+    <section class="nl__card" aria-labelledby="nlSent">
+      <h2 id="nlSent" class="nl__h2">{{ 'Check your inbox'|trans }}</h2>
+      <p class="nl__p">{{ 'We have sent a confirmation email. Press the button in it and you are on the list. Nothing else is sent to an address until it is confirmed.'|trans }}</p>
+      <p class="ag-hint">{{ 'Not there in a few minutes? Look in spam or promotions, or try again tomorrow — we send one confirmation a day to any address.'|trans }}</p>
+    </section>
+  {% else %}
+    <section class="nl__card" aria-labelledby="nlJoin">
+      <h2 id="nlJoin" class="nl__h2">{{ 'Join the list'|trans }}</h2>
+      <form class="nl__form" method="post" action="/newsletter" data-ag-validate novalidate>
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <label class="ag-label" for="nlEmail">{{ 'Email address'|trans }}</label>
+        <span class="ag-field"{% if email_error %} data-invalid{% endif %}><input id="nlEmail" type="email" name="email" required maxlength="190"
+               value="{{ old }}" inputmode="email" autocomplete="email" enterkeyhint="send" aria-describedby="nlHint{% if email_error %} nlErr{% endif %}"
+               {% if email_error %}aria-invalid="true"{% endif %}></span>
+        {% if email_error %}<p id="nlErr" class="ag-err" role="alert">{{ email_error|trans }}</p>{% endif %}
+        <p class="ag-hint" id="nlHint">{{ 'One confirmation email first. Every issue has a one-click unsubscribe.'|trans }}</p>
+        <button type="submit" class="ag-btn ag-btn--primary nl__go">{{ 'Send me the newsletter'|trans }}</button>
+      </form>
+    </section>
+  {% endif %}
+
+  <section class="nl__sec" aria-labelledby="nlWhen">
+    <h2 id="nlWhen" class="nl__h2">{{ 'When it arrives'|trans }}</h2>
+    <p class="nl__p">
+      {% if schedule %}{{ schedule }}.{% else %}{{ 'The first issue has not been scheduled yet. Confirm now and it is the first thing you receive.'|trans }}{% endif %}
+      {{ 'An issue goes out only when there is something new to say — a week with nothing open, announced or coming up is a week without an email.'|trans }}
+    </p>
+    {% if holidays %}
+      <p class="nl__p">{{ 'And a greeting on %h%.'|trans({'%h%': holidays|length > 1 ? (holidays|slice(0, -1)|join(', ') ~ ' ' ~ 'and'|trans ~ ' ' ~ holidays|last) : holidays|first}) }}</p>
+    {% endif %}
+  </section>
+
+  <section class="nl__sec" aria-labelledby="nlWhat">
+    <h2 id="nlWhat" class="nl__h2">{{ 'What is in it'|trans }}</h2>
+    {{ ui.ticks(sections|map(s => s|trans)) }}
+  </section>
+</div>
+{% endblock %}

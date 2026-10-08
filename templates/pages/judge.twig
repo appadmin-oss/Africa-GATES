@@ -1,0 +1,56 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE JUDGE — /judges/{slug} · JudgesController::show · Phase 8
+  Built without a DC (PHASE-8.md "built without a DC")
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct (inventory pages--judge.md); rebuilt on the shell so a judge's link stops
+  answering 500. A judge page is a NAME page: it carries Schema::person() through
+  partials/seo-head.twig (JSON_HEX_TAG, so a name full of `</script>` stays inert —
+  SeoStructuredDataTest), the judge's own photo as the share card, and never a nominee's
+  award line. The old page's small-caps engraving is not carried (no capitals, §18.3).
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Judge'|trans, back: '/judges'} %}
+
+{% block head_styles %}
+  {% include 'partials/seo-head.twig' %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="cm cm--narrow">
+  <article class="cm-col cm-col--pad" aria-labelledby="jd-h">
+    <nav class="cm-crumb" aria-label="{{ 'Breadcrumb'|trans }}">
+      {% for b in breadcrumbs %}{% if b.url %}<a href="{{ b.url }}">{{ b.label == 'The Jury' ? 'Judges'|trans : b.label }}</a> / {% else %}<span aria-current="page">{{ b.label }}</span>{% endif %}{% endfor %}
+    </nav>
+    <div class="cm-by cm-by--judge">
+      <span class="cm-judge__ph cm-judge__ph--lg">{% include 'partials/photo.twig' with {kind: 'person', src: judge.avatar_path, name: judge.name, id: judge.id, size: 96, alt: judge.avatar_path ? judge.name : ''} only %}</span>
+      <div>
+        <h1 class="cm-h1" id="jd-h">{{ judge.name }}</h1>
+        {% if judge.title or judge.organisation %}<p class="cm-lede">{{ [judge.title, judge.organisation]|filter(x => x)|join(', ') }}</p>{% endif %}
+        {% if judge.country %}<p class="cm-judge__c">{{ judge.country }}</p>{% endif %}
+      </div>
+    </div>
+    {% if judge.bio %}
+      <section class="cm-sec" aria-labelledby="jd-bio">
+        <h2 class="cm-bar__h" id="jd-bio">{{ 'About'|trans }}</h2>
+        <div class="cm-body">{{ judge.bio }}</div>
+      </section>
+    {% endif %}
+    {% if judge.programmes is not empty %}
+      <section class="cm-sec" aria-labelledby="jd-on">
+        <h2 class="cm-bar__h" id="jd-on">{{ 'On the panel for'|trans }}</h2>
+        <ul class="ag-list ag-card">
+          {% for p in judge.programmes %}
+            <li><a class="ag-list__row" href="/awards/{{ p.slug }}"><span class="ag-list__label">{{ p.title }}</span><span class="ag-list__chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></span></a></li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+    <p class="cm-box__p">{{ 'Judges mark against published criteria, and a judge with a conflict of interest steps aside from that entry.'|trans }} <a class="cm-link" href="/integrity">{{ 'How judging works'|trans }}</a></p>
+  </article>
+</div>
+{% endblock %}

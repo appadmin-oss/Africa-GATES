@@ -1,20 +1,33 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
+{#
+  /partner/success — "enquiry received". No DC (GAPS §5.1); rebuilt on the shell with the
+  receipts after the 3 Oct destroy, because the partnership form redirects here and an
+  organisation that had just written to us was shown a 500.
+
+  It promises only what a person on our side does: read it and reply. No reply window is
+  stated — the old page typed "within two working days" with nothing behind it, and a
+  number a screen prints as a promise needs a resolver (CLAUDE.md, review_sla_hours).
+  Tier 2 although it asks nothing: it links the receipts' one sheet, whose verdicts spend
+  green and live, and ColourBudgetTest reads the sheet a page links, not the rules it uses.
+#}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', share: false, title: 'Enquiry received'|trans, back: '/'} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/receipt.css') }}">
+  <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
 {% block content %}
-<section class="r26-hero" style="padding-block:clamp(3rem,7vw,5rem) clamp(2rem,4vw,3rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <span class="r26-reveal r26-d1" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:66px;height:66px;border-radius:50%;background:var(--emerald-50,#effaf0);color:var(--emerald-600,#1f9d55);margin:0 auto 1.4rem">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      </span>
-      <p class="r26-eyebrow r26-reveal r26-d2" style="justify-content:center;display:inline-flex">Enquiry received</p>
-      <h1 class="r26-hl r26-reveal r26-d3" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Talk soon — your <em style="color:var(--emerald-600)">note</em> is in.</h1>
-      <p class="r26-sub r26-reveal r26-d4" style="margin-left:auto;margin-right:auto">A programme director will reach out within two working days with a brief proposal.</p>
-      <div class="r26-reveal r26-d5" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-top:1.9rem">
-        <a href="/" class="btn btn--emerald">Back home <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <a href="/awards" class="btn btn--ghost">See the awards</a>
-      </div>
+<div class="rc">
+  <section class="rc__card" aria-labelledby="rcH">
+    <p class="rc__kicker">{{ 'Enquiry received'|trans }}</p>
+    <h1 class="rc__h1" id="rcH">{{ 'Thanks — we’ll be in touch'|trans }}</h1>
+    <p class="rc__p">{{ 'We have your partnership enquiry. A member of the partnerships team reads every one and will reply to the email address you shared.'|trans }}</p>
+    <div class="rc__do">
+      <a class="ag-btn ag-btn--primary" href="/awards">{{ 'See the awards'|trans }}</a>
+      <a class="ag-btn ag-btn--secondary" href="/">{{ 'Back home'|trans }}</a>
     </div>
-  </div>
-</section>
+  </section>
+</div>
 {% endblock %}

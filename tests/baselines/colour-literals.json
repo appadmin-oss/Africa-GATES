@@ -1,0 +1,14 @@
+{
+    "public/assets/css/a11y.css": 10,
+    "public/assets/css/aurora.css": 8,
+    "public/assets/css/components/auth.css": 27,
+    "public/assets/css/components/door.css": 121,
+    "public/assets/css/judge.css": 57,
+    "public/assets/css/main.css": 388,
+    "templates/judge/ballot.twig": 171,
+    "templates/judge/dashboard.twig": 2,
+    "templates/judge/login.twig": 8,
+    "templates/pages/events/door.twig": 1,
+    "templates/partials/icons.twig": 32,
+    "templates/partials/viz.twig": 25
+}

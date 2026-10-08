@@ -1,59 +1,148 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/legacy/{slug}` — ONE EDITION · Phase 6 · LegacyVault.dc.html (view: edition) · §8.18
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Written from the DC after the old page was destroyed (inventory:
+  docs/handoff/inventory/pages--legacy--event.md). Every fact from LegacyVault::edition().
+
+  Order (§8.18): breadcrumb → title → tagline → fact chips → overall winner of the edition →
+  category winners → "The night" → gallery → sealed record → earlier/later edition. Desktop
+  moves the facts, the seal, every edition of this award and "Cite this edition" into a
+  sticky 340px rail.
+
+  · The winners are the SEALED ones (PublicResults::edition()), never typed and never
+    recomputed; a night that names no cycle shows no winners.
+  · The DC's jury-chair quote is not drawn: nothing on this platform records one, and a quote
+    nobody said is the invented-statistic fault in quotation marks (PHASE-6 D-V2).
+  · The recap is operator HTML, through `sanitize_html` — the platform's allowlist filter.
+  · Phone: no app bar; the 4:3 cover is full-bleed with its own 44px back and share, and the
+    content is a sheet that overlaps it by 22px (the events detail's pattern).
+#}
+
+{% set colour_tier = '1' %}
+{% set e = ed.e %}
+{% set _name = e.award ~ (e.edition ? ' · ' ~ e.edition : '') %}
+{% set _cover = e.cover ? e.cover|media_url : '' %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/legacy.css') }}">{% endblock %}
+
+{% block app_bar %}{% endblock %}
+
 {% block content %}
+<div class="lve">
+  <div class="lve-cover">
+    {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: _cover, name: _name, date: e.date, eager: true} only %}
+    <div class="lve-cover__btns">
+      <a class="ag-btn ag-btn--icon ag-btn--float" href="/legacy" aria-label="{{ 'Back to the vault'|trans }}"><svg class="ag-ico-dir" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+      <button type="button" class="ag-btn ag-btn--icon ag-btn--float" data-ag-share aria-label="{{ 'Share this edition'|trans }}" data-ag-copied="{{ 'Link copied'|trans }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></button>
+    </div>
+  </div>
 
-{% set e = event %}
+  <div class="lve-sheet">
+    <div class="lve-main">
+      <header class="lve-head">
+        <div class="lve-head__text">
+          <nav class="lve-crumb" aria-label="{{ 'Breadcrumb'|trans }}"><a href="/legacy">{{ 'Legacy Vault'|trans }}</a><span aria-hidden="true">/</span><span>{{ e.award }}</span></nav>
+          <h1 class="lve-h1">{{ _name }}</h1>
+          {% if ed.tagline %}<p class="lve-lede">{{ ed.tagline }}</p>{% endif %}
+          {% if ed.facts %}<ul class="lve-facts" aria-label="{{ 'Edition facts'|trans }}">{% for f in ed.facts %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <span class="lve-head__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: _cover, name: _name} only %}</span>
+      </header>
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Legacy vault · {{ e.event_date|date('Y') }}</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">{{ e.title }}</h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">{{ e.tagline|default('A milestone cycle in the continental record.') }}</p>
-      <div class="r26-reveal r26-d4" style="margin-top:1.5rem;display:inline-flex;gap:0.6rem;flex-wrap:wrap;justify-content:center">
-        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ e.location }}</span>
-        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ e.event_date|date('d M Y') }}</span>
-        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ e.attendee_count|number_format }} delegates</span>
-        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ e.award_count }} awards</span>
+      {% if ed.overall %}
+        <section class="lve-ow" aria-labelledby="lve-ow">
+          <span class="lve-ow__img">{% include 'partials/photo.twig' with {kind: 'person', src: ed.overall.photo, name: ed.overall.name, id: ed.overall.id, size: 96} only %}</span>
+          <div class="lve-ow__t">
+            <span class="lve-ow__k"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 16 3 6.5l5 3.8L12 4l4 6.3 5-3.8L19.5 16z" fill="var(--ag-gold)" stroke="var(--ag-gold-ink)" stroke-width="1.6" stroke-linejoin="round"/></svg>{{ 'Overall winner of the edition'|trans }}</span>
+            <h2 class="lve-ow__n" id="lve-ow">{{ ed.overall.name }}</h2>
+            <span class="lve-ow__m">{{ ed.overall.category }} · <b>{{ 'CPI %n%'|trans({'%n%': ed.overall.cpi}) }}</b>{% if ed.overall.categories > 1 %}, {{ 'highest across all %n% categories'|trans({'%n%': ed.overall.categories}) }}{% endif %}</span>
+          </div>
+        </section>
+      {% endif %}
+
+      {% if ed.winners %}
+        <section class="lve-sec" aria-labelledby="lve-cw">
+          <div class="lve-sec__head"><h2 class="lve-sec__t" id="lve-cw">{{ 'Category winners'|trans }}</h2><span class="lve-sec__n">{{ ed.winners|length == 1 ? '1 category'|trans : '%n% categories'|trans({'%n%': ed.winners|length}) }}</span></div>
+          <ol class="lve-wins" id="lve-wins">
+            {% for w in ed.winners %}
+              <li class="{{ loop.index > 8 ? 'lve-wins__x' : (loop.index > 6 ? 'lve-wins__xp') }}">
+                <a class="lve-win" href="{{ w.url }}">
+                  <span class="lve-win__av">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, id: w.id, size: 44} only %}</span>
+                  <span class="lve-win__t"><span class="lve-win__c">{{ w.cat }}</span><span class="lve-win__n">{{ w.name }}</span></span>
+                  <span class="lve-win__cpi">{{ w.cpi }}</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ol>
+          {% if ed.winners|length > 6 %}<button type="button" class="ag-btn ag-btn--secondary lve-allwin{{ ed.winners|length <= 8 ? ' lve-allwin--phone' }}" data-lve-all aria-controls="lve-wins" hidden>{{ 'Show all %n% winners'|trans({'%n%': ed.winners|length}) }}</button>{% endif %}
+          {% if ed.result_url %}<a class="lve-link" href="{{ ed.result_url }}">{{ 'The full result, with every index'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>{% endif %}
+        </section>
+      {% endif %}
+
+      {% if ed.recap %}
+        <section class="lve-sec lve-recap" aria-labelledby="lve-rc">
+          <h2 class="lve-sec__t" id="lve-rc">{{ 'The night'|trans }}</h2>
+          <div class="lve-recap__body">{{ ed.recap|sanitize_html }}</div>
+        </section>
+      {% endif %}
+
+      {% if ed.gallery %}
+        <section class="lve-sec" aria-labelledby="lve-g">
+          <h2 class="lve-sec__t" id="lve-g">{{ 'From the floor'|trans }}</h2>
+          <ul class="lve-gal">
+            {% for g in ed.gallery %}<li><a href="{{ g|media_url }}" aria-label="{{ 'Photo %n% of %t%, open full size'|trans({'%n%': loop.index, '%t%': loop.length}) }}">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: g|media_url, name: _name} only %}</a></li>{% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      <div class="lve-phone">
+        {% if ed.seal %}
+          <a class="lve-seal lve-seal--row" href="/integrity">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/><path d="m8.8 12 2.2 2.2 4.4-4.4" stroke-linecap="round"/></svg>
+            <span class="lve-seal__t"><b>{{ 'Sealed record'|trans }}</b><span>{{ 'Fingerprint'|trans }} <span class="lve-seal__ref" title="{{ ed.seal.hash }}">{{ ed.seal.short }}</span> · {{ 'sealed %d%'|trans({'%d%': ed.seal.at|date('j M Y')}) }}</span></span>
+            <svg class="ag-ico-dir lve-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </a>
+        {% endif %}
+        {% if ed.earlier or ed.later %}
+          <nav class="lve-near" aria-label="{{ 'Other editions'|trans }}">
+            {% if ed.earlier %}<a href="{{ ed.earlier.url }}"><span>← {{ 'Earlier'|trans }}</span><b>{{ ed.earlier.label }} · {{ ed.earlier.note }}</b></a>{% else %}<span></span>{% endif %}
+            {% if ed.later %}<a class="lve-near__later" href="{{ ed.later.url }}"><span>{{ 'Later'|trans }} →</span><b>{{ ed.later.label }} · {{ ed.later.note }}</b></a>{% endif %}
+          </nav>
+        {% endif %}
       </div>
     </div>
+
+    <aside class="lve-rail" aria-label="{{ 'About this edition'|trans }}">
+      {% if ed.rail %}
+        <dl class="lve-card lve-rf">{% for f in ed.rail %}<div><dt>{{ f.k|trans }}</dt><dd>{{ f.v }}</dd></div>{% endfor %}</dl>
+      {% endif %}
+      {% if ed.seal %}
+        <a class="lve-card lve-seal" href="/integrity">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/><path d="m8.8 12 2.2 2.2 4.4-4.4" stroke-linecap="round"/></svg>
+          <span class="lve-seal__t"><b>{{ 'Sealed record'|trans }}</b><span>{{ 'Fingerprint'|trans }} <span class="lve-seal__ref" title="{{ ed.seal.hash }}">{{ ed.seal.short }}</span>. {{ 'Sealed when the result was announced, %d%, and never rewritten.'|trans({'%d%': ed.seal.at|date('j M Y')}) }} <u>{{ 'How sealing works'|trans }}</u></span></span>
+        </a>
+      {% endif %}
+      {% if ed.timeline|length > 1 %}
+        <div class="lve-card lve-tl">
+          <b class="lve-tl__t">{{ 'Every edition of this award'|trans }}</b>
+          <ol>
+            {% for t in ed.timeline %}
+              <li><a href="{{ t.url }}"{% if t.current %} aria-current="page"{% endif %} class="{{ t.current ? 'is-current' }}{{ t.live ? ' is-live' }}"><span class="lve-tl__dot" aria-hidden="true"></span><span>{{ t.label }}</span><span class="lve-tl__n">{{ t.note }}</span></a></li>
+            {% endfor %}
+          </ol>
+        </div>
+      {% endif %}
+      <details class="lve-cite">
+        <summary class="ag-btn ag-btn--secondary">{{ 'Cite this edition'|trans }}</summary>
+        <p class="lve-cite__text">{{ ed.cite }}</p>
+      </details>
+    </aside>
   </div>
-</section>
-
-<article class="r26-article wrap" style="padding-top:1rem">
-  {% if e.cover_path %}
-  <figure class="r26-article__cover"><img src="{{ e.cover_path }}" alt="{{ e.title }}" fetchpriority="high" decoding="async"></figure>
-  {% endif %}
-
-  <div class="r26-prose">
-    {% if e.recap_html %}
-      <div data-anim>{{ e.recap_html|sanitize_html }}</div>
-    {% else %}
-      <div data-anim>
-        <p>{{ e.title }} brought together {{ e.attendee_count|number_format }} delegates across {{ e.award_count }} category panels at {{ e.location }}.</p>
-        <p>{{ e.tagline|default('Programme highlights, jury rationales, and full winner attribution are preserved in the vault for posterity.') }}</p>
-      </div>
-    {% endif %}
-  </div>
-
-  {% set images = e.gallery_paths|default([]) %}
-  {% if images is iterable and images|length > 0 %}
-    <div class="r26-head" style="margin-top:2.5rem">
-      <p class="r26-eyebrow">From the floor</p>
-      <h2 class="r26-h2">Gallery</h2>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.75rem">
-      {% for img in images %}
-      <a href="{{ img }}" target="_blank" rel="noopener" style="display:block;aspect-ratio:4/3;border-radius:16px;overflow:hidden;background:var(--r26-gray)" data-anim data-anim-delay="{{ loop.index0 % 4 }}">
-        <img src="{{ img }}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block">
-      </a>
-      {% endfor %}
-    </div>
-  {% endif %}
-
-  <div style="margin-top:3rem;text-align:center" data-anim>
-    <a href="/legacy" class="btn btn--white">All editions</a>
-  </div>
-</article>
-
+</div>
 {% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/legacy.js') }}"></script>{% endblock %}

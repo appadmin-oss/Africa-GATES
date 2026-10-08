@@ -1,0 +1,343 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE HOMEPAGE — Phase 4 · HomePageV3.dc.html (+ WeAreAfrica.dc.html as `.waa`)
+   Linked by templates/pages/home.twig only.
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Every value is the DC's inline style or its `vals()` / tablet `Object.assign`, written
+   mobile-first: phone <600, tablet 600–1023, desktop ≥1024 (REFERENCE §6.7).
+
+   Where it is not the DC (PHASE-4.md, "Home", deviations — each with its reason):
+   · the desktop H1 is 44, REFERENCE §6.2's display size, not the DC's 48 (§0: REFERENCE
+     outranks a DC); phone 32 and tablet 40 are the DC's;
+   · the record card's and band's shadows are the DC's, as colour-mix of the ink — a
+     typed rgba is a colour literal (ColourLiteralTest);
+   · the "Just decided" initials sit on `--ag-tint`, not gold-wash: gold would be a third
+     colour family on a tier-2 page (ColourBudgetTest); "Winner" says it in words;
+   · the band's words are `--ag-surface` (the palette's word on ink), not #f1efe9;
+   · the "N days left" text is `--ag-live-ink`; the DC's #cc1950 is not a palette value.
+   Logical properties throughout, so Arabic mirrors the page.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.hm{
+  max-width:1180px; margin:0 auto;
+  padding:0 16px 32px;
+  display:flex; flex-direction:column; gap:64px;
+}
+
+/* ── 1 · Hero ─────────────────────────────────────────────────────────────── */
+.hm-hero{ display:grid; grid-template-columns:minmax(0, 1fr); gap:22px; align-items:stretch }
+.hm-hero__text{ order:2; display:flex; flex-direction:column; justify-content:center; gap:14px }
+.hm-hero__h1{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-32); line-height:1.08; letter-spacing:-.01em; text-wrap:balance;
+}
+.hm-hero__lead{ margin:0; max-width:48ch; font-size:var(--ag-fs-15-5); line-height:1.55; color:var(--ag-ink-2); text-wrap:pretty }
+.hm-hero__ctas{ display:grid; grid-template-columns:minmax(0, 1fr); gap:8px; padding-top:6px }
+.hm-cta,
+.hm-cta:hover{
+  display:flex; align-items:center; justify-content:center;
+  height:54px; padding:0 22px; border-radius:16px;
+  font-size:var(--ag-fs-16); text-decoration:none;
+}
+.hm-cta--go,
+.hm-cta--go:hover{ background:var(--ag-green); color:var(--ag-surface); font-weight:700 }
+.hm-cta--line,
+.hm-cta--line:hover{ border:1px solid var(--ag-ink); color:var(--ag-ink); font-weight:600 }
+
+.hm-hero__media{
+  order:1; position:relative; overflow:hidden;
+  min-height:380px; margin:0 -16px; border-radius:0;
+  background:var(--ag-tint);
+}
+/* No decided award at all: the continent's outline, quiet. A winner without a photo is
+   partials/photo.twig's monogram instead (GAPS Q8). */
+.hm-hero__mark{ position:absolute; inset:12% 20% 40%; width:60%; height:48%; object-fit:contain; opacity:.18 }
+
+.hm-rec,
+.hm-rec:hover{
+  position:absolute; inset-inline:16px; bottom:16px;
+  display:flex; flex-direction:column; gap:12px;
+  padding:14px 16px; border-radius:18px;
+  background:color-mix(in srgb, var(--ag-surface) 96%, transparent);
+  color:var(--ag-ink); text-decoration:none;
+  box-shadow:0 8px 30px color-mix(in srgb, var(--ag-ink) 18%, transparent);
+}
+.hm-rec__who{ display:flex; align-items:center; gap:12px }
+.hm-rec__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.hm-rec__n{ font-weight:700; font-size:var(--ag-fs-15) }
+.hm-rec__s{ font-size:var(--ag-fs-13); color:var(--ag-ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.hm-rec__by{
+  display:flex; align-items:center; gap:8px;
+  padding-top:10px; border-top:1px solid var(--ag-line);
+  font-size:var(--ag-fs-12-5); color:var(--ag-ink-2);
+}
+.hm-rec__tile{
+  flex:none; width:22px; height:22px; border-radius:6px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-ink); color:var(--ag-surface);
+  font-weight:700; font-size:var(--ag-fs-11-5);
+}
+.hm-rec__issuer{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.hm-rec__chip{
+  flex:none; height:22px; padding:0 8px; border-radius:var(--ag-r-pill);
+  display:flex; align-items:center;
+  background:var(--ag-ground); color:var(--ag-ink);
+  font-weight:700; font-size:var(--ag-fs-11-5);
+}
+
+/* An avatar: the box partials/photo.twig fills (photo, or its monogram — GAPS Q8). */
+.hm-av{ position:relative; flex:none; overflow:hidden; border-radius:50% }
+.hm-av--44{ width:44px; height:44px }
+
+/* ── 2 · Live stats ───────────────────────────────────────────────────────── */
+.hm-stats{
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:20px 16px;
+  margin-top:-24px; padding-top:20px; border-top:1px solid var(--ag-line-2);
+}
+.hm-stat{ display:flex; flex-direction:column; gap:4px }
+.hm-stat__n{
+  font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-28); line-height:1; font-variant-numeric:tabular-nums;
+}
+.hm-stat__l{ font-size:var(--ag-fs-14); color:var(--ag-soft) }
+
+/* ── Section heads ────────────────────────────────────────────────────────── */
+.hm-sec{ display:flex; flex-direction:column; gap:18px }
+.hm-head{ display:flex; flex-direction:column; gap:6px; max-width:640px }
+.hm-head--row{ max-width:none; flex-direction:row; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px }
+.hm-eyebrow{ font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-green) }
+.hm-h2{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-26); line-height:1.15; text-wrap:balance;
+}
+.hm-h3{ margin:0; display:flex; align-items:center; gap:8px; font-weight:700; font-size:var(--ag-fs-18) }
+.hm-more,
+.hm-more:hover{ font-weight:600; font-size:var(--ag-fs-14); color:var(--ag-green); text-decoration:none }
+.hm-more--lg{ font-size:var(--ag-fs-14-5) }
+.hm-dot{ flex:none; width:8px; height:8px; border-radius:50%; background:var(--ag-live) }
+
+/* ── 5 · We Are Africa — breaks out of the page gutter (the DC's waaBleed) ───── */
+.hm-bleed{ margin:0 -16px }
+
+/* ── 6 · Happening now ────────────────────────────────────────────────────── */
+.hm-now{ display:grid; grid-template-columns:minmax(0, 1fr); gap:30px; align-items:start }
+.hm-now__col{ min-width:0; display:flex; flex-direction:column; gap:12px }
+.hm-now__hd{ display:flex; align-items:baseline; justify-content:space-between; gap:12px }
+.hm-list{
+  margin:0; padding:0; list-style:none;
+  display:flex; flex-direction:column; gap:1px;
+  background:var(--ag-line); border:1px solid var(--ag-line); border-radius:16px; overflow:hidden;
+}
+.hm-row,
+.hm-row:hover{
+  display:flex; align-items:center; gap:14px; min-height:44px;
+  padding:12px 14px; background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
+}
+.hm-row--dec{ gap:12px }
+.hm-thumb{
+  position:relative; flex:none; width:56px; height:56px; border-radius:12px; overflow:hidden;
+}
+.hm-row__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.hm-row__n{ font-weight:600; font-size:var(--ag-fs-15) }
+.hm-row__n--sm{ font-size:var(--ag-fs-14-5) }
+.hm-row__m{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.hm-row__m--one{ font-size:var(--ag-fs-12-5); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.hm-row__left{ flex:none; font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-live-ink) }
+
+/* ── 7 · Giving ───────────────────────────────────────────────────────────── */
+.hm-give,
+.hm-give:hover{
+  display:grid; grid-template-columns:minmax(0, 1fr);
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:24px; overflow:hidden;
+  color:var(--ag-ink); text-decoration:none;
+}
+.hm-give__media{
+  position:relative; min-height:220px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-tint);
+}
+.hm-give__logo{ max-width:50%; max-height:60%; object-fit:contain }
+.hm-give__body{ display:flex; flex-direction:column; justify-content:center; gap:16px; padding:22px }
+.hm-give__org{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.hm-give__t{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-24); line-height:1.2; text-wrap:balance }
+.hm-give__prog{ display:flex; flex-direction:column; gap:8px }
+.hm-give__bar{ height:8px; border-radius:4px; background:var(--ag-tint); overflow:hidden }
+.hm-give__bar > [aria-hidden]{ display:block; height:100%; width:var(--hm-pct, 0%); background:var(--ag-green) }
+.hm-vh{
+  position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden;
+  clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+.hm-give__bar{ position:relative }
+.hm-give__sum{ font-size:var(--ag-fs-14-5); font-variant-numeric:tabular-nums }
+.hm-give__sum > span{ color:var(--ag-soft) }
+.hm-cta--give{
+  align-self:flex-start; height:48px; padding:0 28px; border-radius:var(--ag-r-pill);
+  background:var(--ag-green); color:var(--ag-surface); font-weight:600; font-size:var(--ag-fs-15);
+}
+
+/* ── 8 · Recognise band ───────────────────────────────────────────────────── */
+.hm-host{
+  display:grid; grid-template-columns:minmax(0, 1fr); gap:24px; align-items:center;
+  padding:24px 20px; border-radius:24px;
+  background:var(--ag-ink); color:var(--ag-surface);
+}
+.hm-host:focus{ outline:none }
+.hm-host__text{ display:flex; flex-direction:column; gap:12px }
+.hm-host__eyebrow{ font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-green-light) }
+.hm-host__side{ display:flex; flex-direction:column; gap:12px; align-items:flex-start }
+.hm-host__points{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:12px }
+.hm-host__points li{ display:flex; align-items:center; gap:10px; font-size:var(--ag-fs-14-5) }
+.hm-host__points svg{ flex:none; color:var(--ag-green-light) }
+.hm-host__ctas{ display:flex; gap:8px; flex-wrap:wrap; padding-top:6px }
+.hm-pill,
+.hm-pill:hover{
+  display:flex; align-items:center; height:48px; padding:0 20px; border-radius:var(--ag-r-pill);
+  font-weight:600; font-size:var(--ag-fs-15); text-decoration:none;
+}
+.hm-pill--line,
+.hm-pill--line:hover{ border:1px solid var(--ag-ink-2); color:var(--ag-surface) }
+.hm-host a:focus-visible{ outline-color:var(--ag-green-light) }
+
+/* ══ WE ARE AFRICA — WeAreAfrica.dc.html, `standalone=false` ════════════════════
+   A dark band 560 (phone) / 720 tall, which narrows into the page and rounds its
+   corners while it is away from the middle of the scroller and reaches the edges as it
+   arrives there (the DC's `p`, set by the script as --waa-p; with no script, or reduced
+   motion, it is drawn full-bleed — the DC's final state). */
+.waa{
+  --waa-p:1;
+  position:relative; overflow:hidden;
+  height:560px;
+  margin:0 calc((1 - var(--waa-p)) * 16px);
+  border-radius:calc((1 - var(--waa-p)) * 28px);
+  background:var(--ag-ink); color:var(--ag-surface);
+}
+.waa__globe{
+  position:absolute; inset:0; width:100%; height:100%;
+  cursor:grab; touch-action:pan-y;
+}
+.waa__globe.is-grabbing{ cursor:grabbing }
+.waa__globe:focus-visible{ outline:3px solid var(--ag-green-light); outline-offset:-6px }
+.waa__pins{ position:absolute; inset:0; pointer-events:none }
+.waa__h{
+  position:absolute; inset-inline:0; top:32px; margin:0;
+  text-align:center; pointer-events:none;
+  font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-38); line-height:1; letter-spacing:-.01em;
+  text-shadow:0 0 24px var(--ag-ink);
+}
+.waa__note{
+  position:absolute; inset-inline:16px; bottom:18px; margin:0 auto; max-width:64ch;
+  text-align:center; pointer-events:none;
+  font-size:var(--ag-fs-13-5); line-height:1.45; color:var(--ag-surface);
+  text-shadow:0 0 12px var(--ag-ink);
+}
+
+/* A marker: a 44px target on the country's centroid; the visible mark is 12px, ringed
+   with a check where an award has been decided. Positioned by the script (--waa-x/y) —
+   not from a typed coordinate. Physical left/top: these are positions ON THE SPHERE,
+   which does not mirror in Arabic. */
+.waa__m{
+  position:absolute; left:var(--waa-x, -100px); top:var(--waa-y, -100px);
+  width:44px; height:44px; margin:-22px 0 0 -22px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:0; border-radius:50%; background:transparent; color:var(--ag-ink);
+  cursor:pointer; pointer-events:auto;
+  transition:opacity var(--ag-dur-1) var(--ag-ease);
+}
+.waa__m[hidden]{ display:none }
+.waa__m.is-far{ opacity:0; pointer-events:none }
+.waa__m:focus-visible{ opacity:1; outline:3px solid var(--ag-green-light); outline-offset:0 }
+.waa__dot{
+  width:12px; height:12px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-surface);
+  box-shadow:0 0 0 2px var(--ag-ink);
+}
+.waa__m--won .waa__dot{
+  width:22px; height:22px;
+  box-shadow:0 0 0 2px var(--ag-green-light), 0 0 0 4px var(--ag-ink);
+}
+.waa__m[aria-expanded="true"] .waa__dot{ box-shadow:0 0 0 3px var(--ag-green-light) }
+.waa__lbl{
+  position:absolute; top:calc(100% - 6px); inset-inline-start:50%; transform:translateX(-50%);
+  white-space:nowrap; padding:2px 8px; border-radius:var(--ag-r-pill);
+  background:var(--ag-ink); color:var(--ag-surface);
+  font-size:var(--ag-fs-12); font-weight:700;
+}
+[dir="rtl"] .waa__lbl{ transform:translateX(50%) }
+
+/* The nation's card. Inside the band and above every marker, anchored above the note —
+   not under a sibling's stacking context (the old band put it beneath its stat card). */
+.waa__card{
+  position:absolute; z-index:2; inset-inline:16px; top:96px;
+  margin-inline:auto; max-width:340px;
+  display:flex; flex-direction:column; gap:12px;
+  padding:18px; border-radius:18px;
+  background:color-mix(in srgb, var(--ag-surface) 97%, transparent); color:var(--ag-ink);
+  box-shadow:0 18px 40px color-mix(in srgb, var(--ag-ink) 35%, transparent);
+}
+.waa__card[hidden]{ display:none }
+.waa__card-hd{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+.waa__card-n{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-20); line-height:1.25 }
+.waa__card-won{ margin:0; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-green-deep) }
+.waa__card-won[hidden]{ display:none }
+.waa__x{
+  flex:none; width:44px; height:44px; margin:-10px; padding:0; border:0; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:transparent; color:var(--ag-ink); cursor:pointer;
+}
+.waa__rows{ margin:0; display:flex; flex-direction:column }
+.waa__rows > div{
+  display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+  padding:10px 0; border-top:1px solid var(--ag-line);
+}
+.waa__rows dt{ font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+.waa__rows dd{ margin:0; font-weight:700; font-size:var(--ag-fs-15); font-variant-numeric:tabular-nums }
+
+/* ══ Tablet 600–1023 ═══════════════════════════════════════════════════════════ */
+@media (min-width:600px){
+  .hm{ padding:28px 28px 48px; gap:64px }
+  .hm-hero{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:20px }
+  .hm-hero__text{ order:0 }
+  .hm-hero__h1{ font-size:var(--ag-fs-40) }
+  .hm-hero__lead{ font-size:var(--ag-fs-16-5) }
+  .hm-hero__ctas{ display:flex; flex-wrap:wrap; padding-top:0 }
+  .hm-cta{ height:50px; border-radius:var(--ag-r-pill) }
+  .hm-hero__media{ order:0; margin:0; border-radius:20px }
+  .hm-stats{ grid-template-columns:repeat(4, minmax(0, 1fr)); gap:24px; margin-top:-32px }
+  .hm-stat__n{ font-size:var(--ag-fs-30) }
+  .hm-h2{ font-size:var(--ag-fs-30) }
+  .hm-bleed{ margin:0 -28px }
+  .hm-now{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) }
+  .hm-give{ grid-template-columns:minmax(0, 1.1fr) minmax(0, 1fr) }
+  .hm-give__media{ min-height:360px }
+  .hm-give__body{ padding:40px }
+  .hm-give__t{ font-size:var(--ag-fs-32) }
+  .hm-host{ padding:32px }
+  .waa{ height:720px; margin:0 calc((1 - var(--waa-p)) * 72px) }
+  .waa__h{ top:52px; font-size:var(--ag-fs-64) }
+  /* From 600 the note is one or two lines, so the card can sit above it, clear of the
+     heading; on a phone the note runs to four and the card hangs under the heading. */
+  .waa__card{ top:auto; bottom:64px }
+}
+
+/* ══ Desktop ≥1024 ═════════════════════════════════════════════════════════════ */
+@media (min-width:1024px){
+  .hm{ padding:36px 32px 56px; gap:112px }
+  .hm-hero{ grid-template-columns:minmax(0, 1.1fr) minmax(0, 1fr) }
+  .hm-hero__h1{ font-size:var(--ag-fs-44); line-height:1.06 }
+  .hm-hero__lead{ font-size:var(--ag-fs-17) }
+  .hm-hero__media{ min-height:400px }
+  .hm-stats{ margin-top:-48px }
+  .hm-bleed{ margin:0 -32px }
+  .hm-stat__n{ font-size:var(--ag-fs-36) }
+  .hm-h2{ font-size:var(--ag-fs-34) }
+  .hm-now{ grid-template-columns:minmax(0, 1fr) 380px }
+  .hm-host{ grid-template-columns:minmax(0, 1.2fr) minmax(0, 1fr); padding:40px }
+}
+
+/* Reduced motion: the final state at once. */
+@media (prefers-reduced-motion: reduce){
+  .waa__m{ transition:none }
+  .waa{ --waa-p:1 !important }
+}

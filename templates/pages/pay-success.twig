@@ -1,36 +1,76 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
+{#
+  /pay/success — the receipt for a contribution (PaymentController::success). No DC
+  (GAPS §5.1); rebuilt on the shell with the other receipts (components/receipt.css).
+
+  Destroyed on 3 Oct 2026, and this is where the gateway SENDS somebody who has just
+  paid — so a confirmed payment was answered with "500 · Reference …", which reads as
+  the money having gone missing at the one moment a supporter is deciding whether it
+  has. The help desk then saw the error reference and the wallet's own reference side
+  by side and could reconcile neither.
+
+  Two states, from the record and never from the URL: `confirmed` is a donation row the
+  gateway has verified. Nothing is celebrated — a contribution is not one of the moments
+  §7.8 names, and money is the last place to perform a feeling.
+
+  THE UNCONFIRMED STATE IS THE INCIDENT THIS PAGE WAS BUILT AFTER. Somebody who paid
+  inside a wallet app lands here, reads "awaiting confirmation", and has no way of
+  knowing a single re-check against the gateway would settle it. The primary action
+  carries the reference into the assistant with `ask=1`, so the repair costs them one
+  tap and no typing (SupportSurfaceRenderTest held this before the destroy).
+#}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', share: false, title: confirmed ? 'Payment confirmed'|trans : 'Checking your payment'|trans, back: '/'} %}
+{% set _bonus = bonus_votes|default(0) %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/receipt.css') }}">
+  <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
 {% block content %}
-<section class="r26-hero" style="padding-block:clamp(3rem,7vw,5rem) clamp(2rem,4vw,3rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      {% if confirmed %}
-      <span class="r26-reveal r26-d1" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:66px;height:66px;border-radius:50%;background:var(--emerald-50,#effaf0);color:var(--emerald-600,#1f9d55);margin:0 auto 1.4rem">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      </span>
-      <p class="r26-eyebrow r26-reveal r26-d2" style="justify-content:center;display:inline-flex">Payment confirmed</p>
-      <h1 class="r26-hl r26-reveal r26-d3" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Thank you — you're <em style="color:var(--emerald-600)">in.</em></h1>
-      <p class="r26-sub r26-reveal r26-d4" style="margin-left:auto;margin-right:auto">
-        We received <strong>₦{{ amount_naira|number_format }}</strong>.{% if bonus_votes > 0 %} Your <strong>{{ bonus_votes }} vote{{ bonus_votes == 1 ? '' : 's' }}</strong> are credited to <strong>this email</strong> — head to the voting page to cast them across any open category.{% else %} A receipt is on its way to your email.{% endif %}
+<div class="rc">
+  <section class="rc__card" aria-labelledby="rcH">
+    {% if confirmed %}
+      <div class="rc__verdict rc__verdict--ok" role="status">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Payment confirmed'|trans }}</p>
+          <p class="rc__verdict-s">{{ 'The gateway has verified it. This page is your copy; the emailed receipt is the record.'|trans }}</p></div>
+      </div>
+      <h1 class="rc__h1" id="rcH">{{ _bonus > 0 ? 'Your votes are in'|trans : 'Thank you'|trans }}</h1>
+      <p class="rc__p">
+        {%- if _bonus > 0 -%}
+          {{ (_bonus == 1 ? 'Your %n% vote is credited to this email — cast it in any open category.' : 'Your %n% votes are credited to this email — cast them across any open category.')|trans({'%n%': _bonus|number_format}) }}
+        {%- else -%}
+          {{ 'We have received your contribution. A receipt is on its way to your inbox.'|trans }}
+        {%- endif -%}
       </p>
-      {% if reference %}<p class="r26-reveal r26-d4" style="font-size:.8125rem;color:var(--neutral-500);margin-top:.5rem">Reference: {{ reference }}</p>{% endif %}
-      <div class="r26-reveal r26-d5" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-top:1.9rem">
-        {% if bonus_votes > 0 %}<a href="/vote" class="btn btn--emerald">Cast your votes <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>{% endif %}
-        <a href="/" class="btn {{ bonus_votes > 0 ? 'btn--ghost' : 'btn--emerald' }}">Back home</a>
+      <dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd>
+        {%- if amount_naira|default(0) > 0 %}<dd class="rc__ref-amount">₦{{ amount_naira|number_format }}</dd>{% endif -%}
+      </dl>
+      <div class="rc__do">
+        {% if _bonus > 0 %}
+          <a class="ag-btn ag-btn--primary" href="/vote">{{ 'Cast your votes'|trans }}</a>
+        {% else %}
+          <a class="ag-btn ag-btn--primary" href="/leaderboard">{{ 'See the leaderboard'|trans }}</a>
+        {% endif %}
+        <a class="ag-btn ag-btn--secondary" href="/">{{ 'Back home'|trans }}</a>
       </div>
-      {% else %}
-      <span class="r26-reveal r26-d1" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:66px;height:66px;border-radius:50%;background:#fef2f2;color:#b91c1c;margin:0 auto 1.4rem">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></svg>
-      </span>
-      <p class="r26-eyebrow r26-reveal r26-d2" style="justify-content:center;display:inline-flex">Awaiting confirmation</p>
-      <h1 class="r26-hl r26-reveal r26-d3" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">We're <em style="color:var(--emerald-600)">checking</em> your payment.</h1>
-      <p class="r26-sub r26-reveal r26-d4" style="margin-left:auto;margin-right:auto">If you completed payment, confirmation can take a moment — you'll get an email once it clears. If something went wrong, please reach out through the enquiry form.</p>
-      <div class="r26-reveal r26-d5" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-top:1.9rem">
-        <a href="/partner#enquiry" class="btn btn--emerald">Contact the team</a>
-        <a href="/" class="btn btn--ghost">Back home</a>
+    {% else %}
+      <div class="rc__verdict rc__verdict--wait" role="status">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.2 1.9"/></svg>
+        <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Not confirmed yet'|trans }}</p>
+          <p class="rc__verdict-s">{{ 'No charge is confirmed until you receive an emailed receipt.'|trans }}</p></div>
       </div>
-      {% endif %}
-    </div>
-  </div>
-</section>
+      <h1 class="rc__h1" id="rcH">{{ 'We’re checking your payment'|trans }}</h1>
+      <p class="rc__p">{{ 'If you completed payment, the gateway can take a moment to tell us. One re-check asks it directly and credits everything if the money arrived.'|trans }}</p>
+      {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
+      <div class="rc__do">
+        <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Re-check this payment'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary" href="/support">{{ 'Contact support'|trans }}</a>
+      </div>
+      <p class="rc__fine">{{ 'Paid inside a wallet or bank app? Its own transaction number is different from ours — either one works with support.'|trans }}</p>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

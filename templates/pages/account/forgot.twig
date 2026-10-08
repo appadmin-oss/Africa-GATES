@@ -1,0 +1,34 @@
+{% extends 'layout/auth.twig' %}
+{% import 'layout/auth.twig' as auth %}
+{% import 'partials/field.twig' as f %}
+{#
+  FORGOTTEN PASSWORD — /account/forgot · Phase 8, in SignIn.dc.html's frame (no view of its own)
+
+  Destroyed and rebuilt (inventory pages--account--forgot.md). Every reply here is the same
+  sentence whether or not the address has an account: "no account uses that email" is a free
+  membership check, and this platform's members are named public figures. The rules are
+  stated before they are met — one link, one hour — and the code, which signs somebody in
+  at once, is offered beside it on the same form (`formaction`, never a nested form).
+  The code's window is read from UserAccountService::OTP_TTL_MINUTES.
+#}
+{% set _error  = error|default(null) ?: flash_error|default(null) %}
+{% set _notice = notice|default(null) ?: flash_notice|default(null) %}
+{% block auth_top %}{{ auth.back('/account/login?with=password', 'Back to sign in'|trans) }}{% endblock %}
+{% block auth_body %}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Reset your password'|trans }}</h1>
+    <p class="si__lede">{{ 'Tell us the email on your account and we will send a link to set a new password. It works once and lasts an hour.'|trans }}</p>
+  </div>
+  {{ auth.say(_error, _notice) }}
+  <form class="si__form-step" method="post" action="/account/forgot" novalidate data-ag-validate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input class="si__in" id="email" type="email" name="email" value="{{ login_email|default('') }}" required
+           autocomplete="email" inputmode="email" aria-label="{{ 'Email'|trans }}" placeholder="you@example.com" autofocus
+           {% if errors.email|default('') %}aria-invalid="true" aria-describedby="email-err"{% endif %}>
+    {{ f.message('email', errors.email|default('')) }}
+    <button class="si__go" type="submit">{{ 'Email me a reset link'|trans }}</button>
+    <p class="si__alt"><button class="si__link" type="submit" formaction="/account/login/otp" formnovalidate>{{ 'Send a one-time code instead'|trans }}</button></p>
+  </form>
+  <p class="si__fine">{{ 'A one-time code signs you in straight away and lasts %n% minutes; you can set a new password from your account afterwards.'|trans({'%n%': otp_ttl_minutes}) }}</p>
+  <p class="si__alt"><a href="/account/login">{{ 'Remembered it? Sign in'|trans }}</a></p>
+{% endblock %}

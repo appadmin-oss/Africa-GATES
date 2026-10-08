@@ -1,0 +1,15 @@
+{
+ "report": {
+  "rtl-win-full": "rtl",
+  "rtl-win-inline": "rtl",
+  "rtl-vote-full": "rtl",
+  "rtl-vote-inline": "rtl",
+  "rtl-nominate-full": "rtl",
+  "rtl-nominate-inline": "rtl",
+  "rtl-give-full": "rtl",
+  "rtl-give-inline": "rtl",
+  "rtl-ticket-full": "rtl",
+  "rtl-ticket-inline": "rtl"
+ },
+ "errors": []
+}

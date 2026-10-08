@@ -1,0 +1,16 @@
+390 mouse click on decided marker → card visible: true, aria-expanded=true
+390 Esc closes card: true; focus back on marker: true
+1440 mouse click on decided marker → card visible: true, aria-expanded=true
+1440 Esc closes card: true; focus back on marker: true
+reduced=false: --waa-p at "Happening now" = 0.000
+reduced=true: --waa-p at "Happening now" = 1
+Gee clearance 390 answered: 16px
+Gee clearance 390 with cookie notice: 16px
+Gee clearance 834 answered: 16px
+Gee clearance 834 with cookie notice: 16px
+Gee clearance 1024 answered: 16px
+Gee clearance 1024 with cookie notice: 16px
+Gee clearance 1440 answered: 16px
+Gee clearance 1440 with cookie notice: 16px
+
+console errors:

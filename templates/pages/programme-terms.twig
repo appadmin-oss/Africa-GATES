@@ -1,0 +1,101 @@
+{% extends 'layout/shell.twig' %}
+{% import 'partials/article.twig' as art %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  AN AWARD'S TERMS — /terms/{slug}
+  Phase 9 · design/DocPage.dc.html (`doc=programme-terms`) · §8.20 · §8.3
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt from the DC after the destroy (inventory: pages--programme-terms.md). The text is
+  the version in force from AwardTerms (gates_award_terms), cut into numbered sections by
+  LegalDocument::sections() so it is sanitised and anchored exactly as a policy is. The
+  version, its effective date and every earlier version's changelog are printed, because
+  acceptance is recorded per version and a person disputing a ballot needs to know which
+  words they agreed to. A programme with no published terms says so and points at the
+  platform terms — it does not draw an empty document.
+#}
+{% set colour_tier = '0' %}
+{% set app_bar = {variant: 'child', title: 'Award terms'|trans, sub: programme.title, back: '/awards/' ~ programme.slug} %}
+
+{% set _rows = [] %}
+{% if terms %}
+  {% set _rows = [
+    {k: 'Version'|trans, v: terms.version},
+    {k: 'In effect from'|trans, v: terms.effective_at|date('j M Y')},
+    {k: 'Earlier versions'|trans, v: (terms_log|length - 1)}
+  ] %}
+{% endif %}
+
+{% set d = {
+  key: 'programme-terms',
+  eyebrow: 'Award terms · %p%'|trans({'%p%': programme.title}),
+  title: 'Terms for this award'|trans,
+  standfirst: terms
+    ? 'The rules for nominating and voting in %p%. You accept this version when you nominate or vote.'|trans({'%p%': programme.title})
+    : 'Specific terms for this award haven’t been published yet. The platform-wide Terms of use apply in the meantime.'|trans,
+  byline: terms ? [doc_author, 'Version %v%'|trans({'%v%': terms.version}), 'In effect from %d%'|trans({'%d%': terms.effective_at|date('j M Y')})] : [doc_author],
+  listen: terms ? true : false,
+  download: null,
+  cite_tool: false,
+  toc: doc_sections|merge(terms_log|length > 1 ? [{id: 'versions', title: 'Every version'|trans}] : []),
+  siblings: [
+    {label: 'Terms of use'|trans, href: '/terms', current: false},
+    {label: 'Privacy policy'|trans, href: '/privacy', current: false},
+    {label: 'Cookie policy'|trans, href: '/cookies', current: false},
+    {label: 'Award terms'|trans, href: '/terms/' ~ programme.slug, current: true},
+    {label: 'How a winner is decided'|trans, href: '/integrity', current: false},
+    {label: 'The philosophy'|trans, href: '/philosophy', current: false}
+  ],
+  aside: terms ? {label: 'This document'|trans, rows: _rows} : null,
+  cite: {
+    word: 'document'|trans,
+    citations: doc_citations,
+    note: 'Award terms are cited by version. The version you accepted is the one that applied to you.'|trans,
+    action: 'share', url: doc_url
+  },
+  contact: 'legal@afrovanguard.org.ng',
+  end: 'Questions about these terms? Write to'|trans
+} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/doc.css') }}">{% endblock %}
+
+{% block content %}
+<div class="ag-doc dp" data-doc>
+  {{ art.top(d) }}
+  <div class="dp-shell">
+    {{ art.rail(d) }}
+    <article class="dp-doc" data-doc-article>
+      {{ art.masthead(d) }}
+      {{ art.aside(d, 'inline') }}
+      <div data-doc-read>
+        {% if terms %}
+          {% if doc_lead %}<div class="dp-lead dp-rich">{{ doc_lead|raw }}</div>{% endif %}
+          {% for s in doc_sections %}{{ art.section(s.id, loop.index, s.title, s.html) }}{% endfor %}
+          {% if terms_log|length > 1 %}
+            {% set _log %}
+              <ol class="dp-steps">
+                {% for v in terms_log %}
+                  <li><span class="dp-steps__n" aria-hidden="true">{{ v.version }}</span><span><strong>{{ 'Version %v%, in effect from %d%.'|trans({'%v%': v.version, '%d%': v.effective_at|date('j M Y')}) }}</strong> {{ v.changelog ?: 'No change note was recorded.'|trans }}</span></li>
+                {% endfor %}
+              </ol>
+            {% endset %}
+            {{ art.section('versions', doc_sections|length + 1, 'Every version'|trans, _log) }}
+          {% endif %}
+        {% else %}
+          <div class="dp-lead dp-rich">
+            <p>{{ 'Read the'|trans }} <a href="/terms">{{ 'platform Terms of use'|trans }}</a>{{ ', the'|trans }} <a href="/privacy">{{ 'Privacy policy'|trans }}</a> {{ 'and'|trans }} <a href="/integrity">{{ 'how a winner is decided'|trans }}</a>.</p>
+          </div>
+        {% endif %}
+      </div>
+      {% if terms %}{{ art.cite(d) }}{% endif %}
+      {{ art.foot(d) }}
+    </article>
+    {{ art.aside(d, 'rail') }}
+  </div>
+</div>
+{% endblock %}
+
+{% block sheets %}{{ parent() }}{{ art.sheet(d) }}{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/doc.js') }}"></script>{% endblock %}

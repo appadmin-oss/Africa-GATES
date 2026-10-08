@@ -1,0 +1,157 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  The four queues §5 asks for, on ONE page.
+
+  An operator working a challenge moves between them constantly: a disqualification
+  changes the payout list, a verification changes the entries list. Four tabs would
+  mean reloading to see the consequence of what you just did.
+
+  Two things on this page are deliberately harder than they could be:
+
+  · A DISQUALIFICATION NEEDS A REASON, typed, every time. An operator removing a named
+    person from a prize without saying why leaves the next operator — and any appeal —
+    with nothing. The service refuses an empty one; this is just where it is typed.
+  · "PAID" NEEDS A REFERENCE. "Paid" with nothing to look up is a claim nobody can
+    check, and this is the record somebody will be asked to produce.
+
+  Duplicates are FLAGGED, never blocked. Two neighbours nominating the same teacher is
+  the system working; one person running two accounts is not, and only a human looking
+  at the pair can tell which.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .qq-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .qq-card h3{ margin:0 0 4px; font-size:14px; color:#10292C }
+  .qq-note{ margin:4px 0 14px; font-size:12.5px; line-height:1.6; color:#5a6d6f; max-width:76ch }
+  .qq-tbl{ width:100%; border-collapse:separate; border-spacing:0 }
+  .qq-tbl th{ text-align:start; font-size:12px; color:#5a6d6f; font-weight:600; padding:8px 10px }
+  .qq-tbl td{ padding:10px; font-size:13.5px; border-top:1px solid rgba(16,41,44,.07); vertical-align:top }
+  .qq-who{ font-weight:600; color:#10292C }
+  .qq-sub{ display:block; font-size:12px; color:#5a6d6f }
+  .qq-mono{ font-family:ui-monospace,Menlo,monospace; font-size:12.5px }
+  .qq-flag{ color:#7a5600; font-weight:600; font-size:12px }
+  .qq-dq{ color:#b42318; font-weight:600; font-size:12px }
+  .qq-in{ min-height:34px; padding:6px 9px; border:1px solid rgba(16,41,44,.18);
+    border-radius:8px; font:inherit; font-size:13px; width:100%; max-width:230px }
+  .qq-b{ display:inline-flex; align-items:center; min-height:34px; padding:0 12px; border:0;
+    border-radius:8px; background:#10292C; color:#fff; font-size:13px; cursor:pointer }
+  .qq-b--d{ background:#fff; color:#b42318; border:1px solid #e3b7b3 }
+  .qq-acts{ display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── 1. verification ─────────────────────────────────────────────────────── #}
+<div class="qq-card">
+  <h3>Waiting to be verified</h3>
+  <p class="qq-note">A nomination counts only when the nominee has confirmed AND a
+    moderator has approved. Either half alone is somebody else's decision standing in
+    for a prize.</p>
+
+  {% if awaiting|length %}
+    <table class="qq-tbl">
+      <thead><tr><th>Nominee</th><th>Status</th><th>Nominee confirmed</th><th>Asked</th><th></th></tr></thead>
+      <tbody>
+        {% for n in awaiting %}
+          <tr>
+            <td class="qq-who">{{ n.nominee_name }}</td>
+            <td>{{ n.status }}</td>
+            <td>{{ n.nominee_confirmed_at ? n.nominee_confirmed_at : '—' }}</td>
+            <td>{{ n.confirm_sends|default(0) }} of 3</td>
+            <td><a class="qq-b" href="/admin/nominations?q={{ n.nominee_name|url_encode }}">Open</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="qq-note">Nothing waiting.</p>
+  {% endif %}
+</div>
+
+{# ── 2 & 3. entries and payouts, one table ───────────────────────────────── #}
+<div class="qq-card">
+  <h3>Entries and payouts</h3>
+  <p class="qq-note">Places are assigned in the order entries are fully verified.
+    Removing somebody releases their place and everybody behind them moves up — which is
+    why the reason is required and recorded.</p>
+
+  {% if rows|length %}
+    <table class="qq-tbl">
+      <thead><tr><th>Place</th><th>Who</th><th>Verified</th><th>State</th><th>Payout</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td class="qq-mono">{{ r.standing ? '#' ~ r.standing : '—' }}</td>
+            <td>
+              <span class="qq-who">{{ r.who }}</span>
+              <span class="qq-sub">{{ r.email }}</span>
+              {% if r.flags %}
+                {# A signal, not a verdict. #}
+                <span class="qq-flag">{{ r.flags }} nominee{{ r.flags == 1 ? '' : 's' }} also in another entry — worth a look</span>
+              {% endif %}
+              {% if r.status == 'disqualified' %}<span class="qq-dq">Removed</span>{% endif %}
+            </td>
+            <td class="qq-mono">{{ r.verified }}{% if r.checking %} <span class="qq-sub">+{{ r.checking }} checking</span>{% endif %}</td>
+            <td>{{ r.status }}</td>
+            <td>
+              {{ r.payout }}
+              {% if r.payout_ref %}<span class="qq-sub qq-mono">{{ r.payout_ref }}</span>{% endif %}
+            </td>
+            <td>
+              <div class="qq-acts">
+                {% if r.standing and r.payout != 'paid' %}
+                  <form method="post" action="/admin/challenges/{{ c.id }}/entry/{{ r.id }}/paid">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <input class="qq-in" name="ref" placeholder="Transfer reference" maxlength="120" required>
+                    <button class="qq-b" type="submit">Mark paid</button>
+                  </form>
+                {% endif %}
+
+                {% if r.status != 'disqualified' %}
+                  {# A sibling form, never nested: the parser deletes an inner `<form>`
+                     and its children post to the outer action. #}
+                  <form method="post" action="/admin/challenges/{{ c.id }}/entry/{{ r.id }}/disqualify"
+                        data-confirm="Remove this entry? Everybody behind them moves up a place.">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <input class="qq-in" name="reason" placeholder="Why — an appeal will ask" maxlength="300" required>
+                    <button class="qq-b qq-b--d" type="submit">Remove</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="qq-note">No entries yet.</p>
+  {% endif %}
+</div>
+
+{# ── 4. the draw ─────────────────────────────────────────────────────────── #}
+{% if is_draw %}
+  <div class="qq-card">
+    <h3>The draw</h3>
+    <p class="qq-note">The seed is stored before it is used and the winners are a keyed
+      hash of it, so anybody holding the seed and the list of entrants can re-run the
+      draw and get the same answer. {% if drawn %}<strong>Already drawn — pressing it
+      again returns the same winners, never a new set.</strong>{% endif %}</p>
+
+    <form method="post" action="/admin/challenges/{{ c.id }}/draw"
+          data-confirm="Run the draw? The seed is recorded and the result cannot be re-rolled.">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="qq-b" type="submit">{{ drawn ? 'Re-show the draw' : 'Run the draw' }}</button>
+    </form>
+  </div>
+{% endif %}
+
+<div class="qq-card">
+  <h3>Export</h3>
+  <p class="qq-note">Every entry, for the reconciliation somebody does in a spreadsheet.</p>
+  <a class="qq-b" href="/admin/challenges/{{ c.id }}/export">Download CSV</a>
+</div>
+{% endblock %}

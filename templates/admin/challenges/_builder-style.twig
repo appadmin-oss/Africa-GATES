@@ -1,0 +1,40 @@
+{#
+  The builder's styles, shared by the builder (form.twig) and a seed's review page
+  (seed.twig) — one copy, so the two screens an operator moves between cannot drift.
+#}
+<style nonce="{{ csp_nonce }}">
+  .cb{ display:grid; grid-template-columns:minmax(0,1fr); gap:16px }
+  @media (min-width:1100px){ .cb{ grid-template-columns:minmax(0,1fr) 380px } }
+  .cb-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px; padding:18px 20px }
+  .cb-card + .cb-card{ margin-top:14px }
+  .cb-card h3{ margin:0 0 4px; font-size:14px; color:#10292C }
+  .cb-step{ font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#5a6d6f }
+  .cb-note{ margin:6px 0 14px; font-size:12.5px; line-height:1.6; color:#5a6d6f; max-width:72ch }
+  .cb-row{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)) }
+  .cb-f{ display:block; margin:0 0 12px }
+  .cb-f > span{ display:block; margin-bottom:5px; font-size:12.5px; font-weight:600; color:#3d4b4d }
+  .cb-f input,.cb-f select,.cb-f textarea{ width:100%; min-height:40px; padding:8px 10px;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px; font:inherit; font-size:14px; background:#fff }
+  .cb-f textarea{ min-height:88px }
+  .cb-f input[readonly],.cb-f select[disabled]{ background:#f4f5f5; color:#5a6d6f }
+  .cb-lock{ display:block; margin-top:4px; font-size:11.5px; color:#7a5600 }
+  .cb-multi{ min-height:150px }
+  .cb-blk{ background:#fff7f6; border:1px solid #f0cfcb; border-radius:12px; padding:14px 16px; margin-bottom:14px }
+  .cb-blk b{ display:block; font-size:13px; color:#b42318; margin-bottom:6px }
+  .cb-blk li{ font-size:13px; line-height:1.6; color:#3d4b4d }
+  .cb-prev{ position:sticky; top:16px; background:#f0f2f2; border:1px solid rgba(16,41,44,.12);
+    border-radius:14px; padding:16px 18px }
+  .cb-prev h4{ margin:0 0 10px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#5a6d6f }
+  .cb-prev .p-promise{ font-size:15px; line-height:1.5; color:#10292C; margin:0 0 12px }
+  .cb-prev dl{ margin:0 0 12px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px }
+  .cb-prev dt{ font-size:11px; color:#5a6d6f }
+  .cb-prev dd{ margin:0; font-size:13px; font-weight:600 }
+  .cb-prev li{ font-size:12.5px; line-height:1.6; color:#3d4b4d }
+  .cb-ai{ background:#fff; border:1px dashed rgba(16,41,44,.22); border-radius:12px; padding:14px 16px; margin-top:14px }
+  .cb-ai p{ margin:6px 0 0; font-size:12.5px; line-height:1.6; color:#5a6d6f }
+  .cb-btn{ display:inline-flex; align-items:center; min-height:42px; padding:0 18px; border:0;
+    border-radius:10px; background:#237b22; color:#fff; font-weight:600; font-size:14.5px; cursor:pointer }
+  .cb-btn--q{ background:#fff; color:#10292C; border:1px solid rgba(16,41,44,.2) }
+  .cb-btn--d{ background:#fff; color:#b42318; border:1px solid #e3b7b3 }
+  .cb-acts{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px }
+</style>

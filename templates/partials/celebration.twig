@@ -1,0 +1,141 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  partials/celebration.twig — design/Celebration.dc.html, Phase 3 (§7.8)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The moment a page celebrates: a card around the handoff's engine (celebration.js /
+  celebration.css, shipped byte-identical). The DC's markup and values, with its inline
+  styles moved to components/celebration-card.css as token reads.
+
+  ── IT ASKS BEFORE IT DRAWS ──────────────────────────────────────────────────
+
+  Nothing renders unless `celebration_allowed(kind, context)` says yes
+  (Services\Celebration). A held or delayed result, an unconfirmed payment and every
+  moment §7.8 says never to celebrate (drafts, settings, sign-in, add to cart, subscribe)
+  are refused there, so a page cannot draw a burst by forgetting to ask. With nothing
+  drawn the page is simply the page — never instead of it.
+
+  ── ARGS ─────────────────────────────────────────────────────────────────────
+
+    kind       win · vote · nominate · give · ticket (an unknown kind throws)
+    size       full (default) · inline
+    layout     auto (default: the viewport, ≥1024 is desktop) · phone · desktop (forced)
+    kicker     default per kind: Vote counted · Winner · Nomination sent · Gift received · You’re going
+    title      default per kind (§7.8): Your vote is in · {first} won. · Nomination sent ·
+               Thank you for giving · You’re going
+    first      the winner's first name, for the win default
+    sub        optional
+    stats      [{n: 18402, l: 'supporters'}, …] — full only. A number (optionally ending
+               in %) is printed at its FINAL value here and counted up from zero by the
+               engine; anything else ("1st") is printed as it is.
+    primary    {label?, href?} — a share button (the chrome's data-ag-share) unless an href
+               is given. A ticket's "Add to calendar" needs its href; without one it is not drawn.
+    secondary  {label?, href} — a link; not drawn without an href.
+    seen_key   from celebration_seen_key() and nowhere else; default built from
+               context.edition and context.subject.
+    context    what celebration_allowed() is asked: {moment, confirmed?, category_id?,
+               edition?, nominee_id?, subject?}
+    ticket     {label, when} — the stub on a full ticket celebration.
+    heading    'h2' (default) · 'h1' — h1 where the celebration IS the page's heading (a
+               receipt page whose message is the moment), so the screen keeps one h1 and
+               does not print the same sentence twice.
+
+  Every string through |trans; a caller's own strings are the caller's to translate.
+#}
+{% set _ctx  = context|default({}) %}
+{% if celebration_allowed(kind, _ctx) %}
+{% set _size   = size|default('full') == 'inline' ? 'inline' : 'full' %}
+{% set _layout = layout|default('auto') %}
+{% set _key    = seen_key|default(celebration_seen_key(kind, _ctx.edition|default(''), _ctx.subject|default(''))) %}
+
+{% set _kickers = {
+  vote: 'Vote counted'|trans, win: 'Winner'|trans, nominate: 'Nomination sent'|trans,
+  give: 'Gift received'|trans, ticket: 'You’re going'|trans
+} %}
+{% set _titles = {
+  vote: 'Your vote is in'|trans, win: '%first% won.'|trans({'%first%': first|default('')}),
+  nominate: 'Nomination sent'|trans, give: 'Thank you for giving'|trans, ticket: 'You’re going'|trans
+} %}
+{% set _primaries = {
+  vote: 'Share your vote'|trans, win: 'Share the win'|trans, nominate: 'Let them know'|trans,
+  give: 'Share the campaign'|trans, ticket: 'Add to calendar'|trans
+} %}
+{% set _secondaries = {
+  vote: 'Vote in another category'|trans, win: 'See how it was decided'|trans,
+  nominate: 'Nominate someone else'|trans, give: 'See where it goes'|trans, ticket: 'View ticket'|trans
+} %}
+
+{% set _kicker = kicker|default(_kickers[kind]) %}
+{% set _title  = title|default(_titles[kind]) %}
+{% set _sub    = sub|default('') %}
+{% set _p      = primary|default({}) %}
+{% set _s      = secondary|default({}) %}
+{% set _plabel = _p.label|default(_primaries[kind]) %}
+{% set _slabel = _s.label|default(_secondaries[kind]) %}
+{% set _h      = heading|default('h2') == 'h1' ? 'h1' : 'h2' %}
+{% set _cls    = 'ag-cel ag-cel--' ~ _size ~ ' ag-cel--' ~ kind ~ (_layout in ['phone', 'desktop'] ? ' ag-cel--' ~ _layout : '') %}
+
+<link rel="stylesheet" href="{{ asset('/assets/css/components/celebration.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/celebration-card.css') }}">
+
+{% set _stage %}<div class="ag-cel__stage" data-agc-kind="{{ kind }}" data-agc-size="{{ _size }}" data-agc-seen-key="{{ _key }}"
+  {%- if _layout in ['phone', 'desktop'] %} data-agc-layout="{{ _layout }}"{% endif %}
+  {%- if kind == 'ticket' and _size == 'full' %} data-agc-ticket-label="{{ ticket.label|default('') }}" data-agc-ticket-when="{{ ticket.when|default('') }}"{% endif %}></div>{% endset %}
+
+{% set _buttons %}
+  {%- if _p.href|default('') -%}
+    <a class="ag-cel__btn ag-cel__btn--primary" href="{{ _p.href }}">{{ _plabel }}</a>
+  {%- elseif kind != 'ticket' -%}
+    <button type="button" class="ag-cel__btn ag-cel__btn--primary" data-ag-share aria-label="{{ _plabel }}" data-ag-copied="{{ 'Link copied'|trans }}">{{ _plabel }}</button>
+  {%- endif -%}
+  {%- if _s.href|default('') -%}
+    <a class="ag-cel__btn ag-cel__btn--secondary" href="{{ _s.href }}">{{ _slabel }}</a>
+  {%- endif -%}
+{% endset %}
+
+{% if _size == 'full' %}
+<div class="{{ _cls }}" style="{{ celebration_style(kind) }}">
+  {{ _stage }}
+  <div class="ag-cel__text">
+    <span class="ag-cel__kicker"><span class="ag-cel__dot" aria-hidden="true"></span>{{ _kicker }}</span>
+    <{{ _h }} class="ag-cel__title">{{ _title }}</{{ _h }}>
+    {% if _sub %}<p class="ag-cel__sub">{{ _sub }}</p>{% endif %}
+    {% if stats|default([]) is not empty %}
+    <div class="ag-cel__stats">
+      {% for s in stats %}
+        {% set _raw = s.n ~ '' %}
+        <span class="ag-cel__stat">
+          {%- if _raw matches '/^[0-9]+(\\.[0-9]+)?%?$/' -%}
+            {%- set _num = _raw|trim('%', 'right') -%}
+            {%- set _dec = '.' in _num ? (_num|split('.')|last|length) : 0 -%}
+            <b data-agc-count="{{ _raw }}">{{ _num|number_format(_dec) }}{{ _raw ends with '%' ? '%' : '' }}</b>
+          {%- else -%}
+            <b>{{ _raw }}</b>
+          {%- endif -%}
+          <span class="ag-cel__stat-label">{{ s.l }}</span>
+        </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="ag-cel__actions">{{ _buttons }}</div>
+    <button type="button" class="ag-cel__replay" data-agc-replay>{{ 'Celebrate again'|trans }}</button>
+  </div>
+</div>
+{% else %}
+<div class="{{ _cls }}" style="{{ celebration_style(kind) }}">
+  <div class="ag-cel__row">
+    {{ _stage }}
+    <div class="ag-cel__text">
+      <span class="ag-cel__kicker">{{ _kicker }}</span>
+      <{{ _h }} class="ag-cel__title">{{ _title }}</{{ _h }}>
+      {% if _sub %}<p class="ag-cel__sub">{{ _sub }}</p>{% endif %}
+    </div>
+  </div>
+  <div class="ag-cel__actions">{{ _buttons }}</div>
+</div>
+{% endif %}
+<span class="ag-sr" role="status" aria-live="polite">{{ _sub ? _title|trim('.', 'right') ~ '. ' ~ _sub : _title }}</span>
+
+<script defer nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/celebration.js') }}"></script>
+<script defer nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/celebration-boot.js') }}"></script>
+{% endif %}

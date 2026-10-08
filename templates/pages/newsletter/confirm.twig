@@ -1,0 +1,43 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  /email/confirm — the yes of the double opt-in. Three states, each saying one thing.
+  Rebuilt in Phase 9 (inventory: pages--newsletter--confirm.md). The GET draws a button
+  rather than confirming, because mail scanners fetch every link in a message and would
+  otherwise confirm on the reader's behalf (NewsletterController). Works with no script
+  and no sign-in. A task page: no tab bar.
+#}
+{% set colour_tier = '1' %}
+{% set flow_page = task_page|default(false) %}
+{% set app_bar = {variant: 'child', title: 'Newsletter'|trans, back: '/'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/newsletter.css') }}"><meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="nl nl--task">
+  <section class="nl__card" aria-labelledby="nlC">
+    {% if done and valid %}
+      <p class="nl__kicker">{{ 'Confirmed'|trans }}</p>
+      <h1 class="nl__h1" id="nlC">{{ 'You are on the list'|trans }}</h1>
+      <p class="nl__p">{{ 'The newsletter will reach'|trans }} <b class="nl__mail">{{ email }}</b>. {{ 'Every issue ends with a one-click unsubscribe.'|trans }}</p>
+      <a class="ag-btn ag-btn--secondary" href="/">{{ 'Back to Africa GATES'|trans }}</a>
+    {% elseif valid %}
+      <p class="nl__kicker">{{ 'Newsletter'|trans }}</p>
+      <h1 class="nl__h1" id="nlC">{{ 'Confirm your subscription'|trans }}</h1>
+      <p class="nl__p">{{ 'Send the Africa GATES newsletter to'|trans }} <b class="nl__mail">{{ email }}</b>?</p>
+      <form class="nl__form" method="post" action="/email/confirm">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="e" value="{{ e }}">
+        <input type="hidden" name="t" value="{{ t }}">
+        <button type="submit" class="ag-btn ag-btn--primary nl__go">{{ 'Yes, send it to me'|trans }}</button>
+      </form>
+      <p class="ag-hint">{{ 'Did not ask for this? Close the page. Nothing is sent to an address that has not been confirmed.'|trans }}</p>
+    {% else %}
+      <p class="nl__kicker">{{ 'Newsletter'|trans }}</p>
+      <h1 class="nl__h1" id="nlC">{{ 'This link did not work'|trans }}</h1>
+      <p class="nl__p">{{ 'It may have been broken across two lines by your email app. Copy the whole link from the email into your browser, or ask for a new one.'|trans }}</p>
+      <a class="ag-btn ag-btn--secondary" href="/newsletter">{{ 'Sign up again'|trans }}</a>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

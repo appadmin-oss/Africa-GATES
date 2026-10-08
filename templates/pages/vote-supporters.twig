@@ -1,0 +1,54 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  `/vote/{programme}/{id-name}/supporters` — everyone who asked to be named.
+  Phase 5, in the nominee page's vocabulary (no DC draws it). Rebuilt after the old page was
+  destroyed (inventory: docs/handoff/inventory/pages--vote-supporters.md). Its rules, kept:
+  · only people who ticked "show my name" are here — SupportersService resolves consent;
+  · what anybody contributed decides the ORDER and is never printed (NomineeStoryTest);
+  · the named list is a subset of the real crowd, and the page says so (`backer_count`);
+  · a capped scan says it is capped. Server-paginated links, never "load more".
+#}
+
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Supporters'|trans, sub: nom.name, back: ballot_url} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote-pages.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+
+{% block content %}
+<div class="vs">
+  <a class="vs-back" href="{{ ballot_url }}"><span class="ag-ico-dir" aria-hidden="true">←</span> {{ 'Back to %n%'|trans({'%n%': nom.name}) }}</a>
+  <header class="vs-head">
+    <span class="vs-head__av">{% include 'partials/photo.twig' with {kind: 'person', src: nom.photo_path, name: nom.name} only %}</span>
+    <div>
+      <h1 class="vs-h1">{{ 'Supporters of %n%'|trans({'%n%': nom.name}) }}</h1>
+      <p class="vs-p">{{ nom.category }}{% if total %} · {{ total == 1 ? '1 person asked to be named'|trans : '%n% people asked to be named'|trans({'%n%': total|number_format}) }}{% endif %}</p>
+    </div>
+  </header>
+
+  {% if backer_count > total %}
+    <p class="vs-p">{{ '%n% people back %name% in all. The rest chose not to be named, and they are counted just the same.'|trans({'%n%': backer_count|number_format, '%name%': nom.name}) }}</p>
+  {% endif %}
+
+  {% if supporters|length %}
+    <ol class="vs-list" start="{{ (page - 1) * 60 + 1 }}">
+      {% for s in supporters %}
+        <li><span class="vs-list__av" aria-hidden="true">{{ s.name|slice(0, 1) }}</span><b>{{ s.name }}</b>{% if s.paid %}<span class="vs-list__tag">{{ 'backed with votes'|trans }}</span>{% endif %}</li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="vs-empty">{{ 'Nobody has asked to be named yet. Vote, tick “show my name”, and you will be first.'|trans }}</p>
+  {% endif %}
+
+  {% if pages > 1 %}
+  <nav class="vs-pager" aria-label="{{ 'Pages'|trans }}">
+    {% if page > 1 %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="?page={{ page - 1 }}">{{ 'Previous'|trans }}</a>{% endif %}
+    <span>{{ 'Page %p% of %n%'|trans({'%p%': page, '%n%': pages}) }}</span>
+    {% if page < pages %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="?page={{ page + 1 }}">{{ 'Next'|trans }}</a>{% endif %}
+  </nav>
+  {% endif %}
+
+  <a class="ag-btn ag-btn--primary ag-btn--pill vs-cta" href="{{ ballot_url }}">{{ 'Vote for %n%'|trans({'%n%': nom.name|split(' ')|first}) }}</a>
+  <p class="vs-fine"><a href="/privacy#supporters">{{ 'How we handle voter names'|trans }}</a>{% if capped %} · {{ 'This page lists the most recent contributions; on a very large rally the oldest may not be shown.'|trans }}{% endif %}</p>
+</div>
+{% endblock %}

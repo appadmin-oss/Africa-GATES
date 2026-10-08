@@ -1,0 +1,41 @@
+{% extends 'layout/auth.twig' %}
+{% import 'layout/auth.twig' as auth %}
+{#
+  CONFIRM YOUR EMAIL — /account/verify · Phase 8, in SignIn.dc.html's frame
+
+  Destroyed and rebuilt (inventory pages--account--verify-notice.md). A verification LINK,
+  not a code — the two used to look alike enough that people typed a code into a page with no
+  code field. The window is read from UserAccountService::VERIFY_TTL_HOURS (`ttl_hours`),
+  never typed: the one person who cannot read it in the email is the one whose link expired.
+  The junk folder is named because it is the commonest reason. The one-time code also
+  verifies an address, so the fastest way out of this screen is said plainly.
+#}
+{% set _error  = error|default(null) ?: flash_error|default(null) %}
+{% set _notice = notice|default(null) ?: flash_notice|default(null) %}
+{% block auth_top %}{{ auth.back('/account/login', 'Back to sign in'|trans) }}{% endblock %}
+{% block auth_body %}
+  <div class="si__head">
+    <h1 class="si__h1">{{ 'Confirm your email'|trans }}</h1>
+    <p class="si__lede">
+      {%- if email -%}
+        {{ 'We sent a link to %email%. Open it to activate your account.'|trans({'%email%': email}) }}
+      {%- else -%}
+        {{ 'We sent you a link. Open it to activate your account.'|trans }}
+      {%- endif %}
+      {{ 'It works once and lasts %n% hours — if it is not there, check your junk folder before asking for another.'|trans({'%n%': ttl_hours}) }}
+    </p>
+  </div>
+  {{ auth.say(_error, _notice) }}
+  <form class="si__form-step" method="post" action="/account/verify/resend" novalidate data-ag-validate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {% if email %}
+      <input type="hidden" name="email" value="{{ email }}">
+    {% else %}
+      <input class="si__in" id="email" type="email" name="email" required autocomplete="email" inputmode="email"
+             aria-label="{{ 'Your email'|trans }}" placeholder="you@example.com" autofocus>
+    {% endif %}
+    <button class="si__go" type="submit">{{ 'Resend the link'|trans }}</button>
+  </form>
+  <p class="si__fine">{{ 'Or sign in with a one-time code: it proves the address is yours, so it confirms your email and signs you in at once.'|trans }}</p>
+  <p class="si__alt"><a href="/account/login?via=email">{{ 'Sign in with a code'|trans }}</a></p>
+{% endblock %}

@@ -1,0 +1,261 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  GEE — the guide, and the help desk
+  REFERENCE §7.7 (guide) and §8.22 (help desk, support mode) · design/Gee.dc.html
+  Mounted by layout/shell.twig's `gee` block; behaviour in public/assets/js/gee.js,
+  rules in public/assets/css/components/gee.css.
+  ══════════════════════════════════════════════════════════════════════════════
+
+  One assistant, two modes. GUIDE everywhere (§7.7); SUPPORT where somebody arrives
+  stuck — the Help Centre, "No, ask Gee", payment-failure pages, Status "Get help"
+  (§8.22) — chosen by the caller: `window.AGGee.open({mode:'support', q})`, a
+  `data-ag-do="open-gee" data-gee-mode="support"` control, or `?gee=support` on any URL
+  (which is where the retired `/support/assistant` now 301s). Only the face changes; the
+  brain behind both is the one support agent (GuideController's note).
+
+  ── WHAT IS HERE AND WHAT IS NOT ────────────────────────────────────────────
+
+  The launcher, the panel, both empty states and the composer are drawn here, in the
+  panel order §7.7 fixes, every word through `|trans`. What the conversation adds — the
+  bubbles, the live work card, the result card, the handoff card, the member's own
+  payment and support ticket — is built by gee.js from the server's answers, with its
+  words handed over in the `data-msg-*` attributes below (the Phase 2 pattern: a script
+  never types a sentence a translator cannot reach).
+
+  The launcher starts `hidden`: without the script there is nothing behind it, and a
+  button that does nothing is worse than no button. `/support` is the no-script door.
+
+  ── THE PRIVACY NOTE STATES WHAT IS TRUE HERE ────────────────────────────────
+
+  The design file's note reads "Chats are kept for 30 days, then deleted". Nothing here
+  keeps a chat for thirty days or deletes one: what a person types lives in this tab's
+  sessionStorage (`ag-gee-chat:`, CookieRegistry: session) until the tab closes, and a
+  conversation passed to a person is kept with their support ticket. The note says that.
+  A retention period typed from a design file is §19's shape on a privacy promise;
+  docs/handoff/PHASE-3.md lists it as a deviation awaiting the owner, and GeeTest holds
+  the sentence to the registry's own `where`.
+#}
+{% set _first = member_name ? (member_name|trim|split(' ')|first) : '' %}
+{% set _gee_q = 'M4 12.5 9 17.5 20 6.5' %}
+{# `gee_mode`: a page may open Gee's face in help-desk mode by default (the Help Centre
+   mounts it as `mode="support"` in HelpCentre.dc.html, Phase 9). Only the face; one brain. #}
+<div class="gee" data-gee data-mode="guide" data-gee-default="{{ gee_mode|default('guide') == 'support' ? 'support' : 'guide' }}"
+     data-gee-signed="{{ is_member ? '1' : '0' }}"
+     data-gee-title="{{ page_title|default('Africa GATES') }}"
+     data-msg-fab-guide="{{ 'Ask Gee'|trans }}"
+     data-msg-fab-support="{{ 'Help desk'|trans }}"
+     data-msg-fab-aria-guide="{{ 'Ask Gee, the Africa GATES guide'|trans }}"
+     data-msg-fab-aria-support="{{ 'Open the Gee help desk'|trans }}"
+     data-msg-name-guide="{{ 'Gee'|trans }}"
+     data-msg-name-support="{{ 'Gee · Help desk'|trans }}"
+     data-msg-status-guide="{{ 'Online · Africa GATES guide'|trans }}"
+     data-msg-status-support="{{ 'Usually fixes payments in a minute'|trans }}"
+     data-msg-status-support-off="{{ 'Answering from the written help. A person still gets your message.'|trans }}"
+     data-msg-dialog-guide="{{ 'Gee, the Africa GATES guide'|trans }}"
+     data-msg-dialog-support="{{ 'Gee help desk'|trans }}"
+     data-msg-input-guide="{{ 'Message Gee'|trans }}"
+     data-msg-input-support="{{ 'Describe the problem, or paste a reference'|trans }}"
+     data-msg-pending-for="{{ 'Pending for %t%'|trans }}"
+     data-msg-replied-ago="{{ 'A person replied %t% ago'|trans }}"
+     data-msg-waiting="{{ 'Waiting for a person'|trans }}"
+     data-msg-ticket-row="{{ 'Support ticket %ref% · %subject%'|trans }}"
+     data-msg-t-now="{{ 'a moment'|trans }}"
+     data-msg-t-min="{{ '%n% min'|trans }}"
+     data-msg-t-hour="{{ '1 hour'|trans }}"
+     data-msg-t-hours="{{ '%n% hours'|trans }}"
+     data-msg-t-day="{{ '1 day'|trans }}"
+     data-msg-t-days="{{ '%n% days'|trans }}"
+     data-msg-check-payment="{{ 'Check payment %ref%'|trans }}"
+     data-msg-step-order="{{ 'Found your order %ref%'|trans }}"
+     data-msg-step-provider="{{ 'Asking %provider% about the payment'|trans }}"
+     data-msg-the-provider="{{ 'the payment provider'|trans }}"
+     data-msg-step-votes="{{ 'Adding your votes'|trans }}"
+     data-msg-step-failed="{{ 'did not complete'|trans }}"
+     data-msg-fixed-votes="{{ 'Fixed. %n% votes added to %nominee%.'|trans }}"
+     data-msg-fixed-vote="{{ 'Fixed. 1 vote added to %nominee%.'|trans }}"
+     data-msg-fixed-votes-only="{{ 'Fixed. %n% votes added.'|trans }}"
+     data-msg-fixed-paid="{{ 'Fixed. Your payment is confirmed.'|trans }}"
+     data-msg-r-amount="{{ 'Amount'|trans }}"
+     data-msg-r-paid="{{ 'Paid'|trans }}"
+     data-msg-r-receipt="{{ 'Receipt'|trans }}"
+     data-msg-r-sent-to="{{ 'Sent to %email%'|trans }}"
+     data-msg-r-sent-payment="{{ 'Sent to the email on the payment'|trans }}"
+     data-msg-see-race="{{ 'See the race'|trans }}"
+     data-msg-view-receipt="{{ 'View receipt'|trans }}"
+     data-msg-fix-ask="{{ 'Did that fix it?'|trans }}"
+     data-msg-yes="{{ 'Yes'|trans }}"
+     data-msg-no="{{ 'No'|trans }}"
+     data-msg-yes-reply="{{ 'Great. Your receipt is on its way to %email%.'|trans }}"
+     data-msg-yes-reply-payment="{{ 'Great. Your receipt is on its way to the email on the payment.'|trans }}"
+     data-msg-person-ask="{{ 'I’d like to talk to a person'|trans }}"
+     data-msg-handoff-title="{{ 'A person can take it from here'|trans }}"
+     data-msg-handoff-sla="{{ 'A person usually replies within %n% hours'|trans }}"
+     data-msg-handoff-sla-one="{{ 'A person usually replies within an hour'|trans }}"
+     data-msg-handoff-pass="{{ 'Pass this to a person'|trans }}"
+     data-msg-handoff-passing="{{ 'Passing it on…'|trans }}"
+     data-msg-handoff-opened="{{ 'Support ticket %ref% opened'|trans }}"
+     data-msg-handoff-attached="{{ 'This conversation is attached, so you won’t have to explain again. We’ll email %email%, and you can follow it in %link%.'|trans }}"
+     data-msg-handoff-attached-guest="{{ 'This conversation is attached, so you won’t have to explain again. We’ll email %email%.'|trans }}"
+     data-msg-handoff-no-email="{{ 'This conversation is attached, so you won’t have to explain again. A person will see it, but without an email address they cannot reply.'|trans }}"
+     data-msg-handoff-link="{{ 'Your support tickets'|trans }}"
+     data-msg-handoff-email="{{ 'Your email, so a person can reply'|trans }}"
+     data-msg-handoff-first="{{ 'Of course. Tell me what has gone wrong first, in a line or two, and I’ll pass the whole thing on so you don’t have to explain it twice.'|trans }}"
+     data-msg-handoff-failed="{{ 'I couldn’t reach the team just now. /support has the form, and it goes to the same place.'|trans }}"
+     data-msg-ask-ref="{{ 'Paste the payment reference. It begins with AFG- and is in your payment email or SMS.'|trans }}"
+     data-msg-fix-receipt-ref="{{ 'Resend the receipt for %ref%'|trans }}"
+     data-msg-no-server="{{ 'We couldn’t reach Africa GATES. Your message is saved. Try again.'|trans }}"
+     data-msg-snag="{{ 'I hit a snag just now. In the meantime, /help and /support have you covered.'|trans }}"
+     data-msg-working-1="{{ 'On it…'|trans }}"
+     data-msg-working-2="{{ 'Still working — this one needs a lookup.'|trans }}"
+     data-msg-working-3="{{ 'Taking longer than usual. Your message is safe; keep this open.'|trans }}"
+     data-msg-attach-bad-type="{{ 'Attach a screenshot or photo (JPEG, PNG, WebP or GIF).'|trans }}"
+     data-msg-attach-too-big="{{ 'Please keep screenshots under 5MB.'|trans }}"
+     data-msg-attach-note="{{ 'Goes to a person with this conversation when you pass it on.'|trans }}"
+     data-msg-attach-kept="{{ 'Screenshot attached.'|trans }}"
+     data-msg-check-now="{{ 'Check now'|trans }}"
+     data-msg-topic-votes="{{ 'My votes have not arrived.'|trans }}"
+     data-msg-topic-payment="{{ 'I paid but nothing has come through.'|trans }}">
+
+  {# ── The panel. A layer the size of the space Gee may use (clear of every bottom bar,
+       capped to the page — never vh), with the panel anchored to its foot. `inert` until
+       opened, through the site's one sheet implementation (AGChrome → AGShell). ── #}
+  <div class="gee__layer" data-gee-layer inert>
+    <section class="gee__panel" id="gee-panel" role="dialog" aria-modal="true" aria-labelledby="gee-name">
+
+      {# 1 · Header #}
+      <header class="gee__head">
+        <span class="gee__av" aria-hidden="true">G<span class="gee__av-dot" aria-hidden="true"></span></span>
+        <span class="gee__id">
+          <b class="gee__name" id="gee-name" data-gee-name>{{ 'Gee'|trans }}</b>
+          <span class="gee__status" data-gee-status>{{ 'Online · Africa GATES guide'|trans }}</span>
+        </span>
+        <a class="gee__iconbtn gee__only-support" href="/support/tickets" data-gee-tickets>
+          <span class="ag-sr">{{ 'Your support tickets'|trans }}</span>
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z"/></svg>
+          <span class="gee__live" aria-hidden="true" data-gee-replied hidden></span><span class="ag-sr" data-gee-replied hidden>{{ ' — a person has replied'|trans }}</span>
+        </a>
+        <button type="button" class="gee__iconbtn" data-gee-reset aria-label="{{ 'New conversation'|trans }}">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/></svg>
+        </button>
+        <button type="button" class="gee__iconbtn gee__iconbtn--close" data-gee-close aria-label="{{ 'Close Gee'|trans }}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+
+      <div class="gee__log" role="log" aria-live="polite" aria-label="{{ 'Conversation'|trans }}" data-gee-log>
+
+        {# The privacy note. Guide: second, under the header (§7.7). Support: last of the
+           empty state (§8.22). One element, moved by gee.js between the two places, so a
+           dismissal is one fact. #}
+        <div class="gee__note" role="note" data-gee-note>
+          <svg class="gee__note-i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/></svg>
+          <span class="gee__note-t">{{ 'What you type here stays in this tab until you close it; passed to a person, it is kept with your support ticket. Never share card numbers or passwords.'|trans }} <a href="/privacy">{{ 'Privacy'|trans }}</a></span>
+          <button type="button" class="gee__note-x" data-gee-note-x aria-label="{{ 'Dismiss privacy notice'|trans }}"><span aria-hidden="true">×</span></button>
+        </div>
+
+        {# ── GUIDE: greeting and four starters ───────────────────────────────── #}
+        <div class="gee__empty gee__only-guide" data-gee-empty="guide">
+          <div class="gee__hello">
+            <h2 class="gee__hello-t">{% if _first %}{{ 'Hi %first%. How can I help?'|trans({'%first%': _first}) }}{% else %}{{ 'How can I help?'|trans }}{% endif %}</h2>
+            <p class="gee__hello-s">{{ 'Voting, nominations, event tickets or a payment. Ask anything.'|trans }}</p>
+          </div>
+          <div class="gee__starters">
+            {% for s in [
+                {t: 'How do I vote?'|trans, d: _gee_q},
+                {t: 'My payment didn’t go through'|trans, d: 'M3 7h18v10H3zM3 11h18'},
+                {t: 'Find tickets for an event'|trans, d: 'M4 5h16v15H4zM4 10h16'},
+                {t: 'Nominate someone'|trans, d: 'M12 5v14M5 12h14'}
+              ] %}
+            <button type="button" class="gee__starter" data-gee-ask="{{ s.t }}">
+              <svg class="gee__starter-i" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ s.d }}"/></svg>
+              <span class="gee__starter-t">{{ s.t }}</span>
+              <span class="gee__starter-go ag-ico-dir" aria-hidden="true">→</span>
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+
+        {# ── SUPPORT: greeting, the account card or the reference card, quick fixes ── #}
+        <div class="gee__empty gee__only-support" data-gee-empty="support">
+          <div class="gee__hello">
+            <h2 class="gee__hello-t">{% if _first %}{{ 'Hi %first%. What’s gone wrong?'|trans({'%first%': _first}) }}{% else %}{{ 'What’s gone wrong?'|trans }}{% endif %}</h2>
+            <p class="gee__hello-s">{{ 'I can check payments with the provider, resend receipts, and hand you to a person when that’s better.'|trans }}</p>
+          </div>
+
+          {% if is_member %}
+          <section class="gee__mine" aria-labelledby="gee-mine-h" data-gee-mine hidden>
+            <span class="gee__mine-h" id="gee-mine-h">{{ 'From your account'|trans }}</span>
+            <div class="gee__mine-card" data-gee-mine-rows></div>
+          </section>
+          {% else %}
+          <form class="gee__refcard" data-gee-refform>
+            <label class="gee__refcard-l" for="gee-ref">{{ 'Have a reference? I’ll check it now.'|trans }}</label>
+            <span class="gee__refcard-row">
+              <input class="gee__ref-input" id="gee-ref" name="ref" type="text" placeholder="AFG-…"
+                     autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false"
+                     maxlength="120" enterkeyhint="go" data-gee-ref>
+              <button type="submit" class="gee__refcard-go">{{ 'Check'|trans }}</button>
+            </span>
+            <span class="gee__refcard-n">{{ 'It’s in your payment email or SMS.'|trans }} <a href="/account/login" data-gee-signin>{{ 'Sign in'|trans }}</a> {{ 'to see everything you’ve paid.'|trans }}</span>
+          </form>
+          {% endif %}
+
+          <div class="gee__fixes">
+            {% for f in [
+                {k: 'check',   t: 'Check a payment'|trans,    d: 'M3 7h18v10H3zM3 11h18'},
+                {k: 'receipt', t: 'Resend a receipt'|trans,   d: 'M6 3h12v18l-3-2-3 2-3-2-3 2z'},
+                {k: 'code',    t: 'Code didn’t arrive'|trans, d: 'M4 6h16v12H4zM4 7l8 6 8-6'},
+                {k: 'wrong',   t: 'A result looks wrong'|trans, d: 'M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'}
+              ] %}
+            <button type="button" class="gee__fix gee__fix--{{ f.k }}" data-gee-fix="{{ f.k }}" data-gee-ask="{{ f.t }}">
+              <span class="gee__fix-i" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ f.d }}"/></svg></span>
+              <span class="gee__fix-t">{{ f.t }}</span>
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+
+        {# Bubbles, the work card, the result and handoff cards, help-link chips. #}
+        <div class="gee__thread" data-gee-thread></div>
+      </div>
+
+      {# 6 · The pill composer · 7 · the footer #}
+      <div class="gee__foot">
+        <div class="gee__pending" data-gee-pending hidden>
+          <span class="gee__ref" data-gee-refchip hidden>
+            <span class="gee__ref-v" data-gee-refval></span>
+            <button type="button" class="gee__chip-x" data-gee-forget aria-label="{{ 'Forget this reference'|trans }}"><span aria-hidden="true">×</span></button>
+          </span>
+          <span class="gee__file" data-gee-filechip hidden>
+            <span class="gee__file-v" data-gee-fileval></span>
+            <button type="button" class="gee__chip-x" data-gee-unattach aria-label="{{ 'Remove screenshot'|trans }}"><span aria-hidden="true">×</span></button>
+          </span>
+        </div>
+        <p class="gee__err" role="alert" data-gee-err hidden></p>
+        <form class="gee__composer" data-gee-form autocomplete="off">
+          <button type="button" class="gee__attach gee__only-support" data-gee-attach aria-label="{{ 'Attach a screenshot'|trans }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.6 8.6a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4L15.5 7"/></svg>
+          </button>
+          <input class="gee__file-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" tabindex="-1" hidden data-gee-filein>
+          <input class="gee__input" type="text" maxlength="1500" enterkeyhint="send"
+                 placeholder="{{ 'Message Gee'|trans }}" aria-label="{{ 'Message Gee'|trans }}" data-gee-input>
+          <button type="submit" class="gee__send" aria-label="{{ 'Send'|trans }}" data-gee-send>
+            <span class="gee__send-o"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span>
+          </button>
+        </form>
+        <p class="gee__fine gee__only-guide">{{ 'Gee can make mistakes'|trans }} · <a href="/privacy">{{ 'Privacy'|trans }}</a> · <button type="button" class="gee__fine-b" data-gee-person>{{ 'Talk to a person'|trans }}</button></p>
+        <p class="gee__fine gee__only-support">{{ 'A person sees every unresolved message'|trans }} · <button type="button" class="gee__fine-b" data-gee-person>{{ 'Talk to a person'|trans }}</button></p>
+      </div>
+    </section>
+  </div>
+
+  {# The launcher, after the layer: while the panel is open the launcher is not drawn,
+     and when the sheet closes it hands focus back here — the CSS that shows it again
+     reads the layer's own `data-open`, so it is drawn before that focus lands. #}
+  <button type="button" class="gee__fab" data-gee-fab hidden
+          aria-haspopup="dialog" aria-controls="gee-panel" aria-expanded="false"
+          aria-label="{{ 'Ask Gee, the Africa GATES guide'|trans }}">
+    <span class="gee__g" aria-hidden="true">G<span class="gee__g-dot" aria-hidden="true"></span></span>
+    <span class="gee__fab-t" data-gee-fab-label>{{ 'Ask Gee'|trans }}</span>
+  </button>
+</div>

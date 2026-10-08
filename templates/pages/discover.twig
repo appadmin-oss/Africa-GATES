@@ -1,0 +1,287 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  DISCOVER — `/discover` · Phase 4 of design_handoff_africa_gates
+  design/DiscoverPage.dc.html (tabs All and Live, the facets sheet) · PHASE-4 §8.2, §8.23
+  skill §5, §6, §6b · REFERENCE §6, §9.4, §10, §13
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Written new: there was never a Discover page (`/discover` was a 302 to /registry), and
+  the Activity page it absorbs was destroyed with the old layout (inventory:
+  pages--activity.md, partials find-band in _partials.md). Data: Services\Discover.
+
+  ── ONE SEARCH FIELD, AND IT IS THE SITE'S ─────────────────────────────────
+
+  The DC's field IS the find band's: a real GET form to this page, a real label, the
+  coverage sentence generated from ActivityFeedService::SOURCES (search_covers()) and the
+  promise "Nothing unannounced is searchable", tied to it by aria-describedby. There is no
+  second field anywhere on the page. With no script every tab, chip, filter and "Show older
+  updates" is a URL; discover.js upgrades them in place and never replaces one.
+
+  ── THE TABS DOCK BESIDE FILTERS ON SCROLL (skill §6b, strict) ─────────────
+
+  Two copies of one tablist: the row under the search field and the copy inside the filter
+  row. `shell.js` puts `data-scrolled` on the sticky block past 8px and the CSS swaps them
+  (grid track 1fr→0fr, margin 12→0, opacity, 260ms; max-width 0→900px + opacity, 300ms).
+  Only one copy is exposed at a time — the other is `aria-hidden` with its tabs at
+  `tabindex="-1"`, set by discover.js on the same threshold — and selection is one state.
+
+  ── WHAT IS NOT DRAWN, AND WHY ─────────────────────────────────────────────
+
+  The DC's "Field", "Identity verified" and "Vouched for" facets have no record behind them
+  on this platform; they are absent and asked of the owner (PHASE-4.md, Discover, Blocked).
+  The phone title row's "Aa" is the app bar's Quick settings (§18.5).
+#}
+
+{% set colour_tier = '2' %}
+{# Hoisted: read by content AND sheets (CLAUDE.md, the Twig block-scope trap). #}
+{% set _f       = d ? d.facets : null %}
+{% set _applied = _f ? _f.applied|length : 0 %}
+
+{# One tablist, drawn twice (the row and the docked copy); `primary` owns the ids. #}
+{% macro tabs(s, primary) %}
+  {%- for k, label in discover_tabs() -%}
+    <a class="dv-tab" role="tab" href="{{ discover_url(s, {tab: k, page: 1}) }}" data-dv-tab="{{ k }}"
+       {% if primary %}id="dvTab-{{ k }}" aria-controls="dvPanel"{% endif %}
+       aria-selected="{{ s.tab == k ? 'true' : 'false' }}"
+       tabindex="{{ primary ? (s.tab == k ? '0' : '-1') : '-1' }}">{{ label|trans }}</a>
+  {%- endfor -%}
+{% endmacro %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/discover.css') }}">{% endblock %}
+
+{% block content %}
+<div class="dv" data-dv data-tab="{{ s.tab }}" data-min="{{ min_query }}"
+     {% if d %}{% for k, n in d.counts %} data-count-{{ k }}="{{ n }}"{% endfor %}{% endif %}
+     data-one="{{ '1 result'|trans }}" data-many="{{ '%n% results'|trans }}">
+
+  <div class="dv__head"><h1 class="dv__h1">{{ 'Discover'|trans }}</h1></div>
+
+  <div class="ag-sticky dv__bar" data-dv-bar>
+    <form class="dv__form" method="get" action="/discover" role="search" data-dv-form>
+      <input type="hidden" name="tab" value="{{ s.tab }}" data-dv-tabfield>
+      {% if s.tab == 'live' and s.kind != 'all' %}<input type="hidden" name="kind" value="{{ s.kind }}">{% endif %}
+      {% if s.where %}<input type="hidden" name="where" value="{{ s.where }}">{% endif %}
+      {% if s.status %}<input type="hidden" name="status" value="{{ s.status }}">{% endif %}
+      {% for t in s.trust %}<input type="hidden" name="trust[]" value="{{ t }}">{% endfor %}
+      <label class="dv__field" for="dvQ">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+        <span class="ag-sr">{{ 'Search Africa GATES'|trans }}</span>
+        <input class="dv__q" id="dvQ" type="search" name="q" value="{{ s.q }}" autocomplete="off" spellcheck="false"
+               enterkeyhint="search" aria-describedby="dvNote"
+               placeholder="{{ 'People, organisations, awards, events'|trans }}" data-dv-q>
+      </label>
+    </form>
+
+    {% import _self as m %}
+
+    <div class="dv__tabrow" data-dv-tabrow aria-hidden="false">
+      <div><div class="dv__tabs" role="tablist" aria-label="{{ 'What to discover'|trans }}">{{ m.tabs(s, true) }}</div></div>
+    </div>
+
+    <div class="dv__filters">
+      <a class="dv__fbtn" href="#dvFacets" role="button" aria-haspopup="dialog" aria-controls="dvFacets" aria-expanded="false" data-dv-open>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>{{ 'Filters'|trans }}{% if _applied %}<span class="ag-badge ag-badge--ink dv__badge"><span class="ag-sr">, {{ (_applied == 1 ? '1 applied' : '%n% applied')|trans({'%n%': _applied}) }}</span><span aria-hidden="true">{{ _applied }}</span></span>{% endif %}
+      </a>
+      <span class="dv__dock" data-dv-dock aria-hidden="true">
+        <span class="dv__rule" aria-hidden="true"></span>
+        <span class="dv__tabs" role="tablist" aria-label="{{ 'What to discover'|trans }}">{{ m.tabs(s, false) }}</span>
+      </span>
+      {% if _f %}
+        {% for a in _f.applied %}
+          <a class="dv__applied" href="{{ a.url }}" aria-label="{{ 'Remove filter %f%'|trans({'%f%': a.label}) }}">{{ a.label }}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></a>
+        {% endfor %}
+      {% endif %}
+      {% set _n = d ? d.counts[s.tab] : 0 %}
+      {# Not a live region, although the DC makes it one: §8.23 keeps activity.twig's rule
+         that the Live status line is the ONLY live region on the page. #}
+      <span class="dv__count" data-dv-count>{{ (_n == 1 ? '1 result' : '%n% results')|trans({'%n%': _n|number_format}) }}</span>
+    </div>
+  </div>
+
+  <div class="dv__panel" id="dvPanel" role="tabpanel" aria-labelledby="dvTab-{{ s.tab }}" data-dv-panel>
+    {% if not d %}
+      <p class="ag-err" role="alert">{{ 'Too many searches — pause a moment, then try again.'|trans }}</p>
+    {% else %}
+      {% set sec = d.sections %}
+
+      <div class="dv-only dv-only--live">
+        {% include 'partials/discover-live.twig' with {s: s, live: d.live, min_query: min_query} only %}
+      </div>
+
+      <section class="dv-sec dv-only dv-only--awards" aria-labelledby="dvH-awards">
+        <div class="dv-sec__head">
+          <h2 class="dv-sec__h" id="dvH-awards">{{ sec.awards.heading }}</h2>
+          {% if sec.awards.total %}<a class="dv-sec__more" href="/awards">{{ 'All %n%'|trans({'%n%': sec.awards.total|number_format}) }}</a>{% endif %}
+        </div>
+        {% if sec.awards.items %}
+          <div class="dv-cards">
+            {% for e in sec.awards.items %}
+              <a class="dv-card" href="{{ e.url }}">
+                <span class="dv-card__img">{% if e.cover %}<img src="{{ e.cover|media_url }}" alt="{{ '%t% cover photo'|trans({'%t%': e.title}) }}" loading="lazy" width="230" height="110">{% endif %}</span>
+                <span class="dv-card__b">
+                  <span class="dv-card__t">{{ e.title }}</span>
+                  <span class="dv-card__l">{{ e.line }}</span>
+                  {% if e.days is not null %}
+                    <span class="dv-card__c{% if e.soon %} dv-card__c--soon{% endif %}">
+                      {%- if e.days == 0 -%}{{ 'Closes today'|trans }}
+                      {%- elseif e.soon -%}{{ (e.days == 1 ? 'Closes in 1 day' : 'Closes in %n% days')|trans({'%n%': e.days}) }}
+                      {%- else -%}{{ '%n% days left'|trans({'%n%': e.days}) }}{%- endif -%}
+                    </span>
+                  {% endif %}
+                </span>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="dv-empty">{{ s.q ? 'No award matches “%q%” here yet.'|trans({'%q%': s.q}) : 'No award is at this stage right now.'|trans }}</p>
+        {% endif %}
+      </section>
+
+      <div class="dv-body">
+        <div class="dv-col">
+          <section class="dv-sec dv-only dv-only--results" aria-labelledby="dvH-results">
+            <h2 class="dv-sec__h" id="dvH-results">{{ 'Just decided'|trans }}</h2>
+            {% if sec.results.items %}
+              <div class="dv-rows">
+                {% for w in sec.results.items %}
+                  <a class="dv-item" href="{{ w.url }}">
+                    <span class="dv-av dv-av--win" aria-hidden="true">{{ w.initials }}{% if w.photo %}<img src="{{ w.photo|media_url }}" alt="" loading="lazy" width="48" height="48">{% endif %}</span>
+                    <span class="dv-item__b"><span class="dv-item__t">{{ w.name }}</span><span class="dv-item__m">{{ w.what }}</span></span>
+                    <span class="dv-win">{{ 'Winner'|trans }}</span>
+                  </a>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="dv-empty">{{ s.q ? 'No announced result matches “%q%”.'|trans({'%q%': s.q}) : 'No award has been announced yet.'|trans }}</p>
+            {% endif %}
+          </section>
+
+          <section class="dv-sec dv-only dv-only--people" aria-labelledby="dvH-people">
+            <h2 class="dv-sec__h" id="dvH-people">{{ 'Most nominated this month'|trans }}</h2>
+            {% if sec.people.items %}
+              <div class="dv-rows dv-rows--two">
+                {% for p in sec.people.items %}
+                  <a class="dv-item" href="{{ p.url }}">
+                    <span class="dv-av" aria-hidden="true">{{ p.initials }}{% if p.photo %}<img src="{{ p.photo|media_url }}" alt="" loading="lazy" width="44" height="44">{% endif %}</span>
+                    <span class="dv-item__b"><span class="dv-item__t dv-item__t--s">{{ p.name }}</span><span class="dv-item__m dv-item__m--s">{{ p.meta }}</span></span>
+                  </a>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="dv-empty">
+                {%- if s.q or _applied -%}{{ 'Nobody nominated this month matches these filters.'|trans }} <a href="{{ _f.clear }}">{{ 'Clear filters'|trans }}</a>
+                {%- else -%}{{ 'Nobody has been nominated yet this month.'|trans }}{%- endif -%}
+              </p>
+            {% endif %}
+          </section>
+        </div>
+
+        <div class="dv-col">
+          <section class="dv-sec dv-only dv-only--orgs" aria-labelledby="dvH-orgs">
+            <h2 class="dv-sec__h" id="dvH-orgs">{{ 'Award hosts'|trans }}</h2>
+            {% if sec.orgs.items %}
+              <div class="dv-rows">
+                {% for h in sec.orgs.items %}
+                  <a class="dv-item" href="{{ h.url }}">
+                    <span class="dv-host" aria-hidden="true">{{ h.initial }}</span>
+                    <span class="dv-item__b"><span class="dv-item__t dv-item__t--s">{{ h.name }}</span><span class="dv-item__m dv-item__m--s">{{ h.meta }}</span></span>
+                  </a>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="dv-empty">{{ 'No award host matches “%q%”.'|trans({'%q%': s.q}) }}</p>
+            {% endif %}
+          </section>
+
+          <section class="dv-sec dv-only dv-only--events" aria-labelledby="dvH-events">
+            <h2 class="dv-sec__h" id="dvH-events">{{ 'Upcoming ceremonies'|trans }}</h2>
+            {% if sec.events.items %}
+              <div class="dv-rows">
+                {% for v in sec.events.items %}
+                  <a class="dv-item" href="{{ v.url }}">
+                    <time class="dv-date" datetime="{{ v.iso }}"><span class="dv-date__m">{{ v.mon }}</span><span class="dv-date__d">{{ v.day }}</span></time>
+                    <span class="dv-item__b"><span class="dv-item__t dv-item__t--s">{{ v.title }}</span>{% if v.meta %}<span class="dv-item__m dv-item__m--s">{{ v.meta }}</span>{% endif %}</span>
+                  </a>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="dv-empty">{{ s.q ? 'No upcoming event matches “%q%”.'|trans({'%q%': s.q}) : 'No ceremony is scheduled yet.'|trans }}</p>
+            {% endif %}
+          </section>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  {# The find band's two claims (inventory: _partials.md, find-band). Generated, never
+     typed — a sentence naming what a box searches goes stale the day a source is added. #}
+  <p class="dv__note" id="dvNote">
+    {%- set _covers = search_covers() -%}
+    {{ 'Searches'|trans }}
+    {%- for noun in _covers %}{{ ' ' }}{{ noun|trans }}{% if not loop.last %},{% else %}, {{ 'and everything else published here.'|trans }}{% endif %}{% endfor %}
+    <span class="dv__promise">{{ 'Nothing unannounced is searchable.'|trans }}</span>
+  </p>
+</div>
+{% endblock %}
+
+{% block sheets %}
+  {{ parent() }}
+  {% if _f %}
+    {# FILTERS — a bottom sheet on a phone, a full-height panel at the end edge from 600
+       (the DC: 440 wide, radius 0). A plain GET form: with no script `#dvFacets` is the
+       link target and the panel shows by `:target`; discover.js opens it as a dialog with
+       a focus trap, keeps the button's count live and makes Status deselectable. #}
+    <div class="ag-scrim dv-scrim" data-dv-scrim></div>
+    <div class="dv-facets" id="dvFacets" role="dialog" aria-modal="true" aria-labelledby="dvFacetsT" data-dv-facets>
+      <form class="dv-facets__form" method="get" action="/discover" data-dv-facetform>
+        <input type="hidden" name="tab" value="{{ s.tab }}" data-dv-tabfield>
+        {% if s.q %}<input type="hidden" name="q" value="{{ s.q }}">{% endif %}
+        {% if s.literal and s.q %}<input type="hidden" name="literal" value="1">{% endif %}
+        {% if s.tab == 'live' and s.kind != 'all' %}<input type="hidden" name="kind" value="{{ s.kind }}">{% endif %}
+        <div class="dv-facets__head">
+          <span class="dv-facets__t" id="dvFacetsT">{{ 'Filters'|trans }}</span>
+          <a class="dv-facets__x" href="#" role="button" aria-label="{{ 'Close filters'|trans }}" data-dv-close>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+          </a>
+        </div>
+        <div class="dv-facets__body">
+          <fieldset class="dv-fs">
+            <legend class="dv-fs__l">{{ 'Trust'|trans }}</legend>
+            {% for o in _f.trust %}
+              <label class="dv-sw">
+                <span class="dv-sw__b"><span class="dv-sw__t">{{ o.label }}</span><span class="dv-sw__h">{{ o.help }}</span></span>
+                <input class="dv-sw__in" type="checkbox" role="switch" name="trust[]" value="{{ o.key }}"{% if o.on %} checked{% endif %}>
+                <span class="ag-switch dv-sw__v" aria-hidden="true"></span>
+              </label>
+            {% endfor %}
+          </fieldset>
+          <fieldset class="dv-fs">
+            <legend class="dv-fs__l">{{ 'Where'|trans }}</legend>
+            <div class="dv-fs__chips">
+              {% for o in _f.where %}
+                <label class="dv-opt"><input class="dv-opt__in" type="radio" name="where" value="{{ o.code }}"{% if o.on %} checked{% endif %}><span class="dv-opt__v">{{ o.label }}</span></label>
+              {% endfor %}
+            </div>
+          </fieldset>
+          <fieldset class="dv-fs">
+            <legend class="dv-fs__l">{{ 'Status'|trans }}</legend>
+            <div class="dv-fs__chips">
+              {% for o in _f.status %}
+                <label class="dv-opt"><input class="dv-opt__in" type="radio" name="status" value="{{ o.key }}"{% if o.on %} checked{% endif %} data-dv-toggle><span class="dv-opt__v">{{ o.label }}</span></label>
+              {% endfor %}
+            </div>
+          </fieldset>
+        </div>
+        <div class="dv-facets__foot">
+          <a class="dv-facets__clear" href="{{ _f.clear }}" data-dv-clear>{{ 'Clear all'|trans }}</a>
+          {% set _n = d.counts[s.tab] %}
+          <button type="submit" class="dv-facets__go" data-dv-show data-one="{{ 'Show 1 result'|trans }}" data-many="{{ 'Show %n% results'|trans }}">{{ (_n == 1 ? 'Show 1 result' : 'Show %n% results')|trans({'%n%': _n|number_format}) }}</button>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/discover.js') }}"></script>{% endblock %}

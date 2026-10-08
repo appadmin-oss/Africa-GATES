@@ -1,0 +1,520 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   GEE — the launcher, the panel, the guide and the help desk
+   Phase 3 · REFERENCE §7.7, §8.22, §6.7, §13 · design/Gee.dc.html
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Every value is the DC's inline style (REFERENCE §5): `layout=phone` below 600px,
+   `layout=desktop` from 600 — the chrome's own breakpoint, since the DC draws no tablet.
+   Colour only from Support\Accent's tokens (ColourLiteralTest holds this file at the
+   baseline); type from the closed ladder in rem (`--ag-fs-*`), the greeting's Playfair
+   25 a display step; no capitals; mono only on a reference (`.gee__ref*`,
+   `.gee__pay-ref`). Logical properties throughout, so Arabic mirrors.
+
+   ── THE DC'S COLOURS THAT ARE NOT IN THE PALETTE (owner Q1: no new colours) ──────
+
+   `#f4faf4` (the result card) is `--ag-green-wash`, the palette's one success wash,
+   under the `--ag-green-edge` border §8.22 names with it. `#f6f7f6` (the privacy note,
+   the composer, a hovered tile) is `--ag-bar`, the nearest neutral by value. The
+   pending step's `#8b9295` is `--ag-mute`, which is never a word (Accent::words()), so
+   pending text is `--ag-soft`. Each is a deviation in docs/handoff/PHASE-3.md.
+
+   ── CLEARANCE IS ONE VARIABLE, NEVER A TYPED OFFSET ─────────────────────────────
+
+   `bottom: calc(var(--ag-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom))`, as
+   §7.7 writes it. `--ag-bottom-ui` is set on <body> by shell.js from every element that
+   carries `[data-bottom-ui]` while it is on screen — the tab bar, the cookie notice, a
+   flow's sticky bar — and cleared when it goes; the FAB and the panel read nothing else.
+   The documented 96 / 108 are "the bar, plus 16"; a typed 96 goes stale the day a bar
+   gains a line.
+
+   ── 44 EVERYWHERE (§6.7, §13) ───────────────────────────────────────────────────
+
+   The DC draws its header buttons, Check now and Yes/No at 40, the help-link chips at
+   34, the composer's buttons at 36 and the note's dismiss at 28. Each is 44 here; where
+   the DC's smaller DRAWN size matters to the picture (the send disc, the dismiss ×) the
+   44 is the hit box and the drawing stays the DC's size inside it. Deviations listed.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ══ The launcher ════════════════════════════════════════════════════════════ */
+
+.gee__fab{
+  position:fixed; z-index:var(--ag-z-gee);
+  inset-inline-end:12px;
+  bottom:calc(var(--ag-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom));
+  display:flex; align-items:center; gap:10px;
+  height:52px; padding:0 12px;
+  border:0; border-radius:var(--ag-r-pill);
+  background:var(--ag-ink); color:var(--ag-surface);
+  font:600 var(--ag-fs-15)/1 var(--ag-font-ui);
+  box-shadow:0 14px 30px -12px color-mix(in srgb, var(--ag-ink) 60%, transparent);
+  cursor:pointer;
+}
+.gee__fab[hidden]{ display:none }
+.gee__fab-t{ display:none }
+
+.gee__g{
+  position:relative; flex:none;
+  width:28px; height:28px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-green-light); color:var(--ag-ink);
+  font:700 var(--ag-fs-16)/1 var(--ag-font-display);
+}
+/* Support mode: the amber dot on the G (§8.22). 10 + a 2px ring, as the DC draws it. */
+.gee__g-dot{
+  display:none; position:absolute; inset-inline-end:-2px; bottom:-2px;
+  width:14px; height:14px; border-radius:50%;
+  background:var(--ag-gold); border:2px solid var(--ag-ink);
+}
+.gee[data-mode="support"] .gee__g-dot{ display:block }
+
+/* While the panel is open the launcher is not drawn (the DC's `closed`). Reads the
+   layer's own state, so it is drawn again the moment the sheet closes and the focus
+   the sheet hands back has somewhere to land. */
+.gee__layer[data-open] ~ .gee__fab{ display:none }
+
+
+/* ══ The layer and the panel ═════════════════════════════════════════════════
+   The layer is the space Gee may use: clear of every bottom bar, 56px under the top on
+   a phone (the DC's `top`), and its height IS the cap — the panel is `min(…, 100%)` of
+   it, so it is never taller than the page and never sized in vh (§7.7). */
+
+.gee__layer{
+  position:fixed; z-index:var(--ag-z-gee);
+  inset-inline:12px; top:56px;
+  bottom:calc(var(--ag-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom));
+  display:none; flex-direction:column; justify-content:flex-end; align-items:flex-end;
+  pointer-events:none;
+}
+.gee__layer[data-open]{ display:flex }
+
+.gee__panel{
+  pointer-events:auto;
+  width:100%; height:min(640px, 100%); max-height:100%;
+  display:flex; flex-direction:column;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-24);
+  overflow:hidden;
+  box-shadow:var(--ag-sh-gee);
+  font-family:var(--ag-font-ui); color:var(--ag-ink);
+}
+
+
+/* ══ 1 · Header ══════════════════════════════════════════════════════════════ */
+
+.gee__head{
+  flex:none; display:flex; align-items:center; gap:10px;
+  padding-block:14px 12px; padding-inline:18px 12px;
+  border-bottom:1px solid transparent;
+}
+.gee[data-mode="support"] .gee__head{ border-bottom-color:var(--ag-ground) }
+
+.gee__av{
+  position:relative; flex:none;
+  width:34px; height:34px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-green-light); color:var(--ag-ink);
+  font:700 var(--ag-fs-17)/1 var(--ag-font-display);
+}
+.gee__av-dot{
+  position:absolute; inset-inline-end:-1px; bottom:-1px;
+  width:15px; height:15px; border-radius:50%;
+  background:var(--ag-green); border:2px solid var(--ag-surface);
+}
+.gee[data-mode="support"] .gee__av-dot{ background:var(--ag-gold) }
+
+.gee__id{ flex:1; min-width:0; display:flex; flex-direction:column }
+.gee__name{ font:700 var(--ag-fs-15)/1.3 var(--ag-font-ui) }
+.gee__status{ font-size:var(--ag-fs-12); line-height:1.35; color:var(--ag-soft) }
+
+.gee__iconbtn{
+  position:relative; flex:none;
+  width:44px; height:44px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:0; border-radius:50%;
+  background:transparent; color:var(--ag-ink-2);
+  cursor:pointer;
+}
+.gee__iconbtn:hover{ background:var(--ag-ground); color:var(--ag-ink) }
+.gee__iconbtn--close{ background:var(--ag-ground); color:var(--ag-ink) }
+.gee__live{
+  position:absolute; top:10px; inset-inline-end:10px;
+  width:12px; height:12px; border-radius:50%;
+  background:var(--ag-live); border:2px solid var(--ag-surface);
+}
+.gee__live[hidden]{ display:none }
+
+.gee:not([data-mode="support"]) .gee__only-support,
+.gee[data-mode="support"] .gee__only-guide{ display:none }
+
+
+/* ══ The conversation ════════════════════════════════════════════════════════ */
+
+.gee__log{
+  flex:1; min-height:0; overflow:auto; overscroll-behavior:contain;
+  display:flex; flex-direction:column; gap:12px;
+  padding-block:14px 16px; padding-inline:16px;
+}
+.gee__empty,
+.gee__thread{ display:flex; flex-direction:column; gap:12px }
+.gee__empty[hidden],
+.gee__thread:empty{ display:none }
+
+/* 3 · Greeting */
+.gee__hello{ display:flex; flex-direction:column; gap:6px; padding-block:8px 4px; padding-inline:2px }
+.gee__hello-t{ margin:0; font:700 var(--ag-fs-25)/1.15 var(--ag-font-display); color:var(--ag-ink) }
+.gee__hello-s{ margin:0; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-soft) }
+
+/* Guide: four starters */
+.gee__starters{ display:flex; flex-direction:column; gap:8px }
+.gee__starter{
+  display:flex; align-items:center; gap:12px;
+  min-height:52px; padding:0 14px;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14-5); font-weight:500; text-align:start;
+  cursor:pointer;
+}
+.gee__starter:hover{ background:var(--ag-bar) }
+.gee__starter-i{ flex:none; color:var(--ag-green) }
+.gee__starter-t{ flex:1 }
+.gee__starter-go{ flex:none; color:var(--ag-chevron) }
+
+/* 2/5 · The privacy note */
+.gee__note{
+  display:flex; align-items:flex-start; gap:10px;
+  padding:10px 12px;
+  background:var(--ag-bar); border-radius:var(--ag-r-12);
+  font-size:var(--ag-fs-12); line-height:1.5; color:var(--ag-ink-2);
+}
+.gee__note[hidden]{ display:none }
+.gee__note-i{ flex:none; margin-top:1px; color:var(--ag-ink-2) }
+.gee__note-t{ flex:1 }
+.gee__note-t a{ color:var(--ag-ink); text-decoration:underline }
+/* The DC's 28px ×, in a 44px box that overhangs the note's padding so the line box
+   does not grow. */
+.gee__note-x{
+  flex:none; width:44px; height:44px;
+  margin-block:-13px; margin-inline:0 -14px;
+  display:flex; align-items:center; justify-content:center;
+  border:0; border-radius:50%; background:transparent; color:var(--ag-soft);
+  font-size:var(--ag-fs-16); cursor:pointer;
+}
+
+/* Support: "From your account" */
+.gee__mine{ display:flex; flex-direction:column; gap:8px }
+.gee__mine[hidden]{ display:none }
+.gee__mine-h{ padding:0 2px; font-size:var(--ag-fs-12-5); font-weight:600; color:var(--ag-soft) }
+.gee__mine-card{
+  display:flex; flex-direction:column;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-16); overflow:hidden;
+}
+.gee__pay{
+  display:grid; grid-template-columns:36px 1fr auto; gap:12px; align-items:center;
+  padding-block:12px; padding-inline:14px 12px;
+}
+.gee__tile{
+  width:36px; height:36px; border-radius:11px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-ground); color:var(--ag-ink);
+}
+.gee__tile--pay{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink) }
+.gee__pay-t{ min-width:0; display:flex; flex-direction:column; gap:2px }
+.gee__pay-b{ font-size:var(--ag-fs-14); font-weight:700 }
+.gee__pay-wait{ font-size:var(--ag-fs-12-5); font-weight:600; color:var(--ag-gold-ink) }
+/* A reference is never broken across lines. */
+.gee__pay-ref{
+  font:500 var(--ag-fs-12)/1.4 var(--ag-font-mono); color:var(--ag-soft);
+  white-space:nowrap;
+}
+.gee__check{
+  height:44px; padding:0 14px;
+  border:0; border-radius:var(--ag-r-pill);
+  background:var(--ag-ink); color:var(--ag-surface);
+  font-size:var(--ag-fs-13-5); font-weight:700; white-space:nowrap;
+  cursor:pointer;
+}
+.gee__tkt{
+  display:grid; grid-template-columns:36px 1fr 16px; gap:12px; align-items:center;
+  padding:12px 14px;
+  border-top:1px solid var(--ag-line-3);
+  color:var(--ag-ink); text-decoration:none; text-align:start;
+}
+.gee__tkt:first-child{ border-top:0 }
+.gee__tkt:hover{ color:var(--ag-ink); background:var(--ag-bar) }
+.gee__tkt-t{ min-width:0; display:flex; flex-direction:column; gap:2px }
+.gee__tkt-b{ font-size:var(--ag-fs-14); font-weight:700 }
+.gee__tkt-s{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.gee__tkt-c{ color:var(--ag-chevron) }
+
+/* Support, signed out: the reference card */
+.gee__refcard{
+  display:flex; flex-direction:column; gap:8px;
+  padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+}
+.gee__refcard-l{ font-size:var(--ag-fs-13-5); font-weight:600 }
+.gee__refcard-row{ display:flex; gap:8px }
+.gee__ref-input{
+  flex:1; min-width:0; height:46px; padding:0 14px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font:500 var(--ag-fs-16)/1 var(--ag-font-mono);
+}
+.gee__refcard-go{
+  height:46px; padding:0 16px;
+  border:0; border-radius:var(--ag-r-12);
+  background:var(--ag-ink); color:var(--ag-surface);
+  font-size:var(--ag-fs-14); font-weight:700; cursor:pointer;
+}
+.gee__refcard-n{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.gee__refcard-n a{ color:var(--ag-ink); text-decoration:underline }
+
+/* Support: quick fixes, 2 × 2 */
+.gee__fixes{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+.gee__fix{
+  display:flex; flex-direction:column; align-items:flex-start; gap:8px;
+  min-height:84px; padding:12px;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+  background:var(--ag-surface); color:var(--ag-ink);
+  text-align:start; cursor:pointer;
+}
+.gee__fix:hover{ background:var(--ag-bar) }
+.gee__fix-i{
+  width:32px; height:32px; border-radius:var(--ag-r-10);
+  display:flex; align-items:center; justify-content:center;
+}
+.gee__fix--check   .gee__fix-i{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink) }
+.gee__fix--receipt .gee__fix-i{ background:var(--ag-green-wash);  color:var(--ag-green-deep) }
+.gee__fix--code    .gee__fix-i{ background:var(--ag-info-wash);   color:var(--ag-info) }
+.gee__fix--wrong   .gee__fix-i{ background:var(--ag-live-wash);   color:var(--ag-live-ink) }
+.gee__fix-t{ font-size:var(--ag-fs-13-5); font-weight:600; line-height:1.3 }
+
+/* 4 · Bubbles. Logical corner radii, so the tail follows the reading direction. */
+.gee__msg{ display:flex; justify-content:flex-start; animation:geeIn .25s ease-out both }
+.gee__msg--me{ justify-content:flex-end }
+.gee__bubble{
+  max-width:85%; padding:11px 14px;
+  border-radius:18px; border-end-start-radius:6px;
+  background:var(--ag-ground); color:var(--ag-ink);
+  font-size:var(--ag-fs-14-5); line-height:1.55;
+  overflow-wrap:anywhere;
+}
+.gee__bubble p{ margin:0 }
+.gee__bubble p + p{ margin-top:8px }
+.gee__bubble a{ color:var(--ag-ink); text-decoration:underline }
+.gee__msg--me .gee__bubble{
+  border-radius:18px; border-end-end-radius:6px;
+  background:var(--ag-ink); color:var(--ag-surface);
+}
+.gee__status{ margin:0; padding:6px 2px; font-size:var(--ag-fs-14); color:var(--ag-soft) }
+/* Gee's action buttons: the page that does the thing. Tier-1 green, the one primary on
+   the turn, at least 44px tall under a coarse pointer and 24px everywhere (WCAG 2.5.8). */
+.gee__acts{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 2px }
+.gee__act{
+  display:inline-flex; align-items:center; min-height:44px; padding:0 16px;
+  border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface);
+  font-size:var(--ag-fs-14-5); font-weight:600; text-decoration:none;
+}
+.gee__act:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+
+/* The live work card (role=status) */
+.gee__work{
+  display:flex; flex-direction:column; gap:2px;
+  padding:12px 14px;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+  animation:geeIn .25s ease-out both;
+}
+.gee__step{
+  display:flex; align-items:center; gap:10px; min-height:32px;
+  font-size:var(--ag-fs-14); color:var(--ag-soft);
+}
+.gee__step[data-state="active"],
+.gee__step[data-state="done"],
+.gee__step[data-state="failed"]{ color:var(--ag-ink) }
+.gee__ring{
+  flex:none; width:18px; height:18px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid var(--ag-line); background:transparent;
+}
+/* Active: a ring of line-2 with one half drawn in ink, turning. Reduced motion keeps
+   the half ring still (§8.22) — the half is what says "working" without the turn. */
+.gee__step[data-state="active"] .gee__ring{
+  border-color:var(--ag-line-2);
+  border-block-start-color:var(--ag-ink); border-inline-end-color:var(--ag-ink);
+  animation:geeSpin .9s linear infinite;
+}
+.gee__step[data-state="done"] .gee__ring{ border:0; background:var(--ag-green); color:var(--ag-surface) }
+.gee__step[data-state="failed"] .gee__ring{ border:0; background:var(--ag-error); color:var(--ag-surface) }
+.gee__ring svg{ display:none }
+.gee__step[data-state="done"] .gee__ring-ok,
+.gee__step[data-state="failed"] .gee__ring-no{ display:block }
+
+/* The result card */
+.gee__result{
+  display:flex; flex-direction:column; gap:12px;
+  padding:14px;
+  background:var(--ag-green-wash); border:1px solid var(--ag-green-edge); border-radius:var(--ag-r-16);
+  animation:geeIn .3s ease-out both;
+}
+.gee__result-t{
+  display:flex; align-items:center; gap:8px;
+  font-size:var(--ag-fs-15); font-weight:700; color:var(--ag-green-deep);
+}
+.gee__result-t svg{ flex:none; color:var(--ag-green) }
+.gee__result-tick{ stroke:var(--ag-surface) }
+.gee__rcpt{ display:flex; flex-direction:column; background:var(--ag-surface); border-radius:var(--ag-r-12); overflow:hidden }
+.gee__rcpt-r{
+  display:flex; justify-content:space-between; gap:12px;
+  padding:9px 12px; border-top:1px solid var(--ag-line-3);
+  font-size:var(--ag-fs-13-5);
+}
+.gee__rcpt-r:first-child{ border-top:0 }
+.gee__rcpt-k{ color:var(--ag-soft) }
+.gee__rcpt-v{ font-weight:700; text-align:end; font-variant-numeric:tabular-nums; overflow-wrap:anywhere }
+.gee__result-go{ display:flex; gap:8px; flex-wrap:wrap }
+.gee__pill{
+  display:flex; align-items:center; height:44px; padding:0 14px;
+  border:1px solid var(--ag-green-edge); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-13-5); font-weight:600; text-decoration:none;
+}
+.gee__pill:hover{ color:var(--ag-ink); border-color:var(--ag-green) }
+
+.gee__ask{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 2px }
+.gee__ask-q{ font-size:var(--ag-fs-14); font-weight:600 }
+.gee__ask-b{ display:flex; gap:6px }
+.gee__yn{
+  height:44px; padding:0 16px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14); font-weight:600; cursor:pointer;
+}
+
+/* The handoff card */
+.gee__hand{
+  display:flex; flex-direction:column; gap:10px;
+  padding:14px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-16);
+  animation:geeIn .3s ease-out both;
+}
+.gee__hand-h{ display:flex; align-items:center; gap:10px }
+.gee__hand-i{
+  flex:none; width:36px; height:36px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-ink); color:var(--ag-surface);
+}
+.gee__hand-tt{ display:flex; flex-direction:column; gap:1px }
+.gee__hand-t{ font-size:var(--ag-fs-14-5); font-weight:700 }
+.gee__hand-s{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.gee__hand-p{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.55; color:var(--ag-ink-2) }
+.gee__hand-p a{ color:var(--ag-ink); text-decoration:underline }
+.gee__hand-l{ font-size:var(--ag-fs-13-5); font-weight:600 }
+.gee__hand-e{
+  height:46px; padding:0 14px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12);
+  background:var(--ag-surface); color:var(--ag-ink);
+}
+.gee__hand-b{
+  height:46px; border:0; border-radius:var(--ag-r-12);
+  background:var(--ag-ink); color:var(--ag-surface);
+  font-size:var(--ag-fs-14-5); font-weight:700; cursor:pointer;
+}
+.gee__hand-b:disabled{ cursor:default }
+
+/* 5 · Help-link chips */
+.gee__links{ display:flex; flex-wrap:wrap; gap:6px }
+.gee__link{
+  display:flex; align-items:center; height:44px; padding:0 12px;
+  border-radius:var(--ag-r-pill); background:var(--ag-ground); color:var(--ag-ink);
+  font-size:var(--ag-fs-13); font-weight:600; text-decoration:none;
+}
+.gee__link:hover{ color:var(--ag-ink); background:var(--ag-tint) }
+
+
+/* ══ 6 · The composer · 7 · the footer ═══════════════════════════════════════ */
+
+.gee__foot{ flex:none; padding-block:10px 12px; padding-inline:12px; border-top:1px solid var(--ag-ground) }
+
+.gee__pending{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px }
+.gee__pending[hidden]{ display:none }
+.gee__ref,
+.gee__file{
+  display:inline-flex; align-items:center; gap:2px;
+  padding-inline:12px 0; border-radius:var(--ag-r-pill); background:var(--ag-ground);
+  font-size:var(--ag-fs-12-5); color:var(--ag-ink);
+}
+.gee__ref[hidden],
+.gee__file[hidden]{ display:none }
+.gee__ref-v{ font:500 var(--ag-fs-12-5)/1 var(--ag-font-mono); white-space:nowrap }
+.gee__file-v{ max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.gee__chip-x{
+  width:44px; height:44px; border:0; border-radius:50%;
+  background:transparent; color:var(--ag-soft); font-size:var(--ag-fs-16); cursor:pointer;
+}
+.gee__err{ margin:0 0 8px; font-size:var(--ag-fs-12-5); color:var(--ag-error) }
+.gee__err[hidden]{ display:none }
+
+.gee__composer{
+  display:flex; align-items:center; gap:6px;
+  padding-block:1px; padding-inline:2px 1px;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-pill);
+  background:var(--ag-bar);
+}
+.gee__attach{
+  flex:none; width:44px; height:44px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:0; border-radius:50%; background:transparent; color:var(--ag-ink-2);
+  cursor:pointer;
+}
+.gee__input{
+  flex:1; min-width:0; height:44px; padding:0; padding-inline-start:8px;
+  border:0; outline:0; background:transparent; color:var(--ag-ink);
+  font-family:var(--ag-font-ui); font-size:var(--ag-fs-16);
+}
+.gee__composer:focus-within{ outline:3px solid var(--ag-green); outline-offset:2px }
+/* The DC's 36px ink disc, in a 44px hit box. */
+.gee__send{
+  flex:none; width:44px; height:44px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:0; border-radius:50%; background:transparent; cursor:pointer;
+}
+.gee__send-o{
+  width:36px; height:36px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-ink); color:var(--ag-surface);
+}
+.gee__send:disabled{ cursor:default }
+
+.gee__fine{
+  margin:8px 0 0; text-align:center;
+  font-size:var(--ag-fs-11-5); line-height:1.6; color:var(--ag-soft);
+}
+.gee__fine a,
+.gee__fine-b{ color:var(--ag-ink); text-decoration:underline }
+.gee__fine-b{
+  padding:0; border:0; background:transparent;
+  font-family:inherit; font-size:var(--ag-fs-11-5); cursor:pointer;
+}
+
+
+/* ══ Breakpoint ownership: from 600, the desktop panel ═══════════════════════ */
+
+@media (min-width:600px){
+  .gee__fab{ inset-inline-end:24px; padding-inline:12px 18px }
+  .gee__fab-t{ display:inline }
+  .gee__layer{ inset-inline:auto 24px; top:24px }
+  .gee__panel{ width:400px; height:min(580px, 100%) }
+}
+
+
+/* ══ Motion ══════════════════════════════════════════════════════════════════ */
+
+@keyframes geeSpin{ to{ transform:rotate(360deg) } }
+@keyframes geeIn{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
+@media (prefers-reduced-motion:reduce){
+  .gee *{ animation:none!important; transition:none!important }
+}
+html.ag-rm .gee *{ animation:none!important; transition:none!important }
+
+@media print{
+  .gee{ display:none }
+}

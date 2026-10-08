@@ -1,0 +1,91 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   AFRICA GATES — ADMIN CONSOLE TOKENS (everything but colour)
+   The admin handoff's README §10 (`design_handoff_admin_console`), built 4 Oct 2026
+   when the owner chose its monochrome design (GAPS §8d, option (A)).
+   ══════════════════════════════════════════════════════════════════════════════
+
+   ── NO COLOUR HERE, FOR THE PUBLIC TOKENS' REASON ───────────────────────────
+
+   The console's colours are Support\Accent's console set, emitted by the admin layout
+   as `--cn-*` into a nonced <style> before this sheet. A colour typed here would be a
+   second source decided by load order. ColourLiteralTest holds this file at zero.
+
+   ── THE FACE IS THE HOUSE'S, THE SCALE IS THE CONSOLE'S ────────────────────
+
+   The handoff draws Geist and Geist Mono; the owner kept DM Sans and the house
+   JetBrains Mono (GAPS §8d). The SIZES are the handoff's own ladder (§10: 11 · 11.5 ·
+   12 · 12.5 · 13 · 13.5 · 14 · 15 · 17 · 18 · 22 · 24 · 26 · 30), plus the two its HTML
+   draws in the shell that §10 leaves out — 10.5 for a count badge and 16 for the hero
+   ask box. The public ladder (tokens.css) is not this one and neither may borrow the
+   other's steps: the console is a dense operator tool and the public site is a reading
+   surface, and the owner asked for the public rules to be held strictly where they
+   apply. ConsoleTypeTest closes this ladder exactly as TypeScaleTest closes the public
+   one, and holds the other two public rules here too: no capitals, and monospace only
+   for figures, references, times and keycaps (§10).
+
+   Written in rem, named by px, for the public tokens' reason — a browser's own text
+   size reaches rem and not px. At the 16px default every size is the handoff's to the
+   pixel.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+:root{
+  --cn-font: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cn-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --cn-fs-10-5: .65625rem;
+  --cn-fs-11:   .6875rem;
+  --cn-fs-11-5: .71875rem;
+  --cn-fs-12:   .75rem;
+  --cn-fs-12-5: .78125rem;
+  --cn-fs-13:   .8125rem;
+  --cn-fs-13-5: .84375rem;
+  --cn-fs-14:   .875rem;
+  --cn-fs-15:   .9375rem;
+  --cn-fs-16:   1rem;
+  --cn-fs-17:   1.0625rem;
+  --cn-fs-22:   1.375rem;
+  --cn-fs-24:   1.5rem;
+  --cn-fs-26:   1.625rem;
+  --cn-fs-30:   1.875rem;
+
+  /* §10: 3–4 (bars) · 6 · 8 (nav, inputs) · 10 · 12 (tiles, menus) · 16 (cards) ·
+     20 (modals, dark bands) · 999 (all buttons and pills). A step lands with its first
+     reader (DeadTokenTest): 10 and the 18px type step arrive with stage 2's screens. */
+  --cn-r-4: 4px;
+  --cn-r-6: 6px;
+  --cn-r-8: 8px;
+  --cn-r-12: 12px;
+  --cn-r-16: 16px;
+  --cn-r-20: 20px;
+  --cn-r-pill: 999px;
+
+  /* §2: the shell's own measures. */
+  --cn-side-w: 248px;
+  --cn-bar-h: 56px;
+  --cn-max: 1240px;
+
+  /* §10 motion: agIn over .14s (menus), .16s (toasts, modals), .18s (drawers); toggles
+     .15s. Every one is 0 under reduced motion — below, not per component. */
+  --cn-dur-menu: .14s;
+  --cn-dur-modal: .16s;
+  --cn-dur-drawer: .18s;
+  --cn-dur-toggle: .15s;
+  --cn-toast-ms: 5200;
+
+  /* Stacking, in the HTML's order. */
+  --cn-z-side: 30;
+  --cn-z-menu: 30;
+  --cn-z-drawer: 36;
+  --cn-z-modal: 40;
+  --cn-z-palette: 46;
+  --cn-z-toast: 50;
+}
+
+@media (prefers-reduced-motion: reduce){
+  :root{
+    --cn-dur-menu: 0s;
+    --cn-dur-modal: 0s;
+    --cn-dur-drawer: 0s;
+    --cn-dur-toggle: 0s;
+  }
+}

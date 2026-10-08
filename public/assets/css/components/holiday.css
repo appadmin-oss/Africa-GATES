@@ -1,0 +1,92 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE SEASONAL GREETING — partials/holiday-banner.twig · HOLIDAY-THEMES (5 Oct 2026)
+   design/HolidayBanner.dc.html, values exact apart from the notes below.
+   ══════════════════════════════════════════════════════════════════════════════
+
+   No colour typed here: the tones are Accent's `--ag-hol-{tone}-{wash|edge|ink|line}`, and
+   each pattern is the tone's line at the DC's alpha (hex 24/2a/40/26 → 14.1/16.5/25.1/14.9%)
+   through color-mix. The four SVG tiles are a route built from Accent
+   (`/img/holiday/{pattern}-{tone}.svg`), so their colour has the same one source.
+
+   Notes: the greeting is `--ag-ink` (the DC's #0d1f21 is not a palette colour); RTL mirrors
+   the pattern layer with its own mask, which is the spec's 270deg mask by construction. */
+
+.hb-t--green{ --hb-wash:var(--ag-hol-green-wash); --hb-edge:var(--ag-hol-green-edge); --hb-ink:var(--ag-hol-green-ink); --hb-line:var(--ag-hol-green-line);
+  --hb-confetti:url('/img/holiday/confetti-green.svg'); --hb-lattice:url('/img/holiday/lattice-green.svg'); --hb-petals:url('/img/holiday/petals-green.svg'); --hb-balloons:url('/img/holiday/balloons-green.svg') }
+.hb-t--gold{ --hb-wash:var(--ag-hol-gold-wash); --hb-edge:var(--ag-hol-gold-edge); --hb-ink:var(--ag-hol-gold-ink); --hb-line:var(--ag-hol-gold-line);
+  --hb-confetti:url('/img/holiday/confetti-gold.svg'); --hb-lattice:url('/img/holiday/lattice-gold.svg'); --hb-petals:url('/img/holiday/petals-gold.svg'); --hb-balloons:url('/img/holiday/balloons-gold.svg') }
+.hb-t--live{ --hb-wash:var(--ag-hol-live-wash); --hb-edge:var(--ag-hol-live-edge); --hb-ink:var(--ag-hol-live-ink); --hb-line:var(--ag-hol-live-line);
+  --hb-confetti:url('/img/holiday/confetti-live.svg'); --hb-lattice:url('/img/holiday/lattice-live.svg'); --hb-petals:url('/img/holiday/petals-live.svg'); --hb-balloons:url('/img/holiday/balloons-live.svg') }
+.hb-t--info{ --hb-wash:var(--ag-hol-info-wash); --hb-edge:var(--ag-hol-info-edge); --hb-ink:var(--ag-hol-info-ink); --hb-line:var(--ag-hol-info-line);
+  --hb-confetti:url('/img/holiday/confetti-info.svg'); --hb-lattice:url('/img/holiday/lattice-info.svg'); --hb-petals:url('/img/holiday/petals-info.svg'); --hb-balloons:url('/img/holiday/balloons-info.svg') }
+.hb-t--stone{ --hb-wash:var(--ag-hol-stone-wash); --hb-edge:var(--ag-hol-stone-edge); --hb-ink:var(--ag-hol-stone-ink); --hb-line:var(--ag-hol-stone-line);
+  --hb-confetti:url('/img/holiday/confetti-stone.svg'); --hb-lattice:url('/img/holiday/lattice-stone.svg'); --hb-petals:url('/img/holiday/petals-stone.svg'); --hb-balloons:url('/img/holiday/balloons-stone.svg') }
+
+.hb-line{
+  display:block; height:3px;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--hb-line) 20%, transparent), var(--hb-line) 50%, color-mix(in srgb, var(--hb-line) 20%, transparent));
+}
+.hb-wrap{ max-width:1200px; margin:0 auto; padding:12px 16px 0 }
+.hb-wrap[hidden], .hb-line[hidden]{ display:none }
+
+.hb{
+  position:relative; overflow:hidden; display:grid; grid-template-columns:44px minmax(0, 1fr);
+  column-gap:14px; row-gap:12px; align-items:center; padding:16px 48px 16px 16px;
+  border-radius:var(--ag-r-20); background:var(--hb-wash); box-shadow:inset 0 0 0 1px var(--hb-edge); color:var(--ag-ink);
+}
+.hb__pat{
+  position:absolute; inset:0; pointer-events:none;
+  -webkit-mask-image:linear-gradient(180deg, transparent 0 30%, black 100%);
+          mask-image:linear-gradient(180deg, transparent 0 30%, black 100%);
+}
+[dir="rtl"] .hb__pat{ transform:scaleX(-1) }
+.hb__tile{
+  position:relative; width:44px; height:44px; border-radius:var(--ag-r-14); background:var(--ag-surface); color:var(--hb-ink);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 6px 16px -10px color-mix(in srgb, var(--ag-ink) 35%, transparent);
+}
+.hb__tile svg{ width:52%; height:52% }
+.hb__text{ position:relative; min-width:0; display:flex; flex-direction:column; gap:3px }
+.hb__g{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-18); line-height:1.2; color:var(--ag-ink); text-wrap:balance }
+.hb__l{ font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2); text-wrap:pretty }
+.hb__cta,
+.hb__cta:hover{
+  position:relative; grid-column:2; justify-self:start; display:flex; align-items:center; justify-content:center;
+  height:44px; padding:0 18px; border-radius:var(--ag-r-pill); background:var(--ag-surface);
+  box-shadow:inset 0 0 0 1px var(--hb-edge); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14-5);
+  white-space:nowrap; text-decoration:none;
+}
+.hb__xf{ position:absolute; top:6px; inset-inline-end:6px; margin:0 }
+.hb__x{
+  width:44px; height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--ag-ink-2);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+
+/* ── the patterns: the DC's PAT ── */
+.hb--stripes .hb__pat{ background:linear-gradient(90deg, transparent 0 62%, color-mix(in srgb, var(--hb-line) 14.1%, transparent) 62% 70%, transparent 70% 78%, color-mix(in srgb, var(--hb-line) 14.1%, transparent) 78% 86%, transparent 86%) }
+.hb--ruled .hb__pat{ background:
+  linear-gradient(color-mix(in srgb, var(--hb-line) 16.5%, transparent) 0 1px, transparent 1px) 0 14px / 100% 22px,
+  linear-gradient(90deg, transparent 0 calc(100% - 132px), color-mix(in srgb, var(--hb-line) 25.1%, transparent) calc(100% - 132px) calc(100% - 131px), transparent calc(100% - 131px)) }
+.hb--snow .hb__pat{ background:
+  radial-gradient(circle, color-mix(in srgb, var(--hb-line) 25.1%, transparent) 0 1.6px, transparent 2px) 0 0 / 26px 26px,
+  radial-gradient(circle, color-mix(in srgb, var(--hb-line) 16.5%, transparent) 0 1.2px, transparent 1.6px) 13px 13px / 26px 26px }
+.hb--sun .hb__pat{ background:repeating-radial-gradient(circle at 100% 110%, transparent 0 22px, color-mix(in srgb, var(--hb-line) 14.9%, transparent) 22px 23px) }
+.hb--africa .hb__pat{ background:url('/assets/img/africa-silhouette.svg') right -10px center / auto 150% no-repeat }
+.hb--confetti .hb__pat{ background:var(--hb-confetti) }
+.hb--lattice .hb__pat{ background:var(--hb-lattice) }
+.hb--petals .hb__pat{ background:var(--hb-petals) }
+.hb--balloons .hb__pat{ background:var(--hb-balloons) }
+
+@media (min-width:600px){
+  .hb-wrap{ padding:20px 32px 0 }
+  .hb{ grid-template-columns:52px minmax(0, 1fr); column-gap:18px; padding:18px 64px 18px 18px }
+  .hb--cta{ grid-template-columns:52px minmax(0, 1fr) auto }
+  .hb--cta .hb__cta{ grid-column:3 }
+  .hb__tile{ width:52px; height:52px }
+  .hb__g{ font-size:var(--ag-fs-20) }
+  .hb__l{ font-size:var(--ag-fs-14-5) }
+  .hb__pat{
+    -webkit-mask-image:linear-gradient(90deg, transparent 0 40%, black 85%);
+            mask-image:linear-gradient(90deg, transparent 0 40%, black 85%);
+  }
+}

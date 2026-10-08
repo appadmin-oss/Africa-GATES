@@ -1,0 +1,104 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE FIELD MACROS — one wiring for every validated public form (rebuilt Phase 8)
+  inventory _partials.md, `partials/field.twig` (MUST RESTORE) · REFERENCE §9.4, §9.5, §13
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed with the old pages on 3 Oct; written again before the first rebuilt form that
+  needed it (sign in and join), because each form wiring its own error state is how one of
+  them came to redden the email box for a password failure (FormErrorStateTest).
+
+  What every control here gets, and why each is a rule:
+
+    · a LABEL that is always there (or, where a DC draws none, an `aria-label` the caller
+      names) — a placeholder is not a label, it vanishes when somebody starts typing;
+    · a HINT kept on screen when the field has a rule (`minlength`, a name pattern), so the
+      rule is met before the refusal and not as it (CLAUDE.md, "a rule stated only in a
+      placeholder is stated to nobody");
+    · `aria-invalid` ON THE CONTROL and `aria-describedby` naming the hint THEN the error,
+      only when `err` — which the caller takes from the bag key for THIS field, never from
+      a page-wide `error` (WCAG 1.4.1, 3.3.1, 4.1.2);
+    · `message()`: the sentence as text, its icon `aria-hidden`, a stable `{id}-err` id —
+      the same markup form-validate.js draws client-side, so a server error and a browser
+      error read the same.
+
+  `o` (an options hash) carries the attributes the server enforces too — `required`,
+  `minlength`, `maxlength`, `pattern`, `type`, `autocomplete`, `inputmode` — and nothing the
+  server does not: a stricter rule in the browser refuses a valid answer with no appeal.
+#}
+
+{# The inline error. `err` empty → nothing at all, not an empty live region. #}
+{% macro message(id, err) -%}
+  {%- if err -%}
+  <p class="ag-err" id="{{ id }}-err">
+    <svg class="ag-err__i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6M12 16.5v.5"></path></svg>
+    {{ err }}
+  </p>
+  {%- endif -%}
+{%- endmacro %}
+
+{# What a control is described by: the hint first, then the error. #}
+{% macro _described(id, hint, err) -%}
+  {%- set _d = [] -%}
+  {%- if hint %}{% set _d = _d|merge([id ~ '-hint']) %}{% endif -%}
+  {%- if err %}{% set _d = _d|merge([id ~ '-err']) %}{% endif -%}
+  {%- if _d|length %} aria-describedby="{{ _d|join(' ') }}"{% endif -%}
+{%- endmacro %}
+
+{# The shared attributes, written once so text() and textarea() cannot drift. #}
+{% macro _attrs(o, err) -%}
+  {%- if o.required|default(false) %} required{% endif -%}
+  {%- if o.minlength|default(0) %} minlength="{{ o.minlength }}"{% endif -%}
+  {%- if o.maxlength|default(0) %} maxlength="{{ o.maxlength }}"{% endif -%}
+  {%- if o.pattern|default('') %} pattern="{{ o.pattern }}"{% endif -%}
+  {%- if o.autocomplete|default('') %} autocomplete="{{ o.autocomplete }}"{% endif -%}
+  {%- if o.inputmode|default('') %} inputmode="{{ o.inputmode }}"{% endif -%}
+  {%- if o.enterkeyhint|default('') %} enterkeyhint="{{ o.enterkeyhint }}"{% endif -%}
+  {%- if o.placeholder|default('') %} placeholder="{{ o.placeholder }}"{% endif -%}
+  {%- if o.autofocus|default(false) %} autofocus{% endif -%}
+  {%- if o.aria_label|default('') %} aria-label="{{ o.aria_label }}"{% endif -%}
+  {%- if err %} aria-invalid="true"{% endif -%}
+{%- endmacro %}
+
+{#
+  A one-line field. o = {id, name, label, value, type, hint, required, …}. A label of ''
+  draws none (the caller passes `aria_label` instead — only where the DC draws no label).
+#}
+{% macro text(o, err) -%}
+  {%- set _id = o.id|default(o.name) -%}
+  <div class="ag-fieldset{{ o.class is defined ? ' ' ~ o.class }}">
+    {%- if o.label|default('') %}
+    <label class="ag-label" for="{{ _id }}">{{ o.label }}{% if o.optional|default(false) %} <span class="ag-label__opt">{{ 'Optional'|trans }}</span>{% endif %}</label>
+    {%- endif %}
+    <input class="ag-input" id="{{ _id }}" name="{{ o.name }}" type="{{ o.type|default('text') }}" value="{{ o.value|default('') }}"
+      {{- _self._attrs(o, err) }}{{ _self._described(_id, o.hint|default(''), err) }}{% if o.data is defined %} {{ o.data|raw }}{% endif %}>
+    {%- if o.hint|default('') %}<p class="ag-hint" id="{{ _id }}-hint">{{ o.hint }}</p>{% endif %}
+    {{ _self.message(_id, err) }}
+  </div>
+{%- endmacro %}
+
+{# Several lines, with an optional live counter (`counter: true`, min/max from the rule). #}
+{% macro textarea(o, err) -%}
+  {%- set _id = o.id|default(o.name) -%}
+  <div class="ag-fieldset{{ o.class is defined ? ' ' ~ o.class }}">
+    {%- if o.label|default('') %}
+    <label class="ag-label" for="{{ _id }}">{{ o.label }}{% if o.optional|default(false) %} <span class="ag-label__opt">{{ 'Optional'|trans }}</span>{% endif %}</label>
+    {%- endif %}
+    <textarea class="ag-input ag-input--area" id="{{ _id }}" name="{{ o.name }}" rows="{{ o.rows|default(4) }}"
+      {{- _self._attrs(o, err) }}{{ _self._described(_id, o.hint|default(''), err) }}>{{ o.value|default('') }}</textarea>
+    {%- if o.hint|default('') %}<p class="ag-hint" id="{{ _id }}-hint">{{ o.hint }}</p>{% endif %}
+    {{ _self.message(_id, err) }}
+  </div>
+{%- endmacro %}
+
+{# The error summary a server bounce renders: focus-taking, each failure a link to its field. #}
+{% macro summary(errors) -%}
+  {%- if errors|default({})|length -%}
+  <div class="ag-formsum" role="alert" tabindex="-1" data-ag-form-summary>
+    <p class="ag-formsum__t">{{ errors|length == 1 ? 'There is one thing to fix'|trans : 'There are %n% things to fix'|trans({'%n%': errors|length}) }}</p>
+    <ul class="ag-formsum__list">
+      {%- for f, m in errors %}<li><a href="#{{ f }}">{{ m }}</a></li>{% endfor -%}
+    </ul>
+  </div>
+  {%- endif -%}
+{%- endmacro %}

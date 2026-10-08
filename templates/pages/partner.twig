@@ -1,344 +1,121 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  PARTNER WITH US — /partner · PartnerController::form / submit · Phase 8
+  Built without a DC (PHASE-8.md "built without a DC")
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct (inventory pages--partner.md); rebuilt on the shell.
+  · THE CONSOLE'S COLD FRONT DOOR: a visible `href="/org"` for an organisation that already
+    partners with us (PublicIaTest::test_the_partner_console_is_reachable_from_the_public_site).
+  · THE FIGURES ARE StatsService::summary(), never typed: profiles in the registry, votes,
+    nations live (NationsLive, the one definition) and award categories. A figure that is
+    zero is not drawn — a partner page announcing "0 votes" is worse than silence.
+    The old label "Verified profiles" over a count of APPROVED profiles is gone: approval
+    is not verification, and the page is where a sponsor checks what they are buying.
+  · THE FORM POSTS WITH NO SCRIPT, and a refusal comes back on this page with every field
+    as typed (`old`) and the reason in words (`error`, the controller's sentence).
+    Rate-limited per connection (three a day) by the controller.
+  · The tier is a preference, not a price: "pricing is tailored to scope".
+  · No reply window is promised — nothing measures one (the receipt says the same).
+  · The old hero's line about funding "child leadership programmes" is not carried: no
+    reader or record anywhere here backs it, and a sponsor would take it as a term.
+#}
+{% import 'partials/field.twig' as f %}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', title: 'Partner with us'|trans, back: '/'} %}
+{% set _old = old|default({}) %}
+{% set _tiers = [
+  {n: 'Cultural Ally', k: 'Entry'|trans, perks: ['Recognition within a programme'|trans, 'Your logo on the partners wall'|trans, 'An end-of-cycle impact summary'|trans]},
+  {n: 'Continental Patron', k: 'Most chosen'|trans, perks: ['A category sponsored in your name'|trans, 'Presence at the awards evening'|trans, 'Content made together'|trans, 'Impact reporting every quarter'|trans]},
+  {n: 'Title Sponsor', k: 'Headline'|trans, perks: ['The cycle named for you'|trans, 'Presence across the whole cycle'|trans, 'A partnership built to order'|trans, 'Impact reporting for your board'|trans]}
+] %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
+{% endblock %}
+
 {% block content %}
-
-{# ════ HERO ════ #}
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Partner with Africa GATES · 2026 Cycle</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.3rem,5.4vw,4rem)">Back the leaders Africa will <em style="font-style:italic;color:var(--emerald-600)">remember.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Every contribution funds the recognition of incorruptible leaders and outstanding educators — and the child leadership programmes behind them. Choose how you'd like to take part.</p>
-    </div>
-  </div>
-</section>
-
-{# Server-resolved list of enabled gateways (empty in dev → CTAs fall back to #enquiry). #}
-{% set pay_on = payment_providers is defined and payment_providers|length > 0 %}
-
-<div x-data="partnerCheckout({{ pay_on ? 'true' : 'false' }})">
-  {# ── Sticky tab bar ── #}
-  <div class="r26-tabs">
-    <div class="r26-tabs__row" role="tablist">
-      {% for id,label in {'vote':'Online Voting','ticket':'Event Tickets','child':'Child Champions','corporate':'Corporate'} %}
-      <button type="button" class="r26-tab" role="tab" :class="tab==='{{ id }}' ? 'is-active' : ''" @click="tab='{{ id }}'">{{ label }}</button>
-      {% endfor %}
-    </div>
-  </div>
-
-  {# ════ A · ONLINE VOTING ════ #}
-  <section class="section" x-show="tab==='vote'" x-transition>
-    <div class="wrap" style="max-width:66rem">
-      <div class="r26-head">
-        <p class="r26-eyebrow">Category A</p>
-        <h2 class="r26-h2">Online <em>voting</em></h2>
-        <p class="r26-lead">For supporters anywhere in the world — buy votes and cast them across any open category. OTP-verified, fraud-scored, one identity per category.</p>
+<div class="cm cm--narrow">
+  <div class="cm-col cm-col--pad">
+    <header class="cm-hero">
+      <h1 class="cm-h1">{{ 'Stand beside the people this continent recognises'|trans }}</h1>
+      <p class="cm-lede">{{ 'Partner with Africa GATES to support transparent, independently judged awards — and reach the people and organisations being recognised in them.'|trans }}</p>
+      <div class="cm-form__go">
+        <a class="ag-btn ag-btn--primary ag-btn--pill" href="#enquiry">{{ 'Start the conversation'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="#how">{{ 'How it works'|trans }}</a>
       </div>
-      {% set packages = [
-        {amount:'₦1,000',  votes:5,   label:'Supporter',  tier:'supporter',  popular:false},
-        {amount:'₦2,000',  votes:12,  label:'Advocate',   tier:'advocate',   popular:false},
-        {amount:'₦5,000',  votes:35,  label:'Champion',   tier:'champion',   popular:true},
-        {amount:'₦10,000', votes:80,  label:'Ambassador', tier:'ambassador', popular:false},
-        {amount:'₦20,000', votes:180, label:'Guardian',   tier:'guardian',   popular:false},
-        {amount:'₦50,000', votes:500, label:'Vanguard',   tier:'vanguard',   popular:false}
-      ] %}
-      <div class="r26-pricegrid">
-        {% for p in packages %}
-        <div class="r26-price{% if p.popular %} r26-price--featured{% endif %}">
-          {% if p.popular %}<span class="r26-badge">Most popular</span>{% endif %}
-          <div class="r26-price__amt">{{ p.amount }}</div>
-          <div class="r26-price__tier">{{ p.label }}</div>
-          <div style="display:flex;align-items:baseline;gap:.35rem;margin-bottom:.2rem"><span class="r26-price__big">{{ p.votes }}</span><span style="color:var(--neutral-500);font-weight:500">votes</span></div>
-          <p class="r26-price__note">Distribute across any open category. Votes expire when the cycle closes.</p>
-          {% if pay_on %}
-          <button type="button" @click="open('vote','{{ p.tier }}','{{ p.label }} — {{ p.votes }} votes', '{{ p.amount }}')" class="btn {% if p.popular %}btn--emerald{% else %}btn--white{% endif %} btn--full" style="margin-top:auto">Get {{ p.votes }} votes
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          {% else %}
-          <a href="#enquiry" class="btn {% if p.popular %}btn--emerald{% else %}btn--white{% endif %} btn--full" style="margin-top:auto">Get {{ p.votes }} votes
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          {% endif %}
-        </div>
+      <p class="cm-hero__org">{{ 'Already a partner?'|trans }} <a class="cm-link" href="/org">{{ 'Sign in to your organisation console'|trans }}</a></p>
+    </header>
+
+    {% set _figs = [
+      {n: stats.total_profiles|default(0), l: 'Profiles in the registry'|trans},
+      {n: stats.total_votes|default(0), l: 'Votes counted'|trans},
+      {n: stats.nations_live|default(0), l: stats.nations_live|default(0) == 1 ? 'Nation live'|trans : 'Nations live'|trans},
+      {n: stats.categories|default(0), l: 'Award categories'|trans}
+    ]|filter(x => x.n > 0) %}
+    {% if _figs|length %}
+      <dl class="cm-figs cm-figs--row ag-card">
+        {% for x in _figs %}<div><dt>{{ x.l }}</dt><dd>{{ x.n|number_format }}</dd></div>{% endfor %}
+      </dl>
+    {% endif %}
+
+    <section aria-labelledby="cm-why-h" class="cm-sec">
+      <h2 class="cm-bar__h" id="cm-why-h">{{ 'Why partner with us'|trans }}</h2>
+      <ul class="cm-cards cm-cards--3">
+        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'A real audience'|trans }}</h3><p class="cm-opp__p">{{ 'The people and organisations being recognised across the continent, and the members who back them — accounts confirmed by email or phone, not bought followers.'|trans }}</p></li>
+        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'Association with excellence'|trans }}</h3><p class="cm-opp__p">{{ 'Stand beside an honour whose method is published and whose results are sealed when they are announced.'|trans }}</p></li>
+        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'Reporting you can use'|trans }}</h3><p class="cm-opp__p">{{ 'What your partnership reached, reported through the cycle in a form you can take to your board.'|trans }}</p></li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="cm-how-h" class="cm-sec" id="how">
+      <h2 class="cm-bar__h" id="cm-how-h">{{ 'How partnership works'|trans }}</h2>
+      <ol class="cm-steps">
+        <li><b>{{ 'Introduction'|trans }}</b><span>{{ 'Tell us your goals with the form below; a member of the partnerships team replies.'|trans }}</span></li>
+        <li><b>{{ 'A proposal for you'|trans }}</b><span>{{ 'We shape a package around your objectives, audience and budget.'|trans }}</span></li>
+        <li><b>{{ 'Agreement'|trans }}</b><span>{{ 'We agree the scope, how you are recognised and what you will report on.'|trans }}</span></li>
+        <li><b>{{ 'Launch'|trans }}</b><span>{{ 'Your partnership goes live across the cycle, with reporting throughout.'|trans }}</span></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="cm-tier-h" class="cm-sec">
+      <h2 class="cm-bar__h" id="cm-tier-h">{{ 'Ways to partner'|trans }}</h2>
+      <p class="cm-box__p">{{ 'Every partnership is shaped around your goals, so pricing is tailored to the scope.'|trans }}</p>
+      <ul class="cm-cards cm-cards--3">
+        {% for t in _tiers %}
+          <li class="ag-card cm-tier{{ loop.index == 2 ? ' cm-tier--feat' }}">
+            <p class="cm-opp__k">{{ t.k }}</p>
+            <h3 class="cm-opp__t">{{ t.n|trans }}</h3>
+            <ul class="cm-rules">{% for p in t.perks %}<li>{{ p }}</li>{% endfor %}</ul>
+          </li>
         {% endfor %}
-      </div>
-      <div class="r26-note r26-note--emerald" style="margin-top:1.75rem"><strong>How votes work:</strong> once payment is confirmed, your votes are credited by email. Each is OTP-verified — one per category per person unless additional packs are purchased.</div>
-    </div>
-  </section>
+      </ul>
+    </section>
 
-  {# ════ B · EVENT TICKETS ════ #}
-  <section class="section" x-show="tab==='ticket'" x-cloak x-transition>
-    <div class="wrap" style="max-width:58rem">
-      <div class="r26-head">
-        <p class="r26-eyebrow">Category B</p>
-        <h2 class="r26-h2">Event ticket <em>+ voting</em></h2>
-        <p class="r26-lead">Attend the ceremony live and arrive with votes in hand. Every ticket includes admission and voting credits.</p>
-      </div>
-      {% set tickets = [
-        {type:'Regular',     price:'₦3,000',  votes:10,  tier:'regular',   seat:'General admission'},
-        {type:'Supporter',   price:'₦5,000',  votes:25,  tier:'supporter', seat:'General admission + priority entry'},
-        {type:'VIP',         price:'₦10,000', votes:50,  tier:'vip',       seat:'Reserved VIP seating'},
-        {type:'Gold VIP',    price:'₦20,000', votes:120, tier:'gold',      seat:'Premium reserved + networking lounge'},
-        {type:'Patron Pass', price:'₦50,000', votes:350, tier:'patron',    seat:'Front row + public recognition + 1 complimentary seat'}
-      ] %}
-      <div style="display:flex;flex-direction:column;gap:.875rem">
-        {% for t in tickets %}
-        <div class="r26-prow">
-          <div style="min-width:128px">
-            <div style="font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--emerald-600)">{{ t.type }}</div>
-            <div class="r26-prow__price" style="margin-top:.2rem">{{ t.price }}</div>
-          </div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem;flex-wrap:wrap">
-              <span style="font-weight:600;color:var(--kale-700)">{{ t.type }}</span>
-              <span class="r26-badge" style="position:static;background:var(--emerald-50);color:var(--emerald-700)">{{ t.votes }} votes</span>
-            </div>
-            <p style="font-size:.875rem;color:var(--neutral-500);margin:0">{{ t.seat }}</p>
-          </div>
-          {% if pay_on %}
-          <button type="button" @click="open('ticket','{{ t.tier }}','{{ t.type }} ticket — {{ t.votes }} votes','{{ t.price }}')" class="btn btn--emerald btn--sm" style="flex-shrink:0">Book
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          {% else %}
-          <a href="#enquiry" class="btn btn--emerald btn--sm" style="flex-shrink:0">Book
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-      <div class="r26-note r26-note--gold" style="margin-top:1.75rem"><strong>Ticket includes:</strong> event admission + allocated voting credits, activated on the day and valid until the voting window closes.</div>
-    </div>
-  </section>
-
-  {# ════ C · CHILD CHAMPIONS ════ #}
-  <section class="section" x-show="tab==='child'" x-cloak x-transition>
-    <div class="wrap" style="max-width:62rem">
-      <div class="r26-head">
-        <p class="r26-eyebrow">Category C</p>
-        <h2 class="r26-h2">Child Champion <em>donations</em></h2>
-        <p class="r26-lead">Separate from voting — these fund leadership and character-development programmes for children. Donors are credited on event materials, the website, and event screens.</p>
-      </div>
-      {% set champions = [
-        {amount:'₦25,000',    title:'Child Champion',   tier:'champion'},
-        {amount:'₦50,000',    title:'Bronze Sponsor',   tier:'bronze'},
-        {amount:'₦100,000',   title:'Silver Sponsor',   tier:'silver'},
-        {amount:'₦250,000',   title:'Gold Sponsor',     tier:'gold'},
-        {amount:'₦500,000',   title:'Platinum Sponsor', tier:'platinum'},
-        {amount:'₦1,000,000+',title:'Future Builder',   tier:'builder', dark:true}
-      ] %}
-      <div class="r26-pricegrid">
-        {% for c in champions %}
-        <div class="r26-price{% if c.dark is defined %} r26-prow--dark{% endif %}" style="{% if c.dark is defined %}border:0{% endif %}">
-          <div class="r26-price__tier" style="{% if c.dark is defined %}color:var(--gold-300){% endif %}">{{ c.amount }}</div>
-          <div style="font-family:var(--font-heading);font-weight:700;font-size:1.2rem;{% if c.dark is defined %}color:#fff{% else %}color:var(--kale-700){% endif %};margin-bottom:1rem">{{ c.title }}</div>
-          {% if pay_on %}
-          <button type="button" @click="open('child','{{ c.tier }}','{{ c.title }} — {{ c.amount }}','{{ c.amount }}')" class="btn {% if c.dark is defined %}btn--gold{% else %}btn--white{% endif %} btn--full" style="margin-top:auto">Donate</button>
-          {% else %}
-          <a href="#enquiry" class="btn {% if c.dark is defined %}btn--gold{% else %}btn--white{% endif %} btn--full" style="margin-top:auto">Donate</a>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-      <div class="r26-note r26-note--emerald" style="margin-top:1.75rem"><strong>Adopt a Child Appeal:</strong> during the event, donors sponsor leadership programmes for children — funding workshop materials, mentorship sessions, and recognition certificates.</div>
-    </div>
-  </section>
-
-  {# ════ CORPORATE ════ #}
-  <section class="section" x-show="tab==='corporate'" x-cloak x-transition>
-    <div class="wrap" style="max-width:62rem">
-      <div class="r26-head">
-        <p class="r26-eyebrow">Corporate</p>
-        <h2 class="r26-h2">Sponsorship <em>packages</em></h2>
-        <p class="r26-lead">Align your brand with integrity, excellence, and African leadership. Sponsors receive category exclusivity, stage presence, and verified community reach.</p>
-      </div>
-      {% set corporate = [
-        {pkg:'Community Partner',          amount:'₦100,000',   benefits:'Logo on website · event programme · social mention'},
-        {pkg:'Education Partner',          amount:'₦250,000',   benefits:'Above + backdrops · announcer mention · digital certificate'},
-        {pkg:'Integrity Partner',          amount:'₦500,000',   benefits:'Above + stage banner · category naming rights · 2 VIP tickets'},
-        {pkg:'Principal Awards Sponsor',   amount:'₦1,000,000', benefits:'Above + exclusive category · broadcast mention · 5 VIP tickets'},
-        {pkg:'Incorruptible Child Sponsor',amount:'₦2,000,000', benefits:'Above + co-branded trophy · premium stage presence · 10 tickets'},
-        {pkg:'Title Sponsor',              amount:'₦5,000,000+',benefits:'Lock-up on the GATES wordmark · all activations · lead broadcast spot · exclusive table', dark:true}
-      ] %}
-      <div style="display:flex;flex-direction:column;gap:.875rem;margin-bottom:2.5rem">
-        {% for s in corporate %}
-        <div class="r26-prow{% if s.dark is defined %} r26-prow--dark{% endif %}">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;{% if s.dark is defined %}color:var(--gold-300){% else %}color:var(--emerald-600){% endif %};margin-bottom:.2rem">{{ s.pkg }}</div>
-            <div class="r26-prow__price">{{ s.amount }}</div>
-            <p style="font-size:.875rem;{% if s.dark is defined %}color:rgba(255,255,255,.72){% else %}color:var(--neutral-500){% endif %};margin:.35rem 0 0;line-height:1.5">{{ s.benefits }}</p>
-          </div>
-          <a href="#enquiry" class="btn {% if s.dark is defined %}btn--gold{% else %}btn--white{% endif %} btn--sm" style="flex-shrink:0;align-self:center">Enquire
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </div>
-        {% endfor %}
-      </div>
-
-      <div class="r26-surface r26-surface--tint" style="padding:1.75rem">
-        <h3 style="font-family:var(--font-heading);font-weight:700;font-size:1.2rem;color:var(--kale-700);margin:0 0 1.25rem">Additional opportunities</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem">
-          {% for title,desc in {
-            'School Registration':'₦10,000–₦30,000 per participating school',
-            'Award Magazine Advert':'Full page ₦50k · half ₦30k · quarter ₦15k',
-            'Exhibition Booth':'₦20,000–₦100,000 per stand',
-            'Souvenir Sales':'T-shirts, wristbands, badges, notebooks, certificates',
-            'Livestream Access':'₦2,000–₦5,000 online viewing ticket',
-            'Adopt a Child Appeal':'Live during the event — sponsor children\'s programmes'
-          } %}
-          <div style="padding:1.1rem 1.2rem;background:#fff;border-radius:14px;border:1px solid rgba(16,41,44,.07)">
-            <div style="font-weight:700;color:var(--kale-700);margin-bottom:.25rem;font-size:.95rem">{{ title }}</div>
-            <p style="font-size:.8125rem;color:var(--neutral-500);margin:0;line-height:1.45">{{ desc }}</p>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {# ════ CHECKOUT MODAL (only mounted when a gateway is configured) ════ #}
-  {% if pay_on %}
-  <div x-show="modal" x-cloak @keydown.escape.window="close()"
-       style="position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:1.25rem">
-    <div @click="close()" style="position:absolute;inset:0;background:rgba(8,20,22,.55);backdrop-filter:blur(3px)"></div>
-    <div class="r26-surface" x-show="modal" x-transition
-         style="position:relative;width:100%;max-width:30rem;padding:1.75rem;border-radius:18px"
-         role="dialog" aria-modal="true" aria-labelledby="payTitle">
-      <button type="button" @click="close()" aria-label="Close"
-              style="position:absolute;top:.9rem;right:.9rem;width:34px;height:34px;border:0;border-radius:50%;background:var(--neutral-100,#f1f1f1);color:var(--kale-700);cursor:pointer;font-size:1.1rem;line-height:1">×</button>
-      <p class="r26-eyebrow">Secure checkout</p>
-      <h3 id="payTitle" style="font-family:var(--font-heading);font-weight:700;font-size:1.35rem;color:var(--kale-700);margin:.15rem 0 .35rem" x-text="label"></h3>
-      <p style="font-size:.95rem;color:var(--neutral-500);margin:0 0 1.25rem">Amount: <strong x-text="amount"></strong> · paid securely through your chosen gateway.</p>
-
-      <form method="POST" action="/pay/init" class="form-stack">
+    <section class="ag-card cm-enq" id="enquiry" aria-labelledby="cm-enq-h">
+      <h2 class="cm-bar__h" id="cm-enq-h">{{ 'Let’s build something lasting'|trans }}</h2>
+      <p class="cm-box__p">{{ 'Tell us about your organisation and a member of the partnerships team will reply with a proposal.'|trans }}</p>
+      {% if error|default('') %}<p class="cm-say cm-say--error" role="alert" tabindex="-1">{{ error }}</p>{% endif %}
+      <form class="cm-form" method="post" action="/partner">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <input type="hidden" name="purpose" :value="purpose">
-        <input type="hidden" name="tier" :value="tier">
-
-        <div class="field">
-          <input class="field__input" id="payName" name="name" type="text" placeholder=" " x-model="name">
-          <label class="field__label" for="payName">Your name</label>
-        </div>
-        <div class="field">
-          <input class="field__input" id="payEmail" name="email" type="email" required placeholder=" " x-model="email">
-          <label class="field__label" for="payEmail">Email for receipt &amp; votes <span style="color:var(--emerald-600)">*</span></label>
-        </div>
-
-        {% if payment_providers|length > 1 %}
-        <div class="field">
-          <select class="field__input field__input--select" name="provider" x-model="provider" required>
-            {% for p in payment_providers %}
-            <option value="{{ p.id }}">Pay with {{ p.label }}</option>
-            {% endfor %}
+        {{ f.text({id: 'pt-org', name: 'organisation', label: 'Organisation'|trans, required: true, autocomplete: 'organization', maxlength: 200, value: _old.organisation|default('')}) }}
+        {{ f.text({id: 'pt-name', name: 'contact_name', label: 'Your name'|trans, required: true, autocomplete: 'name', maxlength: 160, value: _old.contact_name|default('')}) }}
+        {{ f.text({id: 'pt-email', name: 'contact_email', type: 'email', label: 'Work email'|trans, required: true, autocomplete: 'email', inputmode: 'email', maxlength: 200, value: _old.contact_email|default('')}) }}
+        {{ f.text({id: 'pt-phone', name: 'contact_phone', type: 'tel', label: 'Phone'|trans, optional: true, autocomplete: 'tel', maxlength: 40, value: _old.contact_phone|default('')}) }}
+        <div class="ag-fieldset">
+          <label class="ag-label" for="pt-tier">{{ 'The kind of partnership you have in mind'|trans }} <span class="ag-label__opt">{{ 'Optional'|trans }}</span></label>
+          <select class="ag-input" id="pt-tier" name="tier">
+            <option value=""{% if not _old.tier|default('') %} selected{% endif %}>{{ 'Not sure yet'|trans }}</option>
+            {% for t in _tiers %}<option value="{{ t.n }}"{% if _old.tier|default('') == t.n %} selected{% endif %}>{{ t.n|trans }}</option>{% endfor %}
           </select>
-          <label class="field__label">Payment method</label>
         </div>
-        {% else %}
-        <input type="hidden" name="provider" value="{{ payment_providers[0].id }}">
-        {% endif %}
-
-        <button class="btn btn--emerald btn--full" type="submit" x-bind:disabled="!validEmail()">
-          Continue to payment
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <p style="font-size:.75rem;color:var(--neutral-500);text-align:center;margin:.75rem 0 0">
-          The price is set on our server — you'll confirm the exact amount on the gateway's secure page.
-        </p>
+        {{ f.textarea({id: 'pt-msg', name: 'message', label: 'What would you like to achieve?'|trans, required: true, rows: 5, maxlength: 5000, value: _old.message|default('')}) }}
+        <p class="ag-hint">{{ 'Your details are used only to reply to this enquiry.'|trans }} <a href="/privacy">{{ 'Privacy'|trans }}</a></p>
+        <div class="cm-form__go"><button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Request a proposal'|trans }}</button></div>
       </form>
-    </div>
+      <p class="cm-box__p">{{ 'Rather write?'|trans }} <a class="cm-link" href="mailto:{{ support_email }}?subject={{ 'Partnership enquiry'|trans|url_encode }}">{{ support_email }}</a></p>
+    </section>
   </div>
-  {% endif %}
 </div>
-
-{# ════ ENQUIRY FORM ════ #}
-<section class="section" id="enquiry">
-  <div class="wrap" style="max-width:44rem">
-    <div class="r26-surface r26-reveal">
-      <div class="r26-head r26-head--center">
-        <p class="r26-eyebrow">Get in touch</p>
-        <h2 class="r26-h2">Talk to the <em>team</em></h2>
-        <p class="r26-lead">A programme director will respond within two working days with a full proposal.</p>
-      </div>
-
-      {% if success is defined %}
-      <div class="r26-note r26-note--emerald" style="text-align:center;margin-bottom:1.5rem"><strong>✓ Enquiry received</strong> — we'll be in touch shortly.</div>
-      {% endif %}
-      {% if error is defined %}
-      <div class="r26-note" style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;margin-bottom:1.5rem">{{ error }}</div>
-      {% endif %}
-
-      <form method="POST" action="/partner" class="form-stack">
-        <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <div class="form-row field-row--2">
-          <div class="field">
-            <input class="field__input" id="pName" name="contact_name" type="text" required placeholder=" ">
-            <label class="field__label" for="pName">Your name <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-          <div class="field">
-            <input class="field__input" id="pOrg" name="organisation" type="text" required placeholder=" ">
-            <label class="field__label" for="pOrg">Organisation <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-        </div>
-        <div class="form-row field-row--2">
-          <div class="field">
-            <input class="field__input" id="pEmail" name="contact_email" type="email" required placeholder=" ">
-            <label class="field__label" for="pEmail">Work email <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-          <div class="field">
-            <input class="field__input" id="pPhone" name="contact_phone" type="tel" placeholder=" ">
-            <label class="field__label" for="pPhone">Phone number</label>
-          </div>
-        </div>
-        <div class="field">
-          <select class="field__input field__input--select" id="pTier" name="tier">
-            <option value=""> </option>
-            <option value="online-voting">Category A — Online Voting Package</option>
-            <option value="event-ticket">Category B — Event Ticket</option>
-            <option value="child-champion">Category C — Child Champion Donation</option>
-            <option value="community-partner">Corporate — Community Partner (₦100k)</option>
-            <option value="education-partner">Corporate — Education Partner (₦250k)</option>
-            <option value="integrity-partner">Corporate — Integrity Partner (₦500k)</option>
-            <option value="principal-sponsor">Corporate — Principal Awards Sponsor (₦1M)</option>
-            <option value="incorruptible-sponsor">Corporate — Incorruptible Child Sponsor (₦2M)</option>
-            <option value="title-sponsor">Corporate — Title Sponsor (₦5M+)</option>
-            <option value="school-registration">School Registration</option>
-            <option value="magazine-advert">Award Magazine Advert</option>
-            <option value="exhibition-booth">Exhibition Booth</option>
-            <option value="custom">Something else</option>
-          </select>
-          <label class="field__label" for="pTier">Interested in</label>
-        </div>
-        <div class="field">
-          <textarea class="field__input field__input--textarea" id="pMsg" name="message" rows="4" placeholder=" "></textarea>
-          <label class="field__label" for="pMsg" style="top:1.25rem;transform:none">Message (optional)</label>
-        </div>
-        <button class="btn btn--emerald" type="submit">Send enquiry
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      </form>
-    </div>
-  </div>
-</section>
-
-{% if pay_on %}
-<script>
-// Checkout modal controller. Holds the chosen pack and the buyer's email/provider;
-// the form posts natively to /pay/init (carrying the CSRF token) and the server
-// resolves the real amount + redirects to the gateway. No amount is ever sent from
-// here — only purpose+tier. The CTAs only call open() when a gateway is enabled.
-function partnerCheckout(enabled) {
-  return {
-    enabled: enabled,
-    modal: false,
-    purpose: '', tier: '', label: '', amount: '',
-    name: '', email: '',
-    provider: {{ payment_providers[0].id|json_encode|raw }},
-    open(purpose, tier, label, amount) {
-      if (!this.enabled) { window.location.hash = 'enquiry'; return; }
-      this.purpose = purpose; this.tier = tier; this.label = label; this.amount = amount || '';
-      this.modal = true;
-      this.$nextTick(() => { const el = this.$root.querySelector('#payEmail'); if (el) el.focus(); });
-    },
-    close() { this.modal = false; },
-    validEmail() { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email); },
-  };
-}
-</script>
-{% endif %}
-
 {% endblock %}

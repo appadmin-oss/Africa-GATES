@@ -1,0 +1,57 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  `/results/{programme-year}` for an edition still running — ResultsPage.dc.html (pending).
+  Inventory: docs/handoff/inventory/pages--results--open.md.
+
+  In the slot where a decided edition names its overall winner, a running one says when the
+  winner will be announced (§8.7: "Overall winner announced {date}"). No standing is
+  published while voting is open — a running order published during an open window is a
+  bandwagon — so each category row carries a title and a status and no nominee.
+  `noindex`: the real result takes this same URL.
+#}
+
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Results'|trans, sub: e.edition ?: e.year, back: '/results'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+
+{% block content %}
+<div class="rs">
+  {% include 'pages/results/_head.twig' with {e: e, switcher: switcher, host: host} only %}
+
+  <section class="rs-pend">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.3l3.2 2"/></svg>
+    <span>
+      <b>{% if e.promised %}{{ 'Overall winner announced %d%'|trans({'%d%': e.promised|when_zoned('j M Y')}) }}{% else %}{{ 'The overall winner is announced when every category is decided'|trans }}{% endif %}</b>
+      <span>{{ 'The highest combined score across every category, after voting and judging close.'|trans }}</span>
+    </span>
+  </section>
+
+  <dl class="rs-sum">
+    <div><dt>{{ 'categories'|trans }}</dt><dd>{{ e.categories|length }}</dd></div>
+    <div><dt>{{ 'votes cast so far'|trans }}</dt><dd>{{ e.votes|number_format }}</dd></div>
+    <div><dt>{{ e.status.key == 'counting' ? 'voting'|trans : 'now'|trans }}</dt><dd>{{ e.status.key == 'counting' ? (e.closes ? 'until %d%'|trans({'%d%': e.closes|when_zoned('j M')}) : 'open'|trans) : 'with the judges'|trans }}</dd></div>
+    <div><dt>{{ 'results'|trans }}</dt><dd>{{ e.promised ? e.promised|when_zoned('j M Y') : 'to be announced'|trans }}</dd></div>
+  </dl>
+
+  <section class="rs-sec" aria-labelledby="rs-all">
+    <div class="rs-sec__row"><h2 class="rs-sec__t" id="rs-all">{{ 'Categories in this edition'|trans }}</h2><span class="rs-sec__n">{{ e.categories|length == 1 ? '1 category'|trans : '%n% categories'|trans({'%n%': e.categories|length}) }}</span></div>
+    <ul class="rs-cats">
+      {% for c in e.categories %}
+        <li><span class="rs-cat rs-cat--open">
+          <span class="rs-cat__t">
+            <span class="rs-cat__k">{{ c.title }}</span>
+            <b>{{ c.status.key == 'counting' ? 'Voting open'|trans : 'With the judges'|trans }}</b>
+            <span class="rs-cat__s">{{ e.promised ? 'Results on %d%'|trans({'%d%': e.promised|when_zoned('j M Y')}) : 'Results to be announced'|trans }}</span>
+          </span>
+        </span></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {% if e.status.key == 'counting' %}
+  <a class="ag-btn ag-btn--primary ag-btn--pill rs-cta" href="/vote/{{ e.programme_slug }}">{{ 'Vote in this edition'|trans }}</a>
+  {% endif %}
+</div>
+{% endblock %}
