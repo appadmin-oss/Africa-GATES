@@ -88,6 +88,13 @@ abstract class TestCase extends BaseTestCase
         // The globe band's markers are memoised per process; the awards behind them are
         // rebuilt per test, so the second test would plot the first one's nations.
         \AfricaGates\Services\GlobeBand::forget();
+        // And the EDITION NAME is memoised per cycle id by the same reasoning as the seal
+        // above, so it fails the same way: the rewound counters put a different cycle under
+        // an id some earlier test already named, and a results page then prints that one's
+        // edition. It surfaced as three guards asserting "2026 edition" and being handed
+        // "1st Edition · 2019" — every one of them green on its own, which is what makes
+        // this family of fault expensive to place.
+        \AfricaGates\Services\PublicResults::forget();
     }
 
     /**

@@ -10,9 +10,9 @@ use Tests\Support\ChromeRender;
 use Tests\TestCase;
 
 /**
- * `GET /search?q=&scope=` — the search palette's JSON (REFERENCE §7.1), at the address the
- * handoff names, since the owner retired `/activity/search` and the `/search`/`/find`
- * aliases on 3 Oct 2026 (GAPS C16).
+ * `GET /search.json?q=&scope=` — the search palette's JSON (REFERENCE §7.1). The owner
+ * retired `/activity/search` and `/find` on 3 Oct 2026 (GAPS C16) and moved the endpoint
+ * off `/search` on 5 Oct (AUDIT Q13): `/search` is now a page address, 301 to Discover.
  *
  * Four things are held, each silent when it breaks:
  *
@@ -70,7 +70,15 @@ final class SearchEndpointTest extends TestCase
 
     public function test_search_is_the_endpoint_and_the_retired_addresses_are_gone(): void
     {
-        $this->assertTrue($this->json('/search?q=')['ok']);
+        $this->assertTrue($this->json('/search.json?q=')['ok']);
+
+        // `/search` is a page address now: Discover, keeping only the query.
+        $r = ChromeRender::page('/search?q=kofi&scope=people&evil=1');
+        $this->assertSame(301, $r->getStatusCode());
+        $this->assertSame('/discover?q=kofi', $r->getHeaderLine('Location'));
+        $this->assertSame('/discover', ChromeRender::page('/search')->getHeaderLine('Location'));
+        $this->assertStringContainsString("'/search.json?q='", ChromeRender::code('public/assets/js/search.js'),
+            'the palette reads the endpoint, not the redirect');
 
         foreach (['/activity/search?q=x', '/find?q=x'] as $retired) {
             $res  = ChromeRender::page($retired);
@@ -88,7 +96,7 @@ final class SearchEndpointTest extends TestCase
     public function test_the_empty_palette_is_open_now_and_coming_up_and_nothing_invented(): void
     {
         $this->seed();
-        $d = $this->json('/search?q=');
+        $d = $this->json('/search.json?q=');
 
         $this->assertTrue($d['landing']);
         $this->assertSame(['Open now', 'Coming up'], array_column($d['groups'], 'label'),
@@ -103,7 +111,7 @@ final class SearchEndpointTest extends TestCase
             'coming up is published events that have not happened yet');
 
         // A chip narrows the landing too.
-        $this->assertSame(['Coming up'], array_column($this->json('/search?q=&scope=events')['groups'], 'label'));
+        $this->assertSame(['Coming up'], array_column($this->json('/search.json?q=&scope=events')['groups'], 'label'));
     }
 
     public function test_results_are_grouped_on_the_server_in_chip_order_and_six_at_most(): void
@@ -116,7 +124,7 @@ final class SearchEndpointTest extends TestCase
         }
         DB::table('gates_award_programmes')->insert(['id' => 9105, 'slug' => 'kofi', 'title' => 'Kofi Awards', 'is_active' => 1]);
 
-        $d = $this->json('/search?q=kofi&literal=1');
+        $d = $this->json('/search.json?q=kofi&literal=1');
         $this->assertFalse($d['landing']);
 
         $keys = array_column($d['groups'], 'key');
@@ -131,11 +139,11 @@ final class SearchEndpointTest extends TestCase
         $this->assertArrayNotHasKey('kind_key', $people['items'][0]);
 
         // And a chip asks one bucket.
-        $this->assertSame(['people'], array_column($this->json('/search?q=kofi&scope=people&literal=1')['groups'], 'key'));
+        $this->assertSame(['people'], array_column($this->json('/search.json?q=kofi&scope=people&literal=1')['groups'], 'key'));
     }
 
     public function test_an_unknown_scope_widens_rather_than_empties(): void
     {
-        $this->assertSame('all', $this->json('/search?q=kofi&scope=../etc&literal=1')['scope']);
+        $this->assertSame('all', $this->json('/search.json?q=kofi&scope=../etc&literal=1')['scope']);
     }
 }

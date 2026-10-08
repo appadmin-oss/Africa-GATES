@@ -385,14 +385,14 @@ final class HelpCentre
             'audience' => ['supporter', 'nominee'],
             'cat'  => 'payments',
             'title' => 'What do paid votes actually do?',
-            'summary' => 'They count toward the tally exactly like a free vote, and cannot buy the '
-                       . 'larger part of the community half — every result shows both.',
+            'summary' => 'They add to the tally at full weight, and cannot buy the larger part of '
+                       . 'the community half — every result shows both.',
             'keywords' => ['buy votes', 'paid votes', 'price', 'cost', 'how much', 'bulk votes',
                            'do paid votes count', 'is it fair'],
             'body' => [
                 ['p' => 'A paid vote adds to a nominee\'s <strong>vote tally</strong>, and that tally is '
-                      . 'what the community share of the Cultural Power Index is built from. So yes: a '
-                      . 'paid vote counts toward the ranking, exactly as much as a free one.'],
+                      . 'what the community share of the Cultural Power Index is partly built from. So yes: a '
+                      . 'paid vote counts toward the ranking, at full weight in the tally.'],
                 ['p' => 'There is no ceiling on how many a campaign may buy, so a well-funded nominee can '
                       . 'hold the largest tally in the cycle. We would rather say that here than have '
                       . 'you work it out from the numbers. What buying cannot do is move the seventy '
@@ -657,8 +657,13 @@ final class HelpCentre
             'cat'  => 'results',
             'title' => 'I think a count or a ranking is wrong',
             'summary' => 'Ask for an audit. We will replay the arithmetic from source.',
+            // "A result looks wrong" is Gee's own quick button, word for word. Without it the
+            // sealing article won on "result", and somebody querying a standing was told
+            // about hash chains rather than how to ask for an audit.
             'keywords' => ['wrong count', 'dispute', 'appeal', 'unfair', 'cheating', 'rigged',
-                           'votes disappeared', 'someone is buying votes'],
+                           'votes disappeared', 'someone is buying votes', 'result looks wrong',
+                           'result is wrong', 'wrong result', 'ranking is wrong', 'score looks wrong',
+                           'score is wrong'],
             'body' => [
                 ['p' => 'Ask, and we will check. Every recomputation is logged, so a count can be replayed '
                       . 'from the underlying votes and the working shown to you.'],
@@ -1496,15 +1501,45 @@ final class HelpCentre
         // The first substantive paragraph. The article page has the steps and the
         // caveats; this is enough to know whether to go and read them.
         foreach ((array) ($top['body'] ?? []) as $block) {
-            if (!empty($block['p'])) { $lines[] = (string) $block['p']; break; }
+            if (!empty($block['p'])) { $lines[] = self::chatText((string) $block['p']); break; }
         }
         // Worded so a linkified label reads as part of the sentence: Gee's widget
         // renders an article URL as "the Help Centre answer", so "Full answer:
         // /help/x" would have come out as "Full answer: the Help Centre answer".
-        $lines[] = 'Read it here: ' . self::url((string) $top['slug'])
-                 . ' — if that is not your case, say so and I will pass it to the team at /support.';
+        //
+        // ONE offer of a person, and it is this one. The support agent used to append its own
+        // "say “talk to a human”" under this line, so the reply offered the team twice in two
+        // different phrasings — the thing a reader takes for a bot that does not know what it
+        // just said.
+        $lines[] = 'Read the rest in ' . self::url((string) $top['slug']) . '. If that is not what is '
+                 . 'happening to you, tell me what you see — or say “talk to a human” and I will pass '
+                 . 'it to the team.';
 
         return implode("\n\n", $lines);
+    }
+
+    /**
+     * An article paragraph as chat text.
+     *
+     * ── THE BUBBLE IS NOT A PAGE ─────────────────────────────────────────────
+     *
+     * Article bodies are HTML, written for the article page. The chat widget escapes
+     * everything and understands three marks only — `**bold**`, `[label](/path)` and a
+     * bare `/help/…` path — so quoting a paragraph verbatim printed
+     * `Ours begins with <code>AFG-</code>` and `<strong>sealed</strong>` into the bubble,
+     * on the fallback that runs exactly when the assistant is having a bad day.
+     * Translated here, once, for both assistants.
+     */
+    public static function chatText(string $html): string
+    {
+        $t = (string) preg_replace('~<(code|strong|b)>(.*?)</\1>~is', '**$2**', $html);
+        $t = (string) preg_replace_callback('~<a\s[^>]*href="([^"]*)"[^>]*>(.*?)</a>~is', static function (array $m): string {
+            $label = trim(strip_tags($m[2]));
+            // The widget's link mark takes a site path of its own shape and nothing else.
+            return preg_match('~^/[a-z0-9/-]{1,80}$~', $m[1]) && mb_strlen($label) <= 80
+                ? '[' . $label . '](' . $m[1] . ')' : $label;
+        }, $t);
+        return trim(html_entity_decode(strip_tags($t), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
     /**

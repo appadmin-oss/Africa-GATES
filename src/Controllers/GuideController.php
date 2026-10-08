@@ -124,6 +124,9 @@ final class GuideController
                 'reply'   => $out['reply'],
                 'source'  => $out['source'],
                 'support' => false,
+                // Buttons the agent offered: a path on this site and a label, validated
+                // by SupportContext::offerAction() before they got here.
+                'actions' => $out['actions'] ?? [],
                 // No last resort here. A browsing question with no help match
                 // gets no strip — "how do I nominate" must not sprout a refunds
                 // card, which is what a fallback set would do on every miss.
@@ -199,6 +202,7 @@ final class GuideController
             'used'      => $r['used'],
             'ticket'    => $r['ticket'],
             'escalated' => $r['escalated'],
+            'actions'   => $r['actions'] ?? [],
             'articles'  => HelpCentre::previews($message,
                 SupportAgentService::citedSlugs($r['results'] ?? []), 3, lastResort: true),
         ];

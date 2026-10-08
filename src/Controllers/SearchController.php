@@ -12,7 +12,11 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * `GET /search?q=&scope=` — the search palette's data, as JSON (REFERENCE §7.1).
+ * `GET /search.json?q=&scope=` — the search palette's data, as JSON (REFERENCE §7.1).
+ *
+ * Moved from `/search` on 8 Oct 2026 (owner, AUDIT 5 Oct Q13): the JSON has its own
+ * address and `/search` is a page address that 301s to Discover. The history below is
+ * the 3 Oct move off `/activity/search`; the reasoning — one endpoint — is unchanged.
  *
  * ══════════════════════════════════════════════════════════════════════════════
  * ONE URL, AND IT IS THIS ONE

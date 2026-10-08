@@ -256,24 +256,28 @@ class AiChatToolsTest extends TestCase
 
     // ── Routing and failure ──────────────────────────────────────────────────
 
-    public function test_a_provider_that_cannot_carry_tools_is_skipped_not_sent_a_toolless_request(): void
+    /**
+     * Gemini sits ahead of OpenAI in the chain, and it used to be SKIPPED for a tool request
+     * because it had no adapter — on the provider most deployments here hold, every tool loop
+     * went to a second key or to nothing. It carries the tools itself now.
+     */
+    public function test_gemini_carries_the_tools_rather_than_being_skipped(): void
     {
-        // Gemini sits ahead of OpenAI in the chain. Sending it a tool request without tools
-        // would produce a friendly, useless conversation and an empty ledger.
         $ai = $this->wire(['gemini' => 'g', 'openai' => 'o'],
-            ['openai' => ['choices' => [['message' => ['content' => 'ok']]]]]);
+            ['gemini' => ['candidates' => [['content' => ['parts' => [['text' => 'ok']]]]]]]);
 
         $r = $ai->chat([['role' => 'user', 'content' => 'x']], ['tools' => $this->tools()]);
 
         $this->assertNotNull($r);
-        $this->assertSame('openai', $r->provider);
+        $this->assertSame('gemini', $r->provider);
         $this->assertCount(1, $ai->sent);
-        $this->assertStringContainsString('api.openai.com', $ai->sent[0]['url']);
+        $this->assertStringContainsString('generativelanguage.googleapis.com', $ai->sent[0]['url']);
+        $this->assertNotEmpty($ai->sent[0]['payload']['tools'][0]['functionDeclarations']);
     }
 
     public function test_no_tool_capable_key_says_so_instead_of_returning_a_bare_null(): void
     {
-        $ai = $this->wire(['gemini' => 'g'], []);
+        $ai = $this->wire([], []);
         $this->assertNull($ai->chat([['role' => 'user', 'content' => 'x']],
                                     ['tools' => $this->tools()]));
         $hops = $ai->hopErrors();

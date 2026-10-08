@@ -31,8 +31,12 @@
       style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;padding:10px 14px;background:var(--cn-fill-panel);border:1px solid var(--cn-line-card);border-radius:10px">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
   <strong style="font-size:13px">Merge duplicates</strong>
-  <span style="font-size:12px;color:var(--cn-grey-600)">Tick the duplicate rows, pick one to <em>keep</em>, then:</span>
-  <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit"
+  {# The tick and "keep" columns are only in the way until somebody is merging, so with
+     script they appear on demand (console-ux.js, data-ux-reveal · .ux-when-on); without
+     script they simply show, as before. #}
+  <button class="ad-btn ad-btn--sm" type="button" data-ux-reveal="#nmTable, #mergeForm" aria-expanded="false" hidden>Choose rows to merge</button>
+  <span class="ux-when-on" style="font-size:12px;color:var(--cn-grey-600)">Tick the duplicate rows, pick one to <em>keep</em>, then:</span>
+  <button class="ad-btn ad-btn--sm ad-btn--primary ux-when-on" type="submit"
           data-confirm="Merge the ticked nominees into the one marked “keep”? Their votes and judge scores will be combined and the duplicates removed. This can't be undone.">⤵ Merge selected</button>
   <button class="ad-btn ad-btn--sm" type="button" id="dupScanBtn" style="margin-left:auto">⚡ Scan for duplicates</button>
 </form>
@@ -40,13 +44,13 @@
 {% endif %}
 
 <div class="ad-card"><div class="ad-table-wrap">
-  <table class="ad-table">
-    <thead><tr>{% if admin_role in ['superadmin','admin'] %}<th scope="col">Merge</th>{% endif %}<th scope="col">Nominee</th><th scope="col">Programme · Category</th><th scope="col">Country</th><th scope="col">Votes</th><th scope="col">Profile (CPI link)</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
+  <table class="ad-table nm-table" id="nmTable">
+    <thead><tr>{% if admin_role in ['superadmin','admin'] %}<th scope="col" class="nm-merge ux-when-on">Merge</th>{% endif %}<th scope="col">Nominee</th><th scope="col">Programme · Category</th><th scope="col">Country</th><th scope="col">Votes</th><th scope="col">Profile (CPI link)</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
         {% if admin_role in ['superadmin','admin'] %}
-        <td style="white-space:nowrap">
+        <td class="nm-merge ux-when-on" style="white-space:nowrap">
           <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--cn-grey-600)" title="Include in a merge">
             <input type="checkbox" name="merge_ids[]" value="{{ r.id }}" form="mergeForm" aria-label="Select {{ r.name }} for merge">
           </label>
@@ -128,9 +132,21 @@
             </div>
           </details>
           {% if admin_role in ['superadmin','admin'] %}
-          {% if r.status != 'winner' %}<form method="post" action="/admin/nominees/{{ r.id }}/winner" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--gold" type="submit">Winner</button></form>{% endif %}
-          {% if r.status != 'runner_up' %}<form method="post" action="/admin/nominees/{{ r.id }}/runner_up" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs" type="submit">Runner-up</button></form>{% endif %}
-          <form method="post" action="/admin/nominees/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" data-confirm="Delete {{ r.name }}? Their votes and judge scores are deleted with them. This cannot be undone — use Merge instead if this is a duplicate.">×</button></form>
+          {#
+            UNDER "MORE", AND NEVER ONE PRESS. Winner and Runner-up used to be bare buttons
+            in every row: one stray tap on a dense list crowned somebody, with nothing to
+            say who or why. They confirm with a reason now (it lands on the audit row), and
+            they sit behind More with Delete so the row's visible controls are the ones
+            used every day.
+          #}
+          <details class="cn-more">
+            <summary class="ad-btn ad-btn--xs" aria-label="More actions for {{ r.name }}">More</summary>
+            <div class="cn-more__menu">
+              {% if r.status != 'winner' %}<form method="post" action="/admin/nominees/{{ r.id }}/winner"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="cn-more__i" type="submit" data-confirm="Mark {{ r.name }} as the winner of {{ r.category }}? Their status becomes Winner wherever it is shown, and the reason you give is kept on the audit log.">Mark as winner</button></form>{% endif %}
+              {% if r.status != 'runner_up' %}<form method="post" action="/admin/nominees/{{ r.id }}/runner_up"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="cn-more__i" type="submit" data-confirm="Mark {{ r.name }} as runner-up in {{ r.category }}? Their status becomes Runner-up wherever it is shown, and the reason you give is kept on the audit log.">Mark as runner-up</button></form>{% endif %}
+              <form method="post" action="/admin/nominees/{{ r.id }}/delete"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="cn-more__i cn-more__i--danger" type="submit" data-confirm="Delete {{ r.name }}? Their votes and judge scores are deleted with them. This cannot be undone — use Merge instead if this is a duplicate.">Delete…</button></form>
+            </div>
+          </details>
           {% endif %}
         </td>
       </tr>
@@ -226,7 +242,11 @@
     members.forEach(function (m) { hidden += '<input type="hidden" name="merge_ids[]" value="' + parseInt(m.id, 10) + '">'; });
 
     var conf = Math.round((g.confidence || 0) * 100);
-    var meta = [g.category, conf + '% match', g.source === 'ai' ? 'AI' : 'rule'].filter(Boolean).map(esc).join(' · ');
+    /* What the AI made of it, said in words: a 97% rule match the AI did not confirm is
+       the group most worth a second look, and a bare "rule" label hid that. */
+    var verdict = { agrees: 'AI agrees', unconfirmed: 'AI did not confirm', found: 'found by AI' }[g.ai_verdict]
+               || (g.source === 'ai' ? 'found by AI' : 'name rules');
+    var meta = [g.category, conf + '% match', verdict].filter(Boolean).map(esc).join(' · ');
 
     return '<form method="post" action="/admin/nominees/merge" data-dup-group style="padding:10px 12px;border:1px solid var(--cn-line-card);border-radius:8px;background:#fff;margin-bottom:8px">'
       + hidden
@@ -236,7 +256,12 @@
       + '</fieldset>'
       + '<div style="display:flex;gap:10px;align-items:center;justify-content:space-between">'
       + '<small style="color:var(--cn-grey-500)">' + meta + (g.reason ? ' — ' + esc(g.reason) : '') + '</small>'
-      + '<button class="ad-btn ad-btn--xs ad-btn--primary" type="submit" style="flex:none" data-confirm="Merge these into one nominee? Their votes and judge scores combine; the duplicates are hidden but can be restored with Undo merge.">Merge</button>'
+      + '<span style="display:flex;gap:6px;flex:none">'
+      /* formaction, never a second form element: one opened inside another is dropped by the parser
+         and its button posts to the outer action — here, the merge. */
+      + '<button class="ad-btn ad-btn--xs" type="submit" formaction="/admin/nominees/not-duplicate">Not the same person</button>'
+      + '<button class="ad-btn ad-btn--xs ad-btn--primary" type="submit" data-confirm="Merge these into one nominee? Their votes and judge scores combine; the duplicates are hidden but can be restored with Undo merge.">Merge</button>'
+      + '</span>'
       + '</div></form>';
   }
 
@@ -252,11 +277,20 @@
 
   btn.addEventListener('click', function () {
     var orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Scanning…'; panel.innerHTML = '';
-    fetch('/admin/nominees/duplicate-scan' + (cycle ? ('?cycle=' + cycle) : ''), { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
+    fetch('/admin/nominees/duplicate-scan' + (cycle ? ('?cycle=' + cycle) : ''), { headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' }, credentials: 'same-origin' })
+      /* A server fault is not a network error. Read the JSON either way — the error
+         handler answers JSON with a reference when it is asked for JSON — and only
+         call it the network when nothing came back at all. */
+      .then(function (r) {
+        return r.json().catch(function () { return { ok: false, error: 'The scan failed on the server (HTTP ' + r.status + '). Nothing was changed.' }; });
+      })
       .then(function (j) {
         btn.disabled = false; btn.textContent = orig;
-        if (!j.ok) { panel.innerHTML = '<p style="color:#b42318;font-size:13px">' + esc(j.error || 'Scan failed.') + '</p>'; return; }
+        if (!j.ok) {
+          panel.innerHTML = '<p style="color:#b42318;font-size:13px">' + esc(j.error || 'Scan failed.')
+            + (j.reference && (j.error || '').indexOf(j.reference) < 0 ? ' Reference ' + esc(j.reference) + '.' : '') + '</p>';
+          return;
+        }
         /* "No duplicates" must not quietly mean "did not look". The scan reports
            how many nominees it could not reach (skipped, over the per-category cap)
            and how many name groups were too generic to compare (crowded), and both
@@ -265,6 +299,8 @@
         var caveats = [];
         if (j.skipped) caveats.push(j.skipped.toLocaleString() + ' nominee' + (j.skipped === 1 ? '' : 's') + ' beyond the per-category scan limit were not checked');
         if (j.crowded) caveats.push(j.crowded + ' name group' + (j.crowded === 1 ? '' : 's') + ' were too generic to compare');
+        if (j.ai && j.ai_partial) caveats.push('the AI read part of this cycle (' + j.ai_batches + ' batch' + (j.ai_batches === 1 ? '' : 'es') + ' of names that share a word with another); the name rules read all of it');
+        if (!j.ai && j.ai_batches) caveats.push('the AI could not be reached, so only the name rules ran');
         var caveatHtml = caveats.length
           ? '<p style="font-size:12px;color:#8a6d00;margin:6px 0 0">Partial scan: ' + esc(caveats.join('; ')) + '.</p>' : '';
 

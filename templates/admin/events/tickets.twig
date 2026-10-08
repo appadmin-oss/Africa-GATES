@@ -540,7 +540,7 @@
                 <form method="post" action="/admin/events/{{ event.id }}/promote" style="margin:0">
                   <input type="hidden" name="_token" value="{{ csrf_token }}">
                   <input type="hidden" name="tier_id" value="{{ t.id }}">
-                  <button class="tx-btn" type="submit" style="padding:8px 14px;font-size:12px">
+                  <button class="tx-btn" type="submit" data-confirm="Offer the free seats to the people who have waited longest? Each is emailed an offer that holds a seat for them for a fixed number of hours, and an offer that has gone out cannot be withdrawn quietly." style="padding:8px 14px;font-size:12px">
                     Offer free seats <span style="opacity:.7">({{ waiting }} waiting)</span>
                   </button>
                 </form>

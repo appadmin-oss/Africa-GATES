@@ -191,6 +191,10 @@ body[data-side="closed"] .cn-side { display: none; }
 /* ── main and the page header (§2.4) ─────────────────────────────────────────── */
 .cn-main { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 36px 44px 72px; }
 .cn-main__in { max-width: var(--cn-max); margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+/* An empty slot a page fills later (a scan's results, a live region) still takes a flex gap,
+   so a page opened with a hole above its list. It gives the gap back until it has content;
+   it stays in the tree, so a live region still announces when it is filled. */
+.cn-main__in > div:empty { margin: -28px 0 0 !important; }
 
 .cn-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
 .cn-head__text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -475,6 +479,13 @@ body[data-readonly] [data-write] { opacity: .45; }
   .cn-btn, .cn-tab, .cn-related__i, .cn-menu__i, .cn-suggest__q, .cn-pal__i, .cn-roundbtn, .cn-send {
     min-height: 44px; min-width: 44px;
   }
+  /* The unrebuilt bodies' buttons too (D-12): their xs and sm sizes are desktop densities,
+     and a 24px "Winner" in a table row is a mis-tap waiting to happen on a phone. */
+  .ad-btn, .ad-btn--sm, .ad-btn--xs, .ad-tab, .ad-pager a, .cn-sort, .cn-more > summary {
+    min-height: 44px; min-width: 44px;
+  }
+  .cn-main :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select) { min-height: 44px; }
+  .cn-main :is(input[type=checkbox], input[type=radio]) { width: 22px; height: 22px; }
   .cn-pin__x { width: 44px; height: 44px; }
   .cn-tile__box { width: 48px; height: 48px; }
   :where(.cn) :is(input, select, textarea) { font-size: var(--cn-fs-16); }
@@ -490,6 +501,106 @@ body[data-readonly] [data-write] { opacity: .45; }
 }
 @media (prefers-contrast: more) {
   .cn-nav__label, .cn-nav__n, .cn-job__hub, .cn-sec__n { color: var(--cn-grey-700); }
+}
+
+/* ── behaviour on every page (console-ux.js) ─────────────────────────────────
+   The rebuild changed how the console looks; these are the rules for how it WORKS,
+   added once for every page: find and sort a list, open a row, a filter that applies
+   itself, a save that says it is working, a phone list that is cards, not a strip. */
+
+/* find in this list */
+.cn-find { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.cn-find__in {
+  flex: 0 1 320px; min-width: 0; min-height: 36px; padding: 7px 12px; border: 1px solid var(--cn-line-control);
+  border-radius: var(--cn-r-pill); background: var(--cn-surface); font-size: var(--cn-fs-13-5);
+}
+.cn-find__in:focus { border-color: var(--cn-ink); outline: none; box-shadow: 0 0 0 3px var(--cn-fill-current); }
+.cn-find__n { font: 500 var(--cn-fs-12-5)/1 var(--cn-mono); color: var(--cn-grey-500); }
+.cn-find__empty { margin: 10px 0 0; padding: 16px; border: 1px dashed var(--cn-line-control); border-radius: var(--cn-r-12); font-size: var(--cn-fs-13-5); color: var(--cn-grey-600); }
+
+/* a header that sorts: the whole header is the button, the arrow says which way */
+.cn-sort {
+  display: inline-flex; align-items: center; gap: 4px; margin: -4px -6px; padding: 4px 6px; border: 0;
+  border-radius: var(--cn-r-6); background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer;
+}
+.cn-sort:hover { background: var(--cn-fill-subtle); color: var(--cn-ink); }
+.cn-sort__i { width: 8px; height: 8px; opacity: 0; }
+.cn-sort:hover .cn-sort__i { opacity: .5; }
+.cn-sort__i::before { content: '↕'; display: block; font-size: var(--cn-fs-11); line-height: 8px; }
+[aria-sort="ascending"] .cn-sort, [aria-sort="descending"] .cn-sort { color: var(--cn-ink); }
+[aria-sort="ascending"] .cn-sort__i, [aria-sort="descending"] .cn-sort__i { opacity: 1; }
+[aria-sort="ascending"] .cn-sort__i::before { content: '↑'; }
+[aria-sort="descending"] .cn-sort__i::before { content: '↓'; }
+
+/* a row that opens its record; the keyboard cursor (j / k) */
+tr.cn-row-go { cursor: pointer; }
+tr.cn-row-go:hover > td { background: var(--cn-fill-selected); }
+tr.is-cursor > td { background: var(--cn-fill-selected); }
+tr.is-cursor > td:first-child { box-shadow: inset 3px 0 0 var(--cn-ink); }
+
+/* filters: one way to clear them; on a phone they fold behind one button */
+.cn-filter-clear { min-height: 34px; padding: 7px 14px; font-size: var(--cn-fs-13); }
+.cn-filter-toggle { align-self: flex-start; margin: 0 0 10px; min-height: 44px; }
+form.cn-folded { display: none !important; }
+[data-ux-show-when][hidden] { display: none !important; }   /* beats an inline display */
+
+/* controls that only matter once a task has started (data-ux-reveal) */
+.cn-js .ux-when-on { display: none !important; }
+.cn-js .is-ux-on .ux-when-on, .cn-js .is-ux-on.ux-when-on { display: revert !important; }
+
+/* a row's rarer actions, behind More */
+.cn-more { position: relative; display: inline-block; vertical-align: middle; }
+.cn-more > summary { list-style: none; cursor: pointer; }
+.cn-more > summary::-webkit-details-marker { display: none; }
+.cn-more__menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: var(--cn-z-menu); min-width: 200px; padding: 6px;
+  display: flex; flex-direction: column; background: var(--cn-surface); border: 1px solid var(--cn-line-card);
+  border-radius: var(--cn-r-12); box-shadow: var(--cn-sh-modal); text-align: left;
+}
+.cn-more__menu form { display: block !important; margin: 0; }
+.cn-more__i {
+  display: block; width: 100%; min-height: 36px; padding: 8px 10px; border: 0; border-radius: var(--cn-r-8);
+  background: transparent; color: var(--cn-ink); font-size: var(--cn-fs-13-5); font-weight: 500; text-align: left; cursor: pointer;
+}
+.cn-more__i:hover, .cn-more__i:focus-visible { background: var(--cn-fill-selected); }
+.cn-more__i--danger { color: var(--cn-danger); }
+@media (max-width: 768px) { .cn-more__i { min-height: 44px; } .cn-more__menu { right: auto; left: 0; } }
+
+/* a save that has been pressed says so, and cannot be pressed again */
+.is-busy { opacity: .7; cursor: progress; pointer-events: none; }
+
+/* the shortcut list (?) */
+.cn-keys { z-index: var(--cn-z-modal); border: 0; padding: 22px; max-width: 420px; width: calc(100% - 32px);
+  border-radius: var(--cn-r-20); background: var(--cn-surface); box-shadow: var(--cn-sh-modal); }
+.cn-keys::backdrop { background: var(--cn-scrim); }
+.cn-keys__t { margin: 0 0 12px; font-size: var(--cn-fs-17); font-weight: 600; }
+.cn-keys__l { margin: 0 0 16px; display: flex; flex-direction: column; }
+.cn-keys__l div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid var(--cn-line-row); font-size: var(--cn-fs-13-5); }
+.cn-keys__l dd { margin: 0; color: var(--cn-grey-600); }
+.cn-keys kbd { font: 500 var(--cn-fs-12)/1 var(--cn-mono); padding: 3px 7px; border: 1px solid var(--cn-line-control); border-bottom-width: 2px; border-radius: var(--cn-r-6); }
+
+/* a key cap inside a filled button is drawn in the button's own ink, never a white box */
+.cn-btn--primary .cn-kbd, .ad-btn--primary kbd, .ad-btn--primary .st-kbd {
+  background: transparent; color: inherit; border-color: color-mix(in srgb, var(--cn-surface) 45%, transparent);
+}
+
+/* phones: a list is a column of labelled cards, never a strip scrolled sideways */
+@media (max-width: 768px) {
+  table[data-stack], table[data-stack] tbody, table[data-stack] tr, table[data-stack] td { display: block; width: 100%; min-width: 0; }
+  table[data-stack] { min-width: 0 !important; }
+  table[data-stack] thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table[data-stack] tr { padding: 12px 14px; border-top: 1px solid var(--cn-line-row); }
+  table[data-stack] tr:first-child { border-top: 0; }
+  table[data-stack] td { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 4px 0 !important; border: 0 !important; text-align: right; }
+  table[data-stack] td::before { content: attr(data-label); flex: none; max-width: 45%; text-align: left; font-size: var(--cn-fs-12-5); color: var(--cn-grey-500); }
+  table[data-stack] td:not([data-label])::before, table[data-stack] td[data-label=""]::before { content: none; }
+  table[data-stack] td[data-cell="name"] { display: block; text-align: left; font-weight: 600; }
+  table[data-stack] td[data-cell="name"]::before { content: none; }
+  table[data-stack] td.col-actions { justify-content: flex-start; flex-wrap: wrap; gap: 8px; padding-top: 8px !important; }
+  table[data-stack] td.col-actions::before { content: none; }
+  table[data-stack] td:empty { display: none; }
+  .ad-table-wrap:has(> table[data-stack]) { max-height: none; overflow: visible; }
+  .cn-find__in { flex-basis: 100%; min-height: 44px; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -572,6 +683,11 @@ tr.ad-out > td { opacity: .62; }
 .ad-stat__hint { font-size: var(--cn-fs-12); color: var(--cn-grey-500); }
 .ad-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .ad-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+/* A grid track's item defaults to min-width:auto, so one long email address in a card held the
+   whole column at its own width and pushed the Review queue off a phone. A correction to the
+   rule above, not a new name. */
+.ad-grid-2 > *, .ad-grid-3 > * { min-width: 0; }
+.ad-card__body { overflow-wrap: anywhere; }
 .ad-pager { display: flex; gap: 6px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
 .ad-pager a, .ad-pager span { padding: 5px 11px; border: 1px solid var(--cn-line-control); border-radius: var(--cn-r-pill); font-size: var(--cn-fs-13); text-decoration: none; }
 .ad-pager .is-current { background: var(--cn-ink); border-color: var(--cn-ink); color: var(--cn-surface); }

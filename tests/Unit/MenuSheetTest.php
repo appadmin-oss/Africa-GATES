@@ -118,8 +118,8 @@ final class MenuSheetTest extends TestCase
         $in = $this->menu(self::MEMBER);
         $this->assertMatchesRegularExpression('~<form method="post" action="/account/logout"[^>]*>\s*<input type="hidden" name="_token" value="test-token">~', $in);
         $this->assertStringNotContainsString('Sign out', $this->menu(), 'a signed-out visitor is offered Sign out');
-        $this->assertStringContainsString('href="/account#notifications"', $in);
-        $this->assertStringNotContainsString('/account#notifications', $this->menu(), 'a guest is offered a member\'s settings');
+        $this->assertStringContainsString('href="/account/notifications"', $in);
+        $this->assertStringNotContainsString('/account/notifications', $this->menu(), 'a guest is offered a member\'s settings');
     }
 
     public function test_the_display_sub_view_and_the_grabber_control_are_drawn(): void

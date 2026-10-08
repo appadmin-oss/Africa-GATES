@@ -27,7 +27,7 @@
 {% macro card(p, overall) %}
   {% set w = p.wins|first %}
   <li class="hf-card{{ overall ? ' hf-card--ov' }}">
-    <span class="hf-card__av">{% include 'partials/photo.twig' with {kind: 'person', src: p.photo, name: p.name, alt: 'Portrait of %n%'|trans({'%n%': p.name})} only %}</span>
+    <span class="hf-card__av">{% include 'partials/photo.twig' with {kind: 'person', src: p.photo, name: p.name, size: 96, alt: 'Portrait of %n%'|trans({'%n%': p.name})} only %}</span>
     <span class="hf-card__t">
       <b class="hf-card__n">{{ p.name }}</b>
       <span class="hf-card__m">{{ overall ? 'Overall winner'|trans : w.category }} · {{ w.programme }}{% if w.edition %} · {{ w.edition }}{% endif %}</span>

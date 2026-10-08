@@ -192,7 +192,7 @@
   /* ── render: the transport ladder ── */
   function filtered(c) { return c === 405 || c === 406 || c === 415 || c === 501; }
   function fields() {
-    var o = { _token: csrf, fmt: S.fmt, style: S.style };
+    var o = { _token: root.getAttribute('data-csrf') || csrf, fmt: S.fmt, style: S.style };
     if (S.token) o.t = S.token; else o.name = nameIn.value.trim();
     if (S.fx !== null) o.focus_x = String(S.fx);
     if (S.fy !== null) o.focus_y = String(S.fy);

@@ -5,7 +5,7 @@
 
   Opened by the header's Search control or by `/` (and ⌘K/Ctrl-K) from anywhere that is
   not a text field. 680px wide, 84px from the top, a scrim behind. Input → scope chips →
-  grouped results (≤6 per group) → key hints. Data: `GET /search?q=&scope=`
+  grouped results (≤6 per group) → key hints. Data: `GET /search.json?q=&scope=`
   (SearchController), which GROUPS on the server — this markup and `search.js` never name
   a source, so there is no second copy of the scope map to drift (SearchScopeTest).
 

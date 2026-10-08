@@ -168,7 +168,7 @@
           <p class="nf-step__lead">{{ 'You are nominating for this award. Change it if you meant another.'|trans }}</p>
         </div>
         <div class="nf-award">
-          <span class="nf-award__media">{% include 'partials/photo.twig' with {kind: 'thing', name: programme.title, title: false} only %}</span>
+          <span class="nf-award__media">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', name: programme.title} only %}</span>
           <div class="nf-award__b">
             <b class="nf-award__t">{{ programme.title }}</b>
             <span class="nf-award__l">{{ edition }}</span>

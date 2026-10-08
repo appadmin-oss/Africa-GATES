@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<section aria-label="Vote for {{ first }}" style="display:flex;flex-direction:column;background:#fff;border:1px solid #e8e5dd;border-radius:20px;overflow:hidden;font-family:'DM Sans',system-ui,sans-serif;color:#10292c">
+  <div style="padding:18px 20px;background:#effaf0;border-bottom:1px solid #cfe6ce">
+    <p style="margin:0;display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:#1a6118"><span style="width:9px;height:9px;border-radius:50%;background:#237b22"></span>Voting open · closes in 2 days</p>
+    <p style="margin:8px 0 0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:26px;line-height:1.1">Back {{ first }}</p>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px;padding:20px">
+    <sc-if value="{{ isForm }}" hint-placeholder-val="{{ true }}">
+      <sc-if value="{{ signedIn }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-direction:column;gap:10px;padding:14px;background:#f1efe9;border:1px solid #e8e5dd;border-radius:14px"><span style="display:flex;flex-direction:column;gap:3px"><b style="font-size:14px">You have 1,250 points</b><span style="font-size:13px;line-height:1.45;color:#3a4a4c">Redeem 500 to instantly add a vote for {{ first }}.</span></span><button onClick="{{ redeem }}" style="height:44px;border:1px solid #10292c;border-radius:999px;background:#fff;color:#10292c;font-weight:600;font-size:14px;cursor:pointer">{{ redeemLabel }}</button></div></sc-if><sc-if value="{{ signedOut }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#f1efe9;border-radius:14px;font-size:13.5px;line-height:1.45;color:#3a4a4c"><span style="flex:1">Have points? <a href="SignIn.dc.html" style="font-weight:700">Sign in</a> to redeem them. You can still vote without an account.</span></div></sc-if>
+      <sc-if value="{{ paid }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font-weight:700;font-size:15px">Add more votes</span>
+          <span style="font-size:13px;line-height:1.5;color:#3a4a4c">Contributed votes add to {{ first }}’s tally. Most of the community score counts how many verified people back them, so money can’t buy that part. The split is published.</span>
+          <div role="radiogroup" aria-label="Votes" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"><sc-for list="{{ tiers }}" as="t" hint-placeholder-count="4"><button role="radio" aria-checked="{{ t.on }}" onClick="{{ t.pick }}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;border-radius:12px;border:1.5px solid {{ t.bd }};background:{{ t.bg }};color:#10292c;cursor:pointer"><span style="font-weight:700;font-size:15px">{{ t.qty }}</span><span style="font-size:11.5px;color:#626a6e">{{ t.price }}</span></button></sc-for></div>
+          <label style="display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:13px">Your email <span style="font-weight:400;color:#626a6e">(for the receipt)</span><input type="email" placeholder="you@email.com" style="height:48px;padding:0 14px;border:1px solid #d6d4cc;border-radius:12px;font-family:inherit;font-size:16px;color:#10292c"></label>
+          <label style="display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:13px">Your name <span style="font-weight:400;color:#626a6e">(optional)</span><input placeholder="e.g. Amara Okonkwo" style="height:48px;padding:0 14px;border:1px solid #d6d4cc;border-radius:12px;font-family:inherit;font-size:16px;color:#10292c"></label>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13.5px"><sc-for list="{{ providers }}" as="p" hint-placeholder-count="2"><button role="radio" aria-checked="{{ p.on }}" onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:6px;padding:0;border:0;background:transparent;color:#10292c;font-family:inherit;font-size:13.5px;cursor:pointer"><span style="width:16px;height:16px;border-radius:50%;box-sizing:border-box;border:{{ p.dot }}"></span>{{ p.label }}</button></sc-for></div>
+          <button onClick="{{ contribute }}" style="height:48px;border:1.5px solid #10292c;border-radius:999px;background:#fff;color:#10292c;font-weight:700;font-size:14.5px;cursor:pointer">{{ payLabel }}</button>
+        </div>
+      </sc-if>
+      
+      <label style="display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:13px">Full name<input placeholder="First and last name" style="height:48px;padding:0 14px;border:1px solid #d6d4cc;border-radius:12px;font-family:inherit;font-size:16px;color:#10292c"></label>
+      <label style="display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:13px">Phone number<input type="tel" placeholder="e.g. +254 712 345 678" style="height:48px;padding:0 14px;border:1px solid #d6d4cc;border-radius:12px;font-family:inherit;font-size:16px;color:#10292c"></label>
+      <label style="display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:13px">Email<input type="email" placeholder="you@email.com" style="height:48px;padding:0 14px;border:1px solid #d6d4cc;border-radius:12px;font-family:inherit;font-size:16px;color:#10292c"></label>
+      <button onClick="{{ toggleMsg }}" aria-expanded="{{ msgOpen }}" style="align-self:flex-start;min-height:40px;padding:0;border:0;background:transparent;color:#237b22;font-family:inherit;font-weight:600;font-size:14px;cursor:pointer">{{ msgLabel }}</button>
+      <sc-if value="{{ msgOpen }}" hint-placeholder-val="{{ false }}"><textarea rows="3" placeholder="What do you want people to know about {{ first }}?" style="padding:12px 14px;border:1px solid #d6d4cc;border-radius:12px;font-family:inherit;font-size:15px;line-height:1.5;color:#10292c;resize:vertical"></textarea><label style="display:flex;gap:10px;align-items:center;font-size:13.5px"><input type="checkbox" checked="">Show my name with this message.</label></sc-if>
+      <label style="display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.45"><input type="checkbox" checked="{{ agreed }}" onChange="{{ toggleAgree }}" style="margin-top:3px">I’m a real person voting once, and I accept the voting rules.</label>
+      <button onClick="{{ request }}" disabled="{{ noAgree }}" style="height:52px;border:0;border-radius:999px;background:{{ goBg }};color:{{ goFg }};font-weight:700;font-size:15.5px;cursor:pointer">Vote for {{ first }} →</button>
+    </sc-if>
+    <sc-if value="{{ isOtp }}" hint-placeholder-val="{{ false }}">
+      <span style="font-size:14.5px;line-height:1.55;color:#3a4a4c">We emailed a 6-digit code to <b style="color:#10292c">you@email.com</b>.</span>
+      <input inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="6-digit code from your email" placeholder="······" style="height:56px;padding:0 14px;border:1px solid #d6d4cc;border-radius:12px;text-align:center;font:700 22px/1 'JetBrains Mono',monospace;letter-spacing:.4em;color:#10292c">
+      <button onClick="{{ confirm }}" style="height:52px;border:0;border-radius:999px;background:#237b22;color:#fff;font-weight:700;font-size:15.5px;cursor:pointer">Confirm vote</button>
+      <button onClick="{{ backForm }}" style="min-height:40px;border:0;background:transparent;color:#3a4a4c;font-family:inherit;font-size:13.5px;cursor:pointer">Use a different email</button>
+    </sc-if>
+    <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+      <dc-import name="Celebration" kind="vote" size="inline" first="{{ first }}" title="Your vote is in" sub="{{ celSub }}" hint-size="100%,380px"></dc-import>
+      <button style="height:48px;border:1px solid #d6d4cc;border-radius:999px;background:#fff;color:#10292c;font-weight:600;font-size:14.5px;cursor:pointer">Share {{ first }}’s voting link</button>
+      <a href="VotePage.dc.html" style="display:flex;align-items:center;justify-content:center;height:48px;border-radius:999px;background:#10292c;color:#f1efe9;font-weight:600;font-size:14.5px">Vote in another category</a>
+    </sc-if>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:380,&quot;height&quot;:900},&quot;first&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Achieng&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;paid&quot;,&quot;free&quot;],&quot;default&quot;:&quot;paid&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;signedIn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const TIERS=[[5,100],[10,200],[25,500],[50,1000]];
+class Component extends DCLogic {
+  state = { step:'form', t:1, p:0, msg:false, agree:true, redeemed:false };
+  renderVals(){
+    const S=this.state, set=o=>this.setState(o), paid=(this.props.mode ?? 'paid')==='paid', first=this.props.first ?? 'Achieng';
+    const T=TIERS[S.t];
+    return {
+      first, celSub:first+" moved up the race. Share the link so more people can back "+first+".", paid, signedIn:this.props.signedIn ?? true, signedOut:!(this.props.signedIn ?? true), isForm:S.step==='form', isOtp:S.step==='otp', isDone:S.step==='done',
+      tiers:TIERS.map((t,i)=>({qty:t[0],price:'KSh '+t[1].toLocaleString('en'),on:S.t===i,bd:S.t===i?'#10292c':'#d6d4cc',bg:S.t===i?'#e8e5dd':'#fff',pick:()=>set({t:i})})),
+      providers:['M-Pesa','Card'].map((l,i)=>({label:l,on:S.p===i,dot:S.p===i?'5px solid #10292c':'1.5px solid #8b9295',pick:()=>set({p:i})})),
+      payLabel:`Contribute KSh ${T[1].toLocaleString('en')} for ${T[0]} votes`, contribute:()=>set({step:'done'}),
+      redeem:()=>set({redeemed:true}), redeemLabel:S.redeemed?'Vote added ✓':'Redeem 500 points',
+      msgOpen:S.msg, toggleMsg:()=>set({msg:!S.msg}), msgLabel:S.msg?'Remove message':'+ Add a message for '+first+' (optional)',
+      agreed:S.agree, toggleAgree:()=>set({agree:!S.agree}), noAgree:!S.agree, goBg:S.agree?'#237b22':'#e8e5dd', goFg:S.agree?'#fff':'#626a6e',
+      request:()=>{ if(S.agree) set({step:'otp'}); }, confirm:()=>set({step:'done'}), backForm:()=>set({step:'form'})
+    };
+  }
+}
+</script>
+</body>
+</html>

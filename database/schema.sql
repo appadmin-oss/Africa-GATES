@@ -614,6 +614,8 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   -- (one per line). See migrations/2027_03_04_event_page_links.php.
   livestream_url VARCHAR(500) NULL DEFAULT NULL,
   recording_url VARCHAR(500) NULL DEFAULT NULL,
+  cover_kind VARCHAR(24) NULL DEFAULT NULL,
+  spotlight_rank TINYINT UNSIGNED NULL DEFAULT NULL,
   access_notes TEXT NULL,
   created_at DATETIME NULL,
   PRIMARY KEY (id),
@@ -776,6 +778,7 @@ CREATE TABLE IF NOT EXISTS gates_users (
   headline VARCHAR(120) NULL DEFAULT NULL,
   based_in VARCHAR(120) NULL DEFAULT NULL,
   interests_json VARCHAR(255) NULL DEFAULT NULL,
+  seasonal_greetings TINYINT(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (id),
   KEY idx_users_phone_e164 (phone_e164),
   UNIQUE KEY uq_user_email (email)

@@ -130,7 +130,7 @@
       {% if a.subtitle %}<p class="aw-d__sub">{{ a.subtitle }}</p>{% endif %}
     </div>
     <div class="aw-d__cover">
-      {% include 'partials/photo.twig' with {kind: 'thing', src: a.cover, name: a.title, tone: a.tone, eager: true} only %}
+      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: a.cover, name: a.title, eager: true} only %}
     </div>
   </div>
 

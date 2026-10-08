@@ -1089,6 +1089,10 @@ final class SystemStatus
             $outcome = strtoupper(trim((string) $r->outcome));
             $n       = (int) $r->n;
 
+            if ($outcome === AiGateway::CACHED) {
+                // Answered from cache: no provider was asked, so it says nothing about one.
+                continue;
+            }
             if ($outcome === 'OK') {
                 $ok  += $n;
                 $okMs = (float) $r->ms;

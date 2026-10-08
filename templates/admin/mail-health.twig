@@ -180,14 +180,17 @@
           <div><label for="mh-transport">Send by</label>
             <select id="mh-transport" name="transport">
               {% for k, l in {
-                'auto': 'Automatic — SMTP, then the Brevo API, then this server’s own mail',
+                'auto': 'Automatic — SMTP, then Google Apps Script, then the Brevo API, then this server’s own mail',
                 'smtp': 'SMTP only',
+                'gas':  'Google Apps Script only — codes, receipts and confirmations; announcements wait',
                 'api':  'Brevo API over HTTPS only',
                 'host': 'This server’s own mail only'} %}
               <option value="{{ k }}"{{ sending.transport == k ? ' selected' }}>{{ l }}</option>
               {% endfor %}
             </select></div>
         </div>
+        <p class="mh-meta">Google Apps Script — {% if sending.gas_set %}set up; when Google SMTP fails, it carries the codes,
+          receipts and confirmations.{% else %}not set up yet — <a href="#apps-script">add it below</a>, so mail still goes out when Google SMTP fails.{% endif %}</p>
         <p class="mh-meta">SMTP — {{ sending.login_source }}. Leave a box empty to keep what is there.</p>
         <div class="row">
           <div><label for="mh-host">SMTP host</label><input id="mh-host" name="host" value="{{ sending.host }}" placeholder="smtp.gmail.com" autocomplete="off"></div>
@@ -224,6 +227,45 @@
         <span class="mh-meta">Forgets the SMTP values saved here, so the .env file this server was set up with decides again.{% if sending.env_has_login %} It has an SMTP login.{% else %} It has no SMTP login of its own.{% endif %}</span>
       </form>
       {% endif %}
+    </div>
+  </section>
+
+  {# ── GOOGLE APPS SCRIPT ─────────────────────────────────────────────────────
+     Its own form, never inside the one above (a <form> inside a <form> is dropped by the
+     parser and its button posts to the outer action). The same two values as Settings →
+     Google Calendar and Meet, on the page somebody is on when mail is failing; saved only
+     after the script has been asked — see MailSetup::saveAppsScript(). #}
+  <section class="ad-card" id="apps-script">
+    <div class="ad-card__head"><div class="ad-card__title">Google Apps Script
+      <small>{% if sending.gas_set %}Set up. When Google SMTP fails, sign-in codes, receipts and confirmations go out through it — about 100 a day on a Gmail account, 1,500 on Workspace. Announcements wait for SMTP.{% else %}Not set up. Add it and mail keeps going out when Google SMTP fails.{% endif %}</small></div></div>
+    <div class="ad-card__body">
+      <details class="mh-meta"{% if not sending.gas_set %} open{% endif %}>
+        <summary>Where to find these two things (about five minutes)</summary>
+        <ol>
+          <li>Open the Google Sheet the platform writes to, then Extensions → Apps Script.</li>
+          <li>Replace all the code with the latest <code>config/AfricaGATES_AppScript.gs</code>, and save.</li>
+          <li><b>The secret:</b> at the top is <code>const SECRET = '…';</code>. The text between the quotes is the secret. If it is empty, type a long random password there and save.</li>
+          <li><b>The address:</b> Deploy → Manage deployments → the pencil → Version: New version → Deploy. Keep “Execute as: Me” and “Who has access: Anyone”, and allow the permissions if Google asks. Copy the <b>Web app</b> address — it ends in <code>/exec</code>.</li>
+          <li>Paste both below and press “Check and save”.</li>
+        </ol>
+      </details>
+      <form method="post" action="/admin/settings/mail/apps-script" class="ad-form" autocomplete="off">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div class="row">
+          <div><label for="mh-gas-url">Web app address <small>ends in /exec</small></label>
+            <input id="mh-gas-url" name="gas_url" type="url" inputmode="url" spellcheck="false" value="{{ sending.gas_url }}"
+                   placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></div>
+        </div>
+        <div class="row">
+          <div><label for="mh-gas-secret">Secret <small>exactly the text between the quotes in <code>const SECRET</code>. Never shown again once saved.</small></label>
+            <input id="mh-gas-secret" name="gas_secret" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore
+                   placeholder="{{ sending.gas_secret_set ? '•••••••••• (leave empty to keep)' : 'the SECRET from the top of the script' }}"></div>
+        </div>
+        <div class="mh-bar">
+          <button class="ad-btn ad-btn--primary" type="submit">Check and save</button>
+          <span class="mh-meta">Asks the script how much it may send today. Nobody is emailed. The calendar uses the same two values.</span>
+        </div>
+      </form>
     </div>
   </section>
 

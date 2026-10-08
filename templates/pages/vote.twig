@@ -59,7 +59,7 @@
       {% for p in front.rows %}
         <li>
           <a class="vh-row" href="{{ p.href }}">
-            <span class="vh-row__thumb">{% include 'partials/photo.twig' with {kind: 'thing', src: p.cover, name: p.title, tone: p.tone, title: false} only %}</span>
+            <span class="vh-row__thumb">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: p.cover, name: p.title} only %}</span>
             <span class="vh-row__text">
               <span class="vh-row__top">
                 <span class="vh-row__t">{{ p.title }}</span>

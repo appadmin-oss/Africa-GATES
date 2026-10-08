@@ -117,7 +117,7 @@
     </div>
     {% endif %}
 
-    {% if spots_left is not null and st == 'open' and spots_left <= 25 %}<p class="ed-card__note ed-tint">{{ spots_left == 1 ? 'Only 1 place left'|trans : 'Only %n% places left'|trans({'%n%': spots_left}) }}</p>{% endif %}
+    {% if spots_left is not null and st == 'open' and spots_left <= constant('AfricaGates\\Services\\EventSales::LOW_PLACES') %}<p class="ed-card__note ed-tint">{{ spots_left == 1 ? 'Only 1 place left'|trans : 'Only %n% places left'|trans({'%n%': spots_left}) }}</p>{% endif %}
 
     <div class="ed-field" data-ed-qty-wrap{% if not _first or _first.max <= 1 or _first.gone %} hidden{% endif %}>
       <label class="ed-label" for="edQty">{{ 'How many seats'|trans }}</label>

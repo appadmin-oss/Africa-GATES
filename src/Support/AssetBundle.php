@@ -73,6 +73,13 @@ final class AssetBundle
         'assets/css/components/menu-sheet.css',
         // Phase 2 item 6: the cookie notice and preferences sheet, on the chrome.
         'assets/css/components/consent.css',
+        // The field macros' sheet (partials/field.twig): error, hint, counter and summary.
+        // It was linked by the shell without being added here, so the bundle and the shell
+        // disagreed about the cascade — ShellLayoutTest had been red on it since.
+        'assets/css/components/forms.css',
+        // The default graphics (DEFAULT-GRAPHICS §2, handoff 5 Oct 2026): every image slot
+        // with no upload draws a cover or avatar, on any page. After the base, as the spec says.
+        'assets/css/components/cover.css',
         // Phase 4: the site footer — chrome on every shell page, after the notice.
         'assets/css/components/footer.css',
         // Phase 3: Gee, the guide and the help desk — the launcher and the panel that sit

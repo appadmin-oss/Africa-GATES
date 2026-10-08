@@ -39,6 +39,7 @@
 <link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/console.css') }}">
 {% block head_styles %}{% endblock %}
+  {% include 'partials/csrf-fresh.twig' %}
 </head>
 <body class="cn" data-console{% if not shell.can_write %} data-readonly{% endif %}{% if shell.sidebar_closed %} data-side="closed"{% endif %}>
 
@@ -320,6 +321,7 @@
 <script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}"></script>
 {% block foot_scripts %}{% endblock %}
 <script defer src="{{ asset('/assets/js/admin.js') }}"></script>
+<script defer src="{{ asset('/assets/js/console-ux.js') }}"></script>
 {% include 'admin/partials/richtext.twig' %}
 {% include 'admin/partials/ui.twig' %}
 </body>

@@ -75,7 +75,7 @@
 <div class="si{{ auth_art|default(null) ? ' si--art' }}">
   {% if auth_art|default(null) %}
     <aside class="si__art" aria-label="{{ 'Recently decided'|trans }}">
-      {% include 'partials/photo.twig' with {kind: 'person', src: auth_art.photo, name: auth_art.name, ini: auth_art.ini, class: 'si__photo'} only %}
+      {% include 'partials/photo.twig' with {kind: 'person', src: auth_art.photo, name: auth_art.name, size: 160, class: 'si__photo'} only %}
       <span class="si__veil" aria-hidden="true"></span>
       <div class="si__credit">
         <a class="si__who" href="{{ auth_art.url }}">{{ auth_art.name }}</a>

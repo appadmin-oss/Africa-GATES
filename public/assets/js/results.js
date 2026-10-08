@@ -1,52 +1,68 @@
-/* Results — a member's reply to a result's Pulse thread (pages/results/show.twig).
+/* ══════════════════════════════════════════════════════════════════════════════
+   RESULTS — one award's replies · templates/pages/results/show.twig
+   ══════════════════════════════════════════════════════════════════════════════
 
-   The reply posts to the same endpoint the Pulse uses (/api/v1/community/comment, target
-   `thread`), so a result's replies and the thread's are one conversation and one moderation
-   queue. A reply the service holds (status `quarantined`) is SAID to be held, in the form's
-   own words (`data-held`), and never drawn into the list as if it were live — drawing it
-   would show the member a public reply nobody else can see. Nothing here decides anything:
-   a refusal is the server's sentence, put in the status line. */
+   A result is a post in the Pulse, and its replies are that thread's. The form posts to
+   /api/v1/community/comment by itself (method and fields are in the markup); this upgrade
+   sends it in the background and answers in place.
+
+   · An APPROVED reply is drawn at the end of the list straight away, from what the member
+     typed — escaped, as text, never as HTML.
+   · A QUARANTINED one is said to be held, in the page's own words, and is never drawn as
+     live: a reply nobody else can see must not look published to its author.
+   · A failure keeps the text in the box and says so; nothing typed is ever cleared on error.
+   ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
-  document.querySelectorAll('[data-rs-reply]').forEach(function (form) {
-    var msg = form.querySelector('[data-rs-msg]');
-    var list = document.querySelector('[data-rs-list]');
-    var btn = form.querySelector('button[type="submit"]');
-    function say(t) { if (!msg) return; msg.textContent = t || ''; msg.hidden = !t; }
+  var form = document.querySelector('[data-rs-reply]');
+  if (!form || !window.fetch || !window.FormData) return;
+  var box = form.querySelector('textarea');
+  var msg = form.querySelector('[data-rs-msg]');
+  var btn = form.querySelector('button[type="submit"]');
+  var list = document.querySelector('[data-rs-list]');
 
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var ta = form.querySelector('textarea[name="body"]');
-      var text = ta ? ta.value.trim() : '';
-      if (!text) { if (ta) ta.focus(); return; }
-      if (btn) btn.disabled = true;
-      var body = new URLSearchParams({ target_type: 'thread', target_id: form.getAttribute('data-thread') || '', body: text });
-      fetch('/api/v1/community/comment', {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
-        body: body
+  function say(text) {
+    if (!msg) return;
+    msg.textContent = text;
+    msg.hidden = !text;
+  }
+
+  function draw(body) {
+    if (!list) return;
+    var none = list.querySelector('.rs-c--none');
+    if (none) none.remove();
+    var who = form.getAttribute('data-you') || '';
+    var li = document.createElement('li'); li.className = 'rs-c';
+    var av = document.createElement('span'); av.className = 'rs-c__av'; av.setAttribute('aria-hidden', 'true');
+    av.textContent = who.charAt(0).toUpperCase();
+    var wrap = document.createElement('span');
+    var b = document.createElement('b'); b.textContent = who;
+    var t = document.createElement('span'); t.className = 'rs-c__b'; t.textContent = body;
+    wrap.appendChild(b); wrap.appendChild(t);
+    li.appendChild(av); li.appendChild(wrap);
+    list.appendChild(li);
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var body = box ? box.value.trim() : '';
+    if (!body) { if (box) box.focus(); return; }
+    if (btn) btn.disabled = true;
+    say('');
+    fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin',
+                         headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (d) {
+        if (!d || !d.success) {
+          say((d && d.message) || form.getAttribute('data-failed') || '');
+          if (d && d.code === 'SIGN_IN' && d.login_url) window.location.href = d.login_url + '?next=' + encodeURIComponent(location.pathname);
+          return;
+        }
+        if (box) box.value = '';
+        if (d.status === 'approved') draw(body);
+        else say(form.getAttribute('data-held') || '');
       })
-        .then(function (r) { return r.json().catch(function () { return {}; }); })
-        .then(function (d) {
-          if (!d || !d.success) { say((d && d.message) || form.getAttribute('data-failed') || ''); return; }
-          if (ta) ta.value = '';
-          if (d.status && d.status !== 'approved') { say(form.getAttribute('data-held')); return; }
-          say('');
-          if (!list) return;
-          var none = list.querySelector('.rs-c--none');
-          if (none) none.remove();
-          var li = document.createElement('li'); li.className = 'rs-c';
-          var av = document.createElement('span'); av.className = 'rs-c__av'; av.setAttribute('aria-hidden', 'true');
-          var name = String(d.author_name || form.getAttribute('data-me') || '');
-          av.textContent = name.slice(0, 1);
-          var wrap = document.createElement('span');
-          var b = document.createElement('b'); b.textContent = name;
-          var p = document.createElement('span'); p.className = 'rs-c__b'; p.textContent = text;
-          wrap.appendChild(b); wrap.appendChild(p); li.appendChild(av); li.appendChild(wrap);
-          list.insertBefore(li, list.firstChild);
-        })
-        .catch(function () { say(form.getAttribute('data-failed') || ''); })
-        .then(function () { if (btn) btn.disabled = false; });
-    });
+      .catch(function () { say(form.getAttribute('data-failed') || ''); })
+      .then(function () { if (btn) btn.disabled = false; });
   });
 })();

@@ -104,7 +104,7 @@ final class MenuShortcuts
                             'd' => 'M4 5h16M4 10h16M4 15h10'],
         'register'      => ['href' => '/account/register', 'label' => 'Register a profile', 'tone' => 'honour', 'who' => self::GUEST,
                             'd' => 'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0'],
-        'notifications' => ['href' => '/account#notifications', 'label' => 'Notifications', 'tone' => 'set', 'who' => self::MEMBER,
+        'notifications' => ['href' => '/account/notifications', 'label' => 'Notifications', 'tone' => 'set', 'who' => self::MEMBER,
                             'd' => 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4'],
         'help'          => ['href' => '/help', 'label' => 'Help Centre', 'tone' => 'set', 'who' => self::ALL,
                             'd' => 'M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14'],

@@ -53,7 +53,7 @@
   {# ── The hero: light on a phone, the dark band from 600px ─────────────────── #}
   <div class="vp-hero">
     <div class="vp-hero__media">
-      {% include 'partials/photo.twig' with {kind: 'thing', src: _f.cover, name: _p.title, tone: _f.tone, eager: true, title: false} only %}
+      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: _f.cover, name: _p.title, eager: true} only %}
       <span class="vp-hero__chip vp-hero__chip--{{ _f.open ? 'live' : 'quiet' }}"><span class="vp-hero__dot" aria-hidden="true"></span>{{ _f.chip }}</span>
     </div>
     <div class="vp-hero__band">

@@ -715,7 +715,7 @@ destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
 12. ~~Translation — build a `trans` layer before any phase uses the snippets, or drop `|trans`? (C15)~~ **Answered by the product owner: build it first.** Built — §2 "Translation".
 13. Search JSON — move it to `GET /search` (retiring that alias), or keep `/activity/search`? Trending in the empty palette has no measured signal — drop it? (C16, §3.6)
 14. Which DC owns `/results` (index) and `/results/{id}` (one award)? (§5.1)
-15. `docs/redesign-ref/` — delete as superseded? (C17)
+15. `docs/redesign-ref/` — delete as superseded? (C17) **Answered 5 Oct (AUDIT Q15): delete. Deleted 8 Oct 2026; it remains in git history.**
 16. Account and Challenges were rebuilt from DCs not in this bundle — destroyed and rebuilt in a phase of this redesign, or left as they are?
 17. Waitlist hold — 24 h (bundle) or 48 h (`EventWaitlist::OFFER_HOURS`)? (§3.12)
 18. Explore — keep Results (7 items) or the bundle's 6? (§3.15)

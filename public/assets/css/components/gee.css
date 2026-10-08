@@ -305,13 +305,16 @@
   border-radius:18px; border-end-end-radius:6px;
   background:var(--ag-ink); color:var(--ag-surface);
 }
-.gee__typing{ display:inline-flex; gap:4px; align-items:center; height:22px }
-.gee__typing i{
-  width:6px; height:6px; border-radius:50%; background:var(--ag-soft);
-  animation:geeDot 1s ease-in-out infinite;
+.gee__status{ margin:0; padding:6px 2px; font-size:var(--ag-fs-14); color:var(--ag-soft) }
+/* Gee's action buttons: the page that does the thing. Tier-1 green, the one primary on
+   the turn, at least 44px tall under a coarse pointer and 24px everywhere (WCAG 2.5.8). */
+.gee__acts{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 2px }
+.gee__act{
+  display:inline-flex; align-items:center; min-height:44px; padding:0 16px;
+  border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface);
+  font-size:var(--ag-fs-14-5); font-weight:600; text-decoration:none;
 }
-.gee__typing i:nth-child(2){ animation-delay:.15s }
-.gee__typing i:nth-child(3){ animation-delay:.3s }
+.gee__act:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 
 /* The live work card (role=status) */
 .gee__work{
@@ -507,8 +510,6 @@
 
 @keyframes geeSpin{ to{ transform:rotate(360deg) } }
 @keyframes geeIn{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
-@keyframes geeDot{ 0%, 100%{ opacity:.35 } 50%{ opacity:1 } }
-
 @media (prefers-reduced-motion:reduce){
   .gee *{ animation:none!important; transition:none!important }
 }

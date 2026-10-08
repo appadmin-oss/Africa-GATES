@@ -235,6 +235,9 @@ return [
             'csp_nonce'         => \AfricaGates\Support\Csp::nonce(),
             'flash_error'       => $_SESSION['flash_error'] ?? $_SESSION['org_flash_error'] ?? null,
             'flash_notice'      => $_SESSION['flash_notice'] ?? null,
+            // What a refused form had in it, for the page it is sent back to (FormReplay,
+            // CsrfMiddleware). Consumed by reading, like the flash beside it.
+            'form_replay'       => \AfricaGates\Support\FormReplay::take(),
             // The built CSS bundle, or null when the layout must fall back to the
             // fifteen individual stylesheets. Null on ANY doubt — no manifest, missing
             // file, or a source edited since the build — because stale CSS is a far
@@ -488,6 +491,26 @@ return [
             'celebration_style',
             [\AfricaGates\Services\Celebration::class, 'style']
         ));
+        // The default graphics (DEFAULT-GRAPHICS, handoff 5 Oct 2026): what an image slot with
+        // no upload draws. `partials/cover.twig` and `partials/avatar.twig` ask these, so the
+        // label, tone and pattern of a cover — and an avatar's initials and tone — come from
+        // the one resolver the GD share images use too.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cover_kind', [\AfricaGates\Support\CoverKind::class, 'resolve']
+        ));
+        // The member account's section titles and ledes (pages/account/_frame.twig): read
+        // from the one list the rail is built from.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_title', [\AfricaGates\Services\AccountRail::class, 'title']));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_lead', [\AfricaGates\Services\AccountRail::class, 'lead']));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cover_content', [\AfricaGates\Support\CoverKind::class, 'content']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cover_title_scale', [\AfricaGates\Support\CoverKind::class, 'graphicTitleScale']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'avatar_mark', [\AfricaGates\Support\AvatarMark::class, 'of']
+        ));
         // Allowlist-sanitise admin-authored rich text (blog/legacy bodies) at render
         // time — used instead of |raw so stored HTML can't inject script/handlers.
         $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
@@ -504,6 +527,9 @@ return [
             'media_url',
             [\AfricaGates\Support\Media::class, 'url']
         ));
+        // A feed's "· 3h", and a member's text with its links made links (escaped first).
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter('ago', [\AfricaGates\Support\Ago::class, 'of']));
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter('linked', [\AfricaGates\Support\TextLinks::class, 'html'], ['is_safe' => ['html']]));
         // `{{ asset('/assets/js/gee.js') }}` → the path with a CONTENT-HASH cache
         // buster. Replaces `?v={{ asset_version }}`, which in production returned
         // the pinned ASSET_VERSION — shipped as "v1", bumped by a deploy step this

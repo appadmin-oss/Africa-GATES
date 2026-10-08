@@ -152,10 +152,11 @@ final class QuestionnaireStyle
      * Two questions, not one. The gateway answers the switches and the daily budget. This adds
      * the one it cannot see: is the key for the PINNED provider actually configured?
      *
-     * That is deliberately stricter than "any provider is configured". A deployment holding
-     * only a Gemini key looks configured to every other AI feature here and cannot carry the
-     * tool calls this one is built on; a deployment holding a small fast model can carry them
-     * and quotes too loosely to be useful. Either way the interview would open, hold a
+     * That is deliberately stricter than "any provider is configured". A route pinned to a
+     * provider with no key would fall to whatever else is configured, and a small fast model
+     * can carry the tool calls this one is built on yet quotes too loosely to be useful.
+     * (Gemini was once excluded here because it had no tool adapter; it has one now, see
+     * AiService::TOOL_PROVIDERS.) Either way the interview would open, hold a
      * pleasant conversation, record nothing, and never explain itself — which is the worst
      * available outcome, because it wastes a nominee's evening before a deadline.
      *

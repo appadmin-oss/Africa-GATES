@@ -22,11 +22,21 @@
             ? 'align-self:flex-end;background:var(--cn-ink);color:#fff;border-radius:14px 14px 4px 14px;padding:10px 14px;max-width:82%;font-size:14px;line-height:1.55;white-space:pre-wrap'
             : 'align-self:flex-start;background:var(--cn-fill-panel);color:var(--cn-ink);border-radius:14px 14px 14px 4px;padding:10px 14px;max-width:82%;font-size:14px;line-height:1.55;white-space:pre-wrap'">
           <span class="sr-only" x-text="m.role === 'user' ? 'You said:' : 'Assistant said:'"></span><span x-text="m.text"></span>
+          <template x-if="m.ran && m.ran.length">
+            <small style="display:block;margin-top:6px;color:var(--cn-grey-500)" x-text="'Checked: ' + m.ran.join(' · ')"></small>
+          </template>
+          <template x-if="m.actions && m.actions.length">
+            <span style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <template x-for="a in m.actions" :key="a.url">
+                <a class="ad-btn ad-btn--xs ad-btn--primary" :href="a.url" x-text="a.label"></a>
+              </template>
+            </span>
+          </template>
         </div>
       </template>
       <div x-show="busy" x-cloak style="align-self:flex-start;color:var(--cn-grey-500);font-size:13px">Thinking…</div>
       <p x-show="!msgs.length && !busy" style="margin:auto;text-align:center;color:var(--cn-grey-500);font-size:14px;max-width:420px">
-        Ask about the platform's current state — e.g. <em>"What needs my attention today?"</em>, <em>"How many nominations are waiting?"</em>, <em>"Summarise this cycle's progress."</em>
+        Ask about the platform — e.g. <em>"What needs my attention today?"</em>, <em>"Did every paid vote land this week?"</em>, <em>"Is anything failing?"</em>
       </p>
     </div>
     <p role="alert" x-show="error" x-cloak x-text="error" style="color:#b42318;font-size:13px;font-weight:600;margin:0 0 8px"></p>
@@ -38,7 +48,7 @@
                 style="flex:1;resize:vertical;min-height:44px;border:1px solid rgba(16,41,44,.18);border-radius:12px;padding:11px 14px;font:inherit;font-size:14px"></textarea>
       <button class="ad-btn ad-btn--primary" type="submit" x-bind:disabled="busy || !draft.trim()" {% if not ai_configured %}disabled{% endif %}>Send</button>
     </form>
-    <p style="margin:8px 0 0;font-size:12px;color:var(--cn-grey-500)">The copilot reads live counts and queues; it cannot change data. Verify before acting on critical numbers.</p>
+    <p style="margin:8px 0 0;font-size:12px;color:var(--cn-grey-500)">The copilot runs the platform's own read-only checks before it answers, and says which. It cannot change data: repairs are on <a href="/admin/assistant/scripts">Operations scripts</a>, run by a person.</p>
   </div>
 </div>
 {% endblock %}

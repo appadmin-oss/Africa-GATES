@@ -1566,6 +1566,16 @@ return function(App $app) {
             // lines alone, because a stack trace contains blank lines of its own.
             $parts = preg_split('/\n(?=\[\d{4}-\d{2}-\d{2}T)/', trim($raw)) ?: [];
             $parts = array_values(array_filter(array_map('trim', $parts)));
+            // `&ref=EC4Y-Y8Y7` — the reference a person quoted from the error page, which
+            // is the question this page is opened with nine times in ten.
+            $wantRef = strtoupper(trim((string) ($req->getQueryParams()['ref'] ?? '')));
+            if ($wantRef !== '') {
+                $parts = array_values(array_filter($parts, static fn ($p) => str_contains($p, '[ref ' . $wantRef . ']')));
+                if ($parts === []) {
+                    $h .= '<pre>No entry carries reference <code>' . $e($wantRef) . '</code>. Check it was copied '
+                        . 'exactly (no O, I, L, U, 0 or 1 are ever used), or that the log has not been cleared since.</pre>';
+                }
+            }
             $total = count($parts);
             $show  = array_slice(array_reverse($parts), 0, $want);
 
@@ -1580,7 +1590,7 @@ return function(App $app) {
             }
         }
 
-        $h .= '<p class="n">Add <code>&amp;n=30</code> for more. This page is token-gated and '
+        $h .= '<p class="n">Add <code>&amp;n=30</code> for more, or <code>&amp;ref=XXXX-XXXX</code> for the entry a person quoted. This page is token-gated and '
             . 'noindex. Delete <code>var/logs/error-detail.log</code> to clear it.</p>';
 
         $res->getBody()->write($h);
@@ -2156,11 +2166,30 @@ return function(App $app) {
                        ->withStatus(301);
         });
         // ── THE SEARCH PALETTE'S DATA (REFERENCE §7.1) ───────────────────────
-        // `GET /search?q=&scope=` IS the endpoint, as JSON. It replaced
-        // `/activity/search` on 3 Oct 2026 (owner, GAPS C16) — one search URL, the one
-        // the handoff names. Same index behind it (ActivityFeedService); the scope map
-        // stays on the server, grouped there, so the script never names a source.
-        $g->get('/search',         \AfricaGates\Controllers\SearchController::class.':search');
+        // `GET /search.json?q=&scope=` is the endpoint (owner, AUDIT 5 Oct 2026, Q13 —
+        // superseding the 3 Oct choice of `/search` itself). Same index behind it
+        // (ActivityFeedService); the scope map stays on the server, grouped there, so the
+        // script never names a source. `/search` is a PAGE address — somebody types it, or
+        // a browser's site search sends them there — so it 301s to Discover with only the
+        // query kept, as `/activity` does.
+        $g->get('/search.json',    \AfricaGates\Controllers\SearchController::class.':search');
+        // ── THE PAGE'S CURRENT TOKEN (csrf-fresh.js) ─────────────────────────
+        // A page left open keeps the token it was drawn with; this hands it the session's
+        // current one so a form posts with what the server will accept. Same-origin only
+        // by the browser's own rule (no CORS here), `no-store`, and it reveals nothing a
+        // page of this site did not already print. Reading it also touches the session,
+        // which is what keeps an open page's session from being collected under it.
+        $g->get('/session/token.json', function ($req, $res) {
+            $res->getBody()->write(json_encode(['token' => (string) ($_SESSION['csrf_token'] ?? '')]));
+            return $res->withHeader('Content-Type', 'application/json')
+                       ->withHeader('Cache-Control', 'no-store')
+                       ->withHeader('X-Robots-Tag', 'noindex');
+        });
+        $g->get('/search', function ($req, $res) {
+            $q = $req->getQueryParams()['q'] ?? null;
+            return $res->withHeader('Location', '/discover' . (is_string($q) && trim($q) !== '' ? '?' . http_build_query(['q' => $q], '', '&', PHP_QUERY_RFC3986) : ''))
+                       ->withStatus(301);
+        });
         $g->get('/nominate',      NominationController::class.':form');
         $g->post('/nominate',     NominationController::class.':submit');
         // The done screen (NominationFlow.dc.html step 6): a controller method now, because it
@@ -2222,6 +2251,28 @@ return function(App $app) {
          * widens the pattern.
          */
         $g->get('/honour/{reference}/qr.svg', HonourController::class.':qr');
+        // The challenge cover's pattern tile, one per cover tone (DEFAULT-GRAPHICS §7a). Built
+        // from Accent on each request (CoverKind::gamesSvg) so its colour has one source;
+        // cached a day, as it changes only when the palette does.
+        $g->get('/img/patterns/games-{tone:[a-z]+}.svg', function ($req, $res, array $args) {
+            $tone = (string) $args['tone'];
+            if (!in_array($tone, \AfricaGates\Support\Accent::coverTones(), true)) return $res->withStatus(404);
+            $res->getBody()->write(\AfricaGates\Support\CoverKind::gamesSvg($tone));
+            return $res->withHeader('Content-Type', 'image/svg+xml')
+                       ->withHeader('Cache-Control', 'public, max-age=86400')
+                       ->withHeader('X-Content-Type-Options', 'nosniff');
+        });
+        // The default cover as a share image, for an event with no uploaded photo (§7).
+        $g->get('/og/{subject:[a-z]+}/{id:[0-9]+}-{ratio:[0-9]+x[0-9]+}.png', \AfricaGates\Controllers\CoverImageController::class.':show');
+        // The seasonal greeting's SVG pattern tiles, built from Accent (HolidayTheme::patternSvg).
+        $g->get('/img/holiday/{pattern:[a-z]+}-{tone:[a-z]+}.svg', function ($req, $res, array $args) {
+            $svg = \AfricaGates\Services\HolidayTheme::patternSvg((string) $args['pattern'], (string) $args['tone']);
+            if ($svg === null) return $res->withStatus(404);
+            $res->getBody()->write($svg);
+            return $res->withHeader('Content-Type', 'image/svg+xml')
+                       ->withHeader('Cache-Control', 'public, max-age=86400')
+                       ->withHeader('X-Content-Type-Options', 'nosniff');
+        });
         $g->get('/honour/{reference}/tick',   HonourController::class.':tick');
         $g->get('/honour/{reference}',        HonourController::class.':page');
 
@@ -2837,6 +2888,9 @@ return function(App $app) {
                 'community_pct'    => (int) round($w['community'] * 100),
                 'judge_pct'        => (int) round($w['judge'] * 100),
                 'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
+                // What a contribution does to the community half, from the one resolver the
+                // ballot and the award page use — never a typed claim (AUDIT 2026-10-05 #10).
+                'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence(),
                 'min_judges'       => (int) ($eff['min_judges_per_nominee'] ?? 2),
                 'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
                 'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
@@ -3738,6 +3792,10 @@ return function(App $app) {
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
         $a->get('/display',            AccountController::class.':display');
+        // The seasonal greeting (HOLIDAY-THEMES): "not this year" for one theme, and the
+        // member's own switch for all of them.
+        $a->post('/holiday/{slug:[a-z-]+}/dismiss', AccountController::class.':holidayDismiss');
+        $a->post('/greetings',         AccountController::class.':greetingsSave');
         $a->get('[/]',            AccountController::class.':dashboard');
     })->add(new UserAuthMiddleware());
 
@@ -3948,6 +4006,8 @@ return function(App $app) {
         // AI assistant — console copilot (all roles; superadmin unlimited)
         $a->get('/assistant',       \AfricaGates\Admin\Controllers\AssistantController::class.':index');
         $a->post('/assistant/chat', \AfricaGates\Admin\Controllers\AssistantController::class.':chat');
+        $a->get('/assistant/scripts', \AfricaGates\Admin\Controllers\AssistantController::class.':scripts');
+        $a->post('/assistant/scripts/{key:[a-z_]+}', \AfricaGates\Admin\Controllers\AssistantController::class.':runScript');
 
         $a->get('/programmes',                       AdminProgrammesController::class.':index');
         $a->get('/programmes/new',                   AdminProgrammesController::class.':form');
@@ -4120,6 +4180,7 @@ return function(App $app) {
         $a->get('/nominees',        AdminNomineesController::class.':index');
         $a->get('/nominees/duplicate-scan', AdminNomineesController::class.':duplicateScan');
         $a->post('/nominees/merge', AdminNomineesController::class.':merge');
+        $a->post('/nominees/not-duplicate', AdminNomineesController::class.':notDuplicate');
         $a->post('/nominees/unmerge', AdminNomineesController::class.':unmerge');
         $a->post('/nominees/{id:[0-9]+}/link',     AdminNomineesController::class.':link');
         $a->post('/nominees/{id:[0-9]+}/photo',         AdminNomineesController::class.':photo');
@@ -4363,6 +4424,12 @@ return function(App $app) {
             // The automated newsletter — a sub-page of campaigns, linked from its list.
             // Literal segments, so they cannot collide with the digits-only /{id} below.
             $s->get('/newsletter',                       \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':index');
+            // The member pages' seasonal greeting windows (HOLIDAY-THEMES) — linked from the
+            // newsletter's holiday section; literal segments, clear of /{id} below.
+            $s->get('/greetings',                        \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':index');
+            $s->post('/greetings',                       \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':add');
+            $s->post('/greetings/{id:[0-9]+}/toggle',    \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':toggle');
+            $s->post('/greetings/{id:[0-9]+}/delete',    \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':delete');
             $s->post('/newsletter/settings',             \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':settings');
             $s->post('/newsletter/compose',              \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':compose');
             $s->post('/newsletter/holidays',             \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':holidays');
@@ -4591,6 +4658,7 @@ return function(App $app) {
             // Where every mail alert points. The diagnosis walks the SMTP conversation
             // to MAIL FROM and stops: it never sends, so it can run by itself hourly.
             $s->post('/mail/sending',  \AfricaGates\Admin\Controllers\MailHealthController::class.':sending');
+            $s->post('/mail/apps-script', \AfricaGates\Admin\Controllers\MailHealthController::class.':appsScript');
             $s->post('/mail/use-env',  \AfricaGates\Admin\Controllers\MailHealthController::class.':useEnv');
             $s->post('/mail/rules',    \AfricaGates\Admin\Controllers\MailHealthController::class.':rules');
             $s->post('/mail/events/rotate', \AfricaGates\Admin\Controllers\MailHealthController::class.':rotate');

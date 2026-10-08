@@ -97,7 +97,21 @@ final class GuideService
             }
         }
 
-        // 2) Legacy direct Anthropic path (env key + GEE_MODEL).
+        // 2) The agent: the same tool loop as the help desk, under Gee's voice, with the
+        //    read-only tools and offer_action. It looks things up instead of reciting a
+        //    prompt, and ends a "how do I…" with a button rather than directions.
+        try {
+            $agent = (new SupportAgentService(AiService::boot()))
+                ->converse($message, $this->agentHistory($history), SupportContext::fromSession(),
+                           $this->systemPrompt($page, $message));
+            if ($agent !== null && trim($agent['reply']) !== '') {
+                return ['reply' => trim($agent['reply']), 'source' => 'ai', 'actions' => $agent['actions']];
+            }
+        } catch (\Throwable $e) {
+            $this->log?->warning('[gee] agent failed; trying the one-shot answer', ['err' => $e->getMessage()]);
+        }
+
+        // 3) Legacy direct Anthropic path, for a key that reaches nothing above (env key + GEE_MODEL).
         if (trim((string) Env::get('ANTHROPIC_API_KEY', '')) !== '') {
             try {
                 $reply = $this->askClaude($message, $history, $page);
@@ -109,7 +123,7 @@ final class GuideService
             }
         }
 
-        // 3) Shared provider chain via the gateway — admin-configured keys, with
+        // 4) Shared provider chain via the gateway — admin-configured keys, with
         //    the budget, the kill switch and the record. The visitor's message is
         //    fenced as untrusted content; the grounding prompt stays outside it.
         $r = (new AiGateway())->run('guide.chat', [
@@ -129,8 +143,25 @@ final class GuideService
             $this->log?->warning('[gee] AI unavailable; using scripted fallback', ['code' => $r->code]);
         }
 
-        // 4) Never a dead widget.
+        // 5) Never a dead widget.
         return $this->scripted($message);
+    }
+
+    /**
+     * Gee's history ({role, text}) as the agent's ({role, content}).
+     *
+     * @return list<array{role:string,content:string}>
+     */
+    private function agentHistory(array $history): array
+    {
+        $out = [];
+        foreach ($history as $h) {
+            if (!is_array($h)) continue;
+            $t = trim((string) ($h['content'] ?? $h['text'] ?? ''));
+            if ($t === '') continue;
+            $out[] = ['role' => ($h['role'] ?? '') === 'assistant' ? 'assistant' : 'user', 'content' => mb_substr($t, 0, 2000)];
+        }
+        return $out;
     }
 
     /** The zero-cost tier — also the invisible rate-limit degrade path. */
@@ -175,6 +206,15 @@ final class GuideService
      */
     public function supportFallback(string $message): array
     {
+        // An error-page reference is not a payment reference, whatever the search thinks.
+        $fault = \AfricaGates\Support\PublicFault::quoted($message);
+        if ($fault !== null) {
+            $e = \AfricaGates\Support\PublicFault::find($fault);
+            return ['reply' => \AfricaGates\Support\PublicFault::chatReply($fault, $e,
+                    \AfricaGates\Support\PublicFault::others($fault, (string) ($e['where'] ?? '')))
+                . "\n\nIf it keeps happening, /support takes it to the team; quote **{$fault}** and they can open "
+                . "exactly what failed.", 'source' => 'help'];
+        }
         $written = HelpCentre::writtenAnswer($message);
 
         return ['reply' => $written ?? (

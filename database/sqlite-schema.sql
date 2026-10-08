@@ -534,6 +534,8 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   early_bird_url TEXT,
   livestream_url TEXT NULL DEFAULT NULL,
   recording_url TEXT NULL DEFAULT NULL,
+  cover_kind TEXT NULL DEFAULT NULL,
+  spotlight_rank INTEGER NULL DEFAULT NULL,
   access_notes TEXT NULL,
   created_at TEXT
 );
@@ -678,7 +680,9 @@ CREATE TABLE IF NOT EXISTS gates_users (
   -- Joining, steps 3 and 4: what you do, where you are based, interests (JSON keys).
   headline TEXT NULL DEFAULT NULL,
   based_in TEXT NULL DEFAULT NULL,
-  interests_json TEXT NULL DEFAULT NULL
+  interests_json TEXT NULL DEFAULT NULL,
+  -- Seasonal greetings on member pages (HolidayTheme). On unless the member turns it off.
+  seasonal_greetings INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS gates_points_ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

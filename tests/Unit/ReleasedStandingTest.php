@@ -572,6 +572,21 @@ final class ReleasedStandingTest extends TestCase
      * comparator this code no longer has. Touches `standing_rank` ONLY: it sits outside
      * the hash payload (`cycleId|nomineeId|votes|cpi|at`) by design, so the chain stays
      * verifiable and the test is not quietly asserting that tampering is undetectable.
+     *
+     * ── AND IT WRITES BEHIND A CACHE, SO IT DROPS THE CACHE ──────────────────
+     *
+     * {@see ReleasedStanding::forCycle()} memoises a cycle's seal for the life of the
+     * process, which is sound in production because a seal is immutable there —
+     * {@see SnapshotService::captureRelease()} refuses a cycle that already has one. This
+     * helper is the one thing that changes a sealed row after the fact, so it is also the
+     * one thing that has to invalidate what it bypassed.
+     *
+     * It became load-bearing when {@see Recognitions::syncCycle()} was wired into
+     * `captureRelease()`: that call RE-WARMS the memo (it forgets, then reads) as the
+     * last act of the write, so by the time a test rewrites a placing the service is
+     * already holding the ranks the comparator produced. Without this line the page under
+     * test reads those instead of the announcement, and the one case that can tell a
+     * sealed order from a recomputed one silently stops testing anything.
      */
     private function seal(int $nomineeId, ?int $standingRank): void
     {
@@ -580,6 +595,8 @@ final class ReleasedStandingTest extends TestCase
             ->where('capture_kind', SnapshotService::KIND_RELEASE)
             ->where('nominee_id', $nomineeId)
             ->update(['standing_rank' => $standingRank]);
+
+        ReleasedStanding::forget($this->cycleId);
     }
 
     /**

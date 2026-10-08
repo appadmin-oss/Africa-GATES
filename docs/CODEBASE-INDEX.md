@@ -105,7 +105,7 @@ africa-gates/
 ├─ config/                container.php, database.php, AfricaGATES_AppScript.gs
 ├─ deploy/cloudflare/    the Cron Trigger Worker that drives /__cron/run (see §16)
 ├─ tests/Unit/            PHPUnit (in-memory SQLite harness)
-├─ docs/                  this file, redesign spec, redesign-ref/
+├─ docs/                  this file, redesign spec (redesign-ref/ deleted 8 Oct 2026, owner Q15 — in git history)
 └─ bin/console            Symfony Console entry
 ```
 

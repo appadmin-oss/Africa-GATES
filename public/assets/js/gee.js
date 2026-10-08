@@ -239,7 +239,9 @@
   function draw(m) {
     switch (m.kind) {
       case 'me':     thread.appendChild(bubble(true, m.text)); break;
-      case 'bot':    thread.appendChild(bubble(false, m.text, true)); if (m.links && m.links.length) thread.appendChild(links(m.links)); break;
+      case 'bot':    thread.appendChild(bubble(false, m.text, true));
+                     if (m.actions && m.actions.length) thread.appendChild(actions(m.actions));
+                     if (m.links && m.links.length) thread.appendChild(links(m.links)); break;
       case 'work':   drawWork(m); break;
       case 'yes':    thread.appendChild(bubble(false, m.text)); break;
       case 'hand':   thread.appendChild(handCard(m)); break;
@@ -267,18 +269,42 @@
     return box;
   }
 
+  /* 6 · What Gee can DO: a button to the page that does the thing. Held to a path on
+     this site again here — the server validated it, and a link this widget draws must
+     never be able to leave the site whatever the server sent. */
+  function actions(list) {
+    var box = el('div', 'gee__acts');
+    list.slice(0, 2).forEach(function (a) {
+      if (!a || !a.url || !/^\/(?!\/)[A-Za-z0-9\/_\-.~%?=&+]*(?:#[A-Za-z0-9_-]*)?$/.test(String(a.url)) || !a.label) return;
+      var l = el('a', 'gee__act', String(a.label));
+      l.href = a.url;
+      box.appendChild(l);
+    });
+    return box;
+  }
+
   function scrollDown() { log.scrollTop = log.scrollHeight; }
 
+  /* ══ While Gee works ═══════════════════════════════════════════════════════
+     Three bouncing dots used to sit here for as long as the server took — which, for
+     an answer that looks things up, is several seconds of watching nothing happen.
+     It is one line of words now: it says Gee is on it, and if the wait runs on it
+     says so plainly instead of animating harder. The words change on TIME only and
+     never claim a step that has not happened. `remove()` stops the clock. */
   function typing() {
     var row = el('div', 'gee__msg gee__msg--bot');
     row.setAttribute('data-gee-typing', '');
-    var b = el('div', 'gee__bubble');
-    var t = el('span', 'gee__typing');
-    t.setAttribute('role', 'img'); t.setAttribute('aria-label', M('typing'));
-    t.appendChild(el('i')); t.appendChild(el('i')); t.appendChild(el('i'));
-    b.appendChild(t); row.appendChild(b);
+    var t = el('p', 'gee__status', M('working-1'));
+    t.setAttribute('role', 'status');
+    row.appendChild(t);
     thread.appendChild(row);
     scrollDown();
+    var timers = [
+      setTimeout(function () { t.textContent = M('working-2'); }, 4000),
+      setTimeout(function () { t.textContent = M('working-3'); }, 12000)
+    ];
+    var drop = row.remove.bind(row);
+    row.remove = function () { timers.forEach(clearTimeout); drop(); };
     return row;
   }
 
@@ -366,7 +392,7 @@
       dots.remove();
       var d = res.d;
       if (d.work) { finishWork(startWork(d.work.reference || state.ref, null), d); return; }
-      push({ kind: 'bot', text: d.reply || M('snag'), links: d.articles || [] });
+      push({ kind: 'bot', text: d.reply || M('snag'), links: d.articles || [], actions: d.actions || [] });
       unread();
     }).catch(function () {
       dots.remove();

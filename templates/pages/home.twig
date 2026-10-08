@@ -60,7 +60,7 @@
     </div>
     <div class="hm-hero__media">
       {% if _hero %}
-        {% include 'partials/photo.twig' with {kind: 'person', src: _hero.photo ? _hero.photo|media_url('portrait') : '', name: _hero.name, ini: _hero.ini, alt: _hero.photo ? 'Photo of %name%'|trans({'%name%': _hero.name}) : '', eager: true} only %}
+        {% include 'partials/photo.twig' with {kind: 'person', src: _hero.photo ? _hero.photo|media_url('portrait') : '', name: _hero.name, size: 160, alt: _hero.photo ? 'Photo of %name%'|trans({'%name%': _hero.name}) : '', eager: true} only %}
       {% else %}
         <img class="hm-hero__mark" src="{{ asset('/assets/img/africa-silhouette.svg') }}" alt="" aria-hidden="true">
       {% endif %}
@@ -108,7 +108,7 @@
         <ul class="hm-list">
           {% for v in voting.rows %}
           <li><a class="hm-row" href="{{ v.url }}">
-            <span class="hm-thumb" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'thing', src: v.cover ? v.cover|media_url('thumb') : '', name: v.title, title: false} only %}</span>
+            <span class="hm-thumb" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: v.cover ? v.cover|media_url('thumb') : '', name: v.title} only %}</span>
             <span class="hm-row__t"><span class="hm-row__n">{{ v.title }}</span>{% if v.meta %}<span class="hm-row__m">{{ v.meta }}</span>{% endif %}</span>
             {% if v.left %}<span class="hm-row__left">{{ v.left }}</span>{% endif %}
           </a></li>
@@ -148,7 +148,7 @@
     </div>
     <a class="hm-give" href="{{ campaign.url }}">
       <span class="hm-give__media">
-        {% if campaign.logo %}<img class="hm-give__logo" src="{{ campaign.logo }}" alt="{{ campaign.org }}">{% else %}{% include 'partials/photo.twig' with {kind: 'thing', src: '', name: campaign.org} only %}{% endif %}
+        {% if campaign.logo %}<img class="hm-give__logo" src="{{ campaign.logo }}" alt="{{ campaign.org }}">{% else %}{% include 'partials/photo.twig' with {kind: 'thing', subject: 'campaign', src: '', name: campaign.org} only %}{% endif %}
       </span>
       <span class="hm-give__body">
         <span class="hm-give__org">{{ campaign.org }}</span>

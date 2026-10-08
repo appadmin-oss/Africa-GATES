@@ -102,6 +102,11 @@ final class AiCapability
         public readonly string $dataSent,
         /** Plain-language description of what it is used for, same audience. */
         public readonly string $dataPurpose,
+        /**
+         * Seconds the gateway may answer a REPEAT of the same request from its own cache
+         * (0 = never). See {@see CACHE_TTL} for which capabilities and why.
+         */
+        public readonly int $cacheTtl = 0,
     ) {}
 
     /**
@@ -146,6 +151,44 @@ final class AiCapability
         'groq'      => 'Groq',
         'openai'    => 'OpenAI',
         'anthropic' => 'Anthropic',
+    ];
+
+    /**
+     * How long the gateway may answer an IDENTICAL request from cache, per capability.
+     *
+     * ── THE QUESTION THAT DECIDES IT ─────────────────────────────────────────
+     *
+     * "Is the same answer to the same input still right?" The key is the whole request —
+     * prompt version, system prompt, the fenced input, model route, temperature — so a
+     * cached answer is only ever served for a request that is byte-for-byte the one that
+     * produced it. That makes it safe for anything that CLASSIFIES or ANALYSES what it is
+     * given: the verdict on a comment does not change because the same comment arrives a
+     * second time, and the spam that arrives forty times in an hour is paid for once.
+     *
+     * Not listed, deliberately: every CONVERSATION (each turn is new), and every DRAFTING
+     * capability, where pressing the button again means "give me another one" — a cache
+     * there would return the draft the operator just rejected.
+     *
+     * @var array<string,int>
+     */
+    public const CACHE_TTL = [
+        'moderation.classify'      => 7 * 86400,
+        'nomination.triage'        => 86400,
+        'nomination.category_fit'  => 7 * 86400,
+        'nomination.suggest_category' => 86400,
+        'nomination.polish'        => 86400,
+        'admin.filter_parse'       => 30 * 86400,
+        'search.interpret'         => 86400,
+        'vendor.category_match'    => 7 * 86400,
+        'nominee.merge_suggest'    => 6 * 3600,
+        'evidence.analyse'         => 7 * 86400,
+        'judge.orientation'        => 86400,
+        'integrity.brief'          => 3600,
+        'community.thread_summary' => 86400,
+        'questionnaire.summary'    => 86400,
+        'interview.brief'          => 86400,
+        'interview.review'         => 86400,
+        'door.name_pronounce'      => 30 * 86400,
     ];
 
     /** Where an operator's choice is kept. `.env` AI_PRIMARY is the fallback. */
@@ -509,6 +552,7 @@ final class AiCapability
             publicContent:  $o['public_content'] ?? false,
             dataSent:       $o['data_sent'] ?? 'Nothing submitted by the public.',
             dataPurpose:    $o['data_purpose'] ?? $o['purpose'],
+            cacheTtl:       (int) ($o['cache_ttl'] ?? (self::CACHE_TTL[$name] ?? 0)),
         );
 
         return self::$memo = [
@@ -1003,6 +1047,86 @@ final class AiCapability
                 'data_sent'       => 'Your support message and the results of the lookups the assistant ran '
                     . 'on YOUR OWN records — payment status, amounts, dates. Never another person\'s data.',
                 'data_purpose'    => 'To write an answer grounded in your actual records rather than a guess.',
+            ]),
+            // ANSWERING, as one agent: the model reads the question, calls the platform's
+            // own tools (re-check a payment, read the live state, find the written answer)
+            // and writes from what they returned — the loop `support.plan` and
+            // `support.answer` approximated in two separate calls, one of which had to
+            // return JSON from a small model. Those two remain, behind it, for the day no
+            // provider here can carry tools.
+            //
+            // CLAUDE LEADS, by the owner's decision: the operator's chosen Claude model when
+            // they have set one, otherwise the current Opus. Then OpenAI, Gemini and Groq,
+            // each on the model the settings screen names, so any one key runs the desk.
+            'support.agent' => $c('support.agent', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => 'anthropic:' . (self::chosenModel('anthropic') ?: 'claude-opus-5-5'),
+                'fallbacks'       => ['openai:' . self::modelIdFor('openai'),
+                                      'gemini:' . self::modelIdFor('gemini'),
+                                      'groq:' . (self::chosenModel('groq') ?: self::TIER_MODELS['groq'][self::TIER_WRITE])],
+                'max_attempts'    => 4,
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 1200,
+                'calls_per_day'   => 12000,
+                'tokens_per_day'  => 6_000_000,
+                'timeout'         => 20,
+                'untrusted_input' => true,
+                'public_content'  => false,
+                'data_sent'       => 'Your support message, the conversation so far, and the results of the lookups '
+                    . 'the assistant ran on YOUR OWN records — payment status, amounts, dates. Contact details '
+                    . 'in what you type are replaced by placeholders. Never another person\'s data.',
+                'data_purpose'    => 'To look up and repair what you are asking about, and answer from your actual records.',
+            ]),
+            // THE ADMIN ASSISTANT, as an agent that runs the platform's own checks
+            // (OpsScripts) before it answers, instead of being handed the whole
+            // operational snapshot with every message. Same route, Claude first.
+            'admin.agent' => $c('admin.agent', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => 'anthropic:' . (self::chosenModel('anthropic') ?: 'claude-opus-5-5'),
+                'fallbacks'       => ['openai:' . self::modelIdFor('openai'),
+                                      'gemini:' . self::modelIdFor('gemini'),
+                                      'groq:' . (self::chosenModel('groq') ?: self::TIER_MODELS['groq'][self::TIER_WRITE])],
+                'max_attempts'    => 4,
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 1200,
+                'calls_per_day'   => 3000,
+                'tokens_per_day'  => 3_000_000,
+                'timeout'         => 25,
+                'untrusted_input' => false,
+                'public_content'  => false,
+                'data_sent'       => 'The operator\'s question and the output of the read-only checks the assistant runs: '
+                    . 'queue counts, payment and vote-delivery reports, error summaries. Staff only.',
+                'data_purpose'    => 'To answer operations questions from the platform\'s own evidence.',
+            ]),
+            // GEE'S GUIDE SIDE, as the same kind of agent: it reads the live state, finds the
+            // nominee or the event, and puts a button in front of the person instead of a
+            // paragraph of directions. Read-only tools and offer_action — see
+            // SupportAgentService::GUIDE_TOOLS. Same route as the desk, Claude first.
+            'guide.agent' => $c('guide.agent', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => 'anthropic:' . (self::chosenModel('anthropic') ?: 'claude-opus-5-5'),
+                'fallbacks'       => ['openai:' . self::modelIdFor('openai'),
+                                      'gemini:' . self::modelIdFor('gemini'),
+                                      'groq:' . (self::chosenModel('groq') ?: self::TIER_MODELS['groq'][self::TIER_WRITE])],
+                'max_attempts'    => 4,
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 1000,
+                'calls_per_day'   => 12000,
+                'tokens_per_day'  => 6_000_000,
+                'timeout'         => 20,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The question you type into Gee and the page you are on, with contact details replaced '
+                    . 'by placeholders, plus what the assistant looks up: award cycles, nominees, events and the help centre. '
+                    . 'If you are signed in, your own votes and nominations when you ask about them.',
+                'data_purpose'    => 'To answer, look things up and take you to the right page. Falls back to scripted '
+                    . 'answers when unavailable.',
             ]),
             // Reviewer-to-nominator decision note. Interpolates the nominator's
             // own text, and the output is sent to a real person, so a bad reply

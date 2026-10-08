@@ -16,7 +16,9 @@
 
   var body = document.body;
   var readOnly = body.hasAttribute('data-readonly');
-  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  // Read at the moment of use: csrf-fresh.js rewrites the meta tag when a page that has been
+  // open a while is checked, and a copy taken at load would go on posting the dead token.
+  function csrf() { return (document.querySelector('meta[name="csrf-token"]') || {}).content || ''; }
   var phone = window.matchMedia ? window.matchMedia('(max-width: 768px)') : { matches: false };
 
   // ── TOAST (§7): a black pill at the bottom centre, 5.2 s, optional Undo ────────
@@ -92,7 +94,7 @@
       if (f) {
         f.querySelector('[name="closed"]').value = closing ? '1' : '0';
         fetch(f.action, { method: 'POST', credentials: 'same-origin',
-          headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf },
+          headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf() },
           body: new FormData(f) }).catch(function () {});
         f.querySelector('[name="closed"]').value = closing ? '0' : '1';
       }
@@ -131,7 +133,7 @@
     if (kind !== 'pin' && kind !== 'unpin') return;
     e.preventDefault();
     fetch(f.action, { method: 'POST', credentials: 'same-origin',
-      headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf }, body: new FormData(f) })
+      headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf() }, body: new FormData(f) })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.ok) { agToast((d && d.why) || 'That did not work.'); return; }
@@ -139,9 +141,9 @@
         var p = d.pin;
         agToast('Unpinned', function () {
           var fd = new FormData();
-          fd.append('_token', csrf); fd.append('href', p.href); fd.append('label', p.label);
+          fd.append('_token', csrf()); fd.append('href', p.href); fd.append('label', p.label);
           fetch('/admin/me/pins', { method: 'POST', credentials: 'same-origin',
-            headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf }, body: fd })
+            headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrf() }, body: fd })
             .then(function () { location.reload(); });
         });
         setTimeout(function () { location.reload(); }, toastMs);

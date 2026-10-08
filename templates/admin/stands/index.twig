@@ -175,7 +175,7 @@
       {% if may_decide and call.status == 'open' %}
         <form method="post" action="/admin/events/{{ event.id }}/stands/call/close">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <button class="ad-btn ad-btn--sm" type="submit">Close to new applications</button>
+          <button class="ad-btn ad-btn--sm" type="submit" data-confirm="Close the stand call to new applications? The public application form stops taking applications as soon as you confirm; applications already in are kept.">Close to new applications</button>
         </form>
       {% endif %}
     </div>

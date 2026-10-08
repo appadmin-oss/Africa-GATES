@@ -42,7 +42,7 @@
     {% if post.excerpt %}<p class="bp__dek">{{ post.excerpt }}</p>{% endif %}
     <div class="bp__by">
       <span class="bl-by">
-        {% include 'partials/photo.twig' with {kind: 'person', src: '', name: post.author|default('Africa GATES'), class: 'bl-by__av bl-by__av--lg'} only %}
+        {% include 'partials/photo.twig' with {kind: 'person', src: '', name: post.author|default('Africa GATES'), size: 56, class: 'bl-by__av bl-by__av--lg'} only %}
         <span class="bl-by__w"><span class="bl-by__n">{{ post.author|default('Africa GATES') }}</span><span class="bl-meta">{% if post.published_at %}<time datetime="{{ post.published_at|date('Y-m-d') }}">{{ post.published_at|date('j M Y') }}</time> · {% endif %}{{ '%n% min read'|trans({'%n%': post.read_minutes}) }}</span></span>
       </span>
       <span class="bp__tools">
@@ -59,7 +59,7 @@
   </header>
 
   {% if post.cover %}
-    <figure class="bp__cover">{% include 'partials/photo.twig' with {kind: 'thing', src: post.cover, name: post.title, eager: true} only %}</figure>
+    <figure class="bp__cover">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'blog', src: post.cover, name: post.title, eager: true} only %}</figure>
   {% endif %}
 
   <div class="bp__body" data-blog-read>{{ post.body|default('')|sanitize_html }}</div>
@@ -87,7 +87,7 @@
       <div class="bl-grid">
         {% for p in more %}
           <a class="bl-card" href="/blog/{{ p.slug }}">
-            <span class="bl-card__img">{% include 'partials/photo.twig' with {kind: 'thing', src: p.cover, name: p.title, title: false} only %}</span>
+            <span class="bl-card__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'blog', src: p.cover, name: p.title} only %}</span>
             <span class="bl-card__w">{% if p.tag %}<span class="bl-tag">{{ p.tag }}</span>{% endif %}<span class="bl-card__t">{{ p.title }}</span><span class="bl-meta">{{ '%n% min read'|trans({'%n%': p.read_minutes}) }}</span></span>
           </a>
         {% endfor %}

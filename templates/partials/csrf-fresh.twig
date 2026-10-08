@@ -1,0 +1,14 @@
+{#
+  Keeps an open page's CSRF token current, and puts back what a refused form had in it.
+  Included in the <head> of every layout that draws a form (CsrfFreshTest holds the list).
+
+  Why: the token is printed into a page when it is drawn, and a page can outlive it — a
+  tab left open, a page a phone restored from memory, a tab opened before signing in
+  elsewhere. Each used to end in "CSRF validation failed" and a line of JSON with no way
+  out. `csrf-fresh.js` asks /session/token.json for the current token when the page comes
+  back into view and before a form is sent after a pause; `form_replay` is set only on the
+  one page view after CsrfMiddleware sent a refused form back (Support\FormReplay). It is
+  DATA in an attribute, escaped like any other, never markup.
+#}
+{% if form_replay|default(null) %}<meta name="ag-form-replay" content="{{ form_replay }}">{% endif %}
+<script defer src="{{ asset('/assets/js/csrf-fresh.js') }}"></script>

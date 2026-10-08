@@ -28,6 +28,15 @@ final class EventsPagesTest extends TestCase
         return date('Y-m-d', time() + (int) ($days * 86400)) . ' ' . $t;
     }
 
+    /** The results grid alone — the spotlight above it is drawn on every view, as in the DC. */
+    private function results(string $uri): string
+    {
+        $html = ChromeRender::html($uri);
+        $at = strpos($html, 'id="ei-res"');
+        $this->assertNotFalse($at, "$uri draws a results grid");
+        return substr($html, (int) $at, (int) strpos($html, '</section>', (int) $at) - (int) $at);
+    }
+
     private function event(array $e): int
     {
         return (int) DB::table('gates_site_events')->insertGetId($e + [
@@ -73,54 +82,143 @@ final class EventsPagesTest extends TestCase
 
     // ══ the index ════════════════════════════════════════════════════════════
 
-    public function test_upcoming_leads_in_date_order_and_past_is_its_own_section(): void
+    public function test_the_index_runs_spotlight_toolbar_types_rows_and_hosting_in_that_order(): void
     {
         $this->world();
         $html = ChromeRender::html('/events');
 
-        $feat = strpos($html, 'First Up Night');
-        $open = strpos($html, 'Open Gala');
-        $soon = strpos($html, 'Soon Summit');
-        $pastH = strpos($html, 'id="ev-past"');
-        $past = strpos($html, 'Last Year Gala');
-        $this->assertNotFalse($feat);
-        $this->assertTrue($feat < $open && $open < $soon, 'upcoming events are listed soonest first, the next one featured');
-        $this->assertNotFalse($pastH, 'past events have their own section');
-        $this->assertTrue($soon < $pastH && $pastH < $past, 'a past event is never in the upcoming list');
-        $this->assertStringContainsString('Next up · in 3 days', $html);
+        $at = static fn (string $needle): int|false => strpos($html, $needle);
+        $order = [$at('aria-roledescription="carousel"'), $at('class="ei-tools"'), $at('id="ei-types"'),
+                  $at('id="r-week"'), $at('id="r-rec"'), $at('id="ei-host"')];
+        foreach ($order as $i => $p) $this->assertNotFalse($p, "block $i is drawn");
+        $sorted = $order; sort($sorted);
+        $this->assertSame($sorted, $order, 'spotlight → toolbar → types → rows → watch again → hosting (§Order)');
+
+        // Nobody ranked a slide, so the next upcoming events lead, soonest first.
+        $this->assertMatchesRegularExpression('~aria-label="1 of \d: First Up Night"~', $html);
+        $this->assertStringContainsString('In 3 days', $html);
+        // A past event is in "Watch again" (it has a recording), never in an upcoming row.
+        $rec = (int) $at('id="r-rec"');
+        $this->assertStringNotContainsString('Last Year Gala', substr($html, 0, $rec));
+        $this->assertStringContainsString('Last Year Gala', substr($html, $rec));
+        $this->assertStringContainsString('href="/events?f=past"', $html, 'the owner\'s past view stays one link away');
+    }
+
+    public function test_an_operator_chooses_the_spotlight_and_a_past_event_cannot_hold_a_slide(): void
+    {
+        $w = $this->world();
+        DB::table('gates_site_events')->where('id', $w['open'])->update(['spotlight_rank' => 1]);
+        DB::table('gates_site_events')->where('id', $w['past'])->update(['spotlight_rank' => 2]);
+        $html = ChromeRender::html('/events');
+        $this->assertStringContainsString('aria-label="1 of 1: Open Gala"', $html, 'ranked slides only, in rank order');
+        $this->assertStringNotContainsString('of 1: Last Year Gala', $html);
+        $this->assertStringNotContainsString('data-ei-ctl', $html, 'one slide has no controls to offer');
     }
 
     public function test_the_sandbox_never_reaches_the_index_or_its_own_page(): void
     {
         $this->world();
         $this->assertStringNotContainsString('Rehearsal Gala', ChromeRender::html('/events'));
+        $this->assertStringNotContainsString('Rehearsal Gala', ChromeRender::html('/events?q=rehearsal'));
         $this->assertSame(404, ChromeRender::page('/events/ev-sandbox')->getStatusCode());
     }
 
-    public function test_coming_soon_is_a_state_with_the_date_tickets_go_on_sale(): void
+    public function test_coming_soon_and_past_still_answer_as_results(): void
     {
         $this->world();
-        $html = ChromeRender::html('/events?f=soon');
+        $html = $this->results('/events?f=soon');
+        $this->assertStringContainsString('1 event coming soon', $html);
         $this->assertStringContainsString('Soon Summit', $html);
-        $this->assertStringContainsString('ev-tag--soon', $html);
-        $this->assertStringContainsString('tickets on sale', $html);
-        $this->assertStringNotContainsString('Open Gala', $html, 'the coming-soon filter shows only what is not on sale yet');
-        $this->assertStringNotContainsString('Last Year Gala', $html);
+        $this->assertStringContainsString('ei-st--gold">Coming soon', $html);
+        $this->assertStringContainsString('On sale ', $html, 'the date tickets go on sale, where a price would be');
+        $this->assertStringNotContainsString('Open Gala', $html, 'only what is not on sale yet');
+        $this->assertStringNotContainsString('id="ei-types"', ChromeRender::html('/events?f=soon'), 'a filter swaps the browse blocks for one grid');
 
-        $past = ChromeRender::html('/events?f=past');
+        $past = $this->results('/events?f=past');
         $this->assertStringContainsString('Last Year Gala', $past);
         $this->assertStringNotContainsString('Open Gala', $past);
     }
 
-    public function test_the_filters_are_links_and_say_which_is_showing(): void
+    public function test_search_type_and_place_filter_one_grid_and_survive_each_other(): void
+    {
+        $w = $this->world();
+        DB::table('gates_site_events')->where('id', $w['soon'])->update(['cover_kind' => 'conference']);
+        $this->assertStringContainsString('Soon Summit', $q = $this->results('/events?q=summit'));
+        $this->assertStringNotContainsString('Open Gala', $q);
+        $this->assertStringContainsString('aria-live="polite">1 event', $q);
+
+        $t = $this->results('/events?type=learn');
+        $this->assertStringContainsString('Soon Summit', $t);
+        $this->assertStringNotContainsString('First Up Night', $t);
+
+        $p = $this->results('/events?place=Nairobi');
+        $this->assertStringContainsString('Open Gala', $p);
+        $this->assertStringNotContainsString('Soon Summit', $p);
+        $this->assertMatchesRegularExpression('~<option value="Nairobi" selected>Near Nairobi</option>~', ChromeRender::html('/events?place=Nairobi'),
+            'Place offers only where events are, and says which is chosen');
+
+        // A chip keeps the search and the place; "All" keeps them and drops the type.
+        $both = ChromeRender::html('/events?q=gala&place=Nairobi&type=ceremony');
+        $this->assertStringContainsString('href="/events?q=gala&amp;place=Nairobi&amp;f=week&amp;type=ceremony"', $both);
+        $this->assertStringContainsString('href="/events?q=gala&amp;place=Nairobi"', $both);
+
+        $none = $this->results('/events?q=zzzz');
+        $this->assertStringContainsString('No events match yet', $none);
+        $this->assertStringContainsString('Show all events', $none);
+    }
+
+    public function test_live_now_needs_a_stream_and_an_end_that_has_not_come(): void
     {
         $this->world();
-        $html = ChromeRender::html('/events?f=past');
-        $this->assertMatchesRegularExpression('~<a class="ev-chip" href="/events\?f=past" aria-current="page">~', $html);
-        $css = ChromeRender::code('public/assets/css/components/events.css');
-        $this->assertMatchesRegularExpression('~\.ev__chips\{[^}]*position:sticky~', $css, 'the chips are sticky on a phone');
-        $this->assertMatchesRegularExpression('~\.ev-chip,\s*\.ev-chip:hover\{[^}]*height:44px~', $css, 'a chip is a 44px target');
-        $this->assertMatchesRegularExpression('~\.ev-row,\s*\.ev-row:hover\{[^}]*min-height:76px~', $css, 'rows are at least 76px');
+        $ago = date('Y-m-d H:i:s', time() - 3600); $later = date('Y-m-d H:i:s', time() + 7200);
+        $this->event(['slug' => 'ev-live', 'title' => 'Streaming Now', 'event_date' => $ago,
+                      'end_date' => $later, 'livestream_url' => 'https://example.org/live']);
+        $this->event(['slug' => 'ev-noend', 'title' => 'Started No End', 'event_date' => $ago,
+                      'livestream_url' => 'https://example.org/live2']);
+        $html = $this->results('/events?f=online');
+        $this->assertStringContainsString('Streaming Now', $html);
+        $this->assertStringContainsString('Live now', $html);
+        $this->assertStringNotContainsString('Started No End', $html, 'no end date is never live: a duration would be invented');
+        // A finished event that was streamed is a past event, never "Live now".
+        DB::table('gates_site_events')->where('slug', 'ev-past')->update(['livestream_url' => 'https://example.org/was-live']);
+        $this->assertStringNotContainsString('Live now', $this->results('/events?f=past'));
+    }
+
+    public function test_few_places_left_says_how_many_on_the_same_rule_as_the_event_card(): void
+    {
+        $this->world();
+        $near = $this->event(['slug' => 'ev-near', 'title' => 'Nearly Full', 'event_date' => $this->at(20), 'capacity' => 30]);
+        $t = $this->tier($near, 'General', 2000, null); $this->seat($near, $t, 10);
+        // 50 left: past the threshold, and close enough that a looser one would draw it.
+        $roomy = $this->event(['slug' => 'ev-roomy', 'title' => 'Plenty Of Room', 'event_date' => $this->at(21), 'capacity' => 60]);
+        $t = $this->tier($roomy, 'General', 2000, null); $this->seat($roomy, $t, 10);
+        $this->assertStringContainsString('ei-st--live">20 left', $this->results('/events?q=full'));
+        $this->assertStringNotContainsString('left</span>', $this->results('/events?q=room'));
+        $this->assertSame(25, EventSales::LOW_PLACES);
+        $this->assertStringContainsString("EventSales::LOW_PLACES", ChromeRender::code('templates/pages/events/_card.twig'),
+            'the event card reads the same number rather than typing its own');
+    }
+
+    public function test_the_filters_are_links_and_the_carousel_is_the_wcag_one(): void
+    {
+        $this->world();
+        $html = ChromeRender::html('/events?f=week');
+        $this->assertMatchesRegularExpression('~<a class="ei-chip" href="/events\?f=week" aria-current="true">~', $html);
+        $this->assertMatchesRegularExpression('~<form class="ei-tools" method="get" action="/events"~', $html);
+
+        $idx = ChromeRender::html('/events');
+        $this->assertMatchesRegularExpression('~role="group" aria-roledescription="slide" aria-label="1 of \d+: [^"]+"~', $idx);
+        $this->assertMatchesRegularExpression('~data-ei-ctl hidden~', $idx, 'controls stay hidden until the script can drive them');
+        $js = ChromeRender::code('public/assets/js/events-index.js');
+        $this->assertStringContainsString("'animationend'", $js, 'the progress bar is the clock');
+        $this->assertStringContainsString('prefers-reduced-motion', $js);
+        $this->assertStringContainsString("'aria-live', on ? 'off' : 'polite'", $js);
+
+        $css = ChromeRender::code('public/assets/css/components/events-index.css');
+        $this->assertMatchesRegularExpression('~\.ei-bar-sticky\{[^}]*position:sticky~', $css, 'the toolbar is sticky');
+        $this->assertMatchesRegularExpression('~\.ei-chip,\s*\.ei-chip:hover\{[^}]*height:44px~', $css, 'a chip is a 44px target');
+        $this->assertMatchesRegularExpression('~\.ei-bar\{[^}]*height:44px~', $css, 'a progress bar is a 44px target');
+        $this->assertMatchesRegularExpression('~animation:ei-prog 6\.5s~', $css);
     }
 
     // ══ the state resolver ═══════════════════════════════════════════════════

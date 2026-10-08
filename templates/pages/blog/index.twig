@@ -25,7 +25,7 @@
 
 {% macro card(p, feature) %}
 <a class="bl-card{{ feature ? ' bl-card--feat' }}" href="/blog/{{ p.slug }}">
-  <span class="bl-card__img">{% include 'partials/photo.twig' with {kind: 'thing', src: p.cover, name: p.title, title: feature, eager: feature} only %}</span>
+  <span class="bl-card__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'blog', src: p.cover, name: p.title, content: feature ? 'title' : 'none', eager: feature} only %}</span>
   <span class="bl-card__w">
     {% if p.tag %}<span class="bl-tag">{{ p.tag }}</span>{% endif %}
     <span class="bl-card__t">{{ p.title }}</span>

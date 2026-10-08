@@ -187,7 +187,11 @@ final class LegalCoverageTest extends TestCase
 
         $this->assertStringContainsString("'httponly' => true", $idx);
         $this->assertStringContainsString("'samesite' => 'Lax'", $idx);
-        $this->assertStringContainsString("'lifetime' => 86400 * 7", $idx);
+        // Seven days, for the cookie AND the data behind it: one constant for both, because
+        // the two disagreeing (a seven-day cookie over twenty-four-minute data) is what
+        // stranded people on "CSRF validation failed" (Support\SessionStore).
+        $this->assertStringContainsString("'lifetime' => \\AfricaGates\\Support\\SessionStore::LIFETIME", $idx);
+        $this->assertSame(86400 * 7, \AfricaGates\Support\SessionStore::LIFETIME);
     }
 
     public function test_the_cookie_policy_does_not_claim_trackers_we_do_not_run(): void

@@ -198,6 +198,9 @@ class InjectionCorpusTest extends TestCase
 
         foreach (InjectionCorpus::hostileOutputs() as $name => $raw) {
             $r = (new AiGateway($this->recordingAi($raw)))->run('nomination.triage', [
+                // Each case is the same request with a different reply; the gateway's cache would
+                // answer every case after the first. These are meant to reach the provider.
+                'fresh' => true,
                 'system' => 'sys', 'user' => 'body', 'schema' => $schema,
             ]);
 
@@ -248,7 +251,10 @@ class InjectionCorpusTest extends TestCase
 
         foreach (['out:score_out_of_range' => 100, 'out:negative_score' => 0] as $name => $expected) {
             $r = (new AiGateway($this->recordingAi(InjectionCorpus::hostileOutputs()[$name])))
-                ->run('nomination.triage', ['system' => 'sys', 'user' => 'b', 'schema' => $schema]);
+                ->run('nomination.triage', [
+                // Each case is the same request with a different reply; the gateway's cache would
+                // answer every case after the first. These are meant to reach the provider.
+                'fresh' => true,'system' => 'sys', 'user' => 'b', 'schema' => $schema]);
 
             $this->assertSame($expected, $r->value['score'], $name);
         }
@@ -327,7 +333,10 @@ class InjectionCorpusTest extends TestCase
         };
 
         $r = (new AiGateway($this->recordingAi(InjectionCorpus::outputSmuggling()['smuggle:triage_json'])))
-            ->run('nomination.triage', ['system' => 'sys', 'user' => 'b', 'schema' => $schema]);
+            ->run('nomination.triage', [
+                // Each case is the same request with a different reply; the gateway's cache would
+                // answer every case after the first. These are meant to reach the provider.
+                'fresh' => true,'system' => 'sys', 'user' => 'b', 'schema' => $schema]);
 
         $this->assertTrue($r->ok, 'a well-formed hostile reply is indistinguishable from a genuine one');
         $this->assertSame(100, $r->value['score']);
@@ -340,7 +349,10 @@ class InjectionCorpusTest extends TestCase
         // dead code by construction rather than a config change away.
         foreach (InjectionCorpus::hostileOutputs() as $name => $raw) {
             $r = (new AiGateway($this->recordingAi($raw)))
-                ->run('nomination.triage', ['system' => 'sys', 'user' => 'b']);
+                ->run('nomination.triage', [
+                // Each case is the same request with a different reply; the gateway's cache would
+                // answer every case after the first. These are meant to reach the provider.
+                'fresh' => true,'system' => 'sys', 'user' => 'b']);
             $this->assertFalse($r->denies(), $name);
         }
     }

@@ -72,7 +72,7 @@
       {% for p in lb.podium %}
         <a class="lb-pod__c lb-pod__c--{{ p.rank <= 3 ? p.rank : 3 }}{{ loop.first ? ' is-first' }}" href="{{ p.url }}" aria-label="{{ p.aria }}">
           <span class="lb-pod__img">
-            <span class="lb-pod__ph">{% include 'partials/photo.twig' with {kind: 'person', src: p.photo, name: p.name} only %}</span>
+            <span class="lb-pod__ph">{% include 'partials/photo.twig' with {kind: 'person', src: p.photo, name: p.name, size: 96} only %}</span>
             <span class="lb-pod__medal" aria-hidden="true">{{ p.rank }}</span>
           </span>
           <span class="lb-pod__who"><span class="lb-pod__n">{{ p.name }}</span><span class="lb-pod__m">{{ [p.cc, p.cat]|filter(v => v)|join(' · ') }}</span></span>

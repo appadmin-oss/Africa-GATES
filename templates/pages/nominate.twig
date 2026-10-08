@@ -97,7 +97,7 @@
             {% for p in programmes %}
               {% set _days = p.phase.seconds_left ? (p.phase.seconds_left // 86400) : null %}
               <a class="nh-card" href="/nominate/{{ p.slug }}{{ _q }}">
-                <span class="nh-card__media">{% include 'partials/photo.twig' with {kind: 'thing', name: p.title, title: false} only %}</span>
+                <span class="nh-card__media">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', name: p.title} only %}</span>
                 <span class="nh-card__b">
                   <b class="nh-card__t">{{ p.title }}</b>
                   <span class="nh-card__l">{{ p.edition_line }}</span>

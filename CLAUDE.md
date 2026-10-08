@@ -1129,6 +1129,21 @@ is `-1`; `0` means "ran, nothing to do".
 
 Full account in `docs/CODEBASE-INDEX.md` §16.
 
+## A session's cookie and its data must die together
+
+The session cookie lived seven days and the data behind it about twenty-four minutes —
+PHP's default `session.gc_maxlifetime`, in the host's shared directory, where other sites'
+collection and the distro's cron delete files on their own schedule. So any form left open
+that long posted a token the server had forgotten, and the refusal was a 403 and a line of
+JSON to a browser that had submitted a form: "the site tells users csrf invalid and they get
+stuck there". `Support\SessionStore` gives the data the cookie's lifetime in `var/sessions`;
+`csrf-fresh.js` (every layout that draws a token includes `partials/csrf-fresh.twig`) keeps
+an open page's token current from `/session/token.json`; and `CsrfMiddleware` sends a
+same-origin browser form BACK with a 303, a sentence and its fields (`Support\FormReplay`,
+never a secret), while a cross-site post and a JSON caller are still plainly refused.
+**A script must read the token when it sends, never copy it at load** — the copy outlives
+every refresh. `CsrfRecoveryTest` holds all of it, the script sweep included.
+
 ## Things that must stay true
 
 - **A criterion, code, or record that has been used is retired, never deleted.** Ballots,

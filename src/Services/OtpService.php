@@ -7,6 +7,7 @@ use AfricaGates\Support\Brand;
 use AfricaGates\Support\Env;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Services\Mail\AppsScriptMail;
 use AfricaGates\Services\Mail\BrevoApi;
 use AfricaGates\Services\Mail\MailConfig;
 use AfricaGates\Services\Mail\MailFailure;
@@ -120,19 +121,23 @@ class OtpService
      *
      * @return list<string>
      */
-    public function routes(): array
+    public function routes(bool $bulk = false): array
     {
         $t = (string) ($this->smtp['transport'] ?? MailConfig::TRANSPORT_SMTP);
         $smtp = $this->smtpConfigured();
         $api  = trim((string) ($this->smtp['api_key'] ?? '')) !== '';
         $host = $this->isProduction() && MailConfig::hostMailAvailable();
+        // Apps Script carries one-to-one mail only: MailApp's allowance is about 100
+        // recipients a day, and a newsletter spending it is a sign-in code that cannot go.
+        $gas  = !$bulk && (array_key_exists('gas', $this->smtp) ? (bool) $this->smtp['gas'] : AppsScriptMail::configured());
 
         $out = match ($t) {
             MailConfig::TRANSPORT_SMTP => $smtp ? ['smtp'] : [],
+            MailConfig::TRANSPORT_GAS  => $gas ? ['gas'] : [],
             MailConfig::TRANSPORT_API  => $api ? ['api'] : [],
             MailConfig::TRANSPORT_HOST => $host ? ['host'] : [],
             default => array_values(array_filter([
-                $smtp ? 'smtp' : null, $api ? 'api' : null, $host ? 'host' : null,
+                $smtp ? 'smtp' : null, $gas ? 'gas' : null, $api ? 'api' : null, $host ? 'host' : null,
             ])),
         };
         if (count($out) > 1 && $out[0] === 'smtp' && self::smtpResting()) {
@@ -146,9 +151,9 @@ class OtpService
      * `smtpConfigured()` asked only about one road, so a deployment sending perfectly over
      * the API or the host's own mail was told by every batch job that email was off.
      */
-    public function canSend(): bool
+    public function canSend(bool $bulk = false): bool
     {
-        return $this->routes() !== [];
+        return $this->routes($bulk) !== [];
     }
 
     /** The setting that rests a failing SMTP road. */
@@ -357,7 +362,16 @@ class OtpService
                               string $devBody, callable $build): array
     {
         $bulk = $unsubscribeUrl !== '';
-        $routes = $this->routes();
+        $routes = $this->routes($bulk);
+
+        // An announcement with no road of its own while one-to-one mail has one (Apps
+        // Script only): it WAITS for SMTP rather than failing — held, not lost, and not
+        // counted towards a mail incident.
+        if ($routes === [] && $bulk && $this->routes(false) !== []) {
+            MailLog::write($to, $subject, $category, MailLog::DEFERRED,
+                'Announcements wait for SMTP: the only road open is Google Apps Script, kept for sign-in codes and receipts.', $bulk);
+            return ['success' => false, 'held' => MailLog::DEFERRED, 'error' => 'Announcements wait for SMTP.'];
+        }
 
         if ($routes === []) {
             $this->devLog($to, $subject, $devBody);
@@ -400,6 +414,7 @@ class OtpService
             try {
                 match ($road) {
                     'api'  => $this->transmitApi($m),
+                    'gas'  => $this->transmitGas($m),
                     'host' => (function () use ($m): void { $m->isMail(); $this->transmit($m); })(),
                     default => (function () use ($m): void { $m->isSMTP(); $this->transmit($m); })(),
                 };
@@ -436,6 +451,12 @@ class OtpService
     protected function transmitApi(PHPMailer $m): void
     {
         (new BrevoApi((string) ($this->smtp['api_key'] ?? '')))->send($m);
+    }
+
+    /** Hand a built message to the platform's Apps Script. See AppsScriptMail. */
+    protected function transmitGas(PHPMailer $m): void
+    {
+        AppsScriptMail::boot()->send($m);
     }
 
     /**

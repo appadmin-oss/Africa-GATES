@@ -3,22 +3,27 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use AfricaGates\Services\PhotoCover;
 use AfricaGates\Support\Translator;
 use PHPUnit\Framework\TestCase;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 
 /**
- * ONE ANSWER TO "WHAT GOES HERE WITH NO PHOTO" (GAPS §8 Q8, owner 4 Oct 2026):
- * `partials/photo.twig` — a real image, a monogram for a person, a generated cover for a
- * thing — and every event image slot and the home page's slots go through it.
+ * ONE ANSWER TO "WHAT GOES HERE WITH NO PHOTO" (GAPS §8 Q8; DEFAULT-GRAPHICS, 5 Oct 2026):
+ * `partials/photo.twig` — a real image, or the default graphics: the avatar for a person,
+ * the cover for a thing — and every event image slot and the home page's slots go through it.
+ *
+ * The 4 Oct answer painted a thing's cover in the organiser's own accent. The 5 Oct handoff
+ * replaced that: a cover's tone is decided by the thing's KIND and is never organiser-
+ * editable (DEFAULT-GRAPHICS §4), so the old test that the cover "follows the accent" is
+ * now its opposite — two events of the same kind with different accents draw one cover.
  */
 final class PhotoSlotTest extends TestCase
 {
     private function render(array $args): string
     {
         $twig = Translator::register(new Environment(new FilesystemLoader(dirname(__DIR__, 2) . '/templates'), ['strict_variables' => true]));
+        \Tests\Support\AppTwig::equip($twig);
         return $twig->render('partials/photo.twig', $args);
     }
 
@@ -30,21 +35,25 @@ final class PhotoSlotTest extends TestCase
         $this->assertStringContainsString('fetchpriority="high"', $this->render(['kind' => 'thing', 'src' => '/x.jpg', 'name' => 'G', 'eager' => true]));
     }
 
-    public function test_a_person_without_a_photo_is_a_monogram_never_an_image(): void
+    public function test_a_person_without_a_photo_is_the_default_avatar_never_an_image(): void
     {
-        $h = $this->render(['kind' => 'person', 'src' => '', 'name' => 'Amara Okonkwo']);
+        $h = $this->render(['kind' => 'person', 'src' => '', 'name' => 'Amara Okonkwo', 'id' => 7]);
         $this->assertStringContainsString('ag-photo--mono', $h);
+        $this->assertStringContainsString('class="ag-avatar ag-avatar--', $h);
         $this->assertStringContainsString('>AO<', $h);
         $this->assertStringNotContainsString('<img', $h);
     }
 
-    public function test_a_thing_without_a_photo_is_its_own_accent_cover_with_its_title(): void
+    public function test_a_thing_without_a_photo_is_the_default_cover_of_its_kind(): void
     {
-        $h = $this->render(['kind' => 'thing', 'src' => '', 'name' => 'Choral Night', 'tone' => PhotoCover::style('#1F6FA3')]);
+        $h = $this->render(['kind' => 'thing', 'subject' => 'event', 'cover_kind' => 'webinar', 'src' => '', 'name' => 'Choral Night']);
         $this->assertStringContainsString('ag-photo--cover', $h);
-        $this->assertStringContainsString('Choral Night', $h);
-        $this->assertMatchesRegularExpression('~style="--ph-top:#[0-9A-F]{6};--ph-bottom:#[0-9A-F]{6};--ph-ink:#[0-9A-F]{6};--ph-rule:#[0-9A-F]{6}"~i', $h);
-        $this->assertNotSame(PhotoCover::style('#1F6FA3'), PhotoCover::style('#B4452F'), 'the cover follows the accent');
+        $this->assertStringContainsString('ag-cover ag-cover--info ag-cover--signal ag-cover--none', $h);
+        $this->assertStringContainsString('>Webinar<', $h, 'the type pill names the kind');
+        $this->assertStringNotContainsString('<img', $h, 'with no host logo the tile draws the type glyph');
+        $this->assertStringNotContainsString('style="--ph-', $h, 'the organiser accent is no longer the cover');
+        // An award reads as an award wherever it is drawn.
+        $this->assertStringContainsString('ag-cover--gold ag-cover--arches', $this->render(['kind' => 'thing', 'subject' => 'award', 'name' => 'X']));
     }
 
     public function test_no_stock_photo_and_every_slot_goes_through_the_partial(): void

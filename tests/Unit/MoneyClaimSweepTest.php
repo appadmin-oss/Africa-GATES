@@ -68,6 +68,15 @@ final class MoneyClaimSweepTest extends TestCase
             => 'prints an organic tiebreak that is 0 against 0 where free voting is off',
         'organic cpi'
             => 'names a community half that no longer exists',
+        // AUDIT 2026-10-05 #10: the bundle itself said this, in three DCs and the reference.
+        // Under the people term a paid vote reaches the TALLY and never the count of people,
+        // so "the same as a free vote" tells a reader money buys what it cannot.
+        'same as a free vote'
+            => 'says a paid vote does everything a free one does, when it never adds a person',
+        'exactly like a free vote'
+            => 'says a paid vote does everything a free one does, when it never adds a person',
+        'exactly as much as a free one'
+            => 'says a paid vote does everything a free one does, when it never adds a person',
     ];
 
     /** @return list<string> */

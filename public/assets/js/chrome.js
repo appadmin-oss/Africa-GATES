@@ -183,10 +183,13 @@
     document.addEventListener('click', function (e) {
       var b = closest(e, '[data-ag-share]');
       if (!b) return;
+      /* A button may name what it shares. A receipt must: its own URL carries a payment
+         reference, which is a bearer token for the proof page, and sharing it hands a
+         stranger the order — so the receipt shares the BALLOT, or the nomination link. */
       var canon = document.querySelector('link[rel="canonical"]');
-      /* `data-ag-share-url`: a button sharing something other than this page — the
-         nomination done screen's rally link (Phase 8). */
-      var data = { title: document.title, url: b.getAttribute('data-ag-share-url') || (canon ? canon.href : location.href) };
+      var own = b.getAttribute('data-ag-share-url');
+      var data = { title: document.title, url: own || (canon ? canon.href : location.href) };
+      if (b.getAttribute('data-ag-share-text')) data.text = b.getAttribute('data-ag-share-text');
       if (navigator.share) { navigator.share(data).catch(function () {}); return; }
       if (!navigator.clipboard) return;
       navigator.clipboard.writeText(data.url).then(function () {

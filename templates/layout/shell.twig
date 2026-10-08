@@ -101,9 +101,12 @@
      form-validate.js below, because a form saying `novalidate data-ag-validate` turns the
      browser's messages off on the promise that these replace them (FormErrorStateTest). #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/forms.css') }}">
+  {# Every image slot with no upload draws a default cover or avatar (DEFAULT-GRAPHICS §2). #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/cover.css') }}">
   {% if not hide_chrome|default(false) %}<link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">{% endif %}
   {% if not _gee_off %}<link rel="stylesheet" href="{{ asset('/assets/css/components/gee.css') }}">{% endif %}
   {% block head_styles %}{% endblock %}
+  {% include 'partials/csrf-fresh.twig' %}
 </head>
 <body data-page="{{ page_id|default('') }}">
   <a class="ag-skip" href="#main">{{ 'Skip to content'|trans }}</a>
