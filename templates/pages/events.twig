@@ -84,7 +84,7 @@
   {% if _feat %}
   <article class="ev-feat" aria-labelledby="ev-feat-t">
     <a class="ev-feat__media" href="{{ _feat.url }}" tabindex="-1" aria-hidden="true">
-      {% include 'partials/photo.twig' with {kind: 'thing', src: _feat.image, name: _feat.title, tone: _feat.cover, eager: true} only %}
+      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', cover_kind: _feat.cover_kind|default(null), award_linked: _feat.award_linked|default(false), src: _feat.image, name: _feat.title, content: 'date', date: _feat.cover_date|default(''), eager: true} only %}
       <span class="ev-feat__when">
         {%- if _feat.days == 0 %}{{ 'Next up · today'|trans }}
         {%- elseif _feat.days == 1 %}{{ 'Next up · tomorrow'|trans }}

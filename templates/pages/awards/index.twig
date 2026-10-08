@@ -66,7 +66,7 @@
         <li>
           <a class="aw-card" href="{{ a.url }}">
             <span class="aw-card__cover">
-              {% include 'partials/photo.twig' with {kind: 'thing', src: a.cover, name: a.title, tone: a.tone, title: not a.cover, eager: loop.index <= 3} only %}
+              {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: a.cover, name: a.title, eager: loop.index <= 3} only %}
               <span class="aw-badge"><span class="aw-badge__dot" style="--ag-dot:var(--ag-{{ a.dot }})"></span>{{ a.badge|trans }}</span>
             </span>
             <span class="aw-card__body">

@@ -2223,6 +2223,17 @@ return function(App $app) {
          * widens the pattern.
          */
         $g->get('/honour/{reference}/qr.svg', HonourController::class.':qr');
+        // The challenge cover's pattern tile, one per cover tone (DEFAULT-GRAPHICS §7a). Built
+        // from Accent on each request (CoverKind::gamesSvg) so its colour has one source;
+        // cached a day, as it changes only when the palette does.
+        $g->get('/img/patterns/games-{tone:[a-z]+}.svg', function ($req, $res, array $args) {
+            $tone = (string) $args['tone'];
+            if (!in_array($tone, \AfricaGates\Support\Accent::coverTones(), true)) return $res->withStatus(404);
+            $res->getBody()->write(\AfricaGates\Support\CoverKind::gamesSvg($tone));
+            return $res->withHeader('Content-Type', 'image/svg+xml')
+                       ->withHeader('Cache-Control', 'public, max-age=86400')
+                       ->withHeader('X-Content-Type-Options', 'nosniff');
+        });
         $g->get('/honour/{reference}/tick',   HonourController::class.':tick');
         $g->get('/honour/{reference}',        HonourController::class.':page');
 

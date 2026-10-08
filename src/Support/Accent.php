@@ -425,6 +425,61 @@ final class Accent
         'grey-400'     => ['on' => 'surface',    'why' => 'a dot that always sits beside its word'],
     ];
 
+    // ══ the default-graphics tones (DEFAULT-GRAPHICS §4, handoff 5 Oct 2026) ═══════════════
+    //
+    // Every image slot with no upload draws a generated cover or avatar in one of five tones,
+    // each a wash (`bg`), a line and an ink. The spec calls them "Accent pairs" and then
+    // gives their hex; twelve of the fifteen ARE palette tokens and are named here, not
+    // retyped, so moving a palette colour moves its covers with it. Three are not in the
+    // palette at all — gold's line #c99a06, info's wash #e6f0f4 and ink #1f5f8b — and are
+    // the spec's own values, typed once, here, as the only file a colour may be typed in.
+    // They are reported as a deviation for the owner (docs/handoff/PHASE-DEFAULT-GRAPHICS.md)
+    // rather than silently swapped for the nearest token, which would move every gold and
+    // info cover off the design by a visible amount.
+
+    // The avatar (DefaultAvatar.dc.html, §8) adds a fourth slot, `edge`, for its gradient's
+    // far stop and its 1px ring; live's #f6c7d3 and info's #c9dde8 are not palette tokens
+    // either, and are reported with the three above.
+    /** @var array<string,array{bg:string,line:string,ink:string,edge:string}> palette name, or a hex */
+    private const COVER = [
+        'green' => ['bg' => 'green-wash', 'line' => 'green',   'ink' => 'green-deep', 'edge' => 'green-edge'],
+        'gold'  => ['bg' => 'gold-wash',  'line' => '#c99a06', 'ink' => 'gold-ink',   'edge' => 'gold-edge'],
+        'live'  => ['bg' => 'live-wash',  'line' => 'live',    'ink' => 'live-ink',   'edge' => '#f6c7d3'],
+        'info'  => ['bg' => '#e6f0f4',    'line' => 'info',    'ink' => '#1f5f8b',    'edge' => '#c9dde8'],
+        'stone' => ['bg' => 'ground',     'line' => 'ink-2',   'ink' => 'ink',        'edge' => 'line-2'],
+    ];
+
+    /** @return list<string> the five tone names, in the spec's order */
+    public static function coverTones(): array
+    {
+        return array_keys(self::COVER);
+    }
+
+    /** One cover tone's slot as a six-digit hex (`bg`, `line`, `ink`, `edge`) — for GD and the SVG patterns. */
+    public static function coverHex(string $tone, string $slot): string
+    {
+        if (!isset(self::COVER[$tone][$slot])) {
+            throw new \InvalidArgumentException(sprintf('No cover tone "%s.%s". Tones: %s; slots: bg, line, ink, edge',
+                $tone, $slot, implode(', ', array_keys(self::COVER))));
+        }
+        $v = self::COVER[$tone][$slot];
+
+        return str_starts_with($v, '#') ? $v : self::hex($v);
+    }
+
+    /** `--ag-cover-{tone}-{slot}`: a palette token by reference, the spec's own hex where there is none. */
+    private static function coverCss(): array
+    {
+        $out = [];
+        foreach (self::COVER as $tone => $slots) {
+            foreach ($slots as $slot => $v) {
+                $out[] = '--ag-cover-' . $tone . '-' . $slot . ':' . (str_starts_with($v, '#') ? $v : 'var(--ag-' . $v . ')') . ';';
+            }
+        }
+
+        return $out;
+    }
+
     /** @return array<string,array{value:string,use:string}> */
     public static function console(): array
     {
@@ -587,6 +642,7 @@ final class Accent
         foreach (self::SHADOWS as $name => $v) {
             $out[] = '--ag-' . $name . ':' . $v . ';';
         }
+        $out = array_merge($out, self::coverCss());
 
         return ':root{' . implode('', $out) . '}';
     }

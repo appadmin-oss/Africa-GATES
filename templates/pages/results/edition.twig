@@ -37,7 +37,7 @@
   {% if _o and _o.winner %}
   {% set w = _o.winner %}
   <section class="rs-ov" aria-labelledby="rs-ov-h">
-    <div class="rs-ov__photo">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, alt: 'Portrait of %n%'|trans({'%n%': w.name}), eager: true} only %}</div>
+    <div class="rs-ov__photo">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, size: 160, alt: 'Portrait of %n%'|trans({'%n%': w.name}), eager: true} only %}</div>
     <div class="rs-ov__body">
       <span class="rs-ov__k"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"/></svg>{{ 'Overall winner · %ed%'|trans({'%ed%': e.edition ?: e.year}) }}</span>
       <h2 class="rs-ov__name" id="rs-ov-h">{{ w.name }}</h2>

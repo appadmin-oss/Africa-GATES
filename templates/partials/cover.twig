@@ -1,0 +1,60 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE DEFAULT COVER — what an image slot draws when nothing was uploaded
+  DEFAULT-GRAPHICS §2–§6 · design/DefaultCover.dc.html (variant=graphic) · 5 Oct 2026
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Never a stock photo, never a grey box, never a broken `<img>`. Drawn in CSS from the
+  thing's own KIND (Support\CoverKind, the one resolver, which the GD share images call
+  too): a tone wash, a pattern in the tone's line colour, and one piece of content —
+  whichever the layout around it does not already show (§5):
+
+    date   cards, rows, rails — the date tile, so the card body drops its date line
+    title  featured stories, challenge tiles, share previews — the image stands alone
+    none   heroes beside their own heading — the host's logo, or the type's glyph
+    auto   date when there is one, otherwise none. Never a date tile without a date.
+
+  The SIZE decides what fits, by container query on the cover itself (cover.css): under
+  96px only the tile; under 200px no pill beside a logo; type steps up with the box. It is
+  decorative — `aria-hidden` — because the card or heading beside it carries the name.
+
+  Args (with … only):
+    subject   event | award | campaign | blog | challenge | product      default event
+    kind      an event's cover_kind (NULL resolves per CoverKind::eventKind)
+    award_linked  true for an event tied to an award (NULL kind → ceremony)
+    content   auto | none | date | title                                  default auto
+    ratio     '16/9' · '4/3' · '1/1' · '4/5' · '3/1'                      default 16/9
+    fill      true to fill the slot's own box instead of holding a ratio
+    date      a date string the event really has; never faked
+    title     the thing's title — drawn only by content=title
+    logo      the host's logo URL; the type glyph when empty
+    label     false to draw no type pill; a string to name it otherwise
+#}
+{%- import 'partials/icons.twig' as gi -%}
+{%- set _c     = cover_kind(subject|default('event'), kind|default(null), award_linked|default(false)) -%}
+{%- set _date  = date|default('') -%}
+{%- set _mode  = cover_content(content|default('auto'), _date != '') -%}
+{%- set _title = title|default('') -%}
+{%- set _logo  = logo|default('') -%}
+{%- set _label = label is defined ? label : _c.label|trans -%}
+{%- set _k     = cover_title_scale(_title) -%}
+<div class="ag-cover ag-cover--{{ _c.tone }} ag-cover--{{ _c.pattern }} ag-cover--{{ _mode }}{{ fill|default(false) ? ' ag-cover--fill' }}"
+     {%- if not fill|default(false) %} style="aspect-ratio:{{ ratio|default('16/9') }}"{% endif %} aria-hidden="true">
+  <span class="ag-cover__pat"></span>
+  {%- if _mode == 'date' %}
+  <span class="ag-cover__date"><b>{{ _date|date('M') }}</b><span>{{ _date|date('j') }}</span></span>
+  {%- endif %}
+  {%- if _mode == 'title' and _title %}
+  <span class="ag-cover__title ag-cover__title--{{ _k >= 11 ? 'l' : (_k >= 9 ? 'm' : 's') }}">{{ _title }}</span>
+  {%- endif %}
+  {%- if _mode in ['none', 'title'] %}
+  {# For `title` the tile is the xs fallback: under 96px the title cannot be read, so the
+     tile stands in for it (cover.css shows it only there). #}
+  <span class="ag-cover__logo"><span class="ag-cover__tile">
+    {%- if _logo %}<img src="{{ _logo }}" alt="" loading="lazy" decoding="async">{% else %}{{ gi.cover_glyph(_c.glyph) }}{% endif -%}
+  </span></span>
+  {%- endif %}
+  {%- if _label %}
+  <span class="ag-cover__pill"><i></i>{{ _label }}</span>
+  {%- endif %}
+</div>

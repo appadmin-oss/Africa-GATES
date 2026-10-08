@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\CoverKind;
+
 use AfricaGates\Support\EventTime;
 use AfricaGates\Support\SchemaHas;
 use AfricaGates\Support\Translator;
@@ -160,7 +162,12 @@ final class EventsFront
             'iso'        => $start !== '' ? str_replace(' ', 'T', $start) . 'Z' : '',
             'days'       => $days,
             'image'      => EventTicketDesign::image(['cover_image' => $e['cover_image'] ?? '']),
-            'cover'      => PhotoCover::style((string) ($e['ticket_accent'] ?? '')),
+            // What the default cover draws when there is no image (DEFAULT-GRAPHICS §4–§5):
+            // the organiser's KIND, never their accent, and the event's own local day — the
+            // ISO string above is UTC, and an evening event elsewhere would tile the wrong date.
+            'cover_kind'   => CoverKind::eventKind($e['cover_kind'] ?? null, !empty($e['programme_id'])),
+            'award_linked' => !empty($e['programme_id']),
+            'cover_date'   => $start !== '' ? EventTime::at($e, $start, 'Y-m-d') : '',
             'livestream' => self::link((string) ($e['livestream_url'] ?? '')),
             'recording'  => self::link((string) ($e['recording_url'] ?? '')),
         ];

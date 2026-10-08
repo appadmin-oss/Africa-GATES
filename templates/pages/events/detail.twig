@@ -76,7 +76,7 @@
   {# ── The head: a 4:3 photo with floating buttons and a sheet on a phone; a hero from 600 ── #}
   <header class="ed-hero">
     <div class="ed-hero__media">
-      {% include 'partials/photo.twig' with {kind: 'thing', src: ev.image, name: ev.title, tone: ev.cover, title: false, eager: true} only %}
+      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', cover_kind: ev.cover_kind|default(null), award_linked: ev.award_linked|default(false), src: ev.image, name: ev.title, content: 'none', logo: ev.host_logo|default(''), eager: true} only %}
     </div>
     <div class="ed-hero__btns">
       <a class="ed-fab" href="/events" aria-label="{{ 'All events'|trans }}">

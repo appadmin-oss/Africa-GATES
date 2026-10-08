@@ -232,7 +232,7 @@
 <div class="vn">
   <div class="vn__left">
     <div class="vn-photo">
-      {% include 'partials/photo.twig' with {kind: 'person', src: profile.avatar_path|default('') ?: n.photo_path, name: n.name, alt: 'Portrait of %n%'|trans({'%n%': n.name}), eager: true} only %}
+      {% include 'partials/photo.twig' with {kind: 'person', src: profile.avatar_path|default('') ?: n.photo_path, name: n.name, id: n.profile_id|default(n.id), size: 160, alt: 'Portrait of %n%'|trans({'%n%': n.name}), eager: true} only %}
     </div>
     {% if not _placed %}<div class="vn__ballot vn__ballot--wide">{{ m.ballot(_bctx|merge({pre: 'd-'})) }}</div>{% endif %}
   </div>

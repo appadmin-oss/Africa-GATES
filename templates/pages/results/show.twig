@@ -68,7 +68,7 @@
           <div class="rs-win__top">
             <span class="rs-win__k">{{ r.category.title }} · {{ r.dead_heat ? 'Dead heat'|trans : 'Winner'|trans }}</span>
             <div class="rs-win__row">
-              <span class="rs-win__av">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, alt: 'Portrait of %n%'|trans({'%n%': w.name})} only %}</span>
+              <span class="rs-win__av">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, size: 96, alt: 'Portrait of %n%'|trans({'%n%': w.name})} only %}</span>
               <div class="rs-win__who"><h2 class="rs-win__name" id="rs-win-h">{{ w.name }}</h2><span>{{ r.programme }}{% if r.edition %} · {{ r.edition }}{% endif %}</span></div>
               <div class="rs-win__idx"><b>{{ w.cpi }}</b><span>{{ 'out of 1000'|trans }}</span></div>
             </div>

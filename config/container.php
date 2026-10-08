@@ -488,6 +488,22 @@ return [
             'celebration_style',
             [\AfricaGates\Services\Celebration::class, 'style']
         ));
+        // The default graphics (DEFAULT-GRAPHICS, handoff 5 Oct 2026): what an image slot with
+        // no upload draws. `partials/cover.twig` and `partials/avatar.twig` ask these, so the
+        // label, tone and pattern of a cover — and an avatar's initials and tone — come from
+        // the one resolver the GD share images use too.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cover_kind', [\AfricaGates\Support\CoverKind::class, 'resolve']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cover_content', [\AfricaGates\Support\CoverKind::class, 'content']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cover_title_scale', [\AfricaGates\Support\CoverKind::class, 'graphicTitleScale']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'avatar_mark', [\AfricaGates\Support\AvatarMark::class, 'of']
+        ));
         // Allowlist-sanitise admin-authored rich text (blog/legacy bodies) at render
         // time — used instead of |raw so stored HTML can't inject script/handlers.
         $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
