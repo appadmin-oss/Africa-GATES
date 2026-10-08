@@ -1,0 +1,251 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  IS IT WORKING? — /status · Phase 9 · design/StatusPageV2.dc.html · §8.15
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt from the DC after the destroy (inventory: pages--status.md). Every rule of the
+  old header comment is kept:
+
+  ── THIS PAGE IS A MEASUREMENT, NOT A REASSURANCE ──────────────────────────
+  There are NO defaults here. A version once carried its own fallback component list in
+  Twig, so with no report it still printed six green rows; if the route stops passing a
+  report this page says "We could not check just now" instead of inventing one.
+  · No invented uptime: a percentage only where there are checks to divide, floored so a
+    window with a real outage never rounds up to 100% (SystemStatus::pct()).
+  · No green for anything not measured: "Not checked" is a state here, drawn dashed.
+  · Colour is never the only carrier: every row prints its state as a WORD, and every mark
+    differs in FILL (solid · half · hatched · dashed) as well as hue, so it survives
+    monochrome, colour-blindness and a phone in daylight.
+  · Times carry their zone (`when_zoned`, `tz_abbr()`): read across the continent, a bare
+    time is wrong by exactly one hour for somebody.
+  · A gap in the record is not an incident; the dashed cells say where it has holes.
+  · The board is at /status.json, uncached, for anything that is not a person.
+
+  ── WHAT PHASE 9 ADDED (§8.15) ─────────────────────────────────────────────
+  · HAPPENING NOW — each problem still open, with the timeline of what the record SAW
+    (first failing check, every change of state, the latest check). Measured
+    transitions, never a narrative somebody typed (SystemStatus incidents' `steps`).
+  · PLANNED WORK — from PlannedWork, the one reader of the four settings an operator sets in
+    /admin/settings; shown from a week before until it ends, then never.
+  · GET UPDATES — StatusAlert, double opt-in, offered ONLY when mail can leave
+    (StatusAlert::senderReady). The old rule "no subscribe with nothing behind it" stands:
+    this ships with the sweep that sends.
+  · BY COUNTRY — NOT DRAWN. Nothing on this platform checks SMS or mobile money per
+    country; a section of per-country rows would be invented health. PHASE-9.md, blocked B-2.
+
+  Colour tier 3: a state board read under pressure spends a family per state.
+#}
+{% set colour_tier = '3' %}
+{% set app_bar = {variant: 'child', title: 'Status'|trans, sub: 'Live platform check'|trans, back: '/'} %}
+{% set report_ok = components is defined and components is not empty %}
+{% set v = report_ok ? overall|default('unknown') : 'unknown' %}
+{% set _groups = [] %}
+{% if report_ok %}{% for c in components %}{% if c.group|default('') not in _groups %}{% set _groups = _groups|merge([c.group|default('')]) %}{% endif %}{% endfor %}{% endif %}
+{% set _live = (incidents|default([]))|filter(i => i.ongoing) %}
+{% set _past = (incidents|default([]))|filter(i => not i.ongoing) %}
+
+{% macro mark(state, cls) %}<span class="st-m st-m--{{ state }}{{ cls ? ' ' ~ cls }}" aria-hidden="true"></span>{% endmacro %}
+
+{% block head_styles %}
+{% include 'partials/seo-head.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/status.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import _self as m %}
+<div class="sx">
+  <section class="sx__top" aria-labelledby="st-h1">
+    <div class="sx__bar">
+      <span class="sx__live"><span class="sx__dot sx__dot--{{ v }}" aria-hidden="true"></span>{{ 'Live check'|trans }}</span>
+      <span class="sx__tools">
+        {% if report_ok and can_subscribe|default(false) %}
+          <a class="sx__pill sx__pill--icon" href="#st-sub" role="button" aria-haspopup="dialog" aria-controls="st-sub-sheet" aria-expanded="false" data-st-sub-open>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
+            <span class="sx__pill-t">{{ 'Get updates'|trans }}</span>
+          </a>
+        {% endif %}
+        <a class="sx__pill" href="/status">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>
+          {{ 'Check again'|trans }}
+        </a>
+      </span>
+    </div>
+
+    {% if not report_ok %}
+      <h1 class="sx__h1" id="st-h1">{{ 'We could not check'|trans }} <em class="sx__em sx__em--unknown">{{ 'just now'|trans }}</em></h1>
+      <p class="sx__note">{{ 'This page reads the platform directly every time you load it, and that read did not come back. Try again in a moment. If the rest of the site is working for you, it is working.'|trans }}</p>
+    {% else %}
+      <h1 class="sx__h1" id="st-h1">
+        {%- if v == 'operational' %}{{ 'Everything we can check is'|trans }} <em class="sx__em sx__em--operational">{{ 'working'|trans }}</em>
+        {%- elseif v == 'degraded' %}{{ 'Some things are'|trans }} <em class="sx__em sx__em--degraded">{{ 'slower than usual'|trans }}</em>
+        {%- elseif v == 'down' %}{{ 'Something is'|trans }} <em class="sx__em sx__em--down">{{ 'not working'|trans }}</em>
+        {%- else %}{{ 'Some things are'|trans }} <em class="sx__em sx__em--unknown">{{ 'not checked'|trans }}</em>{% endif -%}
+      </h1>
+      {% if note is defined and note %}<p class="sx__note">{{ note }}</p>{% endif %}
+      <ul class="sx__tally" aria-label="{{ 'Services by state'|trans }}">
+        {% for k in ['operational', 'degraded', 'down', 'unknown'] %}
+          {% set n = components|filter(c => c.status == k)|length %}
+          {% if n %}<li class="sx__chip">{{ m.mark(k, 'st-m--sm') }}{{ n }} {{ status_labels[k]|default(k)|lower }}</li>{% endif %}
+        {% endfor %}
+      </ul>
+      <p class="sx__stamp">
+        <span>{{ 'Checked'|trans }} <time datetime="{{ checked_at|date('c') }}"><b>{{ checked_at|when_zoned('j M Y, H:i') }}</b></time></span>
+        {% if uptime is defined and uptime.pct is not null %}<span>{{ '%p%% of %n% checks over %d% days'|trans({'%p%': uptime.pct|number_format(2), '%n%': uptime.samples|number_format, '%d%': uptime.days}) }}</span>{% endif %}
+        <span>{{ 'Measured on load, never cached'|trans }}</span>
+      </p>
+    {% endif %}
+  </section>
+
+  {% if report_ok and _live|length %}
+    <section class="sx__sec" aria-labelledby="st-live">
+      <h2 class="sx__h2" id="st-live"><span class="sx__dot sx__dot--down" aria-hidden="true"></span>{{ 'Happening now'|trans }}</h2>
+      {% for i in _live %}
+        <article class="sx-now">
+          <div class="sx-now__head">
+            {{ m.mark(i.status, '') }}
+            <div class="sx-now__w">
+              <h3 class="sx-now__t">{{ i.name }} — {{ status_labels[i.status]|default(i.status)|lower }}</h3>
+              <p class="sx-time">{{ 'Started'|trans }} <time datetime="{{ i.from|date('c') }}">{{ i.from|when('j M, H:i') }}</time> {{ tz_abbr() }} · {{ '%d% so far'|trans({'%d%': i.duration}) }}</p>
+            </div>
+          </div>
+          {% if i.steps|default([])|length %}
+            <ol class="sx-steps" aria-label="{{ 'What the checks saw'|trans }}">
+              {% for st in i.steps %}
+                <li class="sx-steps__i">
+                  <span class="sx-steps__rail" aria-hidden="true"><span class="sx-steps__dot sx-steps__dot--{{ st.status }}"></span></span>
+                  <div class="sx-steps__w">
+                    <p class="sx-steps__h"><b>{{ st.latest|default(false) ? 'Latest check'|trans : (loop.last ? 'First seen'|trans : 'Changed'|trans) }}</b> <time class="sx-time" datetime="{{ st.at|date('c') }}">{{ st.at|when('H:i') }} {{ tz_abbr() }}</time></p>
+                    <p class="sx-steps__p">{{ 'Checked as'|trans }} {{ st.label|trans|lower }}.</p>
+                  </div>
+                </li>
+              {% endfor %}
+            </ol>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </section>
+  {% endif %}
+
+  {% if planned|default(null) %}
+    <section class="sx-plan" aria-labelledby="st-plan">
+      <svg class="sx-plan__i" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+      <div class="sx-plan__w">
+        <h2 class="sx-plan__t" id="st-plan">{{ planned.started ? 'Planned work, under way:'|trans : 'Planned:'|trans }} {{ planned.title }}</h2>
+        <p class="sx-time"><time datetime="{{ planned.from|date('c') }}">{{ planned.from|when('j M, H:i') }}</time> → <time datetime="{{ planned.to|date('c') }}">{{ planned.to|when(planned.from|when('Y-m-d') == planned.to|when('Y-m-d') ? 'H:i' : 'j M, H:i') }}</time> {{ tz_abbr() }}</p>
+        {% if planned.note %}<p class="sx-plan__p">{{ planned.note }}</p>{% endif %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if report_ok %}
+    <section class="sx__sec" aria-labelledby="st-now">
+      <h2 class="sx__h2" id="st-now">{{ 'Current status'|trans }} <span class="sx__h2-n">{{ '%n% services'|trans({'%n%': components|length}) }}</span></h2>
+      {% for g in _groups %}
+        <div class="sx-group">
+          {% if g %}<h3 class="sx-group__t">{{ g|trans }}</h3>{% endif %}
+          <ul class="sx-rows">
+            {% for c in components|filter(c => c.group|default('') == g) %}
+              {% set cs = c.status|default('unknown') %}
+              {% set h = component_history[c.name]|default(null) %}
+              <li class="sx-row" data-st-row>
+                <div class="sx-row__top">
+                  {{ m.mark(cs, '') }}
+                  <div class="sx-row__w"><span class="sx-row__n">{{ c.name }}</span><span class="sx-row__what">{{ c.what }}</span></div>
+                  <div class="sx-row__state"><span class="sx-state sx-state--{{ cs }}">{{ c.label }}</span>{% if c.metric %}<span class="sx-row__metric">{{ c.metric }}</span>{% endif %}</div>
+                </div>
+                {% if c.detail %}<p class="sx-row__detail">{{ c.detail }}</p>{% endif %}
+                <div class="sx-row__hist">
+                  <div class="sx-cells" role="img"
+                       aria-label="{{ '%c% over the last %d% days: %s%'|trans({'%c%': c.name, '%d%': history_days|default(14), '%s%': (h and h.uptime is not null) ? ('%p%% of %n% checks came back working'|trans({'%p%': h.uptime|number_format(2), '%n%': h.samples|number_format})) : 'nothing recorded yet'|trans}) }}">
+                    {% for d in h ? h.days : (history|default([])) %}
+                      <span class="sx-cell st-m--{{ h ? d.status : 'unknown' }}" aria-hidden="true" data-st-cell="{{ d.label }} · {{ h ? d.state_label : 'Not recorded'|trans }}"></span>
+                    {% endfor %}
+                  </div>
+                  <p class="sx-row__foot"><span class="sx-row__info" data-st-info data-default="{{ history is defined and history is not empty ? (history|first).label ~ ' → ' ~ 'Today'|trans : '' }}">{{ history is defined and history is not empty ? (history|first).label ~ ' → ' ~ 'Today'|trans : '' }}</span>
+                    <span>{%- if h and h.uptime is not null %}{{ '%p%% · %n% checks'|trans({'%p%': h.uptime|number_format(2), '%n%': h.samples|number_format}) }}{% else %}{{ 'not recorded yet'|trans }}{% endif -%}</span></p>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endfor %}
+      <p class="sx__key-note">{{ 'Each square is one day, showing the worst thing that happened that day. Dashed means we have no record for that day. Tap or hover a square to see it.'|trans }}</p>
+      {% if history_note|default('') %}<p class="sx__key-note">{{ history_note }}</p>{% endif %}
+    </section>
+
+    <section class="sx__sec" aria-labelledby="st-inc">
+      <h2 class="sx__h2" id="st-inc">{{ 'Past problems'|trans }} <span class="sx__h2-n">{{ 'Last %d% days'|trans({'%d%': history_days|default(14)}) }}</span></h2>
+      {% if _past|length %}
+        <ol class="sx-inc">
+          {% for i in _past %}
+            {% set same_day = i.from|when('Y-m-d') == i.to|when('Y-m-d') %}
+            <li class="sx-inc__i">
+              {{ m.mark(i.status, 'st-m--sm') }}
+              <div class="sx-inc__w">
+                <p class="sx-inc__t"><b>{{ i.name }}</b> — {{ status_labels[i.status]|default(i.status)|lower }}</p>
+                <p class="sx-time"><time datetime="{{ i.from|date('c') }}">{{ i.from|when('j M, H:i') }}</time>{% if i.minutes > 0 %} → <time datetime="{{ i.to|date('c') }}">{{ i.to|when(same_day ? 'H:i' : 'j M, H:i') }}</time>{% endif %} {{ tz_abbr() }} · {{ i.duration }}</p>
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+      {% elseif not _live|length %}
+        <p class="sx__p">{{ 'Nothing was recorded as broken or slow in the last %d% days. If something went wrong for you and it isn’t here, we didn’t catch it. Please tell us.'|trans({'%d%': history_days|default(14)}) }}</p>
+      {% else %}
+        <p class="sx__p">{{ 'Nothing else was recorded as broken or slow in this window.'|trans }}</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="sx__sec" aria-labelledby="st-read">
+    <h2 class="sx__h2" id="st-read">{{ 'How to read this'|trans }}</h2>
+    <ul class="sx-key">
+      {% for k in ['operational', 'degraded', 'down', 'unknown'] %}<li>{{ m.mark(k, '') }}{{ status_labels[k]|default(k) }}</li>{% endfor %}
+    </ul>
+    <div class="sx-scope">
+      <p>{{ 'Every line is measured when you load this page: a real query, a real count, a real recent success rate. Nothing says'|trans }} <b>{{ status_labels.operational|default('Working') }}</b> {{ 'just because a setting exists.'|trans }}</p>
+      <p><b>{{ status_labels.unknown|default('Not checked') }}</b> {{ 'means exactly that. It is not a quiet way of saying fine. Percentages only count checks whose result we know, and they are rounded down, so a period with a real outage never shows 100%.'|trans }}</p>
+      <p>{{ 'This page reports the platform. It can’t see your network, your email provider, your mobile money wallet or your bank.'|trans }}</p>
+      <p>{{ 'Checking from a script? The same board is at'|trans }} <code>/status.json</code>{{ ', uncached.'|trans }}</p>
+    </div>
+  </section>
+
+  <section class="sx-help" aria-labelledby="st-help">
+    <div class="sx-help__w">
+      <h2 class="sx-help__h" id="st-help">{{ 'Shows as working, but something’s still wrong?'|trans }}</h2>
+      <p class="sx-help__p">{{ 'Gee can check your specific problem, and re-check a payment with the provider if that’s what is stuck.'|trans }}</p>
+    </div>
+    <a class="sx-help__a" href="/help?{{ {gee: 'support', topic: 'payment'}|url_encode }}" data-ag-do="open-gee" data-gee-mode="support">{{ 'Get help'|trans }}</a>
+  </section>
+
+  <p class="sx__tz">{{ 'Times are shown in %z%.'|trans({'%z%': tz_abbr()}) }}</p>
+</div>
+{% endblock %}
+
+{% block sheets %}
+{{ parent() }}
+{% if report_ok and can_subscribe|default(false) %}
+<div class="sx-sub-layer" id="st-sub">
+  <div class="ag-scrim" data-st-sub-scrim></div>
+  <div class="ag-sheet sx-sub" id="st-sub-sheet" role="dialog" aria-modal="true" aria-labelledby="st-sub-h" data-st-sub>
+    <span class="ag-sheet__grabber" aria-hidden="true"></span>
+    <div class="sx-sub__head">
+      <h2 class="sx-sub__h" id="st-sub-h">{{ 'Get status updates'|trans }}</h2>
+      <a class="sx-sub__x" href="#main" role="button" aria-label="{{ 'Close'|trans }}" data-st-sub-close><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></a>
+    </div>
+    <p class="sx-sub__p">{{ 'We’ll email you when a problem our checks measure starts, and when it’s fixed. Nothing else.'|trans }}</p>
+    {% if subscribe_said|default(null) %}<p class="sx-sub__said" role="status">{{ subscribe_said }}</p>{% endif %}
+    <form class="sx-sub__form" method="post" action="/status/subscribe">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label class="ag-label" for="stSubEmail">{{ 'Email address'|trans }}</label>
+      <span class="ag-field"><input id="stSubEmail" type="email" name="email" required maxlength="190" inputmode="email" autocomplete="email" enterkeyhint="send" aria-describedby="stSubHint"></span>
+      <p class="ag-hint" id="stSubHint">{{ 'One confirmation email first. Every update has a one-click stop link.'|trans }}</p>
+      <button class="ag-btn ag-btn--primary ag-btn--pill sx-sub__go" type="submit">{{ 'Send me updates'|trans }}</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/status.js') }}"></script>{% endblock %}

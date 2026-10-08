@@ -165,69 +165,94 @@ final class PulseController
 
     public function index(Request $req, Response $res): Response
     {
-        $data = $this->cache->remember('pulse:home', 600, function () {
-            return [
-                'posts'   => $this->safe(fn() => DB::table('gates_posts')->where('status', 'published')
-                    ->orderByDesc('published_at')->limit(8)->get()->map(fn($r) => (array)$r)->all()),
-                'events'  => $this->safe(fn() => DB::table('gates_site_events')->where('status', 'published')
-                    ->where('event_date', '>=', date('Y-m-d H:i:s'))->orderBy('event_date')->limit(6)
-                    ->get()->map(fn($r) => (array)$r)->all()),
-                'threads' => $this->safe(fn() => DB::table('gates_threads')
-                    ->where('status', 'approved')
-                    ->orderByDesc('id')->limit(5)->get()->map(fn($r) => (array)$r)->all()),
-            ];
-        }, ['registry']);
+        $q      = $req->getQueryParams();
+        $member = UserAccountService::memberForForms();
+        $uid    = $member ? (int) $member['id'] : null;
+        // For you · Following · Alerts · Saved — each a URL, so a tab survives Back and works
+        // with no script. Following, Alerts and Saved are a member's; a guest asking for one
+        // is shown For you.
+        $tab = (string) ($q['tab'] ?? 'for-you');
+        if (!in_array($tab, ['for-you', 'following', 'alerts', 'saved'], true) || ($tab !== 'for-you' && !$uid)) $tab = 'for-you';
+        $cursor = isset($q['cursor']) ? max(0, (int) $q['cursor']) : null;
+        $reels  = str_ends_with($req->getUri()->getPath(), '/reels');
 
-        // Four, not eight: the stories row that consumed the other four is gone,
-        // and the rail shows four. Fetching rows nothing renders is how a query
-        // grows a cost nobody can trace back to a feature.
-        $leaders = $this->cache->remember('pulse:leaders', 600, fn() => $this->profiles->getLeaderboard(4), ['leaderboard']);
+        $page = ['items' => [], 'next_cursor' => null];
+        if ($this->feed && in_array($tab, ['for-you', 'following'], true)) {
+            $following = $tab === 'following' ? $this->following((int) $uid) : null;
+            $page = $this->feed->page($cursor, PulseFeedService::PAGE, $uid, null, $reels ? 'video' : null, $following);
+        }
+        $progs = $this->cache->remember('awards:active', 1800,
+            fn () => (new \AfricaGates\Services\AwardService())->getActiveProgrammesWithStatus());
+        $items = \AfricaGates\Services\PulseCards::decorate($page['items'], is_array($progs) ? $progs : []);
 
-        // The first page is rendered server-side and every later page arrives from
-        // /api/pulse/feed — so both come from the SAME assembler. Two code paths
-        // building the same card is how the third page ends up subtly different
-        // from the first, and it is also why this is not cached: `cheered` and
-        // `saved` are per-viewer, and a shared cache would show one member's
-        // likes to everybody.
-        $first = $this->feed?->page(null, PulseFeedService::PAGE, $this->viewerId())
-                 ?? ['items' => [], 'next_cursor' => null];
+        // "Show more" in place: the fragment, with none of the page around it.
+        if ($cursor !== null && ($q['part'] ?? '') === 'items') {
+            return $this->view->render($res, 'pages/pulse-items.twig', [
+                'view' => $tab, 'items' => $items, 'next_cursor' => $page['next_cursor'], 'member' => $member,
+            ])->withHeader('X-Robots-Tag', 'noindex');
+        }
+
+        $alerts = $uid ? (new AlertService())->forMember($uid, (string) $member['email']) : [];
 
         return $this->view->render($res, 'pages/pulse.twig', [
             'page_title'       => 'Pulse — Africa GATES',
-            'meta_description' => 'Pulse — the living feed of Africa GATES: the latest posts, events, and the community shaping the continental Cultural Power Index.',
+            'meta_description' => 'Pulse — what the people, awards and organisations on Africa GATES are saying, decided and celebrating.',
             'gates_page'       => 'pulse',
-            'posts'            => $data['posts'],
-            'events'           => $data['events'],
-            'threads'          => $data['threads'],
-            'leaders'          => $leaders,
-            // The composer's limit comes from the controller, so the textarea's
-            // maxlength and the server's truncation cannot disagree.
+            'view'             => $tab,
+            'reels'            => $reels,
+            'items'            => $items,
+            'next_cursor'      => $page['next_cursor'],
+            'member'           => $member,
             'pulse_max'        => self::MAX_LEN,
-            'feed'             => $first['items'],
-            'feed_cursor'      => $first['next_cursor'],
-            // Channel chips, driven by where people have actually posted.
-            'channels'         => $this->feed?->channels() ?? [],
-            // The newest id the reader has seen. The new-posts pill counts past it.
-            'feed_head'        => $first['items'][0]['id'] ?? 0,
-            // The real ceiling, which is the smaller of ours and what PHP will
-            // accept — a host with upload_max_filesize = 8M silently discards
-            // anything larger, so promising 25MB there produces a bug nobody can
-            // reproduce anywhere else.
             'media_limit'      => PulseMediaService::humanLimit(),
+            'alerts'           => $tab === 'alerts' ? $alerts : [],
+            'unread'           => count(array_filter($alerts, static fn ($a) => $a['unread'])),
+            'saved'            => $tab === 'saved' && $this->community ? $this->community->bookmarkedThreads((int) $uid, 30) : [],
+            'compose_open'     => ($q['compose'] ?? '') === '1' && $uid,
+            // The right column (desktop): what is being voted on, who was just recognised,
+            // and channels to follow — every row a real award, never the DC's names.
+            'voting'           => \AfricaGates\Services\HomeFront::voting(),
+            'decided'          => \AfricaGates\Services\HomeFront::decided(),
+            'to_follow'        => $this->toFollow($uid),
         ]);
     }
 
+    /** What a member follows that a post can be filed under: channels and members. */
+    private function following(int $uid): array
+    {
+        if ($uid < 1) return ['programmes' => [], 'members' => []];
+        try {
+            $rows = DB::table('gates_follows')->where('user_id', $uid)
+                ->whereIn('target_type', ['programme', 'member'])->get(['target_type', 'target_id'])->all();
+        } catch (\Throwable) {
+            $rows = [];
+        }
+        $out = ['programmes' => [], 'members' => []];
+        foreach ($rows as $r) $out[$r->target_type === 'programme' ? 'programmes' : 'members'][] = (int) $r->target_id;
+        return $out;
+    }
+
     /**
-     * Post to the feed.
+     * "Who to follow": the busiest channels (an award's own) the member does not follow yet.
+     * The DC draws award HOSTS; there is no host record yet (HOSTS.md), so the award itself is
+     * what can be followed — and a follow here is a real `gates_follows` row the Following
+     * tab reads.
      *
-     * Members only, like the rest of the community write surface — reading Pulse is
-     * public, adding to it is not. The author's identity comes from the ACCOUNT and
-     * never from the form, so a post cannot be attributed to someone else.
-     *
-     * Throttled at 5 an hour: looser than the community's 3 (a feed invites shorter,
-     * more frequent posts) and still tight enough that a compromised account cannot
-     * flood the front of the site.
+     * @return list<array{id:int,name:string,n:int,following:bool}>
      */
+    private function toFollow(?int $uid): array
+    {
+        $chans = $this->feed?->channels(6) ?? [];
+        $mine  = $uid ? $this->following($uid)['programmes'] : [];
+        $out = [];
+        foreach ($chans as $c) {
+            if (in_array((int) $c['id'], $mine, true)) continue;
+            $out[] = ['id' => (int) $c['id'], 'name' => (string) $c['name'], 'n' => (int) $c['n'], 'following' => false];
+            if (count($out) >= 3) break;
+        }
+        return $out;
+    }
+
     public function post(Request $req, Response $res): Response
     {
         unset($_SESSION['flash_error'], $_SESSION['flash_notice']);

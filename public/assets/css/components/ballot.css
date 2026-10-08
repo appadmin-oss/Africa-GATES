@@ -56,21 +56,6 @@
 .vn-more:hover{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
 .vn-placed{ display:flex; flex-direction:column; gap:6px; padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
 
-.vmi-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px }
-.vmi{ display:flex; flex-direction:column; gap:10px; padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
-.vmi__b{ margin:0; font-size:var(--ag-fs-15-5); line-height:1.6; overflow-wrap:anywhere }
-.vmi__f{ display:flex; align-items:center; justify-content:space-between; gap:8px 12px; flex-wrap:wrap }
-.vmi__who{ display:flex; align-items:center; gap:8px; font-size:var(--ag-fs-13); color:var(--ag-soft) }
-.vmi__tag{ font-size:var(--ag-fs-12); color:var(--ag-soft) }
-.vmi__acts{ display:flex; align-items:center; gap:4px }
-.vmi__act,
-.vmi__act:hover{
-  display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 10px; border:0; background:transparent;
-  color:var(--ag-ink-2); font:inherit; font-size:var(--ag-fs-13); font-weight:600; text-decoration:none; cursor:pointer;
-}
-.vmi__act[aria-pressed="true"]{ color:var(--ag-green-deep) }
-.vmi__act--report{ color:var(--ag-soft) }
-
 .vn-roll{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px }
 .vn-roll__i{ display:flex; align-items:center; gap:7px; height:36px; padding:0 12px 0 5px; border-radius:var(--ag-r-pill); background:var(--ag-surface); border:1px solid var(--ag-line); font-size:var(--ag-fs-13-5); font-weight:600 }
 .vn-roll__av{ width:26px; height:26px; border-radius:50%; background:var(--ag-tint); color:var(--ag-ink-2); display:flex; align-items:center; justify-content:center; font-size:var(--ag-fs-11-5); font-weight:700 }

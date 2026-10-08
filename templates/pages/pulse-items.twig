@@ -1,0 +1,7 @@
+{#
+  `/pulse?cursor=N&part=items` — the next page of posts and nothing else, which social.js
+  appends in place of "Show more". No layout: this is a fragment, never a page anybody
+  lands on (a script-less "Show more" follows the plain `?cursor=` link instead).
+#}
+{% import 'partials/pulse-post.twig' as m %}
+<div data-pl-page>{% for p in items %}{{ m.post(p, member is not null) }}{% endfor %}{% if next_cursor %}<a class="pl-more" href="/pulse?{{ view != 'for-you' ? 'tab=' ~ view ~ '&' }}cursor={{ next_cursor }}" data-pl-more>{{ 'Show more'|trans }}</a>{% endif %}</div>

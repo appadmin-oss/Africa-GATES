@@ -1,0 +1,81 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  NOMINATION RECEIVED — /nominate/success · Phase 8 §8.16, NominationFlow.dc.html step 6
+  and the inline `nominate` celebration (§7.8, partials/celebration.twig)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed and rebuilt (inventory pages--nominate-success.md). The peak and the end of the
+  flow, so it celebrates — inline, as the phase spec says, never instead of the page — and
+  then does the three things it owes: the reference (a code, so mono), what happens next
+  (the award's own dates, partials/nominate-timeline.twig), and a way to rally more
+  nominations: a share link minted once on the server from the nominee-side fields only
+  (NominationLinkService), offered by WhatsApp, by SMS and as a copyable link.
+
+  The review promise reads NominationFeedbackService::slaHours() — the one resolver for
+  `review_sla_hours`, floored where it is read (CLAUDE.md "Two readers of one KEY").
+
+  Arriving with nothing in the one-render flash (from history, a refresh) is still a page:
+  it says the nomination is safe and where to find it, and celebrates nothing.
+#}
+{% set app_bar = {variant: 'child', title: 'Nominate'|trans, sub: programme ? programme.title : '', back: '/nominate', share: false} %}
+{% set colour_tier = '2' %}
+{% set _msg = 'I just nominated %name% for %award% on Africa GATES. Add your voice:'|trans({'%name%': nominee, '%award%': programme ? programme.title : 'an award'|trans}) %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/nominate.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="nd">
+  {% if done %}
+    {% include 'partials/celebration.twig' with {
+      kind: 'nominate', size: 'inline',
+      title: 'Nomination received'|trans,
+      sub: 'We’ll let %name% know. Share it yourself too — it means more coming from you.'|trans({'%name%': nominee ?: 'them'|trans}),
+      primary: share_url ? {href: '#nd-share'} : {href: '/account', label: 'Your nominations'|trans},
+      secondary: {href: '/nominate', label: 'Nominate someone else'|trans},
+      context: {moment: 'nomination_sent', edition: programme ? programme.slug : '', subject: ref}
+    } %}
+    <h1 class="ag-sr">{{ 'Nomination received'|trans }}</h1>
+    {% if ref %}<p class="nd__ref"><span class="ag-sr">{{ 'Your reference'|trans }}: </span><span class="nd__ref-code" dir="ltr">{{ ref }}</span></p>{% endif %}
+
+    <div class="nd__who">
+      <span class="nd__av">{% include 'partials/photo.twig' with {kind: 'person', name: nominee} only %}</span>
+      <div class="nd__whob">
+        <b>{{ nominee }}</b>
+        {% if category %}<span>{{ category }}</span>{% endif %}
+        {% if edition %}<span class="nd__ed">{{ edition }}</span>{% endif %}
+      </div>
+    </div>
+
+    {% if share_url %}
+      <div class="nd__share" id="nd-share">
+        <a class="nd__btn nd__btn--go" href="https://wa.me/?text={{ (_msg ~ ' ' ~ share_url)|url_encode }}" rel="noopener">{{ 'WhatsApp'|trans }}</a>
+        <a class="nd__btn" href="sms:?&body={{ (_msg ~ ' ' ~ share_url)|url_encode }}">{{ 'SMS'|trans }}</a>
+        <button type="button" class="nd__btn" data-ag-share data-ag-share-url="{{ share_url }}" data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Copy link'|trans }}</button>
+      </div>
+      <p class="nd__fine">{{ 'The link opens a nomination of %name% with their details filled in — whoever uses it nominates in their own name. It works for %d% days.'|trans({'%name%': nominee, '%d%': share_days}) }}</p>
+    {% endif %}
+
+    {% if programme %}
+      <section class="nd__next" aria-labelledby="nd-next-h">
+        <h2 class="nd__k" id="nd-next-h">{{ 'What happens next'|trans }}</h2>
+        <p class="nd__p">{{ 'A person reviews every nomination, usually within %h% hours, and we email you when it moves.'|trans({'%h%': sla_hours}) }}</p>
+        {% include 'partials/nominate-timeline.twig' with {p: programme} only %}
+      </section>
+    {% endif %}
+    <a class="nf__change" href="/nominate">{{ 'Nominate someone else'|trans }}</a>
+  {% else %}
+    <div class="nf-closed">
+      <h1 class="nh__h1">{{ 'Your nominations are safe'|trans }}</h1>
+      <p class="nf-closed__p">{{ 'This page shows a nomination once, straight after it is sent. Every nomination you have made is on your account, with its reference, and in the email we sent you.'|trans }}</p>
+      <div class="nf-closed__go">
+        <a class="ag-btn ag-btn--primary ag-btn--pill" href="/nominate">{{ 'Nominate someone'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/account">{{ 'Your account'|trans }}</a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

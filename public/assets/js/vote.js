@@ -284,6 +284,59 @@
         { n: sec.getAttribute('data-nominee'), name: sec.getAttribute('data-name'), url: sec.getAttribute('data-url'), cat: sec.getAttribute('data-category-title'), at: 0 });
     });
     if ($('[data-vmi]')) messages();
+    // /vote/paid/success: the template draws this marker only for an order whose votes
+    // MINTED, so a refused payment never records a vote on this device.
+    $$('[data-vote-mark]').forEach(function (m) {
+      record(m.getAttribute('data-award'), m.getAttribute('data-category'),
+        { n: m.getAttribute('data-nominee'), name: m.getAttribute('data-name'), url: m.getAttribute('data-url'), cat: m.getAttribute('data-category-title'), at: 0 });
+    });
+    $$('[data-ps-msg]').forEach(paidMessage);
+    $$('[data-fl-share]').forEach(flierShare);
+  }
+  /* The flier's native share: the real PNG to the OS share sheet. Both checks are needed —
+     iOS Safari has share() without canShare(), Android refuses some types — and a button
+     that fails is worse than one never offered, because the downloads always work. */
+  function flierShare(btn) {
+    if (!(navigator.share && navigator.canShare && window.File)) return;
+    var status = $('[data-fl-status]');
+    btn.hidden = false;
+    btn.addEventListener('click', function () {
+      btn.setAttribute('aria-busy', 'true'); btn.disabled = true;
+      if (status) status.textContent = btn.getAttribute('data-busy');
+      fetch(btn.getAttribute('data-png'), { credentials: 'same-origin' })
+        .then(function (r) { if (!r.ok) throw new Error('fetch'); return r.blob(); })
+        .then(function (blob) {
+          var file = new File([blob], btn.getAttribute('data-file'), { type: 'image/png' });
+          if (!navigator.canShare({ files: [file] })) throw new Error('files');
+          return navigator.share({ files: [file], title: btn.getAttribute('data-title'), text: btn.getAttribute('data-text') });
+        })
+        .then(function () { if (status) status.textContent = btn.getAttribute('data-done'); })
+        .catch(function (e) {
+          // Dismissing the sheet is an AbortError — somebody changing their mind, not a failure.
+          if (status) status.textContent = (e && e.name === 'AbortError') ? '' : btn.getAttribute('data-failed');
+        })
+        .then(function () { btn.setAttribute('aria-busy', 'false'); btn.disabled = false; });
+    });
+  }
+  /* The message of support after a contributed vote — authorised by the payment reference. */
+  function paidMessage(form) {
+    var say = $('[data-ps-say]', form), btn = $('button[type="submit"]', form);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var body = (form.elements.body.value || '').trim();
+      if (!body) { form.elements.body.focus(); return; }
+      if (btn) btn.disabled = true;
+      fetch('/api/vote-message', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+        body: new URLSearchParams({ ref: form.elements.ref.value, body: body }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (d) {
+          if (d && d.success) { form.elements.body.value = ''; form.elements.body.disabled = true; if (say) say.textContent = form.getAttribute('data-sent'); return; }
+          if (btn) btn.disabled = false;
+          if (say) say.textContent = (d && d.message) || form.getAttribute('data-failed');
+        })
+        .catch(function () { if (btn) btn.disabled = false; if (say) say.textContent = form.getAttribute('data-failed'); });
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

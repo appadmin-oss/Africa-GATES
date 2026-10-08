@@ -45,12 +45,25 @@ final class PulseFeedService
      * @return array{items: list<array<string,mixed>>, next_cursor: int|null}
      */
     public function page(?int $cursor = null, int $limit = self::PAGE, ?int $userId = null,
-                         ?int $programmeId = null, ?string $mediaType = null): array
+                         ?int $programmeId = null, ?string $mediaType = null, ?array $following = null): array
     {
         $limit = max(1, min(30, $limit));
 
         $q = DB::table('gates_threads')->where('status', 'approved');
         if ($cursor !== null && $cursor > 0) $q->where('id', '<', $cursor);
+        // ── "FOLLOWING" (Phase 8, PulsePage.dc.html) ─────────────────────────
+        // Posts in a channel the member follows or by a member they follow — in SQL, for
+        // the same reason as the channel below: filtering a loaded page leaks. An empty
+        // follow list is an empty tab, not the whole feed under a "Following" heading.
+        if ($following !== null) {
+            $progs = array_values(array_filter(array_map('intval', $following['programmes'] ?? [])));
+            $users = array_values(array_filter(array_map('intval', $following['members'] ?? [])));
+            if ($progs === [] && $users === []) return ['items' => [], 'next_cursor' => null];
+            $q->where(static function ($w) use ($progs, $users) {
+                if ($progs !== []) $w->orWhereIn('programme_id', $progs);
+                if ($users !== []) $w->orWhereIn('author_user_id', $users);
+            });
+        }
         // Filtered in SQL, not in the browser. Filtering a loaded page client-side
         // makes "Education" show three posts because that is how many happened to
         // be in the first eight — and scrolling for more re-runs the unfiltered

@@ -47,6 +47,7 @@ class SettingsController
             'tz_current'     => \AfricaGates\Support\DisplayTime::zone(),
             'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
             'smtp_configured'=> $this->mailer?->canSend() ?? false,
+            'planned_work'   => \AfricaGates\Services\PlannedWork::stored(),
             'mail_config'    => (static function (): array {
                 $c = \AfricaGates\Services\Mail\MailConfig::load();
                 return $c->describe() + ['login_source' => match ($c->source('username')) {
@@ -1091,6 +1092,13 @@ class SettingsController
             }
             if (array_key_exists('processing_fee_pct', $b)) {
                 $this->settings->set('processing_fee_pct', (string) max(0, (float) $b['processing_fee_pct']), $adminId);
+            }
+        }
+
+        // Planned work on /status (Phase 9) — normalised by its one reader's own writer.
+        if (array_key_exists('planned_work_settings', $b)) {
+            foreach (\AfricaGates\Services\PlannedWork::fromPost($b) as $k => $v) {
+                $this->settings->set($k, $v, $adminId);
             }
         }
 

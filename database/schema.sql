@@ -1221,3 +1221,19 @@ CREATE TABLE IF NOT EXISTS gates_recognition_withdrawals (
   actor_admin_id BIGINT UNSIGNED NULL,
   PRIMARY KEY(id), KEY idx_rcw_rec(recognition_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── "Get status updates" on /status (double opt-in; migrations/2027_03_07_status_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_status_alerts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(190) NOT NULL,
+  email_hash CHAR(64) NOT NULL,
+  token CHAR(32) NOT NULL,
+  ip_hash CHAR(64) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  confirm_sent_at TIMESTAMP NULL DEFAULT NULL,
+  confirmed_at TIMESTAMP NULL DEFAULT NULL,
+  cancelled_at TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY uq_sta_who (email_hash),
+  UNIQUE KEY uq_sta_token (token),
+  KEY idx_sta_live (confirmed_at, cancelled_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

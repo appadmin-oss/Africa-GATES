@@ -1,0 +1,140 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   VOTE PAGES — around the ballot · Phase 5
+   ══════════════════════════════════════════════════════════════════════════════
+
+   A message of support (the one renderer, partials/vote-message.twig, shared by the
+   ballot's wall, /messages and /m/{token}), and the pages a nominee's ballot leads to:
+   supporters, every message, one message, the flier, and the two after a contributed vote
+   (/vote/paid/success, /vote/verify). Split from ballot.css so these pages are charged only
+   what they paint (ColourBudgetTest reads every sheet a page links): this sheet paints NO
+   colour field. A refusal is `error` words in a hairline box, a bar is ink, and the paid
+   receipt's one event is its celebration. Values follow the ballot's (REFERENCE §5);
+   logical properties, so RTL mirrors without a rule. */
+
+.vmi-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px }
+.vmi{ display:flex; flex-direction:column; gap:10px; padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
+.vmi__b{ margin:0; font-size:var(--ag-fs-15-5); line-height:1.6; overflow-wrap:anywhere }
+.vmi__f{ display:flex; align-items:center; justify-content:space-between; gap:8px 12px; flex-wrap:wrap }
+.vmi__who{ display:flex; align-items:center; gap:8px; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.vmi__tag{ font-size:var(--ag-fs-12); color:var(--ag-soft) }
+.vmi__acts{ display:flex; align-items:center; gap:4px }
+.vmi__act,
+.vmi__act:hover{
+  display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 10px; border:0; background:transparent;
+  color:var(--ag-ink-2); font:inherit; font-size:var(--ag-fs-13); font-weight:600; text-decoration:none; cursor:pointer;
+}
+.vmi__act[aria-pressed="true"]{ color:var(--ag-green-deep) }
+.vmi__act--report{ color:var(--ag-soft) }
+
+
+/* ── After a contributed vote, and the proof of one (/vote/paid/success, /vote/verify) ──
+   No DC draws either page; both are in the ballot's vocabulary — white cards on the
+   ground, the facts as a hairline grid, the reference in mono because it is one (§18.3).
+   A state that owes somebody something is outlined in `error` words, never a red field. */
+.ps{ max-width:640px; margin:0 auto; padding:12px 16px 40px; display:flex; flex-direction:column; gap:20px }
+.ps-top{ display:flex; flex-direction:column; gap:10px }
+.ps-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-28); line-height:1.15; text-wrap:balance }
+.ps-h2{ margin:0; font-weight:700; font-size:var(--ag-fs-19); line-height:1.3 }
+.ps-p{ margin:0; font-size:var(--ag-fs-15-5); line-height:1.6; color:var(--ag-ink-2) }
+.ps-p a, .ps-fine a{ color:var(--ag-green); font-weight:600 }
+.ps-fine{ font-size:var(--ag-fs-14) }
+.ps-done{ color:var(--ag-green-deep) }
+.ps-card{
+  display:flex; flex-direction:column; gap:14px; padding:20px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:20px;
+}
+.ps-card--owed{ border-color:var(--ag-line-2) }
+.ps-card--owed .ps-h1,
+.ps-card--owed .ps-h2{ color:var(--ag-error) }
+.ps-facts{
+  margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1px;
+  background:var(--ag-line); border:1px solid var(--ag-line); border-radius:14px; overflow:hidden;
+}
+.ps-facts > div{ display:flex; flex-direction:column-reverse; justify-content:flex-end; gap:2px; padding:12px 14px; background:var(--ag-surface); min-width:0 }
+.ps-facts dt{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.ps-facts dd{ margin:0; font-weight:700; font-size:var(--ag-fs-16); overflow-wrap:anywhere; font-variant-numeric:tabular-nums }
+.ps-ref{ font-family:var(--ag-font-mono); font-weight:600; font-size:var(--ag-fs-14) }
+.ps-acts{ display:flex; gap:8px; flex-wrap:wrap }
+.ps-warn{ margin:0; padding:12px 14px; border-radius:12px; border:1px solid var(--ag-line-2); color:var(--ag-error); font-size:var(--ag-fs-14-5); line-height:1.5 }
+.ps-msg{ display:flex; flex-direction:column; align-items:flex-start; gap:10px }
+.ps-msg__t,
+.ps-find__i{
+  width:100%; padding:12px 14px; border:1px solid var(--ag-line-2); border-radius:12px;
+  background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-16);
+}
+.ps-msg__t{ min-height:88px; resize:vertical }
+.ps-msg__t:focus-visible,
+.ps-find__i:focus-visible{ outline:3px solid var(--ag-green); outline-offset:1px }
+.ps-msg__h,
+.ps-msg__s{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.ps-find{ display:flex; gap:8px; align-items:center }
+.ps-find__i{ flex:1; min-width:0; height:48px; padding-block:0 }
+.ps-sec{ display:flex; flex-direction:column; gap:10px }
+.ps-rows{
+  list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px;
+  background:var(--ag-line); border:1px solid var(--ag-line); border-radius:14px; overflow:hidden;
+}
+.ps-rows li{ display:flex; justify-content:space-between; gap:12px; padding:12px 14px; background:var(--ag-surface); font-size:var(--ag-fs-14-5) }
+.ps-rows__at{ color:var(--ag-soft); font-variant-numeric:tabular-nums; white-space:nowrap }
+@media (min-width:600px){
+  .ps{ padding:32px 28px 56px }
+  .ps-h1{ font-size:var(--ag-fs-36) }
+  .ps-card{ padding:28px }
+}
+.ps-facts > div:last-child:nth-child(odd){ grid-column:1 / -1 }
+
+/* ── A nominee's sub-pages: supporters, every message, one message, the flier ──────────
+   No DC draws them; they take the ballot's vocabulary — the nominee's avatar and name as the
+   head, white cards on the ground, one primary action back to the ballot. */
+.vs{ max-width:720px; margin:0 auto; padding:12px 16px 40px; display:flex; flex-direction:column; gap:18px }
+.vs-back,
+.vs-back:hover{ align-self:flex-start; display:none; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none }
+.vs-head{ display:flex; gap:14px; align-items:center }
+.vs-head__av{ position:relative; flex:none; width:64px; height:64px; border-radius:50%; overflow:hidden; background:var(--ag-tint) }
+.vs-head__av .ag-photo{ position:absolute; inset:0 }
+.vs-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15; text-wrap:balance }
+.vs-h2{ margin:0; font-weight:700; font-size:var(--ag-fs-19) }
+.vs-p{ margin:4px 0 0; font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
+.vs-p a, .vs-fine a{ color:var(--ag-green); font-weight:600 }
+.vs-fine{ margin:0; font-size:var(--ag-fs-13); line-height:1.55; color:var(--ag-soft) }
+.vs-empty{ margin:0; padding:20px; background:var(--ag-surface); border:1px dashed var(--ag-chevron); border-radius:16px; font-size:var(--ag-fs-15); color:var(--ag-ink-2) }
+.vs-cta{ align-self:flex-start }
+.vs-share{ align-self:flex-start }
+.vs-sec{ display:flex; flex-direction:column; gap:10px }
+.vs-cta-card{ display:flex; flex-direction:column; align-items:flex-start; gap:12px; padding:20px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:20px }
+.vs-list{
+  list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px;
+  background:var(--ag-line); border:1px solid var(--ag-line); border-radius:16px; overflow:hidden;
+}
+.vs-list li{ display:flex; align-items:center; gap:12px; min-height:56px; padding:10px 14px; background:var(--ag-surface); font-size:var(--ag-fs-15) }
+.vs-list__av{ flex:none; display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; background:var(--ag-tint); font-weight:700; font-size:var(--ag-fs-14) }
+.vs-list__tag{ margin-inline-start:auto; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.vs-pager{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:var(--ag-fs-14); color:var(--ag-soft) }
+.vmi-list--one .vmi__b{ font-size:var(--ag-fs-20); line-height:1.5 }
+
+.fl{ max-width:1120px; margin:0 auto; padding:12px 16px 40px; display:flex; flex-direction:column; gap:20px }
+.fl-head{ display:flex; flex-direction:column; gap:6px; max-width:62ch }
+.fl-grid{ display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:start }
+.fl-fig{ margin:0; display:flex; flex-direction:column; gap:8px }
+.fl-img{ display:block; width:100%; height:auto; border-radius:16px; background:var(--ag-ink) }
+.fl-side{ display:flex; flex-direction:column; gap:16px }
+.fl-stat{ padding:16px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:16px }
+.fl-stat__h{ margin:0 0 10px; font-weight:700; font-size:var(--ag-fs-16) }
+.fl-bar{ display:block; height:10px; border-radius:5px; background:var(--ag-line); overflow:hidden }
+.fl-bar i{ display:block; height:100%; background:var(--ag-ink) }
+.fl-copy{ padding-inline-start:14px; border-inline-start:3px solid var(--ag-gold) }
+.fl-copy__k{ margin:0 0 4px; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-soft) }
+.fl-copy__t{ margin:0; font-size:var(--ag-fs-17); line-height:1.5 }
+.fl-acts{ display:flex; gap:8px; flex-wrap:wrap }
+.fl-status{ margin:0; font-size:var(--ag-fs-14); font-weight:600 }
+.fl-status:empty{ display:none }
+@media (min-width:600px){
+  .vs{ padding:32px 28px 56px }
+  .vs-back{ display:inline-flex }
+  .vs-h1{ font-size:var(--ag-fs-34) }
+  .vs-head__av{ width:80px; height:80px }
+  .fl{ padding:32px 28px 56px }
+}
+@media (min-width:900px){
+  .fl-grid{ grid-template-columns:minmax(0,420px) minmax(0,1fr) }
+}

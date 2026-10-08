@@ -635,6 +635,7 @@ class NominationController {
             'programme'        => $prog,
             'edition'          => $prog ? self::editionLine($prog) : '',
             'share_url'        => $shareUrl,
+            'share_days'       => \AfricaGates\Services\NominationLinkService::DEFAULT_TTL_DAYS,
             // The review promise, from its one resolver (CLAUDE.md, review_sla_hours).
             'sla_hours'        => \AfricaGates\Services\NominationFeedbackService::slaHours(),
         ]);

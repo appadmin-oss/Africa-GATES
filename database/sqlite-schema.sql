@@ -1232,3 +1232,19 @@ CREATE TABLE IF NOT EXISTS gates_recognition_withdrawals (
   actor_admin_id INTEGER NULL
 );
 CREATE INDEX IF NOT EXISTS idx_rcw_rec ON gates_recognition_withdrawals(recognition_id);
+
+-- ─── "Get status updates" on /status (double opt-in; migrations/2027_03_07_status_alerts.php) ───
+CREATE TABLE IF NOT EXISTS gates_status_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL,
+  email_hash TEXT NOT NULL,
+  token TEXT NOT NULL,
+  ip_hash TEXT NULL,
+  created_at TEXT NULL,
+  confirm_sent_at TEXT NULL,
+  confirmed_at TEXT NULL,
+  cancelled_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sta_who ON gates_status_alerts(email_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sta_token ON gates_status_alerts(token);
+CREATE INDEX IF NOT EXISTS idx_sta_live ON gates_status_alerts(confirmed_at, cancelled_at);

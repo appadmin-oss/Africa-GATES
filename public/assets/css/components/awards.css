@@ -112,10 +112,10 @@
   display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 11px;
   border-radius:var(--ag-r-pill); font-size:var(--ag-fs-12-5); font-weight:700; white-space:nowrap;
 }
-.aw-pill--live{ background:var(--ag-live-wash); color:var(--ag-live-ink) }
-.aw-pill--green{ background:var(--ag-green-wash); color:var(--ag-green-deep) }
-.aw-pill--info{ background:var(--ag-info-wash); color:var(--ag-info) }
-.aw-pill--gold{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink) }
+/* One neutral pill for every phase: the phase's hue travels as the DOT beside its word
+   (`--ag-dot`, data from AwardsFront::PHASES), never as a wash. Four tinted pills were four
+   colour events on a tier-2 page whose events are the vote (live) and the action (green). */
+.aw-pill{ background:var(--ag-surface); border:1px solid var(--ag-line-2); color:var(--ag-ink) }
 .aw-tl{ list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px }
 .aw-tl__i{ display:flex; flex-direction:column; gap:6px; min-width:0 }
 .aw-tl__bar{ height:4px; border-radius:2px; background:var(--ag-line) }
@@ -195,7 +195,7 @@
 .aw-terms{ display:flex; flex-direction:column; gap:18px }
 .aw-terms__ver{
   display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; padding:14px 16px;
-  background:var(--ag-gold-wash-2); border:1px solid var(--ag-gold-edge); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
   font-size:var(--ag-fs-14); color:var(--ag-ink);
 }
 .aw-terms__ver span{ color:var(--ag-ink-2) }
@@ -210,7 +210,7 @@
 .aw-soon__hero{ display:flex; flex-direction:column; align-items:flex-start; text-align:start; gap:14px }
 .aw-soon__badge{
   display:inline-flex; align-items:center; gap:8px; height:30px; padding:0 12px;
-  border-radius:var(--ag-r-pill); background:var(--ag-gold-wash-2); color:var(--ag-gold-ink);
+  border-radius:var(--ag-r-pill); background:var(--ag-surface); border:1px solid var(--ag-line-2); color:var(--ag-ink);
   font-size:var(--ag-fs-12-5); font-weight:700;
 }
 .aw-soon .aw-d__h1{ max-width:720px; line-height:1.06 }

@@ -893,6 +893,20 @@ final class PublicResults
             $n = $catCount[$cid] ?? 0;
             if ($n === 0) continue;
 
+            // ── A LATE CYCLE IS STILL WITH THE PANEL, WHATEVER THE CALENDAR SAYS ──
+            //
+            // Past its results date the computed phase reads `results`, and forAward()
+            // answers that with "Decided" — over an edition nobody has announced, with no
+            // result a reader can open. The calendar is right that the date has passed; it
+            // is not evidence that anything was decided. Only a released status is (it is
+            // written in the transaction that crowns and seals), so an unreleased cycle
+            // past its date is drawn as what it is — with the panel — and the delay is
+            // stated above the list by delayed().
+            if (in_array($phase, [CyclePhase::Results, CyclePhase::Archived], true)
+                && !in_array((string) ($cy->status ?? ''), self::RELEASED, true)) {
+                $phase = CyclePhase::Judging;
+            }
+
             $status = ResultStatus::forAward($phase);
 
             // An edition that has not opened has no news on a results page. It is skipped

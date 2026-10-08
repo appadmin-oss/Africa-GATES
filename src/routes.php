@@ -1829,6 +1829,8 @@ return function(App $app) {
         $g->get('/results/{edition:[a-z][a-z0-9-]*}', ResultsController::class.':edition');
         $g->get('/judges',        JudgesController::class.':index');
         $g->get('/judges/{slug}', JudgesController::class.':show');
+        // A 301 to Discover's People tab since Phase 6 (Discover is the directory —
+        // owner-delegated, 5 Oct 2026); a URL naming ONE profile goes to that profile.
         $g->get('/registry',      RegistryController::class.':index');
         // ── DISCOVER (Phase 4, design/DiscoverPage.dc.html) ──────────────────
         //
@@ -1840,6 +1842,11 @@ return function(App $app) {
         $g->get('/discover',       \AfricaGates\Controllers\DiscoverController::class.':index');
         $g->get('/discover/count', \AfricaGates\Controllers\DiscoverController::class.':count');
         $g->get('/registry/{slug}',RegistryController::class.':profile');
+        // The profile's two writes (Phase 6): the owner's About, and a member's Follow.
+        // Plain forms that post and redirect back — both work without script. Owner checks
+        // are ProfilePage::owns(), the one answer the page itself uses.
+        $g->post('/registry/{slug}/edit',   RegistryController::class.':edit');
+        $g->post('/registry/{slug}/follow', RegistryController::class.':follow');
         // ── NEAR-MISS URLS ───────────────────────────────────────────────────
         //
         // People type the word they have in mind, not the segment we chose. They type the
@@ -1880,7 +1887,7 @@ return function(App $app) {
             '/partners'        => '/partner',
             '/shops'           => '/shop',
             '/leaderboards'    => '/leaderboard',
-            '/registries'      => '/registry',
+            '/registries'      => '/discover?tab=people',
             // Straight to the canonical path, not to /donate — which is itself a 301
             // now, and a redirect chain costs a round trip and loses ranking signal.
             // Spelled literally, unlike everywhere else, because this table is a flat
@@ -1913,8 +1920,8 @@ return function(App $app) {
             '/rankings'        => '/leaderboard',
             '/nominee'         => '/leaderboard',
             '/nominees'        => '/leaderboard',
-            '/profile'         => '/registry',
-            '/profiles'        => '/registry',
+            '/profile'         => '/discover?tab=people',
+            '/profiles'        => '/discover?tab=people',
             '/store'           => '/shop',
             '/merch'           => '/shop',
             '/sponsor'         => '/partner',
@@ -1955,7 +1962,9 @@ return function(App $app) {
         foreach ($aliases as $from => $to) {
             $g->get($from, function ($req, $res) use ($to) {
                 $qs = $req->getUri()->getQuery();
-                return $res->withHeader('Location', $to . ($qs !== '' ? '?' . $qs : ''))
+                // A target may carry its own query (`/discover?tab=people`), so the
+                // visitor's is appended with `&` there rather than a second `?`.
+                return $res->withHeader('Location', $to . ($qs !== '' ? (str_contains($to, '?') ? '&' : '?') . $qs : ''))
                            ->withStatus(301);
             });
         }
@@ -3119,7 +3128,7 @@ return function(App $app) {
         //
         // {@see SystemStatus} measures instead, from evidence the platform already
         // records, and has an honest fourth state for the things it could not check.
-        $g->get('/status', function($req,$res) use ($tv) {
+        $g->get('/status', function($req,$res) use ($tv, $container) {
             $st = SystemStatus::report();
             // The record answers the question the live check cannot: "was it broken
             // earlier?" A supporter whose payment failed at nine and who loads a green page
@@ -3141,7 +3150,50 @@ return function(App $app) {
                 'meta_description' => 'A live check of Africa GATES: voting and profiles, scheduled work, messages going out, payments, email and the AI helpers.',
                 'gates_page'       => 'status',
                 'status_labels'    => SystemStatus::LABELS,
+                // Phase 9 (StatusPageV2): the planned-work notice from its one reader, and
+                // "Get updates" only where mail can actually leave (StatusAlert::senderReady).
+                'planned'          => \AfricaGates\Services\PlannedWork::current(),
+                'can_subscribe'    => \AfricaGates\Services\StatusAlert::senderReady($container->get(\AfricaGates\Services\OtpService::class)),
+                'subscribe_said'   => (static function (): ?string { $m = $_SESSION['status_alert_said'] ?? null; unset($_SESSION['status_alert_said']); return is_string($m) ? $m : null; })(),
             ]);
+        });
+
+        // ── "GET STATUS UPDATES" — double opt-in (Phase 9, StatusAlert) ─────────
+        //
+        // A plain form that posts, throttled per connection, answering the same sentence
+        // whatever happened, then post/redirect/get so a refresh does not resubmit and the
+        // address never lands in a URL. The confirm and stop links SHOW on GET and ACT on
+        // POST: mail scanners fetch every link in a message (the newsletter's rule).
+        $g->post('/status/subscribe', function($req,$res) use ($container) {
+            $mailer = $container->get(\AfricaGates\Services\OtpService::class);
+            if (!\AfricaGates\Services\StatusAlert::senderReady($mailer)) {
+                return $res->withHeader('Location', '/status')->withStatus(303);
+            }
+            $ip = hash('sha256', \AfricaGates\Support\ClientIp::from($req));
+            $rl = $container->get(\AfricaGates\Services\RateLimitService::class);
+            if (!$rl->check($ip, 'status_alert', 10, 3600)) {
+                $_SESSION['status_alert_said'] = \AfricaGates\Support\Translator::t('Too many requests from this connection in the last hour. Try again later.');
+            } else {
+                $r = \AfricaGates\Services\StatusAlert::want((string) (((array) $req->getParsedBody())['email'] ?? ''), $ip,
+                    rtrim(\AfricaGates\Support\SiteUrl::base($req), '/'),
+                    \AfricaGates\Services\Newsletter\NewsletterAudience::transport($mailer));
+                $_SESSION['status_alert_said'] = \AfricaGates\Support\Translator::t($r['message']);
+            }
+            return $res->withHeader('Location', '/status#st-sub')->withStatus(303);
+        });
+        $g->map(['GET', 'POST'], '/status/alerts/{token:[a-f0-9]{32}}/{action:confirm|stop}', function($req,$res,$args) use ($tv) {
+            $token = (string) $args['token']; $action = (string) $args['action'];
+            $A = \AfricaGates\Services\StatusAlert::class;
+            $row = $A::find($token); $done = false;
+            if ($row && $req->getMethod() === 'POST') { $row = $action === 'stop' ? $A::stop($token) : $A::confirm($token); $done = true; }
+            return $tv($req)->render($res->withStatus($row ? 200 : 404), 'pages/status-alert.twig', [
+                'page_title'  => \AfricaGates\Support\Translator::t('Status updates') . ' — Africa GATES',
+                'gates_page'  => 'status',
+                'meta_robots' => 'noindex, nofollow',
+                'alert'       => $row ? ['token' => (string) $row->token, 'action' => $action,
+                                         'confirmed' => $row->confirmed_at !== null, 'stopped' => $row->cancelled_at !== null] : null,
+                'done'        => $done,
+            ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
         });
 
         // ── THE SAME BOARD, FOR ANYTHING THAT IS NOT A PERSON ────────────────

@@ -1,0 +1,100 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/vote/verify` — WHAT HAPPENED TO YOUR VOTES · Phase 5
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The receipt a supporter can show somebody else. Rebuilt after the old page was destroyed
+  (inventory: docs/handoff/inventory/pages--vote-verify.md); no DC draws it, so it is in the
+  ballot's vocabulary. Data: Services\VoteProof::forReference() — the live vote ROWS, never
+  the order's own counter. Its three rules, kept:
+
+  1. It shows the vote rows, each with its own time. A number we print is a claim; the
+     entries behind it are something a reader can weigh.
+  2. Where the counter and the rows disagree, that is SAID, in words, not smoothed into a
+     total.
+  3. An unknown reference is one sentence with no hint whether it exists (VoteProof is not an
+     oracle). Anything not delivered or refunded gets the one action that RUNS the repair —
+     the support assistant asked with the reference — not a chat box to start from nothing.
+#}
+
+{% set colour_tier = '1' %}
+{% set meta_robots = 'noindex, nofollow' %}
+{% set app_bar = {variant: 'child', title: 'Verify a payment'|trans, back: '/vote'} %}
+{% set st = proof.state|default('') %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/vote-pages.css') }}">{% endblock %}
+
+{% block content %}
+<div class="ps">
+  <div class="ps-top">
+    <h1 class="ps-h1">{{ 'What happened to your votes'|trans }}</h1>
+    <p class="ps-p">{{ 'Paste the reference from your receipt — ours, or the one your bank or wallet app shows. This page reads the vote records themselves, not a total we keep about them.'|trans }}</p>
+  </div>
+
+  <form class="ps-find" method="get" action="/vote/verify" role="search">
+    <label class="ag-sr" for="vfRef">{{ 'Payment reference'|trans }}</label>
+    <input class="ps-find__i ps-ref" id="vfRef" type="text" name="ref" value="{{ ref }}" autocomplete="off" spellcheck="false" maxlength="120" placeholder="{{ 'Payment reference'|trans }}">
+    <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Verify'|trans }}</button>
+  </form>
+
+  {% if ref and not proof.found %}
+    <section class="ps-card" role="status">
+      <h2 class="ps-h2">{{ 'Nothing on record for that reference'|trans }}</h2>
+      <p class="ps-p">{{ proof.say|default('') ?: 'Check it against your receipt and try again.'|trans }}</p>
+      <p class="ps-p"><a href="/help/paid-but-no-votes">{{ 'Paid and cannot find your votes?'|trans }}</a></p>
+    </section>
+  {% elseif proof.found %}
+    <section class="ps-card{{ st in ['delivered', 'refunded'] ? '' : ' ps-card--owed' }}" aria-labelledby="vf-h">
+      <h2 class="ps-h2" id="vf-h">
+        {%- if st == 'delivered' -%}{{ proof.delivered == 1 ? 'Delivered — 1 vote is in the tally'|trans : 'Delivered — %n% votes are in the tally'|trans({'%n%': proof.delivered|number_format}) }}
+        {%- elseif st == 'refunded' -%}{{ 'Refunded'|trans }}
+        {%- elseif st == 'pending' -%}{{ 'Not confirmed yet'|trans }}
+        {%- elseif st == 'not_paid' -%}{{ 'This payment did not complete'|trans }}
+        {%- else -%}{{ 'Paid, and the votes are not there'|trans }}{%- endif -%}
+      </h2>
+      <p class="ps-p">
+        {%- if st == 'delivered' %}{{ 'Every vote this order paid for is recorded below, each with the moment it was added.'|trans }}
+        {%- elseif st == 'refunded' %}{{ 'The money was returned, so the votes are correctly absent from the tally.'|trans }}
+        {%- elseif st == 'pending' %}{{ 'The payment provider has not confirmed this payment. Nothing is counted until it does.'|trans }}
+        {%- elseif st == 'not_paid' %}{{ 'The provider reported this payment as failed, so nothing was charged and nothing was counted.'|trans }}
+        {%- elseif st == 'partial' %}{{ 'Some of the votes this order paid for are recorded and some are not. That is our fault, and it is fixable.'|trans }}
+        {%- else %}{{ 'The payment was confirmed and the votes are not in the tally. That is our fault, and it is fixable.'|trans }}{% endif -%}
+      </p>
+      <dl class="ps-facts">
+        <div><dt>{{ 'Reference'|trans }}</dt><dd class="ps-ref">{{ proof.reference }}</dd></div>
+        <div><dt>{{ 'Contribution'|trans }}</dt><dd>₦{{ proof.amount|number_format }}</dd></div>
+        <div><dt>{{ 'Votes ordered'|trans }}</dt><dd>{{ proof.ordered|number_format }}</dd></div>
+        <div><dt>{{ 'Votes in the tally'|trans }}</dt><dd>{{ proof.delivered|number_format }}</dd></div>
+        {% if proof.nominee %}<div><dt>{{ 'For'|trans }}</dt><dd>{{ proof.nominee }}</dd></div>{% endif %}
+        {% if proof.paid_at %}<div><dt>{{ 'Paid'|trans }}</dt><dd>{{ proof.paid_at }}</dd></div>{% endif %}
+        {% if proof.confirmed_at %}<div><dt>{{ 'Confirmed'|trans }}</dt><dd>{{ proof.confirmed_at }}</dd></div>{% endif %}
+        {% if proof.refunded_at %}<div><dt>{{ 'Refunded'|trans }}</dt><dd>{{ proof.refunded_at }}</dd></div>{% endif %}
+      </dl>
+      {% if proof.mismatch %}
+        <p class="ps-warn" role="note"><b>{{ 'Our counter and the tally disagree on this order.'|trans }}</b> {{ 'The order says %c% votes were added; the records below hold %d%. The records are what counts.'|trans({'%c%': proof.claimed|number_format, '%d%': proof.delivered|number_format}) }}</p>
+      {% endif %}
+      {% if st != 'delivered' and st != 'refunded' and st != 'not_paid' %}
+        <div class="ps-acts">
+          <a class="ag-btn ag-btn--primary ag-btn--pill" href="/help?gee=support&amp;ref={{ proof.reference|url_encode }}&amp;ask=1">{{ 'Put it right'|trans }}</a>
+          <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/support">{{ 'Talk to a person'|trans }}</a>
+        </div>
+      {% endif %}
+    </section>
+
+    {% if proof.votes|default([])|length %}
+    <section class="ps-sec" aria-labelledby="vf-rows">
+      <h2 class="ps-h2" id="vf-rows">{{ 'The vote records'|trans }}</h2>
+      <ol class="ps-rows">
+        {% for v in proof.votes %}
+          <li><span>{{ v.weight == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': v.weight|number_format}) }}{% if v.nominee %} · {{ v.nominee }}{% endif %}</span><span class="ps-rows__at">{{ v.at ?: '—' }}</span></li>
+        {% endfor %}
+      </ol>
+    </section>
+    {% endif %}
+  {% endif %}
+
+  <p class="ps-p ps-fine"><a href="/vote">{{ 'Back to voting'|trans }}</a> · <a href="/integrity">{{ 'How paid votes are counted'|trans }}</a></p>
+</div>
+{% endblock %}

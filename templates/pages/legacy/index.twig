@@ -1,0 +1,169 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/legacy` — THE LEGACY VAULT · Phase 6 · LegacyVault.dc.html (view: index) · §8.18
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Written from the DC after the old page was destroyed (inventory:
+  docs/handoff/inventory/pages--legacy--index.md). Every fact from Services\LegacyVault.
+
+  · Filters live in the URL (`?year=&region[]=&q=&sort=`): GET forms and links, so the vault
+    works with no script and a filtered view can be sent to somebody. The region checkboxes
+    and the sort select submit on change through legacy.js; without it each form keeps a
+    visible button.
+  · Grouped by year, newest first, with a count and "Show all N from {year}". Phone draws
+    88px rows inside one card (four per year); tablet and desktop draw cards (six).
+  · The metrics are counted from the vault, never typed: editions (and the countries they
+    span), awards conferred, delegates recorded.
+#}
+
+{% set colour_tier = '1' %}
+{% set _v = vault.view %}
+{% set app_bar = {variant: 'child', title: 'Legacy Vault'|trans, sub: 'Every edition, archived'|trans, back: '/', share: false} %}
+{% set _keep = {q: _v.q, sort: _v.sort != 'new' ? _v.sort : ''}|filter(v => v != '') %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/legacy.css') }}">{% endblock %}
+
+{% macro qs(base, extra, regions) %}{% set _q = base|merge(extra)|filter(v => v != '') %}{% set _s = _q|url_encode %}{% for r in regions %}{% set _s = _s ~ (_s ? '&' : '') ~ 'region%5B%5D=' ~ r %}{% endfor %}{{ _s ? '?' ~ _s }}{% endmacro %}
+{% import _self as m %}
+
+{% block content %}
+<div class="lv">
+  <section class="lv-hero" aria-labelledby="lv-h1">
+    <div class="lv-hero__main">
+      <span class="lv-kicker">{{ 'Legacy Vault'|trans }}</span>
+      <h1 class="lv-h1" id="lv-h1">{{ 'Every edition, archived.'|trans }}</h1>
+      <p class="lv-lede">{{ 'Recognition is a record, not a moment. Each edition becomes part of the permanent vault: searchable, dated and forever credited.'|trans }}</p>
+    </div>
+    <dl class="lv-stats">
+      <div><dd>{{ vault.metrics.editions|number_format }}</dd><dt>{{ vault.metrics.countries == 1 ? 'editions held in 1 country'|trans : 'editions held across %n% countries'|trans({'%n%': vault.metrics.countries}) }}</dt></div>
+      <div><dd>{{ vault.metrics.awards|number_format }}</dd><dt>{{ 'awards conferred'|trans }}</dt></div>
+      <div><dd>{{ vault.metrics.delegates ? vault.metrics.delegates|number_format : '—' }}</dd><dt>{{ vault.metrics.delegates ? 'delegates across all editions'|trans : 'delegates not yet recorded'|trans }}</dt></div>
+    </dl>
+  </section>
+
+  <div class="lv-body">
+    <aside class="lv-rail" aria-label="{{ 'Filter editions'|trans }}">
+      <form class="lv-rail__form" method="get" action="/legacy" data-lv-form>
+        <label class="ag-field ag-field--search lv-search">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+          <input type="search" name="q" value="{{ _v.q }}" autocomplete="off" aria-label="{{ 'Search the vault'|trans }}" placeholder="{{ 'Awards, cities, winners'|trans }}">
+        </label>
+        {% if _v.year %}<input type="hidden" name="year" value="{{ _v.year }}">{% endif %}
+        {% if _v.sort != 'new' %}<input type="hidden" name="sort" value="{{ _v.sort }}">{% endif %}
+        <nav class="lv-facet" aria-labelledby="lv-yr">
+          <span class="lv-facet__t" id="lv-yr">{{ 'Year'|trans }}</span>
+          {% for y in vault.years %}
+            <a class="lv-year" href="/legacy{{ m.qs(_keep, {year: y.key}, _v.region) }}"{% if _v.year == y.key %} aria-current="true"{% endif %}>{{ y.label|trans }}<span>{{ y.n|number_format }}</span></a>
+          {% endfor %}
+        </nav>
+        <fieldset class="lv-facet">
+          <legend class="lv-facet__t">{{ 'Region'|trans }}</legend>
+          {% for k, label in vault.regions %}
+            <label class="lv-check"><input type="checkbox" name="region[]" value="{{ k }}"{{ k in _v.region ? ' checked' }} data-lv-auto><span class="lv-check__box" aria-hidden="true"></span>{{ label|trans }}</label>
+          {% endfor %}
+          <button type="submit" class="ag-btn ag-btn--secondary lv-apply">{{ 'Apply'|trans }}</button>
+        </fieldset>
+      </form>
+      <a class="lv-note" href="/integrity">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/></svg>
+        <span>{{ 'Every announced result is sealed at the moment it is announced, and the seal is never rewritten.'|trans }} <u>{{ 'How sealing works'|trans }}</u></span>
+      </a>
+    </aside>
+
+    <div class="lv-main">
+      <div class="lv-tools">
+        <form method="get" action="/legacy" role="search" aria-label="{{ 'Search the vault'|trans }}">
+          <label class="ag-field ag-field--search lv-search lv-search--bar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+            <input type="search" name="q" value="{{ _v.q }}" enterkeyhint="search" autocomplete="off" aria-label="{{ 'Search the vault'|trans }}" placeholder="{{ 'Awards, cities, winners'|trans }}">
+          </label>
+          {% if _v.year %}<input type="hidden" name="year" value="{{ _v.year }}">{% endif %}
+          {% for r in _v.region %}<input type="hidden" name="region[]" value="{{ r }}">{% endfor %}
+        </form>
+        <div class="lv-filter" role="toolbar" aria-label="{{ 'Filter by year and region'|trans }}">
+          <form class="lv-region" method="get" action="/legacy" data-lv-form>
+            {% if _v.q %}<input type="hidden" name="q" value="{{ _v.q }}">{% endif %}
+            {% if _v.year %}<input type="hidden" name="year" value="{{ _v.year }}">{% endif %}
+            <select name="region[]" aria-label="{{ 'Region'|trans }}" data-lv-auto>
+              <option value="">{{ 'All regions'|trans }}</option>
+              {% for k, label in vault.regions %}<option value="{{ k }}"{{ _v.region|length == 1 and _v.region[0] == k ? ' selected' }}>{{ label|trans }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="lv-region__go">{{ 'Show'|trans }}</button>
+          </form>
+          {% for y in vault.years %}
+            <a class="ag-chip lv-chip" href="/legacy{{ m.qs(_keep, {year: y.key}, _v.region) }}"{% if _v.year == y.key %} aria-current="true"{% endif %}>{{ y.label|trans }}</a>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="lv-count">
+        <span aria-live="polite"><b>{{ vault.shown|number_format }}</b> {{ vault.shown == 1 ? 'edition'|trans : 'editions'|trans }}</span>
+        <form method="get" action="/legacy" data-lv-form class="lv-sort">
+          {% if _v.q %}<input type="hidden" name="q" value="{{ _v.q }}">{% endif %}
+          {% if _v.year %}<input type="hidden" name="year" value="{{ _v.year }}">{% endif %}
+          {% for r in _v.region %}<input type="hidden" name="region[]" value="{{ r }}">{% endfor %}
+          <select name="sort" aria-label="{{ 'Sort'|trans }}" data-lv-auto>
+            <option value="new"{{ _v.sort == 'new' ? ' selected' }}>{{ 'Newest first'|trans }}</option>
+            <option value="old"{{ _v.sort == 'old' ? ' selected' }}>{{ 'Oldest first'|trans }}</option>
+            <option value="delegates"{{ _v.sort == 'delegates' ? ' selected' }}>{{ 'Most delegates'|trans }}</option>
+          </select>
+          <button type="submit" class="lv-region__go">{{ 'Sort'|trans }}</button>
+        </form>
+      </div>
+
+      {% if vault.groups is empty %}
+        <div class="lv-empty">
+          <img src="{{ asset('/assets/img/africa-silhouette.svg') }}" width="56" height="56" alt="">
+          {% if vault.filtered %}
+            <h2 class="lv-empty__t">{{ 'No edition matches that'|trans }}</h2>
+            <a class="ag-btn ag-btn--secondary" href="/legacy">{{ 'Show every edition'|trans }}</a>
+          {% else %}
+            <h2 class="lv-empty__t">{{ 'The vault opens after the first edition'|trans }}</h2>
+            <p class="lv-empty__p">{{ 'Once an edition closes, its winners and full attribution are archived here permanently.'|trans }}</p>
+            <a class="ag-btn ag-btn--primary lv-empty__go" href="/events">{{ 'See upcoming events'|trans }}</a>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      {% for g in vault.groups %}
+        <section class="lv-group" aria-labelledby="lv-g-{{ g.year }}">
+          <div class="lv-group__head"><h2 class="lv-group__t" id="lv-g-{{ g.year }}">{{ g.year }}</h2><span class="lv-group__n">{{ vault.filtered ? '%n% shown'|trans({'%n%': g.n}) : (g.n == 1 ? '1 edition'|trans : '%n% editions'|trans({'%n%': g.n})) }}</span></div>
+          <ul class="lv-cards">
+            {% for e in g.items %}
+              <li>
+                <a class="lv-card" href="{{ e.url }}">
+                  <span class="lv-card__cover">
+                    {% include 'partials/photo.twig' with {kind: 'thing', src: e.cover, name: e.award, title: false} only %}
+                    {% if e.date %}<span class="lv-card__badge">{{ e.date|date('M Y') }}</span>{% endif %}
+                  </span>
+                  <span class="lv-card__body">
+                    <span class="lv-card__place">{{ e.place ?: e.country_names|join(', ') }}</span>
+                    <span class="lv-card__t">{{ e.award }}{% if e.edition %}<span class="lv-card__tail"> · {{ e.edition }}</span>{% endif %}</span>
+                    <span class="lv-card__ed">{{ [e.edition, e.place ?: e.country_names|join(', ')]|filter(v => v)|join(' · ') }}</span>
+                    <span class="lv-card__foot">
+                      <span class="lv-card__facts">{{ [e.delegates ? '%n% delegates'|trans({'%n%': e.delegates|number_format}) : '', e.awards ? (e.awards == 1 ? '1 award'|trans : '%n% awards'|trans({'%n%': e.awards})) : '']|filter(v => v)|join(' · ') }}</span>
+                      <span class="lv-card__go">{{ 'View edition'|trans }}<svg class="ag-ico-dir" width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                    </span>
+                  </span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+          {% if g.n > g.items|length or g.n > 4 %}
+            <a class="lv-more{{ g.n <= g.items|length ? ' lv-more--phone' }}" href="/legacy{{ m.qs(_keep, {year: g.year}, _v.region) }}">{{ 'Show all %n% from %y%'|trans({'%n%': g.n, '%y%': g.year}) }}</a>
+          {% endif %}
+        </section>
+      {% endfor %}
+    </div>
+  </div>
+
+  <figure class="lv-mani">
+    <blockquote class="lv-mani__q">{{ 'Africa’s excellence has always existed. Africa GATES makes sure the world sees it, and that the credit stays attributed.'|trans }}</blockquote>
+    <figcaption class="lv-mani__c"><a href="/philosophy">{{ 'From the Africa GATES philosophy'|trans }}</a></figcaption>
+  </figure>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/legacy.js') }}"></script>{% endblock %}

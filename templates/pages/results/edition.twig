@@ -28,7 +28,7 @@
 {% set app_bar = {variant: 'child', title: 'Results'|trans, sub: e.edition ?: e.year, back: '/results'} %}
 {% set _o = e.overall %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results-honour.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
 
 {% block content %}
 <div class="rs">
@@ -37,7 +37,7 @@
   {% if _o and _o.winner %}
   {% set w = _o.winner %}
   <section class="rs-ov" aria-labelledby="rs-ov-h">
-    <div class="rs-ov__photo">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, alt: 'Portrait of %n%'|trans({'%n%': w.name}), eager: true} only %}</div>
+    <div class="rs-ov__photo" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, alt: 'Portrait of %n%'|trans({'%n%': w.name}), eager: true} only %}</div>
     <div class="rs-ov__body">
       <span class="rs-ov__k"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"/></svg>{{ 'Overall winner · %ed%'|trans({'%ed%': e.edition ?: e.year}) }}</span>
       <h2 class="rs-ov__name" id="rs-ov-h">{{ w.name }}</h2>
@@ -78,7 +78,7 @@
         {% set _w = c.award.winner|default(null) %}
         <li>
           <a class="rs-cat{{ c.status.key == 'withheld' ? ' rs-cat--held' }}" href="{{ c.url ?: '/results/' ~ c.id }}">
-            <span class="rs-cat__av">{% if _w %}{% include 'partials/photo.twig' with {kind: 'person', src: _w.photo, name: _w.name} only %}{% endif %}</span>
+            <span class="rs-cat__av" aria-hidden="true">{% if _w %}{% include 'partials/photo.twig' with {kind: 'person', src: _w.photo, name: _w.name} only %}{% endif %}</span>
             <span class="rs-cat__t">
               <span class="rs-cat__k">{{ c.title }}</span>
               <b>{{ _w ? _w.name : c.status.label|trans }}</b>

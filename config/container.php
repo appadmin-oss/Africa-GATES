@@ -731,7 +731,7 @@ return [
     AccountController::class      => fn(ContainerInterface $c)=>new AccountController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(CommunityService::class)),
     LeaderboardController::class => fn(ContainerInterface $c)=>new LeaderboardController($c->get(Twig::class)),
     ResultsController::class     => fn(ContainerInterface $c)=>new ResultsController($c->get(Twig::class), $c->get(CommunityService::class)),
-    LegacyController::class      => fn(ContainerInterface $c)=>new LegacyController($c->get(Twig::class), $c->get(CacheService::class), $c->get(LegacyService::class)),
+    LegacyController::class      => fn(ContainerInterface $c)=>new LegacyController($c->get(Twig::class)),
     OpportunityController::class => fn(ContainerInterface $c)=>new OpportunityController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OpportunityService::class)),
     EventsController::class      => fn(ContainerInterface $c)=>new EventsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(PaymentService::class), $c->get(RateLimitService::class)),
     BlogController::class        => fn(ContainerInterface $c)=>new BlogController($c->get(Twig::class), $c->get(CacheService::class), $c->get(CommunityService::class)),

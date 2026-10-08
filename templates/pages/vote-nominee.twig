@@ -52,6 +52,7 @@
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/vote.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/ballot.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/vote-pages.css') }}">
   {% include 'partials/seo-head.twig' %}
 {% endblock %}
 
@@ -284,7 +285,7 @@
         </span>
         {% if standing.field >= 2 %}
           {% set _pct = standing.leader_votes > 0 ? (standing.votes * 100 / standing.leader_votes)|round : 100 %}
-          <span class="vn-race__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': _pct}) }}"><span style="width:{{ max(3, _pct) }}%"></span></span>
+          <span class="vn-race__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': _pct}) }}"><span aria-hidden="true" style="width:{{ max(3, _pct) }}%"></span><span class="ag-sr">{{ '%n%% of the leader’s total'|trans({'%n%': _pct}) }}</span></span>
         {% endif %}
         <span class="vn-race__row">
           <span><b class="vn-race__v">{{ n.vote_count|number_format }}</b> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}

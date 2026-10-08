@@ -1338,6 +1338,24 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">The target the <a href="/giving" style="color:var(--cn-ink)">donation page</a> shows progress against. <strong>0 means no target</strong> — the page then prints the raised figure alone, exactly as it did before, because an invented target is worse than none. Progress is summed from confirmed donations on every page load, so it can never drift from the rows underneath it.</p>
     </div>
   </div></div>
+  {#- Planned work on /status (Phase 9). Read back through PlannedWork::stored(), the one
+      reader of these four keys — the page, /status.json and this form ask the same thing. -#}
+  {% set _pw = planned_work|default({title: '', from: '', to: '', note: ''}) %}
+  <div class="ad-card" data-sec="site" data-keys="planned work maintenance status page downtime banner" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Planned work<small>Announced on <a href="/status">the status page</a> from a week before it starts until it ends, then never again.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="planned_work_settings" value="1">
+    <div class="ad-form">
+      <div class="row">
+        <div><label for="f-status_planned_title">What is affected</label><input type="text" name="status_planned_title" id="f-status_planned_title" maxlength="120" value="{{ _pw.title }}"></div>
+        <div></div>
+      </div>
+      <div class="row">
+        <div><label for="f-status_planned_from">Starts</label><input type="datetime-local" name="status_planned_from" id="f-status_planned_from" value="{{ _pw.from ? _pw.from|date('Y-m-d\\TH:i') : '' }}"></div>
+        <div><label for="f-status_planned_to">Ends</label><input type="datetime-local" name="status_planned_to" id="f-status_planned_to" value="{{ _pw.to ? _pw.to|date('Y-m-d\\TH:i') : '' }}"></div>
+      </div>
+      <div><label for="f-status_planned_note">What people will notice</label><textarea name="status_planned_note" id="f-status_planned_note" maxlength="400" rows="2">{{ _pw.note }}</textarea></div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Clear "What is affected" to withdraw a notice. A window whose end is before its start is not shown.</p>
+    </div>
+  </div></div>
   <div class="ad-card" data-sec="site" data-keys="fund allocation where donations go destinations giving page scholarships mentorship grants" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Where donations go<small>The destinations printed on <a href="/giving">the giving page</a>, under &ldquo;Where donations go&rdquo;.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="fund_allocation_settings" value="1">
     <div class="ad-form">

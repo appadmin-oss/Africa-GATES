@@ -37,7 +37,7 @@
 {% set app_bar = {variant: 'child', title: r.category.title, sub: r.programme ~ (r.edition ? ' · ' ~ r.edition), back: '/results/' ~ r.programme_slug ~ '-' ~ r.cycle_year} %}
 {% set _edition_url = '/results/' ~ r.programme_slug ~ '-' ~ r.cycle_year %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/results-honour.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
 
 {% block content %}
 <div class="rs">
@@ -68,7 +68,7 @@
           <div class="rs-win__top">
             <span class="rs-win__k">{{ r.category.title }} · {{ r.dead_heat ? 'Dead heat'|trans : 'Winner'|trans }}</span>
             <div class="rs-win__row">
-              <span class="rs-win__av">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, alt: 'Portrait of %n%'|trans({'%n%': w.name})} only %}</span>
+              <span class="rs-win__av" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, alt: 'Portrait of %n%'|trans({'%n%': w.name})} only %}</span>
               <div class="rs-win__who"><h2 class="rs-win__name" id="rs-win-h">{{ w.name }}</h2><span>{{ r.programme }}{% if r.edition %} · {{ r.edition }}{% endif %}</span></div>
               <div class="rs-win__idx"><b>{{ w.cpi }}</b><span>{{ 'out of 1000'|trans }}</span></div>
             </div>
@@ -91,8 +91,8 @@
               {%- endif -%}
             </p>
             <div class="rs-halves">
-              <div><span>{{ 'Public votes · %p%%'|trans({'%p%': cpct}) }}</span><b>{{ w.community_points }} / {{ (cpct * 10) }}</b><span class="rs-halves__bar"><i class="rs-halves__c" style="width:{{ cpct > 0 ? (w.community_points / (cpct * 10) * 100)|round : 0 }}%"></i></span></div>
-              <div><span>{{ 'Judges · %p%%'|trans({'%p%': jpct}) }}</span><b>{{ w.judge_points }} / {{ (jpct * 10) }}</b><span class="rs-halves__bar"><i class="rs-halves__j" style="width:{{ jpct > 0 ? (w.judge_points / (jpct * 10) * 100)|round : 0 }}%"></i></span></div>
+              <div><span>{{ 'Public votes · %p%%'|trans({'%p%': cpct}) }}</span><b>{{ w.community_points }} / {{ (cpct * 10) }}</b><span class="rs-halves__bar" aria-hidden="true"><i aria-hidden="true" class="rs-halves__c" style="width:{{ cpct > 0 ? (w.community_points / (cpct * 10) * 100)|round : 0 }}%"></i><span class="ag-sr">{{ w.community_points }} / {{ cpct * 10 }}</span></span></div>
+              <div><span>{{ 'Judges · %p%%'|trans({'%p%': jpct}) }}</span><b>{{ w.judge_points }} / {{ (jpct * 10) }}</b><span class="rs-halves__bar" aria-hidden="true"><i aria-hidden="true" class="rs-halves__j" style="width:{{ jpct > 0 ? (w.judge_points / (jpct * 10) * 100)|round : 0 }}%"></i><span class="ag-sr">{{ w.judge_points }} / {{ jpct * 10 }}</span></span></div>
             </div>
           </div>
         </section>
@@ -188,7 +188,7 @@
         {% if thread %}
           <p class="rs-sec__p">{{ 'This result is a post in the Pulse. Replies here are replies there — one conversation, one moderation queue.'|trans }}</p>
           {% if is_member|default(false) %}
-            <form class="rs-reply" data-rs-reply data-thread="{{ thread.id }}" data-held="{{ 'Thanks — a moderator will look at this before it appears.'|trans }}">
+            <form class="rs-reply" data-rs-reply data-thread="{{ thread.id }}" data-held="{{ 'Thanks — a moderator will look at this before it appears.'|trans }}" data-failed="{{ 'That did not send. Try again in a moment.'|trans }}" data-me="{{ member_name|default('') }}">
               <label class="ag-sr" for="rsBody">{{ 'Your reply'|trans }}</label>
               <textarea class="rs-reply__t" id="rsBody" name="body" maxlength="2000" rows="3" placeholder="{{ 'Congratulate them, or say what you make of the numbers.'|trans }}"></textarea>
               <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Reply'|trans }}</button>

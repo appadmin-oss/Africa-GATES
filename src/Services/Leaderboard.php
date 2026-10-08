@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\AfricaRegion;
 use AfricaGates\Support\Maintenance;
 use AfricaGates\Support\SchemaHas;
 use AfricaGates\Support\Translator;
@@ -40,14 +41,11 @@ final class Leaderboard
     public const FIRST = 40;
     public const MORE  = 20;
 
-    /** `gates_profiles.region` (an ENUM) → the words. Order is the select's. */
-    public const REGIONS = [
-        'west'    => 'West Africa',
-        'east'    => 'East Africa',
-        'north'   => 'North Africa',
-        'central' => 'Central Africa',
-        'south'   => 'Southern Africa',
-    ];
+    /**
+     * `gates_profiles.region` (an ENUM) → the words. The SAME five keys and words as every
+     * derived region ({@see AfricaRegion}), so `?region=east` means one thing site-wide.
+     */
+    public const REGIONS = AfricaRegion::LABELS;
 
     /** Tier → swatch token. The tier's NAME is always beside it (colour is never alone). */
     public const TIER_SWATCH = [

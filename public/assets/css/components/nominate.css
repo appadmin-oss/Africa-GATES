@@ -227,7 +227,8 @@
 .nf-seg__o > input{ position:absolute; opacity:0; inset:0; margin:0; cursor:pointer }
 .nf-seg__o > span{
   flex:1; min-height:44px; padding:8px 6px; border-radius:11px; border:1px solid transparent;
-  display:flex; align-items:center; justify-content:center; text-align:center;
+  display:block; text-align:center; line-height:26px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   font-weight:600; font-size:var(--ag-fs-14); color:var(--ag-ink);
 }
 .nf-seg__o > input:checked + span{ background:var(--ag-surface); border-color:var(--ag-line) }
@@ -381,3 +382,30 @@
   .nf-anon__sw::after{ transition:none !important }
   .nf-bar__go:active{ transform:none }
 }
+
+
+/* ══ The done screen (/nominate/success) ══════════════════════════════════════
+   NominationFlow.dc.html step 6, under the inline `nominate` celebration. */
+.nd{ max-width:640px; margin:0 auto; padding:16px var(--ag-gutter) 32px; display:flex; flex-direction:column; gap:20px }
+@media (min-width:1024px){ .nd{ padding-top:40px } }
+.nd__ref{ margin:0; align-self:center }
+.nd__ref-code{ display:inline-block; padding:6px 10px; border-radius:var(--ag-r-pill); background:var(--ag-tint); font-family:var(--ag-font-mono); font-weight:500; font-size:var(--ag-fs-12); color:var(--ag-ink) }
+.nd__who{ display:flex; gap:14px; align-items:center; padding:14px 16px; background:var(--ag-surface); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-16) }
+.nd__av{ flex:none; width:48px; height:48px; border-radius:50%; overflow:hidden }
+.nd__whob{ min-width:0; display:flex; flex-direction:column; gap:3px }
+.nd__whob b{ font-weight:700; font-size:var(--ag-fs-15-5) }
+.nd__whob span{ font-size:var(--ag-fs-13); line-height:1.4; color:var(--ag-ink-2) }
+.nd__whob .nd__ed{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.nd__share{ display:flex; gap:8px; flex-wrap:wrap }
+.nd__btn,
+.nd__btn:hover{
+  flex:1 1 110px; display:flex; align-items:center; justify-content:center; min-height:48px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface);
+  color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-15); cursor:pointer;
+}
+.nd__btn--go,
+.nd__btn--go:hover{ border-color:transparent; background:var(--ag-green); color:var(--ag-surface) }
+.nd__fine{ margin:0; font-size:var(--ag-fs-13); line-height:1.5; color:var(--ag-soft) }
+.nd__next{ display:flex; flex-direction:column; gap:12px }
+.nd__k{ margin:0; font-size:var(--ag-fs-14); font-weight:700; color:var(--ag-soft) }
+.nd__p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }

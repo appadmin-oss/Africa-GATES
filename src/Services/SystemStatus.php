@@ -96,13 +96,16 @@ final class SystemStatus
      */
     public static function report(): array
     {
+        // Each check with the heading it is drawn under on /status (StatusPageV2 groups its
+        // rows by what a visitor was doing). Assigned HERE, beside the check, so a renamed
+        // component keeps its group and the page never matches a group by the row's words.
         $components = [
-            self::database(),
-            self::scheduledWork(),
-            self::queue(),
-            self::payments(),
-            self::mail(),
-            self::ai(),
+            ['group' => 'Taking part']          + self::database(),
+            ['group' => 'Giving']               + self::payments(),
+            ['group' => 'Keeping you informed'] + self::mail(),
+            ['group' => 'Keeping you informed'] + self::queue(),
+            ['group' => 'Behind the scenes']    + self::scheduledWork(),
+            ['group' => 'Behind the scenes']    + self::ai(),
         ];
 
         return [
@@ -230,6 +233,9 @@ final class SystemStatus
             }, $report['components']),
             'uptime'      => $timeline['uptime'],
             'incidents'   => $timeline['incidents'],
+            // The planned-work notice the page shows, from its one reader (Phase 9). The
+            // page announces it, so the board does too — and nothing more than the page.
+            'planned'     => PlannedWork::current(),
             'window_days' => self::HISTORY_DAYS,
         ];
     }

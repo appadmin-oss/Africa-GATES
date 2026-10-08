@@ -1011,7 +1011,7 @@ final class ActivityFeedService
             ['Nominate someone',  '/nominate',          'nomination submit put forward entry enter'],
             ['Results',           '/results',           'winner winners who won award awards decided standing outcome announcement'],
             ['Leaderboard',       '/leaderboard',       'rankings standings cpi cultural power index scores top'],
-            ['The Registry',      '/registry',          'profiles directory people search nominees browse'],
+            ['The Registry',      '/discover?tab=people', 'profiles directory people search nominees browse'],
             ['Integrity Center',  '/integrity',         'how voting works fraud audit methodology scoring rules trust'],
             ['Pulse',             '/pulse',             'feed posts community latest news updates'],
             ['Community',         '/community',         'forum threads discussion channels talk'],

@@ -1,0 +1,50 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  `/vote/{programme}/{id-name}/messages` — every approved message for one nominee.
+  Phase 5, rebuilt after the old page was destroyed (inventory: docs/handoff/inventory/
+  pages--vote-messages.md). A PAGE, not a "load more" button: it has a URL a nominee can send
+  to their family, crawlers and readers without JavaScript see all of it, and each message
+  has exactly one renderer — partials/vote-message.twig, shared with the ballot's wall and
+  /m/{token} (VoteMessageTest). Held and rejected messages are not here, not counted and
+  not hinted at: VoteMessageService::wall() returns approved only.
+#}
+
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Messages'|trans, sub: nom.name, back: ballot_url} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote-pages.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+
+{% block content %}
+<div class="vs">
+  <a class="vs-back" href="{{ ballot_url }}"><span class="ag-ico-dir" aria-hidden="true">←</span> {{ 'Back to %n%'|trans({'%n%': nom.name}) }}</a>
+  <header class="vs-head">
+    <span class="vs-head__av">{% include 'partials/photo.twig' with {kind: 'person', src: nom.photo_path, name: nom.name} only %}</span>
+    <div>
+      <h1 class="vs-h1">{{ 'Messages for %n%'|trans({'%n%': nom.name}) }}</h1>
+      <p class="vs-p">{{ nom.category }}{% if total %} · {{ total == 1 ? '1 message from a verified voter'|trans : '%n% messages from verified voters'|trans({'%n%': total|number_format}) }}{% endif %}</p>
+    </div>
+  </header>
+
+  {% if messages|length %}
+    <ul class="vmi-list">
+      {% for m in messages %}{% include 'partials/vote-message.twig' with {m: m} only %}{% endfor %}
+    </ul>
+  {% else %}
+    <p class="vs-empty">{{ 'No messages yet. Vote and add a sentence about why — it appears here once a moderator has read it.'|trans }}</p>
+  {% endif %}
+
+  {% if pages > 1 %}
+  <nav class="vs-pager" aria-label="{{ 'Pages'|trans }}">
+    {% if page > 1 %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="?page={{ page - 1 }}">{{ 'Newer'|trans }}</a>{% endif %}
+    <span>{{ 'Page %p% of %n%'|trans({'%p%': page, '%n%': pages}) }}</span>
+    {% if page < pages %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="?page={{ page + 1 }}">{{ 'Older'|trans }}</a>{% endif %}
+  </nav>
+  {% endif %}
+
+  <a class="ag-btn ag-btn--primary ag-btn--pill vs-cta" href="{{ ballot_url }}">{{ 'Vote for %n%'|trans({'%n%': nom.name|split(' ')|first}) }}</a>
+  <p class="vs-fine">{{ 'Something here that should not be?'|trans }} <a href="/support">{{ 'Tell us'|trans }}</a></p>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/vote.js') }}"></script>{% endblock %}

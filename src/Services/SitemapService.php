@@ -243,7 +243,6 @@ final class SitemapService
             // reason until it was added below.
             ['/winners',       '0.9', 'weekly'],
             ['/nominate',      '0.9', 'weekly'],
-            ['/registry',      '0.8', 'daily'],
             // Discover (Phase 4) and its Live tab, which absorbed `/activity` — that page
             // was never listed here, and its address is a 301 now. The tab is a real,
             // server-rendered view at its own URL, so a crawler is told about it.

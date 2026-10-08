@@ -177,6 +177,12 @@ final class Maintenance
             // ticket alerts beside it, and each row is CLAIMED before it is sent (AwardAlert).
             $ran[] = ['award-alerts', $this->task('award-alerts',
                 fn() => \AfricaGates\Services\AwardAlert::sweep($this->mailer()))];
+            // "Get status updates" (Phase 9): a problem the status record measured starting or
+            // being seen to recover. Every tick, because the tick IS what records the status
+            // (SystemStatus::record()); each (incident, address) is claimed in
+            // gates_broadcast_log before it is sent, so overlapping ticks mail nobody twice.
+            $ran[] = ['status-alerts', $this->task('status-alerts',
+                fn() => \AfricaGates\Services\StatusAlert::sweep($this->mailer()))];
             // The interview recording bot. On every tick, and it has to be: this is the
             // path that sends a bot to a sitting starting in ten minutes, reads the
             // transcript out of one that is running, and pulls a bot out of one that

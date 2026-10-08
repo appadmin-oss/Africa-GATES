@@ -44,7 +44,7 @@
     {% if front.open_categories > 0 %}
     <div class="vh-mine" data-ballot-line hidden>
       <span class="vh-mine__t" data-ballot-words data-of="{{ 'You’ve voted in %n% of %m% open categories'|trans }}"></span>
-      <span class="vh-mine__bar" aria-hidden="true"><span data-ballot-fill></span></span>
+      <span class="vh-mine__bar" aria-hidden="true"><span title="{{ 'Categories voted on this device'|trans }}" data-ballot-fill></span></span>
     </div>
     {% endif %}
 
@@ -101,7 +101,7 @@
         {% for p in front.all|filter(p => p.open) %}
           <li data-ballot-prog="{{ p.id }}" data-cats="{{ p.cats }}">
             <span class="vh-mine-list__r"><span class="vh-mine-list__t">{{ p.title }}</span><span class="vh-mine-list__n" data-n data-of="{{ '%n% of %m%'|trans }}">{{ '%n% of %m%'|trans({'%n%': 0, '%m%': p.cats}) }}</span></span>
-            <span class="vh-mine-list__bar" aria-hidden="true"><span data-fill></span></span>
+            <span class="vh-mine-list__bar" aria-hidden="true"><span title="{{ 'Categories voted on this device'|trans }}" data-fill></span></span>
           </li>
         {% endfor %}
       </ul>

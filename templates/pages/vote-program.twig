@@ -133,7 +133,7 @@
                   {{- n.tagline ?: n.organisation -}}
                   {%- if n.shortlisted|default(false) %} · {{ 'Shortlisted'|trans }}{% endif -%}
                 </span>
-                {% if n.field > 1 %}<span class="vp-row__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}"><span data-bar style="width:{{ n.pct }}%" class="{{ n.is_leader ? 'is-lead' }}"></span></span>{% endif %}
+                {% if n.field > 1 %}<span class="vp-row__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}"><span aria-hidden="true" data-bar style="width:{{ n.pct }}%" class="{{ n.is_leader ? 'is-lead' }}"></span><span class="ag-sr">{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}</span></span>{% endif %}
                 <span class="vp-row__figs vp-row__figs--in">
                   <b data-votes>{{ n.vote_count|number_format }}</b> <span>{{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</span>
                   {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
@@ -161,7 +161,7 @@
     <aside class="vp-rail" aria-label="{{ 'Your ballot'|trans }}">
       <div class="vp-card">
         <div class="vp-card__row"><h2 class="vp-card__t">{{ 'Your ballot'|trans }}</h2><span class="vp-card__n" data-ballot-ratio>0/{{ _f.categories }}</span></div>
-        <span class="vp-card__bar" role="progressbar" aria-label="{{ 'Categories voted on this device'|trans }}" aria-valuemin="0" aria-valuemax="{{ _f.categories }}" aria-valuenow="0" data-ballot-bar><span data-ballot-fill></span></span>
+        <span class="vp-card__bar" role="progressbar" aria-label="{{ 'Categories voted on this device'|trans }}" aria-valuemin="0" aria-valuemax="{{ _f.categories }}" aria-valuenow="0" data-ballot-bar><span title="{{ 'Categories voted on this device'|trans }}" data-ballot-fill></span></span>
         <span class="vp-card__p" data-ballot-words data-none="{{ 'Pick a nominee in any category to start'|trans }}" data-some="{{ '%n% categories left to vote in'|trans }}" data-all="{{ 'All categories voted. Thank you.'|trans }}">{{ 'Pick a nominee in any category to start'|trans }}</span>
         <span class="vp-card__lock">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
@@ -242,7 +242,7 @@
   <div class="vp-bar" data-bottom-ui>
     <span class="vp-bar__t">
       <span class="vp-bar__w" data-ballot-words data-of="{{ '%n% of %m% categories voted'|trans }}">{{ '%n% of %m% categories voted'|trans({'%n%': 0, '%m%': _f.categories}) }}</span>
-      <span class="vp-bar__bar" aria-hidden="true"><span data-ballot-fill></span></span>
+      <span class="vp-bar__bar" aria-hidden="true"><span title="{{ 'Categories voted on this device'|trans }}" data-ballot-fill></span></span>
     </span>
     <button type="button" class="ag-btn vp-bar__go" data-review-open disabled>{{ 'Review votes'|trans }}</button>
   </div>

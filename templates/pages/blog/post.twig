@@ -33,7 +33,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="bl-prog" role="progressbar" aria-label="{{ 'Reading progress'|trans }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-blog-progress><span class="bl-prog__fill" data-blog-fill></span></div>
+<div class="bl-prog" role="progressbar" aria-label="{{ 'Reading progress'|trans }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-blog-progress><span class="bl-prog__fill" aria-hidden="true" data-blog-fill></span></div>
 <article class="bp" data-blog>
   <header class="bp__head">
     <a class="bp__back" href="/blog"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>{{ 'Blog'|trans }}</a>
@@ -105,7 +105,7 @@
   </button>
   <span class="bp-player__w">
     <span class="bp-player__top"><span class="bp-player__t">{{ post.title }}</span><span class="bp-player__time" data-blog-time>0:00</span></span>
-    <span class="bp-player__bar"><span class="bp-player__fill" data-blog-pfill></span></span>
+    <span class="bp-player__bar" aria-hidden="true"><span class="bp-player__fill" data-blog-pfill></span></span>
   </span>
   <button class="bp-player__sp" type="button" data-blog-speed aria-label="{{ 'Playback speed'|trans }}">1×</button>
   <button class="bp-player__x" type="button" data-blog-close aria-label="{{ 'Close player'|trans }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>

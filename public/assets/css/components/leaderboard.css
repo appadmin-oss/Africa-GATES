@@ -14,7 +14,7 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 
 .lb{
-  max-width:1180px; margin:0 auto; padding:4px 16px 32px;
+  box-sizing:content-box; max-width:1180px; margin:0 auto; padding:4px 16px 32px;
   display:flex; flex-direction:column; gap:20px;
 }
 
