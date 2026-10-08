@@ -2157,11 +2157,18 @@ return function(App $app) {
                        ->withStatus(301);
         });
         // ── THE SEARCH PALETTE'S DATA (REFERENCE §7.1) ───────────────────────
-        // `GET /search?q=&scope=` IS the endpoint, as JSON. It replaced
-        // `/activity/search` on 3 Oct 2026 (owner, GAPS C16) — one search URL, the one
-        // the handoff names. Same index behind it (ActivityFeedService); the scope map
-        // stays on the server, grouped there, so the script never names a source.
-        $g->get('/search',         \AfricaGates\Controllers\SearchController::class.':search');
+        // `GET /search.json?q=&scope=` is the endpoint (owner, AUDIT 5 Oct 2026, Q13 —
+        // superseding the 3 Oct choice of `/search` itself). Same index behind it
+        // (ActivityFeedService); the scope map stays on the server, grouped there, so the
+        // script never names a source. `/search` is a PAGE address — somebody types it, or
+        // a browser's site search sends them there — so it 301s to Discover with only the
+        // query kept, as `/activity` does.
+        $g->get('/search.json',    \AfricaGates\Controllers\SearchController::class.':search');
+        $g->get('/search', function ($req, $res) {
+            $q = $req->getQueryParams()['q'] ?? null;
+            return $res->withHeader('Location', '/discover' . (is_string($q) && trim($q) !== '' ? '?' . http_build_query(['q' => $q], '', '&', PHP_QUERY_RFC3986) : ''))
+                       ->withStatus(301);
+        });
         $g->get('/nominate',      NominationController::class.':form');
         $g->post('/nominate',     NominationController::class.':submit');
         // The done screen (NominationFlow.dc.html step 6): a controller method now, because it

@@ -11,7 +11,7 @@
 
    ── THE SCRIPT NEVER NAMES A SOURCE ─────────────────────────────────────────
 
-   `GET /search?q=&scope=` answers with GROUPS already formed on the server from
+   `GET /search.json?q=&scope=` answers with GROUPS already formed on the server from
    ActivityFeedService::SCOPES. This file draws them in the order they arrive and knows
    nothing of which source belongs to which chip — a second copy of that map here would
    be two lists that drift, visibly as a result under the wrong heading, invisibly as one
@@ -162,7 +162,7 @@
       var q = input.value.trim();
       var mine = ++seq;
       if (q.length >= 2) say(words('searching'));
-      var url = '/search?q=' + encodeURIComponent(q) + (scope ? '&scope=' + encodeURIComponent(scope) : '');
+      var url = '/search.json?q=' + encodeURIComponent(q) + (scope ? '&scope=' + encodeURIComponent(scope) : '');
       fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {

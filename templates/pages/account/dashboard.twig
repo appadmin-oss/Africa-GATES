@@ -342,18 +342,20 @@
     </form>
   </section>
   <nav class="ag-list" aria-label="{{ 'Settings'|trans }}">
-    {% set _rows = [
-      {href: '/account/notifications', label: 'Notifications'|trans, value: unread ? ('%n% new'|trans({'%n%': unread})) : ''},
-      {href: '/account/interests', label: 'What you care about'|trans, value: interests|length ? interests|map(k => _labels[k]|default(k)|trans)|join(', ') : 'Not chosen'|trans},
-      {href: '/account/display', label: 'Display & reading'|trans, value: ''}
-    ] %}
-    {% for r in _rows %}
-      <a class="ag-list__row" href="{{ r.href }}">
-        <span class="ag-list__label">{{ r.label }}</span>
-        {% if r.value %}<span class="ag-list__value acc__val">{{ r.value }}</span>{% endif %}
-        <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
-      </a>
-    {% endfor %}
+    <a class="ag-list__row" href="/account/notifications">
+      <span class="ag-list__label">{{ 'Notifications'|trans }}</span>
+      {% if unread %}<span class="ag-list__value acc__val">{{ '%n% new'|trans({'%n%': unread}) }}</span>{% endif %}
+      <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+    </a>
+    <a class="ag-list__row" href="/account/interests">
+      <span class="ag-list__label">{{ 'What you care about'|trans }}</span>
+      <span class="ag-list__value acc__val">{{ interests|length ? interests|map(k => _labels[k]|default(k)|trans)|join(', ') : 'Not chosen'|trans }}</span>
+      <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+    </a>
+    <a class="ag-list__row" href="/account/display">
+      <span class="ag-list__label">{{ 'Display & reading'|trans }}</span>
+      <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+    </a>
   </nav>
   {# ── Your details ──────────────────────────────────────────────────────────── #}
   <section class="acc__sec" id="profile" aria-labelledby="acc-prof-h">
