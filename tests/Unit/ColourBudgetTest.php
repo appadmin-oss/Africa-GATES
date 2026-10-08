@@ -284,12 +284,23 @@ final class ColourBudgetTest extends TestCase
         }
         sort($claimed);
 
-        // The two holders — results/edition.twig and results/hall.twig — were destroyed
-        // with the old pages; the privilege is recorded in their inventories
-        // (docs/handoff/inventory/) and a rebuilt page that claims it adds itself here,
-        // never a third.
-        $this->assertSame([], $claimed,
-            'a page is claiming the honour band — only the rebuilt edition and hall pages may, and only by adding themselves here.');
+        // The two holders, back from the rebuild. They were destroyed with the old pages
+        // and the expected list was emptied with them — a debt both inventories record by
+        // name ('expected list emptied', guard kept, edited: see
+        // docs/handoff/inventory/pages--results--edition.md and pages--results--hall.md),
+        // and each rebuilt page declares the band again in its own header comment.
+        //
+        // An empty list under this test's own name was never the privilege being
+        // withheld: it is this guard asserting that NOBODY holds the band, which is the
+        // one shape that cannot catch a third page taking it. The list has to be the two,
+        // because the privilege is only safe as a list of two — that is the whole claim,
+        // and a guard that passes while the thing it names does not exist is not holding
+        // it. Named, so that losing one of the two fails here as loudly as gaining a third.
+        $this->assertSame([
+            'templates/pages/results/edition.twig',
+            'templates/pages/results/hall.twig',
+        ], $claimed,
+            'the honour band is a list of two — the decided edition and the hall of fame. A third page may not claim it, and neither of those two may quietly drop it.');
     }
 
     /**
