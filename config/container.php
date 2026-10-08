@@ -524,6 +524,9 @@ return [
             'media_url',
             [\AfricaGates\Support\Media::class, 'url']
         ));
+        // A feed's "· 3h", and a member's text with its links made links (escaped first).
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter('ago', [\AfricaGates\Support\Ago::class, 'of']));
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter('linked', [\AfricaGates\Support\TextLinks::class, 'html'], ['is_safe' => ['html']]));
         // `{{ asset('/assets/js/gee.js') }}` → the path with a CONTENT-HASH cache
         // buster. Replaces `?v={{ asset_version }}`, which in production returned
         // the pinned ASSET_VERSION — shipped as "v1", bumped by a deploy step this

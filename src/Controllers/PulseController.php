@@ -163,58 +163,104 @@ final class PulseController
             'count' => $this->feed->newSince($after, $chan ?: null, self::mediaFilter($q))]);
     }
 
+    /**
+     * GET /pulse, /pulse/reels — PulsePage.dc.html.
+     *
+     * Tabs are addresses (`?tab=following|alerts|saved`), so Back, a bookmark and the no-script
+     * page all work; "Show older posts" is `?cursor=` and, asked with `fragment=1`, answers
+     * only the cards, drawn by the same partial as the first page — one renderer, so the
+     * third page cannot come out subtly different from the first.
+     */
     public function index(Request $req, Response $res): Response
     {
-        $data = $this->cache->remember('pulse:home', 600, function () {
-            return [
-                'posts'   => $this->safe(fn() => DB::table('gates_posts')->where('status', 'published')
-                    ->orderByDesc('published_at')->limit(8)->get()->map(fn($r) => (array)$r)->all()),
-                'events'  => $this->safe(fn() => DB::table('gates_site_events')->where('status', 'published')
-                    ->where('event_date', '>=', date('Y-m-d H:i:s'))->orderBy('event_date')->limit(6)
-                    ->get()->map(fn($r) => (array)$r)->all()),
-                'threads' => $this->safe(fn() => DB::table('gates_threads')
-                    ->where('status', 'approved')
-                    ->orderByDesc('id')->limit(5)->get()->map(fn($r) => (array)$r)->all()),
-            ];
-        }, ['registry']);
+        $q      = $req->getQueryParams();
+        $member = UserAccountService::memberForForms();
+        $uid    = $member ? (int) $member['id'] : null;
+        $tab    = in_array($q['tab'] ?? '', ['following', 'alerts', 'saved'], true) ? (string) $q['tab'] : 'foryou';
+        if (!$member && $tab !== 'foryou') $tab = 'foryou';   // the member tabs have nothing to show a guest
+        $media  = str_ends_with(rtrim($req->getUri()->getPath(), '/'), '/reels') ? 'video' : self::mediaFilter($q);
+        $cursor = isset($q['cursor']) ? max(0, (int) $q['cursor']) : null;
 
-        // Four, not eight: the stories row that consumed the other four is gone,
-        // and the rail shows four. Fetching rows nothing renders is how a query
-        // grows a cost nobody can trace back to a feature.
-        $leaders = $this->cache->remember('pulse:leaders', 600, fn() => $this->profiles->getLeaderboard(4), ['leaderboard']);
+        $scope = match ($tab) {
+            'following' => $this->feed?->followingFor((int) $uid),
+            'saved'     => ['ids' => $this->feed?->savedFor((int) $uid) ?? []],
+            default     => null,
+        };
+        $page = $tab === 'alerts' ? ['items' => [], 'next_cursor' => null]
+              : ($this->feed?->page($cursor ?: null, PulseFeedService::PAGE, $uid, null, $media, $scope)
+                 ?? ['items' => [], 'next_cursor' => null]);
 
-        // The first page is rendered server-side and every later page arrives from
-        // /api/pulse/feed — so both come from the SAME assembler. Two code paths
-        // building the same card is how the third page ends up subtly different
-        // from the first, and it is also why this is not cached: `cheered` and
-        // `saved` are per-viewer, and a shared cache would show one member's
-        // likes to everybody.
-        $first = $this->feed?->page(null, PulseFeedService::PAGE, $this->viewerId())
-                 ?? ['items' => [], 'next_cursor' => null];
+        // A later page, asked for by the script: only the cards.
+        if (($q['fragment'] ?? '') === '1') {
+            return $this->view->render($res, 'pages/pulse/_cards.twig', ['feed' => $page['items'], 'is_member' => (bool) $member]);
+        }
+
+        $alerts = $member ? (new AlertService())->forMember((int) $member['id'], (string) $member['email']) : [];
+        $unread = count(array_filter($alerts, static fn ($a) => $a['unread']));
 
         return $this->view->render($res, 'pages/pulse.twig', [
             'page_title'       => 'Pulse — Africa GATES',
-            'meta_description' => 'Pulse — the living feed of Africa GATES: the latest posts, events, and the community shaping the continental Cultural Power Index.',
+            'meta_description' => 'Pulse — what people across Africa GATES are sharing: news, thanks, results as they are announced, and the people behind them.',
             'gates_page'       => 'pulse',
-            'posts'            => $data['posts'],
-            'events'           => $data['events'],
-            'threads'          => $data['threads'],
-            'leaders'          => $leaders,
-            // The composer's limit comes from the controller, so the textarea's
-            // maxlength and the server's truncation cannot disagree.
+            'page_id'          => 'pulse',
+            'tab'              => 'pulse',
+            'pulse_tab'        => $tab,
+            'reels'            => $media === 'video',
+            'member'           => $member,
+            'feed'             => $page['items'],
+            'feed_cursor'      => $page['next_cursor'],
+            'alerts'           => $tab === 'alerts' ? $alerts : [],
+            'unread'           => $unread,
+            // The composer's limit comes from the controller, so the textarea's maxlength
+            // and the server's truncation cannot disagree.
             'pulse_max'        => self::MAX_LEN,
-            'feed'             => $first['items'],
-            'feed_cursor'      => $first['next_cursor'],
-            // Channel chips, driven by where people have actually posted.
-            'channels'         => $this->feed?->channels() ?? [],
-            // The newest id the reader has seen. The new-posts pill counts past it.
-            'feed_head'        => $first['items'][0]['id'] ?? 0,
-            // The real ceiling, which is the smaller of ours and what PHP will
-            // accept — a host with upload_max_filesize = 8M silently discards
-            // anything larger, so promising 25MB there produces a bug nobody can
-            // reproduce anywhere else.
             'media_limit'      => PulseMediaService::humanLimit(),
-        ]);
+            'rail'             => $this->rail($uid),
+        ] + ($tab !== 'foryou' || $cursor ? ['meta_robots' => 'noindex, follow'] : []));
+    }
+
+    /**
+     * The desktop rail: what is being voted on now, who was recognised this week, and awards
+     * worth following. Each list is the platform's own record — nothing on it is a sample.
+     *
+     * @return array{voting:list<array>, recognised:list<array>, follow:list<array>}
+     */
+    private function rail(?int $uid): array
+    {
+        $voting = $this->cache->remember('pulse:voting', 300, function (): array {
+            $out = [];
+            foreach ((new \AfricaGates\Services\AwardService())->getActiveProgrammesWithStatus() as $p) {
+                if (empty($p['phase']['is_voting_open'])) continue;
+                $days = null;
+                if (!empty($p['voting_close'])) {
+                    $days = max(0, (int) ceil((strtotime((string) $p['voting_close']) - time()) / 86400));
+                }
+                $out[] = ['title' => (string) $p['title'], 'slug' => (string) $p['slug'], 'days' => $days,
+                          'year' => (int) ($p['year'] ?? 0)];
+                if (count($out) >= 3) break;
+            }
+            return $out;
+        }, ['registry']);
+
+        $recognised = $this->cache->remember('pulse:recognised', 600,
+            fn (): array => $this->feed?->recognisedSince(date('Y-m-d H:i:s', time() - 7 * 86400)) ?? [], ['registry']);
+
+        // Awards to follow: live programmes this member does not follow yet. Per viewer, so
+        // never cached across viewers.
+        $follow = [];
+        try {
+            $mine = $uid ? ($this->feed?->followingFor($uid)['programmes'] ?? []) : [];
+            $cols = ['id', 'title', 'slug'];
+            if (\AfricaGates\Support\SchemaHas::column('gates_award_programmes', 'host_name')) $cols[] = 'host_name';
+            foreach (DB::table('gates_award_programmes')->where('is_active', 1)
+                     ->when($mine !== [], fn ($w) => $w->whereNotIn('id', $mine))
+                     ->orderBy('sort_order')->limit(3)->get($cols) as $p) {
+                $follow[] = ['id' => (int) $p->id, 'title' => (string) $p->title, 'slug' => (string) $p->slug,
+                             'host' => trim((string) ($p->host_name ?? ''))];
+            }
+        } catch (\Throwable) {}
+
+        return ['voting' => $voting, 'recognised' => $recognised, 'follow' => $follow];
     }
 
     /**

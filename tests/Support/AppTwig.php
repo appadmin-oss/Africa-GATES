@@ -90,6 +90,8 @@ final class AppTwig
         ] as $name => $callable) {
             $twig->addFilter(new TwigFilter($name, $callable));
         }
+        $twig->addFilter(new TwigFilter('ago', [\AfricaGates\Support\Ago::class, 'of']));
+        $twig->addFilter(new TwigFilter('linked', [\AfricaGates\Support\TextLinks::class, 'html'], ['is_safe' => ['html']]));
 
         // The two every layout reads. Overridable, because a test asserting on escaping
         // wants to choose the nonce it looks for.
