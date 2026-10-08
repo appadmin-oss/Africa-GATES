@@ -535,6 +535,7 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   livestream_url TEXT NULL DEFAULT NULL,
   recording_url TEXT NULL DEFAULT NULL,
   cover_kind TEXT NULL DEFAULT NULL,
+  spotlight_rank INTEGER NULL DEFAULT NULL,
   access_notes TEXT NULL,
   created_at TEXT
 );

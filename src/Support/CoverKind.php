@@ -72,12 +72,15 @@ final class CoverKind
      *
      * @return array{subject:string, kind:string, label:string, tone:string, pattern:string, glyph:string}
      */
-    public static function resolve(string $subject, ?string $kind = null, bool $awardLinked = false): array
+    public static function resolve(string $subject, ?string $kind = null, bool $awardLinked = false, ?string $tone = null): array
     {
         $subject = strtolower($subject);
         if ($subject === 'event') {
             $k = self::eventKind($kind, $awardLinked);
-            [$label, $tone, $pattern] = self::KINDS[$k];
+            [$label, $own, $pattern] = self::KINDS[$k];
+            // One override, and only to another of the five tones: an event that is live
+            // NOW is drawn in `live` whatever its kind (EVENTS-INDEX, cards). Never a colour.
+            $tone = $tone !== null && in_array($tone, Accent::coverTones(), true) ? $tone : $own;
 
             return ['subject' => 'event', 'kind' => $k, 'label' => $label, 'tone' => $tone,
                     'pattern' => $pattern, 'glyph' => $k];

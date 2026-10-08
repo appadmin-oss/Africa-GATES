@@ -12,21 +12,23 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
 /**
- * Everything the events index draws, read once (Phase 7, §8.10; owner, 4 Oct 2026: "there's
- * nothing like upcoming events or coming soon events on the site").
+ * Everything the events index draws, read once (EVENTS-INDEX, handoff 5 Oct 2026; replaces
+ * the 4 Oct featured-card-and-list).
  *
- * ── UPCOMING LEADS, PAST IS ITS OWN SECTION, NEVER MIXED ─────────────────────
+ * ── ONE READ, MANY VIEWS ─────────────────────────────────────────────────────
  *
- * The DC's "All" list runs ceremonies to come straight into a staff event that has already
- * happened, with only a grey tag between them. The owner asked for upcoming events first, so
- * the index is two lists: everything still to come, soonest first (the first is the featured
- * "Next up"), then a separate "Past events" section — and the `past` filter shows only that.
+ * The page is a spotlight, type tiles, carousel rows (this week, online, ceremonies, learn,
+ * recordings) and — once anything is filtered — a single results grid. Every one of those is
+ * a filter over the same two lists read here: upcoming (soonest first, plus anything live
+ * now) and past (latest first). So a row and the grid "See all" opens can never disagree
+ * about what is in them, and the calendar is read once whichever view it draws.
  *
- * ── COMING SOON IS A STATE OF AN UPCOMING EVENT, NOT A THIRD LIST ────────────
+ * ── PAST IS NEVER MIXED IN, AND COMING SOON IS A STATE (owner, 4 Oct 2026) ───
  *
- * An announced event whose tickets are not on sale yet is still upcoming, and still in date
- * order among the rest; it carries the "Coming soon" tag and the date sales open. The state
- * comes from {@see EventSales}, the same resolver the detail page's card uses.
+ * No upcoming row ever holds a past event; recordings are their own row and `?f=past` is the
+ * whole past. An announced event whose tickets are not on sale yet stays in date order among
+ * the rest and carries "Coming soon" and the date sales open, from {@see EventSales}, the
+ * resolver the detail page's card uses. `?f=soon` lists only those.
  *
  * ── THE SANDBOX NEVER REACHES THIS PAGE ──────────────────────────────────────
  *
@@ -43,60 +45,262 @@ use Illuminate\Support\Carbon;
  */
 final class EventsFront
 {
-    public const FILTERS = ['all', 'upcoming', 'soon', 'live', 'past'];
+    /**
+     * The quick filters (EVENTS-INDEX §3), then the four the 4 Oct index linked to. Those keep
+     * working as a results grid with no chip of their own: a `?f=past` somebody bookmarked or
+     * was sent still answers, and "coming soon" and "past" — the owner's two asks of 4 Oct —
+     * stay one address away rather than gone.
+     */
+    public const QUICK  = ['all', 'week', 'weekend', 'online', 'free'];
+    public const LEGACY = ['upcoming', 'soon', 'live', 'past'];
+
+    /**
+     * Browse by type (§4): six tiles, each a group of kinds, in the DC's order. The tile's
+     * cover is the first kind's. A kind belongs to one tile at most; `webinar` is its own.
+     */
+    public const TYPES = [
+        'ceremony'   => ['Award ceremonies',     ['ceremony', 'gala']],
+        'learn'      => ['Workshops & training', ['workshop', 'training', 'conference']],
+        'webinar'    => ['Webinars',             ['webinar']],
+        'livestream' => ['Livestreams',          ['livestream']],
+        'community'  => ['Community days',       ['community', 'fundraiser', 'sports']],
+        'culture'    => ['Music & culture',      ['concert', 'exhibition']],
+    ];
+
+    /** The spotlight holds four (§2). `spotlight_rank` is 1–4; anything else is not featured. */
+    public const SPOTLIGHT = 4;
 
     /** How many upcoming events the page reads. A calendar of more than this is a search. */
     private const MAX_UPCOMING = 60;
     private const MAX_PAST     = 24;
 
     /**
-     * @return array{filter:string, featured:?array, upcoming:list<array>, past:list<array>,
-     *               counts:array<string,int>}
+     * Everything the index draws, from one read of the calendar.
+     *
+     * `filtering` is true when any of search, chip, type or place is set (or a legacy `f`):
+     * the page then draws ONE results grid instead of the type tiles, the rows and the
+     * hosting band (§ "Any filter … switches 4–6 for a results grid").
+     *
+     * @param array<string,mixed> $q the query string
+     * @return array<string,mixed>
      */
-    public static function index(string $filter = 'all', ?string $now = null): array
+    public static function browse(array $q, ?string $now = null): array
     {
-        $filter = in_array($filter, self::FILTERS, true) ? $filter : 'all';
-        $now    = $now ?? Carbon::now()->toDateTimeString();
+        $now = $now ?? Carbon::now()->toDateTimeString();
+        $f   = strtolower(trim((string) ($q['f'] ?? 'all')));
+        if (!in_array($f, [...self::QUICK, ...self::LEGACY], true)) $f = 'all';
+        if ($f === 'live') $f = 'online';                       // the old chip's word for it
+        $type  = strtolower(trim((string) ($q['type'] ?? '')));
+        if (!isset(self::TYPES[$type])) $type = '';
+        $place = trim((string) ($q['place'] ?? ''));
+        $text  = mb_substr(trim((string) ($q['q'] ?? '')), 0, 80);
 
-        $up = self::liveOnly(DB::table('gates_site_events as e')
-            ->where('e.status', 'published')->where('e.event_date', '>=', $now))
+        // Upcoming is still to start — or started, still running and being streamed, which
+        // is the only way an event is "Live now". No end date, never live: a duration this
+        // page invented would put a finished event on the page as happening.
+        $up = self::liveOnly(DB::table('gates_site_events as e')->where('e.status', 'published')
+            ->where(static function ($w) use ($now): void {
+                $w->where('e.event_date', '>=', $now)
+                  ->orWhere(static fn ($l) => $l->where('e.event_date', '<', $now)->where('e.end_date', '>', $now)
+                      ->whereNotNull('e.livestream_url')->where('e.livestream_url', '!=', ''));
+            }))
             ->orderBy('e.event_date')->orderBy('e.id')->limit(self::MAX_UPCOMING)
             ->get(['e.*'])->map(fn ($r) => (array) $r)->all();
-        $past = self::liveOnly(DB::table('gates_site_events as e')
-            ->where('e.status', 'published')->where('e.event_date', '<', $now))
+        $past = self::liveOnly(DB::table('gates_site_events as e')->where('e.status', 'published')
+            ->where('e.event_date', '<', $now)
+            ->where(static fn ($w) => $w->whereNull('e.end_date')->orWhere('e.end_date', '<=', $now)))
             ->orderByDesc('e.event_date')->orderByDesc('e.id')->limit(self::MAX_PAST)
             ->get(['e.*'])->map(fn ($r) => (array) $r)->all();
 
         $ids    = array_merge(array_column($up, 'id'), array_column($past, 'id'));
         $hosts  = self::hosts($ids);
         $linked = self::linked($ids);
-        $up    = array_map(fn (array $e) => self::row($e + ['award_linked' => isset($linked[(int) $e['id']])], $hosts, $now), $up);
-        $past  = array_map(fn (array $e) => self::row($e + ['award_linked' => isset($linked[(int) $e['id']])], $hosts, $now), $past);
+        $rank   = [];
+        $mk = function (array $e) use ($hosts, $linked, $now, &$rank): array {
+            $r = (int) ($e['spotlight_rank'] ?? 0);
+            if ($r >= 1 && $r <= self::SPOTLIGHT) $rank[(int) $e['id']] = $r;
+            return self::card(self::row($e + ['award_linked' => isset($linked[(int) $e['id']])], $hosts, $now), $e, $now);
+        };
+        $up   = array_map($mk, $up);
+        $past = array_map(fn (array $e) => self::card(self::row($e + ['award_linked' => isset($linked[(int) $e['id']])], $hosts, $now), $e, $now), $past);
 
-        $counts = [
-            'upcoming' => count($up),
-            'soon'     => count(array_filter($up, static fn (array $r): bool => $r['state'] === 'soon')),
-            'live'     => count(array_filter($up, static fn (array $r): bool => $r['livestream'] !== '')),
-            'past'     => count($past),
+        $filtering = $f !== 'all' || $type !== '' || $place !== '' || $text !== '';
+        $out = [
+            'f' => $f, 'type' => $type, 'place' => $place, 'q' => $text, 'filtering' => $filtering,
+            'spotlight' => self::spotlight($up, $rank),
+            'places'    => self::places($up),
         ];
 
-        $featured = null;
-        if ($filter === 'all' && $up !== []) $featured = array_shift($up);
+        if ($filtering) {
+            $pool = $f === 'past' ? $past : $up;
+            $res  = array_values(array_filter($pool, static fn (array $c): bool =>
+                self::matches($c, $f, $type, $place, $text)));
+            return $out + ['results' => $res];
+        }
 
-        $up = match ($filter) {
-            'soon'  => array_values(array_filter($up, static fn (array $r): bool => $r['state'] === 'soon')),
-            'live'  => array_values(array_filter($up, static fn (array $r): bool => $r['livestream'] !== '')),
-            'past'  => [],
-            default => $up,
+        $inType = static fn (string $t): \Closure => static fn (array $c): bool => in_array($c['cover_kind'], self::TYPES[$t][1], true);
+        $types = [];
+        foreach (self::TYPES as $k => [$label, $kinds]) {
+            $types[] = ['key' => $k, 'label' => Translator::t($label), 'kind' => $kinds[0],
+                        'n' => count(array_filter($up, $inType($k)))];
+        }
+        $week = array_values(array_filter($up, static fn (array $c): bool => $c['in_week']));
+        $rows = [
+            ['id' => 'r-week',   'title' => Translator::t('This week'), 'sub' => Translator::t('Seven days, starting today'),
+             'items' => $week, 'all' => '/events?f=week'],
+            ['id' => 'r-online', 'title' => Translator::t('Online and livestreams'), 'sub' => Translator::t('Watch from anywhere'),
+             'items' => array_values(array_filter($up, static fn (array $c): bool => $c['online'])), 'all' => '/events?f=online'],
+            ['id' => 'r-cer',    'title' => Translator::t('Award ceremonies'), 'sub' => Translator::t('Where the winners are announced'),
+             'items' => array_values(array_filter($up, $inType('ceremony'))), 'all' => '/events?type=ceremony'],
+            ['id' => 'r-learn',  'title' => Translator::t('Learn something'), 'sub' => Translator::t('Workshops, training and talks'),
+             'items' => array_values(array_filter($up, $inType('learn'))), 'all' => '/events?type=learn'],
+        ];
+        $rec = array_values(array_filter($past, static fn (array $c): bool => $c['recording'] !== ''));
+
+        return $out + [
+            'types' => $types,
+            // A row with no items is not rendered (§5).
+            'rows'  => array_values(array_filter($rows, static fn (array $r): bool => $r['items'] !== [])),
+            'recordings' => $rec,
+            'past_n'     => count($past),
+        ];
+    }
+
+    /**
+     * The spotlight's slides: the events an operator ranked 1–4, in rank order.
+     *
+     * With none ranked it falls back to the next upcoming events — the page this replaced
+     * always led with the next one, and an index whose first block is empty because nobody
+     * has set a rank yet reads as a calendar with nothing on it.
+     *
+     * @param list<array<string,mixed>> $up
+     * @param array<int,int>            $rank event id → rank
+     * @return list<array<string,mixed>>
+     */
+    private static function spotlight(array $up, array $rank): array
+    {
+        $ranked = array_values(array_filter($up, static fn (array $c): bool => isset($rank[$c['id']])));
+        usort($ranked, static fn (array $a, array $b): int => [$rank[$a['id']], $a['start']] <=> [$rank[$b['id']], $b['start']]);
+        $pick = $ranked !== [] ? $ranked : $up;
+        $pick = array_slice($pick, 0, self::SPOTLIGHT);
+        $ids  = array_column($pick, 'id');
+        $going = [];
+        foreach ($ids as $id) $going[$id] = EventTicketService::attendingForEvent((int) $id);
+
+        return array_map(static fn (array $c): array => $c + ['going' => $going[$c['id']] ?? 0], $pick);
+    }
+
+    /**
+     * The Place select: where the upcoming events actually are, busiest first, and "Online
+     * only" when something is streamed. Never a list of cities nothing is happening in.
+     *
+     * @param list<array<string,mixed>> $up
+     * @return list<array{value:string,label:string}>
+     */
+    private static function places(array $up): array
+    {
+        $n = [];
+        foreach ($up as $c) if ($c['city'] !== '') $n[$c['city']] = ($n[$c['city']] ?? 0) + 1;
+        uksort($n, static fn ($a, $b) => [$n[$b], $a] <=> [$n[$a], $b]);
+        $out = [];
+        foreach (array_slice(array_keys($n), 0, 12) as $city) {
+            $out[] = ['value' => (string) $city, 'label' => Translator::t('Near %city%', ['%city%' => (string) $city])];
+        }
+        if (array_filter($up, static fn (array $c): bool => $c['online'])) {
+            $out[] = ['value' => 'online', 'label' => Translator::t('Online only')];
+        }
+
+        return $out;
+    }
+
+    /** One card against the page's filters. */
+    private static function matches(array $c, string $f, string $type, string $place, string $text): bool
+    {
+        $ok = match ($f) {
+            'week'    => $c['in_week'],
+            'weekend' => $c['in_week'] && $c['weekend'],
+            'online'  => $c['online'],
+            'free'    => $c['from'] === 0,
+            'soon'    => $c['state'] === 'soon',
+            default   => true,          // all, upcoming, past (the pool already decided)
         };
-        $past = match ($filter) {
-            'all', 'past' => $past,
-            // Recordings belong with the livestreams; everything else past stays in its section.
-            'live'  => array_values(array_filter($past, static fn (array $r): bool => $r['recording'] !== '')),
-            default => [],
+        if (!$ok) return false;
+        if ($type !== '' && !in_array($c['cover_kind'], self::TYPES[$type][1], true)) return false;
+        if ($place !== '') {
+            if (strtolower($place) === 'online' ? !$c['online'] : mb_strtolower($c['city']) !== mb_strtolower($place)) return false;
+        }
+        if ($text !== '') {
+            $hay = mb_strtolower($c['title'] . ' ' . $c['where'] . ' ' . $c['city'] . ' ' . $c['host']);
+            if (!str_contains($hay, mb_strtolower($text))) return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * What a CARD needs beyond the row: the facts the filters ask, the status chip (one at
+     * most, §Cards), the relative-time words and the full date the spotlight prints.
+     *
+     * @param array<string,mixed> $c a row()
+     * @param array<string,mixed> $e the event row
+     * @return array<string,mixed>
+     */
+    public static function card(array $c, array $e, string $now): array
+    {
+        $start  = (string) ($e['event_date'] ?? '');
+        $end    = (string) ($e['end_date'] ?? '');
+        $live   = $c['livestream'] !== '' && $start !== '' && $start < $now && $end !== '' && $end > $now;
+        $days   = $c['days'];
+        $wday   = $start !== '' ? (int) EventTime::at($e, $start, 'w') : -1;
+        $cap    = ($e['capacity'] ?? null) !== null ? (int) $e['capacity'] : null;
+        $left   = $cap !== null && $c['state'] === 'open' ? max(0, $cap - EventTicketService::soldForEvent($c['id'])) : null;
+        $ebText = trim((string) ($e['early_bird_text'] ?? ''));
+        $ebEnd  = trim((string) ($e['early_bird_deadline'] ?? ''));
+
+        // One chip at most, the most useful first. Coming soon and Sold out are the 4 Oct
+        // states; the other three are the handoff's. "Selling fast" has no definition this
+        // platform could compute honestly, so it is not drawn (docs/handoff/PHASE-EVENTS-INDEX.md).
+        [$status, $tone] = match (true) {
+            $c['state'] === 'soon'     => [Translator::t('Coming soon'), 'gold'],
+            $c['state'] === 'waitlist' => [Translator::t('Waiting list'), 'stone'],
+            $c['state'] === 'soldout'  => [Translator::t('Sold out'), 'stone'],
+            $left !== null && $left > 0 && $left <= EventSales::LOW_PLACES
+                                       => [Translator::t('%n% left', ['%n%' => (string) $left]), 'live'],
+            $c['state'] === 'open' && $ebText !== '' && ($ebEnd === '' || $ebEnd > $now)
+                                       => [Translator::t('Early bird'), 'gold'],
+            default                    => ['', ''],
         };
 
-        return ['filter' => $filter, 'featured' => $featured, 'upcoming' => $up, 'past' => $past, 'counts' => $counts];
+        $price = match ($c['state']) {
+            'ended'  => '',
+            'soon'   => $c['opens_text'] !== '' ? Translator::t('On sale %when%', ['%when%' => $c['opens_text']]) : '',
+            default  => $c['from'] === null ? '' : ($c['from'] === 0 ? Translator::t('Free')
+                         : Translator::t('From %price%', ['%price%' => $c['from_text']])),
+        };
+
+        return $c + [
+            'start'    => $start,
+            'live'     => $live,
+            'online'   => $c['livestream'] !== '',
+            'in_week'  => $days !== null && $days >= 0 && $days <= 6,
+            'weekend'  => $wday === 0 || $wday === 6,
+            'relative' => $live ? Translator::t('Happening now') : match (true) {
+                $days === null => '',
+                $days <= 0     => Translator::t('Today'),
+                $days === 1    => Translator::t('Tomorrow'),
+                default        => Translator::t('In %n% days', ['%n%' => (string) $days]),
+            },
+            'full_date'  => $start !== '' ? EventTime::zoned($e, $start, 'l j F Y · H:i') : '',
+            'short_date' => $start !== '' ? EventTime::at($e, $start, 'D j M') : '',
+            'meta'       => implode(' · ', array_values(array_filter([$live ? Translator::t('Live') : '', $c['where'] ?: $c['city'], $c['time']]))),
+            'price'      => $price,
+            'status'     => $status,
+            'status_tone'=> $tone,
+            'left'       => $left,
+            'tone'       => $live ? 'live' : CoverKind::resolve('event', $c['cover_kind'])['tone'],
+            'kind_label' => $live ? Translator::t('Live now') : Translator::t(CoverKind::resolve('event', $c['cover_kind'])['label']),
+            'recorded'   => $start !== '' ? EventTime::at($e, $start, 'j M Y') : '',
+        ];
     }
 
     /**

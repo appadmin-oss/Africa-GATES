@@ -65,20 +65,17 @@ class EventsController
     {
         self::captureRef($req);   // ?ref= — the primary referral path
         $q     = $req->getQueryParams();
-        $front = \AfricaGates\Services\EventsFront::index((string) ($q['f'] ?? 'all'));
+        $front = \AfricaGates\Services\EventsFront::browse($q);
 
         return $this->view->render($res, 'pages/events.twig', [
             'page_title'       => \AfricaGates\Support\Translator::t('Events') . ' — Africa GATES',
             'meta_description' => \AfricaGates\Support\Translator::t('Upcoming ceremonies, live moments and events on Africa GATES — with tickets, dates and how to watch.'),
             'gates_page'       => 'events',
             'front'            => $front,
-            // Which upcoming events are taking stand applications. Outside any cache, and
+            // Which spotlight events are taking stand applications. Outside any cache, and
             // one query for the page — see StandCall::openFor().
-            'stand_calls'      => StandCall::openFor(array_merge(
-                $front['featured'] ? [$front['featured']['id']] : [],
-                array_column($front['upcoming'], 'id')
-            )),
-        ]);
+            'stand_calls'      => StandCall::openFor(array_column($front['spotlight'], 'id')),
+        ] + ($front['filtering'] ? ['meta_robots' => 'noindex, follow'] : []));
     }
 
     /** Public event detail page — the redesigned §8.10 page, every state. */

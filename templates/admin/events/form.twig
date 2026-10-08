@@ -487,6 +487,15 @@
           {% for k, label in cover_kinds|default({}) %}<option value="{{ k }}"{% if row.cover_kind|default('') == k %} selected{% endif %}>{{ label }}</option>{% endfor %}
         </select></label>
       {% endif %}
+      {% if 'spotlight_rank' not in extras_missing %}
+      {# EVENTS-INDEX §2: the four slides that open /events. Nothing chosen anywhere → the
+         next upcoming events lead instead. #}
+      <label>Spotlight on the events page <span class="af-opt">one of the four slides that open /events</span>
+        <select name="spotlight_rank">
+          <option value="">Not in the spotlight</option>
+          {% for n in 1..constant('AfricaGates\\Services\\EventsFront::SPOTLIGHT') %}<option value="{{ n }}"{% if row.spotlight_rank|default(0) == n %} selected{% endif %}>Slide {{ n }}</option>{% endfor %}
+        </select></label>
+      {% endif %}
       {% if 'access_notes' not in extras_missing %}
       <label>Access <span class="af-opt">one per line — step-free venue, live captions, quiet room</span>
         <textarea name="access_notes" rows="3">{{ row.access_notes|default('') }}</textarea></label>

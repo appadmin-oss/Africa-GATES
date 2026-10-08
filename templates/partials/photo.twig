@@ -31,6 +31,8 @@
               still says `title: true` (the slot stands alone)
     date      the thing's real date, for content=date|auto
     logo      the host's logo, for content=none
+    label     the cover's type pill: false for none, a string to name it (cover.twig)
+    tone      another cover tone, for an event live now (cover.twig)
    people:
     id        the profile id the avatar tone hashes
     size      24 · 32 · 44 · 56 · 96 · 160 — the size the avatar's letters are set for
@@ -53,6 +55,7 @@
   {%- include 'partials/cover.twig' with {
        subject: subject|default('award'), kind: cover_kind|default(null), award_linked: award_linked|default(false),
        content: content|default((title is defined and title) ? 'title' : 'none'),
-       date: date|default(''), title: name|default(''), logo: logo|default(''), fill: true} only -%}
+       date: date|default(''), title: name|default(''), logo: logo|default(''), fill: true,
+       tone: tone|default(null)}|merge(label is defined ? {label: label} : {}) only -%}
 </span>
 {%- endif -%}

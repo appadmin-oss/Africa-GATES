@@ -615,6 +615,7 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   livestream_url VARCHAR(500) NULL DEFAULT NULL,
   recording_url VARCHAR(500) NULL DEFAULT NULL,
   cover_kind VARCHAR(24) NULL DEFAULT NULL,
+  spotlight_rank TINYINT UNSIGNED NULL DEFAULT NULL,
   access_notes TEXT NULL,
   created_at DATETIME NULL,
   PRIMARY KEY (id),

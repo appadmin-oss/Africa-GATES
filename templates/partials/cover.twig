@@ -29,9 +29,10 @@
     title     the thing's title — drawn only by content=title
     logo      the host's logo URL; the type glyph when empty
     label     false to draw no type pill; a string to name it otherwise
+    tone      another of the five tones, for an event live now (CoverKind::resolve)
 #}
 {%- import 'partials/icons.twig' as gi -%}
-{%- set _c     = cover_kind(subject|default('event'), kind|default(null), award_linked|default(false)) -%}
+{%- set _c     = cover_kind(subject|default('event'), kind|default(null), award_linked|default(false), tone|default(null)) -%}
 {%- set _date  = date|default('') -%}
 {%- set _mode  = cover_content(content|default('auto'), _date != '') -%}
 {%- set _title = title|default('') -%}

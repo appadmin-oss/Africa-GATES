@@ -41,6 +41,13 @@ final class EventSales
     public const STATES = ['open', 'waitlist', 'soldout', 'closed', 'ended', 'soon'];
 
     /**
+     * At or under this many places left, a page says how many: the event card's "Only N
+     * places left" and the index card's "N left". One number, so the two cannot disagree
+     * about whether an event is nearly full.
+     */
+    public const LOW_PLACES = 25;
+
+    /**
      * @param array<string,mixed>       $event a `gates_site_events` row
      * @param list<array<string,mixed>> $tiers EventTicketService::tiers() for it
      * @param bool $roomFull the event's own capacity is taken (seats + live holds)

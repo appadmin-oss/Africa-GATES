@@ -177,7 +177,7 @@ class EventsController
             'extras_missing' => OptionalColumn::missing('gates_site_events', [
                 'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
                 'organiser_email', 'organiser_phone',
-                'livestream_url', 'recording_url', 'access_notes', 'cover_kind',
+                'livestream_url', 'recording_url', 'access_notes', 'cover_kind', 'spotlight_rank',
             ]),
             // The kinds an organiser may pick for the default cover (DEFAULT-GRAPHICS §4):
             // the list and its labels from the one resolver, never typed into the form.
@@ -309,6 +309,10 @@ class EventsController
                 // cover resolves by whether the event is tied to an award.
                 'cover_kind'      => \AfricaGates\Support\CoverKind::isKind($b['cover_kind'] ?? null)
                                         ? strtolower(trim((string) $b['cover_kind'])) : null,
+                // The events page's spotlight position, 1–4 (EVENTS-INDEX §2); anything else
+                // is "not featured". Two events may share a number — the earlier one leads.
+                'spotlight_rank'  => in_array((int) ($b['spotlight_rank'] ?? 0), range(1, \AfricaGates\Services\EventsFront::SPOTLIGHT), true)
+                                        ? (int) $b['spotlight_rank'] : null,
                 // ── THE REFUND POLICY, AS A RULE ─────────────────────────
                 //
                 // `refund_policy` above stays: it is the prose a buyer reads, and it can say
@@ -331,7 +335,7 @@ class EventsController
         $data = OptionalColumn::filter('gates_site_events', $data, [
             'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
             'organiser_email', 'organiser_phone',
-            'livestream_url', 'recording_url', 'access_notes', 'cover_kind',
+            'livestream_url', 'recording_url', 'access_notes', 'cover_kind', 'spotlight_rank',
             'self_cancel', 'refund_mode', 'refund_percent', 'refund_cutoff_hours',
         ]);
         // The ticket's appearance. Validated in the service rather than here, because the
