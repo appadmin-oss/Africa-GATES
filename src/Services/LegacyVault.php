@@ -197,6 +197,7 @@ final class LegacyVault
         foreach (($result['awards'] ?? []) as $a) {
             if (empty($a['winner'])) continue;
             $winners[] = [
+                'id'    => (int) $a['winner']['nominee_id'],
                 'cat'   => (string) ($a['category']->title ?? ''),
                 'name'  => (string) $a['winner']['name'],
                 'photo' => (string) ($a['winner']['photo'] ?? ''),
@@ -207,7 +208,7 @@ final class LegacyVault
         $overall = null;
         if (!empty($result['overall']['winner'])) {
             $w = $result['overall']['winner'];
-            $overall = ['name' => (string) $w['name'], 'photo' => (string) ($w['photo'] ?? ''),
+            $overall = ['id' => (int) ($w['nominee_id'] ?? 0), 'name' => (string) $w['name'], 'photo' => (string) ($w['photo'] ?? ''),
                         'category' => (string) ($w['category'] ?? ''), 'cpi' => (int) $w['cpi'],
                         'categories' => count($winners),
                         'reconstructed' => !empty($result['overall']['reconstructed'])];

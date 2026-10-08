@@ -33,6 +33,9 @@ final class HomeController
             'voting'   => HomeFront::voting(),
             'decided'  => HomeFront::decided(),
             'campaign' => HomeFront::campaign(),
+            // §8.1 section 3, "Who recognises": real recognitions from verified issuers
+            // (Services\Recognitions, GAPS §3.1) — never the DC's sample honours.
+            'recognitions' => \AfricaGates\Services\Recognitions::recent(12),
         ], ['leaderboard', 'registry']);
 
         $band = $this->cache->remember('home:globe', 900, static fn (): array => [
@@ -53,6 +56,7 @@ final class HomeController
             'voting'           => $front['voting'],
             'decided'          => $front['decided'],
             'campaign'         => $front['campaign'],
+            'recognitions'     => $front['recognitions'] ?? [],
             'globe_countries'  => $band['countries'],
             'globe_note'       => $band['note'],
         ]);

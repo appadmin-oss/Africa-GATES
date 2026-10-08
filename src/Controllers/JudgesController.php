@@ -26,16 +26,29 @@ class JudgesController
         $roster = $this->judges->publicRoster();
         // Filter chips = the distinct programmes the panel actually judges.
         $filters = [];
-        foreach ($roster as $j) {
+        foreach ($roster as &$j) {
             foreach ($j['programmes'] as $p) { $filters[$p['slug']] = $p['title']; }
+            $j['country'] = self::country($j['country_code'] ?? '');
         }
+        unset($j);
         asort($filters);
+        // The chip is a URL (`?programme=`), so the filter works with no script and survives
+        // Back; an unknown slug is no filter rather than an empty roster.
+        $sel = (string) ($req->getQueryParams()['programme'] ?? '');
+        $sel = '';
+        if ($sel !== '') {
+            $roster = array_values(array_filter($roster, static function (array $j) use ($sel): bool {
+                foreach ($j['programmes'] as $p) { if ($p['slug'] === $sel) return true; }
+                return false;
+            }));
+        }
         return $this->view->render($res, 'pages/judges.twig', [
             'page_title'       => 'Meet the Judges — Africa GATES',
             'meta_description' => 'Meet the independent panel evaluating Africa GATES nominees — distinguished experts scoring documented impact, not popularity, behind the Cultural Power Index.',
             'gates_page'       => 'judges',
             'judges'           => $roster,
             'filters'          => $filters,
+            'selected'         => $sel,
         ]);
     }
 
@@ -47,6 +60,7 @@ class JudgesController
         if ($id < 1) return $res->withHeader('Location', '/judges')->withStatus(302);
         $judge = $this->judges->publicJudge($id);
         if (!$judge) return $res->withHeader('Location', '/judges')->withStatus(302);
+        $judge['country'] = self::country($judge['country_code'] ?? '');
         if ($slug !== $judge['slug']) {                       // canonical URL
             return $res->withHeader('Location', '/judges/' . $judge['slug'])->withStatus(302);
         }
@@ -75,5 +89,14 @@ class JudgesController
                 ['label' => (string) $judge['name'], 'url' => null],
             ],
         ], fn($v) => $v !== null));
+    }
+
+    /** A country's name from its code — NationsLive's one table — or '' when unknown. */
+    private static function country(string $code): string
+    {
+        $code = strtoupper(trim($code));
+        if ($code === '') return '';
+        try { $n = \AfricaGates\Support\NationsLive::name($code); } catch (\Throwable) { return ''; }
+        return $n !== $code ? $n : '';
     }
 }

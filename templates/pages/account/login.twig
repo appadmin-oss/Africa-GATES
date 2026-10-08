@@ -69,7 +69,7 @@
 
   {{ auth.say(_error, _notice) }}
 
-  <form class="si__form-step" method="post" action="/account/login/verify" novalidate>
+  <form class="si__form-step" method="post" action="/account/login/verify" novalidate data-ag-validate>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     {% if _dest and code_via == 'phone' %}
       <input type="hidden" name="via" value="phone">
@@ -135,7 +135,7 @@
     <p class="si__lede">{{ 'Or go back and have a code sent instead — no password needed.'|trans }}</p>
   </div>
   {{ auth.say(_error, _notice) }}
-  <form class="si__form-step" method="post" action="/account/login" novalidate>
+  <form class="si__form-step" method="post" action="/account/login" novalidate data-ag-validate>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input class="si__in" id="si-pw-email" type="email" name="email" value="{{ login_email }}" required
            autocomplete="email" inputmode="email" aria-label="{{ 'Email'|trans }}" placeholder="you@example.com"
@@ -171,7 +171,7 @@
   {{ auth.say(_error, _notice) }}
 
   {% if _phoneOk %}
-    <form class="si__form-step si__panel" method="post" action="/account/login/otp" novalidate data-si-panel="phone"{% if via != 'phone' %} hidden{% endif %}>
+    <form class="si__form-step si__panel" method="post" action="/account/login/otp" novalidate data-ag-validate data-si-panel="phone"{% if via != 'phone' %} hidden{% endif %}>
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <input type="hidden" name="via" value="phone">
       <input type="hidden" name="channel" value="{{ phone_channels.sms ? 'sms' : 'whatsapp' }}">
@@ -188,7 +188,7 @@
     </form>
   {% endif %}
 
-  <form class="si__form-step si__panel" method="post" action="/account/login/otp" novalidate data-si-panel="email"{% if via != 'email' %} hidden{% endif %}>
+  <form class="si__form-step si__panel" method="post" action="/account/login/otp" novalidate data-ag-validate data-si-panel="email"{% if via != 'email' %} hidden{% endif %}>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input type="hidden" name="via" value="email">
     <input class="si__in" id="email" type="email" name="email" value="{{ login_email }}" required

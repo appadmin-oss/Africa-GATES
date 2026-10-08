@@ -1,0 +1,218 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE SHOP'S SHARED PIECES — ShopPage.dc.html, Phase 7 §8.12 (8 Oct 2026)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Imported by index.twig and item.twig (`{% import 'pages/shop/_bits.twig' as sb %}`).
+  One card, one cart drawer and one "Added to your cart" confirmation, because the grid,
+  "You may also like" and the cart are three readers of one product and a second copy of
+  any of them is how a price or a stock word comes to differ between two screens.
+
+  ── THE CART IS A PREVIEW ────────────────────────────────────────────────────
+
+  It lives in the visitor's browser (`ag-cart`, CookieRegistry) and every figure in it is
+  what the page was shown. The money is decided again, from the database, by
+  `ShopCheckoutController::priceCart()` and `totals()` when the form posts — and the drawer
+  asks `/shop/quote` (the same `totals()`) before anybody presses Pay, so the delivery
+  line, a discount and anything trimmed for stock are the server's words, not the script's.
+#}
+
+{# ── Hidden copies of the filter state, so every small GET form on the page carries the
+   whole of it. Each form owns ONE control per name; the rest ride along here. `except` is
+   the list of names the calling form draws as real controls. #}
+{% macro keep(F, except) %}
+  {%- if 'q' not in except and F.q %}<input type="hidden" name="q" value="{{ F.q }}">{% endif -%}
+  {%- if 'c' not in except %}{% for c in F.categories %}<input type="hidden" name="c[]" value="{{ c }}">{% endfor %}{% endif -%}
+  {%- if 'col' not in except %}{% for c in F.colours %}<input type="hidden" name="col[]" value="{{ c }}">{% endfor %}{% endif -%}
+  {%- if 'sz' not in except %}{% for s in F.sizes %}<input type="hidden" name="sz[]" value="{{ s }}">{% endfor %}{% endif -%}
+  {%- if 'min' not in except and F.min is not null %}<input type="hidden" name="min" value="{{ F.min }}">{% endif -%}
+  {%- if 'max' not in except and F.max is not null %}<input type="hidden" name="max" value="{{ F.max }}">{% endif -%}
+  {%- if 'stock' not in except and F.in_stock %}<input type="hidden" name="stock" value="1">{% endif -%}
+  {%- if 'feat' not in except and F.featured %}<input type="hidden" name="feat" value="1">{% endif -%}
+  {%- if 'sort' not in except and F.sort != 'featured' %}<input type="hidden" name="sort" value="{{ F.sort }}">{% endif -%}
+{% endmacro %}
+
+{# ── One product card (DC `items`). The image and the name are two routes to one page, so
+   the image is untabbable and the keyboard meets each product once. The quick action is a
+   LINK to the product page that the script upgrades: "Add" adds in place for a product
+   with no choices, "Choose size" opens the page for one that has them, and a sold-out
+   product has no action at all — its tag says so. Never "Add" for something that needs a
+   choice (§8.12). #}
+{% macro card(p) %}
+  {%- set _sub = p.colour_count > 1 ? '%n% colours'|trans({'%n%': p.colour_count}) ~ ' · ' ~ p.subtitle : p.subtitle -%}
+  <article class="sp-card{{ p.sold_out ? ' is-gone' }}">
+    <div class="sp-card__img">
+      <a class="sp-card__media" href="/shop/{{ p.slug }}" tabindex="-1" aria-hidden="true">
+        {% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', src: p.cover_path|default(''), name: p.name, label: false} only %}
+      </a>
+      {% if p.sold_out %}<span class="sp-tag sp-tag--gone">{{ 'Sold out'|trans }}</span>
+      {% elseif p.tag|default('') %}<span class="sp-tag">{{ p.tag }}</span>{% endif %}
+      {% if not p.sold_out %}
+        {% set _label = p.choose ? 'Choose %axis% for %name%'|trans({'%axis%': p.choose|trans, '%name%': p.name}) : 'Add %name% to cart'|trans({'%name%': p.name}) %}
+        <a class="sp-quick" href="/shop/{{ p.slug }}" aria-label="{{ _label }}" title="{{ _label }}"
+           {% if not p.choose %}data-sp-add="{{ {key: p.slug, slug: p.slug, variant_id: 0, variant: '', name: p.name, price: p.display_price, cover: p.cover_path|default('')}|json_encode }}"{% endif %}>
+          <span class="sp-quick__dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></span>
+        </a>
+      {% endif %}
+    </div>
+    {% if p.dots.dots|length > 1 %}
+      <div class="sp-dots" aria-label="{{ '%name% colours'|trans({'%name%': p.name}) }}" role="list">
+        {% for d in p.dots.dots %}<span class="sp-dots__d{{ d.gone ? ' is-gone' }}" role="listitem" title="{{ d.name }}" style="--sw:{{ d.css }}"><span class="sp-sr">{{ d.name }}{{ d.gone ? ', ' ~ 'sold out'|trans }}</span></span>{% endfor %}
+        {% if p.dots.more > 0 %}<span class="sp-dots__more">+{{ p.dots.more }}</span>{% endif %}
+      </div>
+    {% endif %}
+    <a class="sp-card__body" href="/shop/{{ p.slug }}">
+      <span class="sp-card__name">{{ p.name }}</span>
+      {% if _sub %}<span class="sp-card__sub sp-card__sub--phone">{{ _sub }}</span>{% endif %}
+      {% if p.subtitle %}<span class="sp-card__sub sp-card__sub--wide">{{ p.subtitle }}</span>{% endif %}
+      <span class="sp-card__price">
+        <b>{% if p.price_from %}<span class="sp-card__from">{{ 'From'|trans }} </span>{% endif %}{{ p.price_label }}</b>
+        {% if p.low and not p.sold_out %}<span class="sp-card__stock">{{ p.stock_note }}</span>{% endif %}
+      </span>
+    </a>
+  </article>
+{% endmacro %}
+
+{# ── The cart button (DC: 48px on the index bar, 44 floating on the product photo). The
+   count is the script's, from the browser's own basket; drawn empty and hidden until then,
+   because a count the server printed would be a number it cannot know. #}
+{% macro cartBtn(cls) %}
+  <button type="button" class="{{ cls }}" data-sp-cart-open aria-haspopup="dialog" aria-controls="spCart"
+          aria-label="{{ 'Cart'|trans }}" data-sp-cart-label="{{ 'Cart, %n% items'|trans }}">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 8h13l-1 12h-11z"></path><path d="M9 8V7a3 3 0 0 1 6 0v1"></path></svg>
+    <span class="sp-badge" data-sp-count aria-hidden="true" hidden></span>
+  </button>
+{% endmacro %}
+
+{# ── The drawer: the cart, then checkout in the same panel (DC `cartOpen`, `step`).
+   Desktop: floats 12px from the edges, radius 20, light scrim. Phone: a bottom sheet. #}
+{% macro drawer(ctx) %}
+  {%- set retry = {'name':'','email':'','phone':'','address':'','region':'','provider':'','discount':'','any':false}|merge(ctx.checkout_retry|default({})) -%}
+  <div class="sp-scrim" data-sp-scrim hidden></div>
+  <aside class="sp-cart" id="spCart" role="dialog" aria-modal="true" aria-labelledby="spCartH" tabindex="-1" hidden
+         data-sp-cart data-sp-reopen="{{ retry.any ? '1' : '0' }}"
+         data-sp-fx="{{ ctx.fx|json_encode }}" data-sp-free="{{ ctx.ship_free_over|default(0) }}"
+         data-sp-words="{{ {
+            cart: 'Your cart'|trans, checkout: 'Checkout'|trans, go: 'Checkout'|trans, pay: 'Pay %amount%'|trans,
+            items: '%n% items'|trans, item: '1 item'|trans, empty: 'Your cart is empty.'|trans,
+            remove: 'Remove'|trans, freeGot: 'You’ve got free delivery.'|trans,
+            freeLeft: 'Add %amount% more for free delivery.'|trans, charged: 'Charged in Naira · %amount%'|trans,
+            free: 'Free'|trans, fewer: 'One fewer'|trans, more: 'One more'|trans, changed: 'Your cart changed:'|trans
+         }|json_encode }}">
+    <div class="sp-cart__head">
+      <h2 class="sp-cart__h" id="spCartH" data-sp-cart-title>{{ 'Your cart'|trans }}</h2>
+      <button type="button" class="sp-x" data-sp-cart-close aria-label="{{ 'Close'|trans }}">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    {% if ctx.providers is empty %}
+      {# No gateway can take money right now. Said before anybody fills a form in. #}
+      <p class="sp-cart__soon" role="status">{{ 'Online checkout is being set up. To order now, write to us and we’ll arrange payment and delivery.'|trans }}</p>
+    {% endif %}
+
+    <form class="sp-cart__form" method="post" action="/shop/checkout" data-sp-checkout novalidate data-favicon-busy>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="cart" value="{}" data-sp-cart-json>
+      <div class="sp-cart__body">
+        <div class="sp-cart__step" data-sp-step="cart">
+          <ul class="sp-lines" data-sp-lines></ul>
+          <p class="sp-cart__empty" data-sp-empty>{{ 'Your cart is empty.'|trans }}</p>
+        </div>
+
+        <div class="sp-cart__step" data-sp-step="checkout" hidden>
+          <div class="sp-warn" data-sp-adjusted role="status" hidden></div>
+          <ul class="sp-sum" data-sp-sum></ul>
+
+          <fieldset class="sp-fs">
+            <legend class="sp-fs__l">{{ 'Delivery'|trans }}</legend>
+            <label class="sp-fld"><span>{{ 'Deliver to'|trans }} <em>{{ '(sets your delivery cost)'|trans }}</em></span>
+              <select name="region" required autocomplete="address-level1" data-sp-region>
+                {% for r in ctx.regions %}<option value="{{ r }}"{% if (retry.region ?: ctx.region) == r %} selected{% endif %}>{{ r|trans }}</option>{% endfor %}
+              </select>
+            </label>
+            {# One freeform line on purpose: postcodes are unreliable across much of the
+               continent and informal directions are normal, so a rigid split address would
+               lose detail a courier needs. #}
+            <label class="sp-fld"><span>{{ 'Delivery address'|trans }}</span>
+              <textarea name="address" rows="2" required autocomplete="street-address" placeholder="{{ 'Street, area and city — plus any landmark that helps the courier'|trans }}">{{ retry.address }}</textarea>
+            </label>
+            <div class="sp-ship" data-sp-ship role="status"></div>
+          </fieldset>
+
+          <fieldset class="sp-fs">
+            <legend class="sp-fs__l">{{ 'Your details'|trans }}</legend>
+            <label class="sp-fld"><span>{{ 'Full name'|trans }}</span><input type="text" name="name" required autocomplete="name" value="{{ retry.name }}"></label>
+            <label class="sp-fld"><span>{{ 'Email for your receipt'|trans }}</span><input type="email" name="email" required autocomplete="email" inputmode="email" value="{{ retry.email }}" data-sp-email></label>
+            <label class="sp-fld"><span>{{ 'Phone for delivery updates'|trans }}</span><input type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="+234 801 234 5678" value="{{ retry.phone }}"></label>
+          </fieldset>
+
+          {# A PREVIEW: totals() prices the code again at checkout, so what this shows cannot
+             change what anybody is charged. #}
+          <div class="sp-fld sp-code">
+            <label for="spCode">{{ 'Discount code'|trans }} <em>{{ '(optional)'|trans }}</em></label>
+            <div class="sp-code__row">
+              <input id="spCode" class="sp-code__in" name="discount" autocomplete="off" value="{{ retry.discount }}" data-sp-code>
+              <button type="button" class="sp-btn sp-btn--line sp-code__go" data-sp-apply>{{ 'Apply'|trans }}</button>
+            </div>
+            <p class="sp-code__note" data-sp-code-note role="status"></p>
+          </div>
+
+          <fieldset class="sp-fs">
+            <legend class="sp-fs__l">{{ 'Pay with'|trans }}</legend>
+            {# The way to pay is chosen on the gateway's own secure page — this platform never
+               sees a card number or a wallet PIN — and mobile money is first there and here. #}
+            <ul class="sp-ways">
+              {% for w in ['Mobile money', 'Card', 'Bank transfer', 'USSD'] %}<li>{{ w|trans }}</li>{% endfor %}
+            </ul>
+            {% if ctx.providers|length > 1 %}
+              <div class="sp-prov" role="radiogroup" aria-label="{{ 'Payment provider'|trans }}">
+                {% for pv in ctx.providers %}
+                  <label class="sp-prov__o"><input type="radio" name="provider" value="{{ pv.id }}"{% if retry.provider == pv.id or (retry.provider == '' and loop.first) %} checked{% endif %}><span>{{ pv.label }}</span></label>
+                {% endfor %}
+              </div>
+            {% elseif ctx.providers|length == 1 %}
+              <input type="hidden" name="provider" value="{{ ctx.providers[0].id }}">
+              <p class="sp-hint">{{ 'You’ll choose on %provider%’s secure page next.'|trans({'%provider%': ctx.providers[0].label}) }}</p>
+            {% endif %}
+          </fieldset>
+        </div>
+      </div>
+
+      <div class="sp-cart__foot">
+        <div class="sp-free" data-sp-free-row hidden>
+          <span class="sp-free__t" data-sp-free-text></span>
+          <span class="sp-free__bar" aria-hidden="true"><span data-sp-free-bar></span></span>
+        </div>
+        <span class="sp-cart__tot"><span>{{ 'Total'|trans }}</span><b data-sp-total></b></span>
+        <span class="sp-cart__ngn" data-sp-ngn hidden></span>
+        <span class="sp-cart__give">{{ 'Every order funds child leadership programmes.'|trans }}</span>
+        <button type="button" class="sp-btn sp-btn--go" data-sp-next>{{ 'Checkout'|trans }}</button>
+        <button type="submit" class="sp-btn sp-btn--go" data-sp-pay hidden{{ ctx.providers is empty ? ' disabled' }}></button>
+        <button type="button" class="sp-back" data-sp-back hidden>{{ 'Back to your cart'|trans }}</button>
+      </div>
+    </form>
+  </aside>
+
+  {# "Added to your cart" — a status that stays until the buyer chooses (§8.12). #}
+  <div class="sp-added" role="status" aria-live="polite" data-sp-added hidden>
+    <div class="sp-added__head">
+      <span class="sp-added__t"><span class="sp-added__tick" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 20 20" fill="none"><path d="M4 10.5 8.5 15 16 5.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>{{ 'Added to your cart'|trans }}</span>
+      <button type="button" class="sp-x sp-x--sm" data-sp-added-close aria-label="{{ 'Close'|trans }}">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    </div>
+    <div class="sp-added__line">
+      <span class="sp-added__img" data-sp-added-img></span>
+      <span class="sp-added__b"><b data-sp-added-name></b><span data-sp-added-opt></span></span>
+      <span class="sp-added__p" data-sp-added-price></span>
+    </div>
+    <div class="sp-added__sum"><span data-sp-added-count></span><b data-sp-added-total></b></div>
+    <div class="sp-added__do">
+      <button type="button" class="sp-btn sp-btn--line" data-sp-cart-open>{{ 'View cart'|trans }}</button>
+      <button type="button" class="sp-btn sp-btn--go" data-sp-cart-open="checkout">{{ 'Checkout'|trans }}</button>
+    </div>
+    <button type="button" class="sp-keep" data-sp-added-close>{{ 'Keep shopping'|trans }}</button>
+  </div>
+  <noscript><p class="sp-noscript">{{ 'The cart needs JavaScript. To order without it, write to us and we’ll arrange payment and delivery.'|trans }}</p></noscript>
+{% endmacro %}

@@ -20,7 +20,7 @@
     <p class="si__lede">{{ 'Tell us the email on your account and we will send a link to set a new password. It works once and lasts an hour.'|trans }}</p>
   </div>
   {{ auth.say(_error, _notice) }}
-  <form class="si__form-step" method="post" action="/account/forgot" novalidate>
+  <form class="si__form-step" method="post" action="/account/forgot" novalidate data-ag-validate>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input class="si__in" id="email" type="email" name="email" value="{{ login_email|default('') }}" required
            autocomplete="email" inputmode="email" aria-label="{{ 'Email'|trans }}" placeholder="you@example.com" autofocus

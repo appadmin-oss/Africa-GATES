@@ -1,0 +1,168 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE THREAD — /community/{slug} · CommunityController::threadShow · Phase 8
+  Built without a DC (PHASE-8.md "built without a DC")
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct (inventory pages--community--thread.md); rebuilt on the shell.
+
+  Carried, each a rule:
+  · GUESTS READ EVERYTHING; every write control is a member's or a clear sign-in link.
+  · A LOCKED thread stays readable and offers no reply box — it says so in words.
+  · REPLYING IS A PLAIN FORM (POST /community/{slug}/reply), so it works with no script;
+    the identity on a reply is the member's account, never a field (asMember()).
+    A refused reply keeps its words (`reply_old`) and its reason, beside the box.
+  · The poll is partials/poll.twig, its sheet and script linked only when there is one.
+  · React, follow and save are the live /api/v1/community/* endpoints (community.js),
+    each with `aria-pressed`, and each drawn for a member only.
+  · Report goes to a person: /api/v1/community/report, with a reason, from a dialog.
+  · Related threads, then the published moderation rules (/integrity).
+  · A thread body is member-written text: printed escaped, line breaks kept by CSS.
+#}
+{% import 'partials/community-ui.twig' as cm %}
+{% import 'partials/field.twig' as f %}
+{% set own_flash = true %}
+{% set colour_tier = '1' %}
+{% set t = thread %}
+{% set _locked = t.status == 'locked' %}
+{% set app_bar = {variant: 'child', title: 'Thread'|trans, back: '/community'} %}
+{% set _next = ('/community/' ~ t.slug ~ '#reply')|url_encode %}
+
+{% block head_styles %}
+  {% include 'partials/seo-head.twig' %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
+  {% if poll %}<link rel="stylesheet" href="{{ asset('/assets/css/components/poll.css') }}">{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="cm cm--one">
+  <div class="cm-col">
+    <article class="cm-op" aria-labelledby="cm-t">
+      <p class="cm-crumb"><a href="/community">{{ 'Community'|trans }}</a></p>
+      <h1 class="cm-h1" id="cm-t">{{ t.title }}</h1>
+      {% if t.is_pinned or _locked %}
+        <p class="cm-tags">
+          {% if t.is_pinned %}<span class="cm-tag">{{ 'Pinned'|trans }}</span>{% endif %}
+          {% if _locked %}<span class="cm-tag">{{ 'Locked — read only'|trans }}</span>{% endif %}
+        </p>
+      {% endif %}
+      <div class="cm-by">
+        {{ cm.av(t.author_name, 'lg') }}
+        <p class="cm-by__b"><b>{{ t.author_name }}</b><span>{{ cm.ago(t.created_at) }}</span></p>
+      </div>
+      {% if t.body %}<div class="cm-body">{{ t.body }}</div>{% endif %}
+
+      {% include 'partials/poll.twig' with {poll: poll, is_member: member_logged_in, request_path: '/community/' ~ t.slug} only %}
+
+      <div class="cm-acts" data-cm-thread="{{ t.id }}">
+        {% if member_logged_in %}
+          <button type="button" class="cm-act" data-cm-cheer aria-pressed="{{ member_state.cheered ? 'true' : 'false' }}" data-on="{{ 'Cheered'|trans }}" data-off="{{ 'Cheer'|trans }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"></path></svg>
+            <span data-cm-l>{{ member_state.cheered ? 'Cheered'|trans : 'Cheer'|trans }}</span> <span class="cm-act__n" data-cm-n>{{ t.cheer_count }}</span>
+          </button>
+          <button type="button" class="cm-act" data-cm-toggle="follow" aria-pressed="{{ member_state.following ? 'true' : 'false' }}" data-on="{{ 'Following'|trans }}" data-off="{{ 'Follow'|trans }}"><span data-cm-l>{{ member_state.following ? 'Following'|trans : 'Follow'|trans }}</span></button>
+          <button type="button" class="cm-act" data-cm-toggle="bookmark" aria-pressed="{{ member_state.bookmarked ? 'true' : 'false' }}" data-on="{{ 'Saved'|trans }}" data-off="{{ 'Save'|trans }}"><span data-cm-l>{{ member_state.bookmarked ? 'Saved'|trans : 'Save'|trans }}</span></button>
+          {% if member_state.reposted %}<span class="cm-act cm-act--note">{{ 'You shared this to Pulse'|trans }}</span>{% endif %}
+        {% else %}
+          <span class="cm-act cm-act--note">{{ t.cheer_count == 1 ? '1 reaction'|trans : '%n% reactions'|trans({'%n%': t.cheer_count}) }}</span>
+          <a class="cm-act" href="/account/login?next={{ _next }}">{{ 'Sign in to react, follow or reply'|trans }}</a>
+        {% endif %}
+        <button type="button" class="cm-act" data-ag-share data-ag-share-url="/community/{{ t.slug }}" data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share'|trans }}</button>
+        {% if member_logged_in and member_id > 0 and t.author_user_id|default(0) != member_id %}
+          <button type="button" class="cm-act" data-cm-report="thread" data-id="{{ t.id }}">{{ 'Report'|trans }}</button>
+        {% endif %}
+      </div>
+    </article>
+
+    {% if flash_notice or flash_error %}
+      <p class="cm-say{{ flash_error ? ' cm-say--error' }}" role="{{ flash_error ? 'alert' : 'status' }}">{{ flash_error ?: flash_notice }}</p>
+    {% endif %}
+
+    <section class="cm-replies" id="replies" aria-labelledby="cm-rep-h">
+      <h2 class="cm-bar__h cm-replies__h" id="cm-rep-h">{{ replies|length == 1 ? '1 reply'|trans : '%n% replies'|trans({'%n%': replies|length}) }}</h2>
+      {% if replies is empty %}
+        <p class="cm-quiet">{{ _locked ? 'Nobody replied before this thread was locked.'|trans : 'No replies yet. Say the first thing.'|trans }}</p>
+      {% else %}
+        <ol class="cm-list">
+          {% for r in replies %}
+            <li class="cm-row" id="reply-{{ r.id }}">
+              {{ cm.av(r.author_name) }}
+              <div class="cm-row__b">
+                <p class="cm-row__meta"><span class="cm-row__who">{{ r.author_name }}</span> · {{ cm.ago(r.created_at) }}</p>
+                <div class="cm-body cm-body--reply">{{ r.body }}</div>
+                {% if member_logged_in and member_id > 0 and r.author_user_id|default(0) != member_id %}
+                  <p class="cm-row__n"><button type="button" class="cm-act cm-act--small" data-cm-report="comment" data-id="{{ r.id }}">{{ 'Report'|trans }}</button></p>
+                {% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+      {% endif %}
+    </section>
+
+    <section class="cm-reply" id="reply" aria-labelledby="cm-reply-h">
+      <h2 class="cm-bar__h" id="cm-reply-h">{{ 'Reply'|trans }}</h2>
+      {% if _locked %}
+        <p class="cm-quiet">{{ 'The moderators locked this thread. It stays here to read; it takes no new replies.'|trans }}</p>
+      {% elseif member_logged_in %}
+        <form class="cm-form" method="post" action="/community/{{ t.slug }}/reply">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          {{ f.textarea({id: 'cm-reply-body', name: 'body', label: 'Your reply'|trans, value: reply_old, rows: 4, required: true, maxlength: 4000,
+                hint: 'Posting as %name%. A person reads anything that is reported.'|trans({'%name%': member.name})}, flash_error ? flash_error : '') }}
+          <div class="cm-form__go"><button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Post reply'|trans }}</button></div>
+        </form>
+      {% else %}
+        <div class="cm-join">
+          <p>{{ 'Anybody can read. To reply, sign in or join — it takes a code to your email or phone.'|trans }}</p>
+          <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/account/login?next={{ _next }}">{{ 'Sign in or join'|trans }}</a>
+        </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside class="cm-side" aria-label="{{ 'About this thread'|trans }}">
+    {% if related is not empty %}
+      <section class="cm-box" aria-labelledby="cm-rel-h">
+        <h2 class="cm-box__h" id="cm-rel-h">{{ 'Related threads'|trans }}</h2>
+        <ol class="cm-trend">
+          {% for rl in related %}
+            <li><a href="/community/{{ rl.slug }}">{{ rl.title }}</a><span>{{ rl.reply_count == 1 ? '1 reply'|trans : '%n% replies'|trans({'%n%': rl.reply_count}) }}</span></li>
+          {% endfor %}
+        </ol>
+      </section>
+    {% endif %}
+    <section class="cm-box" aria-labelledby="cm-mod-h">
+      <h2 class="cm-box__h" id="cm-mod-h">{{ 'A moderated space'|trans }}</h2>
+      <p class="cm-box__p">{{ 'Posts that look like spam wait for a person before anybody sees them. Report anything that breaks the rules and a moderator reads it.'|trans }}</p>
+      <a class="cm-link" href="/integrity">{{ 'The full moderation rules'|trans }}</a>
+    </section>
+  </aside>
+</div>
+
+{% if member_logged_in %}
+  {# The report dialog: a reason is required, and it reaches a person (CommunityController::report). #}
+  <dialog class="cm-dlg" data-cm-dlg aria-labelledby="cm-dlg-h">
+    <form method="dialog" class="cm-dlg__f">
+      <h2 class="cm-box__h" id="cm-dlg-h">{{ 'Report to the moderators'|trans }}</h2>
+      <label class="ag-label" for="cm-dlg-why">{{ 'What is wrong with it?'|trans }}</label>
+      <select class="ag-input" id="cm-dlg-why" data-cm-why>
+        <option value="spam">{{ 'Spam or advertising'|trans }}</option>
+        <option value="abuse">{{ 'Abuse or harassment'|trans }}</option>
+        <option value="canvassing">{{ 'Canvassing for votes'|trans }}</option>
+        <option value="other">{{ 'Something else'|trans }}</option>
+      </select>
+      <p class="cm-dlg__say" role="status" aria-live="polite" data-cm-dlg-say data-done="{{ 'Thank you. A moderator will read it.'|trans }}" data-fail="{{ 'That report did not send. Try again.'|trans }}"></p>
+      <div class="cm-form__go">
+        <button class="ag-btn ag-btn--secondary ag-btn--pill" value="cancel" type="submit">{{ 'Cancel'|trans }}</button>
+        <button class="ag-btn ag-btn--primary ag-btn--pill" type="button" data-cm-dlg-send>{{ 'Send report'|trans }}</button>
+      </div>
+    </form>
+  </dialog>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}
+  {% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}"></script>{% endif %}
+  {% if member_logged_in %}<script defer src="{{ asset('/assets/js/community.js') }}"></script>{% endif %}
+{% endblock %}

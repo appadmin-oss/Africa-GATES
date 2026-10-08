@@ -1857,6 +1857,8 @@ return function(App $app) {
         // are ProfilePage::owns(), the one answer the page itself uses.
         $g->post('/registry/{slug}/edit',   RegistryController::class.':edit');
         $g->post('/registry/{slug}/follow', RegistryController::class.':follow');
+        // The public withdrawal log (REFERENCE §11): every recognition withdrawn, and why.
+        $g->get('/recognitions/withdrawn', \AfricaGates\Controllers\RecognitionsController::class.':withdrawn');
         // ── NEAR-MISS URLS ───────────────────────────────────────────────────
         //
         // People type the word they have in mind, not the segment we chose. They type the
@@ -2856,6 +2858,10 @@ return function(App $app) {
         // trader who wants to read it before pressing the button should not have to find it
         // under a footer heading called Legal.
         $g->get('/vendor-terms', fn($req,$res)=>$legalRender($req,$res,'vendor-terms'));
+        // Their own downloads, beside the page: the document toolbar offers `/<slug>/download/…`
+        // for every legal page, and these two were the only ones it 404'd on (Phase9PagesTest).
+        $g->get('/refunds/download/{fmt:txt|md}',      fn($req,$res,$args)=>$legalFile($req,$res,'refunds',(string)$args['fmt']));
+        $g->get('/vendor-terms/download/{fmt:txt|md}', fn($req,$res,$args)=>$legalFile($req,$res,'vendor-terms',(string)$args['fmt']));
         // ── THE PAGE HAS TO READ THE ENGINE, NOT REMEMBER IT ─────────────────
         //
         // These numbers were prose. The route passed no data at all, so
@@ -3670,6 +3676,7 @@ return function(App $app) {
         $g->get('/community/new',            CommunityController::class.':threadNew');
         $g->post('/community/new',           CommunityController::class.':threadCreate');
         $g->get('/community/{slug}',         CommunityController::class.':threadShow');
+        $g->post('/community/{slug}/reply',  CommunityController::class.':replyForm');
     });
 
     // ═══ JUDGES ═══════════════════════════════════════════════════════
@@ -3892,6 +3899,11 @@ return function(App $app) {
         // so a `data`-role operator sees it in the rail and is redirected on arrival.
         // Mapping it is an ACCESS change and must never ride along inside a feature one.
         $a->post('/result-release/check-record', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':checkRecord');
+
+        // Recognitions (Phase 6): issued at announcement, never edited, withdrawable with a
+        // published reason. Unmapped in Permissions, so superadmin only — see the controller.
+        $a->get('/recognitions', \AfricaGates\Admin\Controllers\RecognitionsController::class.':index');
+        $a->post('/recognitions/{id:[0-9]+}/withdraw', \AfricaGates\Admin\Controllers\RecognitionsController::class.':withdraw');
 
         // ── AND THE MARKS UNDER IT ──────────────────────────────────────────
         //

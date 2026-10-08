@@ -137,6 +137,15 @@ Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed 
   server-side; confirm-with-reason → `_reason` on the audit row; alerts derived on read. **Found:** the old rail
   offered 15 pages the guard refused (PHASE-ADMIN.md §6 Q1). Hosts and the console switcher awaiting the owner.
 
+### Phase 5 — awards and voting (5–8 Oct 2026; `PHASE-5.md`)
+- `/awards` (index, one award with Overview · Award details · versioned Terms, coming soon with a double-opt-in
+  alert), `/vote` hub → edition page → nominee + ballot → won state (`win` via `Celebration::refusal()`), the
+  nominee's supporters / messages / message / flier pages, and `/winners`. Migrations: `edition_number`,
+  `gates_award_terms` + acceptance, `gates_award_alerts`. No scoring or money rule changed. The results
+  stylesheet/script and the paid-vote receipts are the owner's other session's (`1aa11db`, `d1b39d1`) and win.
+- Fixed: `/results` printed "Decided" over a late, unannounced cycle. Open: Q9, Q10 (today's rules kept),
+  ballot evidence naming, and `/claim/{id}` (500, owned by no phase).
+
 ### Phase 7 — Events index, detail and ticket (4–5 Oct 2026; `PHASE-7.md`, "Events")
 - `/events` (upcoming soonest first, featured "Next up", coming soon among them, past in its own section, sandbox
   excluded), `/events/{slug}` in every state incl. **coming soon** (derived from the tiers' `sale_starts_at` by
@@ -145,6 +154,14 @@ Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed 
   derived at read time (`EventTierTone::card()`, Q6). `partials/photo.twig` (Q8) used by events and home. New columns
   `livestream_url`, `recording_url`, `access_notes` + three admin fields. 38 tests, 24 mutations caught. Blocked:
   wallet passes (B1), Q17 (48 h kept), hosts' own ownership of events.
+
+### Phase 9 — documents, help, blog, status, support, error pages (5–8 Oct 2026; `PHASE-9.md`)
+- Legal pages, `/integrity`, `/philosophy`, programme terms on DocPage; Help Centre index/category/article with
+  every "Ask Gee" opening the desk in place; blog index + post; `/status` on StatusPageV2 with the measured
+  "Happening now" timeline, planned work (`PlannedWork`, set in `/admin/settings`) and double-opt-in status
+  updates (`StatusAlert`, `gates_status_alerts`, maintenance sweep); `/support`, tickets, newsletter, the
+  bulk-mail stop button and the 404/403/500/503 page with its reference. The owner's "Why is voting paid?"
+  article (price from the setting; capitals and "African G8" flagged). Blocked: status by country (§3.14).
 
 ### Test status
 - Full suite after Phase 3: **6,633 tests, 8 failures — all `PasskeyTest`**, which needs PHP 8.4 (this

@@ -48,6 +48,7 @@
         <a href="/help">{{ 'Help Centre'|trans }}</a><span aria-hidden="true">/</span>
         {% if category %}<a href="/help/c/{{ category_key|url_encode }}">{{ category.title|trans }}</a>{% endif %}
       </nav>
+      {% if article.kicker is defined and article.kicker %}<p class="ha__kicker">{{ article.kicker }}</p>{% endif %}
       <h1 class="ha__h1">{{ article.title }}</h1>
       <div class="ha__meta">
         <span class="ha__read">{{ '%n% min read'|trans({'%n%': read_minutes}) }} · {{ 'Updated %d%'|trans({'%d%': updated|date('j M Y')}) }}</span>
@@ -64,6 +65,12 @@
             <ol class="ha__steps">{% for s in b.steps %}<li><span class="ha__n" aria-hidden="true">{{ loop.index }}</span><span>{{ s|raw }}</span></li>{% endfor %}</ol>
           {% elseif b.note is defined %}
             <p class="ha__note">{{ b.note|raw }}</p>
+          {% elseif b.h is defined %}
+            <h2 class="ha__h2">{{ b.h|raw }}</h2>
+          {% elseif b.list is defined %}
+            <ul class="ha__list">{% for s in b.list %}<li>{{ s|raw }}</li>{% endfor %}</ul>
+          {% elseif b.quote is defined %}
+            <blockquote class="ha__quote"><p>{{ b.quote|raw }}</p></blockquote>
           {% endif %}
         {% endfor %}
       </div>

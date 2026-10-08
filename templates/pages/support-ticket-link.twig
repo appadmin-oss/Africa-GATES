@@ -52,7 +52,7 @@
          the page, so without a script there is nowhere for a plain form to post — the
          email route below is the no-script answer. #}
       <p class="ag-hint" data-st-noscript>{{ 'To reply, answer the last email we sent you — it lands on this conversation.'|trans }}</p>
-      <form class="st-compose" method="post" action="" data-st-form="link" hidden novalidate>
+      <form class="st-compose" method="post" action="" data-st-form="link" hidden>
         <label class="ag-label" for="tlReply">{{ 'Your reply'|trans }}</label>
         <span class="ag-field sp__area"><textarea id="tlReply" name="body" maxlength="5000" rows="4" required
               placeholder="{{ settled ? 'Still not right? Reply and this reopens.'|trans : 'Tell us anything that would help…'|trans }}"></textarea></span>

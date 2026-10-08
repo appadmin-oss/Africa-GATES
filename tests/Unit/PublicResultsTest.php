@@ -214,6 +214,29 @@ final class PublicResultsTest extends TestCase
     }
 
     /**
+     * AND THE INDEX NEVER CALLS A LATE CYCLE "DECIDED".
+     *
+     * Past its results date the computed phase reads `results`, and the index used to
+     * hand that straight to ResultStatus::forAward() — so /results printed "Decided" over
+     * an edition nobody had announced, directly under the notice saying it was late. A
+     * date passing is not a decision; only a released status is.
+     */
+    public function test_the_index_draws_a_late_cycle_as_with_the_panel(): void
+    {
+        $this->decided();
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'judging']);
+
+        $row = null;
+        foreach (PublicResults::standings()['editions'] as $e) {
+            if ((int) $e['cycle_id'] === $this->cycleId) $row = $e;
+        }
+        $this->assertNotNull($row, 'a late cycle has vanished from the index');
+        $this->assertSame(\AfricaGates\Services\ResultStatus::JUDGING, $row['status']['key'],
+            'the index is calling an unannounced, late cycle decided');
+        $this->assertFalse((bool) $row['status']['publishes_standing']);
+    }
+
+    /**
      * THE OPERATOR'S OWN REASON TRAVELS WITH IT, AND ITS ABSENCE IS NOT A BLANK PAGE.
      *
      * The delay is the platform's to admit and does not wait on somebody being at a desk;

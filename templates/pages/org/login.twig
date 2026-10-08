@@ -30,7 +30,7 @@
     <p class="si__lede">{{ 'For organisations receiving gifts through Africa GATES, and for stand vendors at our events.'|trans }}</p>
   </div>
   {{ auth.say(error, null) }}
-  <form class="si__form-step" method="post" action="/org/login" novalidate>
+  <form class="si__form-step" method="post" action="/org/login" novalidate data-ag-validate>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input class="si__in" id="org-email" type="email" name="email" value="{{ old_email }}" required
            autocomplete="username" inputmode="email" aria-label="{{ 'Email'|trans }}" placeholder="you@organisation.org"

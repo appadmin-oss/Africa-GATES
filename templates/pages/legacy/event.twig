@@ -34,7 +34,7 @@
 {% block content %}
 <div class="lve">
   <div class="lve-cover">
-    {% include 'partials/photo.twig' with {kind: 'thing', src: _cover, name: _name, title: false, eager: true} only %}
+    {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: _cover, name: _name, date: e.date, eager: true} only %}
     <div class="lve-cover__btns">
       <a class="ag-btn ag-btn--icon ag-btn--float" href="/legacy" aria-label="{{ 'Back to the vault'|trans }}"><svg class="ag-ico-dir" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
       <button type="button" class="ag-btn ag-btn--icon ag-btn--float" data-ag-share aria-label="{{ 'Share this edition'|trans }}" data-ag-copied="{{ 'Link copied'|trans }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></button>
@@ -50,12 +50,12 @@
           {% if ed.tagline %}<p class="lve-lede">{{ ed.tagline }}</p>{% endif %}
           {% if ed.facts %}<ul class="lve-facts" aria-label="{{ 'Edition facts'|trans }}">{% for f in ed.facts %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
         </div>
-        <span class="lve-head__img">{% include 'partials/photo.twig' with {kind: 'thing', src: _cover, name: _name, title: false} only %}</span>
+        <span class="lve-head__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: _cover, name: _name} only %}</span>
       </header>
 
       {% if ed.overall %}
         <section class="lve-ow" aria-labelledby="lve-ow">
-          <span class="lve-ow__img">{% include 'partials/photo.twig' with {kind: 'person', src: ed.overall.photo, name: ed.overall.name} only %}</span>
+          <span class="lve-ow__img">{% include 'partials/photo.twig' with {kind: 'person', src: ed.overall.photo, name: ed.overall.name, id: ed.overall.id, size: 96} only %}</span>
           <div class="lve-ow__t">
             <span class="lve-ow__k"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 16 3 6.5l5 3.8L12 4l4 6.3 5-3.8L19.5 16z" fill="var(--ag-gold)" stroke="var(--ag-gold-ink)" stroke-width="1.6" stroke-linejoin="round"/></svg>{{ 'Overall winner of the edition'|trans }}</span>
             <h2 class="lve-ow__n" id="lve-ow">{{ ed.overall.name }}</h2>
@@ -71,7 +71,7 @@
             {% for w in ed.winners %}
               <li class="{{ loop.index > 8 ? 'lve-wins__x' : (loop.index > 6 ? 'lve-wins__xp') }}">
                 <a class="lve-win" href="{{ w.url }}">
-                  <span class="lve-win__av">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name} only %}</span>
+                  <span class="lve-win__av">{% include 'partials/photo.twig' with {kind: 'person', src: w.photo, name: w.name, id: w.id, size: 44} only %}</span>
                   <span class="lve-win__t"><span class="lve-win__c">{{ w.cat }}</span><span class="lve-win__n">{{ w.name }}</span></span>
                   <span class="lve-win__cpi">{{ w.cpi }}</span>
                 </a>
@@ -94,7 +94,7 @@
         <section class="lve-sec" aria-labelledby="lve-g">
           <h2 class="lve-sec__t" id="lve-g">{{ 'From the floor'|trans }}</h2>
           <ul class="lve-gal">
-            {% for g in ed.gallery %}<li><a href="{{ g|media_url }}" aria-label="{{ 'Photo %n% of %t%, open full size'|trans({'%n%': loop.index, '%t%': loop.length}) }}">{% include 'partials/photo.twig' with {kind: 'thing', src: g|media_url, name: _name, title: false} only %}</a></li>{% endfor %}
+            {% for g in ed.gallery %}<li><a href="{{ g|media_url }}" aria-label="{{ 'Photo %n% of %t%, open full size'|trans({'%n%': loop.index, '%t%': loop.length}) }}">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: g|media_url, name: _name} only %}</a></li>{% endfor %}
           </ul>
         </section>
       {% endif %}

@@ -18,12 +18,11 @@ class PartnerController {
         private readonly ?StatsService $stats = null
     ){}
 
-    /** Common render vars — real DB stats + enabled providers on every render path. */
+    /** Common render vars — real DB stats on every render path. */
     private function vars(array $extra): array {
         return array_merge([
             'gates_page'      => 'partner',
             'stats'           => $this->stats?->summary() ?? [],
-            'payment_providers' => $this->payments ? $this->payments->enabledProviders() : [],
         ], $extra);
     }
 

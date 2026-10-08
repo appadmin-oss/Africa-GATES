@@ -47,7 +47,7 @@
     <header class="pp-head">
       <div class="pp-banner">{% if _cover %}{% include 'partials/photo.twig' with {kind: 'thing', src: _cover, name: _name, title: false, eager: true} only %}{% endif %}</div>
       <div class="pp-id">
-        <span class="pp-av">{% include 'partials/photo.twig' with {kind: 'person', src: _avatar, name: _name, alt: _avatar ? 'Portrait of %n%'|trans({'%n%': _name}) : '', eager: true} only %}</span>
+        <span class="pp-av">{% include 'partials/photo.twig' with {kind: 'person', src: _avatar, name: _name, id: p.id, size: 96, avatar_kind: p.profile_type == 'individual' ? 'person' : 'organisation', verified: _verified, alt: _avatar ? 'Portrait of %n%'|trans({'%n%': _name}) : '', eager: true} only %}</span>
         <div class="pp-actions">
           <button type="button" class="pp-pill" data-pp-listen hidden aria-controls="pp-player">
             <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"/></svg><span data-pp-listen-label>{{ 'Listen'|trans }}</span>
@@ -132,7 +132,7 @@
               <li><a class="pp-rec" href="{{ n.url }}"><span class="pp-rec__y">{{ n.year }}</span><span class="pp-rec__t"><span class="pp-rec__n">{{ n.title }}</span><span class="pp-rec__a">{{ n.award }}</span></span><span class="pp-st pp-st--{{ n.status == 'Shortlisted' ? 'green' : 'plain' }}">{{ n.status|trans }}</span></a></li>
             {% endfor %}
             {% for r in pg.recognition.active %}
-              <li><a class="pp-rec" href="{{ r.award.url }}" data-pp-read-rec="{{ (_status[r.standing][0]|default('Recognised'))|trans }}, {{ r.award.category }}, {{ r.award.programme }}"><span class="pp-rec__y">{{ r.award.year }}</span><span class="pp-rec__t"><span class="pp-rec__n">{{ r.award.category }}</span><span class="pp-rec__a">{{ r.award.programme }}{% if r.award.edition %} · {{ r.award.edition }}{% endif %} · {{ 'issued by %i%'|trans({'%i%': r.issuer.name}) }}{% if r.issuer.verified %} <span class="pp-verified">{{ 'verified issuer'|trans }}</span>{% endif %}</span></span><span class="pp-st pp-st--{{ _status[r.standing][1]|default('plain') }}">{{ (_status[r.standing][0]|default('Recognised'))|trans }}</span></a></li>
+              <li><a class="pp-rec" href="{{ r.award.url }}" data-pp-read-rec="{{ (_status[r.standing][0]|default('Recognised'))|trans }}, {{ r.award.category }}, {{ r.award.programme }}"><span class="pp-rec__y">{{ r.award.year }}</span><span class="pp-rec__t"><span class="pp-rec__n">{{ r.award.category }}</span><span class="pp-rec__a">{{ r.award.programme }}{% if r.award.edition %} · {{ r.award.edition }}{% endif %} · {% if r.issuer.name != r.award.programme %}{{ 'issued by %i%'|trans({'%i%': r.issuer.name}) }} {% endif %}{% if r.issuer.verified %}<span class="pp-verified">{{ 'verified issuer'|trans }}</span>{% endif %}</span></span><span class="pp-st pp-st--{{ _status[r.standing][1]|default('plain') }}">{{ (_status[r.standing][0]|default('Recognised'))|trans }}</span></a></li>
             {% endfor %}
           </ul>
         {% else %}
@@ -144,8 +144,8 @@
               <li class="pp-rec pp-rec--gone"><span class="pp-rec__y">{{ r.award.year }}</span><span class="pp-rec__t"><span class="pp-rec__n">{{ r.award.category }}</span><span class="pp-rec__a">{{ 'Withdrawn %d%: %why%'|trans({'%d%': r.withdrawn_at|date('j M Y'), '%why%': r.withdrawn_reason}) }}</span></span><span class="pp-st pp-st--plain">{{ 'Withdrawn'|trans }}</span></li>
             {% endfor %}
           </ul>
-          <a class="pp-link" href="/recognitions/withdrawn">{{ 'Every withdrawal is logged publicly'|trans }}</a>
         {% endif %}
+        {% if pg.recognition.active or pg.recognition.withdrawn %}<a class="pp-link" href="/recognitions/withdrawn">{{ 'A recognition can only be withdrawn, and every withdrawal is logged publicly'|trans }}</a>{% endif %}
       </section>
 
       <section class="pp-sec" aria-labelledby="pp-ev">

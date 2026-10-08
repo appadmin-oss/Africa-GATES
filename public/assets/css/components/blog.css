@@ -68,9 +68,10 @@
 .bl a.bl-btn{ display:inline-flex; align-items:center; height:46px; padding:0 20px; border-radius:var(--ag-r-pill); border:1px solid var(--ag-ink); font-weight:600; font-size:var(--ag-fs-15) }
 
 /* ── Post ───────────────────────────────────────────────────────────────── */
-.bl-prog{ position:sticky; top:0; z-index:7; height:3px; background:var(--ag-tint) }
-.bl-prog__fill{ display:block; height:100%; width:100%; background:var(--ag-green); transform:scaleX(0); transform-origin:left center; transition:transform .12s linear }
-[dir="rtl"] .bl-prog__fill{ transform-origin:right center }
+/* Painted on the bar itself (one named element, ColourIsNeverAloneTest): the script sets
+   --p, and the green runs from the reading edge — the inline start, so RTL fills from the right. */
+.bl-prog{ position:sticky; top:0; z-index:7; height:3px; background:linear-gradient(to right, var(--ag-green) var(--p, 0%), var(--ag-tint) 0) }
+[dir="rtl"] .bl-prog{ background:linear-gradient(to left, var(--ag-green) var(--p, 0%), var(--ag-tint) 0) }
 .bp{ display:flex; flex-direction:column; gap:28px; padding:12px var(--ag-sp-16) 120px }
 .bp__head, .bp__narrow, .bp__body{ width:100%; margin:0 auto }
 .bp__head{ max-width:760px; display:flex; flex-direction:column; gap:var(--ag-sp-16) }
@@ -124,8 +125,8 @@
 .bp-player__top{ display:flex; justify-content:space-between; gap:var(--ag-sp-10); font-size:var(--ag-fs-13); font-weight:600 }
 .bp-player__t{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .bp-player__time{ flex:none; font-variant-numeric:tabular-nums }
-.bp-player__bar{ height:4px; border-radius:2px; background:var(--ag-ink-2); overflow:hidden }
-.bp-player__fill{ display:block; height:100%; width:100%; background:var(--ag-green-light); transform:scaleX(0); transform-origin:left center }
+.bp-player__bar{ display:block; height:4px; border-radius:2px; background:linear-gradient(to right, var(--ag-green-light) var(--p, 0%), var(--ag-ink-2) 0) }
+[dir="rtl"] .bp-player__bar{ background:linear-gradient(to left, var(--ag-green-light) var(--p, 0%), var(--ag-ink-2) 0) }
 .bp-player__sp{ flex:none; min-width:44px; height:44px; padding:0 10px; border:1px solid var(--ag-ink-2); border-radius:var(--ag-r-pill); background:transparent; color:var(--ag-ground); font-weight:700; font-size:var(--ag-fs-12-5); cursor:pointer }
 .bp-player__x{ flex:none; width:44px; height:44px; border:0; border-radius:50%; background:transparent; color:var(--ag-ground); display:flex; align-items:center; justify-content:center; cursor:pointer }
 
@@ -168,4 +169,3 @@
   .bp__body{ font-size:var(--ag-fs-19) }
   .bp-player{ inset-inline:auto 28px; width:420px }
 }
-@media (prefers-reduced-motion:reduce){ .bl-prog__fill{ transition:none } }

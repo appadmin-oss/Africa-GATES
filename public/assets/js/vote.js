@@ -37,11 +37,13 @@
     try { return document.documentElement.getAttribute('data-ag-keep') === '1' ? window.localStorage : window.sessionStorage; }
     catch (e) { return null; }
   }
-  function get(key) { var s = store(); if (!s) return null; try { return s.getItem(key); } catch (e) { return null; } }
-  function put(key, v) { var s = store(); if (!s) return; try { s.setItem(key, v); } catch (e) {} }
-  function ballot(pid) { try { return JSON.parse(get('ag-vote:ballot:' + pid) || '{}') || {}; } catch (e) { return {}; } }
+  /* Every key carries the `ag-vote:` prefix, spelled here once as a literal so the cookie
+     sweep can read it (CookieRegistryTest) and /cookies declares it (CookieRegistry). */
+  function get(rest) { var s = store(); if (!s) return null; try { return s.getItem('ag-vote:' + rest); } catch (e) { return null; } }
+  function put(rest, v) { var s = store(); if (!s) return; try { s.setItem('ag-vote:' + rest, v); } catch (e) {} }
+  function ballot(pid) { try { return JSON.parse(get('ballot:' + pid) || '{}') || {}; } catch (e) { return {}; } }
   function record(pid, cid, entry) {
-    var b = ballot(pid); b[cid] = entry; put('ag-vote:ballot:' + pid, JSON.stringify(b));
+    var b = ballot(pid); b[cid] = entry; put('ballot:' + pid, JSON.stringify(b));
   }
   window.AGVote = { ballot: ballot, record: record };
 
@@ -244,8 +246,8 @@
     $$('[data-vmi]').forEach(function (li) {
       var tok = li.getAttribute('data-vmi');
       var ch = $('[data-vmi-cheer]', li), rp = $('[data-vmi-report]', li);
-      if (ch && get('ag-vote:cheer:' + tok)) ch.setAttribute('aria-pressed', 'true');
-      if (rp && get('ag-vote:report:' + tok)) { rp.textContent = rp.getAttribute('data-done'); rp.disabled = true; }
+      if (ch && get('cheer:' + tok)) ch.setAttribute('aria-pressed', 'true');
+      if (rp && get('report:' + tok)) { rp.textContent = rp.getAttribute('data-done'); rp.disabled = true; }
     });
     document.addEventListener('click', function (e) {
       var ch = e.target.closest && e.target.closest('[data-vmi-cheer]');
@@ -257,7 +259,7 @@
         api('/api/vote-message/cheer', { token: tok }).then(function (d) {
           ch.disabled = false;
           if (d && d.success) {
-            ch.setAttribute('aria-pressed', 'true'); put('ag-vote:cheer:' + tok, '1');
+            ch.setAttribute('aria-pressed', 'true'); put('cheer:' + tok, '1');
             var n = $('[data-vmi-n]', ch); if (n && d.cheers != null) n.textContent = fmt(d.cheers);
           }
         }).catch(function () { ch.disabled = false; });
@@ -265,7 +267,7 @@
       if (rp && !rp.disabled) {
         rp.disabled = true;
         api('/api/vote-message/report', { token: tok }).then(function (d) {
-          if (d && d.success) { rp.textContent = rp.getAttribute('data-done'); put('ag-vote:report:' + tok, '1'); }
+          if (d && d.success) { rp.textContent = rp.getAttribute('data-done'); put('report:' + tok, '1'); }
           else rp.disabled = false;
         }).catch(function () { rp.disabled = false; });
       }
@@ -284,13 +286,6 @@
         { n: sec.getAttribute('data-nominee'), name: sec.getAttribute('data-name'), url: sec.getAttribute('data-url'), cat: sec.getAttribute('data-category-title'), at: 0 });
     });
     if ($('[data-vmi]')) messages();
-    // /vote/paid/success: the template draws this marker only for an order whose votes
-    // MINTED, so a refused payment never records a vote on this device.
-    $$('[data-vote-mark]').forEach(function (m) {
-      record(m.getAttribute('data-award'), m.getAttribute('data-category'),
-        { n: m.getAttribute('data-nominee'), name: m.getAttribute('data-name'), url: m.getAttribute('data-url'), cat: m.getAttribute('data-category-title'), at: 0 });
-    });
-    $$('[data-ps-msg]').forEach(paidMessage);
     $$('[data-fl-share]').forEach(flierShare);
   }
   /* The flier's native share: the real PNG to the OS share sheet. Both checks are needed —
@@ -316,26 +311,6 @@
           if (status) status.textContent = (e && e.name === 'AbortError') ? '' : btn.getAttribute('data-failed');
         })
         .then(function () { btn.setAttribute('aria-busy', 'false'); btn.disabled = false; });
-    });
-  }
-  /* The message of support after a contributed vote — authorised by the payment reference. */
-  function paidMessage(form) {
-    var say = $('[data-ps-say]', form), btn = $('button[type="submit"]', form);
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var body = (form.elements.body.value || '').trim();
-      if (!body) { form.elements.body.focus(); return; }
-      if (btn) btn.disabled = true;
-      fetch('/api/vote-message', { method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
-        body: new URLSearchParams({ ref: form.elements.ref.value, body: body }) })
-        .then(function (r) { return r.json().catch(function () { return {}; }); })
-        .then(function (d) {
-          if (d && d.success) { form.elements.body.value = ''; form.elements.body.disabled = true; if (say) say.textContent = form.getAttribute('data-sent'); return; }
-          if (btn) btn.disabled = false;
-          if (say) say.textContent = (d && d.message) || form.getAttribute('data-failed');
-        })
-        .catch(function () { if (btn) btn.disabled = false; if (say) say.textContent = form.getAttribute('data-failed'); });
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

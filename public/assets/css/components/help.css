@@ -179,6 +179,13 @@
   width:28px; height:28px; border-radius:50%; border:1.5px solid var(--ag-ink);
   display:flex; align-items:center; justify-content:center; font-size:var(--ag-fs-13); font-weight:700;
 }
+.ha__kicker{ margin:0 0 calc(-1 * var(--ag-sp-8)); font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-soft) }
+.ha__h2{ margin:var(--ag-sp-10) 0 0; font-size:var(--ag-fs-19); font-weight:700; line-height:1.3 }
+.ha__list{ margin:0; padding-inline-start:1.2em; display:flex; flex-direction:column; gap:var(--ag-sp-8) }
+/* The owner's pull quotes: Playfair, a hairline at the inline start. Sentence case by house
+   rule — the owner wrote them in capitals (PHASE-9.md, owner-confirmable). */
+.ha__quote{ margin:var(--ag-sp-4) 0; padding:var(--ag-sp-4) 0 var(--ag-sp-4) var(--ag-sp-16); border-inline-start:3px solid var(--ag-ink) }
+.ha__quote p{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-20); line-height:1.35; text-wrap:balance }
 .ha__note{ padding:16px 18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16); font-size:var(--ag-fs-15-5) }
 .ha__fb{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
 .ha__fb > div{ display:flex; flex-direction:column; gap:var(--ag-sp-12) }

@@ -174,7 +174,8 @@
       ? '<strong>' ~ ('Put plainly:'|trans|e) ~ '</strong> ' ~ ('buying votes does help a nominee, and there is a rate. Both counts in the community half are measured against the edition’s largest total, so in that half one verified supporter is worth about %r% votes, in every edition. What money can’t do is multiply a supporter — one person is one person however many orders they place — reach the judging half, or hide.'|trans({'%r%': supporter_votes|default('2.33')})|e)
       : '<strong>' ~ ('Put plainly:'|trans|e) ~ '</strong> ' ~ ('buying votes does help a nominee. What money can’t do is multiply a supporter, reach the judging half, or hide.'|trans|e)},
     {refs: [{href: '/help/what-paid-votes-do', label: 'What paid votes actually do'|trans},
-            {href: '/help/how-free-voting-works', label: 'How free voting works'|trans}]}
+            {href: '/help/how-free-voting-works', label: 'How free voting works'|trans},
+            {href: '/help/why-is-voting-paid', label: 'Why is voting paid?'|trans}]}
   ]},
   {id: 'return', blocks: (return_off_reason|default('') == 'no_paid_voting'
       ? [{note: {title: 'Not running on this site'|trans|e, body: ['The return is a share of what supporters contribute, and this site doesn’t sell votes — voting here is free, and nothing is being raised in anybody’s name. So nothing accrues. The rules below are the ones that would apply if contributions were opened.'|trans|e]}}]

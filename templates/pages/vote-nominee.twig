@@ -38,6 +38,9 @@
 #}
 
 {% set colour_tier = '2' %}
+{# Gold is the won state's `win` celebration, drawn only once the award is decided — when
+   the ballot (green) and the live race (live) are gone. ColourBudgetTest's exclusive state. #}
+{% set colour_alt = 'gold' %}
 {% set flow_page = true %}
 {% set n = nominee %}
 {% set first = n.name|split(' ')|first %}
@@ -111,7 +114,7 @@
     {% if ctx.paid %}
     <div class="vb-paid" data-ag-paid aria-labelledby="{{ ctx.pre }}vb-paid-h">
       <h3 class="vb-paid__t" id="{{ ctx.pre }}vb-paid-h">{{ 'Add more votes'|trans }}</h3>
-      <p class="vb-paid__p">{{ ctx.paid_sentence }} <a href="/philosophy">{{ 'Why voting carries a contribution'|trans }}</a></p>
+      <p class="vb-paid__p">{{ ctx.paid_sentence }} <a href="/philosophy">{{ 'Why voting carries a contribution'|trans }}</a> · <a href="/help/why-is-voting-paid">{{ 'Where the money goes'|trans }}</a></p>
       <form class="vb-paid__form" method="post" action="/vote/paid/start" data-paid-form
             data-per="{{ ctx.vote_price }}" data-max="{{ ctx.max_qty }}" data-tiers="{{ ctx.vote_tiers|json_encode }}"
             data-label="{{ 'Contribute ₦%cost% for %n% votes'|trans }}" data-label-one="{{ 'Contribute ₦%cost% for 1 vote'|trans }}">
@@ -176,7 +179,7 @@
               secondary: {label: 'Vote in another category'|trans, href: '/vote/' ~ n.programme_slug}} only %}
         </div>
       {% else %}
-      <form class="vb-free" data-free-form novalidate>
+      <form class="vb-free" data-free-form>
         <div data-step="form">
           <p class="vb__p">{{ 'One verified vote per category. We email a 6-digit code to confirm it’s you; your email is hashed for the one-vote check.'|trans }}</p>
           <div class="vb-field">

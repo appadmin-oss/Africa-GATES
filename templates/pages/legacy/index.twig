@@ -135,7 +135,7 @@
               <li>
                 <a class="lv-card" href="{{ e.url }}">
                   <span class="lv-card__cover">
-                    {% include 'partials/photo.twig' with {kind: 'thing', src: e.cover, name: e.award, title: false} only %}
+                    {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: e.cover, name: e.award} only %}
                     {% if e.date %}<span class="lv-card__badge">{{ e.date|date('M Y') }}</span>{% endif %}
                   </span>
                   <span class="lv-card__body">

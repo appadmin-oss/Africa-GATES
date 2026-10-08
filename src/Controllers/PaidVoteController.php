@@ -432,13 +432,6 @@ final class PaidVoteController
             // For the /vote hub's per-device ballot tracker. Only meaningful when
             // votes actually landed, so the template gates the write on `minted`.
             'programme_id'     => $this->programmeIdFor($nominee),
-            // And the rest of the tracker's entry — the category the votes went into and
-            // the name it is drawn under on the hub — plus the edition key the `vote`
-            // celebration is asked about (Services\Celebration).
-            'category_id'      => $nominee ? (int) $nominee->category_id : 0,
-            'category_title'   => $nominee ? (string) (DB::table('gates_award_categories')
-                                      ->where('id', (int) $nominee->category_id)->value('title') ?? '') : '',
-            'nominee_id'       => $nominee ? (int) $nominee->id : 0,
             // The message-of-support box's ceiling, from the service that enforces it
             // rather than typed into the template — a `maxlength` that disagreed with
             // the server would silently cut a buyer's words after they sent them.

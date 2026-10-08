@@ -13,13 +13,13 @@
   var main = document.querySelector('.ag-main') || document.scrollingElement;
 
   var bar = document.querySelector('[data-blog-progress]');
-  var fill = document.querySelector('[data-blog-fill]');
+  var fill = document.querySelector('[data-blog-progress]');
   var tick = false;
   function measure() {
     tick = false;
     var max = main.scrollHeight - main.clientHeight;
     var p = max > 0 ? Math.min(1, Math.max(0, main.scrollTop / max)) : 0;
-    if (fill) fill.style.transform = 'scaleX(' + p.toFixed(3) + ')';
+    if (fill) fill.style.setProperty('--p', (p * 100).toFixed(1) + '%');
     if (bar) bar.setAttribute('aria-valuenow', String(Math.round(p * 100)));
   }
   main.addEventListener('scroll', function () { if (!tick) { tick = true; requestAnimationFrame(measure); } }, { passive: true });
@@ -50,7 +50,7 @@
       show(on ? 'playing' : (audio.currentTime > 0 ? 'paused' : 'idle'));
       if (pp) { pp.classList.toggle('is-playing', on); pp.setAttribute('aria-label', pp.getAttribute(on ? 'data-pause' : 'data-play')); }
       if (time) time.textContent = mm(audio.currentTime) + (isFinite(audio.duration) ? ' / ' + mm(audio.duration) : '');
-      if (pfill && isFinite(audio.duration) && audio.duration > 0) pfill.style.transform = 'scaleX(' + (audio.currentTime / audio.duration).toFixed(3) + ')';
+      if (pfill && isFinite(audio.duration) && audio.duration > 0) pfill.style.setProperty('--p', (100 * audio.currentTime / audio.duration).toFixed(1) + '%');
     };
     ['play', 'pause', 'timeupdate', 'loadedmetadata', 'ended'].forEach(function (ev) { audio.addEventListener(ev, sync); });
     var toggle = function () {

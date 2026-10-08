@@ -46,7 +46,7 @@
       <section class="sp__form" aria-labelledby="st-conv">
         <h2 class="hc__h2" id="st-conv">{{ 'Conversation'|trans }}</h2>
         {% include 'partials/support-thread.twig' with {t: t, messages: thread.messages, attachments: attachments, me: member_name|default('You'|trans)} only %}
-        <form class="st-compose" method="post" action="/api/v1/support/reply" enctype="multipart/form-data" data-st-form="reply" novalidate>
+        <form class="st-compose" method="post" action="/api/v1/support/reply" enctype="multipart/form-data" data-st-form="reply">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <input type="hidden" name="reference" value="{{ t.reference }}">
           <label class="ag-label" for="stReply">{{ 'Your reply'|trans }}</label>
@@ -118,7 +118,7 @@
       </section>
       <aside class="sp__form" aria-labelledby="st-new">
         <h2 class="hc__h2" id="st-new">{{ 'Raise a support ticket'|trans }}</h2>
-        <form class="st-compose" method="post" action="/api/v1/support/ticket" enctype="multipart/form-data" data-st-form="create" novalidate>
+        <form class="st-compose" method="post" action="/api/v1/support/ticket" enctype="multipart/form-data" data-st-form="create">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <label class="ag-label" for="stSubject">{{ 'Subject (optional)'|trans }}</label>
           <span class="ag-field"><input id="stSubject" name="subject" maxlength="180"></span>

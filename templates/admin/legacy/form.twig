@@ -18,6 +18,10 @@
         <div><label for="f-location">Location</label><input type="text" name="location" id="f-location" value="{{ row.location|default('') }}"></div>
       </div>
       <div class="row">
+        <div><label for="f-cycle_id">The edition this night was</label><select name="cycle_id" id="f-cycle_id"><option value="">Not an announced edition on this platform</option>{% for c in cycles|default([]) %}<option value="{{ c.id }}"{{ row.cycle_id|default(0) == c.id ? ' selected' }}>{{ c.label }}</option>{% endfor %}</select></div>
+        <div><label for="f-country_code">Country (two-letter code)</label><input type="text" name="country_code" id="f-country_code" maxlength="2" pattern="[A-Za-z]{2}" value="{{ row.country_code|default('') }}"></div>
+      </div>
+      <div class="row">
         <div><label for="f-icon">Icon emoji</label><input type="text" name="icon" id="f-icon" value="{{ row.icon|default('🏆') }}"></div>
         <div><label for="f-attendee_count">Attendees</label><input type="number" name="attendee_count" id="f-attendee_count" value="{{ row.attendee_count|default(0) }}"></div>
       </div>

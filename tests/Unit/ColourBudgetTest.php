@@ -321,9 +321,10 @@ final class ColourBudgetTest extends TestCase
         }
         ksort($claimed);
 
-        // The one holder — vote-nominee.twig's gold laurel, drawn only once voting has
-        // closed — was destroyed with the old pages; its rebuild adds itself back here.
-        $this->assertSame([], $claimed,
+        // The one holder — vote-nominee.twig's gold, the `win` celebration drawn only in the
+        // won state, once voting has closed and the ballot is gone. Destroyed with the old
+        // pages and added back by its Phase 5 rebuild; never a second.
+        $this->assertSame(['templates/pages/vote-nominee.twig' => 'gold'], $claimed,
             'a page is claiming one of its families is drawn in a state excluding the others');
 
         // The family named must exist, or the subtraction silently removes nothing.

@@ -199,6 +199,11 @@ final class CookieRegistry
              'purpose' => 'Your conversation with Gee, the site guide and help desk — one for each — so it survives moving between pages and an accidental reload in this tab. Gone when you close the tab. Nothing you type is kept on our server unless you pass it to a person, when it is kept with your support ticket.'],
             ['key' => 'ag-gee-privacy', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
              'purpose' => 'That you closed the privacy note at the top of Gee, so it is not shown again. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab.'],
+            // The ballot (Phase 5, vote.js): which categories this device has voted in, so the
+            // hub and the edition page can say "3 of 5 voted"; and that you cheered or reported a
+            // message, so the button stays pressed. Never the vote itself — that is the server's.
+            ['key' => 'ag-vote:', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
+             'purpose' => 'Which award categories you have voted in on this device, and the messages of support you cheered or reported, so the voting pages can show your progress and keep those buttons pressed. Your vote itself is recorded on our server, not here. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab.'],
             ['key' => 'coi_declared_', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'judges',
              'purpose' => 'For judges only: that you have made this programme\'s conflict-of-interest declaration in this tab.'],
             ['key' => 'ag-door-q:', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'door staff',

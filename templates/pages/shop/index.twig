@@ -1,0 +1,296 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  /shop — THE STOREFRONT · ShopPage.dc.html (view: index) · Phase 7 §8.12 (8 Oct 2026)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct with the old layout (inventory: pages--shop--index.md) and written again
+  from the DC. Phone (<600) has its own bar, intro, chip toolbar and sheet; tablet and
+  desktop share the masthead and the toolbar, and only desktop has the filter rail beside
+  the grid (tablet stacks it above, as the DC does). One grid serves all three — its cards
+  read the same product either way, and two grids would be two answers to "is this in
+  stock".
+
+  ── EVERYTHING WORKS WITH NO SCRIPT ─────────────────────────────────────────
+
+  Filters, sort, search, region and currency are GET forms; the chips and the removable
+  pills are links; "Load more" is a link to `?n=+4`. shop.js upgrades them in place (submit
+  on change, fetch the next four), and adds the cart, which is the one thing that needs it.
+
+  ── WHAT THE DC SAYS THAT THIS PAGE DOES NOT (docs/handoff/PHASE-7.md, "Shop") ─
+
+  "40% of every price" — no figure is recorded anywhere, so the promise is stated without
+  one. "Free returns · 14 days, any pickup point" and the pickup-point delivery option —
+  there is no returns policy and no pickup network in this codebase. "Frame your
+  recognition" — the row names the operator's first FEATURED product instead of a product
+  the catalogue may not hold. Each is a sentence that would be false, so none is printed.
+
+  Colour tier 2: green is the buy action and the cart badge; gold is the promotion row.
+#}
+{% import 'pages/shop/_bits.twig' as sb %}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'root', title: 'Shop'|trans} %}
+{# Hoisted: content and sheets both read these, and a set inside a block is invisible to
+   every other block (TwigBlockScopeTest). #}
+{% set F = found %}
+{% set _total = F.total %}
+{% set _shown = products|length %}
+{% set _more = _total - _shown %}
+{% set _onCount = F.categories|length + F.colours|length + F.sizes|length + (F.in_stock ? 1 : 0) + (F.featured ? 1 : 0) + ((F.min is not null or F.max is not null) ? 1 : 0) %}
+{% set _sheetCount = _onCount - F.categories|length %}
+{% set _base = {q: F.q, 'c': F.categories, col: F.colours, sz: F.sizes, min: F.min, max: F.max,
+                stock: F.in_stock ? 1 : null, feat: F.featured ? 1 : null,
+                sort: F.sort != 'featured' ? F.sort : null} %}
+{# Build a /shop URL from the state with one key changed. Lists become `c[]=` pairs. #}
+{% macro url(state) %}{% apply spaceless %}
+  {%- set parts = [] -%}
+  {%- for k, v in state -%}
+    {%- if v is iterable -%}{%- for x in v -%}{%- set parts = parts|merge([k ~ '%5B%5D=' ~ x|url_encode]) -%}{%- endfor -%}
+    {%- elseif v is not null and v != '' -%}{%- set parts = parts|merge([k ~ '=' ~ v|url_encode]) -%}{%- endif -%}
+  {%- endfor -%}
+  /shop{{ parts ? '?' ~ parts|join('&') : '' }}
+{% endapply %}{% endmacro %}
+{% import _self as u %}
+{% set _pills = [] %}
+{% if F.q %}{% set _pills = _pills|merge([{label: '“' ~ F.q ~ '”', href: u.url(_base|merge({q: null})), cat: false}]) %}{% endif %}
+{% for c in F.categories %}{% set _pills = _pills|merge([{label: c, href: u.url(_base|merge({'c': F.categories|filter(x => x != c)})), cat: true}]) %}{% endfor %}
+{% for c in F.colours %}{% set _pills = _pills|merge([{label: c, href: u.url(_base|merge({col: F.colours|filter(x => x != c)})), cat: false}]) %}{% endfor %}
+{% for s in F.sizes %}{% set _pills = _pills|merge([{label: 'Size %s%'|trans({'%s%': s}), href: u.url(_base|merge({sz: F.sizes|filter(x => x != s)})), cat: false}]) %}{% endfor %}
+{% if F.min is not null or F.max is not null %}{% set _pills = _pills|merge([{label: (F.min is not null ? '₦' ~ F.min|number_format : '₦0') ~ ' – ' ~ (F.max is not null ? '₦' ~ F.max|number_format : 'any'|trans), href: u.url(_base|merge({min: null, max: null})), cat: false}]) %}{% endif %}
+{% if F.in_stock %}{% set _pills = _pills|merge([{label: 'In stock'|trans, href: u.url(_base|merge({stock: null})), cat: false}]) %}{% endif %}
+{% if F.featured %}{% set _pills = _pills|merge([{label: 'Featured'|trans, href: u.url(_base|merge({feat: null})), cat: false}]) %}{% endif %}
+{% set _clear = '/shop' %}
+{% set _word = _total == 1 ? 'item'|trans : 'items'|trans %}
+{% set _ctx = {checkout_retry: checkout_retry, fx: fx, ship_free_over: ship_free_over, providers: providers, regions: regions, region: region} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/shop.css') }}">
+{% endblock %}
+
+{# The phone's own bar (DC idxPhone): "Shop" and the cart, 56px. Replaces the shell's root
+   bar on this page only; from 600 the site header is the bar, as everywhere. #}
+{% block app_bar %}
+  <div class="sp-pbar">
+    <h1 class="sp-pbar__h">{{ 'Shop'|trans }}</h1>
+    {{ sb.cartBtn('sp-pbar__cart') }}
+  </div>
+{% endblock %}
+
+{% block content %}
+<div class="sp" data-sp-page="index">
+  {% if notice %}
+    {# A bounced checkout. `mismatch` is worded and drawn as money that moved, never as a
+       failure (ShopController::CHECKOUT_NOTICES). #}
+    <div class="sp-notice sp-notice--{{ notice.tone }}" role="{{ notice.tone == 'err' ? 'alert' : 'status' }}">
+      <p>{{ notice.text|trans }}</p>
+      {% if notice.ref %}<p class="sp-notice__ref">{{ 'Reference'|trans }} <span class="sp-ref">{{ notice.ref }}</span></p>{% endif %}
+    </div>
+  {% endif %}
+
+  {# ── PHONE: intro and search (DC: 15px intro, 52px search) ───────────────────── #}
+  <div class="sp-pintro">
+    <p class="sp-pintro__p"><b>{{ 'Wear the recognition.'|trans }}</b> {{ 'Made by African makers, and every purchase funds child leadership programmes.'|trans }}</p>
+    <form class="sp-search sp-search--phone" method="get" action="/shop" role="search">
+      {{ sb.keep(F, ['q']) }}
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+      <input type="search" name="q" value="{{ F.q }}" enterkeyhint="search" aria-label="{{ 'Search the shop'|trans }}" placeholder="{{ 'Search the shop'|trans }}">
+      {% if F.q %}<a class="sp-search__x" href="{{ u.url(_base|merge({q: null})) }}" aria-label="{{ 'Clear search'|trans }}"><span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></span></a>{% endif %}
+    </form>
+  </div>
+
+  {# ── PHONE: the sticky chip toolbar (§8.12) — Filters (the count of non-category
+     filters), All, the categories single-select, and a native Sort select. ──────── #}
+  <div class="sp-ptools" role="toolbar" aria-label="{{ 'Filter and sort'|trans }}">
+    <a class="sp-chip sp-chip--filters" href="#spFilters" data-sp-filters-open aria-controls="spFilters">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>{{ 'Filters'|trans }}{% if _sheetCount > 0 %}<span class="sp-chip__n">{{ _sheetCount }}<span class="sp-sr"> {{ 'on'|trans }}</span></span>{% endif %}
+    </a>
+    <a class="sp-chip{{ F.categories is empty ? ' is-on' }}" href="{{ u.url(_base|merge({'c': []})) }}" aria-current="{{ F.categories is empty ? 'true' : 'false' }}">{{ 'All'|trans }}</a>
+    {% for c in facets.categories %}
+      {% set _on = F.categories == [c.name] %}
+      <a class="sp-chip{{ _on ? ' is-on' }}" href="{{ u.url(_base|merge({'c': _on ? [] : [c.name]})) }}" aria-current="{{ _on ? 'true' : 'false' }}">{{ c.name }}</a>
+    {% endfor %}
+    <form class="sp-sortf" method="get" action="/shop" data-sp-autosubmit>
+      {{ sb.keep(F, ['sort']) }}
+      <select class="sp-chip sp-chip--select" name="sort" aria-label="{{ 'Sort'|trans }}">
+        {% for k, label in sorts %}<option value="{{ k }}"{{ F.sort == k ? ' selected' }}>{{ 'Sort: %s%'|trans({'%s%': label|trans}) }}</option>{% endfor %}
+      </select>
+      <noscript><button type="submit" class="sp-chip">{{ 'Sort'|trans }}</button></noscript>
+    </form>
+  </div>
+
+  <div class="sp-wrap">
+    {# ── TABLET AND DESKTOP: masthead, search and the three promises ─────────────── #}
+    <div class="sp-top">
+      <div class="sp-top__t">
+        <h1 class="sp-h1">{{ 'Wear the recognition'|trans }}</h1>
+        <p class="sp-top__p">{{ 'Made by African makers. Every purchase funds child leadership programmes.'|trans }}</p>
+      </div>
+      <form class="sp-search sp-search--wide" method="get" action="/shop" role="search">
+        {{ sb.keep(F, ['q']) }}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+        <input type="search" name="q" value="{{ F.q }}" aria-label="{{ 'Search the shop'|trans }}" placeholder="{{ 'Search tees, totes, keepsakes…'|trans }}">
+        {% if F.q %}<a class="sp-search__x sp-search__x--wide" href="{{ u.url(_base|merge({q: null})) }}" aria-label="{{ 'Clear search'|trans }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></a>{% endif %}
+      </form>
+    </div>
+    <ul class="sp-promises" aria-label="{{ 'Why shop here'|trans }}">
+      <li><svg class="sp-promises__i sp-promises__i--live" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span><b>{{ 'Gives back'|trans }}</b> · {{ 'funds child leadership programmes'|trans }}</span></li>
+      {% if ship_free_over %}
+        <li><svg class="sp-promises__i sp-promises__i--green" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg><span><b>{{ 'Free delivery over ₦%n%'|trans({'%n%': ship_free_over|number_format}) }}</b> · {{ 'to %region%'|trans({'%region%': region|trans}) }}</span></li>
+      {% endif %}
+      <li><svg class="sp-promises__i sp-promises__i--gold" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"></path></svg><span><b>{{ 'Secure checkout'|trans }}</b> · {{ 'mobile money, card, bank transfer or USSD'|trans }}</span></li>
+    </ul>
+
+    {% if found.total == 0 and not F.filtered %}
+      {# The shop has nothing on sale (DC shopState=soon). No email box: there is no
+         "tell me when the shop opens" list in this codebase, and a field that stores
+         nothing is a promise to nobody. #}
+      <section class="sp-soon" aria-labelledby="spSoonH">
+        <h2 class="sp-soon__h" id="spSoonH">{{ 'The shop is opening soon'|trans }}</h2>
+        <p class="sp-soon__p">{{ 'We’re stocking the first collection. The newsletter announces it when it opens.'|trans }}</p>
+        <a class="sp-btn sp-btn--ink" href="/newsletter">{{ 'Get the newsletter'|trans }}</a>
+      </section>
+    {% else %}
+    <div class="sp-layout">
+      {# ── THE RAIL — and, below 600, the filter SHEET. One element in both places, so
+         the phone and the desktop cannot disagree about what a filter means, and so a
+         form never carries two controls for one name. `:target` opens it with no script. #}
+      <aside class="sp-rail" id="spFilters" aria-labelledby="spFiltersH" data-sp-sheet tabindex="-1">
+        <form class="sp-rail__form" method="get" action="/shop" data-sp-filters>
+          {{ sb.keep(F, ['c', 'col', 'sz', 'min', 'max', 'stock', 'feat']) }}
+          <div class="sp-rail__head">
+            <h2 class="sp-rail__h" id="spFiltersH">{{ 'Filters'|trans }}</h2>
+            {% if F.filtered %}<a class="sp-link sp-rail__clear" href="{{ _clear }}">{{ 'Clear all'|trans }}</a>{% endif %}
+            <a class="sp-x sp-rail__x" href="#" data-sp-filters-close aria-label="{{ 'Close filters'|trans }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></a>
+          </div>
+          <div class="sp-rail__body">
+            {% if facets.categories is not empty %}
+              <fieldset class="sp-fs sp-fs--rail">
+                <legend class="sp-fs__lg">{{ 'Category'|trans }}</legend>
+                {% for c in facets.categories %}
+                  <label class="sp-check"><input type="checkbox" name="c[]" value="{{ c.name }}"{{ c.name in F.categories ? ' checked' }}><span class="sp-check__l">{{ c.name }}</span><span class="sp-check__n">{{ c.n }}</span></label>
+                {% endfor %}
+              </fieldset>
+            {% endif %}
+            {% if facets.colours is not empty %}
+              <fieldset class="sp-fs sp-fs--rail">
+                <legend class="sp-fs__lg">{{ 'Colour'|trans }}</legend>
+                <div class="sp-swatches">
+                  {% for c in facets.colours %}
+                    <label class="sp-swatch" title="{{ c.name }}"><input type="checkbox" name="col[]" value="{{ c.name }}"{{ c.name in F.colours ? ' checked' }}><span class="sp-swatch__d" style="--sw:{{ c.css }}"></span><span class="sp-sr">{{ c.name }}</span></label>
+                  {% endfor %}
+                </div>
+              </fieldset>
+            {% endif %}
+            {% if facets.sizes is not empty %}
+              <fieldset class="sp-fs sp-fs--rail">
+                <legend class="sp-fs__lg">{{ 'Size'|trans }}</legend>
+                <div class="sp-sizes">
+                  {% for s in facets.sizes %}
+                    <label class="sp-size"><input type="checkbox" name="sz[]" value="{{ s }}"{{ s in F.sizes ? ' checked' }}><span>{{ s }}</span></label>
+                  {% endfor %}
+                </div>
+              </fieldset>
+            {% endif %}
+            <fieldset class="sp-fs sp-fs--rail sp-fs--price">
+              <legend class="sp-fs__lg">{{ 'Price (₦)'|trans }}</legend>
+              <div class="sp-price">
+                <input type="number" name="min" inputmode="numeric" step="500" min="0" value="{{ F.min }}" placeholder="{{ price_range.min|number_format }}" aria-label="{{ 'Lowest price in Naira'|trans }}">
+                <span aria-hidden="true">–</span>
+                <input type="number" name="max" inputmode="numeric" step="500" min="0" value="{{ F.max }}" placeholder="{{ price_range.max|number_format }}" aria-label="{{ 'Highest price in Naira'|trans }}">
+              </div>
+              <button type="submit" class="sp-btn sp-btn--line sp-price__go">{{ 'Apply price'|trans }}</button>
+            </fieldset>
+            <fieldset class="sp-fs sp-fs--rail">
+              <legend class="sp-fs__lg">{{ 'Show'|trans }}</legend>
+              <label class="sp-check sp-check--phone"><input type="checkbox" name="stock" value="1"{{ F.in_stock ? ' checked' }}><span class="sp-check__l">{{ 'In stock only'|trans }}</span></label>
+              <label class="sp-check"><input type="checkbox" name="feat" value="1"{{ F.featured ? ' checked' }}><span class="sp-check__l">{{ 'Featured'|trans }}</span></label>
+            </fieldset>
+            <fieldset class="sp-fs sp-fs--rail sp-fs--phone">
+              <legend class="sp-fs__lg">{{ 'Delivery & currency'|trans }}</legend>
+              <label class="sp-pick"><span>{{ 'Deliver to'|trans }}</span><select name="deliver">{% for r in regions %}<option value="{{ r }}"{{ r == region ? ' selected' }}>{{ r|trans }}</option>{% endfor %}</select></label>
+              {% if currency_enabled %}
+                <label class="sp-pick"><span>{{ 'Show prices in'|trans }}</span><select name="cur">{% for code, sym in currencies %}<option value="{{ code }}"{{ code == currency ? ' selected' }}>{{ code }} {{ sym }}</option>{% endfor %}</select></label>
+              {% endif %}
+            </fieldset>
+          </div>
+          <div class="sp-rail__foot">
+            <a class="sp-rail__clearall" href="{{ _clear }}">{{ 'Clear all'|trans }}</a>
+            <button type="submit" class="sp-btn sp-btn--ink sp-rail__show">{{ _total == 1 ? 'Show 1 item'|trans : 'Show %n% items'|trans({'%n%': _total}) }}</button>
+          </div>
+          <noscript><button type="submit" class="sp-btn sp-btn--line sp-rail__apply">{{ 'Apply filters'|trans }}</button></noscript>
+        </form>
+      </aside>
+      <a class="sp-sheet-scrim" href="#" data-sp-filters-close aria-hidden="true" tabindex="-1"></a>
+
+      <div class="sp-main">
+        {% if promo %}
+          <a class="sp-promo" href="/shop/{{ promo.slug }}">
+            <span class="sp-promo__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', src: promo.cover_path|default(''), name: promo.name, label: false} only %}</span>
+            <span class="sp-promo__b">
+              <span class="sp-promo__k">{{ 'Featured in the shop'|trans }}</span>
+              <span class="sp-promo__t">{{ promo.name }}</span>
+              <span class="sp-promo__s">{{ promo.subtitle ? promo.subtitle ~ '. ' : '' }}{{ (promo.price_from ? 'From %p%.' : '%p%.')|trans({'%p%': promo.price_label}) }}</span>
+            </span>
+            <span class="sp-promo__go" aria-hidden="true"><span class="sp-promo__more">{{ 'Explore →'|trans }}</span><svg class="sp-promo__chev ag-ico-dir" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+          </a>
+        {% endif %}
+
+        {% if _pills is not empty %}
+          {# Removable filter chips: outlined, never dark (§8.12, §18.2). On a phone the
+             categories are already the lit chip above, so only the rest are repeated. #}
+          <div class="sp-pills">
+            {% for p in _pills %}
+              <a class="sp-pill{{ p.cat ? ' sp-pill--cat' }}" href="{{ p.href }}" aria-label="{{ 'Remove filter: %f%'|trans({'%f%': p.label}) }}">{{ p.label }}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></a>
+            {% endfor %}
+            <a class="sp-link sp-pills__clear" href="{{ _clear }}">{{ 'Clear all'|trans }}</a>
+          </div>
+        {% endif %}
+
+        <div class="sp-bar">
+          <span class="sp-count" aria-live="polite"><b>{{ _total|number_format }}</b> {{ _word }}{% if F.q %} {{ 'for “%q%”'|trans({'%q%': F.q}) }}{% endif %}</span>
+          <form class="sp-bar__tools" method="get" action="/shop" data-sp-autosubmit>
+            {{ sb.keep(F, ['stock', 'sort']) }}
+            <label class="sp-stock{{ F.in_stock ? ' is-on' }}"><input type="checkbox" role="switch" name="stock" value="1"{{ F.in_stock ? ' checked' }}><span class="sp-stock__track" aria-hidden="true"><span></span></span>{{ 'In stock'|trans }}</label>
+            <select name="deliver" aria-label="{{ 'Deliver to'|trans }}">{% for r in regions %}<option value="{{ r }}"{{ r == region ? ' selected' }}>{{ r|trans }}</option>{% endfor %}</select>
+            {% if currency_enabled %}<select name="cur" aria-label="{{ 'Show prices in'|trans }}">{% for code, sym in currencies %}<option value="{{ code }}"{{ code == currency ? ' selected' }}>{{ sym }} {{ code }}</option>{% endfor %}</select>{% endif %}
+            <select name="sort" aria-label="{{ 'Sort'|trans }}">{% for k, label in sorts %}<option value="{{ k }}"{{ F.sort == k ? ' selected' }}>{{ 'Sort: %s%'|trans({'%s%': label|trans}) }}</option>{% endfor %}</select>
+            <noscript><button type="submit" class="sp-btn sp-btn--line">{{ 'Apply'|trans }}</button></noscript>
+          </form>
+        </div>
+
+        {% if products is empty %}
+          <div class="sp-empty">
+            <h2 class="sp-empty__h">{{ 'Nothing matched'|trans }}</h2>
+            <p class="sp-empty__p">
+              {%- if F.q %}{{ (_onCount ? 'No products match “%q%” with these filters.' : 'No products match “%q%”.')|trans({'%q%': F.q}) }} {% endif -%}
+              {%- if F.min is not null or F.max is not null %}{{ 'Try widening the price range.'|trans }} {% endif -%}
+              {%- if F.in_stock %}{{ 'Include sold-out items to see what’s coming back.'|trans }} {% endif -%}
+              {%- if not F.q and F.min is null and F.max is null and not F.in_stock %}{{ 'Try fewer filters, or a different colour or size.'|trans }}{% endif -%}
+            </p>
+            <a class="sp-btn sp-btn--outline" href="{{ _clear }}">{{ 'Clear filters'|trans }}</a>
+          </div>
+        {% else %}
+          <div class="sp-grid" data-sp-grid>
+            {% for p in products %}{{ sb.card(p) }}{% endfor %}
+          </div>
+          {% if _more > 0 %}
+            {% set _next = min(step, _more) %}
+            <div class="sp-more" data-sp-more>
+              <span class="sp-more__t">{{ 'Showing %x% of %n%'|trans({'%x%': _shown, '%n%': _total}) }}</span>
+              <span class="sp-more__bar" aria-hidden="true"><span style="width:{{ (_shown * 100 / _total)|round }}%"></span></span>
+              <a class="sp-btn sp-btn--outline sp-more__go" href="{{ u.url(_base|merge({n: shown + step})) }}" data-sp-more-go>{{ 'Load %n% more'|trans({'%n%': _next}) }}</a>
+            </div>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block sheets %}
+  {{ parent() }}
+  {{ sb.drawer(_ctx) }}
+  <script defer src="{{ asset('/assets/js/shop.js') }}"></script>
+{% endblock %}

@@ -10,7 +10,8 @@
 
     1 Hero ................ drawn. The record card is a real decided award (HomeFront)
     2 Live stats .......... drawn, four counts (HomeFront::stats)
-    3 "Who recognises" .... NOT DRAWN — needs recognitions + verified issuers (GAPS §3.1)
+    3 "Who recognises" .... drawn (Phase 6): partials/who-recognises.twig, its record cards
+                            from Services\Recognitions — announced awards only
     4 Wall of recognition . NOT DRAWN — needs testimonials (GAPS §3.5)
     5 We Are Africa ....... drawn on GlobeBand's markers (partials/we-are-africa.twig)
     6 Happening now ....... drawn: voting open + just decided; a column with nothing is not
@@ -18,10 +19,10 @@
     8 Recognise band ...... drawn with only what the platform offers today
     9 Footer .............. the shell's (partials/site-footer.twig)
 
-  Sections 3 and 4 are blocked questions for the owner, not placeholders: the DC's
-  content for them is commendations from a "National Honours Office" and quotes from
-  people, and this platform has neither the records nor the consent to show one
-  (docs/handoff/PHASE-4.md, "Home"). Nothing on this page is a DC figure.
+  Section 4 is a blocked question for the owner, not a placeholder: the DC's content for it
+  is quotes from people, and this platform has neither the records nor the consent to show
+  one (docs/handoff/PHASE-4.md, "Home"). Section 3 is drawn since Phase 6 from real
+  recognitions — never the DC's "National Honours Office" (docs/handoff/PHASE-6.md). Nothing on this page is a DC figure.
 
   ── WHAT A PHOTO SLOT SHOWS WITH NO REAL PHOTO (GAPS Q8, ANSWERED 4 OCT 2026) ──
 
@@ -43,6 +44,7 @@
 {% block head_styles %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/home.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/who-recognises.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -87,6 +89,9 @@
     <div class="hm-stat"><span class="hm-stat__n">{{ stats.nations|number_format }}</span><span class="hm-stat__l">{{ (stats.nations == 1 ? 'country taking part' : 'countries taking part')|trans }}</span></div>
     <div class="hm-stat"><span class="hm-stat__n">{{ stats.votes|number_format }}</span><span class="hm-stat__l">{{ (stats.votes == 1 ? 'vote cast' : 'votes cast')|trans }}</span></div>
   </section>
+
+  {# ── 3 · Who recognises (Phase 6) ─────────────────────────────────────── #}
+  {% include 'partials/who-recognises.twig' with {recognitions: recognitions|default([])} only %}
 
   {# ── 5 · We Are Africa ─────────────────────────────────────────────────── #}
   <div class="hm-bleed">{% include 'partials/we-are-africa.twig' with {countries: globe_countries, note: globe_note} only %}</div>
@@ -182,4 +187,5 @@
 
 {% block foot_scripts %}
   <script defer src="{{ asset('/assets/js/we-are-africa.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/who-recognises.js') }}"></script>
 {% endblock %}

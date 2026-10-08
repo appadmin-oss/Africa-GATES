@@ -413,8 +413,8 @@ final class HelpCentre
                 ['note' => 'One vote costs ₦{price}, with discounts on larger bundles, and a single order '
                          . 'can carry up to {max_qty} votes. Current prices are always on the ballot.'],
             ],
-            'related' => ['how-cpi-works', 'how-free-voting-works', 'what-happens-if-two-nominees-tie',
-                          'the-community-return'],
+            'related' => ['how-cpi-works', 'how-free-voting-works', 'why-is-voting-paid',
+                          'what-happens-if-two-nominees-tie', 'the-community-return'],
         ],
 
         // ── VOTING ───────────────────────────────────────────────────────────
@@ -438,7 +438,54 @@ final class HelpCentre
                 ['note' => 'One free vote per person per category, per cycle. You can vote in as many '
                          . 'different categories as you like.'],
             ],
-            'related' => ['code-did-not-arrive', 'vote-not-showing', 'already-voted'],
+            'related' => ['code-did-not-arrive', 'vote-not-showing', 'already-voted', 'why-is-voting-paid'],
+        ],
+        // ── THE OWNER'S OWN ANSWER (8 Oct 2026) ─────────────────────────────
+        //
+        // The owner's words, verbatim but for three things the house rules decide and
+        // PHASE-9.md lists for the owner to confirm: the price is {price}, read from the
+        // setting the ballot charges (never a typed naira figure — HelpCentreTest), the two
+        // all-caps lines are sentence case (no capitals anywhere), and "African G8" is kept
+        // as written because nothing in this codebase names a programme that way.
+        [
+            'slug' => 'why-is-voting-paid',
+            'audience' => ['supporter', 'nominee'],
+            'cat'  => 'voting',
+            'kicker' => 'African G8 community voting',
+            'title' => 'Why is voting paid?',
+            'summary' => 'Because African G8 is community-driven.',
+            'keywords' => ['why is voting paid', 'why is it paid', 'why not free', 'where does the money go',
+                           'where do the funds go', 'what is the money for', 'paid voting', 'sponsor',
+                           'community voting', 'contribution'],
+            'body' => [
+                ['p' => 'We do not want recognition of the people creating value in our communities to '
+                      . 'depend entirely on waiting for a sponsor, corporation, or government to fund it.'],
+                ['p' => 'That is why community members can participate through ₦{price} votes.'],
+                ['p' => 'Your vote is not a payment to buy an award. It is a voluntary contribution that '
+                      . 'helps the community sustain the recognition platform.'],
+                ['h' => 'Where do the funds go?'],
+                ['p' => 'Funds generated through community voting support:'],
+                ['list' => [
+                    '<strong>Voting &amp; Technology</strong> — maintaining the voting, payment and digital systems.',
+                    '<strong>Award Administration</strong> — nominations, verification, judging coordination and administration.',
+                    '<strong>Media &amp; Publicity</strong> — promoting nominees, winners and their stories.',
+                    '<strong>Awards &amp; Event Production</strong> — organizing and delivering the recognition experience.',
+                    '<strong>Community Development</strong> — supporting initiatives and activities that create tangible community value.',
+                    '<strong>Future Community Recognition</strong> — helping sustain subsequent editions and expand the platform.',
+                ]],
+                ['h' => 'So, what does the community get in return?'],
+                ['p' => 'Recognition. Visibility. Participation. Opportunity. Community development.'],
+                ['p' => 'The goal is to create a cycle:'],
+                ['quote' => 'Nominate → vote → recognize → celebrate → reinvest → repeat'],
+                ['p' => 'We believe a community should not always wait for someone else to fund what matters to it.'],
+                ['quote' => 'We don’t wait for sponsors to value our community. We participate in funding what we value.'],
+                ['p' => 'Your ₦{price} may look small, but thousands of people participating can turn small '
+                      . 'contributions into meaningful community resources.'],
+                ['p' => 'This is community voting.<br>This is community participation.<br>This is community ownership.'],
+                ['p' => 'Vote for who you believe deserves to be recognized.'],
+                ['p' => 'And know that your participation helps keep the platform moving.'],
+            ],
+            'related' => ['what-paid-votes-do', 'how-free-voting-works', 'how-cpi-works'],
         ],
         [
             'slug' => 'code-did-not-arrive',
@@ -1649,10 +1696,11 @@ final class HelpCentre
         foreach ((array) ($a['body'] ?? []) as $block) {
             $when = (string) ($block['when'] ?? '');
             if ($when !== '' && $when !== $state) continue;
-            foreach (['p', 'note'] as $k) {
+            foreach (['p', 'note', 'h', 'quote'] as $k) {
                 if (isset($block[$k])) $out[] = (string) $block[$k];
             }
             foreach ((array) ($block['steps'] ?? []) as $s) $out[] = (string) $s;
+            foreach ((array) ($block['list'] ?? []) as $s) $out[] = (string) $s;
         }
         return trim(strip_tags(implode(' ', array_filter($out))));
     }
@@ -1705,11 +1753,13 @@ final class HelpCentre
         $a['body'] = $body;
 
         foreach ($a['body'] as $i => $block) {
-            foreach (['p', 'note'] as $k) {
+            foreach (['p', 'note', 'h', 'quote'] as $k) {
                 if (isset($block[$k])) $a['body'][$i][$k] = $swap((string) $block[$k]);
             }
-            foreach ((array) ($block['steps'] ?? []) as $j => $s) {
-                $a['body'][$i]['steps'][$j] = $swap((string) $s);
+            foreach (['steps', 'list'] as $k) {
+                foreach ((array) ($block[$k] ?? []) as $j => $s) {
+                    $a['body'][$i][$k][$j] = $swap((string) $s);
+                }
             }
         }
         return $a;
