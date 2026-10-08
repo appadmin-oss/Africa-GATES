@@ -177,7 +177,7 @@
         {% if focus.status in ['approved', 'sending'] %}
           <form method="post" action="/admin/campaigns/newsletter/{{ focus.id }}/send">
             <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <button class="ad-btn ad-btn--primary" type="submit">Send a batch now</button>
+            <button class="ad-btn ad-btn--primary" type="submit" data-confirm="Send the next batch of this newsletter now? It goes to real inboxes the moment you confirm, and a sent email cannot be called back.">Send a batch now</button>
           </form>
         {% endif %}
         {% if focus.status in ['draft', 'approved'] %}

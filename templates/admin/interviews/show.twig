@@ -434,7 +434,7 @@
   <div class="is-row">
     <form method="post" action="/admin/interviews/{{ row.id }}/live/rotate">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button class="is-btn is-btn--ghost" type="submit">Replace this key</button>
+      <button class="is-btn is-btn--ghost" type="submit" data-confirm="Replace the live-captions key? Anything still using the old key — an open caption page, the extension — stops working at once and has to be given the new one.">Replace this key</button>
     </form>
     {% if L.lines %}
       <form method="post" action="/admin/interviews/{{ row.id }}/live/save">
@@ -539,7 +539,7 @@
       {% if B.state not in ['requested','joining','in_call'] %}
         <form method="post" action="/admin/interviews/{{ row.id }}/bot/send">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <button class="is-btn" type="submit" {{ iv.consented ? '' : 'disabled' }}>Send the bot now</button>
+          <button class="is-btn" type="submit" data-confirm="Send the recording bot into this sitting now? It joins the call and starts recording as soon as you confirm." {{ iv.consented ? '' : 'disabled' }}>Send the bot now</button>
         </form>
       {% else %}
         <form method="post" action="/admin/interviews/{{ row.id }}/bot/remove">
@@ -774,7 +774,7 @@
     <form method="post" action="/admin/interviews/{{ row.id }}/close">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <input type="hidden" name="held" value="0">
-      <button class="is-btn is-btn--ghost" type="submit">Nobody came</button>
+      <button class="is-btn is-btn--ghost" type="submit" data-confirm="Record that nobody came to this sitting? The panel sees a no-show against the nominee, and the reason you give is kept on the audit log.">Nobody came</button>
     </form>
     {% if row.transcript_id %}
       <form method="post" action="/admin/interviews/{{ row.id }}/withdraw">

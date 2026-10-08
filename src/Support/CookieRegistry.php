@@ -205,6 +205,8 @@ final class CookieRegistry
              'purpose' => 'For event door staff only: tickets scanned while the connection was down, held on the scanning phone until they can be checked.'],
             ['key' => 'afStep:', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
              'purpose' => 'For administrators only: which step of a long form you were on, so a save that bounces back reopens it there.'],
+            ['key' => 'cn-ux:scroll', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: where you were on a console page when you pressed save, so the page comes back there instead of at the top. Kept for at most a minute.'],
             ['key' => 'ag-copilot', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
              'purpose' => 'For administrators only: the console assistant\'s conversation, so it survives moving between pages in one tab.'],
             ['key' => 'ag-asst', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',

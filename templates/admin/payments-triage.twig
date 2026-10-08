@@ -7,7 +7,7 @@
   .pt-stat--bad{ border-color:#f0c9c9; background:#fdf3f3 }
   .pt-stat--warn{ border-color:#ecd9a0; background:#fff8df }
   .pt-stat--ok{ border-color:#bfe0bd; background:#f2f9f1 }
-  .pt-stat__k{ font:700 10px/1 var(--ag-font-ui,inherit); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f }
+  .pt-stat__k{ font:600 var(--cn-fs-13)/1.3 var(--ag-font-ui,inherit); color:#5a6d6f }
   .pt-stat__n{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:26px; color:#10292C; margin:8px 0 3px }
   .pt-stat__s{ font-size:12px; color:#5a6d6f }
   .pt-card{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:18px 20px; margin-bottom:18px }
@@ -17,8 +17,8 @@
   .pt-kv__v{ font-weight:650; text-align:right }
   .pt-bad{ color:#8a2020 } .pt-warn{ color:#6b4a00 } .pt-ok{ color:#1a4d18 }
   .pt-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:10px }
-  .pt-table th{ text-align:left; font:700 10px/1 var(--ag-font-ui,inherit); letter-spacing:.08em;
-    text-transform:uppercase; color:#5a6d6f; padding:8px 10px; border-bottom:1px solid rgba(16,41,44,.10) }
+  .pt-table th{ text-align:left; font:600 var(--cn-fs-12-5)/1.3 var(--ag-font-ui,inherit);
+    color:#5a6d6f; padding:8px 10px; border-bottom:1px solid rgba(16,41,44,.10) }
   .pt-table td{ padding:9px 10px; border-bottom:1px solid rgba(16,41,44,.05); font-family:var(--ag-font-mono,monospace) }
   .pt-btn{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:650; border:none;
     padding:10px 18px; border-radius:999px; background:#10292C; color:#fff }
@@ -30,48 +30,74 @@
   .pt-verdict--delivered,.pt-verdict--refunded,.pt-verdict--abandoned{ background:#eef7ee; border:1px solid #bfe0bd; color:#1a4d18 }
   .pt-verdict--unknown{ background:#f4f6f6; border:1px solid rgba(16,41,44,.12); color:#4a5256 }
   .pt-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+  .pt-sec{ margin:4px 0 8px; font-size:var(--cn-fs-13); font-weight:600; color:#5a6d6f }
 </style>
 {% endblock %}
 
 {% block content %}
 
-<h1 style="margin:0 0 4px;font-size:20px">Payment triage</h1>
-<p class="pt-lede">
-  Every repair path on this platform starts at <code>status = confirmed</code> — minting, the refund
-  sweep and the receipt all do. An order whose card was charged at the gateway but whose row never
-  flipped is invisible to all three at once: no votes, no refund, no receipt, and no mention in any
+{#
+  WHAT THE OPERATOR DOES HERE, FIRST. This page opened with a paragraph about which
+  column every repair path reads — true, and for whoever maintains the code; the person
+  on it needs to know where to start. The mechanism is kept below the fold, in a
+  disclosure, for when they want it. The console's own header already names the page,
+  so the second heading it used to draw is gone.
+#}
+<p class="pt-lede"><strong>Start with anything marked red:</strong> somebody may have been charged with
+  nothing to show for it. Open the order, press “Ask the gateway”, then repair.
+  This screen starts from our orders; for charges Paystack has that we have no order for at all, use the
+  <a href="/admin/payments/ledger?days={{ days }}">gateway ledger</a>.</p>
+<details class="pt-lede" style="margin-top:-6px">
+  <summary>Why a charged order can be invisible everywhere else</summary>
+  Every repair path on this platform starts at a confirmed order — minting the votes, the refund sweep
+  and the receipt all do. An order whose card was charged at the gateway but whose record never turned
+  confirmed is invisible to all three at once: no votes, no refund, no receipt, and no mention in any
   other report. This is the only page that shows those.
-</p>
-<p class="pt-lede">
-  Everything here begins with an order of ours and asks Paystack about it, so it can only find
-  payments we already know we started. For the opposite direction — Paystack's own list of
-  successful charges, including any with no record on this platform at all — use the
-  <a href="/admin/payments/ledger?days={{ days }}">gateway ledger</a>.
-</p>
+</details>
 
 <form method="get" action="/admin/payments" class="pt-row" style="margin-bottom:18px">
-  <label style="font-size:13px;color:#5a6d6f">Last
+  <span class="pt-sec" style="margin:0">Period</span>
+  {% for d in [7, 30, 90] %}
+    <a class="ad-tab{{ days == d ? ' is-active' : '' }}" href="/admin/payments?days={{ d }}"{{ days == d ? ' aria-current="page"' : '' }}>Last {{ d }} days</a>
+  {% endfor %}
+  <label style="font-size:13px;color:#5a6d6f">or the last
     <input class="pt-in" type="number" name="days" min="1" max="3650" value="{{ days }}" style="width:90px"> days
   </label>
   <button class="pt-btn" type="submit">Show</button>
 </form>
 
 {# ── Where every order stopped ─────────────────────────────────────────────── #}
+{# Problems first, and coloured only when there IS one: a green tile on a zero reads as
+   "checked and fine", and on a window this screen has not compared it is neither. #}
+<p class="pt-sec">Needs a person</p>
 <div class="pt-grid">
-  <div class="pt-stat pt-stat--ok">
+  <div class="pt-stat {{ counts.stuck_pending > 0 ? 'pt-stat--bad' : '' }}">
+    <div class="pt-stat__k">Stuck pending</div>
+    <div class="pt-stat__n">{{ counts.stuck_pending }}</div>
+    <div class="pt-stat__s">₦{{ naira.stuck_pending|number_format }} · <strong>may have been charged</strong></div>
+  </div>
+  <div class="pt-stat {{ counts.refund_owed > 0 ? 'pt-stat--warn' : '' }}">
+    <div class="pt-stat__k">Refund owed</div>
+    <div class="pt-stat__n">{{ counts.refund_owed }}</div>
+    <div class="pt-stat__s">₦{{ naira.refund_owed|number_format }} · paid, no votes</div>
+  </div>
+  {# Two different facts that were one number until now. A row the GATEWAY declined is a
+     verdict: nobody paid. A row WE wrote off after three days of being unable to reach the
+     gateway is a guess, taken at the one moment the evidence was missing — and it is the
+     bucket the gateway ledger could see money in while this screen reported a clean
+     window, because every sweeper on the platform filters on `pending`. #}
+  <div class="pt-stat {{ counts.written_off > 0 ? 'pt-stat--bad' : '' }}">
+    <div class="pt-stat__k">Written off by us</div>
+    <div class="pt-stat__n">{{ counts.written_off }}</div>
+    <div class="pt-stat__s">₦{{ naira.written_off|number_format }} · <strong>never verified</strong></div>
+  </div>
+</div>
+<p class="pt-sec">Everything else in the period</p>
+<div class="pt-grid">
+  <div class="pt-stat {{ counts.delivered > 0 ? 'pt-stat--ok' : '' }}">
     <div class="pt-stat__k">Delivered</div>
     <div class="pt-stat__n">{{ counts.delivered }}</div>
     <div class="pt-stat__s">₦{{ naira.delivered|number_format }} · votes on the tally</div>
-  </div>
-  <div class="pt-stat {{ counts.stuck_pending > 0 ? 'pt-stat--bad' : 'pt-stat--ok' }}">
-    <div class="pt-stat__k">Stuck pending</div>
-    <div class="pt-stat__n">{{ counts.stuck_pending }}</div>
-    <div class="pt-stat__s">₦{{ naira.stuck_pending|number_format }} · <strong>may be charged</strong></div>
-  </div>
-  <div class="pt-stat {{ counts.refund_owed > 0 ? 'pt-stat--warn' : 'pt-stat--ok' }}">
-    <div class="pt-stat__k">Refund owed</div>
-    <div class="pt-stat__n">{{ counts.refund_owed }}</div>
-    <div class="pt-stat__s">₦{{ naira.refund_owed|number_format }} · confirmed, no votes</div>
   </div>
   <div class="pt-stat">
     <div class="pt-stat__k">Refunded</div>
@@ -82,16 +108,6 @@
     <div class="pt-stat__k">In checkout</div>
     <div class="pt-stat__n">{{ counts.in_flight }}</div>
     <div class="pt-stat__s">normal — still at the gateway</div>
-  </div>
-  {# Two different facts that were one number until now. A row the GATEWAY declined is a
-     verdict: nobody paid. A row WE wrote off after three days of being unable to reach the
-     gateway is a guess, taken at the one moment the evidence was missing — and it is the
-     bucket the gateway ledger could see money in while this screen reported a clean
-     window, because every sweeper on the platform filters on `pending`. #}
-  <div class="pt-stat {{ counts.written_off > 0 ? 'pt-stat--bad' : 'pt-stat--ok' }}">
-    <div class="pt-stat__k">Written off by us</div>
-    <div class="pt-stat__n">{{ counts.written_off }}</div>
-    <div class="pt-stat__s">₦{{ naira.written_off|number_format }} · <strong>never verified</strong></div>
   </div>
   <div class="pt-stat">
     <div class="pt-stat__k">Declined by the gateway</div>

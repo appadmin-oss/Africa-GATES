@@ -226,7 +226,7 @@
         <div class="cb-acts">
           <form method="post" action="/admin/challenges/{{ c.id }}/publish">
             <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <button class="cb-btn" type="submit" {{ blockers|length ? 'disabled' : '' }}>
+            <button class="cb-btn" type="submit" data-confirm="Publish this challenge? It appears on the public site, in the promo carousel and on every page it is scoped to as soon as you confirm." {{ blockers|length ? 'disabled' : '' }}>
               {{ c.status == 'draft' ? 'Publish' : 'Re-publish' }}
             </button>
           </form>
