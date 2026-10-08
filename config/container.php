@@ -495,6 +495,10 @@ return [
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cover_kind', [\AfricaGates\Support\CoverKind::class, 'resolve']
         ));
+        // The member account's section titles and ledes (pages/account/_frame.twig): read
+        // from the one list the rail is built from.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_title', [\AfricaGates\Services\AccountRail::class, 'title']));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_lead', [\AfricaGates\Services\AccountRail::class, 'lead']));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cover_content', [\AfricaGates\Support\CoverKind::class, 'content']
         ));

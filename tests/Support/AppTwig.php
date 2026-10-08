@@ -73,6 +73,8 @@ final class AppTwig
             // The default graphics (DEFAULT-GRAPHICS, 5 Oct 2026): every photo slot with no
             // upload now draws a cover or an avatar through these.
             'cover_kind'        => [\AfricaGates\Support\CoverKind::class, 'resolve'],
+            'account_title'     => [\AfricaGates\Services\AccountRail::class, 'title'],
+            'account_lead'      => [\AfricaGates\Services\AccountRail::class, 'lead'],
             'cover_content'     => [\AfricaGates\Support\CoverKind::class, 'content'],
             'cover_title_scale' => [\AfricaGates\Support\CoverKind::class, 'graphicTitleScale'],
             'avatar_mark'       => [\AfricaGates\Support\AvatarMark::class, 'of'],

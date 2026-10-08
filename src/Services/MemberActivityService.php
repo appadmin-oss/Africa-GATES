@@ -355,7 +355,7 @@ class MemberActivityService
         $comp = self::completeness($u);
         return [
             ['key' => 'verify',   'label' => 'Verify your email',                 'done' => (int) ($u->email_verified ?? 0) === 1, 'href' => '/account/verify'],
-            ['key' => 'profile',  'label' => 'Complete your profile',             'done' => $comp['pct'] === 100,                   'href' => '/account#profile'],
+            ['key' => 'profile',  'label' => 'Complete your profile',             'done' => $comp['pct'] === 100,                   'href' => '/account?tab=settings#profile'],
             ['key' => 'vote',     'label' => 'Cast your first verified vote',     'done' => $votes !== [],                          'href' => '/vote'],
             ['key' => 'nominate', 'label' => 'Nominate someone extraordinary',    'done' => $nominations !== [],                    'href' => '/nominate'],
             ['key' => 'community','label' => 'Join a community conversation',     'done' => ($communityCounts['threads'] ?? 0) + ($communityCounts['comments'] ?? 0) > 0, 'href' => '/community'],

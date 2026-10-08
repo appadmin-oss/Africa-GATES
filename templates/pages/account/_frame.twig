@@ -1,0 +1,56 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE ACCOUNT FRAME — every page of the member account · AccountPage.dc.html (5 Oct 2026)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The page that was here drew a 720px column at every width, so a desktop showed the phone's
+  account. The DC's frame is a rail and a content column from 600 up (210px rail on a tablet,
+  250px from 1024, 36 apart, 1200 wide), and on a phone no rail at all: the account's first
+  screen lists the sections and each one is pushed as its own screen.
+
+  A child sets, at template scope (a set inside a block is invisible to the others):
+    acc_tab   the section key (Services\AccountRail::SECTIONS)
+    rail      AccountRail::tabs(), from the controller
+  and fills `acc_body`. The frame draws the rail, the desktop title and lede, and the child
+  app bar on a phone (back to /account, except on the overview, which goes home).
+#}
+
+{% set _tab = acc_tab|default('overview') %}
+{% set _title = account_title(_tab) %}
+{% set _lead = account_lead(_tab) %}
+{% set app_bar = app_bar|default({variant: 'child', title: _title, back: _tab == 'overview' ? '/' : '/account', share: false}) %}
+{% set colour_tier = colour_tier|default('2') %}
+{% set _me = member_name|default('') %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/account.css') }}">{% block acc_styles %}{% endblock %}{% endblock %}
+
+{% block content %}
+<div class="acx">
+  <aside class="acx-rail" aria-label="{{ 'Account'|trans }}">
+    <div class="acx-rail__who">
+      {% include 'partials/avatar.twig' with {name: rail_user.name|default(_me), id: rail_user.id|default(null), size: 44, named: true} only %}
+      <span class="acx-rail__id"><b>{{ rail_user.name|default(_me) }}</b><span>{{ rail_user.email|default('') }}</span></span>
+    </div>
+    <nav class="acx-rail__nav" aria-label="{{ 'Account sections'|trans }}">
+      {% for t in rail|default([]) %}
+        <a class="acx-tab" href="{{ t.href }}"{% if t.current %} aria-current="page"{% endif %}>
+          <span class="acx-ico acx-ico--{{ t.tone }}" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.d }}"/></svg></span>
+          <span class="acx-tab__l">{{ t.label }}</span>
+          {% if t.n %}<span class="acx-n{{ t.attention ? ' acx-n--on' }}">{{ t.n }}</span>{% endif %}
+        </a>
+      {% endfor %}
+    </nav>
+  </aside>
+
+  <div class="acx-main">
+    <div class="acx-title">
+      <h1 class="acx-title__h">{{ _title }}</h1>
+      {% if _lead %}<p class="acx-title__p">{{ _lead }}</p>{% endif %}
+    </div>
+    {% if _lead %}<p class="acx-lead-ph">{{ _lead }}</p>{% endif %}
+    {% block acc_body %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

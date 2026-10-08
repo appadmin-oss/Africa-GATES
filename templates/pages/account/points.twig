@@ -1,4 +1,4 @@
-{% extends 'layout/shell.twig' %}
+{% extends 'pages/account/_frame.twig' %}
 {#
   POINTS — /account/points · Phase 8 (no DC; built on the shell, base list rows)
 
@@ -7,24 +7,29 @@
   file (`/account/points.csv`, the owner's alone: there is no id in either path). Figures are
   tabular; a gain and a spend carry their sign as text, never colour alone.
 #}
-{% set app_bar = {variant: 'child', title: 'Points'|trans, back: '/account', share: false} %}
+{% set acc_tab = 'points' %}
 {% set colour_tier = '1' %}
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/account.css') }}">{% endblock %}
-{% block content %}
-<div class="acc">
-  <h1 class="acc__h1">{{ 'Points'|trans }}</h1>
+{% block acc_body %}
   {% if not points_enabled %}
     <p class="acc__p">{{ 'Points are switched off on this site at the moment. Your balance is kept.'|trans }}</p>
   {% endif %}
+  <div class="acx-split">
   <section class="ag-card acc__card" aria-labelledby="pts-bal">
     <h2 class="acc__h2" id="pts-bal">{{ 'Your balance'|trans }}</h2>
     <p class="acc__big ag-num">{{ points|number_format }}</p>
     {% if points_enabled %}
       <p class="acc__p">{{ '%n% points buy one vote.'|trans({'%n%': points_per_vote|number_format}) }}
         {{ redeemable == 1 ? 'Your balance covers 1 vote.'|trans : 'Your balance covers %n% votes.'|trans({'%n%': redeemable}) }}</p>
-      {% if redeemable > 0 %}<a class="ag-btn ag-btn--primary ag-btn--pill" href="/vote">{{ 'Choose who to vote for'|trans }}</a>{% endif %}
     {% endif %}
   </section>
+  {% if points_enabled %}
+  <section class="acx-card acx-redeem" aria-labelledby="pts-use">
+    <h2 class="acx-redeem__h" id="pts-use">{{ 'Turn points into votes'|trans }}</h2>
+    {% if redeemable > 0 %}<a class="ag-btn ag-btn--primary acx-btn" href="/vote">{{ redeemable == 1 ? 'Redeem 1 vote'|trans : 'Redeem %n% votes'|trans({'%n%': redeemable}) }}</a>
+    {% else %}<p class="acc__p">{{ 'Your balance does not cover a vote yet.'|trans }}</p>{% endif %}
+  </section>
+  {% endif %}
+  </div>
   <section class="acc__sec" aria-labelledby="pts-hist">
     <div class="acc__top">
       <h2 class="acc__h2" id="pts-hist">{{ 'History'|trans }}</h2>
@@ -46,5 +51,4 @@
       </div>
     {% endif %}
   </section>
-</div>
 {% endblock %}

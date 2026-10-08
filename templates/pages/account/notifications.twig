@@ -1,4 +1,4 @@
-{% extends 'layout/shell.twig' %}
+{% extends 'pages/account/_frame.twig' %}
 {#
   NOTIFICATIONS — /account/notifications · Phase 8 (no DC; built on the shell, base list rows)
 
@@ -8,13 +8,11 @@
   ("New"), never the dot alone. "Mark all as read" is a plain form that posts; the Pulse
   bell reads the same watermark, so the two cannot disagree.
 #}
-{% set app_bar = {variant: 'child', title: 'Notifications'|trans, back: '/account', share: false} %}
+{% set acc_tab = 'activity' %}
 {% set colour_tier = '1' %}
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/account.css') }}">{% endblock %}
-{% block content %}
-<div class="acc">
+{% block acc_body %}
   <div class="acc__top">
-    <h1 class="acc__h1">{{ 'Notifications'|trans }}</h1>
+    <h2 class="acc__h2">{{ 'Notifications'|trans }}</h2>
     {% if unread %}
       <form method="post" action="/account/notifications/read">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -42,5 +40,37 @@
       <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/pulse">{{ 'Go to Pulse'|trans }}</a>
     </div>
   {% endif %}
-</div>
+  {% if my_nominations|length %}
+    <section class="acc__sec" aria-labelledby="acc-nom-h">
+      <h2 class="acc__h2" id="acc-nom-h">{{ 'Your nominations'|trans }}</h2>
+      <ul class="ag-list acc__plain">
+        {% for n in my_nominations %}
+          <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ n.nominee }}</span><span class="ag-list__sub">{{ n.created_at|date('j M Y') }}{% if n.reference %} · <span class="acc__ref">{{ n.reference }}</span>{% endif %}</span></span><span class="ag-list__value">{{ n.status|replace({'_': ' '})|trans }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if my_votes|length %}
+    <section class="acc__sec" aria-labelledby="acc-vote-h">
+      <h2 class="acc__h2" id="acc-vote-h">{{ 'Your votes'|trans }}</h2>
+      <ul class="ag-list acc__plain">
+        {% for v in my_votes %}
+          <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ v.nominee }}</span><span class="ag-list__sub">{{ v.category }}</span></span><span class="ag-list__value">{{ v.voted_at|date('j M Y') }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if my_links|length %}
+    <section class="acc__sec" aria-labelledby="acc-links-h">
+      <h2 class="acc__h2" id="acc-links-h">{{ 'Links you shared'|trans }}</h2>
+      <ul class="ag-list acc__plain">
+        {% for l in my_links %}
+          <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ l.nominee }}</span><span class="ag-list__sub">{{ l.expired ? 'Expired'|trans : ('Open until %d%'|trans({'%d%': l.expires_at|date('j M Y')})) }}</span></span><span class="ag-list__value">{{ l.hits == 1 ? '1 visit'|trans : '%n% visits'|trans({'%n%': l.hits}) }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
 {% endblock %}

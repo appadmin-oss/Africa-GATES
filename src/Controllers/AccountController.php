@@ -801,7 +801,7 @@ class AccountController
         $_SESSION[$gone ? 'flash_ok' : 'flash_error'] = $gone
             ? 'That passkey has been removed. The device can no longer sign in.'
             : 'That passkey is already gone.';
-        return $res->withHeader('Location', '/account#me-security')->withStatus(302);
+        return $res->withHeader('Location', '/account?tab=security#me-security')->withStatus(302);
     }
 
     /** POST /account/login/passkey/options — a sign-in ceremony, nothing typed. */
@@ -1304,7 +1304,7 @@ class AccountController
 
         // Back to the dashboard, anchored on the panel, so the answer is on screen rather
         // than at the top of a long page.
-        return $res->withHeader('Location', '/account#me-referral')->withStatus(303);
+        return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
     }
 
     /**
@@ -1338,7 +1338,7 @@ class AccountController
 
         $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
 
-        return $res->withHeader('Location', '/account#me-referral')->withStatus(303);
+        return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
     }
 
     /**
@@ -1364,7 +1364,7 @@ class AccountController
 
         $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
 
-        return $res->withHeader('Location', '/account#me-referral')->withStatus(303);
+        return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
     }
 
     public function dashboard(Request $req, Response $res): Response
@@ -1389,8 +1389,11 @@ class AccountController
         $bal = PointsService::balance((int) $user->id);
         $alerts = (new \AfricaGates\Services\AlertService())->forMember((int) $user->id, (string) $user->email);
 
-        return $this->view->render($res, 'pages/account/dashboard.twig', [
-            'page_title' => 'Your account — Africa GATES', 'gates_page' => 'account',
+        $tab = \AfricaGates\Services\AccountRail::valid((string) ($req->getQueryParams()['tab'] ?? 'overview'));
+
+        return $this->view->render($res, 'pages/account/dashboard.twig', $this->railFor($user, $tab) + [
+            'page_title' => \AfricaGates\Services\AccountRail::title($tab) . ' — Africa GATES', 'gates_page' => 'account',
+            'tab'            => $tab,
             'user'           => array_diff_key((array) $user, ['password_hash' => 1, 'last_login_ip' => 1]),
             'interests'      => \AfricaGates\Services\MemberInterests::of((int) $user->id),
             'interest_options' => \AfricaGates\Services\MemberInterests::options(),
@@ -1442,6 +1445,23 @@ class AccountController
         ]);
     }
 
+    /**
+     * What the account frame needs on every account page: the sections with their numbers,
+     * the one being drawn, and who is signed in (pages/account/_frame.twig).
+     *
+     * @return array<string,mixed>
+     */
+    private function railFor(object $user, string $tab): array
+    {
+        $r = \AfricaGates\Services\AccountRail::countsFor($user, $this->community);
+
+        return [
+            'acc_tab'   => $tab,
+            'rail'      => \AfricaGates\Services\AccountRail::tabs($tab, $r['counts'], $r['attention']),
+            'rail_user' => ['id' => (int) $user->id, 'name' => (string) $user->name, 'email' => (string) $user->email],
+        ];
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // THE ACCOUNT'S OWN PAGES (Phase 8) — each pushed from /account, each its own screen
     // ══════════════════════════════════════════════════════════════════════
@@ -1488,9 +1508,14 @@ class AccountController
         $items = (new \AfricaGates\Services\AlertService())->forMember((int) $user->id, (string) $user->email);
         $unread = count(array_filter($items, static fn ($a) => $a['unread']));
 
-        return $this->view->render($res, 'pages/account/notifications.twig', [
-            'page_title' => 'Notifications — Africa GATES', 'gates_page' => 'account',
+        return $this->view->render($res, 'pages/account/notifications.twig', $this->railFor($user, 'activity') + [
+            'page_title' => 'Activity — Africa GATES', 'gates_page' => 'account',
             'items' => $items, 'unread' => $unread,
+            // What this member has DONE, beside what happened to it — the Phase 8 account
+            // page's three lists, moved here with the Activity section (AccountPage.dc.html).
+            'my_nominations' => \AfricaGates\Services\MemberActivityService::nominationsFor((string) $user->email, 15),
+            'my_votes'       => \AfricaGates\Services\MemberActivityService::votesFor((string) $user->email, 15),
+            'my_links'       => \AfricaGates\Services\MemberActivityService::shareLinksFor((int) $user->id, 8),
         ]);
     }
 
@@ -1510,7 +1535,7 @@ class AccountController
         if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
         $bal = PointsService::balance((int) $user->id);
 
-        return $this->view->render($res, 'pages/account/points.twig', [
+        return $this->view->render($res, 'pages/account/points.twig', $this->railFor($user, 'points') + [
             'page_title' => 'Points — Africa GATES', 'gates_page' => 'account',
             'points'          => $bal,
             'points_enabled'  => PointsService::enabled(),
@@ -1527,8 +1552,9 @@ class AccountController
      */
     public function display(Request $req, Response $res): Response
     {
-        if (!$this->accounts->current()) return $res->withHeader('Location', '/account/login')->withStatus(302);
-        return $this->view->render($res, 'pages/account/display.twig', [
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        return $this->view->render($res, 'pages/account/display.twig', $this->railFor($user, 'settings') + [
             'page_title' => 'Display & reading — Africa GATES', 'gates_page' => 'account',
         ]);
     }
@@ -1594,14 +1620,14 @@ class AccountController
         $r = $this->accounts->updateProfile((int) $user->id, (string) ($b['name'] ?? ''), (string) ($b['phone'] ?? ''));
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['error'];
-            return $res->withHeader('Location', '/account#profile')->withStatus(302);
+            return $res->withHeader('Location', '/account?tab=settings#profile')->withStatus(302);
         }
         // "What you do" and "Where you're based" — the profile basics joining asked for.
         if (array_key_exists('headline', $b) || array_key_exists('based_in', $b)) {
             $a = $this->accounts->saveAbout((int) $user->id, (string) ($b['headline'] ?? ''), (string) ($b['based_in'] ?? ''));
             if (!$a['ok']) {
                 $_SESSION['flash_error'] = $a['error'];
-                return $res->withHeader('Location', '/account#profile')->withStatus(302);
+                return $res->withHeader('Location', '/account?tab=settings#profile')->withStatus(302);
             }
         }
 

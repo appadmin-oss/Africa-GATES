@@ -1,17 +1,155 @@
 /* ══════════════════════════════════════════════════════════════════════════════
-   THE MEMBER ACCOUNT — /account and its own pages · Phase 8
-   No DC in this bundle (GAPS Q16): built on the shell with the base components (card,
-   list row, button, field) in SignIn.dc.html's and ProfilePage.dc.html's language — the
-   ground, white cards on a hairline, a Playfair name over a DM Sans line, 16px phone
-   gutter and 28/32 from 600/1024 (`--ag-gutter`), sections 22–28px apart (§6.3).
+   THE MEMBER ACCOUNT — /account, its sections and its own pages
+   AccountPage.dc.html (handoff 5 Oct 2026) · pages/account/_frame.twig
+   ══════════════════════════════════════════════════════════════════════════════
+
+   The frame (`.acx`): one column on a phone; from 600 a rail (210px, 250px from 1024) and
+   the content, 36px apart, 1200 wide, padded 32/32/64 — the DC's `cols` and `pagePad`.
+   Phase 8 drew `.acc`, a 720px column at every width, which is why a desktop showed the
+   phone's account (owner report, 8 Oct 2026).
+
+   Deviations (docs/handoff/PHASE-ACCOUNT.md): the section and quick-action tiles are neutral
+   with the glyph in its colour — the DC's four tinted washes are four colour events on a
+   tier-2 page (ColourBudgetTest); rail rows are 44px (DC 42, the house floor).
    ══════════════════════════════════════════════════════════════════════════════ */
 
-.acc{
-  max-width:720px; margin:0 auto;
-  padding:var(--ag-sp-16) var(--ag-gutter) var(--ag-sp-40);
-  display:flex; flex-direction:column; gap:var(--ag-sp-24);
+.acx{
+  max-width:1200px; margin:0 auto; padding:4px var(--ag-sp-16) var(--ag-sp-40);
+  display:grid; grid-template-columns:minmax(0, 1fr); gap:36px; align-items:start;
 }
-@media (min-width:1024px){ .acc{ padding-top:var(--ag-sp-40); gap:var(--ag-sp-28) } }
+.acx-rail{ display:none }
+.acx-main{ min-width:0; display:flex; flex-direction:column; gap:16px }
+.acx-title{ display:none }
+.acx-title__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-34); line-height:1.1 }
+.acx-title__p, .acx-lead-ph{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-ink-2) }
+.acx-lead-ph{ padding-top:6px }
+
+/* the rail */
+.acx-rail__who{ display:flex; align-items:center; gap:12px; min-width:0 }
+.acx-rail__id{ display:flex; flex-direction:column; gap:1px; min-width:0 }
+.acx-rail__id b{ font-size:var(--ag-fs-16) }
+.acx-rail__id span{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.acx-rail__nav{ display:flex; flex-direction:column; gap:2px }
+.acx-tab,
+.acx-tab:hover{
+  display:flex; align-items:center; gap:12px; min-height:44px; padding:0 10px; border-radius:var(--ag-r-12);
+  color:var(--ag-ink); font-weight:500; font-size:var(--ag-fs-14-5); text-decoration:none;
+}
+.acx-tab:hover{ background:color-mix(in srgb, var(--ag-surface) 60%, transparent) }
+.acx-tab[aria-current="page"]{ background:var(--ag-surface); font-weight:700; box-shadow:0 0 0 1px var(--ag-line) }
+.acx-tab__l{ flex:1; min-width:0 }
+.acx-n{ flex:none; min-width:24px; height:22px; padding:0 7px; border-radius:var(--ag-r-pill); display:inline-flex; align-items:center; justify-content:center;
+  background:var(--ag-line-3); color:var(--ag-ink-2); font-size:var(--ag-fs-12); font-weight:700; font-variant-numeric:tabular-nums }
+.acx-n--on{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink) }
+
+/* a glyph tile: neutral ground, the glyph in its family's word colour */
+.acx-ico{ flex:none; width:28px; height:28px; border-radius:9px; background:var(--ag-line-3); display:flex; align-items:center; justify-content:center }
+.acx-ico--ink{ color:var(--ag-ink-2) }
+.acx-ico--green{ color:var(--ag-green-deep) }
+.acx-ico--live{ color:var(--ag-live-ink) }
+.acx-ico--gold{ color:var(--ag-gold-ink) }
+.acx-ico--info{ color:var(--ag-info) }
+
+/* cards */
+.acx-card{ background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20) }
+.acx-more,
+.acx-more:hover{ display:inline-flex; align-items:center; gap:4px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
+.acx-btn{ min-height:48px; min-width:0; padding-inline:12px; border-radius:var(--ag-r-14); white-space:normal; text-align:center }
+.acx-btn-sm{ min-height:44px; font-size:var(--ag-fs-13-5) }
+.acx-h2{ margin:0; font-weight:700; font-size:var(--ag-fs-18) }
+.acx-sec{ display:flex; flex-direction:column; gap:10px }
+.acx-sec__head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px }
+
+/* overview: the top pair */
+.acx-top{ display:grid; grid-template-columns:minmax(0, 1fr); gap:14px; align-items:stretch }
+.acx-bal{ display:flex; flex-direction:column; gap:14px; padding:18px; border-radius:var(--ag-r-22) }
+.acx-bal__head{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+.acx-bal__h{ margin:0; font-size:var(--ag-fs-14); font-weight:600; color:var(--ag-ink-2) }
+.acx-bal__n{ margin:0; display:flex; align-items:baseline; gap:8px }
+.acx-bal__n b{ font-size:var(--ag-fs-40); font-weight:800; letter-spacing:-.03em; line-height:1; font-variant-numeric:tabular-nums }
+.acx-bal__n span{ font-size:var(--ag-fs-15); font-weight:600; color:var(--ag-soft) }
+.acx-bal__p{ margin:0; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.acx-bal__acts{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+.acx-bal__acts > :only-child{ grid-column:1 / -1 }
+.acx-bal__ref{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:12px; border-top:1px solid var(--ag-line-3) }
+.acx-bal__rk{ display:flex; flex-direction:column; gap:1px }
+.acx-bal__rk > span{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.acx-bal__rk b{ font-size:var(--ag-fs-16); font-variant-numeric:tabular-nums }
+.acx-ready{ font-size:var(--ag-fs-12-5); font-weight:600; color:var(--ag-green-deep) }
+.acx-quick{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; align-content:start; padding:8px 4px; border-radius:var(--ag-r-22) }
+.acx-qa,
+.acx-qa:hover{ display:flex; flex-direction:column; align-items:center; gap:7px; min-height:76px; padding:8px 2px; border-radius:var(--ag-r-14); color:var(--ag-ink); text-align:center; text-decoration:none }
+.acx-qa__i{ position:relative; width:46px; height:46px; border-radius:15px; background:var(--ag-line-3); display:flex; align-items:center; justify-content:center }
+.acx-qa__dot{ position:absolute; top:-4px; inset-inline-end:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:var(--ag-r-pill); border:2px solid var(--ag-surface);
+  background:var(--ag-live-ink); color:var(--ag-surface); font-size:var(--ag-fs-11-5); font-weight:700; line-height:14px; box-sizing:border-box }
+.acx-qa__l{ font-size:var(--ag-fs-12-5); font-weight:600; line-height:1.2 }
+
+/* the phone's section list (the rail replaces it from 600) */
+.acx-rows .ag-list__row{ gap:12px }
+
+/* overview: the two columns */
+.acx-ov{ display:grid; grid-template-columns:minmax(0, 1fr); gap:14px; align-items:start }
+.acx-col{ display:flex; flex-direction:column; gap:14px; min-width:0 }
+.acx-won,
+.acx-won:hover{ display:flex; align-items:center; gap:14px; padding:16px; border-color:var(--ag-gold-edge); color:var(--ag-ink); text-decoration:none }
+.acx-won__i{ flex:none; width:44px; height:44px; border-radius:50%; background:var(--ag-gold-wash-2); color:var(--ag-gold-ink); display:flex; align-items:center; justify-content:center }
+.acx-won__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.acx-won__t b{ font-size:var(--ag-fs-15-5) }
+.acx-won__t span{ font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+.acx-ch{ display:flex; flex-direction:column; gap:12px; padding:18px }
+.acx-ch__head{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+.acx-ch__head b{ font-size:var(--ag-fs-15-5) }
+.acx-ch__head span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.acx-ch__bar, .acx-setup__bar{ display:block; height:8px; border-radius:4px; background:var(--ag-line-3); overflow:hidden }
+.acx-ch__bar span, .acx-setup__bar span{ display:block; height:100%; background:var(--ag-green); border-radius:inherit }
+.acx-ch__p{ font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.acx-ch__p b{ color:var(--ag-ink) }
+.acx-setup{ display:flex; flex-direction:column; gap:12px; padding:18px }
+.acx-setup__head{ display:flex; align-items:center; justify-content:space-between }
+.acx-setup__head b{ font-size:var(--ag-fs-15-5) }
+.acx-setup__head span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.acx-setup__bar{ height:6px }
+.acx-setup__list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column }
+.acx-setup__list li + li{ border-top:1px solid var(--ag-line-3) }
+.acx-step,
+.acx-step:hover{ display:flex; align-items:center; gap:12px; min-height:52px; color:var(--ag-ink); text-decoration:none; font-size:var(--ag-fs-14-5) }
+.acx-step__o{ flex:none; width:24px; height:24px; border-radius:50%; box-sizing:border-box; border:2px solid var(--ag-line-2); display:flex; align-items:center; justify-content:center; color:var(--ag-surface) }
+.acx-step--done .acx-step__o{ border-color:var(--ag-green); background:var(--ag-green) }
+.acx-step--done .acx-step__l{ color:var(--ag-soft); text-decoration:line-through }
+.acx-tix,
+.acx-tix:hover{ display:flex; align-items:center; gap:14px; padding:16px; color:var(--ag-ink); text-decoration:none }
+.acx-tix__d{ flex:none; width:50px; display:flex; flex-direction:column; align-items:center; line-height:1.1 }
+.acx-tix__d span{ font-size:var(--ag-fs-12); font-weight:700; color:var(--ag-live-ink) }
+.acx-tix__d b{ font-size:var(--ag-fs-22) }
+.acx-tix__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.acx-tix__t b{ font-size:var(--ag-fs-15); font-weight:600 }
+.acx-tix__t span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+
+/* points: the split, the redeem panel */
+.acx-split{ display:grid; grid-template-columns:minmax(0, 1fr); gap:16px; align-items:start }
+.acx-redeem{ display:flex; flex-direction:column; gap:12px; padding:20px }
+.acx-redeem__h{ margin:0; font-size:var(--ag-fs-16); font-weight:700; color:var(--ag-green-deep) }
+
+@media (min-width:600px){
+  .acx{ grid-template-columns:210px minmax(0, 1fr); padding:32px 32px 64px }
+  .acx-rail{ position:sticky; top:16px; display:flex; flex-direction:column; gap:16px }
+  .acx-main{ gap:20px }
+  .acx-title{ display:flex; flex-direction:column; gap:6px; padding-bottom:4px }
+  .acx-lead-ph, .acx-rows{ display:none }
+  .acx-bal{ padding:22px }
+  .acx-bal__n b{ font-size:var(--ag-fs-46) }
+  .acx-quick{ gap:6px; padding:14px 10px }
+}
+@media (min-width:1024px){
+  .acx{ grid-template-columns:250px minmax(0, 1fr) }
+  .acx-top{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) }
+  .acx-top--one{ grid-template-columns:minmax(0, 1fr) }
+  .acx-ov{ grid-template-columns:minmax(0, 1.3fr) minmax(0, 1fr) }
+  .acx-split{ grid-template-columns:minmax(0, 1.45fr) minmax(0, 1fr) }
+}
+
+/* ── Phase 8's pieces, still drawn inside the sections ── */
+
 
 .acc__head{ display:flex; align-items:center; gap:var(--ag-sp-16) }
 .acc__av{ flex:none; width:72px; height:72px; border-radius:50% }

@@ -285,7 +285,7 @@
             <p class="ed-box__alt">
               {%- if referral.threshold > 1 %}{{ 'Paid once you have %n% referrals — backdated, so the %n%th makes all of them payable.'|trans({'%n%': referral.threshold}) }}
               {%- else %}{{ 'Paid from your first referral.'|trans }}{% endif %}
-              <a href="/account#me-referral">{{ 'Your referrals'|trans }}</a></p>
+              <a href="/account?tab=referral#me-referral">{{ 'Your referrals'|trans }}</a></p>
           {% else %}
             <p class="ed-box__p">{{ 'Tell people about this event and earn %pct%% of every ticket bought through your link.'|trans({'%pct%': referral.pct}) }}</p>
             <a class="ed-earn__btn" href="/account/login?next=/events/{{ event.slug|url_encode }}">{{ 'Sign in to get your link'|trans }}</a>
