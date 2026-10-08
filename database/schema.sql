@@ -778,6 +778,7 @@ CREATE TABLE IF NOT EXISTS gates_users (
   headline VARCHAR(120) NULL DEFAULT NULL,
   based_in VARCHAR(120) NULL DEFAULT NULL,
   interests_json VARCHAR(255) NULL DEFAULT NULL,
+  seasonal_greetings TINYINT(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (id),
   KEY idx_users_phone_e164 (phone_e164),
   UNIQUE KEY uq_user_email (email)

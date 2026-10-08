@@ -2236,6 +2236,15 @@ return function(App $app) {
         });
         // The default cover as a share image, for an event with no uploaded photo (§7).
         $g->get('/og/{subject:[a-z]+}/{id:[0-9]+}-{ratio:[0-9]+x[0-9]+}.png', \AfricaGates\Controllers\CoverImageController::class.':show');
+        // The seasonal greeting's SVG pattern tiles, built from Accent (HolidayTheme::patternSvg).
+        $g->get('/img/holiday/{pattern:[a-z]+}-{tone:[a-z]+}.svg', function ($req, $res, array $args) {
+            $svg = \AfricaGates\Services\HolidayTheme::patternSvg((string) $args['pattern'], (string) $args['tone']);
+            if ($svg === null) return $res->withStatus(404);
+            $res->getBody()->write($svg);
+            return $res->withHeader('Content-Type', 'image/svg+xml')
+                       ->withHeader('Cache-Control', 'public, max-age=86400')
+                       ->withHeader('X-Content-Type-Options', 'nosniff');
+        });
         $g->get('/honour/{reference}/tick',   HonourController::class.':tick');
         $g->get('/honour/{reference}',        HonourController::class.':page');
 
@@ -3712,6 +3721,10 @@ return function(App $app) {
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
         $a->get('/display',            AccountController::class.':display');
+        // The seasonal greeting (HOLIDAY-THEMES): "not this year" for one theme, and the
+        // member's own switch for all of them.
+        $a->post('/holiday/{slug:[a-z-]+}/dismiss', AccountController::class.':holidayDismiss');
+        $a->post('/greetings',         AccountController::class.':greetingsSave');
         $a->get('[/]',            AccountController::class.':dashboard');
     })->add(new UserAuthMiddleware());
 
@@ -4340,6 +4353,12 @@ return function(App $app) {
             // The automated newsletter — a sub-page of campaigns, linked from its list.
             // Literal segments, so they cannot collide with the digits-only /{id} below.
             $s->get('/newsletter',                       \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':index');
+            // The member pages' seasonal greeting windows (HOLIDAY-THEMES) — linked from the
+            // newsletter's holiday section; literal segments, clear of /{id} below.
+            $s->get('/greetings',                        \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':index');
+            $s->post('/greetings',                       \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':add');
+            $s->post('/greetings/{id:[0-9]+}/toggle',    \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':toggle');
+            $s->post('/greetings/{id:[0-9]+}/delete',    \AfricaGates\Admin\Controllers\GreetingsAdminController::class.':delete');
             $s->post('/newsletter/settings',             \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':settings');
             $s->post('/newsletter/compose',              \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':compose');
             $s->post('/newsletter/holidays',             \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':holidays');

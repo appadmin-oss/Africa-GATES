@@ -125,6 +125,11 @@
 .acx-tix__t b{ font-size:var(--ag-fs-15); font-weight:600 }
 .acx-tix__t span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
 
+/* settings: the greetings switch */
+.acx-greet{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:18px }
+.acx-greet form{ margin:0 }
+.acx-greet__t{ display:flex; flex-direction:column; gap:4px; min-width:0; flex:1 1 260px }
+
 /* points: the split, the redeem panel */
 .acx-split{ display:grid; grid-template-columns:minmax(0, 1fr); gap:16px; align-items:start }
 .acx-redeem{ display:flex; flex-direction:column; gap:12px; padding:20px }

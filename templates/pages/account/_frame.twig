@@ -24,9 +24,13 @@
 {% set colour_tier = colour_tier|default('2') %}
 {% set _me = member_name|default('') %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/account.css') }}">{% block acc_styles %}{% endblock %}{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/account.css') }}">
+  {%- if holiday|default(null) %}<link rel="stylesheet" href="{{ asset('/assets/css/components/holiday.css') }}">{% endif %}{% block acc_styles %}{% endblock %}{% endblock %}
 
 {% block content %}
+{# The seasonal greeting (HOLIDAY-THEMES): the 3px line straight under the bar, then the
+   banner inside the page's width. Only ever on these member pages. #}
+{% if holiday|default(null) %}{% include 'partials/holiday-banner.twig' with {h: holiday} only %}{% endif %}
 <div class="acx">
   <aside class="acx-rail" aria-label="{{ 'Account'|trans }}">
     <div class="acx-rail__who">

@@ -480,6 +480,47 @@ final class Accent
         return $out;
     }
 
+    // ── The seasonal greeting's tones (HOLIDAY-THEMES, handoff 5 Oct 2026) ──────────
+    // wash · edge · ink · line, the spec's table exactly. Inks and lines are palette tokens
+    // (gold's line and info's ink are the cover's own); the washes and edges are lighter than
+    // anything the palette names, typed here at the spec's value as the cover's are, and
+    // reported with them (docs/handoff/PHASE-HOLIDAY.md, HT-1). Emitted as `--ag-hol-*`.
+    /** @var array<string,array{wash:string,edge:string,ink:string,line:string}> */
+    private const HOLIDAY = [
+        'green' => ['wash' => '#eef7ee', 'edge' => '#d4e8d3', 'ink' => 'green-deep', 'line' => 'green'],
+        'gold'  => ['wash' => '#fcf6e4', 'edge' => '#efe0b4', 'ink' => 'gold-ink',   'line' => '#c99a06'],
+        'live'  => ['wash' => '#fdf0f3', 'edge' => '#f3d3dc', 'ink' => 'live-ink',   'line' => 'live'],
+        'info'  => ['wash' => '#ecf3f7', 'edge' => '#cfe0ea', 'ink' => '#1f5f8b',    'line' => 'info'],
+        'stone' => ['wash' => '#f4f2ec', 'edge' => '#e2ddd2', 'ink' => 'ink',        'line' => 'ink-2'],
+    ];
+
+    /** A holiday tone's slot as hex, for the SVG pattern tiles; null for a name that is not one. */
+    public static function holidayHex(string $tone, string $slot): ?string
+    {
+        $v = self::HOLIDAY[$tone][$slot] ?? null;
+        if ($v === null) return null;
+
+        return str_starts_with($v, '#') ? $v : self::hex($v);
+    }
+
+    /** @return list<string> */
+    public static function holidayTones(): array
+    {
+        return array_keys(self::HOLIDAY);
+    }
+
+    private static function holidayCss(): array
+    {
+        $out = [];
+        foreach (self::HOLIDAY as $tone => $slots) {
+            foreach ($slots as $slot => $v) {
+                $out[] = '--ag-hol-' . $tone . '-' . $slot . ':' . (str_starts_with($v, '#') ? $v : 'var(--ag-' . $v . ')') . ';';
+            }
+        }
+
+        return $out;
+    }
+
     /** @return array<string,array{value:string,use:string}> */
     public static function console(): array
     {
@@ -642,7 +683,7 @@ final class Accent
         foreach (self::SHADOWS as $name => $v) {
             $out[] = '--ag-' . $name . ':' . $v . ';';
         }
-        $out = array_merge($out, self::coverCss());
+        $out = array_merge($out, self::coverCss(), self::holidayCss());
 
         return ':root{' . implode('', $out) . '}';
     }

@@ -102,7 +102,8 @@
     <h2 id="nlxHol">Holiday issues</h2>
     <p>On each ticked holiday a greeting issue goes out at the newsletter’s hour, with what is
       open on the site beneath it — in the same mode as the regular issue{% if not schedule.sendsItself %}, so it
-      waits here for approval that morning{% endif %}. A regular issue due within {{ spacing }} hours of one is skipped.</p>
+      waits here for approval that morning{% endif %}. A regular issue due within {{ spacing }} hours of one is skipped.
+      The greeting members see on their own pages has its own dates: <a href="/admin/campaigns/greetings">Seasonal greetings</a>.</p>
     <form method="post" action="/admin/campaigns/newsletter/holidays">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <table class="nlx-t">

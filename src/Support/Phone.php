@@ -106,6 +106,26 @@ final class Phone
         return $out;
     }
 
+    /**
+     * The country an E.164 number belongs to, from the same dial-code table normalize() uses:
+     * the longest code that prefixes it. Null when no code matches or when one code is shared
+     * (+1 is the United States and Canada) — a guess is not an answer.
+     */
+    public static function country(string $e164): ?string
+    {
+        if (!preg_match('/^\+(\d{8,15})$/', trim($e164), $m)) return null;
+        $digits = $m[1];
+        $best = null; $len = 0; $shared = false;
+        foreach (self::DIAL as $iso => $dial) {
+            if (!str_starts_with($digits, $dial)) continue;
+            $l = strlen($dial);
+            if ($l > $len) { $best = $iso; $len = $l; $shared = false; }
+            elseif ($l === $len) { $shared = true; }
+        }
+
+        return $shared ? null : $best;
+    }
+
     /** True when the value normalises to E.164 as-is. */
     public static function isValid(?string $raw, ?string $country = null): bool
     {

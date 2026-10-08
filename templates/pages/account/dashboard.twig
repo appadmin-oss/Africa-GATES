@@ -332,6 +332,15 @@
     </form>
   </section>
 {% elseif tab == 'settings' %}
+  <section class="acx-card acx-greet" id="greetings" aria-labelledby="acx-greet-h">
+    <div class="acx-greet__t"><h2 class="acx-h2" id="acx-greet-h">{{ 'Seasonal greetings'|trans }}</h2>
+      <p class="acc__p">{{ greetings_on ? 'On holidays, a short greeting at the top of your account pages.'|trans : 'Off. Your account pages carry no holiday greeting.'|trans }}</p></div>
+    <form method="post" action="/account/greetings">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="on" value="{{ greetings_on ? '0' : '1' }}">
+      <button class="ag-btn ag-btn--secondary ag-btn--pill" type="submit">{{ greetings_on ? 'Turn off'|trans : 'Turn on'|trans }}</button>
+    </form>
+  </section>
   <nav class="ag-list" aria-label="{{ 'Settings'|trans }}">
     {% set _rows = [
       {href: '/account/notifications', label: 'Notifications'|trans, value: unread ? ('%n% new'|trans({'%n%': unread})) : ''},

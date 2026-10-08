@@ -100,7 +100,17 @@ final class AccentTest extends TestCase
                 $this->assertStringContainsString('--ag-cover-' . $tone . '-' . $slot . ':', $css);
             }
         }
-        $this->assertSame(count(self::HANDOFF) + count(self::HANDOFF_SHADOWS) + 20,
+        // And the seasonal greeting's (HOLIDAY-THEMES): wash · edge · ink · line, the spec's table.
+        $hol = ['green' => ['#eef7ee', '#d4e8d3', '#1a6118', '#237b22'], 'gold' => ['#fcf6e4', '#efe0b4', '#7a5600', '#c99a06'],
+                'live' => ['#fdf0f3', '#f3d3dc', '#b0224f', '#e0245e'], 'info' => ['#ecf3f7', '#cfe0ea', '#1f5f8b', '#1f6fa3'],
+                'stone' => ['#f4f2ec', '#e2ddd2', '#10292c', '#3a4a4c']];
+        foreach ($hol as $tone => $hex) {
+            foreach (['wash', 'edge', 'ink', 'line'] as $i => $slot) {
+                $this->assertSame($hex[$i], Accent::holidayHex($tone, $slot), "hol $tone.$slot");
+                $this->assertStringContainsString('--ag-hol-' . $tone . '-' . $slot . ':', $css);
+            }
+        }
+        $this->assertSame(count(self::HANDOFF) + count(self::HANDOFF_SHADOWS) + 20 + 20,
             preg_match_all('/[{;]--ag-/', $css), 'Accent emits a name that is not the handoff\'s');
     }
 

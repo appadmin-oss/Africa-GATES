@@ -1446,6 +1446,39 @@ class AccountController
     }
 
     /**
+     * POST /account/holiday/{slug}/dismiss — "not this year" for one greeting. A form that
+     * posts and comes back without script; with it, holiday.js posts in the background and
+     * asks for JSON, and the banner goes without a reload.
+     */
+    public function holidayDismiss(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $ok = \AfricaGates\Services\HolidayTheme::dismiss((int) $user->id, (string) ($args['slug'] ?? ''));
+        if (str_contains($req->getHeaderLine('Accept'), 'application/json')) {
+            $res->getBody()->write((string) json_encode(['ok' => $ok]));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus($ok ? 200 : 422);
+        }
+        $back = (string) parse_url($req->getHeaderLine('Referer'), PHP_URL_PATH);
+
+        return $res->withHeader('Location', str_starts_with($back, '/account') ? $back : '/account')->withStatus(303);
+    }
+
+    /** POST /account/greetings — the member's own switch for every seasonal greeting. */
+    public function greetingsSave(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $on = (string) (((array) $req->getParsedBody())['on'] ?? '0') === '1';
+        $saved = \AfricaGates\Services\HolidayTheme::setGreetings((int) $user->id, $on);
+        $_SESSION[$saved ? 'flash_ok' : 'flash_error'] = $saved
+            ? ($on ? 'Seasonal greetings are on.' : 'Seasonal greetings are off. Nothing else changes.')
+            : 'That could not be saved just now. Try again in a moment.';
+
+        return $res->withHeader('Location', '/account?tab=settings#greetings')->withStatus(303);
+    }
+
+    /**
      * What the account frame needs on every account page: the sections with their numbers,
      * the one being drawn, and who is signed in (pages/account/_frame.twig).
      *
@@ -1459,6 +1492,10 @@ class AccountController
             'acc_tab'   => $tab,
             'rail'      => \AfricaGates\Services\AccountRail::tabs($tab, $r['counts'], $r['attention']),
             'rail_user' => ['id' => (int) $user->id, 'name' => (string) $user->name, 'email' => (string) $user->email],
+            // Today's seasonal greeting, if any (HolidayTheme). The CDN's country is read
+            // only when the member's phone does not already say where they are.
+            'holiday'   => \AfricaGates\Services\HolidayTheme::forMember((int) $user->id, $_SERVER['HTTP_CF_IPCOUNTRY'] ?? null),
+            'greetings_on' => \AfricaGates\Services\HolidayTheme::greetingsOn($user),
         ];
     }
 
