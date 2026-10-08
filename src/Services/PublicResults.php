@@ -758,6 +758,29 @@ final class PublicResults
     }
 
     /**
+     * What each cycle calls its edition, for the life of the request.
+     *
+     * A class property rather than a `static` inside {@see self::edition_()}, because a
+     * function-scoped static cannot be reset by anything — and this one has to be. A static
+     * lives for the PROCESS, which in production is one request (a cycle cannot be renamed
+     * underneath the page drawing it, so memoising is free), and in the suite is every test
+     * at once. The harness rebuilds the schema and rewinds the auto-increment counters
+     * between tests, so two tests routinely hold DIFFERENT cycles under the same id — and
+     * the second was served the first one's edition name. It fails far from its cause and
+     * reads as the page naming the wrong year: three guards were failing on "1st Edition ·
+     * 2019" under a fixture that says 2026, and each passed on its own.
+     *
+     * The same trap, one class over, as {@see ReleasedStanding::forget()}.
+     */
+    private static array $editionMemo = [];
+
+    /** Drop the memo. {@see self::$editionMemo} for why anything needs to. */
+    public static function forget(): void
+    {
+        self::$editionMemo = [];
+    }
+
+    /**
      * The edition as the award calls itself.
      *
      * The cycle's own label, else its year — never `date('Y')`. The congratulations mail
@@ -769,17 +792,16 @@ final class PublicResults
         // Through Support\EditionName (Phase 5): the operator's label, else "3rd Edition ·
         // 2025" from the stored edition number, else the year. The rows reaching here are
         // narrow selects, so the cycle is read whole once per id — memoised for the request.
-        static $memo = [];
         $id = (int) ($ctx->cycle_id ?? $ctx->id ?? 0);
-        if ($id > 0 && !isset($memo[$id])) {
+        if ($id > 0 && !isset(self::$editionMemo[$id])) {
             try {
                 $row = DB::table('gates_award_cycles')->where('id', $id)->first();
-                $memo[$id] = $row ? \AfricaGates\Support\EditionName::full($row) : '';
+                self::$editionMemo[$id] = $row ? \AfricaGates\Support\EditionName::full($row) : '';
             } catch (\Throwable) {
-                $memo[$id] = '';
+                self::$editionMemo[$id] = '';
             }
         }
-        if ($id > 0 && $memo[$id] !== '') return $memo[$id];
+        if ($id > 0 && self::$editionMemo[$id] !== '') return self::$editionMemo[$id];
         $label = trim((string) ($ctx->edition_label ?? ''));
         return $label !== '' ? $label : (string) ((int) ($ctx->year ?? 0) ?: '');
     }
