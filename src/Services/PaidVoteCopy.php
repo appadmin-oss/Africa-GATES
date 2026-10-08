@@ -18,7 +18,7 @@ use AfricaGates\Support\Translator;
  * `CpiService::REACH_PEOPLE_SHARE`, never typed.
  *
  * Under the legacy `relative`/`absolute` bases there is no people term at all, so a
- * contributed vote counts exactly like a free one, and the sentence says that instead — a
+ * contributed vote adds to the whole community half, and the sentence says that instead — a
  * line about a 70% that the programme's own rules do not compute would be the
  * TallyOnlyCommunityHalfTest fault on a ballot.
  *
@@ -33,7 +33,7 @@ final class PaidVoteCopy
         $basis = CpiService::basis((new RuleEngine())->effective($programmeId, $cycleId)['community_basis'] ?? null);
 
         if (!in_array($basis, [CpiService::BASIS_IDEAL, CpiService::BASIS_REACH], true)) {
-            return Translator::t('A contributed vote is added to the tally exactly like a free vote. The split between free and contributed votes is published with the result.');
+            return Translator::t('Under this award’s rules the tally is the whole community half, so a contributed vote adds to it at full weight. The split between free and contributed votes is published with the result.');
         }
 
         $people = (int) round(CpiService::REACH_PEOPLE_SHARE * 100);

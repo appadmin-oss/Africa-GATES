@@ -158,7 +158,8 @@
     {cols: [
       {mark: 'yes', h: 'What a contribution does'|trans|e, items: [
         'Adds to the nominee’s tally and the community half of their index.'|trans|e,
-        'Counts the same as a free vote toward the tally, with no ceiling on vote packs.'|trans|e,
+        (paid_sentence|default('') ? paid_sentence|e : 'Adds to the tally at full weight.'|trans|e),
+        'Has no ceiling on vote packs bought on the ballot.'|trans|e,
         'Names the supporter, if they chose to be named.'|trans|e,
         'Sets aside a share for the nominee once they qualify.'|trans|e
       ]},

@@ -385,14 +385,14 @@ final class HelpCentre
             'audience' => ['supporter', 'nominee'],
             'cat'  => 'payments',
             'title' => 'What do paid votes actually do?',
-            'summary' => 'They count toward the tally exactly like a free vote, and cannot buy the '
-                       . 'larger part of the community half — every result shows both.',
+            'summary' => 'They add to the tally at full weight, and cannot buy the larger part of '
+                       . 'the community half — every result shows both.',
             'keywords' => ['buy votes', 'paid votes', 'price', 'cost', 'how much', 'bulk votes',
                            'do paid votes count', 'is it fair'],
             'body' => [
                 ['p' => 'A paid vote adds to a nominee\'s <strong>vote tally</strong>, and that tally is '
-                      . 'what the community share of the Cultural Power Index is built from. So yes: a '
-                      . 'paid vote counts toward the ranking, exactly as much as a free one.'],
+                      . 'what the community share of the Cultural Power Index is partly built from. So yes: a '
+                      . 'paid vote counts toward the ranking, at full weight in the tally.'],
                 ['p' => 'There is no ceiling on how many a campaign may buy, so a well-funded nominee can '
                       . 'hold the largest tally in the cycle. We would rather say that here than have '
                       . 'you work it out from the numbers. What buying cannot do is move the seventy '

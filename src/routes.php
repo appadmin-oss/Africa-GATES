@@ -2838,6 +2838,9 @@ return function(App $app) {
                 'community_pct'    => (int) round($w['community'] * 100),
                 'judge_pct'        => (int) round($w['judge'] * 100),
                 'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
+                // What a contribution does to the community half, from the one resolver the
+                // ballot and the award page use — never a typed claim (AUDIT 2026-10-05 #10).
+                'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence(),
                 'min_judges'       => (int) ($eff['min_judges_per_nominee'] ?? 2),
                 'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
                 'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
