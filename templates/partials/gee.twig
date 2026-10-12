@@ -36,7 +36,6 @@
   the sentence to the registry's own `where`.
 #}
 {% set _first = member_name ? (member_name|trim|split(' ')|first) : '' %}
-{% set _gee_q = 'M4 12.5 9 17.5 20 6.5' %}
 {# `gee_mode`: a page may open Gee's face in help-desk mode by default (the Help Centre
    mounts it as `mode="support"` in HelpCentre.dc.html, Phase 9). Only the face; one brain. #}
 <div class="gee" data-gee data-mode="guide" data-gee-default="{{ gee_mode|default('guide') == 'support' ? 'support' : 'guide' }}"
@@ -162,12 +161,9 @@
             <p class="gee__hello-s">{{ 'Voting, nominations, event tickets or a payment. Ask anything.'|trans }}</p>
           </div>
           <div class="gee__starters">
-            {% for s in [
-                {t: 'How do I vote?'|trans, d: _gee_q},
-                {t: 'My payment didn’t go through'|trans, d: 'M3 7h18v10H3zM3 11h18'},
-                {t: 'Find tickets for an event'|trans, d: 'M4 5h16v15H4zM4 10h16'},
-                {t: 'Nominate someone'|trans, d: 'M12 5v14M5 12h14'}
-              ] %}
+            {# Theirs first for a signed-in member — the ticket they hold, the nomination
+               waiting on a decision — then the general four (Services\GeePersonal). #}
+            {% for s in gee_starters() %}
             <button type="button" class="gee__starter" data-gee-ask="{{ s.t }}">
               <svg class="gee__starter-i" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ s.d }}"/></svg>
               <span class="gee__starter-t">{{ s.t }}</span>

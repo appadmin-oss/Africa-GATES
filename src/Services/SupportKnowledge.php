@@ -70,7 +70,9 @@ final class SupportKnowledge
             // the one section that must never be skimmed.
             SupportSignals::brief(),
             self::voice(),
-            'WHO YOU ARE TALKING TO: ' . $who . '.',
+            'WHO YOU ARE TALKING TO: ' . $who . '.'
+                // The member's own state, as Gee's guide face is told it (GeePersonal).
+                . ($ctx->isMember() ? GeePersonal::promptBlock(GeePersonal::facts()) : ''),
         ]));
     }
 

@@ -238,6 +238,8 @@ final class SupportResilienceTest extends TestCase
             'voted_at' => date('Y-m-d H:i:s'),
         ]);
 
+        // The address this browser asked a vote code for — the only one a guest may ask about.
+        \AfricaGates\Support\TypedEmails::remember('ada@example.test');
         $r = (new SupportContext(null, null, false, null))
             ->run('when_did_i_vote', ['email' => 'ada@example.test'])['data'];
 
@@ -264,6 +266,7 @@ final class SupportResilienceTest extends TestCase
     /** No vote found routes to the real cause rather than to a shrug. */
     public function test_no_vote_found_names_the_commonest_reason(): void
     {
+        \AfricaGates\Support\TypedEmails::remember('nobody@example.test');
         $r = (new SupportContext(null, null, false, null))
             ->run('when_did_i_vote', ['email' => 'nobody@example.test'])['data'];
 

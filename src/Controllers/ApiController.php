@@ -98,6 +98,9 @@ class ApiController {
         if(($tp=self::programmeOfCategory((int)$nominee->category_id))>0 && \AfricaGates\Services\AwardTerms::required($tp) && empty($b['accept_terms']))
             return $this->err($res,'Please accept the award terms to vote.','TERMS_REQUIRED',422);
         $r=$this->otp->generate($email,$nId,$aId,'vote');
+        // The address this browser asked a vote code for: the one the help desk may then
+        // answer "did my vote register" about for a guest (Support\TypedEmails).
+        if(!empty($r['success'])) \AfricaGates\Support\TypedEmails::remember($email);
         if($r['success']) {
             $this->events?->otpRequested($fp,$nId,$ipFp);
             $this->events?->funnelStep($b['session_id']??$fp,'otp_requested',$nId,$aId,null,$ipFp);

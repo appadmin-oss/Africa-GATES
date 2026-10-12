@@ -526,6 +526,16 @@ final class SupportContext
                     'error' => 'No such tool for this user. Available: ' . implode(', ', $allowed)];
         }
 
+        // ── LOOKUPS ARE METERED TOO (security review, 12 Oct 2026) ───────────
+        // Only the two repairs were rate-limited. The lookups that take an identifier somebody
+        // TYPES — a reference, an address, a name — answer as fast as they are asked, so a
+        // script could grind addresses through sign_in_help or names through claim_profile.
+        // Thirty an hour per connection is several conversations' worth for a real person.
+        if (in_array($tool, self::METERED, true) && !$this->spendLookup()) {
+            return ['ok' => false, 'tool' => $tool, 'error' => 'There have been a lot of lookups from this connection in '
+                    . 'the last hour. Say so plainly and suggest trying again later, or /support for a person.'];
+        }
+
         try {
             $data = match ($tool) {
                 'site_state'       => $this->siteState(),
@@ -1606,7 +1616,7 @@ final class SupportContext
     private function myEventTickets(): array
     {
         if (!$this->isMember()) return ['say' => 'They are not signed in.'];
-        $rows = MemberActivityService::ticketsFor((string) $this->viewerEmail, 10);
+        $rows = array_map([self::class, 'withoutDoorCode'], MemberActivityService::ticketsFor((string) $this->viewerEmail, 10));
         return ['tickets' => $rows, 'say' => $rows === []
             ? 'No event ticket or registration is on this account. Ask which email they registered with — '
               . 'it may be a different address.'
@@ -1648,6 +1658,16 @@ final class SupportContext
     {
         $email = mb_strtolower(trim($email));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['say' => 'I need the email address they are signing in with.'];
+        // Whether an address is locked out is about whoever owns it — for anybody else it says
+        // that somebody has been trying their sign-in. Their own address only (TypedEmails):
+        // the browser that just tried to sign in with it, or the member themselves.
+        if (!\AfricaGates\Support\TypedEmails::owns($email, $this->viewerEmail)) {
+            $domain = [];
+            try { $domain = $this->ext()->emailDomain($email); } catch (\Throwable) {}
+            return ['address' => $domain, 'mail' => $this->mailHealth()['incident'], 'not_theirs' => true,
+                    'say' => 'I can only check limits for an address they tried on this device. Ask them to try signing '
+                           . 'in once here (/account/login), then ask again. The address check above still applies.'];
+        }
         $lim = $this->limits ?? new RateLimitService();
         $h = hash('sha256', $email);
         $out = [];
@@ -1691,11 +1711,22 @@ final class SupportContext
         if (!$email) return ['found' => false, 'say' => 'No ticket has that reference. A guest of honour\'s pass starts AGI- — use invitation_lookup for those.'];
         foreach (MemberActivityService::ticketsFor((string) $email, 50) as $t) {
             if ((string) $t['reference'] === $ref) {
-                return ['found' => true, 'ticket' => $t, 'say' => 'Give the state in plain words and the ticket link.'];
+                return ['found' => true, 'ticket' => self::withoutDoorCode($t), 'say' => 'Give the state in plain words and the ticket link.'];
             }
         }
         return ['found' => true, 'ticket' => ['reference' => $ref, 'state' => 'cancelled'],
                 'say' => 'That registration is no longer active (cancelled or released). Say so, and offer the event page.'];
+    }
+
+    /**
+     * A ticket as an assistant may hold it: everything but the code that admits somebody at
+     * the door. The ticket link carries it for its owner; a chat transcript — sent to a model
+     * provider, kept with a support ticket — has no business holding a credential.
+     */
+    private static function withoutDoorCode(array $t): array
+    {
+        unset($t['code'], $t['ticket_code'], $t['flier']);
+        return $t;
     }
 
     /** Whether a profile can be claimed — never WHO holds it. Live awards only. */
@@ -1995,8 +2026,19 @@ final class SupportContext
     private function whenDidIVote(string $email, string $category): array
     {
         $e = mb_strtolower(trim($email));
+        if ($e === '' && $this->isMember()) $e = mb_strtolower(trim((string) $this->viewerEmail));
         if ($e === '' || !filter_var($e, FILTER_VALIDATE_EMAIL)) {
             return ['found' => false, 'say' => 'I need the email address they voted with.'];
+        }
+        // ── THEIR OWN ADDRESS ONLY (security review, 12 Oct 2026) ─────────────
+        // Whether an address voted, when, and in which category is about that person, and
+        // this answered it for any address anybody typed. Now: the member's own, or one this
+        // browser used at the vote code or sign-in (Support\TypedEmails).
+        if (!\AfricaGates\Support\TypedEmails::owns($e, $this->viewerEmail)) {
+            return ['found' => false, 'not_theirs' => true,
+                    'say' => 'I can only check the address they used on this device. Ask them to request the vote code '
+                           . 'again from the ballot in this browser (or sign in), then ask again — or check the inbox '
+                           . 'of that address for the confirmation.'];
         }
 
         try {
@@ -2191,6 +2233,19 @@ final class SupportContext
      * refuses is worse than one that runs too often. The guest-facing path always
      * has a limiter, which is where it matters.
      */
+    /** Tools that look something up by an identifier the person typed. */
+    private const METERED = ['check_reference', 'lookup_reference', 'refund_status', 'vote_proof', 'invitation_lookup',
+        'order_lookup', 'registration_lookup', 'sign_in_help', 'check_email_domain', 'claim_profile', 'when_did_i_vote',
+        'find_nominee', 'nominee_tally'];
+    private const LOOKUPS_PER_HOUR = 30;
+
+    /** Spend one lookup. Fails open without a limiter, as the repairs do (CLI, tests). */
+    private function spendLookup(): bool
+    {
+        if ($this->limits === null || $this->clientKey === '') return true;
+        return $this->limits->check($this->clientKey, 'support_lookup', self::LOOKUPS_PER_HOUR, 3600);
+    }
+
     private function spendRepair(): bool
     {
         if ($this->limits === null || $this->clientKey === '') return true;

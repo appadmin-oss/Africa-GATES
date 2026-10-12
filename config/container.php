@@ -501,6 +501,9 @@ return [
         // The member account's section titles and ledes (pages/account/_frame.twig): read
         // from the one list the rail is built from.
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_title', [\AfricaGates\Services\AccountRail::class, 'title']));
+        // Gee's empty-state starters, from the signed-in member's own state (GeePersonal).
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('gee_starters',
+            static fn (): array => \AfricaGates\Services\GeePersonal::starters(\AfricaGates\Services\GeePersonal::facts())));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_lead', [\AfricaGates\Services\AccountRail::class, 'lead']));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cover_content', [\AfricaGates\Support\CoverKind::class, 'content']
