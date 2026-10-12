@@ -115,7 +115,10 @@
       html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       html = html.replace(MD_LINK, function (_m, label, path) { return '<a href="' + path + '">' + label + '</a>'; });
       html = html.replace(HELP_RE, function (_m, lead, path) {
-        return lead + '<a href="' + path + '">' + esc(path) + '</a>';
+        /* A path is not a label. "Read the rest in /help/paid-but-no-votes" is how the
+           written answers end, and HelpCentre::writtenAnswer() words it to read as a
+           sentence once this turns the path into "the Help Centre answer". */
+        return lead + '<a href="' + path + '">' + esc(M('help-link') || path) + '</a>';
       });
       html = html.replace(ROUTE_RE, function (_m, lead, path) {
         return lead + '<a href="' + path + '">' + esc(ROUTES[path] || path) + '</a>';
@@ -222,6 +225,7 @@
     s.textContent = state.mode === 'support'
       ? (state.desk && state.desk.ai_on === false ? M('status-support-off') : M('status-support'))
       : M('status-guide');
+    s.title = s.textContent;   /* the line is cut to one in the header; the whole of it here */
   }
 
   /* ══ Painting the conversation ═════════════════════════════════════════════ */
@@ -752,6 +756,10 @@
     if (closer) { var c = closer; closer = null; c(); }
     else if (isOpen()) { layer.removeAttribute('data-open'); layer.setAttribute('inert', ''); fab.focus(); }
   }
+
+  /* A tap on the scrim above the phone sheet closes it, as every sheet here does. Only the
+     layer itself — a tap inside the panel lands on the panel, never here. */
+  layer.addEventListener('click', function (e) { if (e.target === layer) close(); });
 
   /* Esc, the browser's Back and AGChrome's handover all close through the sheet; this
      keeps the launcher's state honest whichever way it went. */

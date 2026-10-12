@@ -160,7 +160,16 @@ final class GeeTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/\d(?:d|s|l)?vh\b/', $css, 'the panel height is never vh');
         $this->assertStringContainsString('height:min(580px, 100%)', $css, '400×580 on desktop, capped to the page');
         $this->assertStringContainsString('width:400px', $css);
-        $this->assertStringContainsString('inset-inline:12px', $css, 'the phone panel is inset 12px');
+        $this->assertStringContainsString('inset-inline:12px', $css, 'the floating card\'s inset, kept for the launcher state');
+        // ── ON A PHONE IT IS A SHEET NOW (owner, 12 Oct 2026: "improve Gee's UX, especially
+        // on mobile") ─ the floating card left ~280px of conversation on a 390×844 phone. Below
+        // 600 the layer is the whole viewport (`inset:0`, under the status bar's safe area),
+        // the panel fills it with rounded top corners and a scrim behind, and it covers the
+        // tab bar ON PURPOSE: a modal sheet over the bars, which is what §7.4 draws a sheet as.
+        // The formula above still positions the launcher and the desktop panel.
+        $this->assertMatchesRegularExpression('~@media \(max-width:599\.98px\)\{\s*\.gee__layer\{ inset:0; padding-top:calc\(env\(safe-area-inset-top\) \+ 8px\) \}~', $css);
+        $this->assertStringContainsString('.gee__foot{ padding-bottom:calc(10px + env(safe-area-inset-bottom)) }', $css,
+            'the composer clears the home indicator on the sheet');
     }
 
     /**

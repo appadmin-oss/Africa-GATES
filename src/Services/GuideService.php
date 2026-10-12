@@ -400,19 +400,32 @@ final class GuideService
      */
     private function helpGrounding(string $message): string
     {
-        if (trim($message) === '') return '';
-        $hits = HelpCentre::search($message, 2);
-        if ($hits === []) return '';
-
+        // ── WHAT GEE KNOWS (owner, 12 Oct 2026: "Gee does not have so much knowledge") ──
+        //
+        // It used to be handed the two articles that best matched the LATEST message, cut
+        // at 900 characters, and nothing about the rest of the corpus — so a question worded
+        // unlike any article's keywords got an answer from the model's memory of a platform
+        // it has never seen, and a follow-up ("and if I paid by transfer?") lost the article
+        // the first answer came from. Now: three matches at length, and the whole shelf by
+        // title, so the model knows what a written answer exists for and can open it with
+        // help_article instead of guessing. The titles cost about forty short lines.
         $out = [];
-        foreach ($hits as $a) {
+        foreach (HelpCentre::search($message, 3) as $a) {
+            if ((int) ($a['score'] ?? 0) < 6) continue;   // a word in common is not a match
             $out[] = '### ' . (string) $a['title'] . ' (' . HelpCentre::url((string) $a['slug']) . ")\n"
-                   . mb_substr(HelpCentre::plainText($a), 0, 900);
+                   . mb_substr(HelpCentre::plainText($a), 0, 1600);
         }
-        return "\n\nWRITTEN HELP CENTRE ANSWERS matching this question. These are the platform's OWN vetted answers "
-             . "and they are kept correct as settings change. PREFER them over your own memory — if one disagrees "
-             . "with you, it is right and you are not. Give the reader its URL so they can keep it.\n\n"
-             . implode("\n\n", $out);
+        $shelf = [];
+        foreach (HelpCentre::all() as $a) {
+            $shelf[] = '- ' . (string) $a['title'] . ' — ' . HelpCentre::url((string) $a['slug']);
+        }
+
+        return ($out !== [] ? "\n\nWRITTEN HELP CENTRE ANSWERS matching this question. These are the platform's OWN vetted "
+             . "answers and they are kept correct as settings change. PREFER them over your own memory — if one "
+             . "disagrees with you, it is right and you are not. Give the reader its URL so they can keep it.\n\n"
+             . implode("\n\n", $out) : '')
+             . "\n\nEVERY WRITTEN ANSWER THE HELP CENTRE HOLDS (open one with help_article when the question is "
+             . "about it; never say there is no written answer when one is listed here):\n" . implode("\n", $shelf);
     }
 
     private function systemPrompt(array $page, string $message = ''): string
@@ -556,6 +569,69 @@ SYS;
     // ───────────────────────────── Fallback ──────────────────────────────
 
     /**
+     * The questions a guide is asked most whose answer is a FACT on this site, answered from
+     * the facts with no model at all: who won, can I nominate, how do I vote for her, when is
+     * the event. The same tools the agent calls (SupportContext), so the floor and the agent
+     * cannot give two answers — and a scripted tier that can say "Amara Okonkwo won STEM
+     * Educator" is a guide still worth asking on the day the AI budget runs out.
+     *
+     * Null when the question is not one of these, or the lookup found nothing to say.
+     */
+    private function liveAnswer(string $m, callable $hit): ?string
+    {
+        $ctx = new SupportContext(null, null);
+        try {
+            if ($hit(['who won', 'winner', 'did she win', 'did he win', 'did they win', 'result of', 'results for'])) {
+                $d = $ctx->run('award_results', ['query' => $m])['data'] ?? null;
+                if (!is_array($d)) return null;
+                $lines = [];
+                foreach (array_slice((array) ($d['results'] ?? []), 0, 3) as $r) {
+                    $lines[] = !empty($r['held'])
+                        ? '**' . $r['category'] . '** is being verified, so nobody is named yet. ' . $r['url']
+                        : '**' . $r['category'] . '** — won by **' . $r['winner'] . '**. The full standing: ' . $r['url'];
+                }
+                foreach (array_slice((array) ($d['not_yet_announced'] ?? []), 0, 2) as $p) {
+                    $lines[] = '**' . $p['category'] . '** has not been announced yet'
+                             . (!empty($p['results_expected']) ? ' — results are expected on ' . date('j F Y', strtotime((string) $p['results_expected'])) : '') . '.';
+                }
+                return $lines !== [] ? implode("\n\n", $lines) : "No announced result matches that. Every result is at /results.";
+            }
+            if ($hit(['nominat']) && $hit(['open', 'can i', 'when', 'close', 'deadline', 'still'])) {
+                $d = $ctx->run('nominations_open')['data'] ?? null;
+                if (!is_array($d)) return null;
+                if (($d['open'] ?? []) === []) return "No award is taking nominations right now. /awards shows each award and when its next window opens.";
+                $lines = ['These are taking nominations now — it is free, and you only need the nominee\'s email or phone:'];
+                foreach (array_slice($d['open'], 0, 4) as $o) {
+                    $lines[] = '**' . $o['award'] . '** — closes ' . date('j F', strtotime((string) $o['closes'])) . ': [Nominate](' . $o['url'] . ')';
+                }
+                return implode("\n", $lines);
+            }
+            if (preg_match('/vote for ([\p{L}\'\-. ]{3,60})/u', $m, $x)) {
+                $name = trim((string) preg_replace('/\b(please|now|today|in|on|the)\b.*$/u', '', $x[1]));
+                $d = $ctx->run('find_nominee', ['name' => $name])['data'] ?? null;
+                if (is_array($d) && !empty($d['nominees'])) {
+                    $n = $d['nominees'][0];
+                    return !empty($n['votable_now'])
+                        ? '**' . $n['name'] . '** is in ' . $n['category'] . '. The ballot is one tap away: [Vote for ' . $n['name'] . '](' . $n['url'] . ')'
+                        : '**' . $n['name'] . '** is in ' . $n['category'] . ', and voting there has closed. Their page: [See ' . $n['name'] . '](' . $n['url'] . ')';
+                }
+                return null;
+            }
+            if ($hit(['when is the', 'where is the', 'gala', 'ceremony']) && !$hit(['ticket not', 'my ticket'])) {
+                $d = $ctx->run('event_details', ['name' => ''])['data'] ?? null;
+                if (is_array($d) && !empty($d['event'])) {
+                    $path = parse_url((string) ($d['url'] ?? ''), PHP_URL_PATH) ?: '/events';
+                    return '**' . $d['event'] . '**' . (!empty($d['when']) ? ' — ' . $d['when'] : '')
+                         . (!empty($d['where']) ? ', ' . $d['where'] : '') . '. Details and tickets: [See the event](' . $path . ')';
+                }
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+        return null;
+    }
+
+    /**
      * Keyword-routed answers used when no provider is configured (or every call fails).
      *
      * ── DO ITS BEST, EVEN WITH NO MODEL (owner, 12 Oct 2026) ──────────────────
@@ -577,6 +653,9 @@ SYS;
     {
         $m   = mb_strtolower($message);
         $hit = static fn(array $kw): bool => array_filter($kw, static fn($k) => str_contains($m, $k)) !== [];
+
+        $live = $this->liveAnswer($m, $hit);
+        if ($live !== null) return $live;
 
         $cw = 45; $jw = 55;
         try { $w = (new RuleEngine())->weights(); $cw = (int) round($w['community'] * 100); $jw = 100 - $cw; } catch (\Throwable) {}

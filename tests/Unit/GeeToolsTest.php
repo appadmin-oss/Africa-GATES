@@ -170,4 +170,50 @@ final class GeeToolsTest extends TestCase
             (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/GuideController.php'),
             'the repair card on the road a stuck visitor takes from Gee');
     }
+
+    // ── "Gee does not have so much knowledge. It is not very smart." ─────────────
+
+    public function test_with_no_model_gee_still_answers_the_facts_from_the_site(): void
+    {
+        $pid = $this->programme('Education Awards', 1);
+        $cat = $this->category($this->cycle($pid, 'voting', ['nominations_open' => Carbon::now()->subDay()->toDateTimeString(),
+                                                             'nominations_close' => Carbon::now()->addDays(5)->toDateTimeString(),
+                                                             'voting_open' => Carbon::now()->subDay()->toDateTimeString(),
+                                                             'voting_close' => Carbon::now()->addDays(9)->toDateTimeString()]), 'STEM Educator');
+        $this->nominee($cat, 'Amara Okonkwo');
+        $g = new \AfricaGates\Services\GuideService();
+
+        $won = $g->scripted('Who won the STEM Educator award?')['reply'];
+        $this->assertStringContainsString('STEM Educator** has not been announced yet', $won);
+        $this->assertStringNotContainsString('Amara', $won, 'an unannounced award names nobody, even on the floor');
+
+        $nom = $g->scripted('Are nominations still open?')['reply'];
+        $this->assertStringContainsString('**Education Awards**', $nom);
+        $this->assertMatchesRegularExpression('~\[Nominate\]\(/nominate/p-[a-f0-9]+\)~', $nom);
+
+        $vote = $g->scripted('How do I vote for Amara Okonkwo?')['reply'];
+        $this->assertStringContainsString('[Vote for Amara Okonkwo](', $vote, 'the ballot, as a link the widget draws');
+        $this->assertStringNotContainsString(' her ', ' ' . $vote . ' ', 'a nominee is never gendered by a template');
+    }
+
+    public function test_the_agent_is_handed_the_whole_help_shelf(): void
+    {
+        $m = new \ReflectionMethod(\AfricaGates\Services\GuideService::class, 'helpGrounding');
+        $text = (string) $m->invoke(new \AfricaGates\Services\GuideService(), 'where does my money go when I vote');
+        $this->assertStringContainsString('EVERY WRITTEN ANSWER THE HELP CENTRE HOLDS', $text);
+        foreach (\AfricaGates\Services\HelpCentre::all() as $a) {
+            $this->assertStringContainsString(\AfricaGates\Services\HelpCentre::url((string) $a['slug']), $text, $a['slug']);
+        }
+        $this->assertStringContainsString('### Why is voting paid?', $text, 'the article that answers it, at length');
+    }
+
+    public function test_on_a_phone_gee_is_a_sheet_and_its_header_is_one_line(): void
+    {
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/gee.css');
+        $this->assertMatchesRegularExpression('~@media \(max-width:599\.98px\)\{\s*\.gee__layer\{ inset:0;~', $css);
+        $this->assertMatchesRegularExpression('~\.gee__panel\{ height:100%; border-radius:var\(--ag-r-24\) var\(--ag-r-24\) 0 0~', $css);
+        $this->assertMatchesRegularExpression('~\.gee__status\{[^}]*white-space:nowrap[^}]*text-overflow:ellipsis~', $css);
+        $this->assertStringContainsString("layer.addEventListener('click', function (e) { if (e.target === layer) close(); });",
+            (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/gee.js'), 'the scrim closes the sheet');
+    }
 }
