@@ -41,7 +41,10 @@ use Illuminate\Database\Capsule\Manager as DB;
 final class SupportAgentService implements SupportAnswerer
 {
     /** Tool-calling rounds before the agent must answer with what it has. */
-    private const MAX_ROUNDS = 4;
+    // Five, not four (12 Oct 2026): a real problem is often two lookups and a repair plus
+    // the button — "I paid twice for Ada and got one receipt" is check_reference, my_transactions,
+    // fix_payment and offer_action — and the fourth round used to arrive with no room to answer.
+    private const MAX_ROUNDS = 5;
 
     /** Conversation turns kept. Older context is dropped, not summarised. */
     private const MAX_HISTORY = 12;
@@ -438,8 +441,8 @@ final class SupportAgentService implements SupportAnswerer
     - "How does X work" or "why did Y happen": help_article first, and give its link.
     - Never invent a reference, an amount, a date or a count. If you need one and do not
       have it, ask for it in one short sentence.
-    - Two tools is usually enough; four is the most. Never call the same tool with the same
-      arguments twice.
+    - Two tools is usually enough; a problem with several parts may take five. Never call the
+      same tool with the same arguments twice.
     - If they ask for a person, say you will pass it on — the platform does that, you do not
       need a tool for it.
     - When the next step is a page on this site — a ballot, the nomination form, an event,
@@ -447,6 +450,33 @@ final class SupportAgentService implements SupportAnswerer
       also paste the URL into your text.
     - For a task with several steps (find the nominee, check voting is open, take them to
       the ballot), do the steps with the tools, in order, before you answer.
+
+    THE SITUATIONS PEOPLE ACTUALLY BRING, AND WHERE TO START
+    - "My code / receipt / ticket / reset link never came": mail_health first (if our email is
+      down, say so and stop guessing), then sign_in_help or check_email_domain on the address;
+      signed in, my_email_delivery shows what we actually sent them.
+    - "It says too many attempts", "I can't sign in", "the code won't send": sign_in_help with
+      their address — give the minutes left and that it lifts by itself; /account/forgot for a
+      forgotten password.
+    - "I paid but…" / "I was charged twice" / "wrong nominee" / "wrong amount": the reference
+      (check_reference for a bank's or wallet's number), then my_transactions or lookup_reference,
+      then fix_payment if votes are missing; refund_status before ever saying a refund needs
+      arranging. A wrong nominee or a change of mind is a person's decision — collect the
+      reference and what they wanted, and pass it on.
+    - "Did my vote count?" / "the count went down": nominee_tally and, for a paid order,
+      vote_proof with its link. A total can fall when fraud is removed or a refund is taken back.
+    - "Who won", "when are the results", "why isn't it out": award_results — announced results
+      only, and a late award is said to be late with the date that was promised.
+    - "Can I nominate", "how do I nominate X": nominations_open, then the form for that award.
+    - "I was nominated", "that's me", "change my photo": claim_profile.
+    - "Where is my ticket / my order": registration_lookup or order_lookup with the reference;
+      signed in, my_event_tickets or my_shop_orders. An invited guest's pass is AGI- and is
+      invitation_lookup.
+    - "My comment didn't appear": signed in, my_held_posts.
+    - "How many points do I have", "why can't I redeem", "is my account verified": my_account.
+    - Anything about prices abroad: convert_currency, and say their bank uses its own rate.
+    - Somebody angry or upset: acknowledge it in one sentence, then fix — an apology that is
+      not followed by a lookup is just words.
 
     HOW YOU ANSWER
     - Start with the answer or the outcome, not a greeting and not a restatement of the
@@ -623,6 +653,8 @@ final class SupportAgentService implements SupportAnswerer
         'gateway_status', 'check_email_domain', 'delivery_health', 'check_reference', 'refund_status',
         'invitation_lookup', 'when_did_i_vote', 'my_transactions', 'my_account', 'my_event_tickets',
         'my_shop_orders', 'award_results', 'nominations_open',
+        'mail_health', 'sign_in_help', 'order_lookup', 'registration_lookup', 'claim_profile',
+        'my_email_delivery', 'my_held_posts',
         'offer_action'];
 
     /**
@@ -718,6 +750,12 @@ final class SupportAgentService implements SupportAnswerer
                     foreach (array_slice((array) ($d['orders'] ?? []), 0, 1) as $o) $add('Track my order', (string) ($o['url'] ?? ''));
                     break;
                 case 'my_account':         $add('Open my account', (string) ($d['account_url'] ?? '')); break;
+                case 'order_lookup':       $add('Track my order', (string) ($d['order']['url'] ?? '')); break;
+                case 'registration_lookup': $add('Open my ticket', (string) ($d['ticket']['url'] ?? '')); break;
+                case 'claim_profile':
+                    if (($d['state'] ?? '') === 'open') $add('Claim this profile', (string) ($d['url'] ?? ''));
+                    break;
+                case 'sign_in_help':       $add('Reset my password', '/account/forgot'); break;
             }
         }
         return array_values($out);
@@ -764,6 +802,9 @@ final class SupportAgentService implements SupportAnswerer
             'voting_deadlines' => 'the voting clocks', 'nominations_open' => 'open nominations',
             'event_details' => 'the event', 'resend_receipt' => 'your receipt',
             'shop_availability' => 'stock', 'shop_quote' => 'prices and delivery',
+            'mail_health' => 'our email', 'sign_in_help' => 'sign-in limits', 'order_lookup' => 'your order',
+            'registration_lookup' => 'your ticket', 'claim_profile' => 'the profile',
+            'my_email_delivery' => 'what we emailed you', 'my_held_posts' => 'the moderation queue',
         ];
         $out = [];
         foreach ($used as $t) if (isset($say[$t])) $out[$say[$t]] = true;

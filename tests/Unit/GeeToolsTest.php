@@ -216,4 +216,119 @@ final class GeeToolsTest extends TestCase
         $this->assertStringContainsString("layer.addEventListener('click', function (e) { if (e.target === layer) close(); });",
             (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/gee.js'), 'the scrim closes the sheet');
     }
+
+    // ── second pass (12 Oct 2026): "solve all kinds of problems, real-world scenarios" ──
+
+    private function member(string $email): SupportContext
+    {
+        $uid = (int) DB::table('gates_users')->insertGetId(['name' => 'Kemi', 'email' => $email, 'points' => 0,
+            'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
+        return new SupportContext($uid, $email);
+    }
+
+    public function test_our_own_mail_outage_is_said_before_anyone_is_sent_to_spam(): void
+    {
+        $this->assertFalse($this->guest()->run('mail_health')['data']['incident']);
+        DB::table('gates_mail_incidents')->insert(['opened_at' => date('Y-m-d H:i:s')]);
+        $d = $this->guest()->run('mail_health')['data'];
+        $this->assertTrue($d['incident']);
+        $this->assertStringContainsString('Our email is having trouble', $d['say']);
+    }
+
+    public function test_sign_in_help_gives_the_wait_and_says_nothing_about_who_is_registered(): void
+    {
+        $known = 'kemi-' . bin2hex(random_bytes(3)) . '@example.test';
+        $this->member($known);
+        $unknown = 'nobody-' . bin2hex(random_bytes(3)) . '@example.test';
+        $lim = new \AfricaGates\Services\RateLimitService();
+        foreach ([$known, $unknown] as $e) for ($k = 0; $k < 10; $k++) $lim->check(hash('sha256', $e), 'user_login_email', 10, 3600);
+
+        $a = $this->guest()->run('sign_in_help', ['email' => $known])['data'];
+        $b = $this->guest()->run('sign_in_help', ['email' => $unknown])['data'];
+        $this->assertTrue($a['limits'][0]['paused']);
+        $this->assertGreaterThan(0, $a['limits'][0]['minutes']);
+        unset($a['address'], $b['address']);
+        $this->assertSame($a, $b, 'a registered address and an unregistered one get the same answer');
+    }
+
+    public function test_an_order_and_a_ticket_are_found_by_reference_without_their_owners_details(): void
+    {
+        DB::table('gates_orders')->insert(['reference' => 'AFG-SHOP-TEST01', 'email' => 'buyer@example.test', 'name' => 'Ngozi',
+            'address' => '12 Private Road', 'phone' => '+2348000000000',
+            'items_json' => json_encode([['name' => 'Heritage tee', 'qty' => 1]]), 'subtotal_naira' => 15000, 'status' => 'paid']);
+        $o = $this->guest()->run('order_lookup', ['reference' => 'afg-shop-test01'])['data'];
+        $this->assertTrue($o['found']);
+        $this->assertSame('/shop/order/AFG-SHOP-TEST01', $o['order']['url']);
+        $this->assertStringNotContainsString('Private Road', json_encode($o));
+        $this->assertStringNotContainsString('buyer@', json_encode($o));
+        $this->assertFalse($this->guest()->run('order_lookup', ['reference' => 'AFG-NOPE-0000'])['data']['found']);
+
+        $ev = (int) DB::table('gates_site_events')->insertGetId(['title' => 'The Gala', 'slug' => 'gala-' . bin2hex(random_bytes(2)),
+            'event_date' => date('Y-m-d H:i:s', time() + 86400 * 9)]);
+        DB::table('gates_event_registrations')->insert(['event_id' => $ev, 'name' => 'Ngozi', 'email' => 'guest@example.test',
+            'reference' => 'EVT-TEST-0001', 'status' => 'confirmed']);
+        $t = $this->guest()->run('registration_lookup', ['reference' => 'EVT-TEST-0001'])['data'];
+        $this->assertTrue($t['found']);
+        $this->assertSame('The Gala', $t['ticket']['event']);
+        $this->assertStringNotContainsString('guest@', json_encode($t));
+    }
+
+    public function test_claiming_a_profile_never_says_who_holds_it_and_never_reaches_the_sandbox(): void
+    {
+        $live = $this->category($this->cycle($this->programme('Live', 1), 'voting'), 'Teacher');
+        $demo = $this->category($this->cycle($this->programme('Sandbox', 0), 'voting'), 'Rehearsal');
+        $n = $this->nominee($live, 'Tendai Moyo');
+        $this->nominee($demo, 'Tendai Rehearsal');
+
+        $d = $this->guest()->run('claim_profile', ['name' => 'Tendai'])['data'];
+        $this->assertSame(['Tendai Moyo', 'open', '/claim/' . $n], [$d['nominee'], $d['state'], $d['url']]);
+
+        DB::table('gates_nominee_claims')->insert(['nominee_id' => $n, 'status' => 'active', 'method' => 'otp']);
+        $d = $this->guest()->run('claim_profile', ['name' => 'Tendai'])['data'];
+        $this->assertSame('claimed', $d['state']);
+        $this->assertSame([], SupportAgentService::derivedActions(['c' => ['ok' => true, 'tool' => 'claim_profile', 'data' => $d]]),
+            'no "Claim this profile" button on a profile somebody already holds');
+    }
+
+    public function test_a_member_sees_what_we_emailed_them_and_whether_their_address_is_blocked(): void
+    {
+        $email = 'kemi-' . bin2hex(random_bytes(3)) . '@example.test';
+        $me = $this->member($email);
+        \AfricaGates\Services\Mail\MailLog::write($email, 'Your voting code', 'otp', 'sent');
+        \AfricaGates\Services\Mail\MailLog::write('someone-else@example.test', 'Not yours', 'otp', 'sent');
+        $d = $me->run('my_email_delivery')['data'];
+        $this->assertSame(['Your voting code'], array_column($d['recent'], 'subject'), 'their mail, and only theirs');
+        $this->assertFalse($d['blocked']);
+
+        \AfricaGates\Services\Mail\Suppression::record($email, \AfricaGates\Services\Mail\Suppression::BOUNCE, 'smtp');
+        $this->assertTrue($me->run('my_email_delivery')['data']['blocked']);
+        $this->assertFalse($this->guest()->run('my_email_delivery')['ok'], 'a guest is never offered it');
+    }
+
+    public function test_a_held_comment_is_said_to_be_waiting_not_lost(): void
+    {
+        $email = 'kemi-' . bin2hex(random_bytes(3)) . '@example.test';
+        $me = $this->member($email);
+        DB::table('gates_comments')->insert(['target_type' => 'thread', 'target_id' => 1, 'author_name' => 'Kemi',
+            'author_email' => $email, 'author_email_hash' => hash('sha256', $email), 'body' => 'Congratulations to every nominee!',
+            'status' => 'quarantined', 'created_at' => date('Y-m-d H:i:s')]);
+        $d = $me->run('my_held_posts')['data'];
+        $this->assertSame('Congratulations to every nominee!', $d['held'][0]['start']);
+    }
+
+    public function test_the_playbook_names_only_tools_that_exist_and_the_guide_holds_them(): void
+    {
+        $rules = (new \ReflectionClassConstant(SupportAgentService::class, 'AGENT_RULES'))->getValue();
+        $this->assertStringContainsString('THE SITUATIONS PEOPLE ACTUALLY BRING', $rules);
+        preg_match_all('/\b([a-z]+(?:_[a-z]+)+)\b/', $rules, $m);
+        $uid = (int) DB::table('gates_users')->insertGetId(['name' => 'M', 'email' => 'pb-' . bin2hex(random_bytes(3)) . '@example.test',
+            'points' => 0, 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
+        $all = array_column((new SupportContext($uid, 'pb@example.test'))->tools(), 'name');
+        foreach (array_unique($m[1]) as $tool) {
+            $this->assertContains($tool, $all, "the playbook sends the agent to $tool, which does not exist");
+        }
+        foreach (['mail_health', 'sign_in_help', 'order_lookup', 'registration_lookup', 'claim_profile', 'my_email_delivery', 'my_held_posts'] as $t) {
+            $this->assertContains($t, SupportAgentService::GUIDE_TOOLS, $t);
+        }
+    }
 }
