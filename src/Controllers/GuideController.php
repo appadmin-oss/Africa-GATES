@@ -127,6 +127,7 @@ final class GuideController
                 // Buttons the agent offered: a path on this site and a label, validated
                 // by SupportContext::offerAction() before they got here.
                 'actions' => $out['actions'] ?? [],
+                'checked' => $out['checked'] ?? [],
                 // No last resort here. A browsing question with no help match
                 // gets no strip — "how do I nominate" must not sprout a refunds
                 // card, which is what a fallback set would do on every miss.
@@ -190,7 +191,8 @@ final class GuideController
                         'content' => mb_substr($text, 0, 2000)];
         }
 
-        $r = $this->support->ask($message, $turns, SupportContext::fromSession($this->rateLimit, $ip));
+        $ctx = SupportContext::fromSession($this->rateLimit, $ip);
+        $r = $this->support->ask($message, $turns, $ctx);
 
         return [
             'ok'        => true,
@@ -200,6 +202,11 @@ final class GuideController
             // Shown in the widget as "re-checked your payment" — an assistant that
             // says where its answer came from is one people can sanity-check.
             'used'      => $r['used'],
+            'checked'   => SupportAgentService::checkedFrom($r['used'] ?? []),
+            // The live repair card. The desk endpoint always sent it; this road — the one a
+            // stuck visitor takes from Gee — did not, so a payment Gee had just repaired
+            // came back as a paragraph and no card.
+            'work'      => \AfricaGates\Services\SupportWork::fromResults($r['results'] ?? [], $ctx),
             'ticket'    => $r['ticket'],
             'escalated' => $r['escalated'],
             'actions'   => $r['actions'] ?? [],

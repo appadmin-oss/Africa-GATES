@@ -315,6 +315,10 @@
   font-size:var(--ag-fs-14-5); font-weight:600; text-decoration:none;
 }
 .gee__act:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+/* Where the answer came from — a quiet meta line under the bubble, words with a tick
+   beside it, never a chip that reads as a button. */
+.gee__checked{ display:flex; align-items:center; gap:6px; margin:2px 2px 0; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.gee__checked-i{ flex:none; color:var(--ag-soft) }
 
 /* The live work card (role=status) */
 .gee__work{

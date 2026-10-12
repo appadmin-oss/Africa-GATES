@@ -348,6 +348,19 @@ final class SupportContext
                             . "before telling anyone a late payment is lost. These three moments are different and "
                             . "confusing them is what makes a supporter feel cheated.",
              'args' => []],
+            // ── added 12 Oct 2026: the questions both assistants were answering with a link ──
+            ['name' => 'award_results',
+             'description' => "Who WON an award that has been announced, with the top of the standing and the "
+                            . "result page's link. Use for 'who won X', 'did X win', 'what was the result of Y', "
+                            . "'where can I see the results'. It only ever returns ANNOUNCED results — if a "
+                            . "category is still being decided it says so and gives the promised date; never "
+                            . "guess a winner from a tally, which is half the index at most.",
+             'args' => ['query' => 'a category, award, programme or nominee name — or empty for the latest results']],
+            ['name' => 'nominations_open',
+             'description' => "Which awards are taking nominations RIGHT NOW, when each closes, and the link to "
+                            . "nominate. Use for 'can I nominate', 'how do I nominate someone for X', 'when do "
+                            . "nominations close'. Always give the link to the right award's form.",
+             'args' => []],
         ];
 
         if ($this->isMember()) {
@@ -371,6 +384,23 @@ final class SupportContext
                     'description' => "Nominations the signed-in person SUBMITTED, with the decision on each: pending, approved or "
                                    . "rejected, and the reason if there is one. Use for \"is my nomination approved\", \"did my "
                                    . "entry go through\", \"why was my nomination rejected\". Not the same as votes.",
+                    'args' => []];
+            $t[] = ['name' => 'my_account',
+                    'description' => "The signed-in person's account at a glance: points balance and what a vote "
+                                   . "costs in points, whether their email is verified, whether a phone is on the "
+                                   . "account, and unread notifications. Use for 'how many points do I have', 'why "
+                                   . "can't I redeem', 'is my account verified', 'did I get a notification'.",
+                    'args' => []];
+            $t[] = ['name' => 'my_event_tickets',
+                    'description' => "The signed-in person's own EVENT tickets and registrations: event, date, place, "
+                                   . "tier, seats, state (confirmed, waitlisted, offered, cancelled) and the link to "
+                                   . "the ticket. Use for 'where is my ticket', 'did my registration go through', "
+                                   . "'I was offered a place'. Not support tickets — that is my_tickets.",
+                    'args' => []];
+            $t[] = ['name' => 'my_shop_orders',
+                    'description' => "The signed-in person's own SHOP orders: reference, what, total, payment status, "
+                                   . "fulfilment and any tracking note, with the order page link. Use for 'where is "
+                                   . "my order', 'has it shipped', 'I ordered a shirt'.",
                     'args' => []];
         }
 
@@ -491,6 +521,11 @@ final class SupportContext
                 'my_tickets'       => $this->myTickets(),
                 'my_nominations'   => $this->myNominations(),
                 'ops_summary'      => $this->opsSummary(),
+                'award_results'    => $this->awardResults((string) ($args['query'] ?? '')),
+                'nominations_open' => $this->nominationsOpen(),
+                'my_account'       => $this->myAccount(),
+                'my_event_tickets' => $this->myEventTickets(),
+                'my_shop_orders'   => $this->myShopOrders(),
                 // ── the buying specialist. All deterministic; see ShopAdvisor. ──
                 'shop_suggest'     => ShopAdvisor::suggest([
                                           'need'     => (string) ($args['need'] ?? ''),
@@ -1400,6 +1435,149 @@ final class SupportContext
      * checkout uses, because pointing somebody at a ballot that will refuse them
      * is worse than saying "I cannot find them".
      */
+    // ── added 12 Oct 2026 ───────────────────────────────────────────────────
+
+    /**
+     * Announced results only. The gate is PublicResults' own — a released cycle, never the
+     * sandbox — so the assistant can never name a winner the result page would not, and a
+     * category still being decided is said to be, with the date that was promised
+     * (PublicResults::delayForCategory) rather than a guess from a running tally.
+     */
+    private function awardResults(string $query): array
+    {
+        $q = mb_strtolower(trim($query));
+        $cats = DB::table('gates_award_categories as c')
+            ->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')
+            ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+            ->where('p.is_active', 1)
+            ->orderByDesc('y.year')->orderBy('c.sort_order')
+            ->limit(400)
+            ->get(['c.id', 'c.title', 'p.title as programme', 'y.status', 'y.id as cycle_id']);
+
+        $match = [];
+        foreach ($cats as $c) {
+            $hay = mb_strtolower($c->title . ' ' . $c->programme);
+            if ($q === '' || str_contains($hay, $q) || str_contains($q, mb_strtolower((string) $c->title))) $match[] = $c;
+        }
+        // A nominee's name: find the categories they stood in.
+        if ($match === [] && mb_strlen($q) >= 3) {
+            $ids = DB::table('gates_nominees as n')->whereRaw('LOWER(n.name) LIKE ?', ['%' . $q . '%'])
+                ->whereNull('n.merged_into')
+                ->tap(static fn ($b) => DemoSeeder::liveAwardOnly($b, 'n.id'))
+                ->limit(10)->pluck('n.category_id')->all();
+            foreach ($cats as $c) if (in_array((int) $c->id, array_map('intval', $ids), true)) $match[] = $c;
+        }
+        if ($match === []) {
+            return ['found' => false, 'say' => 'No award matches that. The results that have been announced are '
+                   . 'all listed at /results — offer that page.'];
+        }
+
+        $scoring = new NomineeScoringService();
+        $out = []; $pending = [];
+        foreach (array_slice($match, 0, 6) as $c) {
+            $r = null;
+            try { $r = PublicResults::category((int) $c->id, $scoring); } catch (\Throwable) {}
+            if ($r === null) {
+                $late = null;
+                try { $late = PublicResults::delayForCategory((int) $c->id); } catch (\Throwable) {}
+                $pending[] = ['category' => (string) $c->title, 'programme' => (string) $c->programme,
+                              'results_expected' => $late['promised'] ?? null];
+                continue;
+            }
+            if (!empty($r['held'])) {
+                $out[] = ['category' => (string) $c->title, 'held' => (string) $r['held'], 'url' => (string) $r['url']];
+                continue;
+            }
+            $top = [];
+            foreach (array_slice((array) ($r['rows'] ?? []), 0, 3) as $row) {
+                $top[] = ['name' => (string) ($row['name'] ?? ''), 'index' => (int) round((float) ($row['cpi'] ?? 0))];
+            }
+            $out[] = ['category' => (string) $c->title, 'programme' => (string) $c->programme,
+                      'edition' => (string) ($r['edition'] ?? ''),
+                      'winner' => (string) ($r['winner']['name'] ?? ''), 'top' => $top, 'url' => (string) $r['url']];
+        }
+
+        return ['found' => $out !== [], 'results' => $out, 'not_yet_announced' => $pending,
+                'say' => 'Name the winner and give the result link. For anything in not_yet_announced, say it has '
+                       . 'not been announced yet and give the expected date if there is one — never a winner. A '
+                       . '"held" result is being verified: say so in those words and name nobody.'];
+    }
+
+    /** Awards open for nominations now: the window the nomination form itself enforces. */
+    private function nominationsOpen(): array
+    {
+        $now = Carbon::now()->toDateTimeString();
+        $rows = DB::table('gates_award_cycles as y')
+            ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+            ->where('p.is_active', 1)
+            ->where('y.nominations_open', '<=', $now)
+            ->where('y.nominations_close', '>=', $now)
+            ->orderBy('y.nominations_close')
+            ->limit(12)
+            ->get(['p.title', 'p.slug', 'y.nominations_close']);
+
+        if ($rows->isEmpty()) {
+            return ['open' => [], 'say' => 'No award is taking nominations right now. Say so plainly; site_state '
+                   . 'has when the next window opens if there is one.'];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = ['award' => (string) $r->title, 'closes' => (string) $r->nominations_close,
+                      'url' => '/nominate/' . rawurlencode((string) $r->slug)];
+        }
+        return ['open' => $out, 'say' => 'Give the closing date with each, and offer the form for the award they '
+               . 'mean. Nominating is free and needs the nominee\'s email or phone.'];
+    }
+
+    private function myAccount(): array
+    {
+        if (!$this->isMember()) return ['say' => 'They are not signed in.'];
+        $u = DB::table('gates_users')->where('id', (int) $this->viewerId)->first();
+        if (!$u) return ['say' => 'I could not read the account just now.'];
+
+        $points = null; $perVote = null;
+        try {
+            if (PointsService::enabled()) { $points = PointsService::balance((int) $u->id); $perVote = PointsService::pointsPerVote(); }
+        } catch (\Throwable) {}
+        $unread = null;
+        try {
+            $unread = count(array_filter((new AlertService())->forMember((int) $u->id, (string) $u->email),
+                static fn ($a) => !empty($a['unread'])));
+        } catch (\Throwable) {}
+
+        return [
+            'email_verified'   => (int) ($u->email_verified ?? 0) === 1,
+            'has_phone'        => trim((string) ($u->phone_e164 ?? '')) !== '',
+            'has_password'     => trim((string) ($u->password_hash ?? '')) !== '',
+            'points'           => $points,
+            'points_per_vote'  => $perVote,
+            'unread_notifications' => $unread,
+            'account_url'      => '/account',
+            'say' => 'If points is null, points are switched off on this site. If the email is not verified, that is '
+                   . 'usually why something is refused — offer /account to resend the link.',
+        ];
+    }
+
+    private function myEventTickets(): array
+    {
+        if (!$this->isMember()) return ['say' => 'They are not signed in.'];
+        $rows = MemberActivityService::ticketsFor((string) $this->viewerEmail, 10);
+        return ['tickets' => $rows, 'say' => $rows === []
+            ? 'No event ticket or registration is on this account. Ask which email they registered with — '
+              . 'it may be a different address.'
+            : 'Give the state in plain words and the link to the ticket. "offered" means a place is held for them '
+              . 'until the expiry time.'];
+    }
+
+    private function myShopOrders(): array
+    {
+        if (!$this->isMember()) return ['say' => 'They are not signed in.'];
+        $rows = MemberActivityService::ordersFor((string) $this->viewerEmail, 10);
+        return ['orders' => $rows, 'say' => $rows === []
+            ? 'No shop order is on this account. Ask which email they ordered with, or for the order reference.'
+            : 'Say whether it is paid and where fulfilment is, with any tracking note, and give the order link.'];
+    }
+
     private function findNominee(string $name): array
     {
         $q = trim($name);
@@ -1413,6 +1591,9 @@ final class SupportContext
                 ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                 ->whereNull('n.merged_into')
                 ->whereRaw('LOWER(n.name) LIKE ?', ['%' . mb_strtolower($q) . '%'])
+                // The sandbox's nominees are real rows (DemoSeeder): an assistant that
+                // finds one hands a stranger a rehearsal ballot as though it were live.
+                ->tap(static fn ($b) => DemoSeeder::liveAwardOnly($b, 'n.id'))
                 ->orderByDesc('n.vote_count')->limit(5)
                 ->get(['n.id', 'n.name', 'n.category_id', 'c.title as category']);
         } catch (\Throwable) {
@@ -1575,6 +1756,7 @@ final class SupportContext
                 ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                 ->whereNull('n.merged_into')
                 ->whereRaw('LOWER(n.name) LIKE ?', ['%' . mb_strtolower($q) . '%'])
+                ->tap(static fn ($b) => DemoSeeder::liveAwardOnly($b, 'n.id'))
                 ->orderByDesc('n.vote_count')
                 ->first(['n.id', 'n.name', 'n.vote_count', 'n.organic_vote_count', 'c.title as category']);
         } catch (\Throwable) {

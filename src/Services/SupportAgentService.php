@@ -616,6 +616,13 @@ final class SupportAgentService implements SupportAnswerer
         'voting_deadlines', 'find_nominee', 'category_state', 'nominee_tally', 'event_details', 'convert_currency',
         'free_vote_help', 'my_votes', 'my_nominations', 'my_tickets',
         'shop_suggest', 'shop_availability', 'shop_quote', 'shop_compare', 'shop_delivery', 'shop_link',
+        // 12 Oct 2026: "is it me or you?" belongs to the guide too. A question the router
+        // reads as browsing ("why does checkout keep failing", "my code never came") can
+        // turn out to be a problem in the next sentence, and a guide that can only say
+        // "ask the desk" is the redirect people complain about most. Read-only, all of them.
+        'gateway_status', 'check_email_domain', 'delivery_health', 'check_reference', 'refund_status',
+        'invitation_lookup', 'when_did_i_vote', 'my_transactions', 'my_account', 'my_event_tickets',
+        'my_shop_orders', 'award_results', 'nominations_open',
         'offer_action'];
 
     /**
@@ -631,8 +638,9 @@ final class SupportAgentService implements SupportAnswerer
         $r = $this->agentTurn($message, array_slice($history, -self::MAX_HISTORY), $ctx, self::GUIDE_TOOLS,
                               self::AGENT_RULES, 'guide.agent', $system, prefetch: false);
         if ($r === null) return null;
+        $used = array_values(array_unique(array_column($this->trace, 'tool')));
         return ['reply' => $r['reply'], 'actions' => self::actionsFrom($r['facts']),
-                'used' => array_values(array_unique(array_column($this->trace, 'tool'))),
+                'used' => $used, 'checked' => self::checkedFrom($used),
                 'provider' => $this->ai?->lastProvider()];
     }
 
@@ -649,7 +657,117 @@ final class SupportAgentService implements SupportAnswerer
             if (($f['tool'] ?? '') !== 'offer_action' || empty($f['ok']) || !is_array($f['data'] ?? null)) continue;
             $out[(string) $f['data']['url']] = ['label' => (string) $f['data']['label'], 'url' => (string) $f['data']['url']];
         }
+        // ── THE BUTTON THE LOOKUP ALREADY EARNED (owner, 12 Oct 2026) ─────────
+        //
+        // "Most of Gee's widgets are not displaying when it calls it." A button appeared
+        // only if the model made a SECOND call, offer_action, after the lookup that found
+        // the page — and models skip that call more often than not, so somebody asked
+        // "how do I vote for Ada", Gee found her ballot, and the answer ended in a
+        // sentence with the link buried in it and no button under it. The tools that
+        // return a page now earn its button themselves; the model's own offer still
+        // comes first, and the cap is still two.
+        if (count($out) < 2) {
+            foreach (self::derivedActions($facts) as $a) {
+                if (count($out) >= 2) break;
+                $out[$a['url']] ??= $a;
+            }
+        }
         return array_slice(array_values($out), 0, 2);
+    }
+
+    /**
+     * Buttons drawn from what a lookup returned: the page it found, labelled by what it is.
+     * Every one goes through SupportContext::offerAction(), the validator the model's own
+     * offers pass — a path on this site, never a host — so an absolute URL a tool built
+     * is reduced to its path or dropped.
+     *
+     * @param array<string,array> $facts
+     * @return list<array{label:string,url:string}>
+     */
+    public static function derivedActions(array $facts): array
+    {
+        $out = [];
+        $add = static function (string $label, string $url) use (&$out): void {
+            $path = self::localPath($url);
+            if ($path === null) return;
+            try { $a = SupportContext::offerAction($label, $path); } catch (\Throwable) { return; }
+            $out[$a['url']] ??= $a;
+        };
+        foreach ($facts as $f) {
+            if (empty($f['ok']) || !is_array($d = $f['data'] ?? null)) continue;
+            switch ((string) ($f['tool'] ?? '')) {
+                case 'find_nominee':
+                    foreach (array_slice((array) ($d['nominees'] ?? []), 0, 1) as $n) {
+                        $add(!empty($n['votable_now']) ? 'Vote for ' . $n['name'] : 'See ' . $n['name'], (string) ($n['url'] ?? ''));
+                    }
+                    break;
+                case 'award_results':
+                    foreach (array_slice((array) ($d['results'] ?? []), 0, 1) as $r) $add('See the result', (string) ($r['url'] ?? ''));
+                    break;
+                case 'nominations_open':
+                    foreach (array_slice((array) ($d['open'] ?? []), 0, 1) as $o) $add('Nominate for ' . $o['award'], (string) ($o['url'] ?? ''));
+                    break;
+                case 'event_details':      $add('See the event', (string) ($d['url'] ?? '')); break;
+                case 'invitation_lookup':  $add('Open my pass', (string) ($d['pass_url'] ?? '')); break;
+                case 'vote_proof':         $add('See the proof', (string) ($d['url'] ?? $d['proof_url'] ?? '')); break;
+                case 'shop_link':          $add('Open it in the shop', (string) ($d['url'] ?? '')); break;
+                case 'my_event_tickets':
+                    foreach (array_slice((array) ($d['tickets'] ?? []), 0, 1) as $t) $add('Open my ticket', (string) ($t['url'] ?? ''));
+                    break;
+                case 'my_shop_orders':
+                    foreach (array_slice((array) ($d['orders'] ?? []), 0, 1) as $o) $add('Track my order', (string) ($o['url'] ?? ''));
+                    break;
+                case 'my_account':         $add('Open my account', (string) ($d['account_url'] ?? '')); break;
+            }
+        }
+        return array_values($out);
+    }
+
+    /** A URL a tool built, as a path on THIS site — or null when it points anywhere else. */
+    private static function localPath(string $url): ?string
+    {
+        $url = trim($url);
+        if ($url === '') return null;
+        if ($url[0] === '/' && !str_starts_with($url, '//')) return $url;
+        $p = parse_url($url);
+        $base = parse_url(\AfricaGates\Support\SiteUrl::base());
+        if (!is_array($p) || !isset($p['host']) || !is_array($base)
+            || strcasecmp((string) $p['host'], (string) ($base['host'] ?? '')) !== 0) return null;
+        return ((string) ($p['path'] ?? '/')) . (isset($p['query']) ? '?' . $p['query'] : '');
+    }
+
+    /**
+     * What the agent looked at this turn, in words a person reads: "your payment", "the
+     * payment gateways". Both front doors returned `used` (tool names) for the widget to
+     * show as "checked …" so an answer says where it came from — and the widget never
+     * drew it. Phrased here, once, so the line cannot drift from the tool list; tools
+     * that only read the platform's own pages (help, site state) are not news and are
+     * left out, as is the button tool.
+     *
+     * @param list<string> $used
+     * @return list<string>
+     */
+    public static function checkedFrom(array $used): array
+    {
+        $say = [
+            'fix_payment' => 'your payment with the gateway', 'lookup_reference' => 'your payment',
+            'check_reference' => 'that reference', 'my_transactions' => 'your payments',
+            'refund_status' => 'refunds', 'vote_proof' => 'the votes on the tally',
+            'gateway_status' => 'the payment gateways', 'delivery_health' => 'vote delivery',
+            'platform_health' => 'the platform', 'check_email_domain' => 'that email address',
+            'when_did_i_vote' => 'the vote record', 'my_votes' => 'your votes',
+            'my_nominations' => 'your nominations', 'my_tickets' => 'your support tickets',
+            'my_event_tickets' => 'your event tickets', 'my_shop_orders' => 'your orders',
+            'my_account' => 'your account', 'invitation_lookup' => 'your invitation',
+            'find_nominee' => 'the nominees', 'nominee_tally' => 'the tally',
+            'award_results' => 'the announced results', 'category_state' => 'the category',
+            'voting_deadlines' => 'the voting clocks', 'nominations_open' => 'open nominations',
+            'event_details' => 'the event', 'resend_receipt' => 'your receipt',
+            'shop_availability' => 'stock', 'shop_quote' => 'prices and delivery',
+        ];
+        $out = [];
+        foreach ($used as $t) if (isset($say[$t])) $out[$say[$t]] = true;
+        return array_slice(array_keys($out), 0, 4);
     }
 
     /** One round, recorded against the capability's budget and decision log. */

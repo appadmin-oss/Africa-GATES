@@ -240,6 +240,7 @@
     switch (m.kind) {
       case 'me':     thread.appendChild(bubble(true, m.text)); break;
       case 'bot':    thread.appendChild(bubble(false, m.text, true));
+                     if (m.checked && m.checked.length) thread.appendChild(checked(m.checked));
                      if (m.actions && m.actions.length) thread.appendChild(actions(m.actions));
                      if (m.links && m.links.length) thread.appendChild(links(m.links)); break;
       case 'work':   drawWork(m); break;
@@ -267,6 +268,16 @@
       box.appendChild(l);
     });
     return box;
+  }
+
+  /* 5b · Where the answer came from: "Checked your payment · the payment gateways".
+     The server phrases it (SupportAgentService::checkedFrom); drawn as text, never markup. */
+  function checked(list) {
+    var p = el('p', 'gee__checked');
+    var ic = svg(['m5 12 4.5 4.5L19 7'], 13, '2.4'); ic.setAttribute('class', 'gee__checked-i');
+    p.appendChild(ic);
+    p.appendChild(document.createTextNode(M('checked', { what: list.slice(0, 4).map(String).join(' · ') })));
+    return p;
   }
 
   /* 6 · What Gee can DO: a button to the page that does the thing. Held to a path on
@@ -392,7 +403,14 @@
       dots.remove();
       var d = res.d;
       if (d.work) { finishWork(startWork(d.work.reference || state.ref, null), d); return; }
-      push({ kind: 'bot', text: d.reply || M('snag'), links: d.articles || [], actions: d.actions || [] });
+      push({ kind: 'bot', text: d.reply || M('snag'), links: d.articles || [], actions: d.actions || [],
+             checked: d.checked || [] });
+      /* A ticket the agent opened INSIDE this reply. The reply carried it and the widget
+         used to drop it, so somebody told "I've passed this to the team" saw no card, no
+         reference and no "we reply by email" — the hand-off card is how they get those. */
+      if (d.escalated && d.ticket) {
+        push({ kind: 'hand', ticket: String(d.ticket), email: (state.desk && state.desk.email) || null });
+      }
       unread();
     }).catch(function () {
       dots.remove();

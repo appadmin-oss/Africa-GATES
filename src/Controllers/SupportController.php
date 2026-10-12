@@ -167,6 +167,8 @@ final class SupportController
             // Shown in the UI as "checked your payments" — a support bot that
             // says where its answer came from is one people can sanity-check.
             'used'      => $r['used'],
+            // The same, in words: "Checked your payment · the payment gateways".
+            'checked'   => SupportAgentService::checkedFrom($r['used'] ?? []),
             'actions'   => $r['actions'] ?? [],
             // Rendered as preview cards under the reply. See articlesFor().
             'articles'  => $this->articlesFor($message, $r['results'] ?? []),

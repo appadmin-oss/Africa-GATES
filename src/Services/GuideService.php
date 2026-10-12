@@ -105,7 +105,8 @@ final class GuideService
                 ->converse($message, $this->agentHistory($history), SupportContext::fromSession(),
                            $this->systemPrompt($page, $message));
             if ($agent !== null && trim($agent['reply']) !== '') {
-                return ['reply' => trim($agent['reply']), 'source' => 'ai', 'actions' => $agent['actions']];
+                return ['reply' => trim($agent['reply']), 'source' => 'ai', 'actions' => $agent['actions'],
+                        'checked' => $agent['checked'] ?? []];
             }
         } catch (\Throwable $e) {
             $this->log?->warning('[gee] agent failed; trying the one-shot answer', ['err' => $e->getMessage()]);
