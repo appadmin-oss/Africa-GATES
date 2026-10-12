@@ -449,7 +449,7 @@ You are **Gee**, the warm, sharp guide for Africa GATES — the continental Cult
 
 WHAT AFRICA GATES IS
 - The community nominates people and organisations, the public votes, and an independent jury scores them. Each entrant earns a transparent Cultural Power Index from 0–1000, recomputed every 6 hours.
-- The CPI is {$cw}% verified public votes + {$jw}% an independent jury panel. The jury averages four criteria — Impact, Originality, Reach, Integrity. Only organic verified votes count toward the score.
+- The CPI is {$cw}% community support + {$jw}% an independent jury panel. The jury averages four criteria — Impact, Originality, Reach, Integrity. The community share counts mostly how many separate verified PEOPLE backed a nominee, and partly their total votes — free and contributed votes both add to that tally. The exact arithmetic is at /help/how-cpi-works; never say paid votes do not count.
 - An Afrovanguard initiative — live in {$live}, building toward {$goal} nations.
 
 PAGES YOU CAN SEND PEOPLE TO (write the bare path; the interface turns it into a button)
@@ -469,13 +469,18 @@ PAGES YOU CAN SEND PEOPLE TO (write the bare path; the interface turns it into a
 - /help — the Help Center
 - /support — support, appeals and account issues
 
-HOW TO RESPOND
-- Be warm, concise and specific — usually 2–4 short sentences.
-- When a page answers the question, point to it by its path (e.g. "Head to /vote to cast yours.").
-- You MAY quote figures from CURRENT SITE STATE below — it is live. NEVER invent any OTHER specific figure (prices, someone's CPI score, totals not listed). If asked for one, send them to the page that shows it.
-- You explain and direct; you don't take actions, make payments, or change accounts.
-- If somebody has a problem with THEIR OWN payment, votes or account, do not send them away with a link and nothing else — ask for the payment reference (it looks like AFG-…) or say you will pass it to the team, then point to /support. Being redirected after explaining yourself once is the thing people complain about most.
-- Stay on Africa GATES topics. If asked something unrelated, gently steer back.{$pageLine}{$stateBlock}{$helpBlock}
+HOW TO RESPOND — YOUR JOB IS TO SOLVE THE PROBLEM, NOT TO POINT AT IT
+- Do your best with every question. Work out what the person is actually trying to do and get them there: answer it fully, in your own words, before you mention any page. A link is the last line of a good answer, never the whole of it.
+- If you have tools, use them — look the thing up rather than guessing, and when a page or a step fixes it, offer it as a button. If you lack a fact, say exactly what you need from them (a payment reference, the email they used, the page they were on) and ask for it once.
+- If the answer has steps, give the steps, numbered and short. If something might be the cause, name the likeliest one first and say how to check it.
+- Usually 2–5 short sentences; longer only when the steps need it. Warm, specific, no filler.
+- When a page answers the question, name it by its path (e.g. "Head to /vote to cast yours.").
+- You MAY quote figures from CURRENT SITE STATE below — it is live. NEVER invent any OTHER specific figure (prices, someone's CPI score, totals not listed). If asked for one, say where it is shown.
+- You cannot move money, issue refunds, change an account, or add or remove votes — a person on the team does those. When that is what they need, do not stop at "contact support": collect what the team will need (the reference, what happened, when), tell them it is being passed on or how to pass it on at /support, and what happens next.
+- If somebody has a problem with THEIR OWN payment, votes or account, never send them away with a link and nothing else. Being redirected after explaining yourself once is the thing people complain about most.
+- Never answer "I can't help with that" and stop. If one part is out of reach, help with every part that is not, and say plainly who can do the rest.
+- Anything that stands between a person and taking part counts as on-topic — getting a code by SMS or email, paying by card or transfer, using the site on a phone. Help with it.
+- Only questions with nothing to do with Africa GATES or taking part in it get a gentle steer back.{$pageLine}{$stateBlock}{$helpBlock}
 SYS;
     }
 
@@ -549,36 +554,78 @@ SYS;
 
     // ───────────────────────────── Fallback ──────────────────────────────
 
-    /** Keyword-routed answers used when no provider is configured (or every call fails). */
+    /**
+     * Keyword-routed answers used when no provider is configured (or every call fails).
+     *
+     * ── DO ITS BEST, EVEN WITH NO MODEL (owner, 12 Oct 2026) ──────────────────
+     *
+     * This tier used to be a signpost and nothing more: one sentence per keyword and a
+     * menu of paths for everything else. Two faults with that. The Help Centre already
+     * holds the written answer to most of what people ask, live-valued from the same
+     * settings the checkout reads, and the menu threw it away whenever no keyword
+     * matched. And two of the routes typed facts the rules decide — "45% … 55%" is a
+     * per-programme setting, and "one OTP-confirmed vote per category" is not the whole
+     * story wherever votes are also bought.
+     *
+     * So a route's sentence is kept (it is the shortest correct answer), the best
+     * article is added beneath it when one is a strong match, and a question no route
+     * recognises is answered from the article rather than with a menu. The weights come
+     * from RuleEngine, as the prompt's do.
+     */
     private function scriptedAnswer(string $message): string
     {
         $m   = mb_strtolower($message);
         $hit = static fn(array $kw): bool => array_filter($kw, static fn($k) => str_contains($m, $k)) !== [];
 
+        $cw = 45; $jw = 55;
+        try { $w = (new RuleEngine())->weights(); $cw = (int) round($w['community'] * 100); $jw = 100 - $cw; } catch (\Throwable) {}
+
+        $route = null;
         if ($hit(['cpi', 'score', 'rank', 'index', 'how it work']))
-            return "The Cultural Power Index (CPI) is a 0–1000 score: 45% from verified public votes and 55% from an independent jury rating Impact, Originality, Reach and Integrity. It recomputes every 6 hours. Full method at /integrity, live rankings at /leaderboard.";
-        if ($hit(['vote', 'voting']))
-            return "Voting is verified — one OTP-confirmed vote per category. Cast yours at /vote. Curious how votes are weighed? See /integrity.";
-        if ($hit(['nominate', 'nomination']))
-            return "Anyone can nominate, free, in about 90 seconds — it's OTP-verified to keep things fair, and you only need the nominee's email or phone. Start at /nominate.";
-        if ($hit(['shop', 'buy', 'merch', 'apparel', 'tee', 'hoodie', 'order']))
-            return "The shop has heritage apparel and keepsakes, and proceeds fund child leadership programmes. Browse it at /shop.";
-        if ($hit(['donat', 'give', 'fund']))
-            return "You can give directly at /donate — one-time gifts that fund child leadership programmes (mentorship, scholarships, grassroots education), receipted and audited. The /shop also gives back, and organisations can do more via /partner.";
-        if ($hit(['partner', 'sponsor', 'brand', 'advertis']))
-            return "Organisations can partner with Africa GATES to reach a verified, prestige audience and fund impact. Details and the enquiry form are at /partner.";
-        if ($hit(['event', 'rsvp', 'gala', 'ticket']))
-            return "Events and RSVPs live at /events — that's also where the awards gala is listed.";
-        if ($hit(['community', 'thread', 'forum', 'discuss']))
-            return "The community lives at /community — threads, polls and conversations. Anyone can read; members can post, react and vote in polls (join free at /account/register).";
-        if ($hit(['register', 'profile', 'join', 'sign up', 'signup', 'account', 'member']))
-            return "Create a free member account at /account/register — you'll get a dashboard for your votes, nominations and voting points. Public figures can also claim a registry profile at /register.";
-        if ($hit(['judge', 'jury', 'scoring', 'criteria']))
-            return "An independent African jury scores shortlisted nominees on four criteria — Impact, Originality, Reach, Integrity — making up 55% of the CPI. The full method is at /integrity.";
+            $route = "The Cultural Power Index (CPI) is a 0–1000 score: {$cw}% from community support — mostly how many separate verified people backed a nominee, partly their total votes — and {$jw}% from an independent jury rating Impact, Originality, Reach and Integrity. Full method at /integrity, live rankings at /leaderboard.";
+        elseif ($hit(['why is voting paid', 'why paid', 'where does the money go', 'where do the funds go', 'paid vot']))
+            $route = "Contributed votes keep recognition community-funded rather than waiting on a sponsor, and they add to a nominee's tally at full weight. The written answer says where the money goes.";
+        elseif ($hit(['vote', 'voting']))
+            $route = "Voting is verified — a free vote is confirmed with a one-time code, and where vote packs are offered they add to the tally too. Cast yours at /vote. Curious how votes are weighed? See /integrity.";
+        elseif ($hit(['nominate', 'nomination']))
+            $route = "Anyone can nominate, free, in about 90 seconds — it's OTP-verified to keep things fair, and you only need the nominee's email or phone. Start at /nominate.";
+        elseif ($hit(['shop', 'buy', 'merch', 'apparel', 'tee', 'hoodie', 'order']))
+            $route = "The shop has heritage apparel and keepsakes, and proceeds fund child leadership programmes. Browse it at /shop.";
+        elseif ($hit(['donat', 'give', 'fund']))
+            $route = "You can give directly at /donate — one-time gifts that fund child leadership programmes (mentorship, scholarships, grassroots education), receipted and audited. The /shop also gives back, and organisations can do more via /partner.";
+        elseif ($hit(['partner', 'sponsor', 'brand', 'advertis']))
+            $route = "Organisations can partner with Africa GATES to reach a verified, prestige audience and fund impact. Details and the enquiry form are at /partner.";
+        elseif ($hit(['event', 'rsvp', 'gala', 'ticket']))
+            $route = "Events and RSVPs live at /events — that's also where the awards gala is listed.";
+        elseif ($hit(['community', 'thread', 'forum', 'discuss']))
+            $route = "The community lives at /community — threads, polls and conversations. Anyone can read; members can post, react and vote in polls (join free at /account/register).";
+        elseif ($hit(['register', 'profile', 'join', 'sign up', 'signup', 'account', 'member']))
+            $route = "Create a free member account at /account/register — you'll get a dashboard for your votes, nominations and voting points. Public figures can also claim a registry profile at /register.";
+        elseif ($hit(['judge', 'jury', 'scoring', 'criteria']))
+            $route = "An independent African jury scores shortlisted nominees on four criteria — Impact, Originality, Reach, Integrity — making up {$jw}% of the CPI. The full method is at /integrity.";
+        elseif ($hit(['registry', 'find', 'search', 'who is', 'lookup']))
+            $route = "The verified registry is at /registry — search by name, country or field. Live rankings are at /leaderboard.";
+
+        // The written answer, when one is a STRONG match: a phrase from the article's own
+        // keywords appears in what they typed (search() scores that 30). A weaker hit is
+        // a word in common, and quoting an unrelated article is worse than a menu.
+        $article = null;
+        try {
+            $top = HelpCentre::search($message, 1)[0] ?? null;
+            if ($top !== null && (int) $top['score'] >= 30) $article = $top;
+        } catch (\Throwable) {}
+
+        if ($route !== null) {
+            return $article !== null
+                ? $route . "\n\nThe written answer: **" . (string) $article['title'] . '** — ' . HelpCentre::url((string) $article['slug'])
+                : $route;
+        }
+        if ($article !== null) {
+            $written = HelpCentre::writtenAnswer($message);
+            if ($written !== null) return $written;
+        }
         if ($hit(['support', 'appeal', 'contact', 'problem', 'issue', 'help', 'wrong']))
-            return "Our team can help — the Help Center is at /help, and appeals or account issues go to /support.";
-        if ($hit(['registry', 'find', 'search', 'who is', 'lookup']))
-            return "The verified registry is at /registry — search by name, country or field. Live rankings are at /leaderboard.";
+            return "Tell me what you were trying to do and what happened instead, and I will work through it with you. If it needs a person, /support takes it to the team, and /help has the written answers.";
 
         return "I can help you find your way around Africa GATES — voting (/vote), nominations (/nominate), the CPI score & method (/integrity), the community (/community), the registry (/registry), the shop (/shop) or partnerships (/partner). What are you trying to do?";
     }
