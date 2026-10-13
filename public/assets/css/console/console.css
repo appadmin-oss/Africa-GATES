@@ -881,3 +881,23 @@ tr.ad-out > td { opacity: .62; }
 .cn-bell__all { margin-top: 4px; border-top: 1px solid var(--cn-line-row); border-radius: 0 0 var(--cn-r-8) var(--cn-r-8); font-weight: 600; }
 .cn-confirm textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--cn-line-control); border-radius: var(--cn-r-8); font: inherit; font-size: var(--cn-fs-14); resize: vertical; }
 @media (max-width: 1023px) { .cn-bar__wide { display: none; } }
+
+/* ── Alerts: the status timeline (admin/alerts.twig) ─────────────────────────────── */
+.al-tl { margin-bottom: 14px; padding: 14px 16px 12px; }
+.al-tl__h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.al-tl__t { margin: 0; font-size: var(--cn-fs-14); font-weight: 600; }
+.al-tl__s { margin: 0; font-size: var(--cn-fs-12-5); color: var(--cn-grey-600); }
+.al-tl__strip { display: flex; gap: 2px; height: 34px; }
+.al-tl__b { flex: 1 1 0; min-width: 3px; border-radius: 3px; background: var(--cn-success-dot); }
+.al-tl__b:hover, .al-tl__b:focus-visible { outline: 2px solid var(--cn-ink); outline-offset: 1px; }
+.al-tl__b--operational { background: var(--cn-success-dot); }
+.al-tl__b--degraded { background: var(--cn-warning-dot); }
+.al-tl__b--down { background: var(--cn-danger-dot); }
+.al-tl__b--unknown { background: var(--cn-grey-400); }
+.al-tl__b--gap { background: var(--cn-fill-subtle); box-shadow: inset 0 0 0 1px var(--cn-line-control); }
+.al-tl__x { display: flex; justify-content: space-between; margin-top: 6px; font-size: var(--cn-fs-11-5); color: var(--cn-grey-500); }
+.al-tl__key { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: var(--cn-fs-12); color: var(--cn-grey-600); }
+.al-tl__key li { display: inline-flex; align-items: center; gap: 6px; }
+.al-tl__sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.al-src { color: var(--cn-grey-800) !important; text-decoration: none; }
+.al-src:hover { text-decoration: underline; }

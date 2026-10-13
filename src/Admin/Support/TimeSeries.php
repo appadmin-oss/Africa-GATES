@@ -61,4 +61,32 @@ final class TimeSeries
 
         return ['step' => $step, 'max' => $counts === [] ? 0 : max($counts), 'total' => $total, 'bars' => $bars];
     }
+
+    /**
+     * States into a strip: each bucket takes the WORST state seen in it, and a bucket with
+     * no sample at all is null — drawn as a gap, because "nothing was recorded" is not "all
+     * was well" (a gap in the status log is the evidence that scheduled work stopped).
+     *
+     * @param iterable<array{0:string,1:string}> $samples [timestamp, state]
+     * @param callable(string):?int $rank higher is worse; null drops the sample
+     * @return array{step:int, bars:list<array{from:int,to:int,state:?string,n:int,label:string,q_from:string,q_to:string}>}
+     */
+    public static function worst(iterable $samples, TimeRange $range, callable $rank, int $max = 56): array
+    {
+        $shape = self::bars([], $range, $max);
+        $step  = $shape['step'];
+        $bars  = array_map(static fn (array $b): array => $b + ['state' => null], $shape['bars']);
+        $start = $bars[0]['from'] ?? $range->from;
+        foreach ($samples as [$at, $state]) {
+            $t = strtotime(str_replace('T', ' ', (string) $at));
+            $r = $rank((string) $state);
+            if ($t === false || $r === null || $t < $range->from || $t > $range->to) continue;
+            $i = (int) floor(($t - $start) / $step);
+            if (!isset($bars[$i])) continue;
+            $bars[$i]['n']++;
+            $cur = $bars[$i]['state'];
+            if ($cur === null || $r > ($rank($cur) ?? -1)) $bars[$i]['state'] = (string) $state;
+        }
+        return ['step' => $step, 'bars' => $bars];
+    }
 }
