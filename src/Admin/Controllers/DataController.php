@@ -137,11 +137,11 @@ class DataController
         $rows = $base->orderBy($ocol, $odir)->limit(self::EXPORT_CAP)->get();
 
         $fh = fopen('php://temp', 'r+');
-        fputcsv($fh, $exportCols, ',', '"', '\\');
+        \AfricaGates\Support\Csv::put($fh, $exportCols, ',', '"', '\\');
         foreach ($rows as $r) {
             $line = [];
             foreach ($exportCols as $c) $line[] = (string) ($r->$c ?? '');
-            fputcsv($fh, $line, ',', '"', '\\');
+            \AfricaGates\Support\Csv::put($fh, $line, ',', '"', '\\');
         }
         rewind($fh);
         $csv = (string) stream_get_contents($fh);

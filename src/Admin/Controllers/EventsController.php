@@ -1408,12 +1408,12 @@ class EventsController
         }
 
         $out = fopen('php://temp', 'r+');
-        fputcsv($out, ['Name', 'Email', 'Phone', 'Ticket', 'Seat', 'Seats', 'Status',
+        \AfricaGates\Support\Csv::put($out, ['Name', 'Email', 'Phone', 'Ticket', 'Seat', 'Seats', 'Status',
                        'Amount (NGN)', 'Discount code', 'Discount (NGN)',
                        'Ticket code', 'Reference', 'Registered', 'Waitlisted',
                        'Offered', 'Offer expires', 'Checked in']);
         foreach (EventTicketService::attendees($id, '', 5000) as $a) {
-            fputcsv($out, [
+            \AfricaGates\Support\Csv::put($out, [
                 $a['name'] ?? '', $a['email'] ?? '', $a['phone'] ?? '',
                 $a['tier'] ?? '',
                 // The seat label, next to the tier rather than at the far right: a printed

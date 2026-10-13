@@ -94,9 +94,9 @@ class RegistrationsController
 
         $fh = fopen('php://temp', 'r+');
         // Pass the escape arg explicitly — PHP 8.4 deprecates relying on its default.
-        fputcsv($fh, ['Event', 'Name', 'Email', 'Phone', 'Tier', 'Registered at'], ',', '"', '\\');
+        \AfricaGates\Support\Csv::put($fh, ['Event', 'Name', 'Email', 'Phone', 'Tier', 'Registered at'], ',', '"', '\\');
         foreach ($rows as $r) {
-            fputcsv($fh, [(string) $r->event_title, (string) $r->name, (string) $r->email, (string) $r->phone, (string) $r->tier, (string) $r->created_at], ',', '"', '\\');
+            \AfricaGates\Support\Csv::put($fh, [(string) $r->event_title, (string) $r->name, (string) $r->email, (string) $r->phone, (string) $r->tier, (string) $r->created_at], ',', '"', '\\');
         }
         rewind($fh);
         $csv = (string) stream_get_contents($fh);

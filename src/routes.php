@@ -242,13 +242,13 @@ return function(App $app) {
         // to ten on screen.
         if (($q['csv'] ?? '') === '1') {
             $fh = fopen('php://temp', 'r+');
-            fputcsv($fh, ['kind', 'nominee_id', 'name', 'category', 'cycle_id', 'detail']);
+            \AfricaGates\Support\Csv::put($fh, ['kind', 'nominee_id', 'name', 'category', 'cycle_id', 'detail']);
             foreach ($plan['unreachable'] as [$nom, $cyc]) {
-                fputcsv($fh, ['no-email', $nom->id, $nom->name, $nom->category_title ?? '', $cyc->id,
+                \AfricaGates\Support\Csv::put($fh, ['no-email', $nom->id, $nom->name, $nom->category_title ?? '', $cyc->id,
                               'no address on file — check gates_nominations.nominee_phone']);
             }
             foreach ($plan['ambiguous'] as [$nom, $addrs]) {
-                fputcsv($fh, ['ambiguous', $nom->id, $nom->name, $nom->category_title ?? '', '',
+                \AfricaGates\Support\Csv::put($fh, ['ambiguous', $nom->id, $nom->name, $nom->category_title ?? '', '',
                               'two approved nominations share this name: ' . implode(' | ', $addrs)]);
             }
             rewind($fh);

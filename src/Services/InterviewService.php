@@ -1395,8 +1395,8 @@ final class InterviewService
         // one it renders a nominee's name in the wrong encoding — which is a worse first
         // impression than no attachment at all.
         fwrite($out, "\xEF\xBB\xBF");
-        fputcsv($out, ['When', 'Timezone', 'Nominee', 'Category', 'Status', 'Meeting link', 'Console'], ',', '"', '');
-        foreach ($rows as $r) fputcsv($out, $r, ',', '"', '');
+        \AfricaGates\Support\Csv::put($out, ['When', 'Timezone', 'Nominee', 'Category', 'Status', 'Meeting link', 'Console'], ',', '"', '');
+        foreach ($rows as $r) \AfricaGates\Support\Csv::put($out, $r, ',', '"', '');
         rewind($out);
         $csv = (string) stream_get_contents($out);
         fclose($out);
