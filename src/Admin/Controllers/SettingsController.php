@@ -232,7 +232,9 @@ class SettingsController
             // Whether finance's signing key is stored — never the key. `values` is the
             // whole settings table, so anything echoed from it lands in the page source;
             // a credential gets a boolean and a placeholder, like Cloudinary's above.
-            'cfis_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cfis_secret')->value('value') ?? '')) !== '',
+            // Through the catalogue's own resolver (Settings, then .env), so the badge reads
+            // "connected" whenever finance actually is — it used to read only the table.
+            'cfis_secret_set' => \AfricaGates\Services\CfisCatalogue::secretSet(),
             // Flash renders from the Twig globals via the layout — do not shadow them.
             // Where each revenue stream settles. Resolved, so the screen shows the code that
             // WILL be used rather than a raw setting somebody has to interpret.

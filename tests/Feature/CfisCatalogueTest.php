@@ -56,8 +56,9 @@ final class CfisCatalogueTest extends TestCase
     private function reset(): void
     {
         C::refresh();
-        (function (): void { self::$memo = null; })->bindTo(null, C::class)();
-        foreach (['cfis_stream_catalogue', 'cfis_stream_catalogue_last_good'] as $k) {
+        C::forgetMemo();
+        C::$transport = null;
+        foreach (['cfis_stream_catalogue', 'cfis_stream_catalogue_last_good', 'cfis_stream_catalogue_down'] as $k) {
             DB::table('gates_cache')->where('cache_key', $k)->delete();
         }
     }
@@ -71,7 +72,7 @@ final class CfisCatalogueTest extends TestCase
             'tags' => 'cfis',
             'created_at' => date('Y-m-d H:i:s'),
         ]);
-        (function (): void { self::$memo = null; })->bindTo(null, C::class)();
+        C::forgetMemo();
     }
 
     // ══ 1. nothing configured ════════════════════════════════════════════════
@@ -206,5 +207,80 @@ final class CfisCatalogueTest extends TestCase
         $this->seedLastGood([['code' => 'training', 'name' => '']]);
 
         $this->assertSame('training', C::streams()['training']);
+    }
+
+    // ══ an outage costs one wait, not one per request ═══════════════════════
+
+    public function test_a_failed_ask_is_believed_for_a_while_instead_of_retried_on_every_request(): void
+    {
+        $this->seedLastGood([['code' => 'membership', 'name' => 'Membership fees']]);
+        $calls = 0;
+        C::$transport = static function () use (&$calls): ?array { $calls++; return null; };
+
+        // Ten requests (each a fresh memo) while finance is down: it is asked ONCE.
+        for ($i = 0; $i < 10; $i++) {
+            C::forgetMemo();
+            $this->assertSame('Membership fees', C::streams()['membership'], 'the last good list answers');
+        }
+        $this->assertSame(1, $calls, 'a hung finance must not be asked — and waited out — on every request');
+
+        // Once the marker lapses it is asked again, and a good answer replaces it.
+        DB::table('gates_cache')->where('cache_key', 'cfis_stream_catalogue_down')
+            ->update(['expires_at' => date('Y-m-d H:i:s', time() - 1)]);
+        C::$transport = static function () use (&$calls): ?array {
+            $calls++;
+            return ['streams' => [['code' => 'dues', 'name' => 'Dues']], 'cache_seconds' => 900];
+        };
+        C::forgetMemo();
+        $this->assertSame('Dues', C::streams()['dues']);
+        $this->assertSame(2, $calls);
+        $this->assertNull(DB::table('gates_cache')->where('cache_key', 'cfis_stream_catalogue_down')->first(),
+            'a good answer clears the outage marker');
+    }
+
+    public function test_describing_every_stream_reads_the_catalogue_once(): void
+    {
+        $calls = 0;
+        C::$transport = static function () use (&$calls): ?array {
+            $calls++;
+            return ['streams' => [['code' => 'a', 'name' => 'A'], ['code' => 'b', 'name' => 'B'], ['code' => 'c', 'name' => 'C']], 'cache_seconds' => 900];
+        };
+        DB::table('gates_cache')->where('cache_key', 'cfis_stream_catalogue')->delete();
+        C::forgetMemo();
+        foreach (['a', 'b', 'c', 'events', 'shop'] as $code) C::describe($code);
+        C::streams();
+        $this->assertSame(1, $calls);
+    }
+
+    public function test_the_operators_refresh_asks_again_even_during_an_outage(): void
+    {
+        $calls = 0;
+        C::$transport = static function () use (&$calls): ?array { $calls++; return null; };
+        C::streams();
+        C::refresh();
+        C::streams();
+        $this->assertSame(2, $calls);
+    }
+
+    public function test_the_last_good_copy_never_expires_past_what_a_timestamp_column_holds(): void
+    {
+        C::$transport = static fn(): ?array => ['streams' => [['code' => 'x', 'name' => 'X']], 'cache_seconds' => 900];
+        C::refresh();
+        C::streams();
+        $exp = (string) DB::table('gates_cache')->where('cache_key', 'cfis_stream_catalogue_last_good')->value('expires_at');
+        $this->assertLessThan(strtotime('2038-01-19 03:14:07 UTC'), strtotime($exp . ' UTC'),
+            'MySQL TIMESTAMP ends in January 2038; strict mode refuses a later expiry and the list stops being kept');
+        $this->assertGreaterThan(time() + 365 * 86400, strtotime($exp), 'and it is still kept for years, not minutes');
+        // And from a date when ten years DOES cross the end of the column: a write in 2029.
+        $this->assertLessThan(strtotime('2038-01-19 03:14:07 UTC'), C::expiry(strtotime('2029-06-01 UTC'), 10 * 365 * 86400));
+    }
+
+    public function test_the_settings_badge_reads_the_same_secret_finance_uses(): void
+    {
+        $this->assertFalse(C::secretSet());
+        $_ENV['CFIS_SECRET'] = str_repeat('k', 64);
+        $this->assertTrue(C::secretSet(), 'a secret set only in .env is still a connected finance');
+        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Admin/Controllers/SettingsController.php');
+        $this->assertStringContainsString("'cfis_secret_set' => \\AfricaGates\\Services\\CfisCatalogue::secretSet()", $src);
     }
 }

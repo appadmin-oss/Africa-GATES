@@ -79,6 +79,9 @@ abstract class TestCase extends BaseTestCase
         // tests routinely hold different cycles under the same id, and without this the
         // second reads the first one's announcement.
         \AfricaGates\Services\ReleasedStanding::forget();
+        // The finance catalogue memoises its rows per process, and a test may stub finance.
+        \AfricaGates\Services\CfisCatalogue::forgetMemo();
+        \AfricaGates\Services\CfisCatalogue::$transport = null;
         // A provider tripped unreachable by one test must not be skipped in the next.
         // Found the hard way: AiFailureReportingTest scripts an `HTTP 0` from Groq and
         // Gemini, which legitimately opens their breakers, and AiModelDelegationTest
