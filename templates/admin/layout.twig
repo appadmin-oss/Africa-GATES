@@ -126,7 +126,7 @@
             <svg aria-hidden="true" focusable="false"><use href="#ic-sidebar"/></svg>
           </button>
         </form>
-        <span class="cn-bar__title">{{ block('topbar_title') }}</span>
+        <span class="cn-bar__title">{% block topbar_crumb %}{{ block('topbar_title') }}{% endblock %}</span>
       </div>
 
       <button type="button" class="cn-search" data-ag-do="palette-open" aria-haspopup="dialog" aria-controls="cnPal">

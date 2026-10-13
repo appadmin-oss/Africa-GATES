@@ -253,20 +253,6 @@
     var ask = e.target.closest('[data-ag-do="assist-ask"]');
     if (ask) { e.preventDefault(); if (pal && pal.open) pal.close(); openAssist(ask.getAttribute('data-q')); }
   });
-  // The hero's ask box on Home is a real form to the assistant's page; with the drawer
-  // here it opens the drawer with the question instead.
-  document.addEventListener('submit', function (e) {
-    var f = e.target;
-    if (!(f instanceof HTMLFormElement) || f.getAttribute('data-ag-do') !== 'hero-ask' || !drawer) return;
-    e.preventDefault();
-    var q = (f.querySelector('input[name="q"]') || {}).value || '';
-    if (q.trim()) openAssist(q.trim()); else openAssist();
-  });
-  document.querySelectorAll('[data-ag-do="hero-ask"] input[name="q"]').forEach(function (inp) {
-    var send = inp.form.querySelector('.cn-send');
-    var sync = function () { if (send) send.disabled = inp.value.trim() === ''; };
-    inp.addEventListener('input', sync); sync();
-  });
 
   // ── THE COMMAND PALETTE (§7): ⌘K / Ctrl+K ────────────────────────────────────
   //

@@ -1,77 +1,156 @@
 {% extends "admin/layout.twig" %}
 {#
-  HOME — destroyed and rebuilt 4 Oct 2026 from the admin handoff (README §3,
-  `01-admin-1.jpg`, `01-admin-5.jpg`). What the old dashboard carried and where each
-  thing went: docs/handoff/inventory/_admin.md.
+  HOME — redesigned 13 Oct 2026 (owner: "change the home page design style completely;
+  make it more professional; use the Africa GATES colours as accent where best").
 
-  Top to bottom: the hero (heading, ask box, shortcut tiles), "N things need a person",
-  "The quiet numbers". Every figure is real (HomeBoard), and every tile and card is one
-  this role can open — "Only jobs you can act on are shown" is true by construction.
+  Rebuilt 4 Oct from the admin handoff (README §3) as a centred ask box, a row of tiles,
+  a grid of job cards and six figures. What did not make sense: the ask box repeated the
+  top bar's Ask and Search, and each job card put its count, its words and its button in
+  three columns of a 340px card, so the words were squeezed to a two-word column while
+  the card stood mostly empty. Now, top to bottom:
+
+    · the greeting, with today's date and the console's range control;
+    · one status line — all clear, or the alerts that are open (HomeBoard::health);
+    · the work (unchanged source: HomeBoard::board) as a LIST, with the shortcuts beside it;
+    · activity over the chosen window, with the window before it for comparison;
+    · the figures, grouped as the public side (green) and the panel side (gold).
+
+  The brand's green and gold are the accents (Accent's `brand-*`, the public palette's own
+  values), spent where they identify something: the header rule, the chart, the primary
+  action, a figure's icon. Everything else stays the console's monochrome. Every count is
+  still filtered by what this role can open, so "Only jobs you can act on are shown" is
+  true by construction.
 #}
+{% import 'admin/partials/kit.twig' as kit %}
+
+{% block topbar_crumb %}Home{% endblock %}
+{% block topbar_eyebrow %}{{ today }}{% endblock %}
+{% block topbar_title %}{{ greeting }}, {{ shell.name|split(' ')|first }}{% endblock %}
+{% block topbar_actions %}{{ kit.range(range, '/admin', params) }}{% endblock %}
+
 {% block content %}
-<section class="cn-hero" aria-labelledby="cnHeroH">
-  <h2 class="cn-hero__h" id="cnHeroH">What needs doing today?</h2>
+<div class="hm-rule" aria-hidden="true"></div>
 
-  {# A real form to the assistant's own page, so it works with no script; with the
-     drawer present admin.js opens it with the question instead. #}
-  <form class="cn-ask" method="get" action="/admin/assistant" data-ag-do="hero-ask" role="search">
-    <label for="cnHeroQ" class="sr-only">Ask the assistant</label>
-    <input id="cnHeroQ" name="q" type="text" maxlength="2000" autocomplete="off" placeholder="Ask about the queue, money, results…">
-    <button type="submit" class="cn-send" aria-label="Ask">↑</button>
-  </form>
-
-  {% if shortcuts %}
-    <ul class="cn-tiles" aria-label="Shortcuts">
-      {% for t in shortcuts %}
-        <li>
-          <a class="cn-tile" href="{{ t.href }}">
-            <span class="cn-tile__box">
-              <svg aria-hidden="true" focusable="false"><use href="#ic-{{ t.icon }}"/></svg>
-              {% if t.badge %}<span class="cn-tile__badge{% if t.tone == 'danger' %} cn-tile__badge--danger{% endif %}">{{ t.badge }}<span class="sr-only"> waiting</span></span>{% endif %}
-            </span>
-            <span class="cn-tile__l">{{ t.label }}</span>
-          </a>
-        </li>
-      {% endfor %}
-    </ul>
-  {% endif %}
-</section>
-
-<section class="cn-sec" aria-labelledby="cnBoardH">
-  <div class="cn-sec__h">
-    <h2 class="cn-sec__t" id="cnBoardH">{{ board|length }} thing{{ board|length == 1 ? '' : 's' }} need{{ board|length == 1 ? 's' : '' }} a person</h2>
-    <span class="cn-sec__n">Only jobs you can act on are shown</span>
-  </div>
-  {% if board is empty %}
-    <div class="cn-empty">
-      <span class="cn-empty__t">Nothing is waiting on you</span>
-      <span class="cn-empty__m">Jobs appear here the moment something needs a person.</span>
+{# ── THE DAY'S STATE ─────────────────────────────────────────────────────────── #}
+{% if health %}
+  <section class="hm-status{{ health.ok ? ' is-ok' }}" aria-labelledby="hmStatusH">
+    <div class="hm-status__main">
+      <span class="hm-status__dot{{ health.ok ? '' : (health.total ? ' is-alert' : ' is-warn') }}" aria-hidden="true"></span>
+      <div>
+        <h2 class="hm-status__t" id="hmStatusH">
+          {% if health.ok %}All systems normal
+          {% elseif health.total %}{{ health.total }} alert{{ health.total == 1 ? '' : 's' }} open
+          {% else %}Scheduled maintenance needs a look{% endif %}
+        </h2>
+        <p class="hm-status__m">
+          {% if health.cron.ok %}Maintenance last ran {{ health.cron.last ? health.cron.last|when : 'recently' }}{% elseif health.total %}Maintenance is not running{% else %}{{ health.cron.say }}{% endif %}
+          · {{ board|length }} job{{ board|length == 1 ? '' : 's' }} waiting on a person
+        </p>
+      </div>
     </div>
-  {% else %}
-    <ul class="cn-board">
-      {% for b in board %}
-        <li class="cn-job cn-job--{{ b.tone }}">
-          <span class="cn-job__n">{{ b.count|number_format }}</span>
-          <div class="cn-job__t">
-            <span class="cn-job__hub">{{ b.hub }}</span>
-            <span class="cn-job__l">{{ b.label }}</span>
-            <p class="cn-job__w">{{ b.why }}</p>
-          </div>
-          <a class="cn-pillbtn cn-pillbtn--sm" href="{{ b.href }}">{{ b.cta }}<span class="sr-only">: {{ b.label }}</span></a>
-        </li>
-      {% endfor %}
-    </ul>
+    {% if health.items %}
+      <ul class="hm-status__list">
+        {% for a in health.items %}
+          <li><a href="{{ a.href }}"><span class="hm-sev hm-sev--{{ a.severity }}" aria-hidden="true"></span><span class="hm-status__it">{{ a.title }}</span><span class="sr-only"> ({{ a.severity }})</span></a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    <a class="cn-btn cn-btn--sm hm-status__go" href="/admin/alerts">{{ health.ok ? 'View status' : 'Review alerts' }}</a>
+  </section>
+{% endif %}
+
+<div class="hm-grid">
+  {# ── THE WORK ─────────────────────────────────────────────────────────────── #}
+  <section class="cn-card hm-work" aria-labelledby="cnBoardH">
+    <header class="hm-card__h">
+      <h2 class="hm-card__t" id="cnBoardH">{{ board|length }} thing{{ board|length == 1 ? '' : 's' }} need{{ board|length == 1 ? 's' : '' }} a person</h2>
+      <span class="hm-card__n">Only jobs you can act on are shown</span>
+    </header>
+    {% if board is empty %}
+      <div class="cn-empty cn-empty--icon">
+        <svg class="cn-empty__ic hm-ok" aria-hidden="true" focusable="false"><use href="#ic-vote-delivery"/></svg>
+        <span class="cn-empty__t">Nothing is waiting on you</span>
+        <span class="cn-empty__m">Jobs appear here the moment something needs a person.</span>
+      </div>
+    {% else %}
+      <ol class="cn-board hm-jobs">
+        {% for b in board %}
+          <li class="hm-job hm-job--{{ b.tone }}">
+            <span class="hm-job__n" aria-label="{{ b.count|number_format }} waiting">{{ b.count|number_format }}</span>
+            <div class="hm-job__t">
+              <span class="hm-job__l"><span class="hm-job__hub">{{ b.hub }}</span> {{ b.label }}</span>
+              <p class="hm-job__w">{{ b.why }}</p>
+            </div>
+            <a class="cn-btn cn-btn--sm{{ loop.first ? ' hm-go' }}" href="{{ b.href }}">{{ b.cta }}<span class="sr-only">: {{ b.label }}</span></a>
+          </li>
+        {% endfor %}
+      </ol>
+    {% endif %}
+  </section>
+
+  {# ── WHERE PEOPLE GO NEXT ───────────────────────────────────────────────────── #}
+  {% if shortcuts %}
+    <nav class="cn-card hm-jump" aria-labelledby="hmJumpH">
+      <header class="hm-card__h"><h2 class="hm-card__t" id="hmJumpH">Jump to</h2></header>
+      <ul class="hm-jump__l">
+        {% for t in shortcuts %}
+          <li>
+            <a class="hm-jump__i" href="{{ t.href }}">
+              <span class="hm-ic"><svg aria-hidden="true" focusable="false"><use href="#ic-{{ t.icon }}"/></svg></span>
+              <span class="hm-jump__x">{{ t.label }}</span>
+              {% if t.badge %}<span class="hm-badge{{ t.tone == 'danger' ? ' hm-badge--danger' }}">{{ t.badge }}<span class="sr-only"> waiting</span></span>{% endif %}
+              <span class="hm-jump__chev" aria-hidden="true">›</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </nav>
   {% endif %}
+</div>
+
+{# ── ACTIVITY ─────────────────────────────────────────────────────────────────
+   The range control in the header drives it; a bar narrows the window to itself. #}
+{% set _a = activity %}
+<section class="cn-card hm-act" aria-labelledby="hmActH">
+  <header class="hm-card__h">
+    <div>
+      <h2 class="hm-card__t" id="hmActH">Activity</h2>
+      <p class="hm-act__big"><span class="hm-act__v">{{ _a.total|number_format }}</span> {{ _a.total == 1 ? _a.one : _a.many }}
+        {% if _a.delta is not null %}
+          <span class="hm-delta{{ _a.delta > 0 ? ' is-up' : (_a.delta < 0 ? ' is-down' : '') }}">{{ _a.delta > 0 ? '↑' : (_a.delta < 0 ? '↓' : '') }} {{ _a.delta|abs }}% vs the window before</span>
+        {% elseif _a.previous == 0 and _a.total > 0 %}
+          <span class="hm-delta is-up">none in the window before</span>
+        {% endif %}
+      </p>
+      {% if _a.capped %}<p class="hm-card__n">Drawn from the latest 50,000; the total is exact.</p>{% endif %}
+    </div>
+    <div class="hm-seg" role="group" aria-label="What to chart">
+      {% for k, l in metrics %}
+        <a class="hm-seg__i" href="{{ kit.url('/admin', params, {metric: k}) }}"{% if _a.metric == k %} aria-current="true"{% endif %}>{{ l }}</a>
+      {% endfor %}
+    </div>
+  </header>
+  <div class="hm-chart">
+    {{ kit.chart(_a.series, {label: _a.label ~ ' · ' ~ range.label(), unit: (_a.series.total == 1 ? _a.one : _a.many), base: '/admin', params: params}) }}
+  </div>
 </section>
 
-<section class="cn-sec" aria-labelledby="cnQuietH">
-  <h2 class="cn-quiet__t" id="cnQuietH">The quiet numbers</h2>
-  <dl class="cn-quiet">
+{# ── AT A GLANCE ──────────────────────────────────────────────────────────────
+   HomeBoard::quiet()'s six, from AttentionBoard::pulse() — one definition of each.
+   Green is the public side of an award, gold the panel's. #}
+{% set _ic = {'Votes in 24 hours': ['vote-delivery', 'green'], 'Nominations this week': ['nominations', 'green'],
+              'Nominees on the site': ['nominees', 'green'], 'With the judges': ['questionnaires', 'gold'],
+              'Interviews published': ['interviews', 'gold'], 'Judges': ['judges', 'gold']} %}
+<section class="hm-glance" aria-labelledby="hmGlanceH">
+  <h2 class="hm-card__t" id="hmGlanceH">At a glance</h2>
+  <dl class="hm-figs">
     {% for p in quiet %}
-      <div class="cn-quiet__c">
-        <dt>{{ p.k }}</dt>
-        <dd class="cn-quiet__v">{{ p.v }}</dd>
-        <dd class="cn-quiet__note">{{ p.n }}</dd>
+      {% set _m = _ic[p.k]|default(['analytics', 'green']) %}
+      <div class="cn-card hm-fig">
+        <span class="hm-ic hm-ic--{{ _m[1] }}"><svg aria-hidden="true" focusable="false"><use href="#ic-{{ _m[0] }}"/></svg></span>
+        <dt class="hm-fig__k">{{ p.k }}</dt>
+        <dd class="hm-fig__v">{{ p.v }}</dd>
+        <dd class="hm-fig__n">{{ p.n }}</dd>
       </div>
     {% endfor %}
   </dl>

@@ -55,9 +55,26 @@ final class ConsolePaletteTest extends TestCase
         'sh-tile'    => '0 1px 2px rgba(10,10,10,.04)',
     ];
 
+    /**
+     * The brand accents the owner asked for on 13 Oct 2026 — the PUBLIC palette's own
+     * green and gold, by reference. Held as identity with that palette rather than as
+     * hexes, because the point of them is that the console's green is the site's green.
+     */
+    private const BRAND = [
+        'brand-green' => 'green', 'brand-green-deep' => 'green-deep', 'brand-green-wash' => 'green-wash',
+        'brand-gold' => 'gold', 'brand-gold-ink' => 'gold-ink', 'brand-gold-wash' => 'gold-wash',
+    ];
+
+    public function test_the_brand_accents_are_the_public_palettes_own(): void
+    {
+        foreach (self::BRAND as $console => $public) {
+            $this->assertSame(Accent::hex($public), Accent::consoleHex($console), "$console is not the site's $public");
+        }
+    }
+
     public function test_the_console_palette_is_the_handoffs_value_for_value(): void
     {
-        $got = array_map(static fn (array $v): string => $v['value'], Accent::console());
+        $got = array_diff_key(array_map(static fn (array $v): string => $v['value'], Accent::console()), self::BRAND);
         $this->assertSame(self::HANDOFF, $got,
             'the console palette drifted from the admin handoff. ±0 on colour — a value that '
           . 'fails a floor is REPORTED in Accent::consoleReported(), never adjusted.');
@@ -74,7 +91,7 @@ final class ConsolePaletteTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^:root\{(--cn-[a-z0-9-]+:[#a-z0-9 ,.()-]+;)+\}$/', $css);
         $this->assertStringNotContainsString('--ag-', $css, 'a public token leaked into the console');
-        $this->assertSame(count(self::HANDOFF) + count(self::HANDOFF_SHADOWS), substr_count($css, '--cn-'));
+        $this->assertSame(count(self::HANDOFF) + count(self::BRAND) + count(self::HANDOFF_SHADOWS), substr_count($css, '--cn-'));
 
         // And the public set is untouched by the second surface.
         $this->assertStringNotContainsString('--cn-', Accent::css());
