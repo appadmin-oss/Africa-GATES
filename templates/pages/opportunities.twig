@@ -1,0 +1,69 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  OPPORTUNITIES — /opportunities · OpportunityController::index · Phase 8
+  Built without a DC (PHASE-8.md "built without a DC")
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct (inventory pages--opportunities.md); rebuilt on the shell.
+  · DATABASE ONLY: `opportunities` is OpportunityService::getActiveOpportunities() — active,
+    deadline not passed, soonest deadline first. No fabricated fallback: with nothing live
+    the page says so, never a fake grant with a dead "Apply" (PageRenderSmokeTest).
+  · An apply link is drawn only when it is a real http(s) address — the old `|default('#')`
+    put a button on screen that went nowhere.
+  · The deadline is a date in words; the kind (grant, fellowship …) is a word, not a colour.
+  · Bringing one to the registry: the partnership form, or the support address (the
+    configured one, `support_email`, never an address typed into the page).
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Opportunities'|trans, back: '/'} %}
+{% set _kinds = {grant: 'Grant'|trans, mentorship: 'Mentorship'|trans, training: 'Training'|trans, job: 'Job'|trans, fellowship: 'Fellowship'|trans, competition: 'Competition'|trans} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="cm cm--narrow">
+  <div class="cm-col cm-col--pad">
+    <h1 class="cm-h1">{{ 'Grants, fellowships and mentor circles'|trans }}</h1>
+    <p class="cm-lede">{{ 'Open calls for African talent, listed by the organisations running them. Each one is applied for on its own site.'|trans }}</p>
+
+    <h2 class="cm-bar__h cm-sec-h">{{ 'Open now'|trans }}</h2>
+    {% if opportunities|length %}
+      <ul class="cm-cards">
+        {% for o in opportunities %}
+          <li class="ag-card cm-opp">
+            <p class="cm-opp__k">{{ _kinds[o.opportunity_type]|default(o.opportunity_type) }}{% if o.scope %} · {{ o.scope }}{% endif %}</p>
+            <h3 class="cm-opp__t">{{ o.title }}</h3>
+            <p class="cm-opp__by">{{ 'From %name%'|trans({'%name%': o.provider}) }}</p>
+            {% if o.description %}<p class="cm-opp__p">{{ o.description }}</p>{% endif %}
+            <dl class="cm-opp__dl">
+              {% if o.value %}<div><dt>{{ 'Worth'|trans }}</dt><dd>{{ o.value }}</dd></div>{% endif %}
+              {% if o.eligibility %}<div><dt>{{ 'Who can apply'|trans }}</dt><dd>{{ o.eligibility }}</dd></div>{% endif %}
+              <div><dt>{{ 'Closes'|trans }}</dt><dd>{{ o.deadline ? o.deadline|date('j F Y') : 'Open until filled'|trans }}</dd></div>
+            </dl>
+            {% if o.apply_url and (o.apply_url starts with 'https://' or o.apply_url starts with 'http://') %}
+              <a class="ag-btn ag-btn--primary ag-btn--pill cm-opp__go" href="{{ o.apply_url }}" rel="noopener nofollow" target="_blank">{{ 'Apply on their site'|trans }}<span class="ag-sr"> {{ '(opens a new tab)'|trans }}</span></a>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="ag-empty cm-empty ag-card">
+        <p class="ag-empty__t">{{ 'Nothing is open right now. New calls are listed here as partners bring them.'|trans }}</p>
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/account/register">{{ 'Join to hear first'|trans }}</a>
+      </div>
+    {% endif %}
+
+    <section class="ag-card cm-bring" aria-labelledby="cm-bring-h">
+      <h2 class="cm-bar__h" id="cm-bring-h">{{ 'Bring an opportunity to the registry'|trans }}</h2>
+      <p class="cm-box__p">{{ 'Running a grant, fellowship or mentor circle for African talent? List it here and it reaches the people the registry recognises.'|trans }}</p>
+      <div class="cm-form__go">
+        <a class="ag-btn ag-btn--primary ag-btn--pill" href="/partner">{{ 'Partner with us'|trans }}</a>
+        {% if support_email|default('') %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="mailto:{{ support_email }}?subject={{ 'An opportunity to list'|trans|url_encode }}">{{ 'Email us'|trans }}</a>{% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

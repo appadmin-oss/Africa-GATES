@@ -1,0 +1,12 @@
+identical 66 · differ 11 · missing 24
+header-1024-signedin-rest.png: 22 px differ in [797,50]-[930,52]
+menu-390-signedin-main-end.png: 415 px differ in [262,613]-[329,626]
+menu-390-signedout-main-end.png: 415 px differ in [262,671]-[329,684]
+rtl-1440-explore.png: 2 px differ in [716,248]-[716,252]
+search-1024-people-chip.png: 1164 px differ in [202,159]-[527,346]
+search-1024-query.png: 1064 px differ in [404,279]-[491,346]
+search-1440-people-chip.png: 1064 px differ in [612,279]-[699,346]
+search-1440-query.png: 1064 px differ in [612,279]-[699,346]
+search-834-people-chip.png: 1064 px differ in [309,283]-[396,350]
+search-834-query.png: 1064 px differ in [309,283]-[396,350]
+settings-390-largest-hc.png: 148649 px differ in [0,19]-[389,810]

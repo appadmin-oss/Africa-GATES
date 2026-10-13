@@ -1,0 +1,205 @@
+{
+ "report": {
+  "size-win-full-phone": {
+   "build": [
+    390,
+    696
+   ],
+   "dc": [
+    390,
+    750
+   ]
+  },
+  "size-win-full-desktop": {
+   "build": [
+    1040,
+    387
+   ],
+   "dc": [
+    1040,
+    445
+   ]
+  },
+  "size-win-inline-phone": {
+   "build": [
+    390,
+    211
+   ],
+   "dc": [
+    390,
+    211
+   ]
+  },
+  "size-win-inline-desktop": {
+   "build": [
+    1040,
+    184
+   ],
+   "dc": [
+    1040,
+    184
+   ]
+  },
+  "size-vote-full-phone": {
+   "build": [
+    390,
+    572
+   ],
+   "dc": [
+    390,
+    626
+   ]
+  },
+  "size-vote-full-desktop": {
+   "build": [
+    1040,
+    386
+   ],
+   "dc": [
+    1040,
+    419
+   ]
+  },
+  "size-vote-inline-phone": {
+   "build": [
+    390,
+    184
+   ],
+   "dc": [
+    390,
+    184
+   ]
+  },
+  "size-vote-inline-desktop": {
+   "build": [
+    1040,
+    184
+   ],
+   "dc": [
+    1040,
+    184
+   ]
+  },
+  "size-nominate-full-phone": {
+   "build": [
+    390,
+    597
+   ],
+   "dc": [
+    390,
+    651
+   ]
+  },
+  "size-nominate-full-desktop": {
+   "build": [
+    1040,
+    387
+   ],
+   "dc": [
+    1040,
+    445
+   ]
+  },
+  "size-nominate-inline-phone": {
+   "build": [
+    390,
+    211
+   ],
+   "dc": [
+    390,
+    211
+   ]
+  },
+  "size-nominate-inline-desktop": {
+   "build": [
+    1040,
+    184
+   ],
+   "dc": [
+    1040,
+    184
+   ]
+  },
+  "size-give-full-phone": {
+   "build": [
+    390,
+    597
+   ],
+   "dc": [
+    390,
+    651
+   ]
+  },
+  "size-give-full-desktop": {
+   "build": [
+    1040,
+    387
+   ],
+   "dc": [
+    1040,
+    445
+   ]
+  },
+  "size-give-inline-phone": {
+   "build": [
+    390,
+    190
+   ],
+   "dc": [
+    390,
+    190
+   ]
+  },
+  "size-give-inline-desktop": {
+   "build": [
+    1040,
+    184
+   ],
+   "dc": [
+    1040,
+    184
+   ]
+  },
+  "size-ticket-full-phone": {
+   "build": [
+    390,
+    572
+   ],
+   "dc": [
+    390,
+    626
+   ]
+  },
+  "size-ticket-full-desktop": {
+   "build": [
+    1040,
+    386
+   ],
+   "dc": [
+    1040,
+    419
+   ]
+  },
+  "size-ticket-inline-phone": {
+   "build": [
+    390,
+    190
+   ],
+   "dc": [
+    390,
+    190
+   ]
+  },
+  "size-ticket-inline-desktop": {
+   "build": [
+    1040,
+    184
+   ],
+   "dc": [
+    1040,
+    184
+   ]
+  }
+ },
+ "errors": []
+}

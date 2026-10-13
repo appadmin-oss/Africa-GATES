@@ -106,6 +106,27 @@ final class NominationRules
     public const SHORT_REASON = 'Tell us a little more (at least 40 characters).';
 
     /**
+     * "How do you know them?" (NominationFlow.dc.html step 5) — key => the DC's label, in
+     * its order. Stored as the key; drawn as the label on the form and in the operator brief.
+     */
+    public const RELATIONS = [
+        'colleague' => 'Colleague',
+        'student'   => 'Student or parent',
+        'community' => 'Community member',
+        'employee'  => 'Employee',
+        'client'    => 'Client or customer',
+        'family'    => 'Family',
+        'other'     => 'Other',
+    ];
+
+    /** A posted relation if it is one of ours, else null — a claim, not a free-text field. */
+    public static function relation(mixed $raw): ?string
+    {
+        $k = is_scalar($raw) ? strtolower(trim((string) $raw)) : '';
+        return isset(self::RELATIONS[$k]) ? $k : null;
+    }
+
+    /**
      * Check a whole nomination. Returns the first refusal, or null.
      *
      * FIRST and not all of them, deliberately: the flow is five steps and each step

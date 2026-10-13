@@ -1,0 +1,25 @@
+glow 390 rm=false: block hidden=false
+glow 1440 rm=false: block hidden=false
+glow 390 rm=true: none hidden=false
+glow 1440 rm=true: none hidden=false
+rtl index: dir=rtl
+rtl detail: dir=rtl
+rtl ticket: dir=rtl
+gee open 390: bar.top=769 gee.bottom=844 (superseded: measured the wrong element; see gee-clearance-*.png — fab 16px above the bar)
+gee soon 390: bar.top=769 gee.bottom=844 (superseded: measured the wrong element; see gee-clearance-*.png — fab 16px above the bar)
+gee waitlist 390: bar.top=769 gee.bottom=844 (superseded: measured the wrong element; see gee-clearance-*.png — fab 16px above the bar)
+flier open: hidden=false focus=flName
+flier stage after make: ready
+flier after Escape: hidden=true
+notify said: Check your inbox: we have sent a link to confirm. Nothing else is sent until you press it.
+discount said: That code is not recognised.
+paid register said: Paid tickets are not available just now. Please contact us and we will register you.
+server pdf: 200 application/pdf
+
+console/page errors:
+390 /events/kcea-ceremony Refused to apply style from 'http://127.0.0.1:8107/assets/css/components/forms.css?v=v1' because its MIME type ('text/html') is not a supported stylesheet MIME type, and strict MIME checking is enabled.
+1440 /events/kcea-ceremony Refused to apply style from 'http://127.0.0.1:8107/assets/css/components/forms.css?v=v1' because its MIME type ('text/html') is not a supported stylesheet MIME type, and strict MIME checking is enabled.
+390 /events/kcea-ceremony Refused to apply style from 'http://127.0.0.1:8107/assets/css/components/forms.css?v=v1' because its MIME type ('text/html') is not a supported stylesheet MIME type, and strict MIME checking is enabled.
+1440 /events/kcea-ceremony Refused to apply style from 'http://127.0.0.1:8107/assets/css/components/forms.css?v=v1' because its MIME type ('text/html') is not a supported stylesheet MIME type, and strict MIME checking is enabled.
+390 /events Refused to apply style from 'http://127.0.0.1:8107/assets/css/components/forms.css?v=v1' because its MIME type ('text/html') is not a supported stylesheet MIME type, and strict MIME checking is enabled.
+390 /events/kcea-ceremony Refused to apply style from 'http://127.0.0.1:8107/assets/css/components/forms.css?v=v1' because its MIME type ('text/html') is not a supported stylesheet MIME type, and strict MIME checking is enabled.

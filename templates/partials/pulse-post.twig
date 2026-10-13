@@ -1,0 +1,94 @@
+{#
+  One Pulse post — the markup every card kind shares, with THE ONE ACTION RAIL under it.
+  Used by pages/pulse.twig and by pages/pulse-items.twig (the `?part=items` page social.js
+  appends for "Show more"), so a post appended in place is the same markup as one drawn
+  on load. The four reactions (CommunityService::REACTIONS), label and glyph, are set inside the macro.
+#}
+{% macro ago(at) -%}
+  {%- set s = 'now'|date('U') - at|date('U') -%}
+  <time datetime="{{ at|date('c') }}">{% if s < 60 %}{{ 'now'|trans }}{% elseif s < 3600 %}{{ (s // 60) }}m{% elseif s < 86400 %}{{ (s // 3600) }}h{% elseif s < 604800 %}{{ (s // 86400) }}d{% else %}{{ at|date('j M') }}{% endif %}</time>
+{%- endmacro %}
+
+{% macro post(p, signed) %}
+{%- import _self as m -%}
+{%- set rx = {
+  cheer:   {l: 'Cheer'|trans,   d: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z'},
+  insight: {l: 'Insight'|trans, d: 'M12 2.2l2.3 6.4 6.5 2.3-6.5 2.3L12 19.8l-2.3-6.6L3.2 10.9l6.5-2.3z'},
+  respect: {l: 'Respect'|trans, d: 'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z'},
+  support: {l: 'Support'|trans, d: 'M12 3.2 19 11h-4v6.5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V11H5z'}
+} -%}
+<article class="pl-post" data-pl-post="{{ p.id }}" data-card="{{ p.card }}">
+  <a class="pl-post__av" href="{{ p.author_slug ? '/registry/' ~ p.author_slug : '/community/' ~ p.slug }}" tabindex="-1" aria-hidden="true">
+    {% include 'partials/photo.twig' with {kind: 'person', name: p.author_name} only %}
+  </a>
+  <div class="pl-post__b">
+    <div class="pl-post__who">
+      {% if p.author_slug %}<a class="pl-post__name" href="/registry/{{ p.author_slug }}">{{ p.author_name }}</a>{% else %}<span class="pl-post__name">{{ p.author_name }}</span>{% endif %}
+      {% if p.author_tier in ['basic', 'verified', 'premium'] %}<span class="pl-post__tick pl-post__tick--{{ p.author_tier }}" role="img" aria-label="{{ p.author_tier == 'premium' ? 'Verified, top tier'|trans : (p.author_tier == 'verified' ? 'Verified'|trans : 'Identity checked'|trans) }}"><svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z" fill="currentColor"></path><path d="m8.6 11.8 2.3 2.3 4.5-4.6" stroke="var(--ag-surface)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>{% endif %}
+      <span class="pl-post__ago">· {{ m.ago(p.created_at) }}</span>
+    </div>
+    {% if p.body|trim %}<p class="pl-post__text" data-linkify>{{ p.body }}</p>{% endif %}
+
+    {% if p.card == 'photo' and p.media %}
+      {% if p.media.type == 'video' %}
+        <video class="pl-post__media" src="{{ p.media.path }}" controls preload="metadata" playsinline></video>
+      {% else %}
+        <span class="pl-post__media"><img src="{{ p.media.path }}" alt="{{ 'A photo posted by %name%'|trans({'%name%': p.author_name}) }}" loading="lazy" decoding="async"></span>
+      {% endif %}
+    {% elseif p.card == 'recognition' and p.result %}
+      {# The payload, never the prose: who won what, in which edition, and the way to the standing. #}
+      <a class="pl-rec" href="{{ p.result.url }}">
+        <span class="pl-rec__k">{{ 'Recognition · %what%'|trans({'%what%': (p.result.programme ~ ', ' ~ p.result.edition)|trim(', ')}) }}</span>
+        <span class="pl-rec__who">
+          <span class="pl-rec__av">{% include 'partials/photo.twig' with {kind: 'person', name: p.result.winner} only %}</span>
+          <span class="pl-rec__b"><b>{{ p.result.winner }}</b><span class="pl-rec__t">{{ p.result.award }}</span></span>
+        </span>
+        <span class="pl-rec__go">{{ 'See how it was decided'|trans }}</span>
+      </a>
+    {% elseif p.card == 'vote' %}
+      <div class="pl-vote">
+        <span class="pl-vote__media">{% include 'partials/photo.twig' with {kind: 'thing', name: p.vote.award, title: false} only %}</span>
+        <span class="pl-vote__b"><b>{{ p.vote.award }}</b>{% if p.vote.days is not null %}<span class="pl-vote__left">{{ p.vote.days < 1 ? 'Voting closes today'|trans : (p.vote.days == 1 ? 'Voting closes in 1 day'|trans : 'Voting closes in %n% days'|trans({'%n%': p.vote.days})) }}</span>{% endif %}</span>
+        <a class="pl-go" href="{{ p.vote.url }}">{{ 'Vote'|trans }}</a>
+      </div>
+    {% elseif p.card == 'give' %}
+      <div class="pl-give">
+        <b>{{ p.give.title }}</b>
+        <span class="pl-give__bar" role="img" aria-label="{{ '%p%% of the goal'|trans({'%p%': p.give.pct}) }}"><span style="--pl-pct:{{ min(p.give.pct, 100) }}%"></span></span>
+        <span class="pl-give__row"><span><b>₦{{ p.give.raised|number_format }}</b>{% if p.give.target %} <span class="pl-give__of">{{ 'of ₦%t%'|trans({'%t%': p.give.target|number_format}) }}</span>{% endif %}</span><a class="pl-go" href="{{ p.give.url }}">{{ 'Give'|trans }}</a></span>
+      </div>
+    {% endif %}
+
+    {# ── THE ONE ACTION RAIL, under every kind of card ── #}
+    {% set _mine = p.my_reaction %}
+    <div class="pl-rail" data-pl-rail>
+      <button type="button" class="pl-act pl-act--react{{ _mine ? ' pl-act--on pl-rx--' ~ _mine }}" data-pl-react
+              aria-haspopup="true" aria-expanded="false"
+              aria-label="{{ _mine ? 'You reacted %r%. Change reaction'|trans({'%r%': rx[_mine].l}) : 'React'|trans }}"
+              data-react="{{ 'React'|trans }}" data-said="{{ 'You reacted %r%. Change reaction'|trans }}" data-kind="{{ _mine }}" data-signed="{{ signed ? '1' : '0' }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="{{ rx[_mine ?: 'cheer'].d }}" fill="{{ _mine ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"></path></svg>
+        <span class="pl-act__n" data-pl-n>{{ p.cheer_count > 999 ? ((p.cheer_count / 1000)|round(1) ~ 'K') : p.cheer_count }}</span>
+      </button>
+      <a class="pl-act" href="/community/{{ p.slug }}#replies" aria-label="{{ p.reply_count == 1 ? '1 reply'|trans : '%n% replies'|trans({'%n%': p.reply_count}) }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+        <span class="pl-act__n" aria-hidden="true">{{ p.reply_count }}</span>
+      </a>
+      <button type="button" class="pl-act" data-ag-share data-ag-share-url="{{ p.link|default('/community/' ~ p.slug) }}" aria-label="{{ 'Share'|trans }}" data-ag-copied="{{ 'Link copied'|trans }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 8 5-5 5 5"></path><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"></path></svg>
+      </button>
+      {% if signed %}
+        <button type="button" class="pl-act pl-act--save" data-pl-save="{{ p.id }}" aria-pressed="{{ p.saved ? 'true' : 'false' }}" aria-label="{{ 'Save'|trans }}">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z" fill="{{ p.saved ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"></path></svg>
+        </button>
+      {% endif %}
+      <div class="pl-pick" role="menu" aria-label="{{ 'Choose a reaction'|trans }}" hidden data-pl-pick>
+        {% for k, r in rx %}
+          <button type="button" role="menuitemradio" aria-checked="{{ _mine == k ? 'true' : 'false' }}" class="pl-pick__o pl-rx--{{ k }}" data-pl-kind="{{ k }}" data-label="{{ r.l }}">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="{{ r.d }}" fill="currentColor"></path></svg>{{ r.l }}
+          </button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</article>
+{% endmacro %}

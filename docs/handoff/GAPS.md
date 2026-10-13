@@ -39,6 +39,147 @@ from it, and where each feature lives in the rebuild.
 
 ---
 
+## 0b. Progress log — what has been done (kept current; last updated 4 Oct 2026, Phase 4 Home and Discover)
+
+Everything is on branch `claude/ai-assistance-judges-features-1ka4oz`. Detailed evidence per phase lives in
+`PHASE-1.md`, `PHASE-2.md`, `PHASE-3.md`, `DESTROYED.md`, `inventory/` and `shots/`; this section is the index.
+
+### Before the redesign (audit and fixes)
+- Codebase audit, then fixes shipped in `895c22a` … `615ce92`: mail TLS advice, voting (sandbox is not a
+  ballot; mint vs refund race; ballot gate before a vote code is mailed; refusal through `PublicFault`), money
+  (receipts to every donor; refunds reverse what they earned), security and maintenance (redirects, reset
+  links, single-use tokens, failures that report), judges (removal retires, recusal never erased).
+- **Email on production — not a code fault.** The host intercepts outbound SMTP on 587 (certificate
+  mismatch). Operator action: set Send by to Automatic and save a Brevo API key in `/admin/settings/mail`.
+
+### Phase 0 — recon (`997964a`)
+- This file, the route → DC map, the destroy list. Nothing deleted in Phase 0.
+
+### Phase 1 — foundations (`a9d963a`)
+- `Support\Translator` and the `|trans` filter (Q12). `Support\Accent` destroyed and rebuilt as the handoff's
+  32 tokens + shadows, no aliases (Q1–Q3); colour guards rebuilt (`ColourLiteralTest`, `ColourFields`, …).
+- `layout/shell.twig` and the base components.
+
+### The destroy passes (`882d768`, `5b06988`, `c2cf053`)
+- Owner: "Do NOT EVER patch. Only DESTROY, then rebuild." Every public page on `layout/gates.twig` (and that
+  layout), their partials, page stylesheets and scripts were inventoried (`inventory/`) and deleted, then two
+  orphan passes. Rules each page owes its rebuild are marked MUST RESTORE in the inventories.
+- Held, not destroyed: the admin and judge consoles and their CSS (`admin.css`, `judge.css`, `main.css`,
+  `aurora.css`, `components/auth.css`, `a11y.css`), `partials/viz.twig` (admin-only).
+
+### Phase 2 — chrome (`5e915ac`, `60fba99`, `763f871`)
+- Chrome rebuilt: shell, site header, app bar, tab bar, menu sheet, quick settings, Display & reading
+  (`POST /account/display`, member persistence), search (`GET /search` JSON, palette), shortcuts, language
+  prompt, flash. `SystemStatus::light()`.
+- Type: `TypeScaleTest` (closed ladder, no vw/clamp) and `MonoAndCaseTest` (mono only for ref/code/stub, no
+  capitals) over `Tests\Support\PublicSurface` (Q4, Q5). Screen type in **rem** via `tokens.css`
+  `--ag-fs-*`, so 125/150% text size scales; pixel-identical at 100%.
+- Door scanner **held** like admin. Seven email templates destroyed and rebuilt to the ladder with
+  `Accent::mail()` colours. `share`/`poll` partials destroyed.
+- Header touch targets as specified (40/34px), owner exception in `TargetSizeTest`; 44 elsewhere, 24 floor.
+- Cookie consent (Q11): `ag_consent`, Essential + Preferences/Analytics/Marketing ("Not used"), "any no wins",
+  GPC/DNT beats a stored yes, plain POST forms, `ag_privacy` carried over and retired, `CookieRegistry`
+  rebuilt both directions, generated `/cookies` section, `2027_02_27_cookie_consent_policy_repair.php`.
+
+### Phase 3 — Gee and celebrations (this commit)
+- **Gee**: `gee.js` destroyed and rebuilt; `partials/gee.twig`, `components/gee.css`; mounted on every shell
+  page except Pulse/support/no-chrome (Q19 applied from the spec, awaiting confirmation);
+  `window.AGGee.open({mode,q})`; help-desk mode on the real `supportDesk()` store; `GET /api/support/desk`
+  ("From your account"); work-card steps reported by `Services\SupportWork` from what
+  `PaymentReconciler::reclaim()` actually did (no timers); screenshot attach validated on bytes (images, 5MB);
+  `--ag-bottom-ui` clearance measured at 16px above every bottom bar; `/support/assistant` 301 →
+  `/help?gee=support`. Two live bugs fixed: a confirmed payment whose votes could not be minted was told
+  "confirmed" (now `MINT_REFUSED`); an upper-case reference missed its order on SQLite. The help-desk flow was
+  recorded on the dev server with a stubbed gateway — **not staging**.
+- **Celebrations**: `celebration.js`/`.css` byte-identical to the bundle; `partials/celebration.twig`,
+  `Services\Celebration` (`refusal()` — no delayed, unreleased, held, sandbox or unconfirmed moment, and never
+  the five §7.8 non-moments; `seenKey()`), nonced boot, dev showcase `/_dev/celebration`. **No page celebrates
+  yet** — Phases 5, 7 and 8 wire the moments.
+- Tests: `GeeTest` (27), `CelebrationTest` rebuilt (26); 59 mutations across both, all caught.
+
+### Phase 4 — Home and the site footer (4 Oct 2026; Discover is the other agent's entry)
+- `/` rebuilt on the shell from HomePageV3.dc.html + WeAreAfrica.dc.html (`PHASE-4.md`, "Home"): hero with a
+  real decided award as its record card, four counted stats, the globe on GlobeBand's markers (own canvas
+  projection, no vendored library; mouse and keyboard reach every marker), Happening now, one featured campaign,
+  the Recognise band. Every figure from `Services\HomeFront` (memoised, computed phases, sandbox contained) or
+  `GlobeBand`; no DC figure ships. `HomeController` and `docs/GLOBE-BAND.md` inventoried, destroyed, rewritten.
+- **Not drawn, blocked:** "Who recognises" (§3.1) and the Wall (§3.5) — §8c item 14.
+- **The site footer** (`partials/site-footer.twig`, on every shell page): the DC's columns plus every MUST
+  RESTORE destination, `nations_live()`, Activity removed, Cookies reopens the choices — §8c item 10 closed.
+- Tests: `HomePageTest` (13), `SiteFooterTest` (9), `GlobeBandTest` rebuilt (+9 band rules); 28 mutations caught.
+
+### Phase 4 — Discover, and Activity retired into it (4 Oct 2026)
+- `/discover` built on the shell from DiscoverPage.dc.html (`PHASE-4.md`, "Discover"): sticky search + filters,
+  tabs All · **Live** · People · Organisations · Awards · Results · Events docking beside Filters on scroll (skill
+  §6b), facets as a phone sheet / end panel, every row from an existing reader (`Services\Discover` composes
+  `ActivityFeedService::timeline()`, `SearchLanding`, `PublicResults`, `ProgrammeHost`, `NationsLive`); the one
+  new query is "most nominated this month". Works with no script (links and GET forms, upgraded in place).
+- **`/activity` → 301 `/discover?tab=live`**, keeping `q` and `literal` only; `ActivityController` destroyed;
+  `/discover` and `/discover?tab=live` in the sitemap; no nav links Activity (swept). activity.twig's rules kept:
+  `aria-activedescendant` combobox (script-declared), the status line the only live region, real links with
+  `<time datetime>`, "Understood as" / "Literal.", the partial-sources line (denominator now counted, not typed).
+- Not drawn, blocked: three facets and Recognitions' source — §8c item 19.
+- Tests: `DiscoverPageTest` (22, new), `FindBandTest` rewritten (1 → 8); 29 mutations caught.
+
+### Menu sheet — rebuilt for the owner's request of 4 Oct 2026 (§8e)
+- `menu-sheet.twig` destroyed and rebuilt; its code moved out of `chrome.js`/`chrome.css` into
+  `js/menu-sheet.js` and `css/components/menu-sheet.css` (inventory `inventory/partials--menu-sheet.md`).
+  Detents (opens content-aware — head, card and the four squares whole, 45–70% of the screen — drag up to full, drag/flick down to close, expand-first, same-gesture list
+  hand-over, rubber band, scrim follows), grabber as a button; most-used tiles (`Services\MenuShortcuts`,
+  frecency, member: `gates_users.menu_use_json` + `POST /account/menu-use` beacon; guest: `ag-menu-use`
+  only with Preferences). 17 scenarios measured, research and open questions in `MENU-SHEET.md`.
+
+### Admin console stage 1 — tokens, shell, navigation, Home, overlays (4 Oct 2026; `PHASE-ADMIN.md`)
+- Console palette in `Support\Accent` (`--cn-*`, `css('console')`), console tokens/sheet; `admin.css`, the old layout,
+  dashboard, palette, copilot and `admin.js` inventoried (`inventory/_admin.md`), destroyed and rebuilt from the DC.
+  Per-page gates read from the guard; `health` = superadmin/admin/viewer for Integrations, Email health, Alerts;
+  pins and sidebar per admin (migration `2027_03_01_admin_console_pins.php`); viewer read-only client- and
+  server-side; confirm-with-reason → `_reason` on the audit row; alerts derived on read. **Found:** the old rail
+  offered 15 pages the guard refused (PHASE-ADMIN.md §6 Q1). Hosts and the console switcher awaiting the owner.
+
+### Phase 5 — awards and voting (5–8 Oct 2026; `PHASE-5.md`)
+- `/awards` (index, one award with Overview · Award details · versioned Terms, coming soon with a double-opt-in
+  alert), `/vote` hub → edition page → nominee + ballot → won state (`win` via `Celebration::refusal()`), the
+  nominee's supporters / messages / message / flier pages, and `/winners`. Migrations: `edition_number`,
+  `gates_award_terms` + acceptance, `gates_award_alerts`. No scoring or money rule changed. The results
+  stylesheet/script and the paid-vote receipts are the owner's other session's (`1aa11db`, `d1b39d1`) and win.
+- Fixed: `/results` printed "Decided" over a late, unannounced cycle. Open: Q9, Q10 (today's rules kept),
+  ballot evidence naming, and `/claim/{id}` (500, owned by no phase).
+
+### Phase 7 — Events index, detail and ticket (4–5 Oct 2026; `PHASE-7.md`, "Events")
+- `/events` (upcoming soonest first, featured "Next up", coming soon among them, past in its own section, sandbox
+  excluded), `/events/{slug}` in every state incl. **coming soon** (derived from the tiers' `sale_starts_at` by
+  `Services\EventSales` — no second date column) with a double-opt-in "email me when tickets go on sale"
+  (`gates_event_sale_alerts`, `EventSaleAlert`, maintenance sweep, SendPolicy), and the §8.11 ticket. Tier colours
+  derived at read time (`EventTierTone::card()`, Q6). `partials/photo.twig` (Q8) used by events and home. New columns
+  `livestream_url`, `recording_url`, `access_notes` + three admin fields. 38 tests, 24 mutations caught. Blocked:
+  wallet passes (B1), Q17 (48 h kept), hosts' own ownership of events.
+
+### Phase 9 — documents, help, blog, status, support, error pages (5–8 Oct 2026; `PHASE-9.md`)
+- Legal pages, `/integrity`, `/philosophy`, programme terms on DocPage; Help Centre index/category/article with
+  every "Ask Gee" opening the desk in place; blog index + post; `/status` on StatusPageV2 with the measured
+  "Happening now" timeline, planned work (`PlannedWork`, set in `/admin/settings`) and double-opt-in status
+  updates (`StatusAlert`, `gates_status_alerts`, maintenance sweep); `/support`, tickets, newsletter, the
+  bulk-mail stop button and the 404/403/500/503 page with its reference. The owner's "Why is voting paid?"
+  article (price from the setting; capitals and "African G8" flagged). Blocked: status by country (§3.14).
+
+### Test status
+- Full suite after Phase 3: **6,633 tests, 8 failures — all `PasskeyTest`**, which needs PHP 8.4 (this
+  container runs 8.3; dependencies installed with `--ignore-platform-req=php`). Not a code fault.
+- No MySQL parity run has been possible in these sessions.
+
+### Known gaps in the meantime
+- `/help` returns 500 until Phase 9 rebuilds it (the Gee 301 lands there).
+- ~~No footer anywhere until Phase 4~~ — the footer is on every shell page since Phase 4 (Home).
+- No translations written: every new string is `|trans`-ready with no catalogue entries.
+- Public pages destroyed and not yet rebuilt are simply absent until their phase (4–9).
+
+### Next
+- Phase 4 (home and discover), then 5–10 per `phases/`. The admin/judge update is awaited from the owner.
+- Open decisions for the owner: §8c.
+
+---
+
 ## 1. Method
 
 - **Routes were read from Slim, not parsed.** `CLAUDE.md` records a regex parser finding 563
@@ -97,7 +238,7 @@ code wins and the phase brief needs correcting.**
 | 7 | DisplayReading persistence + first-paint apply | NEW | **PARTIAL** — localStorage and first paint EXIST; the profile half is MISSING | Phase 2 `b18620b` |
 | 8 | Quick settings sheet + first-visit language prompt | NEW | **EXISTS, with a live fault** in the prompt. *Disagrees* | Phase 2 `b18620b`, `ee7dce0` |
 | 9 | Celebrations (partial + boot + seen keys) | NEW; JS/CSS supplied | **PARTIAL** — a different engine runs; the verbatim files are not in the repo | pre-redesign |
-| 10 | Gee restyle + privacy note + `--ag-bottom-ui` | EXTEND `gee.js` | **PARTIAL** — none of the three asks done; still mounted on Pulse; absent from shell pages | — |
+| 10 | Gee restyle + privacy note + `--ag-bottom-ui` | EXTEND `gee.js` | **PARTIAL** — none of the three asks done; still mounted on Pulse; absent from shell pages | Phase 3 (destroyed and rebuilt; §3.10) |
 | 11 | Pulse post kinds + guest banner | EXTEND | **PARTIAL** — `post`/`result` only; 4 reactions exist; banner copy differs | pre-redesign |
 | 12 | Event tier colours, glow, states, waitlist | EXTEND | **Mostly EXISTS** — the spec's stored colour columns conflict with CLAUDE.md | pre-redesign |
 | 13 | Shop multi-select, load more, restock alerts, order page | EXTEND | **PARTIAL** — restock and order page exist; multi-select, load more, phone markup missing | pre-redesign |
@@ -106,6 +247,8 @@ code wins and the phase brief needs correcting.**
 | 16 | Nominee race, ballot, winner state | EXISTS; restyle | **EXISTS** — ballot field rules differ from REFERENCE §12 | pre-redesign |
 
 ### 3.1 Recognitions + verified issuers — MISSING
+- **Phase 4 (4 Oct 2026):** the homepage's "Who recognises" section is not drawn and its hero record card shows a
+  published award winner instead of an issuer's recognition (`PHASE-4.md` B1, D3); §8c item 14.
 - Searched `src/`, `database/`, `templates/`, `public/assets/js`, `config/` for `gates_recognitions`,
   `issuer_type`, `withdrawn_reason`, `commendation`, `issuer`, `recogni` as a table/service/kind:
   nothing but payout and judge-COI wording. No `CREATE TABLE` for recognitions or issuers in any
@@ -153,6 +296,7 @@ code wins and the phase brief needs correcting.**
   not exist; the real set is `pages/results/{index,edition,show,hall,open,late}.twig`.
 
 ### 3.5 Wall of recognition — MISSING
+- **Phase 4 (4 Oct 2026):** the homepage does not draw the Wall; blocked for the owner (§8c item 14, `PHASE-4.md` B2).
 - Searched `wall`, `masonry`, `testimon`, `Who recognis`, `gates_testimonials` (excluding firewall/
   swallow/paywall) over `home.twig`, `HomeController`, `src/Services`: nothing; `gates_testimonials` is in
   no schema file or migration. The DC's cards need quote, name, role, photo or initials, tag (Winner,
@@ -160,7 +304,9 @@ code wins and the phase brief needs correcting.**
 - **Not the source:** `gates_vote_messages` (supporter messages, consented, used by the nominee page's
   roll of honour) and the OrgBrand `quotes` block are different consents for different uses.
 
-### 3.6 Search API + palette — PARTIAL (built in Phase 2 on another URL)
+### 3.6 Search API + palette — BUILT (Phase 2 `/search`; Phase 4 retired `/activity` into Discover's Live tab)
+- **Phase 4 (4 Oct 2026):** `/activity` is a 301 to `/discover?tab=live`; the timeline is
+  `ActivityFeedService::timeline()` — the palette's index — drawn by Discover. The text below is the Phase 0 record.
 - Palette: `partials/site-search.twig` + `public/assets/js/ag-search.js` — scope chips, ≤6 per group,
   combobox ARIA, focus trap, `/` and Cmd-K; mounted once at `gates.twig:540`.
 - JSON: `GET /activity/search?q=&scope=&literal=&limit=` (`routes.php:2149`,
@@ -196,29 +342,41 @@ code wins and the phase brief needs correcting.**
   and `lang_prompts()` are registered with no template caller. The fault is the rebuild's not to carry: the
   rebuilt prompt is included only inside `{% if lang_ask() %}`.
 
-### 3.9 Celebrations — PARTIAL; the verbatim files are not in the repo
-```
-cmp H/design/assets/celebration/celebration.js  public/assets/js/celebration.js
-  → No such file or directory
-cmp H/design/assets/celebration/celebration.css public/assets/css/components/celebration.css
-  → No such file or directory
-```
-- Bundle files: `celebration.js` 19,848 B (sha256 `903d690b…5c7a145f3c8`), `celebration.css` 4,776 B
-  (sha256 `1e00d2fb…b016eada06a`). No `AGCelebrate` or `data-agc-` anywhere in the repo.
-- What ran instead, **all destroyed 3 Oct 2026** (the partial with the first orphan pass, the two scripts
-  with the second; inventories in `inventory/_partials.md` and `inventory/_scripts.md`): `public/assets/js/celebrate.js` (217 lines, `window.agCelebrate`, on vendored
-  `canvas-confetti-1.9.3`), kinds `win`/`nominate` only, seen keys `ag-celebrated:<key>`
-  (`celebrate.js:57-62, 89-119`); partial `partials/celebrate.twig` (`key` only); call sites
-  `partials/success.twig:179`, `vote-nominee.twig:1407`, `account/dashboard.twig:1051`,
-  `events/ticket.twig:1037`, `results/show.twig:685`, `results/edition.twig:385`, and
-  `nominate-success.twig:167` directly (all destroyed). Guarded by `CelebrationTest` (17 tests; 4 remain, all on
-  `MemberActivityService::backedWinners()` — the rest were destroyed with the pages and the script and are
-  recorded in the inventories). Nothing celebrates anywhere now, and the `ag-celebrated:` storage row in
-  `CookieRegistry` has no writer (DESTROYED.md, "Stale declarations on `/cookies`").
-- **Rules to carry across the destroy:** no celebration on a held or delayed result, play once, never
-  instead of the page (`CelebrationTest`'s docblock).
+### 3.9 Celebrations — BUILT in Phase 3 (3 Oct 2026); no page wires it yet
+- **Shipped byte-identical** (`cmp` clean against `H/design/assets/celebration/*`): `public/assets/js/celebration.js`
+  (sha256 `903d690b…5c7a145f3c8`) and `public/assets/css/components/celebration.css` (sha256 `1e00d2fb…b016eada06a`).
+  `Tests\Support\VerbatimAssets` pins both by path and hash; `ColourLiteralTest` skips the sheet only while the hash
+  holds. Q7 is **not answered**: every hex, px size, capital and word in them that disagrees with the house rules is
+  listed in `PHASE-3.md`, "Celebrations" §5.
+- Built around it: `partials/celebration.twig` (the DC's card; draws nothing unless `celebration_allowed()`),
+  `components/celebration-card.css`, `celebration-boot.js`, `Services\Celebration` (the decision, the one seen-key
+  resolver, the kind's palette family), `/_dev/celebration` (dev only). `ag-cel-` declared under Preferences in
+  `CookieRegistry`; the boot hands the engine a key only with Preferences, so with it refused nothing is stored and
+  the burst replays (Q-C1 in `PHASE-3.md`).
+- **The refusal rules are restored as a decision, not by placement:** no celebration on a delayed, unreleased, held
+  (no quorum or community dark), sandbox or someone-else's result, nor an unconfirmed payment, nor any of §7.8's
+  never-celebrate moments — asked through `PublicResults` (the result pages' own gate). `CelebrationTest` rebuilt (26:
+  22 new, the 4 `backedWinners()` kept); 21 mutations, 21 caught.
+- **Who wires it:** `award_won`/`edition_won`/`vote_cast` Phase 5, `gift_confirmed`/`ticket_confirmed` Phase 7,
+  `nomination_sent` Phase 8 (`PHASE-3.md`, "Celebrations" §2).
+- Open for the owner: Q7, Q-C1 (play once vs consent), Q-C2 (four DC tints off §6.1), Q-C3 (≤12 visible exceeded by
+  the verbatim win and desktop nominate — measured 26 and 16; DOM counts 39 and 15–17 as §9.3 states).
 
-### 3.10 Gee — PARTIAL; none of the three asks is done
+### 3.10 Gee — BUILT in Phase 3 (3 Oct 2026); was PARTIAL, none of the three asks done
+**Built (Phase 3, `PHASE-3.md` "Gee"):** `gee.js` destroyed (inventory `_scripts.md`) and rebuilt with
+`partials/gee.twig` and `components/gee.css` from `Gee.dc.html`; mounted by `layout/shell.twig` on every shell
+page except Pulse (`gates_page` or `tab` = `pulse`), the support pages and a chromeless page. Clearance is
+`bottom: calc(var(--ag-bottom-ui, 0px) + 16px + env(safe-area-inset-bottom))` and nothing else — measured
+16px above the tab bar, the cookie notice and a sticky bar at 390/834/1024/1440; `shell.js` now measures how far
+up the screen the bottom UI reaches (bars stack) and sees a bar mounted or removed later; the cookie notice
+carries `data-bottom-ui`. The privacy note is dismissible, `ag-gee-privacy` is in `CookieRegistry`
+(Preferences, kept only with Preferences). `window.AGGee.open({mode, q})`; `?gee=support` opens the desk on any
+page; `/support/assistant` 301s to `/help?gee=support` keeping `q` (and `ref`/`topic`/`ask`). The help desk
+(§8.22) is wired to the real support actions; the work card's steps are what the repair recorded
+(`Services\SupportWork`, `PaymentReconciler::reclaim()` now reports `found`/`asked`); z-index 60 restored.
+`/help` itself still 500s — `pages/help.twig` was destroyed and is Phase 9's.
+
+*As it stood in Phase 0:*
 - Exists: `gee.js` (649 lines), `components/gee.css` (303); mounted only in `gates.twig:448-470`;
   `shell.twig:94` has an empty `{% block gee %}`, so **shell pages have no Gee**. Two modes, label only.
 - Missing: the privacy note (`privacy`, `ag-gee` not in `gee.js`; `ag-gee-privacy` not in
@@ -300,7 +458,8 @@ cmp H/design/assets/celebration/celebration.css public/assets/css/components/cel
 | Maintenance windows · status probes by country | **MISSING** | §3.14 |
 | Shop restock alerts | **EXISTS** | §3.13 |
 
-**`/activity` → 301 `/discover?tab=live` (keep `q`, `literal`) — MISSING, and blocked on Phase 4.** `/activity`
+**`/activity` → 301 `/discover?tab=live` (keep `q`, `literal`) — BUILT in Phase 4 (4 Oct 2026)**, one route,
+no twin; `curl` proof in `shots/phase-4/discover/curl-activity-301.txt`. Phase 0 record follows. `/activity`
 is a live page (`routes.php:2148`, `pages/activity.twig`) and `/discover` is a deliberate 302 to `/registry`
 (`routes.php:1851-1853`) with no Discover template. Moving with the redirect: the `/search` and `/find` aliases
 (they would chain), the footer's "Activity search" (`layout/footer.twig:31`), the GET forms in
@@ -345,7 +504,8 @@ handler is dead and its middleware never runs); the destroy replaces the route, 
 | `/legacy/{slug}` | `LegacyController:event` | `pages/legacy/event.twig` | LegacyVault `view=edition` | 6 |
 | `/registry/{slug}` | `RegistryController:profile` | `pages/registry/profile.twig` | ProfilePage (`owner=true` has no view; the phase's `pages/profile.twig` does not exist) | 6 |
 | `/registry` | `RegistryController:index` | `pages/registry/index.twig` | *inferred:* DiscoverPage (directory) | 4? |
-| `/activity` | `ActivityController:index` | `pages/activity.twig` | **retire** → DiscoverPage Live | 4 |
+| `/activity` | 301 → `/discover?tab=live` (Phase 4) | — | **retired** → DiscoverPage Live | 4 ✓ |
+| `/discover` | `DiscoverController:index` (Phase 4) | `pages/discover.twig` | DiscoverPage (All, Live, sections, facets) | 4 ✓ |
 | `/events` | `EventsController:index` | `pages/events.twig` | EventsPage `view=index` | 7 |
 | `/events/{slug}` | `EventsController:show` | `pages/events/detail.twig` | EventsPage `view=detail` × open/waitlist/soldout/closed/ended | 7 |
 | `/events/ticket/{ref}` | `EventsController:ticket` | `pages/events/ticket.twig` | TicketPage `status=valid/checkedin` | 7 |
@@ -386,10 +546,13 @@ handler is dead and its middleware never runs); the destroy replaces the route, 
 `/account` (cites `AccountPage.dc.html`, not in this bundle) · `/support/tickets` · `/org/login` · `/org` ·
 `/giving/manage/{token}` · `/support/t/{token}` · `/claim/{id}` · `/claim/dispute/{token}` · `/n/confirm/{token}` ·
 `/my-work/{token}` · `/interview/{token}` · `/stand/{token}` · `/events/{slug}/stands` · `/events/{slug}/stands/apply` ·
-`/door/{token}` · `/form/{token}` · `/f/{key}`. REFERENCE §18.7 leaves these undesigned.
+`/door/{token}` · `/form/{token}` · `/f/{key}`. REFERENCE §18.7 leaves these undesigned. **`/door/{token}` is HELD
+(owner, 3 Oct 2026): a staff tool outside the redesign, like the consoles** — `pages/events/door.twig` and
+`components/door.css` are in `Tests\Support\PublicSurface`'s held lists, and `TypeScaleTest` fails if any other
+template links the door's sheet (PHASE-2.md §10).
 
 ### 5.3 DCs and views with no current route
-DiscoverPage (no page; `/discover` is a 302) · AwardsPage `view=soon` · SignIn `phone`, `profile`, `interests` ·
+~~DiscoverPage (no page; `/discover` is a 302)~~ built in Phase 4 · AwardsPage `view=soon` · SignIn `phone`, `profile`, `interests` ·
 GivingPage `checkout` (an in-page step) · VotePage `verify`/`done` (in-flow states — not confirmed) ·
 ProfilePage `owner=true` · ResultsPage's named `pages/results.twig` · `GET /search` JSON · `/help?gee=support`.
 Components, not pages: SiteHeader, AppBar, MobileMenu, DisplayReading, CookieConsent (`view=admin` out of scope),
@@ -419,8 +582,8 @@ building the bundle as written fails a test or reintroduces a documented fault. 
 | C2 | Guards are **blind** to the bundle's names: `AccentTest`/`ColourBudgetTest` look for `--ag-<role>-(fill\|wash)`; a page painted with `--ag-green` or `--ag-gold-wash` passes them **without being checked** | CLAUDE.md, "the right rule pinned to the wrong token" | **Done in Phase 1** — fields read by property, `Tests\Support\ColourFields` |
 | C3 | Gold `#f3b416` for "honour, winners"; `--ag-mute` for disabled text; inputs and outlined chips bordered only by `--ag-line-2 #d6d4cc` | Gold is 1.61:1 on the ground — CLAUDE.md records gold used as a line as the reason the site read monochrome; `SlotFloorTest::test_mute_is_never_a_word`; the chip/input border is **1.48:1** on white, under the 3:1 a border owes (WCAG 1.4.11, CLAUDE.md tier section) | **Q2 — answered: accepted as shipped (§8)** |
 | C4 | Seven exact shadows (REFERENCE §6.5) | `Accent.php:212-217` "there are no shadows anywhere on this site" (the lip) | **Q3 — answered: adopted (§8)** |
-| C5 | Type scale: body 16, 14.5, 13.5, micro 11.5–12.5, display fixed per breakpoint, "never `vw` type" (§6.2, §4.5) | `TypeScaleTest` **already enforces the bundle's ladder** (11.5…17, `MIGRATING = [10, 11]`, Phase 1 `c73971e`) — but CLAUDE.md still states the old closed scale `10·11·12·13·14·16·17` and "display set with `clamp()` against the viewport", and `tokens.css:195-201` carries `vw` compat sizes | **Q4** — fixed display rungs; delete `MIGRATING`; rewrite CLAUDE.md's section (prose outliving the rule) |
-| C6 | "Never mono for labels, stats or kickers; no uppercase labels" (§6.2, §18.3-4) — but the bundle contradicts itself: HANDOFF §2 "Mono … numbers, codes, times", §5e "a mono count"; SKILL §24.3 "mono 17px value" vs §24.7 "no monospace"; HANDOFF §5c "removable dark chips" vs §18.2 outlined | CLAUDE.md house style: "hairline rules, **mono micro-labels**" (214 such declarations). 124 files use `text-transform:uppercase`. No test either way | **Q5** — resolve the bundle's own contradictions; rewrite the house-style line; add a guard |
+| C5 | Type scale: body 16, 14.5, 13.5, micro 11.5–12.5, display fixed per breakpoint, "never `vw` type" (§6.2, §4.5) | `TypeScaleTest` **already enforces the bundle's ladder** (11.5…17, `MIGRATING = [10, 11]`, Phase 1 `c73971e`) — but CLAUDE.md still states the old closed scale `10·11·12·13·14·16·17` and "display set with `clamp()` against the viewport", and `tokens.css:195-201` carries `vw` compat sizes | **Resolved (Q4, owner, 3 Oct 2026):** §6.2 as written — closed ladder 11.5…17, display fixed per breakpoint, no `vw`/container-unit/`clamp()` type; `MIGRATING` deleted. `TypeScaleTest` destroyed and rebuilt over the public surface (`Tests\Support\PublicSurface`; admin/judge held); CLAUDE.md's section rewritten. The `tokens.css` `vw` sizes were already gone |
+| C6 | "Never mono for labels, stats or kickers; no uppercase labels" (§6.2, §18.3-4) — but the bundle contradicts itself: HANDOFF §2 "Mono … numbers, codes, times", §5e "a mono count"; SKILL §24.3 "mono 17px value" vs §24.7 "no monospace"; HANDOFF §5c "removable dark chips" vs §18.2 outlined | CLAUDE.md house style: "hairline rules, **mono micro-labels**" (214 such declarations). 124 files use `text-transform:uppercase`. No test either way | **Resolved (Q5, owner, 3 Oct 2026):** README §0/§18 wins over HANDOFF §2/§5e and SKILL §24.3 — mono only for references and codes, no uppercase/capitalize/small-caps or typed all-caps labels except the CONFIRMED stamp, sentence-case headings. Guard: `MonoAndCaseTest` (selector must carry a `ref`/`code`/`stub` segment for mono, `stamp` for capitals); house-style line rewritten. Chips (§5c vs §18.2) follow §18.2: outlined |
 | C7 | Snippet `tokens.css` declares the full ladders (`--ag-sp-*`, `--ag-r-*`, `--ag-sh-*`, `--ag-z-*`, stock, `--ag-ease-pop`, `--ag-dur-3`) | `DeadTokenTest`: no property declared without a reader. It already forced five bundle tokens out; Phase 1 made `/_dev/ui` read ladders to keep them alive — the §17 fault dressed as a fix | A token lands with its first reader, in the phase that reads it |
 | C8 | "No inline styles in Twig" (§4.6, README rule 6) | 924 `style=` and 89 `<style>` blocks today; `NoLiteralHexTest` and `ColourBudgetTest` **read templates only**, so moving colour into component CSS moves it out of every guard's sight | Rebuilt guards sweep `public/assets/css/components/*.css` too |
 | C9 | Event tiers carry stored `accent`, `accent_light`, `wash`, `deep`, `glow` columns (§11, HANDOFF §5) | CLAUDE.md: "a tier's colour is a slot, never a hex … `EventTierTone::hues()` is the one resolver". Guards `EventTierToneTest` (21), `EventTierColourFieldTest` (13), `EventTierSelectionTest` (28), `EventFlierThemeTest` | **Q6** — recommend deriving the five properties at read time from the slot |
@@ -428,7 +591,7 @@ building the bundle as written fails a test or reintroduces a documented fault. 
 | C11 | Unsplash photography in 21 of 32 DCs — "placeholders only" (§14) **and** "never ship a placeholder" (§4.2) | `AwardPageTest:88` refuses a stock photo on the award page; Unsplash still live in `opportunities.twig:9,73` and a `dns-prefetch` at `gates.twig:162` | **Q8** — what fills a photo slot with no real image |
 | C12 | Paid contributions "count the same as free votes" (§12, HANDOFF §6, DESIGN-NOTES) | CLAUDE.md: paid votes count at full weight in the **30% tally only**; the 70% people term counts verified people and a purchase buys no reach (`VoterReach`; `PaidVoteCpiSeparationTest`, `EditionScaleTest` sweeps help articles for the retired wording) | **Q10** — copy built from that sentence would publish a false rule; confirm it is overridden |
 | C13 | "No AI wording anywhere public" (§4.8, README rule 8) | Legally required disclosures: `partials/ai-collection-notice.twig` (NDPA point-of-collection), `/privacy#automated-processing` from `AiPrivacy::disclosure()`, the `/cookies` AI section; `AiPrivacyTest` (30). The notice's own comment draws the line: features may go unnamed, data processing may not | Keep the disclosures; the rule applies to feature copy |
-| C14 | Consent cookie `ag_consent` (JSON, versioned), four categories (§10, CookieConsent DC) | `CookiePrefs::COOKIE = 'ag_privacy'`, one resolver ("if anything said no, the answer is no"), `visits_consent_mode`, plain-POST controls, identical class strings on accept/decline; `CookieRegistryTest` fails by name on `ag_consent`, `ag-cel-*`, `ag-gee-privacy` | **Q11** |
+| C14 | Consent cookie `ag_consent` (JSON, versioned), four categories (§10, CookieConsent DC) | `CookiePrefs::COOKIE = 'ag_privacy'`, one resolver ("if anything said no, the answer is no"), `visits_consent_mode`, plain-POST controls, identical class strings on accept/decline; `CookieRegistryTest` fails by name on `ag_consent`, `ag-cel-*`, `ag-gee-privacy` | **Q11 — answered (owner, 3 Oct 2026): build the four categories in `ag_consent`, keeping the one-sentence rule, plain-POST controls and identical answer classes. Built in Phase 2 item 6 (`docs/handoff/PHASE-2.md`, "Cookie consent").** |
 | C15 | Snippets use `|trans`; ES-module JS (`export function`); `page-shell.twig` includes `partials/nav.twig` and `partials/gee.twig`; `shell.css` locks `html,body{overflow:hidden}` globally; `bottom-ui.js` skips `position:fixed` bars via `offsetParent` | No `trans` filter (built since — §2); every repo script is a classic `defer` script; neither partial exists; a global lock makes every `gates.twig` page unscrollable; the `offsetParent` bug was found and fixed in `4c5f489` | **Q12 — answered: build it.** `|trans` now compiles (§2 "Translation"). The other three are known snippet faults; the DC wins over the snippet (snippets README) |
 | C16 | `GET /search?q=&scope=` returns JSON (HANDOFF §3) | `/search` is a 301 alias to `/activity`; the palette's JSON is `/activity/search` (`SearchScopeTest`, 7) | **Q13** |
 | C17 | `docs/redesign-ref/` | A different, earlier set of 24 DCs; the nomination flow (`4e4090c`, `4dadb12`) was built against it, not against `H/design/NominationFlow.dc.html`. REFERENCE §0: only `design/` is spec | **Q15** — two references disagreeing is this repo's costliest shape |
@@ -535,6 +698,10 @@ destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
   body (its own `pages/error.twig` is destroyed too), and records a `PublicFault` per request.
 - **Held, owner to decide:** the 16 admin/judge templates `a9d963a` patched, `a11y.css`, `components/auth.css`, `partials/viz.twig`
   (shared with admin), the patched `src/` services, and the email templates — no phase rebuilds them.
+  **Decided (owner, 3 Oct 2026):** the seven email templates — and the house shell `OtpService::brandWrap()` they
+  arrive in — were destroyed and rebuilt to the §6.2 ladder with colours from `Accent::mail()` (inventory
+  `inventory/_emails.md`, PHASE-2.md §10); `a11y.css` stays held and is now listed in `PublicSurface::HELD_CSS` (only
+  the consoles link it); the door scanner is held like admin.
 - **This changes §7.2:** the Phase 2–9 lists above name files that no longer exist; a phase now *writes* its pages rather than
   destroying them first. The orphans that did not qualify (`layout/nav.twig`, `layout/footer.twig`, most Phase 2 chrome partials,
   the legacy sheets) are still the owning phase's to destroy — listed in `DESTROYED.md`.
@@ -548,24 +715,164 @@ destroyed with it; cross-page rules are in `inventory/_cross-page-rules.md`.
 1. **One colour source** — rebuild `Support\Accent` as the bundle palette, or make `tokens.css` the source and rebuild the four colour guards to read it? (C1, C2) — **Answered (owner, 2 Oct 2026): Accent is destroyed and rebuilt as the handoff palette**, exact names and values, still PHP-emitted into a nonced `<style>` by every layout; `tokens.css` holds no colour; no compatibility aliases — every reader of a retired name rewritten. Guards rebuilt to see the handoff's names (`AccentTest`, `SlotFloorTest`, `ColourBudgetTest`, `ColourIsNeverAloneTest` via `Tests\Support\ColourFields`) and to sweep CSS as well as templates (`ColourLiteralTest` replaces `NoLiteralHexTest`; C8). Built in Phase 1.
 2. Gold as fill only; `--ag-mute` as disabled text; the 1.48:1 outlined chip/input border — accepted, or corrected? (C3) — **Answered (owner, 2 Oct 2026): ship the handoff exactly, ±0.** Fills, lines/borders, gold as a line, `mute` and the 1.48:1 border are accepted (`Accent::ACCEPTED`); the 4.5:1 floor is kept for every word token on every ground it is drawn on (`Accent::words()`); a failing word is reported, never re-valued.
 3. Shadows — the bundle's seven, or none? (C4) — **Answered (owner, 2 Oct 2026): adopted.** §6.5 plus `--ag-sh-gee`, emitted by Accent (they are rgba of ink); the "no shadows anywhere" doctrine is deleted from Accent, AssetBundle, `lip.css`, `article.css` and CLAUDE.md. The two per-element §6.5 shadows (celebration badge, celebration ticket) belong to Phase 3.
-4. Display type — fixed rungs per breakpoint (bundle) confirmed, `MIGRATING [10, 11]` deleted outright? (C5)
-5. Mono and uppercase — which side of the bundle's own contradictions wins? (C6)
+4. Display type — fixed rungs per breakpoint (bundle) confirmed, `MIGRATING [10, 11]` deleted outright? (C5) — **Answered (owner, 3 Oct 2026): apply §6.2.** Fixed sizes per breakpoint, never viewport-scaled (`vw`, `clamp()` on `vw`) type; the 10/11px `MIGRATING` allowance is deleted outright. `TypeScaleTest` rebuilt and scoped explicitly to the public surface (admin/judge templates and their CSS are held). Surviving public files still on 10/11px are listed by the test's own failure, owned by the rebuilds of the door, `partials/viz`/`poll` and the mail templates. **Since (owner, 3 Oct 2026):** the mail templates are rebuilt onto the ladder, the door is held, `poll` was destroyed and `viz` is held — `TypeScaleTest` is green; and **screen type is written in rem** (`tokens.css` `--ag-fs-*` steps) so the Display & reading setting reaches it, which `TypeScaleTest` now also holds (PHASE-2.md §10).
+5. Mono and uppercase — which side of the bundle's own contradictions wins? (C6) — **Answered (owner, 3 Oct 2026): the README's §6.2/§18.3–4 wins.** JetBrains Mono only for references and codes (order refs, ticket codes, receipt codes, times inside ticket stubs), never labels, stats or kickers; no uppercase labels except the ticket stub's CONFIRMED stamp; headings sentence case. Guard: `MonoAndCaseTest`; CLAUDE.md's house-style line rewritten.
 6. Event tier colour — five stored columns, or derived from the slot at read time (recommended)? (C9)
-7. `celebration.js` — accept its off-palette hexes and demo defaults as verbatim, or amend the file? (C10)
-8. A photo slot with no real image — what renders? (C11)
+7. `celebration.js` — accept its off-palette hexes and demo defaults as verbatim, or amend the file? (C10) — **Still open.** Shipped verbatim in Phase 3 and exempted by name and hash; the full list of what disagrees is in `PHASE-3.md`, "Celebrations" §5, with Q-C1–Q-C3 beside it.
+8. A photo slot with no real image — what renders? (C11) — **Answered (owner delegated, 4 Oct 2026: "think of something"). Decision:** never a stock photo, never an
+   invented face, never a broken-image box. **People** (nominees, judges, members): a monogram — initials in Playfair 700,
+   ink on the neutral `tint` ground with a hairline ring, sized to the slot; the person (or their claimer) is offered
+   "Add a photo" where they can act. **Things** (events, campaigns, awards, products): a generated cover — the event's
+   own accent through `EventFlierTheme` (already one accent → a whole contrast-checked palette), the title set in the
+   cover, drawn in CSS so it is never a request that can fail; awards use the programme's identity family. One shared
+   partial (`partials/photo.twig`) decides real image vs fallback, so every page answers the question the same way.
 9. Ballot fields — make name, phone and message required (REFERENCE §12)? The paid name field is the display-name consent today. (§3.16)
 10. Paid-vote copy states the real rule (tally yes, reach no) — confirm the bundle's "count the same" sentence is overridden. (C12)
-11. Consent — keep the `ag_privacy` single-switch model, or build the four-category `ag_consent` (CookiePrefs, legal copy, a repair migration of the stored policy)? (C14)
+11. Consent — keep the `ag_privacy` single-switch model, or build the four-category `ag_consent` (CookiePrefs, legal copy, a repair migration of the stored policy)? (C14) — **Answered (owner, 3 Oct 2026): build the handoff's four categories in `ag_consent`** — Essential (always on) plus Preferences, Analytics, Marketing — keeping "if anything said no, the answer is no" (GPC/DNT beats a stored yes; GPC shown as "Respected your browser's privacy signal"), both controls plain forms that post, the notice's answers one identical class string, no dismiss-without-answering. Built in Phase 2 item 6: `CookiePrefs` and `CookieRegistry` rebuilt, `ag_privacy` carried over (a no stays a no) and retired, the generated `/cookies` section rebuilt, `2027_02_27_cookie_consent_policy_repair.php`, `partials/cookie-consent.twig`. Marketing is drawn as "Not used" with no switch (nothing here does marketing) — see PHASE-2.md, "Cookie consent", for that judgement.
 12. ~~Translation — build a `trans` layer before any phase uses the snippets, or drop `|trans`? (C15)~~ **Answered by the product owner: build it first.** Built — §2 "Translation".
 13. Search JSON — move it to `GET /search` (retiring that alias), or keep `/activity/search`? Trending in the empty palette has no measured signal — drop it? (C16, §3.6)
 14. Which DC owns `/results` (index) and `/results/{id}` (one award)? (§5.1)
-15. `docs/redesign-ref/` — delete as superseded? (C17)
+15. `docs/redesign-ref/` — delete as superseded? (C17) **Answered 5 Oct (AUDIT Q15): delete. Deleted 8 Oct 2026; it remains in git history.**
 16. Account and Challenges were rebuilt from DCs not in this bundle — destroyed and rebuilt in a phase of this redesign, or left as they are?
 17. Waitlist hold — 24 h (bundle) or 48 h (`EventWaitlist::OFFER_HOURS`)? (§3.12)
 18. Explore — keep Results (7 items) or the bundle's 6? (§3.15)
-19. Gee on `layout/shell.twig` pages — yes? Today they have none. (§3.10)
+19. Gee on `layout/shell.twig` pages — yes? Today they have none. (§3.10) — **Applied in Phase 3 from the spec, not answered by the owner:** §7.7 says "on every page except Pulse", and the shell is the only public layout, so Gee is on every shell page but Pulse (plus the old layout's two suppressions that still hold: the support pages and a page with no chrome). **Awaiting the owner's confirmation — §8c item 12.**
 
 ---
+
+## 8b. Answered after Phase 2 (owner, 3 Oct 2026)
+
+Raised by Phase 2 (`PHASE-2.md` §9 and deviation 15), not in the list above:
+
+- **Text size does not reach px type** — *Answered: type in rem.* `tokens.css` `--ag-fs-*` (px name, rem value),
+  every public screen size reads one; pixel-identical at 100%, scales at 125/150% (`shots/phase-2/rem/`).
+- **44px everywhere (§6.7) vs §7.1's 40px header** — *Answered: the header as specified.* Recorded by selector in
+  `TargetSizeTest::OWNER_HEADER`; 44 holds everywhere else, 24 under everything. Six older sub-44 controls outside the
+  header surfaced and are listed as OPEN, awaiting a ruling (PHASE-2.md §10).
+- **The door scanner** — *Answered: held like admin.* **The email templates** — *Answered: destroy and rebuild to the
+  ladder, colours from Accent.* Both done (PHASE-2.md §10).
+
+---
+
+## 8c. Open after Phase 2 — awaiting the owner (recorded 3 Oct 2026)
+
+Raised by the Phase 2 builds and put to the owner; nothing below has been decided, and no phase may guess
+an answer. Each is detailed in `PHASE-2.md` (deviations list, §9, §10 and "Cookie consent").
+
+1. **Marketing category** — nothing on this site does marketing, so it is drawn as the fourth row marked
+   "Not used" with no switch, and can never be stored as a yes. Keep that, or drop the row?
+2. **Consent records** — the handoff's admin consent view promises answers kept for 12 months; nothing
+   server-side records an answer today. Build a consent log, or keep none?
+3. **Notice position** — the cookie notice comes after `<main>` in reading order (51 Tab presses at 390).
+   Move it to the top of the page?
+4. **Language under a privacy signal** — with GPC/DNT (or Preferences refused) the chosen language is a
+   session cookie and is forgotten when the browser closes. Acceptable?
+5. **Six sub-44px controls outside the header** — `.ag-pop__lang` rows 40, palette Esc 28, shortcuts
+   close 36, `.ag-chip` 40 and `.ag-cs__go` 40 at ≥1024, `.ag-switch` 28 inside a 44 span. Each: raise
+   to 44, or an approved exception? (`TargetSizeTest` lists them as OPEN.)
+6. **Tab labels at 150%** — on a 390 phone "Discover" and "Nominate" touch (no overlap). Cap the tab
+   label size?
+7. **Email colours** — mapped by role onto the palette, so some look different (the old 2.8:1 footer
+   grey is now `soft`; the old dark-mode palette is retired). Confirm.
+8. **Design deviations** — 28 in the chrome and 14 in cookie consent, each with what/why, listed in
+   `PHASE-2.md`. Approve or reject each.
+9. **Still open from earlier**:
+   - who writes the translations (every new string goes through `|trans`, but no catalogue entries exist yet);
+   - trending in the empty search palette has no measured signal (Q13, second half);
+   - the change to how `/cookies` describes the `ag-a11y` text-size setting.
+10. **~~Re-opening consent at ≥600px~~ — closed in Phase 4:** the footer's Cookies link reopens the choices
+    (`data-ag-do="consent-open"`). Was: **Re-opening consent at ≥600px** — there is no in-page way back to the choices until Phase 4 rebuilds
+    the footer. Accept the gap until then?
+11. **Admin and judge consoles** — the owner is sending an update; both stay held until it arrives.
+12. **Gee (Phase 3) — confirm the spec's reading, and seven questions it raised** (`PHASE-3.md`, "Gee", §7):
+    Q19 applied from §7.7 (Gee on every shell page but Pulse, and still off the support pages) — confirm; the
+    DC's privacy sentence "kept for 30 days" has no mechanism behind it (the note states what the code does
+    instead); the reply promise reads the one SLA the platform has (`review_sla_hours`, 48h by default) — or a
+    separate support SLA setting?; "A person sees every unresolved message" is the spec's footer, but a chat
+    turn reaches a person only when it is escalated; the spec's "no bar 40px" against its own formula (16px +
+    the safe area); `/help` does not exist until Phase 9, so the 301 lands on a 500 until then; and the
+    deviations listed there.
+
+13. **Celebrations (Phase 3) — four questions** (`PHASE-3.md`, "Celebrations"):
+    **Q7** still open — every hex, px size, capital and English word inside the byte-identical
+    `celebration.js`/`celebration.css` is listed in `PHASE-3.md` §5; the engine takes no colour option, so Accent
+    values cannot be fed in from outside (only `ColourLiteralTest` exempts the stylesheet, and only while its
+    sha256 still matches); **Q-C1** the engine always writes `ag-cel-` to localStorage, so the boot hands it a
+    seen key only when Preferences is allowed — with Preferences refused the burst replays on every view;
+    **Q-C2** four DC card tints are not in §6.1 and are drawn with each family's wash token; **Q-C3** the
+    verbatim file exceeds the §24.6 visible-at-once budget (≤12): win shows 26, desktop nominate 16 (DOM counts
+    39 / 15–17 / ≤8 are within budget). Plus six deviations (no replay under reduced motion, "1st" not counted
+    up, the share button as the default primary, one full stop in the live region, no haptics before a tap).
+
+---
+
+## 8c (cont.) — raised by Phase 4 Home (4 Oct 2026)
+
+14. **Homepage sections that need a data model** (`PHASE-4.md`, "Home", H8): "Who recognises" needs
+    recognitions + verified issuers and a decision on what Businesses/Governments are offered (B1); the Wall needs
+    approved testimonials with consent for that use (B2). Build them (migration → service → admin) or drop them?
+15. **Recognise band** — what may it promise, and where does "Start recognising" go (B3)?
+16. **Home phone bar** — the DC's logo bar (built) or §7.2's large-title root (B4)?
+17. **Featured campaign rule** — the open one closing soonest (built), or a "featured" flag (B5)?
+18. **Home deviations** D2 (hero lead), D3 (record card), D4 ("votes cast"), D6, D10, D12, D13, D17 need approval;
+    Q8 (absent photos) is still open.
+
+## 8c (cont.) — raised by Phase 4 Discover (4 Oct 2026)
+
+19. **Discover facets and kinds with no record behind them** (`PHASE-4.md`, "Discover", D7): what do
+    "Identity verified (government ID)", "Vouched for (3+ verified people)" and "Field" mean here (B-1)? Not drawn
+    until answered. The Recognitions chip says none are recorded (D-2) — keep it, or hide it until §3.1 is built?
+20. **"Most nominated"** — count category entries (built), or record `nominee_id` on a nomination at approval so
+    the DC's "N nominations" is honest (B-2)?
+21. **Event accessibility flags** (captions, sign language, audio description) — columns for Phase 7 (B-3)?
+22. **`/registry`** still renders a destroyed template (500): retire it into `/discover?tab=people` (301) or rebuild
+    it in Phase 6 (B-4)?
+23. **Discover deviations** D-1 … D-8 and D-10 need approval — D-10 (kind dots as structure, not colour events)
+    decides whether the page can be drawn as designed at tier 2.
+
+## 8d. Admin and org consoles — owner decisions (4 Oct 2026)
+
+The admin handoff arrived (`design_handoff_admin_console`: `Admin Console v9.dc.html`, `Org Console v2.dc.html`,
+README). The consoles leave the "held" list and are destroyed and rebuilt like every other surface.
+
+- **§1a tokens — (A), with DM Sans instead of Geist.** The monochrome palette of README §10 replaces the teal
+  `--ad-*` set; the face is DM Sans (the house face), and the mono role is the house JetBrains Mono, not Geist
+  Mono. The console colours live in `Support\Accent` as a separate console set, so there is still exactly one
+  file a colour may be typed in.
+- **`health` gate — widened as designed.** New MATRIX key `health` = superadmin, admin, viewer; Integrations,
+  Email health and the new Alerts page move to it. `workspaces` (superadmin) only if Hosts is built.
+  **And integrations are extensible from the UI**: an admin can add and configure more providers from the
+  console, not only the hard-coded set (design to be proposed).
+- **Hosts — not decided.** The owner asked for an assessment of feasibility first (given in chat, 4 Oct 2026):
+  nothing in the schema owns a programme, event or challenge today — every one is platform-owned — while
+  partner organisations (`gates_partner_orgs`, `org_id` on campaigns, stands, catalogue, payouts, documents)
+  are already a tenant with their own login. Hosts are not built until the owner chooses.
+- **Org capabilities — to be discussed** with the owner before the org console is rebuilt beyond what exists.
+- **Console type — decided in stage 1, flagged for the owner to confirm:** the console follows its OWN ladder
+  (README §10 + 10.5 and 16, in rem), never vw/clamp, NO capitals, mono only for figures, references, times and
+  keycaps; held by `ConsoleTypeTest` over the rebuilt console files. The public ladder and guards are unchanged.
+- **Stage 1 raised** (`PHASE-ADMIN.md` §4, §6): 18 deviations and 7 questions — chiefly the 15 pages the old rail
+  offered to roles the guard refused (each mapping is an access change), Review queue's route, and four console
+  words the handoff draws under 4.5:1 (reported in `Accent::consoleReported()`, not re-valued).
+
+## 8e. Public menu sheet — owner request (4 Oct 2026)
+
+"The menu for mobile should be smarter. You cannot currently drag down to close."
+- **Most used**: a frequency + recency ("frecency") ranked set of the member's most-used destinations, shown
+  where the four Participate tiles are today (Facebook's "Your shortcuts" pattern).
+- **Drag**: the same structure as now, but dragging behaves like Meta's sheets — opens at a medium height,
+  drags up to full, drags down (or flicks) to close, with the inner list scrolling first and handing the pull
+  to the sheet at its top. The open height follows Meta. Research and the chosen numbers: `MENU-SHEET.md`.
+
+## 8f. Hosts and events — owner (4 Oct 2026)
+
+- **Hosts: yes.** "Businesses, governments and so on should be able to use it for events, awards and so on." One
+  award has already run on production, so the existing programme (and every event, challenge and campaign) must
+  become owned by the platform's own host in a migration that changes no published figure. Design first
+  (`HOSTS.md`), then build after admin stage 1.
+- **Events: "there's nothing like upcoming events or coming soon events on the site."** Build the Phase 7 events
+  index and detail now (§8.10), including an upcoming list and an announced-but-not-on-sale ("coming soon") state,
+  end to end, plus the §8.11 ticket polish.
 
 ## 8a. Code that cites this file
 
@@ -577,7 +884,7 @@ phase that next touches each one re-points it:
 | `tests/Unit/SiteHeaderTest.php:126` | §9.8 (Results in the header) | §3.15, Q18 |
 | `src/Support/Languages.php` | §5.3 (no translation layer) | Re-pointed: the docblock now describes `Support\Translator` and cites Q12 |
 | `src/Services/NominationRules.php:61` | (no section) the DC's "at least one" | C20 |
-| `src/routes.php:1842` | §5.5 (no Discover page) | §4, §5.3 |
+| ~~`src/routes.php:1842`~~ | §5.5 (no Discover page) | Comment removed with the 302 in Phase 4 |
 
 ---
 

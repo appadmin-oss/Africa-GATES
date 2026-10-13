@@ -1,0 +1,40 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE DEFAULT AVATAR — a person or an organisation with no picture
+  DEFAULT-GRAPHICS §8 · design/DefaultAvatar.dc.html · 5 Oct 2026
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Initials and tone from Support\AvatarMark (the tone hashes the profile id, so a rename
+  keeps the colour); a person is a circle, an organisation, business or government a
+  rounded square. From 40px a badge: the kind's glyph on a white disc, or a white tick on
+  blue for a verified person. A verified ORGANISATION keeps its kind badge — its shield goes
+  beside its name, never on the avatar.
+
+  Args (with … only):
+    name      the person's or organisation's name                       required
+    id        the profile id the tone hashes (the name is used without one)
+    kind      person | organisation | business | government             default person
+    size      24 · 32 · 44 · 56 · 96 · 160 (others snap)                default 44
+    verified  true for a verified record
+    named     true where the name is printed beside it: the avatar is then hidden from a
+              screen reader, so the name is said once
+    fill      true to fill the caller's box (photo.twig's monogram slot)
+#}
+{%- set _m = avatar_mark(name|default(''), id|default(null), kind|default('person'), size|default(44), verified|default(false)) -%}
+{%- set _glyphs = {
+  organisation: 'M4 21V5l8-2v18M12 21h8V9l-8-2M8 8h.01M8 12h.01M8 16h.01M16 12h.01M16 16h.01',
+  business: 'M4 8h16v11H4zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M4 13h16',
+  government: 'M3 21h18M5 18h14M6 10v8M10 10v8M14 10v8M18 10v8M12 3 3 8h18z',
+  verified: 'M5 12.5 10 17 19 7'
+} -%}
+<span class="ag-avatar ag-avatar--{{ _m.tone }} ag-avatar--s{{ _m.size }}{{ _m.kind != 'person' ? ' ag-avatar--org' }}{{ _m.one ? ' ag-avatar--one' }}{{ fill|default(false) ? ' ag-avatar--fill' }}"
+  {%- if named|default(false) %} aria-hidden="true"{% else %} role="img" aria-label="{{ _m.label }}"{% endif %}>
+  <span class="ag-avatar__face">
+    {%- if _m.size >= 40 %}<span class="ag-avatar__arcs" aria-hidden="true"></span>{% endif -%}
+    <span class="ag-avatar__in" aria-hidden="true">{{ _m.initials }}</span>
+  </span>
+  {%- if _m.badge %}
+  {%- set _v = verified|default(false) and _m.kind == 'person' %}
+  <span class="ag-avatar__badge{{ _v ? ' ag-avatar__badge--verified' }}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="{{ _glyphs[_v ? 'verified' : _m.kind]|default(_glyphs.organisation) }}"/></svg></span>
+  {%- endif %}
+</span>

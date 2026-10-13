@@ -1,0 +1,240 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  PULSE — /pulse (and /pulse/reels) · Phase 8 §8.9, design/PulsePage.dc.html (signedIn)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed and rebuilt (inventory pages--pulse.md). What the spec fixes:
+  · DESKTOP: a single left rail and no top bar — the site header is not drawn from 1024;
+    the rail is the navigation (logo, Home, Discover, Nominate, Pulse, Alerts, Saved, Menu,
+    Post, your profile). Tablet keeps the site header over one centred column; a phone has
+    its app bar, the tab bar and a round "New post" button.
+  · POST KINDS: post, photo, recognition, vote, give — DERIVED by Services\PulseCards from
+    what the row carries (a result announcement, an attachment, an award channel whose
+    voting is open, a link to an open campaign), never stored.
+  · FOUR REACTIONS (CommunityService::REACTIONS): cheer, insight, respect, support — one
+    each, singular; tapping yours clears it, another moves it.
+  · SIGNED OUT: the guest banner, its words exactly, and an OUTLINED "Sign in or join".
+  · NO GEE: the shell keeps it off this page (`gates_page: 'pulse'`).
+
+  Rules carried from the destroyed page and its tests (each re-asserted in PulsePageTest):
+  · ONE ACTION RAIL — the same markup and handlers under every kind of card.
+  · HAIRLINES, NOT A MARCH OF BOXES — the feed is one divided column.
+  · THE RECOGNITION CARD READS THE PAYLOAD (PulseFeedService::resultPayloads), never the
+    post's prose, and it links the full standing ("See how it was decided").
+  · THE PHONE IS NOT A DIFFERENT PRODUCT — the same timeline, not a snap feed.
+  · Links in a post are made by social.js under the feed linkify rule (escape first,
+    http(s) only, trailing punctuation outside, before any @/# pass, rel nofollow ugc).
+  · The page draws its own flash beside the composer (`own_flash`), or it appears twice.
+  · A guest posting is sent to sign in and writes nothing (PulseController::post).
+
+  Every tab and "Show more" is a URL (`?tab=`, `?cursor=`), so the page works with no
+  script; social.js reacts, saves and follows in place over the live
+  /api/v1/community/* endpoints (the client ag-social.js was, MUST RESTORE).
+#}
+{% set own_flash = true %}
+{% set tab = 'pulse' %}{# the shell's tab bar; the page's own tab is `view` #}
+{% set app_bar = {variant: 'root', title: reels ? 'Videos'|trans : 'Pulse'|trans} %}
+{% set colour_tier = '2' %}
+{% set _signed = member is not null %}
+{% set _ini = _signed ? member.name|split(' ')|filter(w => w)|map(w => w|first)|join|upper|slice(0, 2) : '' %}
+{% set _tabs = [{k: 'for-you', l: 'For you'|trans}, {k: 'following', l: 'Following'|trans}, {k: 'alerts', l: 'Alerts'|trans}] %}
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/pulse.css') }}">
+{% endblock %}
+
+{# The site header is drawn for the tablet only; from 1024 the rail is the navigation. #}
+{% block header %}<div class="pl-header">{{ parent() }}</div>{% endblock %}
+
+{% import 'partials/pulse-post.twig' as m %}
+
+{% block content %}
+
+<div class="pl">
+  {# ── The left rail (desktop) ─────────────────────────────────────────────── #}
+  <nav class="pl-left" aria-label="{{ 'Primary'|trans }}">
+    <a class="pl-left__logo" href="/" aria-label="{{ 'Africa GATES home'|trans }}">
+      <img src="{{ asset('/assets/img/logo-mark.png') }}" width="34" height="34" alt="">
+      <span class="pl-left__word" aria-hidden="true"><span class="pl-left__africa">Africa</span><span class="pl-left__gates">GATES</span></span>
+    </a>
+    {% for s in [
+      {l: 'Home'|trans, href: '/', d: 'M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z'},
+      {l: 'Discover'|trans, href: '/discover', d: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6'},
+      {l: 'Nominate'|trans, href: '/nominate', d: 'M12 5v14M5 12h14'},
+      {l: 'Pulse'|trans, href: '/pulse', d: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM10 8.5l5 3.5-5 3.5z', on: view in ['for-you', 'following']},
+      {l: 'Alerts'|trans, href: _signed ? '/pulse?tab=alerts' : '/account/login?next=%2Fpulse%3Ftab%3Dalerts', d: 'M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0', on: view == 'alerts', badge: unread},
+      {l: 'Saved'|trans, href: _signed ? '/pulse?tab=saved' : '/account/login?next=%2Fpulse%3Ftab%3Dsaved', d: 'M6 3h12v18l-6-4-6 4z', on: view == 'saved'}
+    ] %}
+      <a class="pl-left__i" href="{{ s.href }}"{% if s.on|default(false) %} aria-current="page"{% endif %} aria-label="{{ s.l }}{{ s.badge|default(0) ? ' — ' ~ ('%n% new'|trans({'%n%': s.badge})) }}">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="{{ s.on|default(false) ? '2.3' : '1.9' }}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ s.d }}"></path></svg>
+        <span class="pl-left__l">{{ s.l }}</span>
+        {% if s.badge|default(0) %}<span class="pl-left__badge" aria-hidden="true">{{ s.badge }}</span>{% endif %}
+      </a>
+    {% endfor %}
+    <button type="button" class="pl-left__i" data-ag-menu aria-haspopup="dialog" aria-expanded="false" aria-label="{{ 'Menu'|trans }}">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+      <span class="pl-left__l">{{ 'Menu'|trans }}</span>
+    </button>
+    {% if _signed %}
+      <a class="pl-left__post" href="#pl-compose" data-pl-compose-open aria-label="{{ 'New post'|trans }}"><span class="pl-left__l">{{ 'Post'|trans }}</span><svg class="pl-left__plus" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></a>
+      <a class="pl-left__me" href="/account">
+        <span class="pl-left__av" aria-hidden="true">{{ _ini }}</span>
+        <span class="pl-left__meb"><b>{{ member.name }}</b><span>{{ 'Your profile'|trans }}</span></span>
+      </a>
+    {% else %}
+      <a class="pl-left__join" href="/account/login?next=%2Fpulse"><span class="pl-left__l">{{ 'Sign in or join'|trans }}</span><span class="pl-left__s" aria-hidden="true">{{ 'Join'|trans }}</span></a>
+    {% endif %}
+  </nav>
+
+  {# ── The column ──────────────────────────────────────────────────────────── #}
+  <div class="pl-col">
+    {% if view == 'saved' %}
+      <div class="pl-title"><h1 class="pl-title__h">{{ 'Saved'|trans }}</h1></div>
+    {% else %}
+      <h1 class="ag-sr">{{ 'Pulse'|trans }}</h1>
+      <nav class="pl-tabs" aria-label="{{ 'Pulse'|trans }}">
+        {% for t in _tabs %}
+          {% if _signed or t.k == 'for-you' %}
+            <a class="pl-tabs__t{{ t.k == 'alerts' ? ' pl-tabs__t--alerts' }}" href="/pulse{{ t.k != 'for-you' ? '?tab=' ~ t.k }}"{% if view == t.k %} aria-current="page"{% endif %}>
+              {{ t.l }}{% if t.k == 'alerts' and unread %}<span class="pl-tabs__badge"><span class="ag-sr">— </span>{{ unread }}<span class="ag-sr"> {{ 'new'|trans }}</span></span>{% endif %}
+            </a>
+          {% else %}
+            <a class="pl-tabs__t{{ t.k == 'alerts' ? ' pl-tabs__t--alerts' }}" href="/account/login?next={{ ('/pulse?tab=' ~ t.k)|url_encode }}">{{ t.l }}</a>
+          {% endif %}
+        {% endfor %}
+      </nav>
+    {% endif %}
+
+    {% if flash_error or flash_notice %}
+      <p class="pl-say{{ flash_error ? ' pl-say--error' }}" role="{{ flash_error ? 'alert' : 'status' }}">{{ flash_error ?: flash_notice }}</p>
+    {% endif %}
+
+    {% if not _signed %}
+      <div class="pl-guest">
+        <span>{{ 'Join Africa GATES to post, react and follow the people you care about.'|trans }}</span>
+        <a class="pl-guest__go" href="/account/login?next=%2Fpulse">{{ 'Sign in or join'|trans }}</a>
+      </div>
+    {% elseif view in ['for-you', 'following'] %}
+      {# The composer. Inline from 600; on a phone the same form is the sheet the round button
+         opens (and `?compose=1` opens it with no script). #}
+      <div class="pl-composeW{{ compose_open ? ' is-open' }}" id="pl-compose" data-pl-compose>
+        <form class="pl-compose" method="post" action="/pulse" enctype="multipart/form-data">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <span class="pl-compose__av" aria-hidden="true">{{ _ini }}</span>
+          <div class="pl-compose__b">
+            <div class="pl-compose__top"><a class="pl-compose__cancel" href="/pulse" data-pl-compose-close>{{ 'Cancel'|trans }}</a></div>
+            <label class="ag-sr" for="pl-body">{{ 'Write a post'|trans }}</label>
+            <textarea class="pl-compose__ta" id="pl-body" name="body" rows="2" maxlength="{{ pulse_max }}" placeholder="{{ 'Share some news, or thank someone'|trans }}"></textarea>
+            <div class="pl-compose__bar">
+              <label class="pl-compose__icon" title="{{ 'Add a photo or video'|trans }}">
+                <span class="ag-sr">{{ 'Add a photo or video (%limit%)'|trans({'%limit%': media_limit}) }}</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"></rect><circle cx="9" cy="10" r="2"></circle><path d="m21 16-5-5-9 9"></path></svg>
+                <input type="file" name="media" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" data-pl-media>
+              </label>
+              <span class="pl-compose__file" data-pl-file aria-live="polite"></span>
+              <button class="pl-compose__go" type="submit">{{ 'Post'|trans }}</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    {% endif %}
+
+    {% if view == 'alerts' %}
+      <div class="pl-alerts__head">
+        <span class="pl-alerts__t">{{ 'Alerts'|trans }}</span>
+        {% if unread %}
+          <form method="post" action="/account/notifications/read"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="pl-alerts__read" type="submit">{{ 'Mark all read'|trans }}</button></form>
+        {% endif %}
+      </div>
+      {% for a in alerts %}
+        <a class="pl-alert{{ a.unread ? ' pl-alert--new' }}" href="{{ a.href }}">
+          {% set _ad = {reaction: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z', reply: 'M4 5h16v11H9l-5 4z', repost: 'M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3', save: 'M6 3h12v18l-6-4-6 4z', follow: 'M15 19a6 6 0 0 0-12 0M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M16 11h6', milestone: 'M12 2.2l2.3 6.4 6.5 2.3-6.5 2.3L12 19.8l-2.3-6.6L3.2 10.9l6.5-2.3z'} %}
+          <span class="pl-alert__i pl-alert__i--{{ a.kind }}" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ _ad[a.kind]|default(_ad.milestone) }}"></path></svg></span>
+          <span class="pl-alert__b"><span class="pl-alert__t">{{ a.text }}</span><span class="pl-alert__ago">{{ m.ago(a.at) }}</span></span>
+          {% if a.unread %}<span class="pl-alert__new">{{ 'New'|trans }}</span>{% endif %}
+        </a>
+      {% else %}
+        <p class="pl-empty">{{ 'Nothing yet. When people react to, reply to or follow what you post, it shows up here.'|trans }}</p>
+      {% endfor %}
+    {% elseif view == 'saved' %}
+      {% for s in saved %}
+        <a class="pl-alert" href="/community/{{ s.slug }}"><span class="pl-alert__b"><span class="pl-alert__t">{{ s.title }}</span><span class="pl-alert__ago">{{ s.reply_count == 1 ? '1 reply'|trans : '%n% replies'|trans({'%n%': s.reply_count}) }}</span></span></a>
+      {% else %}
+        <p class="pl-empty">{{ 'Nothing saved yet. Press the bookmark under a post to keep it here.'|trans }}</p>
+      {% endfor %}
+    {% else %}
+      <div class="pl-feed" data-pl-feed>
+        {% for p in items %}{{ m.post(p, _signed) }}{% endfor %}
+        {% if next_cursor %}<a class="pl-more" href="/pulse?{{ view != 'for-you' ? 'tab=' ~ view ~ '&' }}cursor={{ next_cursor }}" data-pl-more>{{ 'Show more'|trans }}</a>{% endif %}
+      </div>
+      {% if not items|length %}
+        <div class="pl-empty">
+          {% if view == 'following' %}
+            <p>{{ 'Nothing from what you follow yet. Follow an award’s channel or a member and their posts collect here.'|trans }}</p>
+            <a class="pl-go" href="/pulse">{{ 'See everything'|trans }}</a>
+          {% else %}
+            <p>{{ 'Nothing has been posted yet.'|trans }}</p>
+          {% endif %}
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  {# ── The right column (desktop) ──────────────────────────────────────────── #}
+  <aside class="pl-right" aria-label="{{ 'Around Africa GATES'|trans }}">
+    <form class="pl-search" method="get" action="/discover" role="search">
+      <input type="hidden" name="tab" value="live">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+      <input name="q" aria-label="{{ 'Search Pulse'|trans }}" placeholder="{{ 'Search Pulse'|trans }}" enterkeyhint="search">
+    </form>
+    {% if voting.rows|default([])|length %}
+      <section class="pl-box" aria-labelledby="pl-r-live">
+        <h2 class="pl-box__h" id="pl-r-live">{{ 'Voting now'|trans }}</h2>
+        {% for v in voting.rows|slice(0, 3) %}<a class="pl-box__i" href="{{ v.url }}"><b>{{ v.title }}</b><span>{{ [v.meta, v.left]|filter(x => x)|join(' · ') }}</span></a>{% endfor %}
+      </section>
+    {% endif %}
+    {% if decided|length %}
+      <section class="pl-box" aria-labelledby="pl-r-rec">
+        <h2 class="pl-box__h" id="pl-r-rec">{{ 'Recently recognised'|trans }}</h2>
+        {% for r in decided|slice(0, 3) %}
+          <a class="pl-box__p" href="{{ r.url }}">
+            <span class="pl-box__av">{% include 'partials/photo.twig' with {kind: 'person', src: r.photo, name: r.name, ini: r.ini} only %}</span>
+            <span class="pl-box__pb"><b>{{ r.name }}</b><span>{{ r.category }}</span></span>
+          </a>
+        {% endfor %}
+      </section>
+    {% endif %}
+    {% if to_follow|length %}
+      <section class="pl-box" aria-labelledby="pl-r-fol">
+        <h2 class="pl-box__h" id="pl-r-fol">{{ 'Who to follow'|trans }}</h2>
+        {% for w in to_follow %}
+          <div class="pl-box__p">
+            <span class="pl-box__ini" aria-hidden="true">{{ w.name|first|upper }}</span>
+            <span class="pl-box__pb"><b>{{ w.name }}</b><span>{{ w.n == 1 ? 'Award channel · 1 post'|trans : 'Award channel · %n% posts'|trans({'%n%': w.n}) }}</span></span>
+            {% if _signed %}
+              <button type="button" class="pl-follow" data-pl-follow="{{ w.id }}" aria-pressed="false" data-on="{{ 'Following'|trans }}" data-off="{{ 'Follow'|trans }}">{{ 'Follow'|trans }}</button>
+            {% else %}
+              <a class="pl-follow" href="/account/login?next=%2Fpulse">{{ 'Follow'|trans }}</a>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </section>
+    {% endif %}
+    <p class="pl-right__foot"><a href="/status">{{ 'Status'|trans }}</a> · <a href="/privacy">{{ 'Privacy'|trans }}</a> · <a href="/terms">{{ 'Terms'|trans }}</a> · <a href="/cookies#choices" data-ag-do="consent-open">{{ 'Cookies'|trans }}</a> · © {{ 'now'|date('Y') }} Africa GATES</p>
+  </aside>
+</div>
+{% endblock %}
+
+{% block bottom_bar %}
+  {% if _signed and view in ['for-you', 'following'] %}
+    <a class="pl-fab" href="/pulse?compose=1" data-pl-compose-open aria-label="{{ 'New post'|trans }}">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+    </a>
+  {% endif %}
+  {{ parent() }}
+{% endblock %}
+
+{% block foot_scripts %}
+  <script defer src="{{ asset('/assets/js/social.js') }}"></script>
+{% endblock %}

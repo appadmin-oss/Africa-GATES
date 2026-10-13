@@ -1,0 +1,40 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  HELP CENTRE PARTS — the Ask Gee control and the "Still stuck" band
+  Phase 9 · design/HelpCentre.dc.html · §8.21
+  ══════════════════════════════════════════════════════════════════════════════
+
+  ── EVERY "ASK GEE" OPENS THE HELP DESK IN PLACE, AND NEVER NAVIGATES ──────
+
+  `data-ag-do="open-gee"` is gee.js's own delegated control (Phase 3): with the script it
+  opens Gee in help-desk mode on this page, seeded with `data-gee-q`, and the click goes
+  no further. The `href` is the same request as a URL — `/help?gee=support&q=…`, which
+  gee.js answers on arrival — so a browser that never ran the script still reaches the
+  desk with the question carried, instead of meeting a button that does nothing.
+  `/support/assistant` 301s to exactly that address, which is why the links inside the
+  corpus's own prose keep working.
+#}
+
+{# A green Ask Gee button (the page's one colour event). `q` may be empty. #}
+{% macro ask(label, q, cls) %}
+<a class="hc-btn hc-btn--gee{% if cls %} {{ cls }}{% endif %}" href="/help?{{ {gee: 'support'}|merge(q ? {q: q|slice(0, 240)} : {})|url_encode }}"
+   data-ag-do="open-gee" data-gee-mode="support"{% if q %} data-gee-q="{{ q|slice(0, 240) }}"{% endif %}>{{ label }}</a>
+{% endmacro %}
+
+{# "An article can’t look up your payment. Gee can." + Ask Gee + Contact a person. #}
+{% macro stuck() %}
+{% import _self as h %}
+<section class="hc-stuck" aria-labelledby="hc-stuck">
+  <div class="hc-stuck__words">
+    <span class="hc-stuck__g" aria-hidden="true">G</span>
+    <span class="hc-stuck__t">
+      <h2 class="hc-stuck__h" id="hc-stuck">{{ 'An article can’t look up your payment. Gee can.'|trans }}</h2>
+      <span class="hc-stuck__p">{{ 'Gee’s help desk re-checks payments with the provider, resends receipts, and passes you to a person when that’s better.'|trans }}</span>
+    </span>
+  </div>
+  <div class="hc-stuck__act">
+    {{ h.ask('Ask Gee'|trans, '', 'hc-btn--tall') }}
+    <a class="hc-btn hc-btn--out hc-btn--tall" href="/support">{{ 'Contact a person'|trans }}</a>
+  </div>
+</section>
+{% endmacro %}

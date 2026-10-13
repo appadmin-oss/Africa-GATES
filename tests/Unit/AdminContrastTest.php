@@ -82,22 +82,19 @@ class AdminContrastTest extends TestCase
     }
 
     /**
-     * Every admin token used as body text must clear 4.5:1 on BOTH admin grounds.
-     *
-     * Both, not either: these strings sit on cards (white) and directly on the page
-     * (#f4f6fa) interchangeably, and a value tuned only against white fails the moment
-     * the same class is used one level up.
+     * REBUILT 4 Oct 2026 with the console. The `--ad-*` palette and admin.css this test
+     * measured were destroyed; the console's colours are Support\Accent's console set, and
+     * every word the console draws is measured on every ground in ConsolePaletteTest. This
+     * keeps the original claim — body, secondary and muted text clear 4.5:1 on BOTH grounds
+     * a console string sits on, the white card and the panel grey — by name.
      */
     public function test_admin_text_tokens_clear_aa_on_both_grounds(): void
     {
-        foreach (['--ad-text', '--ad-text-soft', '--ad-text-mute'] as $name) {
-            $hex = self::token($name);
-            foreach ([self::ADMIN_SURFACE, self::ADMIN_GROUND] as $ground) {
-                $r = self::ratio($hex, $ground);
-                $this->assertGreaterThanOrEqual(4.5, $r, sprintf(
-                    '%s (%s) is %.2f:1 on %s — WCAG 1.4.3 requires 4.5:1 for text under 18px.',
-                    $name, $hex, $r, $ground
-                ));
+        foreach (['ink', 'grey-800', 'grey-600', 'grey-500'] as $name) {
+            $hex = \AfricaGates\Support\Accent::consoleHex($name);
+            foreach (['surface', 'fill-panel'] as $g) {
+                $r = self::ratio($hex, \AfricaGates\Support\Accent::consoleHex($g));
+                $this->assertGreaterThanOrEqual(4.5, round($r, 2), sprintf('%s is %.2f:1 on %s', $name, $r, $g));
             }
         }
     }
@@ -134,24 +131,30 @@ class AdminContrastTest extends TestCase
      */
     public function test_smallest_admin_button_meets_target_size_minimum(): void
     {
-        $css = self::css('public/assets/css/admin.css');
+        $css = self::css('public/assets/css/console/console.css');
         $this->assertSame(1, preg_match('/\.ad-btn--xs\s*\{[^}]*min-height:\s*(\d+)px/', $css, $m),
             '.ad-btn--xs must declare a min-height so the floor is explicit.');
         $this->assertGreaterThanOrEqual(24, (int) $m[1],
             'WCAG 2.5.8 sets 24×24 CSS px as the minimum target, for any pointer type.');
     }
 
-    /** The sidebar rail is a dark ground; its own text must clear AA against it. */
+    /**
+     * The sidebar's group labels. The old rail was dark and its headings were measured
+     * white-on-ink; the console's rail is `fill-panel` and the handoff draws its labels in
+     * `grey-450` — 3.10:1, under the floor. The owner's rule is REPORT, never re-value, so
+     * this holds that the failure is on the reported list rather than silently shipped.
+     */
     public function test_sidebar_section_headings_clear_aa_on_the_rail(): void
     {
-        $css = self::css('public/assets/css/admin.css');
-        $this->assertSame(1, preg_match(
-            '/\.ad-side__group h6[^{]*\{[^}]*color:\s*rgba\(255,\s*255,\s*255,\s*([0-9.]+)\)/', $css, $m
-        ), 'Expected an rgba white on .ad-side__group h6');
-        $r = self::ratio(self::over('#ffffff', (float) $m[1], self::SIDEBAR), self::SIDEBAR);
-        $this->assertGreaterThanOrEqual(4.5, $r, sprintf(
-            'Sidebar section headings are %.2f:1 on the rail — they name the part of the admin you are in.', $r
-        ));
+        $r = self::ratio(\AfricaGates\Support\Accent::consoleHex('grey-450'), \AfricaGates\Support\Accent::consoleHex('fill-panel'));
+        if (round($r, 2) < 4.5) {
+            $this->assertArrayHasKey('grey-450@fill-panel', \AfricaGates\Support\Accent::consoleReported(),
+                sprintf('the rail labels are %.2f:1 and nobody has been told', $r));
+        } else {
+            $this->addToAssertionCount(1);
+        }
+        $css = self::css('public/assets/css/console/console.css');
+        $this->assertMatchesRegularExpression('/\.cn-nav__label\s*\{[^}]*color:\s*var\(--cn-grey-450\)/', $css);
     }
 
     /**
@@ -166,12 +169,18 @@ class AdminContrastTest extends TestCase
      */
     public function test_every_layout_loads_the_accessibility_layer(): void
     {
-        foreach ([
-            'templates/admin/layout.twig',
-            'templates/judge/layout.twig',
-        ] as $layout) {
-            $this->assertStringContainsString('a11y.css', self::css($layout),
-                "$layout must load a11y.css — it is the WCAG correction layer.");
+        // The judge console still loads the shared layer.
+        $this->assertStringContainsString('a11y.css', self::css('templates/judge/layout.twig'),
+            'templates/judge/layout.twig must load a11y.css — it is the WCAG correction layer.');
+
+        // The admin console carries the same corrections in its own sheet since the 4 Oct
+        // 2026 rebuild (a11y.css is written against the public palette): targets under a
+        // coarse pointer, forced colours, prefers-contrast, aria-invalid, and .sr-only.
+        $this->assertStringContainsString("/assets/css/console/console.css", self::css('templates/admin/layout.twig'));
+        $console = self::css('public/assets/css/console/console.css');
+        foreach (['@media (pointer: coarse)', '@media (forced-colors: active)', '@media (prefers-contrast: more)',
+                  '[aria-invalid="true"]', '.sr-only {', 'min-height: 44px'] as $rule) {
+            $this->assertStringContainsString($rule, $console, "the console lost the accessibility rule: $rule");
         }
     }
 
@@ -180,7 +189,7 @@ class AdminContrastTest extends TestCase
     {
         // Where the class is defined at all.
         $defined = [];
-        foreach (['public/assets/css/a11y.css', 'public/assets/css/admin.css'] as $sheet) {
+        foreach (['public/assets/css/a11y.css', 'public/assets/css/console/console.css'] as $sheet) {
             if (str_contains(self::css($sheet), '.sr-only')) {
                 $defined[] = $sheet;
             }

@@ -66,8 +66,19 @@ final class AppTwig
             'ag_accents'    => [\AfricaGates\Support\Accent::class, 'css'],
             'tile_style'    => [\AfricaGates\Support\Accent::class, 'tileStyle'],
             'programme_style' => [\AfricaGates\Support\Accent::class, 'programmeStyle'],
-            'cookie_ask'    => [\AfricaGates\Services\CookiePrefs::class, 'asking'],
-            'cookie_return' => [\AfricaGates\Services\CookiePrefs::class, 'returnPath'],
+            'consent'       => [\AfricaGates\Services\CookiePrefs::class, 'current'],
+            'celebration_allowed'  => [\AfricaGates\Services\Celebration::class, 'allowed'],
+            'celebration_seen_key' => [\AfricaGates\Services\Celebration::class, 'seenKeyForRequest'],
+            'celebration_style'    => [\AfricaGates\Services\Celebration::class, 'style'],
+            // The default graphics (DEFAULT-GRAPHICS, 5 Oct 2026): every photo slot with no
+            // upload now draws a cover or an avatar through these.
+            'cover_kind'        => [\AfricaGates\Support\CoverKind::class, 'resolve'],
+            'account_title'     => [\AfricaGates\Services\AccountRail::class, 'title'],
+            'gee_starters'      => static fn (): array => \AfricaGates\Services\GeePersonal::starters(\AfricaGates\Services\GeePersonal::facts()),
+            'account_lead'      => [\AfricaGates\Services\AccountRail::class, 'lead'],
+            'cover_content'     => [\AfricaGates\Support\CoverKind::class, 'content'],
+            'cover_title_scale' => [\AfricaGates\Support\CoverKind::class, 'graphicTitleScale'],
+            'avatar_mark'       => [\AfricaGates\Support\AvatarMark::class, 'of'],
         ] as $name => $callable) {
             $twig->addFunction(new TwigFunction($name, $callable));
         }
@@ -80,6 +91,8 @@ final class AppTwig
         ] as $name => $callable) {
             $twig->addFilter(new TwigFilter($name, $callable));
         }
+        $twig->addFilter(new TwigFilter('ago', [\AfricaGates\Support\Ago::class, 'of']));
+        $twig->addFilter(new TwigFilter('linked', [\AfricaGates\Support\TextLinks::class, 'html'], ['is_safe' => ['html']]));
 
         // The two every layout reads. Overridable, because a test asserting on escaping
         // wants to choose the nonce it looks for.

@@ -601,7 +601,7 @@ class CommunityService
     /** Toggle a member follow of a programme / thread / member / nominee. */
     public function toggleFollow(int $userId, string $targetType, int $targetId): array
     {
-        if ($userId < 1 || $targetId < 1 || !in_array($targetType, ['programme', 'thread', 'member', 'nominee'], true)) {
+        if ($userId < 1 || $targetId < 1 || !in_array($targetType, ['programme', 'thread', 'member', 'nominee', 'profile'], true)) {
             return ['ok' => false, 'message' => 'Invalid follow target.'];
         }
         $row = DB::table('gates_follows')->where('user_id', $userId)->where('target_type', $targetType)->where('target_id', $targetId)->first();

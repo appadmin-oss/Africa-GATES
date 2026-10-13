@@ -1,0 +1,121 @@
+{#
+  THE "I WILL BE THERE" FLIER — a dialog over the event page (rebuilt from the destroyed
+  page's generator; inventory: pages--events--detail.md, EventFlierGeneratorTest's rules).
+
+  A shareable image an attendee makes for THEMSELVES: no account and no ticket; a confirmed
+  ticket earns the mark and turns the code into that person's referral link (EventFlierToken,
+  minted by the register response — a browser cannot assert a registration).
+
+  Every state is here: entry (name, shape, style, photo, caption) · reframe · generating ·
+  ready (share or save) · failed. Generating and ready are separate screens: a progress bar
+  above an enabled "Save" offers an action the page cannot perform yet. The reframe comes
+  AFTER the first render, because the server finds the face (X-Flier-Focus) and a reframe
+  shown first has to guess. Opened by `data-ag-do="flier-open"` (the share box and the
+  success screen), by a bookmarked `#flier`, and from the account area by `#flier=<token>`
+  in the fragment — never sent to a server, and removed from the address bar once read.
+
+  Closed with Escape, the scrim, the X, and the back gesture (opening pushes a history
+  entry). Focus moves in, is trapped, and is given back. The style picker draws THIS event's
+  colours from EventFlierTheme (the JSON block in detail.twig) — the chips carry no colours
+  of their own, and the data is not passed through an attribute.
+#}
+<div class="flo" id="flier" role="dialog" aria-modal="true" aria-labelledby="flTitle" hidden data-flo>
+  <div class="flo__scrim" data-ag-do="flier-close"></div>
+  <div class="flo__panel" data-flo-panel>
+    <span class="flo__grab" aria-hidden="true"></span>
+    <div class="flo__bar">
+      <h2 class="flo__h" id="flTitle">{{ 'Make an “I will be there” flier'|trans }}</h2>
+      <button type="button" class="flo__x" data-ag-do="flier-close" aria-label="{{ 'Close'|trans }}" data-flo-closer>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    <div class="flo__scroll">
+      {# 1 · ENTRY #}
+      <div data-flo-stage="entry">
+        <p class="flo__p" data-flo-open-copy>{{ 'No ticket needed — put your name on it and share it.'|trans }}{% if referral and referral.pct %} {{ 'Once you register, its code becomes your referral link and earns you %pct%% of every ticket bought through it.'|trans({'%pct%': referral.pct}) }}{% endif %}</p>
+        <p class="flo__p" data-flo-token-copy hidden>{{ 'Your ticket is confirmed, so your flier carries the mark — and its code is your own referral link.'|trans }}</p>
+
+        <label class="ed-label" for="flName">{{ 'Your name'|trans }}</label>
+        <input class="ed-input" id="flName" maxlength="60" autocomplete="name" data-flo-name>
+
+        <span class="ed-label" id="flFmtLab">{{ 'Shape'|trans }}</span>
+        <div class="flo__fmts" role="radiogroup" aria-labelledby="flFmtLab" data-flo-fmts>
+          <button type="button" class="flo__opt" role="radio" data-fl-fmt="plain" aria-checked="true" tabindex="0">{{ 'No photo'|trans }}<small>{{ 'Square · post or profile'|trans }}</small></button>
+          <button type="button" class="flo__opt" role="radio" data-fl-fmt="story" aria-checked="false" tabindex="-1">{{ 'With a photo'|trans }}<small>{{ 'Tall · status and stories'|trans }}</small></button>
+          <button type="button" class="flo__opt" role="radio" data-fl-fmt="square" aria-checked="false" tabindex="-1">{{ 'With a photo'|trans }}<small>{{ 'Square · display picture'|trans }}</small></button>
+        </div>
+
+        <span class="ed-label" id="flStyleLab">{{ 'Style'|trans }}</span>
+        <div class="flo__sts" role="radiogroup" aria-labelledby="flStyleLab" data-flo-styles></div>
+
+        <div data-flo-photo-wrap hidden>
+          <label class="ed-label" for="flPhoto">{{ 'Your photo'|trans }} <span class="ed-opt">{{ '(optional)'|trans }}</span></label>
+          <input class="ed-input" id="flPhoto" type="file" accept="image/*" data-flo-photo>
+          <p class="flo__note">{{ 'We find the face and frame the picture around it, then draw the flier and throw the photo away — it is never saved on our server, and you can move the frame yourself afterwards. Leave it empty and you get the “No photo” design instead.'|trans }}</p>
+        </div>
+
+        <label class="ed-label" for="flCap">{{ 'Caption'|trans }} <span class="ed-opt">{{ '(optional — goes with the message, not on the image)'|trans }}</span></label>
+        <textarea class="ed-input flo__cap" id="flCap" rows="4" data-flo-cap></textarea>
+
+        <div class="flo__row"><button type="button" class="ed-cta" data-ag-do="flier-make" data-flo-make>{{ 'Make my flier'|trans }}</button></div>
+        <p class="ed-err" role="alert" data-flo-err></p>
+      </div>
+
+      {# 4 · REFRAME — reached from the preview, opened where the render put the frame. #}
+      <div data-flo-stage="frame" hidden>
+        <p class="flo__p" data-flo-frame-copy data-t-faced="{{ 'We framed this on the face we found. Drag it if you would rather show something else.'|trans }}" data-t-plain="{{ 'Drag the picture to choose what shows.'|trans }}"></p>
+        <div class="flo__frame" role="group" aria-label="{{ 'Position your photo'|trans }}" data-flo-frame>
+          <img alt="" data-flo-frame-img>
+          <span class="flo__typeline"><span>{{ 'Your name and the event go here'|trans }}</span></span>
+        </div>
+        <label class="ed-label" for="flY">{{ 'How high in the frame'|trans }}</label>
+        <input id="flY" type="range" min="0" max="100" step="1" class="flo__range" data-flo-y>
+        <div class="flo__row">
+          <button type="button" class="ed-cta" data-ag-do="flier-render">{{ 'Use this framing'|trans }}</button>
+          <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-back">{{ 'Back'|trans }}</button>
+        </div>
+      </div>
+
+      {# 5 · GENERATING — nothing pressable but Cancel. #}
+      <div data-flo-stage="busy" hidden>
+        <p class="flo__p" role="status">{{ 'Drawing your flier…'|trans }}</p>
+        <div class="flo__prog" role="progressbar" aria-label="{{ 'Making your flier'|trans }}"><span aria-hidden="true"></span><span class="ag-sr">{{ 'In progress'|trans }}</span></div>
+        <div class="flo__row"><button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-cancel">{{ 'Cancel'|trans }}</button></div>
+      </div>
+
+      {# 6 · READY — the share path chosen by asking the device (canShare with a real File),
+         never a silent fall back to a wa.me link, which cannot carry an image. #}
+      <div data-flo-stage="ready" hidden>
+        <img class="flo__prev" alt="{{ 'Your flier for %t%'|trans({'%t%': event.title}) }}" data-flo-prev>
+        <div class="flo__row" data-flo-share-row hidden>
+          <button type="button" class="ed-cta" data-ag-do="flier-share">{{ 'Share it'|trans }}</button>
+          <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-save">{{ 'Save the image'|trans }}</button>
+        </div>
+        <div data-flo-two-step hidden>
+          <div class="flo__row">
+            <button type="button" class="ed-cta" data-ag-do="flier-save">{{ 'Save the image'|trans }}</button>
+            <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-copy" data-t-done="{{ 'Caption copied'|trans }}">{{ 'Copy the caption'|trans }}</button>
+          </div>
+          <p class="flo__note">{{ 'This browser cannot hand an image straight to WhatsApp, so it is two steps: save the picture, then attach it and paste the caption.'|trans }}</p>
+        </div>
+        <div class="flo__row">
+          <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-frame" data-flo-move hidden>{{ 'Move the photo'|trans }}</button>
+          <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-back">{{ 'Change something'|trans }}</button>
+        </div>
+        <p class="flo__note" data-flo-dropped hidden>{{ 'Your connection would not carry the photo, so this is the no-photo design. Everything else on it is yours.'|trans }}</p>
+        <p class="ed-err" role="alert" data-flo-err2></p>
+      </div>
+
+      {# 7 · FAILED — nothing typed is lost; `stage` is the only thing that changed. #}
+      <div data-flo-stage="failed" hidden>
+        <p class="ed-err" role="alert" data-flo-fail data-t-default="{{ 'The flier could not be made just now.'|trans }}"></p>
+        <p class="flo__p">{{ 'Nothing you typed has been lost.'|trans }}</p>
+        <div class="flo__row">
+          <button type="button" class="ed-cta" data-ag-do="flier-render">{{ 'Try again'|trans }}</button>
+          <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-back">{{ 'Change something'|trans }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

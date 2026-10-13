@@ -1,0 +1,297 @@
+[
+ {
+  "w": 390,
+  "case": "plain",
+  "bars": [
+   "ag-tabbar top 763"
+  ],
+  "bottomUi": "81px",
+  "fabBottomFromEdge": 97,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 390,
+  "case": "cookie-notice",
+  "bars": [
+   "ag-consent top 527",
+   "ag-tabbar top 763"
+  ],
+  "bottomUi": "317px",
+  "fabBottomFromEdge": 333,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 390,
+  "case": "cookie-notice, panel open",
+  "panelGap": 16,
+  "panel": [
+   12,
+   56,
+   366,
+   455
+  ]
+ },
+ {
+  "w": 390,
+  "case": "sticky-bar",
+  "bars": [
+   "duix__bar top 751"
+  ],
+  "bottomUi": "93px",
+  "fabBottomFromEdge": 109,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 390,
+  "case": "sticky-bar removed",
+  "bars": [],
+  "bottomUi": "0px",
+  "fabBottomFromEdge": 16,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 390,
+  "case": "sticky-bar remounted",
+  "bars": [
+   "duix__bar top 751"
+  ],
+  "bottomUi": "93px",
+  "fabBottomFromEdge": 109,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 390,
+  "case": "sticky-bar, panel open",
+  "panelGap": 16,
+  "panel": [
+   12,
+   95,
+   366,
+   640
+  ]
+ },
+ {
+  "w": 834,
+  "case": "plain",
+  "bars": [],
+  "bottomUi": "0px",
+  "fabBottomFromEdge": 16,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 834,
+  "case": "cookie-notice",
+  "bars": [
+   "ag-consent top 984"
+  ],
+  "bottomUi": "210px",
+  "fabBottomFromEdge": 226,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 834,
+  "case": "cookie-notice, panel open",
+  "panelGap": 16,
+  "panel": [
+   410,
+   388,
+   400,
+   580
+  ]
+ },
+ {
+  "w": 834,
+  "case": "sticky-bar",
+  "bars": [
+   "duix__bar top 1101"
+  ],
+  "bottomUi": "93px",
+  "fabBottomFromEdge": 109,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 834,
+  "case": "sticky-bar removed",
+  "bars": [],
+  "bottomUi": "0px",
+  "fabBottomFromEdge": 16,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 834,
+  "case": "sticky-bar remounted",
+  "bars": [
+   "duix__bar top 1101"
+  ],
+  "bottomUi": "93px",
+  "fabBottomFromEdge": 109,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 834,
+  "case": "sticky-bar, panel open",
+  "panelGap": 16,
+  "panel": [
+   410,
+   505,
+   400,
+   580
+  ]
+ },
+ {
+  "w": 1024,
+  "case": "plain",
+  "bars": [],
+  "bottomUi": "0px",
+  "fabBottomFromEdge": 16,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1024,
+  "case": "cookie-notice",
+  "bars": [
+   "ag-consent top 558"
+  ],
+  "bottomUi": "210px",
+  "fabBottomFromEdge": 226,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1024,
+  "case": "cookie-notice, panel open",
+  "panelGap": 16,
+  "panel": [
+   600,
+   24,
+   400,
+   518
+  ]
+ },
+ {
+  "w": 1024,
+  "case": "sticky-bar",
+  "bars": [
+   "duix__bar top 675"
+  ],
+  "bottomUi": "93px",
+  "fabBottomFromEdge": 109,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1024,
+  "case": "sticky-bar removed",
+  "bars": [],
+  "bottomUi": "0px",
+  "fabBottomFromEdge": 16,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1024,
+  "case": "sticky-bar remounted",
+  "bars": [
+   "duix__bar top 675"
+  ],
+  "bottomUi": "93px",
+  "fabBottomFromEdge": 109,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1024,
+  "case": "sticky-bar, panel open",
+  "panelGap": 16,
+  "panel": [
+   600,
+   79,
+   400,
+   580
+  ]
+ },
+ {
+  "w": 1440,
+  "case": "plain",
+  "bars": [],
+  "bottomUi": "0px",
+  "fabBottomFromEdge": 16,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1440,
+  "case": "cookie-notice",
+  "bars": [
+   "ag-consent top 690"
+  ],
+  "bottomUi": "210px",
+  "fabBottomFromEdge": 226,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1440,
+  "case": "cookie-notice, panel open",
+  "panelGap": 16,
+  "panel": [
+   1016,
+   94,
+   400,
+   580
+  ]
+ },
+ {
+  "w": 1440,
+  "case": "sticky-bar",
+  "bars": [
+   "duix__bar top 807"
+  ],
+  "bottomUi": "93px",
+  "fabBottomFromEdge": 109,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1440,
+  "case": "sticky-bar removed",
+  "bars": [],
+  "bottomUi": "0px",
+  "fabBottomFromEdge": 16,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1440,
+  "case": "sticky-bar remounted",
+  "bars": [
+   "duix__bar top 807"
+  ],
+  "bottomUi": "93px",
+  "fabBottomFromEdge": 109,
+  "gap": 16,
+  "fabVisible": true
+ },
+ {
+  "w": 1440,
+  "case": "sticky-bar, panel open",
+  "panelGap": 16,
+  "panel": [
+   1016,
+   211,
+   400,
+   580
+  ]
+ }
+]

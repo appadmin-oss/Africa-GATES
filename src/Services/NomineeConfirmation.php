@@ -105,7 +105,10 @@ final class NomineeConfirmation
         }
 
         $url  = self::url($token);
-        $who  = trim((string) ($n->nominator_name ?? 'Somebody'));
+        // "Keep my name private from the nominee" (nominator_private, Phase 8): the message
+        // that opens with who nominated them is the one place the choice has to hold.
+        $who  = !empty($n->nominator_private) ? 'Somebody' : trim((string) ($n->nominator_name ?? 'Somebody'));
+        if ($who === '') $who = 'Somebody';
         $name = trim((string) ($n->nominee_name ?? 'you'));
 
         $body = $who . ' has nominated you for an Africa GATES award. '

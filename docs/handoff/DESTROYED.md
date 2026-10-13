@@ -34,6 +34,21 @@ Feature inventories, taken from each file at `a9d963a^` before deletion, are in 
 - **Everything that is not a page**: the 86 301-aliases, payment hand-offs and callbacks, webhooks, `/ping`, `robots.txt`, `sitemap.xml`, `*.txt`/`*.md` legal documents, `status.json`, images/cards/fliers (GD), `.ics`, the API, and **every POST handler** — voting, payments, nominations, sign-in. A POST that answers with a redirect still works; a POST that re-renders its form on a validation error now 500s on that branch.
 - **Admin and judge consoles** — untouched (own layouts, held below).
 
+## Rebuilt since: the seven receipts (8 Oct 2026)
+
+`/nominate/success`, `/pay/success`, `/vote/paid/success`, `/giving/success`, `/shop/success`,
+`/partner/success` and `/vote/verify` are back, on `layout/shell.twig` with one sheet
+(`components/receipt.css`). They were rebuilt ahead of their phases because each is where a
+gateway or a submitted form SENDS somebody: a confirmed payment and a saved nomination were
+both answered "500 · Reference …", and the help desk was handed error references for money
+that had arrived. The celebrations are `partials/celebration.twig` (nominate, vote, give);
+the destroyed tests' rules are re-asserted in `ReceiptPagesTest`. When Phase 7 builds
+GivingPage/ShopPage `view=done`, those replace two of these, not the other way round.
+
+`PublicPagesRenderTest` now walks every public GET route, signed out and as a member, and
+fails on any 500 that is not a destroyed template — counted apart under a ceiling that may
+only fall.
+
 ## What a request to a destroyed page returns now
 
 Routes were left in place. Walked through the real router (DemoSeeder data, its programme flipped active), every public GET:
@@ -105,6 +120,8 @@ Before deletion each was grepped for across `templates/`, `src/`, `config/`, `pu
 - `ag-celebrated:` — its only writer was `celebrate.js`, destroyed in this wave. The Phase 3 engine writes `ag-cel-…` instead (GAPS C10), so this row should be replaced, not kept, when that ships.
 - `ag-hide-bal` (writer `account.js`, destroyed), `afg_cart`, `afg_voted_prog_`, `afg_cheer_`, `afg_report_`, `ag_intro` (writers destroyed with the pages) — as recorded at the first orphan pass. Whoever rebuilds a writer re-confirms its row, and the rows nobody rebuilds go.
 - **And one that was never declared at all:** `community-modal.js` wrote `sessionStorage 'ag_community_prompted'` through a variable (`setItem(SESSION_KEY, '1')`), and the storage sweep reads only a string LITERAL as the first argument — so the guard built for exactly this fault could not see it. Destroyed now, so nothing is under-disclosed; the sweep's blind spot (a key held in a variable or constant) remains, and is recorded here rather than patched.
+
+**Resolved 3 Oct 2026 (Phase 2 item 6, owner's answer to GAPS Q11):** `CookieRegistry` was rebuilt to list exactly what surviving code writes — the seven storage rows and the two shop cookies (no writer since the delegated `data-cookie` listener went with `gates.twig`) are gone, and Phase 7 re-declares `ag_region`/`ag_currency` with their writer. `CookieRegistryTest` now asks both directions and resolves a key held in a variable, a method or an option (an unresolvable key fails), which surfaced four undeclared keys in surviving code: `ag-door-q:`, `afStep:`, `ag-copilot`, `ag-asst` — now declared. See `docs/handoff/PHASE-2.md`, "Cookie consent".
 
 ## Edits to Phase 1 files (the only non-test files rewritten)
 

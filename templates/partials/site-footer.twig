@@ -1,0 +1,101 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE SITE FOOTER — HomePageV3.dc.html's footer, on every shell page
+  Phase 4 (§8.1 item 9: "the codebase footer, restyled as in the DC")
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The site's only footer, mounted by `layout/shell.twig` inside the scroller after the
+  page, so it is reached by scrolling and never pinned. Written from the DC; the rules
+  below are the destroyed `layout/footer.twig`'s, carried because its inventory marks
+  them MUST RESTORE (docs/handoff/inventory/_partials.md):
+
+  · It is the only every-page link to /refunds, /vendor-terms, /support, /philosophy,
+    /challenges and /newsletter, the legal row, and the /org front door a partner
+    arrives at cold. Three of those (Challenges, Our philosophy, Newsletter) are not in
+    the DC's columns and are added at the end of the column they belong to — a page
+    nothing links is a page nobody finds (`PublicIaTest`). Deviation, PHASE-4.md.
+  · "Live in …" is `nations_live()`, counted from the awards — NEVER typed. The sentence
+    was typed into this footer once and was wrong the day a second nation went live.
+    "Building toward" is the operator's ambition setting, `nations_count`: two claims.
+  · Activity is gone (§8.23: the timeline is Discover's Live tab now).
+  · Cookies re-opens the consent choices in place (`data-ag-do="consent-open"`, bound by
+    consent.js) and is a plain link to /cookies#choices without script — the way back to
+    the choices at ≥600px that Phase 2 left waiting for this footer (GAPS §8c item 10).
+  · Social links open a new tab and say so in their names.
+
+  No capitals: the DC's column titles are 11px uppercase tracked; here they are sentence
+  case at 12.5 (§6.2, owner Q4/Q5). Every link is a literal `href` in the markup, so the
+  sweeps that ask "is this page linked from anywhere" (PublicIaTest) can read it. The DC's #0c2225 is not a palette colour; the band is
+  `--ag-ink`, and its words are `--ag-surface` mixed toward the ink (Accent: `surface` is
+  the word on ink).
+#}
+<footer class="ag-foot" role="contentinfo">
+  <div class="ag-foot__in">
+    <div class="ag-foot__brand">
+      <a class="ag-foot__logo" href="/" aria-label="{{ 'Africa GATES home'|trans }}">
+        <img class="ag-foot__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="34" height="34" alt="">
+        <span class="ag-foot__word" aria-hidden="true"><b>Africa</b><span>GATES</span></span>
+      </a>
+      <p class="ag-foot__tag">{{ 'The continental Cultural Power Index. An Afrovanguard initiative — live in %live%, building toward %n% nations.'|trans({'%live%': nations_live(), '%n%': nations_count|number_format}) }}</p>
+    </div>
+    <nav class="ag-foot__col" aria-labelledby="ag-foot-h1">
+      <p class="ag-foot__h" id="ag-foot-h1">{{ 'Participate'|trans }}</p>
+      <ul class="ag-foot__list">
+          <li><a class="ag-foot__a" href="/nominate">{{ 'Nominate'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/vote">{{ 'Vote'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/account/register">{{ 'Register a profile'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/awards">{{ 'Awards'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/leaderboard">{{ 'Leaderboard'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/results">{{ 'Results'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/winners">{{ 'Hall of fame'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/challenges">{{ 'Challenges'|trans }}</a></li>
+      </ul>
+    </nav>
+    <nav class="ag-foot__col" aria-labelledby="ag-foot-h2">
+      <p class="ag-foot__h" id="ag-foot-h2">{{ 'Explore'|trans }}</p>
+      <ul class="ag-foot__list">
+          <li><a class="ag-foot__a" href="/pulse">{{ 'Pulse'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/discover?tab=people">{{ 'Registry'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/legacy">{{ 'Legacy Vault'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/community">{{ 'Community'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/blog">{{ 'Blog'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/opportunities">{{ 'Opportunities'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/newsletter">{{ 'Newsletter'|trans }}</a></li>
+      </ul>
+    </nav>
+    <nav class="ag-foot__col" aria-labelledby="ag-foot-h3">
+      <p class="ag-foot__h" id="ag-foot-h3">{{ 'Initiative'|trans }}</p>
+      <ul class="ag-foot__list">
+          <li><a class="ag-foot__a" href="https://afrovanguard.org.ng/about/">{{ 'About Afrovanguard'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/philosophy">{{ 'Our philosophy'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/partner">{{ 'Become a Partner'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/org">{{ 'Organisation console'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/help">{{ 'Help Centre'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/support">{{ 'Support & Appeals'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/giving">{{ 'Give'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="/status">{{ 'Platform status'|trans }}</a></li>
+          <li><a class="ag-foot__a" href="https://afrovanguard.org.ng/contact/">{{ 'Contact'|trans }}</a></li>
+      </ul>
+    </nav>
+  </div>
+  <div class="ag-foot__bar">
+    <p class="ag-foot__copy">{{ '© %year% Africa GATES · An Afrovanguard initiative'|trans({'%year%': 'now'|date('Y')}) }}</p>
+    <div class="ag-foot__end">
+      <ul class="ag-foot__social" aria-label="{{ 'Social'|trans }}">
+        <li><a class="ag-foot__so" href="https://twitter.com/afrovanguard" target="_blank" rel="noopener noreferrer" aria-label="{{ 'X / Twitter (opens in a new tab)'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.24 2.25h3.31l-7.23 8.26L22.5 21.75h-6.34l-4.97-6.5-5.68 6.5H2.2l7.73-8.84L1.5 2.25h6.5l4.49 5.94 5.75-5.94Zm-1.16 17.52h1.83L7.01 4.13H5.04L17.08 19.77Z"></path></svg></a></li>
+        <li><a class="ag-foot__so" href="https://instagram.com/afrovanguard" target="_blank" rel="noopener noreferrer" aria-label="{{ 'Instagram (opens in a new tab)'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"></circle></svg></a></li>
+        <li><a class="ag-foot__so" href="https://linkedin.com/company/afrovanguard" target="_blank" rel="noopener noreferrer" aria-label="{{ 'LinkedIn (opens in a new tab)'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45z"></path></svg></a></li>
+        <li><a class="ag-foot__so" href="https://youtube.com/@afrovanguard" target="_blank" rel="noopener noreferrer" aria-label="{{ 'YouTube (opens in a new tab)'|trans }}"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23 12s0-3.4-.43-5.03a2.6 2.6 0 0 0-1.83-1.84C19.1 4.7 12 4.7 12 4.7s-7.1 0-8.74.43a2.6 2.6 0 0 0-1.83 1.84C1 8.6 1 12 1 12s0 3.4.43 5.03a2.6 2.6 0 0 0 1.83 1.84C4.9 19.3 12 19.3 12 19.3s7.1 0 8.74-.43a2.6 2.6 0 0 0 1.83-1.84C23 15.4 23 12 23 12ZM9.75 15.02V8.98L15 12l-5.25 3.02Z"></path></svg></a></li>
+      </ul>
+      <span class="ag-foot__rule" aria-hidden="true"></span>
+      <nav class="ag-foot__legal" aria-label="{{ 'Legal'|trans }}">
+        <a href="/privacy">{{ 'Privacy'|trans }}</a>
+        <a href="/terms">{{ 'Terms'|trans }}</a>
+        <a href="/cookies#choices" data-ag-do="consent-open" aria-haspopup="dialog" aria-controls="ag-consent-sheet">{{ 'Cookies'|trans }}</a>
+        <a href="/refunds">{{ 'Refunds'|trans }}</a>
+        <a href="/vendor-terms">{{ 'Vendor terms'|trans }}</a>
+        <a href="/integrity">{{ 'Integrity Center'|trans }}</a>
+      </nav>
+    </div>
+  </div>
+</footer>

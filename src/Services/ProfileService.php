@@ -46,7 +46,7 @@ class ProfileService {
         $r=ProfileMergeService::notMerged(DB::table('gates_profiles')->where('slug',$slug)->where('status','approved'))->first();
         if(!$r) return null;   // a merged-away profile's slug 404s (its data lives on the survivor)
         DB::table('gates_profiles')->where('id',$r->id)->increment('view_count');
-        return array_merge($this->fmt($r),['bio'=>$r->bio,'phone'=>$r->phone,'website'=>$r->website,'instagram_handle'=>$r->instagram_handle,'twitter_handle'=>$r->twitter_handle,'latitude'=>$r->latitude,'longitude'=>$r->longitude,'gallery_paths'=>$r->gallery_paths?json_decode($r->gallery_paths,true):[],'achievements'=>$r->achievements?json_decode($r->achievements,true):[],'tags'=>$r->tags?json_decode($r->tags,true):[],'registered_at'=>$r->registered_at,'view_count'=>(int)$r->view_count,'cpi_last_computed'=>$r->cpi_last_computed]);
+        return array_merge($this->fmt($r),['bio'=>$r->bio,'phone'=>$r->phone,'website'=>$r->website,'instagram_handle'=>$r->instagram_handle,'twitter_handle'=>$r->twitter_handle,'latitude'=>$r->latitude,'longitude'=>$r->longitude,'gallery_paths'=>$r->gallery_paths?json_decode($r->gallery_paths,true):[],'achievements'=>$r->achievements?json_decode($r->achievements,true):[],'tags'=>$r->tags?json_decode($r->tags,true):[],'registered_at'=>$r->registered_at,'view_count'=>(int)$r->view_count,'cpi_last_computed'=>$r->cpi_last_computed,'location_city'=>$r->location_city??null,'cover_path'=>$r->cover_path??null]);
     }
 
     public function register(array $d): int {

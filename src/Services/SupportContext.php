@@ -90,6 +90,13 @@ final class SupportContext
         private readonly ?RateLimitService $limits = null,
         /** Already hashed by the caller — this class never sees a raw address. */
         private readonly string $clientKey = '',
+        /**
+         * The gateway client the repair asks. Null builds the live one, as it always did.
+         * A seam for the container (which already owns one PaymentService) and for a test
+         * that has to drive a repair to completion without a network — never an identity:
+         * nothing about WHO is asking can arrive through it.
+         */
+        private readonly ?PaymentService $payments = null,
     ) {}
 
     /**
@@ -127,8 +134,51 @@ final class SupportContext
         );
     }
 
+    /**
+     * The same context, asking a given gateway client.
+     *
+     * A copy, not a setter, and not a parameter of {@see fromSession()}: that factory's
+     * argument list is pinned (GeeSupportsTest) so it can never grow a way to say WHO is
+     * asking, and this carries nothing about who is asking — only which object talks to
+     * Paystack. Every identity field is copied from the session-built original.
+     */
+    public function withPayments(PaymentService $payments): self
+    {
+        return new self($this->viewerId, $this->viewerEmail, $this->isAdmin, $this->search,
+                        $this->limits, $this->clientKey, $payments);
+    }
+
     public function isMember(): bool { return $this->viewerId !== null && $this->viewerId > 0; }
+
+    /**
+     * Is this address the signed-in member's own?
+     *
+     * The only question about the viewer's address this class answers, and it answers
+     * it without handing the address out. The help desk asks it before printing
+     * "Receipt sent to …" under a repaired payment: the repair is open to anybody
+     * holding a reference, and a reference must not be a way to learn who paid.
+     */
+    public function ownsEmail(string $email): bool
+    {
+        $mine = strtolower(trim((string) $this->viewerEmail));
+        return $this->isMember() && $mine !== '' && $mine === strtolower(trim($email));
+    }
     public function isAdmin(): bool  { return $this->isAdmin; }
+
+    /**
+     * Who to file a ticket under — for SupportTicketService, never for a model or a reply.
+     *
+     * A ticket opened by the desk carried no account and no address, so "they reply by
+     * email" was a promise made to somebody nobody could write back to.
+     *
+     * @return array{user_id?:int, email?:string}
+     */
+    public function ticketIdentity(): array
+    {
+        if (!$this->isMember()) return [];
+        $email = trim((string) $this->viewerEmail);
+        return ['user_id' => (int) $this->viewerId] + ($email !== '' ? ['email' => $email] : []);
+    }
 
     /**
      * The tools this viewer may call, as a JSON-schema-ish list for the planner.
@@ -145,6 +195,18 @@ final class SupportContext
             ['name' => 'site_state',
              'description' => 'Current award cycle phases, deadlines, whether voting or nominations are open, and headline counts.',
              'args' => []],
+            // ── the one ACTION the assistant can hand somebody. ────────────────────
+            // It cannot press a button for them — nothing here may vote, pay or nominate
+            // on somebody's behalf — but it can put the right button in front of them,
+            // so "how do I vote for her" ends at her ballot, not in a paragraph.
+            ['name' => 'offer_action',
+             'description' => "Put a button under your answer that takes the person straight to the page that does "
+                            . "what they want: a ballot, the nomination form, an event, the shop, their account. Use it "
+                            . "whenever the next step is a page on this site, with a URL you got from another tool or "
+                            . "a site path you know (/vote, /nominate, /events, /shop, /account, /help, /support). At "
+                            . "most two per answer. The label is what the button says: short, a verb first.",
+             'args' => ['label' => 'the button text, e.g. "Vote for Ada Obi"',
+                        'url'   => 'a path on this site starting with /']],
             ['name' => 'platform_health',
              'description' => 'Whether payments, email, database, cache and scheduled jobs are working right now. Use when someone reports something being broken or slow.',
              'args' => []],
@@ -286,6 +348,46 @@ final class SupportContext
                             . "before telling anyone a late payment is lost. These three moments are different and "
                             . "confusing them is what makes a supporter feel cheated.",
              'args' => []],
+            // ── added 12 Oct 2026: the questions both assistants were answering with a link ──
+            ['name' => 'award_results',
+             'description' => "Who WON an award that has been announced, with the top of the standing and the "
+                            . "result page's link. Use for 'who won X', 'did X win', 'what was the result of Y', "
+                            . "'where can I see the results'. It only ever returns ANNOUNCED results — if a "
+                            . "category is still being decided it says so and gives the promised date; never "
+                            . "guess a winner from a tally, which is half the index at most.",
+             'args' => ['query' => 'a category, award, programme or nominee name — or empty for the latest results']],
+            ['name' => 'nominations_open',
+             'description' => "Which awards are taking nominations RIGHT NOW, when each closes, and the link to "
+                            . "nominate. Use for 'can I nominate', 'how do I nominate someone for X', 'when do "
+                            . "nominations close'. Always give the link to the right award's form.",
+             'args' => []],
+            // ── added 12 Oct 2026, second pass: the scenarios real people bring ──────
+            ['name' => 'mail_health',
+             'description' => "Is OUR email failing right now, platform-wide? Check this FIRST when somebody's code, "
+                            . "receipt, ticket or reset link 'never arrived' — during a mail incident every one of them "
+                            . "is the same answer, and sending each person to their spam folder is wrong a hundred times.",
+             'args' => []],
+            ['name' => 'sign_in_help',
+             'description' => "Why somebody cannot sign in or get a code: whether sign-in attempts or code requests for "
+                            . "that address are paused by a limit, and for how many minutes; plus whether the address "
+                            . "can receive mail at all. Use for 'it says too many attempts', 'the code will not send', "
+                            . "'I can't log in'. It never says whether an account exists.",
+             'args' => ['email' => 'the address they are trying to sign in with']],
+            ['name' => 'order_lookup',
+             'description' => "A SHOP order by its reference (works for guests): paid or not, where fulfilment is, any "
+                            . "tracking note, and the order page link. Use for 'where is my order', 'has it shipped' "
+                            . "when they give an order reference. Never shows the address or contact on the order.",
+             'args' => ['reference' => 'the order reference from the confirmation']],
+            ['name' => 'registration_lookup',
+             'description' => "An EVENT ticket or registration by its reference (works for guests): the event, date, "
+                            . "place, tier, seats, state (confirmed, waitlisted, offered) and the ticket link. Use for "
+                            . "'where is my ticket', 'did my registration go through' with a reference.",
+             'args' => ['reference' => 'the ticket or registration reference']],
+            ['name' => 'claim_profile',
+             'description' => "How a NOMINEE takes charge of their own profile: whether that profile can be claimed now, "
+                            . "is already looked after, or is waiting on a person, and the link to start. Use when "
+                            . "somebody says 'I was nominated', 'that is me', 'how do I edit my profile/photo'.",
+             'args' => ['name' => 'the nominee name as they gave it']],
         ];
 
         if ($this->isMember()) {
@@ -309,6 +411,34 @@ final class SupportContext
                     'description' => "Nominations the signed-in person SUBMITTED, with the decision on each: pending, approved or "
                                    . "rejected, and the reason if there is one. Use for \"is my nomination approved\", \"did my "
                                    . "entry go through\", \"why was my nomination rejected\". Not the same as votes.",
+                    'args' => []];
+            $t[] = ['name' => 'my_account',
+                    'description' => "The signed-in person's account at a glance: points balance and what a vote "
+                                   . "costs in points, whether their email is verified, whether a phone is on the "
+                                   . "account, and unread notifications. Use for 'how many points do I have', 'why "
+                                   . "can't I redeem', 'is my account verified', 'did I get a notification'.",
+                    'args' => []];
+            $t[] = ['name' => 'my_event_tickets',
+                    'description' => "The signed-in person's own EVENT tickets and registrations: event, date, place, "
+                                   . "tier, seats, state (confirmed, waitlisted, offered, cancelled) and the link to "
+                                   . "the ticket. Use for 'where is my ticket', 'did my registration go through', "
+                                   . "'I was offered a place'. Not support tickets — that is my_tickets.",
+                    'args' => []];
+            $t[] = ['name' => 'my_email_delivery',
+                    'description' => "What this platform has emailed the signed-in person lately — subject, kind, whether "
+                                   . "it was sent, failed or held, and when — and whether their address is blocked after "
+                                   . "a bounce. Use for 'did you send my receipt', 'I never get your emails', 'where is "
+                                   . "my code'. It is the evidence: say what it shows, not what usually happens.",
+                    'args' => []];
+            $t[] = ['name' => 'my_held_posts',
+                    'description' => "The signed-in person's own community posts and comments that are waiting for a "
+                                   . "moderator. Use for 'my comment did not appear', 'my post disappeared'. Held is not "
+                                   . "deleted: a person looks at it, and nothing they wrote is lost.",
+                    'args' => []];
+            $t[] = ['name' => 'my_shop_orders',
+                    'description' => "The signed-in person's own SHOP orders: reference, what, total, payment status, "
+                                   . "fulfilment and any tracking note, with the order page link. Use for 'where is "
+                                   . "my order', 'has it shipped', 'I ordered a shirt'.",
                     'args' => []];
         }
 
@@ -396,9 +526,20 @@ final class SupportContext
                     'error' => 'No such tool for this user. Available: ' . implode(', ', $allowed)];
         }
 
+        // ── LOOKUPS ARE METERED TOO (security review, 12 Oct 2026) ───────────
+        // Only the two repairs were rate-limited. The lookups that take an identifier somebody
+        // TYPES — a reference, an address, a name — answer as fast as they are asked, so a
+        // script could grind addresses through sign_in_help or names through claim_profile.
+        // Thirty an hour per connection is several conversations' worth for a real person.
+        if (in_array($tool, self::METERED, true) && !$this->spendLookup()) {
+            return ['ok' => false, 'tool' => $tool, 'error' => 'There have been a lot of lookups from this connection in '
+                    . 'the last hour. Say so plainly and suggest trying again later, or /support for a person.'];
+        }
+
         try {
             $data = match ($tool) {
                 'site_state'       => $this->siteState(),
+                'offer_action'     => self::offerAction((string) ($args['label'] ?? ''), (string) ($args['url'] ?? ''), $this->isAdmin),
                 'platform_health'  => $this->platformHealth(),
                 'help_article'     => $this->helpArticle((string) ($args['query'] ?? '')),
                 'help_search'      => $this->helpSearch((string) ($args['query'] ?? '')),
@@ -428,6 +569,18 @@ final class SupportContext
                 'my_tickets'       => $this->myTickets(),
                 'my_nominations'   => $this->myNominations(),
                 'ops_summary'      => $this->opsSummary(),
+                'award_results'    => $this->awardResults((string) ($args['query'] ?? '')),
+                'nominations_open' => $this->nominationsOpen(),
+                'my_account'       => $this->myAccount(),
+                'my_event_tickets' => $this->myEventTickets(),
+                'my_shop_orders'   => $this->myShopOrders(),
+                'mail_health'      => $this->mailHealth(),
+                'sign_in_help'     => $this->signInHelp((string) ($args['email'] ?? '')),
+                'order_lookup'     => $this->orderLookup((string) ($args['reference'] ?? '')),
+                'registration_lookup' => $this->registrationLookup((string) ($args['reference'] ?? '')),
+                'claim_profile'    => $this->claimProfile((string) ($args['name'] ?? '')),
+                'my_email_delivery' => $this->myEmailDelivery(),
+                'my_held_posts'    => $this->myHeldPosts(),
                 // ── the buying specialist. All deterministic; see ShopAdvisor. ──
                 'shop_suggest'     => ShopAdvisor::suggest([
                                           'need'     => (string) ($args['need'] ?? ''),
@@ -461,6 +614,25 @@ final class SupportContext
             // that just now"), not to be swallowed into a confident guess.
             return ['ok' => false, 'tool' => $tool, 'error' => 'That information is unavailable right now.'];
         }
+    }
+
+    /**
+     * A button for the widget to draw. Validated here rather than trusted from the model:
+     * a path on THIS site, never a scheme, a host, the API or (for anybody but staff) the
+     * console — a model talked into "offer a link to https://…" offers nothing.
+     *
+     * @return array{label:string, url:string}
+     */
+    public static function offerAction(string $label, string $url, bool $admin = false): array
+    {
+        $label = trim((string) preg_replace('/\s+/', ' ', strip_tags($label)));
+        $url   = trim($url);
+        if ($label === '' || mb_strlen($label) > 60) throw new \InvalidArgumentException('label');
+        if (!preg_match('~^/(?!/)[A-Za-z0-9/_\-.%]*(?:\?[A-Za-z0-9=&_\-.%+]*)?(?:\#[A-Za-z0-9_\-]*)?$~', $url) || str_contains($url, '..')
+            || preg_match('~^/(?:api|hooks|__)~', $url) || (!$admin && str_starts_with($url, '/admin'))) {
+            throw new \InvalidArgumentException('url');
+        }
+        return ['label' => $label, 'url' => $url];
     }
 
     // ── public-state tools ───────────────────────────────────────────────────
@@ -1116,6 +1288,18 @@ final class SupportContext
                 return ['ok' => false, 'outcome' => 'NOT_OUR_REFERENCE', 'say' => $shape['say']];
             }
             $ref = (string) ($shape['reference'] ?? $ref);
+            // OUR shape in the wrong case — the help desk's reference box upper-cases what
+            // is typed (REFERENCE §8.22) and our references are minted in lower-case hex.
+            // MySQL's collation forgives that; SQLite's `=` does not, so dev and the suite
+            // would answer "no such payment" to a reference production finds. One cheap
+            // case-insensitive read puts the stored spelling back before the repair runs.
+            if (($shape['shape'] ?? '') === 'ours') {
+                try {
+                    $stored = DB::table('gates_donations')
+                        ->whereRaw('LOWER(payment_ref) = ?', [mb_strtolower($ref)])->value('payment_ref');
+                    if (is_string($stored) && $stored !== '') $ref = $stored;
+                } catch (\Throwable) {}
+            }
         }
 
         if ($ref === '') {
@@ -1135,7 +1319,7 @@ final class SupportContext
             // of signed-in members pay with a different address from the one on
             // their account; scoping here failed both of them. Nothing about the
             // payer comes back, so an unscoped repair discloses nothing.
-            $r = (new PaymentReconciler(new PaymentService()))->reclaim($ref, null);
+            $r = (new PaymentReconciler($this->payments ?? new PaymentService()))->reclaim($ref, null);
         } catch (\Throwable $e) {
             error_log('[support] reclaim failed for ' . $ref . ': ' . $e->getMessage());
             return ['ok' => false, 'outcome' => 'UNAVAILABLE',
@@ -1146,7 +1330,12 @@ final class SupportContext
         return [
             'ok'      => (bool) $r['ok'],
             'outcome' => $r['code'],
+            'reference' => $ref,
             'votes_added' => $r['minted'] ?? 0,
+            // What the repair actually did, for the help desk's live work card
+            // (SupportWork). Not for the model: it reads `say`.
+            'found'   => (bool) ($r['found'] ?? false),
+            'asked'   => array_values((array) ($r['asked'] ?? [])),
             // The service already phrases this for a person. The model should
             // relay it rather than reword it into a claim of its own.
             'say'     => $r['message'],
@@ -1301,6 +1490,315 @@ final class SupportContext
      * checkout uses, because pointing somebody at a ballot that will refuse them
      * is worse than saying "I cannot find them".
      */
+    // ── added 12 Oct 2026 ───────────────────────────────────────────────────
+
+    /**
+     * Announced results only. The gate is PublicResults' own — a released cycle, never the
+     * sandbox — so the assistant can never name a winner the result page would not, and a
+     * category still being decided is said to be, with the date that was promised
+     * (PublicResults::delayForCategory) rather than a guess from a running tally.
+     */
+    private function awardResults(string $query): array
+    {
+        $q = mb_strtolower(trim($query));
+        $cats = DB::table('gates_award_categories as c')
+            ->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')
+            ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+            ->where('p.is_active', 1)
+            ->orderByDesc('y.year')->orderBy('c.sort_order')
+            ->limit(400)
+            ->get(['c.id', 'c.title', 'p.title as programme', 'y.status', 'y.id as cycle_id']);
+
+        $match = [];
+        foreach ($cats as $c) {
+            $hay = mb_strtolower($c->title . ' ' . $c->programme);
+            if ($q === '' || str_contains($hay, $q) || str_contains($q, mb_strtolower((string) $c->title))) $match[] = $c;
+        }
+        // A nominee's name: find the categories they stood in.
+        if ($match === [] && mb_strlen($q) >= 3) {
+            $ids = DB::table('gates_nominees as n')->whereRaw('LOWER(n.name) LIKE ?', ['%' . $q . '%'])
+                ->whereNull('n.merged_into')
+                ->tap(static fn ($b) => DemoSeeder::liveAwardOnly($b, 'n.id'))
+                ->limit(10)->pluck('n.category_id')->all();
+            foreach ($cats as $c) if (in_array((int) $c->id, array_map('intval', $ids), true)) $match[] = $c;
+        }
+        if ($match === []) {
+            return ['found' => false, 'say' => 'No award matches that. The results that have been announced are '
+                   . 'all listed at /results — offer that page.'];
+        }
+
+        $scoring = new NomineeScoringService();
+        $out = []; $pending = [];
+        foreach (array_slice($match, 0, 6) as $c) {
+            $r = null;
+            try { $r = PublicResults::category((int) $c->id, $scoring); } catch (\Throwable) {}
+            if ($r === null) {
+                $late = null;
+                try { $late = PublicResults::delayForCategory((int) $c->id); } catch (\Throwable) {}
+                $pending[] = ['category' => (string) $c->title, 'programme' => (string) $c->programme,
+                              'results_expected' => $late['promised'] ?? null];
+                continue;
+            }
+            if (!empty($r['held'])) {
+                $out[] = ['category' => (string) $c->title, 'held' => (string) $r['held'], 'url' => (string) $r['url']];
+                continue;
+            }
+            $top = [];
+            foreach (array_slice((array) ($r['rows'] ?? []), 0, 3) as $row) {
+                $top[] = ['name' => (string) ($row['name'] ?? ''), 'index' => (int) round((float) ($row['cpi'] ?? 0))];
+            }
+            $out[] = ['category' => (string) $c->title, 'programme' => (string) $c->programme,
+                      'edition' => (string) ($r['edition'] ?? ''),
+                      'winner' => (string) ($r['winner']['name'] ?? ''), 'top' => $top, 'url' => (string) $r['url']];
+        }
+
+        return ['found' => $out !== [], 'results' => $out, 'not_yet_announced' => $pending,
+                'say' => 'Name the winner and give the result link. For anything in not_yet_announced, say it has '
+                       . 'not been announced yet and give the expected date if there is one — never a winner. A '
+                       . '"held" result is being verified: say so in those words and name nobody.'];
+    }
+
+    /** Awards open for nominations now: the window the nomination form itself enforces. */
+    private function nominationsOpen(): array
+    {
+        $now = Carbon::now()->toDateTimeString();
+        $rows = DB::table('gates_award_cycles as y')
+            ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+            ->where('p.is_active', 1)
+            ->where('y.nominations_open', '<=', $now)
+            ->where('y.nominations_close', '>=', $now)
+            ->orderBy('y.nominations_close')
+            ->limit(12)
+            ->get(['p.title', 'p.slug', 'y.nominations_close']);
+
+        if ($rows->isEmpty()) {
+            return ['open' => [], 'say' => 'No award is taking nominations right now. Say so plainly; site_state '
+                   . 'has when the next window opens if there is one.'];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = ['award' => (string) $r->title, 'closes' => (string) $r->nominations_close,
+                      'url' => '/nominate/' . rawurlencode((string) $r->slug)];
+        }
+        return ['open' => $out, 'say' => 'Give the closing date with each, and offer the form for the award they '
+               . 'mean. Nominating is free and needs the nominee\'s email or phone.'];
+    }
+
+    private function myAccount(): array
+    {
+        if (!$this->isMember()) return ['say' => 'They are not signed in.'];
+        $u = DB::table('gates_users')->where('id', (int) $this->viewerId)->first();
+        if (!$u) return ['say' => 'I could not read the account just now.'];
+
+        $points = null; $perVote = null;
+        try {
+            if (PointsService::enabled()) { $points = PointsService::balance((int) $u->id); $perVote = PointsService::pointsPerVote(); }
+        } catch (\Throwable) {}
+        $unread = null;
+        try {
+            $unread = count(array_filter((new AlertService())->forMember((int) $u->id, (string) $u->email),
+                static fn ($a) => !empty($a['unread'])));
+        } catch (\Throwable) {}
+
+        return [
+            'email_verified'   => (int) ($u->email_verified ?? 0) === 1,
+            'has_phone'        => trim((string) ($u->phone_e164 ?? '')) !== '',
+            'has_password'     => trim((string) ($u->password_hash ?? '')) !== '',
+            'points'           => $points,
+            'points_per_vote'  => $perVote,
+            'unread_notifications' => $unread,
+            'account_url'      => '/account',
+            'say' => 'If points is null, points are switched off on this site. If the email is not verified, that is '
+                   . 'usually why something is refused — offer /account to resend the link.',
+        ];
+    }
+
+    private function myEventTickets(): array
+    {
+        if (!$this->isMember()) return ['say' => 'They are not signed in.'];
+        $rows = array_map([self::class, 'withoutDoorCode'], MemberActivityService::ticketsFor((string) $this->viewerEmail, 10));
+        return ['tickets' => $rows, 'say' => $rows === []
+            ? 'No event ticket or registration is on this account. Ask which email they registered with — '
+              . 'it may be a different address.'
+            : 'Give the state in plain words and the link to the ticket. "offered" means a place is held for them '
+              . 'until the expiry time.'];
+    }
+
+    private function myShopOrders(): array
+    {
+        if (!$this->isMember()) return ['say' => 'They are not signed in.'];
+        $rows = MemberActivityService::ordersFor((string) $this->viewerEmail, 10);
+        return ['orders' => $rows, 'say' => $rows === []
+            ? 'No shop order is on this account. Ask which email they ordered with, or for the order reference.'
+            : 'Say whether it is paid and where fulfilment is, with any tracking note, and give the order link.'];
+    }
+
+    // ── second pass, 12 Oct 2026 ─────────────────────────────────────────────
+
+    /** The open mail incident, if any — the same row the console's banner reads. */
+    private function mailHealth(): array
+    {
+        $i = Mail\MailHealth::open();
+        if ($i === null) {
+            return ['incident' => false, 'say' => 'Email is going out normally right now. A missing message is about this '
+                   . 'one address or message — check the address (check_email_domain / sign_in_help) and spam next.'];
+        }
+        return ['incident' => true, 'since' => (string) ($i->opened_at ?? $i->created_at ?? ''),
+                'say' => 'Our email is having trouble right now, so codes and receipts may be late or missing. Say so '
+                       . 'plainly, apologise, and say the team has been alerted. For voting, a code by text may still '
+                       . 'work; for a payment, the votes are not affected by the receipt.'];
+    }
+
+    /**
+     * Throttle state for an address. The limits are keyed on the address's hash whether or
+     * not an account holds it (CLAUDE.md, "a guard that compares two states"), so saying a
+     * bucket is full reveals nothing about who is registered.
+     */
+    private function signInHelp(string $email): array
+    {
+        $email = mb_strtolower(trim($email));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['say' => 'I need the email address they are signing in with.'];
+        // Whether an address is locked out is about whoever owns it — for anybody else it says
+        // that somebody has been trying their sign-in. Their own address only (TypedEmails):
+        // the browser that just tried to sign in with it, or the member themselves.
+        if (!\AfricaGates\Support\TypedEmails::owns($email, $this->viewerEmail)) {
+            $domain = [];
+            try { $domain = $this->ext()->emailDomain($email); } catch (\Throwable) {}
+            return ['address' => $domain, 'mail' => $this->mailHealth()['incident'], 'not_theirs' => true,
+                    'say' => 'I can only check limits for an address they tried on this device. Ask them to try signing '
+                           . 'in once here (/account/login), then ask again. The address check above still applies.'];
+        }
+        $lim = $this->limits ?? new RateLimitService();
+        $h = hash('sha256', $email);
+        $out = [];
+        foreach ([['user_login_email', 10, 'password sign-in'], ['user_otp_email', 3, 'one-time codes'],
+                  ['user_reset_email', 3, 'password-reset links']] as [$action, $max, $what]) {
+            $hits = 0; $wait = 0;
+            try { $hits = $lim->hits($h, $action, 3600); $wait = $hits >= $max ? $lim->retryAfter($h, $action, 3600) : 0; } catch (\Throwable) {}
+            $out[] = ['what' => $what, 'paused' => $hits >= $max, 'minutes' => (int) ceil($wait / 60)];
+        }
+        $domain = [];
+        try { $domain = $this->ext()->emailDomain($email); } catch (\Throwable) {}
+        return ['limits' => $out, 'address' => $domain, 'mail' => $this->mailHealth()['incident'],
+                'say' => 'If something is paused, give the minutes and say it lifts by itself — trying again sooner '
+                       . 'restarts nothing but does not help. If nothing is paused, the address check and mail health '
+                       . 'are the next places; a typo in the domain is the commonest cause. Offer /account/forgot for '
+                       . 'a forgotten password.'];
+    }
+
+    private function orderLookup(string $reference): array
+    {
+        $ref = strtoupper(trim($reference));
+        if ($ref === '' || !preg_match('/^[A-Z0-9\-]{6,72}$/', $ref)) return ['found' => false, 'say' => 'I need the order reference from the confirmation.'];
+        $email = DB::table('gates_orders')->whereRaw('UPPER(reference) = ?', [$ref])->value('email');
+        if (!$email) return ['found' => false, 'say' => 'No order has that reference. Ask them to copy it from the confirmation email or page.'];
+        foreach (MemberActivityService::ordersFor((string) $email, 50) as $o) {
+            if (strtoupper((string) $o['reference']) === $ref) {
+                return ['found' => true, 'order' => $o, 'say' => 'Say whether it is paid, where fulfilment is and any tracking note, '
+                       . 'and give the order link. Never read out the address on it.'];
+            }
+        }
+        return ['found' => true, 'order' => ['reference' => $ref, 'status' => 'failed'],
+                'say' => 'That order did not go through, so nothing was taken for it. If money did leave their account, '
+                       . 'use check_reference with the bank\'s reference.'];
+    }
+
+    private function registrationLookup(string $reference): array
+    {
+        $ref = trim($reference);
+        if ($ref === '' || !preg_match('/^[A-Za-z0-9\-]{6,60}$/', $ref)) return ['found' => false, 'say' => 'I need the reference from the ticket email.'];
+        $email = DB::table('gates_event_registrations')->where('reference', $ref)->value('email');
+        if (!$email) return ['found' => false, 'say' => 'No ticket has that reference. A guest of honour\'s pass starts AGI- — use invitation_lookup for those.'];
+        foreach (MemberActivityService::ticketsFor((string) $email, 50) as $t) {
+            if ((string) $t['reference'] === $ref) {
+                return ['found' => true, 'ticket' => self::withoutDoorCode($t), 'say' => 'Give the state in plain words and the ticket link.'];
+            }
+        }
+        return ['found' => true, 'ticket' => ['reference' => $ref, 'state' => 'cancelled'],
+                'say' => 'That registration is no longer active (cancelled or released). Say so, and offer the event page.'];
+    }
+
+    /**
+     * A ticket as an assistant may hold it: everything but the code that admits somebody at
+     * the door. The ticket link carries it for its owner; a chat transcript — sent to a model
+     * provider, kept with a support ticket — has no business holding a credential.
+     */
+    private static function withoutDoorCode(array $t): array
+    {
+        unset($t['code'], $t['ticket_code'], $t['flier']);
+        return $t;
+    }
+
+    /** Whether a profile can be claimed — never WHO holds it. Live awards only. */
+    private function claimProfile(string $name): array
+    {
+        $q = trim($name);
+        if (mb_strlen($q) < 2) return ['found' => false, 'say' => 'Which nominee?'];
+        $n = DB::table('gates_nominees as n')
+            ->whereIn('n.status', ['approved', 'winner', 'runner_up'])->whereNull('n.merged_into')
+            ->whereRaw('LOWER(n.name) LIKE ?', ['%' . mb_strtolower($q) . '%'])
+            ->tap(static fn ($b) => DemoSeeder::liveAwardOnly($b, 'n.id'))
+            ->orderByDesc('n.vote_count')->first(['n.id', 'n.name']);
+        if (!$n) return ['found' => false, 'say' => 'No published profile matches that name. If they were nominated recently it '
+                         . 'may still be awaiting approval — the claim opens once the profile is published.'];
+        $state = null;
+        try {
+            $state = DB::table('gates_nominee_claims')->where('nominee_id', (int) $n->id)
+                ->whereIn('status', [NomineeClaimService::ST_ACTIVE, NomineeClaimService::ST_HELD])
+                ->orderByDesc('id')->value('status');
+        } catch (\Throwable) {}
+        return [
+            'found' => true, 'nominee' => (string) $n->name,
+            'state' => $state === NomineeClaimService::ST_ACTIVE ? 'claimed' : ($state === NomineeClaimService::ST_HELD ? 'with_a_person' : 'open'),
+            'url' => '/claim/' . (int) $n->id,
+            'say' => 'open: give the link — a code goes to the email or phone on the nomination, so only the nominee '
+                   . 'can finish it. claimed: somebody already looks after it; if that is not them, /support takes '
+                   . 'it to a person. with_a_person: a claim is being checked; say they will hear back. Never say who.',
+        ];
+    }
+
+    private function myEmailDelivery(): array
+    {
+        if (!$this->isMember()) return ['say' => 'They are not signed in.'];
+        $email = (string) $this->viewerEmail;
+        $rows = [];
+        try {
+            $rows = DB::table('gates_mail_log')->where('to_hash', EmailOptOut::hash($email))
+                ->orderByDesc('id')->limit(8)->get(['subject', 'category', 'status', 'created_at'])
+                ->map(static fn ($r) => ['subject' => (string) $r->subject, 'kind' => (string) ($r->category ?? ''),
+                                         'status' => (string) $r->status, 'at' => (string) $r->created_at])->all();
+        } catch (\Throwable) {}
+        $blocked = Mail\Suppression::reasonFor($email);
+        return ['recent' => $rows, 'blocked' => $blocked !== null, 'blocked_reason' => $blocked,
+                'mail_incident' => $this->mailHealth()['incident'],
+                'say' => 'Read the rows: "sent" left us (then it is spam or their provider), "failed" did not, "refused" '
+                       . 'or "deferred" were held by our rules. If blocked is true, their provider bounced our mail '
+                       . 'permanently and only a person can lift it — offer /support. An empty list means we have not '
+                       . 'emailed this address recently.'];
+    }
+
+    private function myHeldPosts(): array
+    {
+        if (!$this->isMember()) return ['say' => 'They are not signed in.'];
+        $hash = hash('sha256', mb_strtolower(trim((string) $this->viewerEmail)));
+        $out = [];
+        foreach (['gates_comments' => 'comment', 'gates_threads' => 'post'] as $table => $kind) {
+            try {
+                $q = DB::table($table)->where('status', CommunityService::HELD)
+                    ->where(function ($w) use ($hash, $table) {
+                        $w->where('author_email_hash', $hash);
+                        if (\AfricaGates\Support\SchemaHas::column($table, 'author_user_id')) $w->orWhere('author_user_id', (int) $this->viewerId);
+                    })->orderByDesc('id')->limit(5);
+                foreach ($q->get(['body', 'created_at']) as $r) {
+                    $out[] = ['kind' => $kind, 'start' => mb_substr(trim(strip_tags((string) $r->body)), 0, 80), 'at' => (string) $r->created_at];
+                }
+            } catch (\Throwable) {}
+        }
+        return ['held' => $out, 'say' => $out === []
+            ? 'Nothing of theirs is waiting for a moderator. If a post is missing, it may have been removed after review — offer /support.'
+            : 'Say it is waiting for a moderator, not deleted, and appears once approved. Do not guess why it was held.'];
+    }
+
     private function findNominee(string $name): array
     {
         $q = trim($name);
@@ -1314,6 +1812,9 @@ final class SupportContext
                 ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                 ->whereNull('n.merged_into')
                 ->whereRaw('LOWER(n.name) LIKE ?', ['%' . mb_strtolower($q) . '%'])
+                // The sandbox's nominees are real rows (DemoSeeder): an assistant that
+                // finds one hands a stranger a rehearsal ballot as though it were live.
+                ->tap(static fn ($b) => DemoSeeder::liveAwardOnly($b, 'n.id'))
                 ->orderByDesc('n.vote_count')->limit(5)
                 ->get(['n.id', 'n.name', 'n.category_id', 'c.title as category']);
         } catch (\Throwable) {
@@ -1476,6 +1977,7 @@ final class SupportContext
                 ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                 ->whereNull('n.merged_into')
                 ->whereRaw('LOWER(n.name) LIKE ?', ['%' . mb_strtolower($q) . '%'])
+                ->tap(static fn ($b) => DemoSeeder::liveAwardOnly($b, 'n.id'))
                 ->orderByDesc('n.vote_count')
                 ->first(['n.id', 'n.name', 'n.vote_count', 'n.organic_vote_count', 'c.title as category']);
         } catch (\Throwable) {
@@ -1524,8 +2026,19 @@ final class SupportContext
     private function whenDidIVote(string $email, string $category): array
     {
         $e = mb_strtolower(trim($email));
+        if ($e === '' && $this->isMember()) $e = mb_strtolower(trim((string) $this->viewerEmail));
         if ($e === '' || !filter_var($e, FILTER_VALIDATE_EMAIL)) {
             return ['found' => false, 'say' => 'I need the email address they voted with.'];
+        }
+        // ── THEIR OWN ADDRESS ONLY (security review, 12 Oct 2026) ─────────────
+        // Whether an address voted, when, and in which category is about that person, and
+        // this answered it for any address anybody typed. Now: the member's own, or one this
+        // browser used at the vote code or sign-in (Support\TypedEmails).
+        if (!\AfricaGates\Support\TypedEmails::owns($e, $this->viewerEmail)) {
+            return ['found' => false, 'not_theirs' => true,
+                    'say' => 'I can only check the address they used on this device. Ask them to request the vote code '
+                           . 'again from the ballot in this browser (or sign in), then ask again — or check the inbox '
+                           . 'of that address for the confirmation.'];
         }
 
         try {
@@ -1720,6 +2233,19 @@ final class SupportContext
      * refuses is worse than one that runs too often. The guest-facing path always
      * has a limiter, which is where it matters.
      */
+    /** Tools that look something up by an identifier the person typed. */
+    private const METERED = ['check_reference', 'lookup_reference', 'refund_status', 'vote_proof', 'invitation_lookup',
+        'order_lookup', 'registration_lookup', 'sign_in_help', 'check_email_domain', 'claim_profile', 'when_did_i_vote',
+        'find_nominee', 'nominee_tally'];
+    private const LOOKUPS_PER_HOUR = 30;
+
+    /** Spend one lookup. Fails open without a limiter, as the repairs do (CLI, tests). */
+    private function spendLookup(): bool
+    {
+        if ($this->limits === null || $this->clientKey === '') return true;
+        return $this->limits->check($this->clientKey, 'support_lookup', self::LOOKUPS_PER_HOUR, 3600);
+    }
+
     private function spendRepair(): bool
     {
         if ($this->limits === null || $this->clientKey === '') return true;

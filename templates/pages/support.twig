@@ -1,0 +1,110 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  REACH A PERSON — /support · Phase 9 (inventory: pages--support.md, help-nav)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  It stays a page. Answers are /help, the desk is Gee's help-desk mode (§8.22, opened in
+  place from every "Ask Gee"); this is for anything that needs judgement rather than a
+  lookup. No DC draws it, so it is the Help Centre's own parts in the same order of speed:
+  the desk first (it repairs a payment in a minute), then the two human routes as an index
+  with what each IS, then the appeal composer, then the plain address.
+
+  ── THE APPEAL COMPOSER IS NOT A FORM, AND SAYS SO ──────────────────────────
+  Nothing here posts. An appeal goes to a mailbox read by somebody independent of the
+  original decision, not into the support queue, so the button builds a `mailto:` in the
+  reader's own mail app (support.js). That is stated before the press, and the address is
+  printed as a link that needs neither a script nor a configured mail app — somebody who
+  has just pressed a button that did nothing is exactly who needs it.
+
+  ── NOTHING PROMISES A RESPONSE TIME ───────────────────────────────────────
+  The old aside said "Average first response under 1 business day", which nothing
+  measures. It is gone rather than typed (PHASE-9.md, S-1).
+
+  Gee is not mounted here (shell.twig: `gates_page == 'support'`) — two launchers onto one
+  brain is a choice nobody can make — so the desk is offered as a link that opens it on
+  /help. Colour tier 1: the one green button.
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Reach a person'|trans, sub: 'Help Centre'|trans, back: '/help'} %}
+{% set _appeals = 'appeals@afrovanguard.org.ng' %}
+{% set _reasons = {
+  'result':  ['Dispute a result'|trans, 'Name the nominee and category, and say what you expected to see. We replay the count from source.'|trans],
+  'profile': ['Report a profile'|trans, 'The profile link and what you saw is enough. You do not need to prove anything — that is our job.'|trans],
+  'access':  ['Recover access'|trans, 'Tell us the email address you expect the account to be on, even if you are not certain.'|trans],
+  'payment': ['Payment or ticket issue'|trans, 'Include your AFG- reference if you have it. Gee can often find it faster than we can.'|trans],
+  'other':   ['Something else'|trans, 'Say what happened and what outcome would resolve it for you.'|trans]
+} %}
+
+{% block head_styles %}
+{% include 'partials/seo-head.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/help.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/support.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="hc sp">
+  <nav class="ha__crumb" aria-label="{{ 'Breadcrumb'|trans }}"><a href="/help">{{ 'Help Centre'|trans }}</a></nav>
+  <div class="hc__head hc__head--start">
+    <h1 class="hc__h1">{{ 'Reach a person'|trans }}</h1>
+    <p class="hc__lede">{{ 'For anything that needs judgement rather than a lookup. If it is a payment that has not landed, a missing code or a receipt, Gee’s help desk can usually fix it on the spot without waiting for anyone.'|trans }}</p>
+  </div>
+
+  <section class="hc-gee sp__desk" aria-labelledby="sp-desk">
+    <b class="hc-gee__h" id="sp-desk">{{ 'Fastest: the Gee help desk'|trans }}</b>
+    <span class="hc-gee__p">{{ 'It re-checks a payment with the provider, resends receipts and codes, and passes you to a person with the whole conversation when that is better.'|trans }}</span>
+    <div class="hc-gee__act"><a class="hc-btn hc-btn--gee" href="/help?gee=support">{{ 'Open the help desk'|trans }}</a></div>
+  </section>
+
+  <section class="hc__sec" aria-labelledby="sp-routes">
+    <h2 class="hc__h2" id="sp-routes">{{ 'Two ways to reach the team'|trans }}</h2>
+    <ul class="hc-list hc-list--sum">
+      <li><a class="hc-list__a" href="/support/tickets"><span class="hc-list__w"><span class="hc-list__t">{{ 'Open a support ticket'|trans }}</span><span class="hc-list__c">{{ 'A thread you can follow, with every reply in one place. Members only — a support ticket is a promise to reply, and we need somewhere to reply to.'|trans }}</span></span><svg class="hc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
+      <li><a class="hc-list__a" href="#appeal"><span class="hc-list__w"><span class="hc-list__t">{{ 'Appeal a decision'|trans }}</span><span class="hc-list__c">{{ 'Dispute a result, report a profile, or challenge a moderation call. Open to anyone, account or not, and read by somebody independent of the original decision.'|trans }}</span></span><svg class="hc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
+    </ul>
+  </section>
+
+  <div class="sp__grid">
+    <section class="sp__form" id="appeal" aria-labelledby="sp-appeal">
+      <h2 class="hc__h2" id="sp-appeal">{{ 'Submit an appeal'|trans }}</h2>
+      <p class="sp__sub">{{ 'This fills in an email for you to send from your own address — nothing is submitted from this page. A nominee name, a reference or a link is worth three paragraphs of description.'|trans }}</p>
+      <form class="sp__compose" action="mailto:{{ _appeals }}" method="get" enctype="text/plain" data-sp-compose data-to="{{ _appeals }}"
+            data-subject="{{ 'GATES appeal — %r%'|trans }}" data-l-reason="{{ 'Reason'|trans }}" data-l-name="{{ 'Name'|trans }}" data-l-ref="{{ 'Profile / reference'|trans }}">
+        <fieldset class="sp__reasons">
+          <legend class="ag-label">{{ 'What is this about?'|trans }}</legend>
+          {% for k, r in _reasons %}
+            <label class="sp__reason"><input type="radio" name="reason" value="{{ r[0] }}" data-hint="{{ r[1] }}"{% if loop.first %} checked{% endif %}><span>{{ r[0] }}</span></label>
+          {% endfor %}
+        </fieldset>
+        <p class="ag-hint sp__hint" data-sp-hint aria-live="polite">{{ (_reasons|first)[1] }}</p>
+        <div class="sp__row">
+          <div><label class="ag-label" for="sp-name">{{ 'Your name'|trans }}</label><span class="ag-field"><input id="sp-name" name="name" autocomplete="name"></span></div>
+          <div><label class="ag-label" for="sp-email">{{ 'Email'|trans }}</label><span class="ag-field"><input id="sp-email" name="email" type="email" inputmode="email" autocomplete="email" required></span></div>
+        </div>
+        <div><label class="ag-label" for="sp-ref">{{ 'Profile, nominee or reference (optional)'|trans }}</label><span class="ag-field"><input id="sp-ref" name="ref" autocomplete="off"></span></div>
+        <div><label class="ag-label" for="sp-detail">{{ 'What happened?'|trans }}</label><span class="ag-field sp__area"><textarea id="sp-detail" name="body" rows="5" required></textarea></span></div>
+        <button class="ag-btn ag-btn--secondary sp__go" type="submit">{{ 'Open this in my email app'|trans }}</button>
+        <p class="ag-hint">{{ 'Goes to'|trans }} <a href="mailto:{{ _appeals }}">{{ _appeals }}</a> — {{ 'write to it directly if you would rather, or if the button does nothing. Appeals are confidential and handled under our'|trans }} <a href="/integrity">{{ 'integrity policy'|trans }}</a>.</p>
+      </form>
+    </section>
+
+    <aside class="sp__side" aria-label="{{ 'More help'|trans }}">
+      <div class="ha__box">
+        <b class="ha__box-h">{{ 'Worth reading first'|trans }}</b>
+        <a class="ha__box-a" href="/help/dispute-a-result">{{ 'Why a count can go down'|trans }}</a>
+        <a class="ha__box-a" href="/help/how-cpi-works">{{ 'How the CPI is scored'|trans }}</a>
+        <a class="ha__box-a" href="/help/what-paid-votes-do">{{ 'What paid votes do and don’t do'|trans }}</a>
+        <a class="ha__box-a" href="/help/nomination-rejected">{{ 'Why a nomination was rejected'|trans }}</a>
+      </div>
+      <div class="ha__card">
+        <b class="ha__card-h">{{ 'Or just email us'|trans }}</b>
+        <span class="ha__card-p">{{ 'No form, no account. A person reads every message.'|trans }}</span>
+        <a class="sp__mail" href="mailto:{{ support_email }}">{{ support_email }}</a>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/support.js') }}"></script>{% endblock %}

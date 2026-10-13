@@ -1,0 +1,25 @@
+caught EventsPagesTest  src/Services/EventsFront.php  if (!SchemaHas::table('gates_event_programmes')) return $q; 
+caught EventsPagesTest  src/Services/EventsFront.php  ->orderBy('e.event_date')->orderBy('e.id')->limit(self::MAX_
+caught EventsPagesTest  templates/pages/events.twig  id="ev-past"
+caught EventsPagesTest  src/Services/EventSales.php  if (!array_diff($states, ['early'])) return 'soon';
+caught EventsPagesTest  public/assets/css/components/events.css  .ed-tier[aria-checked="true"] .ed-tier__radio{ border:6px so
+caught EventsPagesTest  public/assets/css/components/events.css  @media (prefers-reduced-motion:reduce){ [data-ev-glow]{ disp
+caught EventsPagesTest  public/assets/css/components/events.css  filter:blur(22px)
+caught EventsPagesTest  templates/pages/events/detail.twig  <div class="ed-bar" data-bottom-ui>
+caught EventsPagesTest  templates/pages/events/detail.twig  {% set is_fundraiser = appeals|default([]) is not empty %}
+caught EventsPagesTest  src/Controllers/EventsController.php  format('Ymd\THis\Z')
+caught EventsPagesTest  public/assets/js/event-flier.js  function filtered(c) { return c === 405 || c === 406 || c ==
+MISSED EventSaleAlertTest  src/Services/EventSaleAlert.php              $rows = DB::table('gates_event_sale_alerts')->wh
+caught EventSaleAlertTest  src/Services/EventSaleAlert.php  if (in_array($state, ['soon', 'ended'], true)) continue;
+caught EventSaleAlertTest  src/Services/EventSaleAlert.php  EmailOptOut::url($site, (string) $r->email));
+caught EventSaleAlertTest  src/Services/EventSaleAlert.php  if (!$recent && $send !== null && $site !== '') {
+caught EventSaleAlertTest  src/Controllers/EventsController.php  if ($row && $req->getMethod() === 'POST') {
+caught EventSaleAlertTest  src/Support/Maintenance.php  fn() => \AfricaGates\Services\EventSaleAlert::sweep($this->m
+caught EventTierGlowTest  src/Services/EventTierPalette.php  for ($i = 0; $i < 40; $i++) {             $deep
+caught TicketPageTest  templates/pages/events/ticket.twig  {% if _ok %}         {% if qr %}
+caught TicketPageTest  public/assets/css/components/ticket.css  width:180mm; height:86mm; margin:0 auto
+caught TicketPageTest  public/assets/css/components/ticket.css  .tk-hero__img{ position:static;
+caught TicketPageTest  templates/pages/events/ticket.twig  fetchpriority="high" decoding="async">{% endif %}
+caught PhotoSlotTest  templates/partials/photo.twig  {%- elseif _person -%}
+missed 1 of 23
+caught EventSaleAlertTest (strengthened)  EventSaleAlert.php sweep row filter confirmed_at

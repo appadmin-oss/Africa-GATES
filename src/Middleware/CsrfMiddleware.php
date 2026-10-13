@@ -169,16 +169,70 @@ class CsrfMiddleware {
         // first is one refactor away from being a hole, and it fails OPEN, which is the
         // wrong direction.
         $expected = (string) ($_SESSION['csrf_token'] ?? '');
-        if ($expected === '') {
-            return $this->deny('CSRF validation failed.');
-        }
-
         $token = $req->getHeaderLine('X-CSRF-Token')
             ?: (((array)$req->getParsedBody())['_token'] ?? '');
-        if (!hash_equals($expected, $token)) {
-            return $this->deny('CSRF validation failed.');
+        if ($expected === '' || !is_string($token) || !hash_equals($expected, $token)) {
+            return $this->expired($req);
         }
         return $handler->handle($req);
+    }
+
+    // ── A STALE TOKEN IS A PAGE LEFT OPEN, NOT AN ATTACK — SO IT MUST HAVE A WAY OUT ──
+    //
+    // This used to answer every mismatch with `{"success":false,"message":"CSRF
+    // validation failed."}` and a 403 — to a browser that had just submitted a FORM. So
+    // the person saw a line of JSON in place of the page, the word "CSRF", and nothing to
+    // press: no link, no form, no way back but the browser's own Back button, which few
+    // people on a phone think of. That was reported as the site "telling users csrf
+    // invalid and them getting stuck there".
+    //
+    // Almost every mismatch is innocent: a page left open past the session's life, a tab
+    // opened before signing in elsewhere, a page a phone restored from memory. The
+    // refusal itself stays — nothing about the request is accepted — but a browser form
+    // is sent back, with a 303, to the page it came from, which now carries a fresh
+    // token, says in words what happened, and puts back what the person typed
+    // (FormReplay). A caller that asked for JSON keeps JSON, with a code it can act on.
+    private function expired(Request $req): Response {
+        $accept = strtolower($req->getHeaderLine('Accept'));
+        $wantsJson = $req->getHeaderLine('X-Requested-With') === 'XMLHttpRequest'
+            || $req->getHeaderLine('X-CSRF-Token') !== ''
+            || (str_contains($accept, 'application/json') && !str_contains($accept, 'text/html'));
+        if ($wantsJson || !$this->sameOrigin($req)) {
+            // Cross-site: a refusal and nothing else. Never a redirect that carries a
+            // stranger's fields into this visitor's session.
+            return $this->deny(self::EXPIRED_MESSAGE, 'CSRF_EXPIRED');
+        }
+
+        $back = self::backTo($req);
+        $_SESSION['flash_error'] = \AfricaGates\Support\Translator::t(self::EXPIRED_MESSAGE);
+        \AfricaGates\Support\FormReplay::keep($req->getUri()->getPath(), (array) $req->getParsedBody());
+
+        return (new \Slim\Psr7\Response(303))
+            ->withHeader('Location', $back)
+            ->withHeader('Cache-Control', 'no-store');
+    }
+
+    /** Said wherever the token was stale. Plain words: what happened, that nothing changed, what to do. */
+    public const EXPIRED_MESSAGE = 'That didn’t go through because the page had been open for a while. Nothing was changed — it’s ready now, so please send it again.';
+
+    /**
+     * Where to send a refused form: the page it was on, when the browser says and that page
+     * is on this host; otherwise the address it was posted to, which for most forms here is
+     * the page that draws it. Only ever a PATH — never a host taken from a header.
+     */
+    public static function backTo(Request $req): string {
+        $host = strtolower($req->getUri()->getHost());
+        $ref  = $req->getHeaderLine('Referer');
+        if ($ref !== '') {
+            $p = parse_url($ref);
+            if (is_array($p) && isset($p['host']) && strtolower((string) $p['host']) === $host) {
+                $path = (string) ($p['path'] ?? '/');
+                if ($path === '' || $path[0] !== '/' || str_starts_with($path, '//')) $path = '/';
+                return $path . (isset($p['query']) ? '?' . $p['query'] : '');
+            }
+        }
+        $path = $req->getUri()->getPath();
+        return ($path !== '' && $path[0] === '/' && !str_starts_with($path, '//')) ? $path : '/';
     }
 
     /**
@@ -214,9 +268,11 @@ class CsrfMiddleware {
         return false;
     }
 
-    private function deny(string $msg): Response {
+    private function deny(string $msg, ?string $code = null): Response {
         $res = new \Slim\Psr7\Response(403);
-        $res->getBody()->write(json_encode(['success'=>false,'message'=>$msg]));
+        $body = ['success' => false, 'message' => $code ? \AfricaGates\Support\Translator::t($msg) : $msg];
+        if ($code) $body['code'] = $code;
+        $res->getBody()->write(json_encode($body));
         return $res->withHeader('Content-Type','application/json');
     }
 }

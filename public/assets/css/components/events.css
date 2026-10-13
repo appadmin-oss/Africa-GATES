@@ -1,0 +1,425 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   EVENTS — the index and one event · Phase 7 · EventsPage.dc.html · §8.10
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Values are the DC's (REFERENCE §5) unless a deviation below says otherwise. Mobile
+   first: the phone (below 600), the tablet (600–1023) and the desktop (1024 and up),
+   the DC's own `layout` breakpoints. Logical properties, so RTL mirrors without a rule.
+
+   COLOUR: Accent tokens only — and on the registration card the selected tier's six
+   custom properties (`--tier-accent/-light/-wash/-deep/-glow/-edge`), which PHP derives
+   from the tier's slot at read time (EventTierTone::card). Not a hex typed here.
+
+   TYPE: the `--ag-fs-*` rem steps. The DC's mono date lines, mono "registered" count and
+   capitals ("TICKETS", "SAT 6 DEC") are §18.3–4 violations the owner ruled on (Q5): the
+   date is DM Sans with the DC's tracking and colour, nothing is in capitals, and mono is
+   kept only for codes (there are none on these two pages — the ticket has them).
+
+   DEVIATIONS (docs/handoff/PHASE-7.md, "Events"): targets the DC draws at 36–40px (the
+   track chips, the desktop filter chips, the copy-link button) are 44 (§6.7); body copy
+   at the DC's 17.5px is 17 (the closed ladder stops at 17); the DC's off-palette tints
+   map to their family's token (#e4f6e4 → green-wash, #cc1950/#b0224f → live-ink,
+   #fff8df → gold-wash-2, #b42318 → error, #7fc87c → green-light).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Shared ─────────────────────────────────────────────────────────────────── */
+.ev-dateline{
+  font-size:var(--ag-fs-12-5); font-weight:700; line-height:1; letter-spacing:.1em;
+  color:var(--ag-live-ink);
+}
+.ev-btn,
+.ev-btn:hover{
+  display:flex; align-items:center; justify-content:center; min-height:50px; padding:0 20px;
+  border-radius:var(--ag-r-14); font-size:var(--ag-fs-15); font-weight:700; text-decoration:none;
+  text-align:center;
+}
+.ev-btn--go,
+.ev-btn--go:hover{ background:var(--ag-green); color:var(--ag-surface); border:0; }
+.ev-btn--line,
+.ev-btn--line:hover{ border:1px solid var(--ag-ink); color:var(--ag-ink); font-weight:600; background:var(--ag-surface) }
+button.ev-btn{ cursor:pointer; font-family:inherit }
+
+/* ══ ONE EVENT ═══════════════════════════════════════════════════════════════ */
+
+/* ── The head: phone ── */
+.ed-hero{ position:relative }
+.ed-hero__media{ position:relative; aspect-ratio:4 / 3; background:var(--ag-tint) }
+.ed-hero__media .ag-photo{ position:absolute; inset:0 }
+.ed-hero__btns{
+  position:absolute; inset-block-start:8px; inset-inline:8px;
+  display:flex; justify-content:space-between; pointer-events:none;
+}
+.ed-hero__end{ display:flex; gap:8px }
+.ed-fab,
+.ed-fab:hover{
+  pointer-events:auto; width:44px; height:44px; border:0; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  background:color-mix(in srgb, var(--ag-surface) 94%, transparent); color:var(--ag-ink);
+  box-shadow:var(--ag-sh-float); cursor:pointer; text-decoration:none; font-family:inherit;
+}
+.ed-fab__l{ display:none }
+.ed-hero__text{
+  position:relative; margin-top:-22px; border-radius:22px 22px 0 0; background:var(--ag-ground);
+  padding:22px 16px 4px; display:flex; flex-direction:column; gap:10px;
+}
+.ed-hero__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15 }
+.ed-hero__by{ font-size:var(--ag-fs-14-5); color:var(--ag-ink-2) }
+.ed-hero__by:empty{ display:none }
+
+.ed-eb{ font-size:var(--ag-fs-14-5) }
+.ed-eb--wide{ display:none }
+.ed-eb--row,
+.ed-eb--row:hover{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  min-height:48px; margin-top:4px; padding:0 14px; border-radius:var(--ag-r-14);
+  background:var(--ag-gold-wash-2); color:var(--ag-ink); text-decoration:none;
+}
+.ed-eb__go{ flex:none; font-weight:700; color:var(--ag-gold-ink) }
+
+/* ── The grid ── */
+.ed-grid{
+  max-width:1120px; margin:0 auto; padding:8px 16px 32px;
+  display:grid; grid-template-columns:minmax(0, 1fr); gap:16px; align-items:start;
+}
+.ed-main{ min-width:0; display:flex; flex-direction:column; gap:16px; order:2 }
+/* Below 1024 the rail dissolves, so the card leads and the extras follow the main column —
+   the DC's `asideDisplay:contents` with rsvpOrder 1 · mainOrder 2 · extrasOrder 3. */
+.ed-rail{ display:contents }
+.ed-card{ order:1 }
+.ed-extras{ order:3; display:flex; flex-direction:column; gap:14px; min-width:0 }
+
+.ed-sec{
+  display:flex; flex-direction:column; gap:12px; padding:20px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20);
+}
+.ed-sec__h{ margin:0; font-weight:700; font-size:var(--ag-fs-19) }
+.ed-about{ margin:0; font-size:var(--ag-fs-16); line-height:1.65; color:var(--ag-ink) }
+
+.ed-tracks{ display:flex; gap:6px; flex-wrap:wrap }
+.ed-track{
+  min-height:44px; padding:0 14px; border-radius:var(--ag-r-pill);
+  border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink);
+  font-family:inherit; font-weight:600; font-size:var(--ag-fs-13-5); cursor:pointer;
+}
+.ed-track[aria-pressed="true"]{ background:var(--ag-ink); color:var(--ag-ground); border-color:var(--ag-ink) }
+.ed-ag__day{ margin:4px 0 0; font-size:var(--ag-fs-14-5); font-weight:700 }
+.ed-ag{
+  list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px;
+  background:var(--ag-line); border:1px solid var(--ag-line); border-radius:var(--ag-r-14); overflow:hidden;
+}
+.ed-ag__row{ display:grid; grid-template-columns:64px minmax(0, 1fr); gap:12px; padding:14px 16px; background:var(--ag-surface) }
+.ed-ag__row[hidden]{ display:none }
+.ed-ag__time{ font-size:var(--ag-fs-13); font-weight:700; line-height:1.4; color:var(--ag-ink-2); font-variant-numeric:tabular-nums }
+.ed-ag__body{ display:flex; flex-direction:column; gap:3px }
+.ed-ag__t{ font-weight:600; font-size:var(--ag-fs-15) }
+.ed-ag__who{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+
+.ed-venue{ display:flex; flex-direction:column; gap:2px; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.ed-venue b{ font-size:var(--ag-fs-15); color:var(--ag-ink) }
+.ed-link{ font-weight:600; font-size:var(--ag-fs-14); min-height:44px; display:inline-flex; align-items:center; align-self:flex-start }
+
+.ed-access{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px }
+.ed-access li{
+  display:flex; align-items:center; gap:8px; min-height:38px; padding:0 14px; border-radius:var(--ag-r-pill);
+  background:var(--ag-ground); font-size:var(--ag-fs-14); font-weight:600;
+}
+.ed-access svg{ color:var(--ag-green) }
+
+.ed-fine{ margin:0; display:flex; flex-direction:column; gap:12px; font-size:var(--ag-fs-14-5); line-height:1.55 }
+.ed-fine dt{ font-weight:700 }
+.ed-fine dd{ margin:2px 0 0; color:var(--ag-ink-2) }
+
+/* The vendor call: ink, the DC's one dark card. */
+.ed-vend{
+  display:flex; flex-direction:column; gap:10px; padding:20px;
+  background:var(--ag-ink); color:var(--ag-ground); border-radius:var(--ag-r-20);
+}
+.ed-vend a{ color:var(--ag-ground) }
+.ed-vend__facts{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:4px; font-size:var(--ag-fs-14-5) }
+.ed-vend__note{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.5 }
+.ed-vend__go,
+.ed-vend__go:hover{
+  align-self:flex-start; display:flex; align-items:center; min-height:44px; padding:0 18px; border-radius:var(--ag-r-pill);
+  background:var(--ag-ground); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none;
+}
+.ed-vend--shut p{ margin:0; font-size:var(--ag-fs-14-5) }
+
+.ed-vote,
+.ed-vote:hover{
+  display:flex; align-items:center; gap:14px; padding:16px 18px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
+  color:var(--ag-ink); text-decoration:none;
+}
+.ed-vote__dot{ flex:none; width:8px; height:8px; border-radius:50%; background:var(--ag-green) }
+.ed-vote__t{ flex:1; display:flex; flex-direction:column; gap:2px; font-size:var(--ag-fs-15-5) }
+.ed-vote__t span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.ed-vote__go{ font-weight:600; font-size:var(--ag-fs-14); color:var(--ag-green) }
+
+/* ── The extras ── */
+.ed-box{
+  display:flex; flex-direction:column; gap:10px; padding:18px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20);
+}
+.ed-box__k{ margin:0; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-soft) }
+.ed-box__h{ margin:0; font-weight:700; font-size:var(--ag-fs-15) }
+.ed-box__p{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-ink-2) }
+.ed-box__alt{ margin:0; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.ed-box__row{ display:flex; gap:8px }
+.ed-mini,
+.ed-mini:hover{
+  flex:1; display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 12px;
+  border:1px solid var(--ag-line-2); border-radius:11px; background:var(--ag-surface); color:var(--ag-ink);
+  font-family:inherit; font-weight:600; font-size:var(--ag-fs-13-5); text-decoration:none; cursor:pointer;
+}
+.ed-mini--dash{ border-style:dashed; border-color:var(--ag-chevron); background:transparent }
+.ed-box--earn{ background:var(--ag-green-wash); border-color:var(--ag-green-edge) }
+.ed-earn__row{ display:flex; gap:6px }
+.ed-earn__in{
+  flex:1; min-width:0; min-height:44px; padding:0 12px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12);
+  font-family:inherit; font-size:var(--ag-fs-13-5); color:var(--ag-ink); background:var(--ag-surface);
+}
+.ed-earn__btn,
+.ed-earn__btn:hover{
+  align-self:flex-start; display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
+  border:1px solid var(--ag-green); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-green-deep);
+  font-family:inherit; font-weight:600; font-size:var(--ag-fs-13-5); text-decoration:none; cursor:pointer;
+}
+.ed-fund__t{ font-size:var(--ag-fs-15) }
+.ed-fund__bar{ display:block; height:8px; border-radius:var(--ag-r-pill); background:var(--ag-line-3); overflow:hidden }
+.ed-fund__bar span{ display:block; height:100%; width:var(--ed-pct); background:var(--ag-green) }
+.ed-stream,
+.ed-stream:hover{
+  display:flex; align-items:center; justify-content:center; min-height:46px; border-radius:var(--ag-r-pill);
+  border:1px solid var(--ag-ink); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none;
+}
+
+/* ══ THE REGISTRATION CARD ══════════════════════════════════════════════════
+   The card carries the selected tier's six properties (copied from the row on a pick);
+   these are the only places they are read — the accents §8.10 lists, nothing else. */
+.ed-card{
+  --ev-deep:var(--tier-deep, var(--ag-green-deep));
+  position:relative; isolation:isolate;
+  display:flex; flex-direction:column; gap:12px; padding:22px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20);
+  scroll-margin-top:16px;
+}
+.ed-card:focus{ outline:none }
+.ed-card [data-ed-form],
+.ed-done{ display:flex; flex-direction:column; gap:12px }
+.ed-card [hidden]{ display:none }
+.ed-card__top{ display:flex; justify-content:space-between; align-items:center; gap:10px }
+.ed-card__k{ font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-gold-ink) }
+.ed-card__k--tier{ color:var(--ev-deep); transition:color .4s }
+.ed-card__k--stop{ color:var(--ag-error) }
+.ed-card__k--mute{ color:var(--ag-soft) }
+.ed-card__count{ font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.ed-card__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-21); line-height:1.2 }
+.ed-card__p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.6; color:var(--ag-ink-2) }
+.ed-card__p--sm{ font-size:var(--ag-fs-13); line-height:1.55 }
+.ed-card__note{ margin:0; font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-ink-2) }
+.ed-tint{ color:var(--ev-deep) }
+
+/* The glow (§8.10). `--ev-a` is registered so it INTERPOLATES; unregistered (a browser
+   without @property) it does not, and the ring is a static gradient border — the
+   specified fallback, with no second rule needed. */
+@property --ev-a{ syntax:'<angle>'; initial-value:0deg; inherits:false }
+@keyframes edAngle{ to{ --ev-a:360deg } }
+@keyframes edGlow{ 0%{ opacity:0 } 10%{ opacity:1 } 60%{ opacity:1 } 100%{ opacity:.35 } }
+@keyframes edBreath{ 0%, 100%{ transform:scale(1) } 50%{ transform:scale(1.03) } }
+.ed-glow{
+  --ev-cg:conic-gradient(from var(--ev-a), var(--tier-accent), var(--tier-light), var(--tier-glow),
+          var(--ag-surface) 55%, var(--tier-glow), var(--tier-light), var(--tier-accent));
+  position:absolute; inset:0; z-index:-1; pointer-events:none;
+  animation:edGlow 3s ease-out forwards;
+}
+.ed-glow__halo{
+  position:absolute; inset:-10px; border-radius:30px; background:var(--ev-cg);
+  filter:blur(22px); opacity:.55;
+  animation:edAngle 3.2s linear infinite, edBreath 3s ease-in-out infinite;
+}
+.ed-glow__ring{
+  position:absolute; inset:0; border-radius:var(--ag-r-20); border:2px solid transparent;
+  background:linear-gradient(var(--ag-surface), var(--ag-surface)) padding-box, var(--ev-cg) border-box;
+  animation:edAngle 3.2s linear infinite;
+}
+@media (prefers-reduced-motion:reduce){ [data-ev-glow]{ display:none } }
+
+/* Tier rows: a radio group. The radio stays NEUTRAL (ink); the tier's colour is the
+   selected border and wash. */
+.ed-tiers{ display:flex; flex-direction:column; gap:8px }
+.ed-tier{
+  display:flex; align-items:flex-start; gap:11px; min-height:48px; padding:12px 14px; box-sizing:border-box;
+  border-radius:13px; border:1.5px solid color-mix(in srgb, var(--ag-ink) 12%, transparent);
+  background:var(--ag-surface); color:var(--ag-ink); font-family:inherit; text-align:start; cursor:pointer;
+  transition:border-color var(--ag-dur-1) var(--ag-ease), background-color var(--ag-dur-1) var(--ag-ease);
+}
+.ed-tier:hover{ border-color:color-mix(in srgb, var(--ag-ink) 28%, transparent) }
+.ed-tier[aria-checked="true"]{ border-color:var(--tier-edge); background:var(--tier-wash) }
+.ed-tier:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ed-tier:disabled{ cursor:not-allowed; opacity:.62 }
+.ed-tier__radio{
+  flex:none; width:18px; height:18px; margin-top:2px; border-radius:50%; box-sizing:border-box;
+  border:2px solid var(--ag-chevron);
+}
+.ed-tier[aria-checked="true"] .ed-tier__radio{ border:6px solid var(--ag-ink) }
+.ed-tier__t{ flex:1; display:flex; flex-direction:column; gap:2px; min-width:0 }
+.ed-tier__n{ font-weight:700; font-size:var(--ag-fs-14-5) }
+.ed-tier__s{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.ed-tier__s--tint{ color:var(--tier-deep); font-weight:700 }
+.ed-tier__p{ flex:none; font-size:var(--ag-fs-14); font-weight:700; line-height:1.4; font-variant-numeric:tabular-nums }
+
+.ed-field{ display:flex; flex-direction:column; gap:5px }
+.ed-label{ font-weight:600; font-size:var(--ag-fs-13) }
+.ed-opt{ font-weight:400; color:var(--ag-soft) }
+.ed-input{
+  min-height:46px; padding:0 12px; box-sizing:border-box; width:100%;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12); background:var(--ag-surface);
+  font-family:inherit; font-size:var(--ag-fs-16); color:var(--ag-ink);
+}
+textarea.ed-input{ padding:10px 12px; min-height:96px; line-height:1.5 }
+.ed-input:focus-visible{ outline:3px solid var(--ag-green); outline-offset:1px }
+.ed-hint{ margin:0; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.ed-disc{ display:flex; gap:6px }
+.ed-disc .ed-input{ flex:1; min-width:0 }
+.ed-apply{
+  min-height:46px; padding:0 14px; border:1px solid var(--tier-edge, var(--ag-green)); border-radius:var(--ag-r-12);
+  background:var(--ag-surface); color:var(--ev-deep); font-family:inherit; font-weight:600; font-size:var(--ag-fs-14); cursor:pointer;
+}
+.ed-said{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-ink-2) }
+.ed-said:empty{ display:none }
+.ed-total{
+  display:flex; justify-content:space-between; align-items:baseline; padding-top:10px; border-top:1px solid var(--ag-line);
+  font-size:var(--ag-fs-14); color:var(--ag-ink-2);
+}
+.ed-total__n{ font-size:var(--ag-fs-20); color:var(--ev-deep); font-variant-numeric:tabular-nums }
+.ed-total__n s{ font-size:var(--ag-fs-14); color:var(--ag-soft) }
+.ed-warn{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-error) }
+.ed-err{ margin:0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-error) }
+.ed-err:empty{ display:none }
+.ed-cta,
+.ed-cta:hover{
+  display:flex; align-items:center; justify-content:center; min-height:52px; padding:0 20px; border:0;
+  border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface);
+  font-family:inherit; font-weight:700; font-size:var(--ag-fs-16); text-decoration:none; text-align:center; cursor:pointer;
+}
+.ed-cta--tier,
+.ed-cta--tier:hover{ background:var(--ev-deep); transition:background-color .4s }
+.ed-cta--line,
+.ed-cta--line:hover{ background:var(--ag-surface); border:1px solid var(--ag-ink); color:var(--ag-ink) }
+.ed-cta[aria-busy="true"]{ opacity:.7; cursor:progress }
+.ed-private{
+  margin:0; display:flex; align-items:center; justify-content:center; gap:6px;
+  font-size:var(--ag-fs-12-5); color:var(--ag-soft);
+}
+.ed-soon{
+  list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px;
+  background:var(--ag-line); border:1px solid var(--ag-line); border-radius:13px; overflow:hidden;
+}
+.ed-soon li{ display:flex; justify-content:space-between; gap:12px; padding:12px 14px; background:var(--ag-surface); font-size:var(--ag-fs-14-5); font-weight:600 }
+.ed-soon__p{ font-variant-numeric:tabular-nums }
+.ed-notify{ display:flex; flex-direction:column; gap:8px }
+
+/* ── The fixed bar (phone): "From {lowest} · Get tickets". Sets --ag-bottom-ui through
+   shell.js (data-bottom-ui); the scroller makes room for it with its own padding. ── */
+.ed-bar{
+  position:fixed; inset-inline:0; inset-block-end:0; z-index:var(--ag-z-appbar);
+  display:flex; align-items:center; gap:12px; padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  background:var(--ag-bar); border-top:1px solid var(--ag-line-2);
+}
+.ed-bar__t{ flex:1; display:flex; flex-direction:column; gap:1px; font-size:var(--ag-fs-16); min-width:0 }
+.ed-bar__k{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.ed-bar__go,
+.ed-bar__go:hover{
+  display:flex; align-items:center; min-height:50px; padding:0 24px; border-radius:var(--ag-r-pill);
+  background:var(--ag-green); color:var(--ag-surface); font-weight:700; font-size:var(--ag-fs-15-5); text-decoration:none;
+}
+/* The scroller makes room for the bar, so the footer's last line is never under it. */
+body:has(.ed-bar) .ag-main{ padding-bottom:var(--ag-bottom-ui) }
+
+/* ── The flier dialog ── */
+.flo{ position:fixed; inset:0; z-index:var(--ag-z-sheet); display:flex; align-items:flex-end; justify-content:center }
+.flo[hidden]{ display:none }
+.flo__scrim{ position:absolute; inset:0; background:var(--ag-scrim) }
+.flo__panel{
+  position:relative; width:100%; max-width:560px; max-height:92dvh; display:flex; flex-direction:column;
+  background:var(--ag-surface); border-radius:var(--ag-r-24) var(--ag-r-24) 0 0; box-shadow:var(--ag-sh-sheet);
+}
+.flo__grab{ align-self:center; width:36px; height:5px; margin-top:8px; border-radius:3px; background:var(--ag-grabber) }
+.flo__bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 12px 8px 20px }
+.flo__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-19) }
+.flo__x{
+  flex:none; width:44px; height:44px; border:0; border-radius:50%; background:var(--ag-ground); color:var(--ag-ink);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.flo__scroll{ overflow:auto; padding:4px 20px calc(20px + env(safe-area-inset-bottom)); display:flex; flex-direction:column }
+.flo__scroll > div{ display:flex; flex-direction:column; gap:10px }
+.flo__scroll > div[hidden]{ display:none }
+.flo__p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }
+.flo__note{ margin:0; font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-soft) }
+.flo__row{ display:flex; flex-wrap:wrap; gap:8px }
+.flo__row > *{ flex:1 }
+.flo__fmts, .flo__sts{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px }
+.flo__opt{
+  display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-height:56px; padding:10px 12px;
+  border:1.5px solid var(--ag-line-2); border-radius:var(--ag-r-12); background:var(--ag-surface); color:var(--ag-ink);
+  font-family:inherit; font-weight:700; font-size:var(--ag-fs-14); text-align:start; cursor:pointer;
+}
+.flo__opt small{ font-weight:400; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.flo__opt[aria-checked="true"]{ border:2px solid var(--ag-ink) }
+.flo__sw{ display:block; width:100%; height:40px; border-radius:8px; position:relative; overflow:hidden; box-shadow:inset 0 0 0 1px var(--ag-line) }
+.flo__sw i{ position:absolute; inset-inline-start:10px; height:4px; border-radius:2px; width:46% }
+.flo__sw i:first-child{ top:10px }
+.flo__sw i:nth-child(2){ top:18px; width:30% }
+.flo__sw b{ position:absolute; inset-inline-start:10px; bottom:8px; width:22px; height:4px; border-radius:2px }
+.flo__frame{ position:relative; aspect-ratio:9 / 16; max-height:52dvh; overflow:hidden; border-radius:var(--ag-r-12); touch-action:none; cursor:grab; background:var(--ag-tint) }
+.flo__frame--sq{ aspect-ratio:1 }
+.flo__frame img{ width:100%; height:100%; object-fit:cover; pointer-events:none }
+.flo__typeline{ position:absolute; inset-inline:0; bottom:0; height:34%; display:flex; align-items:flex-start; padding:10px; background:color-mix(in srgb, var(--ag-ink) 55%, transparent); color:var(--ag-surface); font-size:var(--ag-fs-12-5); pointer-events:none }
+.flo__range{ width:100%; min-height:44px }
+.flo__prog{ height:6px; border-radius:3px; background:var(--ag-line-3); overflow:hidden }
+.flo__prog span{ display:block; height:100%; width:40%; background:var(--ag-green); animation:floProg 1.2s var(--ag-ease) infinite alternate }
+@keyframes floProg{ from{ transform:translateX(-60%) } to{ transform:translateX(160%) } }
+@media (prefers-reduced-motion:reduce){ .flo__prog span{ animation:none; width:100% } }
+.flo__prev{ display:block; width:100%; max-height:56dvh; object-fit:contain; border-radius:var(--ag-r-12); background:var(--ag-ground) }
+
+/* ── Tablet and up: the hero ── */
+@media (min-width:600px){
+  .ed-eb--wide{
+    display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; padding:10px 16px;
+    background:var(--ag-gold-wash-2); border-bottom:1px solid var(--ag-gold-edge); font-size:var(--ag-fs-14); text-align:center;
+  }
+  .ed-eb--wide a{ font-weight:700 }
+  .ed-eb--row{ display:none }
+  .ed-hero{ min-height:420px; display:flex; align-items:flex-end; background:var(--ag-ink); color:var(--ag-surface) }
+  .ed-hero__media{ position:absolute; inset:0; aspect-ratio:auto }
+  .ed-hero__media::after{
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(180deg, color-mix(in srgb, var(--ag-ink) 15%, transparent) 30%, color-mix(in srgb, var(--ag-ink) 90%, transparent) 100%);
+  }
+  .ed-hero__btns{ inset-block-start:14px; inset-inline:14px }
+  .ed-hero__end{ display:none }
+  .ed-fab,
+  .ed-fab:hover{ width:auto; height:40px; padding:0 14px; border-radius:var(--ag-r-pill); font-weight:600; font-size:var(--ag-fs-14) }
+  .ed-fab__l{ display:inline }
+  .ed-hero__text{
+    width:100%; max-width:1120px; margin:0 auto; padding:40px 32px; box-sizing:border-box;
+    background:none; border-radius:0;
+  }
+  .ed-hero__date{ color:var(--ag-green-light) }
+  .ed-hero__h1{ font-size:var(--ag-fs-34); line-height:1.1; text-wrap:balance }
+  .ed-hero__by{ font-size:var(--ag-fs-15); color:var(--ag-surface) }
+  .ed-grid{ padding:28px 28px 48px; gap:20px }
+  .ed-main{ gap:20px }
+  .ed-about{ font-size:var(--ag-fs-17) }
+  .ed-bar{ display:none }
+  body:has(.ed-bar) .ag-main{ padding-bottom:0 }
+  .flo{ align-items:center }
+  .flo__panel{ border-radius:var(--ag-r-24) }
+}
+@media (min-width:1024px){
+  .ed-hero__h1{ font-size:var(--ag-fs-44) }
+  .ed-grid{ padding:40px 32px 64px; grid-template-columns:minmax(0, 1fr) 380px; gap:32px }
+  .ed-main{ order:0 }
+  .ed-rail{ position:sticky; top:24px; display:flex; flex-direction:column; gap:14px }
+  .ed-card, .ed-extras{ order:0 }
+}

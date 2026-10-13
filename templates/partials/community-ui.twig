@@ -1,0 +1,19 @@
+{#
+  Small pieces the community pages share (/community, /community/{slug}, /community/new).
+  Built without a DC (Phase 8, "built without a DC"): base components and the Pulse post
+  language — a round initial, a bold name, a quiet age, hairlines between rows.
+#}
+
+{# "now", "4m", "3h", "2d", then a date: past a week a relative stamp stops being information. #}
+{% macro ago(at) -%}
+  {%- if at -%}
+  {%- set s = 'now'|date('U') - at|date('U') -%}
+  <time datetime="{{ at|date('c') }}">{% if s < 60 %}{{ 'just now'|trans }}{% elseif s < 3600 %}{{ '%n%m'|trans({'%n%': s // 60}) }}{% elseif s < 86400 %}{{ '%n%h'|trans({'%n%': s // 3600}) }}{% elseif s < 604800 %}{{ '%n%d'|trans({'%n%': s // 86400}) }}{% else %}{{ at|date('j M Y') }}{% endif %}</time>
+  {%- endif -%}
+{%- endmacro %}
+
+{# A person's initials in an ink circle — never a photo we do not have. #}
+{% macro av(name, size) -%}
+  {%- set _ini = name|default('?')|split(' ')|filter(w => w)|map(w => w|first)|join|upper|slice(0, 2) -%}
+  <span class="cm-av{{ size|default('') ? ' cm-av--' ~ size }}" aria-hidden="true">{{ _ini ?: '?' }}</span>
+{%- endmacro %}

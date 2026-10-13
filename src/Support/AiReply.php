@@ -40,6 +40,13 @@ final class AiReply
      * @param list<array{id:string,name:string,arguments:array<string,mixed>}> $toolCalls
      * @param array{in:int,out:int} $usage     tokens this turn cost
      * @param string $stopReason               'stop' | 'tools' | 'length' | 'other'
+     * @param list<array<string,mixed>> $raw   the provider's OWN content for this turn — Claude's
+     *                                         blocks, Gemini's parts — to be sent back verbatim
+     *                                         when the loop continues on the same provider. Claude
+     *                                         requires its thinking blocks back beside a tool call,
+     *                                         and Gemini 3 its thought signatures; rebuilding the
+     *                                         turn from text and calls drops both, and the next
+     *                                         round is refused or reasons from nothing.
      */
     public function __construct(
         public readonly string $text,
@@ -48,7 +55,19 @@ final class AiReply
         public readonly ?string $provider = null,
         public readonly ?string $model = null,
         public readonly string $stopReason = 'stop',
+        public readonly array $raw = [],
     ) {}
+
+    /**
+     * This turn as the next request's assistant message, in the neutral shape `chat()` reads.
+     *
+     * @return array<string,mixed>
+     */
+    public function asMessage(): array
+    {
+        return ['role' => 'assistant', 'content' => $this->text, 'tool_calls' => $this->toolCalls]
+             + ($this->raw !== [] ? ['raw' => ['provider' => $this->provider, 'content' => $this->raw]] : []);
+    }
 
     /** Did the model ask for anything to be done? */
     public function hasTools(): bool

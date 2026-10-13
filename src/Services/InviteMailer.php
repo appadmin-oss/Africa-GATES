@@ -303,7 +303,8 @@ final class InviteMailer
             ['autoescape' => 'html']
         ));
 
-        return $twig->render('emails/invitation.twig', $view);
+        // `c`: the palette, by name — mail cannot read var() (Accent::mail()).
+        return $twig->render('emails/invitation.twig', $view + ['c' => \AfricaGates\Support\Accent::mail()]);
     }
 
     /**

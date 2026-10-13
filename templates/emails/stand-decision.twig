@@ -36,6 +36,20 @@
   A rejection is refused server-side without one, and what the organiser typed is what the
   vendor reads. Summarising it here would put words in the panel's mouth about a decision
   somebody will ask about.
+
+  ── REBUILT 3 OCT 2026: THE HANDOFF'S LADDER, AND ACCENT'S COLOURS ──────────
+
+  Deleted and written again from docs/handoff/inventory/_emails.md (owner, 3 Oct 2026).
+  Type sits on REFERENCE §6.2's closed ladder — the 10px and 11px labels are 11.5, and
+  nothing is smaller but the 1px preheader collapse, which is a hiding device and not
+  type (TypeScaleTest). px is right here: no Display & reading setting reaches an inbox,
+  and rem is ignored by enough clients to be a gamble. Every colour is `c.<token>`,
+  `Accent::mail()` passed in by the sender under the handoff's own names — mail cannot
+  read `var()`, but it need not type a palette of its own either, and this file used to
+  type thirty-odd colours that were in no palette at all. The dark-mode block is ink as
+  the ground and ground as the words, as the newsletter's always was: the handoff names
+  no dark palette, so none is invented. The mono and capitals rules are for screens
+  (MonoAndCaseTest leaves mail out), so the tracked micro-labels keep their voice.
 #}
 {#
   The questionnaire invitation.
@@ -94,14 +108,14 @@
   body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
   table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
   img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; display: block; }
-  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; background-color: #f2f2ef; }
+  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; background-color: {{ c.ground }}; }
   table { border-collapse: collapse !important; }
   a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
   u + #body a { color: inherit; text-decoration: none; }
   #MessageViewBody a { color: inherit; text-decoration: none; }
   span.MsoHyperlink { color: inherit; mso-style-priority: 99; }
-  [data-ogsc] .agw-bg { background-color: #ffffff !important; }
-  [data-ogsc] .agw-text { color: #14171a !important; }
+  [data-ogsc] .agw-bg { background-color: {{ c.surface }} !important; }
+  [data-ogsc] .agw-text { color: {{ c.ink }} !important; }
 
   /* Outlook (Word engine) ignores line-height unless told the rule is exact, and
      collapses to single spacing on long paragraphs. */
@@ -110,18 +124,19 @@
   /* ── DARK MODE ───────────────────────────────────────────────────────────
      `color-scheme: light` above already stops Apple Mail and iOS inverting anything,
      which is why the palette below is a deliberate dark counterpart rather than a
-     defensive one. Gmail's and Outlook.com's dark modes invert regardless and do it
+     defensive one — Accent's ink as the ground and its ground as the words, because
+     the handoff names no dark palette and this file will not invent one. Gmail's and Outlook.com's dark modes invert regardless and do it
      badly on near-white surfaces — dark text left on a darkened background. Declaring
      the dark values explicitly means the clients that DO honour the query render a
      chosen design, and the ones that force-invert have less to get wrong. */
   @media (prefers-color-scheme: dark) {
-    .agw-body   { background-color: #0d1512 !important; }
-    .agw-bg     { background-color: #14201b !important; }
-    .agw-text   { color: #f3f5f2 !important; }
-    .agw-muted  { color: #a9b4ad !important; }
-    .agw-body-t { color: #dfe4e0 !important; }
-    .agw-hero   { background-color: #16261d !important; }
-    .agw-rule   { border-color: #2c3a32 !important; }
+    .agw-body   { background-color: {{ c.ink }} !important; }
+    .agw-bg     { background-color: {{ c.ink }} !important; }
+    .agw-text   { color: {{ c.ground }} !important; }
+    .agw-muted  { color: {{ c.line }} !important; }
+    .agw-body-t { color: {{ c.tint }} !important; }
+    .agw-hero   { background-color: {{ c['ink-2'] }} !important; }
+    .agw-rule   { border-color: {{ c['ink-2'] }} !important; }
     /* The green CTA already clears 4.5:1 against white text, so it is left alone —
        lightening it here would only reduce that. */
   }
@@ -135,7 +150,7 @@
   }
 </style>
 </head>
-<body id="body" class="agw-body" style="margin:0; padding:0; background-color:#f2f2ef;">
+<body id="body" class="agw-body" style="margin:0; padding:0; background-color:{{ c.ground }};">
 
 {# The brand mark is a HOSTED PNG, not an inlined data: URI.
 
@@ -148,12 +163,12 @@
    Not the SVG at /assets/img/logo-africa-gates.svg either: it is 1.4MB of embedded
    bitmap, and email clients do not render SVG at all. #}
 <!-- PREHEADER -->
-<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#f2f2ef; opacity:0;">
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:{{ c.ground }}; opacity:0;">
   {{ preheader }}
   &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
 </div>
 
-<table role="presentation" class="agw-body" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f2f2ef" style="background-color:#f2f2ef;">
+<table role="presentation" class="agw-body" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ c.ground }}" style="background-color:{{ c.ground }};">
 <tr>
 <td align="center" style="padding:32px 12px;">
 
@@ -169,11 +184,11 @@
      a 320px screen: the reader gets a horizontally scrolling email or a zoomed-out one.
      A percentage width with a max-width needs no media query to work, and the MSO
      conditional above gives Outlook — which ignores max-width — its fixed 560. #}
-  <table role="presentation" class="agw-wrapper agw-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:#ffffff; border-radius:20px; overflow:hidden;">
+  <table role="presentation" class="agw-wrapper agw-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:{{ c.surface }}; border-radius:20px; overflow:hidden;">
 
     <!-- DARK HEADER BAR (logo left, status badge right) -->
     <tr>
-      <td style="background-color:#131a15;">
+      <td style="background-color:{{ c.ink }};">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
             <td class="agw-px" style="padding:20px 32px;">
@@ -194,14 +209,14 @@
                           <img src="{{ site_url }}/assets/img/logo-mark.png" width="40" height="40" alt="Africa GATES" style="display:block;">
                         </td>
                         <td valign="middle">
-                          <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:#ffffff; line-height:16px;">Africa</p>
-                          <p style="margin:1px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; color:#4fbf7f; line-height:12px;">GATES</p>
+                          <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:{{ c.surface }}; line-height:16px;">Africa</p>
+                          <p style="margin:1px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; letter-spacing:2px; color:{{ c['green-light'] }}; line-height:14px;">GATES</p>
                         </td>
                       </tr>
                     </table>
                   </td>
                   <td valign="middle" align="right">
-                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11px; font-weight:700; letter-spacing:1.6px; color:#8a9089; text-transform:uppercase;">{{ eyebrow }}</p>
+                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; letter-spacing:1.6px; color:{{ c.line }}; text-transform:uppercase;">{{ eyebrow }}</p>
                   </td>
                 </tr>
               </table>
@@ -214,20 +229,20 @@
     <!-- WHAT HAPPENED -->
     <tr>
       <td class="agw-px" style="padding:36px 40px 0 40px;">
-        <h1 class="agw-headline agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:28px; line-height:34px; color:#14171a; letter-spacing:-0.3px;">
-          {% if kind == 'offered' %}You have a stand at<br><span style="color:#1f9d55;">{{ event_title }}</span>
-          {%- elseif kind == 'rejected' %}About your stand<br><span style="color:#1f9d55;">application</span>
-          {%- elseif kind == 'expired' %}Your stand offer<br><span style="color:#1f9d55;">has run out</span>
-          {%- else %}You are on the<br><span style="color:#1f9d55;">waiting list</span>{% endif %}
+        <h1 class="agw-headline agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:28px; line-height:34px; color:{{ c.ink }}; letter-spacing:-0.3px;">
+          {% if kind == 'offered' %}You have a stand at<br><span style="color:{{ c.green }};">{{ event_title }}</span>
+          {%- elseif kind == 'rejected' %}About your stand<br><span style="color:{{ c.green }};">application</span>
+          {%- elseif kind == 'expired' %}Your stand offer<br><span style="color:{{ c.green }};">has run out</span>
+          {%- else %}You are on the<br><span style="color:{{ c.green }};">waiting list</span>{% endif %}
         </h1>
-        <p class="agw-body-t" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:#43473f;">
+        <p class="agw-body-t" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:{{ c['ink-2'] }};">
           {% if first_name %}{{ first_name }}, {% endif %}you applied for
-          <strong style="color:#14171a;">{{ stand_name }}</strong>{% if stand_size %} ({{ stand_size }}){% endif %}
+          <strong style="color:{{ c.ink }};">{{ stand_name }}</strong>{% if stand_size %} ({{ stand_size }}){% endif %}
           at {{ event_title }}{% if event_date %}, {{ event_date }}{% endif %}.
         </p>
-        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:#43473f;">
+        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:{{ c['ink-2'] }};">
           {% if kind == 'offered' %}
-            The place is <strong style="color:#14171a;">held for you</strong> and it is yours as
+            The place is <strong style="color:{{ c.ink }};">held for you</strong> and it is yours as
             soon as you accept it. It is not yours until you do &mdash; if the time below runs
             out, it goes to the next applicant on the waiting list.
           {% elseif kind == 'rejected' %}
@@ -253,12 +268,12 @@
     {% if kind == 'offered' %}
     <tr>
       <td class="agw-px" style="padding:26px 40px 0 40px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f7f9f7" style="background-color:#f7f9f7; border-radius:10px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ c.ground }}" style="background-color:{{ c.ground }}; border-radius:10px;">
           <tr>
             <td style="padding:14px 18px;">
-              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11px; font-weight:700; letter-spacing:1.2px; color:#9a9c95; text-transform:uppercase;">Accept by</p>
-              <p class="agw-text" style="margin:4px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:#14171a;">{{ expires_at }}</p>
-              <p class="agw-muted" style="margin:6px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:13px; line-height:19px; color:#5b6b60;">
+              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; letter-spacing:1.2px; color:{{ c.soft }}; text-transform:uppercase;">Accept by</p>
+              <p class="agw-text" style="margin:4px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:{{ c.ink }};">{{ expires_at }}</p>
+              <p class="agw-muted" style="margin:6px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:13px; line-height:19px; color:{{ c.soft }};">
                 {{ offer_hours }} hours from when the offer was made. This was one of the published
                 terms of the call.</p>
             </td>
@@ -269,20 +284,20 @@
     <tr>
       <td class="agw-px agw-btn-pad" align="center" style="padding:24px 40px 0 40px;">
         <!--[if mso]>
-        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ link }}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="12%" strokecolor="#1f9d55" fillcolor="#1f9d55">
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ link }}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="12%" strokecolor="{{ c.green }}" fillcolor="{{ c.green }}">
         <w:anchorlock/>
-        <center style="color:#ffffff;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;">Accept my stand</center>
+        <center style="color:{{ c.surface }};font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;">Accept my stand</center>
         </v:roundrect>
         <![endif]-->
         <!--[if !mso]><!-->
-        <a href="{{ link }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; background-color:#1f9d55; border-radius:8px; padding:15px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:#ffffff; text-decoration:none; text-align:center;">
+        <a href="{{ link }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; background-color:{{ c.green }}; border-radius:8px; padding:15px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:{{ c.surface }}; text-decoration:none; text-align:center;">
           Accept my stand
         </a>
         <!--<![endif]-->
         {# The address as text as well. A vendor reading this on a borrowed phone needs to be
            able to move it to a laptop, and a client that mangles the button must not be the
            thing that costs somebody a pitch. #}
-        <p class="agw-muted" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:12px; line-height:17px; color:#9a9c95; word-break:break-all;">
+        <p class="agw-muted" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:12px; line-height:17px; color:{{ c.soft }}; word-break:break-all;">
           {{ link }}
         </p>
       </td>
@@ -291,7 +306,7 @@
     <tr>
       <td class="agw-px agw-btn-pad" align="center" style="padding:26px 40px 0 40px;">
         <!--[if !mso]><!-->
-        <a href="{{ link }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; border:1px solid #d5d8d2; border-radius:8px; padding:14px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:#14171a; text-decoration:none; text-align:center;">
+        <a href="{{ link }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; border:1px solid {{ c['line-2'] }}; border-radius:8px; padding:14px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:{{ c.ink }}; text-decoration:none; text-align:center;">
           Open my dashboard
         </a>
         <!--<![endif]-->
@@ -304,13 +319,13 @@
     {% if reason %}
     <tr>
       <td class="agw-px" style="padding:30px 40px 0 40px;">
-        <p style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11px; letter-spacing:1.2px; color:#9a9c95; text-transform:uppercase;">
+        <p style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11.5px; letter-spacing:1.2px; color:{{ c.soft }}; text-transform:uppercase;">
           {% if kind == 'rejected' %}Why{% else %}From the panel{% endif %}
         </p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td style="border-left:2px solid #1f9d55; padding:2px 0 2px 16px;">
-              <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#43473f;">{{ reason }}</p>
+            <td style="border-left:2px solid {{ c.green }}; padding:2px 0 2px 16px;">
+              <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:{{ c['ink-2'] }};">{{ reason }}</p>
             </td>
           </tr>
         </table>
@@ -324,10 +339,10 @@
     {% if kind == 'offered' and price %}
     <tr>
       <td class="agw-px" style="padding:30px 40px 0 40px;">
-        <p style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11px; letter-spacing:1.2px; color:#9a9c95; text-transform:uppercase;">What it costs</p>
-        <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#43473f;">
-          The pitch fee is <strong style="color:#14171a;">{{ price }}</strong>{% if deposit %}, of which
-          <strong style="color:#14171a;">{{ deposit }}</strong> is due on acceptance{% endif %}. This is
+        <p style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11.5px; letter-spacing:1.2px; color:{{ c.soft }}; text-transform:uppercase;">What it costs</p>
+        <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:{{ c['ink-2'] }};">
+          The pitch fee is <strong style="color:{{ c.ink }};">{{ price }}</strong>{% if deposit %}, of which
+          <strong style="color:{{ c.ink }};">{{ deposit }}</strong> is due on acceptance{% endif %}. This is
           the price published with the call and it has not changed.
         </p>
         {# ── AND THE TERMS, BEFORE THE BUTTON RATHER THAN AFTER IT ──────────
@@ -336,9 +351,9 @@
              cancelled, when the fee is refundable — were answered nowhere. Linked here so
              they can be read before deciding, and agreed to with a real checkbox on the
              page the button opens. #}
-        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#43473f;">
+        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:{{ c['ink-2'] }};">
           Accepting means agreeing to the
-          <a href="{{ terms_url }}" target="_blank" style="color:#1f9d55;">trading terms</a> —
+          <a href="{{ terms_url }}" target="_blank" style="color:{{ c.green }};">trading terms</a> —
           insurance, cancellation, what you may sell, and when the fee can be refunded. Worth
           two minutes before you press the button.
         </p>
@@ -352,8 +367,8 @@
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
             <td valign="top">
-              <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#43473f;">
-                <strong style="color:#14171a;">We will never ask you to pay anybody privately for
+              <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:{{ c['ink-2'] }};">
+                <strong style="color:{{ c.ink }};">We will never ask you to pay anybody privately for
                 a stand.</strong> Every payment goes through the platform and appears on your
                 dashboard. If somebody asks you for money to secure a pitch, it is not us.
               </p>
@@ -366,11 +381,11 @@
     <!-- CLOSING -->
     <tr>
       <td class="agw-px" style="padding:34px 40px 0 40px;">
-        <p class="agw-muted" style="margin:0 0 2px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; color:#5b6b60;">
+        <p class="agw-muted" style="margin:0 0 2px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; color:{{ c.soft }};">
           {% if kind == 'offered' %}We are looking forward to having you,
           {%- elseif kind == 'rejected' %}Thank you for applying, and please do again,
           {%- else %}Thank you for your patience,{% endif %}</p>
-        <p class="agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:14px; color:#14171a;">The Africa GATES Team</p>
+        <p class="agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:14px; color:{{ c.ink }};">The Africa GATES Team</p>
       </td>
     </tr>
 
@@ -378,14 +393,14 @@
     <tr>
       <td class="agw-px" align="center" style="padding:36px 40px 32px 40px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-          <tr><td style="border-top:1px solid #f0f0ec; font-size:0; line-height:0; padding-bottom:22px;">&nbsp;</td></tr>
+          <tr><td style="border-top:1px solid {{ c['line-3'] }}; font-size:0; line-height:0; padding-bottom:22px;">&nbsp;</td></tr>
         </table>
-        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:11px; letter-spacing:1.2px; color:#1f9d55; font-weight:700; text-transform:uppercase;">Africa G.A.T.E.S.</p>
-        <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:11px; color:#9a9c95;">
+        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; letter-spacing:1.2px; color:{{ c.green }}; font-weight:700; text-transform:uppercase;">Africa G.A.T.E.S.</p>
+        <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; color:{{ c.soft }};">
           {{ postal_address }}
         </p>
-        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11px; color:#9a9c95;">
-          <a href="{{ site_url }}" style="color:#9a9c95; text-decoration:underline;">africagates.org</a>{% if unsubscribe_url %}&nbsp;&nbsp;·&nbsp;&nbsp;<a href="{{ unsubscribe_url }}" style="color:#9a9c95; text-decoration:underline;">Unsubscribe</a>{% endif %}
+        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; color:{{ c.soft }};">
+          <a href="{{ site_url }}" style="color:{{ c.soft }}; text-decoration:underline;">africagates.org</a>{% if unsubscribe_url %}&nbsp;&nbsp;·&nbsp;&nbsp;<a href="{{ unsubscribe_url }}" style="color:{{ c.soft }}; text-decoration:underline;">Unsubscribe</a>{% endif %}
         </p>
       </td>
     </tr>

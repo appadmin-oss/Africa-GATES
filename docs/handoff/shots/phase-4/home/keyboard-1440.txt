@@ -1,0 +1,29 @@
+1. Skip to content <a.ag-skip>
+2. Africa GATES home <a.ag-logo>
+3. Participate <button.ag-head__top>
+4. Explore <button.ag-head__top>
+5. Search Africa GATES <a.ag-tools__b>
+6. Sign in <a.ag-head__signin>
+7. Nominate someone <a.hm-cta>
+8. Recognise with Africa GATES <a.hm-cta>
+9. AO Amara OkonkwoSTEM Educator of the Yea <a.hm-rec>
+10. Globe centred on Africa. Drag or use the arrow keys to turn it. <canvas.waa__globe>
+11. Nigeria: an award decided, 4 nominees standing <button.waa__m>
+12. OPENED card visible=true
+13. Kenya: 3 nominees standing <button.waa__m>
+14. Ghana: 2 nominees standing <button.waa__m>
+15. South Africa: 1 nominee standing <button.waa__m>
+16. Egypt: 1 nominee standing <button.waa__m>
+17. Senegal: 1 nominee standing <button.waa__m>
+18. Close <button.waa__x>
+19. All 2 <a.hm-more>
+20. CE Choral Excellence Awards6th Edition · <a.hm-row>
+21. AY Africa Youth Awards3rd Edition · 3 ca <a.hm-row>
+22. Results <a.hm-more>
+23. AO Amara OkonkwoWinner · STEM Educator o <a.hm-row>
+24. KC Kings College LagosWinner · School of <a.hm-row>
+25. See all campaigns <a.hm-more>
+26. BF Bright Futures Foundation Robotics ki <a.hm-give>
+27. Talk to us <a.hm-pill>
+28. Africa GATES home <a.ag-foot__logo>
+29. Nominate <a.ag-foot__a>

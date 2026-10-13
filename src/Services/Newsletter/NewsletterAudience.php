@@ -163,7 +163,7 @@ final class NewsletterAudience
             ? 'If you would rather not, ignore this email. We will not ask again, and you will not receive the newsletter.'
             : 'If it was not you, ignore this email. Nothing is sent to an address that has not been confirmed.';
 
-        // Colours from the ramp, as values — see Newsletter::palette() for why mail carries
+        // Colours from the ramp, as values — see Accent::mail() for why mail carries
         // literals at all.
         [$ink, $ink2, $soft] = [Accent::hex('ink'), Accent::hex('ink-2'), Accent::hex('soft')];
         $go = Accent::hex('green');

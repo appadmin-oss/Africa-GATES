@@ -385,14 +385,14 @@ final class HelpCentre
             'audience' => ['supporter', 'nominee'],
             'cat'  => 'payments',
             'title' => 'What do paid votes actually do?',
-            'summary' => 'They count toward the tally exactly like a free vote, and cannot buy the '
-                       . 'larger part of the community half — every result shows both.',
+            'summary' => 'They add to the tally at full weight, and cannot buy the larger part of '
+                       . 'the community half — every result shows both.',
             'keywords' => ['buy votes', 'paid votes', 'price', 'cost', 'how much', 'bulk votes',
                            'do paid votes count', 'is it fair'],
             'body' => [
                 ['p' => 'A paid vote adds to a nominee\'s <strong>vote tally</strong>, and that tally is '
-                      . 'what the community share of the Cultural Power Index is built from. So yes: a '
-                      . 'paid vote counts toward the ranking, exactly as much as a free one.'],
+                      . 'what the community share of the Cultural Power Index is partly built from. So yes: a '
+                      . 'paid vote counts toward the ranking, at full weight in the tally.'],
                 ['p' => 'There is no ceiling on how many a campaign may buy, so a well-funded nominee can '
                       . 'hold the largest tally in the cycle. We would rather say that here than have '
                       . 'you work it out from the numbers. What buying cannot do is move the seventy '
@@ -413,8 +413,8 @@ final class HelpCentre
                 ['note' => 'One vote costs ₦{price}, with discounts on larger bundles, and a single order '
                          . 'can carry up to {max_qty} votes. Current prices are always on the ballot.'],
             ],
-            'related' => ['how-cpi-works', 'how-free-voting-works', 'what-happens-if-two-nominees-tie',
-                          'the-community-return'],
+            'related' => ['how-cpi-works', 'how-free-voting-works', 'why-is-voting-paid',
+                          'what-happens-if-two-nominees-tie', 'the-community-return'],
         ],
 
         // ── VOTING ───────────────────────────────────────────────────────────
@@ -438,7 +438,54 @@ final class HelpCentre
                 ['note' => 'One free vote per person per category, per cycle. You can vote in as many '
                          . 'different categories as you like.'],
             ],
-            'related' => ['code-did-not-arrive', 'vote-not-showing', 'already-voted'],
+            'related' => ['code-did-not-arrive', 'vote-not-showing', 'already-voted', 'why-is-voting-paid'],
+        ],
+        // ── THE OWNER'S OWN ANSWER (8 Oct 2026) ─────────────────────────────
+        //
+        // The owner's words, verbatim but for three things the house rules decide and
+        // PHASE-9.md lists for the owner to confirm: the price is {price}, read from the
+        // setting the ballot charges (never a typed naira figure — HelpCentreTest), the two
+        // all-caps lines are sentence case (no capitals anywhere), and "African G8" is kept
+        // as written because nothing in this codebase names a programme that way.
+        [
+            'slug' => 'why-is-voting-paid',
+            'audience' => ['supporter', 'nominee'],
+            'cat'  => 'voting',
+            'kicker' => 'African G8 community voting',
+            'title' => 'Why is voting paid?',
+            'summary' => 'Because African G8 is community-driven.',
+            'keywords' => ['why is voting paid', 'why is it paid', 'why not free', 'where does the money go',
+                           'where do the funds go', 'what is the money for', 'paid voting', 'sponsor',
+                           'community voting', 'contribution'],
+            'body' => [
+                ['p' => 'We do not want recognition of the people creating value in our communities to '
+                      . 'depend entirely on waiting for a sponsor, corporation, or government to fund it.'],
+                ['p' => 'That is why community members can participate through ₦{price} votes.'],
+                ['p' => 'Your vote is not a payment to buy an award. It is a voluntary contribution that '
+                      . 'helps the community sustain the recognition platform.'],
+                ['h' => 'Where do the funds go?'],
+                ['p' => 'Funds generated through community voting support:'],
+                ['list' => [
+                    '<strong>Voting &amp; Technology</strong> — maintaining the voting, payment and digital systems.',
+                    '<strong>Award Administration</strong> — nominations, verification, judging coordination and administration.',
+                    '<strong>Media &amp; Publicity</strong> — promoting nominees, winners and their stories.',
+                    '<strong>Awards &amp; Event Production</strong> — organizing and delivering the recognition experience.',
+                    '<strong>Community Development</strong> — supporting initiatives and activities that create tangible community value.',
+                    '<strong>Future Community Recognition</strong> — helping sustain subsequent editions and expand the platform.',
+                ]],
+                ['h' => 'So, what does the community get in return?'],
+                ['p' => 'Recognition. Visibility. Participation. Opportunity. Community development.'],
+                ['p' => 'The goal is to create a cycle:'],
+                ['quote' => 'Nominate → vote → recognize → celebrate → reinvest → repeat'],
+                ['p' => 'We believe a community should not always wait for someone else to fund what matters to it.'],
+                ['quote' => 'We don’t wait for sponsors to value our community. We participate in funding what we value.'],
+                ['p' => 'Your ₦{price} may look small, but thousands of people participating can turn small '
+                      . 'contributions into meaningful community resources.'],
+                ['p' => 'This is community voting.<br>This is community participation.<br>This is community ownership.'],
+                ['p' => 'Vote for who you believe deserves to be recognized.'],
+                ['p' => 'And know that your participation helps keep the platform moving.'],
+            ],
+            'related' => ['what-paid-votes-do', 'how-free-voting-works', 'how-cpi-works'],
         ],
         [
             'slug' => 'code-did-not-arrive',
@@ -657,8 +704,13 @@ final class HelpCentre
             'cat'  => 'results',
             'title' => 'I think a count or a ranking is wrong',
             'summary' => 'Ask for an audit. We will replay the arithmetic from source.',
+            // "A result looks wrong" is Gee's own quick button, word for word. Without it the
+            // sealing article won on "result", and somebody querying a standing was told
+            // about hash chains rather than how to ask for an audit.
             'keywords' => ['wrong count', 'dispute', 'appeal', 'unfair', 'cheating', 'rigged',
-                           'votes disappeared', 'someone is buying votes'],
+                           'votes disappeared', 'someone is buying votes', 'result looks wrong',
+                           'result is wrong', 'wrong result', 'ranking is wrong', 'score looks wrong',
+                           'score is wrong'],
             'body' => [
                 ['p' => 'Ask, and we will check. Every recomputation is logged, so a count can be replayed '
                       . 'from the underlying votes and the working shown to you.'],
@@ -1496,15 +1548,45 @@ final class HelpCentre
         // The first substantive paragraph. The article page has the steps and the
         // caveats; this is enough to know whether to go and read them.
         foreach ((array) ($top['body'] ?? []) as $block) {
-            if (!empty($block['p'])) { $lines[] = (string) $block['p']; break; }
+            if (!empty($block['p'])) { $lines[] = self::chatText((string) $block['p']); break; }
         }
         // Worded so a linkified label reads as part of the sentence: Gee's widget
         // renders an article URL as "the Help Centre answer", so "Full answer:
         // /help/x" would have come out as "Full answer: the Help Centre answer".
-        $lines[] = 'Read it here: ' . self::url((string) $top['slug'])
-                 . ' — if that is not your case, say so and I will pass it to the team at /support.';
+        //
+        // ONE offer of a person, and it is this one. The support agent used to append its own
+        // "say “talk to a human”" under this line, so the reply offered the team twice in two
+        // different phrasings — the thing a reader takes for a bot that does not know what it
+        // just said.
+        $lines[] = 'Read the rest in ' . self::url((string) $top['slug']) . '. If that is not what is '
+                 . 'happening to you, tell me what you see — or say “talk to a human” and I will pass '
+                 . 'it to the team.';
 
         return implode("\n\n", $lines);
+    }
+
+    /**
+     * An article paragraph as chat text.
+     *
+     * ── THE BUBBLE IS NOT A PAGE ─────────────────────────────────────────────
+     *
+     * Article bodies are HTML, written for the article page. The chat widget escapes
+     * everything and understands three marks only — `**bold**`, `[label](/path)` and a
+     * bare `/help/…` path — so quoting a paragraph verbatim printed
+     * `Ours begins with <code>AFG-</code>` and `<strong>sealed</strong>` into the bubble,
+     * on the fallback that runs exactly when the assistant is having a bad day.
+     * Translated here, once, for both assistants.
+     */
+    public static function chatText(string $html): string
+    {
+        $t = (string) preg_replace('~<(code|strong|b)>(.*?)</\1>~is', '**$2**', $html);
+        $t = (string) preg_replace_callback('~<a\s[^>]*href="([^"]*)"[^>]*>(.*?)</a>~is', static function (array $m): string {
+            $label = trim(strip_tags($m[2]));
+            // The widget's link mark takes a site path of its own shape and nothing else.
+            return preg_match('~^/[a-z0-9/-]{1,80}$~', $m[1]) && mb_strlen($label) <= 80
+                ? '[' . $label . '](' . $m[1] . ')' : $label;
+        }, $t);
+        return trim(html_entity_decode(strip_tags($t), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
     /**
@@ -1614,10 +1696,11 @@ final class HelpCentre
         foreach ((array) ($a['body'] ?? []) as $block) {
             $when = (string) ($block['when'] ?? '');
             if ($when !== '' && $when !== $state) continue;
-            foreach (['p', 'note'] as $k) {
+            foreach (['p', 'note', 'h', 'quote'] as $k) {
                 if (isset($block[$k])) $out[] = (string) $block[$k];
             }
             foreach ((array) ($block['steps'] ?? []) as $s) $out[] = (string) $s;
+            foreach ((array) ($block['list'] ?? []) as $s) $out[] = (string) $s;
         }
         return trim(strip_tags(implode(' ', array_filter($out))));
     }
@@ -1670,11 +1753,13 @@ final class HelpCentre
         $a['body'] = $body;
 
         foreach ($a['body'] as $i => $block) {
-            foreach (['p', 'note'] as $k) {
+            foreach (['p', 'note', 'h', 'quote'] as $k) {
                 if (isset($block[$k])) $a['body'][$i][$k] = $swap((string) $block[$k]);
             }
-            foreach ((array) ($block['steps'] ?? []) as $j => $s) {
-                $a['body'][$i]['steps'][$j] = $swap((string) $s);
+            foreach (['steps', 'list'] as $k) {
+                foreach ((array) ($block[$k] ?? []) as $j => $s) {
+                    $a['body'][$i][$k][$j] = $swap((string) $s);
+                }
             }
         }
         return $a;

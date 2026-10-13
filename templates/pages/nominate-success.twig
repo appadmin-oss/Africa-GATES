@@ -1,0 +1,115 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /nominate/success — "Nomination sent" (Celebration kind=nominate, GAPS route map Phase 8/3)
+
+  ── WHY THIS PAGE IS BACK ─────────────────────────────────────────────────────
+
+  Destroyed on 3 Oct 2026 with the old nominate sheet, and the controller had already
+  been rebuilt to feed it (NominationController::success — a server-side flash, a share
+  link minted once). So every nomination since then saved correctly and then showed its
+  nominator "500 · Reference …": the one moment in the flow §24 makes a MUST was an error
+  page, at exactly the point somebody decides whether this platform can be trusted with
+  the next one. PublicPagesRenderTest walks it now.
+
+  ── WHAT IT OWES (inventory: pages--nominate-success.md) ─────────────────────
+
+  · The moment, drawn by `partials/celebration.twig` as `nominate` — never the winner's
+    choreography: a nomination is not a win, and this platform decides awards. Keyed on
+    the reference, so three nominations are three moments and a reopened page is a
+    document. Its title is the page's one h1.
+  · What happens next, as the platform's promise rather than praise — the review window
+    from its one resolver (`sla_hours`, NominationFeedbackService::slaHours()).
+  · The reference, mono, because somebody quotes it to support.
+  · The next best thing: rallying more nominations through the link the controller
+    minted, which prefills only what this nominator knew about the NOMINEE.
+  · With no flash (history, a refresh) it is still a page: somebody is told where their
+    nominations are, never shown a blank celebration.
+
+  Back goes to the hub rather than to the form just submitted: returning somebody to a
+  completed form is how a nomination gets sent twice.
+#}
+{% import 'partials/ui.twig' as ui %}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', share: false, title: 'Nomination sent'|trans, back: '/nominate'} %}
+{% set _nom = nominee|default('') %}
+{% set _cat = category|default('') %}
+{% set _ref = ref|default('') %}
+{% set _ctx = {moment: 'nomination_sent', subject: _ref ?: 'nomination', edition: edition|default('')} %}
+{% set _cel = done and celebration_allowed('nominate', _ctx) %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/library.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/receipt.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="rc">
+  {% if done %}
+    {% if _cel %}
+      {% include 'partials/celebration.twig' with {
+        kind: 'nominate', heading: 'h1', context: _ctx,
+        title: _nom ? '%name% has been put forward.'|trans({'%name%': _nom}) : 'Your nomination is in.'|trans,
+        sub: (_cat ? 'Filed under %cat%. '|trans({'%cat%': _cat}) : '') ~ (edition ? edition : ''),
+        primary: {label: 'Nominate someone else'|trans, href: '/nominate'},
+        secondary: {label: 'See the leaderboard'|trans, href: '/leaderboard'}
+      } only %}
+    {% endif %}
+
+    <section class="rc__card" aria-labelledby="{{ _cel ? 'rcNext' : 'rcH' }}">
+      {% if not _cel %}
+        <p class="rc__kicker">{{ 'Nomination sent'|trans }}</p>
+        <h1 class="rc__h1" id="rcH">{{ _nom ? '%name% has been put forward.'|trans({'%name%': _nom}) : 'Your nomination is in.'|trans }}</h1>
+      {% endif %}
+      <h2 class="rc__h2" id="rcNext">{{ 'What happens next'|trans }}</h2>
+      <p class="rc__p">
+        {%- if sla_hours|default(0) > 0 -%}
+          {{ 'Our panel reviews every nomination before a profile joins the cycle, usually within %h% hours — and we email you the moment it is live.'|trans({'%h%': sla_hours}) }}
+        {%- else -%}
+          {{ 'Our panel reviews every nomination before a profile joins the cycle — and we email you the moment it is live.'|trans }}
+        {%- endif -%}
+      </p>
+      {% if _ref %}
+        <dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ _ref }}</dd></dl>
+      {% endif %}
+      <p class="rc__fine">{{ 'We have also told %who% on the contact you shared.'|trans({'%who%': _nom ?: 'the nominee'|trans}) }}
+        <a href="/integrity">{{ 'How a winner is decided'|trans }}</a> ·
+        <a href="/philosophy">{{ 'Why votes are not the whole story'|trans }}</a></p>
+      {% if not _cel %}
+        <div class="rc__do">
+          <a class="ag-btn ag-btn--primary" href="/nominate">{{ 'Nominate someone else'|trans }}</a>
+          <a class="ag-btn ag-btn--secondary" href="/leaderboard">{{ 'See the leaderboard'|trans }}</a>
+        </div>
+      {% endif %}
+    </section>
+
+    {% if share_url|default('') %}
+      {#
+        A shared link prefills what this nominator already knew about the nominee, so the
+        next person adds their own voice rather than retyping a stranger's details. The
+        link is in a field as well as behind the button, so somebody whose browser runs
+        no script can still copy it.
+      #}
+      <section class="rc__card" id="rc-share" aria-labelledby="rcShare">
+        <h2 class="rc__h2" id="rcShare">{{ 'Rally more nominations for %who%'|trans({'%who%': _nom ?: 'them'|trans}) }}</h2>
+        <p class="rc__p">{{ 'Nominations from more people and places strengthen a case. Share a link that fills in what you knew — whoever opens it can change every detail before submitting in their own name.'|trans }}</p>
+        <label class="ag-label" for="rcShareUrl">{{ 'Your share link'|trans }}</label>
+        <div class="rc__share-row">
+          <input id="rcShareUrl" class="ag-field" type="text" readonly value="{{ share_url }}">
+          <button type="button" class="ag-btn ag-btn--ink" data-ag-share data-ag-share-url="{{ share_url }}"
+                  aria-label="{{ 'Share the link'|trans }}" data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Share'|trans }}</button>
+        </div>
+      </section>
+    {% endif %}
+  {% else %}
+    <section class="rc__card" aria-labelledby="rcH">
+      <p class="rc__kicker">{{ 'Nominations'|trans }}</p>
+      <h1 class="rc__h1" id="rcH">{{ 'Your nomination was received'|trans }}</h1>
+      <p class="rc__p">{{ 'This page shows once, straight after you send a nomination. Its reference and the review update are in the email we sent you, and anything you nominated while signed in is in your account.'|trans }}</p>
+      <div class="rc__do">
+        <a class="ag-btn ag-btn--primary" href="/nominate">{{ 'Nominate someone'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary" href="/account">{{ 'Open my account'|trans }}</a>
+      </div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

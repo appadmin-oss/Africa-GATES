@@ -131,13 +131,31 @@ final class AdminIaTest extends TestCase
         // A file, not a page. There is nothing to navigate to and nothing to come back to.
         '~(\.csv|\.zip|/export)$~' => 'a download',
         // An HTML fragment or a JSON body for something already on screen.
-        '~/(next|count|feed|alerts)$~' => 'a fragment or a poll endpoint',
+        // (`alerts` left this list on 4 Oct 2026: /admin/alerts is a page now.)
+        '~/(next|count|feed)$~' => 'a fragment or a poll endpoint',
         // `/admin` and `/admin/dashboard` are the same screen; the rail names one of them.
         '~^/admin\[?/?\]?$~' => 'the dashboard, which the rail reaches as /admin/dashboard',
     ];
 
+    /**
+     * LEFT WITHOUT A CALLER BY THE CONSOLE REBUILD — a list that may only shrink.
+     *
+     * Not a KIND, and deliberately not folded into NOT_DESTINATIONS: each entry is a
+     * mechanism the destroyed Home used to reach and the handoff's Home does not draw.
+     * It is named so the gap is visible in the test rather than excused by a pattern,
+     * and it leaves the moment a rebuilt screen links it again (docs/handoff/
+     * PHASE-ADMIN.md, open questions). The test below fails on an entry that has a
+     * caller again, so the list cannot outlive its reason.
+     */
+    private const ORPHANED_BY_REBUILD = [
+        // The integrity briefing's "AI briefing" JSON — the old dashboard's button. Owner
+        // to place the briefing (the Integrity screen, stage 2, is the obvious home).
+        '/admin/integrity-brief' => 'the dashboard integrity briefing, awaiting a new home',
+    ];
+
     private function excuse(string $path): ?string
     {
+        if (isset(self::ORPHANED_BY_REBUILD[$path])) return self::ORPHANED_BY_REBUILD[$path];
         foreach (self::NOT_DESTINATIONS as $pattern => $why) {
             if (preg_match($pattern, $path)) return $why;
         }
@@ -163,10 +181,9 @@ final class AdminIaTest extends TestCase
     {
         $root = dirname(__DIR__, 2);
 
-        $nav = [];
-        foreach (AdminNav::sections() as $s) {
-            foreach ($s['items'] as $i) $nav[] = $i['href'];
-        }
+        // The rail, its pages' "also here" strips and the shell's own links — every href
+        // AdminNav names is drawn by the layout for each role that can open it.
+        $nav = array_values(AdminNav::hrefs());
 
         // Everything a template or the admin's own script could link.
         $markup = '';
@@ -208,6 +225,20 @@ final class AdminIaTest extends TestCase
      * screen, and for as long as that screen was unlinked the honest answer to every one
      * of those questions was unavailable to the person who needed it.
      */
+    public function test_the_orphan_list_only_names_pages_that_are_still_orphans(): void
+    {
+        $markup = '';
+        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/templates')) as $f) {
+            if ($f->isFile() && $f->getExtension() === 'twig') $markup .= (string) file_get_contents($f->getPathname());
+        }
+        $markup .= (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/admin.js');
+        foreach (array_keys(self::ORPHANED_BY_REBUILD) as $path) {
+            $this->assertArrayHasKey($path, $this->destinations(), "$path is no longer a route — delete its line");
+            $this->assertDoesNotMatchRegularExpression('~["\']' . preg_quote($path, '~') . '["\'?#]~', $markup,
+                "$path has a caller again — delete its line from ORPHANED_BY_REBUILD");
+        }
+    }
+
     public function test_the_integrations_page_is_offered_from_settings(): void
     {
         $settings = (string) file_get_contents(
@@ -234,7 +265,7 @@ final class AdminIaTest extends TestCase
      */
     public function test_no_section_grows_past_scanning(): void
     {
-        foreach (AdminNav::sections() as $s) {
+        foreach (AdminNav::groups() as $s) {
             $this->assertLessThanOrEqual(12, count($s['items']),
                 sprintf('"%s" has %d items. Past about a dozen a heading stops being a '
                       . 'grouping and becomes a list — split it, or move something to the '
@@ -251,17 +282,17 @@ final class AdminIaTest extends TestCase
      * either invisible to everybody or visible to everybody, depending on how the check
      * treats an unknown key, and both are silent.
      */
-    public function test_every_section_gate_is_a_permission_the_model_defines(): void
+    public function test_every_page_gate_is_a_permission_the_model_defines(): void
     {
-        // `MATRIX` is the permission model: section => the roles that may reach it.
+        // Per PAGE since the 4 Oct 2026 rebuild, and read from the guard — so this asks
+        // that the guard's own map names only sections the model defines.
         $known = array_keys(\AfricaGates\Admin\Support\Permissions::MATRIX);
         $this->assertNotEmpty($known, 'the permission model must define its sections');
 
-        foreach (AdminNav::sections() as $s) {
-            if ($s['gate'] === null) continue;      // always visible, deliberately
-            $this->assertContains($s['gate'], $known,
-                sprintf('"%s" is gated on "%s", which Permissions::MATRIX does not define',
-                        $s['label'], $s['gate']));
+        foreach (AdminNav::hrefs() as $page => $href) {
+            $gate = AdminNav::gateOf($href);
+            if ($gate === null) continue;           // unmapped: superadmin only, by the guard's rule
+            $this->assertContains($gate, $known, "$page is gated on \"$gate\", which MATRIX does not define");
         }
     }
 
@@ -294,8 +325,8 @@ final class AdminIaTest extends TestCase
             ['&amp;', '  '], ['&', ' '], preg_replace('~\s+~', ' ', $v) ?? '')));
 
         $wrong = [];
-        foreach (AdminNav::sections() as $sec) {
-            foreach ($sec['items'] as $item) {
+        foreach ($this->railAndChildren() as $item) {
+            {
                 $tpl = $this->templateFor($item['href']);
                 if ($tpl === null || !is_file($root . '/templates/' . $tpl)) continue;
 
@@ -333,6 +364,17 @@ final class AdminIaTest extends TestCase
      * and the render call inside THAT method is the page the rail opens. One answer, and
      * it is the right one by construction rather than by luck.
      */
+    /** @return list<array{page:string,label:string,href:string}> every rail item and child */
+    private function railAndChildren(): array
+    {
+        $out = [];
+        foreach (AdminNav::railItems() as $i) {
+            $out[] = $i;
+            foreach ($i['children'] ?? [] as $c) $out[] = $c;
+        }
+        return $out;
+    }
+
     private function templateFor(string $href): ?string
     {
         $handler = $this->destinations()[$href] ?? null;
@@ -386,8 +428,8 @@ final class AdminIaTest extends TestCase
         $proper = ['AI', 'GATES', 'Africa'];
 
         $shouty = [];
-        foreach (AdminNav::sections() as $sec) {
-            foreach ($sec['items'] as $item) {
+        foreach ($this->railAndChildren() as $item) {
+            {
                 $words = array_slice(explode(' ', $item['label']), 1);
                 foreach ($words as $w) {
                     $w = trim($w, '&');

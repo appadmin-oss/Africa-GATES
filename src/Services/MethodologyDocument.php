@@ -43,7 +43,7 @@ final class MethodologyDocument
     public const PUBLISHED = '2026-08-08';
     public const UPDATED   = '2026-08-08';
 
-    public const TITLE    = 'How the Cultural Power Index is Scored';
+    public const TITLE    = 'How the Cultural Power Index is scored';
     public const SUBTITLE = 'The Africa GATES recognition methodology, end to end';
     public const AUTHOR   = 'Africa GATES Integrity Centre';
     public const PUBLISHER = 'Africa GATES — An Afrovanguard Initiative';

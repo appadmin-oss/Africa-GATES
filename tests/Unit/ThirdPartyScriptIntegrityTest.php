@@ -168,7 +168,10 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
             // Turnstile (`https://challenges.cloudflare.com/`, unpinnable) too: its one
             // loader was the ballot, vote-nominee.twig, destroyed the same day.
             // And AdSense (`https://pagead2.googlesyndication.com/`, unpinnable): its one
-            // loader was shop/index.twig. With all three gone the list is empty.
+            // loader was shop/index.twig. With all three gone the list was empty —
+            // until the Phase 5 ballot (vote-nominee.twig) brought Turnstile back, loaded
+            // only where a site key is configured. Unpinnable: Cloudflare updates it in place.
+            'https://challenges.cloudflare.com/turnstile/',
         ] as $expected) {
             $this->assertNotEmpty(
                 array_filter($urls, static fn(string $u): bool => str_starts_with($u, $expected)),
@@ -180,7 +183,8 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
         // third-party script today. The first rebuilt page that brings one back (Turnstile
         // on the ballot is the likely one) fails here and names it in the list above —
         // which re-arms the "the regex still sees something" half of this control.
-        $this->assertSame([], $urls,
+        $this->assertSame([], array_values(array_filter($urls,
+            static fn(string $u): bool => !str_starts_with($u, 'https://challenges.cloudflare.com/turnstile/'))),
             'a third-party script is back in the templates — name it in the list above');
     }
 

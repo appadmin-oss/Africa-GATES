@@ -1,55 +1,44 @@
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  DISPLAY & READING — the controls
-  REFERENCE §7.5, DisplayReading.dc.html
+  DISPLAY & READING — REFERENCE §7.5 · design/DisplayReading.dc.html
   ══════════════════════════════════════════════════════════════════════════════
 
-  One block, three homes: the full screen, the phone Quick settings sheet, and the
-  Menu's pushed sub-view. They are three doors onto the same seven switches, so
-  they share this markup rather than each growing a copy — the fault this codebase
-  keeps paying for is two surfaces that drift about whether a setting is on.
+  One block, two homes in one document: the header's Aa popover and the phone Menu's
+  pushed sub-view. Quick settings carries a SUBSET (two switches, §7.2) and a way here.
+  Every control writes `localStorage["ag-a11y"]` through `AGA11y.set()` — and the member's
+  account too, when signed in — and the store fires `ag:a11y` on every write, so every
+  mounted copy re-reads rather than keeping its own idea of what is on.
 
-  Every control writes `localStorage["ag-a11y"]` through `AGA11y.set()`, which
-  re-applies the <html> classes and fires `ag:a11y` so any other mounted copy
-  re-reads. The first application happens in the head, before paint.
+  ── `uid` IS REQUIRED ─────────────────────────────────────────────────────
 
-  `compact` drops the heading, for the Quick settings sheet, which has its own.
+  Both homes are in the same document, so a fixed id would appear twice and every
+  `for=`/`aria-labelledby` would resolve to the first copy — pressing "Language" in the
+  Menu once moved focus into a closed popover (SiteHeaderTest counts ids).
 
-  ── `uid` IS REQUIRED, AND IT IS NOT DECORATION ─────────────────────────────
+  ── THE SWITCHES ARE A LOOP OVER ONE LIST ───────────────────────────────────
 
-  Three surfaces mount this block, and two of them are in the same document: the
-  header's Aa popover and the Menu's Display sub-view. With a fixed `id` on the
-  language select, that document carried two `ag-dr-lang` — and `getElementById`
-  answers with the first, so the Menu's own label pointed at the popover's select.
-  Pressing "Language" in the Menu moved focus into a panel that was not open.
+  The keys are the store's (`a11y.js` SWITCHES, DisplayReadingPrefs::SWITCHES), and
+  `DisplayReadingTest` holds the three lists equal: a switch here the store has never
+  heard of flips, remembers its own `aria-checked` and changes nothing. The whole row is
+  the switch — a 52px target rather than a 26px one.
 
-  Nothing threw and nothing looked wrong. `SiteHeaderTest` counts how many times a
-  layout reaches a partial now, which is what found it.
+  ── THE LANGUAGE IS A REAL FORM ─────────────────────────────────────────────
+
+  A native select, because eight options is a list and the platform's picker already
+  works with every assistive technology — inside a GET form, so it works with scripting
+  off (`chrome.js` submits on change and hides the button it made redundant). Every other
+  query parameter rides along as a hidden field (`lang_carry()`), so switching language on
+  `/discover?q=lagos` does not drop the search.
 #}
 {% set _uid = uid|default('dr') %}
 <div class="ag-dr" data-ag-dr>
+  <span class="ag-dr__h">{{ 'Display & reading'|trans }}</span>
 
-  {% if not compact|default(false) %}
-    <span class="ag-dr__h">Display &amp; reading</span>
-  {% endif %}
-
-  {# Three steps, not a slider. The letter is drawn at 15 / 19 / 23px so the three
-     buttons differ by what they DO rather than by a label claiming it. The
-     accessible name carries the words, since "A" three times is not a choice. #}
-  <div class="ag-seg" role="radiogroup" aria-label="Text size">
-    {# The three letters are drawn at the sizes they set — 15 / 19 / 23px — so the
-       buttons differ by what they DO rather than by a label claiming it. The size is a
-       CLASS and not a `style` attribute: three fixed values off a fixed ladder are a
-       modifier, and an inline declaration is one the stylesheet cannot reach when the
-       ladder moves. #}
-    {% for s in [
-      {i:0, name:'Standard text'},
-      {i:1, name:'Large text'},
-      {i:2, name:'Largest text'}
-    ] %}
+  <div class="ag-seg ag-dr__seg" role="radiogroup" aria-label="{{ 'Text size'|trans }}">
+    {% for s in [{i:0, name:'Standard text'}, {i:1, name:'Large text'}, {i:2, name:'Largest text'}] %}
       <button type="button" class="ag-seg__opt ag-dr__size ag-dr__size--{{ s.i }}" role="radio"
-              aria-checked="false" aria-label="{{ s.name }}"
-              data-ag-size="{{ s.i }}">A</button>
+              aria-checked="{{ s.i == 0 ? 'true' : 'false' }}" tabindex="{{ s.i == 0 ? '0' : '-1' }}"
+              aria-label="{{ s.name|trans }}" data-ag-size="{{ s.i }}">A</button>
     {% endfor %}
   </div>
 
@@ -62,47 +51,23 @@
     {k:'saver',  label:'Data saver',          help:'Photos and video load when you tap'},
     {k:'listen', label:'Read pages aloud',    help:'Adds Listen to every article and profile'}
   ] %}
-    {# The whole row is the switch: a 52px target rather than a 26px one, which is
-       what the standards ask for and what a thumb needs. #}
-    <button type="button" class="ag-dr__row" role="switch" aria-checked="false"
-            data-ag-toggle="{{ t.k }}">
+    <button type="button" class="ag-dr__row" role="switch" aria-checked="false" data-ag-toggle="{{ t.k }}">
       <span class="ag-dr__text">
-        <span class="ag-dr__label">{{ t.label }}</span>
-        <span class="ag-dr__help">{{ t.help }}</span>
+        <span class="ag-dr__label">{{ t.label|trans }}</span>
+        <span class="ag-dr__help">{{ t.help|trans }}</span>
       </span>
-      <span class="ag-switch" aria-hidden="true"></span>
+      <span class="ag-switch ag-dr__switch" aria-hidden="true"></span>
     </button>
   {% endfor %}
 
-  {# A native select on purpose: eight options is a list, and the platform's own
-     picker is the one that already works with every assistive technology.
-
-     Inside a real GET form, and not a script that navigates on change, because a
-     language switch is the control most needed by people whose scripting is off or
-     broken. The button is hidden while `ag-dr__lang` has been upgraded — chrome.js
-     submits on change — and is the only way through otherwise.
-
-     Every other value on the page is carried as a hidden field so switching language
-     on `/discover?q=lagos` does not silently drop the search. #}
   <form class="ag-dr__lang" method="get" data-ag-langform>
     {% for k, v in lang_carry() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
-    <label for="ag-dr-lang-{{ _uid }}">Language</label>
+    <label for="ag-dr-lang-{{ _uid }}">{{ 'Language'|trans }}</label>
     <select id="ag-dr-lang-{{ _uid }}" name="lang" data-ag-lang>
       {% for l in languages() %}
-        <option value="{{ l.code }}" lang="{{ l.code }}"
-                {{ l.code == lang() ? 'selected' : '' }}>{{ l.name }}</option>
+        <option value="{{ l.code }}" lang="{{ l.code }}"{{ l.code == lang() ? ' selected' : '' }}>{{ l.name }}</option>
       {% endfor %}
     </select>
-    <button type="submit" class="ag-btn ag-btn--sm ag-dr__go">Change</button>
+    <button type="submit" class="ag-dr__go">{{ 'Change'|trans }}</button>
   </form>
-
-  {# Said plainly rather than discovered. The mechanism is real — it sets `lang`
-     and `dir` on the document, which is what a screen reader's pronunciation and
-     the whole RTL layout depend on — and the copy is not translated yet: the
-     `|trans` layer exists (Support\Translator) but its catalogues hold only the
-     first-visit prompt. Rewrite this note when they hold the pages. A menu that
-     silently does nothing is the thing worth refusing to ship. #}
-  <p class="ag-dr__note">Sets the page’s language for screen readers and
-    right-to-left layout. The writing is still in English while the translations
-    are prepared.</p>
 </div>

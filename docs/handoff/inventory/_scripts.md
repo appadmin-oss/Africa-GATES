@@ -340,3 +340,45 @@ The four `CelebrationTest` methods on `MemberActivityService::backedWinners()` (
 - `test_trailing_punctuation_is_left_outside_the_link` — the trim `url.match(/[.,;:!?)]+$/)` is present.
 - `test_urls_are_linkified_before_mentions_and_hashtags` — inside `linkify()`, `URL_RE` appears before the `@(` and `#(` patterns.
 - `test_the_text_is_escaped_before_anything_is_linkified` — `escapeHtml(text)` exists in `linkify()` (asserted as an int FIRST: with it deleted, `strpos` is `false`, compares as 0 and the ordering assertion passes — caught by mutation) and precedes `URL_RE`.
+
+---
+
+# Phase 3 destroy — Gee (3 Oct 2026)
+
+Destroyed by Phase 3 (Gee) under the owner's standing principle: inventoried, deleted, written again from `design/Gee.dc.html` and REFERENCE §7.7/§8.22. Taken from the file at `HEAD` (`763f871`) before deletion. Its stylesheet (`components/gee.css`) and its mount (`layout/gates.twig:438–517`) were destroyed earlier the same day and are inventoried in `_stylesheets.md` and `layout--gates.md`; the support desk it shared a brain with (`pages/support-assistant.twig`) is in `pages--support-assistant.md`.
+
+## `public/assets/js/gee.js` (HEAD, 649 lines)
+
+**Loaded by (at `763f871`):** nothing — its only loader was `layout/gates.twig`, destroyed. Unmounted since; `CookieRegistryTest` excused its storage keys for that reason.
+
+**What it did:** Gee, the page-aware guide. A launcher (`#geeFab`) and a resizable panel (`#geePanel`, a draggable bottom sheet under 560px) that posts to `/api/guide` with `{message, history, page:{title,path}}`, keeps the conversation in `sessionStorage`, linkifies the routes and Help Centre article URLs a reply mentions, shows what an answer was built from (tool labels), up to two article cards, and a "Pass this to a person" row on every support answer that posts to `/api/support/escalate`. The header sub-label followed the LAST turn (guide / "Support — I can check a payment"). Unread replies while shut or in another tab went to `window.agFavicon.unread(n)`.
+
+**DOM hooks:** `#gee` (`data-gee-page`, `data-gee-title`), `.gee-scrim`, `data-attention`, `data-mode`, `data-open`  
+**Element ids:** `#geePanel`, `#geeFab`, `#geeLog`, `#geeForm`, `#geeInput`, `#geeSend`, `#geeSuggest`, `#geeClose`, `#geeClear`, `#geeResize`, `#geeStatus`, `#geeTyping`  
+**Endpoints:** `/api/guide`, `/api/support/escalate`  
+**Storage keys:** `gee.msgs.v1`, `gee.size.v1`, `gee.sheet.v1`, `gee.seen.v1` (all `sessionStorage`; none ever declared in `CookieRegistry`, because nothing loaded the file once `gates.twig` went)  
+**Events listened for:** click, submit, input, keydown, pointerdown/move/up/cancel, resize, visibilitychange  
+**Globals exported:** `window.openGee`, `window.closeGee`, `window.toggleGee`  
+**Reads prefers-reduced-motion:** no (the CSS did)
+
+**Rules it carried, and what the rebuild does with each:**
+
+| Rule | Rebuild |
+|---|---|
+| **MUST RESTORE** — `esc()` runs FIRST, then only constant tags or `<a>` whose href comes from the fixed `ROUTE_RE` whitelist or the narrow `HELP_RE` slug class (`[a-z0-9-]`, cannot break out of an href) | Kept, same two patterns by name (`GeeSupportsTest` reads them out of the file) |
+| **MUST RESTORE** — `(?![\w/-])`, not `\b`, so `/help/paid-but-no-votes` is never linked as `/help` plus an orphaned fragment; articles linked BEFORE routes | Kept |
+| **MUST RESTORE** — the way to a person comes BEFORE the reading in a turn (measured: three cards pushed the handoff button off a 540px panel) | The handoff is a card of its own, and "Talk to a person" is in the footer from the first frame (§8.22) |
+| **MUST RESTORE** — the handoff files the PERSON's last words, never Gee's paragraph; nothing said → no ticket | Kept, and the desk's "ask, do not file" (`SupportConversationFaultsTest`) applies to it |
+| **MUST RESTORE** — only a successful exchange is remembered, so a transient error does not poison context | Kept |
+| **MUST RESTORE** — "support tickets", never a bare "tickets" (Gee floats over event pages) | Kept (`SupportTicketNamingTest::SCRIPT_COPY`) |
+| Header label follows the last turn both ways | Replaced: the MODE is chosen by the caller (`AGGee.open({mode})`, `?gee=support`), §8.22 — the label no longer flips under a reader mid-conversation |
+| Page-aware greetings and three chips per page (`PROFILES`) | Replaced by the DC's one greeting and four starters (§7.7) |
+| Tool labels under an answer ("re-checked the payment with the bank") | Not drawn: the DC has no such row. The live work card states the steps that actually ran instead (§8.22) — **flagged in PHASE-3.md** |
+| Two article cards | Help-link chips (§7.7 item 5), the same `articles` from the server |
+| Resizable panel, draggable phone sheet, `gee.size.v1`/`gee.sheet.v1` | Dropped: §7.7 fixes the panel at 400×580 and the phone panel to the page |
+| First-visit attention pulse, `gee.seen.v1` | Dropped: the DC has none |
+| Typing dots while a reply is coming | Kept (§9.4 asks a visible loading state; the DC draws none) — **flagged** |
+| `window.agFavicon.unread(n)` | Kept as a call into the favicon module, which is itself MUST RESTORE (`favicon.js`, above) |
+| `window.openGee`/`closeGee`/`toggleGee` | Replaced by `window.AGGee.open({mode, q})` / `close()` — no aliases; their only caller was the destroyed layout's `data-ag-do="open-gee"` handler, which the rebuild binds itself |
+
+**Guard tests that read it:** `GeeSupportsTest` (`HELP_RE`, `ROUTE_RE` lifted from the file), `SupportTicketNamingTest::SCRIPT_COPY` (`my_tickets:`), `CookieRegistryTest` (excused as unloaded), `DoorScreenTest` (the door must not load it).

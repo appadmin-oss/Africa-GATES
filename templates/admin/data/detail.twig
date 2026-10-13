@@ -5,11 +5,11 @@
 <div class="ad-card" style="max-width:860px"><div class="ad-card__body">
   <div style="display:grid;grid-template-columns:minmax(120px,auto) 1fr;gap:11px 20px;font-size:14px">
     {% for f in fields %}
-      <span style="color:var(--ad-text-soft,#5a6d6f);font-weight:500;white-space:nowrap">{{ f.key }}</span>
+      <span style="color:var(--cn-grey-600);font-weight:500;white-space:nowrap">{{ f.key }}</span>
       <span style="word-break:break-word;min-width:0">
         {% set sv = f.value is null ? '' : f.value %}
-        {% if sv == '' %}<span style="color:var(--ad-text-mute,#61728e)">—</span>
-        {% elseif sv starts with '{' or sv starts with '[' %}<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-family:'Space Mono',monospace;font-size:12px;background:var(--ad-bg,#f4f6f5);padding:9px 11px;border-radius:8px;overflow-x:auto">{{ sv }}</pre>
+        {% if sv == '' %}<span style="color:var(--cn-grey-500)">—</span>
+        {% elseif sv starts with '{' or sv starts with '[' %}<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-family:'Space Mono',monospace;font-size:12px;background:var(--cn-fill-panel);padding:9px 11px;border-radius:8px;overflow-x:auto">{{ sv }}</pre>
         {% else %}{{ sv }}{% endif %}
       </span>
     {% endfor %}
@@ -18,7 +18,7 @@
 
 {% if dataset == 'users' and admin_role in ['superadmin','admin'] %}
 <div class="ad-card" style="max-width:860px;margin-top:16px"><div class="ad-card__head"><div class="ad-card__title">Adjust points</div></div><div class="ad-card__body">
-  <p style="font-size:13px;color:var(--ad-text-soft,#5a6d6f);margin:0 0 12px">Grant or deduct voting points for dispute resolution (e.g. a purchase that should have earned points but didn&rsquo;t). Use a negative amount to deduct. Every adjustment is recorded in the audit log and the points ledger.</p>
+  <p style="font-size:13px;color:var(--cn-grey-600);margin:0 0 12px">Grant or deduct voting points for dispute resolution (e.g. a purchase that should have earned points but didn&rsquo;t). Use a negative amount to deduct. Every adjustment is recorded in the audit log and the points ledger.</p>
   <form method="post" action="/admin/users/{{ id }}/points" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <label style="font-size:13px">Amount (+/−)<br><input type="number" name="delta" required step="1" style="width:130px;padding:6px 9px" placeholder="e.g. 500 or -500"></label>

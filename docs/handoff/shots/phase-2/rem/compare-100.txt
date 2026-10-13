@@ -1,0 +1,3 @@
+identical 131 · differ 2 · missing 0
+header-1024-signedin-rest.png: 22 px differ in [797,50]-[930,52]
+settings-390-largest-hc.png: 148649 px differ in [0,19]-[389,810]

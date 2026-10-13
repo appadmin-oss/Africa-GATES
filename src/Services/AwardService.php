@@ -499,6 +499,10 @@ class AwardService {
             'nominator_state'     => trim($data['nominator_state']     ?? ''),
             'nominator_lga'       => trim($data['nominator_lga']       ?? ''),
             'nominator_age_range' => mb_substr(trim($data['nominator_age_range'] ?? ''), 0, 20),
+            // "About you" (Phase 8): how they know the nominee — a known key or nothing —
+            // and whether their name is kept from the nominee (NomineeConfirmation reads it).
+            'nominator_relation'  => \AfricaGates\Services\NominationRules::relation($data['nominator_relation'] ?? null),
+            'nominator_private'   => !empty($data['nominator_private']) ? 1 : 0,
         ];
         foreach ($extended as $col => $val) {
             if (in_array($col, $existing, true)) {

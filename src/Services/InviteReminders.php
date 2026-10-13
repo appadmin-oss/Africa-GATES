@@ -740,7 +740,8 @@ final class InviteReminders
             ['autoescape' => 'html']
         ));
 
-        return $twig->render('emails/invite-reminder.twig', $view);
+        // `c`: the palette, by name — mail cannot read var() (Accent::mail()).
+        return $twig->render('emails/invite-reminder.twig', $view + ['c' => \AfricaGates\Support\Accent::mail()]);
     }
 
     /**

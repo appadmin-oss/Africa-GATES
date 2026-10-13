@@ -1,0 +1,237 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   SIGN IN · JOIN · THE MEMBER DOORS — Phase 8, design/SignIn.dc.html
+   layout/auth.twig and the screens that extend it
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Every number below is read off the DC's inline styles and its `renderVals()` (REFERENCE
+   §5): `cols`, `formPad`, `showArt`, the 22px gap, the 44px back button, the 40px language
+   pill, the 4px progress bars, the 30px Playfair heading over a 15.5px lede, the 56px
+   inputs and pill buttons, the 60px code boxes. Type is the ladder's rem steps
+   (tokens.css), colour Accent's tokens, nothing typed.
+
+   Where this differs from the DC, deliberately (PHASE-8.md, "Sign in"):
+   · a selected interest is the house chip's 2px ink outline, not the DC's dark fill
+     (REFERENCE §6.1, §18.2 — the README wins over a DC);
+   · the language pill and the two fallback pills keep the DC's 40px ink and take a 44px
+     hit area (REFERENCE §6.7: the target grows, never the ink);
+   · the DC's 9.5px "GATES" is the header's 11.5 — there is no rung under 11.5 (§6.2). */
+
+.si{
+  min-height:100%;
+  display:grid; grid-template-columns:minmax(0,1fr);
+  background:var(--ag-ground); color:var(--ag-ink);
+}
+@media (min-width:1024px){
+  .si--art{ grid-template-columns:minmax(0,1fr) minmax(0,1fr) }
+}
+
+/* ── The left half (desktop only) ──────────────────────────────────────────── */
+.si__art{ display:none }
+@media (min-width:1024px){
+  .si__art{
+    display:block; position:sticky; top:0; height:100dvh; max-height:100%;
+    overflow:hidden; background:var(--ag-ink);
+  }
+}
+.si__photo{ position:absolute; inset:0; width:100%; height:100%; border-radius:0 }
+/* A monogram on the dark half: the initials set large and quiet, so the panel reads as a
+   portrait slot rather than a hole. */
+.si__photo.ag-photo--mono{ background:var(--ag-ink); box-shadow:none }
+.si__photo.ag-photo--mono .ag-photo__ini{ color:var(--ag-ink-2); font-size:var(--ag-fs-64) }
+/* The DC's veil: ink at 10% from the top, deepening to 85% at the foot, so the words hold. */
+.si__veil{
+  position:absolute; inset:0;
+  background:linear-gradient(180deg,
+    color-mix(in srgb, var(--ag-ink) 10%, transparent) 40%,
+    color-mix(in srgb, var(--ag-ink) 85%, transparent) 100%);
+}
+.si__credit{
+  position:absolute; left:40px; right:40px; bottom:40px;
+  display:flex; flex-direction:column; gap:12px; color:var(--ag-ground);
+}
+.si__who,
+.si__who:hover{
+  color:var(--ag-ground);
+  font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-28); line-height:1.25;
+}
+.si__what{ font-size:var(--ag-fs-14); font-weight:600 }
+
+/* ── The form column ───────────────────────────────────────────────────────── */
+.si__col{ min-width:0; display:flex; flex-direction:column }
+.si__form{
+  flex:1; width:100%; max-width:440px; margin:0 auto;
+  padding:4px 20px 32px;
+  display:flex; flex-direction:column; gap:22px;
+}
+@media (min-width:600px){ .si__form{ padding:48px 32px 48px } }
+/* On a phone the DC's frame has a 44px status bar above the row; the browser's own
+   chrome is that bar here, so the row keeps clear of the screen edge by the same 12px
+   the app bar would. */
+@media (max-width:599px){ .si__form{ padding-top:12px } }
+
+.si__top{ display:flex; align-items:center; justify-content:space-between; gap:12px }
+
+.si__back{
+  flex:none; width:44px; height:44px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-tint); color:var(--ag-ink);
+}
+.si__back:hover{ color:var(--ag-ink) }
+
+.si__brand,
+.si__brand:hover{ display:flex; align-items:center; gap:10px; min-height:44px; color:var(--ag-ink) }
+.si__mark{
+  width:32px; height:32px; padding:3px; border-radius:9px;
+  border:1px solid var(--ag-line-2); background:var(--ag-surface); object-fit:contain;
+}
+.si__word{ display:flex; flex-direction:column; line-height:1 }
+.si__africa{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-16); color:var(--ag-ink) }
+.si__gates{ font-size:var(--ag-fs-11-5); font-weight:700; letter-spacing:.26em; color:var(--ag-green) }
+
+/* A 40px pill (the DC) inside a 44px target. */
+.si__lang,
+.si__pill{
+  position:relative;
+  height:40px; padding:0 14px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-weight:600; font-size:var(--ag-fs-13-5); cursor:pointer;
+}
+.si__lang::after,
+.si__pill::after{ content:""; position:absolute; inset:-3px 0 }
+
+.si__bars{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px }
+.si__bar{ height:4px; border-radius:2px; background:var(--ag-line-2) }
+.si__bar--on{ background:var(--ag-green) }
+
+/* ── A step's heading ──────────────────────────────────────────────────────── */
+.si__head{ display:flex; flex-direction:column; gap:8px }
+.si__h1{
+  margin:0;
+  font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-30); line-height:1.15;
+}
+.si__lede{ margin:0; font-size:var(--ag-fs-15-5); line-height:1.55; color:var(--ag-ink-2) }
+.si__lede b{ color:var(--ag-ink) }
+
+/* ── The Phone · Email switch — the segmented track, 4px inset, 44px options ── */
+.si__via{
+  display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px;
+  background:var(--ag-tint); border-radius:var(--ag-r-14);
+}
+.si__via-o,
+.si__via-o:hover{
+  height:44px; border-radius:11px;
+  display:flex; align-items:center; justify-content:center;
+  background:transparent; color:var(--ag-ink);
+  font-weight:600; font-size:var(--ag-fs-14-5);
+}
+.si__via-o[aria-checked="true"]{ background:var(--ag-surface) }
+
+.si__panel[hidden]{ display:none }
+.si__form-step{ display:flex; flex-direction:column; gap:22px; margin:0 }
+
+/* The number row: the country picker (a native select drawn as the DC's "NG +234") and the
+   number, 8px apart, both 56px. */
+.si__tel{ display:flex; gap:8px }
+.si__cc{
+  flex:none; height:56px; padding:0 14px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-weight:600; font-size:var(--ag-fs-16); appearance:none; cursor:pointer;
+}
+.si__tel > .si__in{ flex:1 }
+.si__in{
+  min-width:0; width:100%; height:56px; padding:0 16px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-17);
+}
+.si__in::placeholder{ color:var(--ag-soft) }
+.si__in:is([aria-invalid="true"],[data-invalid]){ border-color:var(--ag-error) }
+
+/* The primary: a 56px green pill, 16.5/700 (the DC — taller than the base button). */
+.si__go{
+  display:flex; align-items:center; justify-content:center; width:100%;
+  height:56px; padding:0 22px; border:0; border-radius:var(--ag-r-pill);
+  background:var(--ag-green); color:var(--ag-surface);
+  font-weight:700; font-size:var(--ag-fs-16-5); cursor:pointer; text-decoration:none;
+}
+.si__go:hover{ background:var(--ag-green-deep); color:var(--ag-surface) }
+.si__go:active{ transform:translateY(1px) }
+.si__go[aria-disabled="true"]{ background:var(--ag-tint); color:var(--ag-mute); cursor:not-allowed }
+
+.si__fine{ margin:0; font-size:var(--ag-fs-13); line-height:1.55; color:var(--ag-soft) }
+.si__alt{ margin:0; display:flex; flex-wrap:wrap; gap:4px 16px; font-size:var(--ag-fs-14-5) }
+.si__alt a,
+.si__link{
+  display:inline-flex; align-items:center; min-height:44px;
+  font-weight:600; color:var(--ag-green); background:none; border:0; padding:0; cursor:pointer;
+  font-size:var(--ag-fs-14-5);
+}
+.si__alt a:hover,
+.si__link:hover{ color:var(--ag-green-deep) }
+.si__skip{ align-self:center }
+
+/* ── A refusal or a notice beside the form ─────────────────────────────────── */
+.si__say{
+  display:flex; align-items:flex-start; gap:10px; margin:0;
+  padding:12px 14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14-5); line-height:1.5;
+}
+.si__say > svg{ flex:none; margin-top:2px; color:var(--ag-info) }
+.si__say--error,
+.si__say--error > svg{ color:var(--ag-error) }
+
+/* ── The code: one real field, six painted boxes ──────────────────────────────
+   The six boxes are decoration; ONE input takes the code, because
+   `autocomplete="one-time-code"` autofills a single field and six would kill it. The
+   real field is visible and usable until signin.js has painted the boxes and laid it over
+   them (`data-painted`) — hidden by the stylesheet alone, a blocked script would leave six
+   empty boxes over an invisible input (inventory pages--account--login.md). */
+.si-code{ position:relative }
+.si-code__boxes{ display:none }
+.si-code__real{
+  width:100%; height:60px; padding:0 16px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font:700 var(--ag-fs-24)/1 var(--ag-font-mono); letter-spacing:.3em; text-align:center;
+}
+.si-code[data-painted] .si-code__boxes{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px }
+.si-code[data-painted] .si-code__real{
+  position:absolute; inset:0; height:100%; opacity:0; border:0; background:transparent;
+  color:transparent; caret-color:transparent;
+}
+.si-code__box{
+  height:60px; display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14); background:var(--ag-surface);
+  font:700 var(--ag-fs-24)/1 var(--ag-font-mono); color:var(--ag-ink);
+}
+/* The box the next digit lands in, while the field has focus: the DC's 2px green. */
+.si-code[data-focus] .si-code__box[data-next]{ border:2px solid var(--ag-green) }
+.si-code__real:is([aria-invalid="true"]) ~ .si-code__boxes .si-code__box{ border-color:var(--ag-error) }
+
+.si__again{ display:flex; flex-direction:column; gap:6px; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.si__again-row{ display:flex; gap:8px; flex-wrap:wrap; margin:0 }
+.si__again-row form{ margin:0 }
+.si__wait{ font-variant-numeric:tabular-nums }
+
+/* ── The interests ─────────────────────────────────────────────────────────── */
+.si__chips{ display:flex; flex-wrap:wrap; gap:8px; margin:0; padding:0; border:0 }
+/* A real checkbox inside each chip, so the choice posts with no script; the chip shows
+   it with the house selection (2px ink, 700), never a fill. */
+.si__chip{ position:relative; font-weight:600; font-size:var(--ag-fs-14-5); padding:0 16px }
+.si__chip > input{ position:absolute; opacity:0; inset:0; margin:0; cursor:pointer }
+.si__chip:has(> input:checked){ border:2px solid var(--ag-ink); padding:0 15px; font-weight:700 }
+.si__chip:has(> input:focus-visible){ outline:3px solid var(--ag-green); outline-offset:2px }
+
+/* ── The chooser on /account/register ──────────────────────────────────────── */
+.si__list .ag-list__b > b{ font-weight:700; font-size:var(--ag-fs-16) }
+.si__list .ag-list__sub{ white-space:normal; font-size:var(--ag-fs-13-5) }
+.si__list .ag-list__row{ padding-block:10px }
+
+.si__needs{ margin:0; padding-inline-start:18px; font-size:var(--ag-fs-14-5); line-height:1.6; color:var(--ag-ink-2) }
+
+@media (prefers-reduced-motion: reduce){
+  .si__go:active{ transform:none }
+}

@@ -36,6 +36,13 @@
      ColourLiteralTest fails it by name — so a value that is not one of the
      handoff's tokens cannot be written here at all, only mixed from them.
 
+   · TYPE IS A REM STEP FROM tokens.css (owner, 3 Oct 2026), never a px. The px
+     sizes this file was first written in are why the Display & reading setting
+     changed nothing on screen: it scales the root, and a px size ignores the
+     root. Each step is the DC's px over 16, so at 100% nothing moved; heights,
+     padding and radii stay px — a 44px target is sized for a finger, not for
+     text. Destroyed and written again on that date.
+
    ── THE SPECIMEN HOOKS: `.is-hover`, `.is-active`, `.is-focus` ──────────────
 
    A pointer state cannot be held still for a screenshot or a review, so each
@@ -56,7 +63,7 @@
   display:inline-flex; align-items:center; justify-content:center; gap:var(--ag-sp-8);
   height:52px; padding:0 22px;
   border:0; border-radius:var(--ag-r-16);
-  font-size:15.5px; font-weight:700; line-height:1;
+  font-size:var(--ag-fs-15-5); font-weight:700; line-height:1;
   text-decoration:none; white-space:nowrap; cursor:pointer;
   transition:background-color var(--ag-dur-1) var(--ag-ease),
              border-color var(--ag-dur-1) var(--ag-ease),
@@ -68,7 +75,7 @@
 .ag-btn--secondary{
   background:var(--ag-surface); color:var(--ag-ink);
   border:1px solid var(--ag-line-2);
-  font-size:15px; font-weight:600;
+  font-size:var(--ag-fs-15); font-weight:600;
 }
 /* VotePage.dc.html: `style-hover="background:#fbfbfa"` on its outlined button. */
 .ag-btn--secondary:is(:hover,.is-hover){ background:var(--ag-bar); color:var(--ag-ink) }
@@ -127,7 +134,7 @@
 .ag-btn--dot{ box-shadow:var(--ag-sh-dot) }
 
 @media (min-width:1024px){
-  .ag-btn{ height:48px; font-size:15px }
+  .ag-btn{ height:48px; font-size:var(--ag-fs-15) }
   .ag-btn--text{ height:44px }
 }
 
@@ -143,7 +150,7 @@
   height:44px; padding:0 var(--ag-sp-16);
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
   background:var(--ag-surface); color:var(--ag-ink);
-  font-size:14.5px; font-weight:500;
+  font-size:var(--ag-fs-14-5); font-weight:500;
   white-space:nowrap;                 /* a chip label that wraps is a defect */
   text-decoration:none; cursor:pointer;
 }
@@ -242,9 +249,9 @@
 
 .ag-label{
   display:block; margin-bottom:var(--ag-sp-6);
-  font-size:14.5px; font-weight:600; color:var(--ag-ink);
+  font-size:var(--ag-fs-14-5); font-weight:600; color:var(--ag-ink);
 }
-.ag-hint{ margin:var(--ag-sp-6) 0 0; font-size:13px; color:var(--ag-soft) }
+.ag-hint{ margin:var(--ag-sp-6) 0 0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
 
 .ag-field{
   display:flex; align-items:center; gap:var(--ag-sp-10);
@@ -256,7 +263,7 @@
 .ag-field > :is(input,select){
   flex:1; min-width:0; height:100%;
   border:0; outline:0; background:transparent;
-  color:var(--ag-ink); font-size:16px;
+  color:var(--ag-ink); font-size:var(--ag-fs-16);
 }
 .ag-field:is(:focus-within,.is-focus){ outline:3px solid var(--ag-green); outline-offset:2px }
 .ag-field[data-invalid]{ border-color:var(--ag-error) }
@@ -288,7 +295,7 @@ textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items
 .ag-err{
   display:flex; align-items:center; gap:var(--ag-sp-6);
   margin:var(--ag-sp-6) 0 0;
-  font-size:13.5px; font-weight:600; color:var(--ag-error);
+  font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-error);
 }
 .ag-err > svg{ flex:none }
 
@@ -338,14 +345,14 @@ button.ag-list__row{ width:100%; cursor:pointer }
 .ag-list__b{ flex:1; min-width:0 }
 .ag-list__b{ display:flex; flex-direction:column; gap:2px }
 .ag-list__label{
-  font-size:16px; font-weight:500;
+  font-size:var(--ag-fs-16); font-weight:500;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .ag-list__sub{
-  font-size:12.5px; color:var(--ag-soft);
+  font-size:var(--ag-fs-12-5); color:var(--ag-soft);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-.ag-list__value{ flex:none; font-size:14.5px; color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.ag-list__value{ flex:none; font-size:var(--ag-fs-14-5); color:var(--ag-soft); font-variant-numeric:tabular-nums }
 .ag-list__chev{ flex:none; display:flex; color:var(--ag-chevron) }
 
 
@@ -405,7 +412,7 @@ button.ag-list__row{ width:100%; cursor:pointer }
   flex:none;
   display:grid; grid-template-columns:44px 1fr 44px; align-items:center;
   padding:0 var(--ag-sp-8) var(--ag-sp-6);
-  font-size:16.5px; font-weight:700; text-align:center;
+  font-size:var(--ag-fs-16-5); font-weight:700; text-align:center;
 }
 .ag-sheet__body{ flex:1; min-height:0; overflow:auto; padding:0 var(--ag-sp-16) var(--ag-sp-32) }
 
@@ -502,7 +509,7 @@ button.ag-list__row{ width:100%; cursor:pointer }
    One sentence built from the active filters and one action. Never a blank page. */
 
 .ag-empty{ padding:var(--ag-sp-32) var(--ag-gutter); text-align:center }
-.ag-empty__t{ margin:0 0 var(--ag-sp-12); font-size:16px; color:var(--ag-ink-2) }
+.ag-empty__t{ margin:0 0 var(--ag-sp-12); font-size:var(--ag-fs-16); color:var(--ag-ink-2) }
 
 
 /* ══ Stock note · REFERENCE §6.1 ═════════════════════════════════════════════
@@ -512,14 +519,14 @@ button.ag-list__row{ width:100%; cursor:pointer }
    item page's size line (13/700 on a phone), which is a live region there because
    it changes as the size changes. */
 
-.ag-stock{ font-size:12.5px; font-weight:600 }
+.ag-stock{ font-size:var(--ag-fs-12-5); font-weight:600 }
 .ag-stock--low { color:var(--ag-stock-low) }
 .ag-stock--gone{ color:var(--ag-stock-gone) }
 .ag-stock--ok  { color:var(--ag-green-deep) }
-.ag-stock--line{ font-size:14px }
+.ag-stock--line{ font-size:var(--ag-fs-14) }
 @media (max-width:599px){
-  .ag-stock{ font-size:12px }
-  .ag-stock--line{ font-size:13px; font-weight:700 }
+  .ag-stock{ font-size:var(--ag-fs-12) }
+  .ag-stock--line{ font-size:var(--ag-fs-13); font-weight:700 }
 }
 
 
@@ -540,7 +547,7 @@ button.ag-list__row{ width:100%; cursor:pointer }
   min-width:18px; height:18px; padding:0 5px;
   border-radius:var(--ag-r-pill);
   background:var(--ag-green); color:var(--ag-surface);
-  font-size:11.5px; font-weight:700; line-height:1;
+  font-size:var(--ag-fs-11-5); font-weight:700; line-height:1;
   font-variant-numeric:tabular-nums;
 }
 /* The filter count (ShopPage's Filters button): ink, and 20px rather than 18. */

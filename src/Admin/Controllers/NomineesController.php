@@ -135,6 +135,30 @@ class NomineesController
     }
 
     /**
+     * "Not the same person": the scan stops suggesting every pair among these. Admin+,
+     * the same gate as merge, because it decides what the next admin is shown.
+     */
+    public function notDuplicate(Request $req, Response $res): Response
+    {
+        $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            $_SESSION['flash_error'] = 'Only an admin can rule on duplicates.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $b   = (array) $req->getParsedBody();
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($b['merge_ids'] ?? [])))));
+        if (count($ids) < 2) {
+            $_SESSION['flash_error'] = 'Nothing to mark — a group needs two nominees.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $n = \AfricaGates\Services\MergeSuggestionService::dismiss($ids, (int) ($_SESSION['admin_id'] ?? 0) ?: null,
+                                                                (string) ($b['_reason'] ?? ''));
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nominee.not_duplicate', 'nominee', $ids[0], ['ids' => $ids]);
+        $_SESSION['flash_ok'] = 'Marked as different people. The scan will not suggest ' . ($n === 1 ? 'that pair' : 'those pairs') . ' again.';
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
      * Undo a merge: restore a tombstoned nominee and move its votes/scores back
      * off the survivor (re-inserting any rows that were dropped as collisions),
      * then rebuild both nominees' counters — via MergeService::unmerge(). Admin+
@@ -198,8 +222,18 @@ class NomineesController
         }
         if ($cycleId <= 0) return $json(['ok' => true, 'groups' => [], 'scanned' => 0, 'ai' => false]);
 
-        $r = \AfricaGates\Services\MergeSuggestionService::forCycle($cycleId);
+        // A failure here used to reach the page as HTML that r.json() could not read, and
+        // the screen said "Network error — try again" about a fault that would recur on
+        // every try. It answers in JSON now, with the reference that finds the log entry.
+        try {
+            $r = \AfricaGates\Services\MergeSuggestionService::forCycle($cycleId);
+        } catch (\Throwable $e) {
+            $ref = \AfricaGates\Support\PublicFault::record($e, 'GET /admin/nominees/duplicate-scan');
+            return $json(['ok' => false, 'reference' => $ref,
+                          'error' => 'The scan failed on the server — reference ' . $ref . '. Nothing was changed.'], 500);
+        }
         unset($r['names_by_id']);
+        unset($r['rows_by_id']);   // the same, with countries and vote counts — never to the browser
         return $json(['ok' => true] + $r + ['cycle' => $cycleId]);
     }
 

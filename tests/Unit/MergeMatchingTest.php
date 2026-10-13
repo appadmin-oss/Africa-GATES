@@ -300,6 +300,8 @@ class MergeMatchingTest extends TestCase
         $controller = file_get_contents(dirname(__DIR__, 2) . '/src/Admin/Controllers/NomineesController.php');
         $this->assertStringContainsString("unset(\$r['names_by_id'])", (string) $controller,
             'the duplicate-scan endpoint must strip it before responding');
+        $this->assertContains('rows_by_id', $keys);
+        $this->assertStringContainsString("unset(\$r['rows_by_id'])", (string) $controller, 'and the rows behind it');
     }
 
     public function test_groups_are_ordered_most_confident_first(): void

@@ -178,6 +178,18 @@ final class SupportController
             if (!empty($p['found'])) $proof = $p;
         }
 
+        // ── AN ERROR-PAGE REFERENCE ON THE TICKET: WHAT ACTUALLY FAILED ──────
+        // Read from the log by the reference the member quoted, so whoever picks this up
+        // sees the fault here instead of needing the setup token and a second page.
+        // Staff only — `detail` and `trace` never travel back to the member.
+        $fault = null;
+        $faultRef = \AfricaGates\Support\PublicFault::quoted('reference ' . $haystack);
+        if ($faultRef !== null) {
+            $fault = \AfricaGates\Support\PublicFault::entry($faultRef);
+            $fault = ($fault ?? []) + ['ref' => $faultRef, 'found' => $fault !== null,
+                'others' => $fault !== null ? \AfricaGates\Support\PublicFault::others($faultRef, (string) $fault['where']) : 0];
+        }
+
         // ── THE OUTCOME BANNER, WHICH HAD NEVER ONCE RENDERED ────────────────
         //
         // The template read `app.request.queryParams.ok`. There is no `app` global in
@@ -201,6 +213,7 @@ final class SupportController
             't'          => $t,
             'messages'   => $messages,
             'proof'      => $proof,
+            'fault'      => $fault,
             'ok'         => (string) ($q['ok'] ?? ''),
             'err'        => (string) ($q['e'] ?? ''),
             // Evidence, grouped by the message it arrived with. Attachments on a

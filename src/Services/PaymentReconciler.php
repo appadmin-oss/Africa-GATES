@@ -478,13 +478,28 @@ final class PaymentReconciler
      * is scoped to the caller's own email so nobody can poke at another's payment.
      *
      * @param string|null $email Payment must belong to this address. Null = staff.
-     * @return array{ok:bool, code:string, message:string, minted?:int, status?:string}
+     * ── WHAT IT DID, NOT ONLY WHAT IT CONCLUDED ──────────────────────────────
+     *
+     * Every answer also carries `found` (our order for this reference was read) and
+     * `asked` (the provider ids actually queried, in order). The help desk draws its
+     * live work card from these — "Found your order", "Asking Paystack about the
+     * payment", "Adding your votes" — and a card that inferred its steps from `code`
+     * would claim a gateway was asked about an order that was already confirmed and
+     * never went near one. Recorded where the work happens, so it cannot drift from it.
+     *
+     * @return array{ok:bool, code:string, message:string, minted?:int, status?:string,
+     *               found:bool, asked:list<string>}
      */
     public function reclaim(string $reference, ?string $email = null): array
     {
-        $ref = trim($reference);
+        $ref   = trim($reference);
+        $found = false;
+        $asked = [];
+        $done  = static function (array $r) use (&$found, &$asked): array {
+            return $r + ['found' => $found, 'asked' => $asked];
+        };
         if ($ref === '' || mb_strlen($ref) > 120) {
-            return ['ok' => false, 'code' => 'BAD_REF', 'message' => 'That does not look like a payment reference.'];
+            return $done(['ok' => false, 'code' => 'BAD_REF', 'message' => 'That does not look like a payment reference.']);
         }
 
         try {
@@ -493,21 +508,22 @@ final class PaymentReconciler
                 $q->whereRaw('LOWER(donor_email) = ?', [mb_strtolower(trim($email))]);
             }
             $d = $q->first();
+            $found = $d !== null;
         } catch (\Throwable) {
-            return ['ok' => false, 'code' => 'UNAVAILABLE', 'message' => 'I could not look that up just now.'];
+            return $done(['ok' => false, 'code' => 'UNAVAILABLE', 'message' => 'I could not look that up just now.']);
         }
 
         if (!$d) {
             // The SAME answer for "no such reference" and "not yours". Splitting
             // them would make this an oracle for whether a reference exists.
-            return ['ok' => false, 'code' => 'NOT_FOUND',
+            return $done(['ok' => false, 'code' => 'NOT_FOUND',
                     'message' => 'No payment with that reference is on this account. '
-                               . 'It may have been made with a different email address.'];
+                               . 'It may have been made with a different email address.']);
         }
 
         if ((string) ($d->status ?? '') === 'refunded' || ($d->refunded_at ?? null) !== null) {
-            return ['ok' => false, 'code' => 'REFUNDED', 'status' => 'refunded',
-                    'message' => 'That payment was refunded, so its votes were removed.'];
+            return $done(['ok' => false, 'code' => 'REFUNDED', 'status' => 'refunded',
+                    'message' => 'That payment was refunded, so its votes were removed.']);
         }
 
         if ((string) ($d->status ?? '') === 'confirmed') {
@@ -516,31 +532,32 @@ final class PaymentReconciler
             if ((string) ($d->tier ?? '') === 'paid-vote' && (int) ($d->votes_used ?? 0) === 0) {
                 $note = $this->afterConfirm($d);
                 $used = (int) (DB::table('gates_donations')->where('id', $d->id)->value('votes_used') ?? 0);
-                return $used > 0
+                return $done($used > 0
                     ? ['ok' => true, 'code' => 'MINTED', 'minted' => $used, 'status' => 'confirmed',
                        'message' => 'Found it — your payment was confirmed and ' . $used . ' vote(s) have now been added.']
                     : ['ok' => false, 'code' => 'MINT_REFUSED', 'status' => 'confirmed',
                        'message' => 'Your payment is confirmed but the votes could not be added: ' . $note
-                                  . '. This order is refundable — the team has been notified.'];
+                                  . '. This order is refundable — the team has been notified.']);
             }
-            return ['ok' => true, 'code' => 'ALREADY', 'status' => 'confirmed',
+            return $done(['ok' => true, 'code' => 'ALREADY', 'status' => 'confirmed',
                     'minted' => (int) ($d->votes_used ?? 0),
-                    'message' => 'That payment is already confirmed and its votes were added.'];
+                    'message' => 'That payment is already confirmed and its votes were added.']);
         }
 
         // Not confirmed on our side — pending, or written off as failed/expired.
         // Ask the gateway that took it; only when we did not record one is every
         // enabled gateway tried in turn.
         foreach ($this->providersFor($d, $this->payments->enabledProviderIds()) as $provider) {
+            $asked[] = (string) $provider;
             $v = $this->payments->verify($provider, $ref);
             if (!($v['ok'] ?? false) || ($v['status'] ?? '') !== 'success') continue;
 
             // The same amount check the live path makes. A gateway saying "paid"
             // for LESS than the order is not authorisation to credit it.
             if ((int) ($v['amount'] ?? 0) < (int) $d->amount_naira || !$this->currencyAgrees($v)) {
-                return ['ok' => false, 'code' => 'MISMATCH', 'status' => 'pending',
+                return $done(['ok' => false, 'code' => 'MISMATCH', 'status' => 'pending',
                         'message' => 'The gateway shows a different amount for that reference, so I have not '
-                                   . 'credited anything. The team will look at it.'];
+                                   . 'credited anything. The team will look at it.']);
             }
 
             // 'failed' is included deliberately. A checkout the sweep expired after
@@ -551,24 +568,34 @@ final class PaymentReconciler
             $changed = DB::table('gates_donations')->where('payment_ref', $ref)
                 ->whereIn('status', ['pending', 'failed'])->update($this->confirmPatch());
             if ($changed === 0) {
-                return ['ok' => true, 'code' => 'ALREADY', 'status' => 'confirmed',
-                        'message' => 'That payment was confirmed a moment ago — your votes are on their way.'];
+                return $done(['ok' => true, 'code' => 'ALREADY', 'status' => 'confirmed',
+                        'message' => 'That payment was confirmed a moment ago — your votes are on their way.']);
             }
 
-            $this->afterConfirm($d);
+            $note = $this->afterConfirm($d);
             $used = (int) (DB::table('gates_donations')->where('id', $d->id)->value('votes_used') ?? 0);
 
-            return ['ok' => true, 'code' => 'CONFIRMED', 'status' => 'confirmed', 'minted' => $used,
+            // A VOTE order whose mint was refused is not put right by confirming the money:
+            // the same answer as the confirmed-but-never-minted branch above, rather than
+            // "your payment is now confirmed" to somebody whose votes are not on the tally.
+            // Found by the help desk's work card (SupportWork), which drew "Fixed" over it.
+            if ($used < 1 && (string) ($d->tier ?? '') === 'paid-vote') {
+                return $done(['ok' => false, 'code' => 'MINT_REFUSED', 'status' => 'confirmed',
+                        'message' => 'Your payment is confirmed but the votes could not be added: ' . $note
+                                   . '. This order is refundable — the team has been notified.']);
+            }
+
+            return $done(['ok' => true, 'code' => 'CONFIRMED', 'status' => 'confirmed', 'minted' => $used,
                     'message' => $used > 0
                         ? 'Found it. Your payment went through but our record had not caught up — '
                         . $used . ' vote(s) have now been added and your receipt is on its way.'
-                        : 'Your payment is now confirmed and your receipt is on its way.'];
+                        : 'Your payment is now confirmed and your receipt is on its way.']);
         }
 
-        return ['ok' => false, 'code' => 'NOT_PAID', 'status' => 'pending',
+        return $done(['ok' => false, 'code' => 'NOT_PAID', 'status' => 'pending',
                 'message' => 'The gateway does not show that payment as successful yet. If your bank has '
                            . 'debited you it can take a few minutes — try again shortly, and if it '
-                           . 'persists the team will chase it.'];
+                           . 'persists the team will chase it.']);
     }
 
     private function donations(string $cutoff, int $limit, bool $apply): array

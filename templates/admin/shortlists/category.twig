@@ -30,11 +30,11 @@
       <tbody>
         {% for e in entries %}
         <tr>
-          <td style="font-variant-numeric:tabular-nums;color:var(--ad-text-mute)">{{ e.rank_no }}</td>
+          <td style="font-variant-numeric:tabular-nums;color:var(--cn-grey-500)">{{ e.rank_no }}</td>
           <td><strong>{{ e.nominee_name }}</strong>{% if e.tied_at_cut %} <span class="ad-chip ad-chip--gold" title="Level with the cut line. Included because the rule says ties are included.">level at cut</span>{% endif %}
-            {% if e.organisation or e.country_code %}<br><span style="font-size:12px;color:var(--ad-text-mute)">{{ [e.organisation, e.country_code]|filter(v => v)|join(' · ') }}</span>{% endif %}
+            {% if e.organisation or e.country_code %}<br><span style="font-size:12px;color:var(--cn-grey-500)">{{ [e.organisation, e.country_code]|filter(v => v)|join(' · ') }}</span>{% endif %}
           </td>
-          <td style="text-align:right;font-variant-numeric:tabular-nums">{{ e.vote_count|number_format }}{% if e.organic_vote_count != e.vote_count %}<br><span style="font-size:11px;color:var(--ad-text-mute)">{{ e.organic_vote_count|number_format }} organic</span>{% endif %}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums">{{ e.vote_count|number_format }}{% if e.organic_vote_count != e.vote_count %}<br><span style="font-size:11px;color:var(--cn-grey-500)">{{ e.organic_vote_count|number_format }} organic</span>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -111,7 +111,7 @@
      the button would have been, not only in a callout further up the page. An organiser
      looking for something to press should not have to hunt for why there is nothing. #}
   {% if may_publish and preview.in == 0 and preview.considered > 0 %}
-  <p style="margin:0;max-width:44ch;font-size:13px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">
+  <p style="margin:0;max-width:44ch;font-size:13px;line-height:1.6;color:var(--cn-grey-500)">
     <strong>Nothing to publish yet.</strong>
     {{ preview.warnings|first|default('No nominee matches this rule.') }}
   </p>
@@ -155,11 +155,11 @@
             </td></tr>
           {% endif %}
           <tr{% if not r.in %} class="ad-out"{% endif %}>
-            <td style="font-variant-numeric:tabular-nums;color:var(--ad-text-mute)">{{ r.rank }}</td>
+            <td style="font-variant-numeric:tabular-nums;color:var(--cn-grey-500)">{{ r.rank }}</td>
             <td>
               <strong>{{ r.name }}</strong>
               {% if r.tied %} <span class="ad-chip ad-chip--gold" title="Level with the cut line.">level at cut</span>{% endif %}
-              {% if r.organisation or r.country_code %}<br><span style="font-size:12px;color:var(--ad-text-mute)">{{ [r.organisation, r.country_code]|filter(v => v)|join(' · ') }}</span>{% endif %}
+              {% if r.organisation or r.country_code %}<br><span style="font-size:12px;color:var(--cn-grey-500)">{{ [r.organisation, r.country_code]|filter(v => v)|join(' · ') }}</span>{% endif %}
             </td>
             <td style="text-align:right;font-variant-numeric:tabular-nums">{{ r.count|number_format }}</td>
             <td>
@@ -168,7 +168,7 @@
             </td>
           </tr>
         {% else %}
-          <tr><td colspan="4" style="text-align:center;color:var(--ad-text-mute);padding:30px">No approved nominees in this category yet.</td></tr>
+          <tr><td colspan="4" style="text-align:center;color:var(--cn-grey-500);padding:30px">No approved nominees in this category yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>

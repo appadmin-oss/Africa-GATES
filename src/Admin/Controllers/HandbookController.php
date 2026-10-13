@@ -41,7 +41,7 @@ use Slim\Views\Twig;
  *
  * A handbook is the same shape of hazard with a wider blast radius, because people are
  * told to trust it. So every structural fact on the page is READ FROM THE CODE rather than
- * typed beside it: the areas and their order come from {@see AdminNav::sections()}, the
+ * typed beside it: the areas and their order come from {@see AdminNav::groups()}, the
  * roles and what each may reach from {@see Permissions::MATRIX}, the scoring weights and
  * the judging quorum from {@see RuleEngine}, the verification states from
  * {@see RegistryCheck}, the announcement grace window from
@@ -98,9 +98,11 @@ final class HandbookController
 
             // ── THE STRUCTURE, FROM THE STRUCTURE ────────────────────────────
             //
-            // Not a copy. The rail is built from this same call, so a section renamed or
-            // an area added appears in both places or in neither.
-            'areas'       => AdminNav::sections(),
+            // Not a copy. The rail is built from this same tree, so a group renamed or a
+            // page added appears in both places or in neither. Each page carries its own
+            // gate — the guard's, read through Permissions — since the 4 Oct 2026 rebuild.
+            'areas'       => AdminNav::groups(),
+            'home_area'   => AdminNav::home(),
 
             // Who may reach what. `MATRIX` is the model itself; the labels come from
             // ROLES, whose second element is the sentence a person needs.

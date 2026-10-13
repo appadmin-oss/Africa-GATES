@@ -55,6 +55,9 @@ function doPost(e) {
       if(action === 'calendar.slots')   return calendarSlots(body.data||{});
       // READ an event back. See the block comment above calendarRead().
       if(action === 'calendar.read')    return calendarRead(body.data||{});
+      // Mail, when the platform's own SMTP cannot get through. See mailSend().
+      if(action === 'mail.send')        return mailSend(body.data||{});
+      if(action === 'mail.quota')       return mailQuota();
       return respond(false,'Unknown action: '+action);
     } catch(err) { return respond(false,err.message); }
   }
@@ -655,6 +658,53 @@ function s(val) {
   const str=String(val).trim();
   if(/^[=+\-@\t\r]/.test(str)) return "'"+str;
   return str.substring(0,1000);
+}
+
+/**
+ * SEND ONE EMAIL FOR THE PLATFORM — the road it takes when SMTP fails.
+ *
+ * The platform posts a message it has already built: subject, HTML body, plain-text
+ * body, the From name, the Reply-To and any attachments (base64). MailApp sends it from
+ * THIS Google account, which is the account that deployed the script. It is behind the
+ * SECRET like every other action — an open mail relay on a public URL would be a gift
+ * to anybody who found it.
+ *
+ * The daily allowance is MailApp's, not Gmail's: about 100 recipients a day on a
+ * gmail.com account, 1,500 on Workspace. The platform sends only mail somebody is
+ * waiting for this way — sign-in codes, receipts, confirmations — and never a newsletter,
+ * and it reads the remaining allowance with mail.quota before it relies on it.
+ *
+ * Answers {ok:true, remaining:n} or {ok:false, message:'…'} — the platform shows the
+ * message on Settings → Email health exactly as written here.
+ */
+function mailSend(d) {
+  const to = String(d.to||'').trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return respond(false,'No valid recipient.',{ok:false});
+  if(MailApp.getRemainingDailyQuota() < 1) {
+    return respond(false,'Apps Script daily email quota exceeded for this Google account.',{ok:false,remaining:0});
+  }
+  const opts = {
+    to: to,
+    subject: String(d.subject||'').slice(0, 250),
+    htmlBody: String(d.html||''),
+    body: String(d.text||'') || 'This message is best read in an email app that shows HTML.',
+    name: String(d.name||'Africa GATES').slice(0, 80)
+  };
+  if(d.reply_to) opts.replyTo = String(d.reply_to);
+  const files = Array.isArray(d.attachments) ? d.attachments : [];
+  if(files.length) {
+    opts.attachments = files.slice(0, 5).map(function(f){
+      return Utilities.newBlob(Utilities.base64Decode(String(f.content||'')), String(f.mime||'application/octet-stream'), String(f.name||'file'));
+    });
+  }
+  MailApp.sendEmail(opts);
+  return respond(true,'Sent',{ok:true,remaining:MailApp.getRemainingDailyQuota()});
+}
+
+/** How many more recipients this account may email today. A READ — sends nothing. */
+function mailQuota() {
+  return respond(true,'Quota',{ok:true,remaining:MailApp.getRemainingDailyQuota(),
+                               account:Session.getEffectiveUser().getEmail()});
 }
 
 function respond(success, message, extra) {

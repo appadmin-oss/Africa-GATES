@@ -1,0 +1,111 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE SIGN-IN FRAME — every member door wears it · Phase 8, design/SignIn.dc.html
+  /account/login · /account/register · /account/verify · /account/forgot · /account/reset ·
+  /account/interests (first visit) · /org/login
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Replaces `layout/account-auth.twig` (destroyed 3 Oct; inventory layout--account-auth.md),
+  whose reason survives whole: five screens with one frame must have the frame ONCE, or the
+  brand lockup and the copy around it drift apart one screen at a time.
+
+  The DC's frame, value for value (REFERENCE §5): a full-height grid on the ground — on a
+  desktop (≥1024) two equal halves, the left a dark photograph with a line over it; below
+  that one column. The form column is at most 440px wide, centred, padded `4px 20px 32px`
+  on a phone and `48px 32px 48px` from 600, its children 22px apart. At the top a 44px
+  round back button (a step after the first) or the brand lockup, and the language pill.
+
+  No header, no app bar, no tab bar, no footer and no Gee: a sign-in is a flow with one
+  thing to do (`hide_chrome`, which the shell also reads to keep Gee off). The flash rail
+  stands aside too (`own_flash`): each screen draws its refusal beside the field it is
+  about, and the rail would say it a second time.
+
+  ── THE LEFT HALF IS A REAL AWARD, NOT THE DC'S QUOTE ─────────────────────────
+
+  SignIn.dc.html sets an invented choral director over an Unsplash photograph with a line
+  in his voice. Nothing on this platform holds a winner's own words, so the panel shows the
+  newest DECIDED award — a real person, a real result (HomeFront::decided(), which publishes
+  only what PublicResults would) — named, with the award beneath, and nobody is quoted.
+  Their photo through `partials/photo.twig`, so an absent photo is a monogram and never a
+  stock face. With nothing decided there is no panel (PHASE-8.md deviations).
+
+  Blocks a screen fills:
+    auth_top    the start of the top row — default the brand lockup; a step past the first
+                puts a back button here (`{{ auth.back('/account/login') }}`)
+    auth_bars   the four-step progress, on the sign-in-or-join steps only
+    auth_body   the screen
+#}
+{% import _self as auth %}
+{% set own_flash = true %}
+{% set colour_tier = '2' %}
+
+{% macro back(href, label) -%}
+  <a class="si__back" href="{{ href }}" aria-label="{{ label|default('Back'|trans) }}">
+    <svg class="ag-ico-dir" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+  </a>
+{%- endmacro %}
+
+{# The four bars. `step` is 0–3; bars up to and including it are green. #}
+{% macro bars(step) -%}
+  <div class="si__bars" aria-hidden="true">
+    {%- for i in 0..3 %}<span class="si__bar{{ i <= step ? ' si__bar--on' }}"></span>{% endfor -%}
+  </div>
+  <p class="ag-sr">{{ 'Step %n% of 4'|trans({'%n%': step + 1}) }}</p>
+{%- endmacro %}
+
+{# A refusal or a notice, beside the form it is about — the words carry it, the mark repeats. #}
+{% macro say(error, notice) -%}
+  {%- if error %}<p class="si__say si__say--error" role="alert"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5.5M12 16.5h.01"></path></svg><span>{{ error }}</span></p>{% endif -%}
+  {%- if notice %}<p class="si__say" role="status"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5.5M12 7.5h.01"></path></svg><span>{{ notice }}</span></p>{% endif -%}
+{%- endmacro %}
+
+{% block header %}{% endblock %}
+{% block app_bar %}{% endblock %}
+{% block bottom_bar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/signin.css') }}">
+  {% block auth_styles %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="si{{ auth_art|default(null) ? ' si--art' }}">
+  {% if auth_art|default(null) %}
+    <aside class="si__art" aria-label="{{ 'Recently decided'|trans }}">
+      {% include 'partials/photo.twig' with {kind: 'person', src: auth_art.photo, name: auth_art.name, size: 160, class: 'si__photo'} only %}
+      <span class="si__veil" aria-hidden="true"></span>
+      <div class="si__credit">
+        <a class="si__who" href="{{ auth_art.url }}">{{ auth_art.name }}</a>
+        <span class="si__what">{{ auth_art.what }}</span>
+      </div>
+    </aside>
+  {% endif %}
+  <div class="si__col">
+    <div class="si__form">
+      <div class="si__top">
+        {% block auth_top %}
+          <a class="si__brand" href="/" aria-label="{{ 'Africa GATES home'|trans }}">
+            <img class="si__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="32" height="32" alt="">
+            <span class="si__word" aria-hidden="true"><span class="si__africa">Africa</span><span class="si__gates">GATES</span></span>
+          </a>
+        {% endblock %}
+        {# The language pill opens Quick settings, where the language list is — one picker
+           for the whole site, not a second one here (REFERENCE §18.5). #}
+        <button type="button" class="si__lang" data-ag-quick aria-haspopup="dialog" aria-controls="ag-quick">
+          <span lang="{{ lang() }}">{{ lang_name() }}</span>
+        </button>
+      </div>
+      {% block auth_bars %}{% endblock %}
+      {% block auth_body %}{% endblock %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+  <script defer src="{{ asset('/assets/js/signin.js') }}"></script>
+  {% block auth_scripts %}{% endblock %}
+{% endblock %}

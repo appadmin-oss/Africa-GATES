@@ -260,7 +260,7 @@
         </form>
         <form method="post" action="/admin/campaigns/{{ c.id }}/send" style="display:inline">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <button class="ad-btn ad-btn--primary" type="submit"
+          <button class="ad-btn ad-btn--primary" type="submit" data-confirm="Send this campaign to {{ counts.sendable|number_format }} people now? It goes to real inboxes the moment you confirm, and a sent email cannot be called back."
             {{ (c.status != 'approved' or problems or not site_ok or counts.sendable == 0) ? 'disabled' : '' }}>
             Send to {{ counts.sendable|number_format }}
           </button>

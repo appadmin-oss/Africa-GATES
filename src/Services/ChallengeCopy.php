@@ -649,7 +649,7 @@ final class ChallengeCopy
 
         if ($upcoming) return '/challenges/' . $slug . '#remind';
         if ($ended || $full) return '/awards';
-        if ($joined) return $action === E::ACTION_REFER ? '/account#me-referral' : '/nominate';
+        if ($joined) return $action === E::ACTION_REFER ? '/account?tab=referral#me-referral' : '/nominate';
 
         return '/account/login?next=' . rawurlencode('/challenges/' . $slug);
     }

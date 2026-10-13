@@ -22,9 +22,20 @@ use Illuminate\Support\Carbon;
  *
  * So the transport is saved HERE, by itself, and:
  *
- *   · an SMTP login is stored only after `MailDiagnosis` has walked the real conversation
- *     with it to `MAIL FROM` and the provider has said yes — never a message, `RSET` at the
- *     end; a refusal keeps whatever was there before and says which step failed;
+ *   · an SMTP login is stored once `MailDiagnosis` has walked the real conversation with
+ *     it — never a message, `RSET` at the end. The gate is on the PROVIDER'S VERDICT, not
+ *     on the run completing: only a refusal that reached the provider and judged what was
+ *     typed (auth, sender, quota) keeps the old value. A run that stopped earlier — DNS,
+ *     the port, the handshake — never presented the login, so it has no opinion of it, and
+ *     the settings are stored unverified with the fault stated.
+ *
+ *     That last clause is a REPAIR, not a relaxation. Gating on the whole run made a
+ *     deadlock out of the situation this screen exists for: the host blocks 587, the
+ *     diagnosis fails on the road, the operator moves to 465 — the one change that would
+ *     fix it — and the save is refused BECAUSE the road is broken. The only fields that
+ *     can route around a blocked road were the only fields a blocked road prevented
+ *     changing, and the refusal read "what was working before still is" to somebody for
+ *     whom nothing had worked in days. Nothing here knows that, so it no longer says it;
  *   · an API key is stored only after Brevo's account endpoint (a READ) accepts it;
  *   · `useEnv()` removes every stored SMTP value, which puts the server's `.env` back in
  *     charge — the configuration that is known to have worked here.
@@ -86,13 +97,35 @@ final class MailSetup
                 $messages[] = 'The SMTP login was not saved: it needs both a username and a password.';
             } else {
                 $report = ($this->smtpCheck)($candidate);
+                $cause  = (string) ($report['cause'] ?? '');
                 if (!empty($report['ok'])) {
                     foreach ($changed as $k => $v) self::put($k, $v, $adminId);
                     $saved = array_merge($saved, array_keys($changed));
                     $messages[] = 'SMTP saved — the provider accepted the login and the From address.';
-                } else {
+                } elseif (self::judgedTheLogin($cause)) {
                     $ok = false;
-                    $messages[] = 'The SMTP settings were NOT saved, so what was working before still is. '
+                    $messages[] = 'The SMTP login was not saved — the provider answered and refused it, so the '
+                        . 'stored settings are unchanged. '
+                        . trim((string) ($report['title'] ?? '')) . '. ' . trim((string) ($report['fix'] ?? ''));
+                } else {
+                    // ── THE GUARD WAS BLOCKING THE FIX ──────────────────────────────────
+                    // Saved anyway, deliberately. The check never reached the login: it
+                    // stopped at DNS, at the port, or at the handshake, so it has learned
+                    // NOTHING about what was typed and has no standing to refuse it.
+                    //
+                    // Refusing everything made a deadlock out of exactly the situation
+                    // this screen exists for. The host blocks 587, so the diagnosis fails
+                    // on the road; the operator moves to 465 or 2525 — the one change that
+                    // would fix it — and the save is refused because the road is broken.
+                    // The only fields that can route around a broken road are the only
+                    // fields a broken road prevents changing, and the refusal said "what
+                    // was working before still is" to somebody for whom nothing had worked
+                    // in days. Stored, with the fault stated: it is no worse than what is
+                    // there, which does not work either, and it can now be iterated.
+                    foreach ($changed as $k => $v) self::put($k, $v, $adminId);
+                    $saved = array_merge($saved, array_keys($changed));
+                    $messages[] = 'Saved, but mail still cannot be sent by SMTP: the check stopped before the '
+                        . 'provider was asked about the login, so these settings are stored unverified. '
                         . trim((string) ($report['title'] ?? '')) . '. ' . trim((string) ($report['fix'] ?? ''));
                 }
             }
@@ -131,6 +164,74 @@ final class MailSetup
     }
 
     /**
+     * Save the Google Apps Script address and secret from Email health — tried first.
+     *
+     * The same two rows Settings → Google Calendar and Meet writes, and the same resolver
+     * reads them ({@see \AfricaGates\Services\GoogleMeetService::gasUrl()}), so the
+     * calendar and the mail cannot disagree. They are on this page too because this is
+     * the page an operator is on when mail is failing, and sending them to another
+     * screen to paste two values was a step that lost people.
+     *
+     * Which raises the stakes on a typo: the calendar uses this secret too. So the
+     * candidate is asked first, and the one answer that JUDGES the secret — the script's
+     * own "Bad token" — keeps the stored values. An address that cannot be reached, or a
+     * deployment older than the mail action, has said nothing against what was typed, and
+     * it is stored with the fault stated (the deadlock rule in save()).
+     *
+     * @param \Closure(string,string):array{ok:bool,detail:string}|null $check
+     * @return array{ok:bool, message:string}
+     */
+    public static function saveAppsScript(string $url, string $secret, ?int $adminId = null, ?\Closure $check = null): array
+    {
+        $current = self::settings();
+        // A blank box keeps what is in force (the secret is never drawn back), and only a
+        // value somebody TYPED is written — otherwise pressing the button would copy the
+        // server's .env into the table, where it would outrank the file from then on.
+        $typedUrl = trim($url);
+        $typedSecret = trim($secret);
+        $url = $typedUrl !== '' ? $typedUrl : \AfricaGates\Services\GoogleMeetService::gasUrl();
+        $secret = $typedSecret !== '' ? $typedSecret : \AfricaGates\Services\GoogleMeetService::gasSecret();
+
+        if ($url === '' || $secret === '') {
+            return ['ok' => false, 'message' => 'Nothing was saved: Apps Script needs both the web-app address and the secret.'];
+        }
+        $parts = parse_url($url);
+        if (filter_var($url, FILTER_VALIDATE_URL) === false || strtolower((string) ($parts['scheme'] ?? '')) !== 'https') {
+            return ['ok' => false, 'message' => 'Nothing was saved: “' . mb_substr($url, 0, 80) . '” is not a web address. '
+                . 'Copy the whole Web app URL, starting https://script.google.com/.'];
+        }
+        // `/dev` is the test address: it answers only the script's owner, signed in, in a
+        // browser — so it works when they try it and never from this server.
+        if (!str_ends_with(rtrim((string) ($parts['path'] ?? ''), '/'), '/exec')) {
+            return ['ok' => false, 'message' => 'Nothing was saved: the address must end in /exec. '
+                . 'In Apps Script, Deploy → Manage deployments shows it as “Web app” — not the editor’s address, '
+                . 'and not the one ending /dev, which only works for you.'];
+        }
+
+        $check ??= static fn (string $u, string $s): array => (new AppsScriptMail($u, $s))->check();
+        $r = $check($url, $secret);
+        $detail = trim((string) ($r['detail'] ?? ''));
+
+        if (empty($r['ok']) && stripos($detail, 'Bad token') !== false) {
+            return ['ok' => false, 'message' => 'Nothing was saved: the script refused the secret. It must be exactly the text '
+                . 'between the quotes in const SECRET = \'…\'; at the top of the script — and if you changed it there, '
+                . 'deploy a New version so Google is running it.'];
+        }
+        if (empty($r['ok']) && stripos($detail, 'no SECRET set') !== false) {
+            return ['ok' => false, 'message' => 'Nothing was saved: the deployed script has no secret of its own yet. Put a long '
+                . 'random text between the quotes in const SECRET = \'\'; at the top, save, deploy a New version, and paste '
+                . 'the same text here.'];
+        }
+
+        if ($typedUrl !== '' && $typedUrl !== trim((string) ($current['gas_url'] ?? ''))) self::put('gas_url', $typedUrl, $adminId);
+        if ($typedSecret !== '' && $typedSecret !== trim((string) ($current['gas_secret'] ?? ''))) self::put('gas_secret', $typedSecret, $adminId);
+
+        return !empty($r['ok'])
+            ? ['ok' => true, 'message' => 'Saved. ' . $detail . ' When Google SMTP fails, codes, receipts and confirmations go out through it.']
+            : ['ok' => false, 'message' => 'Saved, but mail cannot go through Apps Script yet: ' . $detail];
+    }
+
+    /**
      * Forget every stored SMTP value, so the server's `.env` decides again.
      *
      * @return list<string> the rows that were removed
@@ -143,6 +244,22 @@ final class MailSetup
         // A rested SMTP road would otherwise go on being skipped for half an hour.
         DB::table('gates_settings')->where('key_name', \AfricaGates\Services\OtpService::SMTP_REST_KEY)->delete();
         return array_values(array_map('strval', $had));
+    }
+
+    /**
+     * Did the provider actually answer and judge what was typed?
+     *
+     * Only an AUTH or SENDER refusal is the provider saying no to a VALUE: it answered,
+     * read the login or the From address, and rejected it — which is the fault this
+     * class's whole gate exists to keep out of the table. Everything earlier in the
+     * conversation (config, DNS, the port, the handshake) is a fault of the ROAD, and the
+     * check formed no opinion of the credentials because it never got to present them.
+     *
+     * The distinction is the difference between a guard and a deadlock. See save().
+     */
+    private static function judgedTheLogin(string $cause): bool
+    {
+        return in_array($cause, [MailFailure::AUTH, MailFailure::SENDER, MailFailure::QUOTA], true);
     }
 
     /** @return array<string,string> */

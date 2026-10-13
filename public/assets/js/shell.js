@@ -176,11 +176,21 @@
 
   /* ── Bottom UI height ─────────────────────────────────────────────────────
 
-     Every fixed bottom element carries [data-bottom-ui]; the tallest one that is
-     laid out sets `--ag-bottom-ui` on <body>, and Gee, the cookie notice and the
-     page's own clearance read it. Measured, never typed: the documented offsets
-     (96 above a tab bar, 108 above an action bar) are only "the bar plus 16", and
-     a typed number goes stale the first time a bar wraps to a second line.
+     Every fixed bottom element carries [data-bottom-ui]; while one is on screen it
+     sets `--ag-bottom-ui` on <body>, and when it goes the figure goes with it. Gee,
+     toasts and the page's own clearance read that and nothing else (REFERENCE §7.7:
+     "each fixed bar sets --ag-bottom-ui on <body> when it mounts and clears it when it
+     unmounts"). Measured, never typed: the documented offsets (96 above a tab bar, 108
+     above an action bar) are only "the bar plus 16", and a typed number goes stale the
+     first time a bar wraps to a second line.
+
+     ── THE FIGURE IS HOW FAR UP THE SCREEN THE BOTTOM UI REACHES ─────────────
+     Not the tallest bar's HEIGHT. Bars stack: on a phone the cookie notice sits 12px
+     above the tab bar, and from 600 it floats 28px up from the bottom edge; a height
+     says "80" for the first and "200" for the second, and a launcher placed by either
+     lands on top of the notice. The distance from the viewport's bottom edge to the
+     highest top edge among them is the one number that clears all of them at once,
+     and for a single bar flush with the bottom it IS its height (Phase 3, Gee).
 
      The VISIBILITY test is `getClientRects().length`, NOT the snippet's
      `offsetParent !== null`. `offsetParent` is null for a `position:fixed`
@@ -189,32 +199,39 @@
      variable sat at its 0px default, and the launcher landed on top of the tab bar.
      `getClientRects()` is empty for `display:none` and only then.
 
+     MOUNT AND UNMOUNT are both seen: a bar added to the page later (a flow's sticky
+     bar appearing once a choice is made) is a childList change, and it is observed for
+     size from then on; one removed, hidden or re-classed re-measures without it.
+
      It writes only when the figure changes. It observes `style` attributes under
      <body>, and its own write IS a style attribute on <body>: an unconditional
      write would be its own trigger. */
   function trackBottomUI() {
     var last = null;
+    var ro = window.ResizeObserver ? new ResizeObserver(set) : null;
+    var watched = [];
 
     function set() {
       var h = 0;
+      var vh = window.innerHeight || document.documentElement.clientHeight;
       var els = document.querySelectorAll('[data-bottom-ui]');
       for (var i = 0; i < els.length; i++) {
-        if (els[i].getClientRects().length) h = Math.max(h, els[i].getBoundingClientRect().height);
+        if (ro && watched.indexOf(els[i]) < 0) { ro.observe(els[i]); watched.push(els[i]); }
+        if (!els[i].getClientRects().length) continue;
+        var r = els[i].getBoundingClientRect();
+        if (r.height <= 0) continue;
+        h = Math.max(h, Math.round(vh - r.top));
       }
-      var v = h + 'px';
+      var v = Math.max(0, h) + 'px';
       if (v === last) return;
       last = v;
       document.body.style.setProperty('--ag-bottom-ui', v);
     }
 
-    if (window.ResizeObserver) {
-      var ro = new ResizeObserver(set);
-      var bars = document.querySelectorAll('[data-bottom-ui]');
-      for (var i = 0; i < bars.length; i++) ro.observe(bars[i]);
-    }
     if (window.MutationObserver) {
       new MutationObserver(set).observe(document.body, {
-        subtree: true, attributes: true, attributeFilter: ['hidden', 'class', 'data-open', 'style']
+        subtree: true, childList: true,
+        attributes: true, attributeFilter: ['hidden', 'class', 'data-open', 'style', 'data-bottom-ui']
       });
     }
     window.addEventListener('resize', set, { passive: true });
@@ -276,7 +293,9 @@
       var blocks = main.querySelectorAll('[data-cs]');
       for (var i = 0; i < blocks.length; i++) collapsingSearch(main, blocks[i]);
     }
-    if (document.querySelector('[data-bottom-ui]')) trackBottomUI();
+    /* Always: a page with no bar yet may mount one later, and the figure has to be
+       cleared when the last one goes. */
+    trackBottomUI();
   }
 
   window.AGShell = {

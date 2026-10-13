@@ -12,14 +12,14 @@
         <td><code style="font-size:12px">/f/{{ r.form_key }}</code></td>
         <td>{{ r.field_count }}</td>
         <td>{% set chip = {'published':'green','draft':'gold'}[r.status]|default('grey') %}<span class="ad-chip ad-chip--{{ chip }}">{{ r.status|capitalize }}</span></td>
-        <td><a href="/admin/forms/{{ r.id }}/submissions" style="color:var(--ad-accent,#237b22)">{{ r.submissions }}</a></td>
+        <td><a href="/admin/forms/{{ r.id }}/submissions" style="color:var(--cn-ink)">{{ r.submissions }}</a></td>
         <td class="col-actions">
           {% if r.status == 'published' %}<a class="ad-btn ad-btn--sm" href="/f/{{ r.form_key }}" target="_blank" rel="noopener">Open</a>{% endif %}
           <a class="ad-btn ad-btn--sm" href="/admin/forms/{{ r.id }}">Edit</a>
           <form method="post" action="/admin/forms/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete this form? Its existing submissions are kept.">×</button></form>
         </td>
       </tr>
-      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No forms yet. <a href="/admin/forms/new" style="color:var(--ad-accent,#237b22)">Build your first →</a></td></tr>{% endfor %}
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--cn-grey-500);padding:30px">No forms yet. <a href="/admin/forms/new" style="color:var(--cn-ink)">Build your first →</a></td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>

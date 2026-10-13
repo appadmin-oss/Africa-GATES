@@ -1,80 +1,137 @@
 <?php
 declare(strict_types=1);
+
 namespace AfricaGates\Controllers;
+
+use AfricaGates\Services\{AwardAlert, AwardsFront, CacheService, OtpService, RateLimitService};
+use AfricaGates\Support\{ClientIp, SiteUrl, Translator};
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
-use AfricaGates\Services\{CacheService,AwardService};
-use AfricaGates\Admin\Services\SettingsService;
-use AfricaGates\Admin\Controllers\AwardsPageController;
 
-class AwardsController {
-    public function __construct(private readonly Twig $view,private readonly CacheService $cache,private readonly AwardService $awards,private readonly ?SettingsService $settings=null){}
-    public function index(Request $req,Response $res):Response {
-        // Programme cards are live data (cached); page copy comes from admin-editable
-        // settings (resolved fresh so edits show immediately, never cached).
-        return $this->view->render($res,'pages/awards/index.twig',['page_title'=>'Awards — Africa GATES','meta_description'=>'Explore every Africa GATES award programme — open cycles, categories and how community votes and expert judges crown the continent\'s cultural best.','gates_page'=>'awards','page'=>AwardsPageController::resolved($this->settings),'awards_data'=>$this->cache->remember('awards:index',1800,fn()=>$this->awards->getActiveProgrammesWithStatus())]);
-    }
-    public function programme(Request $req,Response $res,array $args):Response {
-        // `v2`: the entry gained the cover, the terms and the edition span. An entry cached
-        // under the old key would be served for half an hour after a deploy without them.
-        $slug=$args['p']??''; $data=$this->cache->remember("award:prog:v2:{$slug}",1800,fn()=>$this->awards->getProgrammeBySlug($slug));
-        if(!$data) throw new \Slim\Exception\HttpNotFoundException($req);
-        $blurb=trim(strip_tags((string)($data['subtitle'] ?: $data['description'])));
-        $meta=$blurb!==''?(mb_strlen($blurb)>160?rtrim(mb_substr($blurb,0,157)).'…':$blurb):($data['title'].' — an Africa GATES award programme recognising the continent\'s cultural best through community votes and expert judging.');
-        // ── WHO BACKS THIS PROGRAMME ─────────────────────────────────────────
-        //
-        // Resolved OUTSIDE the cache above, deliberately. That entry is remembered for
-        // thirty minutes and a sponsorship that ends — or one an operator has just
-        // unpublished — must come off the page at once rather than at the top of the next
-        // half hour. It is one indexed query against a table with a handful of rows.
-        $sponsors = \AfricaGates\Services\ProgrammeSponsor::forCycle(
-            (int) ($data['id'] ?? 0),
-            isset($data['cycle']['id']) ? (int) $data['cycle']['id'] : null);
+/**
+ * `/awards` and `/awards/{slug}` — Phase 5, AwardsPage.dc.html (index · detail · soon).
+ *
+ * Destroyed and written again on 5 Oct 2026 with the pages it renders (inventories
+ * `pages--awards--index.md`, `pages--awards--programme.md`). Every fact comes from
+ * `AwardsFront`; this file reads the URL and nothing else.
+ *
+ * ── THE VIEW IS THE URL ─────────────────────────────────────────────────────
+ *
+ * The DC swaps index → detail → soon and the three tabs with state. Here each is a URL:
+ * `?ph=`/`?q=` on the index (a GET form, so it works with no script and survives Back),
+ * `?tab=details|terms` and `?edition=YYYY` on an award. A view a person can only reach by
+ * clicking is one nobody can link to. An unknown tab falls back to the overview, and the
+ * Terms tab is offered only where terms are published — a Terms view over nothing is a
+ * promise the award has not made (the destroyed page's rule, re-held by AwardsPageTest).
+ *
+ * The coming-soon view is not a tab: an award whose current edition is `upcoming` IS the
+ * coming-soon page, at the same URL it will keep when it opens.
+ */
+final class AwardsController
+{
+    private const TABS = ['overview' => 'Overview', 'details' => 'Award details', 'terms' => 'Terms'];
 
-        // ── AND WHO RUNS IT, WHICH IS A DIFFERENT QUESTION ───────────────────
-        //
-        // A host runs the award; a sponsor paid to be named beside it. They are two
-        // relationships and the sponsors table says so in its own docblock, so they are
-        // two reads and two lines on the page. Outside the cache for the same reason the
-        // sponsors are: a host's name is the kind of thing that is corrected the moment
-        // somebody notices it is wrong.
-        $host = \AfricaGates\Support\ProgrammeHost::forProgramme((int) ($data['id'] ?? 0));
+    public function __construct(
+        private readonly Twig $view,
+        private readonly CacheService $cache,
+        private readonly ?OtpService $mailer = null,
+        private readonly ?RateLimitService $rateLimit = null,
+    ) {}
 
-        // The promo band, scoped to THIS programme. `forPlacement` refuses the `award`
-        // placement without one rather than treating it as a wildcard — see the note
-        // there for why a missing banner is the safe failure and a banner on somebody
-        // else's award is not.
-        $promos = \AfricaGates\Services\PromoService::forPlacement(
-            'award', !empty($_SESSION['user_id']), 5, (int) ($data['id'] ?? 0));
+    /** GET /awards */
+    public function index(Request $req, Response $res): Response
+    {
+        $q = $req->getQueryParams();
+        $front = AwardsFront::index(['ph' => (string) ($q['ph'] ?? 'all'), 'q' => (string) ($q['q'] ?? '')]);
 
-        // ── THE VIEW, FROM THE URL ───────────────────────────────────────────
-        //
-        // The comp's three tabs are links to `?tab=`, rendered here, not panels a script
-        // swaps: a view a person can only reach by clicking is a view nobody can link to,
-        // and Back must undo it. A tab with nothing to show is not offered — a Terms tab
-        // over an empty page is a promise the award has not made.
-        $views = ['overview' => 'Overview', 'details' => 'Award details'];
-        if (!empty($data['terms'])) $views['terms'] = 'Terms';
-        $tab = (string) ($req->getQueryParams()['tab'] ?? 'overview');
-        if (!isset($views[$tab])) $tab = 'overview';
-
-        $cycleId = isset($data['cycle']['id']) ? (int) $data['cycle']['id'] : null;
-        $weights = (new \AfricaGates\Services\RuleEngine())->weights((int) $data['id'], $cycleId);
-
-        return $this->view->render($res,'pages/awards/programme.twig',[
-            'page_title'=>$data['title'].' — Africa GATES','meta_description'=>$meta,
-            'og_title'=>$data['title'].' — Africa GATES','gates_page'=>'awards',
-            'programme'=>$data,'sponsors'=>$sponsors,'host'=>$host,'promos'=>$promos,
-            'tiers'=>\AfricaGates\Services\ProgrammeSponsor::TIERS,
-            'tab'=>$tab,'views'=>$views,
-            // Outside the cache like the sponsors: a challenge filling up must show on
-            // the next view, not half an hour later.
-            'challenge_strip'=>\AfricaGates\Services\ChallengeService::stripFor(
-                (int) $data['id'], (int) ($_SESSION['user_id'] ?? 0)),
-            'timeline'=>$data['cycle'] ? \AfricaGates\Services\AwardOverview::timeline($data['cycle'], $data['phase']) : [],
-            'action'=>\AfricaGates\Services\AwardOverview::action((string) $data['slug'], $data['phase']),
-            'facts'=>\AfricaGates\Services\AwardOverview::facts($host, $data['first_year'] ?? null, (int) ($data['editions'] ?? 0), $weights),
+        return $this->view->render($res, 'pages/awards/index.twig', [
+            'page_title'       => Translator::t('Awards') . ' — Africa GATES',
+            'meta_description' => Translator::t('Every award on Africa GATES runs in editions, with public nominations, community voting and an independent jury.'),
+            'gates_page'       => 'awards',
+            'front'            => $front,
+            'phases'           => AwardsFront::PHASES,
         ]);
+    }
+
+    /** GET /awards/{p} */
+    public function programme(Request $req, Response $res, array $args): Response
+    {
+        $q    = $req->getQueryParams();
+        $year = isset($q['edition']) && ctype_digit((string) $q['edition']) ? (int) $q['edition'] : null;
+        $a    = AwardsFront::detail((string) ($args['p'] ?? ''), $year);
+        if ($a === null) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $tabs = self::TABS;
+        if ($a['terms'] === null) unset($tabs['terms']);
+        $tab = (string) ($q['tab'] ?? 'overview');
+        if (!isset($tabs[$tab])) $tab = 'overview';
+
+        $blurb = trim(strip_tags($a['subtitle'] ?: $a['description']));
+        $said  = $_SESSION['aw_alert_said'] ?? null;
+        unset($_SESSION['aw_alert_said']);
+
+        return $this->view->render($res, 'pages/awards/programme.twig', [
+            'page_title'       => $a['title'] . ' — Africa GATES',
+            'meta_description' => $blurb !== '' ? mb_strimwidth($blurb, 0, 160, '…')
+                                  : Translator::t('An award on Africa GATES, decided by community votes and an independent jury.'),
+            'gates_page'       => 'awards',
+            'a'                => $a,
+            'tab'              => $tab,
+            'tabs'             => $tabs,
+            'alert_said'       => is_string($said) ? $said : null,
+        ]);
+    }
+
+    /**
+     * POST /awards/{p}/notify — "Notify me", double opt-in (AwardAlert).
+     *
+     * A plain form that posts, throttled per connection, answering the same sentence
+     * whatever happened, then post/redirect/get so a refresh does not resubmit and the
+     * address never lands in a URL.
+     */
+    public function notify(Request $req, Response $res, array $args): Response
+    {
+        $slug = (string) ($args['p'] ?? '');
+        $a    = AwardsFront::detail($slug);
+        if ($a === null) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $b  = (array) $req->getParsedBody();
+        $ip = hash('sha256', ClientIp::from($req));
+        if ($this->rateLimit && !$this->rateLimit->check($ip, 'award_alert', 10, 3600)) {
+            $_SESSION['aw_alert_said'] = Translator::t('Too many requests from this connection in the last hour. Try again later.');
+        } else {
+            $r = AwardAlert::want((int) $a['id'], (string) ($b['email'] ?? ''), $ip, rtrim(SiteUrl::base($req), '/'),
+                $this->mailer ? \AfricaGates\Services\Newsletter\NewsletterAudience::transport($this->mailer) : null);
+            $_SESSION['aw_alert_said'] = Translator::t($r['message']);
+        }
+        return $res->withHeader('Location', '/awards/' . rawurlencode($slug) . '#aw-notify')->withStatus(303);
+    }
+
+    /** GET shows, POST acts — mail scanners fetch every link (the newsletter's rule). */
+    public function alertPage(Request $req, Response $res, array $args): Response
+    {
+        $token  = (string) ($args['token'] ?? '');
+        $action = (string) ($args['action'] ?? '');
+        $done   = false;
+        $row    = AwardAlert::find($token);
+        if ($row && $req->getMethod() === 'POST') {
+            $row  = $action === 'stop' ? AwardAlert::stop($token) : AwardAlert::confirm($token);
+            $done = true;
+        }
+        $prog = $row ? \Illuminate\Database\Capsule\Manager::table('gates_award_programmes')
+            ->where('id', (int) $row->programme_id)->first(['slug', 'title']) : null;
+
+        return $this->view->render($res->withStatus($row ? 200 : 404), 'pages/awards/alert.twig', [
+            'page_title'  => Translator::t('Award alert') . ' — Africa GATES',
+            'gates_page'  => 'awards',
+            'meta_robots' => 'noindex, nofollow',
+            'alert'       => $row ? ['token' => (string) $row->token, 'action' => $action,
+                                     'confirmed' => $row->confirmed_at !== null,
+                                     'stopped' => $row->cancelled_at !== null] : null,
+            'done'        => $done,
+            'award'       => $prog ? ['title' => (string) $prog->title,
+                                      'url' => '/awards/' . rawurlencode((string) $prog->slug)] : null,
+        ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 }

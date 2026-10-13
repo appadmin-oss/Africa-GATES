@@ -90,6 +90,11 @@ final class DeadTokenTest extends TestCase
                              array_keys(\AfricaGates\Support\Accent::shadows())) as $name) {
             $decls['--ag-' . $name][] = 'src/Support/Accent.php';
         }
+        // And the admin console's set, emitted as `--cn-*` by css('console') (4 Oct 2026).
+        foreach (array_merge(array_keys(\AfricaGates\Support\Accent::console()),
+                             array_keys(\AfricaGates\Support\Accent::consoleShadows())) as $name) {
+            $decls['--cn-' . $name][] = 'src/Support/Accent.php (console)';
+        }
 
         return [$decls, $reads];
     }
@@ -191,11 +196,18 @@ final class DeadTokenTest extends TestCase
      * Each entry leaves the moment a rebuilt page reads it — the test below fails on an
      * entry that has a reader, or one nothing declares any more.
      */
+    // Phase 2 (the shared chrome, 3 Oct 2026) gave eight of these their reader back in
+    // components/chrome.css — the mega and Menu tile tones (gold-wash-2, gold-ink,
+    // green-wash, live-wash, live-ink), the status dot (gold), the flash mark (info) and
+    // the mega panel's shadow (sh-mega) — and they left the list as it requires.
     private const AWAITING_REBUILD = [
-        '--ag-gold-wash', '--ag-gold-wash-2', '--ag-green-edge', '--ag-info-wash',
-        '--ag-live-ink', '--ag-live-wash', '--ag-sh-mega',
-        '--ag-gold', '--ag-gold-edge', '--ag-gold-ink', '--ag-green-light',
-        '--ag-green-wash', '--ag-info',
+        // Phase 3 (Gee) gave green-edge, info-wash and green-light their readers; Phase 4
+        // (Discover) gave gold-wash its reader back — the winner's chip and avatar; Phase 7
+        // (Events) gave gold-edge its reader — the early-bird banner's rule.
+        // The admin console's palette (README §10, owner 4 Oct 2026): four of its tokens
+        // are drawn first by stage 2's screens — the provider pills' danger text, and
+        // the info, success and softest warning dots and fields.
+        '--cn-danger-pill', '--cn-info-dot', '--cn-success-dot', '--cn-warning-tint-3',
     ];
 
     public function test_the_awaiting_rebuild_list_only_shrinks(): void

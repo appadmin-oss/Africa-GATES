@@ -1,0 +1,332 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE DOCUMENT FAMILY — every long document on the site, one set of macros
+  Phase 9 of design_handoff_africa_gates · design/DocPage.dc.html (prop `doc`:
+  integrity · terms · privacy · cookies · programme-terms · philosophy) · §8.20
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt from the DC after the destroy (inventory: _partials.md, `article.twig`). Same
+  file, same job: /integrity, /philosophy, every legal document and the award terms are
+  ONE design, and a page composes these macros rather than copying their markup — the
+  toolbar and the citation block carry real accessibility obligations (a tablist with a
+  roving tabindex, a status line, a sheet that gives focus back), and copied four times,
+  three copies eventually lose one of them.
+
+  ── CALLING CONVENTION ──────────────────────────────────────────────────────
+
+  Every macro takes ONE hash, `d`, built once at the top of the page template (hoisted:
+  the head, the content and the sheets block all read it — CLAUDE.md's block-scope
+  trap). Presentation only: no figure is computed here and no date is read from a clock.
+  The route resolves all of it, so the page, the .txt and the .md cannot disagree.
+
+    d.key         'integrity' | 'philosophy' | 'legal' | 'programme-terms'
+    d.eyebrow, d.title, d.subtitle?, d.standfirst (trusted HTML from the route/service)
+    d.byline      list of plain strings ("By …", "Version 1.1", "Updated …", "N min read")
+    d.listen      true → the Listen / Pause pill (speech synthesis; hidden without it)
+    d.download    {txt, md, stem} or null — plain anchors, never a script
+    d.cite_tool   true → the toolbar's Cite pill (a link to #cite)
+    d.toc         list of {id, title}
+    d.siblings    list of {label, href, current}
+    d.aside       {label, rows:[{k, v}], note?, disputes?} or null
+    d.cite        {word, citations, note, action:'download'|'share', url, txt, md, stem}
+    d.contact     the address the footer names; d.end the sentence before it
+
+  ── COLOUR TIER 0, AND WHERE THAT IS ENFORCED ───────────────────────────────
+
+  A document asks for nothing, so it spends no colour at all (§8.20): links are ink and
+  underlined, the focus ring is ink (`.ag-doc`, shell.css), the only switches (/cookies)
+  are ink when on. components/doc.css holds no green, and DocPageTest sweeps it.
+#}
+
+{# Citation metadata for machines: Highwire Press `citation_*` and Dublin Core — what
+   Zotero, Mendeley and Google Scholar read when somebody saves the reference.
+   m: {title, author, publisher, published, updated, url} #}
+{% macro cite_meta(m) %}
+<meta name="citation_title" content="{{ m.title }}">
+<meta name="citation_author" content="{{ m.author }}">
+<meta name="citation_publisher" content="{{ m.publisher }}">
+<meta name="citation_publication_date" content="{{ m.published }}">
+<meta name="citation_online_date" content="{{ m.updated }}">
+<meta name="citation_public_url" content="{{ m.url }}">
+<meta name="DC.title" content="{{ m.title }}">
+<meta name="DC.creator" content="{{ m.author }}">
+<meta name="DC.publisher" content="{{ m.publisher }}">
+<meta name="DC.date" content="{{ m.updated }}">
+<meta name="DC.identifier" content="{{ m.url }}">
+<meta name="DC.type" content="Text">
+<meta name="DC.format" content="text/html">
+{% endmacro %}
+
+{# schema.org Article. `version` is what makes a dated document citable rather than
+   merely dated. Every value goes through json_encode, so nothing typed into a title can
+   close the script element (CLAUDE.md, JSON-LD).
+   m: {title, subtitle?, description, author, publisher, published, updated, version, url} #}
+{% macro article_ld(m, nonce) %}
+<script nonce="{{ nonce }}" type="application/ld+json">
+{"@context":"https://schema.org","@type":"Article",
+"headline":{{ m.title|json_encode|raw }},
+{% if m.subtitle is defined and m.subtitle %}"alternativeHeadline":{{ m.subtitle|json_encode|raw }},{% endif %}
+"description":{{ m.description|default('')|striptags|json_encode|raw }},
+"author":{"@type":"Organization","name":{{ m.author|json_encode|raw }}},
+"publisher":{"@type":"Organization","name":{{ m.publisher|json_encode|raw }}},
+"datePublished":{{ m.published|json_encode|raw }},
+"dateModified":{{ m.updated|json_encode|raw }},
+"version":{{ m.version|json_encode|raw }},
+"inLanguage":"en",
+"isAccessibleForFree":true,
+"mainEntityOfPage":{"@type":"WebPage","@id":{{ m.url|json_encode|raw }}},
+"url":{{ m.url|json_encode|raw }}}
+</script>
+{% endmacro %}
+
+{# The 2px reading-progress bar at the top of <main>, and — below 1024 — the sticky 48px
+   Contents bar ("Contents · 02 · The score") that opens the sheet. The bar is a link to
+   the sheet's own id, so with no script it still opens it (`:target`). #}
+{% macro top(d) %}
+<div class="dp-progress" aria-hidden="true"><span class="dp-progress__fill" data-doc-progress></span></div>
+{% if d.toc|length %}
+<div class="dp-cbar">
+  <a class="dp-cbar__btn" href="#dp-contents" role="button" aria-haspopup="dialog" aria-controls="dp-contents-sheet" aria-expanded="false" data-doc-open>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+    <span class="dp-cbar__t">{{ 'Contents'|trans }}</span>
+    <span class="dp-cbar__cur" data-doc-current>01 · {{ d.toc[0].title }}</span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+  </a>
+</div>
+{% endif %}
+{% endmacro %}
+
+{# The left rail at ≥1024: sticky contents with the current section lit (a white pill,
+   700 — set by doc.js through aria-current), then "Also filed here". #}
+{% macro rail(d) %}
+<nav class="dp-rail" aria-label="{{ 'Contents'|trans }}">
+  {% if d.toc|length %}
+  <div class="dp-rail__group">
+    <span class="dp-rail__h">{{ 'In this document'|trans }}</span>
+    <ol class="dp-rail__list">
+      {% for t in d.toc %}
+        <li><a class="dp-rail__a" href="#{{ t.id }}" data-doc-toc="{{ loop.index0 }}"><span class="dp-rail__n">{{ '%02d'|format(loop.index) }}</span><span>{{ t.title }}</span></a></li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+  {% if d.siblings|length %}
+  <div class="dp-rail__also">
+    <span class="dp-rail__h">{{ 'Also filed here'|trans }}</span>
+    {% for s in d.siblings %}
+      <a class="dp-rail__sib{% if s.current %} is-current{% endif %}" href="{{ s.href }}"{% if s.current %} aria-current="page"{% endif %}>{{ s.label }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</nav>
+{% endmacro %}
+
+{# Eyebrow (13.5/600) → Playfair title → subtitle → standfirst → byline → tools. #}
+{% macro masthead(d) %}
+<header class="dp-head">
+  <p class="dp-head__eyebrow">{{ d.eyebrow }}</p>
+  <h1 class="dp-head__h1">{{ d.title }}</h1>
+  {% if d.subtitle is defined and d.subtitle %}<p class="dp-head__sub">{{ d.subtitle }}</p>{% endif %}
+  {% if d.standfirst is defined and d.standfirst %}<p class="dp-head__stand">{{ d.standfirst|raw }}</p>{% endif %}
+  <p class="dp-head__by">{% for b in d.byline %}<span>{{ b }}</span>{% endfor %}</p>
+  <div class="dp-tools" role="toolbar" aria-label="{{ 'Document tools'|trans }}">
+    {% if d.listen|default(false) %}
+      {# Hidden until doc.js has found speech synthesis: a button that cannot work is a
+         control lying about a mechanism. The labels travel as data so they translate. #}
+      <button class="dp-pill dp-pill--listen" type="button" aria-pressed="false" hidden data-doc-listen
+              data-listen="{{ 'Listen'|trans }}" data-pause="{{ 'Pause'|trans }}">
+        <svg class="dp-pill__play" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="dp-pill__pause" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>
+        <span data-doc-listen-label>{{ 'Listen'|trans }}</span>
+      </button>
+    {% endif %}
+    {% if d.download %}
+      {# A plain anchor: a document download has no business depending on a script
+         (the old toolbar's popover failed silently whenever its script did). #}
+      <a class="dp-pill" href="{{ d.download.txt }}" download="{{ d.download.stem }}.txt">{{ 'Download'|trans }}
+      </a>
+    {% endif %}
+    {% if d.cite_tool|default(false) %}
+      <a class="dp-pill" href="#cite">{{ 'Cite'|trans }}
+      </a>
+    {% endif %}
+  </div>
+</header>
+{% endmacro %}
+
+{# The right card: "Live settings" (integrity, read from the engine) or "This document".
+   Drawn twice — inline under the masthead below 1200, sticky in the right column from
+   1200 — because which one applies is a viewport question; CSS shows exactly one, and
+   `display:none` takes the other out of the accessibility tree too. #}
+{% macro aside(d, where) %}
+{% if d.aside %}
+<aside class="dp-aside dp-aside--{{ where }}" aria-label="{{ d.aside.label }}">
+  <section class="dp-card">
+    <h2 class="dp-card__h">{{ d.aside.label }}</h2>
+    <dl class="dp-card__rows">
+      {% for r in d.aside.rows %}<div class="dp-card__row"><dt>{{ r.k }}</dt><dd>{{ r.v }}</dd></div>{% endfor %}
+    </dl>
+    {% if d.aside.note is defined and d.aside.note %}<p class="dp-card__note">{{ d.aside.note }}</p>{% endif %}
+  </section>
+  {% if d.aside.disputes is defined and d.aside.disputes %}
+    <a class="dp-card dp-card--link" href="{{ d.aside.disputes }}">
+      <b>{{ 'Think a result is wrong?'|trans }}</b>
+      <span>{{ 'Ask for an audit. We’ll show the working.'|trans }}</span>
+    </a>
+  {% endif %}
+</aside>
+{% endif %}
+{% endmacro %}
+
+{# One numbered section: Playfair h2 with its two-digit number, scroll-margin under the
+   bars, the section's index for doc.js. `body` is trusted HTML (sanitised upstream). #}
+{% macro section(id, n, title, body) %}
+<section class="dp-sec" id="{{ id }}" data-doc-sec="{{ n - 1 }}" aria-labelledby="{{ id }}-h">
+  <h2 class="dp-sec__h" id="{{ id }}-h" tabindex="-1"><span class="dp-sec__n">{{ '%02d'|format(n) }}</span>{{ title }}</h2>
+  <div class="dp-rich">{{ body|raw }}</div>
+</section>
+{% endmacro %}
+
+{#
+  A structured section body (CommunityVotingPhilosophy, MethodologyDocument and the
+  Integrity page), walked into DocPage's block kinds. The kinds stay few: a format that
+  can express anything ends up expressing it inconsistently.
+
+    {p}  {h3}  {quote}  {list: [html]}  {steps: [html]}  {note: {title, body:[html]}}
+    {table: {caption, head:[3], rows:[[a, n, d]], foot?}}   a real <table>; a card stack on a phone
+    {cols: [{mark:'yes'|'no', h, items:[html]}]}            can / cannot, ✓ / ✕ in ink circles
+    {refs: [{href, label}]}                                 "Further reading", an ink link list
+    {next: {href, kicker, title, blurb}}                    the handover card to the next document
+#}
+{% macro blocks(list) %}
+  {%- import _self as m %}
+  {%- for b in list %}
+    {%- if b.p is defined %}
+      <p>{{ b.p|raw }}</p>
+    {%- elseif b.h3 is defined %}
+      <h3>{{ b.h3|raw }}</h3>
+    {%- elseif b.quote is defined %}
+      <blockquote class="dp-quote"><p>{{ b.quote|raw }}</p></blockquote>
+    {%- elseif b.list is defined %}
+      <ul class="dp-list">{% for li in b.list %}<li>{{ li|raw }}</li>{% endfor %}</ul>
+    {%- elseif b.steps is defined %}
+      <ol class="dp-steps">{% for li in b.steps %}<li><span class="dp-steps__n" aria-hidden="true">{{ loop.index }}</span><span>{{ li|raw }}</span></li>{% endfor %}</ol>
+    {%- elseif b.note is defined %}
+      <aside class="dp-note">{% if b.note.title %}<h3>{{ b.note.title|raw }}</h3>{% endif %}{% for p in b.note.body %}<p>{{ p|raw }}</p>{% endfor %}</aside>
+    {%- elseif b.table is defined %}
+      <figure class="dp-fig">
+        <figcaption class="dp-fig__cap">{{ b.table.caption }}</figcaption>
+        <table class="dp-table">
+          <caption class="ag-sr">{{ b.table.caption }}</caption>
+          <thead><tr>{% for h in b.table.head %}<th scope="col">{{ h }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            {% for r in b.table.rows %}<tr><th scope="row">{{ r[0]|raw }}</th><td class="dp-table__n">{{ r[1]|raw }}</td><td class="dp-table__d">{{ r[2]|raw }}</td></tr>{% endfor %}
+          </tbody>
+        </table>
+        {% if b.table.foot is defined and b.table.foot %}<p class="dp-fig__foot">{{ b.table.foot|raw }}</p>{% endif %}
+      </figure>
+    {%- elseif b.cols is defined %}
+      <div class="dp-cols">
+        {% for c in b.cols %}
+          <div class="dp-cols__c">
+            <h3><span class="dp-cols__mark" aria-hidden="true">{{ c.mark == 'yes' ? '✓' : '✕' }}</span>{{ c.h|raw }}</h3>
+            <ul>{% for i in c.items %}<li>{{ i|raw }}</li>{% endfor %}</ul>
+          </div>
+        {% endfor %}
+      </div>
+    {%- elseif b.refs is defined %}
+      <div class="dp-refs"><span class="dp-refs__h">{{ 'Further reading'|trans }}</span>
+        {% for r in b.refs %}<a href="{{ r.href }}">{{ r.label }}</a>{% endfor %}
+      </div>
+    {%- elseif b.next is defined %}
+      {{ m.next(b.next) }}
+    {%- endif %}
+  {%- endfor %}
+{% endmacro %}
+
+{# The handover between the two Integrity Centre documents (integrity ↔ philosophy):
+   the philosophy argues and the methodology enforces, and each hands the reader on. #}
+{% macro next(n) %}
+<a class="dp-next" href="{{ n.href }}">
+  <span class="dp-next__w"><span class="dp-next__k">{{ n.kicker }}</span><b class="dp-next__t">{{ n.title }}</b><span class="dp-next__b">{{ n.blurb }}</span></span>
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="dp-next__go"><path d="m9 6 6 6-6 6"/></svg>
+</a>
+{% endmacro %}
+
+{#
+  "Cite this document": the citation, Copy citation, Download (or Share link), the
+  effective-date note. The four formats Citation::formats() builds are a real tablist —
+  role, aria-selected, aria-controls, a roving tabindex, and arrow keys wired in doc.js,
+  without which a keyboard reaches exactly one of the four. With no script every panel
+  is shown (the `hidden` attributes are added by the script), so nothing is lost.
+#}
+{% macro cite(d) %}
+<section class="dp-cite" id="cite" aria-labelledby="dp-cite-h" data-doc-cite>
+  <h2 class="dp-cite__h" id="dp-cite-h">{{ 'Cite this %w%'|trans({'%w%': d.cite.word}) }}</h2>
+  {% if d.cite.citations|length > 1 %}
+    <div class="dp-cite__tabs" role="tablist" aria-label="{{ 'Citation format'|trans }}" data-doc-tabs>
+      {% for c in d.cite.citations %}
+        <button class="dp-cite__tab" type="button" role="tab" id="dp-tab-{{ c.id }}" aria-controls="dp-panel-{{ c.id }}"
+                aria-selected="{{ loop.first ? 'true' : 'false' }}" tabindex="{{ loop.first ? '0' : '-1' }}">{{ c.label }}</button>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% for c in d.cite.citations %}
+    <div class="dp-cite__panel" role="tabpanel" id="dp-panel-{{ c.id }}" aria-labelledby="dp-tab-{{ c.id }}" data-doc-panel>
+      <p class="dp-cite__text" data-doc-cite-text>{{ c.text }}</p>
+    </div>
+  {% endfor %}
+  <div class="dp-cite__act">
+    <button class="dp-pill" type="button" data-doc-copy-cite hidden>{{ 'Copy citation'|trans }}</button>
+    {% if d.cite.action == 'share' %}
+      <button class="dp-pill" type="button" data-doc-share="{{ d.cite.url }}" hidden>{{ 'Share link'|trans }}</button>
+    {% else %}
+      <a class="dp-pill" href="{{ d.cite.txt }}" download="{{ d.cite.stem }}.txt">{{ 'Download as text'|trans }}</a>
+    {% endif %}
+  </div>
+  <p class="dp-cite__note">{{ d.cite.note }}</p>
+  {% if d.cite.md is defined and d.cite.md %}
+    <p class="dp-cite__note">{{ 'Also as Markdown:'|trans }} <a href="{{ d.cite.md }}" download="{{ d.cite.stem }}.md">{{ d.cite.stem }}.md</a>. {{ 'The page carries citation metadata, so Zotero and Mendeley can import the reference from the address.'|trans }}</p>
+  {% else %}
+    <p class="dp-cite__note">{{ 'The page carries citation metadata, so Zotero and Mendeley can import the reference from the address.'|trans }}</p>
+  {% endif %}
+  <p class="dp-cite__say" role="status" aria-live="polite" data-doc-say
+     data-copied="{{ 'Citation copied.'|trans }}" data-linked="{{ 'Link copied.'|trans }}"
+     data-failed="{{ 'Could not copy — select the text and copy it yourself.'|trans }}"></p>
+</section>
+{% endmacro %}
+
+{# The footer: the contact address and a Help Centre link. #}
+{% macro foot(d) %}
+<footer class="dp-end">
+  <p>{{ d.end }} <a href="mailto:{{ d.contact }}">{{ d.contact }}</a>{{ ', or browse every answer in the'|trans }} <a href="/help">{{ 'Help Centre'|trans }}</a>.</p>
+  {% if d.end_note is defined and d.end_note %}<p>{{ d.end_note }}</p>{% endif %}
+  <p class="dp-end__place">{{ 'Afrovanguard, Lagos, Nigeria'|trans }}</p>
+</footer>
+{% endmacro %}
+
+{# The contents sheet (tablet and phone): 52px rows, the current one marked. Opened by
+   the Contents bar through AGChrome.openSheet (focus in, trapped, Esc and the scrim
+   close, focus back); with no script, by its own id through `:target`. #}
+{% macro sheet(d) %}
+{% if d.toc|length %}
+<div class="dp-sheet-layer" id="dp-contents">
+  <div class="ag-scrim" data-doc-scrim></div>
+  <div class="ag-sheet dp-sheet" id="dp-contents-sheet" role="dialog" aria-modal="true" aria-labelledby="dp-contents-t" data-doc-sheet>
+    <div class="ag-sheet__grabber" aria-hidden="true"></div>
+    <div class="ag-sheet__head">
+      <span></span>
+      <h2 class="dp-sheet__t" id="dp-contents-t">{{ 'Contents'|trans }}</h2>
+      <a class="dp-sheet__x" href="#main" role="button" aria-label="{{ 'Close contents'|trans }}" data-doc-close><span aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></a>
+    </div>
+    <div class="ag-sheet__body">
+      <ol class="dp-sheet__list">
+        {% for t in d.toc %}
+          <li><a class="dp-sheet__a" href="#{{ t.id }}" data-doc-toc="{{ loop.index0 }}"><span class="dp-sheet__n">{{ '%02d'|format(loop.index) }}</span><span>{{ t.title }}</span><span class="dp-sheet__dot" aria-hidden="true"></span></a></li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endmacro %}

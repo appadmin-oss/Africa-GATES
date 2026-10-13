@@ -1,0 +1,125 @@
+{
+ "report": {
+  "budget-win-full-phone": {
+   "burstPieces": 72,
+   "fxAfterClean": 0,
+   "ambientInDom": 39,
+   "maxVisible": 26
+  },
+  "budget-win-full-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 39,
+   "maxVisible": 26
+  },
+  "budget-win-inline-phone": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 2,
+   "maxVisible": 2
+  },
+  "budget-win-inline-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 2,
+   "maxVisible": 2
+  },
+  "budget-vote-full-phone": {
+   "burstPieces": 24,
+   "fxAfterClean": 0,
+   "ambientInDom": 8,
+   "maxVisible": 7
+  },
+  "budget-vote-full-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 8,
+   "maxVisible": 7
+  },
+  "budget-vote-inline-phone": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 1,
+   "maxVisible": 1
+  },
+  "budget-vote-inline-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 1,
+   "maxVisible": 1
+  },
+  "budget-nominate-full-phone": {
+   "burstPieces": 29,
+   "fxAfterClean": 0,
+   "ambientInDom": 15,
+   "maxVisible": 11
+  },
+  "budget-nominate-full-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 17,
+   "maxVisible": 16
+  },
+  "budget-nominate-inline-phone": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 7,
+   "maxVisible": 6
+  },
+  "budget-nominate-inline-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 7,
+   "maxVisible": 6
+  },
+  "budget-give-full-phone": {
+   "burstPieces": 18,
+   "fxAfterClean": 0,
+   "ambientInDom": 7,
+   "maxVisible": 7
+  },
+  "budget-give-full-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 7,
+   "maxVisible": 7
+  },
+  "budget-give-inline-phone": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 4,
+   "maxVisible": 4
+  },
+  "budget-give-inline-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 4,
+   "maxVisible": 4
+  },
+  "budget-ticket-full-phone": {
+   "burstPieces": 28,
+   "fxAfterClean": 0,
+   "ambientInDom": 5,
+   "maxVisible": 4
+  },
+  "budget-ticket-full-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 5,
+   "maxVisible": 4
+  },
+  "budget-ticket-inline-phone": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 1,
+   "maxVisible": 1
+  },
+  "budget-ticket-inline-desktop": {
+   "burstPieces": 0,
+   "fxAfterClean": 0,
+   "ambientInDom": 1,
+   "maxVisible": 1
+  }
+ },
+ "errors": []
+}

@@ -121,9 +121,13 @@ final class GuideController
             $out = $useAi ? $this->guide->answer($message, $history, $page) : $this->guide->scripted($message);
             return $this->json($res, [
                 'ok'      => true,
-                'reply'   => $out['reply'],
+                'reply'   => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']),
                 'source'  => $out['source'],
                 'support' => false,
+                // Buttons the agent offered: a path on this site and a label, validated
+                // by SupportContext::offerAction() before they got here.
+                'actions' => $out['actions'] ?? [],
+                'checked' => $out['checked'] ?? [],
                 // No last resort here. A browsing question with no help match
                 // gets no strip — "how do I nominate" must not sprout a refunds
                 // card, which is what a fallback set would do on every miss.
@@ -168,7 +172,7 @@ final class GuideController
             $out = $this->guide->supportFallback($message);
             return [
                 'ok'       => true,
-                'reply'    => $out['reply'],
+                'reply'    => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']),
                 'source'   => $out['source'],
                 'support'  => true,
                 'articles' => HelpCentre::previews($message, [], 3, lastResort: true),
@@ -187,18 +191,25 @@ final class GuideController
                         'content' => mb_substr($text, 0, 2000)];
         }
 
-        $r = $this->support->ask($message, $turns, SupportContext::fromSession($this->rateLimit, $ip));
+        $ctx = SupportContext::fromSession($this->rateLimit, $ip);
+        $r = $this->support->ask($message, $turns, $ctx);
 
         return [
             'ok'        => true,
-            'reply'     => $r['reply'],
+            'reply'     => \AfricaGates\Support\ReplyLinks::clean((string) $r['reply']),
             'source'    => 'support',
             'support'   => true,
             // Shown in the widget as "re-checked your payment" — an assistant that
             // says where its answer came from is one people can sanity-check.
             'used'      => $r['used'],
+            'checked'   => SupportAgentService::checkedFrom($r['used'] ?? []),
+            // The live repair card. The desk endpoint always sent it; this road — the one a
+            // stuck visitor takes from Gee — did not, so a payment Gee had just repaired
+            // came back as a paragraph and no card.
+            'work'      => \AfricaGates\Services\SupportWork::fromResults($r['results'] ?? [], $ctx),
             'ticket'    => $r['ticket'],
             'escalated' => $r['escalated'],
+            'actions'   => $r['actions'] ?? [],
             'articles'  => HelpCentre::previews($message,
                 SupportAgentService::citedSlugs($r['results'] ?? []), 3, lastResort: true),
         ];
@@ -251,7 +262,7 @@ final class GuideController
             // allowBridge=false — an agent asking Gee must never bounce back out
             // to the agent (infinite loop); Gee answers from its own providers.
             $out = $this->guide->answer($message, $history, $page, allowBridge: false);
-            $payload = ['ok' => true, 'reply' => $out['reply'], 'source' => $out['source']];
+            $payload = ['ok' => true, 'reply' => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']), 'source' => $out['source']];
             if (!empty($b['include_state'])) $payload['site_state'] = $this->guide->siteState();
             return $this->json($res, $payload);
         } catch (\Throwable $e) {

@@ -1,0 +1,18 @@
+$ curl -sI "http://127.0.0.1:8341/activity?q=x"
+HTTP/1.1 301 Moved Permanently
+Location: /discover?tab=live&q=x
+
+$ curl -sI "http://127.0.0.1:8341/activity?q=choral%20night&literal=1&utm_source=mail"
+HTTP/1.1 301 Moved Permanently
+Location: /discover?tab=live&q=choral%20night&literal=1
+
+$ curl -sI "http://127.0.0.1:8341/activity"
+HTTP/1.1 301 Moved Permanently
+Location: /discover?tab=live
+
+$ curl -sI "http://127.0.0.1:8341/discover?tab=live&q=x"
+HTTP/1.1 200 OK
+Content-type: text/html; charset=UTF-8
+
+$ curl -s "http://127.0.0.1:8341/discover/count?tab=people&where=KE"
+{"ok":true,"count":2}

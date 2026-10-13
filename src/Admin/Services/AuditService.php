@@ -74,6 +74,17 @@ class AuditService
         // column already means by it.
         $adminId = ($adminId !== null && $adminId > 0) ? $adminId : null;
 
+        // ── THE REASON GIVEN IN THE CONFIRM DIALOG, WHERE IT IS WRITTEN ──────────
+        //
+        // The console's confirm-with-reason dialog (admin handoff §7, rule 5) posts the
+        // reason as `_reason` alongside whatever form it confirmed. Attached HERE, once,
+        // rather than at 124 call sites — the sentinel lesson: normalise where it is
+        // written. A caller that records its own `reason` keeps it.
+        if (!array_key_exists('reason', $meta)) {
+            $why = trim((string) ($_POST['_reason'] ?? ''));
+            if ($why !== '') $meta['reason'] = mb_substr($why, 0, 500);
+        }
+
         try {
             DB::table('gates_audit_log')->insert([
                 'admin_id'    => $adminId,

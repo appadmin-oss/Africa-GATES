@@ -1,39 +1,68 @@
 <?php
 declare(strict_types=1);
+
 namespace AfricaGates\Controllers;
+
+use AfricaGates\Services\{CacheService, GlobeBand, HomeFront};
+use AfricaGates\Support\NationsLive;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
-use Illuminate\Database\Capsule\Manager as DB;
-use AfricaGates\Services\{CacheService,ProfileService,AwardService,StatsService,GlobeBand,RuleEngine,JudgeRubric};
 
-class HomeController {
-    public function __construct(private readonly Twig $view,private readonly CacheService $cache,private readonly ProfileService $profiles,private readonly AwardService $awards,private readonly ?StatsService $stats = null){}
-    public function index(Request $req,Response $res):Response {
-        // ── "Votes cast" is SUM(weight), NOT COUNT(*) ────────────────────────
-        //
-        // A row in gates_votes is not a vote, it is a vote EVENT — and a paid or bonus
-        // pack writes ONE row carrying its whole quantity in `weight` (PaidVoteService
-        // ::mint, BonusVoteService). Counting rows reported a 25-vote pack as 1, so the
-        // headline figure on the front page was a count of TRANSACTIONS wearing the
-        // label "Votes cast", and it disagreed with every nominee card on the site —
-        // those are built from the same weights.
-        //
-        // COALESCE via ?? 0: SUM over no rows is NULL, and a new site must show 0.
-        $stats=$this->cache->remember('home:stats',3600,fn()=>['total_profiles'=>DB::table('gates_profiles')->where('status','approved')->count(),'total_votes'=>(int)(DB::table('gates_votes')->sum('weight') ?? 0),'events_count'=>DB::table('gates_legacy_events')->where('is_published',1)->count(),'awards_given'=>\AfricaGates\Services\MergeService::notMerged(DB::table('gates_nominees')->whereIn('status',['winner','runner_up']))->count()],['leaderboard','registry']);
-        // ── THE GLOBE BAND'S FIGURES, RESOLVED ONCE HERE ─────────────────────
-        //
-        // Its markers are nations with an approved nominee in a live award, counted
-        // by GlobeBand from the same joins the footer's "live in …" sentence uses.
-        // Nothing on the band is a literal: the handoff shipped it over sixteen
-        // invented cities with invented ballot counts and sub-second "verification"
-        // latencies, none of which this platform records or could.
-        //
-        // The split and the criteria count are RULES read per cycle, not constants —
-        // /integrity resolves them exactly this way, and a second reader of a setting
-        // is how the two halves of a promise come to disagree.
-        $band = $this->cache->remember('home:globe',900,fn()=>['countries'=>GlobeBand::countries(),'note'=>GlobeBand::note()],['leaderboard','registry']);
-        $weights = (new RuleEngine())->weights();
-        return $this->view->render($res,'pages/home.twig',['globe_countries'=>$band['countries'],'globe_note'=>$band['note'],'community_pct'=>(int)round($weights['community']*100),'judge_pct'=>(int)round($weights['judge']*100),'jury_criteria'=>count(JudgeRubric::effective(null)),'page_title'=>'Africa GATES — Continental Cultural Recognition | Afrovanguard','meta_description'=>'Africa GATES is a continental cultural recognition engine — recognising African excellence, live in Nigeria and building across the continent.','gates_page'=>'home','promos'=>\AfricaGates\Services\PromoService::forPlacement('home', !empty($_SESSION['user_id'])),'site_stats'=>$this->stats?->summary() ?? $stats,'awards_data'=>$this->cache->remember('home:awards',1800,fn()=>$this->awards->getActiveProgrammesWithStatus()),'leaderboard'=>$this->cache->remember('home:lb',3600,fn()=>$this->profiles->getLeaderboard(8),['leaderboard']),'spotlight_profiles'=>$this->cache->remember('home:spotlight',3600,fn()=>$this->profiles->getFeaturedProfiles(5),['leaderboard']),'latest_winners'=>$this->cache->remember('home:winners',1800,fn()=>\AfricaGates\Services\PublicResults::index(1)['editions'][0] ?? null,['leaderboard']),'site_events'=>$this->cache->remember('home:site_events',900,fn()=>DB::table('gates_site_events')->where('status','published')->where('event_date','>=',date('Y-m-d H:i:s'))->orderBy('event_date')->limit(3)->get()->map(fn($r)=>(array)$r)->all())]);
+/**
+ * `GET /` — the homepage, rebuilt in Phase 4 from HomePageV3.dc.html + WeAreAfrica.dc.html.
+ *
+ * Destroyed and written again with the page (inventory: docs/handoff/inventory/pages--home.md).
+ * It hands the template exactly what the template reads and nothing else: the old controller
+ * resolved and cached five datasets the page had stopped drawing, which is §17 at the view
+ * layer (`TemplateContextTest`) and four wasted queries on the busiest URL on the site.
+ *
+ * Every figure comes from {@see HomeFront} (stats, voting, results, the featured campaign)
+ * or {@see GlobeBand} (the map), so the page has two places to ask and none to type into.
+ * Cached briefly and tagged like the rest of the public counts, so a vote or a registration
+ * invalidates it.
+ */
+final class HomeController
+{
+    public function __construct(private readonly Twig $view, private readonly CacheService $cache) {}
+
+    public function index(Request $req, Response $res): Response
+    {
+        $front = $this->cache->remember('home:front', 300, static fn (): array => [
+            'stats'    => HomeFront::stats(),
+            'voting'   => HomeFront::voting(),
+            'decided'  => HomeFront::decided(),
+            'campaign' => HomeFront::campaign(),
+            // §8.1 section 3, "Who recognises": real recognitions from verified issuers
+            // (Services\Recognitions, GAPS §3.1) — never the DC's sample honours.
+            // With no issued recognition record yet, the latest decided winners stand in, so
+            // the card never says "recognitions appear once an award is announced" beside a
+            // list of announced winners (design review, 12 Oct 2026).
+            'recognitions' => \AfricaGates\Services\Recognitions::recent(12)
+                              ?: HomeFront::asRecognitions(HomeFront::decided()),
+        ], ['leaderboard', 'registry']);
+
+        $band = $this->cache->remember('home:globe', 900, static fn (): array => [
+            'countries' => GlobeBand::countries(),
+            'note'      => GlobeBand::note(),
+        ], ['leaderboard', 'registry']);
+
+        return $this->view->render($res, 'pages/home.twig', [
+            'page_title'       => 'Africa GATES — where Africa recognises its people',
+            // Computed, never typed: "live in Nigeria" was written here while NationsLive
+            // existed to answer it (the fault the footer, the JSON-LD and the guide had).
+            'meta_description' => 'Nominate the people who make a difference, vote for them and see '
+                . 'every result decided in the open. Africa GATES is live in '
+                . NationsLive::phrase() . '.',
+            'gates_page'       => 'home',
+            'tab'              => 'home',
+            'stats'            => $front['stats'],
+            'voting'           => $front['voting'],
+            'decided'          => $front['decided'],
+            'campaign'         => $front['campaign'],
+            'recognitions'     => $front['recognitions'] ?? [],
+            'globe_countries'  => $band['countries'],
+            'globe_note'       => $band['note'],
+        ]);
     }
 }

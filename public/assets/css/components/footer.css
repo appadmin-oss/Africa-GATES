@@ -1,0 +1,95 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE SITE FOOTER — HomePageV3.dc.html's <footer>, on every shell page (Phase 4)
+   Pairs with templates/partials/site-footer.twig, which says why each link is there.
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Values are the DC's inline styles and its `vals()`: phone <600, tablet 600–1023
+   (three columns, the brand across them), desktop ≥1024 (1.4fr + three).
+
+   What is not the DC, and why (each in PHASE-4.md, "Home", deviations):
+   · the band is `--ag-ink`, not #0c2225 — not in the palette (owner Q1);
+   · translucent white is `color-mix()` of `--ag-surface`, never a typed rgba
+     (ColourLiteralTest); `surface` is the palette's word on ink (Accent::words());
+   · column titles 12.5 sentence case, not 11px tracked capitals (owner Q4, Q5);
+   · "GATES" 11.5, not 10 (the ladder has no 10 — the header's wordmark already is);
+   · the social buttons are 44, not 36 (REFERENCE §6.7, §13: 44 everywhere).
+   Logical properties only, so Arabic mirrors it.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ag-foot{
+  margin-top:56px;
+  background:var(--ag-ink);
+  color:var(--ag-surface);
+}
+.ag-foot__in{
+  max-width:1240px; margin:0 auto;
+  padding:44px 20px 28px;
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:22px 20px;
+}
+.ag-foot__brand{ grid-column:1 / -1 }
+.ag-foot__logo,
+.ag-foot__logo:hover{
+  display:inline-flex; align-items:center; gap:11px; margin-bottom:16px;
+  color:var(--ag-surface); text-decoration:none;
+}
+.ag-foot__mark{
+  width:34px; height:34px; padding:3px; border-radius:10px;
+  background:var(--ag-surface); object-fit:contain;
+}
+.ag-foot__word{ display:flex; flex-direction:column; line-height:1 }
+.ag-foot__word b{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-16); color:var(--ag-surface) }
+.ag-foot__word span{ font-size:var(--ag-fs-11-5); font-weight:700; letter-spacing:.26em; color:var(--ag-green-light) }
+.ag-foot__tag{
+  margin:0; max-width:none;
+  font-size:var(--ag-fs-14); line-height:1.65;
+  color:color-mix(in srgb, var(--ag-surface) 72%, transparent);
+}
+
+.ag-foot__h{
+  margin:0 0 14px;
+  font-size:var(--ag-fs-12-5); font-weight:700;
+  color:var(--ag-green-light);
+}
+.ag-foot__list{ display:flex; flex-direction:column; gap:10px; margin:0; padding:0; list-style:none }
+.ag-foot__a,
+.ag-foot__legal a{ text-decoration:none }
+.ag-foot__a{ font-size:var(--ag-fs-14); color:color-mix(in srgb, var(--ag-surface) 78%, transparent) }
+.ag-foot__a:hover,
+.ag-foot__legal a:hover{ color:var(--ag-surface) }
+
+.ag-foot__bar{
+  max-width:1240px; margin:0 auto;
+  padding:20px 20px 100px;
+  border-top:1px solid color-mix(in srgb, var(--ag-surface) 10%, transparent);
+  display:flex; flex-direction:column; align-items:flex-start; justify-content:space-between;
+  gap:18px; flex-wrap:wrap;
+}
+.ag-foot__copy{ margin:0; font-size:var(--ag-fs-13); color:color-mix(in srgb, var(--ag-surface) 60%, transparent) }
+.ag-foot__end{ display:flex; align-items:center; gap:18px; flex-wrap:wrap }
+.ag-foot__social{ display:flex; gap:9px; margin:0; padding:0; list-style:none }
+.ag-foot__so,
+.ag-foot__so:hover{
+  width:44px; height:44px; border-radius:50%;
+  border:1px solid color-mix(in srgb, var(--ag-surface) 16%, transparent);
+  display:flex; align-items:center; justify-content:center;
+  color:color-mix(in srgb, var(--ag-surface) 80%, transparent);
+  transition:background-color var(--ag-dur-1) var(--ag-ease), color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-foot__so:hover{ background:var(--ag-surface); color:var(--ag-ink); border-color:var(--ag-surface) }
+.ag-foot__rule{ display:none; width:1px; height:18px; background:color-mix(in srgb, var(--ag-surface) 16%, transparent) }
+.ag-foot__legal{ display:flex; align-items:center; gap:8px 18px; flex-wrap:wrap }
+.ag-foot__legal a{ font-size:var(--ag-fs-13); color:color-mix(in srgb, var(--ag-surface) 70%, transparent) }
+
+/* Focus is the house ring, which on ink needs the light green to be seen. */
+.ag-foot a:focus-visible{ outline:3px solid var(--ag-green-light); outline-offset:2px }
+
+@media (min-width:600px){
+  .ag-foot__in{ padding:54px 40px 30px; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:40px }
+  .ag-foot__bar{ padding:20px 40px 40px; flex-direction:row; align-items:center }
+  .ag-foot__rule{ display:block }
+}
+@media (min-width:1024px){
+  .ag-foot__in{ grid-template-columns:1.4fr 1fr 1fr 1fr }
+  .ag-foot__brand{ grid-column:auto }
+  .ag-foot__tag{ max-width:280px }
+}

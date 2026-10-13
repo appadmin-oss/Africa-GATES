@@ -61,12 +61,35 @@ final class ChallengeFlier
      * {@see \Tests\Unit\ChallengeFlierTest} holds these to tokens.css, so the flier and
      * the page cannot drift apart.
      */
-    public const THEMES = [
-        E::THEME_GREEN => ['fill' => '#237b22', 'edge' => '#1a6118', 'solid' => '#237b22'],
-        E::THEME_BLUE  => ['fill' => '#1f6fa3', 'edge' => '#1f6fa3', 'solid' => '#1f6fa3'],
-        E::THEME_GOLD  => ['fill' => '#f3b416', 'edge' => '#7a5600', 'solid' => '#7a5600'],
-        E::THEME_ROSE  => ['fill' => '#e0245e', 'edge' => '#b0224f', 'solid' => '#b0224f'],
-    ];
+    /**
+     * The four themes as HEXES, because there is no CSS in a PNG.
+     *
+     * ── DERIVED FROM THE PAGE'S OWN TABLE, NOT TYPED BESIDE IT ──────────────
+     *
+     * These were four literal hexes here and four `[data-theme]` blocks in
+     * `components/challenge.css` — one rule written twice, in two languages, with
+     * nothing but a test between them. "A blue challenge whose page is blue and whose
+     * flier is green is two products."
+     *
+     * {@see \AfricaGates\Support\Accent::challengeTheme()} is the table now; this
+     * resolves its token names to the values `ag_accents()` emits, so the flier cannot
+     * disagree with the page about what blue is. A method rather than a `const` only
+     * because a constant cannot call anything — the shape at the call sites is
+     * unchanged.
+     *
+     * @return array<string,array{fill:string, edge:string, solid:string}>
+     */
+    public static function themes(): array
+    {
+        $out = [];
+        foreach ([E::THEME_GREEN, E::THEME_BLUE, E::THEME_GOLD, E::THEME_ROSE] as $name) {
+            $slots = Accent::challengeTheme($name);
+            foreach (['fill', 'edge', 'solid'] as $slot) {
+                $out[$name][$slot] = Accent::value($slots[$slot]);
+            }
+        }
+        return $out;
+    }
 
     /** The ground and the card tint: this share of the theme's fill, over white. */
     public const GROUND_MIX = 0.12;
@@ -121,7 +144,8 @@ final class ChallengeFlier
     /** @return array{ground:string, tint:string, edge:string, solid:string} */
     public static function palette(string $theme): array
     {
-        $t = self::THEMES[$theme] ?? self::THEMES[E::THEME_GREEN];
+        $all = self::themes();
+        $t = $all[$theme] ?? $all[E::THEME_GREEN];
         $mix = static function (string $hex, float $share): string {
             [$r, $g, $b] = FlierLayout::rgb($hex);
             $m = static fn (int $c): int => (int) round(255 - $share * (255 - $c));

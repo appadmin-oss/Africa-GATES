@@ -103,6 +103,9 @@
 {% endblock %}
 
 {% block topbar_title %}Result release{% endblock %}
+{# Phase 6: an announcement issues recognitions (winner, runner-up, published finalists);
+   their one permitted change — withdrawal with a published reason — lives on a sub-page. #}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/recognitions">Recognitions issued</a>{% endblock %}
 
 {% block content %}
 

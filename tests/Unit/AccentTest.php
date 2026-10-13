@@ -88,8 +88,30 @@ final class AccentTest extends TestCase
         // Nothing but custom properties, and no character that could close the <style>
         // it is printed into or open a rule.
         $this->assertMatchesRegularExpression('/^:root\{(--ag-[a-z0-9-]+:[#a-z0-9 ,.()-]+;)+\}$/', $css);
-        $this->assertSame(count(self::HANDOFF) + count(self::HANDOFF_SHADOWS),
-            substr_count($css, '--ag-'), 'Accent emits a name that is not the handoff\'s');
+        // And the default-graphics tones (DEFAULT-GRAPHICS §4, handoff 5 Oct 2026): five tones
+        // × wash, line, ink and the avatar's edge, each at the spec's value — by reference to
+        // a palette token where one is identical, the spec's own hex where none is.
+        $tones = ['green' => ['#effaf0', '#237b22', '#1a6118', '#cfe6ce'], 'gold' => ['#fcf4de', '#c99a06', '#7a5600', '#f0dfae'],
+                  'live' => ['#fdecef', '#e0245e', '#b0224f', '#f6c7d3'], 'info' => ['#e6f0f4', '#1f6fa3', '#1f5f8b', '#c9dde8'],
+                  'stone' => ['#f1efe9', '#3a4a4c', '#10292c', '#d6d4cc']];
+        foreach ($tones as $tone => $hex) {
+            foreach (['bg', 'line', 'ink', 'edge'] as $i => $slot) {
+                $this->assertSame($hex[$i], Accent::coverHex($tone, $slot), "$tone.$slot");
+                $this->assertStringContainsString('--ag-cover-' . $tone . '-' . $slot . ':', $css);
+            }
+        }
+        // And the seasonal greeting's (HOLIDAY-THEMES): wash · edge · ink · line, the spec's table.
+        $hol = ['green' => ['#eef7ee', '#d4e8d3', '#1a6118', '#237b22'], 'gold' => ['#fcf6e4', '#efe0b4', '#7a5600', '#c99a06'],
+                'live' => ['#fdf0f3', '#f3d3dc', '#b0224f', '#e0245e'], 'info' => ['#ecf3f7', '#cfe0ea', '#1f5f8b', '#1f6fa3'],
+                'stone' => ['#f4f2ec', '#e2ddd2', '#10292c', '#3a4a4c']];
+        foreach ($hol as $tone => $hex) {
+            foreach (['wash', 'edge', 'ink', 'line'] as $i => $slot) {
+                $this->assertSame($hex[$i], Accent::holidayHex($tone, $slot), "hol $tone.$slot");
+                $this->assertStringContainsString('--ag-hol-' . $tone . '-' . $slot . ':', $css);
+            }
+        }
+        $this->assertSame(count(self::HANDOFF) + count(self::HANDOFF_SHADOWS) + 20 + 20,
+            preg_match_all('/[{;]--ag-/', $css), 'Accent emits a name that is not the handoff\'s');
     }
 
     public function test_a_colour_asked_for_by_a_name_that_does_not_exist_throws(): void

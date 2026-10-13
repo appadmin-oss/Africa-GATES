@@ -66,6 +66,19 @@ final class AssistantController
         }
         $history = is_array($b['history'] ?? null) ? array_slice($b['history'], -10) : [];
 
+        // ── THE AGENT FIRST: it runs the platform's own checks, then answers ──
+        // Far cheaper per question than the snapshot below (a short cached prompt, and only
+        // the evidence the question needs), and it can actually find things out.
+        try {
+            $agent = (new \AfricaGates\Services\Ops\OpsAgent(AiService::boot()))
+                ->answer($message, $history, $role, $adminId ?: null);
+            if ($agent !== null) {
+                return $json(['ok' => true, 'reply' => $agent['reply'], 'ran' => $agent['ran'], 'actions' => $agent['actions']]);
+            }
+        } catch (\Throwable $e) {
+            $this->log?->warning('[admin-assistant] agent failed; one-shot answer instead', ['err' => $e->getMessage()]);
+        }
+
         $transcript = [];
         foreach ($history as $h) {
             if (!is_array($h)) continue;
@@ -108,8 +121,11 @@ final class AssistantController
 
     private function systemPrompt(string $role): string
     {
-        $state = $this->operationalState();
-        $stateJson = (string) json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        // Compact, not pretty-printed: the indentation was a third of the tokens and the
+        // model reads either equally well. One snapshot, shared with the ops scripts.
+        $state = \AfricaGates\Services\Ops\OpsScripts::snapshot();
+        $state['ai_spend_today'] = \AfricaGates\Services\AiGateway::spendReport();
+        $stateJson = \AfricaGates\Services\SupportAgentService::compact($state);
         return <<<SYS
 You are the Africa GATES ADMIN ASSISTANT — a concise operations copilot inside the admin console of the continental Cultural Power Index platform (Slim 4 + MySQL; public voting, jury scoring, nominations, shop, donations, events, community).
 
@@ -131,63 +147,39 @@ HOW TO RESPOND
 SYS;
     }
 
-    /** Read-only operational snapshot — every query individually fault-tolerant. */
-    private function operationalState(): array
+    // ── Scripts: run by a person ──────────────────────────────────────────
+
+    /**
+     * GET /admin/assistant/scripts — every script this role may run, with its last result.
+     * The same scripts the assistant runs itself; repairs are run only from here.
+     */
+    public function scripts(Request $req, Response $res): Response
     {
-        $get = static function (callable $q, $fallback = null) {
-            try { return $q(); } catch (\Throwable) { return $fallback; }
-        };
-        $today = date('Y-m-d 00:00:00');
-        return [
-            'generated_at'            => date('c'),
-            'nominations_pending'     => $get(fn() => (int) DB::table('gates_nominations')->where('status', 'pending')->count(), 0),
-            'moderation_quarantined'  => $get(fn() => (int) DB::table('gates_comments')->where('status', 'quarantined')->count()
-                                                    + (int) DB::table('gates_threads')->where('status', 'quarantined')->count(), 0),
-            'votes_today'             => $get(fn() => (int) DB::table('gates_votes')->where('voted_at', '>=', $today)->count(), 0),
-            'votes_total'             => $get(fn() => (int) DB::table('gates_votes')->count(), 0),
-            'members_total'           => $get(fn() => (int) DB::table('gates_users')->where('status', 'active')->count(), 0),
-            'orders_pending'          => $get(fn() => (int) DB::table('gates_orders')->where('status', 'pending')->count(), 0),
-            'donations_pending'       => $get(fn() => (int) DB::table('gates_donations')->where('status', 'pending')->count(), 0),
-            // The COMPUTED phase per cycle, and no `year = date('Y')` filter.
-            // This previously reported the raw status column alongside
-            // voting_close — the exact pair that can contradict each other — and
-            // filtered to the calendar year, so the copilot could confidently
-            // narrate a state that was not real while being blind to any
-            // in-flight cycle tagged with a different year.
-            'cycles'                  => $get(fn() => DB::table('gates_award_cycles as c')
-                ->join('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
-                ->where('c.status', '!=', 'archived')
-                ->get(['p.title', 'c.id', 'c.year', 'c.status', 'c.nominations_open', 'c.nominations_close',
-                       'c.voting_open', 'c.voting_close', 'c.results_date'])
-                ->map(function ($r) {
-                    $phase = \AfricaGates\Services\CyclePolicy::stateFor($r);
-                    return [
-                        'programme'           => (string) $r->title,
-                        'year'                => (int) $r->year,
-                        // What the platform actually does right now.
-                        'phase'               => $phase['phase'],
-                        'accepting_votes'     => $phase['is_voting_open'],
-                        'accepting_nominations' => $phase['is_nominations_open'],
-                        'deadline'            => $phase['closes_at'],
-                        'note'                => $phase['detail'],
-                        // Flagged so the assistant can tell an operator the
-                        // cached column is behind, rather than trusting it.
-                        'cached_status_stale' => $phase['drifted'],
-                    ];
-                })->all(), []),
-            // Cycles whose declared boundary has passed but whose materialised
-            // status has not caught up. Traffic-independent, so it surfaces
-            // cycles nobody happens to be voting in.
-            'phase_divergences'       => $get(fn() => count(\AfricaGates\Services\CycleMaterialiser::divergences()), 0),
-            // Schema integrity. Read-only. Present because every defect in the index
-            // repair shared one shape: it failed, printed a warning, and nobody read
-            // it. A missing uniqueness constraint must keep announcing itself rather
-            // than wait to be discovered by a double-counted vote.
-            'schema_warnings'         => $get(fn() => \AfricaGates\Services\VoteIndexRepair::warnings(), []),
-            // AI spend today, per capability — previously unknowable.
-            'ai_spend_today'          => $get(fn() => \AfricaGates\Services\AiGateway::spendReport(), []),
-            'webhook_failures_24h'    => $get(fn() => (int) DB::table('gates_webhook_deliveries')->where('ok', 0)->where('created_at', '>=', date('Y-m-d H:i:s', time() - 86400))->count(), 0),
-            'messages_failed_24h'     => $get(fn() => (int) DB::table('gates_messages')->where('status', 'failed')->where('created_at', '>=', date('Y-m-d H:i:s', time() - 86400))->count(), 0),
-        ];
+        $role = (string) ($_SESSION['admin_role'] ?? '');
+        $runs = \AfricaGates\Services\Ops\OpsScripts::lastRuns();
+        $list = [];
+        foreach (\AfricaGates\Services\Ops\OpsScripts::forRole($role) as $key => $s) {
+            $list[] = $s + ['key' => $key, 'last' => $runs[$key] ?? null];
+        }
+        return $this->view->render($res, 'admin/assistant/scripts.twig', [
+            'page_title'   => 'Operations scripts',
+            'topbar_title' => 'Operations scripts',
+            'admin_page'   => 'assistant',
+            'checks'       => array_values(array_filter($list, static fn ($s) => $s['kind'] === 'check')),
+            'repairs'      => array_values(array_filter($list, static fn ($s) => $s['kind'] === 'repair')),
+        ]);
+    }
+
+    /** POST /admin/assistant/scripts/{key} — run one, as a person. A repair carries its reason. */
+    public function runScript(Request $req, Response $res, array $args): Response
+    {
+        $key  = (string) ($args['key'] ?? '');
+        $b    = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\Ops\OpsScripts::run($key, (string) ($_SESSION['admin_role'] ?? ''),
+            (int) ($_SESSION['admin_id'] ?? 0) ?: null, 'person', (string) ($b['_reason'] ?? ''));
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+            ? $r['title'] . ' — done in ' . number_format($r['ms'] / 1000, 1) . 's. The result is below.'
+            : $r['title'] . ' — ' . ($r['error'] ?? 'it reported a problem; the result is below.');
+        return $res->withHeader('Location', '/admin/assistant/scripts#' . rawurlencode($key))->withStatus(302);
     }
 }

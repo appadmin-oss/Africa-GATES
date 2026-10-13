@@ -1,0 +1,228 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   COOKIE CONSENT — the notice, the preferences sheet, the "saved" line
+   Phase 2 item 6 · REFERENCE §7.9, §10, §13 · design/CookieConsent.dc.html
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Every value is the DC's inline style (REFERENCE §5): `view=phone` below 600px,
+   `view=desktop` from 600 (the chrome's own breakpoint — the DC has no tablet value).
+   Colour only from Support\Accent's tokens; type from the closed ladder in rem
+   (`--ag-fs-*`, 16px to the rem), nothing under 11.5, no capitals, no mono.
+
+   ── ON A PHONE THE NOTICE IS IN THE COLUMN, NOT OVER IT ─────────────────────
+
+   The DC floats it 12px above the tab bar (`bottom:96px`) over the page. Here it is a
+   flex child of `.ag-shell` between the scroller and the tab bar, with the same 12px
+   on three sides, so it sits exactly where the DC draws it and the scroller SHRINKS to
+   make room: nothing on the page can be under it, so nothing the keyboard reaches can
+   be hidden by it (WCAG 2.4.11), with or without a script, and it can never cover the
+   tab bar. (The DC's own admin panel: "It sits above the phone tab bar and never
+   covers the page.") From 600 it floats bottom-right at the DC's 460px, and the
+   scroller keeps scroll room for it.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ══ The notice ══════════════════════════════════════════════════════════════ */
+
+.ag-consent{
+  margin:var(--ag-sp-12) var(--ag-sp-12) var(--ag-sp-12);
+  display:flex; flex-direction:column; gap:var(--ag-sp-14);
+  padding:var(--ag-sp-16);
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line-2);
+  border-radius:var(--ag-r-20);
+}
+.ag-consent__top{ display:flex; align-items:flex-start; gap:var(--ag-sp-12) }
+/* The DC's tile: 36px, radius 10, a green wash with a green mark. */
+.ag-consent__ico{ --ag-tile:36px; background:var(--ag-green-wash); color:var(--ag-green) }
+.ag-consent__words{ display:flex; flex-direction:column; gap:var(--ag-sp-4); min-width:0 }
+.ag-consent__t{ margin:0; font-size:var(--ag-fs-16); font-weight:700; line-height:1.3 }
+.ag-consent__p{ margin:0; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+.ag-consent__more,
+.ag-consent__more:hover{ font-weight:600; color:var(--ag-ink); text-decoration:underline }
+
+/* THE THREE ANSWERS ARE ONE CLASS. Same size, same weight, same outline — the
+   template gives each the identical class string and CookieConsentNoticeTest holds it.
+   A notice whose "accept" is a button and whose "decline" is grey text is the pattern
+   the consent rules exist to stop. */
+.ag-consent__answers{
+  display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--ag-sp-8);
+  margin:0;
+}
+.ag-consent__answer{
+  min-height:46px; padding:0 var(--ag-sp-8);
+  border-radius:var(--ag-r-pill);
+  border:1px solid var(--ag-ink);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-family:inherit; font-size:var(--ag-fs-14-5); font-weight:600;
+  cursor:pointer;
+}
+.ag-consent__answer:hover{ background:var(--ag-bar) }
+
+/* ══ "Saved" — where the notice was, until it is read ═════════════════════════ */
+
+.ag-consent-saved{
+  margin:var(--ag-sp-12);
+  display:flex; align-items:center; gap:var(--ag-sp-12);
+  padding:var(--ag-sp-14) var(--ag-sp-16);
+  background:var(--ag-ink); color:var(--ag-ground);
+  border-radius:var(--ag-r-14);
+  font-size:var(--ag-fs-14-5);
+}
+.ag-consent-saved[hidden]{ display:none }
+.ag-consent-saved__t{ flex:1 }
+/* The DC draws it 36px tall; REFERENCE §13 asks 44, which outranks a DC. */
+.ag-consent-saved__change,
+.ag-consent-saved__change:hover{
+  flex:none; display:inline-flex; align-items:center;
+  min-height:44px; padding:0 var(--ag-sp-12);
+  border-radius:var(--ag-r-pill);
+  border:1px solid var(--ag-ground);
+  background:transparent; color:var(--ag-ground);
+  font-size:var(--ag-fs-13-5); font-weight:600; text-decoration:none;
+}
+
+/* ══ The preferences sheet ═══════════════════════════════════════════════════
+   The base `.ag-scrim` + `.ag-sheet` (components.css): the DC's scrim IS `--ag-scrim`,
+   and the base already slides, hides at rest and takes the shell's focus handling. What
+   differs is the DC's: a white sheet pinned 80px from the top on a phone, a 480px card
+   28px from the corner on desktop. */
+
+.ag-consent-sheet{
+  top:80px; max-height:none;
+  background:var(--ag-surface);
+  border-radius:22px 22px 0 0;
+  overflow:hidden;
+}
+/* Without a script, `#ag-consent` opens it — the notice's "Choose" posts, the server
+   stores nothing and sends the visitor back here. */
+.ag-consent-layer:target > .ag-scrim{ opacity:1; pointer-events:auto }
+.ag-consent-layer:target > .ag-consent-sheet{
+  transform:none; visibility:visible;
+  transition:transform var(--ag-dur-2) var(--ag-ease), visibility 0s;
+}
+
+.ag-consent-sheet__head{
+  flex:none; display:flex; flex-direction:column; gap:var(--ag-sp-6);
+  padding:20px 20px var(--ag-sp-6);
+}
+/* 22px is display type (≥18, §6.2): fixed, set in rem like the ladder. */
+.ag-consent-sheet__t{
+  margin:0;
+  font-family:var(--ag-font-display); font-weight:700; font-size:1.375rem; line-height:1.2;
+}
+.ag-consent-sheet__sub{ margin:0; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-soft) }
+.ag-consent-sheet__wide{ display:none }
+/* The DC's GPC note: a tint field with words (13.5, line 1.5). */
+.ag-consent-sheet__signal{
+  margin:var(--ag-sp-4) 0 0; padding:10px var(--ag-sp-12);
+  border-radius:var(--ag-r-10);
+  background:var(--ag-tint);
+  font-size:var(--ag-fs-13-5); line-height:1.5;
+}
+.ag-consent-sheet__signal b{ display:block; font-weight:700 }
+
+.ag-consent-sheet__form{ flex:1; min-height:0; display:flex; flex-direction:column; margin:0 }
+.ag-consent-sheet__body{ flex:1; min-height:0; overflow:auto; padding:var(--ag-sp-6) 20px }
+
+.ag-consent-row{
+  display:flex; align-items:flex-start; gap:var(--ag-sp-14);
+  padding:var(--ag-sp-16) 0;
+  border-bottom:1px solid var(--ag-line);
+}
+.ag-consent-row__text{ flex:1; min-width:0; display:flex; flex-direction:column; gap:var(--ag-sp-4) }
+.ag-consent-row__name{ font-size:var(--ag-fs-15-5); font-weight:600 }
+.ag-consent-row__desc{ font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-soft) }
+.ag-consent-row__who{ font-size:var(--ag-fs-12-5); color:var(--ag-ink-2) }
+.ag-consent-row__state{
+  flex:none; padding-top:2px;
+  font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-ink-2);
+}
+
+/* The switch: 52 × 32, a 26px white thumb 3px in, green on and mute off, the thumb
+   carrying "On"/"Off" (the DC's 11px; 11.5 is the floor of the ladder). The checkbox
+   itself covers the whole 52 × 44 target, so it is what is pressed and focused. */
+.ag-consent-switch{
+  position:relative; flex:none;
+  display:flex; align-items:center;
+  width:52px; min-height:44px; margin-top:-6px;
+}
+.ag-consent-switch__input{
+  position:absolute; inset:0; z-index:1;
+  width:100%; height:100%; margin:0;
+  opacity:0; cursor:pointer;
+}
+.ag-consent-switch__track{
+  display:flex; align-items:center; justify-content:flex-start;
+  width:52px; height:32px; padding:3px; box-sizing:border-box;
+  border-radius:var(--ag-r-pill);
+  background:var(--ag-mute);
+  transition:background-color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-consent-switch__thumb{
+  display:flex; align-items:center; justify-content:center;
+  width:26px; height:26px; border-radius:50%;
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-11-5); font-weight:700;
+}
+.ag-consent-switch__on{ display:none }
+.ag-consent-switch__input:checked + .ag-consent-switch__track{ background:var(--ag-green); justify-content:flex-end }
+.ag-consent-switch__input:checked + .ag-consent-switch__track .ag-consent-switch__on{ display:inline }
+.ag-consent-switch__input:checked + .ag-consent-switch__track .ag-consent-switch__off{ display:none }
+/* The focus ring belongs on what is drawn, not on the invisible box over it. */
+.ag-consent-switch__input:focus-visible + .ag-consent-switch__track{
+  outline:3px solid var(--ag-green); outline-offset:2px;
+}
+
+.ag-consent-sheet__foot{
+  flex:none;
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--ag-sp-8);
+  padding:var(--ag-sp-14) 20px var(--ag-sp-28);
+  padding-bottom:calc(var(--ag-sp-28) + env(safe-area-inset-bottom));
+  border-top:1px solid var(--ag-line);
+}
+.ag-consent-sheet__btn{
+  min-height:50px; padding:0 var(--ag-sp-8);
+  border-radius:var(--ag-r-12);
+  border:1px solid var(--ag-ink);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-family:inherit; font-size:var(--ag-fs-15); font-weight:600;
+  cursor:pointer;
+}
+.ag-consent-sheet__btn--save{ background:var(--ag-ink); color:var(--ag-ground) }
+
+/* ══ From 600: the DC's desktop view ═════════════════════════════════════════
+   The notice and the "saved" line float 28px from the corner at 460px; the sheet is a
+   480px card. Logical insets, so Arabic puts them in the other corner. The scroller
+   keeps scroll room for the notice, measured by consent.js (`--ag-consent-h`) with a
+   fallback that covers its tallest drawing, so focus never lands beneath it. */
+
+@media (min-width:600px){
+  .ag-consent,
+  .ag-consent-saved{
+    position:fixed; z-index:var(--ag-z-header);
+    inset-inline-end:28px; bottom:28px;
+    /* Content-box, as the DC measures it: 460 of content inside 16px of padding and a
+       1px border, 494 across — measured against the DC's own render, not assumed. */
+    width:460px; max-width:calc(100% - 90px); box-sizing:content-box;
+    margin:0;
+  }
+  .ag-shell:has(> .ag-consent) > .ag-main{
+    padding-bottom:calc(var(--ag-consent-h, 220px) + 28px);
+    scroll-padding-bottom:calc(var(--ag-consent-h, 220px) + 28px);
+  }
+
+  .ag-consent-sheet{
+    top:auto; left:auto; right:auto;
+    inset-inline-end:28px; bottom:28px;
+    width:480px; max-width:calc(100% - 56px);
+    max-height:calc(100dvh - 56px);
+    border-radius:var(--ag-r-20);
+  }
+  .ag-consent-sheet__phone{ display:none }
+  .ag-consent-sheet__wide{ display:inline }
+  .ag-consent-sheet__foot{ padding-bottom:var(--ag-sp-16) }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .ag-consent-switch__track{ transition:none }
+}
+html.ag-rm .ag-consent-switch__track{ transition:none }

@@ -130,7 +130,9 @@ time. Hoist anything used by more than one block to template scope.
 
 So no `onclick=`, no inline `<script>` without a nonce. The convention is
 `data-ag-do="..."` with a delegated listener in `public/assets/js/admin.js`; `data-confirm`
-on a form routes it through `agConfirm`.
+on a form routes it through `agConfirm` — since the console rebuild a confirm-with-reason
+dialog: a POSTing form cannot be confirmed without a reason, which travels as `_reason` and
+`AuditService::record()` attaches to the audit row (one place, not 124 call sites).
 
 ## A header can switch a feature off in a way nothing on the page can see
 
@@ -203,14 +205,21 @@ use `requestSubmit(submitter)`.
 
 ## The admin console's shape, and the two directions a nav can be wrong
 
-The rail is **seven headings, and seven is a floor rather than a taste call**: there are
-exactly seven `admin_sections` gates and a section can carry only one, so fewer sections
-means moving a page to a different gate. That is an access change and **must never ride
-along inside a navigation change** — `AdminNav` records `gate` per section and
-`AdminNavTest` asserts it against the original mapping. Sections are uneven by design
-(three items in Programmes, eleven in Content); one opens at a time, the tail is in the
-in-page sub-nav and the `⌘K` palette, which is the documented hybrid resolution to NN/g's
-finding that hidden navigation roughly halves discoverability.
+**Access is per PAGE, and the nav reads the guard rather than typing a gate** (admin
+handoff rule 7; rebuilt 4 Oct 2026, superseding the old "seven sections is a floor" rule).
+The rail is Home plus seven groups named for the job — Daily work, Programmes, Entries,
+Money, Publishing, Monitoring, Settings (README §2.2, exact order and labels) — and a group
+carries NO gate. Each page's gate is `Permissions::sectionForPath()` of its own href, and
+every surface (rail, `⌘K` palette, Home's shortcuts and "needs a person", the alert pill,
+pins) asks `Permissions::canOpen()`, the guard's own function. So moving a page between
+groups changes nobody's access, by construction. **An access change must still never ride
+along inside a navigation change:** `AdminNavTest` diffs every page's gate against the
+GUARD's mapping recorded before the rebuild (the old test pinned the RAIL's mapping, which
+disagreed with the guard on fifteen pages — Handbook, Support tickets, Audit log, Integrity,
+Payouts and others were offered to roles the guard then bounced) and only the owner-approved
+`health` pages (Integrations, Email health, Alerts) may differ; it also runs
+`SectionGuardMiddleware` over every href for every role. A group with more than five pages
+shows four and a "··· N more" row, forced open when the current page is past the fourth.
 
 **And a nav can be wrong in two directions.** `AdminNavTest`'s fourteen tests all read
 NAV → ROUTES — every entry is a real route, no page twice, every item has a sprite icon.
@@ -243,12 +252,15 @@ whole roles. Raise it as a product decision; never do it inside a navigation cha
 ### Admin documentation lives in the console, not in `docs/`
 
 There is no SSH on production, so an administrator cannot open a Markdown file — `docs/` is
-for whoever changes the code. The handbook is `/admin/handbook`, in the always-visible
-section so every role can read it, because somebody whose permissions do not reach Money
-still needs to know Money exists and why their rail is shorter than a colleague's.
+for whoever changes the code. The handbook is `/admin/handbook`, reached from the
+account menu, and it is MEANT for every role — somebody whose permissions do not reach Money
+still needs to know Money exists and why their rail is shorter than a colleague's. **It is
+not yet:** `/admin/handbook` has no path mapping, so the guard fails it closed to superadmin,
+and the old rail offering it to everyone was the bug. Mapping it to `overview` is an access
+change awaiting the owner (`docs/handoff/PHASE-ADMIN.md`, open questions).
 
 **Its structural facts are LOOPED FROM THE CODE, and that rule is the whole design.** Areas
-from `AdminNav::sections()`, roles from `Permissions::MATRIX`, weights and quorum from
+from `AdminNav::groups()`, roles from `Permissions::MATRIX`, weights and quorum from
 `RuleEngine`, verification words from `RegistryCheck::STATES`, the grace window from
 `ANNOUNCE_GRACE_DAYS`. This repo has paid four times for prose outliving the rule it
 describes, and a handbook is that hazard with people actively told to trust it — the
@@ -315,6 +327,11 @@ nonced `<style>` that EVERY layout writes before its stylesheets — shell and t
 admin/judge sign-in screens. `public/assets/css/tokens.css` holds sizes, radii, motion and
 layers and **no colour at all**. Mail and GD cannot read `var()`; they ask `Accent::hex('soft')`
 by name, and an unknown name throws rather than painting a button blank.
+**The admin console has a second set in the same file** (owner, 4 Oct 2026): the admin
+handoff's monochrome palette (README §10) as `Accent::console()`, emitted as `--cn-*` by
+`ag_accents('console')` in the admin layout only — the two surfaces share no name. Its words
+are measured by `ConsolePaletteTest`; four the handoff draws under 4.5:1 are REPORTED in
+`Accent::consoleReported()`, never re-valued.
 
 Why PHP and not a stylesheet: the values the page receives and the values the tests measure
 must be the same values. A colour with two sources is decided by load order, which is how
@@ -387,40 +404,100 @@ invisible — both fixed by focusing a marker turning the globe to it); 2.5.8 (4
 `pointer: coarse` was the only floor, and the AA 24×24 is not conditional on the pointer).
 `docs/CODEBASE-INDEX.md` §25.
 
-## The type scale is closed, and a scale with no guard is a comment
+## Type is the handoff's: a closed ladder, fixed display sizes, mono for codes, no capitals
 
-`10 · 11 · 12 · 13 · 14 · 16 · 17`, and the gap at 15 is deliberate — 14 is the reading
-size, 16 is the lede, and a rung between them is an invitation to split the difference
-again. Above 17px is the display range, set with `clamp()` against the viewport rather
-than off this ladder. `TypeScaleTest` holds it.
+The owner answered GAPS Q4 and Q5 on 3 Oct 2026: **apply REFERENCE §6.2 and §18.3–4 as
+written** on the public site. Three rules, each held by a guard, and each the reverse of
+something this file used to say — which is the reason to read the section before the first
+`font:` you write, because the old prose is still in people's heads and in a great deal of
+git history.
 
-It arrived as a comment in a design handoff and stayed one: the tree it was handed to
-carried **1,579** declarations off the ladder, 41% of every font size on the site. Nothing
-failed, because nothing asked. Eight distinct sizes existed between 11px and 15px, because
-sizes were set one screen at a time — `12.5px` and `13px` on adjacent cards doing the same
-job, and the next person splitting the difference again from whichever they copied. None
-of that is visible from any single file, which is why it ran for the life of the codebase.
+**Small text sits on a closed ladder: `11.5 · 12 · 12.5 · 13 · 13.5 · 14 · 14.5 · 15 ·
+15.5 · 16 · 16.5 · 17`.** Micro 11.5–12.5, meta 13–13.5, secondary 14.5, buttons
+14.5–15.5, body and inputs 16. **There is no 10 and no 11.** Those are px at the 16px root,
+but **screen type is WRITTEN in rem** (owner, 3 Oct 2026): `var(--ag-fs-14-5)`, a
+`tokens.css` step named by its px. Display & reading (100/125/150%) scales the root, and a
+px size ignores the root — the first chrome build was all px, the setting's class landed on
+`<html>` and not one letter grew. `TypeScaleTest` refuses a px size on a screen and an
+`em`/`%` size anywhere but the root, and asserts the text-size classes move it. Mail is px
+(no setting reaches an inbox) and still on the ladder; box sizes and targets stay px. `TypeScaleTest` used to carry
+them as a `MIGRATING` allowance for the unconverted pages; those pages were destroyed, the
+allowance went with them, and its test now fails if the constant comes back. An allowance
+that outlives its reason is how a ladder grows a rung nobody chose. The ladder is closed
+because an unguarded scale is a comment: the tree this repo inherited carried **1,579**
+declarations off its own documented scale, 41% of every size on the site, set one screen at
+a time with nothing asking.
 
-Two things a sweep over this has to know, both of which had one lying here:
+**Display type is a FIXED size per breakpoint, never scaled by the viewport.** §6.2 gives a
+phone and a desktop size for every display role (H1 32 → 44, celebration 34 → 48, app-bar
+title 26) and §4.5 forbids `vw` type outright. This file used to say the opposite — "above
+17px is the display range, set with `clamp()` against the viewport" — so fluid type here
+was not a lapse, it was the convention. A `vw` size is a size nobody chose: it renders
+every value between the two the designer drew, and it does not grow with the reader's text
+setting (WCAG 1.4.4). `TypeScaleTest` refuses viewport units, container units and
+`clamp()` in `font-size` and the `font` shorthand, including through a custom property — a
+breakpoint is a QUERY, not a unit.
 
-- **Most of the type is in the `font:` SHORTHAND**, not in `font-size:`. 214 declarations
-  of micro-label live as `font:600 11px/1 var(--ag-font-mono)`, and a `font-size:` grep
-  never sees one. Inside the shorthand the size is the FIRST px value — nothing else in
-  `font` takes a length except the line-height, which follows a `/`.
+**Monospace is only for references and codes** — order refs, ticket codes, receipt codes,
+times inside a ticket stub — **never labels, stats or kickers. No capitals**: no
+`text-transform:uppercase`, no `capitalize`, no small-caps, and no typed all-caps
+micro-labels; headings are sentence case. The one exception is the ticket stub's CONFIRMED
+stamp, which is a graphic. The handoff contradicted itself on both (HANDOFF §2 "mono …
+numbers", SKILL §24.3 "mono 17px value", fifteen uppercase declarations in its own DCs);
+its README §0 puts §18 above all of those, and the owner confirmed it. This file's house
+style used to read "mono micro-labels", and 214 declarations were written to it. Mono says
+"copy me exactly": on a reference that is true and it is what tells `0` from `O`; on a
+kicker it is a costume, and it spends the page's only signal for "this is a code".
+`MonoAndCaseTest` holds it with a NAMING convention derived from §18.3's list — a rule may
+set a monospace face only if its selector carries a class segment `ref`, `code` or `stub`
+(or is `code`/`kbd`/`samp`/`pre`), and capitals only under a `stamp` segment. The name is
+the claim, and a claim is reviewable: `.order-ref` in mono is plainly right, `.stat-ref` is
+a lie somebody had to type. Mono is recognised by VALUE and resolved through aliases — the
+door defines its own `--dr-mono`, and a sweep knowing only `--ag-font-mono` passes every
+kicker on that page.
+
+**Scope is the public surface, and the consoles are out by name.** The judge console is
+held by the owner; the ADMIN console was rebuilt from its own handoff (4 Oct 2026) and has
+its OWN ladder (README §10, plus 10.5 and 16), held by `ConsoleTypeTest` over
+`Tests\Support\ConsoleSurface` (`public/assets/css/console/` and the rebuilt templates),
+which also holds the two shared rules — no capitals, mono only for figures, references,
+times and keycaps (by a class-segment naming rule: `n`, `num`, `badge`, `v`, `kbd`, `time`,
+`ref`, `code`). Both public guards read `Tests\Support\PublicSurface`: every template but
+`admin/` and `judge/`, every stylesheet but the console's directory, the five only the judge
+console links (`judge.css`, `main.css`, `aurora.css`, `components/auth.css`, `a11y.css`)
+and `vendor/`. **The door scanner is held
+too** (owner, 3 Oct 2026: a staff tool outside the redesign) — `pages/events/door.twig` and
+`components/door.css`, with a guard that only the door links its sheet. Everything else is in by default, so a
+new sheet is covered the day it lands — and `TypeScaleTest` fails if a public page ever
+links a held sheet, because an exclusion is honest only while nothing public reads what it
+excludes. Mail is in for the scale and out for mono and case, which are rules for screens.
+Neither guard reads JavaScript, and both say so.
+
+Things a sweep over type has to know, each of which had one lying here:
+
+- **Most of the type is in the `font:` SHORTHAND**, not in `font-size:` — the 214
+  micro-labels were `font:600 11px/1 var(--ag-font-mono)`, invisible to a `font-size:`
+  grep. Inside the shorthand the size is the FIRST length — or the first `var()` that
+  resolves to one, now that sizes are tokens; the only other length in `font` is the
+  line-height, after a `/`.
 - **`font-size:1px` in an email is not type.** It is the collapse that keeps the hidden
-  preheader from occupying a line in clients that ignore `display:none`, and raising it to
-  the ladder puts a stray line of grey text at the top of four production emails. It is
-  exempted by what it DOES — a 1px size beside `mso-hide:all` — never by naming the four
-  files that currently do it.
+  preheader from occupying a line in clients that ignore `display:none`; raising it puts a
+  stray line of grey text at the top of production mail. Exempt by what it DOES — at most
+  1px in a rule that also says `mso-hide:all` — never by naming the files that do it.
+- **An exemption recognised by a side-effect excuses whatever else has the side-effect.**
+  The old scale forgave a logotype by its `.26em` tracking; with the wordmark gone from the
+  public surface, the only thing that clause still excused was the door's 10px mono
+  kickers, which share the tracking and are labels. It was deleted, not narrowed.
+- **A guard that spells a SIZE inside a regex about something else goes quiet the moment
+  type moves.** `EventTierSelectionTest` found the ticket row's perk colour with
+  `/\.ed-tier__perk\{ font-size:11\.5px; color:(#[0-9a-f]{6})/`; moving the row half a
+  pixel stopped the match, and a contrast floor that cannot find its colour is not being
+  checked. Anything under 18.66px owes 4.5:1 whatever its size. Find it by SELECTOR — the
+  right rule pinned to the wrong token, as with `camera=()`.
 
-**And a guard that spells a SIZE inside a regex about something else goes quiet the moment
-type moves.** `EventTierSelectionTest` found the ticket row's perk colour with
-`/\.ed-tier__perk\{ font-size:11\.5px; color:(#[0-9a-f]{6})/`, to check that no state
-layer takes that text below AA. Moving the row half a pixel stopped the regex matching, and
-a contrast floor that cannot find its colour is a contrast floor that is not being checked.
-The size was never the subject: anything under 18.66px is small text to 1.4.3 and owes the
-same 4.5:1. Find it by SELECTOR. This is `camera=()` again — the right rule pinned to the
-wrong token.
+Both guards run their detectors over planted text on every run (a shorthand, a media query,
+an inline `style=`, a two-step alias, typed capitals) because a sweep is evidence only once
+it has been seen to name a break.
 
 ## A declared token with no reader, and the three ways the sweep lies
 
@@ -1051,6 +1128,21 @@ were still working. Anything monitoring it must parse the body. `Maintenance::TA
 is `-1`; `0` means "ran, nothing to do".
 
 Full account in `docs/CODEBASE-INDEX.md` §16.
+
+## A session's cookie and its data must die together
+
+The session cookie lived seven days and the data behind it about twenty-four minutes —
+PHP's default `session.gc_maxlifetime`, in the host's shared directory, where other sites'
+collection and the distro's cron delete files on their own schedule. So any form left open
+that long posted a token the server had forgotten, and the refusal was a 403 and a line of
+JSON to a browser that had submitted a form: "the site tells users csrf invalid and they get
+stuck there". `Support\SessionStore` gives the data the cookie's lifetime in `var/sessions`;
+`csrf-fresh.js` (every layout that draws a token includes `partials/csrf-fresh.twig`) keeps
+an open page's token current from `/session/token.json`; and `CsrfMiddleware` sends a
+same-origin browser form BACK with a 303, a sentence and its fields (`Support\FormReplay`,
+never a secret), while a cross-site post and a JSON caller are still plainly refused.
+**A script must read the token when it sends, never copy it at load** — the copy outlives
+every refresh. `CsrfRecoveryTest` holds all of it, the script sweep included.
 
 ## Things that must stay true
 
@@ -1744,3 +1836,8 @@ of REFERENCE §6.5. **Colour comes from `Support\Accent` and nowhere else**: the
 32 tokens under their own names, families of four slots (`fill`, `edge`, `ink`, `wash`),
 meanings resolved by `Accent::for()`. Never invent a token the handoff does not name; never
 type a hex, `rgb()` or `hsl()` outside `Accent`. See the section above for why.
+**Type is REFERENCE §6.2, exactly** (owner, 3 Oct 2026): Playfair Display 700 for headlines,
+DM Sans for everything else, sizes from the closed ladder and fixed per breakpoint — never
+`vw` or `clamp()` — and JetBrains Mono only for references and codes, never a label, stat or
+kicker. No capitals anywhere but the ticket stub's CONFIRMED stamp; headings sentence case.
+`TypeScaleTest` and `MonoAndCaseTest` hold it; see "Type is the handoff's" above for why.
