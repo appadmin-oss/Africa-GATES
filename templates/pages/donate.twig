@@ -245,7 +245,7 @@
       {% else %}
 
       {# The phone's figures (the rail carries them from 600). #}
-      <div class="gv-prog gv-prog--phone">{{ block('progress') }}</div>
+      <div class="gv-prog gv-prog--phone">{% include 'pages/giving/_progress.twig' %}</div>
 
       <div class="gv-prose">
         {% if campaign %}
@@ -336,8 +336,8 @@
     {% if not _closed %}
     <aside class="gv-rail" aria-label="{{ 'Give to this campaign'|trans }}">
       <div class="gv-card">
-        <div class="gv-prog">{{ block('progress') }}</div>
-        {{ block('give_ctas') }}
+        <div class="gv-prog">{% include 'pages/giving/_progress.twig' %}</div>
+        {% include 'pages/giving/_give-ctas.twig' %}
         {% if _give %}
         <p class="gv-fine">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>
@@ -378,38 +378,12 @@
 </div>
 {% endblock %}
 
-{# ── The figures: once, drawn in the rail and on the phone ───────────────────── #}
-{% block progress %}
-  {%- if _gifts > 0 or _target > 0 -%}
-    {%- if _target > 0 -%}
-      <span class="gv-prog__bar" role="img" aria-label="{{ '%r% raised of a %t% target'|trans({'%r%': m.ngn(_raised), '%t%': m.ngn(_target)}) }}"><span aria-hidden="true" style="width:{{ min(100, _pct) }}%"></span></span>
-    {%- endif -%}
-    <span class="gv-prog__sum"><b>{{ m.ngn(_raised) }}</b> {{ _target > 0 ? 'raised of %t%'|trans({'%t%': m.ngn(_target)}) : 'raised'|trans }}</span>
-    <span class="gv-prog__meta">
-      <span>{{ _gifts == 1 ? '1 donation'|trans : '%n% donations'|trans({'%n%': _gifts|number_format}) }}</span>
-      {%- if campaign and days_left is not null %}<span>{{ days_left == 1 ? '1 day left'|trans : '%n% days left'|trans({'%n%': days_left}) }}</span>
-      {%- elseif fund_goal and fund_goal.met %}<span>{{ 'Target reached, and still open'|trans }}</span>
-      {%- elseif fund_goal %}<span>{{ '%r% to go'|trans({'%r%': m.ngn(fund_goal.remaining)}) }}</span>{% endif -%}
-    </span>
-  {%- else -%}
-    <span class="gv-prog__first">{{ 'Be among the first to give — every donation is receipted and goes straight to the cause.'|trans }}</span>
-  {%- endif -%}
-{% endblock %}
 
-{% block give_ctas %}
-  {%- if _give -%}
-    <a class="gv-btn gv-btn--go" href="{{ _base }}?step=give#give">{{ 'Give now'|trans }}</a>
-    {%- if recurring %}<a class="gv-btn gv-btn--line" href="{{ _base }}?step=give&amp;freq=monthly#give">{{ 'Give monthly'|trans }}</a>{% endif -%}
-  {%- else -%}
-    {# No provider configured: say how to give rather than drawing a button that cannot. #}
-    <p class="gv-note">{{ 'Online giving is being set up. Write to us through support and we will send you secure payment details and a receipt.'|trans }} <a href="/support">{{ 'Contact support'|trans }}</a></p>
-  {%- endif -%}
-{% endblock %}
 
 {# The DC's phone Give bar, on the campaign only (Gee clears it through --ag-bottom-ui). #}
 {% block bottom_bar %}
   {% if _step != 'give' and _give %}
-  <div class="gv-bar" data-bottom-ui>{{ block('give_ctas') }}</div>
+  <div class="gv-bar" data-bottom-ui>{% include 'pages/giving/_give-ctas.twig' %}</div>
   {% elseif _step == 'give' and _give %}
   {# The checkout's action bar on a phone (§8): the total and the one button, in the thumb
      zone, registered with data-bottom-ui so Gee's launcher clears it. `form="give"` — the

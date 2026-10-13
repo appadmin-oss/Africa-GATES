@@ -443,7 +443,10 @@ class NominationController {
                 'error'=>$msg,'old'=>$b,
             ]))->withStatus($status);
         };
-        if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $rerender("You've reached today's nomination limit (5 per day). Please try again tomorrow.",429);
+        // The limit is the operator's (Settings → Nominations), from the one resolver both
+        // doors read, and the sentence says the number actually in force.
+        $daily = \AfricaGates\Services\NominationRules::dailyLimit();
+        if(!$this->rateLimit->check($fp,'nominate',$daily,86400)) return $rerender("You've reached today's nomination limit ({$daily} per day). Please try again tomorrow.",429);
         // ── THE FIELDS THIS DOOR ASKS FOR ───────────────────────────────────
         //
         // `reason` and `nominee_name` are NOT in this list any more, and that is the

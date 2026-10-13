@@ -1,0 +1,19 @@
+{#
+  The giving page's figures (the rail, and the card on a phone) — included IN CONTEXT by pages/donate.twig, which sets every value read here at
+  template scope. A partial, not a {% block %}: a block the layout does not render is thrown
+  away at render time (TemplateSyntaxTest), and the page draws this in two places.
+#}
+  {%- if _gifts > 0 or _target > 0 -%}
+    {%- if _target > 0 -%}
+      <span class="gv-prog__bar" role="img" aria-label="{{ '%r% raised of a %t% target'|trans({'%r%': ('₦' ~ (_raised)|number_format), '%t%': ('₦' ~ (_target)|number_format)}) }}"><span aria-hidden="true" style="width:{{ min(100, _pct) }}%"></span></span>
+    {%- endif -%}
+    <span class="gv-prog__sum"><b>{{ ('₦' ~ (_raised)|number_format) }}</b> {{ _target > 0 ? 'raised of %t%'|trans({'%t%': ('₦' ~ (_target)|number_format)}) : 'raised'|trans }}</span>
+    <span class="gv-prog__meta">
+      <span>{{ _gifts == 1 ? '1 donation'|trans : '%n% donations'|trans({'%n%': _gifts|number_format}) }}</span>
+      {%- if campaign and days_left is not null %}<span>{{ days_left == 1 ? '1 day left'|trans : '%n% days left'|trans({'%n%': days_left}) }}</span>
+      {%- elseif fund_goal and fund_goal.met %}<span>{{ 'Target reached, and still open'|trans }}</span>
+      {%- elseif fund_goal %}<span>{{ '%r% to go'|trans({'%r%': ('₦' ~ (fund_goal.remaining)|number_format)}) }}</span>{% endif -%}
+    </span>
+  {%- else -%}
+    <span class="gv-prog__first">{{ 'Be among the first to give — every donation is receipted and goes straight to the cause.'|trans }}</span>
+  {%- endif -%}

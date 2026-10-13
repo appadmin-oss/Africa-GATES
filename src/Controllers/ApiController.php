@@ -420,7 +420,8 @@ HTML;
     }
     public function submitNomination(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody(); $ip=$this->ip($req); $fp=hash('sha256',$ip.strtolower(trim($b['nominator_email']??'')));
-        if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $this->err($res,'Daily nomination limit reached.','RATE_LIMITED',429);
+        $daily = \AfricaGates\Services\NominationRules::dailyLimit();
+        if(!$this->rateLimit->check($fp,'nominate',$daily,86400)) return $this->err($res,"Daily nomination limit reached ({$daily} per day).",'RATE_LIMITED',429);
         // (string) cast before trim(). Without it this endpoint returned a 500 for the
         // most natural JSON body there is: `{"programme_id": 1, …}`. trim() rejects an
         // int under PHP 8, so a caller who sent the id as a number — as JSON encodes

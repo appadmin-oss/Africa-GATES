@@ -120,6 +120,40 @@ final class NominationRules
     ];
 
     /** A posted relation if it is one of ours, else null — a claim, not a free-text field. */
+    /** Where the daily limit is kept, and its bounds. */
+    public const DAILY_LIMIT_KEY = 'nomination_daily_limit';
+    public const DAILY_LIMIT_DEFAULT = 5;
+    public const DAILY_LIMIT_MAX = 1000;
+
+    /**
+     * How many nominations one nominator may send from one connection in a day.
+     *
+     * Owner, 13 Oct 2026: "the admin does not have control over the rate limit set for the
+     * daily nomination". It was the literal 5, typed twice — once on each door
+     * (NominationController, ApiController) and a third time inside the refusal sentence —
+     * so a school nominating its staff from one connection hit a wall nobody on the
+     * platform could move. One resolver now, read by both doors and by the sentence that
+     * tells somebody they have reached it, so the number they are told is the number in
+     * force. Floored at one: nought would read as "no limit" on the settings screen and
+     * refuse everybody at the door.
+     *
+     * @param array<string,mixed>|null $settings an already-loaded settings row, if the caller has one
+     */
+    public static function dailyLimit(?array $settings = null): int
+    {
+        $raw = $settings[self::DAILY_LIMIT_KEY] ?? null;
+        if ($raw === null) {
+            try {
+                $raw = \Illuminate\Database\Capsule\Manager::table('gates_settings')
+                    ->where('key_name', self::DAILY_LIMIT_KEY)->value('value');
+            } catch (\Throwable) {
+                $raw = null;
+            }
+        }
+        $n = is_numeric($raw) ? (int) $raw : self::DAILY_LIMIT_DEFAULT;
+        return max(1, min(self::DAILY_LIMIT_MAX, $n));
+    }
+
     public static function relation(mixed $raw): ?string
     {
         $k = is_scalar($raw) ? strtolower(trim((string) $raw)) : '';

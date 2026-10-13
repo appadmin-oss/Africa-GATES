@@ -159,8 +159,11 @@ final class StatusPageTest extends TestCase
 
     public function test_a_t_separated_time_from_the_form_is_stored_with_a_space(): void
     {
+        // Stored with a space, never a `T` — and in UTC. The form is typed in the display
+        // zone (WAT by default) and every reader compares and shows the stored value as UTC,
+        // so storing the typed wall-clock unconverted published a 01:00 window as 02:00.
         $out = PlannedWork::fromPost([PlannedWork::KEYS['from'] => '2026-06-12T01:00']);
-        $this->assertSame('2026-06-12 01:00:00', $out[PlannedWork::KEYS['from']]);
+        $this->assertSame('2026-06-12 00:00:00', $out[PlannedWork::KEYS['from']]);
     }
 
     // ── get updates ──────────────────────────────────────────────────────────
