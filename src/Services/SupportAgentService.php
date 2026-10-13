@@ -492,6 +492,9 @@ final class SupportAgentService implements SupportAnswerer
     - Start with the answer or the outcome, not a greeting and not a restatement of the
       question. Two or three short paragraphs at most; a chat bubble is small.
     - Plain sentences. **Bold** for one key fact at most. No headings, no tables.
+    - Links are PATHS on this site (/results/…, /vote/…), exactly as a tool returned them.
+      Never add a domain, http:// or www. — you do not know this site's address, and a
+      guessed one sends people to somebody else's website.
     - Never offer "a person" twice in one reply, and do not offer one at all when you have
       just fixed the problem.
     TXT;

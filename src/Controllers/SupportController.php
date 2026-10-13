@@ -161,7 +161,7 @@ final class SupportController
 
         return $this->json($res, [
             'ok'        => true,
-            'reply'     => $r['reply'],
+            'reply'     => \AfricaGates\Support\ReplyLinks::clean((string) $r['reply']),
             'escalated' => $r['escalated'],
             'ticket'    => $r['ticket'],
             // Shown in the UI as "checked your payments" — a support bot that

@@ -121,7 +121,7 @@ final class GuideController
             $out = $useAi ? $this->guide->answer($message, $history, $page) : $this->guide->scripted($message);
             return $this->json($res, [
                 'ok'      => true,
-                'reply'   => $out['reply'],
+                'reply'   => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']),
                 'source'  => $out['source'],
                 'support' => false,
                 // Buttons the agent offered: a path on this site and a label, validated
@@ -172,7 +172,7 @@ final class GuideController
             $out = $this->guide->supportFallback($message);
             return [
                 'ok'       => true,
-                'reply'    => $out['reply'],
+                'reply'    => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']),
                 'source'   => $out['source'],
                 'support'  => true,
                 'articles' => HelpCentre::previews($message, [], 3, lastResort: true),
@@ -196,7 +196,7 @@ final class GuideController
 
         return [
             'ok'        => true,
-            'reply'     => $r['reply'],
+            'reply'     => \AfricaGates\Support\ReplyLinks::clean((string) $r['reply']),
             'source'    => 'support',
             'support'   => true,
             // Shown in the widget as "re-checked your payment" — an assistant that
@@ -262,7 +262,7 @@ final class GuideController
             // allowBridge=false — an agent asking Gee must never bounce back out
             // to the agent (infinite loop); Gee answers from its own providers.
             $out = $this->guide->answer($message, $history, $page, allowBridge: false);
-            $payload = ['ok' => true, 'reply' => $out['reply'], 'source' => $out['source']];
+            $payload = ['ok' => true, 'reply' => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']), 'source' => $out['source']];
             if (!empty($b['include_state'])) $payload['site_state'] = $this->guide->siteState();
             return $this->json($res, $payload);
         } catch (\Throwable $e) {
