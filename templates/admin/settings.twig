@@ -84,18 +84,51 @@
     .st-tab[aria-pressed="true"] .st-dot{background:var(--cn-warning-dot)}
   }
   @media (max-width:640px){ .st-bar{position:static} .st-save{border-radius:var(--cn-r-16)} }
+
+  /* ── A MORE MODERN SURFACE (owner, 13 Oct 2026: "make it more modern") ───────────
+     Each group carries its icon and how many cards it holds; a card that talks to a
+     provider says on its head whether that provider is set up, in a word and a tint; the
+     cards sit on the page as quiet panels rather than heavy boxes; labels are a weight
+     lighter than titles so a long form reads as questions, not a wall of bold; and the
+     one action that commits everything is the brand green. */
+  .st-tab__ic{flex:none;width:16px;height:16px;color:var(--cn-grey-500)}
+  .st-tab[aria-pressed="true"] .st-tab__ic{color:var(--cn-ink)}
+  .st-tab__l{flex:1;text-align:start}
+  .st-tab__n{font-size:var(--cn-fs-12);font-weight:500;color:var(--cn-grey-500);margin-inline-start:6px}
+  .st-chips{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+  .st-chips__n{font-size:var(--cn-fs-12-5);color:var(--cn-grey-500)}
+  .st-pill{flex:none;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:var(--cn-r-pill);font-size:var(--cn-fs-12);font-weight:600}
+  .st-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .st-pill--on{background:var(--cn-brand-green-wash);color:var(--cn-brand-green-deep)}
+  .st-pill--off{background:var(--cn-warning-tint-2);color:var(--cn-warning)}
+  .st .ad-card{border-radius:var(--cn-r-16);box-shadow:var(--cn-sh-tile);margin-bottom:18px}
+  .st .ad-card[data-dirty]{border-color:var(--cn-grey-400)}
+  .st .ad-card__head{padding:18px 22px 16px;align-items:flex-start}
+  .st .ad-card__title{font-size:var(--cn-fs-15);letter-spacing:-.005em}
+  .st .ad-card__title small{margin-top:4px;line-height:1.5;max-width:68ch}
+  .st .ad-card__body{padding:20px 22px 22px}
+  .st .ad-form{gap:18px}
+  .st .ad-form label{font-weight:500;color:var(--cn-grey-800);margin-bottom:7px}
+  .st .ad-form input:not([type=checkbox]):not([type=radio]):not([type=file]),.st .ad-form select,.st .ad-form textarea{
+    min-height:40px;padding:9px 12px;border-radius:var(--cn-r-8);transition:border-color .15s,box-shadow .15s}
+  .st .ad-form input:not([type=checkbox]):not([type=radio]):not([type=file]):hover,.st .ad-form select:hover,.st .ad-form textarea:hover{border-color:var(--cn-grey-350)}
+  .st .ad-form input:not([type=checkbox]):not([type=radio]):not([type=file]):focus-visible,.st .ad-form select:focus-visible,.st .ad-form textarea:focus-visible{
+    outline:none;border-color:var(--cn-ink);box-shadow:0 0 0 3px color-mix(in srgb, var(--cn-ink) 10%, transparent)}
+  .st .ad-form .hint{line-height:1.5}
+  .st-save__go{background:var(--cn-brand-green);color:var(--cn-surface)}
+  .st-save__go:hover{background:var(--cn-brand-green-deep)}
 </style>
 {# The tab list, once, so the strip and the change-tracker cannot disagree about
    which groups exist. #}
 {% set st_sections = [
-  {id: 'site',      label: 'Site'},
-  {id: 'nominations', label: 'Nominations'},
-  {id: 'mail',      label: 'Email & messaging'},
-  {id: 'media',     label: 'Media'},
-  {id: 'money',     label: 'Payments & voting'},
-  {id: 'integrity', label: 'Integrity'},
-  {id: 'ai',        label: 'AI'},
-  {id: 'ops',       label: 'Automation'},
+  {id: 'site',        label: 'Site',                icon: 'dashboard'},
+  {id: 'nominations', label: 'Nominations',         icon: 'nominations'},
+  {id: 'mail',        label: 'Email & messaging',   icon: 'campaigns'},
+  {id: 'media',       label: 'Media',               icon: 'media'},
+  {id: 'money',       label: 'Payments & voting',   icon: 'finance'},
+  {id: 'integrity',   label: 'Integrity & privacy', icon: 'integrity'},
+  {id: 'ai',          label: 'AI',                  icon: 'ai'},
+  {id: 'ops',         label: 'Automation',          icon: 'settings'},
 ] %}
 <div class="st" x-data="{
       sec: 'site',
@@ -115,10 +148,21 @@
          than a duplicated pair of literals in each x-show. With a search term the
          groups step aside entirely. */
       show(el){
+        this.rev;
         const q = this.q.trim().toLowerCase();
-        if (!q) return this.sec === el.dataset.sec;
-        return (el.dataset.keys || '').toLowerCase().includes(q);
+        /* The status chip (owner's screenshots, 13 Oct 2026): like search, it cuts
+           across the groups: what is not set up yet has no single group. */
+        const f = this.f;
+        if (f && !(f === 'dirty' ? el.dataset.dirty === '1' : el.dataset.state === f)) return false;
+        if (q) return (el.dataset.keys || '').toLowerCase().includes(q);
+        if (f) return true;
+        return this.sec === el.dataset.sec;
       },
+      f: '',
+      rev: 0,
+      fLabel(){ return {off: 'Needs setup', on: 'Set up', dirty: 'Unsaved changes'}[this.f] || '' },
+      count(sel){ return this.$root.querySelectorAll('.ad-card[data-sec]' + sel).length },
+      shown(){ this.rev; return [...this.$root.querySelectorAll('.ad-card[data-sec]')].filter(el => this.show(el)).length },
       matches(){
         const q = this.q.trim().toLowerCase();
         if (!q) return 1;
@@ -127,9 +171,9 @@
       },
       touch(target){
         const card = target.closest && target.closest('.ad-card[data-sec]');
-        if (card) this.dirty[card.dataset.sec] = true;
+        if (card) { this.dirty[card.dataset.sec] = true; card.dataset.dirty = '1'; this.rev++; }
       },
-      go(id){ this.q = ''; this.sec = id; history.replaceState(null, '', '#' + id); },
+      go(id){ this.q = ''; this.f = ''; this.sec = id; history.replaceState(null, '', '#' + id); },
 
       init(){
         /* Restore the group from the URL. The save handler redirects back here with
@@ -160,7 +204,7 @@
   <div class="st-bar">
     <div class="st-tabs">
       {% for s in st_sections %}
-      <button type="button" class="st-tab" :aria-pressed="!q && sec==='{{ s.id }}'" @click="go('{{ s.id }}')">{{ s.label }}<span class="st-dot" x-show="dirty['{{ s.id }}']" x-cloak title="unsaved changes"></span></button>
+      <button type="button" class="st-tab" :aria-pressed="!q && !f && sec==='{{ s.id }}'" @click="go('{{ s.id }}')"><svg class="st-tab__ic" aria-hidden="true" focusable="false"><use href="#ic-{{ s.icon }}"/></svg><span class="st-tab__l">{{ s.label }}</span><span class="st-dot" x-show="dirty['{{ s.id }}']" x-cloak title="unsaved changes"></span><span class="st-tab__n" x-text="count('[data-sec={{ s.id }}]')"></span></button>
       {% endfor %}
       <label for="st-q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search settings</label>
       <input id="st-q" x-ref="q" class="st-search" type="search" x-model="q" placeholder="Search all settings…  /" autocomplete="off">
@@ -198,6 +242,27 @@
      from. A form post drops the URL fragment, so the client cannot preserve this
      on its own — the server has to put it back. #}
   <input type="hidden" name="st_section" :value="sec">
+
+  {# ── "+ STATUS" — the screenshots' filter chip, for the question the groups cannot
+     answer: what is not set up yet, and what have I changed? Client-side, because
+     this is one form whose cards are all already on the page. ─────────────────── #}
+  <div class="st-chips" x-show="true" x-cloak>
+    <template x-if="!f">
+      <details class="cn-menuwrap">
+        <summary class="cn-fchip"><span aria-hidden="true">+</span> Status</summary>
+        <div class="cn-pop" role="menu">
+          <button type="button" class="cn-pop__i" role="menuitem" @click="f = 'off'; $el.closest('details').open = false">Needs setup<span class="cn-pop__n" x-text="count('[data-state=off]')"></span></button>
+          <button type="button" class="cn-pop__i" role="menuitem" @click="f = 'on'; $el.closest('details').open = false">Set up<span class="cn-pop__n" x-text="count('[data-state=on]')"></span></button>
+          <button type="button" class="cn-pop__i" role="menuitem" @click="f = 'dirty'; $el.closest('details').open = false">Unsaved changes<span class="cn-pop__n" x-text="(rev, count('[data-dirty]'))"></span></button>
+        </div>
+      </details>
+    </template>
+    <template x-if="f">
+      <button type="button" class="cn-fchip is-on" @click="f = ''" :aria-label="'Remove filter: Status ' + fLabel()"><span class="cn-fchip__k">Status</span><span class="cn-fchip__v" x-text="fLabel()"></span><span aria-hidden="true">✕</span></button>
+    </template>
+    <span class="st-chips__n" x-show="f || q.trim()" x-text="shown() === 1 ? '1 card' : shown() + ' cards'"></span>
+  </div>
+  <div class="st-none" x-show="(f || q.trim()) && shown() === 0" x-cloak>Nothing matches. Remove the filter or clear the search.</div>
   <input type="hidden" name="_token" value="{{ csrf_token }}">
   <div class="ad-card" data-sec="site" data-keys="public site announcement banner text link label site title contact email" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Public site<small>Surfaces on every page</small></div></div><div class="ad-card__body">
     <div class="ad-form">
@@ -221,7 +286,7 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" data-sec="mail" data-keys="email sender smtp from name address reply-to admin alerts test email delivery health mail log outgoing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Email &amp; sender<small>{% if smtp_configured %}Mail sends live.{% else %}No way to send is set up — mail is written to var/logs/outgoing-mail.log.{% endif %}</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-state="{{ (smtp_configured) ? 'on' : 'off' }}" data-sec="mail" data-keys="email sender smtp from name address reply-to admin alerts test email delivery health mail log outgoing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Email &amp; sender<small>{% if smtp_configured %}Mail sends live.{% else %}No way to send is set up — mail is written to var/logs/outgoing-mail.log.{% endif %}</small></div><span class="st-pill st-pill--{{ (smtp_configured) ? 'on' : 'off' }}">{{ (smtp_configured) ? 'Set up' : 'Needs setup' }}</span></div><div class="ad-card__body">
     <div class="ad-form">
       <div class="row">
         <div><label for="f-mail_from_name">From name</label><input type="text" name="mail_from_name" id="f-mail_from_name" value="{{ values.mail_from_name|default('Africa GATES') }}"></div>
@@ -448,7 +513,7 @@
 
      Two speech providers filed under two different headings is the same class of mistake
      as two resolvers for one setting: whichever one you find first becomes the answer. #}
-  <div class="ad-card" data-sec="ai" data-keys="door voice welcome greeting azure speech tts text to speech nigerian ezinne abeo attendee name check in audio resource key region subscription cognitive services api credential pronunciation say names accent robotic pacing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">The voice at the door<small>{% if door_voice_on %}{{ door_voice_label|split(' —')|first }} is configured — greetings are rendered ahead of each event.{% else %}Not configured — the door works exactly as it does now, in silence.{% endif %}</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-state="{{ (door_voice_on) ? 'on' : 'off' }}" data-sec="ai" data-keys="door voice welcome greeting azure speech tts text to speech nigerian ezinne abeo attendee name check in audio resource key region subscription cognitive services api credential pronunciation say names accent robotic pacing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">The voice at the door<small>{% if door_voice_on %}{{ door_voice_label|split(' —')|first }} is configured — greetings are rendered ahead of each event.{% else %}Not configured — the door works exactly as it does now, in silence.{% endif %}</small></div><span class="st-pill st-pill--{{ (door_voice_on) ? 'on' : 'off' }}">{{ (door_voice_on) ? 'Set up' : 'Needs setup' }}</span></div><div class="ad-card__body">
 
       {# The three facts somebody needs BEFORE the boxes below mean anything. This card
          asked for a "key" and a "region" and said nowhere what to create in order to have
@@ -916,7 +981,7 @@
       </p>
   </div></div>
 
-  <div class="ad-card" data-sec="data" data-keys="tracking visits analytics arrivals referrer utm campaign source privacy retention do not track" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Arrivals<small>Where the people who come here came from.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="integrity" data-keys="tracking visits analytics arrivals referrer utm campaign source privacy retention do not track" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Arrivals<small>Where the people who come here came from.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       {# The report this feeds is Analytics → "Where people came from". Everything else on
          that page is counted off the domain tables and can say only what happened AFTER
@@ -972,7 +1037,7 @@
     </div>
   </div></div>
 
-  <div class="ad-card" data-sec="media" data-keys="cloudinary image hosting cdn uploads media cloud name api key secret folder photos avatars" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Image hosting<small>{% if cloudinary_on %}Cloudinary is configured — uploads go to <code>{{ cloudinary_cloud }}</code>.{% else %}Not configured — uploads are stored on this server.{% endif %}</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-state="{{ (cloudinary_on) ? 'on' : 'off' }}" data-sec="media" data-keys="cloudinary image hosting cdn uploads media cloud name api key secret folder photos avatars" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Image hosting<small>{% if cloudinary_on %}Cloudinary is configured — uploads go to <code>{{ cloudinary_cloud }}</code>.{% else %}Not configured — uploads are stored on this server.{% endif %}</small></div><span class="st-pill st-pill--{{ (cloudinary_on) ? 'on' : 'off' }}">{{ (cloudinary_on) ? 'Set up' : 'Needs setup' }}</span></div><div class="ad-card__body">
     <div class="ad-form">
       {# The Media screen used to answer "not configured" with "add CLOUDINARY_URL to
          .env" — an instruction no operator can carry out on a host with no shell.
@@ -1736,12 +1801,12 @@
      Script serves the last DEPLOYED version, not the last saved one.
 
      So this asks the script itself, and every row carries the fix rather than a verdict. #}
-  <div class="ad-card" id="sync-probe"
+  <div class="ad-card" data-state="{{ (gas_url and gas_secret_set) ? 'on' : 'off' }}" id="sync-probe"
        data-sec="ops"
        data-keys="google calendar meet apps script gas url secret exec deployment interviews sync sheets"
        x-show="show($el)"><div class="ad-card__head">
     <div class="ad-card__title">Google Calendar and Meet
-      <small>the Apps Script this platform books interviews and syncs sheets through</small></div>
+      <small>the Apps Script this platform books interviews and syncs sheets through</small></div><span class="st-pill st-pill--{{ (gas_url and gas_secret_set) ? 'on' : 'off' }}">{{ (gas_url and gas_secret_set) ? 'Set up' : 'Needs setup' }}</span>
   </div><div class="ad-card__body">
 
     {# ── WHY THESE TWO FIELDS EXIST AT ALL ────────────────────────────────
