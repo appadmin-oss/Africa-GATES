@@ -1053,7 +1053,8 @@
       <div class="pay-route">
         <div class="pay-route__h">
           <strong>{{ p.label }}</strong>
-          {% if p.refusal %}<span class="pay-route__bad">Paystack is refusing this</span>
+          {% if not p.used_here %}<span class="pay-route__off">not taken here</span>
+          {% elseif p.refusal %}<span class="pay-route__bad">Paystack is refusing this</span>
           {% elseif p.routed %}<span class="pay-route__on">routed</span>
           {% elseif p.expects %}<span class="pay-route__bad">finance is waiting on this</span>
           {% else %}<span class="pay-route__off">main account</span>{% endif %}
@@ -1064,7 +1065,14 @@
         {% if p.about or p.settles_to %}
         <p class="pay-route__note">{{ p.about }}{% if p.settles_to %}{% if p.about %} · {% endif %}Finance posts this to <strong>{{ p.settles_to }}</strong>.{% endif %}</p>
         {% endif %}
-        {% if p.expects and not p.routed and not p.refusal %}
+        {% if not p.used_here %}
+        <p class="pay-route__note">
+          No checkout on Africa GATES takes this kind of money, so a subaccount here would never
+          receive a payment. It is routed on the site that takes it.{% if p.code %} A code is still
+          stored from before — clear the field and save to remove it.{% endif %}
+        </p>
+        {% endif %}
+        {% if p.used_here and p.expects and not p.routed and not p.refusal %}
         <p class="pay-route__warn">
           Finance expects this kind of money to settle into its own subaccount. Until a code is
           set here it goes to the <strong>main account</strong> with everything else, and the
@@ -1086,6 +1094,8 @@
           deleted subaccount, or one that was never activated.
         </p>
         {% endif %}
+        {# Not drawn for money nothing here takes — unless a stale code needs clearing. #}
+        {% if p.used_here or p.code %}
         <div class="row">
           <div>
             <label for="sub-{{ p.stream }}">Paystack subaccount code</label>
@@ -1102,6 +1112,7 @@
             </select>
           </div>
         </div>
+        {% endif %}
       </div>
       {% endfor %}
 

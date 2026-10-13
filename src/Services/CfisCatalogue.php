@@ -102,7 +102,10 @@ final class CfisCatalogue
         $out = [];
         foreach (self::fetch() as $s) {
             $code = trim((string) ($s['code'] ?? ''));
-            if ($code === '') {
+            // A code becomes a form field name (`sub_<code>`), and PHP rewrites `.`, spaces and
+            // `[` in those — so a code finance spells `training.fees` would save under a key
+            // nothing ever reads. Only codes that survive the round trip are offered.
+            if (!preg_match('/^[a-z0-9_-]{1,40}$/', $code)) {
                 continue;
             }
             $out[$code] = trim((string) ($s['name'] ?? '')) ?: $code;

@@ -163,30 +163,61 @@ final class PaymentDestinationTest extends TestCase
             'created_at' => date('Y-m-d H:i:s'),
         ]);
         \AfricaGates\Services\CfisCatalogue::refresh();
-        (function (): void { self::$memo = null; })->bindTo(null, \AfricaGates\Services\CfisCatalogue::class)();
     }
 
-    public function test_a_stream_finance_added_can_be_routed_like_any_other(): void
+    public function test_a_stream_finance_added_is_offered_but_never_shown_as_routed_when_nothing_here_takes_it(): void
     {
         $this->financeOffers([
             ['code' => 'membership', 'name' => 'Membership fees', 'expects_subaccount' => true],
         ]);
 
-        // It is offered at all — the admin screen draws a row per stream.
+        // It is offered — the admin screen draws a row per stream finance knows.
         $this->assertArrayHasKey('membership', D::streams());
         $this->assertTrue(D::knowsStream('membership'));
         $this->assertSame('Membership fees', D::labelFor('membership'));
 
-        // It takes a subaccount, keeps it, and reports it on the screen's own rows.
+        // But no checkout on this platform takes membership fees: streamForReference() never
+        // returns it. So a subaccount for it would be a route with nothing travelling on it,
+        // and the screen used to call it "routed". It is refused, with the reason.
         $r = D::save(['membership' => 'ACCT_members00001']);
-        $this->assertSame(['membership'], $r['saved']);
-        $this->assertSame('ACCT_members00001', D::forStream('membership'));
-        $this->assertTrue(D::anyRouted());
-        $this->assertSame('ACCT_members00001',
-            array_column(D::all(), 'code', 'stream')['membership']);
+        $this->assertSame([], $r['saved']);
+        $this->assertStringContainsString('No checkout on Africa GATES takes', $r['refused']['membership'] ?? '');
+        $this->assertSame('', D::forStream('membership'));
+        $this->assertFalse(D::anyRouted());
+        $row = array_column(D::all(), null, 'stream')['membership'];
+        $this->assertFalse($row['used_here']);
+        $this->assertFalse($row['routed']);
 
-        // And it reaches Paystack, which is the only part a buyer can feel.
-        $this->assertSame(['subaccount' => 'ACCT_members00001'], D::initFields('membership'));
+        // A stale code from before the rule is shown and can be cleared, never counted as routed.
+        \Illuminate\Database\Capsule\Manager::table('gates_settings')
+            ->updateOrInsert(['key_name' => 'paystack_sub_membership'], ['value' => 'ACCT_members00001']);
+        $row = array_column(D::all(), null, 'stream')['membership'];
+        $this->assertSame('ACCT_members00001', $row['code']);
+        $this->assertFalse($row['routed']);
+        $this->assertFalse(D::anyRouted());
+        $this->assertSame(['membership'], D::save(['membership' => ''])['saved']);
+        $this->assertSame('', D::forStream('membership'));
+    }
+
+    public function test_every_stream_a_reference_can_name_is_one_a_checkout_here_takes(): void
+    {
+        foreach (['AFG-EVT-1', 'AFG-SHP-1', 'AFG-1', 'afg-evt-2'] as $ref) {
+            $this->assertTrue(D::usedHere(D::streamForReference($ref)), $ref);
+        }
+        $this->assertSame(D::CHECKOUT_STREAMS, array_keys(\AfricaGates\Services\CfisCatalogue::BUILT_IN),
+            'the built-ins ARE the checkout streams; adding a checkout means adding both');
+    }
+
+    public function test_a_stream_code_that_cannot_survive_a_form_field_is_not_offered(): void
+    {
+        // PHP rewrites `.` and spaces in POST names, so `sub_training.fees` arrives as
+        // `sub_training_fees` and would be saved under a key nothing reads.
+        $this->financeOffers([['code' => 'training.fees', 'name' => 'Training fees'],
+                              ['code' => 'Dues Here', 'name' => 'Dues'],
+                              ['code' => 'training_fees', 'name' => 'Training fees']]);
+        $this->assertArrayNotHasKey('training.fees', D::streams());
+        $this->assertArrayNotHasKey('Dues Here', D::streams());
+        $this->assertArrayHasKey('training_fees', D::streams());
     }
 
     public function test_a_stream_finance_has_never_heard_of_is_still_refused(): void
