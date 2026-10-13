@@ -2220,6 +2220,43 @@
     </div>
   </div></div>
 
+  {# ── THE PERSON DIRECTORY ────────────────────────────────────────────────
+     One record per human across the estate's five apps. This platform PUSHES its account
+     list to CACENTRE; CACENTRE reads no database of ours. Settable here because there is no
+     SSH on production: a credential readable only from a file is one nobody here can set.
+     The secret is write-only; the address is echoed, because a stale one points this
+     platform's roster at a host nobody meant and is invisible if the field is blanked. #}
+  <div class="ad-card" data-sec="ops"
+       data-keys="directory person people identity cacentre estate push roster accounts sso"
+       x-show="show($el)"><div class="ad-card__head">
+    <div class="ad-card__title">Person directory
+      <small>{% if dir_push_secret_set %}Sending every tick{% else %}Off until a secret is set{% endif %}</small></div>
+  </div><div class="ad-card__body">
+    <input type="hidden" name="directory_settings" value="1">
+    <p>The estate runs five apps and one person is often an account on several of them with
+      nothing joining the rows; CACENTRE keeps one record per person. With a secret set, the
+      maintenance tick sends a page of this platform’s members, admins, judges and partner users
+      — names, addresses, roles and status only. No password, passkey, phone number, vote or
+      points balance, and never the sandbox.</p>
+    <div class="ad-form">
+      <div>
+        <label for="f-dir_push_url">CACENTRE address</label>
+        <input type="url" name="dir_push_url" id="f-dir_push_url" value="{{ dir_push_url|default('') }}"
+               placeholder="https://cacentre.afrovanguard.org.ng" autocomplete="off" spellcheck="false">
+        <small>Leave blank unless CACENTRE has moved; blank uses the production address.</small>
+      </div>
+      <div>
+        <label for="f-dir_push_secret">Directory secret</label>
+        <input type="password" name="dir_push_secret" id="f-dir_push_secret" autocomplete="new-password"
+               placeholder="{% if dir_push_secret_set %}•••••••••• (leave blank to keep){% else %}not set — nothing is pushed{% endif %}">
+        <small>32 or more random characters, and the same value in CACENTRE as
+          <code>DIR_PUSH_SECRET_GATES</code>. Its own key: it only says who exists and cannot sign
+          anybody in.
+          {% if dir_push_secret_set %}<label class="checkbox"><input type="checkbox" name="directory_clear[secret]" value="1"> Remove the stored secret and stop pushing</label>{% endif %}</small>
+      </div>
+    </div>
+  </div></div>
+
   {# ── REFERRAL TERMS ──────────────────────────────────────────────────────
      What a member earns for bringing a ticket buyer, and how many they need before it
      is payable. Both were class constants until now, so changing either meant a deploy —
