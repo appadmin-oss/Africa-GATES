@@ -306,6 +306,77 @@ final class HomeBoard
         ];
     }
 
+    // ══ the activity chart ════════════════════════════════════════════════════
+
+    /** What the chart can draw: the table, its own timestamp column, and the words. */
+    public const METRICS = [
+        'votes'       => ['gates_votes',       'voted_at',   'Votes',       'vote',       'votes'],
+        'nominations' => ['gates_nominations', 'created_at', 'Nominations', 'nomination', 'nominations'],
+    ];
+
+    /**
+     * Home's activity chart (owner's screenshots, 13 Oct 2026): one metric over the chosen
+     * window, and the same count for the window before it, so the headline can say whether
+     * this week is busier than last rather than print a number nobody can judge.
+     *
+     * Read from each table's own timestamp column — the same columns the quiet numbers
+     * count (`voted_at`, not `created_at`, on a vote), so the chart and the figure under it
+     * cannot disagree. Bounded by the window and a row cap; a window holding more rows than
+     * the cap is drawn from the cap and SAYS so, rather than drawing a quiet tail.
+     *
+     * @return array{metric:string, label:string, one:string, many:string, series:array,
+     *               total:int, previous:?int, delta:?int, capped:bool}
+     */
+    public static function activity(\AfricaGates\Admin\Support\TimeRange $range, string $metric, int $cap = 50000): array
+    {
+        if (!isset(self::METRICS[$metric])) $metric = 'votes';
+        [$table, $col, $label, $one, $many] = self::METRICS[$metric];
+
+        $stamps = [];
+        $total = 0;
+        $previous = null;
+        try {
+            $q = DB::table($table)->whereBetween($col, [$range->fromSql(), $range->toSql()]);
+            $total = (int) (clone $q)->count();
+            $stamps = $q->orderByDesc($col)->limit($cap)->pluck($col)->all();
+            $prev = $range->previous();
+            $previous = (int) DB::table($table)->where($col, '>=', $prev->fromSql())->where($col, '<', $prev->toSql())->count();
+        } catch (\Throwable) {
+            // A missing table is a figure we cannot draw, not a broken Home.
+        }
+        $series = \AfricaGates\Admin\Support\TimeSeries::bars($stamps, $range);
+        // A change against nothing is not a percentage; it is "new", and the page says so.
+        $delta = ($previous !== null && $previous > 0) ? (int) round(($total - $previous) * 100 / $previous) : null;
+
+        return ['metric' => $metric, 'label' => $label, 'one' => $one, 'many' => $many, 'series' => $series,
+                'total' => $total, 'previous' => $previous, 'delta' => $delta, 'capped' => $total > $cap];
+    }
+
+    // ══ health, in one card ═══════════════════════════════════════════════════
+
+    /**
+     * "All systems normal", or the few things that are not — the alerts this role can open
+     * and the maintenance schedule — for the card beside the chart. Null for a role that
+     * cannot open alerts, so the card is absent rather than a door the guard will close.
+     *
+     * @return array{ok:bool, items:list<array>, total:int, cron:array}|null
+     */
+    public static function health(string $role): ?array
+    {
+        $pill = ConsoleAlerts::pill($role);
+        if ($pill === null) return null;
+        $cron = [];
+        try { $cron = \AfricaGates\Support\CronHealth::status(); } catch (\Throwable) {}
+        $cronOk = (bool) ($cron['ok'] ?? true);
+
+        return [
+            'ok'    => $pill['total'] === 0 && $cronOk,
+            'items' => array_slice($pill['items'], 0, 3),
+            'total' => $pill['total'],
+            'cron'  => ['ok' => $cronOk, 'say' => (string) ($cron['say'] ?? ''), 'last' => $cron['last'] ?? null],
+        ];
+    }
+
     /** For tests. */
     public static function resetAll(): void
     {

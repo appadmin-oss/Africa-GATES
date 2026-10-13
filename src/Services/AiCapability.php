@@ -565,7 +565,10 @@ final class AiCapability
                 'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
-                'max_tokens'      => 250,
+                // 250 left no room for a model that writes a sentence before the object,
+                // and a truncated object is rejected whole. Two sentences of summary and a
+                // number fit in well under this.
+                'max_tokens'      => 450,
                 'calls_per_day'   => 2000,
                 'tokens_per_day'  => 400_000,
                 'untrusted_input' => true,

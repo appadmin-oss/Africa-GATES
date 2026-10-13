@@ -49,6 +49,11 @@
   box-shadow:0 14px 30px -12px color-mix(in srgb, var(--ag-ink) 60%, transparent);
   cursor:pointer;
 }
+.gee__fab{ transition:transform var(--ag-dur-2) var(--ag-ease), opacity var(--ag-dur-2) var(--ag-ease) }
+/* Reading down the page: out of the way (gee.js). Off the edge, not display:none, so it
+   slides back rather than popping, and it stays in the tab order. */
+.gee__fab[data-tuck]{ transform:translateX(calc(100% + 24px)); opacity:0; pointer-events:none }
+[dir="rtl"] .gee__fab[data-tuck]{ transform:translateX(calc(-100% - 24px)) }
 .gee__fab[hidden]{ display:none }
 .gee__fab-t{ display:none }
 

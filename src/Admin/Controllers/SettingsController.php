@@ -1108,6 +1108,13 @@ class SettingsController
         if (array_key_exists('nomination_settings', $b)) {
             $this->settings->set('nomination_eligibility_enabled', isset($b['nomination_eligibility_enabled']) ? '1' : '', $adminId);
             $this->settings->set('nomination_min_locations', (string) max(1, (int) ($b['nomination_min_locations'] ?? 5)), $adminId);
+            // Stored as the resolver will read it, so the form shows what is in force.
+            if (array_key_exists(\AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY, $b)) {
+                $this->settings->set(\AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY,
+                    (string) \AfricaGates\Services\NominationRules::dailyLimit([
+                        \AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY => $b[\AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY],
+                    ]), $adminId);
+            }
         }
 
         // Display constants — values that used to be hardcoded in copy across the site.
@@ -1158,7 +1165,9 @@ class SettingsController
         // Allowlisted, not echoed: this value reaches a Location header, and a posted
         // string is not somewhere to take a URL fragment from on trust.
         $section = (string) ($b['st_section'] ?? '');
-        $anchor  = in_array($section, ['site', 'mail', 'money', 'integrity', 'ai', 'ops'], true)
+        // `media` was missing, so saving from the Media group landed on Site with the
+        // change out of sight; `nominations` is the group the daily limit lives in.
+        $anchor  = in_array($section, ['site', 'nominations', 'mail', 'media', 'money', 'integrity', 'ai', 'ops'], true)
             ? '#' . $section
             : '';
 

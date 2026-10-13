@@ -202,14 +202,29 @@ final class AiGateway
 
         $usage = $ai->lastUsage();
 
+        // A JSON capability's answer is the JSON IN the reply. Models wrap it in a
+        // sentence, or a fence that does not open the reply, and every schema here began
+        // with json_decode($raw) — so a correct object inside "Here is the assessment:"
+        // was rejected as the wrong shape (the nominations desk's "AI triage unavailable
+        // (SCHEMA_REJECTED)"). Support\AiJson finds the object and repairs nothing; the
+        // schema still decides. Cleaned BEFORE the cache, so a hit is the same text.
+        if (!empty($input['json'])) {
+            $raw = \AfricaGates\Support\AiJson::extract($raw) ?? $raw;
+        }
+
         // Schema validation. An unexpected shape is DISCARDED, never coerced —
         // the discipline AiFilterService already applies to its own output.
         $value = $raw;
         if (isset($input['schema']) && is_callable($input['schema'])) {
             $value = ($input['schema'])($raw);
             if ($value === null) {
+                // WHAT came back, so the next SCHEMA_REJECTED can be diagnosed from the
+                // AI calls page rather than guessed at: the first 300 characters of the
+                // model's reply, on a row only an administrator reads.
                 $this->log($capabilityName, $cap, 'SCHEMA_REJECTED', $input, null,
-                    $usage['in'], $usage['out'], $t0, null, null, null, $prompt['version']);
+                    $usage['in'], $usage['out'], $t0,
+                    'Reply did not match the expected shape: ' . mb_substr(trim($raw), 0, 300),
+                    null, null, $prompt['version']);
                 return AiResult::failed('SCHEMA_REJECTED', 'The AI reply did not match the expected shape.', $cap);
             }
         }

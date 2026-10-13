@@ -55,9 +55,25 @@ class DashboardController
         // docs/handoff/inventory/_admin.md. The integrity brief's JSON route stays.
         $role = (string) ($_SESSION['admin_role'] ?? '');
 
+        // ── REDESIGNED 13 OCT 2026 (owner: "more professional", the brand as accent) ──
+        // A greeting and the day's state, the work, then an activity chart driven by the
+        // console's range control, a health card, and the figures. The ask box and the
+        // tile row left: the top bar already carries Ask, Search and the alert bell.
+        $qp     = $req->getQueryParams();
+        $range  = \AfricaGates\Admin\Support\TimeRange::fromQuery($qp, '7d');
+        $metric = (string) ($qp['metric'] ?? 'votes');
+        $hour   = (int) \AfricaGates\Admin\Support\TimeRange::show(time(), 'G');
+
         return $this->view->render($res, 'admin/dashboard.twig', [
             'page_title' => 'Home — Africa GATES Admin',
             'admin_page' => 'dashboard',
+            'greeting'   => $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening'),
+            'today'      => \AfricaGates\Admin\Support\TimeRange::show(time(), 'l j F'),
+            'range'      => $range,
+            'params'     => array_intersect_key($qp, array_flip(['range', 'from', 'to', 'metric'])),
+            'activity'   => \AfricaGates\Admin\Services\HomeBoard::activity($range, $metric),
+            'metrics'    => array_map(static fn (array $m): string => $m[2], \AfricaGates\Admin\Services\HomeBoard::METRICS),
+            'health'     => \AfricaGates\Admin\Services\HomeBoard::health($role),
             'board'      => \AfricaGates\Admin\Services\HomeBoard::board($role),
             'shortcuts'  => \AfricaGates\Admin\Services\HomeBoard::shortcuts($role),
             'quiet'      => \AfricaGates\Admin\Services\HomeBoard::quiet(),

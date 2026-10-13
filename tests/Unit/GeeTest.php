@@ -439,7 +439,13 @@ final class GeeTest extends TestCase
         $this->assertSame(2, substr_count($wait[1], 'setTimeout('));
         $this->assertDoesNotMatchRegularExpression('/data-state|stepRow|finishWork|step-/', $wait[1],
             'the waiting line never touches a step');
-        $this->assertSame(1, substr_count(str_replace($wait[1], '', $js), 'setTimeout('), 'the only other timer is the focus hand-off on open');
+        // The launcher's hide-on-scroll has one timer too (it comes back when scrolling
+        // stops), allowed by name on the same terms: it touches the launcher and nothing else.
+        $this->assertSame(1, preg_match('/function tuckOnScroll\(\) \{(.*?)\n  \}/s', $js, $tuck));
+        $this->assertSame(1, substr_count($tuck[1], 'setTimeout('));
+        $this->assertDoesNotMatchRegularExpression('/data-state|stepRow|finishWork|step-/', $tuck[1],
+            'the launcher\'s timer never touches a step');
+        $this->assertSame(1, substr_count(str_replace([$wait[1], $tuck[1]], '', $js), 'setTimeout('), 'the only other timer is the focus hand-off on open');
     }
 
     // ══ THE DESK ═════════════════════════════════════════════════════════════

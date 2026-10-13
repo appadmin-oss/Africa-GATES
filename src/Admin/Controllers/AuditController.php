@@ -52,7 +52,8 @@ final class AuditController
     public function index(Request $req, Response $res): Response
     {
         $qp = $req->getQueryParams();
-
+        $facets = $this->audit->facets();
+        $range  = $this->range($qp, $facets);
         $filters = [
             'admin'       => ($qp['admin'] ?? '') === '' ? null : (int) $qp['admin'],
             'area'        => trim((string) ($qp['area'] ?? '')),
@@ -60,15 +61,16 @@ final class AuditController
             'target_type' => trim((string) ($qp['type'] ?? '')),
             'target_id'   => (int) ($qp['tid'] ?? 0) ?: null,
             'q'           => trim((string) ($qp['q'] ?? '')),
-            'from'        => trim((string) ($qp['from'] ?? '')),
-            'to'          => trim((string) ($qp['to'] ?? '')),
+            'from'        => $range['all'] ? '' : $range['r']->fromSql(),
+            'to'          => $range['all'] ? '' : $range['r']->toSql(),
             'page'        => max(1, (int) ($qp['page'] ?? 1)),
         ];
-
         $result = $this->audit->search($filters);
-        $facets = $this->audit->facets();
-
         return $this->view->render($res, 'admin/audit.twig', [
+            'range'      => $range['r'],
+            'all_time'   => $range['all'],
+            'series'     => \AfricaGates\Admin\Support\TimeSeries::bars($this->audit->stamps($filters), $range['r']),
+            'params'     => array_diff_key($qp, ['page' => 1]),
             'page_title' => 'Audit log',
             'admin_page' => 'audit',
             'result'     => $result,
@@ -80,10 +82,6 @@ final class AuditController
             'f'          => $filters,
             'active'     => $this->activeCount($filters),
             'qs'         => $this->qs($qp),
-            // Built here, not by string-surgery on `qs` in the template: an action
-            // whose encoding differs between http_build_query and Twig's url_encode
-            // would silently fail to match and the chip would stop coming off.
-            'qs_no_action' => $this->qs(array_diff_key($qp, ['action' => 1])),
             'window'     => $this->window($result['page'], $result['pages']),
             // The form posts back to wherever it is, so re-filtering from the per-admin
             // view keeps that view. Hardcoding /admin/audit dropped the summary card the
@@ -117,20 +115,22 @@ final class AuditController
     {
         $adminId = (int) ($args['id'] ?? 0);
         $qp      = $req->getQueryParams();
-
+        $facets  = $this->audit->facets();
+        $range   = $this->range($qp, $facets);
         $filters = [
             'admin' => $adminId,
             'area'  => trim((string) ($qp['area'] ?? '')),
             'q'     => trim((string) ($qp['q'] ?? '')),
-            'from'  => trim((string) ($qp['from'] ?? '')),
-            'to'    => trim((string) ($qp['to'] ?? '')),
+            'from'  => $range['all'] ? '' : $range['r']->fromSql(),
+            'to'    => $range['all'] ? '' : $range['r']->toSql(),
             'page'  => max(1, (int) ($qp['page'] ?? 1)),
         ];
-
         $result = $this->audit->search($filters);
-        $facets = $this->audit->facets();
-
         return $this->view->render($res, 'admin/audit.twig', [
+            'range'      => $range['r'],
+            'all_time'   => $range['all'],
+            'series'     => \AfricaGates\Admin\Support\TimeSeries::bars($this->audit->stamps($filters), $range['r']),
+            'params'     => array_diff_key($qp, ['page' => 1]),
             'page_title' => 'Audit log',
             'admin_page' => 'audit',
             'result'     => $result,
@@ -139,7 +139,6 @@ final class AuditController
             'f'          => $filters + ['action' => '', 'target_type' => '', 'target_id' => null],
             'active'     => $this->activeCount($filters),
             'qs'         => $this->qs($qp + ['admin' => $adminId]),
-            'qs_no_action' => $this->qs(array_diff_key($qp + ['admin' => $adminId], ['action' => 1])),
             'window'     => $this->window($result['page'], $result['pages']),
             'subject'    => null,
             'form_action' => '/admin/audit/actor/' . $adminId,
@@ -165,6 +164,65 @@ final class AuditController
             if (($a['area'] ?? null) === $area) return $a['actions'] ?? [];
         }
         return [];
+    }
+
+    /**
+     * The window the log is looking at. The last 30 days unless asked otherwise, because
+     * a log opened on its whole history draws a chart of its whole history; `range=all`
+     * is one click away in the range menu, and it really is everything — no date bound
+     * at all, the chart spanning the log's own first row to now.
+     *
+     * @param array<string,mixed> $qp
+     * @return array{r:\AfricaGates\Admin\Support\TimeRange, all:bool}
+     */
+    private function range(array $qp, array $facets): array
+    {
+        if (($qp['range'] ?? '') === 'all') {
+            $first = strtotime((string) ($facets['span']['first'] ?? '')) ?: time() - 30 * 86400;
+            return ['r' => \AfricaGates\Admin\Support\TimeRange::between($first, time()), 'all' => true];
+        }
+        return ['r' => \AfricaGates\Admin\Support\TimeRange::fromQuery($qp, '30d'), 'all' => false];
+    }
+
+    /**
+     * The log as CSV — the screen's own filters and window, through the same query, so
+     * the file holds exactly the rows the screen would. Capped at 50,000 rows, and it
+     * says so in its last line rather than ending quietly.
+     */
+    public function export(Request $req, Response $res): Response
+    {
+        $qp = $req->getQueryParams();
+        $range = $this->range($qp, $this->audit->facets());
+        $filters = [
+            'admin'       => ($qp['admin'] ?? '') === '' ? null : (int) $qp['admin'],
+            'area'        => trim((string) ($qp['area'] ?? '')),
+            'action'      => trim((string) ($qp['action'] ?? '')),
+            'target_type' => trim((string) ($qp['type'] ?? '')),
+            'target_id'   => (int) ($qp['tid'] ?? 0) ?: null,
+            'q'           => trim((string) ($qp['q'] ?? '')),
+            'from'        => $range['all'] ? '' : $range['r']->fromSql(),
+            'to'          => $range['all'] ? '' : $range['r']->toSql(),
+        ];
+        // A spreadsheet runs a cell that starts with = + - @ as a formula, and details are
+        // typed by admins and partners — so such a cell is prefixed with an apostrophe.
+        $cell = static fn ($v): string => preg_match('/^[=+\-@]/', (string) $v) ? "'" . $v : (string) $v;
+        $out = fopen('php://temp', 'w+');
+        fputcsv($out, ['id', 'when_utc', 'admin_id', 'admin', 'action', 'target_type', 'target_id', 'details', 'network'], ',', '"', '\\');
+        $n = 0;
+        foreach ($this->audit->each($filters) as $r) {
+            $n++;
+            fputcsv($out, [
+                $r['id'], $r['created_at'] ?? '', $r['admin_id'] ?? '', $cell($r['admin_name'] ?? $r['admin_email'] ?? ''),
+                $cell($r['action']), $r['target_type'] ?? '', $r['target_id'] ?? '',
+                $cell($r['meta'] ? json_encode($r['meta'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : ''),
+                $r['device'] ?? '',
+            ], ',', '"', '\\');
+        }
+        if ($n >= 50000) fputcsv($out, ['', '', '', '', 'Truncated at 50,000 rows — narrow the filters'], ',', '"', '\\');
+        rewind($out);
+        $res->getBody()->write((string) stream_get_contents($out));
+        return $res->withHeader('Content-Type', 'text/csv; charset=utf-8')
+                   ->withHeader('Content-Disposition', 'attachment; filename="audit-log-' . date('Y-m-d') . '.csv"');
     }
 
     /** How many filters are narrowing the view — so "0 results" can be read correctly. */

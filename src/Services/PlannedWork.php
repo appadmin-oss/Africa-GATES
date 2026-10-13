@@ -91,7 +91,9 @@ final class PlannedWork
         foreach (self::KEYS as $k => $key) {
             $v = trim((string) ($posted[$key] ?? ''));
             if (($k === 'from' || $k === 'to') && $v !== '') {
-                try { $v = Carbon::parse(str_replace('T', ' ', $v))->format('Y-m-d H:i:s'); } catch (\Throwable) { $v = ''; }
+                // Typed in the display zone, stored in UTC — the pair to `when_input` on the
+                // form. Parsed as UTC it moved the window an hour on every save.
+                $v = \AfricaGates\Support\DisplayTime::toStored(str_replace('T', ' ', $v)) ?? '';
             }
             $out[$key] = mb_substr($v, 0, $k === 'note' ? 400 : 120);
         }

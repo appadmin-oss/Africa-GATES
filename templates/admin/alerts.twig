@@ -1,33 +1,75 @@
 {% extends "admin/layout.twig" %}
 {#
-  ALERTS — README §4.3, stage 1 (4 Oct 2026). The list, Open · High, and each alert's
-  detail and next step, from Admin\Services\ConsoleAlerts — facts the platform already
-  records, derived on read. The Closed tab, Assign to me, Close-with-reason and the
-  seven-day timeline need alert STATE and are the Alerts screen's own build in stage 2
-  (docs/handoff/PHASE-ADMIN.md). Every severity is a dot AND its word (rule 3).
+  ALERTS — README §4.3 (4 Oct 2026), with the owner's screenshots (13 Oct 2026): filter
+  chips (Severity, Source) with counts from the alerts that are open, the console's range
+  control, and a timeline of what the status page recorded over that window — the worst
+  state in each slice, a gap where nothing was recorded at all (which is itself the
+  evidence that scheduled work stopped). Then the list and the focused alert's detail and
+  next step, from Admin\Services\ConsoleAlerts. Every severity and every state is a dot AND
+  its word (rule 3). `?tab=high` still works: it is the Severity chip set to high.
 #}
-{% block content %}
-<nav class="cn-tabs" aria-label="Which alerts">
-  <a class="cn-tab" href="/admin/alerts"{% if tab == 'open' %} aria-current="page"{% endif %}>Open <span class="cn-tab__n">{{ n_open }}</span></a>
-  <a class="cn-tab" href="/admin/alerts?tab=high"{% if tab == 'high' %} aria-current="page"{% endif %}>High <span class="cn-tab__n">{{ n_high }}</span></a>
-</nav>
+{% import 'admin/partials/kit.twig' as kit %}
 
+{% block content %}
+<div class="cn-toolbar">
+  {{ kit.filters(filters, '/admin/alerts', params) }}
+  <div class="cn-toolbar__end">{{ kit.range(range, '/admin/alerts', params) }}</div>
+</div>
+
+{# ── THE TIMELINE ───────────────────────────────────────────────────────────── #}
+{% set _n = {operational: 0, degraded: 0, down: 0, unknown: 0, gap: 0} %}
+{% for b in strip.bars %}{% set _k = b.state ?? 'gap' %}{% set _n = _n|merge({(_k): _n[_k] + 1}) %}{% endfor %}
+{% set _seen = strip.bars|length - _n.gap %}
+<section class="cn-card al-tl" aria-labelledby="alTlH">
+  <header class="al-tl__h">
+    <h2 class="al-tl__t" id="alTlH">Platform status {{ kit.help('What the status page recorded every fifteen minutes. Each slice shows the worst state seen in it; a blank slice means nothing was recorded.') }}</h2>
+    <p class="al-tl__s">
+      {% if _seen == 0 %}Nothing recorded in this window — the scheduled check has not run.
+      {% else %}Working in {{ (_n.operational * 100 / _seen)|round }}% of recorded slices{% if _n.gap %} · {{ _n.gap }} with no record{% endif %}{% endif %}
+    </p>
+  </header>
+  <div class="al-tl__strip" role="list">
+    {% for b in strip.bars %}
+      {% set _w = b.state ? labels[b.state] : 'No record' %}
+      <a class="al-tl__b al-tl__b--{{ b.state ?? 'gap' }}" role="listitem"
+         href="{{ kit.url('/admin/alerts', params|filter((v, k) => k != 'range'), {from: b.q_from, to: b.q_to}) }}"
+         title="{{ b.label }} · {{ _w }}" aria-label="{{ b.label }}: {{ _w }}"></a>
+    {% endfor %}
+  </div>
+  <div class="al-tl__x" aria-hidden="true"><span>{{ strip.bars|first.label|default('') }}</span><span>{{ strip.bars|last.label|default('') }}</span></div>
+  <ul class="al-tl__key">
+    {% for k in ['operational', 'degraded', 'down', 'unknown'] %}
+      <li><span class="al-tl__sw al-tl__b--{{ k }}" aria-hidden="true"></span>{{ labels[k] }}</li>
+    {% endfor %}
+    <li><span class="al-tl__sw al-tl__b--gap" aria-hidden="true"></span>No record</li>
+  </ul>
+</section>
+
+{# ── THE LIST AND THE FOCUSED ALERT ─────────────────────────────────────────── #}
 {% if alerts is empty %}
-  <div class="cn-empty">
-    <span class="cn-empty__t">Nothing here</span>
-    <span class="cn-empty__m">{% if tab == 'high' %}No high-severity alert is open.{% else %}The checks this page reads are all passing.{% endif %}</span>
+  <div class="cn-card">
+    {% if params.severity is defined or params.source is defined %}
+      {{ kit.empty('No open alert matches those filters', 'Remove a filter to see the ' ~ n_open ~ ' open.', 'bell') }}
+    {% else %}
+      {{ kit.empty('No alerts', 'The checks this page reads are all passing.', 'bell') }}
+    {% endif %}
   </div>
 {% else %}
   <div class="cn-split">
     <div class="cn-card cn-split__list">
       <table class="cn-table">
-        <thead><tr><th scope="col">Severity</th><th scope="col">Alert</th><th scope="col">Source</th><th scope="col">Raised</th></tr></thead>
+        <thead><tr>
+          <th scope="col">Severity</th>
+          <th scope="col">Alert</th>
+          <th scope="col">Source {{ kit.help('The part of the platform whose own check raised it') }}</th>
+          <th scope="col">Raised {{ kit.help('When the check first failed. An alert stays open while its check fails, and closes itself when it passes.') }}</th>
+        </tr></thead>
         <tbody>
           {% for a in alerts %}
             <tr{% if focus and a.key == focus.key %} aria-current="true"{% endif %}>
               <td><span class="cn-status cn-status--{{ a.severity }}">{{ a.severity|capitalize }}</span></td>
-              <td><a class="cn-table__main" href="/admin/alerts?{{ tab == 'high' ? 'tab=high&' : '' }}alert={{ a.key|url_encode }}">{{ a.title }}</a></td>
-              <td>{{ a.source }}</td>
+              <td><a class="cn-table__main" href="{{ kit.url('/admin/alerts', params, {alert: a.key}) }}">{{ a.title }}</a></td>
+              <td><a class="al-src" href="{{ kit.url('/admin/alerts', params, {source: a.source}) }}" title="Only alerts from {{ a.source }}">{{ a.source }}</a></td>
               <td class="cn-table__time">{{ a.raised ? a.raised|when : 'Now' }}</td>
             </tr>
           {% endfor %}

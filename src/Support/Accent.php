@@ -347,6 +347,20 @@ final class Accent
         'scrim-palette' => ['value' => 'rgba(10,10,10,.28)', 'use' => 'behind the command palette'],
         'scrim-drawer'  => ['value' => 'rgba(10,10,10,.2)',  'use' => 'behind the assistant drawer'],
         'on-ink-fill'   => ['value' => 'rgba(255,255,255,.14)', 'use' => 'a button on the black toast'],
+
+        // ── THE BRAND, AS AN ACCENT (owner, 13 Oct 2026) ───────────────────────
+        // "Make use of the Africa GATES colours as accent where best", on the console
+        // Home. The console stays monochrome; these six are the house green and gold,
+        // spent on what identifies the platform (the Home's header rule, the chart, the
+        // primary action on a job, a figure's icon). They are the PUBLIC palette's
+        // values by reference rather than typed again, so the console's green is the
+        // site's green by construction and cannot drift into a fifth gold.
+        'brand-green'      => ['value' => self::PALETTE['green']['value'],      'use' => 'the house green: a primary action on Home, chart bars, figure icons'],
+        'brand-green-deep' => ['value' => self::PALETTE['green-deep']['value'], 'use' => 'green words on a green wash'],
+        'brand-green-wash' => ['value' => self::PALETTE['green-wash']['value'], 'use' => 'a figure\'s icon field, the all-clear field'],
+        'brand-gold'       => ['value' => self::PALETTE['gold']['value'],       'use' => 'honour: the Home header rule, a results figure\'s mark'],
+        'brand-gold-ink'   => ['value' => self::PALETTE['gold-ink']['value'],   'use' => 'gold words, on white or the gold wash'],
+        'brand-gold-wash'  => ['value' => self::PALETTE['gold-wash']['value'],  'use' => 'a results figure\'s icon field'],
     ];
 
     /**
@@ -390,7 +404,10 @@ final class Accent
         'danger-pill'  => ['surface', 'danger-tint'],
         'info'         => ['surface'],
         'proposed-ink' => ['warning-tint-2'],
-        'surface'      => ['ink', 'danger', 'green'],
+        'surface'      => ['ink', 'danger', 'green', 'brand-green'],
+        'brand-green'      => ['surface', 'fill-panel'],
+        'brand-green-deep' => ['surface', 'brand-green-wash'],
+        'brand-gold-ink'   => ['surface', 'brand-gold-wash'],
     ];
 
     /**
@@ -423,6 +440,7 @@ final class Accent
         'link-line'    => ['on' => 'surface',    'why' => 'an underline beside words that carry the contrast'],
         'fill-panel'   => ['on' => 'surface',    'why' => 'the sidebar field'],
         'grey-400'     => ['on' => 'surface',    'why' => 'a dot that always sits beside its word'],
+        'brand-gold'   => ['on' => 'surface',    'why' => 'the Home header rule and a mark beside words; gold is never a word'],
     ];
 
     // ══ the default-graphics tones (DEFAULT-GRAPHICS §4, handoff 5 Oct 2026) ═══════════════

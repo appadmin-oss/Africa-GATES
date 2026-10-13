@@ -369,6 +369,35 @@ final class SystemStatus
     }
 
     /**
+     * The overall state of every snapshot between two stored timestamps, oldest first, for
+     * the console's alert timeline. Only states this class recognises are returned, for the
+     * reason {@see snapshots()} gives; a window with no rows at all is the evidence that
+     * scheduled work stopped, and the caller draws it as a gap rather than as green.
+     *
+     * @return list<array{0:string,1:string}> [taken_at, overall]
+     */
+    public static function overallBetween(string $from, string $to): array
+    {
+        try {
+            $rows = DB::table('gates_status_log')->whereBetween('taken_at', [$from, $to])
+                ->orderBy('taken_at')->limit(20000)->get(['taken_at', 'overall']);
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            if (isset(self::RANK[(string) $r->overall])) $out[] = [(string) $r->taken_at, (string) $r->overall];
+        }
+        return $out;
+    }
+
+    /** Worst-wins rank of a state, for a caller folding snapshots into buckets. */
+    public static function rank(string $state): ?int
+    {
+        return self::RANK[$state] ?? null;
+    }
+
+    /**
      * Worst-wins ordering. A day with one broken hour is not a good day, and an average
      * would turn a real outage into a pale shade of green.
      *

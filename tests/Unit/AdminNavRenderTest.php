@@ -98,7 +98,7 @@ final class AdminNavRenderTest extends TestCase
     {
         $html = $this->render(\AfricaGates\Admin\Controllers\DashboardController::class, 'index', 'admin', '/admin/dashboard');
         foreach (['id="cnConfirm"', 'id="cnAssist"', 'id="cnPal"', 'id="cnToasts"', 'class="cn-h1"',
-                  'Reason, for the audit log', 'What needs doing today?', 'The quiet numbers',
+                  'Reason, for the audit log', 'At a glance', 'Activity', 'Jump to',
                   'Only jobs you can act on are shown', 'Search everything'] as $needle) {
             $this->assertStringContainsString($needle, $html, "missing $needle");
         }

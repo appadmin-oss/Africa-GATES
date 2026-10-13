@@ -24,6 +24,11 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 class NominationTriageService
 {
+    /** The note a failed triage leaves; the backfill finds these to try them again. */
+    public const UNAVAILABLE = 'AI triage unavailable';
+    /** Failures worth another attempt: a reply we could not read, or no reply at all. */
+    private const RETRYABLE = ['SCHEMA_REJECTED', 'PROVIDER_ERROR', 'EMPTY'];
+
     public const JOB_TRIAGE = 'ai.nomination_triage';
 
     /**
@@ -200,7 +205,7 @@ class NominationTriageService
         } elseif ($result->shouldAnnounce()) {
             // Declared FAIL_ANNOUNCE: the reviewer must know the score is missing
             // because AI was unavailable, not because the nomination scored badly.
-            $summary = 'AI triage unavailable (' . $result->code . ') — reviewed on duplicates and heuristics only.';
+            $summary = self::UNAVAILABLE . ' (' . $result->code . ') — reviewed on duplicates and heuristics only. It will be tried again within the hour.';
         }
 
         $row = [
@@ -225,7 +230,13 @@ class NominationTriageService
     {
         return static function (string $raw): ?array {
             $j = json_decode($raw, true);
-            if (!is_array($j) || !isset($j['score']) || !is_numeric($j['score'])) return null;
+            if (!is_array($j) || !isset($j['score'])) return null;
+            // A score written "72", "72/100" or "72%" is the number 72; anything without a
+            // leading number is not a score and is discarded.
+            if (!is_numeric($j['score'])) {
+                if (!is_string($j['score']) || !preg_match('/^\s*(\d{1,3}(?:\.\d+)?)\s*(?:\/\s*100|%)?\s*$/', $j['score'], $m)) return null;
+                $j['score'] = $m[1];
+            }
             $summary = trim((string) ($j['summary'] ?? ''));
             return [
                 'score'   => max(0, min(100, (int) $j['score'])),
@@ -253,7 +264,24 @@ class NominationTriageService
             $ids = DB::table('gates_nominations as n')
                 ->leftJoin('gates_nomination_insights as i', 'i.nomination_id', '=', 'n.id')
                 ->where('n.status', 'pending')
-                ->whereNull('i.nomination_id')
+                // No insight yet — or one that recorded only that the assistant was
+                // unavailable, more than an hour ago. That row used to be permanent: the
+                // backfill skipped anything with a row, so one bad reply meant the review
+                // desk read "AI triage unavailable" on that nomination for ever.
+                ->where(static function ($w): void {
+                    $w->whereNull('i.nomination_id')
+                      ->orWhere(static function ($r): void {
+                          // Only the failures a second attempt can change. AI switched
+                          // off, or out of budget, answers the same way next hour.
+                          $r->whereNull('i.quality_score')
+                            ->where(static function ($c): void {
+                                foreach (self::RETRYABLE as $code) {
+                                    $c->orWhere('i.summary', 'like', self::UNAVAILABLE . ' (' . $code . ')%');
+                                }
+                            })
+                            ->where('i.created_at', '<', date('Y-m-d H:i:s', time() - 3600));
+                      });
+                })
                 ->orderBy('n.id')
                 ->limit(max(1, $limit))
                 ->pluck('n.id');
