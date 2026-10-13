@@ -352,6 +352,19 @@ final class Maintenance
                 // shell here to make them come down any other way.
                 'challenges' => $ran[] = ['challenges', $this->task('challenges', fn() => \AfricaGates\Services\ChallengeService::sweepWindows())],
                 'mailhealth' => $ran[] = ['mailhealth', $this->task('mailhealth', fn() => (new \AfricaGates\Services\Mail\MailHealth())->check())],
+                // One page of this platform's account list to CACENTRE's person
+                // directory, so one human is one record across the estate's five
+                // apps rather than four unrelated rows here alone. Does nothing at
+                // all until a push secret is set, and the cursor only advances on a
+                // push that was accepted — a page lost to a timeout goes again next
+                // tick rather than leaving a hole nothing would report.
+                //
+                // Addressable by name for the reason the others are: there is no
+                // shell here, so an operator who has just pasted the secret into
+                // Settings needs `/__cron/run?task=directory` to find out whether it
+                // took, rather than waiting an hour.
+                'directory' => $ran[] = ['directory', $this->task('directory',
+                    fn() => \AfricaGates\Services\DirectoryPush::tick())],
                 // An operator who has just approved an issue should not have to wait for the
                 // next tick to see the first batch go.
                 'newsletter' => $ran[] = ['newsletter', $this->task('newsletter', fn() => $this->newsletter()->tick())],

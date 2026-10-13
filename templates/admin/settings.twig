@@ -1817,6 +1817,43 @@
     {% endif %}
   </div></div>
 
+  {# ── THE PERSON DIRECTORY ────────────────────────────────────────────────
+     One record per human across the estate's five apps. This platform PUSHES its
+     account list to CACENTRE; CACENTRE reads no database of ours.
+
+     On this screen and not only in .env, because there is no SSH on production: a
+     credential readable only from a file is a credential nobody here can set, which
+     is how the whole Google integration above came to be dead while every screen
+     explained itself correctly. #}
+  <div class="ad-card" data-sec="integrations" data-keys="directory person people identity cacentre estate push roster accounts sso" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Person directory<small>Telling CACENTRE who holds an account here.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="directory_settings" value="1">
+    <p class="hint" style="margin:0 0 10px">The estate runs five apps and one person is often an account on
+      several of them with nothing joining the rows. CACENTRE keeps one record per human.
+      With a secret set, the hourly maintenance tick sends a page of this platform's
+      members, admins, judges and partner users — <strong>names, addresses, roles and
+      status only</strong>. No password, no passkey, no phone number, no vote, no points
+      balance. The sandbox is never sent.</p>
+    <div class="ad-form">
+      <div>
+        <label for="f-dir_push_secret">Shared secret</label>
+        <input type="password" name="dir_push_secret" id="f-dir_push_secret" autocomplete="new-password"
+               placeholder="{% if dir_push_secret_set %}•••••••••• (leave blank to keep){% else %}not set — nothing is pushed{% endif %}">
+        <small>32+ random characters, and the <strong>same value</strong> in CACENTRE as
+          <code>DIR_PUSH_SECRET_GATES</code>. Its own key: it only says who exists, and
+          cannot sign anybody in.
+          {% if dir_push_secret_set %}<label style="display:inline-flex;gap:6px;align-items:center;margin-top:6px;font-weight:600">
+            <input type="checkbox" name="directory_clear[secret]" value="1"> Remove the stored secret and stop pushing
+          </label>{% endif %}</small>
+      </div>
+      <div>
+        <label for="f-dir_push_url">CACENTRE address</label>
+        <input type="url" name="dir_push_url" id="f-dir_push_url" value="{{ dir_push_url|default('') }}"
+               placeholder="https://cacentre.afrovanguard.org.ng" autocomplete="off" spellcheck="false">
+        <small>Leave blank unless CACENTRE has moved. Blank uses the production address.</small>
+      </div>
+    </div>
+  </div></div>
+
   {# ── REFERRAL TERMS ──────────────────────────────────────────────────────
      What a member earns for bringing a ticket buyer, and how many they need before it
      is payable. Both were class constants until now, so changing either meant a deploy —

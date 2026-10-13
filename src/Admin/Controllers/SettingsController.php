@@ -312,6 +312,18 @@ class SettingsController
             // The secret is write-only, like every other credential on this page.
             'gas_url'        => \AfricaGates\Services\GoogleMeetService::gasUrl(),
             'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
+            // The person directory. The secret is write-only like every other
+            // credential here; the address is echoed, because a stale one points
+            // this platform's roster at a host nobody meant and is invisible if
+            // the field is blanked for tidiness.
+            'dir_push_secret_set' => \AfricaGates\Services\DirectoryPush::secret() !== '',
+            'dir_push_url' => (static function (): string {
+                try {
+                    $v = \Illuminate\Database\Capsule\Manager::table('gates_settings')
+                        ->where('key_name', 'dir_push_url')->value('value');
+                    return is_string($v) ? $v : '';
+                } catch (\Throwable) { return ''; }
+            })(),
             // Consumed once, for the same reason as the AI probe above: a verdict about a
             // deployment that has since been re-published is the one an operator would act on.
             'sync_probe' => (static function (): array {
@@ -712,6 +724,32 @@ class SettingsController
         // lowering it makes balances payable that were locked and raising it locks
         // balances that were payable — real money owed to real people, which is why it is
         // clamped and why the help text beside it is blunt.
+        /*
+         * The person directory's push secret.
+         *
+         * Write-only, and a blank field KEEPS the stored value — an operator who
+         * opened this page to correct the address must not switch the push off by
+         * not retyping a secret. Clearing it is a deliberate tick, and it STOPS
+         * the push rather than half-configuring it.
+         */
+        if (array_key_exists('directory_settings', $b)) {
+            if (!empty($b['directory_clear']['secret'])) {
+                $this->settings->set('dir_push_secret', '', $adminId);
+            } else {
+                $sec = trim((string) ($b['dir_push_secret'] ?? ''));
+                if ($sec !== '') $this->settings->set('dir_push_secret', $sec, $adminId);
+            }
+            /* An address that is not an address would point the roster at nowhere,
+               or somewhere. Empty is meaningful — it means the default — so only a
+               non-empty value is validated, and a bad one is not stored. */
+            $url = trim((string) ($b['dir_push_url'] ?? ''));
+            if ($url === '') {
+                $this->settings->set('dir_push_url', '', $adminId);
+            } elseif (filter_var($url, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $url)) {
+                $this->settings->set('dir_push_url', rtrim($url, '/'), $adminId);
+            }
+        }
+
         if (array_key_exists('referral_settings', $b)) {
             $this->settings->set('referrals_enabled', !empty($b['referrals_enabled']) ? '1' : '0', $adminId);
 

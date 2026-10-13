@@ -1,0 +1,82 @@
+{
+    "_": "Shared test vectors for the directory push envelope. Duplicated by hand in cacentre-site/cac/tests/ and afrovanguard-site/tests/ and asserted in both suites.",
+    "secret": "vectors-only-never-a-real-key-0123456789",
+    "sign": {
+        "payload": "{\"iss\":\"avg\",\"typ\":\"dir.push\",\"nonce\":\"0123456789abcdef0123456789abcdef\",\"iat\":1760000000,\"exp\":1760000300,\"rows\":[]}",
+        "token": "v1.eyJpc3MiOiJhdmciLCJ0eXAiOiJkaXIucHVzaCIsIm5vbmNlIjoiMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYiLCJpYXQiOjE3NjAwMDAwMDAsImV4cCI6MTc2MDAwMDMwMCwicm93cyI6W119.56uZBoNdgcSg5gDMiEUCrzewmjN2nJrYm9G9u-RM5co"
+    },
+    "mint": {
+        "app": "avg",
+        "now": 1760000000,
+        "claims": {
+            "rows": [
+                {
+                    "store": "lms_users",
+                    "local_id": "41",
+                    "email": "ada@example.org",
+                    "email_verified": true,
+                    "name": "Ada Nwosu",
+                    "local_role": "learner",
+                    "local_status": "active",
+                    "last_seen_at": "2026-10-01 09:15:00"
+                }
+            ],
+            "nonce": "0123456789abcdef0123456789abcdef",
+            "iat": 1760000000,
+            "exp": 1760000300
+        },
+        "token": "v1.eyJyb3dzIjpbeyJzdG9yZSI6Imxtc191c2VycyIsImxvY2FsX2lkIjoiNDEiLCJlbWFpbCI6ImFkYUBleGFtcGxlLm9yZyIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJuYW1lIjoiQWRhIE53b3N1IiwibG9jYWxfcm9sZSI6ImxlYXJuZXIiLCJsb2NhbF9zdGF0dXMiOiJhY3RpdmUiLCJsYXN0X3NlZW5fYXQiOiIyMDI2LTEwLTAxIDA5OjE1OjAwIn1dLCJub25jZSI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwiaWF0IjoxNzYwMDAwMDAwLCJleHAiOjE3NjAwMDAzMDAsImlzcyI6ImF2ZyIsInR5cCI6ImRpci5wdXNoIn0.4DMWY8DZh-LZrXyffmXkkYZisHO2aEQ6fo8rr2vHyU4"
+    },
+    "refuse": [
+        {
+            "why": "bad_format",
+            "now": 1760000010,
+            "token": "v2.abc.def"
+        },
+        {
+            "why": "bad_format",
+            "now": 1760000010,
+            "token": "not-a-token"
+        },
+        {
+            "why": "bad_signature",
+            "now": 1760000010,
+            "token": "v1.eyJyb3dzIjpbeyJzdG9yZSI6Imxtc191c2VycyIsImxvY2FsX2lkIjoiNDEiLCJlbWFpbCI6ImFkYUBleGFtcGxlLm9yZyIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJuYW1lIjoiQWRhIE53b3N1IiwibG9jYWxfcm9sZSI6ImxlYXJuZXIiLCJsb2NhbF9zdGF0dXMiOiJhY3RpdmUiLCJsYXN0X3NlZW5fYXQiOiIyMDI2LTEwLTAxIDA5OjE1OjAwIn1dLCJub25jZSI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwiaWF0IjoxNzYwMDAwMDAwLCJleHAiOjE3NjAwMDAzMDAsImlzcyI6ImF2ZyIsInR5cCI6ImRpci5wdXNoIn0.4DMWY8DZh-LZrXyffmXkkYZisHO2aEQ6fo8rr2vAAAA"
+        },
+        {
+            "why": "bad_signature",
+            "now": 1760000010,
+            "token": "v1.eyJpc3MiOiJhdmciLCJ0eXAiOiJkaXIucHVzaCIsIm5vbmNlIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJpYXQiOjE3NjAwMDAwMDAsImV4cCI6MTc2MDAwMDMwMCwicm93cyI6W119.dFqzBffUvwhFHL5W8kZIG_WgUT4zO1CAhz8MB9xA0AE"
+        },
+        {
+            "why": "expired",
+            "now": 1760000400,
+            "token": "v1.eyJpc3MiOiJhdmciLCJ0eXAiOiJkaXIucHVzaCIsIm5vbmNlIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJpYXQiOjE3NjAwMDAwMDAsImV4cCI6MTc2MDAwMDMwMCwicm93cyI6W119.E3Pu3NxzdB9RfQ7MIfkCdV4NlSzl_Pv5l4bkQlDjhfg"
+        },
+        {
+            "why": "future_dated",
+            "now": 1759999000,
+            "token": "v1.eyJpc3MiOiJhdmciLCJ0eXAiOiJkaXIucHVzaCIsIm5vbmNlIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJpYXQiOjE3NjAwMDAwMDAsImV4cCI6MTc2MDAwMDMwMCwicm93cyI6W119.E3Pu3NxzdB9RfQ7MIfkCdV4NlSzl_Pv5l4bkQlDjhfg"
+        },
+        {
+            "why": "wrong_issuer",
+            "now": 1760000010,
+            "token": "v1.eyJpc3MiOiJuZ2ciLCJ0eXAiOiJkaXIucHVzaCIsIm5vbmNlIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJpYXQiOjE3NjAwMDAwMDAsImV4cCI6MTc2MDAwMDMwMCwicm93cyI6W119.Lz-trQ0FrrnuoVAP8kVzTv7rGxRcmFHrzZltxXSmK6I"
+        },
+        {
+            "why": "wrong_type",
+            "now": 1760000010,
+            "token": "v1.eyJpc3MiOiJhdmciLCJ0eXAiOiJhdi5zc28iLCJub25jZSI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwiaWF0IjoxNzYwMDAwMDAwLCJleHAiOjE3NjAwMDAzMDAsInJvd3MiOltdfQ.lO8zMMb0Q_QtLXBt81yqrSmJLmK6s2WI9nEY8jI3D7M"
+        },
+        {
+            "why": "long_window",
+            "now": 1760000010,
+            "token": "v1.eyJpc3MiOiJhdmciLCJ0eXAiOiJkaXIucHVzaCIsIm5vbmNlIjoiYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJpYXQiOjE3NjAwMDAwMDAsImV4cCI6MTc2MDA5OTAwMCwicm93cyI6W119.XMHLNM_AVP_SlGtfKU5UKpoPFSkKUXeFp-QSoDwMsOo"
+        },
+        {
+            "why": "no_nonce",
+            "now": 1760000010,
+            "token": "v1.eyJpc3MiOiJhdmciLCJ0eXAiOiJkaXIucHVzaCIsIm5vbmNlIjoiIiwiaWF0IjoxNzYwMDAwMDAwLCJleHAiOjE3NjAwMDAzMDAsInJvd3MiOltdfQ.QlNapZGaPxVBF27hStTO8NB-coxKQVpoyW5MRC7Q9VE"
+        }
+    ]
+}
