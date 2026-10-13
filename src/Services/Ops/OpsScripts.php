@@ -249,9 +249,25 @@ final class OpsScripts
         $in = new ArrayInput($args);
         $in->setInteractive(false);
         $out = new BufferedOutput();
-        @set_time_limit(120);
+        self::allowAtLeast(120);
         $code = $cmd->run($in, $out);
         return [$code, $out->fetch()];
+    }
+
+    /**
+     * Give a command at least this many seconds — never fewer than it already had.
+     *
+     * `set_time_limit()` SETS the ceiling rather than raising it. Under the CLI the ceiling
+     * is 0 (none), so a bare `set_time_limit(120)` put a two-minute fuse on every process
+     * that ran a script — the console, the cron door's CLI twin, and the test suite, which
+     * then died with "Maximum execution time of 120 seconds exceeded" in whatever test
+     * happened to be running two CPU-minutes later, nowhere near this file.
+     */
+    public static function allowAtLeast(int $seconds): void
+    {
+        $now = (int) ini_get('max_execution_time');
+        if ($now === 0 || $now >= $seconds) return;   // unlimited, or already enough
+        @set_time_limit($seconds);
     }
 
     /** The checks answered by the platform's own services rather than a command. */
