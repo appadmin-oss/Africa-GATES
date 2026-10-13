@@ -285,7 +285,7 @@ final class NominationAftercare
             . ($evidence ? '<p style="font-size:13px;margin-top:12px">Supporting document: ' . $esc($evidence) . '</p>' : '')
             . ($photo ? '<p style="font-size:13px">Photo: ' . $esc($photo) . '</p>' : '')
             . '<p style="margin-top:16px"><a href="' . $esc($base . '/admin/nominations') . '" style="color:#237b22;font-weight:600">Review in the admin console &rarr;</a></p>';
-        try {
+        if (Notifier::adminEmail() !== '') try {
             $mailer->sendBranded(Notifier::adminEmail(), 'New nomination · ' . $nomName,
                                  $adminHtml, strip_tags($adminHtml), 'Nominations');
         } catch (\Throwable) {}
