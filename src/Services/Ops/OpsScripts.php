@@ -249,8 +249,17 @@ final class OpsScripts
         $in = new ArrayInput($args);
         $in->setInteractive(false);
         $out = new BufferedOutput();
+        // A ceiling for THIS command, then the caller's own back. Leaving 120s in place
+        // capped everything else the process went on to do — the full test suite died at
+        // 96% two minutes after the one test that runs an ops script, in whatever unrelated
+        // test happened to be running, which reads as that test hanging.
+        $prev = (int) ini_get('max_execution_time');
         @set_time_limit(120);
-        $code = $cmd->run($in, $out);
+        try {
+            $code = $cmd->run($in, $out);
+        } finally {
+            @set_time_limit($prev);
+        }
         return [$code, $out->fetch()];
     }
 
