@@ -95,7 +95,7 @@ final class ConsoleAlerts
      * the Alerts page — the pill is a link to it, and rule 7 forbids offering a door the
      * guard will close.
      *
-     * @return array{label:string, tone:string, href:string}|null
+     * @return array{label:string, tone:string, href:string, items:list<array<string,mixed>>, total:int}|null
      */
     public static function pill(string $role): ?array
     {
@@ -103,13 +103,19 @@ final class ConsoleAlerts
 
         $open = self::open();
         $high = count(self::high());
+        // What the bell's menu lists: the five most severe, each linking to its own detail.
+        // From the same memoised read as the count, so the menu and the number agree.
+        $items = array_map(static fn (array $a): array => [
+            'title' => $a['title'], 'severity' => $a['severity'], 'source' => $a['source'],
+            'raised' => $a['raised'], 'href' => '/admin/alerts?alert=' . rawurlencode((string) $a['key']),
+        ], array_slice($open, 0, 5));
         if ($high > 0) {
             return ['label' => $high . ' high alert' . ($high === 1 ? '' : 's'), 'tone' => 'high',
-                    'href' => '/admin/alerts?tab=high'];
+                    'href' => '/admin/alerts?tab=high', 'items' => $items, 'total' => count($open)];
         }
         $n = count($open);
         return ['label' => $n > 0 ? $n . ' alert' . ($n === 1 ? '' : 's') : 'No alerts',
-                'tone' => $n > 0 ? 'some' : 'none', 'href' => '/admin/alerts'];
+                'tone' => $n > 0 ? 'some' : 'none', 'href' => '/admin/alerts', 'items' => $items, 'total' => $n];
     }
 
     /** @return list<callable():?array<string,mixed>> */

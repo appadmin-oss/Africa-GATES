@@ -728,3 +728,43 @@
     });
   }
 })();
+
+// ── The kit's menus, the feedback dialog and "copy link" (owner's screenshots, 13 Oct) ──
+// Every menu is a native <details>, so it opens with no script. This adds what the
+// platform's own menus do: one open at a time, closed by a click outside or Escape,
+// focus handed back to the summary that opened it.
+(function () {
+  function openMenus() { return document.querySelectorAll('details.cn-menuwrap[open]'); }
+  document.addEventListener('click', function (e) {
+    openMenus().forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+  });
+  document.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('cn-menuwrap') || !d.open) return;
+    openMenus().forEach(function (o) { if (o !== d && !o.contains(d)) o.removeAttribute('open'); });
+  }, true);
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    openMenus().forEach(function (d) {
+      d.removeAttribute('open');
+      var s = d.querySelector('summary'); if (s && d.contains(document.activeElement)) s.focus();
+    });
+  });
+
+  var fb = document.getElementById('cnFeedback');
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-ag-do="feedback-open"]') && fb && fb.showModal) {
+      e.preventDefault(); fb.showModal();
+      var t = fb.querySelector('textarea'); if (t) t.focus();
+    }
+    if (e.target.closest('[data-ag-do="feedback-close"]') && fb) { e.preventDefault(); fb.close(); }
+    var c = e.target.closest('[data-ag-do="copy"]');
+    if (c) {
+      e.preventDefault();
+      var text = c.getAttribute('data-copy') || '';
+      if (text.charAt(0) === '/') text = location.origin + text;
+      var done = function () { var w = c.textContent; c.textContent = 'Copied'; setTimeout(function () { c.textContent = w; }, 1400); };
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
+    }
+  });
+})();

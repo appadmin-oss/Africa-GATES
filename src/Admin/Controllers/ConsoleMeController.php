@@ -92,4 +92,25 @@ final class ConsoleMeController
 
         return $this->answer($req, $res, ['ok' => $ok, 'closed' => $closed], $back);
     }
+
+    /**
+     * Feedback about the console, from the top bar (owner's screenshots, 13 Oct 2026).
+     *
+     * Into the audit log as `console.feedback`, with the page it was sent from — where a
+     * superadmin filters for it (Audit log, area "console") — and never into the public
+     * support queue, which is for the people the platform serves. Under `/admin/me/`
+     * because it changes nothing on the platform, so a read-only role may send it too.
+     */
+    public function feedback(Request $req, Response $res): Response
+    {
+        $b    = (array) $req->getParsedBody();
+        $msg  = trim((string) ($b['message'] ?? ''));
+        $page = ConsolePins::normalise((string) ($b['page'] ?? '')) ?? '/admin/dashboard';
+        if ($msg === '') {
+            return $this->answer($req, $res, ['ok' => false, 'why' => 'Write a sentence or two first.'], $page, 422);
+        }
+        $this->audit->record(self::adminId(), 'console.feedback', null, null,
+            ['message' => mb_substr($msg, 0, 2000), 'page' => $page]);
+        return $this->answer($req, $res, ['ok' => true], $page, 200, 'Thanks — your feedback reached the team.');
+    }
 }

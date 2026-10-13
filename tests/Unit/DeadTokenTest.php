@@ -207,7 +207,7 @@ final class DeadTokenTest extends TestCase
         // The admin console's palette (README §10, owner 4 Oct 2026): four of its tokens
         // are drawn first by stage 2's screens — the provider pills' danger text, and
         // the info, success and softest warning dots and fields.
-        '--cn-danger-pill', '--cn-info-dot', '--cn-success-dot', '--cn-warning-tint-3',
+        '--cn-info-dot', '--cn-success-dot', '--cn-warning-tint-3',
     ];
 
     public function test_the_awaiting_rebuild_list_only_shrinks(): void

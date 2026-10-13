@@ -136,10 +136,36 @@
       </button>
 
       <div class="cn-bar__right">
+        {# Feedback and Docs (owner's screenshots, 13 Oct 2026). Feedback is a short
+           dialog that posts to /admin/me/feedback — recorded in the audit log as
+           `console.feedback` with the page it came from, where a superadmin can filter
+           for it; never into the public support queue. Docs is the handbook. #}
+        <button type="button" class="cn-pillbtn cn-bar__wide" data-ag-do="feedback-open" aria-haspopup="dialog" aria-controls="cnFeedback">Feedback</button>
+        {% if shell.handbook %}<a class="cn-pillbtn cn-bar__wide" href="/admin/handbook">Docs</a>{% endif %}
         {% if shell.alert_pill %}
-          <a class="cn-alertpill cn-alertpill--{{ shell.alert_pill.tone }}" href="{{ shell.alert_pill.href }}">
-            <span class="cn-dot" aria-hidden="true"></span><span class="cn-alertpill__l">{{ shell.alert_pill.label }}</span>
-          </a>
+          {# The bell IS the alert pill: one indicator, not two saying the same thing.
+             Without script it is a <details> that still opens; the summary keeps the
+             pill's words so the count is never only a dot. #}
+          <details class="cn-menuwrap cn-bell">
+            <summary class="cn-alertpill cn-alertpill--{{ shell.alert_pill.tone }}" aria-label="Notifications: {{ shell.alert_pill.label }}">
+              <svg aria-hidden="true" focusable="false"><use href="#ic-bell"/></svg>
+              {% if shell.alert_pill.total|default(0) > 0 %}<span class="cn-dot" aria-hidden="true"></span>{% endif %}
+              <span class="cn-alertpill__l">{{ shell.alert_pill.label }}</span>
+            </summary>
+            <div class="cn-pop cn-pop--end cn-bell__pop" role="menu">
+              <span class="cn-bell__h">Notifications</span>
+              {% for a in shell.alert_pill.items|default([]) %}
+                <a class="cn-bell__i" role="menuitem" href="{{ a.href }}">
+                  <span class="cn-status cn-status--{{ a.severity }}">{{ a.severity|capitalize }}</span>
+                  <span class="cn-bell__t">{{ a.title }}</span>
+                  <span class="cn-bell__m">{{ a.source }}{% if a.raised %} · {{ a.raised|when }}{% endif %}</span>
+                </a>
+              {% else %}
+                <span class="cn-bell__none">Nothing needs a person. The checks are all passing.</span>
+              {% endfor %}
+              <a class="cn-pop__i cn-bell__all" role="menuitem" href="{{ shell.alert_pill.href }}">View all alerts{% if shell.alert_pill.total|default(0) > 5 %} ({{ shell.alert_pill.total }}){% endif %}</a>
+            </div>
+          </details>
         {% endif %}
         {% if shell.assistant %}
           <button type="button" class="cn-pillbtn cn-askpill" data-ag-do="assist-open" aria-haspopup="dialog" aria-controls="cnAssist">
@@ -244,6 +270,23 @@
   </form>
 </dialog>
 
+{# Feedback for the people who build the console. A real form, so it posts with no
+   script; admin.js opens it as a dialog from the top bar. #}
+<dialog class="cn-confirm" id="cnFeedback" aria-labelledby="cnFeedbackT">
+  <form method="post" action="/admin/me/feedback" class="cn-confirm__card">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="page" value="{{ shell.here|default('') }}">
+    <span class="cn-confirm__t" id="cnFeedbackT">Send feedback</span>
+    <span class="cn-confirm__b">What is slow, confusing or missing on this page? It reaches the team with the page you are on.</span>
+    <label class="cn-confirm__reason">Your feedback
+      <textarea name="message" rows="4" maxlength="2000" required placeholder="e.g. I can't find where to change the vote price"></textarea>
+    </label>
+    <div class="cn-confirm__acts">
+      <button type="button" class="cn-btn" data-ag-do="feedback-close">Cancel</button>
+      <button type="submit" class="cn-btn cn-btn--primary">Send</button>
+    </div>
+  </form>
+</dialog>
 {# The assistant drawer — the same conversation, endpoint and session key as the old
    copilot and the assistant's own page. Alpine-driven, which is why ag-chat.js loads
    before Alpine below. #}

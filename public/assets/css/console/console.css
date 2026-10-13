@@ -700,3 +700,125 @@ tr.ad-out > td { opacity: .62; }
 @media (max-width: 720px) {
   .ad-form .row, .ad-form .ad-form__row, .ad-grid-2, .ad-grid-3 { grid-template-columns: 1fr; }
 }
+
+/* ══ THE KIT (admin/partials/kit.twig) — owner's screenshots, 13 Oct 2026 ═══════════
+   A chart a range drives, the range control itself, "+ filter" chips, a ⋯ on a row, a
+   help mark and an empty state with its icon. Monochrome like the rest of the console:
+   ink for what is chosen, greys for what is not. Every menu is a native <details>;
+   console-ux.js only closes one on an outside click or Escape. */
+
+/* The bar of chips, range and actions that sits above a list. */
+.cn-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.cn-toolbar__end { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.cn-searchbar { display: flex; gap: 10px; margin-bottom: 10px; }
+.cn-searchbar__f {
+  flex: 1; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 14px;
+  border: 1px solid var(--cn-line-control); border-radius: var(--cn-r-12); background: var(--cn-surface);
+}
+.cn-searchbar__f:focus-within { border-color: var(--cn-ink); }
+.cn-searchbar__f svg { flex: none; width: 16px; height: 16px; color: var(--cn-grey-500); }
+.cn-searchbar__f input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: var(--cn-fs-14); color: var(--cn-ink); }
+
+/* Menus: a native <details>, the popover hanging from its summary. */
+.cn-menuwrap { position: relative; }
+.cn-menuwrap > summary { list-style: none; cursor: pointer; }
+.cn-menuwrap > summary::-webkit-details-marker { display: none; }
+.cn-pop {
+  position: absolute; inset-inline-start: 0; top: calc(100% + 6px); z-index: var(--cn-z-menu);
+  min-width: 200px; max-height: 320px; overflow-y: auto; padding: 6px;
+  border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-12); background: var(--cn-surface);
+  box-shadow: var(--cn-sh-menu); display: flex; flex-direction: column;
+}
+.cn-pop--end { inset-inline-start: auto; inset-inline-end: 0; }
+.cn-pop__i {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px;
+  padding: 7px 10px; border: 0; border-radius: var(--cn-r-8); background: transparent;
+  color: var(--cn-ink) !important; font: inherit; font-size: var(--cn-fs-13-5); text-align: start;
+  text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.cn-pop__i:hover, .cn-pop__i:focus-visible { background: var(--cn-fill-hover); outline: none; }
+.cn-pop__i[aria-checked="true"] { font-weight: 600; background: var(--cn-fill-selected); }
+.cn-pop__n { font-family: var(--cn-mono); font-size: var(--cn-fs-12); color: var(--cn-grey-500); }
+.cn-pop__form { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding: 10px; border-top: 1px solid var(--cn-line-row); }
+.cn-pop__form label { display: flex; flex-direction: column; gap: 4px; font-size: var(--cn-fs-12-5); color: var(--cn-grey-600); }
+.cn-pop__form input { min-height: 34px; padding: 0 8px; border: 1px solid var(--cn-line-control); border-radius: var(--cn-r-8); font: inherit; font-size: var(--cn-fs-13); }
+.cn-btn--sm { min-height: 30px; padding: 5px 12px; font-size: var(--cn-fs-12-5); }
+
+/* "+ Status" chips; an applied one is ink-bordered and removes itself. */
+.cn-fchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cn-fchip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 11px;
+  border: 1px solid var(--cn-line-control); border-radius: var(--cn-r-8); background: var(--cn-surface);
+  color: var(--cn-grey-800) !important; font-size: var(--cn-fs-13); font-weight: 500; text-decoration: none; white-space: nowrap;
+}
+.cn-fchip:hover { border-color: var(--cn-grey-400); }
+.cn-fchip.is-on { border-color: var(--cn-ink); color: var(--cn-ink) !important; }
+.cn-fchip__k { color: var(--cn-grey-500); }
+.cn-fchip__v { font-weight: 600; }
+
+/* The range: ‹ [calendar · Last 7 days · WAT] › */
+.cn-range { display: inline-flex; align-items: stretch; border: 1px solid var(--cn-line-control); border-radius: var(--cn-r-8); background: var(--cn-surface); }
+.cn-range__step {
+  display: flex; align-items: center; justify-content: center; width: 32px; min-height: 32px;
+  color: var(--cn-ink) !important; font-size: var(--cn-fs-16); text-decoration: none;
+}
+.cn-range__step:hover { background: var(--cn-fill-hover); }
+.cn-range__step.is-off { color: var(--cn-grey-350) !important; }
+.cn-range__pick { border-inline: 1px solid var(--cn-line-control); }
+.cn-range__l { display: flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 12px; font-size: var(--cn-fs-13); font-weight: 600; }
+.cn-range__z { font-weight: 400; color: var(--cn-grey-500); }
+
+/* The chart: a card, y labels, bars that are links, first and last x labels. */
+.cn-chart { margin: 0 0 14px; padding: 14px 16px 10px; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-16); background: var(--cn-surface); }
+.cn-chart__t { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: var(--cn-fs-13); font-weight: 600; }
+.cn-chart__n { font-family: var(--cn-mono); font-weight: 500; color: var(--cn-grey-500); }
+.cn-chart__plot { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; height: 120px; }
+.cn-chart__y { display: flex; flex-direction: column; justify-content: space-between; font-size: var(--cn-fs-11); color: var(--cn-grey-500); text-align: end; }
+.cn-chart__bars {
+  display: flex; align-items: flex-end; gap: 2px; min-width: 0; height: 100%;
+  border-bottom: 1px solid var(--cn-line-control);
+  background: linear-gradient(var(--cn-line-row) 1px, transparent 1px) 0 0 / 100% 50%;
+}
+.cn-chart__bar { flex: 1 1 0; min-width: 2px; height: max(var(--h), 2px); border-radius: 2px 2px 0 0; background: var(--cn-grey-450); }
+.cn-chart__bar:hover, .cn-chart__bar:focus-visible { background: var(--cn-ink); outline: none; }
+.cn-chart__bar.is-zero { background: var(--cn-line-row); }
+.cn-chart__x { display: flex; justify-content: space-between; padding-inline-start: 34px; margin-top: 6px; font-size: var(--cn-fs-11-5); color: var(--cn-grey-500); }
+
+/* ⋯ on a row */
+.cn-rowmenu { display: inline-block; }
+.cn-rowmenu__b {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 28px;
+  border-radius: var(--cn-r-6); color: var(--cn-grey-600); font-size: var(--cn-fs-16); letter-spacing: .05em;
+}
+.cn-rowmenu__b:hover, .cn-rowmenu[open] .cn-rowmenu__b { background: var(--cn-fill-hover); color: var(--cn-ink); }
+
+/* A help mark beside a column heading */
+.cn-help {
+  display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-inline-start: 5px;
+  border: 1px solid var(--cn-grey-400); border-radius: 50%; color: var(--cn-grey-500);
+  font-size: var(--cn-fs-10-5); font-weight: 700; vertical-align: 1px; cursor: help;
+}
+
+/* An empty state with its icon, centred in the space the list would fill. */
+.cn-empty--icon { align-items: center; text-align: center; padding: 44px 28px; }
+.cn-empty__ic { width: 28px; height: 28px; margin-bottom: 8px; color: var(--cn-grey-500); }
+
+/* Code-like cells: a status code, a method, an action name. */
+.cn-code { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 9px; border-radius: var(--cn-r-pill); background: var(--cn-ink); color: var(--cn-surface); font-family: var(--cn-mono); font-size: var(--cn-fs-12); font-weight: 600; }
+.cn-code--soft { background: var(--cn-fill-subtle); color: var(--cn-grey-800); }
+.cn-code--danger { background: var(--cn-danger-pill); }
+
+/* ── the bell (the alert pill's menu) and the top bar's Feedback / Docs ─────────── */
+.cn-bell > summary { position: relative; }
+.cn-bell > summary svg { width: 15px; height: 15px; flex: none; }
+.cn-bell .cn-dot { position: absolute; inset-inline-start: 18px; top: 6px; }
+.cn-bell__pop { width: 340px; padding: 8px; gap: 2px; }
+.cn-bell__h { padding: 6px 8px 8px; font-size: var(--cn-fs-12-5); font-weight: 600; color: var(--cn-grey-500); }
+.cn-bell__i { display: grid; gap: 3px; padding: 9px 10px; border-radius: var(--cn-r-8); color: var(--cn-ink) !important; text-decoration: none; }
+.cn-bell__i:hover, .cn-bell__i:focus-visible { background: var(--cn-fill-hover); outline: none; }
+.cn-bell__t { font-size: var(--cn-fs-13-5); font-weight: 600; line-height: 1.35; }
+.cn-bell__m { font-size: var(--cn-fs-12); color: var(--cn-grey-500); }
+.cn-bell__none { padding: 10px; font-size: var(--cn-fs-13); color: var(--cn-grey-600); }
+.cn-bell__all { margin-top: 4px; border-top: 1px solid var(--cn-line-row); border-radius: 0 0 var(--cn-r-8) var(--cn-r-8); font-weight: 600; }
+.cn-confirm textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--cn-line-control); border-radius: var(--cn-r-8); font: inherit; font-size: var(--cn-fs-14); resize: vertical; }
+@media (max-width: 1023px) { .cn-bar__wide { display: none; } }

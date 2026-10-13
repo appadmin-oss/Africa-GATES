@@ -3938,6 +3938,8 @@ return function(App $app) {
         // audited itself: a log that records being read fills with rows about itself.
         $a->get('/audit',                    \AfricaGates\Admin\Controllers\AuditController::class.':index')
             ->add(new RoleMiddleware('superadmin', 'admin', 'viewer'));
+        $a->get('/audit/export.csv',         \AfricaGates\Admin\Controllers\AuditController::class.':export')
+            ->add(new RoleMiddleware('superadmin', 'admin', 'viewer'));
         $a->get('/audit/actor/{id:[0-9]+}',  \AfricaGates\Admin\Controllers\AuditController::class.':actor')
             ->add(new RoleMiddleware('superadmin', 'admin', 'viewer'));
         // A writable-by-hand link for one record's history, so another screen can point
@@ -4647,6 +4649,7 @@ return function(App $app) {
         $a->post('/me/pins',                     \AfricaGates\Admin\Controllers\ConsoleMeController::class.':pin');
         $a->post('/me/pins/{id:[0-9]+}/unpin',   \AfricaGates\Admin\Controllers\ConsoleMeController::class.':unpin');
         $a->post('/me/sidebar',                  \AfricaGates\Admin\Controllers\ConsoleMeController::class.':sidebar');
+        $a->post('/me/feedback',                 \AfricaGates\Admin\Controllers\ConsoleMeController::class.':feedback');
 
         $a->group('/settings', function (RouteCollectorProxy $s) {
             $s->get('',  AdminSettingsController::class.':form');
