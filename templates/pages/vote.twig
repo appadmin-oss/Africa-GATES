@@ -42,8 +42,11 @@
     </div>
 
     {% if front.open_categories > 0 %}
-    <div class="vh-mine" data-ballot-line hidden>
-      <span class="vh-mine__t" data-ballot-words data-of="{{ 'You’ve voted in %n% of %m% open categories'|trans }}"></span>
+    {# Always drawn, as the DC draws it: "0 of N" is the invitation, and a strip that
+       appeared only after a first vote was missing from every first visit. This device's
+       count replaces the zero (vote.js). #}
+    <div class="vh-mine" data-ballot-line>
+      <span class="vh-mine__t" data-ballot-words data-of="{{ 'You’ve voted in %n% of %m% open categories'|trans }}">{{ 'You’ve voted in %n% of %m% open categories'|trans({'%n%': 0, '%m%': front.open_categories}) }}</span>
       <span class="vh-mine__bar" aria-hidden="true"><span title="{{ 'Categories voted on this device'|trans }}" data-ballot-fill></span></span>
     </div>
     {% endif %}

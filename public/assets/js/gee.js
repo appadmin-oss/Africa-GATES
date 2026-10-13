@@ -913,4 +913,26 @@
   syncSend();
   fab.hidden = false;
   fromLink();
+
+  /* The launcher steps aside while somebody reads DOWN a page (M3's hide-on-scroll FAB).
+     On a phone it sits on the right edge, which is where a row keeps its Vote button and
+     a form its total; fixed there, it covered one of them on every screen. It returns on
+     the first scroll back up and when the scrolling stops, and never leaves while it has
+     the keyboard's focus, so it is always one gesture away and never lost. */
+  function tuckOnScroll() {
+    var main = document.querySelector('.ag-main') || document.scrollingElement;
+    var scroller = main === document.scrollingElement ? window : main;
+    var lastY = main.scrollTop, settle = 0;
+    scroller.addEventListener('scroll', function () {
+      var y = main.scrollTop, dy = y - lastY;
+      lastY = y;
+      if (Math.abs(dy) < 4) return;
+      if (dy > 0 && y > 80 && document.activeElement !== fab) fab.setAttribute('data-tuck', '');
+      else fab.removeAttribute('data-tuck');
+      clearTimeout(settle);
+      settle = setTimeout(function () { fab.removeAttribute('data-tuck'); }, 900);
+    }, { passive: true });
+    fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });
+  }
+  tuckOnScroll();
 })();

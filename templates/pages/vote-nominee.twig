@@ -179,12 +179,15 @@
               secondary: {label: 'Vote in another category'|trans, href: '/vote/' ~ n.programme_slug}} only %}
         </div>
       {% else %}
-      <form class="vb-free" data-free-form>
+      <form class="vb-free" data-free-form data-e-agree="{{ 'Tick the box to confirm you are voting once and accept the rules.'|trans }}">
         <div data-step="form">
           <p class="vb__p">{{ 'One verified vote per category. We email a 6-digit code to confirm it’s you; your email is hashed for the one-vote check.'|trans }}</p>
           <div class="vb-field">
             <label class="vb-label" for="{{ ctx.pre }}vbName">{{ 'Full name'|trans }}</label>
-            <input class="vb-input" id="{{ ctx.pre }}vbName" name="name" type="text" required autocomplete="name" placeholder="{{ 'First and last name'|trans }}" value="{{ ctx.member ? ctx.member.name : '' }}">
+            <input class="vb-input" id="{{ ctx.pre }}vbName" name="name" type="text" required autocomplete="name" placeholder="{{ 'Your full name'|trans }}" aria-describedby="{{ ctx.pre }}vbNameHint" value="{{ ctx.member ? ctx.member.name : '' }}">
+            {# The rule the server applies (ApiController: two words), stated where it stays
+               on screen; a placeholder vanishes the moment somebody starts typing. #}
+            <p class="vb-hint" id="{{ ctx.pre }}vbNameHint">{{ 'At least a first and a last name. It is shown only if you ask us to.'|trans }}</p>
           </div>
           <div class="vb-field">
             <label class="vb-label" for="{{ ctx.pre }}vbPhone">{{ 'Phone number'|trans }}</label>
@@ -235,9 +238,22 @@
 {% block content %}
 <div class="vn">
   <div class="vn__left">
+    {% set _portrait = profile.avatar_path|default('') ?: n.photo_path %}
+    {% if _portrait %}
     <div class="vn-photo">
-      {% include 'partials/photo.twig' with {kind: 'person', src: profile.avatar_path|default('') ?: n.photo_path, name: n.name, id: n.profile_id|default(n.id), size: 160, alt: 'Portrait of %n%'|trans({'%n%': n.name}), eager: true} only %}
+      {% include 'partials/photo.twig' with {kind: 'person', src: _portrait, name: n.name, id: n.profile_id|default(n.id), size: 160, alt: 'Portrait of %n%'|trans({'%n%': n.name}), eager: true} only %}
     </div>
+    {% else %}
+    {# No portrait: the award's cover as a short band, and the person's initials at the
+       sizes DEFAULT-GRAPHICS §8 gives a profile (96 on a phone, 160 on a desktop). Filling
+       the whole portrait slot made the first screen a 390px circle of two letters. The
+       name is the <h1> beside it, so the mark is decorative. #}
+    <div class="vn-photo vn-photo--none">
+      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: '', name: n.programme_title, label: false} only %}
+      <span class="vn-photo__av vn-photo__av--s">{% include 'partials/avatar.twig' with {name: n.name, id: n.profile_id|default(n.id), size: 96, named: true} only %}</span>
+      <span class="vn-photo__av vn-photo__av--l">{% include 'partials/avatar.twig' with {name: n.name, id: n.profile_id|default(n.id), size: 160, named: true} only %}</span>
+    </div>
+    {% endif %}
     {% if not _placed %}<div class="vn__ballot vn__ballot--wide">{{ m.ballot(_bctx|merge({pre: 'd-'})) }}</div>{% endif %}
   </div>
 
@@ -282,8 +298,15 @@
     {% else %}
       <section class="vn-race" aria-label="{{ 'The race'|trans }}">
         <span class="vn-race__t">
+          {#- The DC's line: the place, and for the leader the margin. The gap to the place
+              above is the row below's job ("N votes behind #r"); saying it here too printed
+              the same number twice in one card. -#}
           {%- if standing.field >= 2 -%}
-            {{ '#%r% in %c%'|trans({'%r%': standing.rank, '%c%': n.category}) }} · {{ standing_headline }}
+            {{ '#%r% in %c%'|trans({'%r%': standing.rank, '%c%': n.category}) }}
+            {%- if standing.rank == 1 -%}
+              {%- if standing.shared_top|default(false) %} · {{ 'level at the top'|trans }}
+              {%- elseif standing.gap_behind|default(0) > 0 %} · {{ (standing.gap_behind == 1 ? 'leading by 1 vote' : 'leading by %n% votes')|trans({'%n%': standing.gap_behind|number_format}) }}{% endif -%}
+            {%- endif -%}
           {%- else -%}{{ standing_headline }}{%- endif -%}
         </span>
         {% if standing.field >= 2 %}

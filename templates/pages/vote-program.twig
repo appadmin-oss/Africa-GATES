@@ -52,6 +52,10 @@
 
   {# ── The hero: light on a phone, the dark band from 600px ─────────────────── #}
   <div class="vp-hero">
+    {# A phone draws the dark band's <h1> nowhere (display:none), so the screen had no
+       heading at all. The DC's phone title is the app bar's; this is the same words for
+       assistive technology, and the band's own <h1> takes over from 600px. #}
+    <h1 class="ag-sr vp-hero__h1-sr">{{ _p.title }}</h1>
     <div class="vp-hero__media">
       {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: _f.cover, name: _p.title, eager: true} only %}
       <span class="vp-hero__chip vp-hero__chip--{{ _f.open ? 'live' : 'quiet' }}"><span class="vp-hero__dot" aria-hidden="true"></span>{{ _f.chip }}</span>
@@ -135,7 +139,7 @@
                 </span>
                 {% if n.field > 1 %}<span class="vp-row__bar" role="img" aria-label="{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}"><span aria-hidden="true" data-bar style="width:{{ n.pct }}%" class="{{ n.is_leader ? 'is-lead' }}"></span><span class="ag-sr">{{ '%n%% of the leader’s total'|trans({'%n%': n.pct}) }}</span></span>{% endif %}
                 <span class="vp-row__figs vp-row__figs--in">
-                  <b data-votes>{{ n.vote_count|number_format }}</b> <span>{{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</span>
+                  <span class="vp-row__tally"><b data-votes>{{ n.vote_count|number_format }}</b> {{ n.vote_count == 1 ? 'vote'|trans : 'votes'|trans }}</span>
                   {% if n.field > 1 %}<span class="vp-row__gap{{ n.is_leader ? ' is-lead' }}" data-gap>{{ n.is_leader ? 'Leading'|trans : '%n% behind #%r%'|trans({'%n%': n.gap|number_format, '%r%': n.next_rank}) }}</span>{% endif %}
                 </span>
               </span>

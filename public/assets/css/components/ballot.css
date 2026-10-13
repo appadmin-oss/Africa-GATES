@@ -22,6 +22,9 @@
 .vn__left{ display:flex; flex-direction:column; gap:16px; min-width:0 }
 .vn-photo{ position:relative; aspect-ratio:1 / 1; margin:0 -16px; border-radius:0 0 var(--ag-r-24) var(--ag-r-24); overflow:hidden; background:var(--ag-line); container-type:inline-size }
 .vn-photo .ag-photo{ position:absolute; inset:0 }
+.vn-photo--none{ aspect-ratio:16 / 7; display:flex; align-items:center; justify-content:center }
+.vn-photo__av{ position:relative; display:flex; border-radius:50%; box-shadow:0 0 0 4px var(--ag-surface) }
+.vn-photo__av--l{ display:none }
 .vn__ballot--wide{ display:none }
 .vn__main{ min-width:0; display:flex; flex-direction:column; gap:26px }
 
@@ -155,6 +158,9 @@
   .vn{ grid-template-columns:280px minmax(0,1fr); gap:40px; padding:28px 28px 48px }
   .vn__left{ position:sticky; top:24px }
   .vn-photo{ aspect-ratio:4 / 5; margin:0; border-radius:var(--ag-r-24) }
+  .vn-photo--none{ aspect-ratio:4 / 3 }
+  .vn-photo__av--s{ display:none }
+  .vn-photo__av--l{ display:flex }
   .vn__ballot--wide{ display:block }
   .vn__ballot--phone{ display:none }
   .vn-bar{ display:none }

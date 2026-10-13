@@ -61,8 +61,7 @@
     var ring = $('[data-ballot-ring]', root); if (ring) ring.style.setProperty('--ring', pct + '%');
     var ratio = $('[data-ballot-ratio]', root); if (ratio) ratio.textContent = total + '/' + of;
     var line = $('[data-ballot-line]', root);
-    if (line && total > 0) {
-      line.hidden = false;
+    if (line) {
       var w = $('[data-ballot-words]', line); if (w) w.textContent = fill(w.getAttribute('data-of'), { n: total, m: of });
       var f2 = $('[data-ballot-fill]', line); if (f2) f2.style.width = pct + '%';
     }
@@ -159,8 +158,12 @@
     if (form) {
       var go = $('[data-request]', form), agree = $('[data-agree]', form), err = $('[data-err]', form), errOtp = $('[data-err-otp]', form);
       var stepForm = $('[data-step="form"]', form), stepOtp = $('[data-step="otp"]', form);
-      var sync = function () { if (go) go.disabled = !(agree && agree.checked); };
-      if (agree) agree.addEventListener('change', sync); sync();
+      // The button is live as soon as the script is: it used to stay grey until the terms
+      // box was ticked, beside a green "Vote for …" in the bottom bar — two primaries for one
+      // act in opposite states, and nothing saying why one was dead. Pressing it now says
+      // what is missing instead.
+      if (go) go.disabled = false;
+      if (agree) agree.addEventListener('change', function () { if (agree.checked) say(err, ''); });
       var val = function (n) { var el = form.elements[n]; return el ? String(el.value || '').trim() : ''; };
 
       form.addEventListener('submit', function (e) {
@@ -169,6 +172,7 @@
         if (!/\S+\s+\S+/.test(val('name'))) { say(err, form.getAttribute('data-e-name') || 'Enter your full name (first and last).'); return; }
         if (val('phone').replace(/\D/g, '').length < 7) { say(err, 'Enter a valid phone number.'); return; }
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val('email'))) { say(err, 'Enter a valid email address.'); return; }
+        if (agree && !agree.checked) { say(err, form.getAttribute('data-e-agree') || 'Tick the box to confirm you are voting once and accept the rules.'); agree.focus(); return; }
         busy(go, true);
         tsWait().then(function (token) {
           if (token === null) { busy(go, false); say(err, 'The security check has not finished loading. Give it a moment, then try again.'); return; }
