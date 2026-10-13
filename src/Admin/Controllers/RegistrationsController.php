@@ -36,7 +36,7 @@ class RegistrationsController
         if ($eventId > 0) $base->where('r.event_id', $eventId);
         if ($q !== '') {
             $base->where(function ($w) use ($q) {
-                $w->where('r.name', 'like', "%{$q}%")->orWhere('r.email', 'like', "%{$q}%")->orWhere('r.phone', 'like', "%{$q}%");
+                $w->whereRaw(\AfricaGates\Support\Like::clause('r.name'), [\AfricaGates\Support\Like::contains($q)])->orWhereRaw(\AfricaGates\Support\Like::clause('r.email'), [\AfricaGates\Support\Like::contains($q)])->orWhereRaw(\AfricaGates\Support\Like::clause('r.phone'), [\AfricaGates\Support\Like::contains($q)]);
             });
         }
         return $base;

@@ -123,6 +123,22 @@ final class PublicSurfaceSandboxTest extends TestCase
      * The one that needed nothing to happen. A seeded sandbox is immediately
      * searchable by name on a public page.
      */
+    /** The public dashboard API counts real ballots and real awards only. */
+    public function test_the_dashboard_api_counts_no_sandbox_ballot_or_award(): void
+    {
+        foreach ([[$this->realNomineeId, 2], [$this->demoNomineeId, 5]] as [$nid, $n]) {
+            $cat = (int) DB::table('gates_nominees')->where('id', $nid)->value('category_id');
+            for ($i = 0; $i < $n; $i++) {
+                DB::table('gates_votes')->insert(['nominee_id' => $nid, 'category_id' => $cat,
+                    'voter_email_hash' => hash('sha256', $nid . ':' . $i), 'voted_at' => '2026-02-01 10:00:00']);
+            }
+        }
+        $body = json_decode((string) $this->get('/api/dashboard')->getBody(), true);
+        $data = $body['data'] ?? $body;
+        $this->assertSame(2, (int) ($data['total_votes'] ?? -1), 'the sandbox\'s seeded ballots are not votes');
+        $this->assertSame(1, (int) ($data['awards_given'] ?? -1), 'nor is its crowned nominee an award');
+    }
+
     public function test_a_demo_nominee_is_not_searchable(): void
     {
         $titles = $this->titles('Kigali');

@@ -40,7 +40,7 @@ class NomineesController
         \AfricaGates\Services\MergeService::notMerged($base, 'n.merged_into');   // hide merge tombstones from the list
         if ($cycleId) $base->where('cy.id', $cycleId);
         if ($status)  $base->where('n.status', $status);
-        if ($q)       $base->where('n.name','like',"%$q%");
+        if ($q)       $base->whereRaw(\AfricaGates\Support\Like::clause('n.name'), [\AfricaGates\Support\Like::contains($q)]);
         $dateMeta = Filters::applyDateRange($base, 'n.nominated_at', $p);
 
         // Fold the profile lookup (1:1, so the count is unaffected) + projection +

@@ -83,7 +83,7 @@ class CacheService {
         try { $r=DB::table('gates_cache')->where('cache_key',$key)->where('expires_at','>',Carbon::now())->first(); return $r?json_decode($r->payload,true):null; } catch(\Exception) { return null; }
     }
     public function forget(string $key): void { try { DB::table('gates_cache')->where('cache_key',$key)->delete(); } catch(\Exception) {} }
-    public function forgetByTag(string $tag): void { try { DB::table('gates_cache')->where('tags','LIKE',"%$tag%")->delete(); } catch(\Exception) {} }
+    public function forgetByTag(string $tag): void { try { DB::table('gates_cache')->whereRaw(\AfricaGates\Support\Like::clause('tags'),[\AfricaGates\Support\Like::contains($tag)])->delete(); } catch(\Exception) {} }
 
     /**
      * Every cached view derived from an award cycle's phase.

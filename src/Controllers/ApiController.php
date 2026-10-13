@@ -397,8 +397,10 @@ HTML;
     public function dashboard(Request $req,Response $res):Response {
         $data=$this->cache->remember('api:dashboard',14400,function(){
             $tp=DB::table('gates_profiles')->where('status','approved')->count();
-            $tv=DB::table('gates_votes')->count();
-            $ag=\AfricaGates\Services\MergeService::notMerged(DB::table('gates_nominees')->whereIn('status',['winner','runner_up']))->count();
+            // The sandbox's seeded ballots and crowned nominees are real rows (DemoSeeder) and
+            // must never reach a public figure; liveAwardOnly() is the one clause that excludes them.
+            $tv=\AfricaGates\Services\DemoSeeder::liveAwardOnly(DB::table('gates_votes'),'gates_votes.nominee_id')->count();
+            $ag=\AfricaGates\Services\DemoSeeder::liveAwardOnly(\AfricaGates\Services\MergeService::notMerged(DB::table('gates_nominees')->whereIn('status',['winner','runner_up'])))->count();
             $rd=DB::table('gates_profiles')->where('status','approved')->selectRaw('region,COUNT(*) as count')->groupBy('region')->orderByDesc('count')->get()->map(fn($r)=>['region'=>$r->region,'count'=>(int)$r->count])->toArray();
             $td=DB::table('gates_profiles')->where('status','approved')->whereNotIn('cpi_tier',['unranked'])->selectRaw('cpi_tier as tier,COUNT(*) as count')->groupBy('cpi_tier')->get()->map(fn($r)=>['tier'=>$r->tier,'count'=>(int)$r->count])->toArray();
             $cats=DB::table('gates_profiles')->where('status','approved')->selectRaw('category,COUNT(*) as count')->groupBy('category')->orderByDesc('count')->limit(10)->get()->map(fn($r)=>['category'=>$r->category,'count'=>(int)$r->count])->toArray();

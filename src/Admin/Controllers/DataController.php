@@ -172,7 +172,7 @@ class DataController
         if ($q !== '' && $search) {
             $base->where(function ($w) use ($search, $q) {
                 foreach ($search as $i => $s) {
-                    $i === 0 ? $w->where($s, 'like', "%{$q}%") : $w->orWhere($s, 'like', "%{$q}%");
+                    $i === 0 ? $w->whereRaw(\AfricaGates\Support\Like::clause($s), [\AfricaGates\Support\Like::contains($q)]) : $w->orWhereRaw(\AfricaGates\Support\Like::clause($s), [\AfricaGates\Support\Like::contains($q)]);
                 }
             });
         }

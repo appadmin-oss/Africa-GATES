@@ -1313,7 +1313,7 @@ final class SupportAgentService implements SupportAnswerer
     private function ticketFor(string $ref): ?string
     {
         try {
-            $hit = DB::table('gates_support_tickets')->where('subject', 'like', '%reference ' . $ref . '%')
+            $hit = DB::table('gates_support_tickets')->whereRaw(\AfricaGates\Support\Like::clause('subject'), [\AfricaGates\Support\Like::contains('reference ' . $ref)])
                 ->orderByDesc('id')->value('reference');
             return $hit !== null ? (string) $hit : null;
         } catch (\Throwable) {
