@@ -201,10 +201,18 @@ final class GlobeBand
         $n    = count(self::countries());
         $gone = self::unplaced();
 
+        // Two empty maps, and only one of them means nothing is open. Awards running with
+        // nominees whose profiles name no country used to be told "no award is open for
+        // entries yet" on the homepage, under a stats row counting the open awards
+        // (design review, 12 Oct 2026). Each now says what is actually missing.
         $note = $n === 0
-            ? 'Each marker is a nation with a nominee standing in a live award. No award is '
-              . 'open for entries yet, so the map is empty — it fills as nominations are '
-              . 'approved.'
+            ? (self::anyLiveNominee()
+                ? 'Each marker is a nation with a nominee standing in a live award. None of the '
+                  . 'nominees standing now has a country on their profile yet, so the map is '
+                  . 'empty — it fills as their countries are added.'
+                : 'Each marker is a nation with a nominee standing in a live award. No award is '
+                  . 'open for entries yet, so the map is empty — it fills as nominations are '
+                  . 'approved.')
             : 'Each marker is a nation with a nominee standing in a live award. Open one for '
               . 'that nation\'s nominees and the votes cast for them — the same figures the '
               . 'award pages carry.';
@@ -221,6 +229,22 @@ final class GlobeBand
         }
 
         return $note;
+    }
+
+    /** Is anybody standing in a live award at all — country or not? */
+    private static function anyLiveNominee(): bool
+    {
+        try {
+            return DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+                ->where('p.is_active', 1)->where('y.status', '!=', 'archived')
+                ->whereIn('n.status', ['approved', 'winner', 'runner_up'])->whereNull('n.merged_into')
+                ->exists();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /** Reset the memo. Called between tests; there is nothing to reset in a request. */

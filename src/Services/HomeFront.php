@@ -159,6 +159,31 @@ final class HomeFront
     }
 
     /**
+     * Decided winners in the shape the "who recognises" card reads, for a site whose
+     * releases have not issued recognition records yet. The issuer is the award itself and
+     * is not marked verified — the card claims nothing a record would have to back.
+     *
+     * @param list<array<string,mixed>> $decided HomeFront::decided()
+     * @return list<array<string,mixed>>
+     */
+    public static function asRecognitions(array $decided): array
+    {
+        $out = [];
+        foreach ($decided as $d) {
+            $out[] = [
+                'standing'  => 'winner',
+                'recipient' => ['name' => (string) $d['name'], 'photo' => (string) ($d['photo'] ?? ''), 'url' => (string) ($d['url'] ?? '')],
+                'award'     => ['programme' => (string) ($d['programme'] ?? ''), 'category' => (string) ($d['category'] ?? ''),
+                                'edition' => (string) ($d['edition'] ?? ''), 'url' => (string) ($d['url'] ?? '/results')],
+                'issuer'    => ['name' => (string) ($d['programme'] ?? ''), 'verified' => false, 'host' => null, 'type' => 'award'],
+                'issued_at' => null,
+                'reference' => '',
+            ];
+        }
+        return $out;
+    }
+
+    /**
      * "Voting open": awards whose current cycle is taking votes, soonest to close first.
      *
      * @return array{total:int,rows:list<array{title:string,url:string,meta:string,left:string,cover:string}>}

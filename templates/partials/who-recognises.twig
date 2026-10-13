@@ -24,7 +24,7 @@
 ] -%}
 {%- set _words = {winner: 'Winner', runner_up: 'Runner-up', finalist: 'Finalist'} -%}
 <section class="who" aria-labelledby="who-h" data-who>
-  <h2 class="who__h" id="who-h">{{ 'One place to recognise people, whoever you are'|trans }}</h2>
+  <h2 class="who__h" id="who-h">{{ 'Recognition, from whoever gives it'|trans }}</h2>
   <div class="who__tabs" role="tablist" aria-label="{{ 'Who is recognising'|trans }}" hidden data-who-tabs>
     {% for a in _aud %}
       <button type="button" class="who__tab" role="tab" id="who-t-{{ a.key }}" aria-controls="who-p-{{ a.key }}" aria-selected="{{ loop.first ? 'true' : 'false' }}" tabindex="{{ loop.first ? '0' : '-1' }}">{{ a.label|trans }}</button>

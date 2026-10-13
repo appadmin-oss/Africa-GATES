@@ -35,7 +35,11 @@ final class HomeController
             'campaign' => HomeFront::campaign(),
             // §8.1 section 3, "Who recognises": real recognitions from verified issuers
             // (Services\Recognitions, GAPS §3.1) — never the DC's sample honours.
-            'recognitions' => \AfricaGates\Services\Recognitions::recent(12),
+            // With no issued recognition record yet, the latest decided winners stand in, so
+            // the card never says "recognitions appear once an award is announced" beside a
+            // list of announced winners (design review, 12 Oct 2026).
+            'recognitions' => \AfricaGates\Services\Recognitions::recent(12)
+                              ?: HomeFront::asRecognitions(HomeFront::decided()),
         ], ['leaderboard', 'registry']);
 
         $band = $this->cache->remember('home:globe', 900, static fn (): array => [

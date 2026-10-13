@@ -7,7 +7,7 @@
    the issuer's initial; an invented colour per issuer would be a second identity system).
    TYPE: its 11px mono meta is 11.5 DM Sans, with mono kept for the reference alone
    (`.who__ref`, §18.3); its 40/42px tabs are 44 (§6.7). Phone below 600. */
-.who{ display:flex; flex-direction:column; align-items:center; gap:22px; padding:0 16px }
+.who{ display:flex; flex-direction:column; align-items:center; gap:22px }
 .who__h{ margin:0; max-width:760px; text-align:center; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-28); line-height:1.12; text-wrap:balance }
 .who__tabs{ max-width:100%; display:flex; gap:4px; padding:5px; background:var(--ag-tint); border:1px solid var(--ag-line); border-radius:var(--ag-r-pill); overflow-x:auto; scrollbar-width:none }
 .who__tabs[hidden]{ display:none }
@@ -18,7 +18,7 @@
 }
 .who__tab[aria-selected="true"]{ background:var(--ag-surface); color:var(--ag-ink) }
 .who__tab:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-.who__panel{ width:100%; max-width:1120px; display:flex; flex-direction:column; border-radius:var(--ag-r-20); overflow:hidden; background:var(--ag-surface); border:1px solid var(--ag-line) }
+.who__panel{ width:100%; display:flex; flex-direction:column; border-radius:var(--ag-r-20); overflow:hidden; background:var(--ag-surface); border:1px solid var(--ag-line) }
 .who__panel[hidden]{ display:none }
 .who__stage{ position:relative; aspect-ratio:1 / 1; background:var(--ag-ink) }
 .who__img{ position:absolute; inset:0 }
@@ -58,7 +58,7 @@
 .who__cta:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 @media (prefers-reduced-motion:reduce){ .who__tab{ transition:none } }
 @media (min-width:600px){
-  .who{ gap:28px; padding:0 32px }
+  .who{ gap:28px }
   .who__h{ font-size:var(--ag-fs-44) }
   .who__tab{ padding:0 20px; font-size:var(--ag-fs-15) }
   .who__panel{ border-radius:var(--ag-r-24) }

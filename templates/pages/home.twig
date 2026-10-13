@@ -39,7 +39,10 @@
 
 {% set colour_tier = '2' %}
 {% set app_bar = {variant: 'root', title: 'Africa GATES', brand: true} %}
-{% set _hero = decided|first %}
+{# A winner with a photograph leads; with none, the award's own cover stands in — never
+   a 400px monogram, which reads as a placeholder where the page's first picture belongs
+   (design review, 12 Oct 2026). #}
+{% set _hero = (decided|filter(d => d.photo)|first) ?: (decided|first) %}
 
 {% block head_styles %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/home.css') }}">
@@ -62,7 +65,11 @@
     </div>
     <div class="hm-hero__media">
       {% if _hero %}
-        {% include 'partials/photo.twig' with {kind: 'person', src: _hero.photo ? _hero.photo|media_url('portrait') : '', name: _hero.name, size: 160, alt: _hero.photo ? 'Photo of %name%'|trans({'%name%': _hero.name}) : '', eager: true} only %}
+        {% if _hero.photo %}
+          {% include 'partials/photo.twig' with {kind: 'person', src: _hero.photo|media_url('portrait'), name: _hero.name, size: 160, alt: 'Photo of %name%'|trans({'%name%': _hero.name}), eager: true} only %}
+        {% else %}
+          {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: '', name: _hero.programme ?: _hero.name} only %}
+        {% endif %}
       {% else %}
         <img class="hm-hero__mark" src="{{ asset('/assets/img/africa-silhouette.svg') }}" alt="" aria-hidden="true">
       {% endif %}
