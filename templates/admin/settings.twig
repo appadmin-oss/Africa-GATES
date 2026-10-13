@@ -1843,6 +1843,38 @@
     {% endif %}
   </div></div>
 
+  {# ── THE CACENTRE CRM ────────────────────────────────────────────────────
+     Where this platform's subscribers, enquiries and supporters are sent, so the centre's
+     CRM holds one list of everybody the estate knows. Settable here because there is no SSH
+     on production; the secret is write-only, like every credential on this page. #}
+  <div class="ad-card" data-sec="ops"
+       data-keys="cacentre crm audience contacts subscribers newsletter donors enquiries secret push sync"
+       x-show="show($el)"><div class="ad-card__head">
+    <div class="ad-card__title">CACENTRE CRM
+      <small>{% if crm_secret_set %}Sending every tick{% if crm_last %} — last: {{ crm_last }}{% endif %}{% else %}Off until a secret is set{% endif %}</small></div>
+  </div><div class="ad-card__body">
+    <input type="hidden" name="crm_settings" value="1">
+    <p>Newsletter subscribers (and every stop, bounce and complaint), partner enquiries, support
+      tickets and confirmed gifts and vote orders are sent to the CACENTRE console’s Audience,
+      signed. Nominees, who anybody voted for, and message text are never sent.</p>
+    <div class="ad-form">
+      <div>
+        <label for="f-crm_intake_url">CACENTRE address</label>
+        <input type="url" name="crm_intake_url" id="f-crm_intake_url" value="{{ crm_url }}"
+               autocomplete="off" spellcheck="false">
+        <small>The site address alone, with nothing after it.</small>
+      </div>
+      <div>
+        <label for="f-crm_intake_secret">Audience secret</label>
+        <input type="password" name="crm_intake_secret" id="f-crm_intake_secret" autocomplete="new-password"
+               placeholder="{% if crm_secret_set %}•••••••••• (leave blank to keep){% else %}not set — nothing is sent{% endif %}">
+        <small>In the CACENTRE console: Audience → Sites → Africa GATES → Generate secret. It is
+          shown there once; paste it here.
+          {% if crm_secret_set %}<label class="checkbox"><input type="checkbox" name="crm_clear[secret]" value="1"> Remove the stored secret</label>{% endif %}</small>
+      </div>
+    </div>
+  </div></div>
+
   {# ── REFERRAL TERMS ──────────────────────────────────────────────────────
      What a member earns for bringing a ticket buyer, and how many they need before it
      is payable. Both were class constants until now, so changing either meant a deploy —

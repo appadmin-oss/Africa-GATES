@@ -203,6 +203,12 @@ final class Maintenance
             // tick, because it is a batch and a list of thousands is many ticks long; when
             // the schedule is off, or nothing is due or approved, it is two queries.
             $ran[] = ['newsletter',    $this->task('newsletter', fn() => $this->newsletter()->tick())];
+            // The CACENTRE CRM's Audience: subscribers, opt-outs, bounces, enquiries and gifts,
+            // pushed signed. AFTER the newsletter, so a confirmation or stop the newsletter
+            // tick just wrote goes out on this one. A few queries when nothing is new, and
+            // nothing at all when no secret is set (CrmAudiencePush).
+            $ran[] = ['crm-audience',  $this->task('crm-audience',
+                fn() => \AfricaGates\Services\CrmAudiencePush::sweep())];
             // What the platform looked like on this tick, for /status to show a history
             // with. LAST in the every-tick block on purpose: it records the state AFTER the
             // queue has drained and payments have reconciled, which is the state a visitor

@@ -315,6 +315,11 @@ class SettingsController
             // The secret is write-only, like every other credential on this page.
             'gas_url'        => \AfricaGates\Services\GoogleMeetService::gasUrl(),
             'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
+            // The CACENTRE CRM: where this platform's subscribers and enquiries are sent. Read
+            // through the one resolver; the secret is write-only like every other credential.
+            'crm_url'        => \AfricaGates\Services\CrmAudiencePush::base(),
+            'crm_secret_set' => \AfricaGates\Services\CrmAudiencePush::ready(),
+            'crm_last'       => \AfricaGates\Services\CrmAudiencePush::lastResult(),
             // Consumed once, for the same reason as the AI probe above: a verdict about a
             // deployment that has since been re-published is the one an operator would act on.
             'sync_probe' => (static function (): array {
@@ -953,6 +958,12 @@ class SettingsController
             $_SESSION['flash_error'] = $why;
         }
 
+        // ── THE CACENTRE CRM ──────────────────────────────────────────────────
+        // Marker-gated like the rest, and the secret write-only: a blank field keeps it.
+        if (($why = $this->saveCrm($b, $adminId)) !== null) {
+            $_SESSION['flash_error'] = $why;
+        }
+
         // Messaging (SMS / WhatsApp) — Twilio + WhatsApp Business Cloud API.
         // Secrets are WRITE-ONLY (never rendered back); a blank field leaves the
         // stored value untouched, the matching "clear" box removes it. Master
@@ -1437,6 +1448,39 @@ class SettingsController
             if ($sec !== '') $this->settings->set('gas_secret', $sec, $adminId);
         }
 
+        return $why;
+    }
+
+    /**
+     * The CACENTRE CRM's address and the secret CACENTRE generated for this platform.
+     *
+     * The address is REFUSED rather than stored when it is anything but an origin — a path
+     * or a query would be appended to, and the push would go to a page that answers 404
+     * while this screen said it was set.
+     *
+     * @param array<string,mixed> $b
+     */
+    private function saveCrm(array $b, int $adminId): ?string
+    {
+        if (!array_key_exists('crm_settings', $b)) return null;
+        $why = null;
+        if (array_key_exists('crm_intake_url', $b)) {
+            $url = rtrim(trim((string) $b['crm_intake_url']), '/');
+            $p = $url !== '' ? parse_url($url) : null;
+            if ($url === '' || (is_array($p) && in_array(strtolower((string) ($p['scheme'] ?? '')), ['http', 'https'], true)
+                                && !empty($p['host']) && empty($p['path']) && empty($p['query']) && empty($p['user']))) {
+                $this->settings->set('crm_intake_url', $url, $adminId);
+            } else {
+                $why = 'The CACENTRE address was not saved — use the site address alone, such as '
+                     . 'https://cacentre.afrovanguard.org.ng, with nothing after it. Everything else on this page was saved.';
+            }
+        }
+        if (!empty($b['crm_clear']['secret'])) {
+            $this->settings->set('crm_intake_secret', '', $adminId);
+        } else {
+            $sec = trim((string) ($b['crm_intake_secret'] ?? ''));
+            if ($sec !== '') $this->settings->set('crm_intake_secret', $sec, $adminId);
+        }
         return $why;
     }
 
