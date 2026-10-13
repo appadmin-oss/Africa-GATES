@@ -2742,6 +2742,9 @@ return function(App $app) {
         $g->get('/challenges', fn($req, $res) => $challenges->index($req, $res));
         $g->get('/challenges/{slug:[a-z0-9-]{1,160}}',
             fn($req, $res, $args) => $challenges->show($req, $res, $args));
+        // Joining is a POST: it writes the entry `attachNomination()` counts against.
+        $g->post('/challenges/{slug:[a-z0-9-]{1,160}}/join',
+            fn($req, $res, $args) => $challenges->join($req, $res, $args));
 
         /**
          * The 1080x1080 share graphic — /challenges/{slug}/flier.png

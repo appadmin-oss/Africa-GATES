@@ -207,7 +207,14 @@
         </div>
       {% endif %}
 
+      {% if copy.cta_post %}
+        <form method="post" action="{{ copy.cta_href }}">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="ag-btn ch-cta ag-btn--block" type="submit">{{ copy.cta }}</button>
+        </form>
+      {% else %}
       <a class="ag-btn {{ copy.cta_primary ? 'ch-cta' : 'ag-btn--secondary' }} ag-btn--block" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
+      {% endif %}
       <p class="ag-hint">{{ copy.cta_note }}</p>
 
       {# The flier is a FILE rather than a share sheet: it is posted to WhatsApp and
@@ -230,7 +237,14 @@
       <b>{{ copy.prize_big }} {{ copy.prize_unit }}</b>
       <span>{{ copy.bar_sub }}</span>
     </span>
+    {% if copy.cta_post %}
+      <form method="post" action="{{ copy.cta_href }}">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ag-btn ch-cta" type="submit">{{ copy.cta }}</button>
+      </form>
+    {% else %}
     <a class="ag-btn {{ copy.cta_primary ? 'ch-cta' : 'ag-btn--secondary' }}" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

@@ -102,6 +102,7 @@ final class ChallengeController
         $copy = ChallengeCopy::for(((array) $c) + $this->scopeWords($included), [
             'claimed'   => $claimed,
             'signed_in' => $userId > 0,
+            'entered'   => $entry !== null,
             'mine'      => (int) ($entry->verified ?? 0),
         ]);
 
@@ -125,6 +126,55 @@ final class ChallengeController
                 CS::scopeIds($c, E::SCOPE_CYCLE), CS::scopeIds($c, E::SCOPE_CATEGORY)),
             'others'      => $this->others((int) $c->id),
         ]);
+    }
+
+    /**
+     * POST /challenges/{slug}/join — the one door into a challenge.
+     *
+     * `ChallengeService::join()` existed, with its rules and tests, and nothing called
+     * it: the page told every signed-in visitor they were in and sent them to
+     * /nominate, so no entry was ever written and nothing they did counted. This is
+     * the caller. Every refusal is the service's, said in the page's own words, and the
+     * person lands back on the challenge either way.
+     *
+     * The number passed is the member's normalised phone — the one a sign-in code is
+     * sent to — never anything posted with the form, so a request cannot enter a
+     * number its account does not hold.
+     */
+    public function join(Request $req, Response $res, array $args): Response
+    {
+        $slug = (string) ($args['slug'] ?? '');
+        $back = '/challenges/' . $slug;
+        $c    = CS::bySlug($slug);
+        if (!$c || in_array($c->status, [E::ST_DRAFT, E::ST_CANCELLED], true)) {
+            return $res->withStatus(404);
+        }
+
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        if ($userId <= 0) {
+            return $res->withHeader('Location', '/account/login?next=' . rawurlencode($back))->withStatus(303);
+        }
+
+        $user  = DB::table('gates_users')->where('id', $userId)->first();
+        $phone = trim((string) ($user->phone_e164 ?? '')) !== '' ? (string) $user->phone_e164
+               : (trim((string) ($user->phone ?? '')) !== '' ? (string) $user->phone : null);
+
+        $r = CS::join((int) $c->id, $userId, $phone, 'NG');
+
+        if ($r['ok']) {
+            $_SESSION['flash_ok'] = $r['code'] === 'ALREADY'
+                ? 'You are already in this challenge.'
+                : 'You are in. Everything you do from now counts toward this challenge.';
+        } else {
+            $_SESSION['flash_error'] = match ($r['code']) {
+                'NO_VERIFIED_PHONE'     => 'Add your phone number in your account first — one entry per phone number is the first rule.',
+                'PHONE_ALREADY_ENTERED' => 'That phone number already has an entry in this challenge. One entry per person.',
+                'FULL'                  => 'Every prize in this challenge has been claimed.',
+                default                 => 'This challenge is not taking entries right now.',
+            };
+        }
+
+        return $res->withHeader('Location', $back)->withStatus(303);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
