@@ -22,17 +22,20 @@ function doGet(e) {
 }
 
 /**
- * SHARED SECRET FOR THE PRIVILEGED ACTIONS. Leave it empty and meet.create /
- * meet.transcript are refused outright.
+ * SHARED SECRET. Once set it guards EVERYTHING — the calendar and transcript actions, mail,
+ * and the sheet writes. Leave it empty and meet.create / meet.transcript / calendar / mail
+ * are refused outright, while sheet writes still go through (so an existing deployment keeps
+ * recording while you set this up).
  *
  * This web app is deployed "access: anyone", because the platform posts to it with no
- * credentials. For appending a row to a private sheet that is an acceptable trade — the
- * worst a stranger with the URL can do is write junk into a spreadsheet.
+ * Google credentials. Without a SECRET, anybody holding the /exec URL could book events in
+ * YOUR calendar, read the text of YOUR meetings, send mail as you — and write rows into the
+ * private sheet.
  *
- * Booking events in YOUR calendar and reading the text of YOUR meetings is not that. So
- * put a long random string here AND the identical string in .env as GAS_SECRET, then
- * redeploy (Deploy → Manage deployments → edit → New version). Sheet writes are
- * unaffected either way, so an existing deployment keeps working.
+ * So put a long random string here AND the identical string in the platform's settings
+ * (/admin/settings → Google Calendar and Meet → Shared secret, or GAS_SECRET in .env), then
+ * redeploy (Deploy → Manage deployments → edit → New version). The script serves the last
+ * DEPLOYED version, not the last saved one.
  */
 const SECRET = '';
 
@@ -62,9 +65,17 @@ function doPost(e) {
     } catch(err) { return respond(false,err.message); }
   }
 
+  // Sheet writes are behind the SECRET too, once one is set. Before, anybody holding the
+  // /exec URL — it is in every deployment's settings and in the browser of whoever set it
+  // up — could write rows into the private sheet, or create a new tab with any name.
+  // Left empty, writes still work exactly as before, so an existing deployment keeps
+  // recording while its owner sets the SECRET.
+  if(SECRET && body.token !== SECRET) return respond(false,'Bad token');
   const sheet = (body.sheet||'').toLowerCase().replace(/[^a-z_]/g,'');
   const data  = body.data;
   if(!sheet||!data) return respond(false,'Missing sheet or data');
+  // Only the tabs this platform writes. Anything else is refused rather than created.
+  if(!HEADERS[sheet]) return respond(false,'Unknown sheet: '+sheet);
   try { const row = writeRow(sheet,data,body.source||'web'); return respond(true,'Written',{row}); }
   catch(err) { return respond(false,err.message); }
 }
