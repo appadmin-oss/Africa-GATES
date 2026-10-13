@@ -182,8 +182,21 @@ final class DonationController
         // could differ if a write landed between them, on the page a gift is made from.
         $brand = $org ? \AfricaGates\Services\OrgBrand::of($org) : null;
 
+        // ── WHICH VIEW: THE CASE, OR THE CHECKOUT ────────────────────────────
+        //
+        // GivingPage.dc.html is two screens — the campaign, then the checkout — and here
+        // each is an ADDRESS (`?step=give`), so the checkout survives Back and a reload,
+        // works with no script, and a "Give now" link in a message lands on the form. A
+        // refused checkout comes back to the checkout, where the reason and the fields are.
+        // `freq=monthly` is the donor having pressed "Give monthly"; nothing else selects
+        // it, because a standing order must never be the default.
+        $q     = $req->getQueryParams();
+        $error = self::GIVE_REASONS[trim((string) ($q['give'] ?? ''))] ?? null;
+
         return $this->view->render($res, 'pages/donate.twig', [
-            'error'            => self::GIVE_REASONS[trim((string) ($req->getQueryParams()['give'] ?? ''))] ?? null,
+            'error'            => $error,
+            'step'             => (($q['step'] ?? '') === 'give' || $error !== null) ? 'give' : 'campaign',
+            'pick_monthly'     => ($q['freq'] ?? '') === 'monthly',
             'page_title'       => $campaign
                 ? ($campaign->title . ' — ' . $org->name)
                 // "Donations" is the noun on this surface — it is what the navigation, the
@@ -504,7 +517,10 @@ final class DonationController
         // Title-cased on the way in — see PaidVoteController. A donor's name is
         // published on the supporters wall and printed on their receipt.
         $name     = \AfricaGates\Support\Name::title((string)($b['name'] ?? ''));
-        $baseAmt  = (int) preg_replace('/[^0-9]/', '', (string)($b['amount'] ?? '0'));
+        // "Other amount" is its own field, so the form needs no script: the preset radios
+        // post `amount`, and a typed figure — when there is one — is the donor's answer.
+        $typed    = trim((string) ($b['amount_other'] ?? ''));
+        $baseAmt  = (int) preg_replace('/[^0-9]/', '', $typed !== '' ? $typed : (string)($b['amount'] ?? '0'));
         $cover    = !empty($b['cover_fees']);
         $orgSlug  = trim((string)($b['org'] ?? ''));
 
