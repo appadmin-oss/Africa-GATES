@@ -281,7 +281,7 @@
   {q: 'Why might the nominee with the most votes not win?', a: 'Winning also requires at least ' ~ q ~ ' complete judge scorecards. A partial scorecard counts as nothing, judges recuse themselves from nominees they are connected to, and if nobody in a category reaches the quorum the award is not given.'},
   {q: 'How do you know the results were not edited afterwards?', a: 'Every computed standing is sealed with a fingerprint of itself and of the record before it, so editing an old result breaks every record after it. The chain is re-verified automatically every day.'}
 ] %}
-{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in _faq %}{"@type":"Question","name":{{ f.q|json_encode|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in _faq %}{"@type":"Question","name":{{ f.q|json_encode(JSON_SAFE)|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode(JSON_SAFE)|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
 </script>
 {% endblock %}
 

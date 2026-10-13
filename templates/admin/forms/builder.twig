@@ -78,7 +78,7 @@ function formBuilder(seed){
   var nextId = 1;
   var slug = function(s){ return (s || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, ''); };
   return {
-    types: {{ types|json_encode|raw }},
+    types: {{ types|json_encode(JSON_SAFE)|raw }},
     fields: (seed || []).map(function(f){ return Object.assign({ _id: nextId++, optionsText: (f.options || []).join('\n') }, f); }),
     aiPrompt: '', aiBusy: false, aiError: '',
     async aiGenerate(append){
