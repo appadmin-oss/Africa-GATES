@@ -35,9 +35,9 @@ final class HomeController
             'campaign'     => HomeFront::campaign(),
             'recognitions' => \AfricaGates\Services\Recognitions::recent(12)
                               ?: HomeFront::asRecognitions(HomeFront::decided()),
-            'hero_slides'  => \AfricaGates\Models\HomeFeature::getActiveByType('hero_slide'),
-            'topic_cards'  => \AfricaGates\Models\HomeFeature::getActiveByType('topic'),
-            'featured_wide' => \AfricaGates\Models\HomeFeature::getActiveByType('featured_wide')->first(),
+            'hero_slides'  => \AfricaGates\Support\SchemaHas::table('gates_home_features') ? \AfricaGates\Models\HomeFeature::getActiveByType('hero_slide') : [],
+            'topic_cards'  => \AfricaGates\Support\SchemaHas::table('gates_home_features') ? \AfricaGates\Models\HomeFeature::getActiveByType('topic') : [],
+            'featured_wide' => \AfricaGates\Support\SchemaHas::table('gates_home_features') ? \AfricaGates\Models\HomeFeature::getActiveByType('featured_wide')->first() : null,
         ], ['leaderboard', 'registry']);
 
         $band = $this->cache->remember('home:globe', 900, static fn (): array => [
