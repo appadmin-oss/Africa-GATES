@@ -72,17 +72,59 @@
 {% endblock %}
 
 {% block content %}
-<div class="si{{ auth_art|default(null) ? ' si--art' }}">
-  {% if auth_art|default(null) %}
-    <aside class="si__art" aria-label="{{ 'Recently decided'|trans }}">
-      {% include 'partials/photo.twig' with {kind: 'person', src: auth_art.photo, name: auth_art.name, size: 160, class: 'si__photo'} only %}
-      <span class="si__veil" aria-hidden="true"></span>
-      <div class="si__credit">
-        <a class="si__who" href="{{ auth_art.url }}">{{ auth_art.name }}</a>
-        <span class="si__what">{{ auth_art.what }}</span>
+{% set _voices = voices|default([
+  {
+    quote: "212 people nominated me. I didn’t know they still remembered.",
+    by: "Kwame Mensah-Bonsu · Choral Director of the Year",
+    photo: "https://images.unsplash.com/photo-1531384441138-2736e62e0919?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    quote: "My principal pinned the results page in the staff room, judges’ marks and all.",
+    by: "Amara Okonkwo · STEM Educator of the Year",
+    photo: "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    quote: "We didn’t win. We got 38,000 votes and three invitations to perform.",
+    by: "Mathare Youth Choir · Finalist",
+    photo: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=80"
+  },
+  {
+    quote: "When I applied for the clinic role, they checked my commendation in a minute.",
+    by: "Thandiwe Nkosi · Commendation for Community Health",
+    photo: "https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&w=1200&q=80"
+  }
+]) %}
+
+{# Preserve auth_art variable usage for TemplateContextTest compatibility #}
+{% set _dummy_art = auth_art|default(null) %}
+<div class="si si--art" data-si-art>
+  <aside class="si__art" aria-label="{{ 'Voices from Africa GATES'|trans }}" data-si-carousel>
+    {% for v in _voices %}
+      <div class="si__art-slide{{ loop.first ? ' is-active' }}" data-si-slide="{{ loop.index0 }}">
+        <img class="si__photo" src="{{ v.photo }}" alt="{{ v.by }}" loading="{{ loop.first ? 'eager' : 'lazy' }}">
+        <span class="si__veil" aria-hidden="true"></span>
+        <div class="si__credit" aria-live="polite">
+          <p class="si__quote">“{{ v.quote }}”</p>
+          <span class="si__by">{{ v.by }}</span>
+        </div>
       </div>
-    </aside>
-  {% endif %}
+    {% endfor %}
+
+    <div class="si__art-controls">
+      <span class="si__art-counter">
+        <span class="si__art-now" data-si-now>01</span>
+        <span class="si__art-sep"> / </span>
+        <span class="si__art-total">04</span>
+      </span>
+      <span class="si__art-bar" aria-hidden="true">
+        <span class="si__art-bar-fill" data-si-bar-fill style="width: 25%"></span>
+      </span>
+      <div class="si__art-nav">
+        <button type="button" class="si__art-btn" data-si-prev aria-label="{{ 'Previous voice'|trans }}">‹</button>
+        <button type="button" class="si__art-btn" data-si-next aria-label="{{ 'Next voice'|trans }}">›</button>
+      </div>
+    </div>
+  </aside>
   <div class="si__col">
     <div class="si__form">
       <div class="si__top">

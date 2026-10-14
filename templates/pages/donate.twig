@@ -244,10 +244,22 @@
         <a class="gv-btn gv-btn--line gv-btn--inline" href="/giving">{{ 'Go to giving'|trans }}</a>
       {% else %}
 
-      {# The phone's figures (the rail carries them from 600). #}
+      {# Photo gallery controls & indicator #}
+      {% if campaign and campaign.gallery %}
+      <div class="gv-gallery" data-gv-gallery>
+        <div class="gv-gallery__dots">
+          {% for g in campaign.gallery %}
+            <span class="gv-gallery__dot{{ loop.first ? ' is-active' }}"></span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# Phone summary card #}
       <div class="gv-prog gv-prog--phone">{% include 'pages/giving/_progress.twig' %}</div>
 
-      <div class="gv-prose">
+      {# Collapsible story with read more #}
+      <div class="gv-prose" data-gv-story>
         {% if campaign %}
           <p class="gv-lede">{{ campaign.summary ?: 'An appeal run by %o%. Your donation settles directly to their own account.'|trans({'%o%': org.name}) }}</p>
           {% for para in (campaign.story|default(''))|split("\n\n") %}{% if para|trim %}<p>{{ para|trim }}</p>{% endif %}{% endfor %}
@@ -256,6 +268,12 @@
         {% else %}
           <p class="gv-lede">{{ 'Every donation funds child leadership programmes across the continent — mentorship, scholarships, and the classrooms where tomorrow’s icons begin.'|trans }}</p>
         {% endif %}
+      </div>
+      <button type="button" class="gv-story-toggle" data-gv-story-toggle>{{ 'Read more'|trans }}</button>
+
+      <div class="gv-actions-inline">
+        <a class="gv-btn gv-btn--go" href="{{ _base }}?step=give">{{ 'Give now'|trans }}</a>
+        <button type="button" class="gv-btn gv-btn--line" data-ag-share>{{ 'Share'|trans }}</button>
       </div>
 
       {# Stated BEFORE anybody donates: the first question a thoughtful donor asks. #}
@@ -354,23 +372,28 @@
      somebody else's ask. The figures count EVERY applicant, not only those approved — a
      page reporting successes alone claims a 100% acceptance rate. With none yet it says
      what stage the scheme is at rather than publishing a nil return. #}
-  {% if not org and not _closed %}
-  <section class="gv-orgs" aria-labelledby="gv-orgs">
-    <div class="gv-orgs__in">
-      <div class="gv-orgs__t">
-        <h2 class="gv-h2" id="gv-orgs">{{ 'Raise donations on a page of your own'|trans }}</h2>
-        <p>{{ 'Supporters donate on a page in your name and the money settles directly into your own account — Africa GATES never holds it, because the split happens at the payment gateway.'|trans }}</p>
-        <a class="gv-btn gv-btn--line gv-btn--inline" href="/account/register?as=organisation">{{ 'Apply to raise donations'|trans }}</a>
-        <p class="gv-hint">{{ 'CAC and SCUML registration are both required, and the settlement account must be in your organisation’s own registered name.'|trans }}</p>
+  {# Trust strip #}
+  <section class="gv-trust-strip" aria-label="{{ 'Trust & transparency'|trans }}">
+    <div class="gv-trust-item">
+      <span class="gv-trust-icon">⚡</span>
+      <div>
+        <strong>{{ 'Simple'|trans }}</strong>
+        <p>{{ 'Give in under a minute with mobile money, card, bank or USSD.'|trans }}</p>
       </div>
-      {% if org_totals.orgs > 0 %}
-        <dl class="gv-orgs__figs">
-          <div><dt>{{ org_totals.orgs == 1 ? 'organisation applied'|trans : 'organisations applied'|trans }}, {{ '%n% approved'|trans({'%n%': org_totals.approved|number_format}) }}</dt><dd>{{ org_totals.orgs|number_format }}</dd></div>
-          <div><dt>{{ org_totals.gifts == 1 ? 'raised for them, in 1 donation'|trans : 'raised for them, across %n% donations'|trans({'%n%': org_totals.gifts|number_format}) }}</dt><dd>{{ m.ngn(org_totals.raised) }}</dd></div>
-        </dl>
-      {% else %}
-        <p class="gv-orgs__new">{{ 'The scheme is open and nobody has applied yet. Once there are applications we publish the number who applied and the number approved — both, not just the ones who got through.'|trans }}</p>
-      {% endif %}
+    </div>
+    <div class="gv-trust-item">
+      <span class="gv-trust-icon">👁</span>
+      <div>
+        <strong>{{ 'Seen through'|trans }}</strong>
+        <p>{{ 'Updates and every payout are published here, with receipts.'|trans }}</p>
+      </div>
+    </div>
+    <div class="gv-trust-item">
+      <span class="gv-trust-icon">🛡</span>
+      <div>
+        <strong>{{ 'Protected'|trans }}</strong>
+        <p>{{ 'Verified organisers only. If something goes wrong, we refund you.'|trans }}</p>
+      </div>
     </div>
   </section>
   {% endif %}

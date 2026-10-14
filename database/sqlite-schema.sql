@@ -1237,6 +1237,30 @@ CREATE TABLE IF NOT EXISTS gates_recognition_withdrawals (
 );
 CREATE INDEX IF NOT EXISTS idx_rcw_rec ON gates_recognition_withdrawals(recognition_id);
 
+-- ─── Curated Home & Voice Features (migrations/2027_03_11_home_features.php) ───
+CREATE TABLE IF NOT EXISTS gates_home_features (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL DEFAULT 'hero_slide',
+  title TEXT NOT NULL,
+  body TEXT NULL,
+  image_path TEXT NULL,
+  tag TEXT NULL,
+  link_url TEXT NULL,
+  link_text TEXT NULL,
+  author_name TEXT NULL,
+  author_role TEXT NULL,
+  issuer_name TEXT NULL,
+  issuer_initial TEXT NULL,
+  issuer_color TEXT NULL,
+  issuer_type TEXT NULL,
+  quote TEXT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NULL,
+  updated_at TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_hf_type ON gates_home_features(type, is_active, sort_order);
+
 -- ─── "Get status updates" on /status (double opt-in; migrations/2027_03_07_status_alerts.php) ───
 CREATE TABLE IF NOT EXISTS gates_status_alerts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

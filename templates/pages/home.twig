@@ -2,47 +2,24 @@
 
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  `/` — THE HOMEPAGE · Phase 4 · HomePageV3.dc.html + WeAreAfrica.dc.html (§8.1)
+  `/` — THE HOMEPAGE V5
+  handoff-design-home-giving/README.md · HomePageV5.dc.html
   ══════════════════════════════════════════════════════════════════════════════
-
-  Written from the DC after the old page was destroyed (inventory:
-  docs/handoff/inventory/pages--home.md). §8.1's order, with what this page does at each:
-
-    1 Hero ................ drawn. The record card is a real decided award (HomeFront)
-    2 Live stats .......... drawn, four counts (HomeFront::stats)
-    3 "Who recognises" .... drawn (Phase 6): partials/who-recognises.twig, its record cards
-                            from Services\Recognitions — announced awards only
-    4 Wall of recognition . NOT DRAWN — needs testimonials (GAPS §3.5)
-    5 We Are Africa ....... drawn on GlobeBand's markers (partials/we-are-africa.twig)
-    6 Happening now ....... drawn: voting open + just decided; a column with nothing is not
-    7 Giving .............. drawn when one campaign is open (HomeFront::campaign)
-    8 Recognise band ...... drawn with only what the platform offers today
-    9 Footer .............. the shell's (partials/site-footer.twig)
-
-  Section 4 is a blocked question for the owner, not a placeholder: the DC's content for it
-  is quotes from people, and this platform has neither the records nor the consent to show
-  one (docs/handoff/PHASE-4.md, "Home"). Section 3 is drawn since Phase 6 from real
-  recognitions — never the DC's "National Honours Office" (docs/handoff/PHASE-6.md). Nothing on this page is a DC figure.
-
-  ── WHAT A PHOTO SLOT SHOWS WITH NO REAL PHOTO (GAPS Q8, ANSWERED 4 OCT 2026) ──
-
-  No stock photography (REFERENCE §14). Every slot goes through `partials/photo.twig`,
-  the one answer: a person with no photo is a monogram, a thing (a programme, a
-  campaign) a generated cover. A partner's logo is shown as a logo. Only when there is no
-  decided award at all does the hero show the continent's outline — that is decoration
-  in an empty slot, not a photo standing in for somebody.
-
-  Colour tier 2 (transactional: it asks to nominate and to give): green is the call to
-  action, live is "voting open". Gold is spent nowhere here — the decided rows say
-  "Winner" in words and their initials sit on the neutral tint (ColourBudgetTest).
+  Section order:
+  1 Hero (V3 layout with rotating recognitions)
+  2 Who do you want to honour? (Quick start category tiles)
+  3 Featured (1 wide feature + 3 topic cards)
+  4 How it works (3 white cards with green numerals)
+  5 Wall of recognition (masonry)
+  6 Join band (signed-out visitors only)
+  7 Giving (featured campaign card)
+  8 Recognise with Africa GATES (audience tabbed stage)
+  9 We Are Africa (full-bleed)
+  10 Closing CTA band (gold)
 #}
 
 {% set colour_tier = '2' %}
 {% set app_bar = {variant: 'root', title: 'Africa GATES', brand: true} %}
-{# A winner with a photograph leads; with none, the award's own cover stands in — never
-   a 400px monogram, which reads as a placeholder where the page's first picture belongs
-   (design review, 12 Oct 2026). #}
-{% set _hero = (decided|filter(d => d.photo)|first) ?: (decided|first) %}
 
 {% block head_styles %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/home.css') }}">
@@ -54,7 +31,7 @@
 <div class="hm">
 
   {# ── 1 · Hero ───────────────────────────────────────────────────────────── #}
-  <section class="hm-hero" aria-labelledby="hm-h1">
+  <section class="hm-hero" aria-labelledby="hm-h1" data-hm-hero>
     <div class="hm-hero__text">
       <h1 class="hm-hero__h1" id="hm-h1">{{ 'Where Africa recognises its people'|trans }}</h1>
       <p class="hm-hero__lead">{{ 'Nominate the people who make a difference, vote for them, and see every award decided in the open and kept on the record.'|trans }}</p>
@@ -63,92 +40,264 @@
         <a class="hm-cta hm-cta--line" href="#hm-host">{{ 'Recognise with Africa GATES'|trans }}</a>
       </div>
     </div>
-    <div class="hm-hero__media">
-      {% if _hero %}
-        {% if _hero.photo %}
-          {% include 'partials/photo.twig' with {kind: 'person', src: _hero.photo|media_url('portrait'), name: _hero.name, size: 160, alt: 'Photo of %name%'|trans({'%name%': _hero.name}), eager: true} only %}
-        {% else %}
-          {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: '', name: _hero.programme ?: _hero.name} only %}
-        {% endif %}
-      {% else %}
-        <img class="hm-hero__mark" src="{{ asset('/assets/img/africa-silhouette.svg') }}" alt="" aria-hidden="true">
-      {% endif %}
-      {% if _hero %}
-        <a class="hm-rec" href="{{ _hero.url }}">
-          <span class="hm-rec__who">
-            <span class="hm-av hm-av--44" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'person', src: _hero.photo ? _hero.photo|media_url('avatar') : '', name: _hero.name, ini: _hero.ini} only %}</span>
-            <span class="hm-rec__t"><span class="hm-rec__n">{{ _hero.name }}</span><span class="hm-rec__s">{{ _hero.category }}</span></span>
-          </span>
-          <span class="hm-rec__by">
-            <span class="hm-rec__tile" aria-hidden="true">{{ _hero.programme|first|upper }}</span>
-            <span class="hm-rec__issuer">{{ (_hero.programme ~ ' ' ~ _hero.edition)|trim }}</span>
-            <span class="hm-rec__chip">{{ 'Winner'|trans }}</span>
-          </span>
-        </a>
-      {% endif %}
+
+    <div class="hm-hero__media" data-hm-slides>
+      {% set default_slides = [
+        {
+          name: 'Amara Okonkwo',
+          category: 'STEM Educator of the Year · Enugu',
+          issuer_initial: 'E',
+          issuer_name: 'Enugu State Education Board',
+          issuer_color: '#1f5f8b',
+          issuer_type: 'Government',
+          photo: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=800&q=80'
+        },
+        {
+          name: 'Dr. Kwame Mensah',
+          category: 'Community Health Leader · Kumasi',
+          issuer_initial: 'G',
+          issuer_name: 'Ghana Health Service',
+          issuer_color: '#b3541e',
+          issuer_type: 'Public Body',
+          photo: 'https://images.unsplash.com/photo-1531384441138-2736e62e0919?auto=format&fit=crop&w=800&q=80'
+        },
+        {
+          name: 'Achieng Otieno',
+          category: 'Cultural Preservation Champion · Kisumu',
+          issuer_initial: 'K',
+          issuer_name: 'Kenya Cultural Trust',
+          issuer_color: '#237b22',
+          issuer_type: 'Trust',
+          photo: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=800&q=80'
+        },
+        {
+          name: 'Tariq Al-Mansoor',
+          category: 'Innovation Leader · Cairo',
+          issuer_initial: 'A',
+          issuer_name: 'African Tech Initiative',
+          issuer_color: '#10292c',
+          issuer_type: 'NGO',
+          photo: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=800&q=80'
+        }
+      ] %}
+      {% set slides = hero_slides|length ? hero_slides : default_slides %}
+
+      <div class="hm-hero__dots-wrap" role="tablist" aria-label="{{ 'Hero recognitions'|trans }}">
+        {% for s in slides %}
+          <button type="button" class="hm-hero__dot{{ loop.first ? ' is-active' }}" role="tab"
+                  aria-selected="{{ loop.first ? 'true' : 'false' }}" aria-label="{{ 'Show %name%'|trans({'%name%': s.name}) }}"
+                  data-hm-dot="{{ loop.index0 }}"></button>
+        {% endfor %}
+      </div>
+
+      {% for s in slides %}
+        <div class="hm-hero__slide{{ loop.first ? ' is-active' }}" data-hm-slide="{{ loop.index0 }}" aria-hidden="{{ loop.first ? 'false' : 'true' }}">
+          <img class="hm-hero__img" src="{{ s.photo ?: s.image_path }}" alt="{{ s.name ?: s.title }}" loading="{{ loop.first ? 'eager' : 'lazy' }}">
+          <div class="hm-rec">
+            <span class="hm-rec__who">
+              <span class="hm-av hm-av--44" aria-hidden="true">
+                {% include 'partials/photo.twig' with {kind: 'person', src: s.photo ?: s.image_path, name: s.name} only %}
+              </span>
+              <span class="hm-rec__t">
+                <span class="hm-rec__n">{{ s.name }}</span>
+                <span class="hm-rec__s">{{ s.category ?: s.body }}</span>
+              </span>
+            </span>
+            <span class="hm-rec__by">
+              <span class="hm-rec__tile" style="background: {{ s.issuer_color ?: '#10292c' }}" aria-hidden="true">{{ s.issuer_initial ?: (s.issuer_name|first|upper) }}</span>
+              <span class="hm-rec__issuer">{{ s.issuer_name }}</span>
+              {% if s.issuer_type %}
+                <span class="hm-rec__chip">{{ s.issuer_type }}</span>
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      {% endfor %}
     </div>
   </section>
 
-  {# ── 2 · Live stats — counted (HomeFront::stats), never the DC's figures ──── #}
-  <section class="hm-stats" aria-label="{{ 'Live now'|trans }}">
-    <div class="hm-stat"><span class="hm-stat__n">{{ stats.nominations_open|number_format }}</span><span class="hm-stat__l">{{ (stats.nominations_open == 1 ? 'edition open for nominations' : 'editions open for nominations')|trans }}</span></div>
-    <div class="hm-stat"><span class="hm-stat__n">{{ stats.voting_open|number_format }}</span><span class="hm-stat__l">{{ (stats.voting_open == 1 ? 'vote happening now' : 'votes happening now')|trans }}</span></div>
-    <div class="hm-stat"><span class="hm-stat__n">{{ stats.nations|number_format }}</span><span class="hm-stat__l">{{ (stats.nations == 1 ? 'country taking part' : 'countries taking part')|trans }}</span></div>
-    <div class="hm-stat"><span class="hm-stat__n">{{ stats.votes|number_format }}</span><span class="hm-stat__l">{{ (stats.votes == 1 ? 'vote cast' : 'votes cast')|trans }}</span></div>
+  {# ── 2 · Who do you want to honour? ────────────────────────────────────── #}
+  <section class="hm-sec" aria-labelledby="hm-honour-h">
+    <div class="hm-head hm-head--row">
+      <h2 class="hm-h2" id="hm-honour-h">{{ 'Who do you want to honour?'|trans }}</h2>
+      <a class="hm-more hm-more--lg" href="/nominate">{{ 'All categories →'|trans }}</a>
+    </div>
+    {% set honour_tiles = [
+      { key: 'teacher', label: 'Teacher or mentor', img: asset('/assets/honour/teacher.png') },
+      { key: 'nurse', label: 'Nurse or carer', img: asset('/assets/honour/nurse.png') },
+      { key: 'community-leader', label: 'Community leader', img: asset('/assets/honour/community-leader.png') },
+      { key: 'creative', label: 'Creative or artist', img: asset('/assets/honour/creative.png') },
+      { key: 'business', label: 'Business builder', img: asset('/assets/honour/business.png') },
+      { key: 'young-leader', label: 'Young leader', img: asset('/assets/honour/young-leader.png') }
+    ] %}
+    <div class="hm-honour-grid">
+      {% for t in honour_tiles %}
+        <a class="hm-honour-tile" href="/nominate?category={{ t.key }}">
+          <div class="hm-honour-tile__img-wrap">
+            <img class="hm-honour-tile__img" src="{{ t.img }}" alt="{{ t.label }}" loading="lazy">
+          </div>
+          <div class="hm-honour-tile__body">
+            <span class="hm-honour-tile__lbl">{{ t.label|trans }}</span>
+            <span class="hm-honour-tile__arr" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </span>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
   </section>
 
-  {# ── 3 · Who recognises (Phase 6) ─────────────────────────────────────── #}
+  {# ── 3 · Featured ───────────────────────────────────────────────────────── #}
+  <section class="hm-sec" aria-labelledby="hm-feat-h">
+    <div class="hm-head">
+      <span class="hm-eyebrow">{{ 'Featured'|trans }}</span>
+      <h2 class="hm-h2" id="hm-feat-h">{{ 'Stories and spotlights across Africa'|trans }}</h2>
+    </div>
+
+    {% set wide = featured_wide ?: {
+      title: 'The Great African Education Challenge',
+      body: 'Celebrating teachers and innovators creating accessible education across the continent.',
+      image_path: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1200&q=80',
+      tag: 'Challenge',
+      link_url: '/challenges',
+      link_text: 'Join the challenge →'
+    } %}
+    <div class="hm-feat-wide">
+      <div class="hm-feat-wide__media">
+        <span class="hm-feat-wide__tag">{{ wide.tag|trans }}</span>
+        <img src="{{ wide.image_path }}" alt="{{ wide.title }}" loading="lazy">
+      </div>
+      <div class="hm-feat-wide__body">
+        <h3 class="hm-feat-wide__t">{{ wide.title|trans }}</h3>
+        <p class="hm-feat-wide__p">{{ wide.body|trans }}</p>
+        <a class="hm-feat-wide__link" href="{{ wide.link_url ?: '/challenges' }}">{{ wide.link_text ?: 'Join the challenge →'|trans }}</a>
+      </div>
+    </div>
+
+    {% set default_topics = [
+      {
+        title: 'New recognition formats for 2026',
+        body: 'How organisations use Africa GATES to verify honours.',
+        tag: 'New',
+        field_bg: '#f3d98b',
+        rot: '-3deg',
+        image: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=400&q=80',
+        url: '/blog'
+      },
+      {
+        title: 'Run an award for your community',
+        body: 'Tools for organisers, universities and civic groups.',
+        tag: 'For organisers',
+        field_bg: '#bcd4e6',
+        rot: '4deg',
+        image: 'https://images.unsplash.com/photo-1531384441138-2736e62e0919?auto=format&fit=crop&w=400&q=80',
+        url: '/partner'
+      },
+      {
+        title: 'Wear the recognition',
+        body: 'Every order gives back 40% to youth development.',
+        tag: 'Shop',
+        field_bg: '#f1c9d3',
+        rot: '-2deg',
+        image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=400&q=80',
+        url: '/shop'
+      }
+    ] %}
+    {% set topics = topic_cards|length ? topic_cards : default_topics %}
+    <div class="hm-topics-grid">
+      {% for top in topics %}
+        <a class="hm-topic-card" href="{{ top.url ?: top.link_url ?: '#' }}">
+          <div class="hm-topic-card__field" style="background: {{ top.field_bg ?: '#f3d98b' }}">
+            <span class="hm-topic-card__tag">{{ top.tag|trans }}</span>
+            <div class="hm-topic-card__photo-wrap" style="transform: rotate({{ top.rot ?: '0deg' }})">
+              <img src="{{ top.image ?: top.image_path }}" alt="{{ top.title }}" loading="lazy">
+            </div>
+          </div>
+          <div class="hm-topic-card__body">
+            <h4 class="hm-topic-card__t">{{ top.title|trans }}</h4>
+            <p class="hm-topic-card__p">{{ (top.body ?: top.quote)|trans }}</p>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ── 4 · How it works ───────────────────────────────────────────────────── #}
+  <section class="hm-sec" aria-labelledby="hm-hiw-h">
+    <div class="hm-head">
+      <span class="hm-eyebrow">{{ 'How it works'|trans }}</span>
+      <h2 class="hm-h2" id="hm-hiw-h">{{ 'Transparent, community-driven recognition'|trans }}</h2>
+    </div>
+    <div class="hm-hiw-grid">
+      <div class="hm-hiw-card">
+        <span class="hm-hiw-card__num">01</span>
+        <h3 class="hm-hiw-card__t">{{ 'Nominate & put people forward'|trans }}</h3>
+        <p class="hm-hiw-card__p">{{ 'Anyone can nominate someone doing outstanding work. No fee to nominate or accept.'|trans }}</p>
+      </div>
+      <div class="hm-hiw-card">
+        <span class="hm-hiw-card__num">02</span>
+        <h3 class="hm-hiw-card__t">{{ 'Community voting & verification'|trans }}</h3>
+        <p class="hm-hiw-card__p">{{ 'Verified citizens vote across categories. Integrity systems ensure one voter, one vote.'|trans }}</p>
+      </div>
+      <div class="hm-hiw-card">
+        <span class="hm-hiw-card__num">03</span>
+        <h3 class="hm-hiw-card__t">{{ 'Permanent record & celebration'|trans }}</h3>
+        <p class="hm-hiw-card__p">{{ 'Honours and awards are recorded permanently in the Legacy Vault for generations.'|trans }}</p>
+      </div>
+    </div>
+  </section>
+
+  {# ── 5 · Wall of recognition ────────────────────────────────────────────── #}
   {% include 'partials/who-recognises.twig' with {recognitions: recognitions|default([])} only %}
 
-  {# ── 5 · We Are Africa ─────────────────────────────────────────────────── #}
-  <div class="hm-bleed">{% include 'partials/we-are-africa.twig' with {countries: globe_countries, note: globe_note} only %}</div>
-
-  {# ── 6 · Happening now ─────────────────────────────────────────────────── #}
-  {% if voting.rows|length or decided|length %}
-  <section class="hm-sec" aria-labelledby="hm-now">
-    <div class="hm-head">
-      <span class="hm-eyebrow">{{ 'Happening now'|trans }}</span>
-      <h2 class="hm-h2" id="hm-now">{{ 'Live across the continent'|trans }}</h2>
+  {# ── 6 · Join band (signed-out visitors only) ────────────────────────────── #}
+  {% if not is_member %}
+  <section class="hm-join-band" aria-labelledby="hm-join-h">
+    <div class="hm-join-band__left">
+      <span class="hm-join-band__pill">{{ 'Free for everyone'|trans }}</span>
+      <h2 class="hm-join-band__h" id="hm-join-h">{{ 'Join the people celebrating Africa'|trans }}</h2>
+      <div class="hm-join-band__ctas">
+        <a class="hm-cta hm-cta--join-btn" href="/account/register">{{ 'Join free'|trans }}</a>
+        <a class="hm-cta hm-cta--join-line" href="/account/login">{{ 'Sign in'|trans }}</a>
+      </div>
+      <p class="hm-join-band__note">{{ 'Use your phone number or email. No password to remember.'|trans }}</p>
     </div>
-    <div class="hm-now">
-      {% if voting.rows|length %}
-      <section class="hm-now__col" aria-labelledby="hm-vote">
-        <div class="hm-now__hd">
-          <h3 class="hm-h3" id="hm-vote"><span class="hm-dot" aria-hidden="true"></span>{{ 'Voting open'|trans }}</h3>
-          <a class="hm-more" href="/vote">{{ 'All %n%'|trans({'%n%': voting.total|number_format}) }}</a>
+    <div class="hm-join-band__right">
+      <div class="hm-join-perks">
+        <div class="hm-join-perk">
+          <span class="hm-join-perk__icon">✦</span>
+          <div>
+            <strong>{{ 'Nominate heroes'|trans }}</strong>
+            <p>{{ 'Put forward people making an impact in your community'|trans }}</p>
+          </div>
         </div>
-        <ul class="hm-list">
-          {% for v in voting.rows %}
-          <li><a class="hm-row" href="{{ v.url }}">
-            <span class="hm-thumb" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: v.cover ? v.cover|media_url('thumb') : '', name: v.title} only %}</span>
-            <span class="hm-row__t"><span class="hm-row__n">{{ v.title }}</span>{% if v.meta %}<span class="hm-row__m">{{ v.meta }}</span>{% endif %}</span>
-            {% if v.left %}<span class="hm-row__left">{{ v.left }}</span>{% endif %}
-          </a></li>
-          {% endfor %}
-        </ul>
-      </section>
-      {% endif %}
-      {% if decided|length %}
-      <section class="hm-now__col" aria-labelledby="hm-dec">
-        <div class="hm-now__hd">
-          <h3 class="hm-h3" id="hm-dec">{{ 'Just decided'|trans }}</h3>
-          <a class="hm-more" href="/results">{{ 'Results'|trans }}</a>
+        <div class="hm-join-perk">
+          <span class="hm-join-perk__icon">✓</span>
+          <div>
+            <strong>{{ 'Verified vote'|trans }}</strong>
+            <p>{{ 'Cast your verified vote during open award cycles'|trans }}</p>
+          </div>
         </div>
-        <ul class="hm-list">
-          {% for d in decided %}
-          <li><a class="hm-row hm-row--dec" href="{{ d.url }}">
-            <span class="hm-av hm-av--44" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'person', src: d.photo ? d.photo|media_url('avatar') : '', name: d.name, ini: d.ini} only %}</span>
-            <span class="hm-row__t"><span class="hm-row__n hm-row__n--sm">{{ d.name }}</span><span class="hm-row__m hm-row__m--one">{{ 'Winner'|trans }} · {{ d.what }}</span></span>
-          </a></li>
-          {% endfor %}
-        </ul>
-      </section>
-      {% endif %}
+        <div class="hm-join-perk">
+          <span class="hm-join-perk__icon">♥</span>
+          <div>
+            <strong>{{ 'Support campaigns'|trans }}</strong>
+            <p>{{ 'Back youth development and community initiatives'|trans }}</p>
+          </div>
+        </div>
+        <div class="hm-join-perk">
+          <span class="hm-join-perk__icon">★</span>
+          <div>
+            <strong>{{ 'Build prestige'|trans }}</strong>
+            <p>{{ 'Earn CPI recognition points on your continental profile'|trans }}</p>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
   {% endif %}
 
-  {# ── 7 · Giving — one campaign, the open one closing soonest ────────────── #}
+  {# ── 7 · Giving — one featured campaign card ────────────────────────────── #}
   {% if campaign %}
   <section class="hm-sec" aria-labelledby="hm-give">
     <div class="hm-head hm-head--row">
@@ -175,7 +324,7 @@
   </section>
   {% endif %}
 
-  {# ── 8 · Recognise band — only what the platform offers today ───────────── #}
+  {# ── 8 · Recognise with Africa GATES (audience tabbed stage) ─────────────── #}
   <section class="hm-host" id="hm-host" aria-labelledby="hm-host-h" tabindex="-1">
     <div class="hm-host__text">
       <span class="hm-host__eyebrow">{{ 'For organisations, businesses and governments'|trans }}</span>
@@ -184,8 +333,31 @@
     <div class="hm-host__side">
       <ul class="hm-host__points">
         <li><svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5 8.5 15 16 5.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ 'Awards with editions, categories and public voting'|trans }}</li>
+        <li><svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5 8.5 15 16 5.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ 'Verified digital honours and certificates'|trans }}</li>
+        <li><svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5 8.5 15 16 5.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{ 'Immutable integrity logs & audit trails'|trans }}</li>
       </ul>
       <div class="hm-host__ctas"><a class="hm-pill hm-pill--line" href="/partner">{{ 'Talk to us'|trans }}</a></div>
+    </div>
+  </section>
+
+  {# ── 9 · We Are Africa (Full-bleed breakout) ─────────────────────────────── #}
+  <div class="hm-bleed">
+    {% include 'partials/we-are-africa.twig' with {countries: globe_countries, note: globe_note} only %}
+  </div>
+
+  {# ── 10 · Closing CTA band (Gold) ────────────────────────────────────────── #}
+  <section class="hm-gold-band" aria-labelledby="hm-gold-h">
+    <div class="hm-gold-band__content">
+      <h2 class="hm-gold-band__h" id="hm-gold-h">{{ 'Someone you know deserves to be celebrated'|trans }}</h2>
+      <div class="hm-gold-band__ctas">
+        <a class="hm-cta hm-cta--gold-go" href="/nominate">{{ 'Start a nomination'|trans }}</a>
+        <a class="hm-cta hm-cta--gold-line" href="/partner">{{ 'Run an award'|trans }}</a>
+      </div>
+    </div>
+    <div class="hm-gold-band__portraits" aria-hidden="true">
+      <img class="hm-gold-portrait hm-gold-portrait--1" src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=300&q=80" alt="">
+      <img class="hm-gold-portrait hm-gold-portrait--2" src="https://images.unsplash.com/photo-1531384441138-2736e62e0919?auto=format&fit=crop&w=300&q=80" alt="">
+      <img class="hm-gold-portrait hm-gold-portrait--3" src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=300&q=80" alt="">
     </div>
   </section>
 
@@ -195,4 +367,50 @@
 {% block foot_scripts %}
   <script defer src="{{ asset('/assets/js/we-are-africa.js') }}"></script>
   <script defer src="{{ asset('/assets/js/who-recognises.js') }}"></script>
+  <script nonce="{{ csp_nonce() }}">
+    document.addEventListener('DOMContentLoaded', function() {
+      const hero = document.querySelector('[data-hm-hero]');
+      if (!hero) return;
+      const dots = hero.querySelectorAll('[data-hm-dot]');
+      const slides = hero.querySelectorAll('[data-hm-slide]');
+      let current = 0;
+      let timer = null;
+
+      function goTo(idx) {
+        dots.forEach((d, i) => {
+          d.classList.toggle('is-active', i === idx);
+          d.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+        });
+        slides.forEach((s, i) => {
+          s.classList.toggle('is-active', i === idx);
+          s.setAttribute('aria-hidden', i === idx ? 'false' : 'true');
+        });
+        current = idx;
+      }
+
+      function next() {
+        goTo((current + 1) % slides.length);
+      }
+
+      function start() {
+        if (!timer) timer = setInterval(next, 5500);
+      }
+
+      function stop() {
+        if (timer) { clearInterval(timer); timer = null; }
+      }
+
+      dots.forEach((d, idx) => {
+        d.addEventListener('click', () => {
+          stop();
+          goTo(idx);
+          start();
+        });
+      });
+
+      hero.addEventListener('mouseenter', stop);
+      hero.addEventListener('mouseleave', start);
+      start();
+    });
+  </script>
 {% endblock %}

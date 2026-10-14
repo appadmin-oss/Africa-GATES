@@ -117,3 +117,22 @@
     frame.focus();
   });
 })();
+
+// Giving page V5 JS interactions: collapsible story toggle
+document.addEventListener('DOMContentLoaded', function() {
+  const story = document.querySelector('[data-gv-story]');
+  const btn = document.querySelector('[data-gv-story-toggle]');
+  if (story && btn) {
+    let expanded = false;
+    btn.addEventListener('click', function() {
+      expanded = !expanded;
+      if (expanded) {
+        story.style.maxHeight = 'none';
+        btn.textContent = 'Show less';
+      } else {
+        story.style.maxHeight = '230px';
+        btn.textContent = 'Read more';
+      }
+    });
+  }
+});
