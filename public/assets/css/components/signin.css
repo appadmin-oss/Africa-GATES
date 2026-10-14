@@ -250,14 +250,14 @@
 }
 .si__quote {
   font-family: 'Playfair Display', Georgia, serif;
-  font-size: 28px;
+  font-size: var(--ag-fs-28, 1.75rem);
   font-weight: 700;
   line-height: 1.25;
   color: #f1efe9;
   margin: 0 0 12px;
 }
 .si__by {
-  font-size: 14px;
+  font-size: var(--ag-fs-14, 0.875rem);
   font-weight: 600;
   color: #f1efe9;
 }
@@ -274,7 +274,7 @@
 .si__art-counter {
   font-family: 'JetBrains Mono', monospace;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--ag-fs-13, 0.8125rem);
   color: #fff;
 }
 .si__art-sep {
@@ -306,7 +306,7 @@
   border-radius: 50%;
   background: transparent;
   color: #fff;
-  font-size: 20px;
+  font-size: var(--ag-fs-20, 1.25rem);
   display: flex;
   align-items: center;
   justify-content: center;
