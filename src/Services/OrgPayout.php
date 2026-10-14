@@ -76,6 +76,21 @@ final class OrgPayout
         self::ST_QUEUED, self::ST_PENDING, self::ST_RECEIVED, self::ST_OTP, self::ST_SUCCESS,
     ];
 
+    /**
+     * Every status this platform understands. Anything else from the gateway is NOT written.
+     *
+     * The status decides whether the amount still holds the balance down (HOLDS_FUNDS), so a
+     * word nobody here knows — a new Paystack state, a provider's spelling, a malformed
+     * webhook — written verbatim took an in-flight transfer out of HOLDS_FUNDS and handed the
+     * money back to the organisation's available balance while the transfer could still land:
+     * the shape of a double payout. An unknown status is logged and the row keeps the status
+     * it had, so the funds stay held until a status that means something arrives.
+     */
+    public const KNOWN = [
+        self::ST_QUEUED, self::ST_PENDING, self::ST_RECEIVED, self::ST_OTP, self::ST_SUCCESS,
+        self::ST_FAILED, self::ST_REVERSED, self::ST_ABANDONED, self::ST_BLOCKED, self::ST_REJECTED,
+    ];
+
     /** Smallest payout worth the gateway fee and the operational attention. */
     public const MIN_NAIRA = 1000;
 
@@ -308,6 +323,17 @@ final class OrgPayout
 
         if (in_array((string) $row->status, self::TERMINAL, true)) {
             return false;   // already settled; a later event cannot unsettle it
+        }
+
+        if (!in_array($status, self::KNOWN, true)) {
+            error_log('[payout] ' . $reference . ': the gateway said "' . mb_substr($status, 0, 40)
+                    . '", which is not a status this platform knows — the funds stay held');
+            DB::table('gates_org_payouts')->where('reference', $reference)->update([
+                'gateway_message' => mb_substr('Unrecognised status "' . $status . '" from the gateway; '
+                                   . 'still held until a known status arrives.', 0, 250),
+                'last_checked_at' => date('Y-m-d H:i:s'),
+            ]);
+            return false;
         }
 
         $update = [

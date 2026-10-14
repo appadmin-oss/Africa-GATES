@@ -54,11 +54,56 @@ final class PaymentDestination
      * Keyed by a stable slug, because the key is written onto payment rows and a renamed key
      * would orphan every historical attribution.
      */
-    public const STREAMS = [
-        'events' => 'Event tickets',
-        'shop'   => 'Shop orders',
-        'votes'  => 'Votes and donations',
-    ];
+    /**
+     * code => label, for every kind of money this platform may take.
+     *
+     * This was a `const` of three — events, shop, votes — and it was right until the
+     * organisation started taking membership fees, fines, dues and training fees. None of them
+     * could be routed, because the list that decides what is routable was in a file only a
+     * deployment can change, and the four new ones settle to four different places.
+     *
+     * Finance owns the list now: finance is who decides what a kind of money IS, and a code
+     * this platform invents on its own is refused at settlement — days after the money was
+     * taken, when nobody remembers which checkout wrote it. See {@see CfisCatalogue} for how it
+     * degrades when finance cannot be reached, which it must, because this is read while a
+     * checkout is being rendered.
+     *
+     * @return array<string,string>
+     */
+    public static function streams(): array
+    {
+        return CfisCatalogue::streams();
+    }
+
+    /**
+     * The streams a checkout on THIS platform actually charges — exactly the ones
+     * {@see streamForReference()} can return.
+     *
+     * Finance's list is the whole organisation's (membership, dues, fines, training fees…), and
+     * most of it is taken on other sites. A subaccount set here for one of those was drawn as
+     * "routed" while no payment on this platform could ever reach it: a mechanism with no route
+     * in, saying the opposite on the one screen an operator checks. Those rows now say plainly
+     * that nothing here takes that money, and are never counted as routed.
+     */
+    public const CHECKOUT_STREAMS = ['events', 'shop', 'votes'];
+
+    /** Does any checkout on this platform take this kind of money? */
+    public static function usedHere(string $stream): bool
+    {
+        return in_array($stream, self::CHECKOUT_STREAMS, true);
+    }
+
+    /** True when finance recognises this code. Replaces `isset(self::STREAMS[$s])`. */
+    public static function knowsStream(string $stream): bool
+    {
+        return CfisCatalogue::knows($stream);
+    }
+
+    /** The label finance gives this stream, or the code itself when it has none. */
+    public static function labelFor(string $stream): string
+    {
+        return self::streams()[$stream] ?? $stream;
+    }
 
     /** Who pays Paystack's cut. */
     public const BEARERS = [
@@ -91,7 +136,7 @@ final class PaymentDestination
      */
     public static function forStream(string $stream): string
     {
-        if (!isset(self::STREAMS[$stream])) {
+        if (!self::knowsStream($stream)) {
             return '';
         }
         return self::code(self::setting(self::KEY_PREFIX . $stream));
@@ -100,7 +145,7 @@ final class PaymentDestination
     /** Who bears the transaction charge for this stream. Defaults to the main account. */
     public static function bearerFor(string $stream): string
     {
-        if (!isset(self::STREAMS[$stream])) {
+        if (!self::knowsStream($stream)) {
             return 'account';
         }
         $v = trim(self::setting(self::BEARER_PREFIX . $stream));
@@ -340,11 +385,20 @@ final class PaymentDestination
         $refused = [];
         $checked = [];
 
-        foreach (self::STREAMS as $stream => $label) {
+        foreach (self::streams() as $stream => $label) {
             if (!array_key_exists($stream, $codes)) {
                 continue;                       // not on the submitted form; leave it alone
             }
             $raw = trim((string) $codes[$stream]);
+
+            // Clearing is always allowed (it is how a stale code from before this rule goes);
+            // setting one is not, for money no checkout here takes — see CHECKOUT_STREAMS.
+            if ($raw !== '' && !self::usedHere($stream)) {
+                $refused[$stream] = 'No checkout on Africa GATES takes ' . $label . ', so a '
+                                  . 'subaccount here would never receive a payment. Route it on '
+                                  . 'the site that takes it.';
+                continue;
+            }
 
             if ($raw === '') {
                 self::put(self::KEY_PREFIX . $stream, '');
@@ -400,13 +454,23 @@ final class PaymentDestination
     public static function all(): array
     {
         $out = [];
-        foreach (self::STREAMS as $stream => $label) {
+        foreach (self::streams() as $stream => $label) {
             $code = self::forStream($stream);
+            $about = CfisCatalogue::describe($stream);
+            $here = self::usedHere($stream);
             $out[] = ['stream' => $stream, 'label' => $label, 'code' => $code,
-                      'bearer' => self::bearerFor($stream), 'routed' => $code !== '',
+                      'bearer' => self::bearerFor($stream), 'routed' => $here && $code !== '',
+                      'used_here' => $here,
                       // A live refusal, shown beside the field that caused it. Without this the
                       // only symptom of a bad code is money quietly settling somewhere else.
-                      'refusal' => self::refusal($stream)];
+                      'refusal' => self::refusal($stream),
+                      // What finance says about this stream. `expects` is the one that earns
+                      // its place on the screen: with a dynamic list an operator cannot tell
+                      // which of fourteen rows finance is actually waiting on, and a row they
+                      // are not meant to fill in looks identical to one they have forgotten.
+                      'expects' => (bool) ($about['expects_subaccount'] ?? false),
+                      'about' => (string) ($about['description'] ?? ''),
+                      'settles_to' => (string) ($about['posts_to'] ?? '')];
         }
         return $out;
     }
@@ -414,7 +478,7 @@ final class PaymentDestination
     /** Whether any stream is routed at all — what the screen keys its explanation on. */
     public static function anyRouted(): bool
     {
-        foreach (array_keys(self::STREAMS) as $s) {
+        foreach (self::CHECKOUT_STREAMS as $s) {
             if (self::forStream($s) !== '') return true;
         }
         return false;
@@ -453,7 +517,7 @@ final class PaymentDestination
      */
     public static function reportRefusal(string $stream, string $code, string $why): void
     {
-        if (!isset(self::STREAMS[$stream])) return;
+        if (!self::knowsStream($stream)) return;
 
         $now  = time();
         $key  = self::REFUSED_PREFIX . $stream;
@@ -468,9 +532,9 @@ final class PaymentDestination
         if ($now - $last < 3600) return;                 // already shouted about this recently
 
         Notifier::adminAlert(null,
-            'Paystack refused the subaccount for ' . (self::STREAMS[$stream] ?? $stream),
+            'Paystack refused the subaccount for ' . self::labelFor($stream),
             "Paystack would not accept the subaccount configured for "
-            . (self::STREAMS[$stream] ?? $stream) . ".\n\n"
+            . self::labelFor($stream) . ".\n\n"
             . "Subaccount: {$code}\n"
             . "Paystack said: {$why}\n\n"
             . "The payment was retried WITHOUT the subaccount and went through, so nobody has "
@@ -507,6 +571,7 @@ final class PaymentDestination
     public static function streamForReference(string $reference): string
     {
         $r = strtoupper(trim($reference));
+        // Every value returned here must be in CHECKOUT_STREAMS — a test holds the two together.
         if (str_starts_with($r, 'AFG-EVT')) return 'events';
         if (str_starts_with($r, 'AFG-SHP')) return 'shop';
         if (str_starts_with($r, 'AFG-'))    return 'votes';

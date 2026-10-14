@@ -646,7 +646,7 @@ final class StandsController
         // under `general` is picked for its size, and two vendors choosing it are not in
         // the same trade. One column called "Category" carrying whichever of those it
         // happened to be is how an allocation sheet gets read wrong on the morning.
-        fputcsv($out, ['Stand type', 'Pitch category', 'Trade declared', 'Vendor', 'Trading as',
+        \AfricaGates\Support\Csv::put($out, ['Stand type', 'Pitch category', 'Trade declared', 'Vendor', 'Trading as',
                        'Kind', 'Contact', 'Phone', 'Email', 'Sells', 'Power', 'Step-free',
                        'Fee (NGN)', 'Accepted'],
                 ',', '"', '\\');
@@ -654,7 +654,7 @@ final class StandsController
         foreach ($rows as $r) {
             $org  = $r['org'];
             $type = $r['type'];
-            fputcsv($out, [
+            \AfricaGates\Support\Csv::put($out, [
                 (string) ($type->name ?? ''),
                 (string) (StandType::categories()[(string) ($type->category ?? '')] ?? ''),
                 // Falls back to the pitch's category for an application submitted before

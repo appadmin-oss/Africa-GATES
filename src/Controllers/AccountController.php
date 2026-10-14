@@ -1623,7 +1623,7 @@ class AccountController
         // it, and the value it is changing to is `''` — the RFC-correct one. Passing it
         // explicitly means this file writes the same bytes before and after that change,
         // which matters on a document somebody keeps as evidence.
-        $put = static fn (array $row) => fputcsv($out, $row, ',', '"', '\\');
+        $put = static fn (array $row) => \AfricaGates\Support\Csv::put($out, $row, ',', '"', '\\');
         $put(['Date', 'Reason', 'Note', 'Change', 'Balance after']);
         foreach ($rows as $r) {
             $put([

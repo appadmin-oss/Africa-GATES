@@ -124,7 +124,7 @@ final class MailFailure
         self::QUOTA => 'The Google account has used its daily sending allowance — about 500 a day for Gmail, 2,000 for Workspace — '
             . 'and Google refuses every message until the day rolls over. Announcements are now held back to leave room for sign-in codes.',
         self::CONNECT => 'This server cannot reach smtp.gmail.com. Use port 587 with Encryption on Automatic. If every port fails '
-            . 'the host blocks outbound mail: set “Send by” to Automatic, and mail falls back to this server’s own mail.',
+            . 'the host blocks outbound mail: save a Brevo API key or set up Google Apps Script, and with “Send by” on Automatic mail goes out over HTTPS instead.',
         self::TLS => 'The encrypted connection to Google failed. Port 587 with Encryption on Automatic is already right, so check that before changing it — '
             . 'Google’s certificate is genuine, so the usual cause is this server’s CA trust store being out of date (a host PHP update does it) '
             . 'or something answering in Google’s place. Run the check on Settings → Email health: it reads the certificate and says which.',

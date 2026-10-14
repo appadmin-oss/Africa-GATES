@@ -44,9 +44,9 @@ class NominationsController
             ->select(['n.*', 'p.title as programme_title', 'c.year as cycle_year']);
         if ($status !== '' && $status !== 'all') $base->where('n.status', $status);
         if ($q !== '') $base->where(function ($x) use ($q) {
-            $x->where('n.nominee_name','like',"%$q%")
-              ->orWhere('n.nominator_name','like',"%$q%")
-              ->orWhere('n.nominator_email','like',"%$q%");
+            $x->whereRaw(\AfricaGates\Support\Like::clause('n.nominee_name'), [\AfricaGates\Support\Like::contains($q)])
+              ->orWhereRaw(\AfricaGates\Support\Like::clause('n.nominator_name'), [\AfricaGates\Support\Like::contains($q)])
+              ->orWhereRaw(\AfricaGates\Support\Like::clause('n.nominator_email'), [\AfricaGates\Support\Like::contains($q)]);
         });
         if ($programmeId > 0) $base->where('c.programme_id', $programmeId);
         if ($cycleId > 0)     $base->where('n.cycle_id', $cycleId);

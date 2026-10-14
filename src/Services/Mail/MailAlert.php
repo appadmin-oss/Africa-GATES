@@ -156,6 +156,9 @@ final class MailAlert
         try { if (($this->webhook)($event, $data) > 0) $reached[] = self::WEBHOOK; }
         catch (\Throwable) {}
 
+        // With no alert address set there is nobody to mail; the console banner still shows it.
+        if ($to === '') return $reached;
+
         try { if (($this->local)($to, $subject, $text)) $reached[] = self::LOCAL; }
         catch (\Throwable) {}
 

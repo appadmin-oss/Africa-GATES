@@ -564,8 +564,11 @@ final class MailHealthTest extends TestCase
         $r = $this->diagnose(new FakeSmtp(tlsOk: false, tlsError: 'handshake failed'),
             cert: self::cert(['names' => ['mail.qservers.net'], 'matches' => false]));
 
-        $this->assertStringContainsString('this server’s own mail', $r['fix']);
-        $own   = mb_strpos($r['fix'], 'this server’s own mail');
+        // The free road is Google Apps Script. This server's own mail is not a road to
+        // recommend: it sends as the server and fails the domain's SPF and DKIM.
+        $this->assertStringContainsString('Google Apps Script', $r['fix']);
+        $this->assertStringNotContainsString('this server’s own mail', $r['fix']);
+        $own   = mb_strpos($r['fix'], 'Google Apps Script');
         $brevo = mb_strpos($r['fix'], 'Brevo');
         $this->assertTrue($brevo === false || $own < $brevo,
             'the road that costs nothing is named before the one that costs money');
@@ -582,14 +585,14 @@ final class MailHealthTest extends TestCase
      */
     public function test_a_degraded_roll_up_says_nobody_is_missing_mail_before_anything_else(): void
     {
+        // The Brevo API carries it. (This server's own mail is no longer a fallback for a
+        // failing SMTP login — it fails the domain's SPF — so the API is the road here.)
         $c = MailConfig::of(['host' => 'smtp.test', 'port' => 587, 'username' => 'l@x', 'password' => 'k',
-                             'transport' => MailConfig::TRANSPORT_AUTO]);
-        $r = MailDiagnosis::roads($c, static fn () => ['ok' => false, 'detail' => 'no key'], true);
-
-        if (!MailConfig::hostMailAvailable()) {
-            $this->markTestSkipped('this runner has mail() disabled, so there is no fallback road');
-        }
-        $this->assertTrue($r['ok'], 'the host road is carrying it');
+                             'transport' => MailConfig::TRANSPORT_AUTO, 'api_key' => 'xkeysib-test']);
+        $r = MailDiagnosis::roads($c, static fn () => ['ok' => true, 'detail' => 'accepted'], true,
+                                  static fn (): ?array => null);
+        $this->assertTrue($r['ok'], 'the API road is carrying it');
+        $this->assertSame('api', $r['road']);
         $this->assertTrue($r['degraded']);
         $this->assertStringStartsWith('Nobody is missing mail', $r['fix'],
             'the true thing comes first, or the remedy below it is read as the state of the platform');

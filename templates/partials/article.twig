@@ -64,18 +64,18 @@
 {% macro article_ld(m, nonce) %}
 <script nonce="{{ nonce }}" type="application/ld+json">
 {"@context":"https://schema.org","@type":"Article",
-"headline":{{ m.title|json_encode|raw }},
-{% if m.subtitle is defined and m.subtitle %}"alternativeHeadline":{{ m.subtitle|json_encode|raw }},{% endif %}
-"description":{{ m.description|default('')|striptags|json_encode|raw }},
-"author":{"@type":"Organization","name":{{ m.author|json_encode|raw }}},
-"publisher":{"@type":"Organization","name":{{ m.publisher|json_encode|raw }}},
-"datePublished":{{ m.published|json_encode|raw }},
-"dateModified":{{ m.updated|json_encode|raw }},
-"version":{{ m.version|json_encode|raw }},
+"headline":{{ m.title|json_encode(JSON_SAFE)|raw }},
+{% if m.subtitle is defined and m.subtitle %}"alternativeHeadline":{{ m.subtitle|json_encode(JSON_SAFE)|raw }},{% endif %}
+"description":{{ m.description|default('')|striptags|json_encode(JSON_SAFE)|raw }},
+"author":{"@type":"Organization","name":{{ m.author|json_encode(JSON_SAFE)|raw }}},
+"publisher":{"@type":"Organization","name":{{ m.publisher|json_encode(JSON_SAFE)|raw }}},
+"datePublished":{{ m.published|json_encode(JSON_SAFE)|raw }},
+"dateModified":{{ m.updated|json_encode(JSON_SAFE)|raw }},
+"version":{{ m.version|json_encode(JSON_SAFE)|raw }},
 "inLanguage":"en",
 "isAccessibleForFree":true,
-"mainEntityOfPage":{"@type":"WebPage","@id":{{ m.url|json_encode|raw }}},
-"url":{{ m.url|json_encode|raw }}}
+"mainEntityOfPage":{"@type":"WebPage","@id":{{ m.url|json_encode(JSON_SAFE)|raw }}},
+"url":{{ m.url|json_encode(JSON_SAFE)|raw }}}
 </script>
 {% endmacro %}
 

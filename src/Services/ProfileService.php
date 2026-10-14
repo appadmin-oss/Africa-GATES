@@ -15,7 +15,7 @@ class ProfileService {
         if($tier) $q->where('cpi_tier',$tier);
         if($region) $q->where('region',$region);
         if($country) $q->where('country_code',$country);
-        if($search) $q->where(fn($s)=>$s->where('display_name','LIKE',"%$search%")->orWhere('bio','LIKE',"%$search%")->orWhere('category','LIKE',"%$search%"));
+        if($search) $q->where(fn($s)=>$s->whereRaw(\AfricaGates\Support\Like::clause('display_name'),[\AfricaGates\Support\Like::contains($search)])->orWhereRaw(\AfricaGates\Support\Like::clause('bio'),[\AfricaGates\Support\Like::contains($search)])->orWhereRaw(\AfricaGates\Support\Like::clause('category'),[\AfricaGates\Support\Like::contains($search)]));
         [$col,$dir]=[['cpi_desc','cpi_score','desc'],['cpi_asc','cpi_score','asc'],['recent','registered_at','desc'],['name_asc','display_name','asc']][array_search($sort,['cpi_desc','cpi_asc','recent','name_asc'])??0] ?? ['cpi_score','desc'];
         $ordArr=['cpi_desc'=>['cpi_score','desc'],'cpi_asc'=>['cpi_score','asc'],'recent'=>['registered_at','desc'],'name_asc'=>['display_name','asc']];
         [$oc,$od]=$ordArr[$sort]??['cpi_score','desc'];

@@ -8,6 +8,12 @@ require __DIR__ . '/../vendor/autoload.php';
 $_ENV['APP_ENV']    = 'testing';
 $_SERVER['APP_ENV'] = 'testing';
 
+// The operators' alert inbox, as a deployment sets it. Notifier::adminEmail() has no typed
+// fallback any more (it used to end at a real person's address), so a test that asserts an
+// alert went out needs somebody to send it to. Not a reserved domain: SendPolicy refuses
+// those, and an alert test must exercise the road a real alert takes.
+$_ENV['ADMIN_ALERT_EMAIL'] ??= 'alerts@gates-ops.ng';
+
 // TEST_DB_DRIVER=mysql opts into the parity run against the CANONICAL schema.
 // DB_DRIVER must follow it, not be pinned to sqlite: anything that builds its own
 // connection from config/database.php — MigrationRunner and every standalone

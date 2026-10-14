@@ -224,7 +224,7 @@
   // would carry an empty nonce.
   var NONCE = (document.currentScript && document.currentScript.nonce) || '';
 
-  var TOKEN = {{ token|json_encode|raw }};
+  var TOKEN = {{ token|json_encode(JSON_SAFE)|raw }};
   var URL_CHECK = '/door/' + TOKEN + '/check';
   var URL_UNDO  = '/door/' + TOKEN + '/undo';
   var URL_SYNC  = '/door/' + TOKEN + '/sync';
@@ -639,7 +639,7 @@
 
   // ══ ARRIVALS ════════════════════════════════════════════════════════════
 
-  var log = {{ arrivals|default([])|json_encode|raw }};
+  var log = {{ arrivals|default([])|json_encode(JSON_SAFE)|raw }};
 
   function remember(v, seatsNote) {
     var kind = kindOf(v);

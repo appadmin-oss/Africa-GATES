@@ -33,6 +33,26 @@ final class OpsScriptsTest extends TestCase
             (int) DB::table('gates_ops_runs')->where('via', 'person')->count());
     }
 
+    /**
+     * Running a script must never SHORTEN the process's time limit.
+     *
+     * The command path called `set_time_limit(120)`, which on the CLI (limit 0) put a
+     * two-minute fuse on the whole process: the suite then died in an unrelated test,
+     * and a console run of a long repair would have been killed half-way.
+     */
+    public function test_running_a_script_never_shortens_an_unlimited_time_limit(): void
+    {
+        $was = ini_get('max_execution_time');
+        try {
+            set_time_limit(0);
+            OpsScripts::run('cache_clear', 'superadmin', null, 'person', 'checking the fuse');
+            $this->assertSame('0', ini_get('max_execution_time'),
+                'a script run put a time limit on a process that had none');
+        } finally {
+            set_time_limit((int) $was);
+        }
+    }
+
     public function test_the_assistant_can_run_a_check_and_never_a_repair(): void
     {
         $this->assertTrue(OpsScripts::run('support_queue', 'superadmin', null, 'ai')['ok']);

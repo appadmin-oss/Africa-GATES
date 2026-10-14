@@ -248,6 +248,26 @@ final class NewsletterAudience
         return true;
     }
 
+    /**
+     * One row's standing, in the words the CACENTRE CRM uses: `subscribed`, `unconfirmed`,
+     * `unsubscribed`, `bounced` or `complained`.
+     *
+     * Here, beside recipients(), because it IS that rule read for one row — the same three
+     * facts in the same order, so the CRM can never count somebody as reachable whom this
+     * platform's own sender would not mail. A bounce or complaint outranks everything,
+     * because it is evidence about the mailbox rather than a preference.
+     *
+     * @param array<string,mixed> $optOutHashes EmailOptOut::suppressedHashes()
+     * @param array<string,string> $suppressed  Mail\Suppression::hashes()
+     */
+    public static function stateOf(object $row, array $optOutHashes, array $suppressed): string
+    {
+        $hash = (string) ($row->email_hash ?? '');
+        if (isset($suppressed[$hash])) return $suppressed[$hash] === Suppression::COMPLAINT ? 'complained' : 'bounced';
+        if (($row->unsubscribed_at ?? null) !== null || isset($optOutHashes[$hash])) return 'unsubscribed';
+        return ($row->confirmed_at ?? null) !== null ? 'subscribed' : 'unconfirmed';
+    }
+
     // ══ who is on it ═════════════════════════════════════════════════════════
 
     /**

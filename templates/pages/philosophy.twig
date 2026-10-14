@@ -74,7 +74,7 @@
   {q: 'Is Africa GATES a pyramid or Ponzi scheme?', a: 'No. Nobody is promised a financial return for recruiting other participants, and no participant earns money by introducing another person into the programme.'},
   {q: 'Do nominees receive any of the money supporters contribute?', a: 'A nominee keeps ' ~ return_pct|default('50') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support from at least ' ~ return_people|default(10) ~ ' different verified people.'}
 ] %}
-{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in _faq %}{"@type":"Question","name":{{ f.q|json_encode|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in _faq %}{"@type":"Question","name":{{ f.q|json_encode(JSON_SAFE)|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode(JSON_SAFE)|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
 </script>
 {% endblock %}
 

@@ -36,7 +36,7 @@ class RegistrationsController
         if ($eventId > 0) $base->where('r.event_id', $eventId);
         if ($q !== '') {
             $base->where(function ($w) use ($q) {
-                $w->where('r.name', 'like', "%{$q}%")->orWhere('r.email', 'like', "%{$q}%")->orWhere('r.phone', 'like', "%{$q}%");
+                $w->whereRaw(\AfricaGates\Support\Like::clause('r.name'), [\AfricaGates\Support\Like::contains($q)])->orWhereRaw(\AfricaGates\Support\Like::clause('r.email'), [\AfricaGates\Support\Like::contains($q)])->orWhereRaw(\AfricaGates\Support\Like::clause('r.phone'), [\AfricaGates\Support\Like::contains($q)]);
             });
         }
         return $base;
@@ -94,9 +94,9 @@ class RegistrationsController
 
         $fh = fopen('php://temp', 'r+');
         // Pass the escape arg explicitly — PHP 8.4 deprecates relying on its default.
-        fputcsv($fh, ['Event', 'Name', 'Email', 'Phone', 'Tier', 'Registered at'], ',', '"', '\\');
+        \AfricaGates\Support\Csv::put($fh, ['Event', 'Name', 'Email', 'Phone', 'Tier', 'Registered at'], ',', '"', '\\');
         foreach ($rows as $r) {
-            fputcsv($fh, [(string) $r->event_title, (string) $r->name, (string) $r->email, (string) $r->phone, (string) $r->tier, (string) $r->created_at], ',', '"', '\\');
+            \AfricaGates\Support\Csv::put($fh, [(string) $r->event_title, (string) $r->name, (string) $r->email, (string) $r->phone, (string) $r->tier, (string) $r->created_at], ',', '"', '\\');
         }
         rewind($fh);
         $csv = (string) stream_get_contents($fh);

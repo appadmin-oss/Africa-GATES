@@ -117,7 +117,25 @@ final class MailDiagnosis
 
         $smtp = in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_SMTP], true)
             ? (new self($c))->run() : null;
-        if ($smtp !== null && ($smtp['ok'] || $c->transport === MailConfig::TRANSPORT_SMTP)) {
+        if ($smtp !== null && $smtp['ok']) {
+            return $smtp + ['road' => 'smtp', 'degraded' => false];
+        }
+        /* The login stored in Settings failed and `.env` holds a different one: the sender
+           tries that next (OtpService::routes()), so the check asks it too. A carrying
+           `.env` login is WORKING and DEGRADED — the stored one is still wrong, and the
+           fix is the one press that removes it. */
+        if ($smtp !== null && $c->envSmtp !== null) {
+            $e = $c->envSmtp;
+            $alt = (new self(MailConfig::of(['host' => $e['host'], 'port' => $e['port'], 'secure' => $e['secure'],
+                'username' => $e['username'], 'password' => $e['password'], 'from' => $c->fromAddress,
+                'from_name' => $c->fromName, 'transport' => $c->transport])))->run();
+            if ($alt['ok']) {
+                return array_merge($alt, ['road' => 'smtp-env', 'degraded' => true,
+                    'title' => 'The SMTP login saved in Settings is failing (' . $smtp['title'] . ') — mail is going out with the server’s .env login instead',
+                    'fix' => 'Press “Use the server’s .env settings instead” on Settings → Email health to remove the saved login, or save a working one.']);
+            }
+        }
+        if ($smtp !== null && $c->transport === MailConfig::TRANSPORT_SMTP) {
             return $smtp + ['road' => 'smtp', 'degraded' => false];
         }
 
@@ -129,8 +147,10 @@ final class MailDiagnosis
         $why = $smtp !== null ? 'SMTP is failing (' . $smtp['title'] . ')' : 'SMTP is not used';
 
         // ── Google Apps Script: the road for when Google SMTP fails ─────────────
+        $gasSet = false;
         if (in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_GAS], true)) {
             $g = $gas();
+            $gasSet = $g !== null;
             if ($g !== null) {
                 $base['steps'][] = ['key' => 'gas', 'label' => 'Google Apps Script can send for us',
                                     'state' => $g['ok'] ? self::OK : self::FAIL, 'detail' => $g['detail']];
@@ -171,14 +191,19 @@ final class MailDiagnosis
             }
         }
 
-        if (in_array($c->transport, [MailConfig::TRANSPORT_AUTO, MailConfig::TRANSPORT_HOST], true)) {
+        /* The server's own mail is a road only when chosen, or when nothing else is set up
+           at all — see OtpService::routes() for why it stopped being a fallback: it sends
+           as the server, the domain's SPF and DKIM are not the server's, and a "sent" from
+           it is mail Gmail discards unseen. */
+        if ($c->transport === MailConfig::TRANSPORT_HOST
+            || ($c->transport === MailConfig::TRANSPORT_AUTO && !$c->hasCredentials() && !$c->hasApiKey() && !$gasSet)) {
             $base['steps'][] = ['key' => 'host', 'label' => 'This server can send its own mail',
                                 'state' => $host ? self::OK : self::FAIL,
                                 'detail' => $host ? 'PHP’s mail() is available here.' : 'PHP’s mail() is not available on this server.'];
             if ($host) {
                 return self::degraded(array_merge($base, ['ok' => true, 'road' => 'host', 'degraded' => $c->transport === MailConfig::TRANSPORT_AUTO,
                     'title' => $c->transport === MailConfig::TRANSPORT_AUTO
-                        ? $why . ' — mail is going out by this server’s own mail instead'
+                        ? 'Nothing is set up, so mail is going out by this server’s own mail — which most inboxes discard'
                         : 'Email can be sent by this server’s own mail']),
                     'host', $c->transport === MailConfig::TRANSPORT_AUTO);
             }
@@ -244,18 +269,20 @@ final class MailDiagnosis
         }
 
         // ── THE ROAD THAT COSTS NOTHING COMES FIRST ─────────────────────────────────
-        // Every branch below used to end "save a Brevo API key", with this server's own
-        // mail in a parenthesis after it. On a cPanel host PHP's mail() is always there,
-        // needs no account, no key and no third party, and "Send by: Automatic" ALREADY
-        // falls through to it — so an SMTP fault is not a reason to go and open an
-        // account anywhere. Read twice as though the paid relay were the only way out,
-        // which is what naming it first does.
-        $road = MailConfig::hostMailAvailable()
-            ? 'leave “Send by” on Automatic, which already falls through to this server’s own mail'
-              . ($c->hasApiKey() ? ' (and to the Brevo API, whose key is saved)' : '')
+        // Every branch below used to end "save a Brevo API key", read twice as though the
+        // paid relay were the only way out. The free road is Google Apps Script: it needs
+        // no account beyond the Google one already sending, and it sends AS that account,
+        // so the domain's SPF and DKIM hold. This server's own mail is NOT offered here:
+        // it sends as the server, which the domain's SPF does not name, so Gmail and
+        // Outlook discard it unseen while mail() reports "sent" (OtpService::routes()).
+        $gasSet = AppsScriptMail::configured();
+        $road = $gasSet
+            ? 'leave “Send by” on Automatic, which already falls through to Google Apps Script'
+              . ($c->hasApiKey() ? ' (and then to the Brevo API, whose key is saved)' : '')
             : ($c->hasApiKey()
                 ? 'set “Send by” to Automatic so mail goes out by the Brevo API'
-                : 'set “Send by” to Automatic and save a Brevo API key, so mail goes out over HTTPS');
+                : 'set up Google Apps Script on Settings → Email health — it costs nothing and sends as your Google account —'
+                  . ' and leave “Send by” on Automatic (a Brevo API key is the paid alternative)');
         $settled = $pair . ' is already the right pairing, so changing the port or the encryption will not help. ';
 
         // A server that answers 587 and offers no encryption at all, where the provider
@@ -345,7 +372,7 @@ final class MailDiagnosis
     private static function degraded(array $r, string $road, bool $degraded): array
     {
         if (!$degraded || trim((string) ($r['fix'] ?? '')) === '') return $r;
-        $by = $road === 'api' ? 'the Brevo API' : 'this server’s own mail';
+        $by = match ($road) { 'api' => 'the Brevo API', 'gas' => 'Google Apps Script', default => 'this server’s own mail' };
         $r['fix'] = 'Nobody is missing mail: it is going out by ' . $by . ', and sign-in codes, '
             . 'receipts and announcements are all being delivered. What follows is about the SMTP '
             . 'road only, which is worth repairing but is not an outage. ' . $r['fix'];

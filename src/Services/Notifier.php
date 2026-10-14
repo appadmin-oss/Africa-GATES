@@ -20,8 +20,11 @@ final class Notifier {
         $e = trim($e);
         if ($e === '') $e = (string) Env::get('ADMIN_ALERT_EMAIL', '');
         if ($e === '') $e = (string) Env::get('MAIL_FROM_ADDRESS', '');
-        if ($e === '') $e = 'app.admin@afrovanguard.org.ng';
-        return $e;
+        // No typed fallback. An operator's own inbox hard-coded here was a personal address
+        // committed to the repository, and it would have received every alert from every
+        // deployment of this code. '' means "nobody is set": callers skip the mail, and the
+        // console banner (MailAlert) still shows what happened.
+        return trim($e);
     }
 
     /**
@@ -49,6 +52,7 @@ final class Notifier {
     /** Email the operators about a new submission — branded HTML. Best-effort. */
     public static function adminAlert(?OtpService $mailer, string $subject, string $body): void {
         if ($mailer === null) return;
+        if (self::adminEmail() === '') { error_log('[Notifier] no admin alert address is set — "' . $subject . '" was not emailed'); return; }
         try { $mailer->sendBranded(self::adminEmail(), '[Africa GATES] ' . $subject, self::htmlify($body), $body, 'Admin'); }
         catch (\Throwable $e) { error_log('[Notifier] admin alert failed: ' . $e->getMessage()); }
     }

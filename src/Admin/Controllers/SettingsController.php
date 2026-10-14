@@ -22,6 +22,15 @@ class SettingsController
 
     public function form(Request $req, Response $res): Response
     {
+        /* A stream added in finance this morning should be usable this morning.
+           The catalogue is cached for the TTL finance nominates, which is right for
+           every checkout and wrong for the one operator who has just been told to
+           route a new kind of money and is looking at a screen that does not list
+           it yet. This is the way to say "ask again now" without waiting it out. */
+        if ((string) ($req->getQueryParams()['streams'] ?? '') === 'refresh') {
+            \AfricaGates\Services\CfisCatalogue::refresh();
+        }
+
         // `gates_admin_settings` used to be read in full here and passed as
         // `admin_settings`, which no template has ever mentioned — a table scan and a
         // schema probe on every render of the settings screen, for a variable Twig
@@ -220,6 +229,12 @@ class SettingsController
             'invite_reminder_line_judge_default'   => \AfricaGates\Services\InviteReminders::copy(
                 \AfricaGates\Services\InviteAudience::JUDGE)['line_default'],
             'cloudinary_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cloudinary_api_secret')->value('value') ?? '')) !== '',
+            // Whether finance's signing key is stored — never the key. `values` is the
+            // whole settings table, so anything echoed from it lands in the page source;
+            // a credential gets a boolean and a placeholder, like Cloudinary's above.
+            // Through the catalogue's own resolver (Settings, then .env), so the badge reads
+            // "connected" whenever finance actually is — it used to read only the table.
+            'cfis_secret_set' => \AfricaGates\Services\CfisCatalogue::secretSet(),
             // Flash renders from the Twig globals via the layout — do not shadow them.
             // Where each revenue stream settles. Resolved, so the screen shows the code that
             // WILL be used rather than a raw setting somebody has to interpret.
@@ -302,6 +317,11 @@ class SettingsController
             // The secret is write-only, like every other credential on this page.
             'gas_url'        => \AfricaGates\Services\GoogleMeetService::gasUrl(),
             'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
+            // The CACENTRE CRM: where this platform's subscribers and enquiries are sent. Read
+            // through the one resolver; the secret is write-only like every other credential.
+            'crm_url'        => \AfricaGates\Services\CrmAudiencePush::base(),
+            'crm_secret_set' => \AfricaGates\Services\CrmAudiencePush::ready(),
+            'crm_last'       => \AfricaGates\Services\CrmAudiencePush::lastResult(),
             // Consumed once, for the same reason as the AI probe above: a verdict about a
             // deployment that has since been re-published is the one an operator would act on.
             'sync_probe' => (static function (): array {
@@ -605,7 +625,10 @@ class SettingsController
         // would put the credential in the page source of every settings render.
         foreach (['cloudinary_api_secret' => 'cloudinary_secret',
                   'cloudinary_url' => 'cloudinary_url',
-                  'azure_speech_key' => 'azure_key'] as $settingKey => $clearName) {
+                  'azure_speech_key' => 'azure_key',
+                  // The CFIS signing key. Write-only like every other credential here:
+                  // it is what proves to finance which property is reporting money.
+                  'cfis_secret' => 'cfis_secret'] as $settingKey => $clearName) {
             $clear = (array) ($b['secret_clear'] ?? []);
             if (!empty($clear[$clearName])) { $this->settings->set($settingKey, '', $adminId); continue; }
             $val = trim((string) ($b[$settingKey] ?? ''));
@@ -726,10 +749,20 @@ class SettingsController
         // rejects an initialise with a bad subaccount, so a typo here would take that stream's
         // payments offline with no visible cause. Refusing to route is recoverable; refusing to
         // sell is not.
+        // Where finance is, and who we are to it. Not secrets — the key beside them is —
+        // so they save on the plain path and are echoed back, which is what lets an
+        // operator SEE the address a refused catalogue was asked for.
+        foreach (['cfis_url', 'cfis_source'] as $k) {
+            if (array_key_exists($k, $b)) {
+                $this->settings->set($k, trim((string) $b[$k]), $adminId);
+                \AfricaGates\Services\CfisCatalogue::refresh();
+            }
+        }
+
         if (array_key_exists('payout_settings', $b)) {
             $codes = [];
             $bearers = [];
-            foreach (array_keys(\AfricaGates\Services\PaymentDestination::STREAMS) as $stream) {
+            foreach (array_keys(\AfricaGates\Services\PaymentDestination::streams()) as $stream) {
                 if (array_key_exists('sub_' . $stream, $b)) {
                     $codes[$stream] = (string) $b['sub_' . $stream];
                 }
@@ -746,7 +779,7 @@ class SettingsController
             if ($r['refused'] !== []) {
                 $lines = [];
                 foreach ($r['refused'] as $stream => $why) {
-                    $lines[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                    $lines[] = \AfricaGates\Services\PaymentDestination::labelFor($stream)
                              . ': ' . $why;
                 }
                 // Paystack's own words, per stream, and the old value kept. "Subaccount not
@@ -759,7 +792,7 @@ class SettingsController
                 // wrong one recognises the wrong name far faster than the wrong code.
                 $ok = [];
                 foreach ($r['checked'] as $stream => $who) {
-                    $ok[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                    $ok[] = \AfricaGates\Services\PaymentDestination::labelFor($stream)
                           . ' → ' . $who;
                 }
                 $verified = 'Verified with Paystack: ' . implode(' · ', $ok);
@@ -924,6 +957,12 @@ class SettingsController
         // the wrong place, for weeks. Refusing to store it names the fault at the moment
         // it is made.
         if (($why = $this->saveGoogle($b, $adminId)) !== null) {
+            $_SESSION['flash_error'] = $why;
+        }
+
+        // ── THE CACENTRE CRM ──────────────────────────────────────────────────
+        // Marker-gated like the rest, and the secret write-only: a blank field keeps it.
+        if (($why = $this->saveCrm($b, $adminId)) !== null) {
             $_SESSION['flash_error'] = $why;
         }
 
@@ -1420,6 +1459,39 @@ class SettingsController
             if ($sec !== '') $this->settings->set('gas_secret', $sec, $adminId);
         }
 
+        return $why;
+    }
+
+    /**
+     * The CACENTRE CRM's address and the secret CACENTRE generated for this platform.
+     *
+     * The address is REFUSED rather than stored when it is anything but an origin — a path
+     * or a query would be appended to, and the push would go to a page that answers 404
+     * while this screen said it was set.
+     *
+     * @param array<string,mixed> $b
+     */
+    private function saveCrm(array $b, int $adminId): ?string
+    {
+        if (!array_key_exists('crm_settings', $b)) return null;
+        $why = null;
+        if (array_key_exists('crm_intake_url', $b)) {
+            $url = rtrim(trim((string) $b['crm_intake_url']), '/');
+            $p = $url !== '' ? parse_url($url) : null;
+            if ($url === '' || (is_array($p) && in_array(strtolower((string) ($p['scheme'] ?? '')), ['http', 'https'], true)
+                                && !empty($p['host']) && empty($p['path']) && empty($p['query']) && empty($p['user']))) {
+                $this->settings->set('crm_intake_url', $url, $adminId);
+            } else {
+                $why = 'The CACENTRE address was not saved — use the site address alone, such as '
+                     . 'https://cacentre.afrovanguard.org.ng, with nothing after it. Everything else on this page was saved.';
+            }
+        }
+        if (!empty($b['crm_clear']['secret'])) {
+            $this->settings->set('crm_intake_secret', '', $adminId);
+        } else {
+            $sec = trim((string) ($b['crm_intake_secret'] ?? ''));
+            if ($sec !== '') $this->settings->set('crm_intake_secret', $sec, $adminId);
+        }
         return $why;
     }
 
