@@ -71,6 +71,33 @@
   </div>
 </section>
 
+<section class="hm-honour" aria-labelledby="hmHonourH">
+  <div class="hm-honour__head">
+    <div>
+      <span class="hm-command__eyebrow">Africa GATES programme</span>
+      <h2 class="hm-card__t" id="hmHonourH">Who are you celebrating today?</h2>
+    </div>
+    <a class="cn-btn cn-btn--sm" href="/admin/nominations">View nominations <span aria-hidden="true">→</span></a>
+  </div>
+  <div class="hm-honour__grid">
+    {% set honour_categories = [
+      ['Teacher', 'teacher', 'Education'],
+      ['Nurse', 'nurse', 'Healthcare'],
+      ['Community leader', 'community-leader', 'Community'],
+      ['Creative', 'creative', 'Arts & culture'],
+      ['Business leader', 'business', 'Enterprise'],
+      ['Young leader', 'young-leader', 'Emerging voices']
+    ] %}
+    {% for category in honour_categories %}
+      <a class="hm-honour__card" href="/admin/nominations?category={{ category[1] }}">
+        <img src="/assets/img/honour/{{ category[1] }}.png" alt="" loading="lazy" width="480" height="480">
+        <span class="hm-honour__label">{{ category[0] }}</span>
+        <span class="hm-honour__meta">{{ category[2] }} <span aria-hidden="true">→</span></span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+
 <div class="hm-grid">
   {# ── THE WORK ─────────────────────────────────────────────────────────────── #}
   <section class="cn-card hm-work" aria-labelledby="cnBoardH">
