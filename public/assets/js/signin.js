@@ -127,3 +127,44 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+
+// Sign in art carousel controls
+document.addEventListener('DOMContentLoaded', function() {
+  const carousel = document.querySelector('[data-si-carousel]');
+  if (!carousel) return;
+  const slides = carousel.querySelectorAll('[data-si-slide]');
+  const nowEl = carousel.querySelector('[data-si-now]');
+  const barEl = carousel.querySelector('[data-si-bar-fill]');
+  const prevBtn = carousel.querySelector('[data-si-prev]');
+  const nextBtn = carousel.querySelector('[data-si-next]');
+  let idx = 0;
+  let timer = null;
+
+  function setSlide(i) {
+    slides.forEach((s, sIdx) => {
+      s.classList.toggle('is-active', sIdx === i);
+    });
+    idx = i;
+    if (nowEl) nowEl.textContent = String(i + 1).padStart(2, '0');
+    if (barEl) barEl.style.width = Math.round(((i + 1) / slides.length) * 100) + '%';
+  }
+
+  function advance() {
+    setSlide((idx + 1) % slides.length);
+  }
+
+  function start() {
+    if (!timer) timer = setInterval(advance, 5500);
+  }
+
+  function stop() {
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  if (prevBtn) prevBtn.addEventListener('click', () => { stop(); setSlide((idx + slides.length - 1) % slides.length); start(); });
+  if (nextBtn) nextBtn.addEventListener('click', () => { stop(); setSlide((idx + 1) % slides.length); start(); });
+
+  carousel.addEventListener('mouseenter', stop);
+  carousel.addEventListener('mouseleave', start);
+  start();
+});

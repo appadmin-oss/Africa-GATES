@@ -29,17 +29,15 @@ final class HomeController
     public function index(Request $req, Response $res): Response
     {
         $front = $this->cache->remember('home:front', 300, static fn (): array => [
-            'stats'    => HomeFront::stats(),
-            'voting'   => HomeFront::voting(),
-            'decided'  => HomeFront::decided(),
-            'campaign' => HomeFront::campaign(),
-            // §8.1 section 3, "Who recognises": real recognitions from verified issuers
-            // (Services\Recognitions, GAPS §3.1) — never the DC's sample honours.
-            // With no issued recognition record yet, the latest decided winners stand in, so
-            // the card never says "recognitions appear once an award is announced" beside a
-            // list of announced winners (design review, 12 Oct 2026).
+            'stats'        => HomeFront::stats(),
+            'voting'       => HomeFront::voting(),
+            'decided'      => HomeFront::decided(),
+            'campaign'     => HomeFront::campaign(),
             'recognitions' => \AfricaGates\Services\Recognitions::recent(12)
                               ?: HomeFront::asRecognitions(HomeFront::decided()),
+            'hero_slides'  => \AfricaGates\Support\SchemaHas::table('gates_home_features') ? \AfricaGates\Models\HomeFeature::getActiveByType('hero_slide') : [],
+            'topic_cards'  => \AfricaGates\Support\SchemaHas::table('gates_home_features') ? \AfricaGates\Models\HomeFeature::getActiveByType('topic') : [],
+            'featured_wide' => \AfricaGates\Support\SchemaHas::table('gates_home_features') ? \AfricaGates\Models\HomeFeature::getActiveByType('featured_wide')->first() : null,
         ], ['leaderboard', 'registry']);
 
         $band = $this->cache->remember('home:globe', 900, static fn (): array => [
@@ -61,6 +59,9 @@ final class HomeController
             'decided'          => $front['decided'],
             'campaign'         => $front['campaign'],
             'recognitions'     => $front['recognitions'] ?? [],
+            'hero_slides'      => $front['hero_slides'] ?? [],
+            'topic_cards'      => $front['topic_cards'] ?? [],
+            'featured_wide'    => $front['featured_wide'] ?? null,
             'globe_countries'  => $band['countries'],
             'globe_note'       => $band['note'],
         ]);

@@ -100,6 +100,137 @@
   {# ── 3 · Who recognises (Phase 6) ─────────────────────────────────────── #}
   {% include 'partials/who-recognises.twig' with {recognitions: recognitions|default([])} only %}
 
+  {# ── 2 · Who do you want to honour? ────────────────────────────────────── #}
+  <section class="hm-sec" aria-labelledby="hm-honour-h">
+    <div class="hm-head hm-head--row">
+      <h2 class="hm-h2" id="hm-honour-h">{{ 'Who do you want to honour?'|trans }}</h2>
+      <a class="hm-more hm-more--lg" href="/nominate">{{ 'All categories →'|trans }}</a>
+    </div>
+    {% set honour_tiles = [
+      { key: 'teacher', label: 'Teacher or mentor', img: asset('/assets/honour/teacher.png') },
+      { key: 'nurse', label: 'Nurse or carer', img: asset('/assets/honour/nurse.png') },
+      { key: 'community-leader', label: 'Community leader', img: asset('/assets/honour/community-leader.png') },
+      { key: 'creative', label: 'Creative or artist', img: asset('/assets/honour/creative.png') },
+      { key: 'business', label: 'Business builder', img: asset('/assets/honour/business.png') },
+      { key: 'young-leader', label: 'Young leader', img: asset('/assets/honour/young-leader.png') }
+    ] %}
+    <div class="hm-honour-grid">
+      {% for t in honour_tiles %}
+        <a class="hm-honour-tile" href="/nominate?category={{ t.key }}">
+          <div class="hm-honour-tile__img-wrap">
+            <img class="hm-honour-tile__img" src="{{ t.img }}" alt="{{ t.label }}" loading="lazy">
+          </div>
+          <div class="hm-honour-tile__body">
+            <span class="hm-honour-tile__lbl">{{ t.label|trans }}</span>
+            <span class="hm-honour-tile__arr" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </span>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ── 3 · Featured ───────────────────────────────────────────────────────── #}
+  <section class="hm-sec" aria-labelledby="hm-feat-h">
+    <div class="hm-head">
+      <span class="hm-eyebrow">{{ 'Featured'|trans }}</span>
+      <h2 class="hm-h2" id="hm-feat-h">{{ 'Stories and spotlights across Africa'|trans }}</h2>
+    </div>
+
+    {% set wide = featured_wide ?: {
+      title: 'The Great African Education Challenge',
+      body: 'Celebrating teachers and innovators creating accessible education across the continent.',
+      image_path: '',
+      tag: 'Challenge',
+      link_url: '/challenges',
+      link_text: 'Join the challenge →'
+    } %}
+    <div class="hm-feat-wide">
+      <div class="hm-feat-wide__media">
+        <span class="hm-feat-wide__tag">{{ wide.tag|trans }}</span>
+        {% if wide.image_path %}<img src="{{ wide.image_path }}" alt="{{ wide.title }}" loading="lazy">{% endif %}
+      </div>
+      <div class="hm-feat-wide__body">
+        <h3 class="hm-feat-wide__t">{{ wide.title|trans }}</h3>
+        <p class="hm-feat-wide__p">{{ wide.body|trans }}</p>
+        <a class="hm-feat-wide__link" href="{{ wide.link_url ?: '/challenges' }}">{{ wide.link_text ?: 'Join the challenge →'|trans }}</a>
+      </div>
+    </div>
+
+    {% set default_topics = [
+      {
+        title: 'New recognition formats for 2026',
+        body: 'How organisations use Africa GATES to verify honours.',
+        tag: 'New',
+        field_bg: '#f3d98b',
+        rot: '-3deg',
+        image: '',
+        url: '/blog'
+      },
+      {
+        title: 'Run an award for your community',
+        body: 'Tools for organisers, universities and civic groups.',
+        tag: 'For organisers',
+        field_bg: '#bcd4e6',
+        rot: '4deg',
+        image: '',
+        url: '/partner'
+      },
+      {
+        title: 'Wear the recognition',
+        body: 'Every order gives back 40% to youth development.',
+        tag: 'Shop',
+        field_bg: '#f1c9d3',
+        rot: '-2deg',
+        image: '',
+        url: '/shop'
+      }
+    ] %}
+    {% set topics = topic_cards|length ? topic_cards : default_topics %}
+    <div class="hm-topics-grid">
+      {% for top in topics %}
+        <a class="hm-topic-card" href="{{ top.url ?: top.link_url ?: '#' }}">
+          <div class="hm-topic-card__field" style="background: {{ top.field_bg ?: '#f3d98b' }}">
+            <span class="hm-topic-card__tag">{{ top.tag|trans }}</span>
+            <div class="hm-topic-card__photo-wrap" style="transform: rotate({{ top.rot ?: '0deg' }})">
+              {% if top.image or top.image_path %}<img src="{{ top.image ?: top.image_path }}" alt="{{ top.title }}" loading="lazy">{% endif %}
+            </div>
+          </div>
+          <div class="hm-topic-card__body">
+            <h4 class="hm-topic-card__t">{{ top.title|trans }}</h4>
+            <p class="hm-topic-card__p">{{ (top.body ?: top.quote)|trans }}</p>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ── 4 · How it works ───────────────────────────────────────────────────── #}
+  <section class="hm-sec" aria-labelledby="hm-hiw-h">
+    <div class="hm-head">
+      <span class="hm-eyebrow">{{ 'How it works'|trans }}</span>
+      <h2 class="hm-h2" id="hm-hiw-h">{{ 'Transparent, community-driven recognition'|trans }}</h2>
+    </div>
+    <div class="hm-hiw-grid">
+      <div class="hm-hiw-card">
+        <span class="hm-hiw-card__num">01</span>
+        <h3 class="hm-hiw-card__t">{{ 'Nominate & put people forward'|trans }}</h3>
+        <p class="hm-hiw-card__p">{{ 'Anyone can nominate someone doing outstanding work. No fee to nominate or accept.'|trans }}</p>
+      </div>
+      <div class="hm-hiw-card">
+        <span class="hm-hiw-card__num">02</span>
+        <h3 class="hm-hiw-card__t">{{ 'Community voting & verification'|trans }}</h3>
+        <p class="hm-hiw-card__p">{{ 'Verified citizens vote across categories. Integrity systems ensure one voter, one vote.'|trans }}</p>
+      </div>
+      <div class="hm-hiw-card">
+        <span class="hm-hiw-card__num">03</span>
+        <h3 class="hm-hiw-card__t">{{ 'Permanent record & celebration'|trans }}</h3>
+        <p class="hm-hiw-card__p">{{ 'Honours and awards are recorded permanently in the Legacy Vault for generations.'|trans }}</p>
+      </div>
+    </div>
+  </section>
+
   {# ── 5 · We Are Africa ─────────────────────────────────────────────────── #}
   <div class="hm-bleed">{% include 'partials/we-are-africa.twig' with {countries: globe_countries, note: globe_note} only %}</div>
 

@@ -1225,6 +1225,30 @@ CREATE TABLE IF NOT EXISTS gates_recognition_withdrawals (
   PRIMARY KEY(id), KEY idx_rcw_rec(recognition_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ─── Curated Home & Voice Features (migrations/2027_03_11_home_features.php) ───
+CREATE TABLE IF NOT EXISTS gates_home_features (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  type VARCHAR(50) NOT NULL DEFAULT 'hero_slide',
+  title VARCHAR(255) NOT NULL,
+  body TEXT NULL,
+  image_path VARCHAR(400) NULL,
+  tag VARCHAR(100) NULL,
+  link_url VARCHAR(400) NULL,
+  link_text VARCHAR(100) NULL,
+  author_name VARCHAR(150) NULL,
+  author_role VARCHAR(150) NULL,
+  issuer_name VARCHAR(150) NULL,
+  issuer_initial VARCHAR(10) NULL,
+  issuer_color VARCHAR(30) NULL,
+  issuer_type VARCHAR(50) NULL,
+  quote TEXT NULL,
+  sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  KEY idx_hf_type (type, is_active, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ─── "Get status updates" on /status (double opt-in; migrations/2027_03_07_status_alerts.php) ───
 CREATE TABLE IF NOT EXISTS gates_status_alerts (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

@@ -235,3 +235,83 @@
 @media (prefers-reduced-motion: reduce){
   .si__go:active{ transform:none }
 }
+
+/* Art Carousel Styles for Sign In V5 */
+.si__art-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+.si__art-slide.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.si__quote {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: var(--ag-fs-28, 1.75rem);
+  font-weight: 700;
+  line-height: 1.25;
+  color: #f1efe9;
+  margin: 0 0 12px;
+}
+.si__by {
+  font-size: var(--ag-fs-14, 0.875rem);
+  font-weight: 600;
+  color: #f1efe9;
+}
+.si__art-controls {
+  position: absolute;
+  left: 40px;
+  right: 40px;
+  bottom: 40px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.si__art-counter {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: var(--ag-fs-13, 0.8125rem);
+  color: #fff;
+}
+.si__art-sep {
+  color: rgba(241, 239, 233, 0.6);
+}
+.si__art-bar {
+  flex: 1;
+  max-width: 120px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(241, 239, 233, 0.25);
+  overflow: hidden;
+}
+.si__art-bar-fill {
+  display: block;
+  height: 100%;
+  background: #fff;
+  transition: width 0.4s ease;
+}
+.si__art-nav {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.si__art-btn {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(241, 239, 233, 0.45);
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: var(--ag-fs-20, 1.25rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.si__art-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}

@@ -254,3 +254,51 @@
 }
 
 @media (prefers-reduced-motion:reduce){ .gv *{ transition:none!important } }
+
+/* Giving Page V5 Additions */
+.gv-actions-inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 20px 0;
+}
+.gv-story-toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-weight: 700;
+  font-size: var(--ag-fs-15, 0.9375rem);
+  color: #10292c;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.gv-trust-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  padding: 32px 0;
+  border-top: 1px solid #e8e5dd;
+  border-bottom: 1px solid #e8e5dd;
+  margin-top: 40px;
+}
+@media (max-width: 834px) {
+  .gv-trust-strip { grid-template-columns: 1fr; }
+}
+.gv-trust-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.gv-trust-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #effaf0;
+  color: #237b22;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--ag-fs-20, 1.25rem);
+  flex-shrink: 0;
+}
