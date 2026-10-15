@@ -68,6 +68,7 @@ body[data-side="closed"] .cn-side { display: none; }
 .cn-side__brand { display: flex; align-items: center; gap: 10px; padding: 18px 20px 14px; }
 .cn-side__brand img { width: 24px; height: 24px; border-radius: var(--cn-r-6); object-fit: contain; }
 .cn-side__brand span { font-size: var(--cn-fs-16); font-weight: 700; letter-spacing: -.03em; }
+.cn-side__brand-tag { margin-left: auto; padding: 3px 7px; border: 1px solid var(--cn-line-control); border-radius: var(--cn-r-pill); color: var(--cn-grey-500); font-size: var(--cn-fs-10) !important; font-weight: 600 !important; letter-spacing: .04em !important; text-transform: uppercase; }
 
 .cn-nav {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
@@ -292,6 +293,16 @@ body[data-side="closed"] .cn-side { display: none; }
 /* The house rule under the greeting: green, with gold at its end. */
 .hm-rule { height: 3px; margin: 2px 0 6px; border-radius: var(--cn-r-pill);
   background: linear-gradient(90deg, var(--cn-brand-green) 0 82%, var(--cn-brand-gold) 82% 100%); }
+.hm-command { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 24px; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-16); background: var(--cn-ink); color: var(--cn-surface); box-shadow: 0 12px 28px color-mix(in srgb, var(--cn-ink) 12%, transparent); }
+.hm-command__intro { min-width: 0; }
+.hm-command__eyebrow { margin-bottom: 6px; color: var(--cn-brand-gold); font-size: var(--cn-fs-11-5); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.hm-command h2 { margin: 0; font-size: var(--cn-fs-20); line-height: 1.2; letter-spacing: -.03em; }
+.hm-command p { margin: 6px 0 0; color: color-mix(in srgb, var(--cn-surface) 72%, transparent); font-size: var(--cn-fs-13-5); }
+.hm-command__actions { display: flex; flex: none; gap: 8px; }
+.hm-command .cn-btn { border-color: color-mix(in srgb, var(--cn-surface) 26%, transparent); background: transparent; color: var(--cn-surface); }
+.hm-command .cn-btn:hover { border-color: var(--cn-surface); }
+.hm-command .cn-btn--primary { border-color: var(--cn-brand-green); background: var(--cn-brand-green); color: var(--cn-ink); }
+@media (max-width: 640px) { .hm-command { align-items: flex-start; flex-direction: column; padding: 18px; } .hm-command__actions { width: 100%; } .hm-command__actions .cn-btn { flex: 1; } }
 
 .hm-card__h { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; padding: 16px 18px 12px; }
 .hm-card__t { margin: 0; font-size: var(--cn-fs-15); font-weight: 600; color: var(--cn-ink); }
