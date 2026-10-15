@@ -109,6 +109,12 @@
         </div>
       {% endfor %}
     </nav>
+    <div class="cn-side__footer">
+      <div class="cn-side__footer-rule"></div>
+      {% if shell.handbook %}<a class="cn-side__utility" href="/admin/handbook"><svg aria-hidden="true" focusable="false"><use href="#ic-handbook"/></svg><span>Handbook</span></a>{% endif %}
+      <a class="cn-side__utility" href="/" target="_blank" rel="noopener"><svg aria-hidden="true" focusable="false"><use href="#ic-external"/></svg><span>View public site</span></a>
+      <span class="cn-side__version">Africa GATES Console</span>
+    </div>
   </aside>
   <div class="cn-scrim" data-ag-do="side-close" hidden></div>
 
