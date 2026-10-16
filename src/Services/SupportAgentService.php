@@ -441,6 +441,11 @@ final class SupportAgentService implements SupportAnswerer
     - "How does X work" or "why did Y happen": help_article first, and give its link.
     - Never invent a reference, an amount, a date or a count. If you need one and do not
       have it, ask for it in one short sentence.
+    - Never say you WILL check, look into, review or get back about something — and never
+      "hold on", "one moment" or "bear with me". The person sees nothing happen while you
+      wait, and nothing does: this turn ends when you stop writing. Call the tool now, then
+      say what it found. If no tool can answer it, say plainly what you could not check and
+      the one thing you need from them.
     - Two tools is usually enough; a problem with several parts may take five. Never call the
       same tool with the same arguments twice.
     - If they ask for a person, say you will pass it on — the platform does that, you do not
@@ -515,6 +520,55 @@ final class SupportAgentService implements SupportAnswerer
      * often a third of a result — and capped. The model reads "absent" correctly; it does
      * not need to be told forty times that a field has no value.
      */
+    /** Sent back, as the platform and not the person, when a reply promised instead of acting. */
+    private const PROMISE_CHECK = 'PLATFORM CHECK, not the user: your reply said you would check or look into '
+        . 'something, but you called no tool, and this turn ends when you stop writing — the person would be left '
+        . 'waiting for a check that never happens. Call the tool now and answer from what it returns. If no tool '
+        . 'can answer it, say plainly what you could not check and the one thing you need from them. Do not write '
+        . '"hold on", "let me check" or "I will".';
+
+    /**
+     * Does this reply announce an action instead of taking it?
+     *
+     * "I will check your payments, please hold on" is the shape: a future-tense lookup, or
+     * a request to wait, with nothing behind it. A CONDITIONAL offer is not a promise —
+     * "send me the reference and I will check it" asks for the one thing the tools need —
+     * so a sentence that makes the action depend on the person is excluded, sentence by
+     * sentence, rather than the whole reply being judged by one clause.
+     */
+    public static function promisesInsteadOfActing(string $text): bool
+    {
+        if ($text === '') return false;
+        $wait   = '/\b(hold on|one moment|just a moment|a moment while|bear with me|please wait|give me a (moment|minute|second)|shortly|get back to you)\b/iu';
+        $future = '/\b(i will|i\'ll|i am going to|i\'m going to|let me|allow me to|i shall)\s+(now\s+|quickly\s+|just\s+|go\s+and\s+)?'
+                . '(check|look|review|verify|investigate|confirm|find|pull|see|dig|search|re-?check|examine|go through)\b/iu';
+        $ifYou  = '/\b(if|once|when|as soon as)\s+you\b|\b(send|share|tell)\s+me\b|\bgive\s+me\s+(the|your)\b/iu';
+        foreach (preg_split('/(?<=[.!?])\s+|\n+/u', $text) ?: [] as $sentence) {
+            if (preg_match($ifYou, $sentence)) continue;
+            if (preg_match($wait, $sentence) || preg_match($future, $sentence)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * What to plan from. "Hurry" and "when will you finish?" carry no problem of their own —
+     * the problem is in the turn before — so a follow-up with nothing to plan on is planned
+     * from the person's last two messages as well. A message that does carry a problem is
+     * planned on its own, so an old topic cannot hijack a new one.
+     */
+    public static function planningText(string $message, array $history, SupportContext $ctx): string
+    {
+        if (SupportPlan::canAct($message, $ctx)) return $message;
+        $mine = [];
+        foreach (array_reverse($history) as $h) {
+            if (!is_array($h) || ($h['role'] ?? '') === 'assistant') continue;
+            $t = trim((string) ($h['content'] ?? $h['text'] ?? ''));
+            if ($t !== '') $mine[] = $t;
+            if (count($mine) === 2) break;
+        }
+        return $mine === [] ? $message : trim(implode("\n", array_reverse($mine)) . "\n" . $message);
+    }
+
     public static function compact(mixed $v): string
     {
         $strip = static function ($x) use (&$strip) {
@@ -588,7 +642,7 @@ final class SupportAgentService implements SupportAnswerer
         // tools stay available for anything the rules did not foresee.
         $facts = [];
         if ($prefetch) {
-            foreach (SupportPlan::steps($message, $ctx, $only) as $step) {
+            foreach (SupportPlan::steps(self::planningText($message, $history, $ctx), $ctx, $only) as $step) {
                 $key = $step['tool'] . ':' . json_encode($step['args']);
                 if (isset($facts[$key])) continue;
                 $facts[$key] = $ctx->run($step['tool'], $step['args']);
@@ -614,11 +668,33 @@ final class SupportAgentService implements SupportAnswerer
         }
         $messages[] = ['role' => 'user', 'content' => AiGateway::fence(AiPrivacy::minimise($message)['text'])];
 
-        $reply = null;
-        for ($round = 1; $round <= self::MAX_ROUNDS; $round++) {
+        // ── A PROMISE IS NOT AN ANSWER ───────────────────────────────────────
+        //
+        // The loop used to end on the first reply that called no tool, whatever it said. A
+        // model that wrote "I will check your payments — please hold on" had therefore
+        // finished: the turn closed, nothing was checked, and the person was left watching a
+        // widget that had told them to wait for something that was never going to happen.
+        // Asked "hurry", it promised again; asked "you are not doing anything", it promised a
+        // third time and the conversation ended in a ticket. A harness must check the
+        // outcome rather than trust the model's own stop signal, so a reply that announces
+        // an action instead of taking it is sent back ONCE, told so, with the tools still
+        // offered. A second promise is discarded and the tools' own words stand in for it.
+        $reply  = null;
+        $nudged = false;
+        for ($round = 1; $round <= self::MAX_ROUNDS + 1; $round++) {
             $reply = $this->agentCall($messages, $tools, $cap);
             if ($reply === null) break;
-            if (!$reply->hasTools()) break;
+            if (!$reply->hasTools()) {
+                if (!$nudged && self::promisesInsteadOfActing(trim($reply->text))) {
+                    $nudged = true;
+                    error_log('[support] agent promised an action without taking it; sending it back');
+                    $messages[] = ['role' => 'assistant', 'content' => trim($reply->text)];
+                    $messages[] = ['role' => 'user', 'content' => self::PROMISE_CHECK];
+                    $reply = null;
+                    continue;
+                }
+                break;
+            }
 
             $messages[] = $reply->asMessage();
             foreach ($reply->toolCalls as $call) {
@@ -629,6 +705,10 @@ final class SupportAgentService implements SupportAnswerer
         }
 
         $text = $reply !== null ? trim($reply->text) : '';
+        if ($text !== '' && self::promisesInsteadOfActing($text)) {
+            error_log('[support] agent promised again after being told; discarding the promise');
+            $text = '';
+        }
 
         // ── the critic, as on the two-step road ──────────────────────────────
         // A reference or an amount the tools never returned was invented. One more turn,

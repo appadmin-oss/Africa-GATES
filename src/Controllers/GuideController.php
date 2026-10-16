@@ -140,6 +140,25 @@ final class GuideController
     }
 
     /**
+     * What the suggested articles are matched against.
+     *
+     * "Hurry" and "when will you finish?" have no topic, so matching them alone fell to the
+     * last-resort set — a refund conversation was offered "why the nominee with the most
+     * votes may not win". A message of three words or fewer is matched together with the
+     * person's previous message, which is where its topic is.
+     */
+    private static function topic(string $message, array $history): string
+    {
+        if (count(preg_split('/\s+/u', trim($message)) ?: []) > 3) return $message;
+        foreach (array_reverse($history) as $h) {
+            if (!is_array($h) || ($h['role'] ?? '') === 'assistant') continue;
+            $t = trim((string) ($h['content'] ?? $h['text'] ?? ''));
+            if ($t !== '' && $t !== $message) return mb_substr($t, 0, 400) . ' ' . $message;
+        }
+        return $message;
+    }
+
+    /**
      * One support turn, answered by the real support agent.
      *
      * ── WHY THIS RUNS BEFORE THE MAKE BRIDGE ─────────────────────────────────
@@ -175,7 +194,7 @@ final class GuideController
                 'reply'    => \AfricaGates\Support\ReplyLinks::clean((string) $out['reply']),
                 'source'   => $out['source'],
                 'support'  => true,
-                'articles' => HelpCentre::previews($message, [], 3, lastResort: true),
+                'articles' => HelpCentre::previews(self::topic($message, $history), [], 3, lastResort: true),
             ];
         }
 
@@ -210,7 +229,7 @@ final class GuideController
             'ticket'    => $r['ticket'],
             'escalated' => $r['escalated'],
             'actions'   => $r['actions'] ?? [],
-            'articles'  => HelpCentre::previews($message,
+            'articles'  => HelpCentre::previews(self::topic($message, $history),
                 SupportAgentService::citedSlugs($r['results'] ?? []), 3, lastResort: true),
         ];
     }
