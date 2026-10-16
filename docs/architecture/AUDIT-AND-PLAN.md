@@ -73,7 +73,7 @@ hosting, and leave out the ones that only make sense at their size. Gee's resear
 
 Everything moves one piece at a time, behind the live site, and every step ships on its own.
 
-**What I need from you** is in §16: seventeen decisions. The ones that shape everything are:
+**What I need from you** is in §16: twenty-one decisions. The ones that shape everything are:
 
 - what a **centre** is for Africa GATES (D11);
 - who may **sell** (D13);
@@ -785,6 +785,76 @@ ledger, then promotions. Each step is usable on its own.
 
 ---
 
+## 10b. Community Return: what participation gives back
+
+**The brief (owner, 16 Oct).**
+
+- Participants build up a share of the paid-vote money attributed to them, in two stages:
+  - **before the collective milestone**, a **10%** credit per eligible paid vote, held
+    **locked** in a digital wallet;
+  - **after the milestone is officially confirmed**, the locked credits become eligible for
+    withdrawal, and every later eligible vote pays **50%**, from that point on only.
+- Withdrawal needs:
+  - milestone confirmation;
+  - identity verification;
+  - a payout account the participant owns;
+  - valid transactions (not fraudulent, reversed or refunded);
+  - compliance with the published rules;
+  - a payout review.
+- The rules must be published before the programme opens. They must cover the minimum
+  withdrawal, fees, timelines, tax, appeals, and how unclaimed or disputed balances are
+  handled.
+
+**What exists today** (`CommunityReturnService`, `gates_community_returns`). There is an
+audited ledger of accrual, reversal, adjustment, hold, release, forfeit and payout, all
+traced to confirmed contributions, with a statement and a balance. But the model is
+different from the brief:
+
+- the threshold is **individual** (250 votes per nominee), not collective;
+- **nothing** is earned before it;
+- 50% is paid after it.
+
+There is also a useful anti-gaming rule: each supporter counts toward the threshold only
+up to 10% of it, so at least ten different people are needed.
+
+**Target.** The ledger stays. These change:
+
+1. **Two rates and one collective milestone**, per programme or edition through
+   RuleEngine: the pre-milestone rate (10%), the post-milestone rate (50%), and the
+   milestone itself. That means its measure (for example total eligible paid-vote revenue
+   in the edition), its target, what counts toward it, and how refunds and fraud are
+   subtracted.
+2. **The milestone is an act, not a number crossing a line.** The system shows when the
+   target is reached, and an authorised person **confirms** it with the figures, as a
+   work item, audited. That confirmation is the moment the rate switches to 50% and locked
+   credits become available. This mirrors how results are released rather than published
+   on a date.
+3. **The wallet shows each status separately:** pending (payment not confirmed), locked,
+   available, under review, paid, plus reversed and forfeited. Each line traces to its vote
+   and rate. A locked credit is never presented as cash.
+4. **A withdrawal is a work item with the six checks.** Identity and account ownership
+   reuse seller and person verification (§7, §10). Payout uses the gateway transfer path
+   `OrgPayout` already uses, including its rule that an unknown gateway status never
+   releases money.
+5. **The published rules are generated from the settings**, as the handbook is. The
+   percentages, milestone, minimum, fees and timelines on the public page are read from
+   the same values that do the arithmetic, so they cannot drift apart.
+6. **Notifications** when the milestone is reached and confirmed, when a balance becomes
+   available, and when a withdrawal needs action or is paid.
+7. **Scoring is untouched.** A Community Return credit is money, never votes, and never
+   enters the results.
+
+**Decisions this needs.**
+
+| # | Question | My recommendation |
+|---|---|---|
+| D18 | Who is the "participant": the nominee only, or also the people who campaign for them (volunteers, ambassadors, referrers)? | **The nominee first.** Campaigners later, through volunteer tasks with verified outcomes (§7.3). |
+| D19 | What is the milestone's measure and target for the first edition? | Total eligible paid-vote revenue in the edition, at a figure you set. |
+| D20 | Does the individual 250-vote line and the 10% cap per supporter stay alongside the collective milestone? | **Keep the cap** as the rule for which votes are eligible (it stops one buyer manufacturing a return). **Drop the individual line**, which the collective milestone replaces. |
+| D21 | Minimum withdrawal, fees, payout timeline, tax treatment, appeals, and unclaimed balances? | These must be set before the programme opens. Take legal and tax advice on revenue-sharing with nominees in Nigeria first. |
+
+---
+
 ## 11. Experience architecture: the UI/UX structure
 
 **The problem.** Today's experience is a list of pages, not a structure.
@@ -1053,7 +1123,7 @@ before it lay down.
 | **3. Experience structure** | The IA registry, generated navigation, **My Africa GATES** as one home with role panels, the scoped Workspace, one design system in two densities, and `AssetBundle` served. | 1 | Every nav surface is generated. One home per person. The page-local component count is falling. |
 | **4. Volunteers** | §7.3 on work items, grants, evidence and forms: apply, screen, train, activate, shifts and tasks, hours, levels, certificates. | 1, 2, 3 | A volunteer can be recruited, trained, given a scoped grant, work a shift verified by scans, and see verified hours, all without staff doing anything by hand except the screening decision. |
 | **5. Events as workspaces** | §9: event-scope roles, run-sheet owners, volunteer shifts, event templates, generated post-event report; stands onto the ledger. | 1, 4 | A cloned event runs at a second centre with no new configuration beyond its venue, date and lead. |
-| **6. Money and the market** | One payment ledger first (D8); then highlights (no money); then sellers, listings, orders, reviews and disputes; then promotions and one code system (§10). | 1, 2, 3 | Every payment stream writes to the one ledger. A verified seller lists, sells, is paid out after the hold, and a dispute resolves through a work item. |
+| **6. Money and the market** | One payment ledger first (D8); Community Return two-stage model and wallet (§10b); then highlights (no money); then sellers, listings, orders, reviews and disputes; then promotions and one code system (§10). | 1, 2, 3 | Every payment stream writes to the one ledger. A verified seller lists, sells, is paid out after the hold, and a dispute resolves through a work item. |
 | **7. Domains and data** | Continue moving code into `Domain/*`, thin the controllers, unify a person's identity (D6), one schema source, votes stop cascading on delete, scenario hardcodes move into data, dead paths removed. | all | The write-ownership and controller ratchets are at zero. Schema parity runs on every test run. |
 
 Gee improves alongside every phase: each new domain brings its tools to the Assist core,
@@ -1102,6 +1172,7 @@ with scenarios in the suite.
 | D15 | May an individual **nominee** be promoted with paid placement during voting? | **No.** It would read as buying reach, which the scoring rule forbids. Awards, events, sellers and highlights yes, always labelled "Promoted". |
 | D16 | May Gee **file** a refund request itself after the person confirms? | **Yes**: it files a request, a person decides it, and Gee never moves money. |
 | D17 | Will you fund a card sort and tree test with real users per audience before the navigation is rebuilt (§13.2)? | **Yes**: about 15 people per audience for the sort and 50 for the test. It is the cheapest way not to rebuild the navigation twice. |
+| D18–D21 | Community Return: who participates, the milestone, eligibility, withdrawal terms | See §10b. |
 
 ---
 
