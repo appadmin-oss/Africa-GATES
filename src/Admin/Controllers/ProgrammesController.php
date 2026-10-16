@@ -54,6 +54,10 @@ class ProgrammesController
             'admin_page' => 'programmes',
             'row'        => $row,
             'is_new'     => !$id,
+            // The award's own sections of its public "Award details" tab (Support\AwardDetails).
+            'details'       => \AfricaGates\Support\AwardDetails::of($row ? (object) $row : null),
+            'detail_fields' => \AfricaGates\Support\AwardDetails::FIELDS,
+            'faq_max'       => \AfricaGates\Support\AwardDetails::FAQ_MAX,
         ]);
     }
 
@@ -74,6 +78,11 @@ class ProgrammesController
             'is_active'   => isset($b['is_active']) ? 1 : 0,
             'terms'       => trim((string)($b['terms'] ?? '')) ?: null,
         ];
+        // The platform is Africa GATES in everything an award says about itself, however
+        // the text arrived (owner, 16 Oct 2026; Support\Brand).
+        foreach (['title', 'subtitle', 'description', 'terms'] as $k) {
+            if (is_string($data[$k] ?? null)) $data[$k] = \AfricaGates\Support\Brand::normalise($data[$k]);
+        }
         try {
             if ($id) {
                 DB::table('gates_award_programmes')->where('id', $id)->update($data);
@@ -100,7 +109,22 @@ class ProgrammesController
         } catch (\Throwable $e) {
             error_log('[programmes] terms version not recorded: ' . $e->getMessage());
         }
+        // The award's own sections of its Award details tab. Their own refusal, after the
+        // rest has saved: a too-long FAQ must not cost the operator the title they changed.
+        $detailsError = null;
+        if (isset($b['details']) && is_array($b['details'])) {
+            try {
+                $detailsError = \AfricaGates\Support\AwardDetails::save($id, $b['details']);
+            } catch (\Throwable $e) {
+                error_log('[programmes] award details not saved: ' . $e->getMessage());
+                $detailsError = 'The award details could not be saved. Everything else was.';
+            }
+        }
         $this->bustAwardsCache();
+        if ($detailsError !== null) {
+            $_SESSION['flash_error'] = 'Programme saved, but not its award details: ' . $detailsError;
+            return $res->withHeader('Location', '/admin/programmes/' . $id)->withStatus(302);
+        }
         $_SESSION['flash_ok'] = 'Programme saved.';
         return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
     }

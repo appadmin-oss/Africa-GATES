@@ -206,6 +206,10 @@ final class AwardsFront
         $span    = DB::table('gates_award_cycles')->where('programme_id', $pid)
             ->selectRaw('MIN(year) AS first_year, COUNT(*) AS editions')->first();
         $terms   = AwardTerms::current($pid);
+        // The platform's name, one way, in what the award says about itself — the stored
+        // text is repaired once (2027_03_21_brand_name_repair.php) and checked again here,
+        // because a document outlives the code that wrote it (Support\Brand).
+        if (is_array($terms) && isset($terms['body'])) $terms['body'] = \AfricaGates\Support\Brand::normalise((string) $terms['body']);
         $released = $cycle && in_array($phaseK, ['results', 'archived'], true)
             ? PublicResults::edition(PublicResults::editionSlug((string) $p->slug, (int) $cycle->year)) : null;
 
@@ -219,8 +223,10 @@ final class AwardsFront
             'id'         => $pid,
             'slug'       => (string) $p->slug,
             'title'      => (string) $p->title,
-            'subtitle'   => trim((string) ($p->subtitle ?? '')),
-            'description'=> trim((string) ($p->description ?? '')),
+            'subtitle'   => \AfricaGates\Support\Brand::normalise(trim((string) ($p->subtitle ?? ''))),
+            'description'=> \AfricaGates\Support\Brand::normalise(trim((string) ($p->description ?? ''))),
+            // The award's own sections of its Award details tab (owner, 16 Oct 2026).
+            'details'    => \AfricaGates\Support\AwardDetails::of($p),
             'cover'      => trim((string) ($p->cover_path ?? '')),
             'tone'       => self::coverTone($pid),
             'host'       => $host,
@@ -244,7 +250,15 @@ final class AwardsFront
             'quorum'     => $quorum,
             'paid'       => PaidVoteService::enabled()
                 ? PaidVoteCopy::sentence($pid, $cycle ? (int) $cycle->id : null) : '',
-            'categories' => $cycle ? self::categories($cycle, $phaseK, $released) : [],
+            'categories' => ($cats = $cycle ? self::categories($cycle, $phaseK, $released) : []),
+            // The nomination rule as THIS award applies it — "between 2 and 3 categories" is
+            // wrong for an award with one (NominationRules is the one resolver).
+            'nom_rules'  => [
+                'min'    => \AfricaGates\Services\NominationRules::minCategories(count($cats)),
+                'max'    => \AfricaGates\Services\NominationRules::maxCategories(count($cats)),
+                'reason' => \AfricaGates\Services\NominationRules::MIN_REASON,
+                'ev'     => \AfricaGates\Services\NominationRules::MAX_EVIDENCE,
+            ],
             'decided'    => $released !== null && ($released['awards'] ?? []) !== [],
             'results_url'=> $released['url'] ?? '',
             'sponsors'   => ProgrammeSponsor::forCycle($pid, $cycle ? (int) $cycle->id : null),
