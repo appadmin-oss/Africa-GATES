@@ -61,6 +61,56 @@
       var l = form.querySelector('[data-nf-name-label]'), h = form.querySelector('[data-nf-name-hint]');
       if (l) l.textContent = k.getAttribute('data-name-label');
       if (h) h.textContent = k.getAttribute('data-name-hint');
+      /* Where a person works or studies; an organisation is the organisation. */
+      var org = form.querySelector('[data-nf-org]');
+      if (org) org.hidden = k.value !== 'person';
+    }
+
+    /* ── a state or region for the chosen country ───────────────────────────
+       One list on the form (`data-regions`, Support\Regions::MAP). The field is a
+       <select> of the country's own list, so a value is canonical; the server reads
+       it case-insensitively against the same list either way. */
+    var REG = {};
+    try { REG = JSON.parse(D.regions || '{}'); } catch (x) { REG = {}; }
+    function regionFor(sel) {
+      var id = sel.getAttribute('data-nf-country');
+      var old = form.querySelector('#' + id);
+      if (!old) return;
+      var list = REG[sel.value] || null;
+      var keep = old.value;
+      var el;
+      if (list) {
+        el = document.createElement('select');
+        var blank = document.createElement('option'); blank.value = ''; blank.textContent = '—'; el.appendChild(blank);
+        list.forEach(function (r) {
+          var o = document.createElement('option'); o.value = r; o.textContent = r;
+          if (r.toLowerCase() === String(keep).toLowerCase()) o.selected = true;
+          el.appendChild(o);
+        });
+      } else {
+        el = document.createElement('select');
+        var none = document.createElement('option'); none.value = ''; none.textContent = D.lPick; el.appendChild(none);
+        el.disabled = !sel.value ? true : false;
+        if (sel.value) { el = document.createElement('input'); el.maxLength = 100; el.autocomplete = 'off'; el.value = keep; }
+      }
+      el.id = old.id; el.name = old.name; el.className = old.className; el.required = true;
+      el.setAttribute('data-nf-region-in', '');
+      old.parentNode.replaceChild(el, old);
+    }
+    Array.prototype.forEach.call(form.querySelectorAll('[data-nf-country]'), function (sel) {
+      sel.addEventListener('change', function () { regionFor(sel); });
+      regionFor(sel);
+    });
+
+    /* ── the nominee's photo: say which file was chosen ───────────────────── */
+    var photo = form.querySelector('[data-nf-photo]');
+    var photoName = form.querySelector('[data-nf-photo-name]');
+    if (photo && photoName) {
+      var photoHint = photoName.textContent;
+      photo.addEventListener('change', function () {
+        var f = photo.files && photo.files[0];
+        photoName.textContent = f ? f.name + ' · ' + (f.size / 1048576).toFixed(1) + ' MB' : photoHint;
+      });
     }
     Array.prototype.forEach.call(form.querySelectorAll('[data-nf-kind]'), function (r) { r.addEventListener('change', onKind); });
 
@@ -166,11 +216,23 @@
     }
 
     /* ── the steps ──────────────────────────────────────────────────────────── */
+    /* A problem names its field, so the step can mark it (aria-invalid) and put the
+       cursor in it — the error in the bar alone left a person hunting for which box. */
+    var bad = null;
+    function at(sel) { var el = form.querySelector(sel); bad = el || bad; return el; }
+    var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     function problem(n) {
+      bad = null;
       if (n === 1) {
-        var cc = form.querySelector('#country_code');
-        var contact = form.querySelector('#nominee_contact');
-        if (!nominee() || !cc.value || !contact.value.trim()) return D.errWho;
+        if (!nominee()) { at('#nominee_name'); return D.errWho; }
+        if (!form.querySelector('#country_code').value) { at('#country_code'); return D.errWho; }
+        var st = form.querySelector('#nominee_state');
+        if (st && !st.value.trim()) { at('#nominee_state'); return D.errWho; }
+        var em = form.querySelector('#nominee_email'), ph = form.querySelector('#nominee_phone');
+        var e = em ? em.value.trim() : '', p = ph ? ph.value.trim() : '';
+        if (!e && !p) { at('#nominee_email'); return D.errContact; }
+        if (e && !EMAIL.test(e)) { at('#nominee_email'); return D.errContact; }
+        if (p && p.replace(/\D/g, '').length < 7) { at('#nominee_phone'); return D.errContact; }
       }
       if (n === 3) {
         var ch = chosen();
@@ -179,6 +241,10 @@
       }
       if (n === 4) return fileProblem();
       if (n === 5) {
+        if (!form.querySelector('#nominator_age_range').value) { at('#nominator_age_range'); return D.errAge; }
+        if (!form.querySelector('#nominator_country').value) { at('#nominator_country'); return D.errWhere; }
+        var ns = form.querySelector('#nominator_state');
+        if (ns && !ns.value.trim()) { at('#nominator_state'); return D.errWhere; }
         var rel = form.querySelector('[data-nf-rel]:checked');
         var consent = form.querySelector('input[name="consent"]');
         var need = Array.prototype.filter.call(form.querySelectorAll('#nf-you input[required]:not([type=radio]):not([type=checkbox])'),
@@ -205,9 +271,16 @@
       }
       summary();
     }
+    function flag(p) {
+      err.textContent = p; err.hidden = false;
+      Array.prototype.forEach.call(form.querySelectorAll('[aria-invalid="true"]'), function (x) { x.removeAttribute('aria-invalid'); });
+      if (bad) { bad.setAttribute('aria-invalid', 'true'); bad.focus(); }
+    }
+    form.addEventListener('input', function (e) { if (e.target.getAttribute && e.target.getAttribute('aria-invalid')) e.target.removeAttribute('aria-invalid'); });
+    form.addEventListener('change', function (e) { if (e.target.getAttribute && e.target.getAttribute('aria-invalid')) e.target.removeAttribute('aria-invalid'); });
     next.addEventListener('click', function (e) {
       var p = problem(cur);
-      if (p) { e.preventDefault(); err.textContent = p; err.hidden = false; return; }
+      if (p) { e.preventDefault(); flag(p); return; }
       if (cur < steps.length) { e.preventDefault(); show(cur + 1, true); }
       /* on the last step the click is the form's real submit */
     });
@@ -218,7 +291,7 @@
         var i = parseInt(a.getAttribute('data-nf-go'), 10);
         /* Forward only through steps already passed, each re-checked on the way. */
         if (i <= cur) { show(i, true); return; }
-        for (var k = cur; k < i; k++) { var p = problem(k); if (p) { show(k, true); err.textContent = p; err.hidden = false; return; } }
+        for (var k = cur; k < i; k++) { var p = problem(k); if (p) { show(k, false); flag(p); return; } }
         show(i, true);
       });
     });

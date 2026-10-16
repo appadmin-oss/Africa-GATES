@@ -221,4 +221,55 @@ final class NominationSubmitPathTest extends TestCase
                 ->where('nomination_id', $id)->orderBy('sort_order')
                 ->pluck('category_id')->all()));
     }
+
+    // ══ the fields the redesign dropped (owner, 13 Oct 2026) ═════════════════
+
+    /**
+     * "Backed from N different locations" counts distinct nominator country + state, so a
+     * nomination without them was a nomination from nowhere. Each one is refused by name,
+     * and a state is stored as the region list spells it, so one place is one location.
+     */
+    public function test_the_nominator_location_and_age_are_required_and_canonical(): void
+    {
+        foreach ([
+            ['nominator_age_range' => ''],
+            ['nominator_age_range' => '30 to 40'],
+            ['nominator_country' => ''],
+            ['nominator_state' => ''],
+            ['nominator_state' => 'Atlantis'],
+            ['nominee_state' => ''],
+        ] as $bad) {
+            $res = $this->post($bad);
+            $this->assertSame(422, $res->getStatusCode(), 'accepted ' . json_encode($bad));
+        }
+        $this->assertSame(0, (int) DB::table('gates_nominations')->count(), 'a refused nomination was saved');
+
+        $this->assertLessThan(400, $this->post(['nominator_state' => 'lagos', 'nominee_state' => 'LAGOS'])->getStatusCode());
+        $row = DB::table('gates_nominations')->where('nominee_name', 'Ada Lovelace Nwosu')->first();
+        $this->assertSame('Lagos', $row->nominator_state, 'two spellings of one state would count as two locations');
+        $this->assertSame('Lagos', $row->nominee_state);
+        $this->assertSame('25–34', $row->nominator_age_range, 'the hyphenated range was not read as the listed one');
+    }
+
+    /** An award with one category could be open and impossible to nominate for. */
+    public function test_an_award_with_one_category_takes_one(): void
+    {
+        DB::table('gates_award_categories')->where('id', $this->catB)->delete();
+        $res = $this->post(['categories' => [$this->catA => 'She rebuilt the roll from four hundred to nine hundred pupils.']]);
+        $this->assertLessThan(400, $res->getStatusCode(), 'one category on a one-category award was refused');
+        $this->assertSame(1, \AfricaGates\Services\NominationRules::minCategories(1));
+        $this->assertSame(2, \AfricaGates\Services\NominationRules::minCategories(7), 'a full award no longer asks for two');
+        $this->assertSame(3, \AfricaGates\Services\NominationRules::maxCategories(7));
+    }
+
+    /** A refused post spends nothing; only a nomination that is accepted counts. */
+    public function test_a_refused_nomination_does_not_spend_the_daily_limit(): void
+    {
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'nomination_daily_limit'], ['value' => '1']);
+        foreach ([1, 2, 3] as $_) $this->assertSame(422, $this->post(['nominator_age_range' => ''])->getStatusCode());
+
+        $this->assertLessThan(400, $this->post([])->getStatusCode(), 'three typos used up the day');
+        $this->assertSame(429, $this->post(['nominee_name' => 'Chidi Okafor Eze'])->getStatusCode(), 'the cap no longer holds');
+        $this->assertSame(1, (int) DB::table('gates_nominations')->count());
+    }
 }

@@ -119,6 +119,38 @@ final class NominationRules
         'other'     => 'Other',
     ];
 
+    /**
+     * The nominator's age range (owner, 13 Oct 2026: "things that are very essential are
+     * missing"). The pre-redesign form asked it on every nomination and the rebuild dropped
+     * it; the column, the operator alert's "Nominator age range" line and the reports that
+     * read it never went away. Stored as the label, en dash and all, as the old form wrote it.
+     */
+    public const AGE_RANGES = ['Under 18', '18–24', '25–34', '35–44', '45–54', '55+'];
+
+    /** A posted age range if it is one of ours (a hyphen is read as the en dash), else null. */
+    public static function ageRange(mixed $raw): ?string
+    {
+        $v = is_scalar($raw) ? str_replace('-', '–', trim((string) $raw)) : '';
+        foreach (self::AGE_RANGES as $a) if (mb_strtolower($a) === mb_strtolower($v)) return $a;
+        return null;
+    }
+
+    /**
+     * A state or region for a country, canonical where the country has a list
+     * (Support\Regions) — so "lagos" and "Lagos" are one location to the rule that counts
+     * distinct nominator locations — and the trimmed text where it has none. Null when it
+     * is blank, or not one of that country's.
+     */
+    public static function region(string $country, mixed $raw): ?string
+    {
+        $v = is_scalar($raw) ? trim((string) $raw) : '';
+        if ($v === '') return null;
+        $list = \AfricaGates\Support\Regions::MAP[strtoupper(trim($country))] ?? null;
+        if ($list === null) return mb_substr($v, 0, 100);
+        foreach ($list as $r) if (mb_strtolower($r) === mb_strtolower($v)) return $r;
+        return null;
+    }
+
     /** A posted relation if it is one of ours, else null — a claim, not a free-text field. */
     /** Where the daily limit is kept, and its bounds. */
     public const DAILY_LIMIT_KEY = 'nomination_daily_limit';
@@ -197,16 +229,37 @@ final class NominationRules
      * @param array<string,mixed> $data
      * @param list<int>           $validCategoryIds
      */
+    /**
+     * How many categories an award with `$available` of them can be asked for.
+     *
+     * "Choose 2 or 3" is the rule for an award with a field of categories. An award with
+     * ONE category was open for nominations and impossible to nominate for: the form asked
+     * for two, the server refused one, and nothing anywhere said the award was the reason.
+     * So the floor is what the award holds (never below one), and the ceiling likewise.
+     */
+    public static function minCategories(int $available): int
+    {
+        return max(1, min(self::MIN_CATEGORIES, $available));
+    }
+
+    public static function maxCategories(int $available): int
+    {
+        return max(1, min(self::MAX_CATEGORIES, $available));
+    }
+
     public static function checkCategories(array $data, array $validCategoryIds): ?string
     {
         $picked = self::categories($data);
+        $min = self::minCategories(count($validCategoryIds));
+        $max = self::maxCategories(count($validCategoryIds));
 
-        if (count($picked) < self::MIN_CATEGORIES) {
-            return 'Choose ' . self::MIN_CATEGORIES . ' or ' . self::MAX_CATEGORIES
-                 . ' categories — at least two, so we can see where the work fits best.';
+        if (count($picked) < $min) {
+            return $min === 1
+                ? 'Choose the category and tell us why they deserve it.'
+                : 'Choose ' . $min . ' or ' . $max . ' categories — at least two, so we can see where the work fits best.';
         }
-        if (count($picked) > self::MAX_CATEGORIES) {
-            return 'You can choose up to ' . self::MAX_CATEGORIES . ' categories. Remove one to swap.';
+        if (count($picked) > $max) {
+            return 'You can choose up to ' . $max . ' categor' . ($max === 1 ? 'y' : 'ies') . '. Remove one to swap.';
         }
 
         foreach ($picked as $id => $reason) {

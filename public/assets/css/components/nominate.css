@@ -274,7 +274,7 @@
 .nf-cat__row{ position:relative; display:flex; align-items:center; gap:12px; min-height:54px; padding:12px 16px; cursor:pointer }
 .nf-cat__box{ flex:none; width:22px; height:22px; margin:0; accent-color:var(--ag-green); cursor:pointer }
 .nf-cat__box:disabled{ cursor:not-allowed }
-.nf-cat__box:disabled ~ .nf-cat__t{ color:var(--ag-mute) }
+.nf-cat__box:disabled ~ .nf-cat__tb .nf-cat__t{ color:var(--ag-mute) }
 .nf-cat__t{ flex:1; min-width:0; font-weight:600; font-size:var(--ag-fs-15) }
 .nf-cat__n{ flex:none; font-weight:700; font-size:var(--ag-fs-12); color:var(--ag-green-deep); font-variant-numeric:tabular-nums }
 .nf-cat__why{ display:flex; flex-direction:column; gap:8px; padding:0 16px 16px }
@@ -322,6 +322,11 @@
 .nf-me__b span{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
 .nf-me__k{ font-size:var(--ag-fs-12) }
 .nf-rel{ margin:0; padding:0; border:0; display:flex; flex-direction:column; gap:10px }
+/* "How we can reach them": two fields under one question, one of them enough. A group
+   rather than two loose boxes, so the rule reads as one rule. */
+.nf-contact{ margin:0; padding:0; border:0; min-width:0; display:flex; flex-direction:column; gap:8px }
+.nf-contact > legend{ padding:0; margin-bottom:2px }
+.nf-contact .ag-label{ font-weight:500 }
 .nf-rel__q{ padding:0; font-weight:600; font-size:var(--ag-fs-15) }
 .nf-rel__chips{ display:flex; flex-wrap:wrap; gap:8px }
 .nf-chip{ position:relative; font-weight:600; font-size:var(--ag-fs-14) }
@@ -409,3 +414,8 @@
 .nd__next{ display:flex; flex-direction:column; gap:12px }
 .nd__k{ margin:0; font-size:var(--ag-fs-14); font-weight:700; color:var(--ag-soft) }
 .nd__p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }
+
+/* A category's own description under its title, so "which of these fits?" is answered
+   on the form rather than on another page. */
+.nf-cat__tb{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.nf-cat__d{ font-size:var(--ag-fs-13); line-height:1.45; color:var(--ag-soft); font-weight:400 }
