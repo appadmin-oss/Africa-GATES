@@ -140,7 +140,7 @@ final class SupportAgentService implements SupportAnswerer
             // nothing, let me speak to a human" got an apology and their message
             // was read by nobody, ever. Falling through to the shared tail below
             // is what fixes that.
-            foreach (SupportPlan::steps($message, $ctx, $only) as $step) {
+            foreach (SupportPlan::steps(self::planningText($message, $history, $ctx), $ctx, $only) as $step) {
                 $key = $step['tool'] . ':' . json_encode($step['args']);
                 if (isset($facts[$key])) continue;
                 $result = $ctx->run($step['tool'], $step['args']);
@@ -205,7 +205,7 @@ final class SupportAgentService implements SupportAnswerer
         // The rules can still choose. Reaching for them here means a provider
         // outage costs fluency and nothing else — the repair still runs.
         if ($facts === []) {
-            foreach (SupportPlan::steps($message, $ctx, $only) as $step) {
+            foreach (SupportPlan::steps(self::planningText($message, $history, $ctx), $ctx, $only) as $step) {
                 $key = $step['tool'] . ':' . json_encode($step['args']);
                 if (isset($facts[$key])) continue;
                 $result = $ctx->run($step['tool'], $step['args']);
