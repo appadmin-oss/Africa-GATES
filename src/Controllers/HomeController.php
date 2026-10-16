@@ -28,18 +28,14 @@ final class HomeController
 
     public function index(Request $req, Response $res): Response
     {
-        $front = $this->cache->remember('home:front', 300, static fn (): array => [
-            'stats'    => HomeFront::stats(),
-            'voting'   => HomeFront::voting(),
-            'decided'  => HomeFront::decided(),
-            'campaign' => HomeFront::campaign(),
-            // §8.1 section 3, "Who recognises": real recognitions from verified issuers
-            // (Services\Recognitions, GAPS §3.1) — never the DC's sample honours.
-            // With no issued recognition record yet, the latest decided winners stand in, so
-            // the card never says "recognitions appear once an award is announced" beside a
-            // list of announced winners (design review, 12 Oct 2026).
-            'recognitions' => \AfricaGates\Services\Recognitions::recent(12)
-                              ?: HomeFront::asRecognitions(HomeFront::decided()),
+        // Home V5 (16 Oct 2026) tells stories and counts nothing: the live stats strip,
+        // "Happening now" and "Who recognises" are gone with the V3 layout. What is still
+        // read is real records — decided awards for the hero and the closing band, the open
+        // challenge, the featured campaign — and each block follows LOW-DATA-RULES.md.
+        $front = $this->cache->remember('home:front:v5', 300, static fn (): array => [
+            'decided'   => HomeFront::decided(),
+            'campaign'  => HomeFront::campaign(),
+            'challenge' => HomeFront::featuredChallenge(),
         ], ['leaderboard', 'registry']);
 
         $band = $this->cache->remember('home:globe', 900, static fn (): array => [
@@ -56,13 +52,29 @@ final class HomeController
                 . NationsLive::phrase() . '.',
             'gates_page'       => 'home',
             'tab'              => 'home',
-            'stat_rows'        => HomeFront::statRows($front['stats']),
-            'voting'           => $front['voting'],
-            'decided'          => $front['decided'],
+            'hero_slides'      => HomeFront::heroSlides($front['decided']),
+            'honour'           => HomeFront::honourTiles(),
+            'challenge'        => $front['challenge'],
             'campaign'         => $front['campaign'],
-            'recognitions'     => $front['recognitions'] ?? [],
+            // The closing band's three portraits: real winners with photos when there are
+            // three, otherwise the owner's honour photographs. Never a stock face.
+            'closing_pics'     => self::closingPics($front['decided']),
             'globe_countries'  => $band['countries'],
             'globe_note'       => $band['note'],
         ]);
     }
+
+    /** @return list<array{src:string,alt:string}> */
+    private static function closingPics(array $decided): array
+    {
+        $real = array_values(array_filter($decided, static fn ($d) => !empty($d['photo'])));
+        if (count($real) >= 3) {
+            return array_map(static fn ($d) => ['src' => (string) $d['photo'], 'alt' => (string) $d['name'], 'media' => true], array_slice($real, 0, 3));
+        }
+        $t = HomeFront::honourTiles();
+        return [['src' => $t[0]['src'], 'alt' => $t[0]['alt'], 'media' => false],
+                ['src' => $t[1]['src'], 'alt' => $t[1]['alt'], 'media' => false],
+                ['src' => $t[5]['src'], 'alt' => $t[5]['alt'], 'media' => false]];
+    }
 }
+

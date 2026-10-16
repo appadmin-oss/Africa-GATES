@@ -86,14 +86,15 @@ final class HomePageTest extends TestCase
         $this->assertMatchesRegularExpression('~<a[^>]+aria-current="page"[^>]*>.*?Home~s', $html);
     }
 
-    /** §8.1's order, for the sections that are drawn. */
+    /** Home V5's order (README, Screen 1), for the sections that are drawn. */
     public function test_the_sections_come_in_the_specified_order(): void
     {
         $id = $this->programme('open', 'Open Awards', ['voting_open' => $this->at(-1), 'voting_close' => $this->at(4)]);
         DB::table('gates_award_categories')->insert(['cycle_id' => $id, 'slug' => 'a', 'title' => 'A']);
         $html = $this->home();
 
-        $order = ['id="hm-h1"', 'class="hm-stats"', 'id="waa-h"', 'id="hm-now"', 'id="hm-host"', 'class="ag-foot"'];
+        $order = ['id="hm-h1"', 'id="hm-honour"', 'id="hm-how"', 'id="hm-join-h"', 'id="hm-host"', 'id="waa-h"',
+                  'id="hm-close-h"', 'class="ag-foot"'];
         $last = -1;
         foreach ($order as $hook) {
             $at = strpos($html, $hook);
@@ -189,13 +190,15 @@ final class HomePageTest extends TestCase
 
     // ══ the hero's record card is a decided award, or nothing ════════════════
 
-    public function test_with_no_published_result_there_is_no_record_card(): void
+    public function test_with_no_published_result_the_hero_names_nobody(): void
     {
         $html = $this->home();
-        $this->assertStringNotContainsString('class="hm-rec"', $html,
-            'a record card was drawn with no decided award behind it — that is an invented recognition');
-        // GAPS Q8: no stock photograph in its place.
-        $this->assertStringContainsString('africa-silhouette.svg', $html);
+        // LOW-DATA-RULES: no decided award means the bundled default slides — the owner's
+        // honour photographs and a line about the KIND of person, never a name or a win.
+        $this->assertStringNotContainsString('class="hm-rec__chip"', $html,
+            'a "Winner" chip was drawn with no decided award behind it — that is an invented recognition');
+        $this->assertStringContainsString('/assets/img/honour/teacher-', $html);
+        $this->assertStringContainsString('Teachers who changed a classroom', $html);
     }
 
     // ══ the featured campaign ════════════════════════════════════════════════
@@ -212,12 +215,28 @@ final class HomePageTest extends TestCase
         $camp($ok, 'sooner', date('Y-m-d', time() + 5 * 86400));
         $camp($ok, 'closed', date('Y-m-d', time() - 86400));
         $camp($ok, 'draft', date('Y-m-d', time() + 2 * 86400), 'draft');
+        // Past the low-data line: ten gifts and 20% of the target (LOW-DATA-RULES, Giving).
+        $cid = (int) DB::table('gates_org_campaigns')->where('slug', 'sooner')->value('id');
+        for ($i = 0; $i < 10; $i++) {
+            DB::table('gates_donations')->insert(['donor_name' => 'D' . $i, 'donor_email' => "d$i@example.com",
+                'amount_naira' => 20, 'status' => 'confirmed', 'recipient_org_id' => $ok, 'campaign_id' => $cid, 'tier' => 'donation',
+                'payment_ref' => 'AFG-HOME-' . $i]);
+        }
 
         $c = HomeFront::campaign();
         $this->assertNotNull($c);
         $this->assertSame('Appeal sooner', $c['title']);
         $this->assertSame('/giving/ok/sooner', $c['url']);
         $this->assertStringContainsString('href="/giving/ok/sooner"', $this->home());
+    }
+
+    /** A campaign below the line is not featured: 2% raised from three gifts reads as a cause nobody backs. */
+    public function test_a_thin_campaign_is_not_featured(): void
+    {
+        $this->assertFalse(HomeFront::featurable(['pct' => 2, 'count' => 3, 'met' => false], date('Y-m-d', time() + 9 * 86400)));
+        $this->assertFalse(HomeFront::featurable(['pct' => 40, 'count' => 40, 'met' => false], date('Y-m-d')), 'closing within a day');
+        $this->assertFalse(HomeFront::featurable(['pct' => 100, 'count' => 40, 'met' => true], null), 'already funded');
+        $this->assertTrue(HomeFront::featurable(['pct' => 20, 'count' => 10, 'met' => false], date('Y-m-d', time() + 9 * 86400)));
     }
 
     public function test_with_no_open_campaign_the_giving_section_is_not_drawn(): void

@@ -335,6 +335,9 @@ final class HomeFront
             if (!OrgCampaign::isOpen($c)) continue;
             $org  = $orgs[(int) $c->org_id];
             $p    = OrgCampaign::progress((int) $c->id);
+            // Featured only past the low-data line: a campaign at 2% with three gifts on
+            // the front page reads as a cause nobody backs (LOW-DATA-RULES, Giving).
+            if (!self::featurable($p, isset($c->closes_on) ? (string) $c->closes_on : null)) continue;
             $logo = (string) (OrgBrand::of($org)['logo'] ?? '');
 
             return self::$memo['campaign'] = [
@@ -352,6 +355,103 @@ final class HomeFront
         }
 
         return self::$memo['campaign'] = null;
+    }
+
+    // ── HOME V5 (HomePageV5.dc.html, 16 Oct 2026) ────────────────────────────────
+    //
+    // The page that tells stories rather than counting. Everything below is either a
+    // real record or evergreen copy that names nobody — LOW-DATA-RULES.md rule 3: never
+    // fabricate. The DC's sample people (Mama Ngozi, the Mathare choir, the bank, the
+    // honours office) are design content, not records, and none of them is drawn here.
+
+    /** The six "Who do you want to honour?" tiles: the photos the owner supplied. */
+    public const HONOUR = [
+        ['teacher',          'A teacher',          'A teacher guiding two students at a classroom table'],
+        ['nurse',            'A nurse or carer',   'A community nurse checking an elderly woman’s blood pressure'],
+        ['community-leader', 'A community leader', 'A community leader speaking at a neighbourhood meeting'],
+        ['creative',         'A creative',         'A designer draping indigo fabric in her studio'],
+        ['business',         'A business',         'A shop founder at the counter of her boutique'],
+        ['young-leader',     'A young leader',     'A young volunteer holding a clipboard at a youth event'],
+    ];
+
+    /** @return list<array{key:string,label:string,alt:string,src:string,srcset:string}> */
+    public static function honourTiles(): array
+    {
+        $out = [];
+        foreach (self::HONOUR as [$key, $label, $alt]) {
+            $base = '/assets/img/honour/' . $key;
+            $out[] = ['key' => $key, 'label' => $label, 'alt' => $alt,
+                      'src' => $base . '-480.webp', 'srcset' => $base . '-480.webp 480w, ' . $base . '-960.webp 960w'];
+        }
+        return $out;
+    }
+
+    /**
+     * The hero's rotating recognitions: real decided awards, at most four.
+     *
+     * LOW-DATA-RULES: two or more rotate; one is static with no dots; none falls back to
+     * the bundled default slides. The defaults are the honour photos with a line about the
+     * KIND of person this platform honours — never a name, a count or an award nobody won.
+     *
+     * @param list<array<string,mixed>> $decided HomeFront::decided()
+     * @return list<array<string,mixed>>
+     */
+    public static function heroSlides(array $decided): array
+    {
+        $slides = [];
+        foreach (array_slice($decided, 0, 4) as $d) {
+            $slides[] = ['real' => true, 'name' => (string) ($d['name'] ?? ''), 'ini' => (string) ($d['ini'] ?? ''),
+                         'photo' => (string) ($d['photo'] ?? ''), 'what' => (string) ($d['category'] ?? ''),
+                         'issuer' => trim((string) ($d['programme'] ?? '') . ' ' . (string) ($d['edition'] ?? '')),
+                         'url' => (string) ($d['url'] ?? ''), 'img' => '', 'srcset' => '', 'alt' => ''];
+        }
+        if ($slides !== []) return $slides;
+
+        $lines = ['teacher' => 'Teachers who changed a classroom', 'nurse' => 'Carers who keep a community well',
+                  'community-leader' => 'Leaders their street already celebrates', 'young-leader' => 'Young people building what comes next'];
+        foreach (self::honourTiles() as $t) {
+            if (!isset($lines[$t['key']])) continue;
+            $slides[] = ['real' => false, 'name' => $lines[$t['key']], 'ini' => '', 'photo' => '', 'what' => 'Nominate someone like this',
+                         'issuer' => 'Africa GATES', 'url' => '/nominate', 'img' => $t['src'], 'srcset' => $t['srcset'], 'alt' => $t['alt']];
+        }
+        return $slides;
+    }
+
+    /**
+     * The one wide Featured card: the open challenge closing soonest, or null (the section
+     * then hides — "nothing curated: hide the section").
+     *
+     * @return array{title:string,body:string,url:string,img:string}|null
+     */
+    public static function featuredChallenge(): ?array
+    {
+        if (array_key_exists('challenge', self::$memo)) return self::$memo['challenge'];
+        try {
+            $now = date('Y-m-d H:i:s');
+            $c = DB::table('gates_challenges')->where('status', \AfricaGates\Support\ChallengeEnum::ST_OPEN)
+                ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', $now))
+                ->orderByRaw('CASE WHEN ends_at IS NULL THEN 1 ELSE 0 END')->orderBy('ends_at')->first();
+        } catch (\Throwable) {
+            return self::$memo['challenge'] = null;
+        }
+        if (!$c) return self::$memo['challenge'] = null;
+        $art = (string) ($c->art_url ?? '');
+        return self::$memo['challenge'] = [
+            'title' => (string) $c->title,
+            'body'  => trim((string) ($c->summary ?? '')),
+            'url'   => '/challenges/' . $c->slug,
+            'img'   => preg_match('#^(/|https://)#', $art) ? $art : '',
+        ];
+    }
+
+    /** Whether a campaign may be FEATURED (LOW-DATA-RULES, Giving row). */
+    public static function featurable(array $p, ?string $closesOn): bool
+    {
+        if (!\AfricaGates\Support\DisplayThreshold::met('campaign_feature_pct', (int) ($p['pct'] ?? 0))) return false;
+        if (!\AfricaGates\Support\DisplayThreshold::met('campaign_feature_gifts', (int) ($p['count'] ?? 0))) return false;
+        if (!empty($p['met']) || (int) ($p['pct'] ?? 0) >= 100) return false;          // already funded
+        if ($closesOn !== null && $closesOn !== '' && strtotime($closesOn . ' 23:59:59') - time() < 86400) return false;
+        return true;
     }
 
     /**
