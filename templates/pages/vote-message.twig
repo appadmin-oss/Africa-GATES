@@ -1,0 +1,59 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  `/m/{token}` — ONE MESSAGE OF SUPPORT, ON ITS OWN PAGE. Phase 5, rebuilt after the old page
+  was destroyed (inventory: docs/handoff/inventory/pages--vote-message.md).
+
+  The page exists because of what a link preview does: a message shared as a link to the
+  ballot gets the ballot's card, with the supporter's words nowhere in it. Here the words
+  ARE the page, and the card carries them (the controller's og_image is the message's own
+  card). `noindex, follow` (VoteMessageTest): share bait, not search bait.
+
+  The message is drawn by the same partial as the ballot's wall and the full messages page,
+  so cheer and report work the same everywhere (vote.js binds them). `msg.name` was resolved
+  against the voter's consent by VoteMessageService before it got here.
+#}
+
+{% set colour_tier = '1' %}
+{% set meta_robots = robots %}
+{% set app_bar = {variant: 'child', title: 'A message of support'|trans, back: ballot_url ?: '/vote'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/vote-pages.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+
+{% block content %}
+<div class="vs">
+  <header class="vs-head">
+    <span class="vs-head__av">{% include 'partials/photo.twig' with {kind: 'person', src: msg.nominee_photo, name: msg.nominee_name} only %}</span>
+    <div>
+      <h1 class="vs-h1">{{ 'For %n%'|trans({'%n%': msg.nominee_name}) }}</h1>
+      <p class="vs-p">{{ 'A message of support from a verified voter'|trans }}{% if msg.when %} · {{ msg.when|when_zoned('j F Y') }}{% endif %}</p>
+    </div>
+  </header>
+
+  <ul class="vmi-list vmi-list--one">{% include 'partials/vote-message.twig' with {m: msg} only %}</ul>
+  <button type="button" class="ag-btn ag-btn--secondary ag-btn--pill vs-share" data-ag-share data-ag-share-url="{{ share_url }}" data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Pass it on'|trans }}</button>
+
+  {% if ballot_url %}
+  <section class="vs-cta-card" aria-labelledby="vm-back">
+    <h2 class="vs-h2" id="vm-back">{{ 'Back %n% too'|trans({'%n%': msg.nominee_name}) }}</h2>
+    <p class="vs-p">{{ 'One verified vote per category, and you can leave your own message when you cast it. Community votes are part of the score — the independent judges are the rest.'|trans }} <a href="/philosophy">{{ 'Why voting works this way'|trans }}</a></p>
+    <a class="ag-btn ag-btn--primary ag-btn--pill" href="{{ ballot_url }}">{{ 'Vote for %n%'|trans({'%n%': msg.nominee_name|split(' ')|first}) }}</a>
+  </section>
+  {% endif %}
+
+  {% if wall %}
+  <section class="vs-sec" aria-labelledby="vm-more">
+    <h2 class="vs-h2" id="vm-more">{{ 'What others are saying'|trans }}</h2>
+    <p class="vs-p">{{ wall_total == 1 ? '1 message for %n%.'|trans({'%n%': msg.nominee_name}) : '%c% messages for %n%.'|trans({'%c%': wall_total|number_format, '%n%': msg.nominee_name}) }}</p>
+    <ul class="vmi-list">{% for m in wall %}{% include 'partials/vote-message.twig' with {m: m} only %}{% endfor %}</ul>
+    {% if wall_total > (wall|length + 1) and ballot_url %}
+      <p class="vs-fine"><a href="{{ ballot_url }}/messages">{{ 'Read all %c% messages for %n%'|trans({'%c%': wall_total|number_format, '%n%': msg.nominee_name}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a></p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <p class="vs-fine">{{ 'Messages are written by voters, not by Africa GATES, and are checked before they appear.'|trans }} {{ 'See something that should not be here?'|trans }} <a href="/support">{{ 'Report it'|trans }}</a> · <a href="/terms">{{ 'Terms'|trans }}</a> · <a href="/privacy">{{ 'Privacy'|trans }}</a></p>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/vote.js') }}"></script>{% endblock %}

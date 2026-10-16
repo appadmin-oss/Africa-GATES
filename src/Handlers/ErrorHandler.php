@@ -10,6 +10,10 @@ class ErrorHandler {
     public function __construct(private readonly App $app) {}
     public function __invoke(Request $req, Throwable $ex, bool $displayDetails, bool $logErrors, bool $logErrorDetails): Response {
         $code=500;
+        // Any Slim HTTP exception carries its own status — 403 (a guard refusing), 401, 410,
+        // 503 (planned work) — and each used to become a 500 here, telling somebody who
+        // simply lacked access that the platform had crashed. Phase 9.
+        if($ex instanceof \Slim\Exception\HttpException && $ex->getCode() >= 400 && $ex->getCode() < 600) $code=(int)$ex->getCode();
         if($ex instanceof \Slim\Exception\HttpNotFoundException) $code=404;
         if($ex instanceof \Slim\Exception\HttpMethodNotAllowedException){
             // The CORS catch-all (OPTIONS /{routes:.+}) makes every unmatched path
@@ -58,6 +62,8 @@ class ErrorHandler {
                 $pageHeading = match(true){
                     $code===404 => 'This path leads nowhere',
                     $code===405 => "That request isn’t allowed here.",
+                    $code===403 => 'This page isn’t open to you',
+                    $code===503 => 'We’re doing planned work',
                     $code>=500  => 'Something went wrong on our end',
                     default     => 'Something went sideways.',
                 };
@@ -73,6 +79,8 @@ class ErrorHandler {
                 // that asks for it cannot drift apart.
                 $pageMessage = match(true){
                     $code===404 => 'The page you’re looking for has moved or never existed. The road to recognition is still wide open — let’s get you back on it.',
+                    $code===503 => '',
+                    $code===403 => '',
                     $code>=500  => ($displayDetails ? $ex->getMessage() : ''),
                     default     => $safeMsg,
                 };
@@ -84,7 +92,11 @@ class ErrorHandler {
                     // nothing has ever set it, so the block below it has never rendered
                     // once. Same name, loop closed.
                     'error_ref' => $ref,
-                    'gates_page' => '', 'lite_page' => true,
+                    'gates_page' => 'error',
+                    // A 5xx draws the shell without the footer and Gee: the fewer readers
+                    // a page that exists because something failed depends on, the likelier
+                    // it is to draw at all.
+                    'hide_chrome' => $code >= 500,
                 ]);
             } catch(\Throwable $e3){ /* fall through to minimal output */ }
         }

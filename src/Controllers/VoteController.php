@@ -67,47 +67,19 @@ class VoteController {
     public function index(Request $req, Response $res): Response {
         $hub = $this->cache->remember('vote:hub', 600, fn() => $this->awards->voteHub());
 
-        // Hero/sidebar meta. Every figure here comes from the SAME phase
-        // view-model the cards render, so the page cannot contradict itself.
-        // It used to derive open/closed from the status column while deriving
-        // the countdown from voting_close, so when those disagreed — the exact
-        // reported failure — the hub simultaneously showed "Voting open",
-        // "0 Days left" and a close date already in the past.
-        $votesTotal = 0; $votingCount = 0; $year = (int) date('Y');
-        $soonest = null;   // the phase view-model of the next thing to close
-        foreach ($hub as $p) {
-            $votesTotal += (int) ($p['total_votes'] ?? 0);
-            $phase = $p['phase'] ?? null;
-            if (!$phase || empty($phase['is_voting_open'])) continue;
-            $votingCount++;
-            $year = (int) ($p['year'] ?? $year);
-            if ($phase['closes_at'] === null) continue;
-            if ($soonest === null || $phase['closes_at'] < $soonest['closes_at']) {
-                $soonest = $phase;
-            }
-        }
+        $front = \AfricaGates\Services\VoteFront::hub($hub, (string) ($req->getQueryParams()['f'] ?? 'all'));
 
+        // Phase 5 (VoteHub.dc.html): one view-model, so the live total, the rows and the
+        // rail cannot contradict each other — the reported failure this method's comment
+        // above records ("Voting open", "0 Days left" and a past close date at once).
         return $this->view->render($res, 'pages/vote.twig', [
-            // The promo band. Nothing is rendered when there are none — a 188px
-            // strip of empty on a live page is worse than no band at all.
-            'promos' => \AfricaGates\Services\PromoService::forPlacement('vote', !empty($_SESSION['user_id'])),
-            'page_title'       => 'Vote — Africa GATES | Afrovanguard',
+            'page_title'       => \AfricaGates\Support\Translator::t('Vote') . ' — Africa GATES',
             'meta_description' => 'Cast your verified vote in the Africa GATES awards. Browse the live programmes and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
-            'hub'              => $hub,
+            'front'            => $front,
             'split'            => $this->splitPct(),
-            'meta'             => [
-                'count'        => count($hub),
-                'votes_total'  => $votesTotal,
-                'voting_count' => $votingCount,
-                'year'         => $year,
-                // One object, or null. The template must not recompute any of it.
-                'soonest'      => $soonest,
-            ],
             'breadcrumbs' => [
-                ['label' => 'Afrovanguard', 'url' => '/'],
                 ['label' => 'Africa GATES', 'url' => '/'],
-                ['label' => 'Awards',       'url' => '/awards'],
                 ['label' => 'Vote',         'url' => '/vote'],
             ],
         ]);
@@ -169,21 +141,18 @@ class VoteController {
             unset($c);
         }
 
+        $q   = $req->getQueryParams();
+        $tab = ($q['tab'] ?? '') === 'about' ? 'about' : 'vote';
+        $catId = isset($q['cat']) && ctype_digit((string) $q['cat']) ? (int) $q['cat'] : null;
+
         return $this->view->render($res, 'pages/vote-program.twig', [
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
             'programme'        => $p,
             'categories'       => $cats,
-            // The computed phase, not the stored column. `voting_open` is kept
-            // as a convenience boolean but is now derived from the same source.
-            'phase'            => $p['phase'] ?? null,
-            'voting_open'      => (bool) ($p['phase']['is_voting_open'] ?? false),
-            'total_nominees'   => count($noms),
-            // Mirrors the trail this page already SHOWS. Every one of these pages had
-            // a visible breadcrumb and no BreadcrumbList, so the SERP printed a bare
-            // URL where it could have printed Vote › programme — and the trail is how
-            // a searcher sees that a nominee page belongs to an awards programme.
+            'front'            => \AfricaGates\Services\VoteFront::programme($p, $cats, $catId),
+            'tab'              => $tab,
             'breadcrumbs'      => [
                 ['label' => 'Vote',      'url' => '/vote'],
                 ['label' => $p['title'], 'url' => null],
@@ -326,6 +295,7 @@ class VoteController {
                        . 'Free voting is still open — use the ballot above.',
         'unavailable' => 'That payment method is unavailable right now. Please try another.',
         'email'       => 'Please enter a valid email address for your receipt.',
+        'terms'       => 'Please accept the award terms before contributing. No payment was taken.',
         'start'       => 'We could not start the checkout. No payment was taken — please try again.',
         'error'       => 'Something went wrong starting the checkout. No payment was taken.',
         'failed'      => 'That payment did not complete, so no votes were added.',
@@ -498,7 +468,40 @@ class VoteController {
         $pointsEnabled = PointsService::enabled();
         $memberPoints  = ($memberId > 0 && $pointsEnabled) ? PointsService::balance($memberId) : 0;
 
+        // ── Phase 5 additions (NomineePage + VoteBallot DCs) ────────────────────
+        //
+        // A vote this browser just confirmed: written by ApiController::castVote() only
+        // after the vote counted, read and cleared here, so the inline `vote` celebration
+        // is drawn as CONFIRMED by the server (Services\Celebration) and plays once. Fifteen
+        // minutes, so a stale flag from yesterday's session cannot congratulate anybody.
+        $castAt = (int) ($_SESSION['vote_cast'][$id] ?? 0);
+        if (isset($_SESSION['vote_cast'][$id])) unset($_SESSION['vote_cast'][$id]);
+        $voteConfirmed = $castAt > 0 && (time() - $castAt) < 900;
+
+        // The panel's reviewed evidence, as COUNTS by kind and nothing more. The rows are
+        // the judges' dossier (`visible_to_judges`); titles and links can be private, and no
+        // column says a row may be published — so the page says what was reviewed, never
+        // what it said (docs/handoff/PHASE-5.md, blocked question B-3).
+        $evidence = [];
+        try {
+            foreach (DB::table('gates_nominee_evidence')->where('nominee_id', $id)->where('verified', 1)
+                         ->selectRaw('kind, COUNT(*) AS n')->groupBy('kind')->get() as $e) {
+                $evidence[(string) $e->kind] = (int) $e->n;
+            }
+        } catch (\Throwable) {}
+
+        $nomShortlisted = isset(\AfricaGates\Services\ShortlistService::shortlistedIn((int) $nom->cycle_id)[(int) $nom->id]);
+
         return $this->view->render($res, 'pages/vote-nominee.twig', [
+            'terms'            => \AfricaGates\Services\AwardTerms::current((int) $nom->programme_id),
+            'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence((int) $nom->programme_id, (int) $nom->cycle_id),
+            'vote_confirmed'   => $voteConfirmed,
+            'evidence'         => $evidence,
+            'shortlisted'      => $nomShortlisted,
+            'result_url'       => '/results/' . \AfricaGates\Services\PublicResults::slug((int) $nom->category_id, (string) $nom->category),
+            'tier_prices'      => array_map(static fn (array $t): array => $t + ['price' => PaidVoteService::price((int) $t['qty'])],
+                                            array_values(array_filter(PaidVoteService::tiers(), static fn (array $t): bool => (int) $t['qty'] <= PaidVoteService::maxQtyForOrder()))),
+            'edition_label'    => \AfricaGates\Support\EditionName::label(DB::table('gates_award_cycles')->where('id', (int) $nom->cycle_id)->first() ?? []),
             'page_title'       => 'Vote for ' . $nom->name . ' — Africa GATES',
             'meta_description' => 'Cast your verified vote for ' . $nom->name . ' in ' . $nom->category . ' — Africa GATES, the continental Cultural Power Index.',
             'gates_page'       => 'awards',

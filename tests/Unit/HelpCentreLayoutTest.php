@@ -33,8 +33,11 @@ use Tests\TestCase;
  */
 final class HelpCentreLayoutTest extends TestCase
 {
-    /** Must match HelpController::PREVIEW. Asserted below rather than trusted. */
-    private const PREVIEW = 5;
+    /**
+     * Must match HelpController::PREVIEW. Asserted below rather than trusted. Three since the
+     * Phase 9 rebuild: HelpCentre.dc.html draws three 48px links per card, then "All N".
+     */
+    private const PREVIEW = 3;
 
     private function app(): \Slim\App
     {
@@ -88,7 +91,41 @@ final class HelpCentreLayoutTest extends TestCase
             'HelpController::PREVIEW and this test have drifted apart');
     }
 
+    /**
+     * Every category card leads to its own page, and shows no more than PREVIEW titles
+     * before it does. The rest are in the markup but `hidden`, so the in-place filter can
+     * still reveal them (below) — which is the whole reason they are not simply omitted.
+     */
+    public function test_the_index_defers_to_each_category_page(): void
+    {
+        $html = $this->body('/help');
+        foreach (array_keys(HelpCentre::CATEGORIES) as $k) {
+            $n = count(HelpCentre::inCategory($k));
+            if ($n === 0) continue;
+            $this->assertStringContainsString('href="/help/c/' . $k . '"', $html, "$k has no way to its own page");
+            $this->assertSame(200, $this->get('/help/c/' . $k)->getStatusCode(), "/help/c/$k does not answer");
+        }
+        preg_match_all('~<section class="hc-cat"[^>]*>(.*?)</section>~s', $html, $cards);
+        $this->assertNotEmpty($cards[1], 'no category cards were found — the sweep below would pass over nothing');
+        foreach ($cards[1] as $card) {
+            $shown = preg_match_all('~<li(?![^>]*\bhidden\b)[^>]*data-help-slug~', $card);
+            $this->assertLessThanOrEqual(self::PREVIEW, $shown, 'a card prints more than the preview');
+        }
+    }
+
     // ── the live filter ─────────────────────────────────────────────────────
 
-    // ── and the search that was always there still is ───────────────────────
+    /** The filter narrows in the browser from #help-index, so that list must hold EVERY answer. */
+    public function test_the_live_filter_can_reach_every_answer(): void
+    {
+        $html = $this->body('/help');
+        $this->assertMatchesRegularExpression('~<script type="application/json" id="help-index"~', $html);
+        preg_match('~<script type="application/json" id="help-index"[^>]*>(.*?)</script>~s', $html, $m);
+        $index = json_decode($m[1] ?? 'null', true);
+        $this->assertIsArray($index);
+        $slugs = array_map(static fn ($r) => (string) ($r['s'] ?? ''), $index);
+        foreach (HelpCentre::all() as $a) {
+            $this->assertContains($a['slug'], $slugs, $a['slug'] . ' is unreachable by the filter');
+        }
+    }
 }

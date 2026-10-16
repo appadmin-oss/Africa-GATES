@@ -1,26 +1,55 @@
 {#
-  Display & reading, applied before the first paint.
+  ══════════════════════════════════════════════════════════════════════════════
+  DISPLAY & READING, APPLIED BEFORE THE FIRST PAINT — REFERENCE §7.5, §10
+  ══════════════════════════════════════════════════════════════════════════════
 
-  This is a DELIBERATE six-line duplicate of `AGA11y.apply()`. It cannot be the
-  linked file: a `<script src>` is fetched and run after the first paint, so
-  somebody who asked for 150% text would watch the page render at 100% and jump.
-  The store is read here, the classes go on <html>, and `a11y.js` takes over for
-  everything after.
+  Inline and nonced, in <head>, before any stylesheet. A linked script is fetched and
+  run AFTER the first paint, so somebody who asked for 150% text would watch the page
+  draw at 100% and jump. This is a deliberate duplicate of `AGA11y.apply()` in
+  `a11y.js`, kept to the few lines the job needs; `DisplayReadingTest` compares the two
+  maps key by key, so they cannot drift apart silently.
 
-  The LANGUAGE is not here: it is a cookie, so `lang` and `dir` are already on the
-  <html> element above in the markup the server sent. Reading it a second time from
-  storage would be a second source for one value.
+  ── THE MEMBER'S SAVED SETTINGS COME FIRST ──────────────────────────────────
 
-  Kept to the smallest thing that can do that job, and wrapped: `localStorage`
-  THROWS in a Safari private window rather than returning null, and this runs on
-  every page — a settings store that takes the site down when storage is blocked
-  is worse than one that forgets.
+  `member_display()` is the signed-in member's saved settings
+  (Services\DisplayReadingPrefs), written into this script by the server — so a device
+  the member has never used paints in their settings with nothing fetched. When there
+  are none (signed out, or never saved) it is `null` and this browser's own store
+  decides. The member's copy is also written back into the store, so `a11y.js` and every
+  control read one answer from then on.
+
+  ── THE EASY-READ FONT IS LOADED HERE, AND ONLY WHEN IT IS ON ───────────────
+
+  `ag-easy` used to switch the body to Atkinson Hyperlegible, which nothing loaded — so
+  the browser silently fell back to the face it already had and the setting changed the
+  letter spacing and nothing else (GAPS §2). The face is fetched only for somebody who
+  asked for it: a stylesheet everybody downloads for a setting few turn on is weight on
+  every page. The address is the layout's `data-ag-easy-font`, the one place it is
+  written; `a11y.js` reads the same attribute when the switch is turned on later.
+
+  ── WHICH STORE IS THE VISITOR'S PREFERENCES ANSWER (`data-ag-keep`) ───────
+
+  Kept between visits (`localStorage`) only when they allowed Preferences; otherwise for
+  this tab (`sessionStorage`), so the settings still work and are forgotten when it
+  closes — CookiePrefs decides, the layout hands the answer over as `data-ag-keep`. A copy
+  in the store the answer does not allow is MOVED, so saying no actually takes the
+  settings off the device and saying yes keeps what was set this visit. Both calls are
+  spelled out rather than held in a variable, so the storage sweep (CookieRegistryTest)
+  can see every write.
+
+  The language is NOT here: it is a cookie, already on <html lang dir> in the markup the
+  server sent. Wrapped throughout, because `localStorage` THROWS in a Safari private
+  window, and a settings script that takes the page down is worse than one that forgets.
 #}
 <script nonce="{{ csp_nonce }}">
-(function(){try{
-  var c=document.documentElement.classList,s=JSON.parse(localStorage.getItem('ag-a11y')||'{}');
-  var t={1:'ag-t125',2:'ag-t150'}[s.size]; if(t)c.add(t);
-  var m={hc:'ag-hc',easy:'ag-easy',space:'ag-ls',ul:'ag-ul',motion:'ag-rm',saver:'ag-saver'};
-  for(var k in m){ if(s[k])c.add(m[k]); }
+(function(){var d=document.documentElement,c=d.classList,m={{ member_display()|json_encode(JSON_SAFE)|raw }},s={},K=d.getAttribute('data-ag-keep')==='1',v=null;
+try{if(K){v=sessionStorage.getItem('ag-a11y');if(v!==null&&localStorage.getItem('ag-a11y')===null)localStorage.setItem('ag-a11y',v);sessionStorage.removeItem('ag-a11y');}
+else{v=localStorage.getItem('ag-a11y');if(v!==null&&sessionStorage.getItem('ag-a11y')===null)sessionStorage.setItem('ag-a11y',v);localStorage.removeItem('ag-a11y');}}catch(e){}
+try{if(m){s=m;if(K)localStorage.setItem('ag-a11y',JSON.stringify(m));else sessionStorage.setItem('ag-a11y',JSON.stringify(m));}else{s=JSON.parse((K?localStorage.getItem('ag-a11y'):sessionStorage.getItem('ag-a11y'))||'{}')||{};}}catch(e){s=m||{};}
+try{var t={1:'ag-t125',2:'ag-t150'}[s.size];if(t)c.add(t);
+var k={hc:'ag-hc',easy:'ag-easy',space:'ag-ls',ul:'ag-ul',motion:'ag-rm',saver:'ag-saver'};
+for(var x in k){if(s[x])c.add(k[x]);}
+var f=d.getAttribute('data-ag-easy-font');
+if(s.easy&&f){var l=document.createElement('link');l.rel='stylesheet';l.id='ag-easy-font';l.href=f;document.head.appendChild(l);}
 }catch(e){}})();
 </script>

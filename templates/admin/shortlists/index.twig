@@ -22,7 +22,7 @@
 
 {% if cycle_id == 0 %}
   <div class="ad-card"><div class="ad-card__body">
-    <p style="margin:0">There are no award cycles yet. <a href="/admin/programmes" style="color:var(--ad-accent,#237b22);font-weight:600">Create a programme and a cycle</a> first — a shortlist is drawn from a cycle's categories.</p>
+    <p style="margin:0">There are no award cycles yet. <a href="/admin/programmes" style="color:var(--cn-ink);font-weight:600">Create a programme and a cycle</a> first — a shortlist is drawn from a cycle's categories.</p>
   </div></div>
 {% else %}
 
@@ -73,7 +73,7 @@
           <ul>{% for w in cycle_rule.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
         </div>
       {% endif %}
-      <p style="margin:0;font-size:13px;color:var(--ad-text-soft)"><strong>Currently:</strong> {{ cycle_rule.describe }}</p>
+      <p style="margin:0;font-size:13px;color:var(--cn-grey-600)"><strong>Currently:</strong> {{ cycle_rule.describe }}</p>
     </div></div>
     <div class="ad-card__body" style="padding-top:0"><div class="ad-form__actions" style="justify-content:flex-end">
       <button class="ad-btn ad-btn--primary" type="submit">Save rule</button>
@@ -97,22 +97,22 @@
       {% for r in rows %}
       <tr>
         <td><strong>{{ r.title }}</strong>
-          {% if r.warnings %}<br><span style="font-size:12px;color:var(--ad-warn,#a5610c)">{{ r.warnings|first }}</span>{% endif %}
+          {% if r.warnings %}<br><span style="font-size:12px;color:var(--cn-warning-dot)">{{ r.warnings|first }}</span>{% endif %}
         </td>
-        <td style="font-size:13px;color:var(--ad-text-soft)">
+        <td style="font-size:13px;color:var(--cn-grey-600)">
           {{ r.rule.describe }}
           {% if r.scope == 'category' %}<span class="ad-chip ad-chip--blue" style="margin-left:4px">own rule</span>{% endif %}
         </td>
         <td style="text-align:right;font-variant-numeric:tabular-nums">{{ r.considered }}</td>
         <td style="text-align:right;font-variant-numeric:tabular-nums">
-          {% if r.would_take == 0 and r.considered > 0 %}<span style="color:var(--ad-danger,#a4243d);font-weight:600">0</span>
+          {% if r.would_take == 0 and r.considered > 0 %}<span style="color:var(--cn-danger);font-weight:600">0</span>
           {% else %}<strong>{{ r.would_take }}</strong>{% endif %}
-          {% if r.ties > 1 %}<br><span style="font-size:11px;color:var(--ad-text-mute)">{{ r.ties }} level at the cut</span>{% endif %}
+          {% if r.ties > 1 %}<br><span style="font-size:11px;color:var(--cn-grey-500)">{{ r.ties }} level at the cut</span>{% endif %}
         </td>
         <td>
           {% if r.published %}
             <span class="ad-chip ad-chip--green">{{ r.published.entry_count }} published</span>
-            {% if r.drifted %}<br><span style="font-size:11px;color:var(--ad-text-mute)" title="Votes have arrived since publication. The published list is unchanged, which is the point.">rule now says {{ r.would_take }}</span>{% endif %}
+            {% if r.drifted %}<br><span style="font-size:11px;color:var(--cn-grey-500)" title="Votes have arrived since publication. The published list is unchanged, which is the point.">rule now says {{ r.would_take }}</span>{% endif %}
           {% else %}
             <span class="ad-chip ad-chip--grey">not published</span>
           {% endif %}
@@ -125,14 +125,14 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">This cycle has no categories yet. <a href="/admin/programmes" style="color:var(--ad-accent,#237b22)">Add some</a>.</td></tr>
+      <tr><td colspan="6" style="text-align:center;color:var(--cn-grey-500);padding:30px">This cycle has no categories yet. <a href="/admin/programmes" style="color:var(--cn-ink)">Add some</a>.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div></div>
 
 {% if not may_publish %}
-  <p style="margin:14px 0 0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">You can set rules and read every preview. Publishing a shortlist is restricted to admins and superadmins.</p>
+  <p style="margin:14px 0 0;font-size:13px;color:var(--cn-grey-500)">You can set rules and read every preview. Publishing a shortlist is restricted to admins and superadmins.</p>
 {% endif %}
 
 {% endif %}

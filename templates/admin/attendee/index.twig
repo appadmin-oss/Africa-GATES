@@ -7,9 +7,9 @@
 
 {% block content %}
 
-<p style="margin:0 0 14px;font-size:14px;color:var(--ad-text-mute,#5a6d6f)">
+<p style="margin:0 0 14px;font-size:14px;color:var(--cn-grey-500)">
   The bot that sits in a judging interview, records it and hands the panel a transcript. It
-  runs on <a href="https://attendee.dev" target="_blank" rel="noopener noreferrer" style="color:var(--ad-accent,#237b22);font-weight:600">Attendee</a>,
+  runs on <a href="https://attendee.dev" target="_blank" rel="noopener noreferrer" style="color:var(--cn-ink);font-weight:600">Attendee</a>,
   which you can use hosted or run yourself.
   {% if configured %}
     Currently pointed at <strong>{{ report.attendee_base_url.value ?: hosted_base }}</strong>{% if self_hosted %} (your own instance){% endif %}.
@@ -24,7 +24,7 @@
 {% if test %}
 <div class="ad-card">
   <div class="ad-card__head"><div class="ad-card__title"
-       style="color:{{ test.level == 'ok' ? 'var(--ad-accent,#237b22)' : (test.level == 'warn' ? 'var(--ad-warn,#a5610c)' : 'var(--ad-danger,#a4243d)') }}">
+       style="color:{{ test.level == 'ok' ? 'var(--cn-ink)' : (test.level == 'warn' ? 'var(--cn-warning-dot)' : 'var(--cn-danger)') }}">
     {{ test.level == 'ok' ? 'Connected' : (test.level == 'warn' ? 'Connected, with warnings' : 'Not working') }}
     <small>{{ test.message }}</small>
   </div></div>
@@ -38,7 +38,7 @@
           <td>
             {% if c.ok %}<span class="ad-chip ad-chip--green">ok</span>
             {% else %}<span class="ad-chip ad-chip--red">problem</span>{% endif %}
-            <span style="margin-left:8px;font-size:13px;color:var(--ad-text-soft)">{{ c.detail }}</span>
+            <span style="margin-left:8px;font-size:13px;color:var(--cn-grey-600)">{{ c.detail }}</span>
           </td>
         </tr>
         {% endfor %}
@@ -132,7 +132,7 @@
           <input type="text" name="attendee_stt_model" id="at-stt" maxlength="80"
                  value="{{ report.attendee_stt_model.source == 'settings' ? report.attendee_stt_model.value : '' }}"
                  placeholder="{{ settings.attendee_stt_model.default }}">
-          <p class="hint">Needs an OpenAI key set in <a href="/admin/settings" style="color:var(--ad-accent,#237b22)">Settings</a>.
+          <p class="hint">Needs an OpenAI key set in <a href="/admin/settings" style="color:var(--cn-ink)">Settings</a>.
             Without one the bot falls back to the meeting platform's own captions — worse, but
             not silent.</p>
         </div>
@@ -162,7 +162,7 @@
   </form>
   </div>
   <div class="ad-card__body">
-    <p style="margin:0;font-size:13px;color:var(--ad-text-soft)">
+    <p style="margin:0;font-size:13px;color:var(--cn-grey-600)">
       Everything that can be checked without the network is checked first, so a missing key
       or an <code>http://</code> base URL is never reported as “the host is unreachable”.
     </p>
@@ -180,16 +180,16 @@
       <tbody>
         {% for key, r in report %}
         <tr>
-          <td><strong>{{ r.label }}</strong><br><span style="font-size:12px;color:var(--ad-text-mute)"><code>{{ r.env }}</code></span></td>
+          <td><strong>{{ r.label }}</strong><br><span style="font-size:12px;color:var(--cn-grey-500)"><code>{{ r.env }}</code></span></td>
           <td>
             {% if r.source == 'settings' %}<span class="ad-chip ad-chip--green">saved here</span>
             {% elseif r.source == 'env' %}<span class="ad-chip ad-chip--blue">environment</span>
             {% elseif r.source == 'default' %}<span class="ad-chip ad-chip--grey">default</span>
             {% else %}<span class="ad-chip ad-chip--red">not set</span>{% endif %}
           </td>
-          <td style="font-size:13px;color:var(--ad-text-soft);word-break:break-all">
+          <td style="font-size:13px;color:var(--cn-grey-600);word-break:break-all">
             {{ r.value ?: '—' }}
-            {% if r.shadowed_env %}<br><span style="color:var(--ad-text-mute)">environment says {{ r.shadowed_env }} — not used</span>{% endif %}
+            {% if r.shadowed_env %}<br><span style="color:var(--cn-grey-500)">environment says {{ r.shadowed_env }} — not used</span>{% endif %}
           </td>
         </tr>
         {% endfor %}

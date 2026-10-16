@@ -9,7 +9,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * The one way to ask "who is this request from", for rate-limiting purposes.
  *
  * WHY THIS EXISTS. Four call sites answered that question four different ways.
- * Two ({@see \AfricaGates\Controllers\ApiController}, {@see \AfricaGates\Controllers\ActivityController})
+ * Two ({@see \AfricaGates\Controllers\ApiController}, the activity page's controller, since retired into Discover)
  * consulted `TRUST_PROXY` and read `X-Forwarded-For`. The three that take MONEY —
  * paid votes, donations, shop/payment init — read `REMOTE_ADDR` and nothing else.
  *

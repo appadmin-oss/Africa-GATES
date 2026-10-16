@@ -90,7 +90,7 @@ final class BrevoApi
             'to'      => $to,
             'subject' => $m->Subject,
         ];
-        if (str_contains(strtolower((string) $m->ContentType), 'html')) {
+        if (BuiltMessage::isHtml($m)) {
             $p['htmlContent'] = $m->Body;
             if (trim((string) $m->AltBody) !== '') $p['textContent'] = $m->AltBody;
         } else {
@@ -104,14 +104,8 @@ final class BrevoApi
         if (trim((string) $m->MessageID) !== '') $headers['Message-Id'] = (string) $m->MessageID;
         if ($headers !== []) $p['headers'] = $headers;
 
-        $files = [];
-        foreach ($m->getAttachments() as $a) {
-            // [0] path or string, [1] filename, [2] name, [5] is-string. Only string
-            // attachments are built here (OtpService attaches by value, never by path).
-            $content = !empty($a[5]) ? (string) $a[0] : (is_file((string) $a[0]) ? (string) file_get_contents((string) $a[0]) : '');
-            if ($content === '') continue;
-            $files[] = ['name' => (string) ($a[2] ?: $a[1]), 'content' => base64_encode($content)];
-        }
+        $files = array_map(static fn (array $f): array => ['name' => $f['name'], 'content' => base64_encode($f['content'])],
+            BuiltMessage::attachments($m));
         if ($files !== []) $p['attachment'] = $files;
 
         return $p;

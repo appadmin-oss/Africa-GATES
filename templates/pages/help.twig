@@ -1,0 +1,146 @@
+{% extends 'layout/shell.twig' %}
+{% import 'partials/help.twig' as h %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE HELP CENTRE — /help · Phase 9 · design/HelpCentre.dc.html (`view=index`) · §8.21
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt from the DC after the destroy (inventory: pages--help.md, help-nav in
+  _partials.md). Somebody arriving here is stuck, not browsing, and the ticket queue says
+  the top arrival by a distance is "I paid and I have no votes". So: search, then the four
+  answers most people need, then the whole directory, then the desk.
+
+  ── ONE CORPUS ──────────────────────────────────────────────────────────────
+  Every answer is HelpCentre's, the same corpus Gee quotes, so the page and the assistant
+  cannot disagree. Nothing here is typed but the furniture.
+
+  ── SEARCH IS A REAL GET, AND TYPING NARROWS IN PLACE ───────────────────────
+  Enter performs the server search (HelpCentre::search, keywords above titles above
+  bodies — "debited" reaches "I paid but my votes have not appeared", which never uses the
+  word), shareable and back-able, `noindex, follow` because an unbounded query space is a
+  crawl trap. Between keystrokes help.js narrows the directory from the corpus embedded
+  as JSON in a script element — never interpolated into an attribute, where one quote in a
+  title once terminated it. Every title is rendered; those past a card's preview are
+  `hidden` and named by "All N in …", so the narrowing can show them without a fetch.
+
+  ── WHO IS ASKING (`?for=`) IS A FILTER, NEVER A PARTITION ──────────────────
+  It narrows the shelf; it never narrows a search, and a chip is offered only where its
+  shelf has answers in it (audience_counts).
+
+  Colour tier 1: the green Ask Gee buttons are the page's one event. The answer tiles are
+  the tint ground, not four hues — see PHASE-9.md, deviation H-2.
+#}
+{% set colour_tier = '1' %}
+{# Gee mounts in help-desk mode here (HelpCentre.dc.html: `<Gee mode="support">`). #}
+{% set gee_mode = 'support' %}
+{% set app_bar = {variant: 'child', title: 'Help Centre'|trans, back: '/'} %}
+{% if q %}{% set meta_robots = 'noindex, follow' %}{% endif %}
+{% set _for = audience|default('') %}
+
+{% block head_styles %}
+{% include 'partials/seo-head.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/help.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="hc" data-help>
+  <div class="hc__head">
+    <h1 class="hc__h1">{% if q %}{{ 'Results for “%q%”'|trans({'%q%': q}) }}{% else %}{{ 'How can we help?'|trans }}{% endif %}</h1>
+    <p class="hc__lede">{{ 'Written answers for voters, nominees, hosts and everyone else. Gee can look up your own case.'|trans }}</p>
+  </div>
+
+  <div class="hc__bar ag-sticky">
+    <form class="hc__search" method="get" action="/help" role="search">
+      {% if _for %}<input type="hidden" name="for" value="{{ _for }}">{% endif %}
+      <label class="hc__field">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+        <span class="ag-sr">{{ 'Search the Help Centre'|trans }}</span>
+        <input class="hc__q" type="search" name="q" value="{{ q }}" enterkeyhint="search" autocomplete="off" maxlength="200"
+               placeholder="{{ 'Describe the problem, e.g. code didn’t arrive'|trans }}" data-help-q>
+        {% if q %}
+          <a class="hc__clear" href="/help{{ _for ? '?for=' ~ _for : '' }}" aria-label="{{ 'Clear search'|trans }}"><span aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></a>
+        {% endif %}
+      </label>
+    </form>
+    <nav class="hc__aud" aria-label="{{ 'Who is asking'|trans }}">
+      <a class="hc__chip" href="/help"{% if not _for %} aria-current="page"{% endif %}>{{ 'Everyone'|trans }}</a>
+      {% for key, a in audiences %}
+        {% if audience_counts[key]|default(0) > 0 %}
+          <a class="hc__chip" href="/help?for={{ key }}"{% if _for == key %} aria-current="page"{% endif %}>{{ a.title|trans }}</a>
+        {% endif %}
+      {% endfor %}
+    </nav>
+  </div>
+
+  {% if q %}
+    <section class="hc__res" aria-labelledby="hc-res">
+      <h2 class="hc__h2" id="hc-res">
+        {%- if results|length == 1 %}{{ '1 answer'|trans }}
+        {%- elseif results|length %}{{ '%n% answers'|trans({'%n%': results|length}) }}
+        {%- else %}{{ 'No written answer matches “%q%”'|trans({'%q%': q}) }}{% endif -%}
+      </h2>
+      {% if results|length %}
+        <ul class="hc-list">
+          {% for a in results %}
+            <li><a class="hc-list__a" href="/help/{{ a.slug }}"><span class="hc-list__w"><span class="hc-list__t">{{ a.title }}</span><span class="hc-list__c">{{ categories[a.cat].title|default('')|trans }}</span></span><svg class="hc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <div class="hc-gee">
+        <b class="hc-gee__h">{{ results|length ? 'Not quite it?'|trans : 'Gee can probably help.'|trans }}</b>
+        <span class="hc-gee__p">{{ 'Gee can look up your own payment, vote or ticket, and hand you to a person if that’s better.'|trans }}</span>
+        <div class="hc-gee__act">
+          {{ h.ask('Ask Gee about this'|trans, q, '') }}
+          <a class="hc-btn hc-btn--out" href="/help{{ _for ? '?for=' ~ _for : '' }}">{{ 'Browse every topic'|trans }}</a>
+        </div>
+      </div>
+    </section>
+  {% else %}
+    {% if top|length %}
+      <section class="hc__sec" aria-labelledby="hc-top" data-help-top>
+        <h2 class="hc__h2" id="hc-top">{{ 'Most people are here for one of these'|trans }}</h2>
+        <div class="hc-top">
+          {% for a in top %}
+            <a class="hc-top__a" href="/help/{{ a.slug }}">
+              <span class="hc-tile" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{{ categories[a.cat].icon|raw }}</svg></span>
+              <span class="hc-top__w"><span class="hc-top__t">{{ a.title }}</span><span class="hc-top__s">{{ a.summary|striptags }}</span></span>
+              <svg class="hc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="hc__sec" aria-labelledby="hc-all">
+      <h2 class="hc__h2" id="hc-all">{{ 'Every topic'|trans }}</h2>
+      <p class="hc__say" role="status" aria-live="polite" data-help-say
+         data-one="{{ '1 answer matches'|trans }}" data-many="{{ '%n% answers match'|trans }}" data-none="{{ 'No title matches yet — press Enter to search every answer.'|trans }}"></p>
+      <div class="hc-cats">
+        {% for key, list in by_category %}
+          {% set c = categories[key] %}
+          <section class="hc-cat" aria-labelledby="hc-cat-{{ key }}" data-help-cat>
+            <div class="hc-cat__head">
+              <span class="hc-tile hc-tile--sm" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{{ c.icon|raw }}</svg></span>
+              <span class="hc-cat__w"><b class="hc-cat__t" id="hc-cat-{{ key }}">{{ c.title|trans }}</b><span class="hc-cat__n">{{ list|length == 1 ? '1 answer'|trans : '%n% answers'|trans({'%n%': list|length}) }}</span></span>
+            </div>
+            <ul class="hc-cat__list">
+              {% for a in list %}
+                <li{% if loop.index > preview %} hidden data-help-more{% endif %} data-help-slug="{{ a.slug }}"><a class="hc-cat__a" href="/help/{{ a.slug }}">{{ a.title }}</a></li>
+              {% endfor %}
+            </ul>
+            <a class="hc-cat__all" href="/help/c/{{ key }}">{{ 'All %n% in %c%'|trans({'%n%': list|length, '%c%': c.title|trans}) }}</a>
+          </section>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {{ h.stuck() }}
+</div>
+
+{# The corpus for in-place narrowing, as JSON in a script element (never an attribute). #}
+<script type="application/json" id="help-index" nonce="{{ csp_nonce }}">{{ index|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_HEX_AMP') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/help.js') }}"></script>{% endblock %}

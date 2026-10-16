@@ -151,8 +151,11 @@ if (session_status() === PHP_SESSION_NONE) {
     $secure = Env::has('SESSION_SECURE')
         ? Env::bool('SESSION_SECURE', true)
         : ($isHttps || $appEnv === 'production');
+    // The data lasts as long as the cookie, in a directory nobody else collects —
+    // see Support\SessionStore for the "CSRF validation failed" this ended.
+    \AfricaGates\Support\SessionStore::configure(dirname(__DIR__));
     session_set_cookie_params([
-        'lifetime' => 86400 * 7,
+        'lifetime' => \AfricaGates\Support\SessionStore::LIFETIME,
         'path'     => '/',
         'secure'   => $secure,
         'httponly' => true,

@@ -61,8 +61,8 @@ final class CommunityVotingPhilosophy
     /** First publication. Citations need both this and UPDATED. */
     public const PUBLISHED = '2026-08-08';
 
-    public const TITLE = 'The Philosophy Behind Africa GATES Community Voting';
-    public const SUBTITLE = 'Reimagining Recognition Through Communal Spirit';
+    public const TITLE = 'The philosophy behind Africa GATES community voting';
+    public const SUBTITLE = 'Reimagining recognition through communal spirit';
     public const AUTHOR = 'Africa GATES Integrity Centre';
     public const PUBLISHER = 'Africa GATES — An Afrovanguard Initiative';
 

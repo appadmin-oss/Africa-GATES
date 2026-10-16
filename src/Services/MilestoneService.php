@@ -77,21 +77,28 @@ class MilestoneService
 
     private function notifyAdmin(object $nominee, int $milestone): void
     {
-        $adminEmail = Env::get('ADMIN_ALERT_EMAIL') ?? Env::get('MAIL_FROM_ADDRESS');
-        if (!$adminEmail || !$this->mailer) return;
+        // The one resolver (Settings, then .env), not a second reading of the same keys: this
+        // read ADMIN_ALERT_EMAIL from .env alone, so an address changed in /admin/settings
+        // reached every other alert and never this one.
+        $adminEmail = Notifier::adminEmail();
+        if ($adminEmail === '' || !$this->mailer) return;
 
         $formatted = number_format($milestone);
+        // A nominee's name is what somebody else typed into a nomination form; in an HTML
+        // mail it is markup unless it is escaped.
+        $name  = htmlspecialchars((string) $nominee->name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $total = htmlspecialchars((string) $nominee->vote_count, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $html = <<<HTML
-<p><strong>{$nominee->name}</strong> has just crossed the
+<p><strong>{$name}</strong> has just crossed the
 <span style="color:#15803d;font-size:1.25em;font-weight:700">{$formatted} votes</span>
 milestone in the Africa GATES 2026 cycle. 🎉</p>
 <p>Notify the nominee so they can share this achievement with their supporters.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"
        style="margin:16px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:12px 16px">
   <tr><td style="font-size:14px;color:#166534">
-    Nominee: <strong>{$nominee->name}</strong><br>
+    Nominee: <strong>{$name}</strong><br>
     Milestone: <strong>{$formatted} votes</strong><br>
-    Total votes: <strong>{$nominee->vote_count}</strong>
+    Total votes: <strong>{$total}</strong>
   </td></tr>
 </table>
 HTML;

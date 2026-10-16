@@ -97,7 +97,7 @@ final class VisitTracker
             // One resolver for "may we count this person", and it is not this class:
             // the answer now includes a choice they can make on /cookies, not only a header
             // two of the three major browsers stopped sending. See CookiePrefs.
-            if (!CookiePrefs::analyticsAllowed($request) || self::looksLikeBot($request)) return '';
+            if (!CookiePrefs::allows($request, CookiePrefs::ANALYTICS) || self::looksLikeBot($request)) return '';
 
             $q      = $request->getQueryParams();
             $ref    = self::header($request, 'Referer');

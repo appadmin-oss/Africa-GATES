@@ -948,9 +948,14 @@ final class QuestionnaireService
         $now       = Carbon::now()->toDateTimeString();
 
         try {
+            // Only what nobody has REVIEWED yet. A reviewed item is the locked record the public
+            // profile promises "nobody can edit or delete" (Phase 6, ProfilePage §8.8): a
+            // resubmitted questionnaire replaces the nominee's unreviewed drafts and leaves
+            // every reviewed item exactly as it was reviewed. EvidenceLockTest holds it.
             DB::table('gates_nominee_evidence')
                 ->where('nominee_id', $nomineeId)
                 ->where('provenance', 'nominee_supplied')
+                ->where('verified', 0)
                 ->delete();
         } catch (\Throwable $e) {
             error_log('[questionnaire] could not clear old nominee evidence: ' . $e->getMessage());

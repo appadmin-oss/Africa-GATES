@@ -264,6 +264,9 @@ final class NominationAftercare
             'Nominator'           => $byName . ' <' . $byEmail . '>',
             'Nominator phone'     => trim((string) ($data['nominator_phone'] ?? '')),
             'Nominator age range' => trim((string) ($data['nominator_age_range'] ?? '')) ?: '—',
+            // How they know the nominee, and whether the nominee may be told who they are.
+            'Knows them as'       => \AfricaGates\Services\NominationRules::RELATIONS[\AfricaGates\Services\NominationRules::relation($data['nominator_relation'] ?? null) ?? ''] ?? '—',
+            'Name kept private'   => !empty($data['nominator_private']) ? 'Yes — the nominee is not told who nominated them' : 'No',
             'Nominator location'  => trim((string) ($data['nominator_state'] ?? '')) . ', '
                                    . trim((string) ($data['nominator_lga'] ?? '')) . ', '
                                    . strtoupper((string) ($data['nominator_country'] ?? '')),
@@ -282,7 +285,7 @@ final class NominationAftercare
             . ($evidence ? '<p style="font-size:13px;margin-top:12px">Supporting document: ' . $esc($evidence) . '</p>' : '')
             . ($photo ? '<p style="font-size:13px">Photo: ' . $esc($photo) . '</p>' : '')
             . '<p style="margin-top:16px"><a href="' . $esc($base . '/admin/nominations') . '" style="color:#237b22;font-weight:600">Review in the admin console &rarr;</a></p>';
-        try {
+        if (Notifier::adminEmail() !== '') try {
             $mailer->sendBranded(Notifier::adminEmail(), 'New nomination · ' . $nomName,
                                  $adminHtml, strip_tags($adminHtml), 'Nominations');
         } catch (\Throwable) {}

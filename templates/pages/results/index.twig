@@ -1,0 +1,101 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/results` — WHERE EVERY AWARD STANDS · Phase 5 · ResultsPage.dc.html vocabulary · §8.7
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The handoff has no index view of its own (GAPS Q14, still open), so this page is drawn in
+  ResultsPage's vocabulary: edition cards in the switcher's shape, the overall-winner line in
+  the gold band's words, a running edition's "Overall winner announced {date}" in the same
+  slot. Inventory: docs/handoff/inventory/pages--results--index.md — its rules kept:
+
+  · a LATE cycle is stated above the list, not under it (PublicResults::delayed());
+  · the three states draw: counting (voting open), with the panel, decided; a withheld award
+    is an outline, never a fill, and held awards are counted;
+  · the programme filter and the order are links/GET (`?programme=`, `?order=`, `?q=`);
+  · colour tier 1, the one event `live`: an edition whose voting is open.
+#}
+
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'root', title: 'Results'|trans} %}
+{% set _v = view %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/results.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
+
+{% block content %}
+<div class="rs">
+  <div class="rs-top rs-top--index rs-top--root">
+    <h1 class="rs-h1 rs-h1--index">{{ 'Where every award stands'|trans }}</h1>
+    <p class="rs-lede">{{ 'Counting, with the judges, or decided — and for every decided award, the full standing with community support and the judges’ marks shown separately.'|trans }}</p>
+  </div>
+
+  {% if delayed|length %}
+  <section class="rs-delay" aria-labelledby="rs-delay-h">
+    <h2 class="rs-delay__h" id="rs-delay-h">{{ delayed|length == 1 ? 'One result is late'|trans : '%n% results are late'|trans({'%n%': delayed|length}) }}</h2>
+    <ul class="rs-delay__l">
+      {% for d in delayed %}
+        <li><b>{{ d.programme }}{% if d.edition %} · {{ d.edition }}{% endif %}</b> — {{ 'expected %d%, not announced yet.'|trans({'%d%': d.promised|when_zoned('j M Y')}) }}{% if d.note %} <span>{{ d.note }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <form class="rs-tools" method="get" action="/results" role="search" aria-label="{{ 'Find a result'|trans }}">
+    <label class="ag-field ag-field--search rs-search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+      <input type="search" name="q" value="{{ _v.q|default('') }}" autocomplete="off" aria-label="{{ 'Search results'|trans }}" placeholder="{{ 'Search awards, categories or winners'|trans }}">
+    </label>
+    {% if _v.programme|default('') %}<input type="hidden" name="programme" value="{{ _v.programme }}">{% endif %}
+    {% if programmes|length > 1 %}
+    <nav class="ag-chip-row rs-progs" aria-label="{{ 'Award'|trans }}">
+      <a class="ag-chip" href="/results"{% if not _v.programme|default('') %} aria-current="page"{% endif %}>{{ 'All awards'|trans }}</a>
+      {% for p in programmes %}
+        <a class="ag-chip" href="/results?programme={{ p.name|url_encode }}"{% if _v.programme|default('') == p.name %} aria-current="page"{% endif %}>{{ p.name }}<span class="ag-chip__n">{{ p.n }}</span></a>
+      {% endfor %}
+    </nav>
+    {% endif %}
+  </form>
+
+  {% if editions|length %}
+  <ul class="rs-list">
+    {% for e in editions %}
+      <li>
+        <a class="rs-edc{{ e.status.key == 'counting' ? ' rs-edc--live' }}{{ e.status.key == 'withheld' ? ' rs-edc--held' }}" href="{{ e.url }}">
+          <span class="rs-edc__top">
+            <span class="rs-edc__p">{{ e.programme }}</span>
+            <span class="rs-edc__s rs-edc__s--{{ e.status.key }}">{{ e.status.label|trans }}</span>
+          </span>
+          <b class="rs-edc__ed">{{ e.edition ?: e.year }}</b>
+          <span class="rs-edc__line">
+            {%- if e.status.publishes_standing and e.overall and e.overall.winner -%}
+              {{ 'Overall winner: %n%'|trans({'%n%': e.overall.winner.name}) }}{% if e.overall.provisional %} · {{ 'provisional'|trans }}{% endif %}
+            {%- elseif e.status.key == 'counting' -%}
+              {{ 'Voting open'|trans }}{% if e.closes %} · {{ 'closes %d%'|trans({'%d%': e.closes|when_zoned('j M')}) }}{% endif %}
+            {%- elseif e.status.key == 'judging' -%}
+              {{ 'With the judges'|trans }}
+            {%- elseif e.status.key == 'withheld' -%}
+              {{ e.status.note ?: 'An award in this edition is being checked'|trans }}
+            {%- else -%}
+              {{ e.status.label|trans }}
+            {%- endif -%}
+          </span>
+          <span class="rs-edc__meta">
+            {{- e.categories == 1 ? '1 category'|trans : '%n% categories'|trans({'%n%': e.categories}) -}}
+            {%- if e.decided|default(0) and e.decided < e.categories %} · {{ '%d% of %n% decided'|trans({'%d%': e.decided, '%n%': e.categories}) }}{% endif -%}
+            {%- if e.votes|default(0) %} · {{ '%n% votes'|trans({'%n%': e.votes|number_format}) }}{% endif -%}
+          </span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <div class="rs-empty">
+      <p>{{ (_v.q|default('') or _v.programme|default('')) ? 'Nothing matches that.'|trans : 'No award has been announced yet.'|trans }}</p>
+      <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/awards">{{ 'See every award'|trans }}</a>
+    </div>
+  {% endif %}
+  {% if held|default(0) > 0 %}<p class="rs-method">{{ held == 1 ? 'One award is being checked before its result is published.'|trans : '%n% awards are being checked before their results are published.'|trans({'%n%': held}) }}</p>{% endif %}
+  <p class="rs-method"><a href="/winners">{{ 'Everyone Africa GATES has honoured'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a></p>
+</div>
+{% endblock %}

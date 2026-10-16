@@ -67,6 +67,13 @@ final class Maintenance
     public const TASK_FAILED = -1;
 
     /**
+     * How often the CPI is recomputed, in hours. The leaderboard PRINTS this ("recomputed
+     * every 6 hours", "next update in …"), so it is the one constant both the schedule and
+     * the sentence read — a typed 6 in a template is a promise nothing keeps in step.
+     */
+    public const CPI_EVERY_HOURS = 6;
+
+    /**
      * Run one task in isolation.
      *
      * ── THE FAILURE THIS REMOVES ────────────────────────────────────────────────
@@ -158,6 +165,24 @@ final class Maintenance
             // told it would move — and a list that only moves at 06:00 is a list that does
             // not move on the day the organiser is filling the last three pitches.
             $ran[] = ['standoffers',   $this->task('standoffers',   fn() => $this->expireStandOffers())];
+            // "Email me when tickets go on sale". Every tick, because the moment sales open
+            // is a tier's `sale_starts_at` passing — a clock, not a save — and somebody who
+            // asked to be told is told within one tick of it. Two queries when nothing is
+            // due; each row is CLAIMED before it is sent, so overlapping ticks cannot double
+            // a message (EventSaleAlert).
+            $ran[] = ['event-sale-alerts', $this->task('event-sale-alerts',
+                fn() => \AfricaGates\Services\EventSaleAlert::sweep($this->mailer()))];
+            // "Notify me" on a coming-soon award (Phase 5): the moment an edition leaves
+            // `upcoming` is a date passing, not a save, so it is checked every tick like the
+            // ticket alerts beside it, and each row is CLAIMED before it is sent (AwardAlert).
+            $ran[] = ['award-alerts', $this->task('award-alerts',
+                fn() => \AfricaGates\Services\AwardAlert::sweep($this->mailer()))];
+            // "Get status updates" (Phase 9): a problem the status record measured starting or
+            // being seen to recover. Every tick, because the tick IS what records the status
+            // (SystemStatus::record()); each (incident, address) is claimed in
+            // gates_broadcast_log before it is sent, so overlapping ticks mail nobody twice.
+            $ran[] = ['status-alerts', $this->task('status-alerts',
+                fn() => \AfricaGates\Services\StatusAlert::sweep($this->mailer()))];
             // The interview recording bot. On every tick, and it has to be: this is the
             // path that sends a bot to a sitting starting in ten minutes, reads the
             // transcript out of one that is running, and pulls a bot out of one that
@@ -178,6 +203,12 @@ final class Maintenance
             // tick, because it is a batch and a list of thousands is many ticks long; when
             // the schedule is off, or nothing is due or approved, it is two queries.
             $ran[] = ['newsletter',    $this->task('newsletter', fn() => $this->newsletter()->tick())];
+            // The CACENTRE CRM's Audience: subscribers, opt-outs, bounces, enquiries and gifts,
+            // pushed signed. AFTER the newsletter, so a confirmation or stop the newsletter
+            // tick just wrote goes out on this one. A few queries when nothing is new, and
+            // nothing at all when no secret is set (CrmAudiencePush).
+            $ran[] = ['crm-audience',  $this->task('crm-audience',
+                fn() => \AfricaGates\Services\CrmAudiencePush::sweep())];
             // What the platform looked like on this tick, for /status to show a history
             // with. LAST in the every-tick block on purpose: it records the state AFTER the
             // queue has drained and payments have reconciled, which is the state a visitor
@@ -273,7 +304,7 @@ final class Maintenance
                     fn() => \AfricaGates\Services\InviteReminders::sweep())];
             }
             // Every 6 hours: CPI recompute + tamper-evident standings snapshot
-            if ($now->hour % 6 === 0 && (int)$now->minute < 15) {
+            if ($now->hour % self::CPI_EVERY_HOURS === 0 && (int)$now->minute < 15) {
                 $ran[] = ['cpi',      $this->task('cpi',      fn() => $this->recomputeCpi())];
                 $ran[] = ['snapshot', $this->task('snapshot', fn() => $this->captureSnapshots())];
             }

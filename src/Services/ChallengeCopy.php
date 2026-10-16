@@ -116,7 +116,20 @@ final class ChallengeCopy
         $upcoming = $st === E::ST_UPCOMING;
         $open     = !$full && !$ended && !$upcoming;
         $signedIn = (bool) ($ctx['signed_in'] ?? false);
-        $joined   = $signedIn && $open;
+        // ── SIGNED IN IS NOT ENTERED ────────────────────────────────────────
+        //
+        // This was `$signedIn && $open`, so every signed-in visitor was told "Add a
+        // nominee" and "Track your progress in your account" and sent to /nominate — and
+        // nothing anywhere called `ChallengeService::join()`. No entry was ever written,
+        // so `attachNomination()` found nothing to attach to and every nomination such a
+        // person made counted toward nothing, while the page read as though they were in.
+        // A caller that knows whether there is an entry says so in `entered`; one that
+        // does not (a demo config, a flier) keeps the old reading, because it is drawing
+        // a hypothetical rather than a person's standing.
+        $entered  = (bool) ($ctx['entered'] ?? $signedIn);
+        $joined   = $signedIn && $open && $entered;
+        // Signed in, open, no entry yet: the one control is the join itself, a POST.
+        $canJoin  = $signedIn && $open && !$entered;
 
         // The meter fills to the cap when the challenge is full, so a race that closed
         // on a late disqualification does not draw eleven prizes with ten dots lit.
@@ -165,8 +178,11 @@ final class ChallengeCopy
             'joined'   => $joined,
 
             // ── the one control on the page ──
-            'cta'         => self::cta($action, $upcoming, $ended, $full, $joined),
-            'cta_href'    => self::ctaHref($action, $upcoming, $ended, $full, $joined, $c),
+            'cta'         => $canJoin ? 'Join now' : self::cta($action, $upcoming, $ended, $full, $joined),
+            'cta_href'    => $canJoin ? '/challenges/' . (string) ($c['slug'] ?? '') . '/join'
+                : self::ctaHref($action, $upcoming, $ended, $full, $joined, $c),
+            // True when the control is a form that posts the join rather than a link.
+            'cta_post'    => $canJoin,
             'cta_primary' => !($full || $ended),
             'cta_note'    => self::ctaNote($cap, $upcoming, $ended, $full, $joined),
             'bar_sub'     => self::barSub($cap, $shown, $days, $full, $joined, $capped, $mineLine),
@@ -649,7 +665,7 @@ final class ChallengeCopy
 
         if ($upcoming) return '/challenges/' . $slug . '#remind';
         if ($ended || $full) return '/awards';
-        if ($joined) return $action === E::ACTION_REFER ? '/account#me-referral' : '/nominate';
+        if ($joined) return $action === E::ACTION_REFER ? '/account?tab=referral#me-referral' : '/nominate';
 
         return '/account/login?next=' . rawurlencode('/challenges/' . $slug);
     }

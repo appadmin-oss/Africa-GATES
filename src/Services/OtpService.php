@@ -7,6 +7,7 @@ use AfricaGates\Support\Brand;
 use AfricaGates\Support\Env;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Services\Mail\AppsScriptMail;
 use AfricaGates\Services\Mail\BrevoApi;
 use AfricaGates\Services\Mail\MailConfig;
 use AfricaGates\Services\Mail\MailFailure;
@@ -110,10 +111,11 @@ class OtpService
     /**
      * The roads a message may take, in the order they are tried.
      *
-     * `auto` is SMTP while it works, then the Brevo API over HTTPS, then this server's own
-     * mail — see MailConfig::TRANSPORTS for why there has to be more than one road. The
-     * server's own mail is offered only in production: a developer's laptop calling
-     * mail() is a message to a real address from a machine nobody configured.
+     * `auto` is SMTP while it works (the Settings login, then `.env`'s), then Google Apps
+     * Script for one-to-one mail, then the Brevo API over HTTPS — see MailConfig::TRANSPORTS
+     * for why there has to be more than one road. This server's own mail is a road only
+     * when none of those is set up (below), and only in production: a developer's laptop
+     * calling mail() is a message to a real address from a machine nobody configured.
      *
      * An SMTP road that failed on the ROAD (connect, TLS, login) in the last half hour is
      * skipped, so one blocked port does not cost every later message a 12-second wait.
@@ -121,7 +123,7 @@ class OtpService
      *
      * @return list<string>
      */
-    public function routes(): array
+    public function routes(bool $bulk = false): array
     {
         $t = (string) ($this->smtp['transport'] ?? MailConfig::TRANSPORT_SMTP);
         $smtp = $this->smtpConfigured();
@@ -130,6 +132,10 @@ class OtpService
         // `.env`'s own login, tried after a different one stored in Settings — see
         // MailConfig::load(). Only where SMTP is a road at all.
         $env  = $smtp && is_array($this->smtp['smtp_env'] ?? null);
+        // Apps Script carries one-to-one mail only: MailApp's allowance is about 100
+        // recipients a day, and a newsletter spending it is a sign-in code that cannot go.
+        $gasSet = array_key_exists('gas', $this->smtp) ? (bool) $this->smtp['gas'] : AppsScriptMail::configured();
+        $gas  = !$bulk && $gasSet;
 
         /* ── THIS SERVER'S OWN MAIL IS NOT A FALLBACK ─────────────────────────────
          *
@@ -144,15 +150,20 @@ class OtpService
          * It remains a road when it is the only one there is, or when chosen outright. */
         $out = match ($t) {
             MailConfig::TRANSPORT_SMTP => $smtp ? array_values(array_filter(['smtp', $env ? 'smtp-env' : null])) : [],
+            MailConfig::TRANSPORT_GAS  => $gas ? ['gas'] : [],
             MailConfig::TRANSPORT_API  => $api ? ['api'] : [],
             MailConfig::TRANSPORT_HOST => $host ? ['host'] : [],
-            default => ($smtp || $api)
-                ? array_values(array_filter([$smtp ? 'smtp' : null, $env ? 'smtp-env' : null, $api ? 'api' : null]))
+            // A configured Apps Script that a bulk send may not use still counts as set
+            // up: announcements WAIT for a real road, they are not handed to mail().
+            default => ($smtp || $gasSet || $api)
+                ? array_values(array_filter([
+                    $smtp ? 'smtp' : null, $env ? 'smtp-env' : null, $gas ? 'gas' : null, $api ? 'api' : null,
+                ]))
                 : ($host ? ['host'] : []),
         };
-        /* A rested SMTP road waits behind the API — never behind the server's own mail,
+        /* A rested SMTP road waits behind Apps Script or the API — never behind the server's own mail,
            which would put every message for half an hour on the road that loses it. */
-        if ($api && count($out) > 1 && $out[0] === 'smtp' && self::smtpResting()) {
+        if (($api || $gas) && count($out) > 1 && $out[0] === 'smtp' && self::smtpResting()) {
             $out = array_merge(array_values(array_diff($out, ['smtp', 'smtp-env'])),
                                array_values(array_intersect($out, ['smtp', 'smtp-env'])));
         }
@@ -164,9 +175,9 @@ class OtpService
      * `smtpConfigured()` asked only about one road, so a deployment sending perfectly over
      * the API or the host's own mail was told by every batch job that email was off.
      */
-    public function canSend(): bool
+    public function canSend(bool $bulk = false): bool
     {
-        return $this->routes() !== [];
+        return $this->routes($bulk) !== [];
     }
 
     /** The setting that rests a failing SMTP road. */
@@ -375,7 +386,16 @@ class OtpService
                               string $devBody, callable $build): array
     {
         $bulk = $unsubscribeUrl !== '';
-        $routes = $this->routes();
+        $routes = $this->routes($bulk);
+
+        // An announcement with no road of its own while one-to-one mail has one (Apps
+        // Script only): it WAITS for SMTP rather than failing — held, not lost, and not
+        // counted towards a mail incident.
+        if ($routes === [] && $bulk && $this->routes(false) !== []) {
+            MailLog::write($to, $subject, $category, MailLog::DEFERRED,
+                'Announcements wait for SMTP: the only road open is Google Apps Script, kept for sign-in codes and receipts.', $bulk);
+            return ['success' => false, 'held' => MailLog::DEFERRED, 'error' => 'Announcements wait for SMTP.'];
+        }
 
         if ($routes === []) {
             $this->devLog($to, $subject, $devBody);
@@ -418,6 +438,7 @@ class OtpService
             try {
                 match ($road) {
                     'api'  => $this->transmitApi($m),
+                    'gas'  => $this->transmitGas($m),
                     'host' => (function () use ($m): void { $m->isMail(); $this->transmit($m); })(),
                     'smtp-env' => (function () use ($m): void { $this->useEnvLogin($m); $m->isSMTP(); $this->transmit($m); })(),
                     default => (function () use ($m): void { $m->isSMTP(); $this->transmit($m); })(),
@@ -478,6 +499,12 @@ class OtpService
     protected function transmitApi(PHPMailer $m): void
     {
         (new BrevoApi((string) ($this->smtp['api_key'] ?? '')))->send($m);
+    }
+
+    /** Hand a built message to the platform's Apps Script. See AppsScriptMail. */
+    protected function transmitGas(PHPMailer $m): void
+    {
+        AppsScriptMail::boot()->send($m);
     }
 
     /**
@@ -752,12 +779,21 @@ HTML;
     {
         $year    = date('Y');
         $base    = $this->base();
-        // #626a6e is the platform's documented AA-safe secondary ink — 5.14:1 on the
-        // paper ground. A 10px tracked label is small text, so it owes the full 4.5:1;
-        // the lighter grey this used to be was chosen against white and does not clear
-        // it on #f0f2f2.
+        // THE SHELL'S COLOURS ARE THE PALETTE'S (rebuilt 3 Oct 2026 with the email
+        // templates it carries — docs/handoff/inventory/_emails.md). It typed eleven
+        // colours of its own, none in Support\Accent; mail cannot read var(), so it asks
+        // Accent for the value by name. Three levels as before: the page on `tint`, the
+        // masthead on `ground`, the card on `surface`; the footer is ink with `line-2`
+        // words and `surface` links.
+        $c = Accent::mail();
+        [$cInk, $cInk2, $cSoft, $cTint, $cGround, $cSurface, $cLine, $cLine2, $cGreen, $cGreenLight]
+            = [$c['ink'], $c['ink-2'], $c['soft'], $c['tint'], $c['ground'], $c['surface'],
+               $c['line'], $c['line-2'], $c['green'], $c['green-light']];
+        $shadow = Accent::shadows()['sh-float'];
+        // The labels are 11.5px, the §6.2 floor — they were 10 and 10.5. A tracked label is
+        // small text and owes the full 4.5:1: `soft` is 4.80 on the ground it sits on.
         $catCell = $category !== ''
-            ? '<div style="margin-top:5px;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#10292C">'
+            ? '<div style="margin-top:5px;font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:' . $cInk . '">'
               . htmlspecialchars($category, ENT_QUOTES) . '</div>'
             : '';
         // HEIGHT as well as width. Outlook desktop blocks remote images by default, and a
@@ -786,7 +822,7 @@ HTML;
         // lockup drawn in CSS, because the shipped artwork is green on OPAQUE white and
         // the band was ink. The band is the paper ground now, so the mark is the real
         // green one; Brand::LOGO_ON_TINT is that artwork with the paper turned to alpha,
-        // because #f0f2f2 is close enough to white that the opaque file's box is
+        // because the masthead's ground is close enough to white that the opaque file's box is
         // invisible in a screenshot and obvious in an inbox. Asking Brand for it rather
         // than typing a path is what keeps the letter and the email it arrives with
         // showing the same logo.
@@ -819,7 +855,7 @@ HTML;
         $postal = htmlspecialchars(MailConfig::postal(), ENT_QUOTES);
         $unsub = $unsubscribeUrl !== ''
             ? ' · <a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES)
-              . '" style="color:rgba(255,255,255,0.8);text-decoration:underline">Unsubscribe</a>'
+              . '" style="color:' . $cSurface . ';text-decoration:underline">Unsubscribe</a>'
             : '';
         // ── THE SKELETON, AND THE THREE THINGS THAT ARE EASY TO GET WRONG IN IT ──
         //
@@ -867,8 +903,8 @@ HTML;
       .ag-pad { padding-left:22px !important; padding-right:22px !important; }
     }
     /* This shell does NOT go dark, and that is a decision rather than an omission.
-       Every body it wraps is a FRAGMENT whose ink is set inline — #10292C headings on
-       white, per-message callouts in their own tints — so a card flipped to #0d1512
+       Every body it wraps is a FRAGMENT whose ink is set inline — ink headings on
+       white, per-message callouts in their own tints — so a card flipped dark
        here would render all of it dark-on-dark in exactly the clients that honour this
        query and nothing else.
        What the block is for is colour-LOCKING. Outlook.com and the Windows Outlook apps
@@ -876,32 +912,32 @@ HTML;
        surface muddy grey with the ink on it untouched. Restating each surface with
        !important is what stops that. */
     @media (prefers-color-scheme: dark) {
-      .ag-ground { background-color:#dfe1dc !important; }
-      .ag-head   { background-color:#f0f2f2 !important; }
-      .ag-card   { background-color:#ffffff !important; }
-      .ag-body   { background-color:#ffffff !important; color:#4a5256 !important; }
-      .ag-foot   { background-color:#0c2225 !important; }
+      .ag-ground { background-color:$cTint !important; }
+      .ag-head   { background-color:$cGround !important; }
+      .ag-card   { background-color:$cSurface !important; }
+      .ag-body   { background-color:$cSurface !important; color:$cInk2 !important; }
+      .ag-foot   { background-color:$cInk !important; }
     }
   </style>
 </head>
-<body style="margin:0;padding:0;background:#dfe1dc;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<body style="margin:0;padding:0;background:$cTint;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
   $preRow
-  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#dfe1dc">
+  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:$cTint">
     <tr><td align="center" style="padding:28px 16px">
       <!--[if mso]>
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px"><tr><td>
       <![endif]-->
-      <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:#ffffff;border-radius:6px;overflow:hidden;border:1px solid rgba(16,41,44,0.06);box-shadow:0 6px 24px -12px rgba(16,41,44,0.3)">
+      <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:$cSurface;border-radius:6px;overflow:hidden;border:1px solid $cLine;box-shadow:$shadow">
 
         <!-- Masthead -->
-        <tr><td class="ag-head" style="background:#f0f2f2;border-bottom:1px solid rgba(16,41,44,0.10);padding:20px 32px">
+        <tr><td class="ag-head" style="background:$cGround;border-bottom:1px solid $cLine;padding:20px 32px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
             <td align="left" style="vertical-align:middle">
               <img src="$logo" width="72" height="83" alt="Africa GATES"
-                   style="display:block;width:72px;max-width:72px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:#006634">
+                   style="display:block;width:72px;max-width:72px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:$cGreen">
             </td>
             <td align="right" style="vertical-align:top;padding-top:12px">
-              <div style="font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#626a6e">Cultural Power Index</div>
+              <div style="font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:$cSoft">Cultural Power Index</div>
               $catCell
             </td>
           </tr></table>
@@ -910,18 +946,18 @@ HTML;
         $heroRow
 
         <!-- Body -->
-        <tr><td class="ag-pad ag-body" style="padding:34px 40px 30px;background:#ffffff;color:#4a5256;font-size:15px;line-height:1.65">
+        <tr><td class="ag-pad ag-body" style="padding:34px 40px 30px;background:$cSurface;color:$cInk2;font-size:15px;line-height:1.65">
           $body
         </td></tr>
 
         <!-- Footer -->
-        <tr><td class="ag-foot" style="background:#0c2225;padding:24px 40px">
-          <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:14px;color:#ffffff">Africa<span style="color:#7FC87C">GATES</span></span>
-          <div style="height:1px;background:rgba(255,255,255,0.1);margin:14px 0"></div>
-          <p style="margin:0;font-size:11.5px;line-height:1.7;color:rgba(255,255,255,0.55)">
+        <tr><td class="ag-foot" style="background:$cInk;padding:24px 40px">
+          <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:14px;color:$cSurface">Africa<span style="color:$cGreenLight">GATES</span></span>
+          <div style="height:1px;background:$cInk2;margin:14px 0"></div>
+          <p style="margin:0;font-size:11.5px;line-height:1.7;color:$cLine2">
             © $year Africa GATES, an Afrovanguard initiative · $postal<br>
-            <a href="{$base}/help" style="color:rgba(255,255,255,0.8);text-decoration:underline">Help Center</a> ·
-            <a href="{$base}/privacy" style="color:rgba(255,255,255,0.8);text-decoration:underline">Privacy</a>$unsub
+            <a href="{$base}/help" style="color:$cSurface;text-decoration:underline">Help Center</a> ·
+            <a href="{$base}/privacy" style="color:$cSurface;text-decoration:underline">Privacy</a>$unsub
           </p>
         </td></tr>
 

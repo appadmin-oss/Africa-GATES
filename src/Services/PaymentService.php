@@ -77,6 +77,19 @@ class PaymentService
 
     public function __construct(private readonly ?LoggerInterface $log = null) {}
 
+    /**
+     * The name a person knows a provider by, from the one table of labels.
+     *
+     * Static because the caller is often describing a payment rather than making one —
+     * the help desk's "Asking Paystack about the payment" — and that sentence must not
+     * need a live gateway object to spell a word. An id this class does not know is
+     * returned as null rather than ucfirst()-ed into something that reads like a brand.
+     */
+    public static function label(string $provider): ?string
+    {
+        return self::LABELS[$provider] ?? null;
+    }
+
     /** Whether $provider is a provider we know how to talk to. */
     public function isKnownProvider(string $provider): bool
     {
@@ -120,8 +133,19 @@ class PaymentService
 
     private function secret(string $provider): string
     {
+        return self::secretKey($provider);
+    }
+
+    /**
+     * The secret key payments use for a provider — the one reader of it. Public so the
+     * provider probe asks about the key a payment would actually be made with, rather than a
+     * setting nothing writes (`paystack_secret_key`) or an env name nothing else reads
+     * (`FLW_SECRET_KEY`), either of which had the probe reporting on a different key.
+     */
+    public static function secretKey(string $provider): string
+    {
         $keys = self::PROVIDERS[$provider] ?? null;
-        return $keys ? (string) Env::get($keys['secret'], '') : '';
+        return $keys ? trim((string) Env::get($keys['secret'], '')) : '';
     }
 
     /**

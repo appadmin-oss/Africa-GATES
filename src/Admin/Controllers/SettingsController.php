@@ -56,6 +56,7 @@ class SettingsController
             'tz_current'     => \AfricaGates\Support\DisplayTime::zone(),
             'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
             'smtp_configured'=> $this->mailer?->canSend() ?? false,
+            'planned_work'   => \AfricaGates\Services\PlannedWork::stored(),
             'mail_config'    => (static function (): array {
                 $c = \AfricaGates\Services\Mail\MailConfig::load();
                 return $c->describe() + ['login_source' => match ($c->source('username')) {
@@ -231,7 +232,9 @@ class SettingsController
             // Whether finance's signing key is stored — never the key. `values` is the
             // whole settings table, so anything echoed from it lands in the page source;
             // a credential gets a boolean and a placeholder, like Cloudinary's above.
-            'cfis_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cfis_secret')->value('value') ?? '')) !== '',
+            // Through the catalogue's own resolver (Settings, then .env), so the badge reads
+            // "connected" whenever finance actually is — it used to read only the table.
+            'cfis_secret_set' => \AfricaGates\Services\CfisCatalogue::secretSet(),
             // Flash renders from the Twig globals via the layout — do not shadow them.
             // Where each revenue stream settles. Resolved, so the screen shows the code that
             // WILL be used rather than a raw setting somebody has to interpret.
@@ -280,6 +283,8 @@ class SettingsController
                     'calls'      => $c->callsPerDay,
                     'tokens'     => $c->tokensPerDay,
                     'enabled'    => \AfricaGates\Services\AiGateway::capabilityEnabled($c->name),
+                    // Hours a repeated, identical request is answered from cache (0 = never).
+                    'cache_hours' => (int) round($c->cacheTtl / 3600),
                 ],
                 \AfricaGates\Services\AiCapability::all()
             ),
@@ -324,6 +329,11 @@ class SettingsController
                     return is_string($v) ? $v : '';
                 } catch (\Throwable) { return ''; }
             })(),
+            // The CACENTRE CRM: where this platform's subscribers and enquiries are sent. Read
+            // through the one resolver; the secret is write-only like every other credential.
+            'crm_url'        => \AfricaGates\Services\CrmAudiencePush::base(),
+            'crm_secret_set' => \AfricaGates\Services\CrmAudiencePush::ready(),
+            'crm_last'       => \AfricaGates\Services\CrmAudiencePush::lastResult(),
             // Consumed once, for the same reason as the AI probe above: a verdict about a
             // deployment that has since been re-published is the one an operator would act on.
             'sync_probe' => (static function (): array {
@@ -988,6 +998,12 @@ class SettingsController
             $_SESSION['flash_error'] = $why;
         }
 
+        // ── THE CACENTRE CRM ──────────────────────────────────────────────────
+        // Marker-gated like the rest, and the secret write-only: a blank field keeps it.
+        if (($why = $this->saveCrm($b, $adminId)) !== null) {
+            $_SESSION['flash_error'] = $why;
+        }
+
         // Messaging (SMS / WhatsApp) — Twilio + WhatsApp Business Cloud API.
         // Secrets are WRITE-ONLY (never rendered back); a blank field leaves the
         // stored value untouched, the matching "clear" box removes it. Master
@@ -1130,6 +1146,13 @@ class SettingsController
         if (array_key_exists('nomination_settings', $b)) {
             $this->settings->set('nomination_eligibility_enabled', isset($b['nomination_eligibility_enabled']) ? '1' : '', $adminId);
             $this->settings->set('nomination_min_locations', (string) max(1, (int) ($b['nomination_min_locations'] ?? 5)), $adminId);
+            // Stored as the resolver will read it, so the form shows what is in force.
+            if (array_key_exists(\AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY, $b)) {
+                $this->settings->set(\AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY,
+                    (string) \AfricaGates\Services\NominationRules::dailyLimit([
+                        \AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY => $b[\AfricaGates\Services\NominationRules::DAILY_LIMIT_KEY],
+                    ]), $adminId);
+            }
         }
 
         // Display constants — values that used to be hardcoded in copy across the site.
@@ -1158,6 +1181,13 @@ class SettingsController
             }
         }
 
+        // Planned work on /status (Phase 9) — normalised by its one reader's own writer.
+        if (array_key_exists('planned_work_settings', $b)) {
+            foreach (\AfricaGates\Services\PlannedWork::fromPost($b) as $k => $v) {
+                $this->settings->set($k, $v, $adminId);
+            }
+        }
+
         $this->audit->record($adminId, 'settings.update', null, null);
         // The subaccount confirmation rides along with the generic message rather than being
         // set earlier and clobbered by it — which is what happened the first time.
@@ -1173,7 +1203,9 @@ class SettingsController
         // Allowlisted, not echoed: this value reaches a Location header, and a posted
         // string is not somewhere to take a URL fragment from on trust.
         $section = (string) ($b['st_section'] ?? '');
-        $anchor  = in_array($section, ['site', 'mail', 'money', 'integrity', 'ai', 'ops'], true)
+        // `media` was missing, so saving from the Media group landed on Site with the
+        // change out of sight; `nominations` is the group the daily limit lives in.
+        $anchor  = in_array($section, ['site', 'nominations', 'mail', 'media', 'money', 'integrity', 'ai', 'ops'], true)
             ? '#' . $section
             : '';
 
@@ -1465,6 +1497,39 @@ class SettingsController
             if ($sec !== '') $this->settings->set('gas_secret', $sec, $adminId);
         }
 
+        return $why;
+    }
+
+    /**
+     * The CACENTRE CRM's address and the secret CACENTRE generated for this platform.
+     *
+     * The address is REFUSED rather than stored when it is anything but an origin — a path
+     * or a query would be appended to, and the push would go to a page that answers 404
+     * while this screen said it was set.
+     *
+     * @param array<string,mixed> $b
+     */
+    private function saveCrm(array $b, int $adminId): ?string
+    {
+        if (!array_key_exists('crm_settings', $b)) return null;
+        $why = null;
+        if (array_key_exists('crm_intake_url', $b)) {
+            $url = rtrim(trim((string) $b['crm_intake_url']), '/');
+            $p = $url !== '' ? parse_url($url) : null;
+            if ($url === '' || (is_array($p) && in_array(strtolower((string) ($p['scheme'] ?? '')), ['http', 'https'], true)
+                                && !empty($p['host']) && empty($p['path']) && empty($p['query']) && empty($p['user']))) {
+                $this->settings->set('crm_intake_url', $url, $adminId);
+            } else {
+                $why = 'The CACENTRE address was not saved — use the site address alone, such as '
+                     . 'https://cacentre.afrovanguard.org.ng, with nothing after it. Everything else on this page was saved.';
+            }
+        }
+        if (!empty($b['crm_clear']['secret'])) {
+            $this->settings->set('crm_intake_secret', '', $adminId);
+        } else {
+            $sec = trim((string) ($b['crm_intake_secret'] ?? ''));
+            if ($sec !== '') $this->settings->set('crm_intake_secret', $sec, $adminId);
+        }
         return $why;
     }
 

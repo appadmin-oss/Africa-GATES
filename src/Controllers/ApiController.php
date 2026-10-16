@@ -91,7 +91,16 @@ class ApiController {
         if(!$nominee) return $this->err($res,'Nominee not found.','INVALID_NOMINEE',404);
         try { \AfricaGates\Services\BallotGuard::assertVotable((int)$nominee->category_id); }
         catch(\AfricaGates\Services\PhaseError $e) { return $this->err($res,\AfricaGates\Support\PublicFault::line($e,'Voting is not open for this nominee.','api.otp'),$e->errorCode,403); }
+        // ── THE AWARD'S TERMS, WHERE IT HAS PUBLISHED ANY (Phase 5, §8.3) ────────
+        // Asked before a code is minted and mailed, for the reason the gate above is: a
+        // refusal that arrives after the email is a code nothing can spend. Only where the
+        // programme has terms — an award with none has nothing to accept (AwardTerms).
+        if(($tp=self::programmeOfCategory((int)$nominee->category_id))>0 && \AfricaGates\Services\AwardTerms::required($tp) && empty($b['accept_terms']))
+            return $this->err($res,'Please accept the award terms to vote.','TERMS_REQUIRED',422);
         $r=$this->otp->generate($email,$nId,$aId,'vote');
+        // The address this browser asked a vote code for: the one the help desk may then
+        // answer "did my vote register" about for a guest (Support\TypedEmails).
+        if(!empty($r['success'])) \AfricaGates\Support\TypedEmails::remember($email);
         if($r['success']) {
             $this->events?->otpRequested($fp,$nId,$ipFp);
             $this->events?->funnelStep($b['session_id']??$fp,'otp_requested',$nId,$aId,null,$ipFp);
@@ -136,8 +145,18 @@ class ApiController {
         // above), so giving one is not a choice to be published. Only the paid ballot,
         // where the field is optional, treats filling it in as consent. See
         // \AfricaGates\Services\SupportersService.
+        $termsProgramme=self::programmeOfCategory((int)(DB::table('gates_nominees')->where('id',$nId)->value('category_id') ?? 0));
+        if($termsProgramme>0 && \AfricaGates\Services\AwardTerms::required($termsProgramme) && empty($b['accept_terms']))
+            return $this->err($res,'Please accept the award terms to vote.','TERMS_REQUIRED',422);
         $r=$this->votes->castVote($email,$otp,$nId,$aId,$ip,$deviceHash,$idemKey?:null,$name,$phone);
         if(!$r['success']) return $this->err($res,$r['message'],$r['code']);
+
+        // Recorded only once the vote counted, and never at the cost of it (AwardTerms::accept
+        // does not throw). The session line is what lets the ballot page draw the `vote`
+        // celebration as CONFIRMED by the server rather than by the script that asked
+        // (Services\Celebration: money and votes celebrate only once the record says so).
+        if($termsProgramme>0) \AfricaGates\Services\AwardTerms::accept($termsProgramme,\AfricaGates\Services\AwardTerms::KIND_VOTE,$email,$nId);
+        if(isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_cast'][$nId]=time();
 
         // Post-vote: record fraud score, events, milestones, cache invalidation
         if($this->fraud && isset($fs)) {
@@ -258,6 +277,15 @@ HTML;
         ] + ($msg ?? []));
     }
 
+    /** The programme a category belongs to, through its cycle; 0 when unresolvable. */
+    private static function programmeOfCategory(int $categoryId): int {
+        if($categoryId<1) return 0;
+        try {
+            return (int) (DB::table('gates_award_categories as c')->join('gates_award_cycles as cy','cy.id','=','c.cycle_id')
+                ->where('c.id',$categoryId)->value('cy.programme_id') ?? 0);
+        } catch(\Throwable) { return 0; }
+    }
+
     public function trackFunnel(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody();
         $step=$b['step']??''; $sid=$b['session_id']??'';
@@ -369,8 +397,10 @@ HTML;
     public function dashboard(Request $req,Response $res):Response {
         $data=$this->cache->remember('api:dashboard',14400,function(){
             $tp=DB::table('gates_profiles')->where('status','approved')->count();
-            $tv=DB::table('gates_votes')->count();
-            $ag=\AfricaGates\Services\MergeService::notMerged(DB::table('gates_nominees')->whereIn('status',['winner','runner_up']))->count();
+            // The sandbox's seeded ballots and crowned nominees are real rows (DemoSeeder) and
+            // must never reach a public figure; liveAwardOnly() is the one clause that excludes them.
+            $tv=\AfricaGates\Services\DemoSeeder::liveAwardOnly(DB::table('gates_votes'),'gates_votes.nominee_id')->count();
+            $ag=\AfricaGates\Services\DemoSeeder::liveAwardOnly(\AfricaGates\Services\MergeService::notMerged(DB::table('gates_nominees')->whereIn('status',['winner','runner_up'])))->count();
             $rd=DB::table('gates_profiles')->where('status','approved')->selectRaw('region,COUNT(*) as count')->groupBy('region')->orderByDesc('count')->get()->map(fn($r)=>['region'=>$r->region,'count'=>(int)$r->count])->toArray();
             $td=DB::table('gates_profiles')->where('status','approved')->whereNotIn('cpi_tier',['unranked'])->selectRaw('cpi_tier as tier,COUNT(*) as count')->groupBy('cpi_tier')->get()->map(fn($r)=>['tier'=>$r->tier,'count'=>(int)$r->count])->toArray();
             $cats=DB::table('gates_profiles')->where('status','approved')->selectRaw('category,COUNT(*) as count')->groupBy('category')->orderByDesc('count')->limit(10)->get()->map(fn($r)=>['category'=>$r->category,'count'=>(int)$r->count])->toArray();
@@ -392,7 +422,8 @@ HTML;
     }
     public function submitNomination(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody(); $ip=$this->ip($req); $fp=hash('sha256',$ip.strtolower(trim($b['nominator_email']??'')));
-        if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $this->err($res,'Daily nomination limit reached.','RATE_LIMITED',429);
+        $daily = \AfricaGates\Services\NominationRules::dailyLimit();
+        if(!$this->rateLimit->check($fp,'nominate',$daily,86400)) return $this->err($res,"Daily nomination limit reached ({$daily} per day).",'RATE_LIMITED',429);
         // (string) cast before trim(). Without it this endpoint returned a 500 for the
         // most natural JSON body there is: `{"programme_id": 1, …}`. trim() rejects an
         // int under PHP 8, so a caller who sent the id as a number — as JSON encodes

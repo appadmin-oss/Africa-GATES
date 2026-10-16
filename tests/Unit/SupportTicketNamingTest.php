@@ -40,21 +40,15 @@ final class SupportTicketNamingTest extends TestCase
         'templates/admin/support/show.twig',
     ];
 
-    /**
-     * The assistant's client-side copy, which renders on EVERY public page.
-     *
-     * These are the strings the first sweep missed, and the miss was structural: the
-     * visible-text scan below strips `<script>` blocks, and this file is not a template at
-     * all. Gee floats over an event page — where "your tickets" is the thing the reader
-     * just bought and is holding a code for — and told them it had "checked your tickets"
-     * meaning the support desk. Same label, opposite meaning, one line apart from the page
-     * content underneath it.
-     *
-     * @var array<string,string> file => the phrase that must carry the qualifier
+    /*
+     * Gee's copy — which renders on EVERY public page, over event pages where "your
+     * tickets" is the thing the reader just bought — is held by GeeTest::
+     * test_gee_never_says_a_bare_ticket. It is not a surface in the list above because
+     * every word in partials/gee.twig is a `'…'|trans` literal, which visibleText() strips
+     * with the rest of `{{ … }}`: listed here it would read nothing and pass. A
+     * `SCRIPT_COPY` constant used to stand here naming gee.js; nothing read it (§17), and
+     * the rebuilt gee.js types no sentence at all (its words arrive as data-msg-*).
      */
-    private const SCRIPT_COPY = [
-        'public/assets/js/gee.js'                     => 'my_tickets:',
-    ];
 
     /**
      * Everything a reader actually sees: comments, styles, scripts, Twig tags and

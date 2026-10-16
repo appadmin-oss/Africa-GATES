@@ -62,6 +62,31 @@ final class RouteTableIntegrityTest extends TestCase
      *
      * @return list<array{verb:string, path:string}>
      */
+    /**
+     * Every registered route OBJECT, so a test can reach the callable as well as the path.
+     *
+     * Separate from {@see routes()} because that one is memoised down to verb and pattern
+     * — the shape four tests want — and widening it would make every one of them carry a
+     * Route it does not use.
+     *
+     * @return list<\Slim\Interfaces\RouteInterface>
+     */
+    private static function routeObjects(): array
+    {
+        static $memo = null;
+        if ($memo !== null) return $memo;
+
+        $root    = dirname(__DIR__, 2);
+        $builder = new ContainerBuilder();
+        $builder->addDefinitions(require $root . '/config/container.php');
+
+        AppFactory::setContainer($builder->build());
+        $app = AppFactory::create();
+        (require $root . '/src/routes.php')($app);
+
+        return $memo = array_values($app->getRouteCollector()->getRoutes());
+    }
+
     private static function routes(): array
     {
         static $memo = null;
@@ -215,5 +240,74 @@ final class RouteTableIntegrityTest extends TestCase
 
         // An optional segment is declined rather than guessed at.
         $this->assertNull(self::matcher('/blog[/{page:[0-9]+}]'));
+    }
+
+    public function test_no_route_handler_is_a_static_closure(): void
+    {
+        /*
+         * ══════════════════════════════════════════════════════════════════════
+         * A `static` ROUTE HANDLER IS A 500, AND NOTHING SAYS SO
+         * ══════════════════════════════════════════════════════════════════════
+         *
+         * Slim resolves every handler through `CallableResolver::bindToContainer()`:
+         *
+         *     if ($this->container && $callable instanceof Closure) {
+         *         $callable = $callable->bindTo($this->container);
+         *     }
+         *
+         * `bindTo` on a STATIC closure cannot work — there is no `$this` to bind. PHP
+         * emits "Cannot bind an instance to a static closure" as a WARNING, and the call
+         * returns NULL. Slim hands that null on as the route's callable and the request
+         * dies with a 500.
+         *
+         * ── WHY IT IS WORTH A SWEEP RATHER THAN A FIX ───────────────────────
+         *
+         * `static fn` and `static function` are good style everywhere else in this
+         * codebase and are used in dozens of places in `src/routes.php` alone — for
+         * guards, formatters and row builders that are called INSIDE a handler and never
+         * reach the resolver. The keyword is correct in all of them. It is fatal in
+         * exactly one position, and nothing about the line you are writing tells you
+         * which position you are in: a factory returning a handler looks the same as a
+         * factory returning a helper.
+         *
+         * That is how it shipped. A `$bounce()` factory returned `static function ($req,
+         * $res, $args)`, and it took out TEN routes at once — `/donate`, `/gift`, and
+         * `/apply`, `/redirect`, `/callback` and `/success` under each. Every one of them
+         * is a permanent redirect kept because it is printed in receipts that have
+         * already gone out, and twenty-two files link to `/donate`. So the failure landed
+         * on people following a link this platform sent them.
+         *
+         * Nothing pointed at it. A warning rather than an error; a 500 rendered as the
+         * site's own error page; and a server log naming a line in a vendor file with no
+         * mention of which route. The suite was green throughout, because no test
+         * dispatches a request through the real resolver.
+         *
+         * ── ASKED OF THE RESOLVER, NOT OF REFLECTION ────────────────────────
+         *
+         * `ReflectionFunction::isStatic()` would answer a slightly different question —
+         * it is also true of a closure declared in a static method, which binds fine. So
+         * this does what Slim does, to the same object, and fails when Slim would.
+         */
+        $broken = [];
+
+        foreach (self::routeObjects() as $route) {
+            $callable = $route->getCallable();
+            if (!$callable instanceof \Closure) continue;
+
+            // The container is the binding target in production; any object answers the
+            // same question, and `bindTo` returns null for a static closure whatever it
+            // is handed.
+            if (@$callable->bindTo(new \stdClass()) === null) {
+                $broken[] = implode('|', $route->getMethods()) . ' ' . $route->getPattern();
+            }
+        }
+
+        $this->assertSame([], $broken,
+            "these route handlers are STATIC closures, and every request to them is a "
+          . "500:\n  " . implode("\n  ", $broken)
+          . "\n\nSlim binds the container to every Closure handler, and `bindTo` on a "
+          . 'static closure returns null. Drop the `static` keyword from the closure that '
+          . 'is RETURNED as the handler — a factory that returns it may stay static, and '
+          . 'so may every helper called from inside a handler.');
     }
 }

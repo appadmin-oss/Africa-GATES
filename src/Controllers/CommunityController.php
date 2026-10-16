@@ -49,14 +49,15 @@ class CommunityController
         $sort    = in_array(($req->getQueryParams()['sort'] ?? ''), ['top','latest'], true) ? $req->getQueryParams()['sort'] : 'latest';
         $threads = $this->community->listThreads($progId ?: null, 40, $sort);
 
-        // Spaces = active programmes, each with its real thread count + a stable colour.
-        $palette = [['#5b3a8a','#f3eef7'],['#1a6118','#effaf0'],['#27607a','#e6f0f4'],['#a47306','#fff8df'],['#b03a5b','#fdeaf0'],['#2b373d','#e9efef']];
+        // Spaces = active programmes, each with its real thread count. No colour per space:
+        // the old six-hex palette typed here painted each space a hue meaning nothing, and
+        // a colour may be typed only in Support\Accent (CLAUDE.md, "A bare hex is not a colour").
+        // The sandbox programme is inactive, so it is never offered as a space.
         $counts  = DB::table('gates_threads')->where('status','approved')->selectRaw('programme_id, COUNT(*) c')->groupBy('programme_id')->pluck('c','programme_id');
         $progRows = DB::table('gates_award_programmes')->where('is_active', 1)->orderBy('sort_order')->get();
         $spaces = [];
-        foreach ($progRows as $i => $p) {
-            $c = $palette[$i % count($palette)];
-            $spaces[] = ['id' => (int)$p->id, 'name' => $p->title, 'count' => (int)($counts[$p->id] ?? 0), 'fg' => $c[0], 'bg' => $c[1]];
+        foreach ($progRows as $p) {
+            $spaces[] = ['id' => (int)$p->id, 'name' => $p->title, 'count' => (int)($counts[$p->id] ?? 0)];
         }
 
         // Right-rail data — all real, all cheap.
@@ -82,7 +83,6 @@ class CommunityController
             'stats' => $stats,
             'trending' => $trending,
             'next_event' => $nextEvent ? (array)$nextEvent : null,
-            'flash_notice' => $_SESSION['flash_notice'] ?? null,
             'member_logged_in' => !empty($_SESSION['user_id']),
             'member_name' => $_SESSION['user_name'] ?? null,
         ]);
@@ -112,7 +112,13 @@ class CommunityController
             'bookmarked' => $userId > 0 && $this->community->isBookmarked($userId, $threadId),
             'reposted'   => $userId > 0 && $this->community->isReposted($userId, $threadId),
             'following'  => $userId > 0 && $this->community->isFollowing($userId, 'thread', $threadId),
+            // Account-keyed, the same fingerprint cheer() writes, so the button starts true.
+            'cheered'    => $userId > 0 && DB::table('gates_cheers')->where('target_type', 'thread')
+                                ->where('target_id', $threadId)->where('fp', 'u:' . $userId)->exists(),
         ];
+        // A refused reply keeps its words: one render, then gone.
+        $replyOld = (string) ($_SESSION['community_reply_old'] ?? '');
+        unset($_SESSION['community_reply_old']);
         return $this->view->render($res, 'pages/community/thread.twig', [
             'page_title' => $data['thread']['title'] . ' — Africa GATES',
             'meta_description' => $meta,
@@ -126,6 +132,7 @@ class CommunityController
             'member_id' => $userId,
             'member_state' => $memberState,
             'related' => array_slice($related, 0, 4),
+            'reply_old' => $replyOld,
         ]);
     }
 
@@ -141,7 +148,6 @@ class CommunityController
             'meta_description' => 'Start a new thread in the Africa GATES community — open a discussion on an award programme, champion a nominee or rally the continent behind African excellence.',
             'gates_page' => 'community',
             'programmes' => $progs,
-            'error' => $_SESSION['flash_error'] ?? null,
         ]);
     }
 
@@ -179,6 +185,39 @@ class CommunityController
             return $res->withHeader('Location', '/community')->withStatus(302);
         }
         return $res->withHeader('Location', '/community/' . $slug)->withStatus(302);
+    }
+
+    /**
+     * A reply as a plain form (POST /community/{slug}/reply). The JSON comment endpoint
+     * stays for the script; this is what makes replying work with no script at all, which
+     * was the rule for every write on the rebuilt pages. Same member check, same throttle,
+     * same service call as comment() — the identity is the account's, never the form's.
+     */
+    public function replyForm(Request $req, Response $res, array $args): Response
+    {
+        $slug = (string) ($args['slug'] ?? '');
+        $back = '/community/' . rawurlencode($slug);
+        $m = $this->member();
+        if (!$m) {
+            return $res->withHeader('Location', '/account/login?next=' . rawurlencode($back . '#reply'))->withStatus(302);
+        }
+        $t = DB::table('gates_threads')->where('slug', $slug)->whereIn('status', ['approved', 'locked'])->first(['id']);
+        if (!$t) throw new \Slim\Exception\HttpNotFoundException($req);
+        if ($this->tooMany($req, 'community_comment', 8, 3600)) {
+            $_SESSION['flash_error'] = 'You are posting too fast. Please wait a moment.';
+            return $res->withHeader('Location', $back . '#reply')->withStatus(302);
+        }
+        $b = $this->asMember((array) $req->getParsedBody(), $m);
+        $r = $this->community->replyToThread((int) $t->id, $b, (string) ($req->getServerParams()['REMOTE_ADDR'] ?? ''));
+        if (!($r['ok'] ?? false)) {
+            $_SESSION['flash_error'] = (string) ($r['message'] ?? 'That reply could not be posted.');
+            $_SESSION['community_reply_old'] = mb_substr((string) ($b['body'] ?? ''), 0, 4000);
+            return $res->withHeader('Location', $back . '#reply')->withStatus(302);
+        }
+        $_SESSION['flash_notice'] = ($r['status'] ?? '') === 'approved'
+            ? 'Your reply is posted.'
+            : 'Your reply is with the moderators and appears once it is approved.';
+        return $res->withHeader('Location', $back . (($r['status'] ?? '') === 'approved' ? '#replies' : '#reply'))->withStatus(302);
     }
 
     // ── Comment API (used on profiles, legacy, threads) ─────────

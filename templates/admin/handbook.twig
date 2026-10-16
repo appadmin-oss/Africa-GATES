@@ -12,7 +12,7 @@
   ── WHY SO MUCH OF IT IS A LOOP ─────────────────────────────────────────────
 
   Every structural fact here is read from the code that implements it — the areas from
-  `AdminNav::sections()`, the roles from `Permissions::MATRIX`, the weights and the
+  `AdminNav::groups()`, the roles from `Permissions::MATRIX`, the weights and the
   quorum from `RuleEngine`, the verification words from `RegistryCheck::STATES`. See
   the controller for why: this repo's most expensive documented fault is prose
   outliving the rule it describes, and a handbook is that hazard with people told to
@@ -32,26 +32,26 @@
   /* Reading measure first: this is the one admin page somebody reads rather than
      scans, and a 90ch line of body copy is why documentation goes unread. */
   .hb{ max-width:78ch; }
-  .hb__lede{ margin:0 0 22px; font-size:14px; line-height:1.7; color:var(--ad-text,#10292C); }
-  .hb h2{ margin:34px 0 0; padding-bottom:7px; border-bottom:1px solid var(--ad-line,#e5eae8);
+  .hb__lede{ margin:0 0 22px; font-size:14px; line-height:1.7; color:var(--cn-ink); }
+  .hb h2{ margin:34px 0 0; padding-bottom:7px; border-bottom:1px solid var(--cn-line-card);
     font-size:16px; font-weight:700; letter-spacing:-.01em; }
   .hb h3{ margin:22px 0 0; font-size:14px; font-weight:650; }
-  .hb p{ margin:9px 0 0; font-size:14px; line-height:1.72; color:var(--ad-text,#10292C); }
+  .hb p{ margin:9px 0 0; font-size:14px; line-height:1.72; color:var(--cn-ink); }
   .hb ul, .hb ol{ margin:9px 0 0; padding-left:20px; }
   .hb li{ margin:5px 0; font-size:14px; line-height:1.65; }
   .hb code{ font-family:var(--ag-font-mono,monospace); font-size:13px;
-    background:var(--ad-bg,#f4f6f5); padding:1px 5px; border-radius:4px; }
+    background:var(--cn-fill-panel); padding:1px 5px; border-radius:4px; }
 
   /* A jump list, because thirteen sections is more than anybody scrolls. */
-  .hb__toc{ margin:0 0 26px; padding:14px 16px; background:var(--ad-bg,#f4f6f5);
-    border:1px solid var(--ad-line,#e5eae8); border-radius:12px; }
+  .hb__toc{ margin:0 0 26px; padding:14px 16px; background:var(--cn-fill-panel);
+    border:1px solid var(--cn-line-card); border-radius:12px; }
   .hb__toc ol{ margin:8px 0 0; padding-left:18px; columns:2; column-gap:26px; }
   .hb__toc li{ margin:3px 0; break-inside:avoid; }
 
   .hb__t{ width:100%; margin:12px 0 0; border-collapse:collapse; font-size:13px; }
   .hb__t th, .hb__t td{ padding:7px 9px; text-align:left; vertical-align:top;
-    border-bottom:1px solid var(--ad-line,#e5eae8); }
-  .hb__t th{ font-weight:650; background:var(--ad-bg,#f4f6f5); }
+    border-bottom:1px solid var(--cn-line-card); }
+  .hb__t th{ font-weight:650; background:var(--cn-fill-panel); }
   .hb__t td:first-child{ white-space:nowrap; font-weight:600; }
   .hb__scroll{ overflow-x:auto; }
 
@@ -66,7 +66,7 @@
   .hb__n b{ display:block; margin-bottom:2px; }
 
   .hb__you{ margin:0 0 22px; padding:12px 14px; border-radius:10px;
-    background:var(--ad-ink,#10292C); color:#fff; font-size:13px; line-height:1.6; }
+    background:var(--cn-ink); color:#fff; font-size:13px; line-height:1.6; }
   .hb__you b{ color:#f3b416; }
 </style>
 {% endblock %}
@@ -113,9 +113,10 @@
   <h2 id="hb-nav">1 · Getting around</h2>
   <p>Three ways in, and they reach the same pages:</p>
   <ul>
-    <li><strong>The rail</strong> on the left holds {{ areas|length }} headings. One opens
-      at a time. Its items reappear as a row under the page title, so once you are inside
-      an area you can move between its screens without going back to the rail.</li>
+    <li><strong>The rail</strong> on the left: Home, then {{ areas|length }} groups named for the
+      job — the same order on every screen. A long group shows four pages and a
+      "more" row. A page's own sub-pages appear as a row of links under its title, so
+      once you are inside an area you can move between its screens without the rail.</li>
     <li><strong>Press <code>⌘K</code></strong> (or <code>Ctrl+K</code>) for the command
       palette and type any page name. This is the fastest route and the one worth
       learning — it reaches every page your role can open, in one keystroke.</li>
@@ -123,26 +124,32 @@
       share with another administrator. Nothing here is behind a tab that only exists
       after a click.</li>
   </ul>
-  <div class="hb__n hb__n--note"><b>The rail shows only what you may use.</b>
-    Headings are gated by role, so two administrators can see different rails. That is
-    working correctly.</div>
+  <div class="hb__n hb__n--note"><b>The rail shows only what you may open.</b>
+    Each PAGE carries its own permission, so two administrators can see different rails
+    and a group can be shorter for one of them. That is working correctly — moving a page
+    between groups never changes who may open it.</div>
 
   {# ══ 2 ═══════════════════════════════════════════════════════════════════ #}
   <h2 id="hb-areas">2 · The areas</h2>
-  <p>Read from the rail itself, so this cannot drift from what you see on the left.</p>
+  <p>Read from the rail itself, so this cannot drift from what you see on the left. Each
+    page says which permission opens it; "superadmin only" means no role but the superadmin
+    reaches it.</p>
+  <h3>{{ home_area.label }}</h3>
+  <p>{{ home_area.sub }}</p>
   {% for a in areas %}
     <h3>{{ a.label }}</h3>
-    <p>{{ a.tip }}
-      {%- if a.gate %} Requires the <code>{{ a.gate }}</code> permission.
-      {%- else %} Open to every role.{% endif %}</p>
+    <p>{{ a.tip }}</p>
     <ul>
-      {% for i in a.items %}<li><a href="{{ i.href }}">{{ i.label }}</a></li>{% endfor %}
+      {% for i in a.items %}
+        <li><a href="{{ i.href }}">{{ i.label }}</a> — {% if i.gate %}<code>{{ i.gate }}</code>{% else %}superadmin only{% endif %}
+          {%- if i.children %}. Also: {% for c in i.children %}<a href="{{ c.href }}">{{ c.label }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</li>
+      {% endfor %}
     </ul>
   {% endfor %}
 
   {# ══ 3 ═══════════════════════════════════════════════════════════════════ #}
   <h2 id="hb-perms">3 · Permissions</h2>
-  <p>Five roles. A role is set per administrator under <a href="/admin/admins">Admins</a>,
+  <p>Five roles. A role is set per administrator under <a href="/admin/admins">People &amp; roles</a>,
     and it decides which headings appear at all — not merely which buttons are greyed
     out.</p>
   <div class="hb__scroll">

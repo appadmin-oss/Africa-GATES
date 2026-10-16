@@ -163,7 +163,7 @@ final class NewsletterAudience
             ? 'If you would rather not, ignore this email. We will not ask again, and you will not receive the newsletter.'
             : 'If it was not you, ignore this email. Nothing is sent to an address that has not been confirmed.';
 
-        // Colours from the ramp, as values — see Newsletter::palette() for why mail carries
+        // Colours from the ramp, as values — see Accent::mail() for why mail carries
         // literals at all.
         [$ink, $ink2, $soft] = [Accent::hex('ink'), Accent::hex('ink-2'), Accent::hex('soft')];
         $go = Accent::hex('green');
@@ -246,6 +246,26 @@ final class NewsletterAudience
         // pressed, which is newer and better evidence than whatever bounced before.
         Suppression::lift($email);
         return true;
+    }
+
+    /**
+     * One row's standing, in the words the CACENTRE CRM uses: `subscribed`, `unconfirmed`,
+     * `unsubscribed`, `bounced` or `complained`.
+     *
+     * Here, beside recipients(), because it IS that rule read for one row — the same three
+     * facts in the same order, so the CRM can never count somebody as reachable whom this
+     * platform's own sender would not mail. A bounce or complaint outranks everything,
+     * because it is evidence about the mailbox rather than a preference.
+     *
+     * @param array<string,mixed> $optOutHashes EmailOptOut::suppressedHashes()
+     * @param array<string,string> $suppressed  Mail\Suppression::hashes()
+     */
+    public static function stateOf(object $row, array $optOutHashes, array $suppressed): string
+    {
+        $hash = (string) ($row->email_hash ?? '');
+        if (isset($suppressed[$hash])) return $suppressed[$hash] === Suppression::COMPLAINT ? 'complained' : 'bounced';
+        if (($row->unsubscribed_at ?? null) !== null || isset($optOutHashes[$hash])) return 'unsubscribed';
+        return ($row->confirmed_at ?? null) !== null ? 'subscribed' : 'unconfirmed';
     }
 
     // ══ who is on it ═════════════════════════════════════════════════════════

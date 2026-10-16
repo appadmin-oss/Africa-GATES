@@ -1,0 +1,62 @@
+/* /support — Reach a person (Phase 9). Builds on help.css (same family); this adds the
+   appeal composer and its two-column grid. Ink and tint; the one green is help.css's. */
+.sp__desk{ max-width:760px }
+.sp__grid{ display:grid; grid-template-columns:minmax(0,1fr); gap:28px; align-items:start }
+.sp__form{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding:20px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
+.sp__sub{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }
+.sp__compose{ display:flex; flex-direction:column; gap:var(--ag-sp-14); margin:0 }
+.sp__reasons{ margin:0; padding:0; border:0; display:flex; flex-wrap:wrap; gap:var(--ag-sp-8) }
+.sp__reasons legend{ width:100%; margin-bottom:var(--ag-sp-6) }
+.sp__reason{ position:relative; display:inline-flex }
+.sp__reason input{ position:absolute; inset:0; opacity:0; margin:0; cursor:pointer }
+.sp__reason span{ display:inline-flex; align-items:center; min-height:44px; padding:0 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); font-size:var(--ag-fs-14-5); font-weight:500 }
+.sp__reason input:checked + span{ border:2px solid var(--ag-ink); padding:0 13px; font-weight:700 }
+.sp__reason input:focus-visible + span{ outline:3px solid var(--ag-green); outline-offset:2px }
+.sp__hint{ margin:0 }
+.sp__row{ display:grid; grid-template-columns:minmax(0,1fr); gap:var(--ag-sp-14) }
+.sp__area{ height:auto; padding-block:10px }
+.sp__area textarea{ width:100%; min-height:120px; border:0; outline:0; background:transparent; resize:vertical; font-size:var(--ag-fs-16); color:var(--ag-ink) }
+.sp__go{ align-self:flex-start }
+.sp .ag-hint a, .sp a.sp__mail{ color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere }
+.sp a.sp__mail{ display:inline-flex; align-items:center; min-height:44px; font-weight:600 }
+.sp__side{ display:flex; flex-direction:column; gap:var(--ag-sp-14) }
+@media (min-width:600px){ .sp__row{ grid-template-columns:1fr 1fr } .sp__form{ padding:24px 28px } }
+@media (min-width:1024px){ .sp__grid{ grid-template-columns:minmax(0,1fr) 320px } .sp__side{ position:sticky; top:24px } }
+
+/* ── Support tickets (member desk and the account-free link) ─────────────── */
+.st__h1{ font-size:var(--ag-fs-26) }
+.st-ref{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.st-ref__code{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-13); color:var(--ag-ink) }
+.st-thread{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:var(--ag-sp-16) }
+.st-turn{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:var(--ag-sp-10) }
+.st-av{ width:32px; height:32px; border-radius:50%; background:var(--ag-tint); color:var(--ag-ink); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:var(--ag-fs-13) }
+.st-av--staff{ background:var(--ag-ink); color:var(--ag-surface) }
+.st-turn__b{ display:flex; flex-direction:column; gap:4px; min-width:0 }
+.st-who{ margin:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 10px; font-size:var(--ag-fs-14); font-weight:700 }
+.st-when{ font-weight:400; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.st-bot{ font-weight:600; font-size:var(--ag-fs-12); color:var(--ag-ink-2); padding:1px 8px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill) }
+.st-say{ margin:0; font-size:var(--ag-fs-15); line-height:1.6; white-space:pre-line; overflow-wrap:anywhere }
+.st-turn--me .st-say{ padding:10px 14px; background:var(--ag-ground); border-radius:var(--ag-r-14) }
+.st-att{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8) }
+.st a.st-att__a{ display:inline-flex; flex-direction:column; gap:4px; max-width:160px; font-size:var(--ag-fs-13); text-decoration:underline }
+.st-att__a img{ width:160px; height:auto; border-radius:var(--ag-r-10); border:1px solid var(--ag-line) }
+.st-compose{ display:flex; flex-direction:column; gap:var(--ag-sp-8); padding-top:var(--ag-sp-16); border-top:1px solid var(--ag-line); margin:0 }
+.st-compose[hidden]{ display:none }
+.st-file{ display:flex; flex-direction:column; gap:4px; font-size:var(--ag-fs-14) }
+.st-file input{ min-height:44px; font-size:var(--ag-fs-14) }
+.st-go{ align-self:flex-start; margin-top:var(--ag-sp-6) }
+.st-note{ margin:0; font-size:var(--ag-fs-14); color:var(--ag-ink) }
+.st-note:empty{ display:none }
+.st-note--err{ color:var(--ag-error) }
+.st-facts{ margin:0; padding:0 18px 10px }
+.st-facts > div{ display:flex; justify-content:space-between; gap:var(--ag-sp-12); padding:10px 0; border-top:1px solid var(--ag-line-3); font-size:var(--ag-fs-14) }
+.st-facts dt{ color:var(--ag-soft) }
+.st-facts dd{ margin:0; font-weight:600; text-align:end }
+.st-state{ flex:none; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-ink-2) }
+.st .hc-list__a{ grid-template-columns:1fr auto }
+.st-filter{ margin:0; padding:0; justify-content:flex-start }
+.st-filter[hidden], .st li[hidden]{ display:none }
+.st-filter .hc__chip{ flex:none; display:inline-flex; align-items:center; height:44px; padding:0 var(--ag-sp-16); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font-size:var(--ag-fs-14-5); cursor:pointer }
+.st-filter .hc__chip[aria-pressed="true"]{ border:2px solid var(--ag-ink); font-weight:700 }
+.st-empty a, .st .ag-hint a{ color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px }
+.st-gone{ max-width:640px; gap:var(--ag-sp-14) }

@@ -177,7 +177,11 @@ class EventsController
             'extras_missing' => OptionalColumn::missing('gates_site_events', [
                 'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
                 'organiser_email', 'organiser_phone',
+                'livestream_url', 'recording_url', 'access_notes', 'cover_kind', 'spotlight_rank',
             ]),
+            // The kinds an organiser may pick for the default cover (DEFAULT-GRAPHICS §4):
+            // the list and its labels from the one resolver, never typed into the form.
+            'cover_kinds'    => array_map(static fn ($k) => $k[0], \AfricaGates\Support\CoverKind::KINDS),
             // The enforceable half of the refund policy, hidden until migrated for the same
             // reason as the rest — an organiser setting "50% up to 48 hours" and having it
             // silently dropped would be worse than not offering it.
@@ -295,6 +299,20 @@ class EventsController
                 'refund_policy'   => mb_substr(trim((string) ($b['refund_policy'] ?? '')), 0, 1000) ?: null,
                 'organiser_email' => mb_substr(trim((string) ($b['organiser_email'] ?? '')), 0, 190) ?: null,
                 'organiser_phone' => mb_substr(trim((string) ($b['organiser_phone'] ?? '')), 0, 40) ?: null,
+                // Phase 7 (the public page's Livestream, Recording and Access sections). Links
+                // out, http(s) only — EventsFront::link() validates them again on the way out.
+                'livestream_url'  => \AfricaGates\Services\EventsFront::link(mb_substr(trim((string) ($b['livestream_url'] ?? '')), 0, 500)) ?: null,
+                'recording_url'   => \AfricaGates\Services\EventsFront::link(mb_substr(trim((string) ($b['recording_url'] ?? '')), 0, 500)) ?: null,
+                'access_notes'    => mb_substr(trim((string) ($b['access_notes'] ?? '')), 0, 2000) ?: null,
+                // What the default cover draws when there is no image. A KIND, never a colour;
+                // anything not in CoverKind::KINDS is stored as NULL (nobody chose), which the
+                // cover resolves by whether the event is tied to an award.
+                'cover_kind'      => \AfricaGates\Support\CoverKind::isKind($b['cover_kind'] ?? null)
+                                        ? strtolower(trim((string) $b['cover_kind'])) : null,
+                // The events page's spotlight position, 1–4 (EVENTS-INDEX §2); anything else
+                // is "not featured". Two events may share a number — the earlier one leads.
+                'spotlight_rank'  => in_array((int) ($b['spotlight_rank'] ?? 0), range(1, \AfricaGates\Services\EventsFront::SPOTLIGHT), true)
+                                        ? (int) $b['spotlight_rank'] : null,
                 // ── THE REFUND POLICY, AS A RULE ─────────────────────────
                 //
                 // `refund_policy` above stays: it is the prose a buyer reads, and it can say
@@ -317,6 +335,7 @@ class EventsController
         $data = OptionalColumn::filter('gates_site_events', $data, [
             'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
             'organiser_email', 'organiser_phone',
+            'livestream_url', 'recording_url', 'access_notes', 'cover_kind', 'spotlight_rank',
             'self_cancel', 'refund_mode', 'refund_percent', 'refund_cutoff_hours',
         ]);
         // The ticket's appearance. Validated in the service rather than here, because the
@@ -1389,12 +1408,12 @@ class EventsController
         }
 
         $out = fopen('php://temp', 'r+');
-        fputcsv($out, ['Name', 'Email', 'Phone', 'Ticket', 'Seat', 'Seats', 'Status',
+        \AfricaGates\Support\Csv::put($out, ['Name', 'Email', 'Phone', 'Ticket', 'Seat', 'Seats', 'Status',
                        'Amount (NGN)', 'Discount code', 'Discount (NGN)',
                        'Ticket code', 'Reference', 'Registered', 'Waitlisted',
                        'Offered', 'Offer expires', 'Checked in']);
         foreach (EventTicketService::attendees($id, '', 5000) as $a) {
-            fputcsv($out, [
+            \AfricaGates\Support\Csv::put($out, [
                 $a['name'] ?? '', $a['email'] ?? '', $a['phone'] ?? '',
                 $a['tier'] ?? '',
                 // The seat label, next to the tier rather than at the far right: a printed

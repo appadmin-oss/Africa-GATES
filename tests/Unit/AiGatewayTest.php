@@ -201,7 +201,9 @@ class AiGatewayTest extends TestCase
     {
         // The figure that was previously impossible to produce at all.
         (new AiGateway($this->fakeAi('x', 10, 5)))->run('integrity.brief', ['system' => 's', 'user' => 'u']);
-        (new AiGateway($this->fakeAi(null)))->run('integrity.brief', ['system' => 's', 'user' => 'u']);
+        // `fresh`: the same request would otherwise be answered from cache, and this one is
+        // meant to reach a provider that fails.
+        (new AiGateway($this->fakeAi(null)))->run('integrity.brief', ['system' => 's', 'user' => 'u', 'fresh' => true]);
 
         $report = AiGateway::spendReport();
 

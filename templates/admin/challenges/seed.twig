@@ -88,7 +88,7 @@
 
     <form method="post" action="/admin/challenges/seeds/{{ name }}/reset" class="cb-acts">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button type="submit" class="cb-btn cb-btn--d">Go back to the original values</button>
+      <button type="submit" data-confirm="Throw away every edit made to this seed and go back to its original values? The edits are not kept anywhere." class="cb-btn cb-btn--d">Go back to the original values</button>
     </form>
   </div>
 

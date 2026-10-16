@@ -1,0 +1,51 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  /email/unsubscribe — the stop button on every bulk email. Rebuilt in Phase 9 on the shell
+  (inventory: pages--email-unsubscribe.md). The legally required way out, so it must work
+  with no script, no sign-in and no CSRF token (the person arrived from a mail client;
+  CsrfMiddleware exempts this path — and the RFC 8058 one-click POST lands here too).
+
+  Three states, each unambiguous: somebody arrives wanting exactly one thing to be true
+  afterwards. The GET draws a confirm button and never unsubscribes by itself, because mail
+  scanners fetch every URL in a message (EmailPrefsController). Stopping is announcements
+  only — the page says so, because in a live award cycle "you're unsubscribed" on its own
+  reads as "you have been cut out of the programme". A bad link is never a dead end.
+  Ink, not colour: stopping mail is not a call to action (tier 0).
+#}
+{% set colour_tier = '0' %}
+{% set flow_page = task_page|default(false) %}
+{% set app_bar = {variant: 'child', title: 'Email preferences'|trans, back: '/'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/newsletter.css') }}"><meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="nl nl--task">
+  <section class="nl__card" aria-labelledby="euH">
+    {% if done and valid %}
+      <p class="nl__kicker nl__kicker--ok"><span aria-hidden="true">✓</span> {{ 'Done'|trans }}</p>
+      <h1 class="nl__h1" id="euH">{{ 'You’ve been unsubscribed'|trans }}</h1>
+      <p class="nl__p">{{ 'We won’t send'|trans }} <b class="nl__mail">{{ email }}</b> {{ 'any more announcement emails.'|trans }}</p>
+      <p class="ag-hint">{{ 'This only stops bulk announcements. Anything you specifically asked for still reaches you — a receipt, a one-time sign-in code, or a reply to a support ticket. Your nomination and any votes for you are completely unaffected.'|trans }}</p>
+      <a class="nl__alt" href="{{ site_url }}/support">{{ 'Changed your mind, or need a hand?'|trans }}</a>
+    {% elseif valid %}
+      <p class="nl__kicker">{{ 'Email preferences'|trans }}</p>
+      <h1 class="nl__h1" id="euH">{{ 'Stop these emails?'|trans }}</h1>
+      <p class="nl__p">{{ 'Confirm and we’ll stop sending announcement emails to'|trans }} <b class="nl__mail">{{ email }}</b>.</p>
+      <form class="nl__form" method="post" action="{{ site_url }}/email/unsubscribe">
+        <input type="hidden" name="e" value="{{ e }}">
+        <input type="hidden" name="t" value="{{ t }}">
+        <button type="submit" class="ag-btn ag-btn--ink nl__go">{{ 'Yes, unsubscribe me'|trans }}</button>
+      </form>
+      <p class="ag-hint">{{ 'Receipts, sign-in codes and support replies aren’t affected, and neither is your nomination or any votes for you.'|trans }}</p>
+      <a class="nl__alt" href="{{ site_url }}/">{{ 'No thanks, take me back'|trans }}</a>
+    {% else %}
+      <p class="nl__kicker">{{ 'Email preferences'|trans }}</p>
+      <h1 class="nl__h1" id="euH">{{ 'This link didn’t work'|trans }}</h1>
+      <p class="nl__p">{{ 'It may have been broken across two lines by your email app, or it belongs to a much older message.'|trans }}</p>
+      <p class="ag-hint">{{ 'Open the most recent email from us and use the Unsubscribe link at the bottom — or write to us and we’ll take you off the list by hand.'|trans }}</p>
+      <a class="nl__alt" href="{{ site_url }}/support">{{ 'Contact support'|trans }}</a>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

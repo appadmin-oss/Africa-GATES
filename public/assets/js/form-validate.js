@@ -288,6 +288,12 @@
     form.addEventListener('submit', function (ev) {
       var failures = [];
 
+      /* A button saying `formnovalidate` asks for the form's OTHER action (the sign-in
+         form's "Email me a one-time code" needs the address and not the password) — the
+         browser skips its own checks for it, and so must this, or the second action is
+         blocked by a rule that belongs to the first. */
+      if (ev.submitter && ev.submitter.formNoValidate) return;
+
       try {
         controls(form).forEach(function (el) {
           var m = failure(el);

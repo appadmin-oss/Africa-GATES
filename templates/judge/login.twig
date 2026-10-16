@@ -14,6 +14,7 @@
 <style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
 <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/components/auth.css') }}">
+  {% include 'partials/csrf-fresh.twig' %}
 </head>
 <body>
 <div class="ag-auth">

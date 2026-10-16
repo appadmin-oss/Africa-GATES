@@ -1,5 +1,5 @@
 {% extends "admin/layout.twig" %}
-{% block topbar_title %}Judges Panel{% endblock %}
+{% block topbar_title %}Judges &amp; rubric{% endblock %}
 {% block topbar_actions %}<a class="ad-btn" href="/admin/judges/schedule">Schedule &amp; reminders</a>
 <a class="ad-btn ad-btn--primary" href="/admin/judges/new">+ Invite Judge</a>{% endblock %}
 {% block content %}
@@ -7,13 +7,13 @@
 {# Advisory judge-score anomaly scan — outliers vs. the panel. Never changes a
    score or result; a prompt for a human to review possible bias/lobbying. #}
 {% if anomalies is defined and anomalies.flags|length %}
-<details class="ad-card" style="margin-bottom:16px;border-left:4px solid var(--ad-gold,#c79a3a)">
+<details class="ad-card" style="margin-bottom:16px;border-left:4px solid var(--cn-warning-dot)">
   <summary style="cursor:pointer;font-weight:600;font-size:13px">
     ⚖ Score anomalies — {{ anomalies.flags|length }} flag{{ anomalies.flags|length == 1 ? '' : 's' }}
     across {{ anomalies.judges|length }} judge{{ anomalies.judges|length == 1 ? '' : 's' }}
-    <span style="font-weight:400;color:var(--ad-text-mute,#61728e)">· advisory, nothing is changed automatically</span>
+    <span style="font-weight:400;color:var(--cn-grey-500)">· advisory, nothing is changed automatically</span>
   </summary>
-  <p style="font-size:12px;color:var(--ad-text-mute,#61728e);margin:6px 0 10px">
+  <p style="font-size:12px;color:var(--cn-grey-500);margin:6px 0 10px">
     A judge whose complete scorecard is a statistical outlier vs. the rest of the panel for a nominee
     (far harsher or more generous than consensus). Review for possible bias, lobbying, or a scoring error.
   </p>
@@ -54,7 +54,7 @@
         <td>
           {% if r.avatar_path %}<span class="ad-avatar" style="background-image:url('{{ r.avatar_path|media_url('avatar') }}')"></span>{% endif %}
           <strong>{{ r.name }}</strong>
-          <div style="font-size:12px;color:var(--ad-text-soft)">{{ r.email }}</div>
+          <div style="font-size:12px;color:var(--cn-grey-600)">{{ r.email }}</div>
         </td>
         <td>{{ r.title }}{% if r.organisation %} · {{ r.organisation }}{% endif %}</td>
         <td><span style="font-family:'Space Mono',monospace">{{ r.country_code }}</span></td>
@@ -70,7 +70,7 @@
           <form method="post" action="/admin/judges/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Take {{ r.name }} off the panel? They lose access immediately, and any marks they have given stop counting towards results. A judge who has marked anything is kept as inactive (so the record survives and can be reactivated); one who has judged nothing is deleted.">×</button></form>
         </td>
       </tr>
-      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No judges yet.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--cn-grey-500);padding:30px">No judges yet.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>

@@ -104,7 +104,10 @@ final class OrgDashboardController
         return $this->view->render($res, 'pages/org/login.twig', [
             'page_title' => 'Partner sign in — Africa GATES',
             'gates_page' => 'partner',
-            'lite_page'  => true,
+            // The member doors' frame (layout/auth.twig) with no chrome: a sign-in is a
+            // flow with one thing to do. No award panel — this door is for an
+            // organisation's money and nothing on it should be about anything else.
+            'hide_chrome' => true,
             // ONE message for every kind of failure — unknown address, wrong password,
             // locked account, inactive user. Telling them apart is an enumeration oracle,
             // and OrgAuth::attempt() returns the same null for all of them precisely so

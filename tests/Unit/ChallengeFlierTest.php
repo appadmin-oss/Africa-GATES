@@ -267,7 +267,7 @@ final class ChallengeFlierTest extends TestCase
         self::assertGreaterThan(500, $count($this->render(), '#008751'));
         $plain = $this->render(['flag' => 0]);
         self::assertSame(0, $count($plain, '#008751'));
-        self::assertGreaterThan(500, $count($plain, ChallengeFlier::THEMES[E::THEME_GREEN]['solid']));
+        self::assertGreaterThan(500, $count($plain, ChallengeFlier::themes()[E::THEME_GREEN]["solid"]));
     }
 
     /**

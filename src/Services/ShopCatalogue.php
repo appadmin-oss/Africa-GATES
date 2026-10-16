@@ -402,6 +402,40 @@ final class ShopCatalogue
         return $s <= 3 ? 'Only ' . $s . ' left' : '';
     }
 
+    /**
+     * The product's `details` as the accordions the page draws (ShopPage.dc.html: "Materials",
+     * "Sizing & fit", "Washing & care").
+     *
+     * The column is one free-text field on the product editor, so the sections are read
+     * from how an operator naturally writes it: blocks separated by a blank line, and a block
+     * whose first line is short and ends without a full stop is that section's heading.
+     * Anything else is one section called "Details", which is exactly how the field rendered
+     * before — so a product written as one paragraph looks as it always did, and nobody has
+     * to learn a markup to get headings.
+     *
+     * @return list<array{title:string, body:string}>
+     */
+    public static function detailSections(?string $details): array
+    {
+        $text = trim(str_replace(["\r\n", "\r"], "\n", (string) $details));
+        if ($text === '') return [];
+
+        $out = [];
+        foreach (preg_split('~\n\s*\n~', $text) ?: [] as $block) {
+            $lines = array_values(array_filter(array_map('trim', explode("\n", $block)), static fn ($l) => $l !== ''));
+            if ($lines === []) continue;
+            $head = $lines[0];
+            if (count($lines) > 1 && mb_strlen($head) <= 40 && !preg_match('~[.!?:]$~u', $head)) {
+                $out[] = ['title' => $head, 'body' => implode("\n", array_slice($lines, 1))];
+            } elseif ($out !== [] && $out[count($out) - 1]['title'] === 'Details') {
+                $out[count($out) - 1]['body'] .= "\n\n" . implode("\n", $lines);
+            } else {
+                $out[] = ['title' => 'Details', 'body' => implode("\n", $lines)];
+            }
+        }
+        return $out;
+    }
+
     // ══ 2. images ════════════════════════════════════════════════════════════
 
     /**
@@ -450,7 +484,17 @@ final class ShopCatalogue
      * a displayed range would quietly exclude products in a region where prices are lifted,
      * and the buyer would see a range they set exclude a product priced inside it.
      *
-     * @param array{q?:string, category?:string, sort?:string, page?:int, in_stock?:bool,
+     * ── AND EVERY FACET IS A LIST (Phase 7, 8 Oct 2026) ──────────────────────
+     *
+     * `?c[]=&col[]=&sz[]=` — several categories, colours and sizes at once, OR within a
+     * facet and AND between facets (ShopPage.dc.html, §8.12). `category` as one string is
+     * still read, because a bookmarked `?c=Apparel` is a URL somebody kept; a scalar where a
+     * list is expected used to become the string "Array" and an empty shop (GAPS §3.13).
+     * `limit` is the "Load more" depth: the first N rows, so a page that grew by four is one
+     * URL that can be reloaded, shared and stepped back to.
+     *
+     * @param array{q?:string, category?:string, categories?:list<string>, colours?:list<string>,
+     *              sizes?:list<string>, sort?:string, page?:int, limit?:int, in_stock?:bool,
      *              featured?:bool, min?:?int, max?:?int, mult?:float} $f
      * @return array{rows:list<array<string,mixed>>, total:int, page:int, pages:int,
      *               sort:string, q:string, category:string, in_stock:bool, featured:bool,
@@ -460,6 +504,11 @@ final class ShopCatalogue
     {
         $q        = trim((string) ($f['q'] ?? ''));
         $category = trim((string) ($f['category'] ?? ''));
+        $cats     = self::cleanList($f['categories'] ?? []);
+        if ($category !== '' && !in_array($category, $cats, true)) $cats[] = $category;
+        $colours  = self::cleanList($f['colours'] ?? []);
+        $sizes    = self::cleanList($f['sizes'] ?? []);
+        $limit    = max(0, (int) ($f['limit'] ?? 0));
         $sort     = isset(self::SORTS[(string) ($f['sort'] ?? '')]) ? (string) $f['sort'] : 'featured';
         $page     = max(1, (int) ($f['page'] ?? 1));
         $inStock  = (bool) ($f['in_stock'] ?? false);
@@ -477,18 +526,23 @@ final class ShopCatalogue
         }
 
         $answer = static fn (array $extra): array => $extra + [
-            'sort' => $sort, 'q' => $q, 'category' => $category,
+            'sort' => $sort, 'q' => $q, 'category' => $cats[0] ?? '', 'categories' => $cats,
+            'colours' => $colours, 'sizes' => $sizes,
             'in_stock' => $inStock, 'featured' => $featured, 'min' => $min, 'max' => $max,
             // Whether anything is narrowing the list — what the "clear all" control keys on,
             // and what makes an empty grid say "nothing matches" rather than "shop is empty".
-            'filtered' => $q !== '' || $category !== '' || $inStock || $featured
-                          || $min !== null || $max !== null,
+            'filtered' => $q !== '' || $cats !== [] || $colours !== [] || $sizes !== []
+                          || $inStock || $featured || $min !== null || $max !== null,
         ];
 
         try {
             $base = DB::table('gates_products')->where('is_active', 1);
 
-            if ($category !== '') $base->where('category', $category);
+            // whereIn, never where($col, $array): the two-argument form binds the list as a
+            // scalar and the driver reads its first element (CLAUDE.md, "the BUILDER").
+            if ($cats !== []) $base->whereIn('category', $cats);
+            if ($colours !== []) self::withOption($base, $colours, 'colour');
+            if ($sizes !== []) self::withOption($base, $sizes, 'size');
 
             // Bounds converted back to stored naira — see the note on `mult` above.
             if ($min !== null) $base->where('price_naira', '>=', (int) floor($min / $mult));
@@ -524,16 +578,125 @@ final class ShopCatalogue
 
             self::applySort($base, $sort);
 
-            $rows = $base->forPage($page, self::PER_PAGE)->get()
+            $rows = ($limit > 0 ? $base->limit($limit) : $base->forPage($page, self::PER_PAGE))->get()
                 ->map(static fn ($r): array => (array) $r)->all();
         } catch (\Throwable) {
-            return $answer(['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1]);
+            return $answer(['rows' => [], 'total' => 0, 'page' => 1, 'pages' => 1, 'limit' => $limit]);
         }
 
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
 
-        return $answer(['rows' => $rows, 'total' => $total,
+        return $answer(['rows' => $rows, 'total' => $total, 'limit' => $limit,
                         'page' => min($page, $pages), 'pages' => $pages]);
+    }
+
+    /** A posted facet as a clean list of short strings — a scalar is a list of one. */
+    private static function cleanList(mixed $raw): array
+    {
+        $out = [];
+        foreach (is_array($raw) ? $raw : [$raw] as $v) {
+            if (!is_scalar($v)) continue;
+            $v = mb_substr(trim((string) $v), 0, 80);
+            if ($v !== '' && !in_array($v, $out, true)) $out[] = $v;
+        }
+        return array_slice($out, 0, 20);
+    }
+
+    /**
+     * Narrow to products with an ACTIVE variant answering one of `$values` on a colour or a
+     * size question.
+     *
+     * Which column holds the answer depends on the order the organiser asked the questions
+     * in — a Size × Colour product keeps its colour in `label2` — so both are asked. A colour
+     * is recognised by its swatch (the same ownership rule {@see axesFromVariants()} uses:
+     * the swatch belongs to the colour question), a size by its axis being called a size.
+     * EXISTS rather than a join, for the reason {@see onlyBuyable()} gives: a join multiplies
+     * the product rows and breaks the count and the paging.
+     *
+     * @param list<string> $values
+     */
+    private static function withOption(mixed $q, array $values, string $what): void
+    {
+        if (!DB::schema()->hasTable('gates_product_variants')) {
+            $q->whereRaw('1 = 0');
+            return;
+        }
+        $second = OptionalColumn::on('gates_product_variants', 'label2');
+        $q->whereExists(static function ($sub) use ($values, $what, $second): void {
+            $sub->selectRaw('1')->from('gates_product_variants as fv')
+                ->whereColumn('fv.product_id', 'gates_products.id')
+                ->where('fv.is_active', 1)
+                ->where(static function ($w) use ($values, $what, $second): void {
+                    if ($what === 'colour') {
+                        $w->where(static function ($a) use ($values, $second): void {
+                            $a->whereNotNull('fv.swatch')->where('fv.swatch', '!=', '')
+                              ->where(static function ($b) use ($values, $second): void {
+                                  $b->whereIn('fv.label', $values);
+                                  if ($second) $b->orWhereIn('fv.label2', $values);
+                              });
+                        });
+                        return;
+                    }
+                    $w->where(static function ($a) use ($values): void {
+                        $a->whereRaw('LOWER(fv.axis) = ?', ['size'])->whereIn('fv.label', $values);
+                    });
+                    if ($second) {
+                        $w->orWhere(static function ($a) use ($values): void {
+                            $a->whereRaw('LOWER(fv.axis2) = ?', ['size'])->whereIn('fv.label2', $values);
+                        });
+                    }
+                });
+        });
+    }
+
+    /**
+     * What the filter rail offers: every category with its count, every colour any product
+     * comes in (with the swatch the organiser gave it), every size.
+     *
+     * The category counts are taken UNDER THE OTHER FILTERS and not under the category
+     * filter itself (ShopPage.dc.html `pass(p,'cat')`): "Apparel 4" beside a ticked
+     * Accessories box must say how many Apparel results ticking it would ADD, not how many
+     * are already on the screen. Colours and sizes are read from the whole live catalogue,
+     * so a choice never vanishes from the rail because another filter hid its products.
+     *
+     * @param array<string,mixed> $f the same filter array {@see browse()} takes
+     * @return array{categories:list<array{name:string,n:int}>,
+     *               colours:list<array{name:string,css:string}>, sizes:list<string>}
+     */
+    public static function facets(array $f = []): array
+    {
+        $cats = [];
+        foreach (self::categories() as $c) {
+            $n = (int) self::browse(['categories' => [$c], 'category' => ''] + $f)['total'];
+            $cats[] = ['name' => $c, 'n' => $n];
+        }
+
+        $colours = []; $sizes = [];
+        try {
+            $vs = DB::table('gates_product_variants as v')
+                ->join('gates_products as p', 'p.id', '=', 'v.product_id')
+                ->where('p.is_active', 1)->where('v.is_active', 1)
+                ->orderBy('v.product_id')->orderBy('v.sort_order')->orderBy('v.id')
+                ->get(['v.product_id'])->pluck('product_id')->unique()->all();
+            foreach ($vs as $pid) {
+                foreach (self::axesFromVariants(self::variants((int) $pid)) as $g) {
+                    if ($g['kind'] === 'swatch') {
+                        foreach ($g['choices'] as $ch) {
+                            $colours[$ch['value']] ??= ['name' => $ch['value'], 'css' => $ch['swatch_css']];
+                        }
+                    } elseif (strtolower($g['name']) === 'size') {
+                        foreach ($g['choices'] as $ch) $sizes[$ch['value']] = true;
+                    }
+                }
+            }
+        } catch (\Throwable) {}
+
+        $order = array_flip(['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL']);
+        $sizes = array_keys($sizes);
+        usort($sizes, static fn (string $a, string $b): int
+            => [$order[strtoupper($a)] ?? 99, $a] <=> [$order[strtoupper($b)] ?? 99, $b]);
+
+        return ['categories' => $cats, 'colours' => array_values($colours), 'sizes' => $sizes];
     }
 
     /**

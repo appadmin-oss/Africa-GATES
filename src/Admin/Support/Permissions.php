@@ -42,7 +42,39 @@ final class Permissions
         // organisation has taken and ranks its largest donors is a different kind of
         // disclosure. Editors and moderators have no reason to see either.
         'finance'       => ['superadmin', 'admin'],
+        // ── HEALTH: IS EVERYTHING THE PLATFORM DEPENDS ON WORKING? ───────────
+        //
+        // New on 4 Oct 2026, and an ACCESS WIDENING the owner approved by name (GAPS
+        // §8d): the integrations check, email health and the alerts page were
+        // superadmin-only because they sat under /admin/settings, and the person who
+        // most needs "is email going out" during an event is rarely the superadmin.
+        // A viewer may READ them; the writer allowlist still refuses every change, and
+        // the configuration-changing actions on those pages keep their own
+        // RoleMiddleware('superadmin') in routes.php — only reading and the read-only
+        // diagnostics moved.
+        'health'        => ['superadmin', 'admin', 'viewer'],
         'configuration' => ['superadmin'],
+    ];
+
+    /**
+     * The roles that may make a state-changing request at all. The one list —
+     * AdminAuthMiddleware refuses everybody else, and the console draws every write
+     * control at 45% for them (handoff rule 8). Two lists here would be the sidebar-
+     * versus-guard disagreement again, one level down.
+     */
+    public const WRITERS = ['superadmin', 'admin', 'editor', 'moderator'];
+
+    /**
+     * Two-segment paths whose section differs from their first segment's.
+     *
+     * Checked before {@see PATH_SECTIONS}. The integrations check and email health live
+     * under /admin/settings — whose first segment is `configuration` — and moved to
+     * `health` without moving their published URLs: every mail alert this platform has
+     * ever sent links /admin/settings/mail.
+     */
+    private const SUBPATH_SECTIONS = [
+        'settings/providers' => 'health',
+        'settings/mail'      => 'health',
     ];
 
     /** First path segment under /admin → section. (Drives sectionForPath().) */
@@ -124,6 +156,11 @@ final class Permissions
         // overview — the dashboard and the AI console copilot (every role may use
         // the assistant; the controller enforces the per-role usage budget).
         'dashboard' => 'overview', 'assistant' => 'overview',
+        // The signed-in admin's own console preferences — pinned views and whether the
+        // sidebar is open. Nothing on the platform changes, so every role may write here.
+        'me' => 'overview',
+        // health — what the platform noticed on its own (Admin\Services\ConsoleAlerts).
+        'alerts' => 'health',
     ];
 
     /** Auth-exempt / utility admin paths that carry no section (login, logout, magic, admin-api). */
@@ -144,7 +181,35 @@ final class Permissions
         $seg = strtok(substr($path, strlen('/admin/')), '/') ?: '';
         // Auth-exempt + utility routes carry no section (they pass through the guard).
         if (in_array($seg, ['login', 'logout', 'magic', 'api', ''], true)) return null;
+        $rest = substr($path, strlen('/admin/'));
+        foreach (self::SUBPATH_SECTIONS as $prefix => $section) {
+            if ($rest === $prefix || str_starts_with($rest, $prefix . '/')) return $section;
+        }
         return self::PATH_SECTIONS[$seg] ?? null;
+    }
+
+    /**
+     * May this role open this admin path? The guard's own answer, including its
+     * fail-closed rule: an unmapped path is superadmin-only.
+     *
+     * The rail, the palette, Home's shortcuts and its "needs a person" list all ask THIS,
+     * so none of them can offer a page {@see \AfricaGates\Admin\Middleware\SectionGuardMiddleware}
+     * will bounce — which is the fault the old rail had on fifteen pages, because it
+     * typed a gate per section while the guard read the path.
+     */
+    public static function canOpen(string $role, string $path): bool
+    {
+        $p = (string) (parse_url($path, PHP_URL_PATH) ?? $path);
+        if (self::isUtilityPath($p)) return $role !== '';
+        $section = self::sectionForPath($p);
+
+        return $section !== null ? self::canAccess($role, $section) : $role === 'superadmin';
+    }
+
+    /** May this role make a state-changing request anywhere in the console? */
+    public static function canWrite(string $role): bool
+    {
+        return in_array($role, self::WRITERS, true);
     }
 
     /** True when $role may view $section. */

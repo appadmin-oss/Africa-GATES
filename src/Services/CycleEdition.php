@@ -103,7 +103,13 @@ final class CycleEdition
                     // date is a promise nobody made, arriving already passed.
                     'status'        => 'upcoming',
                     'created_at'    => Carbon::now()->toDateTimeString(),
-                ]);
+                ] + (\AfricaGates\Support\OptionalColumn::on('gates_award_cycles', 'edition_number')
+                    // The next number after the newest edition's — "11th" follows "10th"
+                    // even when the programme's first ten were held before it came here.
+                    ? ['edition_number' => \AfricaGates\Support\EditionName::number(
+                          DB::table('gates_award_cycles')->where('programme_id', $programmeId)
+                              ->orderByDesc('year')->orderByDesc('id')->first() ?? []) + 1]
+                    : []));
 
                 if (!$copyCategories) return;
 

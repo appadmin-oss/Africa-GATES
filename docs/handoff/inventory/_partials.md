@@ -1039,3 +1039,27 @@ One template the first orphan pass left behind (scripts of the same wave are in 
 **Left behind, deliberately untouched (owner to decide with Phase 2):** `config/container.php` still registers `lang_prompts` and `lang_ask`, now with no template caller; `chrome.js` `bindLangAsk()` finds no `[data-ag-langask]` and returns on its first line. Neither is wrong; both are the surviving halves of what this partial joined.
 
 **Guard tests:** none read this file at the time of the destroy (`LanguageTest` holds `Languages` only).
+
+## Third orphan pass, 3 Oct 2026 (owner-approved leftovers)
+
+Both were referenced only by the `/__setup/deployed` diagnostic (rows removed with them);
+nothing rendered or included either once the old pages were destroyed.
+
+### `partials/share.twig` — the one share row (MUST RESTORE in the phase that rebuilds sharing)
+- Every place that asks somebody to pass a link on rendered this one row, so destinations,
+  copy and fallback could not drift between the ballot, a message permalink and a receipt.
+- Context: `share_url` (default canonical URL), `share_text` (default og_title/page_title),
+  `share_label` (`''` omits it — tested with `is defined`, never `|default`, because
+  `|default` fires on an empty string and brought back a redundant "Share" heading),
+  `share_grid` (tiles instead of a row), `share_native` (false omits the native sheet).
+- Each destination is a plain link to the platform's own share intent: no SDK, no pixel;
+  five of seven controls work with JavaScript off. Only the native sheet and copy-to-
+  clipboard need JS, and both are additive.
+
+### `partials/poll.twig` — the poll widget (MUST RESTORE with Pulse/blog rebuilds)
+- Renders a `CommunityService::getPoll` payload (id, question, options with index/label/
+  count/pct, total, multi, is_closed, my_votes) for thread and blog-post polls; votes post
+  to `/api/community/poll`.
+- Rule it carried: state rides on a CLASS, and `:style` is used only for the fill bar's
+  width. Alpine's `:style` with a string REPLACES the style attribute, which once stripped
+  every option's border, radius and padding the instant the component initialised.

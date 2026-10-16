@@ -22,17 +22,20 @@ function doGet(e) {
 }
 
 /**
- * SHARED SECRET FOR THE PRIVILEGED ACTIONS. Leave it empty and meet.create /
- * meet.transcript are refused outright.
+ * SHARED SECRET. Once set it guards EVERYTHING — the calendar and transcript actions, mail,
+ * and the sheet writes. Leave it empty and meet.create / meet.transcript / calendar / mail
+ * are refused outright, while sheet writes still go through (so an existing deployment keeps
+ * recording while you set this up).
  *
  * This web app is deployed "access: anyone", because the platform posts to it with no
- * credentials. For appending a row to a private sheet that is an acceptable trade — the
- * worst a stranger with the URL can do is write junk into a spreadsheet.
+ * Google credentials. Without a SECRET, anybody holding the /exec URL could book events in
+ * YOUR calendar, read the text of YOUR meetings, send mail as you — and write rows into the
+ * private sheet.
  *
- * Booking events in YOUR calendar and reading the text of YOUR meetings is not that. So
- * put a long random string here AND the identical string in .env as GAS_SECRET, then
- * redeploy (Deploy → Manage deployments → edit → New version). Sheet writes are
- * unaffected either way, so an existing deployment keeps working.
+ * So put a long random string here AND the identical string in the platform's settings
+ * (/admin/settings → Google Calendar and Meet → Shared secret, or GAS_SECRET in .env), then
+ * redeploy (Deploy → Manage deployments → edit → New version). The script serves the last
+ * DEPLOYED version, not the last saved one.
  */
 const SECRET = '';
 
@@ -55,13 +58,24 @@ function doPost(e) {
       if(action === 'calendar.slots')   return calendarSlots(body.data||{});
       // READ an event back. See the block comment above calendarRead().
       if(action === 'calendar.read')    return calendarRead(body.data||{});
+      // Mail, when the platform's own SMTP cannot get through. See mailSend().
+      if(action === 'mail.send')        return mailSend(body.data||{});
+      if(action === 'mail.quota')       return mailQuota();
       return respond(false,'Unknown action: '+action);
     } catch(err) { return respond(false,err.message); }
   }
 
+  // Sheet writes are behind the SECRET too, once one is set. Before, anybody holding the
+  // /exec URL — it is in every deployment's settings and in the browser of whoever set it
+  // up — could write rows into the private sheet, or create a new tab with any name.
+  // Left empty, writes still work exactly as before, so an existing deployment keeps
+  // recording while its owner sets the SECRET.
+  if(SECRET && body.token !== SECRET) return respond(false,'Bad token');
   const sheet = (body.sheet||'').toLowerCase().replace(/[^a-z_]/g,'');
   const data  = body.data;
   if(!sheet||!data) return respond(false,'Missing sheet or data');
+  // Only the tabs this platform writes. Anything else is refused rather than created.
+  if(!HEADERS[sheet]) return respond(false,'Unknown sheet: '+sheet);
   try { const row = writeRow(sheet,data,body.source||'web'); return respond(true,'Written',{row}); }
   catch(err) { return respond(false,err.message); }
 }
@@ -655,6 +669,53 @@ function s(val) {
   const str=String(val).trim();
   if(/^[=+\-@\t\r]/.test(str)) return "'"+str;
   return str.substring(0,1000);
+}
+
+/**
+ * SEND ONE EMAIL FOR THE PLATFORM — the road it takes when SMTP fails.
+ *
+ * The platform posts a message it has already built: subject, HTML body, plain-text
+ * body, the From name, the Reply-To and any attachments (base64). MailApp sends it from
+ * THIS Google account, which is the account that deployed the script. It is behind the
+ * SECRET like every other action — an open mail relay on a public URL would be a gift
+ * to anybody who found it.
+ *
+ * The daily allowance is MailApp's, not Gmail's: about 100 recipients a day on a
+ * gmail.com account, 1,500 on Workspace. The platform sends only mail somebody is
+ * waiting for this way — sign-in codes, receipts, confirmations — and never a newsletter,
+ * and it reads the remaining allowance with mail.quota before it relies on it.
+ *
+ * Answers {ok:true, remaining:n} or {ok:false, message:'…'} — the platform shows the
+ * message on Settings → Email health exactly as written here.
+ */
+function mailSend(d) {
+  const to = String(d.to||'').trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return respond(false,'No valid recipient.',{ok:false});
+  if(MailApp.getRemainingDailyQuota() < 1) {
+    return respond(false,'Apps Script daily email quota exceeded for this Google account.',{ok:false,remaining:0});
+  }
+  const opts = {
+    to: to,
+    subject: String(d.subject||'').slice(0, 250),
+    htmlBody: String(d.html||''),
+    body: String(d.text||'') || 'This message is best read in an email app that shows HTML.',
+    name: String(d.name||'Africa GATES').slice(0, 80)
+  };
+  if(d.reply_to) opts.replyTo = String(d.reply_to);
+  const files = Array.isArray(d.attachments) ? d.attachments : [];
+  if(files.length) {
+    opts.attachments = files.slice(0, 5).map(function(f){
+      return Utilities.newBlob(Utilities.base64Decode(String(f.content||'')), String(f.mime||'application/octet-stream'), String(f.name||'file'));
+    });
+  }
+  MailApp.sendEmail(opts);
+  return respond(true,'Sent',{ok:true,remaining:MailApp.getRemainingDailyQuota()});
+}
+
+/** How many more recipients this account may email today. A READ — sends nothing. */
+function mailQuota() {
+  return respond(true,'Quota',{ok:true,remaining:MailApp.getRemainingDailyQuota(),
+                               account:Session.getEffectiveUser().getEmail()});
 }
 
 function respond(success, message, extra) {

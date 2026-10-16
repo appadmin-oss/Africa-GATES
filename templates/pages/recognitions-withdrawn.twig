@@ -1,0 +1,27 @@
+{% extends 'layout/shell.twig' %}
+{#
+  `/recognitions/withdrawn` — the public withdrawal log (Phase 6, REFERENCE §11). Not a DC
+  page: REFERENCE requires the log and no design draws it, so it is set in the vault's own
+  type and spacing (legacy.css), a list of facts and nothing else.
+#}
+{% set colour_tier = '0' %}
+{% set app_bar = {variant: 'child', title: 'Withdrawn recognitions'|trans, back: '/legacy', share: false} %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/legacy.css') }}">{% endblock %}
+{% block content %}
+<div class="lv lv--log">
+  <section class="lv-hero__main">
+    <h1 class="lv-h1">{{ 'Withdrawn recognitions'|trans }}</h1>
+    <p class="lv-lede">{{ 'A recognition on Africa GATES is never edited and never deleted. When one is withdrawn, it stays on the person’s profile marked withdrawn, and the withdrawal is published here with its reason.'|trans }}</p>
+    <p class="lv-lede">{{ standing == 1 ? '1 recognition stands today.'|trans : '%n% recognitions stand today.'|trans({'%n%': standing|number_format}) }}</p>
+  </section>
+  {% if rows %}
+    <ol class="lve-wins lv-log">
+      {% for w in rows %}
+        <li><div class="lve-win lv-log__row"><span class="lve-win__t"><span class="lve-win__c">{{ w.at|date('j M Y') }} · <span class="lve-seal__ref">{{ w.reference }}</span></span><span class="lve-win__n">{{ w.recipient }} — {{ w.title }}</span><span class="lv-log__why">{{ w.reason }}</span></span><span class="lve-win__c">{{ w.issuer }}</span></div></li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="lv-empty__p">{{ 'No recognition has been withdrawn.'|trans }}</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/challenges` — THE LIST
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt 5 Oct 2026 on `layout/shell.twig`, from
+  `docs/handoff/inventory/pages--challenges--index.md` and the pre-destroy template
+  at `882d768^`.
+
+  ── WHY THIS ONE WAS STILL 500ing ──────────────────────────────────────────
+
+  Every other destroyed page is scheduled: `DESTROYED.md` names the phase that
+  rebuilds it. This one reads "no phase — ChallengePage.dc.html is not in the
+  bundle (Q16)". So there was no comp to build from and nobody coming, and the
+  route stayed live over a template that no longer existed — which is a 500 on a
+  page the footer and the Participate menu both link to.
+
+  Built in the house card idiom rather than matched to a comp, for that reason, and
+  stated here so the next person does not go looking for the DC.
+
+  ── EVERY LINE ON A CARD COMES FROM `ChallengeCopy` ────────────────────────
+
+  The controller builds each card through `ChallengeCopy::for()` — the same
+  resolver the full page uses. A string typed here would be a second place a
+  challenge's terms are written, and a card promising a different prize from the
+  page behind it is the shape `ChallengeCopyTest::test_the_compact_strip_agrees_
+  with_the_page` exists to refuse.
+
+  Colour tier 1: the theme tints a tile and a pill, and every card carries its
+  state as a WORD as well.
+#}
+
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'root', title: 'Challenges'|trans} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/challenge.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="chl">
+  <header class="chl__head">
+    <h1 class="chl__h">{{ 'Challenges'|trans }}</h1>
+    <p class="chl__lede">{{ 'Do a thing that already helps an award, and win something for it. Every challenge says exactly what counts before you start.'|trans }}</p>
+  </header>
+
+  {% if cards|length %}
+    <ul class="chl__grid">
+      {% for c in cards %}
+        <li>
+          <a class="chl__card" href="/challenges/{{ c.slug }}" style="{{ challenge_style(c.theme) }}">
+            <span class="chl__tile" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="{{ c.icon|default('M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6') }}"/>
+              </svg>
+            </span>
+            <span class="chl__pill" data-state="{{ c.state }}">{{ c.state_label }}</span>
+            <span class="chl__kicker">{{ c.kicker }}</span>
+            <span class="chl__t">{{ c.title }}</span>
+            <span class="chl__line">{{ c.line }}</span>
+            <span class="chl__time">{{ c.time_left }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    {#
+      An empty state that says WHEN, not just that there is nothing. "No challenges"
+      alone reads as a broken page; this says the mechanism exists and is between
+      runs, and points at the page that shows what is coming.
+    #}
+    <div class="chl__empty">
+      <b>{{ 'No challenges are running just now'|trans }}</b>
+      <span>{{ 'They open alongside an award’s nominations or an event’s ticket sales.'|trans }}
+        <a href="/awards">{{ 'The awards page'|trans }}</a> {{ 'shows what is coming.'|trans }}</span>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

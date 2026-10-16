@@ -337,4 +337,36 @@ class OrgPayoutTest extends TestCase
     {
         $this->assertSame('settlement', OrgPayout::mode());
     }
+
+    /**
+     * A status nobody here knows must not release the hold. The status decides HOLDS_FUNDS,
+     * so `processing` (or any new word) written verbatim freed an in-flight transfer's money
+     * for a second request while the first could still land.
+     */
+    public function test_an_unknown_gateway_status_keeps_the_funds_held(): void
+    {
+        $id = $this->makeOrg();
+        $this->confirmedGift($id, 50000);
+        $ref = $this->payout($id, 50000, OrgPayout::ST_PENDING);
+        $this->assertSame(0, OrgPayout::available($id));
+
+        foreach (['processing', 'PROCESSING ', 'queued-at-bank', '<b>x'] as $weird) {
+            $this->assertFalse(OrgPayout::applyStatus($ref, $weird), $weird);
+        }
+        $row = DB::table('gates_org_payouts')->where('reference', $ref)->first();
+        $this->assertSame(OrgPayout::ST_PENDING, (string) $row->status);
+        $this->assertSame(0, OrgPayout::available($id), 'the money must still be held');
+        $this->assertStringContainsString('Unrecognised status', (string) $row->gateway_message);
+
+        // And a real status still moves it.
+        $this->assertTrue(OrgPayout::applyStatus($ref, OrgPayout::ST_FAILED));
+        $this->assertSame(50000, OrgPayout::available($id));
+    }
+
+    public function test_every_status_constant_is_known(): void
+    {
+        $consts = array_filter((new \ReflectionClass(OrgPayout::class))->getConstants(),
+            static fn($v, $k) => str_starts_with($k, 'ST_'), ARRAY_FILTER_USE_BOTH);
+        $this->assertEqualsCanonicalizing(array_values($consts), OrgPayout::KNOWN);
+    }
 }

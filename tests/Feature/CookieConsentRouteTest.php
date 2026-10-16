@@ -29,7 +29,8 @@ use Tests\TestCase;
  *
  * So this boots the container and the route file the way `public/index.php` does, asks for
  * the page, presses the button, and then checks that the arrival which follows is not
- * recorded. Nothing here reads a class it is testing except to name a cookie.
+ * recorded. (Rebuilt on 3 Oct 2026 for the four categories in `ag_consent`; what the notice
+ * and sheet DRAW is CookieConsentNoticeTest's.) Nothing here reads a class it is testing except to name a cookie.
  *
  * The first draft of this feature also shipped both forms with `name="csrf_token"` — the
  * name of the Twig GLOBAL, not of the field `CsrfMiddleware` reads — so a correct token
@@ -82,56 +83,122 @@ final class CookieConsentRouteTest extends TestCase
         return $this->app()->handle($r);
     }
 
-    public function test_pressing_the_button_stores_the_refusal_and_comes_back(): void
+    private function post(array $body, array $cookies = [], array $headers = []): ResponseInterface
     {
         $req = (new ServerRequestFactory())
             ->createServerRequest('POST', 'http://localhost/cookies/choice')
             ->withHeader('User-Agent', 'Mozilla/5.0 Chrome/120')
             ->withHeader('Content-Type', 'application/x-www-form-urlencoded')
-            ->withParsedBody(['choice' => 'no', '_token' => 'test-token', 'return' => '/nominees']);
+            ->withCookieParams($cookies)
+            ->withParsedBody($body + ['_token' => 'test-token']);
+        foreach ($headers as $k => $v) $req = $req->withHeader($k, $v);
 
-        $res = $this->app()->handle($req);
+        return $this->app()->handle($req);
+    }
 
-        $this->assertSame(303, $res->getStatusCode(),
-            'the press was rejected — most likely the CSRF field name');
-        $this->assertSame('/nominees#your-choice', $res->getHeaderLine('Location'));
+    /** The `ag_consent` record a response set, decoded. */
+    private function stored(ResponseInterface $res): ?array
+    {
+        foreach ($res->getHeader('Set-Cookie') as $line) {
+            if (str_starts_with($line, CookiePrefs::COOKIE . '=')) {
+                $raw = explode(';', substr($line, strlen(CookiePrefs::COOKIE) + 1))[0];
+                return json_decode(rawurldecode($raw), true);
+            }
+        }
+        return null;
+    }
 
-        $set = $res->getHeaderLine('Set-Cookie');
-        $this->assertStringContainsString(CookiePrefs::COOKIE . '=' . CookiePrefs::NO, $set);
+    private function consentCookie(?bool $p, ?bool $a): array
+    {
+        return [CookiePrefs::COOKIE => rawurlencode((string) json_encode(
+            ['v' => CookiePrefs::VERSION, 'preferences' => $p, 'analytics' => $a, 'marketing' => null]))];
+    }
+
+    public function test_pressing_essential_stores_the_refusal_and_comes_back(): void
+    {
+        $res = $this->post(['answer' => 'essential', 'return' => '/nominees']);
+
+        $this->assertSame(303, $res->getStatusCode(), 'the press was rejected — most likely the CSRF field name');
+        $this->assertSame('/nominees', $res->getHeaderLine('Location'));
+        $this->assertSame(['v' => CookiePrefs::VERSION, 'preferences' => false, 'analytics' => false, 'marketing' => false],
+            $this->stored($res));
+
+        $set = implode("\n", $res->getHeader('Set-Cookie'));
         $this->assertStringContainsString('HttpOnly', $set);
         $this->assertStringContainsString('SameSite=Lax', $set);
+        $this->assertSame('essential', $_SESSION['consent_saved'] ?? null, 'the page has nothing to confirm with');
     }
 
     public function test_an_unreadable_answer_is_stored_as_a_refusal(): void
     {
         // The only safe reading of a request we could not understand about whether
-        // somebody agreed to be counted. Storing it rather than leaving it unanswered is
-        // also the kinder outcome: unanswered means the notice returns on the next page.
-        $req = (new ServerRequestFactory())
-            ->createServerRequest('POST', 'http://localhost/cookies/choice')
-            ->withHeader('User-Agent', 'Mozilla/5.0 Chrome/120')
-            ->withParsedBody(['choice' => 'maybe', '_token' => 'test-token']);
+        // somebody agreed. Storing it rather than leaving it unanswered is also the kinder
+        // outcome: unanswered means the notice returns on the next page.
+        $doc = $this->stored($this->post(['answer' => 'maybe']));
+        $this->assertFalse($doc['preferences']);
+        $this->assertFalse($doc['analytics']);
+    }
 
-        $set = $this->app()->handle($req)->getHeaderLine('Set-Cookie');
-        $this->assertStringContainsString(CookiePrefs::COOKIE . '=' . CookiePrefs::NO, $set);
+    public function test_choose_stores_nothing_and_opens_the_sheet_without_a_script(): void
+    {
+        // The notice's third button, for a browser with no script: the server sends it back
+        // to the page with `#ag-consent`, which the sheet answers with `:target`.
+        $res = $this->post(['answer' => 'choose', 'return' => '/nominees']);
+
+        $this->assertSame(303, $res->getStatusCode());
+        $this->assertSame('/nominees#ag-consent', $res->getHeaderLine('Location'));
+        $this->assertSame([], $res->getHeader('Set-Cookie'), 'Choose answered something nobody answered');
+    }
+
+    public function test_the_return_is_refused_off_site(): void
+    {
+        $this->assertSame('/', $this->post(['answer' => 'all', 'return' => '//evil.example'])->getHeaderLine('Location'));
+    }
+
+    public function test_answering_retires_the_old_cookie_and_the_language_follows_preferences(): void
+    {
+        $res = $this->post(['answer' => 'all'], [CookiePrefs::LEGACY => 'n', 'ag_lang' => 'fr']);
+        $set = $res->getHeader('Set-Cookie');
+
+        $this->assertContains(CookiePrefs::LEGACY . '=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax', $set,
+            'the old cookie was left in the browser after the new answer was stored');
+
+        // Saying yes to Preferences makes a session-only language a remembered one at once.
+        $lang = implode("\n", array_filter($set, static fn (string $l): bool => str_starts_with($l, 'ag_lang=')));
+        $this->assertStringContainsString('ag_lang=fr', $lang);
+        $this->assertStringContainsString('Max-Age=', $lang);
+
+        // And saying no takes the year away again.
+        $no = $this->post(['answer' => 'essential'], ['ag_lang' => 'fr']);
+        $lang = implode("\n", array_filter($no->getHeader('Set-Cookie'), static fn (string $l): bool => str_starts_with($l, 'ag_lang=')));
+        $this->assertStringContainsString('ag_lang=fr', $lang);
+        $this->assertStringNotContainsString('Max-Age', $lang, 'Preferences was refused and the language is still kept for a year');
+
+        // A browser signal beats the yes the visitor just gave.
+        $gpc = $this->post(['answer' => 'all'], ['ag_lang' => 'fr'], ['Sec-GPC' => '1']);
+        $lang = implode("\n", array_filter($gpc->getHeader('Set-Cookie'), static fn (string $l): bool => str_starts_with($l, 'ag_lang=')));
+        $this->assertStringNotContainsString('Max-Age', $lang);
+        $this->assertSame('signal', $_SESSION['consent_saved'] ?? null, 'the confirmation must say the signal still holds');
     }
 
     public function test_a_stored_refusal_actually_stops_the_next_arrival_being_recorded(): void
     {
-        // The end of the chain, and the only assertion that proves the feature rather than
-        // its parts: the page, the button, the cookie and the tracker all agreeing.
+        // The end of the chain: the button, the cookie and the tracker all agreeing.
         $before = (int) DB::table('gates_visits')->count();
 
         $_SESSION = ['csrf_token' => 'test-token'];
-        $this->get('/', [CookiePrefs::COOKIE => CookiePrefs::NO]);
-
+        $this->get('/', $this->consentCookie(null, false));
         $this->assertSame($before, (int) DB::table('gates_visits')->count(),
-            'the visitor refused on /cookies and was counted on the very next page');
+            'the visitor refused and was counted on the very next page');
+
+        // A refusal stored under the retired cookie is honoured the same way.
+        $_SESSION = ['csrf_token' => 'test-token'];
+        $this->get('/', [CookiePrefs::LEGACY => 'n']);
+        $this->assertSame($before, (int) DB::table('gates_visits')->count());
 
         // And the control is not one-way: a yes counts again.
         $_SESSION = ['csrf_token' => 'test-token'];
-        $this->get('/', [CookiePrefs::COOKIE => CookiePrefs::YES]);
-
+        $this->get('/', $this->consentCookie(null, true));
         $this->assertSame($before + 1, (int) DB::table('gates_visits')->count(),
             'somebody who agreed to be counted was not');
     }
@@ -150,29 +217,5 @@ final class CookieConsentRouteTest extends TestCase
                     "{$path} omits '{$name}', which the page lists");
             }
         }
-    }
-
-    public function test_no_consent_notice_is_drawn_under_the_default_posture(): void
-    {
-        // A banner under the exempt posture would be asking permission for something we
-        // are not doing — which is the argument the page itself makes.
-        //
-        // ASSERTED AGAINST A PAGE THAT RENDERED. `assertStringNotContainsString` on an
-        // empty body passes and proves nothing, which is the shape of vacuous assertion
-        // this repository keeps finding — so the page is checked for a body first.
-        $html = $this->ordinaryPage();
-
-        $this->assertStringNotContainsString('May we count this visit?', $html);
-    }
-
-    /** A public page that definitely rendered, so a "not present" assertion means something. */
-    private function ordinaryPage(): string
-    {
-        $html = (string) $this->get('/')->getBody();
-
-        $this->assertNotSame('', trim($html), 'the home page rendered nothing to assert about');
-        $this->assertStringContainsString('</body>', $html, 'the page did not reach the layout');
-
-        return $html;
     }
 }

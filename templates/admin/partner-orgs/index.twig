@@ -11,31 +11,31 @@
    can never happen. Counted from confirmed rows each time — a cached figure about other
    people's money is a number that is eventually wrong in public. #}
 <div class="st-strip" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-     gap:1px;background:var(--ad-line);border-radius:12px;overflow:hidden;margin-bottom:16px">
-  <div style="background:var(--ad-surface);padding:14px 16px">
+     gap:1px;background:var(--cn-line-card);border-radius:12px;overflow:hidden;margin-bottom:16px">
+  <div style="background:var(--cn-surface);padding:14px 16px">
     <div style="font-family:'Space Mono',monospace;font-weight:700;font-size:21px">{{ totals.orgs }}</div>
     <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-                color:var(--ad-text-soft);margin-top:5px">Organisations applied</div>
+                color:var(--cn-grey-600);margin-top:5px">Organisations applied</div>
   </div>
-  <div style="background:var(--ad-surface);padding:14px 16px">
+  <div style="background:var(--cn-surface);padding:14px 16px">
     <div style="font-family:'Space Mono',monospace;font-weight:700;font-size:21px">{{ totals.approved }}</div>
     <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-                color:var(--ad-text-soft);margin-top:5px">Approved to collect</div>
+                color:var(--cn-grey-600);margin-top:5px">Approved to collect</div>
   </div>
-  <div style="background:var(--ad-surface);padding:14px 16px">
+  <div style="background:var(--cn-surface);padding:14px 16px">
     <div style="font-family:'Space Mono',monospace;font-weight:700;font-size:21px">₦{{ totals.raised|number_format }}</div>
     <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-                color:var(--ad-text-soft);margin-top:5px">Funds generated for them</div>
+                color:var(--cn-grey-600);margin-top:5px">Funds generated for them</div>
   </div>
-  <div style="background:var(--ad-surface);padding:14px 16px">
+  <div style="background:var(--cn-surface);padding:14px 16px">
     <div style="font-family:'Space Mono',monospace;font-weight:700;font-size:21px">{{ totals.gifts|number_format }}</div>
     <div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-                color:var(--ad-text-soft);margin-top:5px">Gifts received</div>
+                color:var(--cn-grey-600);margin-top:5px">Gifts received</div>
   </div>
 </div>
 
 <div class="ad-card" style="margin-bottom:16px">
-  <div class="ad-card__body" style="font-size:14px;line-height:1.7;color:var(--ad-text-soft)">
+  <div class="ad-card__body" style="font-size:14px;line-height:1.7;color:var(--cn-grey-600)">
     Organisations that collect donations through Africa GATES. Each one's share settles into
     <strong>its own Paystack subaccount</strong>, tied to a bank account in its own registered
     name — this platform never holds a partner's money. Only an <strong>approved</strong>
@@ -57,7 +57,7 @@
           <label for="poSlug">URL slug</label>
           <input id="poSlug" name="slug" type="text" maxlength="120" required
                  placeholder="bright-futures">
-          <small style="color:var(--ad-text-mute)">Their page becomes /donate/&lt;slug&gt;</small>
+          <small style="color:var(--cn-grey-500)">Their page becomes /donate/&lt;slug&gt;</small>
         </div>
         <div>
           <label for="poKind">What are they?</label>
@@ -72,14 +72,14 @@
             <option value="business">Registered business</option>
             <option value="individual">Individual or sole trader</option>
           </select>
-          <small style="color:var(--ad-text-mute)">Only applies to vendors — a body collecting
+          <small style="color:var(--cn-grey-500)">Only applies to vendors — a body collecting
             donations must be incorporated. An individual is asked for a photo ID rather than a
             CAC certificate, and their bank account is matched against their own name.</small>
         </div>
         <div>
           <label for="poLegal">Full legal name</label>
           <input id="poLegal" name="legal_name" type="text" maxlength="200">
-          <small style="color:var(--ad-text-mute)">The CAC registered name, or the person's own
+          <small style="color:var(--cn-grey-500)">The CAC registered name, or the person's own
             full name. Compared against the bank account name.</small>
         </div>
         <div>
@@ -134,20 +134,20 @@
       <tr>
         <td>
           <strong>{{ o.name }}</strong>
-          <div style="font-size:12px;color:var(--ad-text-soft)">/donate/{{ o.slug }}</div>
+          <div style="font-size:12px;color:var(--cn-grey-600)">/donate/{{ o.slug }}</div>
         </td>
         <td>
           <span class="ad-chip ad-chip--{{ chip }}">{{ statuses[o.status]|default(o.status) }}</span>
           {# Live is a different question from approved: an approved partner with no
              settlement account has nowhere for money to land. #}
           {% if r.live %}<div style="font-size:12px;color:#056b3b;font-weight:600;margin-top:3px">Collecting</div>
-          {% else %}<div style="font-size:12px;color:var(--ad-text-soft);margin-top:3px">Not collecting</div>{% endif %}
+          {% else %}<div style="font-size:12px;color:var(--cn-grey-600);margin-top:3px">Not collecting</div>{% endif %}
         </td>
         <td style="font-size:13px">
           {% if o.subaccount_code %}
             {{ o.account_last4 ? '••••' ~ o.account_last4 : 'attached' }}
-            <div style="color:var(--ad-text-soft)">{{ o.settlement_schedule }}</div>
-          {% else %}<span style="color:var(--ad-text-soft)">None</span>{% endif %}
+            <div style="color:var(--cn-grey-600)">{{ o.settlement_schedule }}</div>
+          {% else %}<span style="color:var(--cn-grey-600)">None</span>{% endif %}
         </td>
         <td style="font-family:'Space Mono',monospace">₦{{ r.totals.gross|number_format }}</td>
         <td style="font-family:'Space Mono',monospace">₦{{ r.totals.platform_fee|number_format }}</td>
@@ -156,7 +156,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">
+      <tr><td colspan="6" style="text-align:center;color:var(--cn-grey-500);padding:30px">
         No partner organisations yet.
       </td></tr>
     {% endfor %}

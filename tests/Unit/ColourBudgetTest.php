@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Services\Celebration;
 use AfricaGates\Support\Accent;
 use Tests\Support\ColourFields;
 use Tests\TestCase;
@@ -133,7 +134,31 @@ final class ColourBudgetTest extends TestCase
             }
         }
 
+        // A CELEBRATION is one event in its KIND's family. Its colours arrive inline from
+        // Celebration::style(), so the sheet the partial links names none of them and the
+        // field sweep above would never charge it — a page could draw a gold burst for free.
+        // Counted from the include's literal `kind:`, the only place a page names it.
+        if (preg_match_all('/\{%-?\s*include\s+[\'"]partials\/celebration\.twig[\'"](.*?)-?%\}/s', $seen, $inc)) {
+            foreach ($inc[1] as $args) {
+                if (preg_match('/\bkind\s*:\s*[\'"]([a-z]+)[\'"]/', $args, $k)
+                    && isset(Celebration::FAMILY[$k[1]])) {
+                    $out[] = Celebration::FAMILY[$k[1]];
+                }
+            }
+        }
+
         return array_values(array_unique($out));
+    }
+
+    public function test_a_celebration_is_charged_the_family_of_its_kind(): void
+    {
+        // Proving the clause above fails before trusting it to pass: a win names gold, a
+        // give live, and a `kind:` outside the celebration's include is not a celebration.
+        $this->assertContains('gold', $this->events(
+            "{% include 'partials/celebration.twig' with { kind: 'win', primary: {href: '/x'} } only %}"));
+        $this->assertContains('live', $this->events(
+            "{% include 'partials/celebration.twig' with {kind:'give'} %}"));
+        $this->assertSame([], $this->events("{% include 'partials/pulse-card.twig' with { kind: 'win' } %}"));
     }
 
     public function test_no_page_spends_more_colour_than_its_tier_allows(): void
@@ -259,12 +284,23 @@ final class ColourBudgetTest extends TestCase
         }
         sort($claimed);
 
-        // The two holders — results/edition.twig and results/hall.twig — were destroyed
-        // with the old pages; the privilege is recorded in their inventories
-        // (docs/handoff/inventory/) and a rebuilt page that claims it adds itself here,
-        // never a third.
-        $this->assertSame([], $claimed,
-            'a page is claiming the honour band — only the rebuilt edition and hall pages may, and only by adding themselves here.');
+        // The two holders, back from the rebuild. They were destroyed with the old pages
+        // and the expected list was emptied with them — a debt both inventories record by
+        // name ('expected list emptied', guard kept, edited: see
+        // docs/handoff/inventory/pages--results--edition.md and pages--results--hall.md),
+        // and each rebuilt page declares the band again in its own header comment.
+        //
+        // An empty list under this test's own name was never the privilege being
+        // withheld: it is this guard asserting that NOBODY holds the band, which is the
+        // one shape that cannot catch a third page taking it. The list has to be the two,
+        // because the privilege is only safe as a list of two — that is the whole claim,
+        // and a guard that passes while the thing it names does not exist is not holding
+        // it. Named, so that losing one of the two fails here as loudly as gaining a third.
+        $this->assertSame([
+            'templates/pages/results/edition.twig',
+            'templates/pages/results/hall.twig',
+        ], $claimed,
+            'the honour band is a list of two — the decided edition and the hall of fame. A third page may not claim it, and neither of those two may quietly drop it.');
     }
 
     /**
@@ -285,9 +321,10 @@ final class ColourBudgetTest extends TestCase
         }
         ksort($claimed);
 
-        // The one holder — vote-nominee.twig's gold laurel, drawn only once voting has
-        // closed — was destroyed with the old pages; its rebuild adds itself back here.
-        $this->assertSame([], $claimed,
+        // The one holder — vote-nominee.twig's gold, the `win` celebration drawn only in the
+        // won state, once voting has closed and the ballot is gone. Destroyed with the old
+        // pages and added back by its Phase 5 rebuild; never a second.
+        $this->assertSame(['templates/pages/vote-nominee.twig' => 'gold'], $claimed,
             'a page is claiming one of its families is drawn in a state excluding the others');
 
         // The family named must exist, or the subtraction silently removes nothing.

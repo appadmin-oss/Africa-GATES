@@ -263,7 +263,16 @@ final class ShellLayoutTest extends TestCase
         // The base and nothing else: the rules once carved out of components.css
         // (chrome.css, library.css) were destroyed with the old pages, and a rebuilt
         // component sheet joins this list in the commit that rebuilds it.
-        $want = ['assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css'];
+        // Phase 2 added the chrome sheet after the base, which it specialises, and item 6
+        // the cookie notice and preferences sheet after the chrome; Phase 4 the site footer
+        // after those (it is chrome on every shell page); Phase 3 Gee after all of them.
+        $want = ['assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css',
+                 'assets/css/components/chrome.css',
+                 // The Menu sheet, rebuilt whole out of chrome.css (4 Oct 2026, MENU-SHEET.md).
+                 'assets/css/components/menu-sheet.css', 'assets/css/components/consent.css',
+                 // The field macros' sheet, and the default graphics (5 Oct 2026).
+                 'assets/css/components/forms.css', 'assets/css/components/cover.css',
+                 'assets/css/components/footer.css', 'assets/css/components/gee.css'];
         $this->assertSame($want, $shell,
             'the shell must load the base, in the bundle\'s order, and nothing destroyed');
 

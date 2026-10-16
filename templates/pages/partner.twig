@@ -1,0 +1,121 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  PARTNER WITH US — /partner · PartnerController::form / submit · Phase 8
+  Built without a DC (PHASE-8.md "built without a DC")
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct (inventory pages--partner.md); rebuilt on the shell.
+  · THE CONSOLE'S COLD FRONT DOOR: a visible `href="/org"` for an organisation that already
+    partners with us (PublicIaTest::test_the_partner_console_is_reachable_from_the_public_site).
+  · THE FIGURES ARE StatsService::summary(), never typed: profiles in the registry, votes,
+    nations live (NationsLive, the one definition) and award categories. A figure that is
+    zero is not drawn — a partner page announcing "0 votes" is worse than silence.
+    The old label "Verified profiles" over a count of APPROVED profiles is gone: approval
+    is not verification, and the page is where a sponsor checks what they are buying.
+  · THE FORM POSTS WITH NO SCRIPT, and a refusal comes back on this page with every field
+    as typed (`old`) and the reason in words (`error`, the controller's sentence).
+    Rate-limited per connection (three a day) by the controller.
+  · The tier is a preference, not a price: "pricing is tailored to scope".
+  · No reply window is promised — nothing measures one (the receipt says the same).
+  · The old hero's line about funding "child leadership programmes" is not carried: no
+    reader or record anywhere here backs it, and a sponsor would take it as a term.
+#}
+{% import 'partials/field.twig' as f %}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', title: 'Partner with us'|trans, back: '/'} %}
+{% set _old = old|default({}) %}
+{% set _tiers = [
+  {n: 'Cultural Ally', k: 'Entry'|trans, perks: ['Recognition within a programme'|trans, 'Your logo on the partners wall'|trans, 'An end-of-cycle impact summary'|trans]},
+  {n: 'Continental Patron', k: 'Most chosen'|trans, perks: ['A category sponsored in your name'|trans, 'Presence at the awards evening'|trans, 'Content made together'|trans, 'Impact reporting every quarter'|trans]},
+  {n: 'Title Sponsor', k: 'Headline'|trans, perks: ['The cycle named for you'|trans, 'Presence across the whole cycle'|trans, 'A partnership built to order'|trans, 'Impact reporting for your board'|trans]}
+] %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="cm cm--narrow">
+  <div class="cm-col cm-col--pad">
+    <header class="cm-hero">
+      <h1 class="cm-h1">{{ 'Stand beside the people this continent recognises'|trans }}</h1>
+      <p class="cm-lede">{{ 'Partner with Africa GATES to support transparent, independently judged awards — and reach the people and organisations being recognised in them.'|trans }}</p>
+      <div class="cm-form__go">
+        <a class="ag-btn ag-btn--primary ag-btn--pill" href="#enquiry">{{ 'Start the conversation'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="#how">{{ 'How it works'|trans }}</a>
+      </div>
+      <p class="cm-hero__org">{{ 'Already a partner?'|trans }} <a class="cm-link" href="/org">{{ 'Sign in to your organisation console'|trans }}</a></p>
+    </header>
+
+    {% set _figs = [
+      {n: stats.total_profiles|default(0), l: 'Profiles in the registry'|trans},
+      {n: stats.total_votes|default(0), l: 'Votes counted'|trans},
+      {n: stats.nations_live|default(0), l: stats.nations_live|default(0) == 1 ? 'Nation live'|trans : 'Nations live'|trans},
+      {n: stats.categories|default(0), l: 'Award categories'|trans}
+    ]|filter(x => x.n > 0) %}
+    {% if _figs|length %}
+      <dl class="cm-figs cm-figs--row ag-card">
+        {% for x in _figs %}<div><dt>{{ x.l }}</dt><dd>{{ x.n|number_format }}</dd></div>{% endfor %}
+      </dl>
+    {% endif %}
+
+    <section aria-labelledby="cm-why-h" class="cm-sec">
+      <h2 class="cm-bar__h" id="cm-why-h">{{ 'Why partner with us'|trans }}</h2>
+      <ul class="cm-cards cm-cards--3">
+        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'A real audience'|trans }}</h3><p class="cm-opp__p">{{ 'The people and organisations being recognised across the continent, and the members who back them — accounts confirmed by email or phone, not bought followers.'|trans }}</p></li>
+        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'Association with excellence'|trans }}</h3><p class="cm-opp__p">{{ 'Stand beside an honour whose method is published and whose results are sealed when they are announced.'|trans }}</p></li>
+        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'Reporting you can use'|trans }}</h3><p class="cm-opp__p">{{ 'What your partnership reached, reported through the cycle in a form you can take to your board.'|trans }}</p></li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="cm-how-h" class="cm-sec" id="how">
+      <h2 class="cm-bar__h" id="cm-how-h">{{ 'How partnership works'|trans }}</h2>
+      <ol class="cm-steps">
+        <li><b>{{ 'Introduction'|trans }}</b><span>{{ 'Tell us your goals with the form below; a member of the partnerships team replies.'|trans }}</span></li>
+        <li><b>{{ 'A proposal for you'|trans }}</b><span>{{ 'We shape a package around your objectives, audience and budget.'|trans }}</span></li>
+        <li><b>{{ 'Agreement'|trans }}</b><span>{{ 'We agree the scope, how you are recognised and what you will report on.'|trans }}</span></li>
+        <li><b>{{ 'Launch'|trans }}</b><span>{{ 'Your partnership goes live across the cycle, with reporting throughout.'|trans }}</span></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="cm-tier-h" class="cm-sec">
+      <h2 class="cm-bar__h" id="cm-tier-h">{{ 'Ways to partner'|trans }}</h2>
+      <p class="cm-box__p">{{ 'Every partnership is shaped around your goals, so pricing is tailored to the scope.'|trans }}</p>
+      <ul class="cm-cards cm-cards--3">
+        {% for t in _tiers %}
+          <li class="ag-card cm-tier{{ loop.index == 2 ? ' cm-tier--feat' }}">
+            <p class="cm-opp__k">{{ t.k }}</p>
+            <h3 class="cm-opp__t">{{ t.n|trans }}</h3>
+            <ul class="cm-rules">{% for p in t.perks %}<li>{{ p }}</li>{% endfor %}</ul>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section class="ag-card cm-enq" id="enquiry" aria-labelledby="cm-enq-h">
+      <h2 class="cm-bar__h" id="cm-enq-h">{{ 'Let’s build something lasting'|trans }}</h2>
+      <p class="cm-box__p">{{ 'Tell us about your organisation and a member of the partnerships team will reply with a proposal.'|trans }}</p>
+      {% if error|default('') %}<p class="cm-say cm-say--error" role="alert" tabindex="-1">{{ error }}</p>{% endif %}
+      <form class="cm-form" method="post" action="/partner">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {{ f.text({id: 'pt-org', name: 'organisation', label: 'Organisation'|trans, required: true, autocomplete: 'organization', maxlength: 200, value: _old.organisation|default('')}) }}
+        {{ f.text({id: 'pt-name', name: 'contact_name', label: 'Your name'|trans, required: true, autocomplete: 'name', maxlength: 160, value: _old.contact_name|default('')}) }}
+        {{ f.text({id: 'pt-email', name: 'contact_email', type: 'email', label: 'Work email'|trans, required: true, autocomplete: 'email', inputmode: 'email', maxlength: 200, value: _old.contact_email|default('')}) }}
+        {{ f.text({id: 'pt-phone', name: 'contact_phone', type: 'tel', label: 'Phone'|trans, optional: true, autocomplete: 'tel', maxlength: 40, value: _old.contact_phone|default('')}) }}
+        <div class="ag-fieldset">
+          <label class="ag-label" for="pt-tier">{{ 'The kind of partnership you have in mind'|trans }} <span class="ag-label__opt">{{ 'Optional'|trans }}</span></label>
+          <select class="ag-input" id="pt-tier" name="tier">
+            <option value=""{% if not _old.tier|default('') %} selected{% endif %}>{{ 'Not sure yet'|trans }}</option>
+            {% for t in _tiers %}<option value="{{ t.n }}"{% if _old.tier|default('') == t.n %} selected{% endif %}>{{ t.n|trans }}</option>{% endfor %}
+          </select>
+        </div>
+        {{ f.textarea({id: 'pt-msg', name: 'message', label: 'What would you like to achieve?'|trans, required: true, rows: 5, maxlength: 5000, value: _old.message|default('')}) }}
+        <p class="ag-hint">{{ 'Your details are used only to reply to this enquiry.'|trans }} <a href="/privacy">{{ 'Privacy'|trans }}</a></p>
+        <div class="cm-form__go"><button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Request a proposal'|trans }}</button></div>
+      </form>
+      <p class="cm-box__p">{{ 'Rather write?'|trans }} <a class="cm-link" href="mailto:{{ support_email }}?subject={{ 'Partnership enquiry'|trans|url_encode }}">{{ support_email }}</a></p>
+    </section>
+  </div>
+</div>
+{% endblock %}

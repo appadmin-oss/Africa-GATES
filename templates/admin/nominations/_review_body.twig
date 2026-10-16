@@ -51,34 +51,34 @@
       <div class="ad-card__head"><div class="ad-card__title" tabindex="-1" data-desk-focus>Submission — {{ nom.nominee_name }}</div></div>
       <div class="ad-card__body">
         <div style="display:grid;grid-template-columns:auto 1fr;gap:14px 18px;font-size:14px">
-          <span style="color:var(--ad-text-soft)">Programme</span><span>{{ nom.icon_emoji }} {{ nom.programme_title }} · {{ nom.year }}</span>
-          <span style="color:var(--ad-text-soft)">Nominee</span><strong>{{ nom.nominee_name }}</strong>
-          <span style="color:var(--ad-text-soft)">Country</span><span>{{ nom.country_code }}</span>
-          <span style="color:var(--ad-text-soft)">Organisation / school</span><span>{{ nom.nominee_org|default('—') }}</span>
-          <span style="color:var(--ad-text-soft)">Nominee email</span><span>{{ nom.nominee_email|default('—') }}</span>
-          <span style="color:var(--ad-text-soft)">Submitted by</span><span>{{ nom.nominator_name }} · {{ nom.nominator_email }}</span>
-          <span style="color:var(--ad-text-soft)">Submitted</span><span style="font-family:'Space Mono',monospace;font-size:13px">{{ nom.created_at|slice(0,16) }}</span>
+          <span style="color:var(--cn-grey-600)">Programme</span><span>{{ nom.icon_emoji }} {{ nom.programme_title }} · {{ nom.year }}</span>
+          <span style="color:var(--cn-grey-600)">Nominee</span><strong>{{ nom.nominee_name }}</strong>
+          <span style="color:var(--cn-grey-600)">Country</span><span>{{ nom.country_code }}</span>
+          <span style="color:var(--cn-grey-600)">Organisation / school</span><span>{{ nom.nominee_org|default('—') }}</span>
+          <span style="color:var(--cn-grey-600)">Nominee email</span><span>{{ nom.nominee_email|default('—') }}</span>
+          <span style="color:var(--cn-grey-600)">Submitted by</span><span>{{ nom.nominator_name }} · {{ nom.nominator_email }}</span>
+          <span style="color:var(--cn-grey-600)">Submitted</span><span style="font-family:'Space Mono',monospace;font-size:13px">{{ nom.created_at|slice(0,16) }}</span>
           {% if eligibility %}
-          <span style="color:var(--ad-text-soft)">Eligibility</span>
+          <span style="color:var(--cn-grey-600)">Eligibility</span>
           <span><strong>{{ eligibility.distinct_locations }}</strong> distinct location{{ eligibility.distinct_locations == 1 ? '' : 's' }} · {{ eligibility.total }} nomination{{ eligibility.total == 1 ? '' : 's' }}
-            {% if eligibility.enabled %}{% if eligibility.eligible %}<span class="ad-chip ad-chip--green" style="margin-left:6px">Eligible ✓</span>{% else %}<span class="ad-chip ad-chip--gold" style="margin-left:6px">{{ eligibility.distinct_locations }}/{{ eligibility.min }} — not yet eligible</span>{% endif %}{% else %}<span style="color:var(--ad-text-soft);font-size:12px;margin-left:6px">(threshold off)</span>{% endif %}
+            {% if eligibility.enabled %}{% if eligibility.eligible %}<span class="ad-chip ad-chip--green" style="margin-left:6px">Eligible ✓</span>{% else %}<span class="ad-chip ad-chip--gold" style="margin-left:6px">{{ eligibility.distinct_locations }}/{{ eligibility.min }} — not yet eligible</span>{% endif %}{% else %}<span style="color:var(--cn-grey-600);font-size:12px;margin-left:6px">(threshold off)</span>{% endif %}
           </span>
           {% endif %}
         </div>
-        <hr style="margin:18px 0;border:none;border-top:1px solid var(--ad-line-soft)">
-        <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ad-text-soft);margin-bottom:10px">Reason for nomination</h4>
-        <p style="font-size:14px;line-height:1.7;color:var(--ad-text);white-space:pre-wrap">{{ nom.reason }}</p>
+        <hr style="margin:18px 0;border:none;border-top:1px solid var(--cn-line-row)">
+        <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:var(--cn-grey-600);margin-bottom:10px">Reason for nomination</h4>
+        <p style="font-size:14px;line-height:1.7;color:var(--cn-ink);white-space:pre-wrap">{{ nom.reason }}</p>
         {% if nom.nominee_photo_path %}
-        <hr style="margin:18px 0;border:none;border-top:1px solid var(--ad-line-soft)">
-        <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ad-text-soft);margin-bottom:10px">Photo</h4>
+        <hr style="margin:18px 0;border:none;border-top:1px solid var(--cn-line-row)">
+        <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:var(--cn-grey-600);margin-bottom:10px">Photo</h4>
         <button type="button" data-view-media="{{ nom.nominee_photo_path }}" data-view-title="{{ nom.nominee_name }}" aria-label="View full-size photo of {{ nom.nominee_name }}"
-                style="width:96px;height:96px;border-radius:12px;border:1px solid var(--ad-line,#dfe4e3);background-image:url('{{ nom.nominee_photo_path }}');background-size:cover;background-position:center;cursor:zoom-in"></button>
+                style="width:96px;height:96px;border-radius:12px;border:1px solid var(--cn-line-card);background-image:url('{{ nom.nominee_photo_path }}');background-size:cover;background-position:center;cursor:zoom-in"></button>
         {% endif %}
         {% if nom.reference_url or nom.reference_url_2 or nom.reference_url_3 %}
-        <hr style="margin:18px 0;border:none;border-top:1px solid var(--ad-line-soft)">
-        <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ad-text-soft);margin-bottom:10px">Reference links</h4>
+        <hr style="margin:18px 0;border:none;border-top:1px solid var(--cn-line-row)">
+        <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.12em;color:var(--cn-grey-600);margin-bottom:10px">Reference links</h4>
         <ul style="margin:0;padding-left:1.2em;font-size:13px;line-height:1.8">
-          {% for u in [nom.reference_url, nom.reference_url_2, nom.reference_url_3] %}{% if u %}<li><a href="{{ u }}" target="_blank" rel="noopener noreferrer" style="color:var(--ad-accent,#237b22);word-break:break-all">{{ u }}<span class="sr-only"> (opens in a new tab)</span></a></li>{% endif %}{% endfor %}
+          {% for u in [nom.reference_url, nom.reference_url_2, nom.reference_url_3] %}{% if u %}<li><a href="{{ u }}" target="_blank" rel="noopener noreferrer" style="color:var(--cn-ink);word-break:break-all">{{ u }}<span class="sr-only"> (opens in a new tab)</span></a></li>{% endif %}{% endfor %}
         </ul>
         {% endif %}
       </div>
@@ -94,9 +94,9 @@
           <div style="flex:1;height:8px;background:rgba(16,41,44,.08);border-radius:99px;overflow:hidden"><div style="width:{{ sc }}%;height:100%;border-radius:99px;background:{{ sc >= 65 ? '#237b22' : (sc >= 35 ? '#b98a00' : '#b4452f') }}"></div></div>
           <strong style="font-size:14px;color:{{ sc >= 65 ? '#166534' : (sc >= 35 ? '#6b5514' : '#7f1d1d') }}">{{ sc }}/100</strong>
         </div>
-        <p style="margin:0 0 8px;font-size:12px;color:var(--ad-text-mute,#61728e)">Completeness &amp; specificity of the submission — NOT whether the nominee deserves to win.</p>
+        <p style="margin:0 0 8px;font-size:12px;color:var(--cn-grey-500)">Completeness &amp; specificity of the submission — NOT whether the nominee deserves to win.</p>
         {% endif %}
-        {% if insight.summary %}<p style="font-size:14px;line-height:1.65;color:var(--ad-text)">{{ insight.summary }}</p>{% endif %}
+        {% if insight.summary %}<p style="font-size:14px;line-height:1.65;color:var(--cn-ink)">{{ insight.summary }}</p>{% endif %}
       </div>
     </div>
     {% elseif ai_enabled|default(false) %}
@@ -104,7 +104,7 @@
     <div class="ad-card" style="margin-top:14px">
       <div class="ad-card__head"><div class="ad-card__title">AI triage <small>advisory only — you decide</small></div></div>
       <div class="ad-card__body">
-        <p style="font-size:13px;color:var(--ad-text-soft);margin:0 0 10px">Get an AI read on this submission — a completeness/specificity score, a one-paragraph summary, and duplicate hints.</p>
+        <p style="font-size:13px;color:var(--cn-grey-600);margin:0 0 10px">Get an AI read on this submission — a completeness/specificity score, a one-paragraph summary, and duplicate hints.</p>
         <form method="post" action="/admin/nominations/{{ nom.id }}/ai-insight">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <button type="submit" class="ad-btn ad-btn--sm">✨ Generate AI insight</button>
@@ -120,13 +120,13 @@
       <div class="ad-card__body">
         {% if eligibility and eligibility.enabled and not eligibility.eligible %}<div class="ad-flash ad-flash--err" role="alert">Approval blocked — this nominee has {{ eligibility.distinct_locations }} of {{ eligibility.min }} required distinct locations. Adjust the threshold in Settings → Nomination eligibility.</div>{% endif %}
         {% if categories|length == 0 %}
-          <p style="color:var(--ad-text-soft)">This cycle has no categories yet. <a style="color:var(--ad-primary)" href="/admin/programmes">Add some first →</a></p>
+          <p style="color:var(--cn-grey-600)">This cycle has no categories yet. <a style="color:var(--cn-ink)" href="/admin/programmes">Add some first →</a></p>
         {% else %}
         <form method="post" action="/admin/nominations/{{ nom.id }}/approve" class="ad-form" id="approveForm"{% if spa %} data-desk-form="approve"{% endif %}>
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           {% if spa %}<input type="hidden" name="desk" value="1">{% endif %}
           <fieldset style="border:none;padding:0;margin:0 0 14px;display:flex;flex-direction:column;gap:8px">
-            <legend style="font-size:12px;font-weight:600;color:var(--ad-text-soft);padding:0;margin-bottom:2px">Category</legend>
+            <legend style="font-size:12px;font-weight:600;color:var(--cn-grey-600);padding:0;margin-bottom:2px">Category</legend>
             {# `nr-cat` with a CSS :hover rule, not onmouseenter/onmouseleave.
                Those two attributes were inline event handlers, and this site's CSP is
                nonce-based with no `script-src-attr 'unsafe-inline'` — so the browser
@@ -136,13 +136,13 @@
             {% for c in categories %}
               <label class="nr-cat">
                 <input type="radio" name="category_id" value="{{ c.id }}" {% if loop.first %}checked{% endif %} style="margin-top:3px">
-                <span><strong>{{ c.title }}</strong><br><span style="font-size:13px;color:var(--ad-text-soft)">{{ c.description|slice(0,140) }}{% if c.description|length > 140 %}…{% endif %}</span></span>
+                <span><strong>{{ c.title }}</strong><br><span style="font-size:13px;color:var(--cn-grey-600)">{{ c.description|slice(0,140) }}{% if c.description|length > 140 %}…{% endif %}</span></span>
               </label>
             {% endfor %}
           </fieldset>
           <div style="margin-bottom:14px">
-            <label for="approveReason" style="font-size:12px;font-weight:600;color:var(--ad-text-soft)">Welcome note to the nominator <small style="font-weight:400">(optional — included in the approval email)</small></label>
-            <textarea name="decision_reason" id="approveReason" rows="2" style="width:100%;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;padding:9px 11px;font:inherit;font-size:13px" placeholder="e.g. Wonderful nomination — voting is now open, good luck!"></textarea>
+            <label for="approveReason" style="font-size:12px;font-weight:600;color:var(--cn-grey-600)">Welcome note to the nominator <small style="font-weight:400">(optional — included in the approval email)</small></label>
+            <textarea name="decision_reason" id="approveReason" rows="2" style="width:100%;border:1px solid var(--cn-line-card);border-radius:9px;padding:9px 11px;font:inherit;font-size:13px" placeholder="e.g. Wonderful nomination — voting is now open, good luck!"></textarea>
             <button type="button" class="ad-btn ad-btn--sm" data-suggest="approved" data-target="approveReason" data-nom="{{ nom.id }}" style="margin-top:5px">✦ Suggest with AI</button>
           </div>
           <button type="submit" class="ad-btn ad-btn--primary" style="width:100%;justify-content:center">Approve → create nominee in this category</button>
@@ -154,8 +154,8 @@
     <form method="post" action="/admin/nominations/{{ nom.id }}/reject" class="ad-card" style="margin-top:14px;padding:16px" id="rejectForm"{% if spa %} data-desk-form="reject"{% endif %}>
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       {% if spa %}<input type="hidden" name="desk" value="1">{% endif %}
-      <label for="rejectReason" style="font-size:12px;font-weight:600;color:var(--ad-text-soft)">Reason for the nominator <small style="font-weight:400">(shown in the email — leave blank to let AI write one)</small></label>
-      <textarea name="decision_reason" id="rejectReason" rows="3" style="width:100%;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;padding:9px 11px;font:inherit;font-size:13px;margin-bottom:8px" placeholder="Why this wasn't approved — kind &amp; constructive. Blank = an AI-drafted reason is sent."></textarea>
+      <label for="rejectReason" style="font-size:12px;font-weight:600;color:var(--cn-grey-600)">Reason for the nominator <small style="font-weight:400">(shown in the email — leave blank to let AI write one)</small></label>
+      <textarea name="decision_reason" id="rejectReason" rows="3" style="width:100%;border:1px solid var(--cn-line-card);border-radius:9px;padding:9px 11px;font:inherit;font-size:13px;margin-bottom:8px" placeholder="Why this wasn't approved — kind &amp; constructive. Blank = an AI-drafted reason is sent."></textarea>
       <button type="button" class="ad-btn ad-btn--sm" data-suggest="rejected" data-target="rejectReason" data-nom="{{ nom.id }}" style="margin-bottom:10px">✦ Suggest with AI</button>
       <button type="submit" class="ad-btn ad-btn--danger" style="width:100%;justify-content:center" {% if spa %}data-desk-confirm{% else %}data-confirm{% endif %}="Reject this nomination? The nominator will be emailed the reason." id="rejectBtn">Reject nomination</button>
     </form>

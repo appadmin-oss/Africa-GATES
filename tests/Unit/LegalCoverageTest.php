@@ -187,7 +187,11 @@ final class LegalCoverageTest extends TestCase
 
         $this->assertStringContainsString("'httponly' => true", $idx);
         $this->assertStringContainsString("'samesite' => 'Lax'", $idx);
-        $this->assertStringContainsString("'lifetime' => 86400 * 7", $idx);
+        // Seven days, for the cookie AND the data behind it: one constant for both, because
+        // the two disagreeing (a seven-day cookie over twenty-four-minute data) is what
+        // stranded people on "CSRF validation failed" (Support\SessionStore).
+        $this->assertStringContainsString("'lifetime' => \\AfricaGates\\Support\\SessionStore::LIFETIME", $idx);
+        $this->assertSame(86400 * 7, \AfricaGates\Support\SessionStore::LIFETIME);
     }
 
     public function test_the_cookie_policy_does_not_claim_trackers_we_do_not_run(): void
@@ -211,10 +215,13 @@ final class LegalCoverageTest extends TestCase
                 'the policy is claiming something this platform does not do');
         }
 
-        // And it explains the absence of a banner, because otherwise that looks like an
-        // oversight rather than a consequence. It is generated now, from the posture the
-        // operator actually set — see LegalDocument::cookiesHtml().
-        $this->assertStringContainsString('banner', strtolower($this->cookiePage()));
+        // And it says how the counting relates to the cookie notice — asked first, or
+        // counted unless refused there — because a visitor who meets the notice and then
+        // reads a policy that never mentions it has been told two different things. It is
+        // generated, from the posture the operator actually set (LegalDocument::cookiesHtml();
+        // since 3 Oct 2026 there is a notice in both postures, so the old "why there is no
+        // banner" paragraph went with the single-switch model).
+        $this->assertStringContainsString('the cookie notice', strtolower($this->cookiePage()));
     }
 
     public function test_the_cookie_policy_separates_browser_storage_from_cookies(): void

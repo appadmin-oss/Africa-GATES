@@ -301,7 +301,8 @@ final class StandNotice
             ['autoescape' => 'html']
         ));
 
-        return $twig->render('emails/stand-decision.twig', $vars);
+        // `c`: the palette, by name — mail cannot read var() (Accent::mail()).
+        return $twig->render('emails/stand-decision.twig', $vars + ['c' => \AfricaGates\Support\Accent::mail()]);
     }
 
     /**

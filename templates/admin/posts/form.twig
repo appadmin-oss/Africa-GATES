@@ -25,8 +25,8 @@
         <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft</option>
       </select>
     </label>
-    <div x-data="postPoll({{ poll_seed|json_encode|e('html_attr') }})" style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa">
-      <strong style="font-size:14px;color:var(--ad-text,#10292C)">Poll <small style="font-weight:400;color:#8a9a9c">(optional — leave the question blank to remove)</small></strong>
+    <div x-data="postPoll({{ poll_seed|json_encode|e('html_attr') }})" style="border:1px solid var(--cn-line-card);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa">
+      <strong style="font-size:14px;color:var(--cn-ink)">Poll <small style="font-weight:400;color:#8a9a9c">(optional — leave the question blank to remove)</small></strong>
       <input name="poll_question" aria-label="Poll question" x-model="q" type="text" maxlength="200" placeholder="Poll question" style="margin-top:8px">
       <template x-for="(o,idx) in opts" :key="o.id">
         <div style="display:flex;gap:8px;align-items:center;margin-top:8px">

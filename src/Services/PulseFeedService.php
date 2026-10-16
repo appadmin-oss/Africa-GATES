@@ -42,14 +42,29 @@ final class PulseFeedService
      * @param int|null $programmeId Restrict to one channel. Null = every channel.
      * @param string|null $mediaType Restrict to one kind of media — 'video' is Reels.
      *                               Null = everything, including text-only posts.
+     * @param array{programmes?:list<int>,members?:list<int>,ids?:list<int>}|null $scope
+     *        The Following and Saved tabs (PulsePage.dc.html): posts in these programmes or
+     *        by these members, or exactly these posts. An empty scope is an empty feed, never
+     *        the whole feed — "you follow nobody yet" must not look like everything.
      * @return array{items: list<array<string,mixed>>, next_cursor: int|null}
      */
     public function page(?int $cursor = null, int $limit = self::PAGE, ?int $userId = null,
-                         ?int $programmeId = null, ?string $mediaType = null): array
+                         ?int $programmeId = null, ?string $mediaType = null, ?array $scope = null): array
     {
         $limit = max(1, min(30, $limit));
 
         $q = DB::table('gates_threads')->where('status', 'approved');
+        if ($scope !== null) {
+            $progs = array_values(array_filter(array_map('intval', $scope['programmes'] ?? [])));
+            $mems  = array_values(array_filter(array_map('intval', $scope['members'] ?? [])));
+            $only  = array_values(array_filter(array_map('intval', $scope['ids'] ?? [])));
+            if ($progs === [] && $mems === [] && $only === []) return ['items' => [], 'next_cursor' => null];
+            $q->where(static function ($w) use ($progs, $mems, $only): void {
+                if ($progs !== []) $w->orWhereIn('programme_id', $progs);
+                if ($mems !== [])  $w->orWhereIn('author_user_id', $mems);
+                if ($only !== [])  $w->orWhereIn('id', $only);
+            });
+        }
         if ($cursor !== null && $cursor > 0) $q->where('id', '<', $cursor);
         // Filtered in SQL, not in the browser. Filtering a loaded page client-side
         // makes "Education" show three posts because that is how many happened to
@@ -252,6 +267,62 @@ final class PulseFeedService
                 'note'       => self::note($res),
                 'url'        => (string) $res['url'],
             ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * What a member follows, as a feed scope: programmes and members (gates_follows).
+     *
+     * @return array{programmes:list<int>,members:list<int>}
+     */
+    public function followingFor(int $userId): array
+    {
+        $out = ['programmes' => [], 'members' => []];
+        if ($userId < 1) return $out;
+        try {
+            foreach (DB::table('gates_follows')->where('user_id', $userId)
+                     ->whereIn('target_type', ['programme', 'member'])->get(['target_type', 'target_id']) as $f) {
+                $out[$f->target_type === 'programme' ? 'programmes' : 'members'][] = (int) $f->target_id;
+            }
+        } catch (\Throwable) {}
+
+        return $out;
+    }
+
+    /** The posts a member saved, newest saves first. @return list<int> */
+    public function savedFor(int $userId, int $limit = 200): array
+    {
+        if ($userId < 1) return [];
+        try {
+            return array_map('intval', DB::table('gates_bookmarks')->where('user_id', $userId)
+                ->orderByDesc('id')->limit($limit)->pluck('thread_id')->all());
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * The rail's "Recognised this week": result announcements posted in the last seven
+     * days, drawn from the same payload as the feed's card — so the rail, the card and the
+     * award's page agree about who won.
+     *
+     * @return list<array{name:string, what:string, url:string}>
+     */
+    public function recognisedSince(string $since, int $limit = 3): array
+    {
+        try {
+            $rows = DB::table('gates_threads')->where('status', 'approved')
+                ->where('slug', 'like', ResultThread::SLUG . '%')->where('created_at', '>=', $since)
+                ->orderByDesc('id')->limit($limit * 2)->get(['id', 'slug'])->map(fn ($r) => (array) $r)->all();
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($this->resultPayloads($rows) as $p) {
+            $out[] = ['name' => $p['winner'], 'what' => $p['award'], 'url' => $p['url']];
+            if (count($out) >= $limit) break;
         }
 
         return $out;

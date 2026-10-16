@@ -1,0 +1,32 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  A MEMBER'S SEASONAL GREETING — HOLIDAY-THEMES · design/HolidayBanner.dc.html (5 Oct 2026)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Drawn by layout/shell.twig at the top of <main>, only where Services\HolidayTheme says the
+  page may carry one and only for a signed-in member with a greeting today. The 3px line
+  sits directly under the bar; the banner inside the page's max-width.
+
+  The action is a white pill with an edge ring, never green: it is chrome, not the page's
+  primary action. The dismiss is a form that posts — it works with no script; with one, it
+  posts in the background and the banner goes without a reload (shell.js, data-hb-dismiss).
+
+  Args: h — HolidayTheme::view()
+#}
+<span class="hb-line hb-t--{{ h.tone }}" aria-hidden="true" data-hb-part></span>
+<div class="hb-wrap" data-hb-part>
+  <section class="hb hb-t--{{ h.tone }} hb--{{ h.pattern }}{{ h.cta ? ' hb--cta' }}" role="region" aria-label="{{ '%name% greeting'|trans({'%name%': h.name}) }}">
+    <span class="hb__pat" aria-hidden="true"></span>
+    <span class="hb__tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ h.glyph }}"/></svg></span>
+    <div class="hb__text">
+      <span class="hb__g">{{ h.greeting }}</span>
+      <span class="hb__l">{{ h.line }}</span>
+    </div>
+    {% if h.cta %}<a class="hb__cta" href="{{ h.href }}">{{ h.cta }}</a>{% endif %}
+    <form class="hb__xf" method="post" action="/account/holiday/{{ h.slug }}/dismiss" data-hb-dismiss>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button type="submit" class="hb__x" aria-label="{{ 'Dismiss the %name% greeting'|trans({'%name%': h.name}) }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </form>
+  </section>
+</div>
+<script defer src="{{ asset('/assets/js/holiday.js') }}"></script>

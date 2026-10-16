@@ -15,7 +15,7 @@ class ProfileService {
         if($tier) $q->where('cpi_tier',$tier);
         if($region) $q->where('region',$region);
         if($country) $q->where('country_code',$country);
-        if($search) $q->where(fn($s)=>$s->where('display_name','LIKE',"%$search%")->orWhere('bio','LIKE',"%$search%")->orWhere('category','LIKE',"%$search%"));
+        if($search) $q->where(fn($s)=>$s->whereRaw(\AfricaGates\Support\Like::clause('display_name'),[\AfricaGates\Support\Like::contains($search)])->orWhereRaw(\AfricaGates\Support\Like::clause('bio'),[\AfricaGates\Support\Like::contains($search)])->orWhereRaw(\AfricaGates\Support\Like::clause('category'),[\AfricaGates\Support\Like::contains($search)]));
         [$col,$dir]=[['cpi_desc','cpi_score','desc'],['cpi_asc','cpi_score','asc'],['recent','registered_at','desc'],['name_asc','display_name','asc']][array_search($sort,['cpi_desc','cpi_asc','recent','name_asc'])??0] ?? ['cpi_score','desc'];
         $ordArr=['cpi_desc'=>['cpi_score','desc'],'cpi_asc'=>['cpi_score','asc'],'recent'=>['registered_at','desc'],'name_asc'=>['display_name','asc']];
         [$oc,$od]=$ordArr[$sort]??['cpi_score','desc'];
@@ -46,7 +46,7 @@ class ProfileService {
         $r=ProfileMergeService::notMerged(DB::table('gates_profiles')->where('slug',$slug)->where('status','approved'))->first();
         if(!$r) return null;   // a merged-away profile's slug 404s (its data lives on the survivor)
         DB::table('gates_profiles')->where('id',$r->id)->increment('view_count');
-        return array_merge($this->fmt($r),['bio'=>$r->bio,'phone'=>$r->phone,'website'=>$r->website,'instagram_handle'=>$r->instagram_handle,'twitter_handle'=>$r->twitter_handle,'latitude'=>$r->latitude,'longitude'=>$r->longitude,'gallery_paths'=>$r->gallery_paths?json_decode($r->gallery_paths,true):[],'achievements'=>$r->achievements?json_decode($r->achievements,true):[],'tags'=>$r->tags?json_decode($r->tags,true):[],'registered_at'=>$r->registered_at,'view_count'=>(int)$r->view_count,'cpi_last_computed'=>$r->cpi_last_computed]);
+        return array_merge($this->fmt($r),['bio'=>$r->bio,'phone'=>$r->phone,'website'=>$r->website,'instagram_handle'=>$r->instagram_handle,'twitter_handle'=>$r->twitter_handle,'latitude'=>$r->latitude,'longitude'=>$r->longitude,'gallery_paths'=>$r->gallery_paths?json_decode($r->gallery_paths,true):[],'achievements'=>$r->achievements?json_decode($r->achievements,true):[],'tags'=>$r->tags?json_decode($r->tags,true):[],'registered_at'=>$r->registered_at,'view_count'=>(int)$r->view_count,'cpi_last_computed'=>$r->cpi_last_computed,'location_city'=>$r->location_city??null,'cover_path'=>$r->cover_path??null]);
     }
 
     public function register(array $d): int {

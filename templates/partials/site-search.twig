@@ -1,0 +1,75 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE SEARCH PALETTE — REFERENCE §7.1 · design/SiteHeader.dc.html (`searchOpen`)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Opened by the header's Search control or by `/` (and ⌘K/Ctrl-K) from anywhere that is
+  not a text field. 680px wide, 84px from the top, a scrim behind. Input → scope chips →
+  grouped results (≤6 per group) → key hints. Data: `GET /search.json?q=&scope=`
+  (SearchController), which GROUPS on the server — this markup and `search.js` never name
+  a source, so there is no second copy of the scope map to drift (SearchScopeTest).
+
+  ── THE COMBOBOX IS WIRED BY THE SCRIPT, NOT CLAIMED BY THE MARKUP ──────────
+
+  The input is a WAI-ARIA 1.2 combobox: `aria-expanded`, `aria-controls`,
+  `aria-autocomplete="list"`, and the active option moved by `aria-activedescendant`,
+  never `focus()` (focus in the list loses the next keystroke). The palette only opens
+  when the script runs, so these attributes are only ever on a page where something
+  answers them.
+
+  ── WHERE THIS DIFFERS FROM THE DC, AND WHY ────────────────────────────────
+
+  · The chips are OUTLINED — 1px `--ag-line-2`, the chosen one a 2px ink border on the
+    same white. The DC fills the chosen chip with ink; REFERENCE §6.1 and §18.2 forbid a
+    dark-filled chip, and the README outranks a DC (§0).
+  · Group headings are sentence case at 12.5, not uppercase at 11 — no uppercase labels
+    and nothing under 11.5 (§6.2; owner, GAPS Q4/Q5).
+  · The kind label is `--ag-soft`, not `#8b9295` (`--ag-mute`, never a word).
+  · The empty palette has no "Trending people": there is no trending signal to draw it
+    from (GAPS §3.6) — SearchLanding draws only "Open now" and "Coming up".
+  · Results carry no photograph: the index holds none. A person is their initials, a
+    page an arrow on ink, an award or event its icon on a tint.
+
+  The form submits to Discover (the full search page, Phase 4) — so Enter with nothing
+  to open still goes somewhere a search happens.
+#}
+{% set _scope_labels = {people: 'People', awards: 'Awards', events: 'Events', pages: 'Pages'} %}
+<div class="ag-ss-scrim" data-ag-search-scrim hidden></div>
+<div class="ag-ss" id="ag-search" role="dialog" aria-modal="true" aria-label="{{ 'Search'|trans }}" data-ag-search hidden
+     data-msg-searching="{{ 'Searching…'|trans }}"
+     data-msg-none="{{ 'Nothing matches “%q%”. Try a name, an award or a country.'|trans }}"
+     data-msg-count="{{ '%n% results'|trans }}"
+     data-msg-one="{{ '1 result'|trans }}"
+     data-msg-start="{{ 'Start typing to search people, awards, events and pages.'|trans }}"
+     data-msg-error="{{ 'We couldn’t reach Africa GATES. Try again.'|trans }}">
+
+  <form class="ag-ss__bar" role="search" action="/discover" method="get" data-ag-search-form>
+    <svg class="ag-ss__glass" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+    <input class="ag-ss__q" id="ag-ss-q" name="q" type="search" autocomplete="off" spellcheck="false"
+           enterkeyhint="search" data-ag-search-input
+           aria-label="{{ 'Search people, awards, events and pages'|trans }}"
+           placeholder="{{ 'Search people, awards, events, pages'|trans }}">
+    <button type="button" class="ag-ss__esc" data-ag-search-close aria-label="{{ 'Close search'|trans }}"><kbd>Esc</kbd></button>
+  </form>
+
+  <div class="ag-ss__scopes" role="tablist" aria-label="{{ 'Search in'|trans }}" data-ag-search-scopes>
+    <button type="button" class="ag-chip ag-ss__chip" role="tab" aria-selected="true" tabindex="0"
+            aria-controls="ag-ss-list" data-ag-scope="">{{ 'All'|trans }}</button>
+    {% for s in search_scopes() %}
+      <button type="button" class="ag-chip ag-ss__chip" role="tab" aria-selected="false" tabindex="-1"
+              aria-controls="ag-ss-list" data-ag-scope="{{ s }}">{{ (_scope_labels[s] ?? s|capitalize)|trans }}</button>
+    {% endfor %}
+  </div>
+
+  <div class="ag-ss__body" data-ag-search-body>
+    <div class="ag-ss__list" id="ag-ss-list" role="listbox" aria-label="{{ 'Results'|trans }}" data-ag-search-list></div>
+    <p class="ag-ss__msg" data-ag-search-msg hidden></p>
+  </div>
+
+  <div class="ag-ss__keys" aria-hidden="true">
+    <span>{{ '↑ ↓ to move'|trans }}</span><span>{{ 'Enter to open'|trans }}</span><span>{{ 'Esc to close'|trans }}</span>
+  </div>
+  {# Always in the document, so the first announcement is not lost to a region that was
+     created at the same moment it changed. #}
+  <p class="ag-sr" role="status" aria-live="polite" aria-atomic="true" data-ag-search-status></p>
+</div>

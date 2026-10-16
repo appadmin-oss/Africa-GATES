@@ -560,9 +560,9 @@ final class ChallengesController
                    'e.payout_status', 'e.payout_ref', 'e.qualified_at']);
 
         $out = fopen('php://temp', 'r+');
-        fputcsv($out, ['entry', 'name', 'email', 'verified', 'place', 'status', 'payout', 'reference', 'qualified_at']);
+        \AfricaGates\Support\Csv::put($out, ['entry', 'name', 'email', 'verified', 'place', 'status', 'payout', 'reference', 'qualified_at']);
         foreach ($rows as $r) {
-            fputcsv($out, [$r->id, $r->name, $r->email, $r->verified, $r->standing,
+            \AfricaGates\Support\Csv::put($out, [$r->id, $r->name, $r->email, $r->verified, $r->standing,
                            $r->status, $r->payout_status, $r->payout_ref, $r->qualified_at]);
         }
         rewind($out);

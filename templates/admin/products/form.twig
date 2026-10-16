@@ -25,7 +25,7 @@
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   .pv-shot{ width:160px; height:120px; object-fit:cover; border-radius:10px;
-    border:1px solid var(--ad-line,rgba(16,41,44,.12)); transition:opacity .15s; }
+    border:1px solid var(--cn-line-card); transition:opacity .15s; }
   .pv-shot.is-dropped{ opacity:.3; filter:grayscale(1); }
 
   /* ── an option row ────────────────────────────────────────────────────────
@@ -38,15 +38,15 @@
      guesswork. The captions repeat per row; that is the cost of a repeater whose columns come
      and go with the axis, and it is cheaper than an unlabelled box. */
   .pv-row{ display:flex; flex-wrap:wrap; gap:10px 12px; align-items:flex-end;
-    border:1px solid var(--ad-line,rgba(16,41,44,.12)); border-radius:12px;
-    padding:12px 48px 12px 13px; background:var(--ad-surface,#fff); position:relative }
+    border:1px solid var(--cn-line-card); border-radius:12px;
+    padding:12px 48px 12px 13px; background:var(--cn-surface); position:relative }
   .pv-row + .pv-row{ margin-top:-4px }
   /* `.ad-form label` gives every label a 6px bottom margin, which on a flex-end row lifts the
      captioned fields 6px above the plain ones. Zeroed here rather than there, because that
      margin is correct everywhere else in the admin. */
   .pv-f{ display:block; margin-bottom:0 }
   .pv-f > span{ display:block; font-size:10px; font-weight:700; letter-spacing:.05em;
-    text-transform:uppercase; color:var(--ad-text-mute,#61728e); margin-bottom:4px }
+    text-transform:uppercase; color:var(--cn-grey-500); margin-bottom:4px }
   .pv-row input, .pv-row select{ margin:0 }
   .pv-w-sm{ width:104px } .pv-w-md{ width:132px } .pv-w-lg{ width:196px }
   .pv-swatch{ display:inline-flex; align-items:flex-end; gap:6px }
@@ -215,13 +215,13 @@
             <label>Where it can go<span class="af-opt">nothing ticked = nationwide</span></label>
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
               {% for r in regions %}
-              <label class="checkbox" style="display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ad-line,rgba(16,41,44,.12));border-radius:9px;padding:8px 12px;font-weight:500"><input type="checkbox" name="delivery_regions[]" value="{{ r }}" {% if r in sel_regions %}checked{% endif %}> {{ r }}</label>
+              <label class="checkbox" style="display:inline-flex;align-items:center;gap:7px;border:1px solid var(--cn-line-card);border-radius:9px;padding:8px 12px;font-weight:500"><input type="checkbox" name="delivery_regions[]" value="{{ r }}" {% if r in sel_regions %}checked{% endif %}> {{ r }}</label>
               {% endfor %}
             </div>
           </div>
         </div>
 
-        <div style="display:flex;gap:18px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--ad-line,rgba(16,41,44,.1))">
+        <div style="display:flex;gap:18px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--cn-line-card)">
           <label class="checkbox"><input type="checkbox" name="is_active" {% if is_new or row.is_active %}checked{% endif %}> <strong>Active</strong> — visible in the shop</label>
           {% if not shop_missing|default([])|length %}
           <label class="checkbox"><input type="checkbox" name="is_featured" {% if row.is_featured|default(0) %}checked{% endif %}> Feature at the front of the shop</label>
@@ -278,7 +278,7 @@
           {% endif %}
         </div>
         {% if swatches_ready|default(false) %}
-        <div style="font-size:13px;color:var(--ad-text-mute)">
+        <div style="font-size:13px;color:var(--cn-grey-500)">
           With two questions, <strong>every row is one combination</strong> — a row for “M, Navy”
           and another for “M, Cream” — because the stock, the price and the SKU belong to the
           pair. The shop shows two sets of buttons and works out which pairs are still available.
@@ -349,7 +349,7 @@
 
         <div>
           <button type="button" class="pv-add" @click="add()">+ Add an option</button>
-          <div style="font-size:12px;color:var(--ad-text-mute);margin-top:8px">
+          <div style="font-size:12px;color:var(--cn-grey-500);margin-top:8px">
             An option is never deleted once somebody has bought one — it is taken off sale instead,
             because an order line points at it for its name and the packing list would otherwise
             show a shirt with no size. The stock number on the previous step is ignored for a
@@ -375,14 +375,14 @@
       <div class="ad-form">
         <div>
           <label for="f-cover">Cover image</label>
-          {% if row.cover_path %}<div style="margin-bottom:8px"><img src="{{ row.cover_path }}" alt="Current cover for {{ row.name|default('this product') }}" style="width:90px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--ad-line,rgba(16,41,44,.12))"></div>{% endif %}
+          {% if row.cover_path %}<div style="margin-bottom:8px"><img src="{{ row.cover_path }}" alt="Current cover for {{ row.name|default('this product') }}" style="width:90px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--cn-line-card)"></div>{% endif %}
           <input type="file" name="cover" id="f-cover" accept="image/png,image/jpeg,image/webp">
           <div class="hint">PNG / JPG / WebP, min 300×300px. Leave blank to keep the current image.</div>
         </div>
 
         {% if images_on %}
         {% if image_seed|default([]) %}
-        <div style="border-top:1px solid var(--ad-line,rgba(16,41,44,.1));padding-top:14px">
+        <div style="border-top:1px solid var(--cn-line-card);padding-top:14px">
           <label>The rest of the gallery</label>
           <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px">
             {% for im in image_seed %}

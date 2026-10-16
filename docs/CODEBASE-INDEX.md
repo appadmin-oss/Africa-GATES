@@ -105,7 +105,7 @@ africa-gates/
 ├─ config/                container.php, database.php, AfricaGATES_AppScript.gs
 ├─ deploy/cloudflare/    the Cron Trigger Worker that drives /__cron/run (see §16)
 ├─ tests/Unit/            PHPUnit (in-memory SQLite harness)
-├─ docs/                  this file, redesign spec, redesign-ref/
+├─ docs/                  this file, redesign spec (redesign-ref/ deleted 8 Oct 2026, owner Q15 — in git history)
 └─ bin/console            Symfony Console entry
 ```
 
@@ -1507,6 +1507,24 @@ prose is the promise, the generated section is the fact.**
 That migration runs against an empty table in the harness, so it would have shipped
 completely untested — the `gates_event_invites.audience` shape exactly. `CookiePolicyRepairTest`
 plants rows that look like production's and exercises both branches.
+
+### Rebuilt for four categories (3 Oct 2026, GAPS Q11)
+
+The single switch above is history; what it argued is kept. Consent is the redesign's four
+categories — Essential, always on, plus Preferences, Analytics and Marketing — in one cookie,
+`ag_consent` (versioned JSON, `HttpOnly`), resolved by the rebuilt `CookiePrefs::allows()`
+with the same one-sentence rule: if anything said no, the answer is no (GPC/DNT beats a
+stored yes for every optional category). `visits_consent_mode` now decides the Analytics
+default only; Preferences is off until allowed (refused, `ag_lang` is a session cookie and
+`ag-a11y` lives in `sessionStorage`); Marketing is drawn as "Not used" with no switch,
+because nothing here does it. `ag_privacy` is read once — a stored no stays a no — carried
+into `ag_consent` by `CookiePrefs::carryOver()` and expired. The notice, the preferences sheet
+and the "saved" line are `partials/cookie-consent.twig` on the shell; every answer is still a
+plain form that posts, and the notice's three answers share one class string.
+`CookieRegistryTest` now holds the registry to the code in BOTH directions and resolves keys
+held in variables (an unresolvable key fails). Full account: `docs/handoff/PHASE-2.md`,
+"Cookie consent". `2027_02_27_cookie_consent_policy_repair.php` carries the rewritten prose to
+production, again only where `updated_by IS NULL`.
 
 ### Also removed
 

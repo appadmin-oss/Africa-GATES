@@ -1,0 +1,34 @@
+{#
+  The keyboard shortcuts dialog — design/SiteHeader.dc.html (`kbOpen`) · skill §23.
+
+  `?` opens it from anywhere that is not a text field; `G` then H/V/D/E/A goes to Home,
+  Vote, Discover, Events or Awards within 1.2s; `/` opens search; `Esc` closes the top
+  layer. Every shortcut has a visible equivalent — the header's own controls — and none
+  fires while somebody is typing or holding a modifier (`header.js`). The keys are
+  `<kbd>`, the one element whose meaning is "type this", so the DC's monospace caps stay
+  inside the rule that mono is for codes (MonoAndCaseTest).
+#}
+<div class="ag-kb-scrim" data-ag-kb-scrim hidden></div>
+<div class="ag-kb" id="ag-kb" role="dialog" aria-modal="true" aria-labelledby="ag-kb-h" data-ag-kb hidden>
+  <div class="ag-kb__head">
+    <h2 class="ag-kb__h" id="ag-kb-h">{{ 'Keyboard shortcuts'|trans }}</h2>
+    <button type="button" class="ag-kb__x" data-ag-kb-close aria-label="{{ 'Close'|trans }}"><span aria-hidden="true">×</span></button>
+  </div>
+  <dl class="ag-kb__list">
+    {% for k in [
+      {keys:['/'],      t:'Search everything'},
+      {keys:['?'],      t:'Show keyboard shortcuts'},
+      {keys:['G','H'],  t:'Go to Home'},
+      {keys:['G','V'],  t:'Go to Vote'},
+      {keys:['G','D'],  t:'Go to Discover'},
+      {keys:['G','E'],  t:'Go to Events'},
+      {keys:['G','A'],  t:'Go to Awards'},
+      {keys:['Esc'],    t:'Close menus, search and dialogs'}
+    ] %}
+      <div class="ag-kb__row">
+        <dt class="ag-kb__t">{{ k.t|trans }}</dt>
+        <dd class="ag-kb__keys">{% for c in k.keys %}<kbd>{{ c }}</kbd>{% endfor %}</dd>
+      </div>
+    {% endfor %}
+  </dl>
+</div>

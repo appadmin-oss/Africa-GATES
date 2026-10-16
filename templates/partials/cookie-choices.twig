@@ -1,0 +1,71 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  "YOUR CHOICES, RIGHT NOW" — the control card at the top of /cookies
+  design/DocPage.dc.html (`doc=cookies`, the card above the body) · §8.20 · §10
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt from the DC (inventory: _partials.md, `cookie-choice.twig`). It draws
+  `consent()` — the state CookiePrefs decided from this request in VisitTrackingMiddleware —
+  and decides nothing itself: one resolver for "may we", the same one the notice and the
+  preferences sheet read, so the three cannot describe one visitor two ways.
+
+  · A PLAIN FORM THAT POSTS to /cookies/choice. A privacy control that needs a script is
+    missing for exactly the people likeliest to block scripts; the switches are real
+    checkboxes and the answer is a submit button. Nothing is saved on a toggle alone: a
+    switch that silently changed what is stored the moment it was touched would be a
+    change of context on input (WCAG 3.2.2), so "Save my choices" says when it happens.
+  · Essential is locked, "Always on". A category nothing here uses (Marketing) has no
+    switch — a switch that changes nothing is a control lying about a mechanism.
+  · GPC / DNT: every optional row is off and offers no switch, and the card says why —
+    "if anything said no, the answer is no", and a header beats a stored yes.
+  · Ink when on, the track `mute` when off: tier 0, like the document it sits in.
+  · `#choices` is the address the footer's Cookies link and the sheet send people to.
+#}
+{% set _c = consent() %}
+{% if _c %}
+<section class="dp-choices" id="choices" aria-labelledby="dp-choices-h">
+  <h2 class="dp-choices__h" id="dp-choices-h">{{ 'Your choices, right now'|trans }}</h2>
+  {% if _c.signal %}
+    <p class="dp-choices__signal"><b>{{ 'Respected your browser’s privacy signal.'|trans }}</b>
+      {% if _c.signal == 'gpc' %}{{ 'Your browser sent Global Privacy Control, so everything optional is off. A choice made here does not overrule it.'|trans }}
+      {% else %}{{ 'Your browser sent Do Not Track, so everything optional is off. A choice made here does not overrule it.'|trans }}{% endif %}
+    </p>
+  {% endif %}
+  <form class="dp-choices__form" method="post" action="/cookies/choice">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="return" value="/cookies">
+    {% for r in _c.rows %}
+      <div class="dp-choices__row">
+        <span class="dp-choices__text">
+          {% if r.kind == 'switch' %}
+            <label class="dp-choices__name" for="dp-cc-{{ r.key }}">{{ r.name|trans }}</label>
+          {% else %}
+            <span class="dp-choices__name">{{ r.name|trans }}</span>
+          {% endif %}
+          <span class="dp-choices__desc" id="dp-cc-{{ r.key }}-d">{{ r.desc|trans }}</span>
+        </span>
+        {% if r.kind == 'switch' %}
+          <span class="dp-switch">
+            <input class="dp-switch__input" type="checkbox" role="switch" id="dp-cc-{{ r.key }}" name="{{ r.key }}" value="1"
+                   aria-describedby="dp-cc-{{ r.key }}-d"{% if r.on %} checked{% endif %}>
+            <span class="dp-switch__track" aria-hidden="true"><span class="dp-switch__thumb"></span></span>
+          </span>
+        {% else %}
+          <span class="dp-choices__state">
+            {%- if r.kind == 'always' %}{{ 'Always on'|trans }}
+            {%- elseif r.kind == 'signal' %}{{ 'Off'|trans }}
+            {%- elseif r.kind == 'off_for_all' %}{{ 'Off for everyone'|trans }}
+            {%- else %}{{ 'Not used'|trans }}{% endif -%}
+          </span>
+        {% endif %}
+      </div>
+    {% endfor %}
+    {% if not _c.signal %}
+      <div class="dp-choices__act">
+        <button class="dp-pill" type="submit" name="answer" value="save">{{ 'Save my choices'|trans }}</button>
+        <button class="dp-pill" type="submit" name="answer" value="essential">{{ 'Essential only'|trans }}</button>
+      </div>
+    {% endif %}
+  </form>
+</section>
+{% endif %}

@@ -1,0 +1,399 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  /giving — DONATIONS · GivingPage.dc.html · Phase 7 §8.13 (13 Oct 2026)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed on 3 Oct with the old layout and never rebuilt, so `/giving` — linked from the
+  footer, the menu and the homepage's campaign card — answered every visitor with a 500.
+  Written again from the DC, with every rule the old page held (inventory pages--donate.md,
+  and the old template at 882d7684^).
+
+  ONE TEMPLATE, THREE RECIPIENTS: the Africa GATES fund, a partner organisation's own page,
+  and an appeal inside one. Which it is decides the heading, the disclosure, and whether the
+  "raise donations yourself" block draws at all.
+
+  TWO VIEWS, EACH AN ADDRESS. The DC is campaign → checkout → done. Here the campaign is
+  `/giving[/org[/appeal]]` and the checkout is the same URL with `?step=give` (the
+  controller decides; a refused checkout returns to the checkout). So Back works, a reload
+  keeps the view, a "Give now" link in a message lands on the form, and none of it needs
+  script. Done is `/giving/success` (donate-success.twig), which only celebrates a gift the
+  gateway confirmed.
+
+  RULES CARRIED, each because its absence once shipped:
+  · A standing order is NEVER the default. "Monthly" is selected only when the donor
+    pressed "Give monthly" (`pick_monthly`), and offered only where it can be honoured
+    (`recurring`, never on a partner's appeal).
+  · The gift to Africa GATES is never pre-ticked; "No thanks" is one of its answers.
+  · A partner's fee is stated in naira beside the amount, before paying — never in a
+    footnote, never discovered on the bank statement.
+  · "100% funds the programmes" is said only where it is true.
+  · A donation buys no votes, and the form says so at the moment the decision is made.
+  · "₦0 raised" is never printed beside an ask; with nothing confirmed the space says so.
+  · The bar is capped at 100%; the figure beside it is not.
+  · The recent-gifts ledger is held back below three rows and says WHEN each gift came.
+  · A closed appeal says it is closed and that nothing was charged — even with no providers.
+  · Every amount the donor sees is recomputed by the server; the browser's figure is shown,
+    never trusted (PlatformTip, processing_fee_pct).
+
+  Colour tier 2: green is the give action and the progress; gold is not spent here.
+#}
+{% set colour_tier = '2' %}
+{% set flow_page = true %}
+{% set _step = step|default('campaign') %}
+{% set _closed = org_closed is defined and org_closed %}
+{% set _base = campaign ? '/giving/' ~ org.slug ~ '/' ~ campaign.slug : (org ? '/giving/' ~ org.slug : '/giving') %}
+{% set _title = campaign ? campaign.title : (org ? 'Donate to %o%'|trans({'%o%': org.name}) : 'Fund the next generation of leaders'|trans) %}
+{# The figures, once, for every block that prints them (masthead, rail, phone line). #}
+{% set _raised = campaign and progress ? progress.raised : (fund_goal ? fund_goal.raised : stats.raised_naira|default(0)) %}
+{% set _target = campaign and progress and progress.target > 0 ? progress.target : (fund_goal ? fund_goal.goal : 0) %}
+{% set _pct = campaign and progress and progress.target > 0 ? progress.pct : (fund_goal ? fund_goal.pct : 0) %}
+{% set _gifts = campaign and progress ? progress.count : stats.gifts|default(0) %}
+{% set _give = providers is not empty and not _closed %}
+{% set app_bar = {variant: 'child',
+                  title: _step == 'give' ? 'Give'|trans : (campaign ? 'Appeal'|trans : (org ? org.name : 'Giving'|trans)),
+                  sub: _step == 'give' ? _title : null,
+                  back: _step == 'give' ? _base : '/'} %}
+{% set _presets = [1000, 2000, 5000, 10000] %}
+{% set _pick = 5000 %}
+{# Hoisted: the recap (content) and the phone bar (bottom_bar) both print it, and a set
+   inside a block is invisible to every other block (TwigBlockScopeTest). #}
+{% set _fee0 = (_pick * (1 + processing_fee_pct|default(0) / 100))|round(0, 'ceil') - _pick %}
+{% macro ngn(n) %}₦{{ n|number_format }}{% endmacro %}
+{% import _self as m %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/giving.css') }}">
+  {% if _closed or _step == 'give' %}<meta name="robots" content="noindex">{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="gv" data-gv>
+
+  {% if _step == 'give' and _give %}
+  {# ══ THE CHECKOUT ══════════════════════════════════════════════════════════ #}
+  <form class="gv-co" id="give" method="post" action="/giving" data-favicon-busy data-gv-form
+        data-min="{{ min_naira }}" data-max="{{ max_naira }}" data-fee="{{ processing_fee_pct }}" data-org-fee="{{ org_fee_bps }}"
+        data-w-once="{{ 'Give %a%'|trans }}" data-w-monthly="{{ 'Give %a% every month'|trans }}" data-w-busy="{{ 'Opening the secure checkout…'|trans }}" data-w-short="{{ 'Give'|trans }}"
+        data-e-min="{{ 'The smallest gift we can process is %m%.'|trans({'%m%': m.ngn(min_naira)}) }}"
+        data-e-max="{{ 'That is above what this form can process — contact us and we will arrange it.'|trans }}">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {# Which appeal this is. Re-resolved server-side by (org, slug) TOGETHER — a slug is a
+       request, not an instruction, and an appeal of another organisation must not attach. #}
+    {% if org %}<input type="hidden" name="org" value="{{ org.slug }}">{% endif %}
+    {% if campaign %}<input type="hidden" name="campaign" value="{{ campaign.slug }}">{% endif %}
+
+    <div class="gv-co__to">
+      <span class="gv-co__thumb" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'campaign', src: '', name: org ? org.name : 'Africa GATES', logo: brand.logo|default('') ? asset('/' ~ brand.logo) : '', label: false} only %}</span>
+      <span class="gv-co__tot"><span class="gv-co__k">{{ 'You’re giving to'|trans }}</span><h1 class="gv-co__h">{{ _title }}</h1></span>
+    </div>
+
+    {% if error %}<p class="gv-err" role="alert">{{ error|trans }}</p>{% endif %}
+
+    {% if recurring %}
+    <fieldset class="gv-fs">
+      <legend class="gv-lab">{{ 'How often'|trans }}</legend>
+      <div class="gv-seg">
+        <label class="gv-seg__o"><input type="radio" name="monthly" value="0"{{ not pick_monthly ? ' checked' }} data-gv-freq><span>{{ 'Once'|trans }}</span></label>
+        <label class="gv-seg__o"><input type="radio" name="monthly" value="1"{{ pick_monthly ? ' checked' }} data-gv-freq><span>{{ 'Monthly'|trans }}</span></label>
+      </div>
+      <p class="gv-hint" data-gv-monthly-note{{ not pick_monthly ? ' hidden' }}>{{ 'Charged today and on this date each month. Stop any time from the link in your receipt — no account, no phone call.'|trans }}</p>
+    </fieldset>
+    {% endif %}
+
+    <fieldset class="gv-fs">
+      <legend class="gv-lab">{{ 'Amount'|trans }}</legend>
+      <div class="gv-amts">
+        {% for a in _presets %}
+          <label class="gv-amt"><input type="radio" name="amount" value="{{ a }}"{{ a == _pick ? ' checked' }} data-gv-preset><span>{{ m.ngn(a) }}</span></label>
+        {% endfor %}
+      </div>
+      <label class="gv-other">
+        <span class="gv-other__c" aria-hidden="true">₦</span>
+        <input class="gv-input" type="text" name="amount_other" inputmode="numeric" autocomplete="off" maxlength="9"
+               placeholder="{{ 'Other amount'|trans }}" aria-label="{{ 'Other amount, in naira'|trans }}" aria-describedby="gvAmtHint" data-gv-other>
+      </label>
+      <p class="gv-hint" id="gvAmtHint">{{ 'From %min% to %max%.'|trans({'%min%': m.ngn(min_naira), '%max%': m.ngn(max_naira)}) }}</p>
+    </fieldset>
+
+    {# ── WHAT THIS PAGE MAY PROMISE, AND WHAT IT MUST NOT ─────────────────────
+       "100% funds the programmes" is true when Africa GATES is the recipient. On a partner
+       appeal with a platform share it is false, so the share is stated in naira. #}
+    {% if org %}
+      <p class="gv-note">
+        {%- if org_fee_bps > 0 -%}
+          {#- `|raw` for the one <b> the script updates; the organisation's name is a value a
+              partner typed, so it is escaped BEFORE it is substituted. -#}
+          {{ 'Africa GATES keeps %f%% of this donation (%a%); the rest settles directly to %o%’s own account.'|trans({'%f%': (org_fee_bps / 100)|number_format(2), '%o%': org.name|e})|replace({'%a%': '<b data-gv-orgfee>' ~ m.ngn((_pick * org_fee_bps / 10000)|round(0, 'floor')) ~ '</b>'})|raw }}
+        {%- else -%}
+          {{ 'Africa GATES takes nothing. 100% settles directly to %o%’s own account.'|trans({'%o%': org.name}) }}
+        {%- endif %}
+        {{ 'We check that %o% is registered with the CAC%s%, and that donations settle to a bank account in their own name. We do not audit how the money is spent.'|trans({'%o%': org.name, '%s%': org.scuml_number ? ' and with SCUML'|trans : ''}) }}
+      </p>
+    {% endif %}
+
+    <fieldset class="gv-fs">
+      <legend class="gv-lab">{{ 'Your details'|trans }}</legend>
+      <div class="gv-field">
+        <label class="gv-flab" for="gvEmail">{{ 'Email'|trans }}</label>
+        <input class="gv-input" id="gvEmail" type="email" name="email" required autocomplete="email" inputmode="email" enterkeyhint="next" maxlength="190" aria-describedby="gvEmailHint">
+        <p class="gv-hint" id="gvEmailHint">{{ 'Where the receipt goes. It is the only thing we need.'|trans }}</p>
+      </div>
+      <div class="gv-field">
+        <label class="gv-flab" for="gvName">{{ 'Full name'|trans }} <span class="gv-opt">{{ 'optional'|trans }}</span></label>
+        <input class="gv-input" id="gvName" type="text" name="name" autocomplete="name" enterkeyhint="done" maxlength="120" aria-describedby="gvNameHint">
+        {# The DC's "Give anonymously" switch, said as what actually happens: the ledger prints
+           a first name and an initial (DonationController::anon), and no name prints
+           "A supporter". A switch would be a second control for the same fact. #}
+        <p class="gv-hint" id="gvNameHint">{{ 'Recent gifts show your first name and initial. Leave it blank to give as “A supporter”.'|trans }}</p>
+      </div>
+    </fieldset>
+
+    {% if providers|length > 1 %}
+    <fieldset class="gv-fs">
+      <legend class="gv-lab">{{ 'Pay with'|trans }}</legend>
+      <div class="gv-methods">
+        {% for p in providers %}
+          <label class="gv-method"><input type="radio" name="provider" value="{{ p.id }}"{{ loop.first ? ' checked' }}>
+            <span class="gv-method__t"><b>{{ p.label }}</b><span>{{ 'Card, bank transfer or USSD on %p%’s secure page'|trans({'%p%': p.label}) }}</span></span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% else %}
+      <input type="hidden" name="provider" value="{{ providers[0].id }}">
+      <p class="gv-note">{{ 'You choose card, bank transfer or USSD on %p%’s secure page next.'|trans({'%p%': providers[0].label}) }}</p>
+    {% endif %}
+
+    {# Offsets the GATEWAY's cut and nothing else — on a partner appeal with a platform
+       share it says what it covers and stops, rather than promising 100%. #}
+    <label class="gv-check">
+      <input type="checkbox" name="cover_fees" value="1" checked data-gv-cover>
+      <span>{% if org and org_fee_bps > 0 %}{{ 'Add %p%% to cover the payment processing charge, so the full amount reaches %o% less the Africa GATES share shown.'|trans({'%p%': processing_fee_pct, '%o%': org.name}) }}{% else %}{{ 'Add %p%% to cover processing, so 100% of my donation reaches %o%.'|trans({'%p%': processing_fee_pct, '%o%': org ? org.name : 'the programmes'|trans}) }}{% endif %}</span>
+    </label>
+
+    {# ── A VOLUNTARY GIFT TO AFRICA GATES ─────────────────────────────────────
+       Only on somebody ELSE's appeal. Never pre-ticked (NDPA 2023, the GDPR line on
+       consent): a default the donor did not choose is not a choice, and a donor who finds
+       at the bank that they gave us something they did not intend disputes the whole
+       payment — the organisation loses their gift with it. The percentage is what posts;
+       the naira is recomputed server-side. #}
+    {% if platform_tip.offered %}
+    <fieldset class="gv-fs">
+      <legend class="gv-lab">{{ 'Add a gift to Africa GATES?'|trans }}</legend>
+      <p class="gv-hint">{{ 'Africa GATES is a project of a Nigerian non-profit. Anything you add here is on top of your donation — it does not come out of what %o% receives.'|trans({'%o%': org.name}) }}</p>
+      <div class="gv-seg gv-seg--wrap">
+        {% for pct in platform_tip.options %}
+          <label class="gv-seg__o"><input type="radio" name="platform_tip" value="{{ pct }}"{{ pct == platform_tip.default ? ' checked' }} data-gv-tip><span>{{ pct == 0 ? 'No thanks'|trans : pct ~ '%' }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% endif %}
+
+    {# The recap and the button must agree, and a total that appears for the first time on
+       the gateway's own screen is the moment a donor abandons. Server-drawn for the default
+       amount; giving.js keeps it true as the donor changes anything. #}
+    <dl class="gv-recap" aria-live="polite">
+      <div><dt data-gv-freq-word data-once="{{ 'Your gift'|trans }}" data-monthly="{{ 'Your gift, every month'|trans }}">{{ pick_monthly ? 'Your gift, every month'|trans : 'Your gift'|trans }}</dt><dd data-gv-amt>{{ m.ngn(_pick) }}</dd></div>
+      <div data-gv-fee-row><dt>{{ 'Processing cover'|trans }}</dt><dd data-gv-fee>{{ m.ngn(_fee0) }}</dd></div>
+      {% if platform_tip.offered %}<div data-gv-tip-row hidden><dt>{{ 'Gift to Africa GATES'|trans }}</dt><dd data-gv-tipv>₦0</dd></div>{% endif %}
+      <div class="gv-recap__t"><dt>{{ 'Total today'|trans }}</dt><dd data-gv-total>{{ m.ngn(_pick + _fee0) }}</dd></div>
+    </dl>
+
+    <p class="gv-err" data-gv-err role="alert" hidden></p>
+    <div class="gv-co__go">
+      <button type="submit" class="gv-btn gv-btn--go" data-gv-go>{{ (pick_monthly ? 'Give %a% every month' : 'Give %a%')|trans|replace({'%a%': m.ngn(_pick + _fee0)}) }}</button>
+    </div>
+    <p class="gv-fine">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span>{{ 'You’ll complete the payment on the gateway’s secure page. A receipt comes by email.'|trans }}</span>
+    </p>
+    {# Every donation row is written with `bonus_votes = 0`, on this page and on a partner's.
+       On a platform that also sells votes a donor has every reason to assume otherwise, so
+       it is said here, where the decision is made, and links to where the rule is kept. #}
+    <p class="gv-fine">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="M15 9l-4 4-2-2"/></svg>
+      <span>{{ 'A donation buys no votes and changes no score — not here and not on a partner’s appeal.'|trans }} <a href="/integrity">{{ 'How that is kept true'|trans }}</a></span>
+    </p>
+  </form>
+
+  {% else %}
+  {# ══ THE CAMPAIGN ══════════════════════════════════════════════════════════ #}
+  <div class="gv-page">
+    <div class="gv-main">
+      <h1 class="gv-h1">{{ _closed ? 'This appeal is closed'|trans : _title }}</h1>
+
+      <div class="gv-media">
+        {% include 'partials/photo.twig' with {kind: 'thing', subject: 'campaign', src: '', name: campaign ? campaign.title : (org ? org.name : 'Africa GATES'), logo: brand.logo|default('') ? asset('/' ~ brand.logo) : '', eager: true} only %}
+      </div>
+
+      {% if not _closed %}
+      <div class="gv-by">
+        <span class="gv-by__av">{% include 'partials/avatar.twig' with {name: org ? org.name : 'Africa GATES', id: org ? org.id : 0, kind: 'organisation', size: 44, named: true} only %}</span>
+        <span class="gv-by__t">
+          <b>{{ org ? org.name : 'Africa GATES' }}</b>
+          <span>{{ org ? 'Organiser · donations settle to their own account'|trans : 'An Afrovanguard initiative · every donation receipted'|trans }}</span>
+        </span>
+      </div>
+      {% endif %}
+
+      {% if error %}<p class="gv-err" role="alert">{{ error|trans }}</p>{% endif %}
+
+      {% if _closed %}
+        <p class="gv-lede">{{ 'Nothing was charged. You can still give to the Africa GATES fund, or find another appeal.'|trans }}</p>
+        <a class="gv-btn gv-btn--line gv-btn--inline" href="/giving">{{ 'Go to giving'|trans }}</a>
+      {% else %}
+
+      {# The phone's figures (the rail carries them from 600). #}
+      <div class="gv-prog gv-prog--phone">{% include 'pages/giving/_progress.twig' %}</div>
+
+      <div class="gv-prose">
+        {% if campaign %}
+          <p class="gv-lede">{{ campaign.summary ?: 'An appeal run by %o%. Your donation settles directly to their own account.'|trans({'%o%': org.name}) }}</p>
+          {% for para in (campaign.story|default(''))|split("\n\n") %}{% if para|trim %}<p>{{ para|trim }}</p>{% endif %}{% endfor %}
+        {% elseif org %}
+          <p class="gv-lede">{{ brand.tagline|default('') ?: 'Your donation settles directly into %o%’s own account — Africa GATES never holds it.'|trans({'%o%': org.name}) }}</p>
+        {% else %}
+          <p class="gv-lede">{{ 'Every donation funds child leadership programmes across the continent — mentorship, scholarships, and the classrooms where tomorrow’s icons begin.'|trans }}</p>
+        {% endif %}
+      </div>
+
+      {# Stated BEFORE anybody donates: the first question a thoughtful donor asks. #}
+      {% if campaign and shortfall_text %}
+        <p class="gv-note"><b>{{ 'If the target is not reached:'|trans }}</b> {{ shortfall_text|lower }}.</p>
+      {% endif %}
+
+      {# A partner's open appeals, offered before anything else: somebody who arrived at an
+         organisation's page may have come for a specific cause. #}
+      {% if appeals %}
+      <section class="gv-sec" aria-labelledby="gv-appeals">
+        <h2 class="gv-h2" id="gv-appeals">{{ appeals|length == 1 ? 'One appeal you can give to'|trans : '%n% appeals you can give to'|trans({'%n%': appeals|length}) }}</h2>
+        <ul class="gv-list">
+          {% for a in appeals %}
+            <li><a class="gv-list__r gv-list__r--a" href="/giving/{{ org.slug }}/{{ a.slug }}">
+              <span class="gv-list__t">{{ a.title }}{% if a.summary %}<span class="gv-list__m">{{ a.summary }}</span>{% endif %}</span>
+              <svg class="ag-ico-dir" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a></li>
+          {% endfor %}
+        </ul>
+        <p class="gv-hint">{{ 'Or give to %o%’s general fund with the button.'|trans({'%o%': org.name}) }}</p>
+      </section>
+      {% endif %}
+
+      {# What we tell a donor their money is for — never on a partner's appeal, where it
+         settles into their account and our allocation would be a false statement about it
+         (FundAllocation::forOrg). Empty until an operator has written it. #}
+      {% if allocation %}
+      <section class="gv-sec" aria-labelledby="gv-where">
+        <h2 class="gv-h2" id="gv-where">{{ 'Where the money goes'|trans }}</h2>
+        <ol class="gv-alloc">
+          {% for a in allocation %}
+            <li><b>{{ a.title }}</b>{% if a.body %}<span>{{ a.body }}</span>{% endif %}</li>
+          {% endfor %}
+        </ol>
+        <p class="gv-fine">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span>{{ 'Every donation is receipted and the fund is independently audited.'|trans }} <a href="/integrity">{{ 'Read the method'|trans }}</a></span>
+        </p>
+      </section>
+      {# Africa GATES' own mission, on Africa GATES' own page only. #}
+      <blockquote class="gv-quote">
+        <p>{{ '“Recognition is only the beginning. The fund turns a spotlight into a scholarship, a mentor, a classroom — so the next generation of African leaders has somewhere to begin.”'|trans }}</p>
+        <cite>{{ 'The Africa GATES mission · an Afrovanguard initiative'|trans }}</cite>
+      </blockquote>
+      {% endif %}
+
+      {# Held back below three: a ledger of one anonymised row says less than the figure. #}
+      {% if givers|length >= 3 %}
+      <section class="gv-sec" aria-labelledby="gv-recent">
+        <h2 class="gv-h2" id="gv-recent">{{ 'Recent gifts'|trans }}</h2>
+        <ul class="gv-list">
+          {% for g in givers %}
+            <li class="gv-list__r">
+              <span class="gv-list__av">{% include 'partials/avatar.twig' with {name: g.name, size: 32, named: true} only %}</span>
+              <span class="gv-list__t">{{ g.name }}{% if g.ago %}<span class="gv-list__m">{{ g.ago }}</span>{% endif %}</span>
+              <span class="gv-list__v">{{ m.ngn(g.amount) }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {% include 'partials/org-page.twig' with {org: org, brand: brand, brand_css: brand_css, story_paragraphs: story_paragraphs, gates_credit: gates_credit, org_fee_bps: org_fee_bps} only %}
+
+      {# After the case has been made, never before it. #}
+      <section class="gv-sec gv-share" aria-labelledby="gv-share">
+        <h2 class="gv-h2" id="gv-share">{{ campaign ? 'Share this appeal'|trans : (org ? 'Share %o%'|trans({'%o%': org.name}) : 'Share the fund'|trans) }}</h2>
+        <p class="gv-hint">{{ 'Most gifts here arrive because somebody sent the link to somebody else. It costs nothing, and it is the most useful thing you can do if you cannot give today.'|trans }}</p>
+        <button type="button" class="gv-btn gv-btn--line gv-btn--inline" data-ag-share data-ag-copied="{{ 'Link copied'|trans }}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+          {{ 'Share the link'|trans }}
+        </button>
+      </section>
+      {% endif %}
+    </div>
+
+    {% if not _closed %}
+    <aside class="gv-rail" aria-label="{{ 'Give to this campaign'|trans }}">
+      <div class="gv-card">
+        <div class="gv-prog">{% include 'pages/giving/_progress.twig' %}</div>
+        {% include 'pages/giving/_give-ctas.twig' %}
+        {% if _give %}
+        <p class="gv-fine">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>
+          <span>{{ 'Card, bank transfer or USSD. Every gift is receipted, and a gift buys no votes.'|trans }}</span>
+        </p>
+        {% endif %}
+      </div>
+    </aside>
+    {% endif %}
+  </div>
+
+  {# ══ FOR ORGANISATIONS — on the Africa GATES page only ═════════════════════
+     On a partner's appeal it would be an advert for the platform in the middle of
+     somebody else's ask. The figures count EVERY applicant, not only those approved — a
+     page reporting successes alone claims a 100% acceptance rate. With none yet it says
+     what stage the scheme is at rather than publishing a nil return. #}
+  {% if not org and not _closed %}
+  <section class="gv-orgs" aria-labelledby="gv-orgs">
+    <div class="gv-orgs__in">
+      <div class="gv-orgs__t">
+        <h2 class="gv-h2" id="gv-orgs">{{ 'Raise donations on a page of your own'|trans }}</h2>
+        <p>{{ 'Supporters donate on a page in your name and the money settles directly into your own account — Africa GATES never holds it, because the split happens at the payment gateway.'|trans }}</p>
+        <a class="gv-btn gv-btn--line gv-btn--inline" href="/account/register?as=organisation">{{ 'Apply to raise donations'|trans }}</a>
+        <p class="gv-hint">{{ 'CAC and SCUML registration are both required, and the settlement account must be in your organisation’s own registered name.'|trans }}</p>
+      </div>
+      {% if org_totals.orgs > 0 %}
+        <dl class="gv-orgs__figs">
+          <div><dt>{{ org_totals.orgs == 1 ? 'organisation applied'|trans : 'organisations applied'|trans }}, {{ '%n% approved'|trans({'%n%': org_totals.approved|number_format}) }}</dt><dd>{{ org_totals.orgs|number_format }}</dd></div>
+          <div><dt>{{ org_totals.gifts == 1 ? 'raised for them, in 1 donation'|trans : 'raised for them, across %n% donations'|trans({'%n%': org_totals.gifts|number_format}) }}</dt><dd>{{ m.ngn(org_totals.raised) }}</dd></div>
+        </dl>
+      {% else %}
+        <p class="gv-orgs__new">{{ 'The scheme is open and nobody has applied yet. Once there are applications we publish the number who applied and the number approved — both, not just the ones who got through.'|trans }}</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+
+
+{# The DC's phone Give bar, on the campaign only (Gee clears it through --ag-bottom-ui). #}
+{% block bottom_bar %}
+  {% if _step != 'give' and _give %}
+  <div class="gv-bar" data-bottom-ui>{% include 'pages/giving/_give-ctas.twig' %}</div>
+  {% elseif _step == 'give' and _give %}
+  {# The checkout's action bar on a phone (§8): the total and the one button, in the thumb
+     zone, registered with data-bottom-ui so Gee's launcher clears it. `form="give"` — the
+     bar is outside the form, and the button still submits it. From 600 the in-form button
+     takes over. #}
+  <div class="gv-bar gv-bar--co" data-bottom-ui>
+    <span class="gv-bar__sum"><b data-gv-total>{{ m.ngn(_pick + _fee0) }}</b><span data-gv-freq-word data-once="{{ 'Total today'|trans }}" data-monthly="{{ 'Today, then every month'|trans }}">{{ pick_monthly ? 'Today, then every month'|trans : 'Total today'|trans }}</span></span>
+    <button type="submit" form="give" class="gv-btn gv-btn--go" data-gv-go>{{ 'Give'|trans }}</button>
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/giving.js') }}"></script>{% endblock %}

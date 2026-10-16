@@ -1,0 +1,157 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE COMMUNITY — /community · CommunityController::threadsIndex · Phase 8
+  Built without a DC (GAPS §0b, PHASE-8.md "built without a DC")
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct (inventory pages--community--threads.md); rebuilt on the shell with the
+  base components in the Pulse language: one white column of hairline rows, chips for the
+  spaces, a two-way sort, and on a desktop a right column of real figures.
+
+  Carried from the destroyed page, each a rule:
+  · GUESTS READ EVERYTHING, EVERY WRITE NEEDS A MEMBER — "Start a thread" is a sign-in link
+    for a guest, never a button the server will refuse.
+  · A SPACE IS AN ACTIVE PROGRAMME with its REAL thread count; the sandbox programme is
+    inactive and so never a space. The old per-space hex palette is gone — a colour that
+    means nothing is decoration, and colour is typed only in Support\Accent.
+  · Every filter and sort is a URL (`?programme=`, `?sort=`), so it survives Back and works
+    with no script; the current one carries `aria-current`.
+  · Pinned and locked are WORDS beside the title, never colour alone.
+  · An empty space says it is quiet, and offers to start the first thread.
+  · The charter links /integrity — the moderation rules are published, not implied.
+  · The flash ("Thread is queued for review") is drawn here, by the page (`own_flash`).
+#}
+{% import 'partials/community-ui.twig' as cm %}
+{% set own_flash = true %}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Community'|trans, back: '/'} %}
+{% set _space = null %}
+{% for s in spaces %}{% if s.id == active_programme %}{% set _space = s %}{% endif %}{% endfor %}
+{% set _q = active_programme ? 'programme=' ~ active_programme : '' %}
+{% set _new = member_logged_in ? '/community/new' : '/account/login?next=%2Fcommunity%2Fnew' %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="cm">
+  <div class="cm-col">
+    <header class="cm-head">
+      <div class="cm-head__b">
+        <h1 class="cm-h1">{{ _space ? _space.name : 'The community'|trans }}</h1>
+        <p class="cm-lede">{{ _space
+          ? 'Conversations about %name%. Anybody can read; members post.'|trans({'%name%': _space.name})
+          : 'Talk about the awards, the people in them and the work they do. Anybody can read; members post.'|trans }}</p>
+      </div>
+      {% if member_logged_in %}
+        <a class="ag-btn ag-btn--primary ag-btn--pill cm-head__go" href="/community/new">{{ 'Start a thread'|trans }}</a>
+      {% else %}
+        <a class="ag-btn ag-btn--primary ag-btn--pill cm-head__go" href="/account/login?next=%2Fcommunity%2Fnew">{{ 'Sign in to start a thread'|trans }}</a>
+      {% endif %}
+    </header>
+
+    {% if flash_notice or flash_error %}
+      <p class="cm-say{{ flash_error ? ' cm-say--error' }}" role="{{ flash_error ? 'alert' : 'status' }}">{{ flash_error ?: flash_notice }}</p>
+    {% endif %}
+
+    {% if spaces|length %}
+      <nav class="ag-chip-row cm-spaces" aria-label="{{ 'Spaces'|trans }}">
+        <a class="ag-chip" href="/community{{ active_sort == 'top' ? '?sort=top' }}"{% if not active_programme %} aria-current="true"{% endif %}>{{ 'Everything'|trans }}</a>
+        {% for s in spaces %}
+          <a class="ag-chip" href="/community?programme={{ s.id }}{{ active_sort == 'top' ? '&sort=top' }}"{% if active_programme == s.id %} aria-current="true"{% endif %}>{{ s.name }}{% if s.count > 0 %} <span class="ag-chip__n">{{ s.count }}</span>{% endif %}</a>
+        {% endfor %}
+      </nav>
+    {% endif %}
+
+    <div class="cm-bar">
+      <h2 class="cm-bar__h">{{ 'Threads'|trans }}</h2>
+      <nav class="cm-sort" aria-label="{{ 'Sort threads'|trans }}">
+        <a class="cm-sort__o" href="/community?sort=latest{{ _q ? '&' ~ _q }}"{% if active_sort == 'latest' %} aria-current="true"{% endif %}>{{ 'Latest'|trans }}</a>
+        <a class="cm-sort__o" href="/community?sort=top{{ _q ? '&' ~ _q }}"{% if active_sort == 'top' %} aria-current="true"{% endif %}>{{ 'Most active'|trans }}</a>
+      </nav>
+    </div>
+
+    {% if threads is empty %}
+      <div class="ag-empty cm-empty">
+        <p class="ag-empty__t">{{ active_programme ? 'This space is quiet — for now.'|trans : 'No threads yet.'|trans }}</p>
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ _new }}">{{ 'Start the first one'|trans }}</a>
+      </div>
+    {% else %}
+      <ul class="cm-list">
+        {% for t in threads %}
+          {% set _sp = null %}
+          {% for s in spaces %}{% if s.id == t.programme_id %}{% set _sp = s %}{% endif %}{% endfor %}
+          <li class="cm-row">
+            {{ cm.av(t.author_name) }}
+            <div class="cm-row__b">
+              <p class="cm-row__meta">
+                <span class="cm-row__who">{{ t.author_name }}</span> · {{ cm.ago(t.last_activity ?: t.created_at) }}
+                {% if _sp and not active_programme %} · <span>{{ _sp.name }}</span>{% endif %}
+              </p>
+              <h3 class="cm-row__t"><a href="/community/{{ t.slug }}">{{ t.title }}</a></h3>
+              {% if t.is_pinned or t.status == 'locked' %}
+                <p class="cm-tags">
+                  {% if t.is_pinned %}<span class="cm-tag">{{ 'Pinned'|trans }}</span>{% endif %}
+                  {% if t.status == 'locked' %}<span class="cm-tag">{{ 'Locked — read only'|trans }}</span>{% endif %}
+                </p>
+              {% endif %}
+              {% if t.body %}
+                {% set _b = t.body|striptags|trim %}
+                <p class="cm-row__x">{{ _b|length > 220 ? _b|slice(0, 220)|trim ~ '…' : _b }}</p>
+              {% endif %}
+              <p class="cm-row__n">
+                <span>{{ t.reply_count == 1 ? '1 reply'|trans : '%n% replies'|trans({'%n%': t.reply_count}) }}</span>
+                <span>{{ t.cheer_count == 1 ? '1 reaction'|trans : '%n% reactions'|trans({'%n%': t.cheer_count}) }}</span>
+              </p>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <aside class="cm-side" aria-label="{{ 'About the community'|trans }}">
+    <section class="cm-box" aria-labelledby="cm-pulse-h">
+      <h2 class="cm-box__h" id="cm-pulse-h">{{ 'In numbers'|trans }}</h2>
+      <dl class="cm-figs">
+        <div><dt>{{ 'Threads'|trans }}</dt><dd>{{ stats.threads|number_format }}</dd></div>
+        <div><dt>{{ 'Replies'|trans }}</dt><dd>{{ stats.replies|number_format }}</dd></div>
+        <div><dt>{{ 'Spaces'|trans }}</dt><dd>{{ stats.spaces|number_format }}</dd></div>
+      </dl>
+    </section>
+    {% if trending is not empty %}
+      <section class="cm-box" aria-labelledby="cm-tr-h">
+        <h2 class="cm-box__h" id="cm-tr-h">{{ 'Most active'|trans }}</h2>
+        <ol class="cm-trend">
+          {% for tr in trending %}
+            <li><a href="/community/{{ tr.slug }}">{{ tr.title }}</a><span>{{ tr.reply_count == 1 ? '1 reply'|trans : '%n% replies'|trans({'%n%': tr.reply_count}) }}</span></li>
+          {% endfor %}
+        </ol>
+      </section>
+    {% endif %}
+    {% if next_event %}
+      <section class="cm-box" aria-labelledby="cm-ev-h">
+        <h2 class="cm-box__h" id="cm-ev-h">{{ 'Next event'|trans }}</h2>
+        <a class="cm-ev" href="/events/{{ next_event.slug }}">
+          <b>{{ next_event.title }}</b>
+          <span>{{ next_event.event_date|date('l j F, g:ia') }}{% if next_event.location %} · {{ next_event.location }}{% endif %}</span>
+        </a>
+      </section>
+    {% endif %}
+    <section class="cm-box" aria-labelledby="cm-ch-h">
+      <h2 class="cm-box__h" id="cm-ch-h">{{ 'How we talk here'|trans }}</h2>
+      <ul class="cm-rules">
+        <li>{{ 'Talk about the work, never canvass for votes.'|trans }}</li>
+        <li>{{ 'Disagree with opinions, not people.'|trans }}</li>
+        <li>{{ 'A person reads what is reported, every time.'|trans }}</li>
+      </ul>
+      <a class="cm-link" href="/integrity">{{ 'The full moderation rules'|trans }}</a>
+    </section>
+    {% if member_logged_in and member_name %}
+      <p class="cm-side__me">{{ 'Posting as %name%'|trans({'%name%': member_name}) }} · <a href="/account">{{ 'Your account'|trans }}</a></p>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

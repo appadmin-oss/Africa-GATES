@@ -87,6 +87,19 @@ class ProgrammesController
             $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ActionError::dbMessage($e);
             return $res->withHeader('Location', $id ? '/admin/programmes/' . $id : '/admin/programmes/new')->withStatus(302);
         }
+        // ── THE TERMS ARE VERSIONED, SO A CHANGED TEXT IS A NEW VERSION ──────
+        //
+        // The column above is still written (an older reader may hold it), but what the
+        // public Terms tab shows and what a voter accepts is `gates_award_terms`. publish()
+        // adds a version only when the words changed, so re-saving the form is not a new
+        // version; the changelog line is the operator's, or a neutral one. Its own catch: a
+        // terms table that is not migrated yet must not cost the operator the rest of the save.
+        try {
+            \AfricaGates\Services\AwardTerms::publish($id, (string) ($data['terms'] ?? ''),
+                (string) ($b['terms_changelog'] ?? ''), (int) ($_SESSION['admin_id'] ?? 0));
+        } catch (\Throwable $e) {
+            error_log('[programmes] terms version not recorded: ' . $e->getMessage());
+        }
         $this->bustAwardsCache();
         $_SESSION['flash_ok'] = 'Programme saved.';
         return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
@@ -361,6 +374,13 @@ class ProgrammesController
         //
         // Through OptionalColumn so a deployment whose migration has not run yet still
         // saves a cycle: an unwritable note must never cost an operator their dates.
+        // Which edition this is ("11th Edition"). Typed, because a programme may have run for
+        // years before it came here and no count of our rows can know that; blank keeps the
+        // stored number (EditionName falls back to the order). Bounded to the column.
+        if (\AfricaGates\Support\OptionalColumn::on('gates_award_cycles', 'edition_number')
+            && trim((string) ($b['edition_number'] ?? '')) !== '') {
+            $data['edition_number'] = max(1, min(999, (int) $b['edition_number']));
+        }
         if (\AfricaGates\Support\OptionalColumn::on('gates_award_cycles', 'results_delay_note')) {
             $note = trim((string) ($b['results_delay_note'] ?? ''));
             // Bounded where it is written, not where it renders. This is prose typed under

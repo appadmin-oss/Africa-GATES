@@ -214,6 +214,29 @@ final class PublicResultsTest extends TestCase
     }
 
     /**
+     * AND THE INDEX NEVER CALLS A LATE CYCLE "DECIDED".
+     *
+     * Past its results date the computed phase reads `results`, and the index used to
+     * hand that straight to ResultStatus::forAward() — so /results printed "Decided" over
+     * an edition nobody had announced, directly under the notice saying it was late. A
+     * date passing is not a decision; only a released status is.
+     */
+    public function test_the_index_draws_a_late_cycle_as_with_the_panel(): void
+    {
+        $this->decided();
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'judging']);
+
+        $row = null;
+        foreach (PublicResults::standings()['editions'] as $e) {
+            if ((int) $e['cycle_id'] === $this->cycleId) $row = $e;
+        }
+        $this->assertNotNull($row, 'a late cycle has vanished from the index');
+        $this->assertSame(\AfricaGates\Services\ResultStatus::JUDGING, $row['status']['key'],
+            'the index is calling an unannounced, late cycle decided');
+        $this->assertFalse((bool) $row['status']['publishes_standing']);
+    }
+
+    /**
      * THE OPERATOR'S OWN REASON TRAVELS WITH IT, AND ITS ABSENCE IS NOT A BLANK PAGE.
      *
      * The delay is the platform's to admit and does not wait on somebody being at a desk;
@@ -726,29 +749,31 @@ final class PublicResultsTest extends TestCase
         // ── AND A PERSON BROWSING CAN REACH IT ───────────────────────────────
         //
         // Everything above is a link somebody was SENT. A page reachable only from an
-        // email, a feed card and a search result is one nobody finds on their own, which
-        // is the same shape as this codebase's most expensive class of bug: a mechanism
-        // complete and correct in every part except the route in.
+        // email, a feed card and a search result is one nobody finds on their own.
         //
-        // READ AS A DESTINATION, NOT AS A LITERAL ATTRIBUTE. This used to look for the
-        // string `href="/results"`, which is what a hand-written nav contains and what a
-        // DATA-DRIVEN one never does: the redesign's header loops over a list of
-        // `{href:'/results', label:…}` and renders `href="{{ i.href }}"`, so the literal
-        // appears nowhere and the guard would have gone quiet on the exact change most
-        // able to drop the link. Both spellings count now — a link is a link whichever
-        // way the template writes it.
-        // `layout/nav.twig` was split: the site header is `partials/site-header.twig`,
-        // and the Explore panel — and therefore the way into the results — went with the
-        // header. The second door, `layout/footer.twig`, was destroyed on 3 Oct 2026 with
-        // the other orphans of the old pages; its inventory (_partials.md) carries the
-        // rule, and the rebuilt footer goes back on this list.
-        foreach (['templates/partials/site-header.twig' => 'the navigation'] as $f => $what) {
-            $body = (string) file_get_contents($root . '/' . $f);
-            $this->assertTrue(
-                str_contains($body, 'href="/results"') || str_contains($body, "href:'/results'"),
-                $what . ' has no way into the results'
-            );
-        }
+        // THE RULE MOVED ON 3 OCT 2026, AND THIS SAYS SO RATHER THAN PASSING ON NOTHING.
+        // The redesign's header carried Results as a seventh Explore item for exactly this
+        // reason, and the owner removed it: Explore is the handoff's six (REFERENCE §7.1;
+        // SiteHeaderTest now fails if Results returns there). The doors that remain are the
+        // site search — its page list must name `/results`, asserted above, and the palette
+        // is on every page through the shell — and the rebuilt footer, whose inventory
+        // (inventory/_partials.md, layout/footer.twig) carries "must link /results" for the
+        // phase that rebuilds it. So this asserts the palette really is on every shell page,
+        // which is what makes the search index a browsing door at all.
+        $shell = (string) file_get_contents($root . '/templates/layout/shell.twig');
+        $this->assertStringContainsString("include 'partials/site-search.twig'", $shell,
+            'the search palette left the shell, and with Results out of the header nothing on '
+            . 'a page leads to a decided award');
+        $header = (string) file_get_contents($root . '/templates/partials/site-header.twig');
+        $this->assertStringContainsString('data-ag-search-open', $header,
+            'the header no longer opens the palette, so the search index is no door');
+        // And the footer, rebuilt in Phase 4, is back on the list of doors: on every shell
+        // page, a literal link to the results (its inventory's "must link /results").
+        $footer = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($root . '/templates/partials/site-footer.twig'));
+        $this->assertStringContainsString('href="/results"', $footer,
+            'the site footer no longer links the results — a browsing door closed');
+        $this->assertStringContainsString("include 'partials/site-footer.twig'", $shell,
+            'the footer left the shell, so its link to the results is on no page');
     }
 
     /**

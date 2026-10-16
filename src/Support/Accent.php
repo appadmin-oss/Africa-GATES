@@ -273,6 +273,318 @@ final class Accent
         'ink'  => ['fill' => 'ink',  'edge' => 'ink',  'ink' => 'ink',  'wash' => 'tint'],
     ];
 
+    // ══ the admin console's palette ════════════════════════════════════════════
+    //
+    // ── A SECOND SURFACE, AND STILL ONE FILE ─────────────────────────────────
+    //
+    // The admin console is not drawn by the public handoff. Its own handoff
+    // (`design_handoff_admin_console`, README §10) is monochrome — near-black ink on
+    // white, a ramp of neutral greys, and four status families — and the owner chose it
+    // (4 Oct 2026, GAPS §8d: option (A), with DM Sans and the house JetBrains Mono in
+    // place of Geist). The teal `--ad-*` set it replaces was typed into `admin.css`, a
+    // second colour file; it was destroyed with that sheet rather than aliased.
+    //
+    // The console set lives HERE, beside the public one, so "Accent is the only file a
+    // colour literal may be typed in" stays true with two surfaces. It is emitted under
+    // its own prefix, `--cn-*`, by `css('console')` into the admin layout's nonced
+    // `<style>`, and never into a public page: the two palettes share no name, so a
+    // public stylesheet can never pick up a console grey by accident, and the reverse.
+    //
+    // ── THE VALUES ARE THE HANDOFF'S, ±0, AND SO ARE ITS FAILURES ─────────────
+    //
+    // README §10 plus the colours the HTML (which wins on what users see) draws in the
+    // shell, Home and the overlays: `green` (#086411, the ticks and the all-clear dot),
+    // `line-row` (#f2f2f2 row rules), `line-bar` (#f0f0f0 under the top bar),
+    // `link-line` (#c4c4c4 underlines), `danger-edge` (#f0c9c5, the high-alert pill)
+    // and the three scrims. Every word the console draws is measured at 4.5:1 on every
+    // ground it is drawn on (`consoleWords()`); the ones that fail are REPORTED in
+    // `CONSOLE_REPORTED`, never re-valued, exactly as the public palette's are.
+
+    /**
+     * README §10 of the admin handoff, plus the shell's own colours from its HTML.
+     *
+     * @var array<string,array{value:string,use:string}>
+     */
+    private const CONSOLE = [
+        'ink'           => ['value' => '#0a0a0a', 'use' => 'text, primary buttons, the current state, focus'],
+        'grey-800'      => ['value' => '#262626', 'use' => 'body text'],
+        'grey-700'      => ['value' => '#404040', 'use' => 'nav items at rest'],
+        'grey-600'      => ['value' => '#525252', 'use' => 'secondary text'],
+        'grey-500'      => ['value' => '#737373', 'use' => 'muted text, counts, icons at rest'],
+        'grey-450'      => ['value' => '#8f8f8f', 'use' => 'sidebar group labels'],
+        'grey-400'      => ['value' => '#a3a3a3', 'use' => 'dots'],
+        'grey-350'      => ['value' => '#bdbdbd', 'use' => 'disabled fills (the empty send button)'],
+        'grey-300'      => ['value' => '#d4d4d4', 'use' => 'toggles off, dashed outlines'],
+        'line-control'  => ['value' => '#e5e5e5', 'use' => 'input and pill borders'],
+        'line-card'     => ['value' => '#ebebeb', 'use' => 'card borders'],
+        'line-row'      => ['value' => '#f2f2f2', 'use' => 'rules between rows inside a card or a drawer'],
+        'line-bar'      => ['value' => '#f0f0f0', 'use' => 'the rule under the top bar'],
+        'link-line'     => ['value' => '#c4c4c4', 'use' => 'a link\'s underline at rest'],
+        'fill-current'  => ['value' => '#ededed', 'use' => 'the current nav item'],
+        'fill-hover'    => ['value' => '#efefef', 'use' => 'hover on a nav item'],
+        'fill-subtle'   => ['value' => '#f2f2f2', 'use' => 'chips, the round close button'],
+        'fill-selected' => ['value' => '#f5f5f5', 'use' => 'a focused row, a highlighted option'],
+        'fill-panel'    => ['value' => '#fafafa', 'use' => 'the sidebar, table heads, the palette footer'],
+        'surface'       => ['value' => '#ffffff', 'use' => 'the main area, cards, menus'],
+        'green'         => ['value' => '#086411', 'use' => 'ticks and the all-clear dot'],
+        'success'       => ['value' => '#1a6118', 'use' => 'success text'],
+        'success-dot'   => ['value' => '#2f8f2c', 'use' => 'success dot'],
+        'success-tint'  => ['value' => '#eef6ee', 'use' => 'success field'],
+        'warning'       => ['value' => '#8a5a00', 'use' => 'warning text'],
+        'warning-dot'   => ['value' => '#c98a00', 'use' => 'warning dot, a waiting count'],
+        'warning-tint'  => ['value' => '#fdf0d2', 'use' => 'warning field'],
+        'warning-tint-2'=> ['value' => '#fdf6e3', 'use' => 'a softer warning field, the "Proposed" note'],
+        'warning-tint-3'=> ['value' => '#fdf9ee', 'use' => 'the softest warning field (a send-a-real-message card)'],
+        'danger'        => ['value' => '#b3261e', 'use' => 'danger text, a destructive confirm, an urgent count'],
+        'danger-pill'   => ['value' => '#8a2020', 'use' => 'danger text inside a pill'],
+        'danger-dot'    => ['value' => '#d0362c', 'use' => 'danger dot'],
+        'danger-tint'   => ['value' => '#fdf0ef', 'use' => 'danger field, the high-alert pill'],
+        'danger-edge'   => ['value' => '#f0c9c5', 'use' => 'the high-alert pill\'s border'],
+        'info'          => ['value' => '#2a5f9e', 'use' => 'info text, "in progress"'],
+        'info-dot'      => ['value' => '#2a78d6', 'use' => 'info dot'],
+        'proposed-ink'  => ['value' => '#5c4400', 'use' => 'text of a "Proposed" note'],
+        'scrim'         => ['value' => 'rgba(10,10,10,.32)', 'use' => 'behind the confirm dialog'],
+        'scrim-palette' => ['value' => 'rgba(10,10,10,.28)', 'use' => 'behind the command palette'],
+        'scrim-drawer'  => ['value' => 'rgba(10,10,10,.2)',  'use' => 'behind the assistant drawer'],
+        'on-ink-fill'   => ['value' => 'rgba(255,255,255,.14)', 'use' => 'a button on the black toast'],
+
+        // ── THE BRAND, AS AN ACCENT (owner, 13 Oct 2026) ───────────────────────
+        // "Make use of the Africa GATES colours as accent where best", on the console
+        // Home. The console stays monochrome; these six are the house green and gold,
+        // spent on what identifies the platform (the Home's header rule, the chart, the
+        // primary action on a job, a figure's icon). They are the PUBLIC palette's
+        // values by reference rather than typed again, so the console's green is the
+        // site's green by construction and cannot drift into a fifth gold.
+        'brand-green'      => ['value' => self::PALETTE['green']['value'],      'use' => 'the house green: a primary action on Home, chart bars, figure icons'],
+        'brand-green-deep' => ['value' => self::PALETTE['green-deep']['value'], 'use' => 'green words on a green wash'],
+        'brand-green-wash' => ['value' => self::PALETTE['green-wash']['value'], 'use' => 'a figure\'s icon field, the all-clear field'],
+        'brand-gold'       => ['value' => self::PALETTE['gold']['value'],       'use' => 'honour: the Home header rule, a results figure\'s mark'],
+        'brand-gold-ink'   => ['value' => self::PALETTE['gold-ink']['value'],   'use' => 'gold words, on white or the gold wash'],
+        'brand-gold-wash'  => ['value' => self::PALETTE['gold-wash']['value'],  'use' => 'a results figure\'s icon field'],
+    ];
+
+    /**
+     * README §10's shadows, verbatim, plus the palette's (which the HTML draws at .22).
+     *
+     * @var array<string,string>
+     */
+    private const CONSOLE_SHADOWS = [
+        'sh-menu'    => '0 12px 32px rgba(10,10,10,.12)',
+        'sh-modal'   => '0 20px 48px rgba(10,10,10,.2)',
+        'sh-palette' => '0 20px 48px rgba(10,10,10,.22)',
+        'sh-drawer'  => '-12px 0 32px rgba(10,10,10,.12)',
+        'sh-toast'   => '0 10px 30px rgba(10,10,10,.25)',
+        'sh-hero'    => '0 1px 2px rgba(10,10,10,.04), 0 10px 30px rgba(10,10,10,.05)',
+        'sh-tile'    => '0 1px 2px rgba(10,10,10,.04)',
+    ];
+
+    /**
+     * Every word the console draws, on every ground the handoff draws it on.
+     *
+     * Read off the HTML, not imagined: `grey-500` is the muted line on a white card, the
+     * table head on `fill-panel`, a second line in a focused row (`fill-selected`) and
+     * the count beside the CURRENT nav item (`fill-current`); `warning-dot` is the colour
+     * of a waiting count on a Home card. Failures are listed in CONSOLE_REPORTED.
+     *
+     * @var array<string,list<string>>
+     */
+    private const CONSOLE_WORDS = [
+        'ink'          => ['surface', 'fill-panel', 'fill-selected', 'fill-current', 'fill-hover', 'fill-subtle',
+                           'success-tint', 'warning-tint', 'warning-tint-2', 'warning-tint-3', 'danger-tint'],
+        'grey-800'     => ['surface', 'fill-panel', 'fill-selected'],
+        'grey-700'     => ['fill-panel', 'fill-hover', 'surface'],
+        'grey-600'     => ['surface', 'fill-panel', 'fill-subtle', 'fill-selected'],
+        'grey-500'     => ['surface', 'fill-panel', 'fill-selected', 'fill-current'],
+        'grey-450'     => ['fill-panel'],
+        'success'      => ['surface', 'success-tint'],
+        'green'        => ['surface'],
+        'warning'      => ['surface', 'warning-tint', 'warning-tint-2', 'warning-tint-3'],
+        'warning-dot'  => ['surface'],
+        'danger'       => ['surface', 'danger-tint'],
+        'danger-pill'  => ['surface', 'danger-tint'],
+        'info'         => ['surface'],
+        'proposed-ink' => ['warning-tint-2'],
+        'surface'      => ['ink', 'danger', 'green', 'brand-green'],
+        'brand-green'      => ['surface', 'fill-panel'],
+        'brand-green-deep' => ['surface', 'brand-green-wash'],
+        'brand-gold-ink'   => ['surface', 'brand-gold-wash'],
+    ];
+
+    /**
+     * Words the handoff draws under 4.5:1 — REPORTED to the owner, not re-valued.
+     *
+     * The test holds this list EXACTLY: a pair that starts passing must leave it, and a
+     * new failure must be added here with where it is drawn, which is the report.
+     *
+     * @var array<string,array{on:string,where:string}>
+     */
+    private const CONSOLE_REPORTED = [
+        'grey-450@fill-panel'    => ['on' => 'fill-panel',    'where' => 'sidebar group labels, 12.5px (3.10:1)'],
+        'grey-500@fill-selected' => ['on' => 'fill-selected', 'where' => 'the second line of a focused row, 12–12.5px (4.35:1)'],
+        'grey-500@fill-current'  => ['on' => 'fill-current',  'where' => 'the count beside the current nav item, 11.5px (4.04:1)'],
+        'warning-dot@surface'    => ['on' => 'surface',       'where' => 'a waiting count on a Home card, 22px at 500 — not large text (2.95:1)'],
+    ];
+
+    /**
+     * Console tokens drawn below a floor on purpose because they are not words.
+     *
+     * @var array<string,array{on:string,why:string}>
+     */
+    private const CONSOLE_ACCEPTED = [
+        'grey-350'     => ['on' => 'surface',    'why' => 'a DISABLED control\'s fill; WCAG 1.4.3 exempts an inactive control'],
+        'grey-300'     => ['on' => 'surface',    'why' => 'a toggle that is off, a dashed outline'],
+        'line-control' => ['on' => 'surface',    'why' => 'input and pill borders, as the handoff draws them'],
+        'line-card'    => ['on' => 'surface',    'why' => 'card borders'],
+        'line-row'     => ['on' => 'surface',    'why' => 'row rules'],
+        'line-bar'     => ['on' => 'surface',    'why' => 'the rule under the top bar'],
+        'link-line'    => ['on' => 'surface',    'why' => 'an underline beside words that carry the contrast'],
+        'fill-panel'   => ['on' => 'surface',    'why' => 'the sidebar field'],
+        'grey-400'     => ['on' => 'surface',    'why' => 'a dot that always sits beside its word'],
+        'brand-gold'   => ['on' => 'surface',    'why' => 'the Home header rule and a mark beside words; gold is never a word'],
+    ];
+
+    // ══ the default-graphics tones (DEFAULT-GRAPHICS §4, handoff 5 Oct 2026) ═══════════════
+    //
+    // Every image slot with no upload draws a generated cover or avatar in one of five tones,
+    // each a wash (`bg`), a line and an ink. The spec calls them "Accent pairs" and then
+    // gives their hex; twelve of the fifteen ARE palette tokens and are named here, not
+    // retyped, so moving a palette colour moves its covers with it. Three are not in the
+    // palette at all — gold's line #c99a06, info's wash #e6f0f4 and ink #1f5f8b — and are
+    // the spec's own values, typed once, here, as the only file a colour may be typed in.
+    // They are reported as a deviation for the owner (docs/handoff/PHASE-DEFAULT-GRAPHICS.md)
+    // rather than silently swapped for the nearest token, which would move every gold and
+    // info cover off the design by a visible amount.
+
+    // The avatar (DefaultAvatar.dc.html, §8) adds a fourth slot, `edge`, for its gradient's
+    // far stop and its 1px ring; live's #f6c7d3 and info's #c9dde8 are not palette tokens
+    // either, and are reported with the three above.
+    /** @var array<string,array{bg:string,line:string,ink:string,edge:string}> palette name, or a hex */
+    private const COVER = [
+        'green' => ['bg' => 'green-wash', 'line' => 'green',   'ink' => 'green-deep', 'edge' => 'green-edge'],
+        'gold'  => ['bg' => 'gold-wash',  'line' => '#c99a06', 'ink' => 'gold-ink',   'edge' => 'gold-edge'],
+        'live'  => ['bg' => 'live-wash',  'line' => 'live',    'ink' => 'live-ink',   'edge' => '#f6c7d3'],
+        'info'  => ['bg' => '#e6f0f4',    'line' => 'info',    'ink' => '#1f5f8b',    'edge' => '#c9dde8'],
+        'stone' => ['bg' => 'ground',     'line' => 'ink-2',   'ink' => 'ink',        'edge' => 'line-2'],
+    ];
+
+    /** @return list<string> the five tone names, in the spec's order */
+    public static function coverTones(): array
+    {
+        return array_keys(self::COVER);
+    }
+
+    /** One cover tone's slot as a six-digit hex (`bg`, `line`, `ink`, `edge`) — for GD and the SVG patterns. */
+    public static function coverHex(string $tone, string $slot): string
+    {
+        if (!isset(self::COVER[$tone][$slot])) {
+            throw new \InvalidArgumentException(sprintf('No cover tone "%s.%s". Tones: %s; slots: bg, line, ink, edge',
+                $tone, $slot, implode(', ', array_keys(self::COVER))));
+        }
+        $v = self::COVER[$tone][$slot];
+
+        return str_starts_with($v, '#') ? $v : self::hex($v);
+    }
+
+    /** `--ag-cover-{tone}-{slot}`: a palette token by reference, the spec's own hex where there is none. */
+    private static function coverCss(): array
+    {
+        $out = [];
+        foreach (self::COVER as $tone => $slots) {
+            foreach ($slots as $slot => $v) {
+                $out[] = '--ag-cover-' . $tone . '-' . $slot . ':' . (str_starts_with($v, '#') ? $v : 'var(--ag-' . $v . ')') . ';';
+            }
+        }
+
+        return $out;
+    }
+
+    // ── The seasonal greeting's tones (HOLIDAY-THEMES, handoff 5 Oct 2026) ──────────
+    // wash · edge · ink · line, the spec's table exactly. Inks and lines are palette tokens
+    // (gold's line and info's ink are the cover's own); the washes and edges are lighter than
+    // anything the palette names, typed here at the spec's value as the cover's are, and
+    // reported with them (docs/handoff/PHASE-HOLIDAY.md, HT-1). Emitted as `--ag-hol-*`.
+    /** @var array<string,array{wash:string,edge:string,ink:string,line:string}> */
+    private const HOLIDAY = [
+        'green' => ['wash' => '#eef7ee', 'edge' => '#d4e8d3', 'ink' => 'green-deep', 'line' => 'green'],
+        'gold'  => ['wash' => '#fcf6e4', 'edge' => '#efe0b4', 'ink' => 'gold-ink',   'line' => '#c99a06'],
+        'live'  => ['wash' => '#fdf0f3', 'edge' => '#f3d3dc', 'ink' => 'live-ink',   'line' => 'live'],
+        'info'  => ['wash' => '#ecf3f7', 'edge' => '#cfe0ea', 'ink' => '#1f5f8b',    'line' => 'info'],
+        'stone' => ['wash' => '#f4f2ec', 'edge' => '#e2ddd2', 'ink' => 'ink',        'line' => 'ink-2'],
+    ];
+
+    /** A holiday tone's slot as hex, for the SVG pattern tiles; null for a name that is not one. */
+    public static function holidayHex(string $tone, string $slot): ?string
+    {
+        $v = self::HOLIDAY[$tone][$slot] ?? null;
+        if ($v === null) return null;
+
+        return str_starts_with($v, '#') ? $v : self::hex($v);
+    }
+
+    /** @return list<string> */
+    public static function holidayTones(): array
+    {
+        return array_keys(self::HOLIDAY);
+    }
+
+    private static function holidayCss(): array
+    {
+        $out = [];
+        foreach (self::HOLIDAY as $tone => $slots) {
+            foreach ($slots as $slot => $v) {
+                $out[] = '--ag-hol-' . $tone . '-' . $slot . ':' . (str_starts_with($v, '#') ? $v : 'var(--ag-' . $v . ')') . ';';
+            }
+        }
+
+        return $out;
+    }
+
+    /** @return array<string,array{value:string,use:string}> */
+    public static function console(): array
+    {
+        return self::CONSOLE;
+    }
+
+    /** @return array<string,string> */
+    public static function consoleShadows(): array
+    {
+        return self::CONSOLE_SHADOWS;
+    }
+
+    /** @return array<string,list<string>> */
+    public static function consoleWords(): array
+    {
+        return self::CONSOLE_WORDS;
+    }
+
+    /** @return array<string,array{on:string,where:string}> */
+    public static function consoleReported(): array
+    {
+        return self::CONSOLE_REPORTED;
+    }
+
+    /** @return array<string,array{on:string,why:string}> */
+    public static function consoleAccepted(): array
+    {
+        return self::CONSOLE_ACCEPTED;
+    }
+
+    /** One console token as a six-digit hex. Unknown names and translucent tokens throw. */
+    public static function consoleHex(string $name): string
+    {
+        if (!isset(self::CONSOLE[$name])) {
+            throw new \InvalidArgumentException(sprintf(
+                'There is no console colour "%s". The console palette is: %s',
+                $name, implode(', ', array_keys(self::CONSOLE))));
+        }
+        $v = self::CONSOLE[$name]['value'];
+        if (!preg_match('/^#[0-9a-f]{6}$/', $v)) {
+            throw new \InvalidArgumentException(sprintf('"%s" is %s, not a hex', $name, $v));
+        }
+
+        return $v;
+    }
+
     // ══ the palette ═══════════════════════════════════════════════════════════
 
     /** @return array<string,array{value:string,use:string}> */
@@ -318,6 +630,30 @@ final class Accent
         return $v;
     }
 
+    /**
+     * Every hex token, under the handoff's own names, for a MAIL template.
+     *
+     * An inbox cannot read `var()` — Gmail strips the <style> that would declare one and
+     * most clients never resolve it — so mail carries literal colours. It does not TYPE
+     * them: every sender passes this map to its template as `c`, and the template writes
+     * `{{ c.ink }}` or `{{ c['ink-2'] }}`. Before 3 Oct 2026 the seven templates typed
+     * thirty-eight colours that were in no palette, and the newsletter read the palette
+     * through a second set of names of its own (`card`, `action`, `bar_soft`…) — an alias
+     * table, which is how a renamed token goes on rendering under a name nobody can find.
+     * One map, the palette's names, nothing else. `scrim` is translucent and mail cannot
+     * use it, so it is not here.
+     *
+     * @return array<string,string> token => six-digit hex
+     */
+    public static function mail(): array
+    {
+        $out = [];
+        foreach (self::PALETTE as $name => $v) {
+            if (preg_match('/^#[0-9a-f]{6}$/', $v['value'])) $out[$name] = $v['value'];
+        }
+        return $out;
+    }
+
     /** @return array<string,list<string>> */
     public static function words(): array
     {
@@ -336,9 +672,28 @@ final class Accent
      *
      * Values only ever come from the two constant tables, so nothing here can carry
      * anything a stylesheet would execute.
+     *
+     * `css('console')` is the admin console's set instead — `--cn-*`, and nothing of the
+     * public palette, so neither surface can read the other's colours. Any other
+     * argument throws rather than quietly emitting the public set into a console.
      */
-    public static function css(): string
+    public static function css(string $surface = 'site'): string
     {
+        if ($surface === 'console') {
+            $out = [];
+            foreach (self::CONSOLE as $name => $v) {
+                $out[] = '--cn-' . $name . ':' . $v['value'] . ';';
+            }
+            foreach (self::CONSOLE_SHADOWS as $name => $v) {
+                $out[] = '--cn-' . $name . ':' . $v . ';';
+            }
+
+            return ':root{' . implode('', $out) . '}';
+        }
+        if ($surface !== 'site') {
+            throw new \InvalidArgumentException(sprintf('No surface "%s": site or console', $surface));
+        }
+
         $out = [];
         foreach (self::PALETTE as $name => $v) {
             $out[] = '--ag-' . $name . ':' . $v['value'] . ';';
@@ -346,6 +701,7 @@ final class Accent
         foreach (self::SHADOWS as $name => $v) {
             $out[] = '--ag-' . $name . ':' . $v . ';';
         }
+        $out = array_merge($out, self::coverCss(), self::holidayCss());
 
         return ':root{' . implode('', $out) . '}';
     }
@@ -448,5 +804,67 @@ final class Accent
 
         return '--pg-fill:var(--ag-' . $c['fill'] . ');--pg-edge:var(--ag-' . $c['edge']
              . ');--pg-ink:var(--ag-' . $c['ink'] . ');--pg-wash:var(--ag-' . $c['wash'] . ')';
+    }
+
+    /**
+     * A CHALLENGE'S THEME — the one table, read by the page and by the flier.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS HERE AND NOT FOUR BLOCKS IN A STYLESHEET
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The rebuilt page first carried `[data-theme="green|blue|gold|rose"]` blocks in
+     * `components/challenge.css`, and two things were wrong with it.
+     *
+     * The first `ColourBudgetTest` found: a sheet naming four families charges the
+     * page four colour events, and a tier-2 page may spend two. That is the counter
+     * measuring the STYLESHEET rather than the screen — a challenge page draws one
+     * theme — but the index genuinely does show cards of four themes at once, so the
+     * objection is real and not a blind spot to work around.
+     *
+     * The second is worse and the counter could never have found it: the flier held
+     * the SAME four themes as hexes in `ChallengeFlier::THEMES`, because there is no
+     * CSS in a PNG. Two tables, one rule, and nothing but a test between them — "a
+     * blue challenge whose page is blue and whose flier is green is two products".
+     *
+     * So the theme is resolved here, once, and emitted per element exactly as
+     * {@see programmeStyle()} emits a programme's. The flier reads the same table.
+     * There is no second copy left to drift.
+     *
+     * ── `solid` IS NOT `fill`, AND THAT IS THE WHOLE POINT OF IT ─────────────
+     *
+     * `fill` is the identity and owes no contrast floor. `solid` carries WHITE TEXT
+     * on the primary action, so it owes 4.5:1 — gold's fill is `#f3b416`, which holds
+     * white at 1.9:1, so a gold challenge's main button had a label nobody could
+     * read. `ChallengePageTest::test_each_themes_solid_holds_white_text` re-derives
+     * every floor from these token names rather than trusting this paragraph.
+     *
+     * @return array{fill:string, edge:string, wash:string, solid:string} token names
+     */
+    public static function challengeTheme(?string $theme): array
+    {
+        return match ((string) $theme) {
+            'blue' => ['fill' => 'info',  'edge' => 'info',     'wash' => 'info-wash',  'solid' => 'info'],
+            'gold' => ['fill' => 'gold',  'edge' => 'gold-ink', 'wash' => 'gold-wash',  'solid' => 'gold-ink'],
+            'rose' => ['fill' => 'live',  'edge' => 'live-ink', 'wash' => 'live-wash',  'solid' => 'live-ink'],
+            // Green is the house accent and the default, so an unknown name — an older
+            // row, a hand-edited column — draws plain rather than drawing with every
+            // property undefined: a transparent hero and a `currentColor` kicker.
+            default => ['fill' => 'green', 'edge' => 'green-deep', 'wash' => 'green-wash', 'solid' => 'green'],
+        };
+    }
+
+    /**
+     * That theme as inline custom properties, per element.
+     *
+     * Safe in a `style` attribute: every value is a `var()` of a palette token, so
+     * nothing a challenge's own typed fields contain can reach a stylesheet.
+     */
+    public static function challengeStyle(?string $theme): string
+    {
+        $c = self::challengeTheme($theme);
+
+        return '--ch-fill:var(--ag-' . $c['fill'] . ');--ch-edge:var(--ag-' . $c['edge']
+             . ');--ch-wash:var(--ag-' . $c['wash'] . ');--ch-solid:var(--ag-' . $c['solid'] . ')';
     }
 }

@@ -1,0 +1,153 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  COOKIE CONSENT — the notice, the preferences sheet, and the "saved" line
+  REFERENCE §7.9 (PHASE-2-chrome), §10 (`ag_consent`), §13 · design/CookieConsent.dc.html
+  (views phone and desktop; `view=admin` is the admin console's and out of scope)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Four categories — Essential, always on, and Preferences, Analytics, Marketing — and one
+  rule, owned by Services\CookiePrefs: if anything said no, the answer is no. Everything
+  drawn here is `consent()`, the state CookiePrefs decided from this request in
+  VisitTrackingMiddleware; this file decides nothing for itself, because a template that
+  worked out whether somebody is being counted is how a page comes to tell a person the
+  opposite of what is happening to them. The words for each category are
+  Support\CookieRegistry::categories(), the same source as the generated half of /cookies.
+
+  ── EVERY CONTROL IS A PLAIN FORM THAT POSTS ─────────────────────────────────
+
+  A privacy control that needs JavaScript is missing for exactly the people likeliest to
+  block it. The notice's three answers are submit buttons in one form; the sheet's
+  switches are checkboxes in another. Without a script, "Choose" posts `answer=choose`,
+  the server stores nothing and sends the visitor back to `#ag-consent`, and the sheet
+  opens on `:target`. `consent.js` only makes the same things happen in place — a sheet
+  with a focus trap that gives focus back — and is never the only way to answer.
+
+  ── THE NOTICE'S RULES (the DC's own admin panel: "Rules the notice can't break") ──
+
+  · Every answer carries the IDENTICAL class string — "accept is a button, decline is
+    grey text" is the pattern the rules exist to stop. CookieConsentNoticeTest asserts it.
+  · Nothing is switched on in advance. Preferences and Marketing start off; Analytics
+    shows what is actually happening (on under the `exempt` posture, which the notice
+    then says in words, off under `consent`).
+  · There is no way to dismiss it without answering: no close button, no Esc.
+  · It carries `data-bottom-ui`, like every bottom-fixed element: anything floating
+    (Gee's launcher, a toast) clears it by 16px through `--ag-bottom-ui` (shell.js).
+  · It is not a modal and does not cover the tab bar — it sits above it, and the page
+    keeps scroll room for it so nothing the keyboard reaches is hidden under it (2.4.11).
+  · It is never drawn when the browser has already said no (GPC / DNT): asking somebody
+    to agree to something we have already decided not to do is a dark pattern. The sheet,
+    re-opened, says "Respected your browser's privacy signal" and offers no switch.
+
+  Marketing is drawn as a row and has no switch: nothing on this site does marketing, and
+  a switch that changes nothing is a control lying about a mechanism.
+#}
+{% set _c = consent() %}
+{% if _c %}
+{% set _counting = _c.counting %}
+{% set _exempt = _c.mode == 'exempt' %}
+
+{% if _c.ask %}
+  <section class="ag-consent" role="region" aria-labelledby="ag-consent-t" data-ag-consent-bar data-bottom-ui>
+    <div class="ag-consent__top">
+      <span class="ag-icon-tile ag-consent__ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><circle cx="9" cy="10" r="1.2" fill="currentColor"></circle><circle cx="14.5" cy="14" r="1.2" fill="currentColor"></circle><circle cx="15" cy="8.5" r="1" fill="currentColor"></circle></svg></span>
+      <div class="ag-consent__words">
+        <h2 class="ag-consent__t" id="ag-consent-t">{{ 'Your privacy, your choice'|trans }}</h2>
+        <p class="ag-consent__p">
+          {{ 'Essential cookies keep you signed in.'|trans }}
+          {% if _counting and not _exempt %}{{ 'With your OK we also remember your settings on this device and count visits ourselves.'|trans }}
+          {% else %}{{ 'With your OK we also remember your settings on this device.'|trans }}{% endif %}
+          {% if _counting and _exempt %}{{ 'We count visits ourselves unless you say no.'|trans }}{% endif %}
+          {{ 'No ads, never sold.'|trans }}
+          <a class="ag-consent__more" href="/cookies">{{ 'Details'|trans }}</a>
+        </p>
+      </div>
+    </div>
+    <form class="ag-consent__answers" method="post" action="/cookies/choice">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="return" value="{{ _c.return }}">
+      <button class="ag-consent__answer" type="submit" name="answer" value="all">{{ 'Allow all'|trans }}</button>
+      <button class="ag-consent__answer" type="submit" name="answer" value="essential">{{ 'Essential'|trans }}</button>
+      <button class="ag-consent__answer" type="submit" name="answer" value="choose" data-ag-do="consent-open" aria-haspopup="dialog" aria-controls="ag-consent-sheet">{{ 'Choose'|trans }}</button>
+    </form>
+  </section>
+{% endif %}
+
+{% if _c.saved %}
+  <div class="ag-consent-saved" role="status" data-ag-consent-saved data-bottom-ui>
+    <span class="ag-consent-saved__t">
+      {%- if _c.saved == 'all' %}{{ 'Saved. Everything optional is allowed.'|trans }}
+      {%- elseif _c.saved == 'essential' %}{{ 'Saved. Only essential cookies are on.'|trans }}
+      {%- elseif _c.saved == 'signal' %}{{ 'Saved. Your browser’s privacy signal still keeps the optional ones off.'|trans }}
+      {%- else %}{{ 'Saved your choices.'|trans }}{% endif -%}
+    </span>
+    <a class="ag-consent-saved__change" href="#ag-consent" data-ag-do="consent-open" aria-haspopup="dialog" aria-controls="ag-consent-sheet">{{ 'Change'|trans }}</a>
+  </div>
+{% endif %}
+
+{# The sheet. `#ag-consent` is its no-script door (`:target`); it is NOT `inert` in the
+   markup for the same reason — a browser without the script could not lift it — and is
+   hidden by the base sheet's `visibility` until it is opened. consent.js adds `inert` at
+   rest, as every other sheet has. #}
+<div class="ag-consent-layer" id="ag-consent">
+  <div class="ag-scrim" data-ag-consent-scrim></div>
+  <div class="ag-sheet ag-consent-sheet" id="ag-consent-sheet" role="dialog" aria-modal="true"
+       aria-labelledby="ag-consent-p" data-ag-consent-sheet>
+    {# No grabber: the DC draws none, and nothing drags this sheet. #}
+    <div class="ag-consent-sheet__head">
+      <h2 class="ag-consent-sheet__t" id="ag-consent-p">{{ 'Your cookie choices'|trans }}</h2>
+      <p class="ag-consent-sheet__sub">
+        <span class="ag-consent-sheet__phone">{{ 'You can change these any time from Menu → Cookies.'|trans }}</span>
+        <span class="ag-consent-sheet__wide">{{ 'You can change these any time from the Cookies page.'|trans }}</span>
+      </p>
+      {% if _c.signal %}
+        <p class="ag-consent-sheet__signal" data-ag-consent-signal>
+          <b>{{ 'Respected your browser’s privacy signal'|trans }}</b>
+          {% if _c.signal == 'gpc' %}{{ 'Your browser sent Global Privacy Control, so everything optional is off. A choice made here does not overrule it.'|trans }}
+          {% else %}{{ 'Your browser sent Do Not Track, so everything optional is off. A choice made here does not overrule it.'|trans }}{% endif %}
+        </p>
+      {% endif %}
+    </div>
+
+    <form class="ag-consent-sheet__form" method="post" action="/cookies/choice">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="return" value="{{ _c.return }}">
+      <div class="ag-consent-sheet__body">
+        {% for r in _c.rows %}
+          <div class="ag-consent-row">
+            <span class="ag-consent-row__text">
+              {% if r.kind == 'switch' %}
+                <label class="ag-consent-row__name" for="ag-consent-{{ r.key }}">{{ r.name|trans }}</label>
+              {% else %}
+                <span class="ag-consent-row__name">{{ r.name|trans }}</span>
+              {% endif %}
+              <span class="ag-consent-row__desc" id="ag-consent-{{ r.key }}-d">{{ r.desc|trans }}</span>
+              <span class="ag-consent-row__who">{{ r.who|trans }}</span>
+            </span>
+            {% if r.kind == 'switch' %}
+              {# A real checkbox — it posts with the form and needs no script — laid over
+                 the DC's drawn switch (52 × 32, a 26px thumb carrying On / Off) and grown
+                 to a 44px target. `role="switch"` so it is announced as on/off. #}
+              <span class="ag-consent-switch">
+                <input class="ag-consent-switch__input" type="checkbox" role="switch" id="ag-consent-{{ r.key }}"
+                       name="{{ r.key }}" value="1" aria-describedby="ag-consent-{{ r.key }}-d"{% if r.on %} checked{% endif %}>
+                <span class="ag-consent-switch__track" aria-hidden="true"><span class="ag-consent-switch__thumb"><span class="ag-consent-switch__on">{{ 'On'|trans }}</span><span class="ag-consent-switch__off">{{ 'Off'|trans }}</span></span></span>
+              </span>
+            {% else %}
+              <span class="ag-consent-row__state">
+                {%- if r.kind == 'always' %}{{ 'Always on'|trans }}
+                {%- elseif r.kind == 'signal' %}{{ 'Off'|trans }}
+                {%- elseif r.kind == 'off_for_all' %}{{ 'Off for everyone'|trans }}
+                {%- else %}{{ 'Not used'|trans }}{% endif -%}
+              </span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="ag-consent-sheet__foot">
+        <button class="ag-consent-sheet__btn" type="submit" name="answer" value="essential">{{ 'Essential only'|trans }}</button>
+        <button class="ag-consent-sheet__btn ag-consent-sheet__btn--save" type="submit" name="answer" value="save">{{ 'Save my choices'|trans }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}

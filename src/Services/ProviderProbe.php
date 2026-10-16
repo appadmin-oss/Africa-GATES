@@ -263,7 +263,7 @@ final class ProviderProbe
     /** Paystack: the bank list — authenticated, read-only, and no transaction opened. */
     private static function paystack(): array
     {
-        $key = self::setting('paystack_secret_key', 'PAYSTACK_SECRET_KEY');
+        $key = PaymentService::secretKey('paystack');
         if ($key === '') return self::off('No secret key set.');
 
         [$code, $body] = self::http('GET', 'https://api.paystack.co/bank?country=nigeria&perPage=1',
@@ -280,7 +280,7 @@ final class ProviderProbe
 
     private static function flutterwave(): array
     {
-        $key = self::setting('flutterwave_secret_key', 'FLW_SECRET_KEY');
+        $key = PaymentService::secretKey('flutterwave');
         if ($key === '') return self::off('No secret key set.');
 
         [$code, $body] = self::http('GET', 'https://api.flutterwave.com/v3/banks/NG',

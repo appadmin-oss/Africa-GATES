@@ -3,242 +3,299 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Admin\Middleware\SectionGuardMiddleware;
+use AfricaGates\Admin\Services\ConsoleAlerts;
+use AfricaGates\Admin\Services\HomeBoard;
 use AfricaGates\Admin\Support\AdminNav;
 use AfricaGates\Admin\Support\Permissions;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response;
 use Tests\TestCase;
 
 /**
- * The admin navigation tree, and the properties the old hand-written sidebar could not have.
+ * THE CONSOLE'S NAVIGATION — rebuilt with the admin handoff on 4 Oct 2026.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * WHAT THIS IS FOR
+ * THE ONE THAT MATTERS: REGROUPING CHANGED NOBODY'S ACCESS
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * The nav was thirty-six `<a>` tags in `admin/layout.twig`. A page could be built, routed
- * and permissioned and still never appear, because putting it in the sidebar was a
- * separate manual step nothing checked — and a link could rot into a 404 the same way.
+ * Rule 7 of the handoff: access is per page, and moving a page in the sidebar must not
+ * change who can open it. The old version of this file asserted the gate each SECTION
+ * carried, against a snapshot read off the old rail — and the snapshot was the RAIL's
+ * answer, not the guard's. Fifteen pages disagreed: the rail offered them to roles the
+ * guard refused (an unmapped path fails closed to superadmin), and the test pinned the
+ * rail's version of events.
  *
- * The most important assertion here is the LAST one: the restructure split the two
- * oversized groups, and splitting a group must never move a page across a permission
- * boundary. That would silently grant or remove access, which is not a navigation
- * decision and must not ride along inside one.
+ * So the snapshot below is the GUARD's answer, taken from
+ * `Permissions::sectionForPath()` on every page's href before this rebuild changed a
+ * line of it (null = unmapped = superadmin only). Every page's gate today is diffed
+ * against it, and exactly three may differ: Integrations and Email health moved to
+ * `health`, and Alerts is new there — the owner-approved widening (GAPS §8d). Anything
+ * else is an access change wearing a navigation change's clothes.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * AND A ROLE IS NEVER SHOWN A DOOR THE GUARD WILL CLOSE
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * Asked of the rail, the palette, Home's shortcuts and "needs a person", for every role
+ * — and asked of the GUARD ITSELF, by running SectionGuardMiddleware over every href, so
+ * "the nav agrees with the guard" is measured rather than assumed.
  */
 final class AdminNavTest extends TestCase
 {
-    /**
-     * The gate each page sat behind BEFORE the sections were split — read off the old
-     * layout markup. Any drift from this is a permission change wearing a nav change's
-     * clothes.
-     *
-     * @var array<string,?string>
-     */
-    private const ORIGINAL_GATES = [
-        'dashboard' => null, 'assistant' => null,
-
-        'profiles' => 'moderation', 'nominations' => 'moderation', 'nominees' => 'moderation',
-        'moderation' => 'moderation', 'interviews' => 'moderation', 'questionnaires' => 'moderation',
-        'campaigns' => 'moderation', 'support' => 'moderation',
-
-        'programmes' => 'programmes', 'awards_page' => 'programmes',
-
-        'events' => 'content', 'posts' => 'content', 'legacy' => 'content',
-        'opportunities' => 'content', 'partners' => 'content', 'media' => 'content',
-        'products' => 'content', 'shop_orders' => 'content', 'forms' => 'content',
-        'legal' => 'content',
-
-        'data' => 'data', 'analytics' => 'data', 'registrations' => 'data',
-
-        'finance' => 'finance', 'partner-orgs' => 'finance', 'refunds' => 'finance',
-        'vote-delivery' => 'finance', 'payments' => 'finance',
-        'payments-ledger' => 'finance', 'payments-disputes' => 'finance',
-
-        'admins' => 'configuration', 'settings' => 'configuration',
-        'webhooks' => 'configuration', 'judges' => 'configuration',
+    /** href => the guard's gate BEFORE the rebuild (null: unmapped, superadmin only). */
+    private const BEFORE = [
+        '/admin/dashboard' => 'overview', '/admin/assistant' => 'overview', '/admin/handbook' => null,
+        '/admin/profiles' => 'moderation', '/admin/nominations' => 'moderation',
+        '/admin/nominations/review' => 'moderation', '/admin/nominees' => 'moderation',
+        '/admin/moderation' => 'moderation', '/admin/interviews' => 'moderation',
+        '/admin/questionnaires' => 'moderation', '/admin/questionnaires/invitations' => 'moderation',
+        '/admin/campaigns' => null, '/admin/support' => null,
+        '/admin/programmes' => 'programmes', '/admin/shortlists' => 'programmes', '/admin/challenges' => null,
+        '/admin/awards-page' => 'programmes',
+        '/admin/events' => 'content', '/admin/stand-presets' => 'content', '/admin/posts' => 'content',
+        '/admin/legacy' => 'content', '/admin/opportunities' => 'content', '/admin/media' => 'content',
+        '/admin/products' => 'content', '/admin/shop/orders' => 'content', '/admin/forms' => 'content',
+        '/admin/partners' => 'content', '/admin/legal' => 'content',
+        '/admin/finance' => 'finance', '/admin/payouts' => null, '/admin/partner-orgs' => null,
+        '/admin/vendor-policy' => null, '/admin/payments' => 'finance', '/admin/payments/ledger' => 'finance',
+        '/admin/payments/disputes' => 'finance', '/admin/refunds' => 'finance', '/admin/vote-delivery' => 'finance',
+        '/admin/vote-recovery' => null,
+        '/admin/integrity' => null, '/admin/judging-audit' => null, '/admin/result-release' => null,
+        '/admin/audit' => null, '/admin/data' => 'data', '/admin/analytics' => 'data', '/admin/registrations' => 'data',
+        '/admin/admins' => 'configuration', '/admin/settings' => 'configuration', '/admin/webhooks' => 'configuration',
+        '/admin/ai-prompts' => null, '/admin/attendee' => 'configuration', '/admin/sandbox' => 'configuration',
+        '/admin/judges' => 'configuration', '/admin/rubric' => 'configuration',
+        '/admin/settings/providers' => 'configuration', '/admin/settings/mail' => 'configuration',
     ];
 
-    /** THE ONE THAT MATTERS: no page changed which permission covers it. */
-    public function test_the_restructure_moved_no_page_across_a_permission_boundary(): void
-    {
-        $now = [];
-        foreach (AdminNav::sections() as $s) {
-            foreach ($s['items'] as $i) $now[$i['page']] = $s['gate'];
-        }
+    /** The owner-approved widening (GAPS §8d), and the one new page. */
+    private const CHANGED = [
+        '/admin/settings/providers' => 'health',
+        '/admin/settings/mail'      => 'health',
+        '/admin/alerts'             => 'health',
+    ];
 
-        foreach (self::ORIGINAL_GATES as $page => $gate) {
-            $this->assertArrayHasKey($page, $now, "{$page} vanished from the nav");
-            $this->assertSame($gate, $now[$page],
-                "{$page} moved from the '{$gate}' gate to '{$now[$page]}' — that is an access change, not a nav change");
+    private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];
+
+    public function test_no_page_moved_across_a_permission_boundary_but_the_three_health_pages(): void
+    {
+        $now = AdminNav::hrefs();
+        $drift = [];
+        foreach ($now as $page => $href) {
+            $gate = AdminNav::gateOf($href);
+            if (array_key_exists($href, self::CHANGED)) {
+                if ($gate !== self::CHANGED[$href]) $drift[] = "$href should be on `" . self::CHANGED[$href] . "`, is " . var_export($gate, true);
+                continue;
+            }
+            $this->assertArrayHasKey($href, self::BEFORE, "$page ($href) is new to the console and unaccounted for");
+            if ($gate !== self::BEFORE[$href]) {
+                $drift[] = sprintf('%s moved from %s to %s', $href, var_export(self::BEFORE[$href], true), var_export($gate, true));
+            }
+        }
+        $this->assertSame([], $drift, "an access change rode along inside the navigation:\n  " . implode("\n  ", $drift));
+
+        // And every page the old console had is still named somewhere.
+        $missing = array_diff(array_keys(self::BEFORE), array_values($now));
+        $this->assertSame([], array_values($missing), 'pages vanished from the console');
+    }
+
+    public function test_the_health_gate_is_exactly_the_one_the_owner_approved(): void
+    {
+        $this->assertSame(['superadmin', 'admin', 'viewer'], Permissions::MATRIX['health']);
+        // The configuration-changing actions on those pages did not move with them.
+        foreach (['/admin/settings/mail/sending', '/admin/settings/mail/rules', '/admin/settings/providers/send-test'] as $p) {
+            $this->assertSame('health', Permissions::sectionForPath($p), $p);
+        }
+        $routes = (string) file_get_contents(dirname(__DIR__, 2) . '/src/routes.php');
+        $from = strpos($routes, '// ── HEALTH: READ BY superadmin, admin AND viewer');
+        $this->assertNotFalse($from, 'the health route group is gone');
+        $group = substr($routes, (int) $from, (int) strpos($routes, '});', (int) $from) - (int) $from);
+        foreach (['/providers', '/providers/run', '/mail', '/mail/diagnose'] as $read) {
+            $this->assertStringContainsString("'{$read}'", $group, "$read did not move to health");
+        }
+        foreach (['send-test', '/mail/sending', '/mail/rules', '/mail/use-env', 'rotate', '/lift'] as $write) {
+            $this->assertStringNotContainsString($write, $group, "$write rode along into the health group");
         }
     }
 
-    public function test_every_original_page_survived_the_restructure(): void
-    {
-        $missing = array_diff(array_keys(self::ORIGINAL_GATES), AdminNav::pages());
+    // ══ the shape §2.2 draws ══════════════════════════════════════════════════
 
-        $this->assertSame([], array_values($missing), 'pages were dropped from the nav');
+    public function test_the_groups_are_the_handoffs_in_its_order_and_words(): void
+    {
+        $got = [];
+        foreach (AdminNav::groups() as $g) $got[$g['label']] = array_column($g['items'], 'label');
+
+        $this->assertSame([
+            'Daily work' => ['Review queue', 'Payment issues', 'Alerts', 'Support tickets'],
+            // Hosts (not built, owner) and Editions (stage 2) are recorded as deviations.
+            'Programmes' => ['Awards', 'Events & stands', 'Challenges'],
+            'Entries'    => ['Nominations', 'Nominees', 'Profiles', 'Interviews'],
+            'Money'      => ['Revenue', 'Payouts', 'Ledger', 'Refunds & disputes', 'Vote delivery', 'Vendor rules'],
+            'Publishing' => ['Blog', 'Media', 'Awards page', 'Opportunities', 'Forms', 'Shop', 'Legal', 'Legacy vault'],
+            'Monitoring' => ['Integrations', 'Email health', 'Audit log', 'Integrity', 'Analytics', 'All data'],
+            'Settings'   => ['People & roles', 'Judges & rubric', 'Site & keys', 'Webhooks', 'AI & interview bot', 'Test data'],
+        ], $got);
+        $this->assertSame('Home', AdminNav::home()['label']);
     }
 
-    public function test_no_page_appears_twice(): void
+    public function test_no_page_appears_twice_and_every_href_is_an_admin_path(): void
     {
         $pages = AdminNav::pages();
-
-        $this->assertSame(array_unique($pages), $pages, 'a duplicated page would light two nav entries');
-    }
-
-    public function test_every_href_is_an_admin_path(): void
-    {
-        foreach (AdminNav::sections() as $s) {
-            foreach ($s['items'] as $i) {
-                $this->assertStringStartsWith('/admin/', $i['href'], "{$i['page']} points outside the admin");
-                $this->assertNotSame('', trim($i['label']), "{$i['page']} has no label");
-            }
+        $this->assertSame(array_values(array_unique($pages)), $pages, 'a page is named twice');
+        $hrefs = array_values(AdminNav::hrefs());
+        $this->assertSame(array_values(array_unique($hrefs)), $hrefs, 'two entries open the same page');
+        foreach (AdminNav::hrefs() as $page => $href) {
+            $this->assertStringStartsWith('/admin/', $href, "$page points outside the admin");
         }
     }
 
-    /**
-     * Every href must be a route the app actually serves. A nav entry pointing at a 404 is
-     * the failure the hand-written list produced twice.
-     */
+    /** Every href is a route the router actually serves — asked of Slim, not parsed. */
     public function test_every_link_is_a_registered_route(): void
     {
-        $routes = (string) file_get_contents(dirname(__DIR__, 2) . '/src/routes.php');
+        $b = new \DI\ContainerBuilder();
+        $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        \Slim\Factory\AppFactory::setContainer($b->build());
+        $app = \Slim\Factory\AppFactory::create();
+        (require dirname(__DIR__, 2) . '/src/routes.php')($app);
 
-        foreach (AdminNav::sections() as $s) {
-            foreach ($s['items'] as $i) {
-                // Routes are declared relative to their group, so match the tail — and the
-                // tail can appear three ways. `/admin/legal` is declared `'/legal'` at the
-                // admin group; `/admin/shop/orders` is `'/orders'` inside a `/shop` group.
-                // The last segment WITH its slash is the third form, and leaving it out
-                // failed `/admin/questionnaires/invitations`, whose route is a perfectly
-                // real `$s->get('/invitations', …)` inside the questionnaires group.
-                $tail = substr($i['href'], strlen('/admin'));
-                $last = basename($tail);
-                $alts = array_map(
-                    fn ($v) => '[\'"]' . preg_quote($v, '~') . '[\'"]',
-                    [$tail, $last, '/' . $last]
-                );
-                $this->assertMatchesRegularExpression(
-                    '~' . implode('|', $alts) . '~',
-                    $routes,
-                    "{$i['href']} is in the nav but not in routes.php"
-                );
+        $gets = [];
+        foreach ($app->getRouteCollector()->getRoutes() as $r) {
+            if (in_array('GET', $r->getMethods(), true)) $gets[$r->getPattern()] = true;
+        }
+        foreach (AdminNav::hrefs() as $page => $href) {
+            $this->assertArrayHasKey($href, $gets, "$page → $href is in the nav and not a GET route");
+        }
+        $this->assertArrayHasKey('/admin/alerts', $gets);
+    }
+
+    public function test_every_icon_the_nav_names_is_in_the_sprite(): void
+    {
+        $sprite = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/partials/nav-icons.twig');
+        $icons = ['home', 'sidebar', 'search', 'assistant', 'shortlists'];   // the shell's own
+        foreach (AdminNav::railItems() as $i) $icons[] = $i['icon'];
+        foreach (AdminNav::elsewhere() as $e) $icons[] = $e['icon'];
+        foreach (HomeBoard::shortcuts('superadmin') as $t) $icons[] = $t['icon'];
+        foreach (array_unique($icons) as $icon) {
+            $this->assertStringContainsString("id=\"ic-{$icon}\"", $sprite, "no icon for {$icon}");
+        }
+    }
+
+    public function test_a_group_holds_no_more_than_a_dozen_and_none_is_empty(): void
+    {
+        foreach (AdminNav::groups() as $g) {
+            $this->assertNotSame([], $g['items'], "{$g['label']} is empty");
+            $this->assertLessThanOrEqual(12, count($g['items']), "{$g['label']} is a list, not a group");
+        }
+    }
+
+    // ══ a role never sees a page it cannot open ══════════════════════════════
+
+    /** Run the real guard over a path for a role: does it let the request through? */
+    private function guardLets(string $role, string $href): bool
+    {
+        $_SESSION['admin_role'] = $role;
+        $req = (new ServerRequestFactory())->createServerRequest('GET', $href);
+        $passed = false;
+        $handler = new class($passed) implements RequestHandlerInterface {
+            public function __construct(private bool &$hit) {}
+            public function handle(ServerRequestInterface $r): ResponseInterface { $this->hit = true; return new Response(200); }
+        };
+        (new SectionGuardMiddleware())($req, $handler);
+        unset($_SESSION['flash_error']);
+        return $passed;
+    }
+
+    public function test_can_open_is_the_guards_own_answer_for_every_page_and_role(): void
+    {
+        foreach (self::ROLES as $role) {
+            foreach (array_merge(AdminNav::hrefs(), ['alerts' => '/admin/alerts']) as $href) {
+                $this->assertSame($this->guardLets($role, $href), Permissions::canOpen($role, $href),
+                    "the nav and the guard disagree about $role on $href");
             }
         }
     }
 
-    /** Every item needs an icon symbol, or the sprite reference renders as nothing. */
-    public function test_every_item_has_an_icon_in_the_sprite(): void
+    public function test_no_surface_offers_a_role_a_page_it_cannot_open(): void
     {
-        $sprite = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/partials/nav-icons.twig'
-        );
+        ConsoleAlerts::reset();
+        HomeBoard::resetAll();
+        foreach (self::ROLES as $role) {
+            $offered = [];
+            $nav = AdminNav::forRole($role);
+            if ($nav['home']) $offered[] = $nav['home']['href'];
+            foreach ($nav['groups'] as $g) foreach ($g['items'] as $i) {
+                $offered[] = $i['href'];
+                foreach ($i['children'] as $c) $offered[] = $c['href'];
+            }
+            foreach (AdminNav::destinations($role) as $d) $offered[] = $d['href'];
+            foreach (AdminNav::related($role, '/admin/events') as $r) $offered[] = $r['href'];
+            foreach (HomeBoard::shortcuts($role) as $t) $offered[] = $t['href'];
+            foreach (HomeBoard::board($role) as $b) $offered[] = $b['href'];
+            if ($p = ConsoleAlerts::pill($role)) $offered[] = $p['href'];
 
-        foreach (AdminNav::pages() as $page) {
-            $this->assertStringContainsString("id=\"ic-{$page}\"", $sprite, "no icon for {$page}");
+            foreach (array_unique($offered) as $href) {
+                $this->assertTrue($this->guardLets($role, (string) parse_url($href, PHP_URL_PATH)),
+                    "$role was offered $href, which the guard refuses");
+            }
         }
     }
 
-    // ══ the point of the exercise ════════════════════════════════════════════
-
-    /**
-     * The rail is scanned top-to-bottom before it is read, so what costs an operator time
-     * is the number of HEADINGS, not the number of links — an open section is a list you
-     * are already looking at, a heading is a decision you have to make.
-     *
-     * Seven is the floor, not a taste call. There are exactly seven distinct
-     * `admin_sections` gates and a section can only carry one gate, so a shorter rail
-     * would mean moving a page to a different gate. That is an access change, and it must
-     * never ride along inside a navigation change — which is what
-     * {@see test_the_restructure_moved_no_page_across_a_permission_boundary} guards.
-     */
-    public function test_the_rail_is_no_longer_than_the_permission_model_forces(): void
+    public function test_the_roles_see_different_rails_for_the_right_reasons(): void
     {
-        $sections = AdminNav::sections();
-        $distinct = count(array_unique(array_column($sections, 'gate'), SORT_REGULAR));
-
-        $this->assertCount($distinct, $sections,
-            'two sections share a gate — merge them, the rail is longer than the permissions require');
-        $this->assertLessThanOrEqual(8, count($sections),
-            'the rail grew back past what a single glance can hold');
+        $labels = static function (string $role): array {
+            $out = [];
+            foreach (AdminNav::forRole($role)['groups'] as $g) foreach ($g['items'] as $i) $out[] = $i['label'];
+            return $out;
+        };
+        $this->assertContains('Site & keys', $labels('superadmin'));
+        $this->assertNotContains('Site & keys', $labels('admin'), 'an admin was offered configuration');
+        $this->assertNotContains('Revenue', $labels('moderator'), 'a moderator was offered money');
+        $this->assertNotContains('Integrations', $labels('editor'), 'an editor was offered health');
+        $this->assertContains('Integrations', $labels('viewer'), 'the viewer lost the owner-approved health pages');
+        $this->assertContains('Email health', $labels('admin'));
+        // A viewer sees no Settings group and (Hosts not being built) no Hosts.
+        $this->assertNotContains('Settings', array_column(AdminNav::forRole('viewer')['groups'], 'label'));
     }
 
-    public function test_no_section_is_empty(): void
+    // ══ where a request is ═══════════════════════════════════════════════════
+
+    public function test_a_request_finds_its_page_by_path_before_its_key(): void
     {
-        foreach (AdminNav::sections() as $s) {
-            $this->assertNotSame([], $s['items'], "the '{$s['key']}' section is empty");
-            $this->assertNotSame('', trim($s['label']), "the '{$s['key']}' section has no heading");
-        }
+        $this->assertSame('review', AdminNav::current('/admin/nominations/review')['item']['page']);
+        $this->assertSame('nominations', AdminNav::current('/admin/nominations/42')['item']['page']);
+        // The integrations check passes `admin_page: settings`; the path wins.
+        $this->assertSame('providers', AdminNav::current('/admin/settings/providers', 'settings')['item']['page']);
+        $this->assertSame('mail-health', AdminNav::current('/admin/settings/mail/x')['item']['page']);
+        // A child lights its parent in the rail and itself in the strip.
+        $c = AdminNav::current('/admin/shortlists');
+        $this->assertSame('programmes', $c['item']['page']);
+        $this->assertSame('shortlists', $c['page']['page']);
+        $this->assertSame('dashboard', AdminNav::current('/admin')['item']['page']);
+        $this->assertNull(AdminNav::current('/admin/nowhere')['item']);
     }
 
-    /**
-     * Consolidating headings only works if depth stops costing anything, and that is the
-     * palette's job. It must be generated from the same tree — a hand-written list would
-     * rot exactly the way the hand-written sidebar did.
-     */
+    public function test_the_also_here_strip_is_the_item_and_its_children_and_never_one_link(): void
+    {
+        $strip = AdminNav::related('superadmin', '/admin/events');
+        $this->assertSame(['events', 'stand_presets', 'registrations'], array_column($strip, 'page'));
+        $this->assertTrue($strip[0]['on']);
+        $this->assertSame([], AdminNav::related('superadmin', '/admin/challenges'), 'a lone page drew a strip');
+        // A moderator on Interviews: the questionnaires are theirs.
+        $this->assertContains('questionnaires', array_column(AdminNav::related('moderator', '/admin/interviews'), 'page'));
+    }
+
+    /** The palette is generated from the same tree as the rail. */
     public function test_the_command_palette_is_generated_from_the_same_tree(): void
     {
-        $layout = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/layout.twig'
-        );
-
-        $palette = substr($layout, strpos($layout, 'id="adCmdList"') ?: 0);
-        $palette = substr($palette, 0, strpos($palette, '</ul>') ?: strlen($palette));
-
-        $this->assertStringContainsString('{% for sec in admin_nav %}', $palette,
+        $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/layout.twig');
+        $pal = substr($layout, (int) strpos($layout, 'id="cnPalList"'));
+        $pal = substr($pal, 0, (int) strpos($pal, '</ul>'));
+        $this->assertStringContainsString('{% for d in shell.destinations %}', $pal,
             'the palette holds a hand-written list instead of looping the nav tree');
-        $this->assertStringContainsString('{{ item.href }}', $palette);
-    }
-
-    // ══ role filtering ═══════════════════════════════════════════════════════
-
-    public function test_a_role_sees_only_the_sections_it_may_use(): void
-    {
-        $visible = AdminNav::visible(['moderation']);
-        $keys    = array_column($visible, 'key');
-
-        $this->assertContains('overview', $keys, 'the ungated section must always show');
-        $this->assertContains('entries', $keys);
-        $this->assertNotContains('configuration', $keys, 'a moderator was offered the superadmin section');
-        $this->assertNotContains('money', $keys, 'a moderator was offered the finance rail');
-    }
-
-    public function test_no_role_is_offered_a_section_its_permissions_deny(): void
-    {
-        foreach (['superadmin', 'admin', 'moderator', 'viewer'] as $role) {
-            $allowed = Permissions::allowedSections($role);
-            foreach (AdminNav::visible($allowed) as $s) {
-                if ($s['gate'] === null) continue;
-                $this->assertContains($s['gate'], $allowed,
-                    "{$role} was offered the '{$s['key']}' section, which its permissions deny");
-            }
-        }
-    }
-
-    // ══ the second level ═════════════════════════════════════════════════════
-
-    public function test_a_page_finds_its_own_section_and_siblings(): void
-    {
-        $this->assertSame('entries', AdminNav::sectionFor('nominees')['key']);
-
-        $siblings = array_column(AdminNav::siblings('nominees'), 'page');
-        $this->assertContains('profiles', $siblings);
-        $this->assertContains('moderation', $siblings);
-        $this->assertContains('nominees', $siblings, 'the current page belongs in its own strip');
-    }
-
-    /** A bar with one tab in it is noise, so the layout is given nothing to draw. */
-    public function test_a_lone_page_gets_no_sub_nav(): void
-    {
-        foreach (AdminNav::sections() as $s) {
-            if (count($s['items']) === 1) {
-                $this->assertSame([], AdminNav::siblings($s['items'][0]['page']));
-            }
-        }
-        $this->assertSame([], AdminNav::siblings('a-page-that-does-not-exist'));
-    }
-
-    public function test_an_unknown_page_has_no_section(): void
-    {
-        $this->assertNull(AdminNav::sectionFor('nope'));
+        $this->assertStringContainsString('{{ d.href }}', $pal);
     }
 }

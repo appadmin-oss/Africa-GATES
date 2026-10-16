@@ -171,7 +171,8 @@ final class NomineeBroadcast
             return EmailCampaign::renderFor($this->campaign, $vars);
         }
 
-        return $twig->render('emails/final-hours.twig', $vars);
+        // `c`: the palette, by name — mail cannot read var() (Accent::mail()).
+        return $twig->render('emails/final-hours.twig', $vars + ['c' => \AfricaGates\Support\Accent::mail()]);
     }
 
     /** @return array<string,mixed> @param array{nominee:object,cycle:object,email:string} $r */

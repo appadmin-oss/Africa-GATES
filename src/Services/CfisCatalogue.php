@@ -57,11 +57,34 @@ final class CfisCatalogue
 
     private const CACHE_KEY = 'cfis_stream_catalogue';
     private const LAST_GOOD_KEY = 'cfis_stream_catalogue_last_good';
+    /** "Finance did not answer just now" — the negative cache. */
+    private const DOWN_KEY = 'cfis_stream_catalogue_down';
     private const DEFAULT_TTL = 900;
     private const LAST_GOOD_TTL = 10 * 365 * 86400;
+    /**
+     * How long a failed ask is believed. Without it every request after the TTL lapsed asked
+     * a hung finance box again and waited out the timeout before using the last good list:
+     * measured, five seconds per checkout field and forty on the settings screen — the screen
+     * where the finance address is corrected, so an outage locked the operator out of the fix.
+     */
+    private const DOWN_TTL = 120;
+    /**
+     * The latest moment a TIMESTAMP column holds. `expires_at` is a MySQL TIMESTAMP, which
+     * ends on 2038-01-19; ten years from any date after early 2028 passes it and strict mode
+     * refuses the write, so the last good list would silently stop being kept.
+     */
+    private const TIMESTAMP_CEILING = 2147385600; // 2038-01-18 00:00:00 UTC
 
     /** Within one request the answer cannot change, and a checkout asks more than once. */
     private static ?array $memo = null;
+    /** The raw rows, memoised per request too: describe() is called once per stream on a screen. */
+    private static ?array $rows = null;
+
+    /**
+     * For tests: replaces the call to finance. fn(): ?array — the shape ask() returns, or null
+     * for "did not answer".
+     */
+    public static $transport = null;
 
     /**
      * code => label, for every stream this platform may send.
@@ -79,7 +102,10 @@ final class CfisCatalogue
         $out = [];
         foreach (self::fetch() as $s) {
             $code = trim((string) ($s['code'] ?? ''));
-            if ($code === '') {
+            // A code becomes a form field name (`sub_<code>`), and PHP rewrites `.`, spaces and
+            // `[` in those — so a code finance spells `training.fees` would save under a key
+            // nothing ever reads. Only codes that survive the round trip are offered.
+            if (!preg_match('/^[a-z0-9_-]{1,40}$/', $code)) {
                 continue;
             }
             $out[$code] = trim((string) ($s['name'] ?? '')) ?: $code;
@@ -101,6 +127,8 @@ final class CfisCatalogue
      */
     public static function describe(string $code): array
     {
+        // fetch() is memoised for the request, so a screen describing fourteen streams makes
+        // one round of cache reads — not fourteen, and never fourteen calls to a hung finance.
         foreach (self::fetch() as $s) {
             if (($s['code'] ?? null) === $code) {
                 return $s;
@@ -120,7 +148,26 @@ final class CfisCatalogue
     public static function refresh(): void
     {
         self::$memo = null;
+        self::$rows = null;
         self::forget(self::CACHE_KEY);
+        // An operator pressing refresh is asking for a real attempt now, outage marker or not.
+        self::forget(self::DOWN_KEY);
+    }
+
+    /** Forget the per-request memo only. For tests, which share one process. */
+    public static function forgetMemo(): void
+    {
+        self::$memo = null;
+        self::$rows = null;
+    }
+
+    /**
+     * Is finance's signing key set — in Settings or in .env? The one answer, so the settings
+     * screen's badge cannot say "not connected" while finance is working off the .env value.
+     */
+    public static function secretSet(): bool
+    {
+        return strlen(self::setting('cfis_secret', 'CFIS_SECRET')) >= 32;
     }
 
     /**
@@ -130,13 +177,33 @@ final class CfisCatalogue
      */
     private static function fetch(): array
     {
+        if (self::$rows !== null) {
+            return self::$rows;
+        }
+
+        return self::$rows = self::load();
+    }
+
+    /** @return list<array<string,mixed>> */
+    private static function load(): array
+    {
         $cached = self::cached(self::CACHE_KEY);
         if ($cached !== null) {
             return $cached;
         }
 
+        // Finance failed a moment ago: believe it for DOWN_TTL and answer from the last good
+        // list straight away, rather than every request paying the timeout again.
+        if (self::cached(self::DOWN_KEY) !== null) {
+            return self::cached(self::LAST_GOOD_KEY) ?? [];
+        }
+
         $live = self::ask();
+        if ($live === null) {
+            self::store(self::DOWN_KEY, ['streams' => [], 'cache_seconds' => self::DOWN_TTL], self::DOWN_TTL);
+        }
         if ($live !== null) {
+            self::forget(self::DOWN_KEY);
             self::store(self::CACHE_KEY, $live, self::ttlFrom($live));
             /* Kept effectively forever, deliberately. This is the answer when finance is
                down, and a short expiry on it would mean the longer the outage the less this
@@ -159,6 +226,10 @@ final class CfisCatalogue
      */
     private static function ask(): ?array
     {
+        if (is_callable(self::$transport)) {
+            return (self::$transport)();
+        }
+
         $base = self::setting('cfis_url', 'CFIS_URL');
         $source = self::setting('cfis_source', 'CFIS_SOURCE');
         $secret = self::setting('cfis_secret', 'CFIS_SECRET');
@@ -276,12 +347,18 @@ final class CfisCatalogue
         }
     }
 
+    /** When a row written at $now with $ttl expires — never past what a TIMESTAMP holds. */
+    public static function expiry(int $now, int $ttl): int
+    {
+        return min($now + $ttl, self::TIMESTAMP_CEILING);
+    }
+
     private static function store(string $key, array $live, int $ttl): void
     {
         try {
             DB::table('gates_cache')->updateOrInsert(['cache_key' => $key], [
                 'payload' => json_encode($live, JSON_UNESCAPED_SLASHES),
-                'expires_at' => date('Y-m-d H:i:s', time() + $ttl),
+                'expires_at' => date('Y-m-d H:i:s', self::expiry(time(), $ttl)),
                 'tags' => 'cfis',
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
