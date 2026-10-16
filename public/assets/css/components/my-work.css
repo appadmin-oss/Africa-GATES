@@ -1,0 +1,52 @@
+/* /my-work/{token} — the nominee's questionnaire (templates/pages/my-work.twig). Quiet on
+   purpose: one question at a time, a white card on the ground, the answer box the biggest
+   thing on the screen. */
+.mw{ max-width:720px; margin:0 auto; padding:16px 16px 56px; display:flex; flex-direction:column; gap:18px }
+.mw__head{ display:flex; flex-direction:column; gap:8px }
+.mw__kicker{ margin:0; font-weight:700; font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.mw__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-30); line-height:1.12 }
+.mw__h2{ margin:0; font-weight:700; font-size:var(--ag-fs-20) }
+.mw__p,
+.mw__help{ margin:0; font-size:var(--ag-fs-15-5); line-height:1.6; color:var(--ag-ink-2) }
+.mw__help{ font-size:var(--ag-fs-14-5) }
+.mw__test{ margin:0; padding:12px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12); background:var(--ag-surface); color:var(--ag-ink); font-weight:700 }
+.mw__flash{ margin:0; padding:12px 14px; border-radius:var(--ag-r-12); font-size:var(--ag-fs-14-5); line-height:1.5 }
+.mw__flash p{ margin:0 0 6px }
+.mw__flash ul{ margin:0; padding-inline-start:18px }
+.mw__flash--ok{ background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.mw__flash--err{ background:var(--ag-live-wash); color:var(--ag-error) }
+.mw__flash--err a{ color:inherit }
+.mw__card,
+.mw__q{ margin:0; padding:20px; border:1px solid var(--ag-line); border-radius:var(--ag-r-20); background:var(--ag-surface); display:flex; flex-direction:column; gap:12px; min-width:0 }
+/* A fieldset is not a flex box in every engine, and its <legend> is drawn INTO the top
+   border by default — the heading sat on the card's edge. Floated full width, the legend
+   becomes ordinary content inside the card; everything after it clears. */
+.mw__q{ display:block }
+.mw__q > * + *{ margin-top:12px }
+.mw__q > legend{ float:left; width:100%; margin:0 0 12px }
+.mw__q > legend + *{ clear:both; margin-top:0 }
+.mw__q[hidden]{ display:none }
+.mw__form{ display:flex; flex-direction:column; gap:18px }
+.mw__qh{ display:flex; gap:12px; align-items:flex-start; padding:0; font-weight:700; font-size:var(--ag-fs-19); line-height:1.35 }
+.mw__qh:focus{ outline:none }
+.mw__qn{ flex:none; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--ag-green-wash); color:var(--ag-green-deep); font-size:var(--ag-fs-14) }
+.mw__req{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.mw__look{ margin:0; padding:10px 12px; border-radius:var(--ag-r-12); background:var(--ag-ground); font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+.mw__in{ width:100%; min-height:52px; padding:12px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-16); line-height:1.5 }
+textarea.mw__in{ min-height:160px; resize:vertical }
+.mw__lbl{ display:flex; flex-direction:column; gap:6px; font-weight:600; font-size:var(--ag-fs-14) }
+.mw__mic{ align-self:flex-start }
+.mw__nav,
+.mw__do{ display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between }
+.mw__nav [data-mw-next]{ margin-inline-start:auto }
+.mw__map ol{ display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:0; list-style:none }
+.mw__map button{ width:44px; height:44px; border-radius:50%; border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink-2); font:inherit; font-weight:700; cursor:pointer }
+.mw__map button.is-done{ background:var(--ag-green-wash); border-color:var(--ag-green-edge); color:var(--ag-green-deep) }
+.mw__map button[aria-current]{ border:2px solid var(--ag-ink); color:var(--ag-ink) }
+.mw__work{ display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:var(--ag-r-16); background:var(--ag-ground) }
+.mw__file{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-green-deep) }
+.mw__ready{ margin:0; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.mw__up{ display:flex; flex-direction:column; gap:10px; align-items:flex-start }
+.mw__audio{ width:100% }
+.mw__resume{ display:flex; justify-content:center }
+@media (min-width:600px){ .mw{ padding-top:32px } .mw__h1{ font-size:var(--ag-fs-36) } .mw__card, .mw__q{ padding:28px } }
