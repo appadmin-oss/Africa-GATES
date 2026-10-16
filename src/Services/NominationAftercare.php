@@ -76,6 +76,16 @@ final class NominationAftercare
         $nomEmail = strtolower(trim((string) ($data['nominee_email'] ?? '')));
         $byName   = Name::title((string) ($data['nominator_name'] ?? ''));
         $byEmail  = strtolower(trim((string) ($data['nominator_email'] ?? '')));
+        // Each category's title, so a reason in the brief and the Sheets row says which
+        // category it argues for (NominationRules::reasonText).
+        $catTitles = [];
+        $pickedIds = array_keys(\AfricaGates\Services\NominationRules::categories($data));
+        if ($pickedIds !== []) {
+            try {
+                $catTitles = array_map('strval', \Illuminate\Database\Capsule\Manager::table('gates_award_categories')
+                    ->whereIn('id', $pickedIds)->pluck('title', 'id')->all());
+            } catch (\Throwable) {}
+        }
         /* ── THE AWARD'S REAL NAME, LOOKED UP WHEN IT IS NOT HANDED OVER ───────
            This fell back to `'Programme #' . $id`, and that string is not a label —
            it goes into the confirmation EMAIL, the SMS and the success page. A
@@ -130,7 +140,7 @@ final class NominationAftercare
         $catLine = $catName !== '' ? ($progName . ' · ' . $catName) : $progName;
 
         self::email($data, $mailer, $files, $baseUrl, $reference,
-                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl);
+                    $nomName, $nomEmail, $byName, $byEmail, $catLine, $watchUrl, $catTitles);
         self::text($data, $reference, $nomName, $nomEmail, $catLine, $watchUrl);
 
         // Advisory AI triage (score / summary / duplicates) for the review desk.
@@ -167,7 +177,7 @@ final class NominationAftercare
                 'programme_id'    => (int) ($data['programme_id'] ?? 0),
                 'nominee_name'    => $nomName,
                 'country_code'    => strtoupper((string) ($data['country_code'] ?? '')),
-                'reason'          => trim((string) ($data['reason'] ?? '')),
+                'reason'          => \AfricaGates\Services\NominationRules::reasonText($data, $catTitles),
                 'nominator_name'  => $byName,
                 'nominator_email' => $byEmail,
                 'reference'       => $reference,
@@ -243,7 +253,7 @@ final class NominationAftercare
     private static function email(
         array $data, ?OtpService $mailer, array $files, string $baseUrl, string $reference,
         string $nomName, string $nomEmail, string $byName, string $byEmail,
-        string $catLine, string $watchUrl,
+        string $catLine, string $watchUrl, array $catTitles = [],
     ): void {
         if ($mailer === null) return;
 
@@ -281,7 +291,7 @@ final class NominationAftercare
             . '<table style="border-collapse:collapse;margin:6px 0 16px">' . $tbl . '</table>'
             . '<p style="margin:0 0 5px;color:#6b7674;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">Reason</p>'
             . '<div style="background:#f6f7f6;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.6;color:#10292c;white-space:pre-wrap">'
-            . $esc(trim((string) ($data['reason'] ?? ''))) . '</div>'
+            . $esc(\AfricaGates\Services\NominationRules::reasonText($data, $catTitles)) . '</div>'
             . ($evidence ? '<p style="font-size:13px;margin-top:12px">Supporting document: ' . $esc($evidence) . '</p>' : '')
             . ($photo ? '<p style="font-size:13px">Photo: ' . $esc($photo) . '</p>' : '')
             . '<p style="margin-top:16px"><a href="' . $esc($base . '/admin/nominations') . '" style="color:#237b22;font-weight:600">Review in the admin console &rarr;</a></p>';

@@ -203,22 +203,21 @@ final class AuditController
             'from'        => $range['all'] ? '' : $range['r']->fromSql(),
             'to'          => $range['all'] ? '' : $range['r']->toSql(),
         ];
-        // A spreadsheet runs a cell that starts with = + - @ as a formula, and details are
-        // typed by admins and partners — so such a cell is prefixed with an apostrophe.
-        $cell = static fn ($v): string => preg_match('/^[=+\-@]/', (string) $v) ? "'" . $v : (string) $v;
+        // Support\Csv neutralises a cell a spreadsheet would run as a formula — details are
+        // typed by admins and partners.
         $out = fopen('php://temp', 'w+');
-        fputcsv($out, ['id', 'when_utc', 'admin_id', 'admin', 'action', 'target_type', 'target_id', 'details', 'network'], ',', '"', '\\');
+        \AfricaGates\Support\Csv::put($out, ['id', 'when_utc', 'admin_id', 'admin', 'action', 'target_type', 'target_id', 'details', 'network']);
         $n = 0;
         foreach ($this->audit->each($filters) as $r) {
             $n++;
-            fputcsv($out, [
-                $r['id'], $r['created_at'] ?? '', $r['admin_id'] ?? '', $cell($r['admin_name'] ?? $r['admin_email'] ?? ''),
-                $cell($r['action']), $r['target_type'] ?? '', $r['target_id'] ?? '',
-                $cell($r['meta'] ? json_encode($r['meta'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : ''),
+            \AfricaGates\Support\Csv::put($out, [
+                $r['id'], $r['created_at'] ?? '', $r['admin_id'] ?? '', $r['admin_name'] ?? $r['admin_email'] ?? '',
+                $r['action'], $r['target_type'] ?? '', $r['target_id'] ?? '',
+                $r['meta'] ? json_encode($r['meta'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '',
                 $r['device'] ?? '',
-            ], ',', '"', '\\');
+            ]);
         }
-        if ($n >= 50000) fputcsv($out, ['', '', '', '', 'Truncated at 50,000 rows — narrow the filters'], ',', '"', '\\');
+        if ($n >= 50000) \AfricaGates\Support\Csv::put($out, ['', '', '', '', 'Truncated at 50,000 rows — narrow the filters']);
         rewind($out);
         $res->getBody()->write((string) stream_get_contents($out));
         return $res->withHeader('Content-Type', 'text/csv; charset=utf-8')

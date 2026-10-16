@@ -272,4 +272,32 @@ final class NominationSubmitPathTest extends TestCase
         $this->assertSame(429, $this->post(['nominee_name' => 'Chidi Okafor Eze'])->getStatusCode(), 'the cap no longer holds');
         $this->assertSame(1, (int) DB::table('gates_nominations')->count());
     }
+
+    /**
+     * The web form posts per-category reasons and no `reason`; the readers of "the reason"
+     * — the spam check, the operator email, the Sheets row — were blank for every web
+     * nomination. They read the reasons now, each labelled with its category.
+     */
+    public function test_the_whole_reason_reaches_every_reader_of_it(): void
+    {
+        $data = ['categories' => [$this->catA => 'First reason, long enough to count.', $this->catB => 'Second reason, also long enough.']];
+        $text = \AfricaGates\Services\NominationRules::reasonText($data, [$this->catA => 'Teaching', $this->catB => 'Leadership']);
+        $this->assertStringContainsString('Teaching: First reason', $text);
+        $this->assertStringContainsString('Leadership: Second reason', $text);
+        $this->assertSame('Only one.', \AfricaGates\Services\NominationRules::reasonText(['reason' => ' Only one. ']), 'the API door\'s single reason was lost');
+
+        $sheet = new class extends \AfricaGates\Services\GoogleSheetsService {
+            public array $rows = [];
+            public function __construct() {}
+            public function pushNomination(array $data): void { $this->rows[] = $data; }
+        };
+        $this->post([]);
+        $id = (int) DB::table('gates_nominations')->where('nominee_name', 'Ada Lovelace Nwosu')->value('id');
+        \AfricaGates\Services\NominationAftercare::run(
+            ['programme_id' => $this->prog, 'nominee_name' => 'Ada Lovelace Nwosu', 'nominator_email' => 'grace@example.com',
+             'categories' => [$this->catA => 'She rebuilt the roll from four hundred to nine hundred pupils.']],
+            $id, 'https://example.test', null, [], $sheet);
+        $this->assertSame('She rebuilt the roll from four hundred to nine hundred pupils.', $sheet->rows[0]['reason'] ?? null,
+            'the Sheets row had no reason for a web nomination');
+    }
 }

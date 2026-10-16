@@ -421,7 +421,7 @@ class AwardService {
         // and every verdict is logged.
         $spamVerdict = null;
         if ($this->spam) {
-            $check = trim(($data['nominee_name'] ?? '') . "\n" . ($data['reason'] ?? ''));
+            $check = trim(($data['nominee_name'] ?? '') . "\n" . NominationRules::reasonText($data));
             if ($check !== '') {
                 try { $spamVerdict = $this->spam->evaluate($check, ['target' => 'nomination']); }
                 catch (\Throwable) { $spamVerdict = null; }

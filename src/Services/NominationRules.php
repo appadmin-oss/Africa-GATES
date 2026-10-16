@@ -322,6 +322,31 @@ final class NominationRules
      * @param array<string,mixed> $data
      * @return array<int,string>
      */
+    /**
+     * Every reason a nomination gives, as one text — for whatever reads "the reason" as a
+     * whole: the spam check, the operator's email, the Sheets row.
+     *
+     * The web form posts `categories[id] => reason` and no `reason` at all, and three
+     * readers went on asking for `reason`: so the operator email's Reason block and the
+     * Sheets column were blank for every web nomination, and the spam check judged the
+     * nominee's NAME and never the words. The API door may still post a single `reason`;
+     * that is read when there are no per-category reasons.
+     *
+     * @param array<string,mixed> $data
+     * @param array<int,string>   $titles category id => title, to label each reason
+     */
+    public static function reasonText(array $data, array $titles = []): string
+    {
+        $picked = self::categories($data);
+        if ($picked === []) return trim((string) ($data['reason'] ?? ''));
+        if (count($picked) === 1) return trim((string) reset($picked));
+        $parts = [];
+        foreach ($picked as $id => $r) {
+            $parts[] = (isset($titles[$id]) ? $titles[$id] . ': ' : '') . trim($r);
+        }
+        return implode("\n\n", $parts);
+    }
+
     public static function categories(array $data): array
     {
         $raw = $data['categories'] ?? null;
