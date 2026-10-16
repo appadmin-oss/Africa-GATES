@@ -39,7 +39,8 @@ run the platform. So:
 - **Every award runs on the same hard-coded nomination form and rules.**
 - **The experience is a list of pages, not a structure.** There are four navigation
   sources and two design systems, and a person with three roles has three homes.
-- **15 pages return a server error**, and Gee promises checks it never makes.
+- **15 pages return a server error.** (Gee's habit of promising checks it never made was
+  fixed on 16 Oct.)
 
 **What I propose.** Keep one app and one deploy on the same host, and organise it in three
 layers:
@@ -66,9 +67,13 @@ person, a scoped Workspace for staff and volunteers, Field tools, and the Judge 
 navigation registry, and one design system in two densities. Every surface is tailored by
 who, where, interests and phase.
 
+Each choice is checked against how YouTube, Meta, Google and OpenAI structure their products,
+experience and operations (§13). We take the ideas that survive on one app and shared
+hosting, and leave out the ones that only make sense at their size. Gee's research is in §12.
+
 Everything moves one piece at a time, behind the live site, and every step ships on its own.
 
-**What I need from you** is in §15: sixteen decisions. The ones that shape everything are:
+**What I need from you** is in §16: seventeen decisions. The ones that shape everything are:
 
 - what a **centre** is for Africa GATES (D11);
 - who may **sell** (D13);
@@ -91,7 +96,7 @@ first. I verified each one in the code.
 | 7 | The Pulse "load more" pieces don't line up | `social.js:188` sends `part=items`; the controller checks `fragment=1` and renders the missing `pulse/_cards` | "Load more" fails. |
 | 8 | Stand fees have no backstop | `StandFee::confirm` is called only from `StandOfferController:302`; the webhook, reconciler, GatewayLedger and RefundService never reference stands | A paid stand whose return trip fails stays unpaid, and finance never shows it. |
 | 9 | Developer documents state the retired paid-vote rule | `PaidVoteService.php:20-22` and `CODEBASE-INDEX.md:261` say "never move rank" | Whoever changes scoring next reads the wrong rule. |
-| 10 | Gee promises a check and never makes it | The payments tool is offered only to a recognised member (`SupportContext.php:393`); the loop accepts any reply that is not a tool call as final (`SupportAgentService.php` ~171) | "I will check your payments, hold on", three times, then a ticket. See §12. |
+| 10 | **Fixed on 16 Oct:** Gee promised a check and never made it | The loop accepted any reply that was not a tool call as final, and the planner never looked up a signed-in member's own payments | "I will check your payments, hold on", three times, then a ticket. See §12. |
 | 11 | **Fixed in the previous commit:** my 16 Oct change replaced `Support\Brand`'s logo helpers | `OtpService:849`, `ChallengeFlier:217` and `InviteLetter:116` call `Brand::logoUrl`/`LOGO_ON_TINT` | The email masthead, challenge flier and invite letter broke. The helpers are restored, alongside the name rule. |
 
 **The test suite is not green today.** The full run (7,085 tests) has 12 failures that
@@ -666,7 +671,7 @@ version; until then the live form is untouched.
 
 *The tabs link to the existing judging pages; they do not move them.* Judging access is
 split across three permission gates, and moving those pages would change what whole roles
-can open (see §15, D5).
+can open (see §16, D5).
 
 ### 8.4 Moving existing awards across
 
@@ -873,6 +878,44 @@ operational half.
   topic of money, not from what you asked, which is why a refund conversation offered "why
   the nominee with the most votes may not win".
 
+**Fixed on 16 Oct** (commit "Gee: a promise to check is not an answer"):
+
+- A reply that announces a check instead of making it is sent back once, with the tools
+  still offered. A second promise is discarded and the tools' own results stand in for it.
+- A signed-in member's own payments are looked up before the model is asked anything.
+- A follow-up such as "Hurry" is planned from the conversation, not from the one word.
+- Suggested articles follow the conversation.
+
+Five tests hold these fixes, and each was checked by breaking the code and watching the
+test fail. The rest of this section is the remaining work.
+
+**What the research says about agents like Gee.** The best support agents converge on
+the same design:
+
+- **Instructions plus fixed controls.** Intercom's Fin runs "procedures" that combine
+  natural-language instructions with deterministic steps and data connectors. Engineering
+  decides which fields the agent may read, and sensitive values are injected rather than
+  typed by the agent. For Gee, `SupportPlan` already plays the fixed part. It becomes a set
+  of declared procedures, one per situation in the playbooks, each with its tools and its
+  permitted fields.
+- **Rate every tool by risk.** OpenAI's guide to building agents rates each tool low,
+  medium or high by whether it only reads and whether it can be undone. It hands over to a
+  person after repeated failure to understand, and for high-risk actions such as large
+  refunds. ChatGPT's agent asks for confirmation before high-impact actions, lets the
+  person take over for credentials, and refuses high-risk actions such as bank transfers.
+  Gee's tiers below follow this.
+- **Check the outcome, not the stop signal.** Agents should take ground truth from the
+  environment at each step, and the harness should check results instead of trusting the
+  model's own "done". That is exactly the fault fixed on 16 Oct, and it generalises: every
+  answer about money is checked against the records the tools returned. The grounding
+  check already does this for references and amounts.
+- **Measure reliability, not luck.** Sierra's τ-bench grades a support agent by the
+  database state after the conversation and by whether it followed policy. It reports
+  pass^k, the chance that *all* of k attempts succeed. Early models passed fewer than half
+  the tasks, and about a quarter when the same task was repeated eight times. Gee's
+  scenario suite is graded the same way: each scenario runs several times, and passes only
+  if every run reaches the right records and the right offer.
+
 **Cloudflare's assistant did eight things right.** Each becomes a rule Gee is tested
 against:
 
@@ -919,7 +962,84 @@ one confirmed-but-undelivered order. The suite checks:
 
 ---
 
-## 13. The phased plan
+## 13. How the large platforms do it, and what we take
+
+These companies operate at a scale Africa GATES will not need to copy, so the question for
+each practice is the same: what is the idea underneath, and does it survive on one app on
+shared hosting? Where it does, it is already written into the sections above.
+
+### 13.1 Structure: separate the place people use from the place people run
+
+| Company | What they do | What we take | Where |
+|---|---|---|---|
+| **YouTube** | Viewers use the YouTube app; creators run their channel from **YouTube Studio**, a separate workspace for content, analytics and money. Monetisation is earned: a channel qualifies at a **measured threshold** (1,000 subscribers plus 4,000 valid watch hours in 12 months, or 10 million Shorts views in 90 days), and then passes a **policy review** before it is accepted. | The public space stays for the public, and running things happens in the Workspace and the person's home. **Qualification is a computed threshold followed by a human review**, never one or the other alone: volunteers' levels, sellers' trust and promotion eligibility all work this way. | §7.3, §10, §11.1 |
+| **Meta** | **Business Suite** is one hub for a business across its pages, messages and ads, with roles (and advice to keep at least two admins). Ads are structured as **campaign → ad set → ad**: objective, then audience, budget and placement, then creative. Marketplace added a **free identity check** with a visible badge, and a separate seller app for people 18 or over in good standing. | One seller hub inside the person's home, not a separate product. Promotions use the same three levels: a campaign has the objective and budget, a placement set has where and when, and a creative has what is shown. Seller verification is visible as a badge whose meaning is stated, with an age and good-standing rule. **Two named leads per centre**, so no scope depends on one person. | §10, §7.2 |
+| **Google** | **Material 3** builds screens from three canonical layouts (**list-detail**, **supporting pane**, **feed**), with navigation that changes from a bottom bar to a rail to a drawer as the window grows. | Every screen is one of the three. Console queues and the person's orders and tickets are list-detail. Discover, Pulse and the market are feeds. Award, event, nominee and product pages are supporting pane. A screen that is none of these needs a reason. | §11.3 |
+| **OpenAI** | The agent asks for confirmation before high-impact actions, hands control to the person for credentials, and refuses high-risk actions. Tools are rated by risk. | Gee's risk tiers, and staff tools built the same way. | §12 |
+
+### 13.2 Grouping: the user's mental model, tested before it ships
+
+Information architecture practice is settled on two steps:
+
+1. **Card sorting.** About 15 people per audience group the site's content in the way that
+   makes sense to them, and the groups and names they choose show their mental model.
+2. **Tree testing.** About 50 people find things in a text-only version of the proposed
+   structure, which tests the labels and grouping without any visual design.
+
+Card sorts can mislead if taken literally. People make a catch-all pile for leftovers that
+nobody would click on as a real menu.
+
+**What we take.** Phase 3's navigation registry is not designed at a desk. It begins with
+an open card sort for each audience (voters, nominees, nominators, donors, attendees,
+buyers, sellers, volunteers, staff), run with real people in Nigeria. The result is
+validated by a tree test before any menu ships. There is no "More" bucket. Today's 12/4/15/29
+link menus are replaced by whatever the tests show.
+
+### 13.3 Measuring the experience
+
+Google's **HEART** framework measures UX in five categories: happiness, engagement,
+adoption, retention and task success. Each is tied to a goal through
+**Goals → Signals → Metrics**, and only the categories that fit a surface are used.
+
+**What we take.** Every surface's spec (§11.4) names its goal and its HEART signals.
+Examples:
+
+- **Nominate:** task success, meaning submitted and then approved, plus the drop-off by
+  step.
+- **Vote:** task success, meaning a code is received and a vote counted, plus time to vote.
+- **Seller hub:** adoption, meaning the first listing within seven days, plus retention.
+- **Volunteer home:** retention, meaning a second shift, plus reliability.
+- **Gee:** task success, meaning resolved without a ticket, plus happiness from a one-tap
+  rating.
+
+The figures come from first-party events that honour the cookie choice. Engagement is left
+out of staff tools, which people use because it is their job.
+
+### 13.4 Management: reliability, goals and learning
+
+| Practice | What it is | What we take |
+|---|---|---|
+| **SLOs and error budgets** (Google SRE) | A target for how reliable something must be. The shortfall allowed is a budget, and when the budget is spent, feature work slows for reliability. | Every process step's time limit (§6.1) is its SLO, measured from work items. Each centre and each process has a monthly budget of breaches. A spent budget shows on the dashboard and pauses new templates for that process until it recovers. |
+| **Blameless postmortems** (Google SRE) | After an incident, the write-up finds the underlying cause without blaming a person. | Incidents (the status page and alerts already open them) get a postmortem form in the console: what happened, why, what changes, the owner, and a due date as work items. This repo's own CLAUDE.md is a postmortem log in prose, and this makes it a process. |
+| **OKRs** (Google) | Objectives with measurable key results. **Committed** ones are expected to score 1.0, and a miss needs an explanation. **Aspirational** ones average 0.7. Mislabelling either causes problems. | Each centre and each programme sets OKRs per edition, read from the same work items and HEART metrics, marked committed or aspirational, and shown on the dashboard. Management sees status without asking anyone. |
+
+### 13.5 What we will not copy
+
+Some of what these companies do only makes sense at their size, so we leave it out:
+
+- microservices;
+- multiple data centres;
+- machine-learned feeds;
+- custom build systems;
+- review boards for every change.
+
+The ideas above survive without any of them. They are rules about structure, measurement
+and ownership, and each is enforced here by a test or a work item rather than by
+headcount.
+
+---
+
+## 14. The phased plan
 
 Each phase ships on its own, keeps the site working, and has an exit test. None needs SSH
 or a new host. The order follows the dependencies: each domain is built on what the phases
@@ -927,7 +1047,7 @@ before it lay down.
 
 | Phase | What | Depends on | Exit criteria |
 |---|---|---|---|
-| **0. Stop the bleeding** | The 10 open faults in §2: the 15 missing pages (starting with `/my-work`), shop CSS/JS, the wrong table name, the `payment_ref` index (repair migration), transactions on money writes, the dead settings table, the Pulse fragment, stand fees in the webhook and reconciler, the two documents stating the retired rule, and **Gee's promise-without-action**. Add the "every route renders" sweep and turn the suite green. | — | Every public route renders. The suite and a MySQL parity run are green. Gee's scenario suite has zero unkept promises. |
+| **0. Stop the bleeding** | The 9 open faults in §2: the 15 missing pages (starting with `/my-work`), shop CSS/JS, the wrong table name, the `payment_ref` index (repair migration), transactions on money writes, the dead settings table, the Pulse fragment, stand fees in the webhook and reconciler, and the two documents stating the retired rule. (Gee's promise-without-action was fixed on 16 Oct.) Add the "every route renders" sweep and turn the suite green. | — | Every public route renders. The suite and a MySQL parity run are green. Gee's scenario suite has zero unkept promises. |
 | **1. Kernel and operating model** | Settings registry, Actor, Reporter, Http client, one rate limiter, one Twig factory. Then the operating model: process registry, work items, evidence, scopes and templates. Today's queues (nominations, claims, tickets, refunds, stands, moderation) move onto work items **behind their existing screens**. | 0 | Every queue is a view over work items, and every item has an owner and a due time. The §6.2 table is printed by the registry. |
 | **2. Forms and award profiles** | The one form engine and the award profile (§8): definitions and versions, field library, interpreter, rules into the registry, look presets, the Award setup screen, house form v1. | 1 | Today's form renders identically from its definition. A second award with a different form passes end to end. |
 | **3. Experience structure** | The IA registry, generated navigation, **My Africa GATES** as one home with role panels, the scoped Workspace, one design system in two densities, and `AssetBundle` served. | 1 | Every nav surface is generated. One home per person. The page-local component count is falling. |
@@ -941,7 +1061,7 @@ with scenarios in the suite.
 
 ---
 
-## 14. How the work stays safe
+## 15. How the work stays safe
 
 - **No big bang.** This is the strangler-fig pattern: the new path is built beside the old,
   traffic moves, and only then is the old path deleted. Every phase is a set of normal,
@@ -961,7 +1081,7 @@ with scenarios in the suite.
 
 ---
 
-## 15. Decisions for you
+## 16. Decisions for you
 
 | # | Question | My recommendation |
 |---|---|---|
@@ -974,17 +1094,18 @@ with scenarios in the suite.
 | D7 | Should the `/__setup` tool (about 1,700 lines of HTML inside `routes.php`) move into the console? | **Yes**: it resets superadmin passwords, which is a console job behind the console's audit log. |
 | D8 | One payment ledger for every stream, with each stream's table kept for its detail? | **Yes**: today stand fees fall outside every backstop because each stream wired itself to the gateway separately. |
 | D9 | Should nominee consent (`nominee_confirmed_at`) be required for every award, not only challenges? | **Your call**: it is a product rule. The award profile can make it a per-award setting. |
-| D10 | Order of work after Phase 0? | **As in §13**: kernel and operating model first, because volunteers, events, the market and awards all stand on it. |
+| D10 | Order of work after Phase 0? | **As in §14**: kernel and operating model first, because volunteers, events, the market and awards all stand on it. |
 | D11 | What is a **centre** for Africa GATES: a state chapter, a school, a community hub, a partner organisation, or several of these? | The scope hierarchy, volunteer grants and local markets all hang on this. I suggest **Country → State → Centre**, where a centre is any local unit with a named lead. |
 | D12 | Which volunteer roles need an identity check, and what is the minimum age (with a guardian's consent below it)? | An ID check for any role that sees personal data or handles money or a door. Minimum 16, with consent under 18. |
 | D13 | Who may **sell** in the market? | **Invited and verified sellers first**, then open to anyone who passes verification once trust and dispute handling are proven. |
 | D14 | Platform fee per listing kind: products, services, stands, tickets, promotions? | Your call. It is a setting per kind, so it can change without code. |
 | D15 | May an individual **nominee** be promoted with paid placement during voting? | **No.** It would read as buying reach, which the scoring rule forbids. Awards, events, sellers and highlights yes, always labelled "Promoted". |
 | D16 | May Gee **file** a refund request itself after the person confirms? | **Yes**: it files a request, a person decides it, and Gee never moves money. |
+| D17 | Will you fund a card sort and tree test with real users per audience before the navigation is rebuilt (§13.2)? | **Yes**: about 15 people per audience for the sort and 50 for the test. It is the cheapest way not to rebuild the navigation twice. |
 
 ---
 
-## 16. Research notes
+## 17. Research notes
 
 - **Award platforms.** Award Force configures an entry form per *season* (their word for an
   edition). Each field applies to all categories or only selected ones, and fields can be
@@ -1035,3 +1156,25 @@ with scenarios in the suite.
   [Agent UX design](https://www.parallelhq.com/blog/ai-agent-ux-design) ·
   [Handoff best practices](https://www.eesel.ai/blog/ai-agent-handoff-best-practices) ·
   [Consent-first handoffs](https://petronellatech.com/blog/consent-first-voice-bots-that-keep-agent-handoffs-smooth/)
+- **Agents like Gee.**
+  [Intercom: Fin procedures](https://www.intercom.com/help/en/articles/13449439-building-fin-procedures) ·
+  [Intercom: data connectors in procedures](https://www.intercom.com/help/en/articles/13459820-how-to-use-data-connectors-in-fin-procedures) ·
+  [OpenAI's agent guide, summarised](https://ibl.ai/blog/openai-a-practical-guide-to-building-agents.md) ·
+  [OpenAI: ChatGPT agent](https://help.openai.com/en/articles/11752874-chatgpt-agent%253F.class) ·
+  [Anthropic: writing tools for agents](https://anthropic.com/engineering/writing-tools-for-agents) ·
+  [Agent loops and stopping, summarised](https://blog.promptlayer.com/how-to-build-effective-anthropic-agents/) ·
+  [Sierra: τ-bench](https://sierra.ai/de/blog/tau-bench-shaping-development-evaluation-agents) ·
+  [Sierra: benchmarking agents](https://sierra.ai/kr/blog/benchmarking-ai-agents)
+- **How the large platforms do it.**
+  [YouTube Partner Program eligibility](https://support.google.com/youtube/answer/72851?hl=en-GB) ·
+  [Meta Business Suite](https://buffer.com/resources//how-to-use-meta-business-suite/) ·
+  [Meta Business Suite and Ads Manager](https://www.gomarble.ai/blog/meta-ads-manager-business-suite) ·
+  [Marketplace seller app and verification](https://www.techrepublic.com/article/news-meta-facebook-marketplace-seller-app/) ·
+  [Material 3 canonical layouts (via SAP Fiori)](https://www.sap.com/design-system/fiori-design-android/v26-4/foundations/adaptive-layout/canonical-layouts) ·
+  [Google HEART framework](https://ixdf.org/literature/article/google-s-heart-framework-for-measuring-ux) ·
+  [Google SRE in IT operations](https://services.google.com/fh/files/misc/sre-it-operations-whitepaper.pdf) ·
+  [Getting started with SRE: error budgets](https://speakerdeck.com/frathgeber/how-to-sre-getting-started-with-site-reliability-engineering) ·
+  [Google's OKR playbook](https://whatmatters.com/resources/google-okr-playbook) ·
+  [Grading OKRs](https://www.whatmatters.com/okrs-explained/grading-okrs) ·
+  [Card sorting vs tree testing](https://cleverx.com/blog/card-sorting-vs-tree-testing-vs-first-click-complete-comparison) ·
+  [Tree testing guide](https://www.koji.so/docs/tree-testing-guide)
