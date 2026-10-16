@@ -102,6 +102,7 @@ final class QuestionnaireInterview
         $env      = self::envelope($s);
         $progress = QuestionnaireLedger::progress($s);
         $cfg      = QuestionnaireStyle::config(($s->programme_id ?? null) !== null ? (int) $s->programme_id : null);
+        $why      = self::degradation($s, $cfg, $env);
 
         return [
             'ok'       => true,
@@ -126,7 +127,10 @@ final class QuestionnaireInterview
             'declared'     => (string) ($s->declared_name ?? ''),
             // Named rather than boolean, because the four ways this can be unavailable need
             // four different sentences and four different recovery actions on screen.
-            'degraded' => self::degradation($s, $cfg, $env),
+            'degraded' => $why,
+            // The sentence for it, from the one place that words it, so the first paint (Twig)
+            // and every later turn (the script) say the same thing to the same person.
+            'degraded_message' => $why !== '' ? self::degradedMessage($why) : '',
             'saved_at' => (string) ($s->updated_at ?? $s->created_at ?? ''),
         ];
     }

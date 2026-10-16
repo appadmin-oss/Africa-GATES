@@ -75,14 +75,25 @@ final class MyWorkController
 
         // The draft is stored on BOTH paths. A submit that fails validation must not throw
         // away what was typed on the way to failing.
-        $saved = QuestionnaireService::saveDraft($token, $answers, $works);
-        if (!($saved['ok'] ?? false)) {
-            $_SESSION['mywork_error'] = (string) $saved['message'];
-            return $res->withHeader('Location', $to)->withStatus(302);
+        //
+        // ── BUT ONLY WHEN THE FORM CARRIED A DRAFT ───────────────────────────
+        //
+        // saveDraft() REPLACES both lists with what it is given. The guided form always posts
+        // them (every question, every work row, a blank one included); the interview's Send
+        // form posts a name and nothing else, because its answers live in the ledger. Storing
+        // a "draft" from that post wrote two empty lists over the nominee's works — every
+        // link and file they had attached — in the instant before it went to the panel.
+        $carried = array_key_exists('a', $body) || array_key_exists('w', $body);
+        if ($carried) {
+            $saved = QuestionnaireService::saveDraft($token, $answers, $works);
+            if (!($saved['ok'] ?? false)) {
+                $_SESSION['mywork_error'] = (string) $saved['message'];
+                return $res->withHeader('Location', $to)->withStatus(302);
+            }
         }
 
         if ((string) ($body['action'] ?? '') !== 'submit') {
-            $_SESSION['mywork_notice'] = (string) $saved['message'];
+            $_SESSION['mywork_notice'] = $carried ? (string) $saved['message'] : 'Nothing to save.';
             return $res->withHeader('Location', $to)->withStatus(302);
         }
 
