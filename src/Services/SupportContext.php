@@ -97,6 +97,13 @@ final class SupportContext
          * nothing about WHO is asking can arrive through it.
          */
         private readonly ?PaymentService $payments = null,
+        /**
+         * Whether the person has just said yes to an action the assistant proposed. Decided in
+         * CODE by {@see SupportAgentService::confirmsProposal()} from their own words and the
+         * assistant's previous turn, never by the model: a model that could set its own consent
+         * would ask, and answer, in one breath.
+         */
+        private readonly bool $consented = false,
     ) {}
 
     /**
@@ -145,7 +152,14 @@ final class SupportContext
     public function withPayments(PaymentService $payments): self
     {
         return new self($this->viewerId, $this->viewerEmail, $this->isAdmin, $this->search,
-                        $this->limits, $this->clientKey, $payments);
+                        $this->limits, $this->clientKey, $payments, $this->consented);
+    }
+
+    /** A copy that carries the person's yes to the action proposed in the turn before. */
+    public function withConsent(bool $consented): self
+    {
+        return new self($this->viewerId, $this->viewerEmail, $this->isAdmin, $this->search,
+                        $this->limits, $this->clientKey, $this->payments, $consented);
     }
 
     public function isMember(): bool { return $this->viewerId !== null && $this->viewerId > 0; }
@@ -394,6 +408,15 @@ final class SupportContext
             $t[] = ['name' => 'my_transactions',
                     'description' => "The signed-in person's own payments: vote purchases and donations, with status and date. Use for “where is my payment”, “did my votes arrive”, “I was charged twice”.",
                     'args' => []];
+            $t[] = ['name' => 'request_refund',
+                    'description' => "File a refund request for one of the signed-in person's OWN payments, for a person on "
+                                   . "the team to decide. Check refund_status first: a payment whose votes could not be "
+                                   . "counted is refunded automatically, and needs no request. Then PROPOSE it in one "
+                                   . "sentence naming the reference and the amount, and ask them to confirm. Call this "
+                                   . "only after they say yes; called before that, it returns the proposal to put to them. "
+                                   . "It never moves money and you must never say a refund is approved.",
+                    'args' => ['reference' => 'the AFG- reference from my_transactions',
+                               'reason' => 'what went wrong, in a sentence, in their words']];
             $t[] = ['name' => 'my_votes',
                     'description' => "The signed-in person's own cast votes: which nominee, how many, when.",
                     'args' => []];
@@ -545,6 +568,7 @@ final class SupportContext
                 'help_search'      => $this->helpSearch((string) ($args['query'] ?? '')),
                 'pricing'          => $this->pricing(),
                 'my_transactions'  => $this->myTransactions(),
+                'request_refund'   => $this->requestRefund((string) ($args['reference'] ?? ''), (string) ($args['reason'] ?? '')),
                 'my_votes'         => $this->myVotes(),
                 'lookup_reference' => $this->lookupReference((string) ($args['reference'] ?? '')),
                 'fix_payment'      => $this->fixPayment((string) ($args['reference'] ?? '')),
@@ -829,6 +853,71 @@ final class SupportContext
             ])->all();
 
         return ['donations' => $donations, 'orders' => $orders];
+    }
+
+    /**
+     * A refund REQUEST for one of the member's own payments — filed for a person to decide.
+     *
+     * ── WHY IT ASKS FIRST, AND WHY THE ASKING IS CHECKED IN CODE ─────────────
+     *
+     * Filing something in somebody's name is an action, not a lookup, and the rule for
+     * actions is that the person agrees to the specific thing first: this reference, this
+     * amount. So without consent the tool returns the proposal for the model to put to them,
+     * and the consent itself comes from {@see SupportAgentService::confirmsProposal()} reading
+     * their reply. A request is all it is: the money decision stays with RefundService and
+     * a person, which is where an irreversible payout belongs.
+     *
+     * @return array<string,mixed>
+     */
+    private function requestRefund(string $reference, string $reason): array
+    {
+        if (!$this->isMember()) {
+            return ['ok' => false, 'say' => 'Only a signed-in member can request a refund here. Offer sign-in, or '
+                  . 'pass it to the team with the payment reference.'];
+        }
+        $ref   = PaymentLookup::canonical(trim($reference));
+        $email = strtolower(trim((string) $this->viewerEmail));
+        if ($ref === '' || $email === '') return ['ok' => false, 'say' => 'Which payment? Use a reference from my_transactions.'];
+
+        $d = DB::table('gates_donations')->where('payment_ref', $ref)
+            ->whereRaw('LOWER(donor_email) = ?', [$email])->first(['payment_ref', 'amount_naira', 'status', 'refunded_at']);
+        if (!$d) {
+            // Never says whose it is: a reference must not be a way to learn who paid.
+            return ['ok' => false, 'say' => 'That reference is not one of the payments on this account. Check it '
+                  . 'against my_transactions.'];
+        }
+        $amount = self::CURRENCY . number_format((float) $d->amount_naira);
+        if ($d->refunded_at !== null) {
+            return ['ok' => true, 'outcome' => 'ALREADY_REFUNDED', 'reference' => $ref,
+                    'say' => "{$ref} ({$amount}) has already been refunded. Nothing to request."];
+        }
+
+        if (!$this->consented) {
+            return ['ok' => true, 'outcome' => 'NEEDS_CONFIRMATION', 'reference' => $ref, 'amount' => $amount,
+                    'say' => "Not filed yet. Ask them, in one sentence: shall I file a refund request for {$ref} "
+                           . "({$amount})? A person on the team reviews it and replies by email. Only after they "
+                           . 'say yes, call request_refund again.'];
+        }
+
+        $subject = 'Refund request — ' . $ref;
+        $open = DB::table('gates_support_tickets')->where('subject', $subject)
+            ->where(fn ($q) => $q->where('user_id', $this->viewerId)->orWhereRaw('LOWER(email) = ?', [$email]))
+            ->whereNotIn('status', ['resolved', 'closed'])->value('reference');
+        if ($open) {
+            return ['ok' => true, 'outcome' => 'ALREADY_REQUESTED', 'reference' => $ref, 'ticket' => (string) $open,
+                    'say' => "A refund request for {$ref} is already open as {$open}. The team replies by email."];
+        }
+
+        $body = "Refund requested through the assistant.\n\nPayment: {$ref} ({$amount}), status {$d->status}.\n"
+              . 'Reason given: ' . (trim($reason) !== '' ? mb_substr(trim($reason), 0, 600) : '(none given)');
+        $ticket = (new SupportTicketService())->openForMember((int) $this->viewerId, $email, '', $subject, $body);
+        if ($ticket === null) {
+            return ['ok' => false, 'outcome' => 'FAILED', 'say' => 'The request could not be saved just now. Say so, '
+                  . 'and pass it to the team with the reference.'];
+        }
+        return ['ok' => true, 'outcome' => 'REQUESTED', 'reference' => $ref, 'ticket' => $ticket,
+                'say' => "Refund request filed for {$ref} ({$amount}) as {$ticket}. A person on the team reviews it "
+                       . 'and replies by email. It is a request, not an approval — say exactly that.'];
     }
 
     /**

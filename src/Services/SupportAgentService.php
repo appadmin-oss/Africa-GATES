@@ -110,6 +110,9 @@ final class SupportAgentService implements SupportAnswerer
         }
         $history = array_slice($history, -self::MAX_HISTORY);
         $facts   = [];
+        // "Yes" to the action proposed in the turn before — decided here, in code, from the
+        // person's own words. See SupportContext::requestRefund().
+        if (self::confirmsProposal($message, $history)) $ctx = $ctx->withConsent(true);
 
         // An error-page reference, quoted back. Answered before any planner or search,
         // because both read it as a PAYMENT reference: the Help Centre matched the word
@@ -233,7 +236,14 @@ final class SupportAgentService implements SupportAnswerer
                             array $facts, bool $escalate): array
     {
         $ticketRef = null;
-        if ($escalate && $this->tickets !== null && $this->shouldEscalate($message, $history, $facts)) {
+        // A refund request the person agreed to IS their ticket. Escalating on top of it would
+        // open a second ticket about the same payment, each with its own reference to quote.
+        foreach ($facts as $f) {
+            if (($f['tool'] ?? '') === 'request_refund' && in_array($f['data']['outcome'] ?? '', ['REQUESTED', 'ALREADY_REQUESTED'], true)) {
+                $ticketRef = (string) ($f['data']['ticket'] ?? '') ?: null;
+            }
+        }
+        if ($ticketRef === null && $escalate && $this->tickets !== null && $this->shouldEscalate($message, $history, $facts)) {
             $ticketRef = $this->tickets->open($message, $history, $ctx, $this->trace);
             if ($ticketRef !== null) {
                 $reply .= "\n\nI have passed this to the team — your reference is **{$ticketRef}**. "
@@ -448,6 +458,11 @@ final class SupportAgentService implements SupportAnswerer
       the one thing you need from them.
     - Two tools is usually enough; a problem with several parts may take five. Never call the
       same tool with the same arguments twice.
+    - A refund for a signed-in person's own payment: refund_status first (a payment whose
+      votes could not be counted is refunded automatically). If nothing is under way, PROPOSE
+      a refund request in one sentence — the reference and the amount — and ask them to
+      confirm. Call request_refund only after they say yes. It is a request a person decides:
+      never say a refund is approved.
     - If they ask for a person, say you will pass it on — the platform does that, you do not
       need a tool for it.
     - When the next step is a page on this site — a ballot, the nomination form, an event,
@@ -520,6 +535,30 @@ final class SupportAgentService implements SupportAnswerer
      * often a third of a result — and capped. The model reads "absent" correctly; it does
      * not need to be told forty times that a field has no value.
      */
+    /**
+     * Is this message a yes to an action the assistant proposed in its previous turn?
+     *
+     * Both halves are required, and both are read in code: the person's message must be a
+     * short affirmative with no "no"/"don't"/"wait" in it, and the assistant's last turn must
+     * have proposed something to file. A model cannot grant its own consent this way, and a
+     * stray "ok" in the middle of an unrelated conversation consents to nothing.
+     *
+     * @param list<array{role?:string,content?:string,text?:string}> $history
+     */
+    public static function confirmsProposal(string $message, array $history): bool
+    {
+        $m = mb_strtolower(trim($message));
+        if ($m === '' || mb_strlen($m) > 80) return false;
+        if (preg_match('/\b(no|not|don\'t|dont|do not|wait|stop|cancel|never mind|hold off)\b/u', $m)) return false;
+        if (!preg_match('/^(yes|yeah|yep|yup|ok|okay|sure|please|please do|go ahead|do it|file it|proceed|confirm|confirmed|abeg|na so)\b/u', $m)) return false;
+        foreach (array_reverse($history) as $h) {
+            if (!is_array($h) || ($h['role'] ?? '') !== 'assistant') continue;
+            $last = mb_strtolower((string) ($h['content'] ?? $h['text'] ?? ''));
+            return str_contains($last, 'refund request') && str_contains($last, '?');
+        }
+        return false;
+    }
+
     /** Sent back, as the platform and not the person, when a reply promised instead of acting. */
     private const PROMISE_CHECK = 'PLATFORM CHECK, not the user: your reply said you would check or look into '
         . 'something, but you called no tool, and this turn ends when you stop writing — the person would be left '
