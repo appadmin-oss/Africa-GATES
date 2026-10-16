@@ -35,7 +35,7 @@
       <div class="who__stage">
         {% if a.rec %}
           {% set r = a.rec %}
-          <span class="who__img">{% include 'partials/photo.twig' with r.recipient.photo ? {kind: 'person', src: r.recipient.photo|media_url, name: r.recipient.name} : {kind: 'thing', subject: 'award', src: '', name: r.award.programme} only %}</span>
+          <span class="who__img{{ r.recipient.photo ? ' who__img--photo' }}">{% include 'partials/photo.twig' with r.recipient.photo ? {kind: 'person', src: r.recipient.photo|media_url, name: r.recipient.name} : {kind: 'thing', subject: 'award', src: '', name: r.award.programme} only %}</span>
           <a class="who__rec" href="{{ r.recipient.url ?: r.award.url }}">
             <span class="who__iss">
               <span class="who__ini" aria-hidden="true">{{ r.issuer.name|first|upper }}</span>

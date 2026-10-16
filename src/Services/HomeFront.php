@@ -128,6 +128,33 @@ final class HomeFront
      *
      * @return array{nominations_open:int,voting_open:int,nations:int,votes:int}
      */
+    /**
+     * The stats strip as it is drawn: only the figures that are worth printing.
+     *
+     * LOW-DATA-RULES §3 (mandatory, owner, 13 Oct 2026): a figure below its minimum is
+     * dropped, not printed. "0 countries taking part · 0 votes cast" on the first screen of
+     * the site reads as a verdict on the platform rather than a fact about it. A count of
+     * nought is never shown; the vote total waits for `votes_public_total`. With nothing
+     * left the strip is not drawn at all.
+     *
+     * @return list<array{n:int, one:string, many:string}>
+     */
+    public static function statRows(?array $stats = null): array
+    {
+        $s = $stats ?? self::stats();
+        $rows = [
+            [$s['nominations_open'], 'edition open for nominations', 'editions open for nominations', 1],
+            [$s['voting_open'],      'vote happening now',           'votes happening now',           1],
+            [$s['nations'],          'country taking part',          'countries taking part',         1],
+            [$s['votes'],            'vote cast',                    'votes cast', \AfricaGates\Support\DisplayThreshold::min('votes_public_total')],
+        ];
+        $out = [];
+        foreach ($rows as [$n, $one, $many, $min]) {
+            if ((int) $n >= $min) $out[] = ['n' => (int) $n, 'one' => $one, 'many' => $many];
+        }
+        return $out;
+    }
+
     public static function stats(): array
     {
         if (isset(self::$memo['stats'])) return self::$memo['stats'];

@@ -25,8 +25,9 @@
 
   SignIn.dc.html sets an invented choral director over an Unsplash photograph with a line
   in his voice. Nothing on this platform holds a winner's own words, so the panel shows the
-  newest DECIDED award — a real person, a real result (HomeFront::decided(), which publishes
+  newest DECIDED awards — real people, real results (HomeFront::decided(), which publishes
   only what PublicResults would) — named, with the award beneath, and nobody is quoted.
+  Four of them rotate, as the DC's voices do (13 Oct 2026).
   Their photo through `partials/photo.twig`, so an absent photo is a monogram and never a
   stock face. With nothing decided there is no panel (PHASE-8.md deviations).
 
@@ -72,14 +73,42 @@
 {% endblock %}
 
 {% block content %}
-<div class="si{{ auth_art|default(null) ? ' si--art' }}">
-  {% if auth_art|default(null) %}
-    <aside class="si__art" aria-label="{{ 'Recently decided'|trans }}">
-      {% include 'partials/photo.twig' with {kind: 'person', src: auth_art.photo, name: auth_art.name, size: 160, class: 'si__photo'} only %}
-      <span class="si__veil" aria-hidden="true"></span>
+{% set _slides = auth_art|default([]) %}
+<div class="si{{ _slides ? ' si--art' }}">
+  {% if _slides %}
+    {# Up to four winners, newest first, crossfading (signin.js). Every slide is in the
+       document, so with no script the first one simply stays. A slide with no photo is a
+       monogram on the ink ground in a gold ring — honour is the one meaning gold carries —
+       rather than a portrait slot that looks like a failed image. #}
+    <aside class="si__art" aria-label="{{ 'Recently decided'|trans }}" data-si-art{% if _slides|length > 1 %} data-si-rotate{% endif %}>
+      {% for a in _slides %}
+        <div class="si__slide{{ loop.first ? ' is-on' }}{{ a.photo ? '' : ' si__slide--mono' }}" data-si-slide{% if not loop.first %} aria-hidden="true"{% endif %}>
+          {% if a.photo %}
+            {% include 'partials/photo.twig' with {kind: 'person', src: a.photo, name: a.name, size: 160, class: 'si__photo'} only %}
+          {% else %}
+            <span class="si__mono" aria-hidden="true"><span class="si__ring">{{ a.ini|default(a.name|split(' ')|map(w => w|first)|join|slice(0, 2)) }}</span></span>
+          {% endif %}
+          <span class="si__veil" aria-hidden="true"></span>
+        </div>
+      {% endfor %}
       <div class="si__credit">
-        <a class="si__who" href="{{ auth_art.url }}">{{ auth_art.name }}</a>
-        <span class="si__what">{{ auth_art.what }}</span>
+        <span class="si__k">{{ 'Recently decided'|trans }}</span>
+        <div class="si__live" aria-live="polite">
+          {% for a in _slides %}
+            <div class="si__line{{ loop.first ? ' is-on' }}" data-si-line{% if not loop.first %} hidden{% endif %}>
+              <a class="si__who" href="{{ a.url }}">{{ a.name }}</a>
+              <span class="si__what">{{ a.what }}</span>
+            </div>
+          {% endfor %}
+        </div>
+        {% if _slides|length > 1 %}
+          <div class="si__nav">
+            <span class="si__count"><b data-si-cur>01</b> / {{ '%02d'|format(_slides|length) }}</span>
+            <span class="si__prog" aria-hidden="true"><span data-si-prog></span></span>
+            <button type="button" class="si__step" data-si-prev aria-label="{{ 'Previous winner'|trans }}"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
+            <button type="button" class="si__step" data-si-next aria-label="{{ 'Next winner'|trans }}"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+          </div>
+        {% endif %}
       </div>
     </aside>
   {% endif %}

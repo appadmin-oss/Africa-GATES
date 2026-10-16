@@ -174,7 +174,15 @@
             <p>{{ 'Nothing from what you follow yet. Follow an award’s channel or a member and their posts collect here.'|trans }}</p>
             <a class="pl-go" href="/pulse">{{ 'See everything'|trans }}</a>
           {% else %}
-            <p>{{ 'Nothing has been posted yet.'|trans }}</p>
+            {# An empty feed with a reason and a next step (app-ux §13), never one bare line. #}
+            <span class="pl-empty__ic" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg></span>
+            <h2 class="pl-empty__t">{{ 'Pulse is quiet so far'|trans }}</h2>
+            <p>{{ 'Nominations, results and news from every award appear here as they happen.'|trans }}</p>
+            {% if _signed %}
+              <a class="pl-go" href="/nominate">{{ 'Nominate someone'|trans }}</a>
+            {% else %}
+              <a class="pl-go" href="/account/login?next=%2Fpulse">{{ 'Sign in to post'|trans }}</a>
+            {% endif %}
           {% endif %}
         </div>
       {% endif %}

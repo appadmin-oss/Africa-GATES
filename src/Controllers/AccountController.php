@@ -217,10 +217,18 @@ class AccountController
      * names the winner and the award and says nothing in their voice. With nothing decided
      * there is no panel at all — an empty dark half is not a design, it is a gap.
      */
-    private function art(): ?array
+    /**
+     * The desktop art panel's slides: the four newest DECIDED awards (SignIn.dc.html's
+     * "rotating voices", owner's handoff 13 Oct 2026). Real people and real results only —
+     * nobody here has given us words to put in their mouth, so a slide names the winner
+     * and the award and quotes no one. An empty list draws no panel.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function art(): array
     {
-        try { $d = \AfricaGates\Services\HomeFront::decided(); } catch (\Throwable) { return null; }
-        return $d[0] ?? null;
+        try { $d = \AfricaGates\Services\HomeFront::decided(); } catch (\Throwable) { return []; }
+        return array_slice(array_values($d), 0, 4);
     }
 
     public function registerSubmit(Request $req, Response $res): Response

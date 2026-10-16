@@ -22,7 +22,9 @@
 .who__panel[hidden]{ display:none }
 .who__stage{ position:relative; aspect-ratio:1 / 1; background:var(--ag-ink) }
 .who__img{ position:absolute; inset:0 }
-.who__img::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, color-mix(in srgb, var(--ag-ink) 55%, transparent) 0%, transparent 55%) }
+/* The scrim lifts a PHOTOGRAPH's busy left side off the record card. Over the generated
+   cover it only greyed a light pattern into a smear, so it is the photo's alone. */
+.who__img--photo::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, color-mix(in srgb, var(--ag-ink) 55%, transparent) 0%, transparent 55%) }
 .who__rec,
 .who__rec:hover{
   position:absolute; inset-inline-end:12px; bottom:12px; width:calc(100% - 24px); box-sizing:border-box;
@@ -63,6 +65,8 @@
   .who__tab{ padding:0 20px; font-size:var(--ag-fs-15) }
   .who__panel{ border-radius:var(--ag-r-24) }
   .who__stage{ aspect-ratio:16 / 8 }
+  /* A cover is a pattern, not a picture: it does not need half the screen. */
+  .who__stage:not(:has(.who__img--photo)){ aspect-ratio:16 / 6 }
   .who__rec,
   .who__rec:hover{ inset-inline-end:28px; bottom:28px; width:380px }
   .who__none{ inset-inline:auto 28px; bottom:28px; width:380px; box-sizing:border-box }

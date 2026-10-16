@@ -90,12 +90,13 @@
   </section>
 
   {# ── 2 · Live stats — counted (HomeFront::stats), never the DC's figures ──── #}
+  {% if stat_rows %}
   <section class="hm-stats" aria-label="{{ 'Live now'|trans }}">
-    <div class="hm-stat"><span class="hm-stat__n">{{ stats.nominations_open|number_format }}</span><span class="hm-stat__l">{{ (stats.nominations_open == 1 ? 'edition open for nominations' : 'editions open for nominations')|trans }}</span></div>
-    <div class="hm-stat"><span class="hm-stat__n">{{ stats.voting_open|number_format }}</span><span class="hm-stat__l">{{ (stats.voting_open == 1 ? 'vote happening now' : 'votes happening now')|trans }}</span></div>
-    <div class="hm-stat"><span class="hm-stat__n">{{ stats.nations|number_format }}</span><span class="hm-stat__l">{{ (stats.nations == 1 ? 'country taking part' : 'countries taking part')|trans }}</span></div>
-    <div class="hm-stat"><span class="hm-stat__n">{{ stats.votes|number_format }}</span><span class="hm-stat__l">{{ (stats.votes == 1 ? 'vote cast' : 'votes cast')|trans }}</span></div>
+    {% for r in stat_rows %}
+      <div class="hm-stat"><span class="hm-stat__n">{{ r.n|number_format }}</span><span class="hm-stat__l">{{ (r.n == 1 ? r.one : r.many)|trans }}</span></div>
+    {% endfor %}
   </section>
+  {% endif %}
 
   {# ── 3 · Who recognises (Phase 6) ─────────────────────────────────────── #}
   {% include 'partials/who-recognises.twig' with {recognitions: recognitions|default([])} only %}

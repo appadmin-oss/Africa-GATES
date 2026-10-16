@@ -71,9 +71,13 @@
               {% if p.meta %}<span class="vh-row__meta">{{ p.meta }}</span>{% endif %}
               <span class="vh-row__status">{{ p.status }}</span>
             </span>
+            {# No count until there is one (LOW-DATA-RULES §3): "0 votes" beside "Be among the
+               first to vote" says the same thing twice, the second time as a verdict. #}
             <span class="vh-row__count{{ p.open ? '' : ' vh-row__count--off' }}">
+              {% if not p.open or p.votes > 0 %}
               <b>{{ p.open ? p.votes|number_format : '—' }}</b>
               <span>{{ p.open ? (p.votes == 1 ? 'vote'|trans : 'votes'|trans) : 'not open'|trans }}</span>
+              {% endif %}
             </span>
             <span class="vh-row__btn{{ p.open ? ' vh-row__btn--go' }}" aria-hidden="true">{{ p.open ? 'Vote'|trans : 'View'|trans }}</span>
             <svg class="vh-row__chev ag-ico-dir" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>

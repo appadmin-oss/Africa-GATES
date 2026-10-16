@@ -127,3 +127,41 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+
+/* 5 ── THE WINNERS ON THE ART PANEL (desktop) ───────────────────────────────
+   SignIn.dc.html's rotating voices: a 0.8s crossfade every 5.5s, paused while the
+   pointer is over the panel or the tab is hidden, and not at all under reduced motion
+   (the arrows still step). The credit line is aria-live, so a screen reader hears the
+   name change; the slides themselves are decorative. */
+(function () {
+  'use strict';
+  var art = document.querySelector('[data-si-rotate]');
+  if (!art) return;
+  var slides = art.querySelectorAll('[data-si-slide]');
+  var lines = art.querySelectorAll('[data-si-line]');
+  var cur = art.querySelector('[data-si-cur]');
+  var prog = art.querySelector('[data-si-prog]');
+  var n = slides.length, i = 0, timer = null, hover = false;
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function show(k) {
+    i = (k + n) % n;
+    for (var j = 0; j < n; j++) {
+      slides[j].classList.toggle('is-on', j === i);
+      if (j === i) slides[j].removeAttribute('aria-hidden'); else slides[j].setAttribute('aria-hidden', 'true');
+      if (lines[j]) lines[j].hidden = j !== i;
+    }
+    if (cur) cur.textContent = (i + 1 < 10 ? '0' : '') + (i + 1);
+    if (prog) prog.style.width = ((i + 1) * 100 / n) + '%';
+  }
+  function tick() { if (!hover && !document.hidden) show(i + 1); }
+  function start() { if (!still && !timer) timer = setInterval(tick, 5500); }
+  function stop() { clearInterval(timer); timer = null; }
+  art.addEventListener('mouseenter', function () { hover = true; });
+  art.addEventListener('mouseleave', function () { hover = false; });
+  art.addEventListener('focusin', function () { hover = true; });
+  art.addEventListener('focusout', function () { hover = false; });
+  var prev = art.querySelector('[data-si-prev]'), next = art.querySelector('[data-si-next]');
+  if (prev) prev.addEventListener('click', function () { stop(); show(i - 1); start(); });
+  if (next) next.addEventListener('click', function () { stop(); show(i + 1); start(); });
+  show(0); start();
+})();

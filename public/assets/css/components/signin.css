@@ -33,7 +33,29 @@
     overflow:hidden; background:var(--ag-ink);
   }
 }
+/* The slides, stacked: one shown, the rest faded out (signin.js crossfades them). */
+.si__slide{ position:absolute; inset:0; opacity:0; transition:opacity .8s var(--ag-ease, ease) }
+.si__slide.is-on{ opacity:1 }
+@media (prefers-reduced-motion:reduce){ .si__slide{ transition:none } }
 .si__photo{ position:absolute; inset:0; width:100%; height:100%; border-radius:0 }
+/* No photo: the ink ground, a faint ring pattern, and the initials in a gold ring. */
+.si__mono{ position:absolute; inset:0; display:grid; place-items:center; padding-bottom:18%;
+  background:radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--ag-gold) 8%, transparent) 0 16%, transparent 44%), var(--ag-ink) }
+.si__ring{ display:grid; place-items:center; width:168px; height:168px; border-radius:50%;
+  box-shadow:0 0 0 2px var(--ag-gold), 0 0 0 14px color-mix(in srgb, var(--ag-gold) 12%, transparent);
+  color:var(--ag-ground); font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-52) }
+.si__k{ font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-gold) }
+.si__line[hidden]{ display:none }
+.si__line{ display:flex; flex-direction:column; gap:8px }
+.si__nav{ display:flex; align-items:center; gap:12px; margin-top:8px }
+.si__count{ font-variant-numeric:tabular-nums; font-size:var(--ag-fs-13); color:color-mix(in srgb, var(--ag-ground) 60%, transparent) }
+.si__count b{ color:var(--ag-ground); font-weight:600 }
+.si__prog{ position:relative; width:120px; height:2px; background:color-mix(in srgb, var(--ag-ground) 25%, transparent); overflow:hidden; margin-inline-end:auto }
+.si__prog > span{ position:absolute; inset:0 auto 0 0; width:0; background:var(--ag-ground); transition:width .4s ease }
+.si__step{ display:grid; place-items:center; width:44px; height:44px; border-radius:50%; border:1px solid color-mix(in srgb, var(--ag-ground) 45%, transparent);
+  background:transparent; color:var(--ag-ground); cursor:pointer }
+.si__step:hover{ border-color:var(--ag-ground) }
+.si__step:focus-visible{ outline:3px solid var(--ag-gold); outline-offset:2px }
 /* A monogram on the dark half: the initials set large and quiet, so the panel reads as a
    portrait slot rather than a hole. */
 .si__photo.ag-photo--mono{ background:var(--ag-ink); box-shadow:none }

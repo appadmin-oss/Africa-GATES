@@ -56,7 +56,7 @@ final class HomeController
                 . NationsLive::phrase() . '.',
             'gates_page'       => 'home',
             'tab'              => 'home',
-            'stats'            => $front['stats'],
+            'stat_rows'        => HomeFront::statRows($front['stats']),
             'voting'           => $front['voting'],
             'decided'          => $front['decided'],
             'campaign'         => $front['campaign'],
