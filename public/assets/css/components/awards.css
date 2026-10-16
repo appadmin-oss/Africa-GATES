@@ -189,6 +189,16 @@
 .aw-doc__s{ display:flex; flex-direction:column; gap:8px }
 .aw-doc__s p{ margin:0 }
 .aw-doc__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22); line-height:1.25; color:var(--ag-ink) }
+/* The award's own questions, each one a disclosure so a long list stays one screen. */
+.aw-faq{ border-top:1px solid var(--ag-line) }
+.aw-faq:last-child{ border-bottom:1px solid var(--ag-line) }
+.aw-faq__q{ display:flex; align-items:center; min-height:48px; padding:10px 0; font-weight:600; cursor:pointer; list-style:none }
+.aw-faq__q::-webkit-details-marker{ display:none }
+.aw-faq__q::after{ content:"+"; margin-inline-start:auto; padding-inline-start:12px; color:var(--ag-soft); font-size:var(--ag-fs-20) }
+.aw-faq[open] > .aw-faq__q::after{ content:"–" }
+.aw-faq__q:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.aw-faq__a{ display:flex; flex-direction:column; gap:8px; padding:0 0 14px; color:var(--ag-ink-2) }
+.aw-faq__a p{ margin:0 }
 .aw-doc a{ color:var(--ag-green); font-weight:600 }
 
 /* Terms. */

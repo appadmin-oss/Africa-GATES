@@ -445,15 +445,16 @@ final class HelpCentre
         // The owner's words, verbatim but for three things the house rules decide and
         // PHASE-9.md lists for the owner to confirm: the price is {price}, read from the
         // setting the ballot charges (never a typed naira figure — HelpCentreTest), the two
-        // all-caps lines are sentence case (no capitals anywhere), and "African G8" is kept
-        // as written because nothing in this codebase names a programme that way.
+        // all-caps lines are sentence case (no capitals anywhere), and the platform's name is
+        // Africa GATES — the draft's other name was retired by the owner (16 Oct 2026,
+        // Support\Brand).
         [
             'slug' => 'why-is-voting-paid',
             'audience' => ['supporter', 'nominee'],
             'cat'  => 'voting',
-            'kicker' => 'African G8 community voting',
+            'kicker' => 'Africa GATES community voting',
             'title' => 'Why is voting paid?',
-            'summary' => 'Because African G8 is community-driven.',
+            'summary' => 'Because Africa GATES is community-driven.',
             'keywords' => ['why is voting paid', 'why is it paid', 'why not free', 'where does the money go',
                            'where do the funds go', 'what is the money for', 'paid voting', 'sponsor',
                            'community voting', 'contribution'],

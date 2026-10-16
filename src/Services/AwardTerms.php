@@ -91,7 +91,9 @@ final class AwardTerms
      */
     public static function publish(int $programmeId, string $body, string $changelog = '', ?int $adminId = null): int
     {
-        $body = trim($body);
+        // The platform's name, one way, in every version anybody is asked to accept
+        // (Support\Brand, owner 16 Oct 2026).
+        $body = \AfricaGates\Support\Brand::normalise(trim($body));
         if ($programmeId < 1 || $body === '') return 0;
         $latest = DB::table('gates_award_terms')->where('programme_id', $programmeId)->orderByDesc('version')->first();
         if ($latest && trim((string) $latest->body) === $body) return 0;
