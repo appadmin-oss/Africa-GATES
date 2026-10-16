@@ -2,9 +2,19 @@
 
 *Draft for the owner's review, 16 Oct 2026. Nothing here has been built yet. Each phase waits for your approval.*
 
-You asked for an audit of how the app is built, research, and a plan. You also asked that
-awards stop being identical: an award's nomination form, rules and look must be its own.
-This document covers both. The numbers come from counting the code itself.
+You asked for an audit of how the app is built, research, and a plan that covers every part
+of the platform. That includes:
+
+- awards whose nomination forms, rules and look are their own;
+- volunteers with scoped access, tasks and verified results;
+- events;
+- a market where people buy, sell, highlight their own products and businesses, and promote
+  them;
+- an experience structure tailored to each person;
+- an assistant that acts.
+
+Every process is held to your five tests: repeatability, visibility, accountability,
+verification and replication. The numbers come from counting the code itself.
 
 ---
 
@@ -13,46 +23,57 @@ This document covers both. The numbers come from counting the code itself.
 **What is wrong.** Africa GATES works, but it is built as hundreds of separate features, not
 as one system. Most features were added end to end in one go: a route, a controller, a
 service, a table, a template and a test, made to work and then left. Nothing gathers the
-pieces into areas such as Awards, Money or Events. So:
+pieces into areas such as Awards, Money or Events. And nothing models the work people do to
+run the platform. So:
 
 - **The same job is done in many places, slightly differently each time.** There are 5
-  sign-in systems, at least 5 rate limiters, 3 mail transports, 28 hand-built HTTP clients,
-  14 private copies of "read a setting", and 11 private copies of "who is the signed-in
-  admin". Each copy is a place for a bug to live. This repo's own CLAUDE.md is mostly a list
-  of bugs of exactly that shape.
-- **Pages were destroyed on 3 Oct and 15 are still not rebuilt.** Their routes still exist,
-  so each one returns a server error today. They include the nominee's own work page
-  (`/my-work`), stand applications, claim disputes and the honour page. (The organisation
-  console was rebuilt on 16 Oct, in parallel with this audit.)
-- **Every award runs on the same hard-coded form and rules.** "Two to three categories",
-  "at least 40 characters", the list of fields and the evidence rules are constants in code
-  (`NominationRules`). Only some words can be changed per award (`AwardWording`), and three
-  of those seven words are saved but never shown on the live form.
-- **The code is hard to change safely.** About 1,750 of the 1,776 error handlers catch
-  everything, and 1,262 of them cannot even log what they caught. Money paths such as
-  refunds, reconciliation and shop orders write several rows with no database
-  transaction. A quarter of the test assertions check the text of source files rather than
-  behaviour.
+  sign-in systems, at least 5 rate limiters, 3 mail transports, 28 hand-built HTTP clients
+  and 14 private copies of "read a setting". Each copy is a place for a bug to live.
+- **Most processes fail your five tests.** Work goes to shared pools with no owner and no
+  deadline. Status lives in people's heads. Nothing is scoped below "the whole platform",
+  so a second centre would mean doubling the administration. Verification is strong only
+  where the platform records facts itself (door scans, scorecards, sealed results).
+- **There is no place yet** for volunteers, for people buying and selling, for
+  highlights people post themselves, or for promotions. Today's shop, vendors, stands and
+  banners are four separate models with separate payments.
+- **Every award runs on the same hard-coded nomination form and rules.**
+- **The experience is a list of pages, not a structure.** There are four navigation
+  sources and two design systems, and a person with three roles has three homes.
+- **15 pages return a server error**, and Gee promises checks it never makes.
 
-**What I propose.** Keep one app and one deploy; no microservices and no new hosting.
-Reorganise the code into **domains** (Awards, Nominations, Judging, Voting, Results,
-Money, Events, Shop, Community, Accounts, Comms, Content, Ops). Each domain owns its tables,
-its rules and its pages, and they sit on a small **platform kernel**: one way to read
-settings, one mailer, one HTTP client, one rate limiter, one "who is signed in", and one
-error reporter. Then make awards configurable through an **award profile**:
+**What I propose.** Keep one app and one deploy on the same host, and organise it in three
+layers:
 
-- a versioned nomination form built from a library of fields;
-- per-award rules;
-- a per-award look chosen from the house palette.
+1. **A platform kernel**: one way to do each shared job (settings, mail, HTTP, rate
+   limits, errors, who is signed in).
+2. **An operating model that makes your five tests true by construction**:
+   - a process registry, so every process is declared with its steps;
+   - work items, each with an owner and a deadline;
+   - graded evidence, so reported activity is never counted as a demonstrated result;
+   - scopes (platform → country → state → centre → event), so a centre is a row and a
+     lead rather than a new set of staff;
+   - templates, so a process or an event can be cloned.
+3. **Domains built on it**, each owning its data:
+   - Awards, with configurable award profiles and dynamic forms;
+   - Volunteers;
+   - Events as workspaces;
+   - one Market for selling, highlights and promotions;
+   - Money, on one payment ledger;
+   - the rest of today's site.
 
-All of this moves one piece at a time, behind the live site, and every step ships on its own.
+On top sits **one experience structure**. It has five spaces (Public, a single home per
+person, a scoped Workspace for staff and volunteers, Field tools, and the Judge room), one
+navigation registry, and one design system in two densities. Every surface is tailored by
+who, where, interests and phase.
 
-**What I need from you** is in §9: ten decisions. The two most important are:
+Everything moves one piece at a time, behind the live site, and every step ships on its own.
 
-- whether existing awards keep today's form as their version 1 (I recommend yes);
-- whether judging access may be regrouped (that is an access change, not a tidy-up).
+**What I need from you** is in §15: sixteen decisions. The ones that shape everything are:
 
----
+- what a **centre** is for Africa GATES (D11);
+- who may **sell** (D13);
+- whether nominees may be **promoted** (D15);
+- whether existing awards keep today's form as version 1 (D1).
 
 ## 2. Broken right now: fix before any restructuring (Phase 0)
 
@@ -70,7 +91,8 @@ first. I verified each one in the code.
 | 7 | The Pulse "load more" pieces don't line up | `social.js:188` sends `part=items`; the controller checks `fragment=1` and renders the missing `pulse/_cards` | "Load more" fails. |
 | 8 | Stand fees have no backstop | `StandFee::confirm` is called only from `StandOfferController:302`; the webhook, reconciler, GatewayLedger and RefundService never reference stands | A paid stand whose return trip fails stays unpaid, and finance never shows it. |
 | 9 | Developer documents state the retired paid-vote rule | `PaidVoteService.php:20-22` and `CODEBASE-INDEX.md:261` say "never move rank" | Whoever changes scoring next reads the wrong rule. |
-| 10 | **Fixed in this commit:** my 16 Oct change replaced `Support\Brand`'s logo helpers | `OtpService:849`, `ChallengeFlier:217` and `InviteLetter:116` call `Brand::logoUrl`/`LOGO_ON_TINT` | The email masthead, challenge flier and invite letter broke. The helpers are restored, alongside the name rule. |
+| 10 | Gee promises a check and never makes it | The payments tool is offered only to a recognised member (`SupportContext.php:393`); the loop accepts any reply that is not a tool call as final (`SupportAgentService.php` ~171) | "I will check your payments, hold on", three times, then a ticket. See §12. |
+| 11 | **Fixed in the previous commit:** my 16 Oct change replaced `Support\Brand`'s logo helpers | `OtpService:849`, `ChallengeFlier:217` and `InviteLetter:116` call `Brand::logoUrl`/`LOGO_ON_TINT` | The email masthead, challenge flier and invite letter broke. The helpers are restored, alongside the name rule. |
 
 **The test suite is not green today.** The full run (7,085 tests) has 12 failures that
 predate this audit. Each one is a real finding, not noise:
@@ -317,17 +339,26 @@ src/
     RateLimit/         one limiter (claim/peek), replacing five
     Errors/            one Reporter: every catch names its error and reports it
     Clock/, Ids/, ClientIp/, Schema/ (SchemaHas, SchemaIndex), View/ (one Twig factory)
+  Operations/          the operating model (§6): no business rules of its own
+    Processes/         the registry: steps, roles, evidence, time limits, playbooks
+    Work/              work items: owner, due, status, escalation, digests
+    Evidence/          observed, witnessed, documented, reported
+    Scopes/            platform → country → state → centre → programme/event; templates
   Domain/
+    People/            one person, memberships, grants (role at a scope, with expiry)
     Awards/            programmes, cycles, categories, award profile, terms, details
-    Nominations/       forms, submissions, triage, aftercare, claims
+    Forms/             the one form engine: nominations, applications, listings, surveys
+    Nominations/       submissions, triage, aftercare, claims
     Judging/           judges, rubrics, scorecards, COI, questionnaires, interviews
     Voting/            ballots, OTP, paid and bonus votes, fraud, recovery
     Results/           scoring (CpiService, RuleEngine), release, seal, recognitions
-    Money/             donations, recurring, gateway, reconciliation, refunds, payouts
-    Events/            calendar, tiers, tickets, door, invites, stands
-    Shop/              products, orders, codes
+    Volunteers/        applications, training, shifts, tasks, hours, levels, recognition
+    Events/            calendar, tiers, tickets, run-sheet, door, invites, templates
+    Market/            sellers, listings (product, service, stand, ticket, highlight), orders, reviews, disputes
+    Promotions/        placements, campaigns, codes, delivery
+    Money/             one payment ledger, giving, recurring, reconciliation, refunds, payouts
     Community/         pulse, threads, comments, moderation
-    Accounts/          members, organisations, vendors, profiles
+    Assist/            Gee, the help desk, the staff assistant: one agent core, many tool sets
     Comms/             newsletter, campaigns, broadcasts, SMS
     Content/           help centre, legal, blog, pages
     Ops/               maintenance, status, cron, audit log, sandbox
@@ -363,9 +394,163 @@ application service (rules and transaction) → data (queries owned by the domai
 
 ---
 
-## 6. Dynamic awards and nomination forms
+## 6. The operating model: five tests every process must pass
 
-### 6.1 What exists today
+You set five tests for every process. Today almost every process on the platform fails at
+least two of them, because a process here is a screen and a habit, not a thing the system
+knows about. The fix is to make each process **data the platform holds**, so that the five
+tests are properties the code checks rather than promises people keep.
+
+### 6.1 The five building blocks
+
+| Test | Building block | What it is |
+|---|---|---|
+| **Repeatability** | **Process registry + playbooks** | Every process is declared once in code: its steps, the role that may do each step, the evidence each step needs and its time limit. The handbook page for the process is **generated** from that declaration, the way `/admin/handbook` already reads its figures from the rules. Each step screen guides the person through it. A new volunteer or staff member follows the screen, not the founder. |
+| **Visibility** | **Status read from work items** | Every piece of work (a nomination to review, a refund, a stand application, a door shift, a volunteer's task) is a **work item** with a status. Every queue, count, dashboard and daily digest is a view over work items, so status is known without asking anyone. The console's "needs a person" board becomes one view among many. |
+| **Accountability** | **Owner and deadline on every item** | A work item cannot exist without an owner and a due time. Unassigned work rolls up to the lead of its scope. Overdue work escalates one level, visibly. A sweep fails any process that can create work with no owner or deadline. |
+| **Verification** | **Evidence, graded** | Completing a step attaches evidence, and the platform knows how much each kind is worth. In order of strength: **observed** (the platform recorded it itself: a QR scan, a confirmed payment, an approved nomination through someone's link); **witnessed** (a second person confirmed it); **documented** (a file or photo, reviewed); **reported** (the person says so). Each process states the minimum it accepts, so reported activity and demonstrated results are never added together. |
+| **Replication** | **Scopes and templates** | Everything (roles, work, settings, events, markets) belongs to a **scope**: Platform → Country → State/Region → Centre → Programme or Event. Roles granted at a scope apply below it. Settings layer the way RuleEngine already layers programme and cycle. Processes, events and task sets are **templates** a centre clones. Opening centre 101 means one row and one named lead, not new staff, new pages or new configuration. |
+
+The test for this section is one sweep. Every declared process must have:
+
+- an owner role for every step;
+- a time limit on every step;
+- a minimum evidence level;
+- a scope;
+- a generated playbook.
+
+A process that is not declared cannot create work items. So the only way to add a process
+is to answer all five tests.
+
+### 6.2 Today's processes against the five tests
+
+This is a first reading from the code. Phase 0 replaces it with the registry's own report,
+because once processes are declared the registry prints this table and keeps it true.
+
+| Process | Repeatable | Visible | Owned + due | Verified | Replicable |
+|---|---|---|---|---|---|
+| Nomination review | partial: one screen, rules in code | partial: a count on Home | **no**: a shared pool; the SLA promise is printed, but no person owns an item | n/a | **no**: one global queue |
+| Duplicate merge | yes: journal and undo | partial | **no** | yes: the journal | no |
+| Claim approval | partial | partial | **no** | partial: OTP to a contact | no |
+| Judging | yes: rubric, COI, orientation | yes: judging audit | partial: assigned per nominee; the deadline is the cycle date | **yes**: complete scorecards only | partial: per programme |
+| Nominee questionnaire and interview | partial | partial | partial: reminders exist | partial | partial |
+| Result release | yes: one act, sealed | yes | partial | **yes**: sealed and hash-chained | yes: per cycle |
+| Support tickets | partial | yes: ticket list | **no**: "48 hours" is printed, not measured per owner | n/a | no |
+| Refunds and payouts | partial: three different paths | partial | **no** | partial: gateway status | no |
+| Stand applications | partial | partial | **no** | **no**: no payment backstop | no |
+| Door check-in | **yes**: the scanner | yes | partial: passes per event, not per person | **yes**: observed scans | **yes**: per event |
+| Shop fulfilment | partial | partial | **no** | partial | no |
+| Moderation | partial | yes: a queue | **no** | n/a | no |
+| Challenge qualification | yes: computed | yes | n/a | **yes**: computed from records | partial |
+| Maintenance (cron) | yes | yes: CronHealth and alerts | yes: the system owns it | yes | yes |
+
+The pattern is clear. The platform is already good at **verification** wherever it records
+facts itself (scans, scorecards, seals). It is weak at **accountability** and
+**replication** everywhere, because nothing assigns work to a person and nothing has a
+scope below "the whole platform".
+
+---
+
+## 7. People, access and volunteers
+
+### 7.1 One person, many roles
+
+Today a person can be a member, a nominee, a donor, a judge, an organisation user and a
+vendor, and each of those is a separate record with its own sign-in, joined by email. The
+target is one **person** with many **memberships**:
+
+- member, nominee, nominator, donor, voter, judge, organisation user, seller, volunteer,
+  staff;
+- sign-in methods (password, one-time code, passkey) belong to the person, not to the role;
+- token links (my-work, tickets, door passes) keep working without an account, and attach
+  to the person's home when they are signed in.
+
+This is the largest data change in the plan, so it comes last (D6). Everything before it
+works through a single **Actor** in the kernel that already answers "who is this, and as
+what" across all five of today's sign-ins.
+
+### 7.2 Access: scoped, time-boxed, least privilege
+
+- **A grant is a role at a scope**, for example "door steward at the Lagos gala",
+  "nominee outreach for Kano centre", "moderator for the community" or "finance for the
+  whole platform". This is the pattern multi-tenant systems use instead of global roles,
+  because a global role cannot say "admin here, viewer there".
+- **Grants can expire.** A volunteer's event access ends when the event does. The door's
+  `EventScanPass` already works this way, opening and closing per event, and it becomes
+  the general mechanism.
+- **The console asks the same function everywhere.** `Permissions::canOpen()` already
+  decides every page and every nav entry. It gains a scope: `canOpen(person, page, scope)`.
+  So a volunteer sees the same console as staff, with only their scope's pages and rows.
+- **Personal data is masked by default.** A volunteer working a queue sees "Ada N.,
+  0803•••••12" unless the task needs more, and every unmasking is audited.
+
+### 7.3 Volunteers
+
+Volunteers are designed in as a domain of their own, built on work items, scoped access,
+evidence and the form engine.
+
+**Lifecycle.** Each step is a process in the registry, so each passes the five tests:
+
+1. **Apply.** The application form is a dynamic form from the same engine as nominations,
+   so each centre or event can ask its own questions.
+2. **Screen.** References, plus an identity check only for roles that need one. Age is
+   checked, with a guardian's consent recorded for minors.
+3. **Train.** Short modules with a check at the end. Passing grants the first
+   qualification.
+4. **Activate.** A grant of a role at a scope. The code of conduct is accepted and
+   versioned, like award terms.
+5. **Work.** Shifts and tasks.
+6. **Recognise.** Hours, badges, certificates and a standing per centre. A volunteer
+   award can be run as an Africa GATES programme in its own right.
+7. **Offboard.** Grants expire on their own, and access never outlives the reason for it.
+
+**Tasks come from a library of templates.** Each template states the process it belongs to,
+the qualification needed, the minimum evidence, the expected time and the points. Examples,
+each with how the platform verifies it without trusting a report:
+
+| Task | Verified by (strongest available) |
+|---|---|
+| Door steward or usher | Check-in and check-out by QR scan at the venue (observed hours) |
+| Stand marshal | Stand check-ins recorded on their pass (observed) |
+| Nominee outreach | Nominations that arrive through their link **and are approved** (observed outcome, not effort) |
+| Voter or community drive | Sign-ups through their link that verify an email or phone (observed) |
+| Data entry and digitising past editions | The reviewer's acceptance rate on a sample (witnessed) |
+| Moderation helper | Agreement with a moderator's decisions on a sample (witnessed) |
+| Photo, video, writing, translation | Pieces accepted and published (witnessed) |
+| Anything else | Approval by the scope lead, with a reason (witnessed); a self-report alone never counts toward hours or level |
+
+**Measurement and qualification.**
+
+- Four numbers per volunteer:
+  - verified hours;
+  - verified outcomes;
+  - quality (the acceptance rate of their work);
+  - reliability (shifts kept against shifts taken).
+- **Levels are computed from evidence, never set by hand without a reason on the audit
+  log.**
+  - Level 1 can take general tasks.
+  - Level 2 can create records that publish after a spot check.
+  - Level 3 is a lead: they assign work, approve hours and confirm witnessed evidence for
+    others.
+- The rates move with the record. As someone's accuracy rises, the share of their work that
+  is spot-checked falls, and it rises again if accuracy drops.
+
+**Data volunteers create** carries its provenance: who made it, under which task and grant.
+It stays a draft until their level allows publishing, or until a reviewer accepts it. New
+volunteers can practise in the sandbox, which already exists for exactly this.
+
+**Their experience.**
+
+- Volunteering is a panel in their own home (§11): today's shifts, open tasks, verified
+  hours, their level and what the next one needs, and a downloadable certificate.
+- Field work (door, stands, check-in) uses full-screen field tools built for a phone and
+  a poor connection, as the door scanner already is.
+
+---
+
+## 8. Dynamic awards and nomination forms
+
+### 8.1 What exists today
 
 Per-award configuration already exists, but in scattered pieces:
 
@@ -387,7 +572,7 @@ So the platform already holds **three form engines**: the hard-coded nomination 
 questionnaire questions and the general form builder. None of them can express what you
 asked for. The plan is to merge them into one, not to add a fourth.
 
-### 6.2 Target: the award profile
+### 8.2 Target: the award profile
 
 Every programme gets an **award profile**. It resolves the same way RuleEngine does: house
 defaults, then the programme, then the cycle, with the last layer winning. So one edition
@@ -467,7 +652,7 @@ saved but unseen get rendered.
   allowed or not. These sit behind the existing RuleEngine settings, so announced results
   stay reproducible.
 
-### 6.3 The admin side: one "Award setup" screen
+### 8.3 The admin side: one "Award setup" screen
 
 Today an award is configured across Programmes, Settings, Rubric, Questionnaires and
 Judges. The plan is one screen per award with tabs:
@@ -481,9 +666,9 @@ version; until then the live form is untouched.
 
 *The tabs link to the existing judging pages; they do not move them.* Judging access is
 split across three permission gates, and moving those pages would change what whole roles
-can open (see §9, D5).
+can open (see §15, D5).
 
-### 6.4 Moving existing awards across
+### 8.4 Moving existing awards across
 
 1. The current hard-coded form is written as a definition in code: the **house form,
    version 1**.
@@ -495,27 +680,268 @@ can open (see §9, D5).
 
 ---
 
-## 7. The phased plan
+## 9. Events
 
-Each phase ships on its own, keeps the site working, and has an exit test. None needs SSH
-or a new host.
+**Today.** Events is the largest domain (26.7k lines). Ticketing and the door are strong:
+check-in is unified and verification is observed. The weak parts are operational. Stand
+fees sit outside every money backstop. Roles at an event are given out ad hoc, and every
+event is configured from scratch.
 
-| Phase | What | Exit criteria |
-|---|---|---|
-| **0. Stop the bleeding** | The 9 open faults in §2: rebuild the 15 missing pages (starting with `/my-work`), shop CSS/JS, the wrong table name, the `payment_ref` index (repair migration), transactions on money writes, the dead settings table, the Pulse fragment, stand fees through the webhook and reconciler, and the two documents that state the retired rule. Add the "every route renders" sweep. | The sweep is green on every public route. A MySQL parity run is green. |
-| **1. Platform kernel** | Settings registry, Actor, Reporter, Http client, one rate limiter, one Twig factory, ClientIp everywhere. Each replaces copies **behind the existing call sites** first, then the copies are deleted. | The sweeps for "second copy" in §5.2 rules 3 and 4 are in place and ratcheting down. |
-| **2. Award profile and dynamic nomination forms** | §6 in full: definitions and versions, field library, interpreter, rules into the registry, look presets, Award setup screen, house form v1 migration. | Today's form renders identically from its definition. A second award with a different form passes end to end (submit, desk, export, triage, claim). |
-| **3. Domains, one at a time** | Move code into `Domain/*` in this order: Nominations, Awards, Judging, Results, Voting, Money, Events, Shop, Community, Accounts, Comms, Content, Ops. Each move splits its routes into a domain routes file and turns its controllers thin. Start with the domain Phase 2 already reshaped. | Each domain's write-ownership test passes, and the controller-query ratchet goes down. |
-| **4. Frontend system** | One component library shared by public and console (action bar, empty state, back, chips, cards). Console pages move onto the kit. One public nav registry. Serve `AssetBundle`. Clear the inline-style and hex backlog page by page. | Every page links the bundle. The four nav surfaces are generated from one registry. |
-| **5. Data cleanup** | One schema source (baseline plus migrations, with the SQLite twin generated rather than typed); one **payment ledger** every stream writes to (donation, paid vote, shop, ticket, stand), with each stream's own table keeping its detail; a decision on person identity; votes stop cascading on delete; overlapping tables merged (settings, merge journals); the dead `/pay` price book and the unused redeem path removed; scenario hardcodes (Celebrate Nigeria, Alimosho, `teachers`) moved into data. | Schema parity runs on every test run, not only manually. |
+**Target: each event is a workspace with a scope.**
 
-Phases 0 and 1 are prerequisites. Phase 2 is the feature you asked for and can start as soon
-as Phase 1's Settings registry and Reporter exist. Phases 3–5 can run in parallel with
-other product work, one domain at a time.
+- **Roles at the event scope:** organiser, co-host organisation, door, stewards, stand
+  manager, programme and MC, media. Each grant is time-boxed to the event.
+- **A run-sheet of sessions** (the programme already exists), each with an owner.
+  Volunteer shifts and tasks are attached to the sessions and areas.
+- **Stands become market listings** (§10): application, offer and payment through the one
+  ledger, so a stand payment is backstopped like every other payment.
+- **The attendee's journey has one thread:**
+  1. discover;
+  2. ticket;
+  3. reminders;
+  4. door;
+  5. on the day: programme and live updates;
+  6. after: photos, recognition and a short feedback form from the form engine.
+
+  Every step appears in the attendee's own home.
+- **Look per event:** presets on the house palette, the way `EventTierPalette` and
+  `EventFlierTheme` already derive an event's colours from one accent.
+- **Replication through event templates.** An event is cloned with its tiers, roles,
+  run-sheet, task set and forms, so 100 centres can each host a local event without 100
+  setups.
+- **A post-event report is generated, not written.** Attendance comes from scans, money
+  from the ledger, volunteer hours from check-ins, and feedback from the form. It is
+  verified by construction.
 
 ---
 
-## 8. How the work stays safe
+## 10. The market: buying, selling, highlights and promotions
+
+**Today there are four separate models**, each with its own payments:
+
+- the platform shop (products, variants, orders, codes);
+- vendors (`VendorAccount`, vendor items);
+- event stands;
+- partner organisations' giving pages.
+
+There is also a banner system (`PromoService`) commented as being for one community's
+pages. People cannot sell, and they cannot highlight their own products or businesses.
+
+**Target: one Market domain**, built on the person, the ledger, the form engine and the
+work items.
+
+- **Sellers.** Any person or business can sell after verification, which has three levels:
+  1. confirmed email and phone;
+  2. an identity or CAC registration check;
+  3. a settlement account, which is a gateway subaccount. Split settlement already works for
+     partner organisations (`PartnerOrg`).
+
+  Each seller has a storefront page built from presets, the way `OrgBrand` already builds
+  an organisation's page.
+- **Listings: one model with kinds.**
+  - Products, physical or digital.
+  - Services.
+  - Stands and spaces.
+  - Event tickets.
+  - **Highlights**: a business, product or story that people post themselves for
+    visibility, not for sale.
+
+  Each kind, and each market category, has its own **listing form from the dynamic form
+  engine**. So "what a listing asks for" is configurable exactly as nomination forms are.
+- **Trust.**
+  - A new seller's listings are reviewed (a work item with an owner and a time limit) until
+    their record earns publish-then-spot-check, the same trust ladder as volunteers.
+  - There is a prohibited-items policy, and people can report listings.
+  - **Reviews are accepted only from verified buyers.**
+  - Disputes are work items with a time limit.
+  - A seller's money is held until delivery is confirmed or the window passes. Payouts
+    already hold funds on an unknown status (`OrgPayout`), and this is that rule
+    generalised.
+- **Orders.** One cart across sellers, split settlement, a platform fee per listing kind
+  (a setting, with one reader), **one payment ledger** (D8) and one refund path.
+- **Promotions.**
+  - **Paid placements:** the home band, the discover feed, event pages and a newsletter
+    slot. Each has its own inventory, schedule, budget and frequency cap.
+  - **Bought self-serve** through the ledger, **reviewed before going live**, and **always
+    labelled "Promoted"**.
+  - **Delivery is measured first-party** and honours the cookie choice (`CookiePrefs`).
+  - **Codes:** one promotion-code system replaces today's three (event codes, shop codes,
+    `PromoCode`).
+- **Promotions never touch awards' results.** The rule "money buys the tally, never the
+  reach" stands. A promotion may advertise an award or an event; whether it may promote an
+  individual nominee during voting is your decision (D15).
+- **Discovery.** The market is a tab in Discover, with search, categories and a local view
+  ("near you", by state and centre).
+- **Messaging.** Buyers and sellers message each other through the platform, and contact
+  details stay private.
+
+**Order of work.** Highlights come first (no money moves), then sellers and listings on the
+ledger, then promotions. Each step is usable on its own.
+
+---
+
+## 11. Experience architecture: the UI/UX structure
+
+**The problem.** Today's experience is a list of pages, not a structure.
+
+- There are four navigation sources and two design systems.
+- Components are built page by page, and the same job is done by two screens.
+- A person with three roles has three homes.
+- Token links lead nowhere once the job is done.
+
+The tailoring pieces already exist (the account hub, `MenuShortcuts`, `MemberInterests`,
+`GeePersonal`, the display and low-data settings, the award wording), but each tailors one
+corner.
+
+### 11.1 Five spaces, each with a clear audience
+
+| Space | For | What it holds |
+|---|---|---|
+| **Public** | Everyone | Discover, awards, events, the market, community, help |
+| **My Africa GATES** | Each person, **one home** | Panels that appear by role: voting, my nominations and my work, giving, tickets, orders, selling, volunteering, my organisation. Today's `/account`, `/org` and the token pages land here when signed in. |
+| **Workspace** | Staff and volunteers | The console, scoped by grant. A volunteer sees their scope's queues; a director sees everything. One console, not two. |
+| **Field tools** | People working on site | Door, stand check-in, capture: full-screen, phone-first, tolerant of a poor connection |
+| **Judge room** | Judges | Stays separate, as you have held it |
+
+### 11.2 One information-architecture registry
+
+- Every page declares:
+  - its space;
+  - its audience;
+  - where it sits in navigation;
+  - its gate.
+- The header, tab bar, menu sheet, footer, console rail and command palette are all
+  **generated** from that registry, as the console's rail already is from `AdminNav`. A
+  page cannot be orphaned or offered to someone who cannot open it.
+- Sweeps:
+  - no two pages for one job;
+  - every page has a way back to its space's home;
+  - every token link has a signed-in destination.
+
+### 11.3 One design system, two densities
+
+- **Public is comfortable and the console is compact**, and they share components: button,
+  card, chip, empty state, action bar, back control, and every form field (the field
+  library from §8 *is* the form component set).
+- Colour stays in `Accent` and type stays on the ladder.
+- **Page-local components are ratcheted down**: today there are 22 empty states, 4 action
+  bars and 8 back buttons.
+- **Class prefixes are owned per domain**, so `.hm-` cannot mean two things again.
+
+### 11.4 Tailored, not generic: four rules
+
+Every surface is tailored on four axes, and each surface's spec states all four:
+
+1. **Who:** the person's roles and memberships. They decide which panels, actions and
+   wording appear.
+2. **Where:** the award's profile look, the event's theme, the centre's locale and the
+   language.
+3. **What they care about:** their interests, follows, recent activity, and the
+   low-data and display settings.
+4. **When:** the phase. The same home shows "nominate" in nominations, "vote" in voting
+   and "results" when a result is released, read from the cycle phase and never typed in.
+
+Each surface also states **the next action for each audience**. Empty states are generated
+with that next action, so no screen ever ends without something to do.
+
+### 11.5 Journeys
+
+Each audience gets one journey map, with one next action at every step:
+
+- visitor, voter, paid voter, nominator, nominee;
+- donor, attendee, buyer, seller;
+- volunteer, organisation, staff.
+
+The maps sit in `docs/` for whoever changes the code. The handbook carries the
+operational half.
+
+---
+
+## 12. Gee: an assistant that acts
+
+**What happened in your conversation.**
+
+- Gee has a tool for the signed-in person's own payments (`my_transactions`,
+  `SupportContext.php:393`), but offers it only when it recognises the visitor as a signed-in
+  member.
+- Its loop ends on the first reply that is not a tool call (`SupportAgentService.php`,
+  around line 171).
+- So "I will check your payments, please hold on" was accepted as a finished answer three
+  times. No check was ever made, and the frustration ("Hurry", "you are not doing anything")
+  led only to a ticket.
+- Nothing detects a promised action that never happened. The suggestion chips came from the
+  topic of money, not from what you asked, which is why a refund conversation offered "why
+  the nominee with the most votes may not win".
+
+**Cloudflare's assistant did eight things right.** Each becomes a rule Gee is tested
+against:
+
+1. **Act, then answer.** A reply that announces an action instead of taking it ("I will
+   check", "hold on", "let me") is refused by the loop. The model is told to call the tool
+   or to say plainly that it cannot. The target for these replies in the scenario suite is
+   zero.
+2. **Show the work.** Each step is shown as it runs ("Checked your payments: 3 found, 1
+   confirmed with no votes delivered"), and the facts are kept separate from the
+   suggestions.
+3. **Know who it is talking to.** Identity is passed explicitly. When Gee cannot see an
+   account, it asks for the payment reference or offers sign-in instead of guessing.
+4. **Diagnose with evidence, most likely cause first**, then give concrete next steps.
+5. **Ask before acting, specifically, scaled to the risk:**
+   - **reading** needs no permission;
+   - **a reversible action** is offered as a button ("Re-check this payment with the
+     gateway?");
+   - **money or identity** is a specific proposal plus a person's review ("I can open a
+     refund request for order AFG-…, ₦2,000, 10 votes not delivered. Shall I?"). Gee files
+     the request; it never moves money itself.
+6. **Hand over warmly**, with the diagnosis attached, and only when it cannot go further or
+   the person asks. Frustration speeds things up; it never causes a repeat.
+7. **Suggestions follow the intent** of the conversation, not the topic.
+8. **Professional, specific, no filler.**
+
+**Tools to add:**
+
+- re-verify a payment with the gateway (the reconciler already does this);
+- check whether a paid order's votes were delivered;
+- open a refund request (a work item);
+- order and ticket status;
+- a volunteer's shifts;
+- market order help;
+- for staff, the status of any work item they own.
+
+**How it is held.** A scenario suite of recorded conversations is replayed against Gee on
+every change, for example "my payment didn't go through", signed in, with one failed and
+one confirmed-but-undelivered order. The suite checks:
+
+- that the right tool was called;
+- that the diagnosis matches the records;
+- that the right action was offered;
+- that no reply promised an action without taking it.
+
+---
+
+## 13. The phased plan
+
+Each phase ships on its own, keeps the site working, and has an exit test. None needs SSH
+or a new host. The order follows the dependencies: each domain is built on what the phases
+before it lay down.
+
+| Phase | What | Depends on | Exit criteria |
+|---|---|---|---|
+| **0. Stop the bleeding** | The 10 open faults in §2: the 15 missing pages (starting with `/my-work`), shop CSS/JS, the wrong table name, the `payment_ref` index (repair migration), transactions on money writes, the dead settings table, the Pulse fragment, stand fees in the webhook and reconciler, the two documents stating the retired rule, and **Gee's promise-without-action**. Add the "every route renders" sweep and turn the suite green. | — | Every public route renders. The suite and a MySQL parity run are green. Gee's scenario suite has zero unkept promises. |
+| **1. Kernel and operating model** | Settings registry, Actor, Reporter, Http client, one rate limiter, one Twig factory. Then the operating model: process registry, work items, evidence, scopes and templates. Today's queues (nominations, claims, tickets, refunds, stands, moderation) move onto work items **behind their existing screens**. | 0 | Every queue is a view over work items, and every item has an owner and a due time. The §6.2 table is printed by the registry. |
+| **2. Forms and award profiles** | The one form engine and the award profile (§8): definitions and versions, field library, interpreter, rules into the registry, look presets, the Award setup screen, house form v1. | 1 | Today's form renders identically from its definition. A second award with a different form passes end to end. |
+| **3. Experience structure** | The IA registry, generated navigation, **My Africa GATES** as one home with role panels, the scoped Workspace, one design system in two densities, and `AssetBundle` served. | 1 | Every nav surface is generated. One home per person. The page-local component count is falling. |
+| **4. Volunteers** | §7.3 on work items, grants, evidence and forms: apply, screen, train, activate, shifts and tasks, hours, levels, certificates. | 1, 2, 3 | A volunteer can be recruited, trained, given a scoped grant, work a shift verified by scans, and see verified hours, all without staff doing anything by hand except the screening decision. |
+| **5. Events as workspaces** | §9: event-scope roles, run-sheet owners, volunteer shifts, event templates, generated post-event report; stands onto the ledger. | 1, 4 | A cloned event runs at a second centre with no new configuration beyond its venue, date and lead. |
+| **6. Money and the market** | One payment ledger first (D8); then highlights (no money); then sellers, listings, orders, reviews and disputes; then promotions and one code system (§10). | 1, 2, 3 | Every payment stream writes to the one ledger. A verified seller lists, sells, is paid out after the hold, and a dispute resolves through a work item. |
+| **7. Domains and data** | Continue moving code into `Domain/*`, thin the controllers, unify a person's identity (D6), one schema source, votes stop cascading on delete, scenario hardcodes move into data, dead paths removed. | all | The write-ownership and controller ratchets are at zero. Schema parity runs on every test run. |
+
+Gee improves alongside every phase: each new domain brings its tools to the Assist core,
+with scenarios in the suite.
+
+---
+
+## 14. How the work stays safe
 
 - **No big bang.** This is the strangler-fig pattern: the new path is built beside the old,
   traffic moves, and only then is the old path deleted. Every phase is a set of normal,
@@ -523,6 +949,9 @@ other product work, one domain at a time.
 - **MySQL parity for every data change.** Every migration runs on real MySQL
   (`scripts/mysql-parity.sh`) before it ships. Corrections are repair migrations, never
   edited definitions.
+- **Your five tests are checked, not trusted.** The process registry refuses a process
+  with a missing owner, deadline, evidence level or scope, so a new process cannot be added
+  in a way that fails them.
 - **Behaviour tests before moves.** Before a domain moves, its flows get HTTP-level tests
   (today only 6 files are feature tests). The move must leave them green.
 - **No access change hidden inside a restructure.** Permissions are diffed by the existing
@@ -532,7 +961,7 @@ other product work, one domain at a time.
 
 ---
 
-## 9. Decisions for you
+## 15. Decisions for you
 
 | # | Question | My recommendation |
 |---|---|---|
@@ -541,19 +970,25 @@ other product work, one domain at a time.
 | D3 | How far does an award's look go? A closed set of presets on the house palette, or free colours and fonts? | **Presets only.** Free colours break the contrast rules the site is held to and cannot be checked. |
 | D4 | Can each **category** have its own extra questions (as Award Force allows), or only each award? | **Yes, as a field condition** ("only for these categories"). It is cheap once conditions exist. |
 | D5 | Judging pages sit under three permission gates. May the Award setup screen *regroup* them? | Link to them, don't move them, unless you want to change role access deliberately. |
-| D6 | Person identity is spread across six tables. Should Phase 5 unify them around one person record? | Yes, but it is the largest change in the plan, so it goes last and gets its own review. |
+| D6 | Person identity is spread across six tables. Should Phase 7 unify them around one person record? | Yes, but it is the largest change in the plan, so it goes last and gets its own review. |
 | D7 | Should the `/__setup` tool (about 1,700 lines of HTML inside `routes.php`) move into the console? | **Yes**: it resets superadmin passwords, which is a console job behind the console's audit log. |
 | D8 | One payment ledger for every stream, with each stream's table kept for its detail? | **Yes**: today stand fees fall outside every backstop because each stream wired itself to the gateway separately. |
 | D9 | Should nominee consent (`nominee_confirmed_at`) be required for every award, not only challenges? | **Your call**: it is a product rule. The award profile can make it a per-award setting. |
-| D10 | Order of work after Phase 0: dynamic awards first (the feature) or the kernel first (the foundation)? | **Kernel first, but only the parts Phase 2 needs**: the Settings registry and the Reporter, about a week. Then Phase 2. |
+| D10 | Order of work after Phase 0? | **As in §13**: kernel and operating model first, because volunteers, events, the market and awards all stand on it. |
+| D11 | What is a **centre** for Africa GATES: a state chapter, a school, a community hub, a partner organisation, or several of these? | The scope hierarchy, volunteer grants and local markets all hang on this. I suggest **Country → State → Centre**, where a centre is any local unit with a named lead. |
+| D12 | Which volunteer roles need an identity check, and what is the minimum age (with a guardian's consent below it)? | An ID check for any role that sees personal data or handles money or a door. Minimum 16, with consent under 18. |
+| D13 | Who may **sell** in the market? | **Invited and verified sellers first**, then open to anyone who passes verification once trust and dispute handling are proven. |
+| D14 | Platform fee per listing kind: products, services, stands, tickets, promotions? | Your call. It is a setting per kind, so it can change without code. |
+| D15 | May an individual **nominee** be promoted with paid placement during voting? | **No.** It would read as buying reach, which the scoring rule forbids. Awards, events, sellers and highlights yes, always labelled "Promoted". |
+| D16 | May Gee **file** a refund request itself after the person confirms? | **Yes**: it files a request, a person decides it, and Gee never moves money. |
 
 ---
 
-## 10. Research notes
+## 16. Research notes
 
 - **Award platforms.** Award Force configures an entry form per *season* (their word for an
   edition). Each field applies to all categories or only selected ones, and fields can be
-  shown or hidden based on earlier answers. That is the model in §6: per-cycle layering,
+  shown or hidden based on earlier answers. That is the model in §8: per-cycle layering,
   category conditions and conditional fields.
   [Field configuration](https://support.awardforce.com/hc/en-us/articles/206965226) ·
   [Seasons](https://support.awardforce.com/hc/en-us/articles/217063066) ·
@@ -563,7 +998,7 @@ other product work, one domain at a time.
   snapshot and tags every submission with the revision it was captured against, so old
   submissions still render against their own questions. The general rule across schema
   tools is that a published version is frozen and any change is a new version. That is the
-  rule in §6.2 point 1, and it matches this repo's own "retired, never deleted" rule.
+  rule in §8.2 point 1, and it matches this repo's own "retired, never deleted" rule.
   [Form.io form revisions](https://form.io/features/form-revisions)
 - **Modular monolith.** Shopify kept one codebase and enforced boundaries between
   components with a static checker (Packwerk), rather than splitting into services. Their
@@ -572,3 +1007,31 @@ other product work, one domain at a time.
   [Enforcing modularity with Packwerk](https://shopify.engineering/enforcing-modularity-rails-apps-packwerk) ·
   [A Packwerk retrospective](https://shopify.engineering/a-packwerk-retrospective) ·
   [InfoQ on Shopify's modular monolith](https://www.infoq.com/news/2019/07/shopify-modular-monolith)
+- **Volunteer hours and verification.** Volunteer platforms separate a scheduled
+  **assignment** from **completed hours**. They make approval a gate before hours count,
+  prefer recorded arrival and departure (QR, kiosk) over self-reported time, keep the
+  original value and the reason for any correction, and let verification strictness be set
+  per programme. That is §7.3's evidence grading.
+  [VSys One: assignments vs hours](https://vsysone.com/docs/VSys/HTMLDocs/4.0/4155.htm) ·
+  [Jodoo: approval before totals](https://www.jodoo.com/ai/volunteer-hours-tracker) ·
+  [Rosterfy: tracking hours](https://www.rosterfy.com/wp-content/uploads/2026/08/Track-Volunteer-Hours-Checklist-_-Rosterfy.pdf) ·
+  [Civic Champs: validating hours](https://www.civicchamps.com/post/how-to-validate-volunteer-hours) ·
+  [Helper Helper: validation](https://helperhelper.com/?p=12112)
+- **Scoped access.** Multi-tenant systems scope every role to a tenant rather than to the
+  user globally, because a global role cannot say "admin here, viewer there". They move to
+  relationship-based checks where sharing and hierarchy grow. That is §7.2's "a grant is a
+  role at a scope", with the scope hierarchy carrying inheritance.
+  [Clerk: RBAC for B2B SaaS](https://clerk.com/articles/role-based-access-control-rbac-for-b2b-saas-2) ·
+  [Permit.io: multi-tenant authorisation](https://www.permit.io/blog/best-practices-for-multi-tenant-authorization) ·
+  [OpenFGA: RBAC vs ReBAC](https://openfga.dev/docs/learn/rbac-vs-rebac.md)
+- **Assistants that act.** Practitioner guidance on agent design is consistent:
+  - scale human approval to the cost of a mistake;
+  - make an approval a specific proposal, not a generic confirm;
+  - keep confirmed facts, proposed actions and completed actions visibly separate;
+  - offer a fallback when consent is declined;
+  - hand over warmly, with the whole conversation and what was already tried.
+
+  That, with the Cloudflare conversation you shared as the worked example, is §12.
+  [Agent UX design](https://www.parallelhq.com/blog/ai-agent-ux-design) ·
+  [Handoff best practices](https://www.eesel.ai/blog/ai-agent-handoff-best-practices) ·
+  [Consent-first handoffs](https://petronellatech.com/blog/consent-first-voice-bots-that-keep-agent-handoffs-smooth/)
