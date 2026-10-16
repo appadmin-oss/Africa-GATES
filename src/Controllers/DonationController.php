@@ -743,7 +743,7 @@ final class DonationController
         return $this->view->render($res->withStatus($sub ? 200 : 404), 'pages/donate-giving.twig', [
             'page_title' => $sub ? 'Your monthly gift — Africa GATES' : 'Link not valid — Africa GATES',
             'gates_page' => 'donate', 'sub'        => $sub,
-            'token'      => (string) ($args['token'] ?? ''),
+            'stop_url'   => GivingUrl::stop((string) ($args['token'] ?? '')),
             'flash_ok'   => $flash,
             'flash_err'  => $err,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');

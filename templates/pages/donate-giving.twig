@@ -1,0 +1,71 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /donate/giving/{token} — a donor's monthly gift, and the button that stops it
+  (DonationController::giving / givingStop). Destroyed on 3 Oct with the old pages and never
+  rebuilt, so the stop link in every recurring receipt landed on a 500: the one control
+  RecurringGiving's docblock says must always work — "a donor who cannot easily stop is not
+  a supporter, they are a dispute waiting for a quiet month".
+
+  Reachable by the token alone, deliberately (no login): it shows what is being charged and
+  offers one action, and the action can only ever take money away from us. A stopped gift
+  still resolves, so a donor who reopens the link is told it is stopped, not that the link
+  is broken.
+#}
+{% set _st = sub ? sub.status : '' %}
+{% set _stopped = _st in ['cancelled', 'cancelling'] %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/receipt.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="rc">
+  <section class="rc__card" aria-labelledby="rcH">
+    {% if flash_ok %}<p class="rc__verdict rc__verdict--ok" role="status"><span class="rc__verdict-t">{{ flash_ok }}</span></p>{% endif %}
+    {% if flash_err %}<p class="rc__verdict rc__verdict--wait" role="alert"><span class="rc__verdict-t">{{ flash_err }}</span></p>{% endif %}
+
+    {% if not sub %}
+      <p class="rc__kicker">{{ 'Monthly gift'|trans }}</p>
+      <h1 class="rc__h1" id="rcH">{{ 'This link is not valid'|trans }}</h1>
+      <p class="rc__p">{{ 'Use the link in your most recent receipt email. If you cannot find it, write to us and we will stop the gift by hand.'|trans }}</p>
+      <div class="rc__do">
+        <a class="ag-btn ag-btn--primary" href="/support">{{ 'Contact us'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary" href="/giving">{{ 'Back to giving'|trans }}</a>
+      </div>
+    {% else %}
+      <p class="rc__kicker">{{ 'Your monthly gift'|trans }}</p>
+      <h1 class="rc__h1" id="rcH">
+        {% if _stopped %}{{ 'Stopped'|trans }}{% else %}₦{{ sub.amount_naira|number_format }} {{ 'a month'|trans }}{% endif %}
+      </h1>
+      <dl class="rc__rows rc__rows--dl">
+        <div class="rc__row"><dt class="rc__row-k">{{ 'Amount'|trans }}</dt><dd>₦{{ sub.amount_naira|number_format }}</dd></div>
+        <div class="rc__row"><dt class="rc__row-k">{{ 'Status'|trans }}</dt><dd>
+          {%- if _st == 'active' %}{{ 'Active'|trans }}
+          {%- elseif _st == 'pending' %}{{ 'Waiting for the first payment to confirm'|trans }}
+          {%- elseif _st == 'cancelling' %}{{ 'Stopping — you will not be charged again'|trans }}
+          {%- elseif _st == 'cancelled' %}{{ 'Stopped — you will not be charged again'|trans }}
+          {%- elseif _st == 'failed' %}{{ 'The last payment could not be collected'|trans }}
+          {%- else %}{{ _st }}{% endif -%}
+        </dd></div>
+        {% if sub.charges|default(0) > 0 %}<div class="rc__row"><dt class="rc__row-k">{{ 'Payments so far'|trans }}</dt><dd>{{ sub.charges|number_format }}</dd></div>{% endif %}
+        {% if sub.next_charge_at and not _stopped %}<div class="rc__row"><dt class="rc__row-k">{{ 'Next payment'|trans }}</dt><dd>{{ sub.next_charge_at|date('j M Y') }}</dd></div>{% endif %}
+        {% if sub.first_ref %}<div class="rc__row"><dt class="rc__row-k">{{ 'First receipt'|trans }}</dt><dd class="rc__ref-code">{{ sub.first_ref }}</dd></div>{% endif %}
+      </dl>
+
+      {% if not _stopped %}
+        <h2 class="rc__h2">{{ 'Stop this gift'|trans }}</h2>
+        <p class="rc__p">{{ 'Stopping takes effect straight away and you will not be charged again. Everything you have already given stays with the programmes.'|trans }}</p>
+        <form method="post" action="{{ stop_url }}" class="rc__do">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button type="submit" class="ag-btn ag-btn--secondary">{{ 'Stop my monthly gift'|trans }}</button>
+          <a class="ag-btn ag-btn--primary" href="/giving">{{ 'Keep giving'|trans }}</a>
+        </form>
+      {% else %}
+        <div class="rc__do">
+          <a class="ag-btn ag-btn--primary" href="/giving">{{ 'Back to giving'|trans }}</a>
+        </div>
+      {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
