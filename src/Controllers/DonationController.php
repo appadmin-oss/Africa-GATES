@@ -259,6 +259,11 @@ final class DonationController
                 ? \AfricaGates\Services\OrgCampaign::progress((int) $campaign->id) : null,
             'days_left'        => $campaign
                 ? \AfricaGates\Services\OrgCampaign::daysLeft($campaign) : null,
+            // GivingPage V2 (16 Oct 2026): the rail's gift rows and momentum line, the related
+            // appeals and the "Created" line — each behind LOW-DATA-RULES' threshold.
+            'gift_rows'        => $this->giftRows($org, $campaign),
+            'related'          => \AfricaGates\Services\HomeFront::openCampaigns(4, $campaign ? (int) $campaign->id : null),
+            'created_on'       => $campaign && !empty($campaign->created_at) ? (string) $campaign->created_at : '',
             'shortfall_text'   => $campaign
                 ? (\AfricaGates\Services\OrgCampaign::SHORTFALL[$campaign->shortfall_policy] ?? '') : '',
             'appeals'          => $org && !$campaign
@@ -498,6 +503,42 @@ final class DonationController
     }
 
     /** "Amara Okonkwo" → "Amara O."; blank/default → "A supporter". */
+    /**
+     * Recent, top and first gift, de-duplicated (LOW-DATA-RULES: one gift that is both the
+     * newest and the largest is shown once, as the top gift), plus this week's count. Scoped
+     * exactly as the page's own total is, so a row can never name a gift the total excludes.
+     *
+     * @return array{rows:list<array{kind:string,name:string,amount:int,when:string}>, week:int}
+     */
+    private function giftRows(?object $org, ?object $campaign): array
+    {
+        $scope = static function () use ($org, $campaign) {
+            $q = $org ? \AfricaGates\Services\PartnerOrg::countableDonations((int) $org->id)
+                      : \AfricaGates\Services\PartnerOrg::countableFundDonations();
+            if ($campaign) $q->where('campaign_id', (int) $campaign->id);
+            return $q;
+        };
+        try {
+            $cols   = ['id', 'donor_name', 'amount_naira', 'created_at'];
+            $recent = $scope()->orderByDesc('created_at')->orderByDesc('id')->first($cols);
+            $top    = $scope()->orderByDesc('amount_naira')->orderBy('id')->first($cols);
+            $first  = $scope()->orderBy('created_at')->orderBy('id')->first($cols);
+            $week   = (int) $scope()->where('created_at', '>=', date('Y-m-d H:i:s', time() - 7 * 86400))->count();
+        } catch (\Throwable) {
+            return ['rows' => [], 'week' => 0];
+        }
+        $rows = []; $seen = [];
+        foreach (['top' => $top, 'recent' => $recent, 'first' => $first] as $kind => $g) {
+            if (!$g || isset($seen[(int) $g->id])) continue;
+            $seen[(int) $g->id] = true;
+            $rows[] = ['kind' => $kind, 'name' => $this->anon((string) ($g->donor_name ?? '')),
+                       'amount' => (int) $g->amount_naira, 'when' => (string) ($g->created_at ?? '')];
+        }
+        // The DC's order: recent, top, first.
+        usort($rows, static fn ($a, $b) => array_search($a['kind'], ['recent', 'top', 'first']) <=> array_search($b['kind'], ['recent', 'top', 'first']));
+        return ['rows' => $rows, 'week' => $week];
+    }
+
     private function anon(string $name): string
     {
         $name = trim($name);

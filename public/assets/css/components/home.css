@@ -53,7 +53,7 @@
    partials/photo.twig's monogram instead (GAPS Q8). */
 .hm-hero__mark{ position:absolute; inset:12% 20% 40%; width:60%; height:48%; object-fit:contain; opacity:.18 }
 
-.hm-rec-live{ position:absolute; inset-inline:16px; bottom:16px; z-index:2 }
+.hm-rec-box{ position:absolute; inset-inline:16px; bottom:16px; z-index:2 }
 .hm-rec[hidden]{ display:none }
 .hm-rec,
 .hm-rec:hover{
@@ -108,7 +108,6 @@
 .hm-more,
 .hm-more:hover{ display:inline-flex; align-items:center; min-height:44px; font-weight:600; font-size:var(--ag-fs-14); color:var(--ag-green); text-decoration:none }
 .hm-more--lg{ font-size:var(--ag-fs-14-5) }
-.hm-dot{ flex:none; width:8px; height:8px; border-radius:50%; background:var(--ag-live) }
 
 /* ── 5 · We Are Africa — breaks out of the page gutter (the DC's waaBleed) ───── */
 .hm-bleed{ margin:0 -16px }
@@ -460,7 +459,7 @@
   .hm-join{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); align-items:center }
   .hm-aud{ grid-template-columns:minmax(0, 5fr) minmax(0, 7fr); gap:48px; align-items:start }
   .hm-aud__stage{ order:0; aspect-ratio:auto; min-height:520px }
-  .hm-rec-live{ inset-inline:auto 20px; bottom:20px; width:360px }
+  .hm-rec-box{ inset-inline:auto 20px; bottom:20px; width:360px }
 }
 @media (min-width:1200px){
   .hm-honour{ grid-template-columns:repeat(6, minmax(0, 1fr)) }

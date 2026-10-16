@@ -344,7 +344,7 @@ final class HomeFront
                 'title'  => (string) $c->title,
                 'org'    => (string) ($org->name ?? ''),
                 'ini'    => self::initials((string) ($org->name ?? '')),
-                'url'    => '/giving/' . $org->slug . '/' . $c->slug,
+                'url'    => \AfricaGates\Support\GivingUrl::org((string) $org->slug, (string) $c->slug),
                 'raised' => '₦' . number_format($p['raised']),
                 'goal'   => $p['target'] > 0 ? '₦' . number_format($p['target']) : '',
                 'pct'    => $p['pct'],
@@ -442,6 +442,43 @@ final class HomeFront
             'url'   => '/challenges/' . $c->slug,
             'img'   => preg_match('#^(/|https://)#', $art) ? $art : '',
         ];
+    }
+
+    /**
+     * Open appeals from organisations that can receive, closing soonest first — the giving
+     * page's "More ways to grow Africa's next leaders". No feature threshold here: these are
+     * listed, not promoted.
+     *
+     * @return list<array{title:string,org:string,url:string,raised:string,pct:int,days_left:?int,logo:string}>
+     */
+    public static function openCampaigns(int $limit = 4, ?int $exceptId = null): array
+    {
+        $orgs = [];
+        foreach (PartnerOrg::listReceivable() as $o) $orgs[(int) $o->id] = $o;
+        if ($orgs === []) return [];
+        try {
+            $q = DB::table('gates_org_campaigns')->whereIn('org_id', array_keys($orgs))
+                ->where('status', OrgCampaign::STATUS_LIVE)
+                ->orderByRaw('CASE WHEN closes_on IS NULL THEN 1 ELSE 0 END')->orderBy('closes_on')->orderBy('id');
+            if ($exceptId) $q->where('id', '!=', $exceptId);
+            $rows = $q->limit($limit * 3)->get()->all();
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $c) {
+            if (!OrgCampaign::isOpen($c)) continue;
+            $org  = $orgs[(int) $c->org_id];
+            $p    = OrgCampaign::progress((int) $c->id);
+            $logo = (string) (OrgBrand::of($org)['logo'] ?? '');
+            $out[] = ['title' => (string) $c->title, 'org' => (string) ($org->name ?? ''),
+                      'url' => \AfricaGates\Support\GivingUrl::org((string) $org->slug, (string) $c->slug),
+                      'raised' => '₦' . number_format($p['raised']), 'pct' => (int) $p['pct'],
+                      'days_left' => OrgCampaign::daysLeft($c),
+                      'logo' => OrgBrand::safePath($logo) ? '/' . $logo : ''];
+            if (count($out) >= $limit) break;
+        }
+        return $out;
     }
 
     /** Whether a campaign may be FEATURED (LOW-DATA-RULES, Giving row). */

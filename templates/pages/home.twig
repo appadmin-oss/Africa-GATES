@@ -68,7 +68,7 @@
           {% endfor %}
         </div>
       {% endif %}
-      <div class="hm-rec-live" aria-live="polite">
+      <div class="hm-rec-box" aria-live="polite">
         {% for sl in hero_slides %}
           <a class="hm-rec{{ loop.first ? ' is-on' }}" href="{{ sl.url }}" data-hm-card{% if not loop.first %} hidden{% endif %}>
             <span class="hm-rec__who">

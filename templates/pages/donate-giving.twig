@@ -11,6 +11,7 @@
   still resolves, so a donor who reopens the link is told it is stopped, not that the link
   is broken.
 #}
+{% set colour_tier = '2' %}
 {% set _st = sub ? sub.status : '' %}
 {% set _stopped = _st in ['cancelled', 'cancelling'] %}
 

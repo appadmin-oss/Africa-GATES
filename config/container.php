@@ -501,6 +501,10 @@ return [
         // The member account's section titles and ledes (pages/account/_frame.twig): read
         // from the one list the rail is built from.
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_title', [\AfricaGates\Services\AccountRail::class, 'title']));
+        // LOW-DATA-RULES' thresholds, read in a template the same way a service reads them:
+        // one table (config/display_thresholds.php), never a number typed into a page.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('display_min', [\AfricaGates\Support\DisplayThreshold::class, 'min']));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('display_met', [\AfricaGates\Support\DisplayThreshold::class, 'met']));
         // Gee's empty-state starters, from the signed-in member's own state (GeePersonal).
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('gee_starters',
             static fn (): array => \AfricaGates\Services\GeePersonal::starters(\AfricaGates\Services\GeePersonal::facts())));

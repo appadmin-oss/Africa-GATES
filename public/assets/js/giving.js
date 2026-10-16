@@ -117,3 +117,20 @@
     frame.focus();
   });
 })();
+
+/* GivingPage V2: the story folds to 230px with a fade, behind one "Read more" button, only
+   when it is actually longer than that — a short story never grows a button that reveals
+   nothing. Without this script the whole story simply shows. */
+(function () {
+  'use strict';
+  var prose = document.querySelector('[data-gv-fold]');
+  var btn = document.querySelector('[data-gv-fold-btn]');
+  if (!prose || !btn || prose.scrollHeight <= 260) return;
+  prose.classList.add('is-folded');
+  btn.hidden = false;
+  btn.addEventListener('click', function () {
+    var open = prose.classList.toggle('is-folded') === false;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.textContent = open ? btn.getAttribute('data-less') : btn.getAttribute('data-more');
+  });
+})();
