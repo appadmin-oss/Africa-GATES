@@ -41,6 +41,30 @@ final class CelebrateNigeriaSeedTest extends TestCase
     private int $programme = 0;
     private int $cycle     = 0;
 
+    /**
+     * Run the seed, then put its window around today.
+     *
+     * The seed's own window is 1–15 October 2026 and both it and the service read the real
+     * clock, so every test that needs an OPEN challenge started failing on 16 October —
+     * for everybody, with nothing changed. The dates themselves are asserted by the test
+     * that is about them; the others are about what an open challenge does.
+     */
+    private function openSeed(): void
+    {
+        SeedRunner::run(self::SEED);
+        DB::table('gates_challenges')->where('slug', self::SLUG)->update([
+            'starts_at' => gmdate('Y-m-d H:i:s', time() - 86400),
+            'ends_at'   => gmdate('Y-m-d H:i:s', time() + 14 * 86400),
+            'status'    => 'open',
+        ]);
+        // Its banners carry the same window, or they come down with the clock too.
+        $id = (int) DB::table('gates_challenges')->where('slug', self::SLUG)->value('id');
+        DB::table('gates_promos')->where('challenge_id', $id)->update([
+            'starts_at' => gmdate('Y-m-d H:i:s', time() - 86400),
+            'ends_at'   => gmdate('Y-m-d H:i:s', time() + 14 * 86400),
+        ]);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -169,7 +193,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
 
     public function test_the_banners_are_on_the_five_placements_and_no_other_award(): void
     {
-        SeedRunner::run(self::SEED);
+        $this->openSeed();
 
         foreach (['nominate', 'home', 'vote'] as $placement) {
             $this->assertNotSame([], PromoService::forPlacement($placement, false),
@@ -204,7 +228,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
 
     public function test_running_it_again_changes_no_row_and_resets_nothing(): void
     {
-        SeedRunner::run(self::SEED);
+        $this->openSeed();
 
         $id = (int) CS::bySlug(self::SLUG)->id;
 
@@ -361,7 +385,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
 
     public function test_the_eleventh_qualifier_wins_and_the_twelfth_is_told_it_is_full(): void
     {
-        SeedRunner::run(self::SEED);
+        $this->openSeed();
         $id = (int) CS::bySlug(self::SLUG)->id;
 
         $places = [];
@@ -385,7 +409,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
 
     public function test_a_self_nomination_does_not_count(): void
     {
-        SeedRunner::run(self::SEED);
+        $this->openSeed();
         $id = (int) CS::bySlug(self::SLUG)->id;
 
         $userId = $this->user('Self Nominator', '+2348037770001');
@@ -412,7 +436,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
 
     public function test_the_same_nominee_twice_counts_once(): void
     {
-        SeedRunner::run(self::SEED);
+        $this->openSeed();
         $id = (int) CS::bySlug(self::SLUG)->id;
         $entry = $this->entrant($id, 'Doubler', 20);
 
@@ -427,7 +451,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
 
     public function test_a_nomination_for_another_award_does_not_count(): void
     {
-        SeedRunner::run(self::SEED);
+        $this->openSeed();
         $id = (int) CS::bySlug(self::SLUG)->id;
 
         $userId = $this->user('Cross Award', '+2348035550001');
@@ -458,6 +482,9 @@ final class CelebrateNigeriaSeedTest extends TestCase
     public function test_after_the_window_closes_in_lagos_it_reads_ended(): void
     {
         SeedRunner::run(self::SEED);
+        // Seeded while the window was open, which is the case this asks about; run on a
+        // later day the seed would store `ended`, and that is a different question.
+        DB::table('gates_challenges')->where('slug', self::SLUG)->update(['status' => 'open']);
         $id = (int) CS::bySlug(self::SLUG)->id;
 
         $copy = \AfricaGates\Services\ChallengeCopy::for(
@@ -473,7 +500,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
 
     public function test_a_winner_is_published_as_a_first_name_and_an_initial(): void
     {
-        SeedRunner::run(self::SEED);
+        $this->openSeed();
         $id = (int) CS::bySlug(self::SLUG)->id;
 
         $e = $this->entrant($id, 'Chioma Obi-Nwosu', 40);
@@ -550,7 +577,7 @@ final class CelebrateNigeriaSeedTest extends TestCase
 
     public function test_the_strip_says_part_of_to_everyone_and_counts_toward_to_an_entrant(): void
     {
-        SeedRunner::run(self::SEED);
+        $this->openSeed();
         $c = CS::bySlug(self::SLUG);
 
         $anon = CS::stripFor($this->programme);
