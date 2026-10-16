@@ -828,7 +828,7 @@ final class SupportContext
             ->get(['payment_ref', 'amount_naira', 'tier', 'bonus_votes', 'votes_used',
                    'status', 'refunded_at', 'created_at'])
             ->map(fn($r) => [
-                'kind'      => 'vote purchase / donation',
+                'kind'      => ($r->tier ?? '') === 'paid-vote' ? 'vote purchase' : 'donation',
                 'reference' => (string) $r->payment_ref,
                 'amount'    => self::CURRENCY . number_format((float) $r->amount_naira),
                 'votes'     => (int) $r->bonus_votes,
@@ -836,6 +836,11 @@ final class SupportContext
                 'status'    => (string) $r->status,
                 'refunded'  => $r->refunded_at !== null,
                 'when'      => (string) $r->created_at,
+                // The two counters say different things — bonus_votes is what was ORDERED,
+                // votes_used what was DELIVERED, 0 until the mint — and a model handed both
+                // bare reads "votes: 10" as "your 10 votes arrived". So each row states its
+                // own condition, and the next step where there is one.
+                'state'     => self::paymentState($r),
             ])->all();
 
         $orders = DB::table('gates_orders')
@@ -853,6 +858,21 @@ final class SupportContext
             ])->all();
 
         return ['donations' => $donations, 'orders' => $orders];
+    }
+
+    /** One payment's condition, in a sentence the assistant can repeat without interpreting. */
+    private static function paymentState(object $r): string
+    {
+        $ordered   = (int) ($r->bonus_votes ?? 0);
+        $delivered = (int) ($r->votes_used ?? 0);
+        if (($r->refunded_at ?? null) !== null) return 'refunded — the money has been sent back';
+        $status = (string) ($r->status ?? '');
+        if ($status === 'failed')  return 'payment failed — nothing was taken, or it will be reversed by the bank';
+        if ($status !== 'confirmed') return 'payment not confirmed yet — run fix_payment on this reference to re-check it with the gateway';
+        if (($r->tier ?? '') !== 'paid-vote') return 'confirmed';
+        if ($ordered > 0 && $delivered >= $ordered) return "confirmed — all {$ordered} votes delivered";
+        if ($ordered > 0 && $delivered === 0) return "confirmed but the {$ordered} votes were NOT delivered — run fix_payment on this reference, then refund_status";
+        return "confirmed — {$delivered} of {$ordered} votes delivered";
     }
 
     /**

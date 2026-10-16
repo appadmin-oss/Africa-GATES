@@ -90,4 +90,21 @@ final class GeeRefundRequestTest extends TestCase
         $this->assertFalse(SupportAgentService::confirmsProposal('ok', $nothingProposed), 'a stray ok consents to nothing');
         $this->assertFalse(SupportAgentService::confirmsProposal('yes', []), 'no proposal, no consent');
     }
+
+    /** Ordered is not delivered: each payment says which it is, and what to do next. */
+    public function test_each_payment_states_whether_its_votes_were_delivered(): void
+    {
+        DB::table('gates_donations')->insert([
+            'donor_name' => 'Ada N', 'donor_email' => 'ada@example.com', 'amount_naira' => 1000,
+            'status' => 'confirmed', 'payment_ref' => 'AFG-PVOTE-DELIVERED', 'tier' => 'paid-vote',
+            'bonus_votes' => 10, 'votes_used' => 10,
+        ]);
+        DB::table('gates_donations')->where('payment_ref', self::REF)->update(['bonus_votes' => 20, 'votes_used' => 0]);
+
+        $rows = array_column(self::member()->run('my_transactions', [])['data']['donations'], 'state', 'reference');
+        $this->assertSame('confirmed — all 10 votes delivered', $rows['AFG-PVOTE-DELIVERED']);
+        $this->assertStringContainsString('NOT delivered', $rows[self::REF]);
+        $this->assertStringContainsString('fix_payment', $rows[self::REF], 'the next step is named');
+    }
 }
+
