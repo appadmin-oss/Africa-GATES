@@ -352,6 +352,7 @@
         {% if supporter_count > supporters|length %}<a class="vn-more" href="{{ supporters_url }}">{{ 'See all named supporters (%more% more)'|trans({'%more%': supporters_more}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>{% endif %}
       {% endif %}
       <a class="vn-more" href="{{ flier_url }}">{{ 'Make a flier for %first%'|trans({'%first%': first}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+      <a class="vn-more" href="{{ video_url }}">{{ 'Make a share video for %first%'|trans({'%first%': first}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
     </section>
 
     {% if evidence|length %}

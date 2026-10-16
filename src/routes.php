@@ -2057,6 +2057,7 @@ return function(App $app) {
         // enumerable address would let anybody render a stranger's name over this event's
         // branding and post it. See EventFlierToken.
         $g->get('/events/{slug}/flier.png', EventsController::class.':flier');
+        $g->get('/events/{slug}/video', \AfricaGates\Controllers\ShareVideoController::class.':event');
         // The generator. A POST that returns the PNG in the same request the photo arrives
         // in, so the upload is never written to this disk — see flierMake().
         //
@@ -2300,6 +2301,8 @@ return function(App $app) {
         // og:image to. The 4:5 flier lost its bottom third — the vote URL and the rally
         // copy — in every preview. See FlierService::ogCard().
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/card.png',   FlierController::class.':card');
+        // The 9:16 share video (ShareVideoController). Beside card.png, before /{slug}.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/video', \AfricaGates\Controllers\ShareVideoController::class.':nominee');
         // Every message of support for one nominee, paginated. Before /{slug} for the
         // same reason the flier routes are: FastRoute matches in declaration order.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/messages',   VoteMessageController::class.':forNominee');
@@ -2495,6 +2498,8 @@ return function(App $app) {
         // wrong charity.
         $g->get('/giving/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}',
                 DonationController::class.':page');
+        $g->get('/giving/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}/video',
+                \AfricaGates\Controllers\ShareVideoController::class.':campaign');
 
         // ── AND EVERY OLDER PATH, PERMANENTLY ────────────────────────────────
         //

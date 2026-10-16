@@ -535,6 +535,7 @@ class VoteController {
             'standing_headline'=> \AfricaGates\Services\StandingsService::headline($standing),
             'standing_cta'     => \AfricaGates\Services\StandingsService::callToAction($standing),
             'flier_url'        => $nomPath . '/flier',
+            'video_url'        => $nomPath . '/video',
             'others'           => array_slice($others, 0, 5),
             // Same trail the page prints above the hero. The category has no page of
             // its own, so it is a label with no `item` — a BreadcrumbList entry

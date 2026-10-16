@@ -346,6 +346,7 @@
             <a class="gv-sbtn" href="https://x.com/intent/post?url={{ _share_url|url_encode }}&amp;text={{ _title|url_encode }}" target="_blank" rel="noopener">X</a>
             <a class="gv-sbtn" href="https://www.linkedin.com/sharing/share-offsite/?url={{ _share_url|url_encode }}" target="_blank" rel="noopener">LinkedIn</a>
           </div>
+          {% if campaign %}<a class="gv-sbtn gv-sbtn--video" href="{{ _base }}/video">{{ 'Make a share video'|trans }}</a>{% endif %}
         </div>
       </section>
 

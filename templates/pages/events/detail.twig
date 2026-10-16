@@ -249,6 +249,7 @@
           </div>
           <p class="ed-box__alt">{{ 'Uses Google Calendar?'|trans }} <a href="{{ gcal }}" target="_blank" rel="noopener">{{ 'Add it there instead'|trans }}</a>.</p>
           <button type="button" class="ed-mini ed-mini--dash" data-ag-do="flier-open" aria-haspopup="dialog" aria-controls="flier">{{ 'Make an “I will be there” flier'|trans }}</button>
+          <a class="ed-mini ed-mini--dash" href="/events/{{ event.slug|url_encode }}/video">{{ 'Make a share video'|trans }}</a>
         </section>
         {% endif %}
 
