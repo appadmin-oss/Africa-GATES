@@ -170,6 +170,42 @@ final class OrgDashboardController
         $applications = $this->applicationRows($orgId);
         $campaigns    = $this->campaignRows($orgId);
         $payouts      = OrgPayout::history($orgId, 20);
+        $items        = \AfricaGates\Services\VendorCatalogue::forOrg($orgId);
+        // One read. It is printed as a figure AND it decides whether the payout is offered,
+        // and those two must be the same number.
+        $available    = OrgPayout::available($orgId);
+
+        // ── WHICH SECTION, AND WHICH SECTIONS EXIST ──────────────────────────
+        //
+        // Every section is an address, so the phone's pushed screens and the desktop's rail
+        // are the same pages (REFERENCE §7.2) — and `OrgRail::valid()` is what stops a typed
+        // `?tab=` reaching a section that does not exist.
+        //
+        // The three facts below are the GATE, and they are computed once and handed to the
+        // rail and to the template together. `has_money` is deliberately not `is_vendor`
+        // inverted: a vendor who later takes gifts has both halves of this console, and
+        // branching on kind alone would hand them one that has decided what they are.
+        $isVendor  = PartnerOrg::kindOf($org) === PartnerOrg::KIND_VENDOR;
+        $hasMoney  = ((int) ($totals['count'] ?? 0)) > 0 || $payouts !== [] || $campaigns !== [];
+        $tab       = \AfricaGates\Services\OrgRail::valid((string) ($req->getQueryParams()['tab'] ?? ''));
+        $offers    = count(array_filter($applications, static fn ($a) => !empty($a['live_offer'])));
+
+        $railCounts = \AfricaGates\Services\OrgRail::countsFrom([
+            'appeals'   => count($campaigns),
+            'donations' => (int) ($totals['count'] ?? 0),
+            'items'     => count($items),
+            'documents' => count($required),
+            'missing'   => count($missing),
+            'stands'    => count($applications),
+            'offers'    => $offers,
+        ]);
+
+        // A typed `?tab=` for a section this organisation is not offered is not an error —
+        // it is a stale link, and the overview is the honest answer to one.
+        if (!\AfricaGates\Services\OrgRail::offers(
+                $tab, $isVendor, $hasMoney, $required !== [], $applications !== [])) {
+            $tab = 'overview';
+        }
 
         return $this->view->render($res, 'pages/org/dashboard.twig', [
             'page_title'  => $org->name . ' — partner dashboard',
@@ -178,7 +214,7 @@ final class OrgDashboardController
             'org'         => $org,
             'me'          => $user,
             'totals'      => $totals,
-            'available'   => OrgPayout::available($orgId),
+            'available'   => $available,
             'payouts'     => $payouts,
             'donations'   => $this->recentDonations($orgId),
             'payout_mode' => OrgPayout::mode(),
@@ -197,7 +233,6 @@ final class OrgDashboardController
             // template on kind would mean a partner who later takes a stand sees a dashboard
             // that has quietly decided what they are.
             'is_vendor'   => PartnerOrg::kindOf($org) === PartnerOrg::KIND_VENDOR,
-            'individual'  => PartnerOrg::isIndividual($org),
             'applications'=> $applications,
             'documents'   => $this->documentRows($orgId),
             'required'    => $required,
@@ -209,7 +244,10 @@ final class OrgDashboardController
             // unconditionally so the template decides what to SHOW rather than the
             // controller deciding what exists — the rail already gates sections on whether
             // they are relevant to a vendor or to a donation partner.
-            'items'       => \AfricaGates\Services\VendorCatalogue::forOrg($orgId),
+            // The variable, not a second `forOrg()` — the rail counts the same rows the
+            // catalogue section lists, and two reads of one list is how the count and the
+            // table come to disagree (and one wasted query per render).
+            'items'       => $items,
             'item_cats'   => \AfricaGates\Services\VendorPolicy::categories(),
             'max_items'   => \AfricaGates\Services\VendorCatalogue::MAX_ITEMS,
             'lead_cat'    => \AfricaGates\Services\VendorCatalogue::leadingCategory($orgId),
@@ -251,11 +289,49 @@ final class OrgDashboardController
                 'documents'    => count($required),
                 'to_do'        => count($missing),
                 'applications' => count($applications),
-                'offers'       => count(array_filter($applications, static fn ($a) => !empty($a['live_offer']))),
+                'offers'       => $offers,
                 'donations'    => (int) ($totals['count'] ?? 0),
                 'appeals'      => count($campaigns),
                 'payouts'      => count($payouts),
             ],
+            // ── THE CONSOLE FRAME ────────────────────────────────────────────
+            //
+            // `rail` and `org_tab` are what `pages/org/_frame.twig` draws; the gate behind
+            // them is `OrgRail::offers()`, asked here and asked again by each section, so a
+            // tab can never lead to a section that refuses to render.
+            'org_tab'   => $tab,
+            'rail'      => \AfricaGates\Services\OrgRail::tabs(
+                $tab, $isVendor, $hasMoney, $required !== [], $applications !== [],
+                $railCounts['counts'], $railCounts['attention']),
+            // `show_money` only. `has_money` was passed beside it and read nowhere —
+            // the gate the template actually asks is the derived one, and passing both
+            // invites a section testing the raw fact and disagreeing with the rail.
+            'show_money'=> !$isVendor || $hasMoney,
+            // DERIVED, both of them. A console that prints "Verified organisation" beside a
+            // suspended account is worse than one that prints nothing, and the first panel
+            // below it exists to explain the suspension.
+            'org_standing' => match ((string) ($org->status ?? '')) {
+                'approved'  => PartnerOrg::isIndividual($org)
+                    ? \AfricaGates\Support\Translator::t('Verified account')
+                    : \AfricaGates\Support\Translator::t('Verified organisation'),
+                'suspended' => \AfricaGates\Support\Translator::t('Suspended'),
+                'rejected'  => \AfricaGates\Support\Translator::t('Not accepted'),
+                default     => \AfricaGates\Support\Translator::t('Under review'),
+            },
+            'org_role' => ($user->role ?? '') === 'owner'
+                ? \AfricaGates\Support\Translator::t('Account owner')
+                : \AfricaGates\Support\Translator::t('View only'),
+            // ── THE OFFER AND THE FORM AGREE, AND THIS IS WHY THEY CAN ───────
+            //
+            // ONE condition, read by the overview's "Request a payout" button and by the
+            // payout form itself. The destroyed `OrgConsoleLedeTest` held exactly this:
+            // a console that offers a withdrawal the next screen refuses wastes somebody's
+            // afternoon and reads as the platform holding their money back. Spelling the
+            // four clauses out twice is how the two come to disagree — this codebase's most
+            // repeated fault — so neither screen spells them at all.
+            'org_can_request' => OrgAuth::canRequestPayout($user)
+                && (string) ($org->status ?? '') === 'approved'
+                && $available >= OrgPayout::MIN_NAIRA,
             'money_chart' => \AfricaGates\Support\Viz::area(
                 'viz-money', 'Received, last 90 days', $this->donationSeries($orgId),
                 [

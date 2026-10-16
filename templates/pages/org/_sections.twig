@@ -1,0 +1,409 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE REMAINING SECTIONS OF THE ORGANISATION CONSOLE
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Documents, stands, donations, appeals, getting paid, stand fees and the catalogue. Each is
+  an ADDRESS (`/org?tab=…`), so the phone's pushed screens and the desktop's rail are the
+  same pages and the switch needs no JavaScript — the rule the destroyed
+  `test_the_section_switch_needs_no_framework_and_no_javascript` carried, now satisfied by
+  there being nothing to switch: the server draws one section.
+
+  Every form here posts to a route that already exists (routes.php, the `/org` group). They
+  were all live through the fortnight this console was a 500 — reachable only by somebody
+  who could compose the POST by hand.
+#}
+
+{% set ngn = '₦' %}
+
+{# ══ DOCUMENTS ════════════════════════════════════════════════════════════ #}
+{% if org_tab == 'documents' %}
+
+  {#
+    WHAT IS OUTSTANDING, FIRST. `required` is what this organisation must supply and
+    `missing` is what has not arrived; an organisation with nothing outstanding still needs
+    the section, to see what is on file and when it expires.
+  #}
+  {% if n_missing > 0 %}
+    <p class="org-flag org-flag--todo" role="status">{{ 'Nothing moves until these are on file.'|trans }}</p>
+  {% endif %}
+
+  <ul class="org-list">
+    {% for slug, label in required %}
+      <li class="org-item{{ missing[slug] is defined ? ' is-todo' : '' }}">
+        <span class="org-item__l">{{ label }}</span>
+        <span class="org-item__s">{{ missing[slug] is defined ? 'Not yet'|trans : 'On file'|trans }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if documents %}
+    <h2 class="org-h2">{{ 'What is on file'|trans }}</h2>
+    <ul class="org-list">
+      {% for d in documents %}
+        <li class="org-item">
+          <span class="org-item__l">{{ doc_kinds[d.kind]|default(d.kind) }}</span>
+          {#
+            An expiry in the past is not "on file" in any useful sense — an insurance
+            certificate that lapsed is the same as no certificate, and saying "on file"
+            about it is how somebody arrives at an event uninsured.
+          #}
+          {% if d.expires_on %}
+            <span class="org-item__s{{ d.expires_on|slice(0,10) < "now"|date("Y-m-d") ? ' is-todo' : '' }}">
+              {{ d.expires_on|slice(0,10) < "now"|date("Y-m-d")
+                 ? 'Expired %d%'|trans({'%d%': d.expires_on|slice(0,10)})
+                 : 'Expires %d%'|trans({'%d%': d.expires_on|slice(0,10)}) }}
+            </span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if can_edit and uploads_on %}
+    <form class="org-ed" method="post" action="/org/document" enctype="multipart/form-data">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <fieldset class="org-fs">
+        <legend class="org-fs__l">{{ 'Upload a document'|trans }}</legend>
+        <div class="org-row">
+          <label class="org-lab" for="doc-kind">{{ 'What it is'|trans }}</label>
+          <select class="org-in" id="doc-kind" name="kind">
+            {% for k, label in doc_kinds %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="org-row">
+          <label class="org-lab" for="doc-file">{{ 'The file'|trans }}</label>
+          <input class="org-file" type="file" id="doc-file" name="document" required
+                 accept="application/pdf,image/png,image/jpeg">
+        </div>
+        <div class="org-row">
+          <label class="org-lab" for="doc-exp">{{ 'Expires on'|trans }}</label>
+          <input class="org-in" type="date" id="doc-exp" name="expires_on">
+          <p class="org-hint">{{ 'Leave it blank if it does not expire. We will remind you before it does.'|trans }}</p>
+        </div>
+        <button class="org-go" type="submit">{{ 'Upload'|trans }}</button>
+      </fieldset>
+    </form>
+  {% elseif not uploads_on %}
+    <p class="org-hint">{{ 'Uploads are not available on this server. Write to us and we will put the document on file for you.'|trans }}</p>
+  {% endif %}
+
+{# ══ STANDS ═══════════════════════════════════════════════════════════════ #}
+{% elseif org_tab == 'stands' %}
+
+  {% if not applications %}
+    <div class="org-empty">
+      <h2 class="org-empty__t">{{ 'You have not applied for a stand yet'|trans }}</h2>
+      <p class="org-empty__b">{{ 'Stands are applied for from the event itself, so you can see the pitch, the price and who else is trading.'|trans }}</p>
+      <a class="org-go" href="/events">{{ 'See what is open'|trans }}</a>
+    </div>
+  {% else %}
+    <ul class="org-cards">
+      {% for a in applications %}
+        <li class="org-card">
+          <h2 class="org-card__t">{{ a.type ? a.type.name : 'Stand'|trans }}</h2>
+          {% if a.event %}<p class="org-card__m">{{ a.event.title }}</p>{% endif %}
+
+          {% if a.live_offer %}
+            <p class="org-flag org-flag--todo" role="status">{{ 'You have been offered this pitch. An offer expires.'|trans }}</p>
+            {% if can_edit %}
+              <form method="post" action="/org/stand/{{ a.app.id }}/accept">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <button class="org-go" type="submit">{{ 'Accept'|trans }}</button>
+              </form>
+            {% endif %}
+          {% elseif a.expired %}
+            <p class="org-card__m">{{ 'That offer has expired.'|trans }}</p>
+          {% elseif a.app.decision_reason %}
+            <p class="org-card__m">{{ a.app.decision_reason }}</p>
+          {% else %}
+            <p class="org-card__m">{{ decisions[a.app.decision]|default(a.app.decision) }}</p>
+          {% endif %}
+
+          {#
+            An eligibility note is the one thing on this card the vendor can act on, so it
+            is never folded into the decision line above it.
+          #}
+          {% if a.app.eligibility == 'fail' and a.app.eligibility_note %}
+            <p class="org-flag org-flag--err" role="alert">{{ a.app.eligibility_note }}</p>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+{# ══ DONATIONS ════════════════════════════════════════════════════════════ #}
+{% elseif org_tab == 'donations' %}
+
+  {% if not donations %}
+    <div class="org-empty">
+      <h2 class="org-empty__t">{{ 'No gift has cleared yet'|trans }}</h2>
+      <p class="org-empty__b">{{ 'Every confirmed gift appears here with what reached you after the platform fee.'|trans }}</p>
+    </div>
+  {% else %}
+    {#
+      A donor's name appears only where they ticked the box that publishes it; everybody
+      else is "Anonymous", and an address appears nowhere at all — there is no consent on
+      file for handing a donor's contact details to an organisation.
+    #}
+    <table class="org-table">
+      <caption class="sr-only">{{ 'Gifts that have cleared'|trans }}</caption>
+      <thead><tr>
+        <th scope="col">{{ 'From'|trans }}</th>
+        <th scope="col">{{ 'Given'|trans }}</th>
+        <th scope="col">{{ 'Reached you'|trans }}</th>
+        <th scope="col">{{ 'When'|trans }}</th>
+      </tr></thead>
+      <tbody>
+        {% for d in donations %}
+          <tr>
+            <td>{{ d.name }}</td>
+            <td class="org-num">{{ ngn }}{{ d.gross|number_format }}</td>
+            <td class="org-num">{{ ngn }}{{ d.net|number_format }}</td>
+            <td>{{ d.when|slice(0,10) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+{# ══ APPEALS ══════════════════════════════════════════════════════════════ #}
+{% elseif org_tab == 'appeals' %}
+
+  {% if campaigns %}
+    <ul class="org-cards">
+      {% for c in campaigns %}
+        {% set st = c.row.status %}
+        <li class="org-card">
+          <h2 class="org-card__t">{{ c.row.title }}</h2>
+          {% if c.progress.target > 0 %}
+            {% include 'pages/giving/_progress.twig' with {p: c.progress} only %}
+          {% endif %}
+          <p class="org-card__m">
+            {% if st == 'live' and c.open %}
+              {{ c.days is not null ? '%n% days left'|trans({'%n%': c.days}) : 'Open'|trans }}
+            {% elseif st == 'live' %}
+              {{ 'Closed to new gifts'|trans }}
+            {% else %}
+              {{ st|capitalize }}
+            {% endif %}
+          </p>
+          <a class="org-card__go" href="/giving/{{ org.slug }}/{{ c.row.slug }}">{{ 'See the appeal'|trans }}</a>
+
+          {% if can_edit and st in ['draft', 'closed'] %}
+            <form method="post" action="/org/appeal/{{ c.row.id }}/submit">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <button class="org-go" type="submit">{{ 'Send for review'|trans }}</button>
+            </form>
+          {% elseif can_edit and st == 'live' and c.open %}
+            <form method="post" action="/org/appeal/{{ c.row.id }}/close"
+                  data-confirm="{{ 'Close this appeal to new gifts?'|trans }}">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <button class="org-out" type="submit">{{ 'Close'|trans }}</button>
+            </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="org-empty">
+      <h2 class="org-empty__t">{{ 'No appeal yet'|trans }}</h2>
+      <p class="org-empty__b">{{ 'An appeal is one thing you are raising for, with a target and a closing date. Your page can take gifts without one.'|trans }}</p>
+    </div>
+  {% endif %}
+
+  {% if can_edit %}
+    <form class="org-ed" method="post" action="/org/appeal">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <fieldset class="org-fs">
+        <legend class="org-fs__l">{{ 'Start an appeal'|trans }}</legend>
+        <div class="org-row">
+          <label class="org-lab" for="ap-title">{{ 'What it is called'|trans }}</label>
+          <input class="org-in" type="text" id="ap-title" name="title" required maxlength="120">
+        </div>
+        <div class="org-row">
+          <label class="org-lab" for="ap-sum">{{ 'One line about it'|trans }}</label>
+          <input class="org-in" type="text" id="ap-sum" name="summary" maxlength="200">
+        </div>
+        <div class="org-row">
+          <label class="org-lab" for="ap-story">{{ 'The case for it'|trans }}</label>
+          <textarea class="org-in org-in--tall" id="ap-story" name="story" rows="6"></textarea>
+        </div>
+        <div class="org-row">
+          <label class="org-lab" for="ap-target">{{ 'What you need'|trans }}</label>
+          <input class="org-in" type="text" id="ap-target" name="target_naira" inputmode="numeric">
+        </div>
+        <div class="org-row">
+          <label class="org-lab" for="ap-closes">{{ 'Closing date'|trans }}</label>
+          <input class="org-in" type="date" id="ap-closes" name="closes_on">
+        </div>
+        {% if fund_events|default([])|length %}
+          <div class="org-row">
+            <label class="org-lab" for="ap-event">{{ 'Raising for an event'|trans }}</label>
+            <select class="org-in" id="ap-event" name="event_id">
+              <option value="">{{ 'Not for an event'|trans }}</option>
+              {% for e in fund_events %}
+                <option value="{{ e.id }}">{{ e.title }}{% if e.event_date %} · {{ e.event_date|slice(0,10) }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+        {% endif %}
+        {#
+          WHAT HAPPENS IF IT FALLS SHORT, decided before anybody gives — not after. A donor
+          is entitled to know whether a part-funded appeal keeps the money or returns it,
+          and deciding it afterwards is how a refund becomes a dispute.
+        #}
+        <div class="org-row">
+          <label class="org-lab" for="ap-short">{{ 'If it does not reach the target'|trans }}</label>
+          <select class="org-in" id="ap-short" name="shortfall_policy">
+            {% for k, label in shortfall %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <button class="org-go" type="submit">{{ 'Save as draft'|trans }}</button>
+      </fieldset>
+    </form>
+  {% endif %}
+
+{# ══ GETTING PAID ═════════════════════════════════════════════════════════ #}
+{% elseif org_tab == 'payouts' %}
+
+  <div class="org-figs">
+    <div class="org-fig">
+      <span class="org-fig__n">{{ ngn }}{{ available|number_format }}</span>
+      <span class="org-fig__l">{{ 'Yours to request now'|trans }}</span>
+    </div>
+    <div class="org-fig">
+      <span class="org-fig__n">{{ ngn }}{{ min_payout|number_format }}</span>
+      <span class="org-fig__l">{{ 'Smallest payout'|trans }}</span>
+    </div>
+  </div>
+
+  {#
+    HOW THE MONEY ACTUALLY REACHES THEM, which is a different question from how much.
+
+    `payout_mode` was passed to the destroyed page and read nowhere — a reader that was
+    never written, which is the §17 shape `TemplateContextTest` exists to catch. It is the
+    one fact that decides whether this screen's form is the normal route or the exception:
+    on `settlement` the gateway pays out on its own schedule and a request is for anything
+    held back, and on `transfer` nothing moves until somebody here asks. An organisation
+    reading "yours to request now" without knowing which of those they are on cannot tell
+    whether silence means "coming" or "waiting on you".
+  #}
+  <p class="org-hint">
+    {{ payout_mode == 'transfer'
+      ? 'Money is paid out when you request it — nothing moves on its own.'|trans
+      : 'Gifts settle to your account on the provider\'s own schedule. Requesting is for anything still held back.'|trans }}
+    {% if org.settlement_schedule == 'manual' %}
+      {{ 'Your account is set to manual settlement.'|trans }}
+    {% endif %}
+  </p>
+
+  {% if org.account_last4 %}
+    <p class="org-hint">{{ 'Paid into the account ending %n%.'|trans({'%n%': org.account_last4}) }}</p>
+  {% else %}
+    <p class="org-flag org-flag--todo" role="status">{{ 'We do not have an account to pay into yet. Write to us and we will set it up with you.'|trans }}</p>
+  {% endif %}
+
+  {#
+    THE SAME CONDITION THE OVERVIEW'S BUTTON READ. `org_can_request` is computed once in the
+    controller, so this form and that offer cannot disagree — and where it is false the
+    reason is said, rather than the form being quietly absent.
+  #}
+  {% if org_can_request %}
+    <form class="org-ed" method="post" action="/org/payout">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <fieldset class="org-fs">
+        <legend class="org-fs__l">{{ 'Request a payout'|trans }}</legend>
+        <div class="org-row">
+          <label class="org-lab" for="po-amt">{{ 'How much'|trans }}</label>
+          <input class="org-in" type="text" id="po-amt" name="amount" required inputmode="numeric"
+                 placeholder="{{ available }}">
+        </div>
+        <button class="org-go" type="submit">{{ 'Request it'|trans }}</button>
+      </fieldset>
+    </form>
+  {% elseif not can_edit %}
+    <p class="org-hint">{{ 'Only an account owner can move money.'|trans }}</p>
+  {% elseif org.status != 'approved' %}
+    <p class="org-hint">{{ 'Money can move once the account is approved.'|trans }}</p>
+  {% else %}
+    <p class="org-hint">{{ 'You can request a payout once the balance reaches %n%.'|trans({'%n%': ngn ~ min_payout|number_format}) }}</p>
+  {% endif %}
+
+  {% if payouts %}
+    <h2 class="org-h2">{{ 'What has been paid'|trans }}</h2>
+    <table class="org-table">
+      <caption class="sr-only">{{ 'Payout history'|trans }}</caption>
+      <thead><tr>
+        <th scope="col">{{ 'Amount'|trans }}</th>
+        <th scope="col">{{ 'Where it is up to'|trans }}</th>
+        <th scope="col">{{ 'Requested'|trans }}</th>
+      </tr></thead>
+      <tbody>
+        {% for p in payouts %}
+          <tr>
+            <td class="org-num">{{ ngn }}{{ (p.amount_naira|default(0))|number_format }}</td>
+            <td>{{ p.gateway_message|default(p.status|default('')) }}</td>
+            <td>{{ (p.created_at|default(''))|slice(0,10) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+{# ══ STAND FEES ═══════════════════════════════════════════════════════════ #}
+{% elseif org_tab == 'fees' %}
+
+  <p class="org-empty__b">{{ 'A stand is invoiced after it is accepted — there is no balance to withdraw on a vendor account, because the money runs the other way.'|trans }}</p>
+  {% if applications %}
+    <a class="org-go" href="/org?tab=stands">{{ 'See your applications'|trans }}</a>
+  {% else %}
+    <a class="org-go" href="/events">{{ 'See what is open'|trans }}</a>
+  {% endif %}
+
+{# ══ CATALOGUE ════════════════════════════════════════════════════════════ #}
+{% elseif org_tab == 'catalogue' %}
+
+  {% if items %}
+    <ul class="org-list">
+      {% for it in items %}
+        <li class="org-item">
+          <span class="org-item__l">{{ it.name }}</span>
+          <span class="org-item__s">{{ item_cats[it.category]|default(it.category) }}</span>
+          {% if can_edit %}
+            <form method="post" action="/org/item/{{ it.id }}/show">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <button class="org-out" type="submit">{{ it.is_visible|default(1) ? 'Hide'|trans : 'Show'|trans }}</button>
+            </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="org-empty">
+      <h2 class="org-empty__t">{{ 'Nothing listed yet'|trans }}</h2>
+      <p class="org-empty__b">{{ 'What you list appears beside your stand, so a visitor knows what you are bringing before they walk over.'|trans }}</p>
+    </div>
+  {% endif %}
+
+  {% if can_edit and items|length < max_items %}
+    <form class="org-ed" method="post" action="/org/item">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <fieldset class="org-fs">
+        <legend class="org-fs__l">{{ 'Add something'|trans }}</legend>
+        <div class="org-row">
+          <label class="org-lab" for="it-name">{{ 'What it is'|trans }}</label>
+          <input class="org-in" type="text" id="it-name" name="name" required maxlength="120">
+        </div>
+        <div class="org-row">
+          <label class="org-lab" for="it-cat">{{ 'Category'|trans }}</label>
+          <select class="org-in" id="it-cat" name="category">
+            {% for k, label in item_cats %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <button class="org-go" type="submit">{{ 'Add it'|trans }}</button>
+      </fieldset>
+    </form>
+  {% endif %}
+
+{% endif %}

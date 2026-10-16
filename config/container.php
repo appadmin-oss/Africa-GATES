@@ -505,6 +505,17 @@ return [
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('gee_starters',
             static fn (): array => \AfricaGates\Services\GeePersonal::starters(\AfricaGates\Services\GeePersonal::facts())));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_lead', [\AfricaGates\Services\AccountRail::class, 'lead']));
+        // The organisation console's section titles and ledes (pages/org/_frame.twig), from
+        // the one list its rail is built from — same arrangement as the member account's
+        // two above, because it is the same frame.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('org_title', [\AfricaGates\Services\OrgRail::class, 'title']));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('org_lead', [\AfricaGates\Services\OrgRail::class, 'lead']));
+        // The editor shows a saved video back as the address the organisation PASTED. Only
+        // the provider and the id are stored (nothing they typed may reach an `src`), so
+        // the watch address has to be rebuilt to put it back in the field — otherwise
+        // saving the form a second time would blank every video, because the field it read
+        // back was empty.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('org_watch_url', [\AfricaGates\Services\OrgBrand::class, 'watchUrl']));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cover_content', [\AfricaGates\Support\CoverKind::class, 'content']
         ));
