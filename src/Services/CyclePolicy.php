@@ -47,9 +47,30 @@ final class CyclePolicy
      */
     public static function phaseFor(object|array $cycle, ?Carbon $now = null): CyclePhase
     {
-        $c   = (object) $cycle;
-        $now = $now ?? Carbon::now();
+        $c     = (object) $cycle;
+        $phase = self::fromWindows($c, $now ?? Carbon::now());
 
+        // ── A RELEASE IS AN ACT, NOT A DATE ──────────────────────────────────
+        //
+        // `results` is written by CycleMaterialiser alone, in the transaction that crowns
+        // and seals — the hand-set transition is refused — and its release() deliberately
+        // allows publishing before the results date, while plenty of cycles never set
+        // one. The windows cannot know that happened, so a released award read as "With
+        // the jury" on every page that draws its phase, beside its own published result.
+        //
+        // Trusted ONLY where the windows already say Judging. release() refuses anything
+        // earlier, so this can never close voting or reach back into any other phase: the
+        // cache stays a cache everywhere it could gate an action.
+        if ($phase === CyclePhase::Judging
+            && CyclePhase::fromStored($c->status ?? null) === CyclePhase::Results) {
+            return CyclePhase::Results;
+        }
+        return $phase;
+    }
+
+    /** The phase the date windows alone give (see the note on the class). */
+    private static function fromWindows(object $c, Carbon $now): CyclePhase
+    {
         $stored = CyclePhase::fromStored($c->status ?? null);
         if ($stored === CyclePhase::Archived) return CyclePhase::Archived;
 
