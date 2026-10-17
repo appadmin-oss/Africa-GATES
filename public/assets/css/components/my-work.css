@@ -51,31 +51,80 @@ textarea.mw__in{ min-height:160px; resize:vertical }
 .mw__resume{ display:flex; justify-content:center }
 @media (min-width:600px){ .mw{ padding-top:32px } .mw__h1{ font-size:var(--ag-fs-36) } .mw__card, .mw__q{ padding:28px } }
 
-/* ── the interview (templates/pages/my-work/interview.twig) ────────────────── */
-.iv__prog{ display:flex; flex-direction:column; gap:8px }
-.iv__bar{ display:block; height:8px; border-radius:var(--ag-r-pill); background:var(--ag-line) }
+/* ── the interview (templates/pages/my-work/interview.twig) ──────────────────
+   An app screen: the shell's <main> stops scrolling on this page and the conversation
+   scrolls instead. Header and composer are flex:none; the log is the one flex:1 child with
+   overflow, so the question being answered and the box to answer it in never leave the
+   screen. The other two parts are not a conversation and scroll inside their own pane. */
+body[data-page="mw-interview"] .ag-main{ overflow:hidden; display:flex; flex-direction:column }
+.iv{ flex:1; min-height:0; width:100%; max-width:760px; margin:0 auto; display:flex; flex-direction:column }
+.iv__top{ flex:none; padding:10px 16px 8px; display:flex; flex-direction:column; gap:6px; border-bottom:1px solid var(--ag-line) }
+.iv__h1{ margin:0; font-weight:700; font-size:var(--ag-fs-17); line-height:1.3; color:var(--ag-ink) }
+.iv__fine{ margin:0; font-size:var(--ag-fs-13); line-height:1.45; color:var(--ag-soft) }
+.iv__prog{ display:flex; align-items:center; gap:10px }
+.iv__bar{ flex:1; display:block; height:6px; border-radius:var(--ag-r-pill); background:var(--ag-line) }
 .iv__fill{ display:block; height:100%; border-radius:inherit; background:var(--ag-green) }
-.iv__tabs{ display:flex; gap:8px; overflow-x:auto; margin:0 -16px; padding:2px 16px }
-.iv__tab{ flex:none; display:inline-flex; align-items:center; min-height:44px; padding:0 16px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none; white-space:nowrap }
+.iv__prog .iv__fine{ flex:none }
+.iv__fine-row{ display:flex; flex-wrap:wrap; align-items:center; column-gap:8px }
+.iv__fine-row .iv__fine{ flex:1 1 16em }
+.iv__tabs{ display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 -16px; padding:0 16px }
+.iv__tabs::-webkit-scrollbar{ display:none }
+.iv__tab{ flex:none; display:inline-flex; align-items:center; min-height:44px; padding:0 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none; white-space:nowrap }
 .iv__tab[aria-current]{ border:2px solid var(--ag-ink) }
-.iv__phase[hidden]{ display:none }
-.iv__log,
-.iv__ledger,
-.iv__left,
-.iv__works{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:10px }
-.iv__left{ padding-inline-start:18px; list-style:disc; gap:4px }
-.iv__turn{ max-width:88%; padding:12px 14px; border-radius:var(--ag-r-16); background:var(--ag-ground); display:flex; flex-direction:column; gap:6px }
-.iv__turn--me{ align-self:flex-end; background:var(--ag-green-wash) }
+.iv__out-form{ flex:none; margin:0 }
+.iv__link{ min-height:44px; padding:0; margin:-8px 0; border:0; background:none; color:var(--ag-soft); font:inherit; font-size:var(--ag-fs-13); text-decoration:underline; cursor:pointer; white-space:nowrap }
+
+.iv__pane{ flex:1; min-height:0; display:flex; flex-direction:column }
+.iv__pane[hidden]{ display:none }
+.iv__pane--scroll{ overflow-y:auto; overscroll-behavior:contain; padding:16px }
+
+/* the conversation */
+.iv__log{ flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; margin:0; padding:16px; list-style:none; display:flex; flex-direction:column; gap:10px; scroll-padding-bottom:16px }
+.iv__log:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+.iv__turn{ max-width:86%; padding:10px 14px; border-radius:var(--ag-r-18); background:var(--ag-surface); border:1px solid var(--ag-line); display:flex; flex-direction:column; gap:4px }
+.iv__turn--me{ align-self:flex-end; background:var(--ag-green-wash); border-color:transparent }
 .iv__turn.is-pending{ opacity:.6 }
-.iv__who{ margin:0; font-weight:700; font-size:var(--ag-fs-13); color:var(--ag-soft) }
-.iv__text{ margin:0; font-size:var(--ag-fs-16); line-height:1.55; white-space:pre-wrap; color:var(--ag-ink) }
-.iv__acts{ display:flex; gap:8px }
-.iv__mini{ min-height:44px }
-.iv__status{ margin:0; min-height:1.4em; font-size:var(--ag-fs-14); color:var(--ag-soft) }
-.iv__say,
-.iv__send{ display:flex; flex-direction:column; gap:10px }
+.iv__turn.is-typing .iv__text{ color:var(--ag-soft) }
+.iv__who{ margin:0; font-weight:700; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.iv__text{ margin:0; font-size:var(--ag-fs-16); line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--ag-ink) }
+.iv__acts{ display:flex; gap:8px; margin-top:2px }
+.iv__mini{ min-height:44px; padding:0 14px }
+.iv__event{ align-self:center; max-width:90%; padding:6px 12px; border-radius:var(--ag-r-pill); background:var(--ag-tint); font-size:var(--ag-fs-13); color:var(--ag-ink-2); text-align:center }
+.iv__ask{ max-width:86%; padding:12px 14px; border:1px dashed var(--ag-line-2); border-radius:var(--ag-r-18); background:var(--ag-surface); display:flex; flex-direction:column; gap:6px }
+.iv__ask-t{ margin:0; font-weight:700; font-size:var(--ag-fs-15-5) }
+.iv__ask-do{ display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 0 }
+.iv__pick{ position:relative; overflow:hidden; cursor:pointer }
+.iv__pick input,
+.iv__icon input{ position:absolute; inset:0; opacity:0; cursor:pointer; font-size:0 }
+.iv__note{ flex:none; margin:0; padding:12px 16px; border-top:1px solid var(--ag-line); font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+
+/* the composer: pinned, never scrolls away */
+.iv__composer{ flex:none; padding:8px 12px calc(10px + env(safe-area-inset-bottom)); border-top:1px solid var(--ag-line); background:var(--ag-bar); display:flex; flex-direction:column; gap:6px }
+.iv__composer[hidden]{ display:none }
+.iv__chips{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; margin:0 -12px; padding:0 12px }
+.iv__chips:empty{ display:none }
+.iv__chips::-webkit-scrollbar{ display:none }
+.iv__chip{ flex:none; min-height:44px; padding:0 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-weight:600; font-size:var(--ag-fs-14); white-space:nowrap; cursor:pointer }
+.iv__status{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.iv__status:empty{ display:none }
+.iv__bar-in{ display:flex; align-items:flex-end; gap:6px }
+.iv__icon{ position:relative; flex:none; width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:50%; background:none; color:var(--ag-ink-2); cursor:pointer }
+.iv__icon[aria-pressed="true"]{ background:var(--ag-live-wash); color:var(--ag-error) }
+.iv__in{ flex:1; min-width:0; min-height:44px; max-height:9.5em; padding:10px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-22); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-16); line-height:1.4; resize:none }
+.iv__send{ flex:none; min-height:44px; padding:0 18px; border:0; border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface); font:inherit; font-weight:700; font-size:var(--ag-fs-15); cursor:pointer }
+.iv__send:disabled{ opacity:.55; cursor:default }
+
+/* show + review */
+.iv__works,
+.iv__ledger,
+.iv__left{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:10px }
+.iv__left{ padding-inline-start:18px; list-style:disc; gap:4px }
 .iv__h3{ margin:0; font-weight:700; font-size:var(--ag-fs-16) }
-.iv__out{ padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16); display:flex; flex-direction:column; gap:8px }
+.iv__outc{ padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16); display:flex; flex-direction:column; gap:8px }
 .iv__quote{ margin:0; padding-inline-start:12px; border-inline-start:3px solid var(--ag-line-2); font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
-@media (prefers-reduced-motion:reduce){ .iv *{ transition:none!important; animation:none!important } }
-.iv__say .mw__do{ justify-content:flex-end }
+.iv__send-form{ display:flex; flex-direction:column; gap:10px }
+/* On a phone the programme line goes: the title already names the person, and every line
+   in this header is a line of conversation the screen cannot show. */
+@media (max-width:599px){ .iv__kicker{ display:none } }
+@media (min-width:600px){ .iv__top{ padding:14px 16px 10px } .iv__h1{ font-size:var(--ag-fs-20) } }
+@media (prefers-reduced-motion:reduce){ .iv *{ transition:none!important; animation:none!important; scroll-behavior:auto!important } }

@@ -3406,6 +3406,10 @@ return function(App $app) {
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/phase',   \AfricaGates\Controllers\MyWorkController::class.':interviewPhase');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/amend',   \AfricaGates\Controllers\MyWorkController::class.':interviewAmend');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/outcome', \AfricaGates\Controllers\MyWorkController::class.':interviewOutcome');
+        // The interviewer's upload buttons: a file arriving and "I can't share this" each leave
+        // a notice on the transcript, and `react` runs the one interviewer turn that answers it.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/react',   \AfricaGates\Controllers\MyWorkController::class.':interviewReact');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/decline', \AfricaGates\Controllers\MyWorkController::class.':interviewDecline');
         // Voice, both directions. `speak` returns MP3 bytes and is addressed by TURN INDEX,
         // never by text, so it cannot be used to have the platform's ElevenLabs account read
         // out a stranger's paragraph; `listen` transcribes a recording and hands the words

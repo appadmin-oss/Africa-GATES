@@ -83,7 +83,13 @@ final class MyWorkInterviewPageTest extends TestCase
         $this->assertStringContainsString('Nothing is sent until you press Send with your name typed.', $html);
         // The composer is the script's: without it, a post to the JSON turn endpoint would
         // land the nominee on a page of JSON.
-        $this->assertMatchesRegularExpression('/<form class="iv__say" data-iv-say hidden>/', $html);
+        $this->assertMatchesRegularExpression('/<form class="iv__composer" data-iv-say hidden>/', $html);
+        // An app screen: the shell's scroller is switched off by page id and the log scrolls.
+        $this->assertStringContainsString('data-page="mw-interview"', $html, 'the page scrolls as a whole and carries the composer away');
+        $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/my-work.css');
+        $this->assertMatchesRegularExpression('/body\[data-page="mw-interview"\] \.ag-main\{[^}]*overflow:hidden/', $css);
+        $this->assertMatchesRegularExpression('/\.iv__log\{[^}]*overflow-y:auto/', $css, 'nothing scrolls the conversation');
+        $this->assertStringContainsString('data-iv-attach', $html, 'there is no way to send a file from the conversation');
         $this->assertStringContainsString('/assets/js/my-work-interview.js', $html);
     }
 

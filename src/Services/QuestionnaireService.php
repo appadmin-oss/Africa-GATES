@@ -1155,10 +1155,11 @@ final class QuestionnaireService
      */
     private static function cleanWorks(array $works, array $stored): array
     {
-        $files = [];
+        $files = $names = [];
         foreach ($stored as $i => $w) {
             if (is_array($w) && trim((string) ($w['file'] ?? '')) !== '') {
                 $files[(string) ($w['uid'] ?? $i)] = (string) $w['file'];
+                $names[(string) ($w['uid'] ?? $i)] = (string) ($w['file_name'] ?? '');
             }
         }
 
@@ -1188,11 +1189,58 @@ final class QuestionnaireService
                 'description' => mb_substr($desc, 0, 1500),
                 'confirm'     => mb_substr(trim((string) ($w['confirm'] ?? '')), 0, 300),
                 'file'        => $files[$uid] ?? '',
-                'file_name'   => mb_substr(trim((string) ($w['file_name'] ?? '')), 0, 200),
+                // From storage when the post does not carry it, and the guided form never does:
+                // reading it only off the post meant every save wiped "Attached: report.pdf"
+                // from the page while the file itself stayed attached — so the nominee
+                // uploaded it again.
+                'file_name'   => mb_substr(trim((string) ($w['file_name'] ?? '') ?: ($names[$uid] ?? '')), 0, 200),
+                'from'        => in_array((string) ($w['from'] ?? ''), ['conversation'], true) ? 'conversation' : '',
             ];
             if (count($out) >= self::MAX_WORKS) break;
         }
         return $out;
+    }
+
+    /**
+     * Add one work to the list from the interview — a link the nominee pasted into the chat.
+     *
+     * Merged through {@see cleanWorks()} like every other write, so a conversational work is the
+     * same shape as a typed one and the panel cannot tell them apart except by the `from` mark,
+     * which is there so the review screen can say where it came from. A link already on the
+     * list is not added twice: a nominee repeating a URL is not a second piece of evidence.
+     *
+     * @return array{ok:bool, message:string, uid?:string}
+     */
+    public static function addWork(string $token, string $title, string $link, string $kind = '',
+                                   string $description = ''): array
+    {
+        $s = self::byToken($token);
+        if (!$s) return ['ok' => false, 'message' => 'That link is not valid.'];
+        if ($s->status === 'submitted') return ['ok' => false, 'message' => 'already sent to the panel'];
+
+        $works = json_decode((string) ($s->works_json ?? '[]'), true);
+        $works = is_array($works) ? array_values(array_filter($works, 'is_array')) : [];
+        if (count($works) >= self::MAX_WORKS) {
+            return ['ok' => false, 'message' => 'the works list is full (' . self::MAX_WORKS . ')'];
+        }
+        $norm = static fn(string $u): string => rtrim(strtolower((string) preg_replace('~^https?://(www\.)?~i', '', trim($u))), '/');
+        foreach ($works as $w) {
+            if ($link !== '' && $norm((string) ($w['link'] ?? '')) === $norm($link)) {
+                return ['ok' => true, 'message' => 'already on the list', 'uid' => (string) ($w['uid'] ?? '')];
+            }
+        }
+        $n = 1;
+        $uids = array_map(static fn(array $w): string => (string) ($w['uid'] ?? ''), $works);
+        while (in_array('w' . $n, $uids, true)) $n++;
+
+        $works[] = ['uid' => 'w' . $n, 'title' => $title, 'link' => $link, 'kind' => $kind,
+                    'description' => $description, 'from' => 'conversation'];
+        $clean = self::cleanWorks($works, $works);
+        DB::table('gates_nominee_submissions')->where('id', (int) $s->id)->update([
+            'works_json' => json_encode($clean),
+            'updated_at' => Carbon::now()->toDateTimeString(),
+        ]);
+        return ['ok' => true, 'message' => 'Added to your works.', 'uid' => 'w' . $n];
     }
 
     /**
@@ -1204,7 +1252,8 @@ final class QuestionnaireService
      *
      * @return array{ok:bool, message:string}
      */
-    public static function attachFile(string $token, string $uid, \Psr\Http\Message\UploadedFileInterface $file): array
+    public static function attachFile(string $token, string $uid, \Psr\Http\Message\UploadedFileInterface $file,
+                                      string $title = ''): array
     {
         $s = self::byToken($token);
         if (!$s) return ['ok' => false, 'message' => 'That link is not valid.'];
@@ -1234,7 +1283,15 @@ final class QuestionnaireService
             return ['ok' => false, 'message' => 'That file could not be accepted: ' . $e->getMessage()];
         }
 
-        $uid   = preg_replace('/[^a-z0-9]/i', '', $uid) ?: 'w1';
+        // No row named: a new one, never `w1`. Defaulting to the first row attached a file sent
+        // without a choice over whatever the nominee had already put there.
+        $uid = preg_replace('/[^a-z0-9]/i', '', $uid) ?: '';
+        if ($uid === '') {
+            $taken = array_map(static fn($w): string => is_array($w) ? (string) ($w['uid'] ?? '') : '', $works);
+            $n = 1;
+            while (in_array('w' . $n, $taken, true)) $n++;
+            $uid = 'w' . $n;
+        }
         $found = false;
         foreach ($works as $i => $w) {
             if (is_array($w) && (string) ($w['uid'] ?? '') === $uid) {
@@ -1245,7 +1302,9 @@ final class QuestionnaireService
             }
         }
         if (!$found) {
-            $works[] = ['uid' => $uid, 'title' => mb_substr((string) $file->getClientFilename(), 0, 200),
+            // A file the interviewer asked for arrives under the name of the thing it asked
+            // for ("The 2024 borehole report"), not as IMG_20241102.jpg on a judge's list.
+            $works[] = ['uid' => $uid, 'title' => mb_substr(trim($title) !== '' ? trim($title) : (string) $file->getClientFilename(), 0, 200),
                         'kind' => '', 'year' => '', 'link' => '', 'description' => '', 'confirm' => '',
                         'file' => (string) ($up['path'] ?? ''),
                         'file_name' => mb_substr((string) $file->getClientFilename(), 0, 200)];
