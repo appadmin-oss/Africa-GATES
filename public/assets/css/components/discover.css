@@ -1,0 +1,468 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   DISCOVER — `/discover` · Phase 4 of design_handoff_africa_gates
+   design/DiscoverPage.dc.html · skill §5, §6, §6b · REFERENCE §6, §13
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Every number is the DC's (REFERENCE §5), with three families of exception, each
+   decided by the order of authority (REFERENCE §0) rather than by taste:
+
+   · TARGETS ARE 44px (§6.7, §13 — "≥44×44 everywhere"). The DC draws its tabs, chips,
+     Filters button and applied filters at 40; the hit area grows, the type does not.
+   · TYPE IS §6.2: the page H1 is 32 / 44 (the DC: 32 tablet, 36 desktop), a section H2
+     is 19 (the DC: 18). Written in rem from tokens.css, never px (TypeScaleTest).
+   · COLOUR IS §6.1 THROUGH Support\Accent. A selected chip is a 2px ink outline on white,
+     never the DC's dark fill (§6.1, §18.2), and an applied filter is outlined, not the
+     DC's green wash (§18.2). The event month is `live-ink`, the §6.1 token for "dates on
+     events" (the DC's #cc1950 is not in the palette), and it is sentence case (§18.4).
+
+   Nothing here is a colour literal (ColourLiteralTest).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* The DC's 1180 is a CONTENT-box width (its canvas has no border-box reset), so the
+   column is 1180 of content plus the gutters either side — measured, not assumed. */
+.dv{
+  max-width:calc(1180px + var(--ag-gutter) * 2); margin:0 auto;
+  padding:4px var(--ag-gutter) 28px;
+  display:flex; flex-direction:column; gap:30px;
+}
+@media (min-width:600px){  .dv{ padding:28px var(--ag-gutter) 48px } }
+@media (min-width:1024px){ .dv{ padding:36px var(--ag-gutter) 56px } }
+
+/* The page's H1 from 600; on a phone the app bar's large title is the H1 (§7.2). */
+.dv__head{ display:none }
+.dv__h1{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-32); line-height:1.1; color:var(--ag-ink);
+}
+@media (min-width:600px){ .dv__head{ display:flex; align-items:center } }
+@media (min-width:1024px){ .dv__h1{ font-size:var(--ag-fs-44); line-height:1.06 } }
+
+
+/* ══ The sticky search + filters bar · skill §6, §6b ═════════════════════════
+   `.ag-sticky` is what shell.js marks `data-scrolled`; the DC's own geometry replaces
+   the base block's: 6px over and 10px under, bleeding to the screen edge on a phone
+   only, a hairline once something has scrolled under it. */
+
+.dv__bar.ag-sticky{
+  margin-inline:calc(var(--ag-gutter) * -1);
+  padding:6px var(--ag-gutter) 10px;
+  gap:0;
+  transition:border-color var(--ag-dur-1) var(--ag-ease);
+}
+.dv__bar.ag-sticky[data-scrolled]{ padding-block:6px 10px; border-bottom-color:var(--ag-line) }
+@media (min-width:600px){
+  .dv__bar.ag-sticky{ margin-inline:0; padding-inline:0 }
+  /* From 600 the bar does not bleed (the DC), so a row scrolling under it showed its
+     edges — the live dot's halo — in the gutter beside the bar. The ground is carried
+     16px past each edge, behind the bar's own content. */
+  .dv__bar.ag-sticky::before{
+    content:""; position:absolute; inset:0 -16px; z-index:-1; background:var(--ag-ground);
+  }
+}
+
+.dv__form{ margin:0 }
+.dv__field{
+  display:flex; align-items:center; gap:var(--ag-sp-10);
+  height:54px; padding:0 var(--ag-sp-16);
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
+  color:var(--ag-soft);
+}
+.dv__field > svg{ flex:none }
+.dv__field:focus-within{ outline:3px solid var(--ag-green); outline-offset:2px }
+.dv__q{
+  flex:1; min-width:0; height:100%;
+  border:0; outline:0; background:transparent;
+  color:var(--ag-ink); font-size:var(--ag-fs-16);
+}
+.dv__q::placeholder{ color:var(--ag-soft); opacity:1 }
+/* The browser's own clear cross sits on top of a 54px row and duplicates nothing the
+   design draws; Escape (and selecting the text) clears. */
+.dv__q::-webkit-search-cancel-button{ -webkit-appearance:none; appearance:none }
+
+/* The tab row at rest: a grid track around an overflow-hidden child, so it can collapse
+   to zero and back (never `display:none`, which cannot animate). */
+.dv__tabrow{
+  display:grid; grid-template-rows:1fr; opacity:1; margin-top:12px;
+  transition:grid-template-rows var(--ag-dur-2) var(--ag-ease),
+             opacity var(--ag-dur-1) ease,
+             margin var(--ag-dur-2) var(--ag-ease);
+}
+.dv__tabrow > div{ min-height:0; overflow:hidden }
+.dv__tabrow .dv__tabs{
+  margin-inline:calc(var(--ag-gutter) * -1); padding-inline:var(--ag-gutter);
+}
+@media (min-width:600px){ .dv__tabrow .dv__tabs{ margin-inline:0; padding-inline:0 } }
+
+.dv__tabs{
+  display:flex; gap:var(--ag-sp-8);
+  overflow-x:auto; scrollbar-width:none;
+}
+.dv__tabs::-webkit-scrollbar{ display:none }
+
+/* A tab is an outlined pill; selected is a 2px ink border, the same white, 600 always
+   (the DC writes its weight twice and the second, 600, wins). */
+.dv-tab{
+  flex:none; display:inline-flex; align-items:center;
+  height:44px; padding:0 var(--ag-sp-16);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14); font-weight:600; white-space:nowrap;
+  text-decoration:none;
+}
+.dv-tab:hover{ color:var(--ag-ink) }
+.dv-tab[aria-selected="true"]{ border:2px solid var(--ag-ink); padding:0 15px }
+
+.dv__filters{
+  display:flex; align-items:center; gap:var(--ag-sp-8);
+  overflow-x:auto; scrollbar-width:none;
+  margin:12px calc(var(--ag-gutter) * -1) 0; padding:0 var(--ag-gutter);
+}
+.dv__filters::-webkit-scrollbar{ display:none }
+@media (min-width:600px){ .dv__filters{ margin-inline:0; padding-inline:0 } }
+
+.dv__fbtn{
+  flex:none; display:inline-flex; align-items:center; gap:var(--ag-sp-8);
+  height:44px; padding:0 14px;
+  border:1px solid var(--ag-ink); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14); font-weight:600; text-decoration:none; white-space:nowrap;
+}
+.dv__fbtn:hover{ color:var(--ag-ink) }
+.dv__badge{ color:var(--ag-ground); font-size:var(--ag-fs-12) }
+
+/* The docked copy: in the DOM always, 0 wide at rest; past the threshold it opens
+   behind a 1 × 24 rule, and the row above closes. */
+.dv__dock{
+  flex:none; display:flex; align-items:center; gap:var(--ag-sp-8);
+  max-width:0; opacity:0; overflow:hidden;
+  transition:max-width .3s var(--ag-ease), opacity var(--ag-dur-1) ease;
+}
+.dv__dock .dv__tabs{ overflow:visible }
+.dv__rule{ flex:none; width:1px; height:24px; background:var(--ag-line-2) }
+.dv__bar[data-scrolled] .dv__tabrow{ grid-template-rows:0fr; opacity:0; margin-top:0 }
+.dv__bar[data-scrolled] .dv__dock{ max-width:900px; opacity:1 }
+
+/* An applied filter: outlined like every chip (§18.2), a remove mark, a real link. */
+.dv__applied{
+  flex:none; display:inline-flex; align-items:center; gap:6px;
+  height:44px; padding-block:0; padding-inline:14px 10px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-13-5); font-weight:600; white-space:nowrap; text-decoration:none;
+}
+.dv__applied:hover{ color:var(--ag-ink) }
+.dv__count{
+  flex:none; margin-inline-start:auto;
+  font-size:var(--ag-fs-13-5); color:var(--ag-soft); white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+
+
+/* ══ Which sections a tab shows ══════════════════════════════════════════════
+   One render holds every section; `data-tab` on the page decides which are drawn.
+   All draws everything; Live, only the timeline; a section tab, only its section. */
+
+.dv__panel{ display:flex; flex-direction:column; gap:30px; min-width:0 }
+.dv:not([data-tab="all"]) .dv-only{ display:none }
+.dv[data-tab="live"]    .dv-only--live,
+.dv[data-tab="awards"]  .dv-only--awards,
+.dv[data-tab="results"] .dv-only--results,
+.dv[data-tab="people"]  .dv-only--people,
+.dv[data-tab="orgs"]    .dv-only--orgs,
+.dv[data-tab="events"]  .dv-only--events{ display:flex }
+/* The All tab draws the DC's slice of each section (4 · 3 · 4 · 4 · 3); a section's own
+   tab draws everything the section carries. */
+.dv[data-tab="all"] .dv-only--awards .dv-card:nth-child(n+5),
+.dv[data-tab="all"] .dv-only--results .dv-item:nth-child(n+4),
+.dv[data-tab="all"] .dv-only--people .dv-item:nth-child(n+5),
+.dv[data-tab="all"] .dv-only--orgs .dv-item:nth-child(n+5),
+.dv[data-tab="all"] .dv-only--events .dv-item:nth-child(n+4){ display:none }
+.dv:not([data-tab="all"]) .dv-body{ display:block }
+.dv-only--live{ flex-direction:column; min-width:0 }
+.dv:not([data-tab="all"]) .dv-col{ display:contents }
+
+
+/* ══ Sections ════════════════════════════════════════════════════════════════ */
+
+.dv-sec, .dv-live{ display:flex; flex-direction:column; gap:12px; min-width:0 }
+.dv-live{ gap:10px }
+.dv-sec__head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px }
+.dv-sec__h{ margin:0; font-size:var(--ag-fs-19); font-weight:700; line-height:1.3; color:var(--ag-ink) }
+.dv-sec__more{ flex:none; font-size:var(--ag-fs-14); font-weight:600 }
+.dv-empty{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }
+
+.dv-live__h{ display:flex; align-items:center; gap:var(--ag-sp-8) }
+.dv-live__dot{
+  flex:none; width:8px; height:8px; border-radius:50%;
+  background:var(--dv-dot);
+  box-shadow:0 0 0 4px color-mix(in srgb, var(--dv-dot) 16%, transparent);
+}
+.dv-live__all{ display:inline-flex; align-items:center; min-height:44px }
+.dv-live__status{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.dv-live__end{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+
+/* "Understood as" and "Literal." — before the rows, each with its way out. */
+.dv-read{
+  margin:0; display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  padding:10px 12px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+  font-size:var(--ag-fs-13-5); color:var(--ag-ink-2);
+}
+.dv-read--plain{ display:block; padding:0; background:none; border:0 }
+.dv-read__t{ color:var(--ag-ink) }
+.dv-read__chip{
+  display:inline-flex; align-items:center; height:26px; padding:0 10px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  font-size:var(--ag-fs-12-5); font-weight:600; color:var(--ag-ink);
+}
+.dv-read__go{
+  display:inline-flex; align-items:center; min-height:32px; padding:0 4px;
+  color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px;
+}
+.dv-read--plain .dv-read__go{ display:inline; padding:0; min-height:0 }
+.dv-read__go:hover{ color:var(--ag-ink) }
+.dv-warn{ margin:8px 0 0; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+
+/* The kind chips: buttons that submit, outlined, 2px ink when pressed. */
+.dv-kinds{ margin:0 }
+.dv-kinds__row{
+  display:flex; gap:var(--ag-sp-8); overflow-x:auto; scrollbar-width:none;
+  margin-inline:calc(var(--ag-gutter) * -1); padding-inline:var(--ag-gutter);
+}
+.dv-kinds__row::-webkit-scrollbar{ display:none }
+@media (min-width:600px){ .dv-kinds__row{ margin-inline:0; padding-inline:0 } }
+.dv-kind{
+  flex:none; display:inline-flex; align-items:center; gap:7px;
+  height:44px; padding:0 14px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14); font-weight:500; white-space:nowrap; cursor:pointer;
+}
+.dv-kind[aria-pressed="true"]{ border:2px solid var(--ag-ink); padding:0 13px; font-weight:700 }
+
+/* A kind's dot. Its colour is DATA — which kind of update the row is — so it arrives
+   as a custom property from Services\Discover, the one inline style REFERENCE §4.6
+   allows; the same path as the base chip's phase dot (`.ag-chip__dot`). The colour
+   repeats what the label beside it already says; it is never the only signal. */
+.dv-dot{ flex:none; width:8px; height:8px; border-radius:50%; background:var(--dv-dot, var(--ag-ink)) }
+
+/* The timeline: one white list, hairlines between, every row a real link. */
+.dv-list{
+  list-style:none; margin:0; padding:0;
+  display:flex; flex-direction:column;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
+  overflow:hidden;
+}
+.dv-list__i + .dv-list__i{ border-top:1px solid var(--ag-line-3) }
+.dv-row{
+  display:flex; flex-direction:column; gap:6px;
+  min-height:72px; padding:12px 16px;
+  color:var(--ag-ink); text-decoration:none;
+}
+.dv-row:hover{ color:var(--ag-ink); background:var(--ag-bar) }
+/* The keyboard's active option (aria-activedescendant) — styled, not only hovered: a
+   keyboard user never hovers. Inset, because the list clips. */
+.dv-list__i[data-active="true"] > .dv-row{ background:var(--ag-ground); outline:2px solid var(--ag-ink); outline-offset:-2px }
+.dv-row:focus-visible{ outline-offset:-3px }
+.dv-row__top{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+.dv-row__k{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-ink-2);
+}
+.dv-row__when{ flex:none; font-size:var(--ag-fs-12-5); color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.dv-row__t{ font-size:var(--ag-fs-15); font-weight:600; line-height:1.35 }
+.dv-row__d{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+/* Each piece of a row is its own bidi paragraph: a timeline row is DATA in whatever
+   script it was written in, and inside an RTL page "16 minutes ago" otherwise reorders to
+   "minutes ago 16" (measured at 390 in Arabic). */
+.dv-row__when, .dv-row__t, .dv-row__d, .dv-item__t, .dv-item__m, .dv-card__t, .dv-card__l{ unicode-bidi:plaintext }
+.dv-list__empty{ padding:20px 16px; font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }
+
+.dv-older{
+  display:flex; align-items:center; justify-content:center;
+  height:48px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14-5); font-weight:600; text-decoration:none;
+}
+.dv-older:hover{ color:var(--ag-ink); background:var(--ag-bar) }
+/* Busy: a search or a page is on its way. The status line says so in words; the list
+   dims rather than spinning, and under reduced motion simply dims. */
+.dv-live[aria-busy="true"] .dv-list{ opacity:.6; transition:opacity var(--ag-dur-1) ease }
+
+/* "Open for nominations": a carousel on a phone, four across from 600. */
+.dv-cards{
+  display:flex; gap:12px; overflow-x:auto; scrollbar-width:none;
+  margin-inline:calc(var(--ag-gutter) * -1); padding-inline:var(--ag-gutter);
+}
+.dv-cards::-webkit-scrollbar{ display:none }
+@media (min-width:600px){
+  .dv-cards{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin-inline:0; padding-inline:0; overflow:visible }
+}
+.dv-card{
+  flex:none; width:230px;
+  display:flex; flex-direction:column;
+  background:var(--ag-surface); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-16);
+  overflow:hidden; color:var(--ag-ink); text-decoration:none;
+}
+@media (min-width:600px){ .dv-card{ width:auto } }
+.dv-card:hover{ color:var(--ag-ink) }
+.dv-card__img{ position:relative; display:block; height:110px; background:var(--ag-tint) }
+.dv-card__img > img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.dv-card__b{ display:flex; flex-direction:column; gap:4px; padding:12px 14px 14px }
+.dv-card__t{ font-size:var(--ag-fs-15); font-weight:700; line-height:1.25 }
+.dv-card__l{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.dv-card__c{ margin-top:4px; font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-ink) }
+.dv-card__c--soon{ color:var(--ag-live-ink) }
+
+.dv-body{ display:grid; grid-template-columns:minmax(0, 1fr); gap:30px; align-items:start }
+@media (min-width:600px){  .dv-body{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) } }
+@media (min-width:1024px){ .dv-body{ grid-template-columns:minmax(0, 1fr) 380px } }
+.dv-col{ min-width:0; display:flex; flex-direction:column; gap:30px }
+
+/* Grouped rows: 1px gaps over the line colour draw the hairlines. */
+.dv-rows{
+  display:flex; flex-direction:column; gap:1px;
+  background:var(--ag-line); border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+  overflow:hidden;
+}
+@media (min-width:1024px){
+  .dv-rows--two{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)) }
+}
+.dv-item{
+  display:flex; align-items:center; gap:14px;
+  padding:12px 14px; background:var(--ag-surface);
+  color:var(--ag-ink); text-decoration:none; min-width:0;
+}
+.dv-item:hover{ color:var(--ag-ink); background:var(--ag-bar) }
+.dv-item:focus-visible{ outline-offset:-3px }
+.dv-only--people .dv-item, .dv-only--orgs .dv-item{ gap:12px }
+.dv-item__b{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.dv-item__t{ font-size:var(--ag-fs-15); font-weight:600 }
+.dv-item__t--s{ font-size:var(--ag-fs-14-5) }
+.dv-item__m{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.dv-item__m--s{ font-size:var(--ag-fs-12-5); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+
+.dv-av{
+  position:relative; flex:none; width:44px; height:44px; border-radius:50%;
+  background:var(--ag-tint); overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-ink-2);
+}
+.dv-av > img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.dv-av--win{ width:48px; height:48px; background:var(--ag-gold-wash); color:var(--ag-gold-ink); font-size:var(--ag-fs-14) }
+.dv-win{
+  flex:none; display:inline-flex; align-items:center; height:26px; padding:0 10px;
+  border-radius:var(--ag-r-pill); background:var(--ag-gold-wash); color:var(--ag-gold-ink);
+  font-size:var(--ag-fs-12-5); font-weight:700;
+}
+.dv-host{
+  flex:none; width:40px; height:40px; border-radius:var(--ag-r-10);
+  background:var(--ag-ink); color:var(--ag-ground);
+  display:flex; align-items:center; justify-content:center;
+  font-size:var(--ag-fs-14); font-weight:700;
+}
+.dv-date{ flex:none; width:48px; display:flex; flex-direction:column; align-items:center; line-height:1.1 }
+.dv-date__m{ font-size:var(--ag-fs-12); font-weight:700; color:var(--ag-live-ink) }
+.dv-date__d{ font-size:var(--ag-fs-20); font-weight:700; color:var(--ag-ink) }
+
+.dv__note{ margin:0; font-size:var(--ag-fs-13); line-height:1.5; color:var(--ag-soft); max-width:62ch }
+.dv__promise{ color:var(--ag-ink-2); font-weight:600 }
+
+
+/* ══ Filters · a bottom sheet on a phone, a full-height end panel from 600 ═════
+   The DC: 72px from the top of its phone frame (28 here — see below), radius 22 at the top; from 600, 440 wide, the
+   full height, radius 0. White (the DC's `#fff`), not the base sheet's ground. Shown by
+   `[data-open]` (discover.js) or by `:target` — the no-script way in. */
+
+.dv-scrim{ z-index:var(--ag-z-scrim) }
+.dv-facets{
+  position:fixed; z-index:var(--ag-z-sheet);
+  /* The DC's 72 is measured from the top of its device frame, which includes a 44px
+     status bar a web page never has: 28 from the top of the viewport is the same place. */
+  inset:28px 0 0 0;
+  display:flex; flex-direction:column;
+  background:var(--ag-surface);
+  border-radius:22px 22px 0 0;
+  box-shadow:var(--ag-sh-sheet);
+  transform:translateY(100%); visibility:hidden;
+  transition:transform var(--ag-dur-2) var(--ag-ease), visibility 0s linear var(--ag-dur-2);
+}
+.dv-facets:is([data-open], :target){
+  transform:none; visibility:visible;
+  transition:transform var(--ag-dur-2) var(--ag-ease), visibility 0s;
+}
+@media (min-width:600px){
+  .dv-facets{
+    inset:0 0 0 auto; width:440px; border-radius:0;
+    box-shadow:var(--ag-sh-pop);
+    transform:translateX(100%);
+  }
+  [dir="rtl"] .dv-facets{ inset:0 auto 0 0; transform:translateX(-100%) }
+}
+.dv-facets__form{ flex:1; min-height:0; display:flex; flex-direction:column; margin:0 }
+.dv-facets__head{
+  flex:none; display:flex; align-items:center; justify-content:space-between;
+  padding:18px 20px 8px;
+}
+.dv-facets__t{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22); color:var(--ag-ink) }
+.dv-facets__x{
+  flex:none; width:44px; height:44px; border-radius:50%;
+  background:var(--ag-tint); color:var(--ag-ink);
+  display:flex; align-items:center; justify-content:center;
+}
+.dv-facets__x:hover{ color:var(--ag-ink) }
+.dv-facets__body{
+  flex:1; min-height:0; overflow:auto;
+  padding:0 20px 16px;
+  display:flex; flex-direction:column; gap:22px;
+}
+.dv-fs{ border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; min-width:0 }
+.dv-fs__l{ padding:0 0 8px; font-size:var(--ag-fs-15); font-weight:700; color:var(--ag-ink) }
+.dv-fs__chips{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8) }
+
+/* A switch row: the whole 56px row is the label; the real checkbox is in it, so the
+   visual follows `:checked` rather than a script's attribute. */
+.dv-sw{
+  position:relative; display:flex; align-items:center; gap:14px;
+  min-height:56px; padding:6px 0;
+  border-bottom:1px solid var(--ag-line); cursor:pointer;
+}
+.dv-sw__b{ flex:1; display:flex; flex-direction:column; gap:2px }
+.dv-sw__t{ font-size:var(--ag-fs-15); font-weight:600; color:var(--ag-ink) }
+.dv-sw__h{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.dv-sw__in, .dv-opt__in{ position:absolute; opacity:0; width:1px; height:1px; margin:0 }
+.dv-sw:has(.dv-sw__in:checked) .dv-sw__v{ background:var(--ag-green); justify-content:flex-end }
+.dv-sw:has(.dv-sw__in:focus-visible){ outline:3px solid var(--ag-green); outline-offset:2px }
+
+.dv-opt{ position:relative; display:inline-flex }
+.dv-opt__v{
+  display:inline-flex; align-items:center;
+  min-height:44px; padding:0 15px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14); font-weight:600; cursor:pointer; white-space:nowrap;
+}
+.dv-opt__in:checked + .dv-opt__v{ border:2px solid var(--ag-ink); padding:0 14px; font-weight:700 }
+.dv-opt__in:focus-visible + .dv-opt__v{ outline:3px solid var(--ag-green); outline-offset:2px }
+
+.dv-facets__foot{
+  flex:none; display:flex; gap:10px;
+  padding:14px 20px calc(28px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--ag-line);
+}
+@media (min-width:600px){ .dv-facets__foot{ padding-bottom:16px } }
+.dv-facets__clear{
+  flex:none; display:inline-flex; align-items:center;
+  height:52px; padding:0 18px;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-15); font-weight:600; text-decoration:none;
+}
+.dv-facets__clear:hover{ color:var(--ag-ink) }
+.dv-facets__go{
+  flex:1; height:52px; border:0; border-radius:var(--ag-r-pill);
+  background:var(--ag-green); color:var(--ag-surface);
+  font-size:var(--ag-fs-15-5); font-weight:600; cursor:pointer;
+}
+.dv-facets__go:hover{ background:var(--ag-green-deep) }

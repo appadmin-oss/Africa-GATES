@@ -1,0 +1,335 @@
+{#
+  The questionnaire invitation.
+
+  ── WHY IT IS NOT THE PLAIN-TEXT NOTE IT USED TO BE ────────────────────────
+
+  This went out through `OtpService::sendCustom`, which is `isHTML(false)`. So the one
+  message on the platform that asks a nominee to do real work — write about themselves,
+  gather documents, upload them — arrived looking like a system notice, next to a
+  branded voting broadcast that only asked them to share a link. The ask that needs the
+  most trust had the least of it.
+
+  ── AND WHY IT REUSES final-hours.twig's SKELETON ──────────────────────────
+
+  Every inbox-compatibility decision in the <head> and wrapper of that file was paid for
+  once and is not worth re-deriving: fluid-hybrid width with an MSO conditional for
+  Outlook (which ignores max-width), a hosted PNG mark rather than a data: URI (Gmail,
+  Outlook and Yahoo all refuse data: in an img src), an explicit dark palette rather than
+  a defensive one, `mso-line-height-rule: exactly` so Word does not collapse long
+  paragraphs, and a styled preheader. Diverging from it would mean discovering the same
+  things again in somebody's Outlook.
+
+  ── WHAT IS DIFFERENT, DELIBERATELY ────────────────────────────────────────
+
+  · No countdown GIF. A ticking clock is right for "voting closes in six hours" and
+    wrong for a task that takes an evening — it says hurry to somebody who needs to go
+    and find a letter from 2019. The deadline is a line of text.
+  · The deadline block renders ONLY when there is one, and never claims the form locks.
+    It does not: the questionnaire stays open afterwards. Saying otherwise to hurry
+    somebody along would be a lie the platform then contradicts.
+  · The two fraud/honesty lines from the old plain-text body are kept verbatim in
+    substance. They are the most important sentences in the message — "nothing here
+    costs money" is what protects a nominee from somebody impersonating us — so they are
+    set as real content, not footer small print.
+
+  ── REBUILT 3 OCT 2026: THE HANDOFF'S LADDER, AND ACCENT'S COLOURS ──────────
+
+  Deleted and written again from docs/handoff/inventory/_emails.md (owner, 3 Oct 2026).
+  Type sits on REFERENCE §6.2's closed ladder — the 10px and 11px labels are 11.5, and
+  nothing is smaller but the 1px preheader collapse, which is a hiding device and not
+  type (TypeScaleTest). px is right here: no Display & reading setting reaches an inbox,
+  and rem is ignored by enough clients to be a gamble. Every colour is `c.<token>`,
+  `Accent::mail()` passed in by the sender under the handoff's own names — mail cannot
+  read `var()`, but it need not type a palette of its own either, and this file used to
+  type thirty-odd colours that were in no palette at all. The dark-mode block is ink as
+  the ground and ground as the words, as the newsletter's always was: the handoff names
+  no dark palette, so none is invented. The mono and capitals rules are for screens
+  (MonoAndCaseTest leaves mail out), so the tracked micro-labels keep their voice.
+#}
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Tell the judges about your work — Africa GATES</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; display: block; }
+  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; background-color: {{ c.ground }}; }
+  table { border-collapse: collapse !important; }
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+  u + #body a { color: inherit; text-decoration: none; }
+  #MessageViewBody a { color: inherit; text-decoration: none; }
+  span.MsoHyperlink { color: inherit; mso-style-priority: 99; }
+  [data-ogsc] .agw-bg { background-color: {{ c.surface }} !important; }
+  [data-ogsc] .agw-text { color: {{ c.ink }} !important; }
+
+  /* Outlook (Word engine) ignores line-height unless told the rule is exact, and
+     collapses to single spacing on long paragraphs. */
+  p, td, a, div, h1 { mso-line-height-rule: exactly; }
+
+  /* ── DARK MODE ───────────────────────────────────────────────────────────
+     `color-scheme: light` above already stops Apple Mail and iOS inverting anything,
+     which is why the palette below is a deliberate dark counterpart rather than a
+     defensive one — Accent's ink as the ground and its ground as the words, because
+     the handoff names no dark palette and this file will not invent one. Gmail's and Outlook.com's dark modes invert regardless and do it
+     badly on near-white surfaces — dark text left on a darkened background. Declaring
+     the dark values explicitly means the clients that DO honour the query render a
+     chosen design, and the ones that force-invert have less to get wrong. */
+  @media (prefers-color-scheme: dark) {
+    .agw-body   { background-color: {{ c.ink }} !important; }
+    .agw-bg     { background-color: {{ c.ink }} !important; }
+    .agw-text   { color: {{ c.ground }} !important; }
+    .agw-muted  { color: {{ c.line }} !important; }
+    .agw-body-t { color: {{ c.tint }} !important; }
+    .agw-hero   { background-color: {{ c['ink-2'] }} !important; }
+    .agw-rule   { border-color: {{ c['ink-2'] }} !important; }
+    /* The green CTA already clears 4.5:1 against white text, so it is left alone —
+       lightening it here would only reduce that. */
+  }
+
+  @media screen and (max-width: 600px) {
+    .agw-wrapper { width: 100% !important; }
+    .agw-px { padding-left: 28px !important; padding-right: 28px !important; }
+    .agw-headline { font-size: 26px !important; line-height: 32px !important; }
+    .agw-btn-pad { padding-left: 28px !important; padding-right: 28px !important; }
+    .agw-hero-pad { padding: 28px 20px !important; }
+  }
+</style>
+</head>
+<body id="body" class="agw-body" style="margin:0; padding:0; background-color:{{ c.ground }};">
+
+{# The brand mark is a HOSTED PNG, not an inlined data: URI.
+
+   It was base64 — 20,848 bytes, over half the entire email — and Gmail, Outlook desktop,
+   Outlook.com and Yahoo all refuse data: URIs in an img src, so the majority of readers
+   paid that weight and saw the alt text anyway. It also spent half the headroom before
+   Gmail's ~102KB clipping point, and what Gmail clips off a campaign is the footer, which
+   is where the unsubscribe link lives.
+
+   Not the SVG at /assets/img/logo-africa-gates.svg either: it is 1.4MB of embedded
+   bitmap, and email clients do not render SVG at all. #}
+<!-- PREHEADER -->
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:{{ c.ground }}; opacity:0;">
+  The judges only have what somebody else wrote about you. Tell them in your own words.
+  &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+</div>
+
+<table role="presentation" class="agw-body" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ c.ground }}" style="background-color:{{ c.ground }};">
+<tr>
+<td align="center" style="padding:32px 12px;">
+
+
+  <!--[if mso]>
+  <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;"><tr><td>
+  <![endif]-->
+  {# FLUID-HYBRID, not a fixed 560px table.
+
+     This was width="560" with the mobile override living only inside the one @media
+     block. Gmail strips <style> in several configurations (notably a non-Gmail address
+     fetched via POP/IMAP into a Gmail account), and when it does, a 560px table lands on
+     a 320px screen: the reader gets a horizontally scrolling email or a zoomed-out one.
+     A percentage width with a max-width needs no media query to work, and the MSO
+     conditional above gives Outlook — which ignores max-width — its fixed 560. #}
+  <table role="presentation" class="agw-wrapper agw-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:{{ c.surface }}; border-radius:20px; overflow:hidden;">
+
+    <!-- DARK HEADER BAR (logo left, status badge right) -->
+    <tr>
+      <td style="background-color:{{ c.ink }};">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td class="agw-px" style="padding:20px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td valign="middle">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td valign="middle" width="40" style="padding-right:10px;">
+                          {# THE MARK ONLY, not the full lockup. The wordmark version is
+                             illegible below about 96px, and the words "Africa GATES" are
+                             already set in live text in the cell beside this one — printing
+                             them twice, once as unreadable pixels, is worse than not
+                             printing them at all.
+
+                             Served at 2x (192px for a 40px box) so it is not soft on a
+                             retina phone, which is where most of these are opened. #}
+                          <img src="{{ site_url }}/assets/img/logo-mark.png" width="40" height="40" alt="Africa GATES" style="display:block;">
+                        </td>
+                        <td valign="middle">
+                          <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:{{ c.surface }}; line-height:16px;">Africa</p>
+                          <p style="margin:1px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; letter-spacing:2px; color:{{ c['green-light'] }}; line-height:14px;">GATES</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td valign="middle" align="right">
+                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; letter-spacing:1.6px; color:{{ c.line }}; text-transform:uppercase;">Your nomination</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- WHAT THIS IS -->
+    <tr>
+      <td class="agw-px" style="padding:36px 40px 0 40px;">
+        <h1 class="agw-headline agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:28px; line-height:34px; color:{{ c.ink }}; letter-spacing:-0.3px;">
+          Tell the judges<br><span style="color:{{ c.green }};">in your own words</span>
+        </h1>
+        <p class="agw-body-t" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:{{ c['ink-2'] }};">
+          {% if first_name %}{{ first_name }}, you{% else %}You{% endif %} have been nominated for an Africa GATES award{% if programme %} &mdash; {{ programme }}{% endif %}{% if category_name %}, in {{ category_name }}{% endif %}.
+        </p>
+        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:{{ c['ink-2'] }};">
+          Right now the judges have only what the person who nominated you wrote. We would
+          like to hear about the work from you, and to see anything you can show us.
+        </p>
+      </td>
+    </tr>
+
+    <!-- THE LINK -->
+    <tr>
+      <td class="agw-px agw-btn-pad" align="center" style="padding:30px 40px 0 40px;">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ link }}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="12%" strokecolor="{{ c.green }}" fillcolor="{{ c.green }}">
+        <w:anchorlock/>
+        <center style="color:{{ c.surface }};font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;">Open my questionnaire</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-->
+        <a href="{{ link }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; background-color:{{ c.green }}; border-radius:8px; padding:15px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:{{ c.surface }}; text-decoration:none; text-align:center;">
+          Open my questionnaire
+        </a>
+        <!--<![endif]-->
+        {# The URL in full, as text. This link IS the nominee's whole credential — they have
+           no account — so a reader whose client mangles the button, or who wants to move it
+           to a laptop, needs the address itself and not just something to click. #}
+        <p class="agw-muted" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:12px; line-height:17px; color:{{ c.soft }}; word-break:break-all;">
+          {{ link }}
+        </p>
+      </td>
+    </tr>
+
+    <!-- WHAT IT INVOLVES -->
+    <tr>
+      <td class="agw-px" style="padding:32px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="border-left:2px solid {{ c.green }}; padding:2px 0 2px 16px;">
+              <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:{{ c['ink-2'] }};">
+                A short questionnaire, and room to add your own work: links, documents,
+                photographs, reports, letters, press coverage &mdash; whatever exists.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p class="agw-muted" style="margin:16px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:21px; color:{{ c.soft }};">
+          You do not have to finish it in one sitting. The page saves as you go and the
+          link keeps working.
+        </p>
+      </td>
+    </tr>
+
+    {# THE DEADLINE, only when there is one — and it never says the form closes, because it
+       does not. See QuestionnairePolicy. #}
+    {% if deadline %}
+    <tr>
+      <td class="agw-px" style="padding:24px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ c.ground }}" style="background-color:{{ c.ground }}; border-radius:10px;">
+          <tr>
+            <td style="padding:14px 18px;">
+              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; font-weight:700; letter-spacing:1.2px; color:{{ c.soft }}; text-transform:uppercase;">Please send it by</p>
+              <p class="agw-text" style="margin:4px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:{{ c.ink }};">{{ deadline }}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    {% endif %}
+
+    <!-- THE TWO THINGS WORTH SAYING PLAINLY -->
+    <tr>
+      <td class="agw-px" style="padding:30px 40px 0 40px;">
+        <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11.5px; letter-spacing:1.2px; color:{{ c.soft }}; text-transform:uppercase;">
+          Two things worth saying plainly
+        </p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td width="30" valign="top" style="padding:1px 14px 18px 0;">
+              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:{{ c.green }};">01</p>
+            </td>
+            <td valign="top" style="padding-bottom:18px;">
+              <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:{{ c['ink-2'] }};">
+                <strong style="color:{{ c.ink }};">Nothing here costs money.</strong> We will never
+                ask you to pay for a nomination, an interview, a result or an award. If
+                anybody does, it is not us.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td width="30" valign="top" style="padding:1px 14px 0 0;">
+              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:{{ c.green }};">02</p>
+            </td>
+            <td valign="top">
+              <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:{{ c['ink-2'] }};">
+                <strong style="color:{{ c.ink }};">Answering honestly about what has not worked
+                has never cost anybody an award.</strong> The judges are looking for real work,
+                not a perfect record.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- CLOSING -->
+    <tr>
+      <td class="agw-px" style="padding:34px 40px 0 40px;">
+        <p class="agw-muted" style="margin:0 0 2px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; color:{{ c.soft }};">We are glad you were nominated,</p>
+        <p class="agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:14px; color:{{ c.ink }};">The Africa GATES Team</p>
+      </td>
+    </tr>
+
+    <!-- FOOTER -->
+    <tr>
+      <td class="agw-px" align="center" style="padding:36px 40px 32px 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="border-top:1px solid {{ c['line-3'] }}; font-size:0; line-height:0; padding-bottom:22px;">&nbsp;</td></tr>
+        </table>
+        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; letter-spacing:1.2px; color:{{ c.green }}; font-weight:700; text-transform:uppercase;">Africa G.A.T.E.S.</p>
+        <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; color:{{ c.soft }};">
+          {{ postal_address }}
+        </p>
+        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; color:{{ c.soft }};">
+          <a href="{{ site_url }}" style="color:{{ c.soft }}; text-decoration:underline;">africagates.org</a>{% if unsubscribe_url %}&nbsp;&nbsp;·&nbsp;&nbsp;<a href="{{ unsubscribe_url }}" style="color:{{ c.soft }}; text-decoration:underline;">Unsubscribe</a>{% endif %}
+        </p>
+      </td>
+    </tr>
+
+  </table>
+  <!--[if mso]>
+  </td></tr></table>
+  <![endif]-->
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>

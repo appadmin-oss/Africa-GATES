@@ -1,0 +1,12 @@
+{#
+  Give now / Give monthly, or how to give when no provider is configured — included IN CONTEXT by pages/donate.twig, which sets every value read here at
+  template scope. A partial, not a {% block %}: a block the layout does not render is thrown
+  away at render time (TemplateSyntaxTest), and the page draws this in two places.
+#}
+  {%- if _give -%}
+    <a class="gv-btn gv-btn--go" href="{{ _base }}?step=give#give">{{ 'Give now'|trans }}</a>
+    {%- if recurring %}<a class="gv-btn gv-btn--line" href="{{ _base }}?step=give&amp;freq=monthly#give">{{ 'Give monthly'|trans }}</a>{% endif -%}
+  {%- else -%}
+    {# No provider configured: say how to give rather than drawing a button that cannot. #}
+    <p class="gv-note">{{ 'Online giving is being set up. Write to us through support and we will send you secure payment details and a receipt.'|trans }} <a href="/support">{{ 'Contact support'|trans }}</a></p>
+  {%- endif -%}

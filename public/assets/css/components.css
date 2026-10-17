@@ -1,0 +1,561 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   BASE COMPONENTS (BEM) — Phase 1 of design_handoff_africa_gates
+   Button · chip · sticky toolbar + collapsing search · field · card · list row ·
+   icon tile · scrim + bottom sheet · switch · segmented control · skeleton ·
+   empty and error · stock note · count badge
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Written from REFERENCE §6, §9.2, §9.4, §9.5, §13, `snippets/css/components.css`
+   and the DCs' inline styles (REFERENCE §5 — where a DC and the snippet disagree,
+   the DC wins). Not one value here was read off a screenshot.
+
+   ── THIS FILE IS THE BASE AND NOTHING ELSE ──────────────────────────────────
+
+   It was destroyed and rebuilt in Phase 1 of the redesign. The file it replaced
+   had grown to 1,376 lines, because every later piece of work appended its own
+   component here — the site header, the Menu, the records library, a nomination
+   notice — so the base layer every page downloads carried a thousand lines of
+   other phases' rules, and "rebuild the base" could not be done without either
+   destroying their work or patching around it. Those rules were moved out first,
+   unchanged, into files owned by the phases that will destroy them
+   (`components/chrome.css`, `components/library.css`; docs/handoff/GAPS.md §7.2).
+
+   `BaseComponentsTest` holds the line now: a block here must be one of the base
+   components above. A screen's own component goes in its own sheet.
+
+   ── THREE RULES THAT RUN THROUGH EVERY COMPONENT ────────────────────────────
+
+   · TARGETS ARE ≥44px (REFERENCE §6.7, §13), 48–54 for a primary phone action.
+     When a design draws a smaller visual, the hit area grows, never the ink.
+
+   · A SELECTED CHIP IS A 2px INK OUTLINE ON THE SAME WHITE FILL, NEVER A DARK
+     FILL (REFERENCE §6.1, §18.2). The padding drops by 1px with the border so
+     the chip does not change width when it is selected.
+
+   · COLOUR COMES FROM Support\Accent. Not one literal in this file —
+     ColourLiteralTest fails it by name — so a value that is not one of the
+     handoff's tokens cannot be written here at all, only mixed from them.
+
+   · TYPE IS A REM STEP FROM tokens.css (owner, 3 Oct 2026), never a px. The px
+     sizes this file was first written in are why the Display & reading setting
+     changed nothing on screen: it scales the root, and a px size ignores the
+     root. Each step is the DC's px over 16, so at 100% nothing moved; heights,
+     padding and radii stay px — a 44px target is sized for a finger, not for
+     text. Destroyed and written again on that date.
+
+   ── THE SPECIMEN HOOKS: `.is-hover`, `.is-active`, `.is-focus` ──────────────
+
+   A pointer state cannot be held still for a screenshot or a review, so each
+   interactive state is reachable by a class as well as by its pseudo-class:
+   `:is(:hover,.is-hover)`. `:is()` takes the specificity of its strongest
+   argument, so the class adds nothing a page could notice. Only /_dev/ui writes
+   these classes.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ══ Button ══════════════════════════════════════════════════════════════════
+   52px, radius 16, 15.5/700 on a phone; 48px and 15px on desktop. Primary is
+   green and is THE action inside the page — there is never a green button in the
+   header (§6.1). Secondary is outlined, text is underlined, ink is the dark one
+   the DCs use for "Sign in or join" and "Back to the shop". */
+
+.ag-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:var(--ag-sp-8);
+  height:52px; padding:0 22px;
+  border:0; border-radius:var(--ag-r-16);
+  font-size:var(--ag-fs-15-5); font-weight:700; line-height:1;
+  text-decoration:none; white-space:nowrap; cursor:pointer;
+  transition:background-color var(--ag-dur-1) var(--ag-ease),
+             border-color var(--ag-dur-1) var(--ag-ease),
+             color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-btn--primary{ background:var(--ag-green); color:var(--ag-surface) }
+.ag-btn--primary:is(:hover,.is-hover){ background:var(--ag-green-deep); color:var(--ag-surface) }
+
+.ag-btn--secondary{
+  background:var(--ag-surface); color:var(--ag-ink);
+  border:1px solid var(--ag-line-2);
+  font-size:var(--ag-fs-15); font-weight:600;
+}
+/* VotePage.dc.html: `style-hover="background:#fbfbfa"` on its outlined button. */
+.ag-btn--secondary:is(:hover,.is-hover){ background:var(--ag-bar); color:var(--ag-ink) }
+
+.ag-btn--ink{ background:var(--ag-ink); color:var(--ag-surface) }
+.ag-btn--ink:is(:hover,.is-hover){ color:var(--ag-surface) }
+
+.ag-btn--text{
+  height:44px; padding:0 var(--ag-sp-4);
+  background:transparent; color:var(--ag-ink); font-weight:600;
+  text-decoration:underline; text-underline-offset:3px;
+}
+.ag-btn--text:is(:hover,.is-hover){ color:var(--ag-ink) }
+
+/* Destructive text — "Sign out" (§6.1 `--ag-error`). A word, not a red slab. */
+.ag-btn--danger{ background:transparent; color:var(--ag-error); font-weight:600 }
+.ag-btn--danger:is(:hover,.is-hover){ color:var(--ag-error) }
+
+.ag-btn--pill{ border-radius:var(--ag-r-pill) }
+.ag-btn--block{ width:100% }
+
+/* Pressed. NominationFlow.dc.html draws it as a 1px drop (`style-active` on its
+   primary). Transform only, never height, or the bar the button sits in reflows. */
+.ag-btn:is(:active,.is-active){ transform:translateY(1px) }
+
+/* Disabled: tint fill, mute words (§6.1 names `--ag-mute` as THE disabled text).
+   `aria-disabled` is styled as well as `[disabled]` because a button that is
+   impossible-for-now must stay focusable to announce why — a disabled button with
+   no reason beside it is an anti-pattern, and /_dev/ui shows the reason. */
+.ag-btn:is([disabled],[aria-disabled="true"]){
+  background:var(--ag-tint); color:var(--ag-mute); border-color:transparent;
+  cursor:not-allowed; transform:none;
+}
+
+/* Submitting (§9.4): pressed AND disabled within 50ms, and the label stays — the
+   markup changes it to "Sending…" rather than swapping in a spinner. `aria-busy`
+   is the attribute, because it is the one assistive technology reads and the one
+   `main.js` already sets on every submit it guards. */
+.ag-btn[aria-busy="true"]{
+  background:var(--ag-tint); color:var(--ag-mute); border-color:transparent;
+  transform:translateY(1px); pointer-events:none; cursor:progress;
+}
+
+/* A round icon button (§6.4 "999 · round buttons"): 44px at every width — the DCs
+   draw 40 on desktop, and §6.7/§13 require 44 everywhere — white, an ink glyph.
+   It owes the two §6.5 shadows a round button is given — `--float` when it sits on
+   a photograph (the back and share buttons over a gallery) and `--dot` when it is a
+   card's quick-add — because over an image or a card edge a white circle with no
+   shadow simply disappears. */
+.ag-btn--icon{
+  width:44px; height:44px; padding:0; border-radius:50%;
+  background:var(--ag-surface); color:var(--ag-ink);
+}
+.ag-btn--icon:is(:hover,.is-hover){ background:var(--ag-surface); color:var(--ag-ink) }
+.ag-btn--float{ box-shadow:var(--ag-sh-float) }
+.ag-btn--dot{ box-shadow:var(--ag-sh-dot) }
+
+@media (min-width:1024px){
+  .ag-btn{ height:48px; font-size:var(--ag-fs-15) }
+  .ag-btn--text{ height:44px }
+}
+
+
+/* ══ Chip ════════════════════════════════════════════════════════════════════
+   Outlined, always (§6.1, §18.2). 44px on a phone, 40 on desktop — the desktop
+   pointer floor. No DC gives a chip a hover state: selection IS its state, so a
+   chip draws the same under a pointer as at rest. */
+
+.ag-chip{
+  flex:none;
+  display:inline-flex; align-items:center; gap:7px;
+  height:44px; padding:0 var(--ag-sp-16);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:var(--ag-fs-14-5); font-weight:500;
+  white-space:nowrap;                 /* a chip label that wraps is a defect */
+  text-decoration:none; cursor:pointer;
+}
+.ag-chip:is([aria-pressed="true"],[aria-selected="true"],[aria-current="true"],[aria-current="page"]){
+  border:2px solid var(--ag-ink);
+  padding:0 15px;                     /* 16 − 1, so the width does not move */
+  font-weight:700;
+}
+.ag-chip:is([disabled],[aria-disabled="true"]){
+  color:var(--ag-mute); border-color:var(--ag-line); cursor:not-allowed;
+}
+/* The phase dot (AwardsPage.dc.html): 7px, coloured by DATA — which phase the
+   award is in — so its colour arrives as a custom property, the one kind of inline
+   style REFERENCE §4.6 allows. Ink when nothing is said. */
+.ag-chip__dot{ flex:none; width:7px; height:7px; border-radius:50%; background:var(--ag-dot, var(--ag-ink)) }
+.ag-chip__n{ color:var(--ag-soft); font-weight:600; font-variant-numeric:tabular-nums }
+/* An applied filter: outlined like every chip, with a remove mark (§18.2). */
+.ag-chip--remove{ padding-inline-end:10px }
+.ag-chip--remove > b{ display:flex; width:20px; height:20px; align-items:center; justify-content:center }
+
+@media (min-width:1024px){ .ag-chip{ height:40px } }
+
+/* The row bleeds to both edges so the last chip is clipped by the screen, not by
+   the gutter — a chip cut off mid-word at the gutter reads as a layout bug. */
+.ag-chip-row{
+  display:flex; gap:var(--ag-sp-8);
+  overflow-x:auto; scrollbar-width:none;
+  margin-inline:calc(var(--ag-gutter) * -1);
+  padding:var(--ag-sp-10) var(--ag-gutter);
+}
+.ag-chip-row::-webkit-scrollbar{ display:none }
+
+
+/* ══ Sticky toolbar + collapsing search · REFERENCE §9.2 ═════════════════════
+   AwardsPage.dc.html is the source of every number: the block bleeds to the edges
+   and pads by the gutter, 10px of vertical padding at rest and 8px once scrolled,
+   and the hairline only once something has scrolled under it. `shell.js` sets
+   `data-scrolled` on the threshold and nothing else; the CSS does the rest. */
+
+.ag-sticky{
+  position:sticky; top:0; z-index:var(--ag-z-sticky);
+  display:flex; flex-direction:column;
+  margin-inline:calc(var(--ag-gutter) * -1);
+  padding:var(--ag-sp-10) var(--ag-gutter);
+  background:var(--ag-ground);
+  border-bottom:1px solid transparent;
+  /* `.18s` is the DC's own number for this one transition (AwardsPage `stPadV`),
+     inside §3's ±10ms of nothing on the ladder; written as given, not rounded to a
+     token it is not. */
+  transition:padding .18s var(--ag-ease), border-color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-sticky[data-scrolled]{ padding-block:var(--ag-sp-8); border-bottom-color:var(--ag-line) }
+/* Inside the block the row has no vertical padding of its own — the block's is it. */
+.ag-sticky > .ag-chip-row{ padding-block:0 }
+
+/* The search row is ALWAYS in the DOM. `display:none` cannot animate and cannot
+   be reopened smoothly, so the row collapses a grid track around an
+   overflow-hidden child: the one technique that animates to and from auto. */
+.ag-cs__row{
+  display:grid; grid-template-rows:1fr; margin-bottom:var(--ag-sp-10); opacity:1;
+  transition:grid-template-rows var(--ag-dur-2) var(--ag-ease),
+             margin-bottom var(--ag-dur-2) var(--ag-ease),
+             opacity var(--ag-dur-1) ease;
+}
+.ag-cs__row > *{ min-height:0; overflow:hidden }
+[data-cs][data-collapsed] .ag-cs__row{ grid-template-rows:0fr; margin-bottom:0; opacity:0 }
+
+/* The search button: always in the DOM at the start of the chip row, 0 wide while
+   the row is open. The WRAPPER animates and clips; the button inside keeps its
+   44px circle, so its border never squeezes into a 2px sliver mid-animation. The
+   −8px end margin cancels the row's gap while the wrapper is empty. */
+.ag-cs__btn{
+  flex:none; display:flex;
+  width:0; margin-inline-end:calc(var(--ag-sp-8) * -1); opacity:0; overflow:hidden;
+  transition:width var(--ag-dur-2) var(--ag-ease),
+             margin var(--ag-dur-2) var(--ag-ease),
+             opacity var(--ag-dur-1) ease;
+}
+[data-cs][data-collapsed] .ag-cs__btn{ width:44px; margin-inline-end:0; opacity:1 }
+.ag-cs__go{
+  flex:none; width:44px; height:44px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--ag-line-2); border-radius:50%;
+  background:var(--ag-surface); color:var(--ag-ink); cursor:pointer;
+}
+@media (min-width:1024px){
+  [data-cs][data-collapsed] .ag-cs__btn{ width:40px }
+  .ag-cs__go{ width:40px; height:40px }
+}
+
+
+/* ══ Field · REFERENCE §9.5 ══════════════════════════════════════════════════
+   52px tall, 16px text, radius 14, a label that is always visible. Under 16px
+   iOS Safari zooms the page on focus and does not zoom back; a placeholder is not
+   a label, because it disappears exactly when the person needs it. */
+
+.ag-label{
+  display:block; margin-bottom:var(--ag-sp-6);
+  font-size:var(--ag-fs-14-5); font-weight:600; color:var(--ag-ink);
+}
+.ag-hint{ margin:var(--ag-sp-6) 0 0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+
+.ag-field{
+  display:flex; align-items:center; gap:var(--ag-sp-10);
+  height:52px; padding:0 14px;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
+  color:var(--ag-soft);
+}
+.ag-field > :is(input,select){
+  flex:1; min-width:0; height:100%;
+  border:0; outline:0; background:transparent;
+  color:var(--ag-ink); font-size:var(--ag-fs-16);
+}
+.ag-field:is(:focus-within,.is-focus){ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-field[data-invalid]{ border-color:var(--ag-error) }
+/* Disabled: the ground behind it and the mute words §6.1 reserves for exactly this. */
+.ag-field:has(> :disabled){ background:var(--ag-ground); border-color:var(--ag-line); color:var(--ag-mute) }
+.ag-field > :disabled{ color:var(--ag-mute); cursor:not-allowed }
+textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items:stretch; color:var(--ag-ink) }
+
+/* Search (ShopPage, AwardsPage): a hairline border rather than the input border,
+   an 18px glass in soft, and — when there is something to clear — a 44px target
+   around a 26px tint disc, which takes the end padding down to 4. */
+.ag-field--search{ border-color:var(--ag-line); padding:0 var(--ag-sp-16) }
+.ag-field--search:has(.ag-field__clear){ padding-inline-end:var(--ag-sp-4) }
+.ag-field__clear{
+  flex:none; width:44px; height:44px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:0; background:transparent; color:var(--ag-ink); cursor:pointer;
+}
+.ag-field__clear > span{
+  width:26px; height:26px; border-radius:50%; background:var(--ag-tint);
+  display:flex; align-items:center; justify-content:center;
+}
+
+@media (min-width:1024px){ .ag-field{ height:48px } }
+
+/* ══ Error · REFERENCE §9.4 ══════════════════════════════════════════════════
+   Inline, next to the field, in `--ag-error` with an icon — never colour alone —
+   and announced with `aria-live="polite"` in the markup. */
+.ag-err{
+  display:flex; align-items:center; gap:var(--ag-sp-6);
+  margin:var(--ag-sp-6) 0 0;
+  font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-error);
+}
+.ag-err > svg{ flex:none }
+
+
+/* ══ Card ════════════════════════════════════════════════════════════════════
+   Surface, one hairline, radius 20. A card that is a link or a button takes the
+   input border under the pointer (LegacyVault, HelpCentre `style-hover`). */
+
+.ag-card{
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line);
+  border-radius:var(--ag-r-20);
+}
+:is(a,button).ag-card{ display:block; color:inherit; text-decoration:none; text-align:start; cursor:pointer;
+  transition:border-color var(--ag-dur-1) var(--ag-ease) }
+:is(a,button).ag-card:is(:hover,.is-hover){ border-color:var(--ag-line-2); color:inherit }
+
+
+/* ══ List row · 56px ═════════════════════════════════════════════════════════
+   MobileMenu.dc.html: a flex row, gap 14, padding 0 14, at least 56px; the label
+   takes the slack and the chevron sits at the trailing edge. Flex and not a
+   three-column grid, because callers carry a tile, a body and ONE OR TWO trailing
+   marks (a value and a chevron) — a fourth child in a three-track grid lands in an
+   implicit column and the alignment drifts. The whole row is the target; no small
+   buttons inside a tappable row. */
+
+.ag-list{
+  display:flex; flex-direction:column;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
+  overflow:hidden;
+}
+.ag-list__row{
+  display:flex; align-items:center; gap:14px;
+  min-height:56px; padding:0 14px;
+  border:0; border-top:1px solid var(--ag-line-3);
+  background:transparent; color:var(--ag-ink);
+  font:inherit; text-align:start; text-decoration:none;
+}
+button.ag-list__row{ width:100%; cursor:pointer }
+.ag-list__row:first-child{ border-top:0 }
+:is(a,button).ag-list__row:is(:hover,.is-hover){ background:var(--ag-ground); color:var(--ag-ink) }
+/* Inset, because the list clips its overflow and an outside ring would be cut. */
+.ag-list__row:is(:focus-visible,.is-focus){ outline-offset:-3px }
+
+.ag-list__row > .ag-list__label,
+.ag-list__b{ flex:1; min-width:0 }
+.ag-list__b{ display:flex; flex-direction:column; gap:2px }
+.ag-list__label{
+  font-size:var(--ag-fs-16); font-weight:500;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ag-list__sub{
+  font-size:var(--ag-fs-12-5); color:var(--ag-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ag-list__value{ flex:none; font-size:var(--ag-fs-14-5); color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.ag-list__chev{ flex:none; display:flex; color:var(--ag-chevron) }
+
+
+/* ══ Icon tile ═══════════════════════════════════════════════════════════════
+   34px, radius 10, tint (§6.4 "10 · icon tiles"). The size is a property so one
+   class serves every size the DCs draw; `--lg` is the 44px tile. */
+
+.ag-icon-tile{
+  --ag-tile:34px;
+  flex:none; width:var(--ag-tile); height:var(--ag-tile);
+  display:flex; align-items:center; justify-content:center;
+  border-radius:var(--ag-r-10); background:var(--ag-tint);
+}
+.ag-icon-tile--lg{ --ag-tile:44px; border-radius:var(--ag-r-14) }
+
+
+/* ══ Scrim + bottom sheet ════════════════════════════════════════════════════
+   Ground, radius 24 on the top corners, the sheet shadow, 88% of the dynamic
+   viewport at most. `shell.js` opens it, traps Tab, closes on Esc and on the
+   scrim, and gives focus back to the trigger. */
+
+.ag-scrim{
+  position:fixed; inset:0; z-index:var(--ag-z-scrim);
+  background:var(--ag-scrim);
+  opacity:0; pointer-events:none;
+  transition:opacity var(--ag-dur-2) var(--ag-ease);
+}
+.ag-scrim[data-open]{ opacity:1; pointer-events:auto }
+
+.ag-sheet{
+  position:fixed; left:0; right:0; bottom:0; z-index:var(--ag-z-sheet);
+  max-height:88dvh;
+  display:flex; flex-direction:column;
+  background:var(--ag-ground);
+  border-radius:var(--ag-r-24) var(--ag-r-24) 0 0;
+  box-shadow:var(--ag-sh-sheet);
+  padding-bottom:env(safe-area-inset-bottom);
+  transform:translateY(100%);
+  /* `visibility` as well as the transform, and it is load-bearing.
+     `translateY(100%)` moves a sheet by ITS OWN height, which clears the viewport
+     only when its top edge started at the bottom of it. A sheet pinned from the top
+     (the Menu, at `top:52px`) left a 49px sliver of grabber on screen at rest, on
+     every phone page — visible in a screenshot, invisible in the markup. The delay
+     keeps the CLOSING slide on screen; without it the sheet vanishes on frame one. */
+  visibility:hidden;
+  transition:transform var(--ag-dur-2) var(--ag-ease), visibility 0s linear var(--ag-dur-2);
+}
+.ag-sheet[data-open]{
+  transform:none; visibility:visible;
+  transition:transform var(--ag-dur-2) var(--ag-ease), visibility 0s;
+}
+.ag-sheet__grabber{
+  flex:none; width:38px; height:5px; margin:var(--ag-sp-8) auto 2px;
+  border-radius:3px; background:var(--ag-grabber);
+}
+.ag-sheet__head{
+  flex:none;
+  display:grid; grid-template-columns:44px 1fr 44px; align-items:center;
+  padding:0 var(--ag-sp-8) var(--ag-sp-6);
+  font-size:var(--ag-fs-16-5); font-weight:700; text-align:center;
+}
+.ag-sheet__body{ flex:1; min-height:0; overflow:auto; padding:0 var(--ag-sp-16) var(--ag-sp-32) }
+
+/* Desktop: nothing slides up from the bottom of a 1440px screen. The sheet becomes
+   a drawer floating 12px from the edges, radius 20, popover shadow (§18.1; the
+   ShopPage cart: 420 wide). */
+@media (min-width:1024px){
+  .ag-sheet--drawer{
+    top:12px; right:12px; bottom:12px; left:auto;
+    width:420px; max-height:none;
+    border-radius:var(--ag-r-20);
+    box-shadow:var(--ag-sh-pop);
+    transform:translateX(calc(100% + 24px));
+  }
+  .ag-sheet--drawer[data-open]{ transform:none }
+  .ag-sheet--drawer > .ag-sheet__grabber{ display:none }
+}
+
+
+/* ══ Switch ══════════════════════════════════════════════════════════════════
+   46 × 28, a 22px thumb, 3px inset (the snippet; DiscoverPage and GivingPage draw
+   the same). Off is the mute track, on is green — ink on a document page.
+
+   The STATE can sit on the switch itself or on the row that IS the switch. The
+   Display & reading rows put `role="switch"` and `aria-checked` on the whole
+   52px row, which is the target the standards ask for, and the visual inside it
+   is `aria-hidden`. The rule used to read only `.ag-switch[aria-checked]`, so on
+   every one of those rows the drawn switch stayed OFF whatever the row said: a
+   setting that saved, applied and announced itself correctly while its picture
+   showed the opposite. */
+
+.ag-switch{
+  flex:none; width:46px; height:28px; padding:3px;
+  border:0; border-radius:var(--ag-r-pill);
+  background:var(--ag-mute);
+  display:flex; align-items:center; justify-content:flex-start;
+  cursor:pointer;
+  transition:background-color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-switch::after{ content:""; width:22px; height:22px; border-radius:50%; background:var(--ag-surface) }
+:is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch){
+  background:var(--ag-green); justify-content:flex-end;
+}
+.ag-doc :is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch){ background:var(--ag-ink) }
+.ag-switch:is([disabled],[aria-disabled="true"]){ background:var(--ag-tint); cursor:not-allowed }
+/* 28px of drawing inside a 44px target. */
+.ag-switch-target{
+  display:flex; align-items:center; justify-content:center;
+  min-width:44px; min-height:44px; padding:0;
+  border:0; background:transparent; cursor:pointer;
+}
+
+
+/* ══ Segmented control ═══════════════════════════════════════════════════════
+   A tint track, 4px inset, 48px options at radius 11; the chosen one is white. */
+
+.ag-seg{
+  display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:var(--ag-sp-4);
+  padding:var(--ag-sp-4);
+  background:var(--ag-tint); border-radius:var(--ag-r-14);
+}
+.ag-seg__opt{
+  height:48px; border:0; border-radius:11px;
+  background:transparent; color:var(--ag-ink);
+  font-weight:600; cursor:pointer;
+  transition:background-color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-seg__opt[aria-checked="true"]{ background:var(--ag-surface) }
+.ag-seg__opt:is([disabled],[aria-disabled="true"]){ color:var(--ag-mute); cursor:not-allowed }
+
+
+/* ══ Skeleton · REFERENCE §9.4 ═══════════════════════════════════════════════
+   Skeletons match the final geometry, so nothing moves when the data lands, and
+   content never gets a spinner. The sheen is mixed from tint and surface because
+   the snippet's highlight is not one of the handoff's tokens (Accent holds every
+   colour; see the deviations in docs/handoff/PHASE-1.md). */
+
+.ag-skel{
+  display:block;
+  background:linear-gradient(90deg,
+               var(--ag-tint) 0,
+               color-mix(in srgb, var(--ag-tint) 40%, var(--ag-surface)) 50%,
+               var(--ag-tint) 100%) 0 0 / 200% 100%;
+  border-radius:8px;
+  animation:agSkel 1.2s linear infinite;
+}
+/* A 14px line with fully round ends — §6.4's 7. */
+.ag-skel--line{ height:14px; border-radius:var(--ag-r-7) }
+.ag-skel--title{ height:20px; width:62%; border-radius:var(--ag-r-7) }
+@keyframes agSkel{ to{ background-position:-200% 0 } }
+
+
+/* ══ Empty · REFERENCE §9.4 ══════════════════════════════════════════════════
+   One sentence built from the active filters and one action. Never a blank page. */
+
+.ag-empty{ padding:var(--ag-sp-32) var(--ag-gutter); text-align:center }
+.ag-empty__t{ margin:0 0 var(--ag-sp-12); font-size:var(--ag-fs-16); color:var(--ag-ink-2) }
+
+
+/* ══ Stock note · REFERENCE §6.1 ═════════════════════════════════════════════
+   "Only N left" in `--ag-stock-low`, "Sold out" in `--ag-stock-gone`, "In stock"
+   in success text. Always words — the colour is never the only thing that says it.
+   ShopPage.dc.html: 12.5/600 under a card's price (12 on a phone), 14/600 on the
+   item page's size line (13/700 on a phone), which is a live region there because
+   it changes as the size changes. */
+
+.ag-stock{ font-size:var(--ag-fs-12-5); font-weight:600 }
+.ag-stock--low { color:var(--ag-stock-low) }
+.ag-stock--gone{ color:var(--ag-stock-gone) }
+.ag-stock--ok  { color:var(--ag-green-deep) }
+.ag-stock--line{ font-size:var(--ag-fs-14) }
+@media (max-width:599px){
+  .ag-stock{ font-size:var(--ag-fs-12) }
+  .ag-stock--line{ font-size:var(--ag-fs-13); font-weight:700 }
+}
+
+
+/* ══ Count badge ═════════════════════════════════════════════════════════════
+   The number on a cart or a filter button (ShopPage: 18px, pill, green with white
+   figures; 11.5 because §6.2's micro floor is 11.5 and the DC's 11 sits under it).
+
+   When the number changes it POPS: `data-pop` runs one beat on `--ag-ease-pop` —
+   §6.6's curve "for badges, stars", the one that overshoots — over `--ag-dur-3`,
+   the celebration-rise duration the Celebration DC uses for its own entrances.
+   The keyframes are the celebration engine's `agcPop`, so a badge and a medal
+   arrive the same way. Reduced motion shows the final state at once: the global
+   rule in shell.css cuts the animation to nothing, and the badge simply has its
+   new number. */
+
+.ag-badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:18px; height:18px; padding:0 5px;
+  border-radius:var(--ag-r-pill);
+  background:var(--ag-green); color:var(--ag-surface);
+  font-size:var(--ag-fs-11-5); font-weight:700; line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+/* The filter count (ShopPage's Filters button): ink, and 20px rather than 18. */
+.ag-badge--ink{ min-width:20px; height:20px; padding:0 6px; background:var(--ag-ink) }
+.ag-badge[data-pop]{ animation:agPop var(--ag-dur-3) var(--ag-ease-pop) both }
+@keyframes agPop{
+  0%  { transform:scale(.4);  opacity:0 }
+  60% { transform:scale(1.08); opacity:1 }
+  80% { transform:scale(.98) }
+  100%{ transform:scale(1) }
+}

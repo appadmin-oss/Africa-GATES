@@ -1,0 +1,245 @@
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  /shop/{slug} — ONE PRODUCT · ShopPage.dc.html (view: item) · Phase 7 §8.12 (8 Oct 2026)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct (inventory: pages--shop--item.md) and written again from the DC.
+
+  Phone: a full-bleed 4:5 scroll-snap gallery with floating back, share and cart, then a
+  sheet (radius 22) lifted 22px over it — maker, name, price, colour, size, quantity,
+  restock alert, delivery, description, accordions, perks, "You may also like" — and a
+  sticky buy bar that is hidden while the chosen option is sold out. Tablet and desktop:
+  the photo and its thumbnails beside a buy column that is sticky on desktop.
+
+  ── THE PICKER'S STATE, AND THE RULE IT KEEPS FROM THE OLD PAGE ─────────────
+
+  `variants` arrive priced off the REGION-ADJUSTED base (ShopController::item), so nothing
+  here adds a delta to the wrong number. The DC opens with a size already chosen; this page
+  does not, and that is the old page's rule, kept: picking a size on somebody's behalf is
+  how they receive the wrong one. A colour is chosen for them only when the photo they are
+  looking at is that colour's, i.e. the first one that is in stock. Until every question is
+  answered, Add to cart says what is missing instead of adding.
+
+  ── A SOLD-OUT SIZE IS STILL SELECTABLE (§8.12) ──────────────────────────────
+
+  Struck through on the ground, and choosing it swaps the buy controls for the restock
+  alert — "tell me when M is back" is a question about M, so it has to be possible to say M.
+
+  ── NOT DRAWN, AND WHY (docs/handoff/PHASE-7.md, "Shop") ────────────────────
+
+  The size guide (no measurements are stored for any product), "Gives back 40%" (no figure
+  exists), "To Lagos in 2–3 days" (no delivery times are stored — the region and its real
+  charge are printed instead), "Free returns in 14 days" (there is no returns policy here),
+  and "Stop this alert" straight after signing up (the stop link is a secret that travels in
+  the email; printing it here would let anybody holding this tab stop it).
+#}
+{% import 'pages/shop/_bits.twig' as sb %}
+{% set colour_tier = '2' %}
+{% set flow_page = true %}
+{% set p = product %}
+{% set app_bar = {variant: 'child', title: p.name, back: '/shop'} %}
+{% set _gallery = gallery|default([]) %}
+{% set _shots = _gallery is empty ? [{path: '', alt: p.name}] : _gallery %}
+{% set _ships = delivery_regions is empty or region in delivery_regions %}
+{% set _ctx = {checkout_retry: checkout_retry, fx: fx, ship_free_over: ship_free_over, providers: providers, regions: regions, region: region} %}
+{% set _cat = p.category|default('') %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/shop.css') }}">
+{% endblock %}
+
+{# The phone draws no app bar on this page: the photo is full-bleed and carries its own
+   floating back, share and cart (DC itemPhone). From 600 the site header is the bar. #}
+{% block app_bar %}{% endblock %}
+
+{% block content %}
+<div class="sp sp-item" data-sp-page="item"
+     data-sp-product="{{ {slug: p.slug, name: p.name, price: p.display_price, price_label: p.price_label, cover: p.cover_path|default('')}|json_encode }}"
+     data-sp-variants="{{ variants|map(v => {id: v.id, a: v.label, b: v.label2, price: v.price_naira, label: v.price_label, stock: v.stock, gone: v.sold_out, low: v.low, image: v.image})|json_encode }}"
+     data-sp-waiting="{{ waiting|json_encode }}"
+     data-sp-words="{{ {
+        choose: 'Choose a %axis%'|trans, add: 'Add to cart'|trans, added: 'Added ✓'|trans, addAnother: 'Added ✓ · add another'|trans,
+        inStock: 'In stock'|trans, only: 'Only %n% left in %v%'|trans, gone: 'Sold out in %v%'|trans,
+        goneWait: 'Sold out in %v% · %n% waiting'|trans, buy: 'Buy now · %amount%'|trans, qty: 'Qty %n%'|trans,
+        charged: 'Charged in Naira · %amount%'|trans, back: 'Tell me when %v% is back'|trans
+     }|json_encode }}">
+
+  {# ── PHONE: the full-bleed gallery and its floating buttons ─────────────────── #}
+  <div class="sp-gal">
+    <div class="sp-gal__track" tabindex="0" role="group" aria-label="{{ 'Photos of %name%. Swipe for more.'|trans({'%name%': p.name}) }}" data-sp-gal>
+      {% for g in _shots %}
+        <div class="sp-gal__slide">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', src: g.path, name: p.name, alt: g.path ? (g.alt ?: p.name) : '', label: false, eager: loop.first} only %}</div>
+      {% endfor %}
+    </div>
+    <div class="sp-gal__btns">
+      <a class="sp-float" href="/shop" aria-label="{{ 'Back to the shop'|trans }}"><svg class="ag-ico-dir" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></a>
+      <span class="sp-gal__end">
+        <button type="button" class="sp-float" data-ag-share aria-label="{{ 'Share'|trans }}" data-ag-copied="{{ 'Link copied'|trans }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 8 5-5 5 5"></path><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"></path></svg></button>
+        {{ sb.cartBtn('sp-float') }}
+      </span>
+    </div>
+    {% if _shots|length > 1 %}
+      <div class="sp-gal__dots" aria-hidden="true">{% for g in _shots %}<span class="{{ loop.first ? 'is-on' }}" data-sp-dot></span>{% endfor %}</div>
+    {% endif %}
+  </div>
+
+  <div class="sp-item__wrap">
+    <a class="sp-link sp-item__back" href="/shop">{{ '← Shop'|trans }}</a>
+    <div class="sp-item__grid">
+      {# ── TABLET/DESKTOP: the photo and four thumbnails ─────────────────────────── #}
+      <div class="sp-photos">
+        <div class="sp-photos__main">
+          {% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', src: _shots[0].path, name: p.name, alt: _shots[0].path ? (_shots[0].alt ?: p.name) : '', label: false, eager: true} only %}
+          {% if p.sold_out %}<span class="sp-tag sp-tag--lg sp-tag--gone">{{ 'Sold out'|trans }}</span>{% elseif p.tag|default('') %}<span class="sp-tag sp-tag--lg">{{ p.tag }}</span>{% endif %}
+        </div>
+        {% if _gallery|length > 1 %}
+          <div class="sp-thumbs" role="group" aria-label="{{ 'Photos'|trans }}">
+            {% for g in _gallery|slice(0, 4) %}
+              <button type="button" class="sp-thumb{{ loop.first ? ' is-on' }}" aria-pressed="{{ loop.first ? 'true' : 'false' }}"
+                      aria-label="{{ 'Photo %n% of %t%'|trans({'%n%': loop.index, '%t%': _gallery|length}) }}" data-sp-thumb="{{ g.path }}">
+                <img src="{{ g.path }}" alt="" loading="lazy" decoding="async">
+              </button>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      {# ── THE SHEET (phone) / THE BUY COLUMN (wide) ─────────────────────────────── #}
+      <div class="sp-buy">
+        <div class="sp-buy__head">
+          <span class="sp-buy__maker">{{ p.subtitle ?: _cat }}</span>
+          <h1 class="sp-buy__h">{{ p.name }}</h1>
+          {% if p.subtitle and _cat %}<span class="sp-buy__cat">{{ _cat }}</span>{% endif %}
+          <span class="sp-buy__price"><b data-sp-price>{% if p.price_from %}<span class="sp-card__from">{{ 'From'|trans }} </span>{% endif %}{{ p.price_label }}</b><span class="sp-buy__gives">{{ 'Gives back'|trans }}</span></span>
+          {% if fx.cur != 'NGN' %}<span class="sp-buy__ngn" data-sp-ngn-line>{{ 'Charged in Naira · %amount%'|trans({'%amount%': '₦' ~ p.display_price|number_format}) }}</span>{% endif %}
+        </div>
+
+        {% if p.description %}<p class="sp-buy__desc sp-buy__desc--wide">{{ p.description }}</p>{% endif %}
+
+        {% for ax in axes %}
+          <fieldset class="sp-opt sp-opt--{{ ax.kind }}" data-sp-axis="{{ ax.key }}">
+            <legend class="sp-opt__l"><span>{{ ax.name|trans }} <span class="sp-opt__v" data-sp-axis-name></span></span></legend>
+            <div class="sp-opt__row" role="radiogroup" aria-label="{{ ax.name|trans }}">
+              {% for ch in ax.choices %}
+                {% if ax.kind == 'swatch' %}
+                  <button type="button" class="sp-col" role="radio" aria-checked="false" aria-label="{{ ch.value }}{{ ch.gone ? ', ' ~ 'sold out'|trans }}" title="{{ ch.value }}"
+                          data-sp-choice="{{ ch.value }}"{% if ch.image %} data-sp-image="{{ ch.image }}"{% endif %}><span class="sp-col__d" style="--sw:{{ ch.swatch_css }}"></span></button>
+                {% else %}
+                  <button type="button" class="sp-sz{{ ch.gone ? ' is-gone' }}" role="radio" aria-checked="false" aria-label="{{ ch.value }}{{ ch.gone ? ', ' ~ 'sold out'|trans }}"
+                          data-sp-choice="{{ ch.value }}">{{ ch.value }}</button>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </fieldset>
+        {% endfor %}
+        <span class="sp-stockline" aria-live="polite" data-sp-stockline>
+          {%- if axes is empty %}{% if p.sold_out %}{{ 'Sold out'|trans }}{% elseif p.low %}{{ p.stock_note }}{% else %}{{ 'In stock'|trans }}{% endif %}{% endif -%}
+        </span>
+
+        <div class="sp-qtyrow" data-sp-can-buy{% if p.sold_out and axes is empty %} hidden{% endif %}>
+          <span class="sp-qtyrow__l">{{ 'Quantity'|trans }}</span>
+          <div class="sp-qty" role="group" aria-label="{{ 'Quantity'|trans }}">
+            <button type="button" data-sp-dec aria-label="{{ 'One fewer'|trans }}">−</button>
+            <span class="sp-qty__n" data-sp-qty>1</span>
+            <button type="button" data-sp-inc aria-label="{{ 'One more'|trans }}">+</button>
+          </div>
+        </div>
+        <div class="sp-ctas" data-sp-can-buy{% if p.sold_out and axes is empty %} hidden{% endif %}>
+          <div class="sp-ctas__row">
+            <div class="sp-qty sp-qty--pill" role="group" aria-label="{{ 'Quantity'|trans }}">
+              <button type="button" data-sp-dec aria-label="{{ 'One fewer'|trans }}">−</button>
+              <span class="sp-qty__n" data-sp-qty>1</span>
+              <button type="button" data-sp-inc aria-label="{{ 'One more'|trans }}">+</button>
+            </div>
+            <button type="button" class="sp-btn sp-btn--go sp-ctas__buy" data-sp-buy>{{ 'Buy now · %amount%'|trans({'%amount%': p.price_label}) }}</button>
+          </div>
+          <button type="button" class="sp-btn sp-btn--outline sp-ctas__add" data-sp-add-item>{{ 'Add to cart'|trans }}</button>
+        </div>
+
+        {# The restock alert. Posts as a plain form with no script; shop.js answers in place. #}
+        <form class="sp-alert" method="post" action="/shop/{{ p.slug }}/notify-me" data-sp-alert{% if not (p.sold_out and axes is empty) %} hidden{% endif %}>
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="variant_id" value="0" data-sp-alert-variant>
+          <b class="sp-alert__h" data-sp-alert-h>{{ axes is empty ? 'Tell me when it’s back'|trans : 'Tell me when it’s back'|trans }}</b>
+          <div data-sp-alert-todo>
+            <span class="sp-alert__p">{{ 'One email when it’s restocked. Nothing else.'|trans }}</span>
+            <div class="sp-alert__row">
+              <input type="email" name="email" inputmode="email" autocomplete="email" required placeholder="you@email.com" aria-label="{{ 'Email for the restock alert'|trans }}">
+              <button type="submit" class="sp-btn sp-btn--ink">{{ 'Tell me'|trans }}</button>
+            </div>
+          </div>
+          <p class="sp-alert__done" role="status" data-sp-alert-done hidden></p>
+        </form>
+
+        <div class="sp-deliv">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"></path><circle cx="7" cy="18" r="2"></circle><circle cx="17" cy="18" r="2"></circle></svg>
+          <span class="sp-deliv__b">
+            <span class="sp-deliv__t">{{ 'Delivery to'|trans }} <b>{{ region|trans }}</b></span>
+            <span class="sp-deliv__s{{ not _ships ? ' is-no' }}" data-sp-shipline>
+              {%- if not _ships %}{{ 'Not delivered to %region% — this item ships to %list%.'|trans({'%region%': region|trans, '%list%': delivery_regions|join(', ')}) }}
+              {%- elseif p.ships_free|default(0) %}{{ 'Delivery included in the price'|trans }}
+              {%- elseif not ship_active %}{{ 'No delivery charge'|trans }}
+              {%- elseif ship_rate == 0 %}{{ 'Free delivery to %region%'|trans({'%region%': region|trans}) }}
+              {%- elseif ship_free_over and p.display_price >= ship_free_over %}{{ 'Free delivery on this order'|trans }}
+              {%- elseif ship_free_over %}{{ 'Delivery ₦%rate% · free over ₦%over%'|trans({'%rate%': ship_rate|number_format, '%over%': ship_free_over|number_format}) }}
+              {%- else %}{{ 'Delivery ₦%rate%'|trans({'%rate%': ship_rate|number_format}) }}{% endif -%}
+            </span>
+          </span>
+        </div>
+
+        {% if p.description %}<p class="sp-buy__desc sp-buy__desc--phone">{{ p.description }}</p>{% endif %}
+
+        {% if detail_sections is not empty %}
+          <div class="sp-acc">
+            {% for d in detail_sections %}
+              {# <details>: keyboard-operable and announced correctly with no script, and
+                 findable by the browser's own in-page search. The first is open (DC). #}
+              <details class="sp-acc__i"{{ loop.first ? ' open' }}>
+                <summary class="sp-acc__q">{{ d.title|trans }}<span class="sp-acc__s" aria-hidden="true"></span></summary>
+                <p class="sp-acc__a">{{ d.body }}</p>
+              </details>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <ul class="sp-perks">
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span><b>{{ 'Gives back'|trans }}</b><span>{{ 'Every order funds child leadership programmes.'|trans }}</span></span></li>
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"></path></svg><span><b>{{ 'Secure checkout'|trans }}</b><span>{{ 'Mobile money, card, bank transfer or USSD. Charged in Naira.'|trans }}</span></span></li>
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path></svg><span><b>{{ 'Delivery'|trans }}</b><span>{{ delivery_regions is empty ? 'Delivered nationwide.'|trans : 'Delivered to %list%.'|trans({'%list%': delivery_regions|join(', ')}) }}{% if ship_free_over %} {{ 'Free over ₦%n%.'|trans({'%n%': ship_free_over|number_format}) }}{% endif %}</span></span></li>
+        </ul>
+      </div>
+    </div>
+
+    {% if related is not empty %}
+      <section class="sp-rel" aria-labelledby="spRelH">
+        <h2 class="sp-rel__h" id="spRelH">{{ 'You may also like'|trans }}</h2>
+        <div class="sp-rel__row">
+          {% for r in related %}
+            <a class="sp-rel__c" href="/shop/{{ r.slug }}">
+              <span class="sp-rel__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', src: r.cover_path|default(''), name: r.name, label: false} only %}</span>
+              <span class="sp-rel__n">{{ r.name }}</span>
+              <span class="sp-rel__p{{ r.sold_out ? ' is-gone' }}">{{ r.sold_out ? 'Sold out'|trans : r.price_label }}</span>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block bottom_bar %}
+  {# The phone's buy bar (DC phoneBuyBar): total, the choice in words, and Add to cart.
+     Hidden while the chosen option is sold out; Gee sits above it (--ag-bottom-ui). #}
+  <div class="sp-buybar" data-bottom-ui data-sp-buybar{% if p.sold_out and axes is empty %} hidden{% endif %}>
+    <span class="sp-buybar__b"><b data-sp-line-total>{{ p.price_label }}</b><span data-sp-line-what>{{ 'Qty %n%'|trans({'%n%': 1}) }}</span></span>
+    <button type="button" class="sp-btn sp-btn--go sp-buybar__go" data-sp-add-item>{{ 'Add to cart'|trans }}</button>
+  </div>
+{% endblock %}
+
+{% block sheets %}
+  {{ parent() }}
+  {{ sb.drawer(_ctx) }}
+  <script defer src="{{ asset('/assets/js/shop.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%}
+@keyframes lgDisc{from{clip-path:circle(0% at 50% 50%)}to{clip-path:circle(50% at 50% 50%)}}
+@keyframes lgLand{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes lgWord{from{opacity:0;letter-spacing:.06em}to{opacity:1;letter-spacing:0}}
+@keyframes lgTag{from{opacity:0;letter-spacing:.5em}to{opacity:1;letter-spacing:.28em}}
+@keyframes lgBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes lgOut{to{opacity:0;transform:translateY(-8px)}}
+@keyframes lgPanel{to{opacity:0}}
+</style>
+</helmet>
+<div style="position:relative;box-sizing:border-box;width:100%;height:100%;min-height:100vh;background:#fbfbfa;font-family:'DM Sans',system-ui,sans-serif;color:#10292c;overflow:hidden">
+  {{ stage }}
+  <button onClick="{{ replay }}" style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:5;height:44px;padding:0 20px;border:1px solid #d6d4cc;border-radius:999px;background:#fff;color:#10292c;font-family:inherit;font-weight:600;font-size:14.5px;cursor:pointer">Replay</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:700}}">
+const LAND="M 427.0,237.0 L 368.0,307.0 L 354.0,351.0 L 326.0,370.0 L 256.0,468.0 L 275.0,535.0 L 254.0,593.0 L 260.0,633.0 L 325.0,709.0 L 384.0,753.0 L 505.0,744.0 L 574.0,718.0 L 610.0,757.0 L 655.0,759.0 L 665.0,789.0 L 652.0,842.0 L 707.0,912.0 L 727.0,982.0 L 702.0,1023.0 L 695.0,1074.0 L 733.0,1157.0 L 755.0,1256.0 L 789.0,1311.0 L 789.0,1353.0 L 828.0,1388.0 L 857.0,1377.0 L 925.0,1375.0 L 963.0,1344.0 L 1015.0,1274.0 L 1026.0,1223.0 L 1060.0,1199.0 L 1058.0,1140.0 L 1069.0,1113.0 L 1144.0,1050.0 L 1142.0,980.0 L 1122.0,955.0 L 1128.0,927.0 L 1117.0,910.0 L 1130.0,868.0 L 1181.0,813.0 L 1243.0,767.0 L 1294.0,694.0 L 1306.0,643.0 L 1217.0,657.0 L 1193.0,652.0 L 1174.0,617.0 L 1125.0,572.0 L 1119.0,549.0 L 1096.0,527.0 L 1086.0,479.0 L 1065.0,456.0 L 1016.0,356.0 L 1025.0,351.0 L 1047.0,374.0 L 1063.0,362.0 L 1065.0,351.0 L 1039.0,314.0 L 899.0,315.0 L 842.0,285.0 L 823.0,301.0 L 817.0,331.0 L 764.0,321.0 L 759.0,301.0 L 687.0,277.0 L 680.0,215.0 L 667.0,202.0 L 623.0,213.0 L 563.0,208.0 L 488.0,245.0 Z";
+const ISLE="M 1274.0,1000.0 L 1270.0,1000.0 L 1260.0,1013.0 L 1249.0,1021.0 L 1247.0,1026.0 L 1247.0,1034.0 L 1245.0,1040.0 L 1227.0,1059.0 L 1208.0,1061.0 L 1197.0,1068.0 L 1188.0,1076.0 L 1188.0,1083.0 L 1190.0,1090.0 L 1190.0,1106.0 L 1186.0,1127.0 L 1178.0,1147.0 L 1177.0,1154.0 L 1179.0,1162.0 L 1180.0,1198.0 L 1190.0,1211.0 L 1197.0,1223.0 L 1200.0,1223.0 L 1215.0,1215.0 L 1224.0,1214.0 L 1230.0,1211.0 L 1234.0,1195.0 L 1241.0,1181.0 L 1245.0,1169.0 L 1247.0,1146.0 L 1248.0,1145.0 L 1248.0,1135.0 L 1250.0,1129.0 L 1261.0,1117.0 L 1269.0,1104.0 L 1273.0,1083.0 L 1278.0,1069.0 L 1278.0,1058.0 L 1285.0,1057.0 L 1287.0,1055.0 L 1287.0,1046.0 L 1285.0,1041.0 L 1285.0,1037.0 L 1277.0,1005.0 Z";
+const E='cubic-bezier(.2,.8,.2,1)';
+class Component extends DCLogic {
+  state = { run:0 };
+  renderVals(){
+    const h=React.createElement, k=this.state.run;
+    const stage=h('div',{key:k,style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'#fbfbfa',animation:`lgPanel .24s 1.12s ease forwards`}},
+      h('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:22,animation:`lgOut .24s 1.04s ${E} forwards`}},
+        h('svg',{viewBox:'0 0 1563 1563',width:96,height:96,style:{display:'block',overflow:'visible'},'aria-hidden':'true'},
+          h('circle',{cx:781.1,cy:781.4,r:756.2,fill:'#006432',style:{clipPath:'circle(0% at 50% 50%)',animation:`lgDisc .36s ${E} forwards`}}),
+          h('g',{style:{opacity:0,transformBox:'fill-box',transformOrigin:'center',animation:`lgLand .34s .16s ${E} forwards`}},
+            h('path',{d:LAND,fill:'#7fc87c'}), h('path',{d:ISLE,fill:'#7fc87c'}))),
+        h('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:6}},
+          h('span',{style:{fontFamily:"'Playfair Display',Georgia,serif",fontWeight:700,fontSize:28,lineHeight:1,color:'#10292c',opacity:0,animation:`lgWord .34s .28s ${E} forwards`}},'Africa'),
+          h('span',{style:{fontSize:11.5,fontWeight:700,letterSpacing:'.28em',paddingLeft:'.28em',color:'#237b22',opacity:0,animation:`lgTag .34s .34s ${E} forwards`}},'GATES')),
+        h('span',{'aria-hidden':'true',style:{position:'relative',display:'block',width:72,height:2,marginTop:6,borderRadius:2,background:'#e8e5dd',overflow:'hidden'}},
+          h('span',{style:{position:'absolute',inset:0,background:'#237b22',transformOrigin:'left',transform:'scaleX(0)',animation:'lgBar .72s .2s cubic-bezier(.65,0,.35,1) forwards'}}))));
+    return { stage, replay:()=>this.setState(s=>({run:s.run+1})) };
+  }
+}
+</script>
+</body>
+</html>

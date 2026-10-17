@@ -1,0 +1,174 @@
+/* /status · templates/pages/status.twig · design/StatusPageV2.dc.html (Phase 9).
+
+   One 880px column on the ground (the DC's own width), sections 28 → 40 apart, white
+   hairline cards. Colour tier 3: a state board spends one family per STATE, and every
+   state also differs in FILL — solid, half, hatched, dashed — so no mark depends on hue
+   (the old page's rule, kept). The DC's mono kickers, mono stamp line and capitals are
+   not drawn (§18.3–4: mono is for references and codes; no capitals); its meta lines are
+   DM Sans with tabular figures instead. */
+
+.sx{
+  box-sizing:content-box; max-width:880px; margin:0 auto; padding:8px var(--ag-sp-16) 32px;
+  display:flex; flex-direction:column; gap:var(--ag-sp-36); color:var(--ag-ink); overflow-wrap:break-word;
+}
+.sx__top{ display:flex; flex-direction:column; gap:var(--ag-sp-16) }
+.sx__bar{ display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-12) }
+.sx__live{ display:flex; align-items:center; gap:var(--ag-sp-8); font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
+.sx__dot{ flex:none; width:8px; height:8px; border-radius:50% }
+.sx__dot--operational{ background:var(--ag-green) }
+.sx__dot--degraded{ background:var(--ag-gold) }
+.sx__dot--down{ background:var(--ag-error) }
+.sx__dot--unknown{ background:var(--ag-mute) }
+.sx__tools{ display:flex; gap:var(--ag-sp-8) }
+.sx a.sx__pill{
+  display:flex; align-items:center; gap:var(--ag-sp-8); min-height:44px; padding:0 14px; box-sizing:border-box;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface);
+  color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none;
+}
+/* Phone: the bell alone, as the DC draws it (its name is the anchor's accessible name). */
+.sx a.sx__pill--icon{ width:44px; padding:0; justify-content:center }
+.sx__pill-t{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap }
+.sx a.sx__pill:hover{ border-color:var(--ag-ink) }
+.sx__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-30); line-height:1.1; letter-spacing:-.015em; text-wrap:pretty }
+.sx__em{ font-style:normal }
+.sx__em--operational{ box-shadow:inset 0 -.34em 0 color-mix(in srgb, var(--ag-green) 24%, transparent) }
+.sx__em--degraded{ box-shadow:inset 0 -.34em 0 color-mix(in srgb, var(--ag-gold) 34%, transparent) }
+.sx__em--down{ box-shadow:inset 0 -.34em 0 color-mix(in srgb, var(--ag-error) 20%, transparent) }
+.sx__em--unknown{ box-shadow:inset 0 -.34em 0 color-mix(in srgb, var(--ag-soft) 20%, transparent) }
+.sx__note{ margin:0; max-width:58ch; font-size:var(--ag-fs-16); line-height:1.6; color:var(--ag-ink-2) }
+.sx__tally{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8); margin:0; padding:0; list-style:none }
+.sx__chip{
+  display:flex; align-items:center; gap:var(--ag-sp-8); min-height:34px; padding:0 12px; box-sizing:border-box;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-pill); background:var(--ag-surface);
+  font-size:var(--ag-fs-13-5); font-weight:600;
+}
+.sx__stamp{
+  display:flex; flex-wrap:wrap; gap:6px 18px; margin:0; padding-top:var(--ag-sp-16); border-top:1px solid var(--ag-line-2);
+  font-size:var(--ag-fs-13); line-height:1.5; color:var(--ag-ink-2); font-variant-numeric:tabular-nums;
+}
+.sx__stamp b{ color:var(--ag-ink); font-weight:600 }
+
+/* ── The mark: one shape, four fills ───────────────────────────────────── */
+.st-m{ flex:none; display:inline-block; width:13px; height:13px; margin-top:4px; border-radius:3px; box-sizing:border-box; border:1.5px solid transparent }
+.st-m--sm{ width:11px; height:11px; margin-top:0; border-radius:2px }
+/* A day square is the same mark stretched — declared BEFORE the fills so they win. */
+.sx-cell{ flex:1 1 0; min-width:4px; border-radius:3px; box-sizing:border-box; border:1.5px solid transparent; cursor:pointer }
+.st-m--operational{ background:var(--ag-green); border-color:var(--ag-green) }
+.st-m--degraded{ background:linear-gradient(180deg, var(--ag-gold) 0 50%, transparent 50% 100%); border-color:var(--ag-gold-ink) }
+.st-m--down{ background:repeating-linear-gradient(45deg, var(--ag-error) 0 2px, transparent 2px 4px); border-color:var(--ag-error) }
+.st-m--unknown{ background:transparent; border-style:dashed; border-color:var(--ag-chevron) }
+
+/* ── Sections ──────────────────────────────────────────────────────────── */
+.sx__sec{ display:flex; flex-direction:column; gap:var(--ag-sp-14) }
+.sx__h2{ margin:0; display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; font-size:var(--ag-fs-19); font-weight:700 }
+.sx__h2-n{ font-size:var(--ag-fs-13-5); font-weight:500; color:var(--ag-soft); margin-inline-start:auto }
+.sx__p, .sx__key-note{ margin:0; max-width:62ch; font-size:var(--ag-fs-15); line-height:1.6; color:var(--ag-ink-2) }
+.sx__key-note{ font-size:var(--ag-fs-14) }
+.sx-time{ margin:0; font-size:var(--ag-fs-13); line-height:1.5; color:var(--ag-ink-2); font-variant-numeric:tabular-nums }
+.sx__tz{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+
+/* Happening now */
+.sx-now{ display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-20); overflow:hidden }
+.sx-now__head{ display:flex; gap:var(--ag-sp-14); padding:18px 16px; border-bottom:1px solid var(--ag-line) }
+.sx-now__w{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px }
+.sx-now__t{ margin:0; font-size:var(--ag-fs-17); line-height:1.35; font-weight:700 }
+.sx-steps{ list-style:none; margin:0; padding:16px 16px 18px }
+.sx-steps__i{ display:grid; grid-template-columns:14px minmax(0,1fr); gap:var(--ag-sp-14) }
+.sx-steps__rail{ display:flex; flex-direction:column; align-items:center }
+.sx-steps__rail::after{ content:""; flex:1; width:2px; margin-top:4px; background:var(--ag-line) }
+.sx-steps__i:last-child .sx-steps__rail::after{ background:transparent }
+.sx-steps__dot{ flex:none; width:10px; height:10px; margin-top:5px; border-radius:50%; background:var(--ag-chevron); box-shadow:0 0 0 3px var(--ag-line-3) }
+.sx-steps__i:first-child .sx-steps__dot{ background:var(--ag-ink); box-shadow:0 0 0 3px var(--ag-line) }
+.sx-steps__w{ display:flex; flex-direction:column; gap:3px; padding-bottom:var(--ag-sp-16) }
+.sx-steps__h{ margin:0; display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--ag-sp-10); font-size:var(--ag-fs-14-5) }
+.sx-steps__p{ margin:0; font-size:var(--ag-fs-14); line-height:1.55; color:var(--ag-ink-2) }
+
+/* Planned work */
+.sx-plan{ display:flex; gap:var(--ag-sp-14); align-items:flex-start; padding:16px; background:var(--ag-surface); border:1px dashed var(--ag-chevron); border-radius:var(--ag-r-18) }
+.sx-plan__i{ flex:none; margin-top:1px; color:var(--ag-ink) }
+.sx-plan__w{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px }
+.sx-plan__t{ margin:0; font-size:var(--ag-fs-15-5); font-weight:700 }
+.sx-plan__p{ margin:0; font-size:var(--ag-fs-14); line-height:1.55; color:var(--ag-ink-2) }
+
+/* Current status */
+.sx-group{ display:flex; flex-direction:column; gap:var(--ag-sp-8) }
+.sx-group__t{ margin:0; padding:8px 2px 0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
+.sx-rows{ list-style:none; margin:0; padding:0; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18); overflow:hidden }
+.sx-row{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding:18px 16px }
+.sx-row + .sx-row{ border-top:1px solid var(--ag-line-3) }
+.sx-row__top{ display:flex; align-items:flex-start; gap:var(--ag-sp-14); flex-wrap:wrap }
+.sx-row__w{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px }
+.sx-row__n{ font-weight:600; font-size:var(--ag-fs-16) }
+.sx-row__what{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.sx-row__state{ flex:none; display:flex; flex-direction:column; gap:3px; width:100%; padding-inline-start:27px; box-sizing:border-box }
+.sx-state{ font-weight:700; font-size:var(--ag-fs-14-5) }
+.sx-state--operational{ color:var(--ag-green-deep) }
+.sx-state--degraded{ color:var(--ag-gold-ink) }
+.sx-state--down{ color:var(--ag-error) }
+.sx-state--unknown{ color:var(--ag-soft) }
+.sx-row__metric{ font-size:var(--ag-fs-13); line-height:1.4; color:var(--ag-ink-2); font-variant-numeric:tabular-nums }
+.sx-row__detail{ margin:0 0 0 27px; max-width:58ch; font-size:var(--ag-fs-14); line-height:1.55; color:var(--ag-ink-2) }
+.sx-row__hist{ display:flex; flex-direction:column; gap:var(--ag-sp-8); margin-inline-start:27px }
+.sx-cells{ display:flex; gap:2px; height:22px; align-items:stretch }
+.sx-cell[data-on]{ box-shadow:0 0 0 2px var(--ag-surface), 0 0 0 3.5px var(--ag-ink) }
+.sx-row__foot{ display:flex; justify-content:space-between; gap:var(--ag-sp-12); margin:0; font-size:var(--ag-fs-13); line-height:1.4; color:var(--ag-ink-2); font-variant-numeric:tabular-nums }
+.sx-row__info{ color:var(--ag-ink) }
+.sx-row__info[data-on]{ font-weight:700 }
+.sx-row__foot > span:last-child{ text-align:end }
+
+/* Past problems */
+.sx-inc{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--ag-sp-10) }
+.sx-inc__i{ display:flex; gap:var(--ag-sp-14); align-items:flex-start; padding:16px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16) }
+.sx-inc__i > .st-m{ margin-top:5px }
+.sx-inc__w{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px }
+.sx-inc__t{ margin:0; font-size:var(--ag-fs-15); line-height:1.45 }
+
+/* How to read this */
+.sx-key{ display:flex; flex-wrap:wrap; gap:10px 24px; margin:0; padding:0; list-style:none }
+.sx-key li{ display:flex; align-items:center; gap:9px; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.sx-key .st-m{ margin-top:0 }
+.sx-scope{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding:20px 22px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18); font-size:var(--ag-fs-14-5); line-height:1.65; color:var(--ag-ink-2) }
+.sx-scope p{ margin:0 }
+.sx-scope b{ color:var(--ag-ink) }
+.sx-scope code{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-13); background:var(--ag-ground); padding:2px 6px; border-radius:5px; color:var(--ag-ink) }
+
+/* The dark help band */
+.sx-help{ display:flex; flex-direction:column; align-items:stretch; gap:var(--ag-sp-16); padding:22px; border-radius:var(--ag-r-20); background:var(--ag-ink); color:var(--ag-ground) }
+.sx-help__w{ flex:1; display:flex; flex-direction:column; gap:6px }
+.sx-help__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22); line-height:1.2 }
+.sx-help__p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.6; color:var(--ag-ground) }
+.sx a.sx-help__a{ flex:none; display:flex; align-items:center; justify-content:center; min-height:46px; padding:0 20px; border-radius:var(--ag-r-pill); background:var(--ag-ground); color:var(--ag-ink); font-weight:700; font-size:var(--ag-fs-15); text-decoration:none }
+
+/* ── Get updates — a bottom sheet on a phone, a centred dialog from 600 ── */
+.sx-sub{ gap:var(--ag-sp-14); padding:0 22px 22px; background:var(--ag-surface) }
+.sx-sub__head{ display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-12) }
+.sx-sub__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22) }
+.sx-sub a.sx-sub__x{ flex:none; width:44px; height:44px; border-radius:50%; background:var(--ag-tint); color:var(--ag-ink); display:flex; align-items:center; justify-content:center }
+.sx-sub__p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }
+.sx-sub__said{ margin:0; padding:12px 14px; border-radius:var(--ag-r-12); background:var(--ag-ground); font-size:var(--ag-fs-14-5); line-height:1.5 }
+.sx-sub__form{ display:flex; flex-direction:column; gap:var(--ag-sp-6); margin:0 }
+.sx-sub__go{ margin-top:var(--ag-sp-10); min-height:50px }
+/* No script: the sheet opens on its own id (the subscribe form's redirect lands there too). */
+.sx-sub-layer:target .ag-scrim{ opacity:1; pointer-events:auto }
+.sx-sub-layer:target .ag-sheet{ transform:none; visibility:visible }
+
+@media (min-width:600px){
+  .sx{ padding:32px 32px 56px; gap:48px }
+  .sx__h1{ font-size:var(--ag-fs-38) }
+  .sx-row, .sx-now__head, .sx-plan, .sx-inc__i{ padding-left:22px; padding-right:22px }
+  .sx-steps{ padding-left:22px; padding-right:22px }
+  .sx-row__top{ flex-wrap:nowrap }
+  .sx a.sx__pill--icon{ width:auto; padding:0 14px }
+  .sx__pill-t{ position:static; width:auto; height:auto; overflow:visible; clip-path:none }
+  .sx-row__state{ width:auto; max-width:46%; padding-inline-start:0; align-items:flex-end; text-align:end }
+  .sx-help{ flex-direction:row; align-items:center }
+  .sx-sub{ left:50%; right:auto; top:50%; bottom:auto; width:440px; padding-top:22px; border-radius:var(--ag-r-20); transform:translate(-50%, calc(-50% + 24px)) }
+  .sx-sub[data-open], .sx-sub-layer:target .sx-sub{ transform:translate(-50%, -50%) }
+  .sx-sub > .ag-sheet__grabber{ display:none }
+}
+@media (min-width:1024px){
+  .sx{ padding:44px 32px 64px }
+  .sx__h1{ font-size:var(--ag-fs-44) }
+  .sx-cells{ gap:3px }
+}
+@media (prefers-reduced-motion:reduce){ .sx-sub{ transition:none } }

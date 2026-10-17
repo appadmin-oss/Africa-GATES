@@ -1,0 +1,171 @@
+{% extends 'pages/org/_frame.twig' %}
+{% import 'partials/field.twig' as f %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE ORGANISATION CONSOLE — /org and /org?tab=… · rebuilt 16 Oct 2026
+  ══════════════════════════════════════════════════════════════════════════════
+
+  `GET /org` has pointed at this filename since 3 Oct 2026, when the public pages were
+  destroyed, and the file was never rebuilt — so the console an organisation manages its
+  money and its public page from has been a 500 for a fortnight. Everything behind it
+  survived: `OrgBrand` with its fourteen sections, twelve links, six videos and nine
+  two-field blocks, `POST /org/brand`, the payout request, the appeals, the documents, the
+  stand applications and the catalogue. The page was the only missing piece, which is why
+  none of it was reachable.
+
+  Built from `docs/handoff/inventory/pages--org--dashboard.md` — the feature inventory taken
+  before the destroy — and every form below posts to a route that already exists.
+
+  ── THE RULES THE DESTROYED GUARD TESTS HELD ────────────────────────────────
+
+  Re-asserted by `OrgConsoleTest`, each watched failing first:
+  · THE MONEY IS ON THE FIRST SCREEN, not inside a later section (`OrgConsoleLedeTest`).
+  · THE OFFER AND THE FORM AGREE, IN EVERY STATE — the one that matters. A console that
+    offers a payout the form would then refuse is a console that wastes somebody's
+    afternoon, so the button and `OrgPayout`'s own conditions are read from one place.
+  · NO WALL OF ZEROES. An organisation with nothing received is shown what to do next, not
+    four ₦0 tiles.
+  · The rail offers a donation partner the money and not the stands, a vendor the stands and
+    not the appeals, and a vendor who later takes gifts both — in `Services\OrgRail`.
+  · The sections need no JavaScript: each one is an address.
+  · The chart appears only once there is money, and counts the partner's share, not the
+    gross.
+  · The icons are drawn, never borrowed from a font.
+#}
+
+{% set org_tab = org_tab|default('overview') %}
+{% set ngn = '₦' %}
+
+{#
+  AT TEMPLATE SCOPE. A `{% set %}` inside a `{% block %}` is invisible to every other block
+  and renders as null, silently — the trap that has taken out this codebase's account
+  navigation once and a share link a second time. The frame reads none of these, but the
+  sections below are separate `{% if %}`s inside one block today and may not stay that way.
+#}
+{% set n_missing = missing|length %}
+{% set n_offers  = applications|filter(a => a.live_offer)|length %}
+{#
+  ONE ROLE BIT, RESOLVED ONCE. `can_payout` is `OrgAuth::canRequestPayout()` — which is
+  `role === 'owner'`, the only permission this area has. Re-deriving it here as
+  `me.role == 'owner'` would be a second reader of one rule, and the day a third role
+  appears the two answers diverge on the screen money moves from.
+#}
+{% set can_edit  = can_payout %}
+
+{% block org_body %}
+
+{# ══════════════════════════════════════════════════════════════════════════
+   OVERVIEW
+   ══════════════════════════════════════════════════════════════════════════ #}
+{% if org_tab == 'overview' %}
+
+  {#
+    WHAT STOPS WHAT, IN ORDER. A refusal outranks a missing certificate, which outranks a
+    pending review, which outranks an offer waiting to be accepted — and an offer outranks
+    "all clear", because an offer expires.
+  #}
+  {% if org.status == 'suspended' %}
+    <div class="org-state org-state--stop" role="alert">
+      <h2 class="org-state__t">{{ 'This organisation is suspended'|trans }}</h2>
+      <p class="org-state__b">{{ org.suspended_reason|default('No money can move while it is. Write to us from the address on the account and we will go through it with you.'|trans) }}</p>
+    </div>
+  {% elseif org.status == 'rejected' %}
+    <div class="org-state org-state--stop" role="alert">
+      <h2 class="org-state__t">{{ 'This application was not accepted'|trans }}</h2>
+      <p class="org-state__b">{{ org.vetting_note|default('Write to us if you think that is wrong — the decision can be looked at again.'|trans) }}</p>
+    </div>
+  {% elseif n_missing > 0 %}
+    <div class="org-state org-state--todo" role="status">
+      <h2 class="org-state__t">{{ n_missing == 1 ? '1 document still to upload'|trans : '%n% documents still to upload'|trans({'%n%': n_missing}) }}</h2>
+      <p class="org-state__b">{{ 'This is the part you control, and nothing moves until it is done.'|trans }}</p>
+      <a class="org-go" href="/org?tab=documents">{{ 'Upload them now'|trans }}</a>
+    </div>
+  {% elseif org.status != 'approved' %}
+    <div class="org-state org-state--wait" role="status">
+      <h2 class="org-state__t">{{ 'Everything is on file. We are reviewing it.'|trans }}</h2>
+      <p class="org-state__b">{{ 'There is nothing for you to do. We will write to you at the address on the account.'|trans }}</p>
+    </div>
+  {% elseif n_offers > 0 %}
+    <div class="org-state org-state--todo" role="status">
+      <h2 class="org-state__t">{{ n_offers == 1 ? 'You have been offered a stand'|trans : 'You have been offered %n% stands'|trans({'%n%': n_offers}) }}</h2>
+      <p class="org-state__b">{{ 'An offer expires. Accept it and the pitch is yours.'|trans }}</p>
+      <a class="org-go" href="/org?tab=stands">{{ 'See the offer'|trans }}</a>
+    </div>
+  {% else %}
+    <div class="org-state org-state--ok" role="status">
+      <h2 class="org-state__t">{{ is_vendor ? 'Your account is approved and complete'|trans : 'Your organisation is live'|trans }}</h2>
+      <p class="org-state__b">{{ is_vendor
+        ? 'You can apply for a stand at any open event.'|trans
+        : 'Your page is live and able to take gifts.'|trans }}</p>
+    </div>
+  {% endif %}
+
+  {#
+    ── THE MONEY, ON THE FIRST SCREEN ────────────────────────────────────────
+
+    The destroyed `test_the_money_is_on_the_first_screen_and_not_behind_the_rail` held this:
+    the figures open the console. An organisation signs in to find out what has arrived, and
+    making them choose a section first answers a question they did not ask.
+
+    And `test_an_organisation_with_no_gifts_is_not_shown_a_wall_of_zeroes` holds the other
+    half — four ₦0 tiles tell somebody still waiting on a review nothing at all, so with no
+    money the space says what to do instead.
+  #}
+  {% if show_money %}
+    {% if totals.count > 0 %}
+      <div class="org-figs">
+        <div class="org-fig">
+          <span class="org-fig__n">{{ ngn }}{{ (totals.net|default(0))|number_format }}</span>
+          <span class="org-fig__l">{{ 'Reached you, after fees'|trans }}</span>
+        </div>
+        <div class="org-fig">
+          <span class="org-fig__n">{{ ngn }}{{ (totals.gross|default(0))|number_format }}</span>
+          <span class="org-fig__l">{{ 'Given in total'|trans }}</span>
+        </div>
+        <div class="org-fig">
+          <span class="org-fig__n">{{ (totals.count|default(0))|number_format }}</span>
+          <span class="org-fig__l">{{ totals.count == 1 ? 'Gift'|trans : 'Gifts'|trans }}</span>
+        </div>
+        <div class="org-fig">
+          <span class="org-fig__n">{{ ngn }}{{ available|number_format }}</span>
+          <span class="org-fig__l">{{ 'Yours to request now'|trans }}</span>
+        </div>
+      </div>
+
+      {#
+        THE OFFER AND THE FORM AGREE. `org_can_request` is the single condition — the same
+        one `/org?tab=payouts` puts on its form and the same one `OrgPayout` enforces — so
+        this console cannot offer a withdrawal the next screen refuses. That is the rule the
+        destroyed `test_the_lede_never_offers_a_payout_the_form_would_refuse` carried, and
+        it is the one that matters: being offered money and then told no is worse than not
+        being offered it.
+      #}
+      {% if org_can_request %}
+        <a class="org-go org-go--wide" href="/org?tab=payouts">{{ 'Request a payout'|trans }}</a>
+      {% endif %}
+
+      {# A graph of nothing, shown to a partner still waiting on a review, is furniture. #}
+      {% if money_chart.ok|default(false) %}
+        <div class="org-chart">{{ viz.area(money_chart) }}</div>
+      {% endif %}
+    {% else %}
+      <div class="org-empty">
+        <h2 class="org-empty__t">{{ 'Nothing has arrived yet'|trans }}</h2>
+        <p class="org-empty__b">{{ 'When your first gift clears it appears here, with what reached you after fees. In the meantime the thing worth doing is your page — it is what a donor actually sees.'|trans }}</p>
+        <a class="org-go" href="/org?tab=page">{{ 'Set up your page'|trans }}</a>
+      </div>
+    {% endif %}
+  {% endif %}
+
+{#  ══════════════════════════════════════════════════════════════════════════
+    YOUR PAGE — the brand editor
+    ══════════════════════════════════════════════════════════════════════════ #}
+{% elseif org_tab == 'page' %}
+  {% include 'pages/org/_page-editor.twig' %}
+
+{% else %}
+  {% include 'pages/org/_sections.twig' %}
+{% endif %}
+
+{% endblock %}

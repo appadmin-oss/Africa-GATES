@@ -1,0 +1,73 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  DISPLAY & READING — REFERENCE §7.5 · design/DisplayReading.dc.html
+  ══════════════════════════════════════════════════════════════════════════════
+
+  One block, two homes in one document: the header's Aa popover and the phone Menu's
+  pushed sub-view. Quick settings carries a SUBSET (two switches, §7.2) and a way here.
+  Every control writes `localStorage["ag-a11y"]` through `AGA11y.set()` — and the member's
+  account too, when signed in — and the store fires `ag:a11y` on every write, so every
+  mounted copy re-reads rather than keeping its own idea of what is on.
+
+  ── `uid` IS REQUIRED ─────────────────────────────────────────────────────
+
+  Both homes are in the same document, so a fixed id would appear twice and every
+  `for=`/`aria-labelledby` would resolve to the first copy — pressing "Language" in the
+  Menu once moved focus into a closed popover (SiteHeaderTest counts ids).
+
+  ── THE SWITCHES ARE A LOOP OVER ONE LIST ───────────────────────────────────
+
+  The keys are the store's (`a11y.js` SWITCHES, DisplayReadingPrefs::SWITCHES), and
+  `DisplayReadingTest` holds the three lists equal: a switch here the store has never
+  heard of flips, remembers its own `aria-checked` and changes nothing. The whole row is
+  the switch — a 52px target rather than a 26px one.
+
+  ── THE LANGUAGE IS A REAL FORM ─────────────────────────────────────────────
+
+  A native select, because eight options is a list and the platform's picker already
+  works with every assistive technology — inside a GET form, so it works with scripting
+  off (`chrome.js` submits on change and hides the button it made redundant). Every other
+  query parameter rides along as a hidden field (`lang_carry()`), so switching language on
+  `/discover?q=lagos` does not drop the search.
+#}
+{% set _uid = uid|default('dr') %}
+<div class="ag-dr" data-ag-dr>
+  <span class="ag-dr__h">{{ 'Display & reading'|trans }}</span>
+
+  <div class="ag-seg ag-dr__seg" role="radiogroup" aria-label="{{ 'Text size'|trans }}">
+    {% for s in [{i:0, name:'Standard text'}, {i:1, name:'Large text'}, {i:2, name:'Largest text'}] %}
+      <button type="button" class="ag-seg__opt ag-dr__size ag-dr__size--{{ s.i }}" role="radio"
+              aria-checked="{{ s.i == 0 ? 'true' : 'false' }}" tabindex="{{ s.i == 0 ? '0' : '-1' }}"
+              aria-label="{{ s.name|trans }}" data-ag-size="{{ s.i }}">A</button>
+    {% endfor %}
+  </div>
+
+  {% for t in [
+    {k:'hc',     label:'High contrast',       help:'Darker text and borders'},
+    {k:'easy',   label:'Easy-read font',      help:'Atkinson Hyperlegible, more letter spacing'},
+    {k:'space',  label:'More line spacing',   help:'Easier to track lines'},
+    {k:'ul',     label:'Underline all links', help:'Links don’t rely on colour'},
+    {k:'motion', label:'Reduce motion',       help:'No animation or auto-play'},
+    {k:'saver',  label:'Data saver',          help:'Photos and video load when you tap'},
+    {k:'listen', label:'Read pages aloud',    help:'Adds Listen to every article and profile'}
+  ] %}
+    <button type="button" class="ag-dr__row" role="switch" aria-checked="false" data-ag-toggle="{{ t.k }}">
+      <span class="ag-dr__text">
+        <span class="ag-dr__label">{{ t.label|trans }}</span>
+        <span class="ag-dr__help">{{ t.help|trans }}</span>
+      </span>
+      <span class="ag-switch ag-dr__switch" aria-hidden="true"></span>
+    </button>
+  {% endfor %}
+
+  <form class="ag-dr__lang" method="get" data-ag-langform>
+    {% for k, v in lang_carry() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <label for="ag-dr-lang-{{ _uid }}">{{ 'Language'|trans }}</label>
+    <select id="ag-dr-lang-{{ _uid }}" name="lang" data-ag-lang>
+      {% for l in languages() %}
+        <option value="{{ l.code }}" lang="{{ l.code }}"{{ l.code == lang() ? ' selected' : '' }}>{{ l.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="ag-dr__go">{{ 'Change'|trans }}</button>
+  </form>
+</div>

@@ -1,87 +1,315 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/events` — THE EVENTS INDEX · EventsPage.dc.html (view: index) · EVENTS-INDEX (5 Oct 2026)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Replaces the 4 Oct index (one featured card and a flat list). Order, every layout:
+  heading (600+; on a phone the root app bar's large title is the h1) → spotlight →
+  sticky toolbar → browse by type → carousel rows → hosting band. Any search, chip, type or
+  place swaps the last three for ONE results grid (EventsFront::browse()['filtering']).
+
+  ── EVERYTHING IS A LINK OR A GET FORM ──────────────────────────────────────
+
+  The DC holds the filters in component state. Here the chips, the type tiles and "See all"
+  are links and the search and Place are one GET form, so a filtered view works with no
+  script, survives Back and reload, and can be sent to somebody (skill §2, deep links). The
+  4 Oct filters (`?f=upcoming|soon|live|past`) still answer as a results grid with no chip
+  of their own — the owner's coming-soon and past views stay one address away.
+
+  ── WHAT IS NOT DRAWN, AND WHY (docs/handoff/PHASE-EVENTS-INDEX.md) ─────────
+
+  No save heart (nothing here could read a save back), no attendee faces (no attendee has
+  been asked to be shown), no "Selling fast" (no rule could compute it honestly), no
+  recording duration (not stored), and the DC's "in 41 countries" and the hosting band's
+  currency and caption claims are not printed, because none of them is true here.
+
+  Colour tier 2: green is a ticket CTA and nothing else (the hosting band's button is ink,
+  §6); every tone on a card or slide is a cover tone, and every one carries a word.
+#}
+
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'root', title: 'Events'|trans} %}
+{# Hoisted: content reads them, and a set inside a block is invisible to every other block. #}
+{% set _x = front %}
+{% set _spot = _x.spotlight %}
+{% set _n = _spot|length %}
+{% set _keep = {q: _x.q, place: _x.place}|filter(v => v != '') %}
+{% set _noq = {f: _x.f != 'all' ? _x.f : '', type: _x.type, place: _x.place}|filter(v => v != '') %}
+{% set _chips = [
+  {key: 'all', label: 'All'|trans},
+  {key: 'week', label: 'This week'|trans},
+  {key: 'weekend', label: 'This weekend'|trans},
+  {key: 'online', label: 'Online'|trans},
+  {key: 'free', label: 'Free'|trans},
+] %}
+
+{# ── One event card (§Cards). The cover and the body are one link's worth: the cover is a
+   second, untabbable route to the same place, so a keyboard meets each event once. ── #}
+{% macro card(e) %}
+  <article class="ei-card ei-t--{{ e.tone }}">
+    <a class="ei-card__media" href="{{ e.url }}" tabindex="-1" aria-hidden="true">
+      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', src: e.image, name: e.title,
+           cover_kind: e.cover_kind, award_linked: e.award_linked, content: e.state == 'ended' ? 'none' : 'date',
+           date: e.cover_date, label: e.kind_label, tone: e.live ? 'live' : null} only %}
+      {#- On a photo, the same date tile the cover draws (§Cards), and "Live now". #}
+      {%- if e.image and e.state != 'ended' %}<span class="ei-tile"><b>{{ e.mon }}</b><span>{{ e.day }}</span></span>{% endif %}
+      {%- if e.image and e.live %}<span class="ei-livepill"><i aria-hidden="true"></i>{{ 'Live now'|trans }}</span>{% endif %}
+    </a>
+    <a class="ei-card__body" href="{{ e.url }}">
+      <span class="ei-card__t">{{ e.title }}</span>
+      <span class="ei-card__m">{{ e.state == 'ended' ? (e.where ?: e.city) ~ ((e.where or e.city) ? ' · ' : '') ~ e.date : e.meta }}</span>
+      {%- if e.price or e.status %}
+      <span class="ei-card__p">
+        {%- if e.price %}<b>{{ e.price }}</b>{% endif -%}
+        {%- if e.status %}<span class="ei-st ei-st--{{ e.status_tone }}">{{ e.status }}</span>{% endif -%}
+      </span>
+      {%- endif %}
+    </a>
+  </article>
+{% endmacro %}
+
+{# ── A recording (§Cards, last bullet): the play disc goes straight to the recording. ── #}
+{% macro rec(e) %}
+  <article class="ei-rec">
+    <div class="ei-rec__media">
+      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', src: e.image, name: e.title,
+           cover_kind: e.cover_kind, award_linked: e.award_linked, content: 'none', label: false} only %}
+      <a class="ei-rec__play" href="{{ e.recording }}" rel="noopener" target="_blank" aria-label="{{ 'Play %title%'|trans({'%title%': e.title}) }}"><span><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></span></a>
+    </div>
+    <a class="ei-rec__body" href="{{ e.url }}">
+      <b>{{ e.title }}</b>
+      <span>{{ e.host ? e.host ~ ' · ' }}{{ 'recorded %date%'|trans({'%date%': e.recorded}) }}</span>
+    </a>
+  </article>
+{% endmacro %}
+
+{# The spotlight's call to action, per state — the old featured card's rules. #}
+{% macro cta(s) %}
+  {%- if s.live and s.livestream %}<a class="ei-btn ei-btn--go" href="{{ s.livestream }}" rel="noopener" target="_blank">{{ 'Watch live'|trans }}</a>
+  {%- elseif s.state == 'open' %}<a class="ei-btn ei-btn--go" href="{{ s.url }}#ev-rsvp">{{ s.from == 0 ? 'Register · free'|trans : 'Get tickets · from %price%'|trans({'%price%': s.from_text}) }}</a>
+  {%- elseif s.state == 'soon' %}<a class="ei-btn ei-btn--go" href="{{ s.url }}#ev-rsvp">{{ 'Email me when tickets go on sale'|trans }}</a>
+  {%- elseif s.state == 'waitlist' %}<a class="ei-btn ei-btn--go" href="{{ s.url }}#ev-rsvp">{{ 'Join the waiting list'|trans }}</a>
+  {%- else %}<a class="ei-btn ei-btn--go" href="{{ s.url }}">{{ 'See the event'|trans }}</a>{% endif %}
+  {#- "Remind me" is the calendar file: every calendar reads it, no account, works offline. #}
+  <a class="ei-btn ei-btn--line" href="{{ s.url }}/calendar.ics">{{ s.live ? 'Add to calendar'|trans : 'Remind me'|trans }}</a>
+{% endmacro %}
+{% import _self as m %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/events-index.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">{% endblock %}
+
 {% block content %}
-
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Events · 2026 Cycle</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Where recognition <em style="color:var(--emerald-600)">happens.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Ceremonies, webinars and community sessions across the cycle — online and on the ground.</p>
+<div class="ei">
+  <div class="ei__head">
+    <div class="ei__lede">
+      <h1 class="ei__h1">{{ 'Events'|trans }}</h1>
+      <p class="ei__sub">{{ 'Ceremonies, training, livestreams and community days.'|trans }}</p>
     </div>
+    <a class="ei-btn ei-btn--line ei-btn--sm" href="/support">{{ 'Host an event'|trans }}</a>
   </div>
-</section>
 
-<section class="section" style="padding-top:1rem">
-  <div class="wrap">
-    <div class="r26-head">
-      <p class="r26-eyebrow">Upcoming</p>
-      <h2 class="r26-h2">Next on the <em>calendar</em></h2>
-    </div>
-    {% if upcoming is not empty %}
-    <div class="r26-mediagrid">
-      {% for e in upcoming %}
-      <article class="r26-mcard">
-        <div class="r26-mcard__media {% if not e.cover_image %}r26-mcard__media--empty{% endif %}">
-          {% if e.cover_image %}<img src="{{ e.cover_image }}" alt="{{ e.title }}" loading="lazy" decoding="async">{% endif %}
-          <span class="r26-mcard__badge">{{ e.location|default('Africa GATES') }}</span>
+  {# ══ SPOTLIGHT ═══════════════════════════════════════════════════════════════ #}
+  {% if _n %}
+  {# Tablet and desktop: the carousel. Without script the first slide shows and the
+     controls stay hidden — they would do nothing. #}
+  <section class="ei-spot" aria-roledescription="carousel" aria-label="{{ 'Spotlight events'|trans }}" data-ei-spot>
+    <div class="ei-spot__stage" aria-live="off" data-ei-stage>
+      {% for s in _spot %}
+      <div class="ei-slide ei-t--{{ s.tone }}" role="group" aria-roledescription="slide" aria-label="{{ '%i% of %n%: %title%'|trans({'%i%': loop.index, '%n%': _n, '%title%': s.title}) }}"
+           {%- if not loop.first %} aria-hidden="true" hidden{% else %} data-on{% endif %} data-ei-slide>
+        <div class="ei-slide__text">
+          <div class="ei-slide__chips"><span class="ei-pill"><i aria-hidden="true"></i>{{ s.kind_label }}</span>{% if s.relative %}<span class="ei-rel">{{ s.relative }}</span>{% endif %}</div>
+          <span class="ei-slide__date">{{ s.full_date }}</span>
+          <h2 class="ei-slide__t"><a href="{{ s.url }}">{{ s.title }}</a></h2>
+          {% set _where = [s.where ~ (s.city and s.city != s.where ? (s.where ? ', ' : '') ~ s.city), s.host]|filter(v => v) %}
+          {% if _where %}<span class="ei-slide__m">{{ _where|join(' · ') }}</span>{% endif %}
+          {% if s.going > 0 %}<span class="ei-slide__going"><b>{{ s.going|number_format }}</b> {{ s.live ? 'watching'|trans : 'going'|trans }}</span>{% endif %}
+          {% if s.state == 'soon' and s.opens_text %}<span class="ei-slide__m">{{ 'Tickets go on sale %when%.'|trans({'%when%': s.opens_text}) }}</span>{% endif %}
+          <div class="ei-slide__acts">{{ m.cta(s) }}</div>
+          {% set _sc = stand_calls[s.id]|default(null) %}
+          {% if _sc %}<a class="ei-slide__stand" href="{{ s.url }}/stands">{{ 'Vendor stands are open'|trans }}{% if _sc.closes_at %} · {{ 'apply by %date%'|trans({'%date%': _sc.closes_at|date('j M')}) }}{% endif %}</a>{% endif %}
         </div>
-        <div class="r26-mcard__body">
-          <div class="r26-when">
-            <span class="r26-when__cal" aria-hidden="true">
-              <span class="r26-when__mon">{{ e.event_date|date('M') }}</span>
-              <span class="r26-when__day">{{ e.event_date|date('j') }}</span>
-            </span>
-            <span class="r26-mcard__meta" style="margin:0">{{ e.event_date|date('l, j F Y · H:i') }}</span>
-          </div>
-          <h3 class="r26-mcard__title">{{ e.title }}</h3>
-          <p class="r26-mcard__desc">{{ e.tagline|default(e.description|slice(0,140)) }}</p>
-          <div class="r26-mcard__foot">
-            <span>{{ e.venue|default(e.location) }}</span>
-            {% if e.rsvp_url %}<a class="r26-mcard__link" href="{{ e.rsvp_url }}">Reserve
-              <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>{% endif %}
-          </div>
+        <div class="ei-slide__vis">
+          {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', src: s.image, name: s.title, alt: s.title,
+               eager: loop.first, cover_kind: s.cover_kind, award_linked: s.award_linked, content: 'none', label: false,
+               tone: s.live ? 'live' : null} only %}
+          <span class="ei-slide__fade" aria-hidden="true"></span>
         </div>
-      </article>
+      </div>
       {% endfor %}
     </div>
-    {% else %}
-    <div class="r26-empty">
-      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-      <h3>No upcoming events just yet</h3>
-      <p>The next ceremony, webinar or community session will be announced here — and in the community channels first.</p>
-      <a class="btn btn--emerald" href="/community">Join the community</a>
+    {% if _n > 1 %}
+    <div class="ei-spot__ctl" data-ei-ctl hidden>
+      <div class="ei-spot__nav">
+        <span class="ei-spot__count" data-ei-count>1 / {{ _n }}</span>
+        <div class="ei-spot__bars" role="tablist" aria-label="{{ 'Choose a spotlight event'|trans }}">
+          {% for s in _spot %}<button type="button" class="ei-bar" role="tab" aria-selected="{{ loop.first ? 'true' : 'false' }}" aria-label="{{ 'Event %i% of %n%'|trans({'%i%': loop.index, '%n%': _n}) }}" data-ei-bar="{{ loop.index0 }}"><span><i></i></span></button>{% endfor %}
+        </div>
+      </div>
+      <div class="ei-spot__btns">
+        <button type="button" class="ei-round" data-ei-toggle aria-label="{{ 'Pause the spotlight'|trans }}" data-play-label="{{ 'Play the spotlight'|trans }}" data-pause-label="{{ 'Pause the spotlight'|trans }}">
+          <svg class="ei-round__pause" width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><rect x="2.5" y="1.5" width="3" height="11" rx="1"/><rect x="8.5" y="1.5" width="3" height="11" rx="1"/></svg>
+          <svg class="ei-round__play" width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3.5 1.5v11l9-5.5z"/></svg>
+        </button>
+        <button type="button" class="ei-round" data-ei-prev aria-label="{{ 'Previous event'|trans }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="ei-dir" d="m15 18-6-6 6-6"/></svg></button>
+        <button type="button" class="ei-round" data-ei-next aria-label="{{ 'Next event'|trans }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="ei-dir" d="m9 6 6 6-6 6"/></svg></button>
+      </div>
     </div>
     {% endif %}
-  </div>
-</section>
+  </section>
 
-{% if past is not empty %}
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="r26-surface">
-      <div class="r26-head">
-        <p class="r26-eyebrow">Archive</p>
-        <h2 class="r26-h2">Past <em>events</em></h2>
-      </div>
-      <div class="r26-mediagrid">
-        {% for e in past %}
-        <article class="r26-mcard">
-          <div class="r26-mcard__media {% if not e.cover_image %}r26-mcard__media--empty{% endif %}">
-            {% if e.cover_image %}<img src="{{ e.cover_image }}" alt="{{ e.title }}" loading="lazy" decoding="async">{% endif %}
-          </div>
-          <div class="r26-mcard__body">
-            <p class="r26-mcard__meta">{{ e.event_date|date('j F Y') }} · {{ e.location }}</p>
-            <h3 class="r26-mcard__title">{{ e.title }}</h3>
-            <p class="r26-mcard__desc">{{ e.tagline }}</p>
-          </div>
-        </article>
+  {# Phone: a native scroll-snap row, no auto-advance. Its own markup, never the carousel
+     reflowed (skill §0.1). #}
+  <section class="ei-spotph" aria-label="{{ 'Spotlight events'|trans }}">
+    <ul class="ei-spotph__track" data-ei-phtrack>
+      {% for s in _spot %}
+      <li><a class="ei-spotph__card ei-t--{{ s.tone }}" href="{{ s.url }}">
+        <span class="ei-spotph__vis">
+          {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', src: s.image, name: s.title,
+               eager: loop.first, cover_kind: s.cover_kind, award_linked: s.award_linked, content: 'none', label: false,
+               tone: s.live ? 'live' : null} only %}
+          <span class="ei-pill"><i aria-hidden="true"></i>{{ s.kind_label }}</span>
+        </span>
+        <span class="ei-spotph__text">
+          <span class="ei-spotph__date">{{ s.short_date }}{% if s.relative %} · {{ s.relative }}{% endif %}</span>
+          <span class="ei-spotph__t">{{ s.title }}</span>
+          {% set _where = [s.where ~ (s.city and s.city != s.where ? (s.where ? ', ' : '') ~ s.city), s.host]|filter(v => v) %}
+          {% if _where %}<span class="ei-spotph__m">{{ _where|join(' · ') }}</span>{% endif %}
+        </span>
+      </a></li>
+      {% endfor %}
+    </ul>
+    {% if _n > 1 %}<div class="ei-spotph__dots" aria-hidden="true">{% for s in _spot %}<span{% if loop.first %} data-on{% endif %}></span>{% endfor %}</div>{% endif %}
+  </section>
+  {% endif %}
+
+  {# ══ TOOLBAR ═════════════════════════════════════════════════════════════════
+     One GET form: Enter in the search submits it with whatever chip and type are already
+     chosen (the hidden fields), and Place submits it on change (events-index.js) or with
+     the search's Enter. #}
+  <div class="ei-bar-sticky">
+    <form class="ei-tools" method="get" action="/events" role="search">
+      {% if _x.f != 'all' %}<input type="hidden" name="f" value="{{ _x.f }}">{% endif %}
+      {% if _x.type %}<input type="hidden" name="type" value="{{ _x.type }}">{% endif %}
+      <label class="ei-search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+        <input type="search" name="q" value="{{ _x.q }}" enterkeyhint="search" autocomplete="off" aria-label="{{ 'Search events'|trans }}" placeholder="{{ 'Search events, hosts and places'|trans }}">
+        {% if _x.q %}<a class="ei-search__x" href="/events{{ _noq ? '?' ~ _noq|url_encode }}" aria-label="{{ 'Clear search'|trans }}"><span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></span></a>{% endif %}
+      </label>
+      <div class="ei-chips" role="group" aria-label="{{ 'Quick filters'|trans }}">
+        {% for c in _chips %}
+          {# "All" clears the type, as the DC's does; every other chip keeps it. #}
+          {% set _p = _keep|merge(c.key == 'all' ? {} : {f: c.key}|merge(_x.type ? {type: _x.type} : {})) %}
+          <a class="ei-chip" href="/events{{ _p ? '?' ~ _p|url_encode }}"{% if _x.f == c.key %} aria-current="true"{% endif %}>{{ c.label }}</a>
         {% endfor %}
+        <select class="ei-chip ei-chip--sel" name="place" aria-label="{{ 'Place'|trans }}" data-ei-autosubmit>
+          <option value="">{{ 'Anywhere'|trans }}</option>
+          {% for o in _x.places %}<option value="{{ o.value }}"{% if o.value|lower == _x.place|lower %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+
+  {% if not _x.filtering %}
+  {# ══ BROWSE BY TYPE ══════════════════════════════════════════════════════════ #}
+  <section class="ei-sec" aria-labelledby="ei-types">
+    <h2 class="ei-sec__t" id="ei-types">{{ 'Browse by type'|trans }}</h2>
+    <ul class="ei-types">
+      {% for t in _x.types %}
+      <li><a class="ei-type" href="/events?{{ _keep|merge({type: t.key})|url_encode }}">
+        <span class="ei-type__cover">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', src: '', name: t.label, cover_kind: t.kind, content: 'none', label: false} only %}</span>
+        <span class="ei-type__l"><b>{{ t.label }}</b><span>{{ t.n ? '%n% upcoming'|trans({'%n%': t.n}) : 'None upcoming'|trans }}</span></span>
+      </a></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {# ══ ROWS ════════════════════════════════════════════════════════════════════ #}
+  {% for r in _x.rows %}
+  <section class="ei-sec ei-row" aria-labelledby="{{ r.id }}">
+    <div class="ei-row__head">
+      <div class="ei-row__h"><h2 class="ei-sec__t" id="{{ r.id }}">{{ r.title }}</h2><span class="ei-row__sub">{{ r.sub }}</span></div>
+      <div class="ei-row__ctl">
+        {% if r.items|length > 3 %}<a class="ei-link" href="{{ r.all }}">{{ 'See all %n%'|trans({'%n%': r.items|length}) }}</a>{% endif %}
+        <button type="button" class="ei-round ei-row__arr" data-ei-scroll="-1" aria-label="{{ 'Scroll %row% back'|trans({'%row%': r.title}) }}" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="ei-dir" d="m15 18-6-6 6-6"/></svg></button>
+        <button type="button" class="ei-round ei-row__arr" data-ei-scroll="1" aria-label="{{ 'Scroll %row% on'|trans({'%row%': r.title}) }}" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="ei-dir" d="m9 6 6 6-6 6"/></svg></button>
       </div>
     </div>
-  </div>
-</section>
-{% endif %}
+    <ul class="ei-track" data-ei-track>
+      {% for e in r.items %}<li>{{ m.card(e) }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
 
+  {% if _x.recordings|length or _x.past_n %}
+  <section class="ei-sec ei-row" aria-labelledby="r-rec">
+    <div class="ei-row__head">
+      <div class="ei-row__h"><h2 class="ei-sec__t" id="r-rec">{{ 'Watch again'|trans }}</h2><span class="ei-row__sub">{{ _x.recordings|length ? 'Full recordings of past ceremonies and talks'|trans : 'Nothing has been recorded yet.'|trans }}</span></div>
+      <div class="ei-row__ctl">
+        {# The owner's "past events" view (4 Oct), every past event and not only the recorded ones. #}
+        <a class="ei-link" href="/events?f=past">{{ 'All past events'|trans }}</a>
+        {% if _x.recordings|length %}
+        <button type="button" class="ei-round ei-row__arr" data-ei-scroll="-1" aria-label="{{ 'Scroll %row% back'|trans({'%row%': 'Watch again'|trans}) }}" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="ei-dir" d="m15 18-6-6 6-6"/></svg></button>
+        <button type="button" class="ei-round ei-row__arr" data-ei-scroll="1" aria-label="{{ 'Scroll %row% on'|trans({'%row%': 'Watch again'|trans}) }}" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="ei-dir" d="m9 6 6 6-6 6"/></svg></button>
+        {% endif %}
+      </div>
+    </div>
+    {% if _x.recordings|length %}
+    <ul class="ei-track ei-track--rec" data-ei-track>
+      {% for e in _x.recordings %}<li>{{ m.rec(e) }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if not _x.rows and not _spot %}
+  <div class="ei-empty">
+    <span class="ei-empty__cv">{% include 'partials/cover.twig' with {subject: 'event', kind: 'community', content: 'none', ratio: '16/9', label: false} only %}</span>
+    <b class="ei-empty__t">{{ 'No upcoming events have been announced yet.'|trans }}</b>
+    <span class="ei-empty__p">{{ 'The newsletter says when the next one is announced.'|trans }}</span>
+    <a class="ei-btn ei-btn--line" href="/newsletter">{{ 'Get the newsletter'|trans }}</a>
+  </div>
+  {% endif %}
+
+  {# ══ HOSTING ═════════════════════════════════════════════════════════════════
+     Ink, not green: the page's green is ticket CTAs only (§6). There is no self-serve
+     event builder, so both doors are the team. #}
+  <section class="ei-host" aria-labelledby="ei-host">
+    <div class="ei-host__t">
+      <h2 class="ei-host__h" id="ei-host">{{ 'Hosting something?'|trans }}</h2>
+      <p class="ei-host__p">{{ 'Sell tickets, run a waiting list and stream it live. Tell us what you are planning and we will set it up with you.'|trans }}</p>
+    </div>
+    <div class="ei-host__acts"><a class="ei-btn ei-btn--ink" href="/support">{{ 'Create an event'|trans }}</a></div>
+  </section>
+
+  {% else %}
+  {# ══ RESULTS ═════════════════════════════════════════════════════════════════ #}
+  {% set _r = _x.results %}
+  <section class="ei-sec" aria-labelledby="ei-res">
+    <div class="ei-res__head">
+      <h2 class="ei-sec__t" id="ei-res" aria-live="polite">
+        {%- if _x.f == 'past' %}{{ _r|length == 1 ? '1 past event'|trans : '%n% past events'|trans({'%n%': _r|length}) }}
+        {%- elseif _x.f == 'soon' %}{{ _r|length == 1 ? '1 event coming soon'|trans : '%n% events coming soon'|trans({'%n%': _r|length}) }}
+        {%- else %}{{ _r|length == 1 ? '1 event'|trans : '%n% events'|trans({'%n%': _r|length}) }}{% endif -%}
+      </h2>
+      <a class="ei-link" href="/events">{{ 'Clear filters'|trans }}</a>
+    </div>
+    {% if _r|length %}
+      <ul class="ei-grid">
+        {% for e in _r %}<li>{{ m.card(e) }}</li>{% endfor %}
+      </ul>
+    {% else %}
+      <div class="ei-empty">
+        <span class="ei-empty__cv">{% include 'partials/cover.twig' with {subject: 'event', kind: 'community', content: 'none', ratio: '16/9', label: false} only %}</span>
+        <b class="ei-empty__t">{{ 'No events match yet'|trans }}</b>
+        <span class="ei-empty__p">{{ 'Try another place, a wider date, or search for a host.'|trans }}</span>
+        <a class="ei-btn ei-btn--line" href="/events">{{ 'Show all events'|trans }}</a>
+      </div>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
 {% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/events-index.js') }}"></script>{% endblock %}

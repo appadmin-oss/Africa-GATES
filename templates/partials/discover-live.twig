@@ -1,0 +1,120 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  DISCOVER · THE TIMELINE — "Happening now" (All) and "Everything happening now" (Live)
+  Phase 4, design/DiscoverPage.dc.html; REFERENCE §8.23. `/activity` was this, as a page.
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Included by pages/discover.twig, and rendered ALONE by `GET /discover?…&fragment=live`
+  for the Live tab's as-you-type search — so a row is drawn here and only here. The old
+  activity page kept a second copy of its row markup inside its script; two renderers of
+  one row is how a row comes to look different depending on whether you pressed Enter.
+
+  The rules activity.twig owed its rebuild (inventory: pages--activity.md), each kept:
+
+  · THE LIVE REGION IS THE STATUS LINE AND NOTHING ELSE. `role="status"` on a line that is
+    in the DOM before it has anything to say (a region added with its content is often not
+    announced). The LIST is never a live region: a screen reader would read every row on
+    every keystroke.
+  · Every row is a real link with a `<time datetime>` — machine-readable for assistive
+    technology and crawlers, "4 minutes ago" for a reader.
+  · "Understood as" — what a model read the query as — comes BEFORE the rows with its escape
+    hatch "Search these words literally instead"; the literal search offers the way back,
+    "Let the search interpret it". Both are links, so neither needs a script.
+  · A partial read says so: "Some activity sources are unavailable on this deployment
+    ({n} of {m} responded)". The denominator is the number of sources ASKED — the old page
+    typed "of 7" while ten sources ran.
+  · An empty result says what to try instead, and echoes the query escaped (autoescape).
+
+  Args: s (Discover::state), live (Discover::live), min_query.
+#}
+{% set _full    = s.tab == 'live' %}
+{% set _n       = live.rows|length %}
+<section class="dv-live" id="dvLive" aria-labelledby="dvLiveH" data-dv-live>
+  <div class="dv-sec__head">
+    <h2 class="dv-sec__h dv-live__h" id="dvLiveH"><span class="dv-live__dot" style="--dv-dot:var(--ag-live)" aria-hidden="true"></span>{{ (_full ? 'Everything happening now' : 'Happening now')|trans }}</h2>
+    {% if not _full %}<a class="dv-sec__more dv-live__all" href="{{ discover_url(s, {tab: 'live', page: 1}) }}" data-dv-tab="live">{{ 'See everything'|trans }}</a>{% endif %}
+  </div>
+
+  <p class="dv-live__status" id="dvStatus" role="status" aria-live="polite" aria-atomic="true" data-dv-status
+     data-offline="{{ 'We couldn’t reach Africa GATES. Press Search to load the page instead.'|trans }}"
+     data-min-text="{{ 'Type at least %n% characters.'|trans({'%n%': min_query}) }}">
+    {%- if live.unsourced -%}
+      {{ 'No recognitions are recorded on Africa GATES yet.'|trans }}
+    {%- elseif s.q -%}
+      {{ (_n == 1 ? '%n% result for “%q%”' : '%n% results for “%q%”')|trans({'%n%': _n, '%q%': s.q}) }}
+    {%- else -%}
+      {{ (_n == 1 ? 'Showing the most recent update' : 'Showing the %n% most recent updates')|trans({'%n%': _n}) }}
+    {%- endif -%}
+  </p>
+
+  <div data-dv-read>
+    {% if _full and live.understood %}
+      <p class="dv-read">
+        <b class="dv-read__t">{{ 'Understood as'|trans }}</b>
+        {% for u in live.understood %}<span class="dv-read__chip">{{ u }}</span>{% endfor %}
+        <a class="dv-read__go" href="{{ discover_url(s, {literal: true, page: 1}) }}">{{ 'Search these words literally instead'|trans }}</a>
+      </p>
+    {% elseif _full and s.literal and s.q %}
+      <p class="dv-read dv-read--plain">
+        <b class="dv-read__t">{{ 'Literal.'|trans }}</b> {{ 'Matching your words exactly.'|trans }}
+        <a class="dv-read__go" href="{{ discover_url(s, {literal: false, page: 1}) }}">{{ 'Let the search interpret it'|trans }}</a>
+      </p>
+    {% endif %}
+    {% if live.asked > 0 and live.sources < live.asked %}
+      <p class="dv-warn">{{ 'Some activity sources are unavailable on this deployment (%n% of %m% responded), so this timeline may be incomplete.'|trans({'%n%': live.sources, '%m%': live.asked}) }}</p>
+    {% endif %}
+  </div>
+
+  {% if _full %}
+    {# Chips that SUBMIT: buttons in a GET form, so `aria-pressed` is honest and the kind
+       changes with no script. Everything else the page holds travels as hidden fields. #}
+    <form class="dv-kinds" method="get" action="/discover" data-dv-kinds>
+      <input type="hidden" name="tab" value="live">
+      {% if s.q %}<input type="hidden" name="q" value="{{ s.q }}">{% endif %}
+      {% if s.literal and s.q %}<input type="hidden" name="literal" value="1">{% endif %}
+      {% if s.where %}<input type="hidden" name="where" value="{{ s.where }}">{% endif %}
+      {% if s.status %}<input type="hidden" name="status" value="{{ s.status }}">{% endif %}
+      {% for t in s.trust %}<input type="hidden" name="trust[]" value="{{ t }}">{% endfor %}
+      <div class="dv-kinds__row" role="toolbar" aria-label="{{ 'Kind of update'|trans }}">
+        {% for k, kd in discover_kinds() %}
+          <button type="submit" name="kind" value="{{ k }}" class="dv-kind" aria-pressed="{{ s.kind == k ? 'true' : 'false' }}"><span class="dv-dot" style="--dv-dot:var(--ag-{{ kd.dot }})" aria-hidden="true"></span>{{ kd.label|trans }}</button>
+        {% endfor %}
+      </div>
+    </form>
+  {% endif %}
+
+  <ul class="dv-list" id="dvLiveList" data-dv-list data-label="{{ 'Updates'|trans }}">
+    {% for r in live.rows %}
+      <li class="dv-list__i">
+        <a class="dv-row" href="{{ r.url }}" id="dv-r{{ loop.index }}">
+          <span class="dv-row__top">
+            <span class="dv-row__k"><span class="dv-dot" style="--dv-dot:var(--ag-{{ r.dot }})" aria-hidden="true"></span>{{ r.label }}</span>
+            {% if r.at %}<time class="dv-row__when" datetime="{{ r.at }}">{{ r.ago }}</time>{% endif %}
+          </span>
+          <span class="dv-row__t">{{ r.title }}</span>
+          {% if r.detail %}<span class="dv-row__d">{{ r.detail }}</span>{% endif %}
+        </a>
+      </li>
+    {% else %}
+      <li class="dv-list__empty">
+        {%- if live.unsourced -%}
+          {{ 'Nothing on this platform is recorded as a recognition yet, so there is nothing to list under this kind.'|trans }}
+        {%- elseif s.q -%}
+          {{ 'Nothing matches “%q%” yet. Try a nominee’s name, an award category or a country.'|trans({'%q%': s.q}) }}
+        {%- else -%}
+          {{ 'No updates to show yet.'|trans }}
+        {%- endif -%}
+      </li>
+    {% endfor %}
+  </ul>
+
+  <div data-dv-older>
+    {% if _full and live.more %}
+      {# A real link to the next page, anchored at the first row it adds — so with no script
+         the reader lands where the new rows begin, not back at the top. #}
+      <a class="dv-older" href="{{ discover_url(s, {page: live.page + 1}) }}#dv-r{{ _n + 1 }}" data-dv-older-go>{{ 'Show older updates'|trans }}</a>
+    {% elseif _full and live.deepest %}
+      <p class="dv-live__end">{{ 'That is as far back as this list goes. Search for a name, an award or a place to find something older.'|trans }}</p>
+    {% endif %}
+  </div>
+</section>

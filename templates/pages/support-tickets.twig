@@ -1,0 +1,138 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  YOUR SUPPORT TICKETS — /support/tickets (members) · Phase 9
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt on the shell (inventory: pages--support-tickets.md). The half of support Gee
+  cannot be: a conversation ends when the tab closes; a support ticket has a reference, a
+  state and a reply somebody can come back for. Members only, and not as gatekeeping — a
+  support ticket is a promise to reply, a reply needs a verified address, and following it
+  needs an account to follow it FROM (the controller sends a guest to sign in). A visitor
+  still reaches the same team through Gee's "talk to a person", or the emailed link.
+
+  · Always "support ticket", never a bare "ticket" — the member also has event tickets
+    (SupportTicketNamingTest).
+  · The list, the filter (All · Open · Settled, links that work without a script) and the
+    thread are server-drawn. tickets.js only posts: creating and replying go to
+    /api/v1/support/ticket and /api/v1/support/reply, multipart when there are files
+    (the browser must set the boundary itself), and the page reloads so the new turn is
+    shown rather than drawn optimistically — a reply that LOOKS sent and was not is the
+    failure this page exists to stop.
+  · A reference that is not theirs reads exactly like one that does not exist.
+  Colour tier 1: the submit buttons.
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Support tickets'|trans, sub: 'Help Centre'|trans, back: thread ? '/support/tickets' : '/support'} %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/help.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/support.css') }}">
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<div class="hc st" data-st>
+  {% if thread %}
+    {% set t = thread.ticket %}
+    {% set settled = t.status != 'open' %}
+    <nav class="ha__crumb" aria-label="{{ 'Breadcrumb'|trans }}"><a href="/support/tickets">{{ 'All support tickets'|trans }}</a></nav>
+    <div class="hc__head hc__head--start">
+      <p class="st-ref"><code class="st-ref__code">{{ t.reference }}</code></p>
+      <h1 class="hc__h1 st__h1">{{ t.subject }}</h1>
+    </div>
+    <div class="sp__grid">
+      <section class="sp__form" aria-labelledby="st-conv">
+        <h2 class="hc__h2" id="st-conv">{{ 'Conversation'|trans }}</h2>
+        {% include 'partials/support-thread.twig' with {t: t, messages: thread.messages, attachments: attachments, me: member_name|default('You'|trans)} only %}
+        <form class="st-compose" method="post" action="/api/v1/support/reply" enctype="multipart/form-data" data-st-form="reply">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="reference" value="{{ t.reference }}">
+          <label class="ag-label" for="stReply">{{ 'Your reply'|trans }}</label>
+          <span class="ag-field sp__area"><textarea id="stReply" name="body" maxlength="5000" rows="4" required
+                placeholder="{{ settled ? 'Still not right? Reply and this reopens.'|trans : 'Add anything that would help…'|trans }}"></textarea></span>
+          <label class="st-file"><span class="ag-label">{{ 'Attach a screenshot or receipt'|trans }}</span><input type="file" name="files[]" multiple accept="{{ attach_accept }}"></label>
+          <button class="ag-btn ag-btn--primary st-go" type="submit">{{ 'Send reply'|trans }}</button>
+          <p class="st-note" role="status" aria-live="polite" data-st-note></p>
+          <p class="ag-hint">{{ 'Your reply reaches the team by email, and theirs reaches you the same way. Attachments — up to %n% photos or PDFs, %s% each — are stored privately and only ever shown to you and the team.'|trans({'%n%': attach_max, '%s%': attach_limit}) }}</p>
+        </form>
+      </section>
+      <aside class="sp__side" aria-label="{{ 'Support ticket status'|trans }}">
+        <div class="ha__card">
+          <b class="ha__card-h">{{ settled ? 'Settled'|trans : 'Open'|trans }}</b>
+          <span class="ha__card-p">
+            {%- if settled %}{{ 'Nothing is waiting on you. If it is not actually settled, reply and it reopens.'|trans }}
+            {%- elseif t.severity == 'urgent' %}{{ 'Flagged urgent — a person is handling this one, not the assistant.'|trans }}
+            {%- else %}{{ 'With the team. You will get every reply by email as well as here.'|trans }}{% endif -%}
+          </span>
+        </div>
+        <div class="ha__box">
+          <b class="ha__box-h">{{ 'Details'|trans }}</b>
+          <dl class="st-facts">
+            <div><dt>{{ 'Reference'|trans }}</dt><dd><code class="st-ref__code">{{ t.reference }}</code></dd></div>
+            <div><dt>{{ 'Opened'|trans }}</dt><dd>{{ t.created_at|date('j M Y') }}</dd></div>
+            {% if t.last_activity and t.last_activity != t.created_at %}<div><dt>{{ 'Last activity'|trans }}</dt><dd>{{ t.last_activity|date('j M, H:i') }}</dd></div>{% endif %}
+            {% if t.severity != 'normal' %}<div><dt>{{ 'Priority'|trans }}</dt><dd>{{ t.severity|trans }}</dd></div>{% endif %}
+            {% if t.tools_used %}<div><dt>{{ 'Checked'|trans }}</dt><dd>{{ t.tools_used|replace({'_': ' '}) }}</dd></div>{% endif %}
+          </dl>
+        </div>
+        <p class="ag-hint">{{ 'Something else gone wrong?'|trans }} <a href="/help?gee=support">{{ 'Gee can re-check a payment on the spot'|trans }}</a>, {{ 'or email'|trans }} <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
+      </aside>
+    </div>
+  {% else %}
+    <nav class="ha__crumb" aria-label="{{ 'Breadcrumb'|trans }}"><a href="/help">{{ 'Help Centre'|trans }}</a><span aria-hidden="true">/</span><a href="/support">{{ 'Reach a person'|trans }}</a></nav>
+    <div class="hc__head hc__head--start">
+      <h1 class="hc__h1">{{ 'Your support tickets'|trans }}</h1>
+      <p class="hc__lede">{{ 'Everything you have raised, and every reply — from the team or from the assistant. Each one reaches you by email as well as appearing here.'|trans }}</p>
+    </div>
+    {% if not_found %}<p class="st-note st-note--err" role="alert">{{ 'No support ticket %r% on this account.'|trans({'%r%': not_found}) }}</p>{% endif %}
+
+    <div class="sp__grid">
+      <section class="hc__sec" aria-labelledby="st-list">
+        <h2 class="hc__h2" id="st-list">{{ tickets|length == 1 ? '1 support ticket'|trans : '%n% support tickets'|trans({'%n%': tickets|length}) }}</h2>
+        {% if tickets|length %}
+          <div class="hc__aud st-filter" role="group" aria-label="{{ 'Filter support tickets by status'|trans }}" hidden data-st-filter
+               data-none="{{ 'Nothing in this view right now.'|trans }}">
+            <button class="hc__chip" type="button" aria-pressed="true" data-st-show="all">{{ 'All'|trans }}</button>
+            <button class="hc__chip" type="button" aria-pressed="false" data-st-show="open">{{ 'Open'|trans }}</button>
+            <button class="hc__chip" type="button" aria-pressed="false" data-st-show="closed">{{ 'Settled'|trans }}</button>
+          </div>
+          <p class="hc__say" role="status" aria-live="polite" data-st-empty></p>
+          <ul class="hc-list" data-st-list>
+            {% for t in tickets %}
+              <li data-st-status="{{ t.status == 'open' ? 'open' : 'closed' }}">
+                <a class="hc-list__a" href="/support/tickets?ref={{ t.reference|url_encode }}">
+                  <span class="hc-list__w">
+                    <span class="hc-list__t">{{ t.subject }}</span>
+                    <span class="hc-list__c"><code class="st-ref__code">{{ t.reference }}</code> · {{ t.created_at|date('j M Y') }}{% if t.replies %} · {{ t.replies == 1 ? '1 reply'|trans : '%n% replies'|trans({'%n%': t.replies}) }}{% endif %}{% if t.answered_by_assistant %} · {{ 'answered by the assistant'|trans }}{% endif %}</span>
+                  </span>
+                  <span class="st-state">{{ t.status == 'open' ? ((t.waiting|default(false)) ? 'Waiting on the team'|trans : 'Open'|trans) : 'Settled'|trans }}</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="hc__lede st-empty">{{ 'No support tickets yet — which is the good outcome. If something is wrong,'|trans }} <a href="/help?gee=support">{{ 'Gee can often fix it on the spot'|trans }}</a>.</p>
+        {% endif %}
+      </section>
+      <aside class="sp__form" aria-labelledby="st-new">
+        <h2 class="hc__h2" id="st-new">{{ 'Raise a support ticket'|trans }}</h2>
+        <form class="st-compose" method="post" action="/api/v1/support/ticket" enctype="multipart/form-data" data-st-form="create">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <label class="ag-label" for="stSubject">{{ 'Subject (optional)'|trans }}</label>
+          <span class="ag-field"><input id="stSubject" name="subject" maxlength="180"></span>
+          <label class="ag-label" for="stBody">{{ 'What has gone wrong?'|trans }}</label>
+          <span class="ag-field sp__area"><textarea id="stBody" name="body" maxlength="5000" rows="5" required aria-describedby="stBodyHint"></textarea></span>
+          <p class="ag-hint" id="stBodyHint">{{ 'A payment reference is the most useful thing you can include — it is on the payment page, in your bank alert, and in any receipt you did get.'|trans }}</p>
+          <label class="st-file"><span class="ag-label">{{ 'Attach evidence'|trans }}</span><input type="file" name="files[]" multiple accept="{{ attach_accept }}"></label>
+          <button class="ag-btn ag-btn--primary st-go" type="submit">{{ 'Open support ticket'|trans }}</button>
+          <p class="st-note" role="status" aria-live="polite" data-st-note></p>
+        </form>
+      </aside>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/tickets.js') }}"></script>{% endblock %}

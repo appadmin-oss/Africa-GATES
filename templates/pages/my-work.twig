@@ -1,0 +1,196 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /my-work/{token} — a nominee tells the judges about their work (MyWorkController::page).
+  Destroyed on 3 Oct with the old pages and rebuilt on 16 Oct from its inventory
+  (docs/handoff/inventory/pages--my-work.md); every nominee's emailed link was a 500 until
+  then.
+
+  The rules that page carried, kept:
+    · the BRIEF comes first, before any question (POST …/ready), because nobody should
+      describe their life's work without being told what this is and that nothing is sent
+      until they press the button;
+    · one question at a time, ASKED: with JavaScript the questions become steps with a map,
+      Next as the primary control and Back beside it — and every field stays in the DOM at
+      every step, so whatever was typed is posted (assets/js/my-work.js). Without
+      JavaScript it is the whole form, which works;
+    · a microphone beside long answers when voice is on: dictation goes into the field it
+      was started from, never a global box;
+    · attaching a file never asks anybody to save first, and an oversize file is told the
+      route that works (a link);
+    · the way back to the live interview stays, for somebody who was in it;
+    · an unknown link says nothing about whether it ever existed; the page is noindex
+      (the controller's header) and nothing on it costs money.
+  The upload is its own form after the main one: a <form> inside a <form> is silently
+  deleted by the HTML parser (NestedFormTest).
+#}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', title: 'Your work'|trans} %}
+{% set _a = form ? form.answers : {} %}
+{% set _works = form ? form.works : [] %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/my-work.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="mw">
+{% if form is null %}
+  <section class="mw__card">
+    <h1 class="mw__h1">{{ 'This link is not working'|trans }}</h1>
+    <p class="mw__p">{{ 'It may have been mistyped, or replaced by a newer one. Use the link in your most recent email from us.'|trans }}</p>
+    {% if support_email %}<p class="mw__p">{{ 'Still stuck? Write to'|trans }} <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>{% endif %}
+  </section>
+{% else %}
+
+  {% if form.is_test %}<p class="mw__test" role="status">{{ 'This is a test link. Nothing typed here reaches a judge.'|trans }}</p>{% endif %}
+
+  <header class="mw__head">
+    <p class="mw__kicker">{{ form.programme }}{% if form.category %} · {{ form.category }}{% endif %}</p>
+    <h1 class="mw__h1">{{ '%n% — tell the judges about your work'|trans({'%n%': form.nominee}) }}</h1>
+    {% if form.deadline %}<p class="mw__p">{{ 'Please send it by %d%.'|trans({'%d%': form.deadline}) }} {{ 'Nothing here costs money.'|trans }}</p>{% else %}<p class="mw__p">{{ 'Nothing here costs money.'|trans }}</p>{% endif %}
+  </header>
+
+  {% if notice %}<p class="mw__flash mw__flash--ok" role="status">{{ notice }}</p>{% endif %}
+  {% if error %}<p class="mw__flash mw__flash--err" role="alert">{{ error }}</p>{% endif %}
+  {% if missing|length %}
+    <div class="mw__flash mw__flash--err" role="alert">
+      <p>{{ 'Before it can be sent, these still need an answer:'|trans }}</p>
+      <ul>{% for q in form.questions %}{% if q.slug in missing %}<li><a href="#q-{{ q.slug }}">{{ q.label }}</a></li>{% endif %}{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  {% if form.submitted %}
+    <section class="mw__card">
+      <h2 class="mw__h2">{{ 'This has gone to the judging panel'|trans }}</h2>
+      <p class="mw__p">{{ 'Thank you. Your answers and works were sent%on%. You do not need to do anything else; we will email you if the panel has a question.'|trans({'%on%': form.submitted_at ? ' on ' ~ form.submitted_at|date('j M Y') : ''}) }}</p>
+    </section>
+
+  {% elseif not intro_ready %}
+    <section class="mw__card" aria-labelledby="mw-brief">
+      <h2 class="mw__h2" id="mw-brief">{{ 'Before you start — what this is, and what happens to it'|trans }}</h2>
+      {% for para in brief %}<p class="mw__p">{{ para }}</p>{% endfor %}
+      <form method="post" action="/my-work/{{ token }}/ready">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button type="submit" class="ag-btn ag-btn--primary">{{ 'I have read this — let’s start'|trans }}</button>
+      </form>
+    </section>
+
+  {% else %}
+    {% if voice %}
+    <section class="mw__card" aria-labelledby="mw-intro" data-mw-intro data-max="{{ intro_max }}">
+      <h2 class="mw__h2" id="mw-intro">{{ 'Introduce yourself out loud — optional'|trans }}</h2>
+      <p class="mw__help">{{ 'Up to %s% seconds, in your own voice. The panel only hears it if you say they may.'|trans({'%s%': intro_max}) }}</p>
+      {% if intro.has %}
+        <audio class="mw__audio" controls preload="none" src="{{ intro.url }}"></audio>
+        <p class="mw__p" data-mw-intro-state>{{ intro.consented ? 'The panel may hear this.'|trans : 'Recorded. The panel will not hear it unless you agree.'|trans }}</p>
+      {% else %}
+        <p class="mw__p" data-mw-intro-state>{{ 'Nothing recorded yet.'|trans }}</p>
+      {% endif %}
+      <div class="mw__do">
+        <button type="button" class="ag-btn ag-btn--secondary" data-mw-intro-rec aria-pressed="false">{{ intro.has ? 'Record it again'|trans : 'Record'|trans }}</button>
+        {% if intro.has and not intro.consented %}<button type="button" class="ag-btn ag-btn--primary" data-mw-intro-act="consent">{{ 'Yes — the panel may hear this'|trans }}</button>{% endif %}
+        {% if intro.has %}<button type="button" class="ag-btn ag-btn--secondary" data-mw-intro-act="delete">{{ 'Delete it'|trans }}</button>{% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    <form method="post" action="/my-work/{{ token }}" class="mw__form" data-mw-form data-token="{{ token }}"{% if voice %} data-mw-voice{% endif %}>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      <nav class="mw__map" data-mw-map hidden aria-label="{{ 'Questions'|trans }}">
+        <ol>{% for q in form.questions %}<li><button type="button" data-mw-goto="{{ loop.index0 }}" aria-label="{{ 'Question %n%'|trans({'%n%': loop.index}) }}">{{ loop.index }}</button></li>{% endfor %}</ol>
+      </nav>
+
+      {% for q in form.questions %}
+        {% set _v = _a[q.slug] ?? '' %}
+        <fieldset class="mw__q" id="q-{{ q.slug }}" data-mw-step>
+          <legend class="mw__qh"><span class="mw__qn" aria-hidden="true">{{ loop.index }}</span>{{ q.label }}</legend>
+          <p class="mw__req">{{ q.is_required ? 'Needs an answer'|trans : 'Optional — skip it if it does not apply'|trans }}</p>
+          {% if q.help %}<p class="mw__help" id="h-{{ q.slug }}">{{ q.help }}</p>{% endif %}
+          {% if looking_for[q.slug] ?? '' %}<p class="mw__look"><b>{{ 'What a judge is looking for:'|trans }}</b> {{ looking_for[q.slug] }}</p>{% endif %}
+          <label class="ag-sr" for="a-{{ q.slug }}">{{ q.label }}</label>
+          {% if q.kind == 'textarea' %}
+            <textarea class="mw__in" id="a-{{ q.slug }}" name="a[{{ q.slug }}]" rows="6"{% if q.max_len %} maxlength="{{ q.max_len }}"{% endif %}{% if q.help %} aria-describedby="h-{{ q.slug }}"{% endif %}>{{ _v }}</textarea>
+            {% if voice %}<button type="button" class="ag-btn ag-btn--secondary mw__mic" data-mw-dictate="a-{{ q.slug }}" aria-pressed="false">{{ 'Say it instead of typing'|trans }}</button>{% endif %}
+          {% elseif q.kind == 'select' %}
+            <select class="mw__in" id="a-{{ q.slug }}" name="a[{{ q.slug }}]">
+              <option value="">{{ 'Choose one'|trans }}</option>
+              {% for opt in (q.options ?? []) %}<option value="{{ opt }}"{{ _v == opt ? ' selected' }}>{{ opt }}</option>{% endfor %}
+            </select>
+          {% else %}
+            <input class="mw__in" id="a-{{ q.slug }}" name="a[{{ q.slug }}]" type="{{ q.kind == 'url' ? 'url' : (q.kind == 'number' ? 'number' : (q.kind == 'date' ? 'date' : 'text')) }}" value="{{ _v }}"{% if q.max_len %} maxlength="{{ q.max_len }}"{% endif %}{% if q.help %} aria-describedby="h-{{ q.slug }}"{% endif %}>
+          {% endif %}
+          <div class="mw__nav" data-mw-nav hidden>
+            {% if not loop.first %}<button type="button" class="ag-btn ag-btn--secondary" data-mw-back>{{ '← Back'|trans }}</button>{% endif %}
+            {% if not loop.last %}<button type="button" class="ag-btn ag-btn--primary" data-mw-next>{{ q.is_required ? 'Next question'|trans : 'Next — or skip'|trans }}</button>{% endif %}
+          </div>
+        </fieldset>
+      {% endfor %}
+
+      <fieldset class="mw__q mw__works" data-mw-step>
+        <legend class="mw__qh">{{ 'Your works and evidence'|trans }}</legend>
+        <p class="mw__help">{{ 'Anything a judge can open: a link, a document, a photo, an award, a press piece. Up to %n% items.'|trans({'%n%': form.max_works}) }}</p>
+        {% set _rows = _works|length < form.max_works ? _works|merge([{uid: 'w' ~ (_works|length + 1)}]) : _works %}
+        {% for w in _rows %}
+          <div class="mw__work">
+            <input type="hidden" name="w[{{ loop.index0 }}][uid]" value="{{ w.uid ?? ('w' ~ loop.index) }}">
+            <label class="mw__lbl">{{ 'Title'|trans }}<input class="mw__in" name="w[{{ loop.index0 }}][title]" value="{{ w.title ?? '' }}" maxlength="200"></label>
+            <label class="mw__lbl">{{ 'What is it?'|trans }}
+              <select class="mw__in" name="w[{{ loop.index0 }}][kind]">
+                <option value="">{{ 'Choose one'|trans }}</option>
+                {% for k, l in {document: 'A document', link: 'A link', media: 'A photo or video', award: 'An award', press: 'Press coverage'} %}<option value="{{ k }}"{{ (w.kind ?? '') == k ? ' selected' }}>{{ l|trans }}</option>{% endfor %}
+              </select>
+            </label>
+            <label class="mw__lbl">{{ 'Year'|trans }}<input class="mw__in" name="w[{{ loop.index0 }}][year]" value="{{ w.year ?? '' }}" maxlength="40" inputmode="numeric"></label>
+            <label class="mw__lbl">{{ 'Link'|trans }}<input class="mw__in" type="url" name="w[{{ loop.index0 }}][link]" value="{{ w.link ?? '' }}" maxlength="600" placeholder="https://"></label>
+            <label class="mw__lbl">{{ 'A line about it'|trans }}<textarea class="mw__in" name="w[{{ loop.index0 }}][description]" rows="2" maxlength="1500">{{ w.description ?? '' }}</textarea></label>
+            {% if w.file_name ?? '' %}<p class="mw__file">{{ 'Attached: %f%'|trans({'%f%': w.file_name}) }}</p>{% endif %}
+          </div>
+        {% endfor %}
+      </fieldset>
+
+      <fieldset class="mw__q mw__send" data-mw-step>
+        <legend class="mw__qh">{{ 'Send it to the judges'|trans }}</legend>
+        <p class="mw__help">{{ 'Nothing is sent until you press the button. Type your full name to confirm that what you have written is true.'|trans }}</p>
+        <p class="mw__ready" role="status">
+          {%- if readiness.ready %}{{ 'Everything the panel needs is here.'|trans }}{% else %}{{ readiness.missing|length == 1 ? 'One question still needs an answer.'|trans : '%n% questions still need an answer.'|trans({'%n%': readiness.missing|length}) }}{% endif %}
+          {{ '%w% works listed, %f% files attached.'|trans({'%w%': readiness.works, '%f%': readiness.files}) }}
+        </p>
+        <label class="mw__lbl" for="declared_name">{{ 'Your full name'|trans }}</label>
+        <input class="mw__in" id="declared_name" name="declared_name" value="{{ form.declared_name }}" maxlength="200" autocomplete="name">
+        <div class="mw__do">
+          <button type="submit" name="action" value="submit" class="ag-btn ag-btn--primary">{{ 'Send to the judges'|trans }}</button>
+          <button type="submit" name="action" value="save" class="ag-btn ag-btn--secondary">{{ 'Save and finish later'|trans }}</button>
+        </div>
+        <div class="mw__nav" data-mw-nav hidden><button type="button" class="ag-btn ag-btn--secondary" data-mw-back>{{ '← Back'|trans }}</button></div>
+      </fieldset>
+    </form>
+
+    <section class="mw__card" aria-labelledby="mw-up">
+      <h2 class="mw__h2" id="mw-up">{{ 'Attach a file'|trans }}</h2>
+      <p class="mw__help">{{ 'You do not need to save first. PDF or an image, up to %mb% MB each and %n% files in all. Bigger than that? Put it online and paste the link in a work above.'|trans({'%mb%': form.max_file_mb, '%n%': form.max_files}) }}</p>
+      <form method="post" action="/my-work/{{ token }}/upload" enctype="multipart/form-data" class="mw__up">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <label class="mw__lbl">{{ 'For which work?'|trans }}
+          <select class="mw__in" name="uid">
+            {% for w in _works %}<option value="{{ w.uid }}">{{ w.title ?: 'Work %n%'|trans({'%n%': loop.index}) }}</option>{% endfor %}
+            <option value="w{{ _works|length + 1 }}">{{ 'A new work (named after the file)'|trans }}</option>
+          </select>
+        </label>
+        <label class="mw__lbl">{{ 'File'|trans }}<input class="mw__in" type="file" name="file" accept=".pdf,image/*" required></label>
+        <button type="submit" class="ag-btn ag-btn--secondary">{{ 'Upload'|trans }}</button>
+      </form>
+    </section>
+
+    {% if can_resume_interview %}
+      <form method="post" action="/my-work/{{ token }}/interview/resume" class="mw__resume">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button type="submit" class="ag-btn ag-btn--secondary">{{ 'Would you rather answer these out loud, in a conversation?'|trans }}</button>
+      </form>
+    {% endif %}
+  {% endif %}
+{% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/my-work.js') }}"></script>{% endblock %}

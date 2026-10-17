@@ -1,59 +1,73 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  START A THREAD — /community/new · CommunityController::threadNew / threadCreate · Phase 8
+  Built without a DC (PHASE-8.md "built without a DC")
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct (inventory pages--community--new-thread.md); rebuilt on the shell.
+  · MEMBERS ONLY — the controller sends a guest to sign in before this renders.
+  · NO NAME OR EMAIL FIELDS — the author is stamped from the account (asMember()).
+  · The form posts with no script; the poll is optional and its option rows are plain
+    inputs (six of them, empty ones ignored by createPoll), so adding an option needs no
+    script either — community.js is not loaded here.
+  · The refusal (too fast, spam, missing fields) is the flash, drawn above the form with
+    the reason in words. Three threads an hour per connection (threadCreate's throttle).
+#}
+{% import 'partials/field.twig' as f %}
+{% set own_flash = true %}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'New thread'|trans, back: '/community'} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/community.css') }}">
+{% endblock %}
+
 {% block content %}
+<div class="cm cm--narrow">
+  <div class="cm-col cm-col--pad">
+    <h1 class="cm-h1">{{ 'Start a thread'|trans }}</h1>
+    <p class="cm-lede">{{ 'Ask a question, share some news or start a conversation about an award. Your name comes from your account.'|trans }}</p>
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Start a thread</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Open a <em style="color:var(--emerald-600)">conversation.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Threads are moderated for signal. Keep them specific, attributed, and useful to the next reader.</p>
-    </div>
-  </div>
-</section>
+    {% if flash_error %}<p class="cm-say cm-say--error" role="alert">{{ flash_error }}</p>{% endif %}
 
-<section class="section" style="padding-top:1rem">
-  <div class="wrap" style="max-width:46rem">
-    <div class="r26-surface">
-      <form method="POST" action="/community/new" class="form-stack" data-anim>
-        <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <div class="form-group">
-          <label class="form-label" for="tProg">Channel</label>
-          <select id="tProg" name="programme_id" class="form-select">
-            <option value="">— General —</option>
-            {% for p in channels|default([
-              {id:1, title:'Principals Awards'},
-              {id:2, title:'Incorruptible Awards'},
-              {id:3, title:'Carol Awards'},
-              {id:4, title:'Business Excellence'}
-            ]) %}
-            <option value="{{ p.id }}">{{ p.title }}</option>
+    <form class="cm-form" method="post" action="/community/new" aria-labelledby="cm-new-h">
+      <h2 class="ag-sr" id="cm-new-h">{{ 'New thread details'|trans }}</h2>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      <div class="ag-fieldset">
+        <label class="ag-label" for="cm-prog">{{ 'Space'|trans }} <span class="ag-label__opt">{{ 'Optional'|trans }}</span></label>
+        <select class="ag-input" id="cm-prog" name="programme_id" aria-describedby="cm-prog-hint">
+          <option value="">{{ 'General — not about one award'|trans }}</option>
+          {% for p in programmes %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}
+        </select>
+        <p class="ag-hint" id="cm-prog-hint">{{ 'Pick the award this is about, so people following it see it.'|trans }}</p>
+      </div>
+
+      {{ f.text({id: 'cm-title', name: 'title', label: 'Title'|trans, required: true, maxlength: 160}) }}
+      {{ f.textarea({id: 'cm-body', name: 'body', label: 'What do you want to say?'|trans, required: true, rows: 7, maxlength: 8000}) }}
+
+      <details class="cm-poll">
+        <summary class="cm-poll__s">{{ 'Add a poll'|trans }} <span class="ag-label__opt">{{ 'Optional'|trans }}</span></summary>
+        <div class="cm-poll__b">
+          {{ f.text({id: 'cm-pq', name: 'poll_question', label: 'Question'|trans, maxlength: 200}) }}
+          <fieldset class="cm-poll__opts">
+            <legend class="ag-label">{{ 'Answers — at least two; empty ones are left out'|trans }}</legend>
+            {% for i in 1..6 %}
+              <label class="ag-sr" for="cm-po-{{ i }}">{{ 'Answer %n%'|trans({'%n%': i}) }}</label>
+              <input class="ag-input" id="cm-po-{{ i }}" name="poll_options[]" maxlength="80" placeholder="{{ 'Answer %n%'|trans({'%n%': i}) }}">
             {% endfor %}
-          </select>
+          </fieldset>
+          <label class="cm-check"><input type="checkbox" name="poll_multi" value="1"> {{ 'People may choose more than one'|trans }}</label>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="tTitle">Title</label>
-          <input id="tTitle" name="title" class="form-input" type="text" required maxlength="140" placeholder="A one-line question or claim">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="tBody">Body</label>
-          <textarea id="tBody" name="body" class="form-textarea" rows="6" required minlength="40" placeholder="Specifics, evidence, links. The first paragraph matters."></textarea>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="tName">Your name</label>
-            <input id="tName" name="author_name" class="form-input" type="text" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="tEmail">Email <span class="text-soft" style="font-weight:400">(OTP)</span></label>
-            <input id="tEmail" name="author_email" class="form-input" type="email" required>
-          </div>
-        </div>
-        <button class="btn btn--emerald" type="submit" style="align-self:flex-start">Publish thread</button>
-      </form>
-    </div>
-    <div class="r26-note r26-note--emerald" style="margin-top:1.25rem"><strong>Before you post:</strong> threads are reviewed by moderators. Specific, evidenced posts surface faster — your email is used only for one-time verification.</div>
-  </div>
-</section>
+      </details>
 
+      <p class="ag-hint">{{ 'Posts that look like spam wait for a moderator before anybody sees them.'|trans }} <a href="/integrity">{{ 'The moderation rules'|trans }}</a></p>
+      <div class="cm-form__go">
+        <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/community">{{ 'Cancel'|trans }}</a>
+        <button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Publish thread'|trans }}</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}

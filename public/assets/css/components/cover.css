@@ -1,0 +1,252 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE DEFAULT COVER AND AVATAR — partials/cover.twig, partials/avatar.twig
+   DEFAULT-GRAPHICS §3–§8 · design/DefaultCover.dc.html, DefaultAvatar.dc.html (5 Oct 2026)
+   ══════════════════════════════════════════════════════════════════════════════
+
+   No colour is typed here (ColourLiteralTest): the five tones are Accent's
+   `--ag-cover-{tone}-{bg|line|ink}`, and the pattern's two strengths are the tone's line
+   at the DC's alphas (0x38, 0x14) through color-mix.
+
+   ── ONE DEVIATION, AND WHY ──────────────────────────────────────────────────
+
+   The DC sizes the cover's TYPE with `clamp(…, n cqmin, …)`. This repository refuses
+   container units and clamp() in font sizes (TypeScaleTest; owner, 3 Oct 2026 — "a
+   breakpoint is a QUERY, not a unit"), so the type here steps through six container-size
+   bands instead, each the DC's own formula evaluated in that band and set from the type
+   tokens. The GEOMETRY — padding, radii, tile and pill sizes — is not type, and uses the
+   DC's cqmin clamps exactly. The month and the pill never go under the 11.5px rung, where
+   the DC's minimum is 10.5px and 11px. Recorded in docs/handoff/PHASE-DEFAULT-GRAPHICS.md.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ag-cover {
+  --cv-a: color-mix(in srgb, var(--cv-line) 21.96%, transparent);
+  --cv-b: color-mix(in srgb, var(--cv-line) 7.84%, transparent);
+  position: relative; display: block; width: 100%; overflow: hidden;
+  container-type: size;
+  background: var(--cv-bg); color: var(--ag-ink);
+  font-family: var(--ag-font-ui);
+}
+.ag-cover--fill { height: 100%; }
+
+.ag-cover--green { --cv-bg: var(--ag-cover-green-bg); --cv-line: var(--ag-cover-green-line); --cv-ink: var(--ag-cover-green-ink); --cv-games: url('/img/patterns/games-green.svg'); }
+.ag-cover--gold  { --cv-bg: var(--ag-cover-gold-bg);  --cv-line: var(--ag-cover-gold-line);  --cv-ink: var(--ag-cover-gold-ink);  --cv-games: url('/img/patterns/games-gold.svg'); }
+.ag-cover--live  { --cv-bg: var(--ag-cover-live-bg);  --cv-line: var(--ag-cover-live-line);  --cv-ink: var(--ag-cover-live-ink);  --cv-games: url('/img/patterns/games-live.svg'); }
+.ag-cover--info  { --cv-bg: var(--ag-cover-info-bg);  --cv-line: var(--ag-cover-info-line);  --cv-ink: var(--ag-cover-info-ink);  --cv-games: url('/img/patterns/games-info.svg'); }
+.ag-cover--stone { --cv-bg: var(--ag-cover-stone-bg); --cv-line: var(--ag-cover-stone-line); --cv-ink: var(--ag-cover-stone-ink); --cv-games: url('/img/patterns/games-stone.svg'); }
+
+/* ── the pattern, faded where the content sits (§6) ─────────────────────────── */
+.ag-cover__pat {
+  position: absolute; inset: 0;
+  -webkit-mask-image: linear-gradient(100deg, transparent 0 22%, black 70%);
+          mask-image: linear-gradient(100deg, transparent 0 22%, black 70%);
+}
+.ag-cover--none .ag-cover__pat {
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 0 18cqmin, black 46cqmin);
+          mask-image: radial-gradient(circle at 50% 50%, transparent 0 18cqmin, black 46cqmin);
+}
+[dir="rtl"] .ag-cover:not(.ag-cover--none) .ag-cover__pat {
+  -webkit-mask-image: linear-gradient(260deg, transparent 0 22%, black 70%);
+          mask-image: linear-gradient(260deg, transparent 0 22%, black 70%);
+}
+
+.ag-cover--arches .ag-cover__pat { background:
+  radial-gradient(circle at 80% 122%, var(--cv-b) 0 46cqmin, transparent 46.3cqmin),
+  repeating-radial-gradient(circle at 80% 122%, transparent 0 9cqmin, var(--cv-a) 9cqmin 9.8cqmin); }
+.ag-cover--dots .ag-cover__pat { background:
+  radial-gradient(circle at 100% 0%, var(--cv-b) 0 56cqmin, transparent 56.3cqmin),
+  radial-gradient(circle, var(--cv-a) 0 .6cqmin, transparent .7cqmin) 0 0 / 5.6cqmin 5.6cqmin; }
+.ag-cover--grid .ag-cover__pat { background:
+  radial-gradient(circle at 86% 20%, var(--cv-b) 0 36cqmin, transparent 36.3cqmin),
+  linear-gradient(var(--cv-a) 0 .28cqmin, transparent .28cqmin) 0 0 / 10.5cqmin 10.5cqmin,
+  linear-gradient(90deg, var(--cv-a) 0 .28cqmin, transparent .28cqmin) 0 0 / 10.5cqmin 10.5cqmin; }
+.ag-cover--signal .ag-cover__pat { background:
+  radial-gradient(circle at 84% 46%, var(--cv-line) 0 2.6cqmin, transparent 2.75cqmin),
+  repeating-radial-gradient(circle at 84% 46%, transparent 0 7cqmin, var(--cv-a) 7cqmin 8cqmin); }
+.ag-cover--rings .ag-cover__pat { background:
+  repeating-radial-gradient(circle at 96% 104%, transparent 0 7.6cqmin, var(--cv-a) 7.6cqmin 8.4cqmin),
+  radial-gradient(circle at 70% 10%, var(--cv-b) 0 26cqmin, transparent 26.3cqmin); }
+.ag-cover--games .ag-cover__pat { background:
+  radial-gradient(circle at 86% 18%, var(--cv-b) 0 34cqmin, transparent 34.3cqmin),
+  var(--cv-games) 0 0 / 30cqmin 30cqmin; }
+.ag-cover--weave .ag-cover__pat { background:
+  repeating-linear-gradient(90deg, var(--cv-b) 0 5.4cqmin, transparent 5.4cqmin 10.8cqmin),
+  repeating-linear-gradient(0deg, var(--cv-a) 0 .8cqmin, transparent .8cqmin 10.8cqmin),
+  repeating-linear-gradient(0deg, var(--cv-b) 0 5.4cqmin, transparent 5.4cqmin 10.8cqmin); }
+.ag-cover--stripes .ag-cover__pat { background:
+  radial-gradient(circle at 92% 8%, var(--cv-b) 0 42cqmin, transparent 42.3cqmin),
+  repeating-linear-gradient(-45deg, var(--cv-a) 0 1.5cqmin, transparent 1.5cqmin 6cqmin); }
+
+/* RTL mirrors every pattern origin (x → 100 − x). */
+[dir="rtl"] .ag-cover--arches .ag-cover__pat { background:
+  radial-gradient(circle at 20% 122%, var(--cv-b) 0 46cqmin, transparent 46.3cqmin),
+  repeating-radial-gradient(circle at 20% 122%, transparent 0 9cqmin, var(--cv-a) 9cqmin 9.8cqmin); }
+[dir="rtl"] .ag-cover--dots .ag-cover__pat { background:
+  radial-gradient(circle at 0% 0%, var(--cv-b) 0 56cqmin, transparent 56.3cqmin),
+  radial-gradient(circle, var(--cv-a) 0 .6cqmin, transparent .7cqmin) 0 0 / 5.6cqmin 5.6cqmin; }
+[dir="rtl"] .ag-cover--grid .ag-cover__pat { background:
+  radial-gradient(circle at 14% 20%, var(--cv-b) 0 36cqmin, transparent 36.3cqmin),
+  linear-gradient(var(--cv-a) 0 .28cqmin, transparent .28cqmin) 0 0 / 10.5cqmin 10.5cqmin,
+  linear-gradient(90deg, var(--cv-a) 0 .28cqmin, transparent .28cqmin) 0 0 / 10.5cqmin 10.5cqmin; }
+[dir="rtl"] .ag-cover--signal .ag-cover__pat { background:
+  radial-gradient(circle at 16% 46%, var(--cv-line) 0 2.6cqmin, transparent 2.75cqmin),
+  repeating-radial-gradient(circle at 16% 46%, transparent 0 7cqmin, var(--cv-a) 7cqmin 8cqmin); }
+[dir="rtl"] .ag-cover--rings .ag-cover__pat { background:
+  repeating-radial-gradient(circle at 4% 104%, transparent 0 7.6cqmin, var(--cv-a) 7.6cqmin 8.4cqmin),
+  radial-gradient(circle at 30% 10%, var(--cv-b) 0 26cqmin, transparent 26.3cqmin); }
+[dir="rtl"] .ag-cover--games .ag-cover__pat { background:
+  radial-gradient(circle at 14% 18%, var(--cv-b) 0 34cqmin, transparent 34.3cqmin),
+  var(--cv-games) 0 0 / 30cqmin 30cqmin; }
+[dir="rtl"] .ag-cover--stripes .ag-cover__pat { background:
+  radial-gradient(circle at 8% 8%, var(--cv-b) 0 42cqmin, transparent 42.3cqmin),
+  repeating-linear-gradient(-45deg, var(--cv-a) 0 1.5cqmin, transparent 1.5cqmin 6cqmin); }
+
+/* ── the centre tile: host logo, or the type glyph (§7a) ────────────────────── */
+.ag-cover__logo { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.ag-cover__tile {
+  width: clamp(28px, 30cqmin, 132px); aspect-ratio: 1 / 1; border-radius: clamp(8px, 7cqmin, 30px);
+  background: var(--ag-surface); color: var(--cv-ink);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ag-ink) 6%, transparent), 0 10px 28px -12px color-mix(in srgb, var(--ag-ink) 35%, transparent);
+  display: flex; align-items: center; justify-content: center;
+}
+.ag-cover__tile img { width: 64%; height: 64%; object-fit: contain; }
+.ag-cover__glyph { width: 44%; height: 44%; overflow: visible; }
+
+/* ── the date tile ──────────────────────────────────────────────────────────── */
+.ag-cover__date {
+  position: absolute; top: clamp(8px, 6cqmin, 24px); inset-inline-start: clamp(8px, 6cqmin, 24px);
+  display: flex; flex-direction: column; align-items: center; box-sizing: border-box;
+  min-width: clamp(38px, 20cqmin, 84px);
+  padding: clamp(5px, 2.6cqmin, 12px) clamp(6px, 3cqmin, 14px) clamp(6px, 3.2cqmin, 14px);
+  border-radius: clamp(9px, 4.4cqmin, 18px); background: var(--ag-surface);
+  box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--ag-ink) 35%, transparent);
+}
+.ag-cover__date b { font-size: var(--ag-fs-11-5); line-height: 1.1; color: var(--cv-ink); }
+.ag-cover__date span { font-family: var(--ag-font-display); font-weight: 700; font-size: var(--ag-fs-19); line-height: 1; }
+
+/* ── the title (content=title) ──────────────────────────────────────────────── */
+.ag-cover__title {
+  position: absolute; inset-inline-start: clamp(10px, 6cqmin, 28px); bottom: clamp(10px, 6cqmin, 28px); max-width: 72%;
+  font-family: var(--ag-font-display); font-weight: 700; line-height: 1.1; text-wrap: balance; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: var(--ag-fs-14);
+}
+
+/* ── the type pill ──────────────────────────────────────────────────────────── */
+.ag-cover__pill {
+  position: absolute; inset-inline-start: clamp(8px, 6cqmin, 24px); bottom: clamp(8px, 6cqmin, 24px);
+  display: none; align-items: center; gap: 6px; height: clamp(22px, 9cqmin, 34px); padding: 0 clamp(8px, 3.2cqmin, 14px);
+  border-radius: var(--ag-r-pill); background: var(--ag-surface); color: var(--cv-ink);
+  font-weight: 700; font-size: var(--ag-fs-11-5); white-space: nowrap;
+}
+.ag-cover__pill i { width: clamp(6px, 1.8cqmin, 8px); aspect-ratio: 1 / 1; border-radius: 50%; background: var(--cv-line); }
+.ag-cover--title .ag-cover__pill { top: clamp(8px, 6cqmin, 24px); bottom: auto; }
+
+/* ── density: the tiers DROP things; they never shrink everything (§6) ─────────
+   xs (< 96px on the shorter side): the date tile, or the logo tile, and nothing else.
+   A `title` cover shows its logo tile there instead of a title nobody could read. */
+.ag-cover--title .ag-cover__title { display: none; }
+
+/* sm: 96px and up — the pill (but not beside a logo), the title */
+@container (min-width: 96px) and (min-height: 96px) {
+  .ag-cover__pill { display: flex; }
+  .ag-cover--none .ag-cover__pill { display: none; }
+  .ag-cover--title .ag-cover__title { display: -webkit-box; }
+  .ag-cover--title .ag-cover__logo { display: none; }
+}
+/* md: 200px and up — everything */
+@container (min-width: 200px) and (min-height: 200px) {
+  .ag-cover--none .ag-cover__pill { display: flex; }
+}
+
+/* Type, stepped by the box (see the header): the DC's formula, read in each band. */
+@container (min-width: 140px) and (min-height: 140px) {
+  .ag-cover__date span { font-size: var(--ag-fs-22); }
+  .ag-cover__title--l { font-size: var(--ag-fs-18); }
+  .ag-cover__title--m { font-size: var(--ag-fs-15); }
+}
+@container (min-width: 200px) and (min-height: 200px) {
+  .ag-cover__date b { font-size: var(--ag-fs-13); }
+  .ag-cover__date span { font-size: var(--ag-fs-32); }
+  .ag-cover__title--l { font-size: var(--ag-fs-26); }
+  .ag-cover__title--m { font-size: var(--ag-fs-22); }
+  .ag-cover__title--s { font-size: var(--ag-fs-18); }
+}
+@container (min-width: 280px) and (min-height: 280px) {
+  .ag-cover__date b { font-size: var(--ag-fs-18); }
+  .ag-cover__date span { font-size: var(--ag-fs-44); }
+  .ag-cover__title--l { font-size: var(--ag-fs-38); }
+  .ag-cover__title--m { font-size: var(--ag-fs-30); }
+  .ag-cover__title--s { font-size: var(--ag-fs-26); }
+  .ag-cover__pill { font-size: var(--ag-fs-13-5); }
+}
+@container (min-width: 420px) and (min-height: 420px) {
+  .ag-cover__date b { font-size: var(--ag-fs-19); }
+  .ag-cover__date span { font-size: var(--ag-fs-52); }
+  .ag-cover__title--l, .ag-cover__title--m { font-size: var(--ag-fs-40); }
+  .ag-cover__title--s { font-size: var(--ag-fs-36); }
+  .ag-cover__pill { font-size: var(--ag-fs-14-5); }
+}
+
+/* ══ the default avatar (§8 · DefaultAvatar.dc.html) ═════════════════════════
+   Initials and tone come from Support\AvatarMark (the tone hashes the profile id, so a
+   rename keeps the colour). Values are the DC's: the wash-to-edge fill, the 1px edge
+   ring, two hairline arcs from the bottom-end corner at 40px and up, the badge. */
+.ag-avatar {
+  --av-size: 44px;
+  position: relative; display: inline-flex; flex: none; vertical-align: middle;
+  width: var(--av-size); height: var(--av-size); font-family: var(--ag-font-ui);
+}
+.ag-avatar__face {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(150deg, var(--cv-bg) 0%, var(--cv-bg) 45%, var(--cv-edge) 100%);
+  box-shadow: inset 0 0 0 1px var(--cv-edge);
+}
+.ag-avatar--org .ag-avatar__face { border-radius: 28%; }
+.ag-avatar__arcs {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 100% 100%, transparent 0 38%,
+    color-mix(in srgb, var(--cv-line) 14.9%, transparent) 38% 40.5%, transparent 40.5% 56%,
+    color-mix(in srgb, var(--cv-line) 9.41%, transparent) 56% 58.5%, transparent 58.5%);
+}
+[dir="rtl"] .ag-avatar__arcs { transform: scaleX(-1); }
+.ag-avatar__in { position: relative; font-weight: 700; line-height: 1; color: var(--cv-ink); letter-spacing: -.02em; }
+.ag-avatar--one .ag-avatar__in { letter-spacing: 0; }
+.ag-avatar--green { --cv-bg: var(--ag-cover-green-bg); --cv-line: var(--ag-cover-green-line); --cv-ink: var(--ag-cover-green-ink); --cv-edge: var(--ag-cover-green-edge); }
+.ag-avatar--gold  { --cv-bg: var(--ag-cover-gold-bg);  --cv-line: var(--ag-cover-gold-line);  --cv-ink: var(--ag-cover-gold-ink);  --cv-edge: var(--ag-cover-gold-edge); }
+.ag-avatar--live  { --cv-bg: var(--ag-cover-live-bg);  --cv-line: var(--ag-cover-live-line);  --cv-ink: var(--ag-cover-live-ink);  --cv-edge: var(--ag-cover-live-edge); }
+.ag-avatar--info  { --cv-bg: var(--ag-cover-info-bg);  --cv-line: var(--ag-cover-info-line);  --cv-ink: var(--ag-cover-info-ink);  --cv-edge: var(--ag-cover-info-edge); }
+.ag-avatar--stone { --cv-bg: var(--ag-cover-stone-bg); --cv-line: var(--ag-cover-stone-line); --cv-ink: var(--ag-cover-stone-ink); --cv-edge: var(--ag-cover-stone-edge); }
+
+/* The spec's sizes in use: 24 inline, 32 comments, 44 rows, 56 cards, 96 and 160 the
+   profile. The DC sets the letters at 38% of the box for two and 46% for one (one letter
+   at 32px and under); here each is that figure read off the type tokens, because a font
+   size that is a share of a box is the container-unit sizing TypeScaleTest refuses. */
+.ag-avatar--s24  { --av-size: 24px;  --av-badge: 16px; }
+.ag-avatar--s32  { --av-size: 32px;  --av-badge: 16px; }
+.ag-avatar--s44  { --av-size: 44px;  --av-badge: 16px; }
+.ag-avatar--s56  { --av-size: 56px;  --av-badge: 20px; }
+.ag-avatar--s96  { --av-size: 96px;  --av-badge: 35px; }
+.ag-avatar--s160 { --av-size: 160px; --av-badge: 58px; }
+.ag-avatar--s24 .ag-avatar__in  { font-size: var(--ag-fs-11-5); }
+.ag-avatar--s32 .ag-avatar__in  { font-size: var(--ag-fs-14-5); }
+.ag-avatar--s44 .ag-avatar__in  { font-size: var(--ag-fs-16-5); }
+.ag-avatar--s56 .ag-avatar__in  { font-size: var(--ag-fs-21); }
+.ag-avatar--s96 .ag-avatar__in  { font-size: var(--ag-fs-36); }
+.ag-avatar--s160 .ag-avatar__in { font-size: var(--ag-fs-64); }
+.ag-avatar--s44.ag-avatar--one .ag-avatar__in  { font-size: var(--ag-fs-20); }
+.ag-avatar--s56.ag-avatar--one .ag-avatar__in  { font-size: var(--ag-fs-26); }
+.ag-avatar--s96.ag-avatar--one .ag-avatar__in  { font-size: var(--ag-fs-44); }
+.ag-avatar--s160.ag-avatar--one .ag-avatar__in { font-size: var(--ag-fs-64); }
+
+/* The badge, 40px and up: a white disc ringed in the surface colour (a blue disc with a
+   tick for a verified person). A person's sits 1px out; an organisation's 22% of itself. */
+.ag-avatar__badge {
+  position: absolute; inset-inline-end: -1px; bottom: -1px; width: var(--av-badge); height: var(--av-badge);
+  border-radius: 50%; background: var(--ag-surface); color: var(--ag-ink);
+  box-shadow: 0 0 0 2px var(--ag-surface); display: flex; align-items: center; justify-content: center;
+}
+.ag-avatar--org .ag-avatar__badge { inset-inline-end: calc(var(--av-badge) * -.22); bottom: calc(var(--av-badge) * -.22); }
+.ag-avatar--s160 .ag-avatar__badge { box-shadow: 0 0 0 4px var(--ag-surface); }   /* max(2, size/40) */
+.ag-avatar__badge--verified { background: var(--ag-info); color: var(--ag-surface); }
+.ag-avatar__badge svg { width: 60%; height: 60%; }

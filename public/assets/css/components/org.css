@@ -1,0 +1,252 @@
+/* ════════════════════════════════════════════════════════════════
+   THE ORGANISATION CONSOLE — /org and /org?tab=…
+   Loads AFTER components/account.css, whose `.acx*` frame it reuses.
+
+   ── WHAT THIS FILE IS AND IS NOT ─────────────────────────────────
+
+   The rail, the content column and the app bar are the member account's
+   (`pages/account/_frame.twig`, `components/account.css`) because the
+   organisation console is the same shape of screen and a second answer
+   to "how does a signed-in area navigate" is one answer too many. This
+   file adds only what the organisation console has and the member
+   account does not: the state panel, the money figures, the editor's
+   forms, and the tables.
+
+   ── THE RULES IT IS WRITTEN UNDER ────────────────────────────────
+
+   · Colour comes from `Support\Accent` and nowhere else. No hex, no
+     rgb(), no hsl() in this file — a translucent house colour is
+     `color-mix(in srgb, var(--ag-ink) 8%, transparent)`.
+   · Type is REFERENCE §6.2: the closed ladder as `--ag-fs-*` tokens, in
+     rem so the reader's Display & reading setting moves it. No `vw`, no
+     `clamp()` in a font-size.
+   · No capitals — no `text-transform`, no typed all-caps labels — and
+     monospace ONLY for figures and references, never a label or a
+     kicker. `MonoAndCaseTest` holds both over this surface.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── the organisation's monogram in the rail ───────────────────── */
+.org-mono{
+  width:44px; height:44px; flex:none; border-radius:var(--ag-r-12);
+  display:grid; place-items:center;
+  background:var(--ag-green-wash); color:var(--ag-green-deep);
+  font-family:var(--ag-font-display); font-size:var(--ag-fs-18); font-weight:700;
+}
+
+/* ── the rail's foot: who is signed in, and the way out ────────── */
+.org-rail__foot{
+  margin-top:var(--ag-sp-16); padding-top:var(--ag-sp-14);
+  border-top:1px solid var(--ag-line);
+}
+.org-rail__me{
+  margin:0 0 var(--ag-sp-10); font-size:var(--ag-fs-13); color:var(--ag-ink);
+}
+.org-rail__me span{ display:block; font-size:var(--ag-fs-12); color:var(--ag-soft); }
+
+/* ── a note that governs the buttons under it ──────────────────── */
+.org-note{
+  margin:0 0 var(--ag-sp-16); padding:var(--ag-sp-12) var(--ag-sp-14);
+  border-left:3px solid var(--ag-gold-edge);
+  background:var(--ag-gold-wash-2); color:var(--ag-ink);
+  border-radius:0 var(--ag-r-10) var(--ag-r-10) 0;
+  font-size:var(--ag-fs-14-5);
+}
+
+/* ── flashes and inline flags ───────────────────────────────────── */
+.org-flag{
+  margin:0 0 var(--ag-sp-14); padding:var(--ag-sp-12) var(--ag-sp-14);
+  border-radius:var(--ag-r-12); font-size:var(--ag-fs-14-5);
+}
+.org-flag--ok{ background:var(--ag-green-wash); color:var(--ag-green-deep); }
+/* A refusal is ERROR WORDS on the live wash — there is no inverted error
+   block in the handoff, and the audit tile does the same. */
+.org-flag--err{ background:var(--ag-live-wash); color:var(--ag-error); }
+.org-flag--todo{ background:var(--ag-gold-wash-2); color:var(--ag-gold-ink); }
+
+/* ── the state panel: what stops what ───────────────────────────── */
+.org-state{
+  margin:0 0 var(--ag-sp-18); padding:var(--ag-sp-18);
+  background:var(--ag-surface); border:1px solid var(--ag-line);
+  border-left-width:3px; border-radius:var(--ag-r-14);
+  box-shadow:var(--ag-sh-tile);
+}
+.org-state--stop{ border-left-color:var(--ag-error); }
+.org-state--todo{ border-left-color:var(--ag-gold-edge); }
+.org-state--wait{ border-left-color:var(--ag-info); }
+.org-state--ok{ border-left-color:var(--ag-green); }
+.org-state__t{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-19); line-height:1.2; color:var(--ag-ink);
+}
+.org-state__b{
+  margin:var(--ag-sp-8) 0 0; font-size:var(--ag-fs-15); line-height:1.6;
+  color:var(--ag-ink-2); text-wrap:pretty;
+}
+
+/* ── the money, on the first screen ─────────────────────────────── */
+.org-figs{
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:var(--ag-sp-12); margin:0 0 var(--ag-sp-16);
+}
+.org-fig{
+  padding:var(--ag-sp-16); background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+}
+/* NOT monospace. An amount is a STAT, and §18.3 reserves the mono face for
+   references and codes — an order ref, a ticket code — where "copy me exactly"
+   is true and it is what tells `0` from `O`. On a figure it is a costume, and
+   it spends the page's only signal for "this is a code". `MonoAndCaseTest`
+   named this rule by line number when it was written the other way.
+   Tabular numerals stay: that is a numeric variant, not a face. */
+.org-fig__n{
+  display:block; font-variant-numeric:tabular-nums;
+  font-weight:700; font-size:var(--ag-fs-22); color:var(--ag-ink);
+}
+.org-fig__l{
+  display:block; margin-top:var(--ag-sp-8);
+  font-size:var(--ag-fs-13); color:var(--ag-soft);
+}
+.org-chart{ margin:var(--ag-sp-16) 0 0; }
+
+/* ── empty states: what to do, not four zeroes ──────────────────── */
+.org-empty{
+  padding:var(--ag-sp-18); background:var(--ag-tint);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+}
+.org-empty__t{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-18); color:var(--ag-ink);
+}
+.org-empty__b{
+  margin:var(--ag-sp-8) 0 var(--ag-sp-14); font-size:var(--ag-fs-15);
+  line-height:1.6; color:var(--ag-ink-2); text-wrap:pretty; max-width:56ch;
+}
+
+/* ── actions ────────────────────────────────────────────────────── */
+.org-go{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-height:44px; padding:0 var(--ag-sp-18);
+  background:var(--ag-green); color:var(--ag-surface);
+  border:0; border-radius:var(--ag-r-pill); cursor:pointer;
+  font-size:var(--ag-fs-15); font-weight:600; text-decoration:none;
+}
+.org-go:hover{ background:var(--ag-green-deep); color:var(--ag-surface); }
+.org-go--wide{ width:100%; margin:var(--ag-sp-8) 0 0; }
+.org-out{
+  min-height:44px; padding:0 var(--ag-sp-16);
+  background:none; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  color:var(--ag-ink); cursor:pointer; font-size:var(--ag-fs-14);
+}
+.org-out:hover{ border-color:var(--ag-ink); }
+
+/* ── the editor ─────────────────────────────────────────────────── */
+.org-ed{ margin:var(--ag-sp-16) 0 0; }
+.org-ed__where{
+  margin:0 0 var(--ag-sp-16); font-size:var(--ag-fs-14-5); color:var(--ag-ink-2);
+}
+.org-fs{
+  margin:0 0 var(--ag-sp-18); padding:var(--ag-sp-16);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+  background:var(--ag-surface);
+}
+.org-fs__l{
+  padding:0 var(--ag-sp-8); font-family:var(--ag-font-display);
+  font-weight:700; font-size:var(--ag-fs-16); color:var(--ag-ink);
+}
+.org-row{ margin:0 0 var(--ag-sp-14); }
+.org-row:last-child{ margin-bottom:0; }
+.org-lab{
+  display:block; margin:0 0 var(--ag-sp-8);
+  font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink);
+}
+.org-in{
+  width:100%; min-height:44px; padding:var(--ag-sp-10) var(--ag-sp-12);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-10);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-family:inherit; font-size:var(--ag-fs-16);
+}
+.org-in:focus-visible{ outline:2px solid var(--ag-green); outline-offset:1px; }
+.org-in:disabled{ background:var(--ag-tint); color:var(--ag-soft); }
+.org-in--tall{ min-height:9rem; line-height:1.6; resize:vertical; }
+.org-hint{
+  margin:var(--ag-sp-8) 0 0; font-size:var(--ag-fs-13);
+  line-height:1.55; color:var(--ag-soft); text-wrap:pretty; max-width:62ch;
+}
+.org-swatch{
+  width:56px; height:44px; padding:2px; cursor:pointer;
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-10);
+  background:var(--ag-surface);
+}
+.org-file{ font-size:var(--ag-fs-14); color:var(--ag-ink-2); }
+.org-logo{
+  display:block; margin:0 0 var(--ag-sp-10); height:48px; width:auto;
+  border-radius:var(--ag-r-7);
+}
+
+/* The fourteen switches. Two columns from 520 so the list is scannable
+   rather than a screen and a half of checkboxes. */
+.org-switches{ margin:0; padding:0; list-style:none; display:grid; gap:var(--ag-sp-10); }
+.org-switch{ display:flex; align-items:flex-start; gap:var(--ag-sp-10); }
+.org-switch input{ width:20px; height:20px; margin-top:2px; flex:none; accent-color:var(--ag-green); }
+.org-switch label{ font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-ink-2); }
+
+/* A repeating row: the two halves of a link, a video or a block. Stacked on
+   a phone — side by side they are both too narrow to read what is in them. */
+.org-pair{ display:grid; gap:var(--ag-sp-8); margin:0 0 var(--ag-sp-10); }
+
+/* ── lists and tables ───────────────────────────────────────────── */
+.org-h2{
+  margin:var(--ag-sp-18) 0 var(--ag-sp-10); font-family:var(--ag-font-display);
+  font-weight:700; font-size:var(--ag-fs-18); color:var(--ag-ink);
+}
+.org-list{ margin:0 0 var(--ag-sp-16); padding:0; list-style:none; }
+.org-item{
+  display:flex; align-items:center; gap:var(--ag-sp-12);
+  padding:var(--ag-sp-12) 0; border-bottom:1px solid var(--ag-line-2);
+}
+.org-item:last-child{ border-bottom:0; }
+.org-item__l{ flex:1; min-width:0; font-size:var(--ag-fs-15); color:var(--ag-ink); }
+.org-item__s{ font-size:var(--ag-fs-13); color:var(--ag-soft); }
+/* Outstanding, not merely counted — the same distinction the rail makes. */
+.org-item__s.is-todo{ color:var(--ag-gold-ink); font-weight:600; }
+.org-item.is-todo .org-item__l{ font-weight:600; }
+
+.org-cards{ margin:0 0 var(--ag-sp-16); padding:0; list-style:none; display:grid; gap:var(--ag-sp-12); }
+.org-card{
+  padding:var(--ag-sp-16); background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+}
+.org-card__t{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:var(--ag-fs-16); color:var(--ag-ink);
+}
+.org-card__m{ margin:var(--ag-sp-8) 0 0; font-size:var(--ag-fs-14); color:var(--ag-ink-2); }
+.org-card__go{ display:inline-block; margin:var(--ag-sp-10) 0 0; font-size:var(--ag-fs-14); color:var(--ag-green-deep); }
+
+/* A wide table must scroll inside itself, never push the document sideways. */
+.org-table{
+  width:100%; border-collapse:collapse; margin:0 0 var(--ag-sp-16);
+  display:block; overflow-x:auto;
+}
+.org-table th,
+.org-table td{
+  padding:var(--ag-sp-10) var(--ag-sp-12); text-align:left;
+  border-bottom:1px solid var(--ag-line-2); font-size:var(--ag-fs-14);
+  white-space:nowrap;
+}
+.org-table th{ color:var(--ag-soft); font-weight:600; }
+/* An amount column: lined up, not re-faced. See `.org-fig__n` above. */
+.org-num{ font-variant-numeric:tabular-nums; }
+
+@media (min-width:520px){
+  .org-switches{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .org-pair{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); }
+  .org-pair:has(.org-in--a){ grid-template-columns:minmax(0, 11rem) minmax(0, 1fr); }
+}
+@media (min-width:900px){
+  .org-figs{ grid-template-columns:repeat(4, minmax(0, 1fr)); }
+  .org-go--wide{ width:auto; }
+}
+@media (prefers-reduced-motion:reduce){
+  .org-go, .org-out{ transition:none; }
+}

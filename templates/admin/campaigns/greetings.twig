@@ -1,0 +1,95 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Seasonal greetings{% endblock %}
+
+{#
+  ══ SEASONAL GREETINGS — the windows a member's greeting shows in ══════════════════
+
+  HOLIDAY-THEMES (handoff 5 Oct 2026). One row is one window: a greeting, its first and last
+  day (inclusive, the platform's time zone), and a country — or none, for everyone. Members
+  see it on their own pages only, and can turn greetings off or dismiss one for the year.
+
+  Every date is typed here, every year. Eid follows a sighting and Easter moves, so nothing
+  computes them; a greeting with no window simply does not appear. Of two open windows the
+  one that started later shows. The teachers' greeting names the award chosen here, and only
+  while that award is taking nominations.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .grx{ display:flex; flex-direction:column; gap:18px; max-width:980px }
+  .grx-lead{ margin:0; max-width:72ch; font-size:14px; line-height:1.65; color:var(--cn-grey-500) }
+  .grx-card{ padding:18px 20px; border-radius:var(--cn-r-12); border:1px solid var(--cn-line-card); background:var(--cn-surface) }
+  .grx-card h2{ margin:0 0 6px; font-size:17px }
+  .grx-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-top:12px }
+  .grx-grid label{ display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--cn-grey-500) }
+  .grx-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px }
+  .grx-t{ width:100%; border-collapse:collapse; font-size:14px }
+  .grx-t th{ text-align:start; font-size:12px; font-weight:600; color:var(--cn-grey-500); padding:8px 10px; border-bottom:1px solid var(--cn-line-card) }
+  .grx-t td{ padding:10px; border-top:1px solid var(--cn-line-row); vertical-align:middle; line-height:1.5 }
+  .grx-t form{ display:inline }
+  .grx-mute{ color:var(--cn-grey-500); font-size:13px }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="grx">
+  <p class="grx-lead">A short greeting at the top of a signed-in member's own pages, on the days you set here — never on
+    public pages, checkout, ballots or the door. <a href="/admin/campaigns/newsletter#holidays">The newsletter's holiday issues</a> are set separately.</p>
+
+  {% if not ready %}
+    <section class="grx-card"><h2>Not set up yet</h2><p class="grx-mute">Run the latest setup step (/__setup/migrate) to add the greetings table.</p></section>
+  {% else %}
+  <section class="grx-card" aria-labelledby="grxAdd">
+    <h2 id="grxAdd">Add a window</h2>
+    <form method="post" action="/admin/campaigns/greetings">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="grx-grid">
+        <label>Greeting
+          <select name="slug" required>
+            {% for slug, t in themes %}<option value="{{ slug }}">{{ t.name }}{{ t.scope ? ' (' ~ t.scope ~ ')' }}</option>{% endfor %}
+          </select></label>
+        <label>First day<input type="date" name="starts_on" required value="{{ today }}"></label>
+        <label>Last day<input type="date" name="ends_on" required value="{{ today }}"></label>
+        <label>Country <span class="grx-mute">two letters, or empty for everyone</span>
+          <input type="text" name="country_code" maxlength="2" pattern="[A-Za-z]{2}" autocomplete="off"></label>
+        <label>Award to name <span class="grx-mute">teachers' greeting only</span>
+          <select name="cta_programme_id"><option value="">None</option>
+            {% for p in programmes %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label>
+      </div>
+      <div class="grx-row"><button class="ad-btn ad-btn--primary" type="submit">Add window</button></div>
+    </form>
+  </section>
+
+  <section class="grx-card" aria-labelledby="grxList">
+    <h2 id="grxList">Windows</h2>
+    {% if rows|length %}
+    <table class="grx-t">
+      <thead><tr><th scope="col">Greeting</th><th scope="col">Days</th><th scope="col">Who</th><th scope="col">State</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{{ themes[r.slug].name|default(r.slug) }}</td>
+            <td>{{ r.starts_on|date('j M Y') }}{% if r.ends_on != r.starts_on %} – {{ r.ends_on|date('j M Y') }}{% endif %}</td>
+            <td>{{ r.country_code ?: 'Everyone' }}</td>
+            <td>{% if not r.active %}Off{% elseif r.ends_on < today %}Over{% elseif r.starts_on > today %}Coming{% else %}Showing now{% endif %}</td>
+            <td>
+              <form method="post" action="/admin/campaigns/greetings/{{ r.id }}/toggle">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <button class="ad-btn" type="submit">{{ r.active ? 'Turn off' : 'Turn on' }}</button>
+              </form>
+              <form method="post" action="/admin/campaigns/greetings/{{ r.id }}/delete" data-confirm="Remove this window? Members stop seeing this greeting on these days.">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <button class="ad-btn ad-btn--danger" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="grx-mute">No windows yet, so no member sees a greeting.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

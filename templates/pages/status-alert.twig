@@ -1,0 +1,54 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  The two links in a status-update mail land here: /status/alerts/{token}/confirm and …/stop
+  (Phase 9, StatusAlert). GET SHOWS, POST ACTS — mail scanners fetch every link in a message,
+  and a confirmation that fired on the GET would be "confirmed" by a corporate link scanner
+  for the exact person double opt-in exists to ask (the newsletter's and the award alerts'
+  rule). A token that names nothing is a 404 that says so. Works with no script and no
+  sign-in; a task page, so no tab bar.
+#}
+{% set colour_tier = '1' %}
+{% set flow_page = true %}
+{% set app_bar = {variant: 'child', title: 'Status updates'|trans, back: '/status', share: false} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/newsletter.css') }}">{% endblock %}
+
+{% block content %}
+<div class="nl nl--task">
+  <section class="nl__card" aria-labelledby="stA">
+    {% if not alert %}
+      <h1 class="nl__h1" id="stA">{{ 'This link is not working'|trans }}</h1>
+      <p class="nl__p">{{ 'It may have been broken across two lines by your email app. Copy the whole link from the email into your browser, or ask again from the status page.'|trans }}</p>
+      <a class="ag-btn ag-btn--secondary" href="/status">{{ 'Go to the status page'|trans }}</a>
+    {% elseif alert.action == 'stop' %}
+      {% if done or alert.stopped %}
+        <h1 class="nl__h1" id="stA">{{ 'Status updates stopped'|trans }}</h1>
+        <p class="nl__p">{{ 'You will not be emailed about problems or fixes any more. The status page is always there to check.'|trans }}</p>
+        <a class="ag-btn ag-btn--secondary" href="/status">{{ 'Go to the status page'|trans }}</a>
+      {% else %}
+        <h1 class="nl__h1" id="stA">{{ 'Stop status updates?'|trans }}</h1>
+        <p class="nl__p">{{ 'You will not be emailed when a problem starts or is fixed.'|trans }}</p>
+        <form class="nl__form" method="post" action="/status/alerts/{{ alert.token }}/stop">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button type="submit" class="ag-btn ag-btn--primary nl__go">{{ 'Stop the updates'|trans }}</button>
+        </form>
+      {% endif %}
+    {% else %}
+      {% if done or alert.confirmed %}
+        <h1 class="nl__h1" id="stA">{{ 'You will get status updates'|trans }}</h1>
+        <p class="nl__p">{{ 'We will email you when a problem our checks measure starts, and when it is fixed. Every email has a one-click stop link.'|trans }}</p>
+        <a class="ag-btn ag-btn--secondary" href="/status">{{ 'Go to the status page'|trans }}</a>
+      {% else %}
+        <h1 class="nl__h1" id="stA">{{ 'Confirm status updates'|trans }}</h1>
+        <p class="nl__p">{{ 'Press the button and we will email you when a problem starts, and when it is fixed. Nothing else.'|trans }}</p>
+        <form class="nl__form" method="post" action="/status/alerts/{{ alert.token }}/confirm">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button type="submit" class="ag-btn ag-btn--primary nl__go">{{ 'Yes, email me'|trans }}</button>
+        </form>
+        <p class="ag-hint">{{ 'Did not ask for this? Close the page. Nothing is sent to an address that has not been confirmed.'|trans }}</p>
+      {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

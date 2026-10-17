@@ -1,0 +1,44 @@
+{#
+  The phone tab bar — REFERENCE §7.3 · HomePageV3.dc.html · skill §2.
+
+  Five: Home · Discover · Nominate · Pulse · Menu. Each ≥52px, a 23px icon over a 12px
+  600 label that is always visible. EXACTLY ONE OR ZERO is lit (`--ag-green`, 700, the
+  icon a stroke heavier, `aria-current="page"`): a page that is not a tab destination
+  lights none, rather than telling somebody they are somewhere they are not.
+
+  Flow pages have no tab bar at all (`flow_page` in the shell). `data-bottom-ui` feeds
+  `--ag-bottom-ui`, so anything floating clears the bar by measurement, never by a typed
+  96px.
+
+  Args: active — 'home' | 'discover' | 'nominate' | 'pulse' | '' (none)
+#}
+<nav class="ag-tabbar" data-bottom-ui aria-label="{{ 'Primary'|trans }}">
+  {% for t in [
+    {k:'home',     href:'/',         label:'Home'},
+    {k:'discover', href:'/discover', label:'Discover'},
+    {k:'nominate', href:'/nominate', label:'Nominate'},
+    {k:'pulse',    href:'/pulse',    label:'Pulse'}
+  ] %}
+    {% set _on = active|default('') == t.k %}
+    <a class="ag-tabbar__t" href="{{ t.href }}"{% if _on %} aria-current="page"{% endif %}>
+      {% if t.k == 'home' %}
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="{{ _on ? '2.1' : '1.9' }}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"></path></svg>
+      {% elseif t.k == 'discover' %}
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="{{ _on ? '2.1' : '1.9' }}" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+      {% elseif t.k == 'nominate' %}
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="{{ _on ? '2.1' : '1.9' }}" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+      {% else %}
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="{{ _on ? '2.1' : '1.9' }}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><path d="m10 8.5 5 3.5-5 3.5z" fill="currentColor" stroke="none"></path></svg>
+      {% endif %}
+      {{ t.label|trans }}
+    </a>
+  {% endfor %}
+
+  {# A SHEET, not a page: a full-screen menu takes a navigation step to leave and loses
+     where you were (skill §22). #}
+  <button type="button" class="ag-tabbar__t" data-ag-menu aria-haspopup="dialog" aria-expanded="false"
+          aria-controls="ag-menu" aria-label="{{ 'Open menu'|trans }}">
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg>
+    {{ 'Menu'|trans }}
+  </button>
+</nav>
