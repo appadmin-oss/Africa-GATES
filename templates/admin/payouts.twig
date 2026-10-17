@@ -42,9 +42,16 @@
 </style>
 
 <p class="po-note">
+  {% if auto_on %}
+  Members withdraw by bank transfer. A request that passes every automatic check is sent by
+  Paystack and settles itself when the bank confirms it; what is waiting here is what the
+  checks held, each with the reason. Send it by transfer, or pay it however the
+  organisation normally does and record the reference.
+  {% else %}
   Members withdraw by bank transfer. You move the money however the organisation normally
   does, then record the transfer reference here — that is what stamps the commission as
-  settled. Nothing on this page moves money by itself.
+  settled. Automatic payouts are off, so nothing on this page moves money by itself.
+  {% endif %}
   The smallest withdrawal is ₦{{ min_naira|number_format }}.
 </p>
 
@@ -97,7 +104,9 @@
         {% if p.fee_naira|default(0) > 0 %}<br>Transfer <b>₦{{ (p.amount_naira - p.fee_naira)|number_format }}</b> — ₦{{ p.amount_naira|number_format }} less the ₦{{ p.fee_naira|number_format }} withdrawal fee.{% endif %}
       </p>
 
-      {% if p.status == 'requested' %}
+      {% include 'admin/partials/wallet-auto.twig' with {row: p, found: r.found, send: '/admin/payouts/' ~ p.id ~ '/send',
+                 amount: '₦' ~ (p.amount_naira - p.fee_naira|default(0))|number_format} only %}
+      {% if p.status == 'requested' and p.auto_state|default('') not in ['sending', 'checking', 'done'] %}
         <div class="po-acts">
           <form method="post" action="/admin/payouts/{{ p.id }}/pay">
             <input type="hidden" name="_token" value="{{ csrf_token }}">

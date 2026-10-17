@@ -1064,12 +1064,14 @@ final class HelpCentre
                       . 'contribution, or a <strong>tiered</strong> or <strong>custom</strong> ladder whose '
                       . 'share rises with how much has been raised. Each edition\'s rule, its milestone and '
                       . 'how far it has got are on <a href="/integrity#return">the integrity page</a>.'],
-                ['p' => 'To be paid, ask from your account under <strong>Community return</strong>. A request '
-                      . 'is checked six ways — the money is released, you hold the page\'s verified claim, '
-                      . 'the bank account is in your own name, every share traces to a valid contribution, '
-                      . 'you accepted the published terms, and a person has reviewed it — and is then paid '
-                      . 'by bank transfer. The smallest amount, the fee, the timeline, appeals and the tax '
-                      . 'position are published on the integrity page; withdrawals open once they are.'],
+                ['p' => 'To be paid, open your <strong>Wallet</strong> and choose Withdraw. A request is '
+                      . 'checked before anything is sent — the money is released, you hold the page\'s '
+                      . 'verified claim, your bank confirms the account is in your own name, every share '
+                      . 'traces to a valid contribution, and you accepted the published terms. Where '
+                      . 'nothing needs a closer look it is sent automatically, usually within minutes; '
+                      . 'otherwise a person checks it first. The smallest amount, the fee, the timeline, '
+                      . 'appeals and the tax position are published on the integrity page; withdrawals '
+                      . 'open once they are.'],
                 ['note' => 'The share, the threshold and the per-supporter ceiling are all per-cycle '
                          . 'settings, and this page always states the ones currently in force. It is '
                          . '{return_pct}% today.'],

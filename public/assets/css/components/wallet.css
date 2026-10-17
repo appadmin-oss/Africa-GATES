@@ -164,3 +164,6 @@
   .wl-amt--big{ font-size:var(--ag-fs-46) }
   .wl-rc__acts{ grid-template-columns:repeat(3, minmax(0, 1fr)) }
 }
+
+/* the review step: the account name as the BANK holds it, and where it came from */
+.wl-dl__src{ display:block; font-size:var(--ag-fs-12-5); font-weight:400; color:var(--ag-soft) }

@@ -451,12 +451,16 @@ final class PaymentController
 
             // applyStatus() refuses to move a payout that is already terminal, so a duplicate
             // delivery and an out-of-order one are both no-ops rather than a payout that
-            // reopens itself after settling.
-            $moved = $status !== '' && \AfricaGates\Services\OrgPayout::applyStatus(
-                $ref, $status, (string) ($payload['data']['message'] ?? '')
-            );
+            // reopens itself after settling. A member's wallet withdrawal carries its own
+            // prefix (WalletAutoPay::PREFIX) and is settled by its own engine.
+            $wallet = \AfricaGates\Services\WalletAutoPay::isOurs($ref);
+            $msg = (string) ($payload['data']['message'] ?? $payload['data']['reason'] ?? '');
+            $moved = $status !== '' && ($wallet
+                ? \AfricaGates\Services\WalletAutoPay::applyStatus($ref, $status, $msg,
+                      ['transfer_code' => (string) ($payload['data']['transfer_code'] ?? '')])
+                : \AfricaGates\Services\OrgPayout::applyStatus($ref, $status, (string) ($payload['data']['message'] ?? '')));
 
-            Log::record($provider, $event, $ref, 'payout',
+            Log::record($provider, $event, $ref, $wallet ? 'wallet-payout' : 'payout',
                         $moved ? $status : 'ignored',
                         $moved ? '' : 'already terminal, unknown reference, or no status', $domain);
             return $ack();

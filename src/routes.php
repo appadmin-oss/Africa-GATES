@@ -4364,6 +4364,8 @@ return function(App $app) {
         $a->get('/payouts',                      \AfricaGates\Admin\Controllers\PayoutsController::class.':index');
         $a->post('/payouts/{id:[0-9]+}/pay',     \AfricaGates\Admin\Controllers\PayoutsController::class.':pay');
         $a->post('/payouts/{id:[0-9]+}/reject',  \AfricaGates\Admin\Controllers\PayoutsController::class.':reject');
+        // Release a request the automatic checks held, to be paid by transfer.
+        $a->post('/payouts/{id:[0-9]+}/send',    \AfricaGates\Admin\Controllers\PayoutsController::class.':send');
         // ── COMMUNITY RETURN ──────────────────────────────────────────────
         //
         // An edition's return rules and milestone confirmation, and the nominees'
@@ -4374,6 +4376,7 @@ return function(App $app) {
         $a->post('/community-return/withdrawals/{id:[0-9]+}/approve',  \AfricaGates\Admin\Controllers\CommunityReturnController::class.':approve');
         $a->post('/community-return/withdrawals/{id:[0-9]+}/pay',      \AfricaGates\Admin\Controllers\CommunityReturnController::class.':pay');
         $a->post('/community-return/withdrawals/{id:[0-9]+}/reject',   \AfricaGates\Admin\Controllers\CommunityReturnController::class.':reject');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/send',     \AfricaGates\Admin\Controllers\CommunityReturnController::class.':send');
         $a->get('/finance/export',               AdminFinanceController::class.':export');
         // Re-verify stale pending payments against the gateway. POST because it makes
         // outbound calls and, in apply mode, moves money — a GET would let a prefetch

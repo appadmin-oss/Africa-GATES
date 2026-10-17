@@ -1006,12 +1006,24 @@ class PaymentService
      */
     public function initiateTransfer(int $amountNaira, string $recipientCode, string $reference, string $reason = ''): array
     {
+        return $this->initiateTransferKobo($amountNaira * 100, $recipientCode, $reference, $reason);
+    }
+
+    /**
+     * The same, in kobo. A member's withdrawal is the amount less a fee and need not be a
+     * whole naira; rounding it to send would pay somebody a figure their receipt does not
+     * show. Everything said above initiateTransfer() holds here.
+     *
+     * @return array{ok:bool,status:string,transfer_code:string,transfer_id:?string,message:string}
+     */
+    public function initiateTransferKobo(int $amountKobo, string $recipientCode, string $reference, string $reason = ''): array
+    {
         $blank = ['ok' => false, 'status' => '', 'transfer_code' => '', 'transfer_id' => null];
 
         if (!$this->isEnabled('paystack')) {
             return $blank + ['message' => 'Paystack is not configured in this environment.'];
         }
-        if ($amountNaira < 1) {
+        if ($amountKobo < 100) {
             return $blank + ['message' => 'Invalid amount.'];
         }
         if (!preg_match('/^[a-z0-9._-]+$/', $reference)) {
@@ -1021,7 +1033,7 @@ class PaymentService
         try {
             $res = $this->request('POST', 'https://api.paystack.co/transfer', [
                 'source'    => 'balance',
-                'amount'    => $amountNaira * 100,      // kobo
+                'amount'    => $amountKobo,
                 'recipient' => $recipientCode,
                 'reference' => $reference,
                 'reason'    => $reason !== '' ? $reason : 'Partner payout',

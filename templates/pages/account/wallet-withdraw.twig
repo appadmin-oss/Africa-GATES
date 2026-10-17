@@ -30,15 +30,24 @@
       <div><dt>{{ 'Amount'|trans }}</dt><dd>₦{{ (q.amount_kobo / 100)|number_format(2) }}</dd></div>
       <div><dt>{{ 'Withdrawal fee'|trans }}</dt><dd>−₦{{ (q.fee_kobo / 100)|number_format(2) }}</dd></div>
       <div class="wl-dl__total"><dt>{{ 'You receive'|trans }}</dt><dd>₦{{ (q.net_kobo / 100)|number_format(2) }}</dd></div>
-      <div><dt>{{ 'To'|trans }}</dt><dd>{{ q.bank.account_name }}<br>{{ q.bank.bank }} · <span class="wl-ref">{{ q.bank.account_number }}</span></dd></div>
-      <div><dt>{{ 'Arrives'|trans }}</dt><dd>{{ 'After a person checks it — usually within %d% working days'|trans({'%d%': terms.payout_days}) }}</dd></div>
+      <div><dt>{{ 'To'|trans }}</dt><dd>{{ q.bank.bank }} · <span class="wl-ref">{{ q.bank.account_number }}</span></dd></div>
+      {% if resolved %}
+        <div class="wl-dl__total"><dt>{{ 'Account name'|trans }}<span class="wl-dl__src">{{ 'from your bank'|trans }}</span></dt><dd>{{ resolved }}</dd></div>
+      {% else %}
+        <div><dt>{{ 'Account name'|trans }}</dt><dd>{{ q.bank.account_name }}</dd></div>
+      {% endif %}
+      <div><dt>{{ 'Arrives'|trans }}</dt><dd>{{ auto_on
+        ? 'Usually within minutes, once our automatic checks pass. If anything needs a closer look, a person checks it first.'|trans
+        : 'After a person checks it — usually within %d% working days'|trans({'%d%': terms.payout_days}) }}</dd></div>
     </dl>
   </section>
+  {% if resolved %}<p class="wl-fee">{{ 'Not you? Go back and check the account number — money goes only to an account in your own name.'|trans }}</p>{% endif %}
   <form method="post" action="/account/wallet/withdraw" class="acx-card wl-form" novalidate data-ag-validate>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input type="hidden" name="pocket" value="{{ pocket.key }}">
     <input type="hidden" name="amount_kobo" value="{{ pocket.partial ? q.amount_kobo : '' }}">
     <input type="hidden" name="bank" value="{{ q.bank.bank }}">
+    <input type="hidden" name="bank_code" value="{{ q.bank_code }}">
     <input type="hidden" name="account_name" value="{{ q.bank.account_name }}">
     <input type="hidden" name="account_number" value="{{ q.bank.account_number }}">
     <label class="wl-check"><input type="checkbox" name="accept" value="1" required>
@@ -95,7 +104,20 @@
       {% endif %}
       <p class="wl-form__fee" data-wl-fee aria-live="polite">{{ 'Withdrawal fee'|trans }}: {{ fee_text }}</p>
 
-      {{ f.text({id: 'wl-bank', name: 'bank', label: 'Bank'|trans, value: bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
+      {% if banks|length %}
+        {# Chosen, not typed: the transfer is built from the bank's code. The name travels
+           too, so a request a person pays by hand still says which bank. #}
+        <div class="ag-fieldset">
+          <label class="ag-label" for="wl-bank">{{ 'Bank'|trans }}</label>
+          <select class="ag-input" id="wl-bank" name="bank_code" required>
+            <option value="">{{ 'Choose your bank'|trans }}</option>
+            {% for bk in banks %}<option value="{{ bk.code }}"{% if bk.code == bank.bank_code|default('') or (not bank.bank_code|default('') and bk.name == bank.bank) %} selected{% endif %}>{{ bk.name }}</option>{% endfor %}
+          </select>
+        </div>
+      {% else %}
+        {{ f.text({id: 'wl-bank', name: 'bank', label: 'Bank'|trans, value: bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
+      {% endif %}
+      {% if auto_on and banks|length %}<p class="wl-form__bal">{{ 'Withdrawals to an account in your own name are usually sent within minutes.'|trans }}</p>{% endif %}
       {{ f.text({id: 'wl-name', name: 'account_name', label: 'Account name'|trans, value: bank.account_name, required: true, maxlength: 120, autocomplete: 'name', hint: 'It must be an account in your own name.'|trans}, '') }}
       {{ f.text({id: 'wl-num', name: 'account_number', label: 'Account number'|trans, value: bank.account_number, required: true, maxlength: 10, pattern: '[0-9]{10}', inputmode: 'numeric', autocomplete: 'off', hint: 'The 10-digit NUBAN.'|trans}, '') }}
       <button class="ag-btn ag-btn--primary wl-btn" type="submit">{{ 'Continue'|trans }}</button>

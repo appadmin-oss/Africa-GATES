@@ -374,7 +374,7 @@ final class AlertService
             $amt = '₦' . number_format(intdiv((int) $t['amount_kobo'], 100));
             $label = match ($t['status']) {
                 MemberWallet::ST_PENDING    => 'Your ' . $amt . ' withdrawal is being reviewed',
-                MemberWallet::ST_PROCESSING => 'Your ' . $amt . ' withdrawal was approved and is being paid',
+                MemberWallet::ST_PROCESSING => 'Your ' . $amt . ' withdrawal is on its way to your bank',
                 MemberWallet::ST_PAID       => 'Your ' . $amt . ' withdrawal was paid — check your bank',
                 default                     => 'Your ' . $amt . ' withdrawal was refused — see why',
             };

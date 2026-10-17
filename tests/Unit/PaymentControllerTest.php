@@ -305,6 +305,38 @@ class PaymentControllerTest extends TestCase
     }
 
     /**
+     * A member's automatic withdrawal settles on the signed webhook, through its own engine.
+     *
+     * `transfer.*` used to mean a partner payout and nothing else; a wallet reference sent
+     * there would match no `gates_org_payouts` row and be acknowledged with a 200, so the
+     * member's money would stay "on its way" until the sweep happened to ask. The prefix
+     * routes it (WalletAutoPay::PREFIX), and a delivery repeated changes nothing.
+     */
+    public function test_a_transfer_webhook_settles_a_members_automatic_withdrawal(): void
+    {
+        $ref = 'agwd-rp-1-0a1b2c3d';
+        DB::table('gates_users')->insert(['id' => 5, 'name' => 'Ada', 'email' => 'ada@x.test', 'points' => 0]);
+        DB::table('gates_referral_payouts')->insert(['id' => 1, 'user_id' => 5, 'amount_naira' => 4000, 'fee_naira' => 10,
+            'credit_ids' => '[]', 'status' => 'requested', 'bank_name' => 'GTBank', 'account_name' => 'Ada',
+            'account_number' => '0123456789', 'auto_state' => 'sending', 'transfer_ref' => $ref,
+            'sent_at' => date('Y-m-d H:i:s'), 'requested_at' => date('Y-m-d H:i:s')]);
+
+        $hook = fn () => $this->controller($this->stubPayments())->webhook($this->signed([
+            'event' => 'transfer.success',
+            'data'  => ['reference' => $ref, 'status' => 'success', 'transfer_code' => 'TRF_x'],
+        ]), new Response());
+
+        $this->assertSame(200, $hook()->getStatusCode());
+        $row = DB::table('gates_referral_payouts')->where('id', 1)->first();
+        $this->assertSame('paid', $row->status);
+        $this->assertSame('done', $row->auto_state);
+        $this->assertSame($ref, $row->payment_ref, 'our reference is the record of the transfer');
+
+        $this->assertSame(200, $hook()->getStatusCode());
+        $this->assertSame(1, (int) DB::table('gates_referral_payouts')->where('status', 'paid')->count());
+    }
+
+    /**
      * `subscription.create` carries a subscription code and an email token and NO reference.
      *
      * Run through the ordinary confirmation path it matches nothing, logs `unmatched`, and

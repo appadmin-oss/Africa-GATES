@@ -244,29 +244,53 @@ final class MemberWallet
      * @param  array{bank:string, account_name:string, account_number:string} $bank
      * @return array{ok:bool, message:string, key?:string}
      */
-    public static function withdraw(int $userId, string $pocketKey, ?int $amountKobo, array $bank, bool $accepted): array
+    public static function withdraw(int $userId, string $pocketKey, ?int $amountKobo, array $bank, bool $accepted,
+                                    ?PaymentService $ps = null): array
     {
         $p = self::pocket($userId, $pocketKey);
         if ($p === null) return ['ok' => false, 'message' => 'That pocket is not one of yours.'];
         if ($p['kind'] === 'points') return ['ok' => false, 'message' => (string) $p['why']];
         if (!$accepted) return ['ok' => false, 'message' => 'Read and accept the withdrawal rules first.'];
 
+        $code = mb_substr(preg_replace('/[^0-9A-Za-z]/', '', (string) ($bank['bank_code'] ?? '')) ?? '', 0, 12);
         $bank = CommunityReturnWithdrawals::cleanBank($bank);
         if ($p['kind'] === 'referral') {
             $r = ReferralPayout::request($userId, $bank['bank'], $bank['account_name'], $bank['account_number']);
-            $key = $r['ok'] ? 'rp-' . (int) $r['id'] : null;
+            $kind = WalletAutoPay::KIND_REFERRAL;
         } else {
             $r = CommunityReturnWithdrawals::request((int) $p['nominee_id'], $userId, $bank, true, $amountKobo);
-            $key = $r['ok'] ? 'crw-' . (int) $r['id'] : null;
+            $kind = WalletAutoPay::KIND_RETURN;
         }
-        if ($r['ok']) {
-            // The next withdrawal starts from these, the way the referral form always has.
-            ReferralPayout::saveBank($userId, $bank['bank'], $bank['account_name'], $bank['account_number']);
-            // The debit alert a banking app sends: what was asked for, and that a person checks it.
-            self::tell($userId, 'We received your withdrawal request', (string) $r['message'], (string) $key);
-            return ['ok' => true, 'message' => (string) $r['message'], 'key' => (string) $key];
+        if (!$r['ok']) return ['ok' => false, 'message' => (string) $r['message']];
+
+        $id  = (int) $r['id'];
+        $key = $kind . '-' . $id;
+        // The bank's code travels on the request: a transfer is built from it, never from a
+        // name. Written before the engine looks; absent only for a bank typed by hand.
+        if ($code !== '' && SchemaHas::column(WalletAutoPay::TABLES[$kind], 'bank_code')) {
+            DB::table(WalletAutoPay::TABLES[$kind])->where('id', $id)->update(['bank_code' => $code]);
         }
-        return ['ok' => false, 'message' => (string) $r['message']];
+        // The next withdrawal starts from these, the way the referral form always has. Saved
+        // BEFORE the checks, so a changed destination is a changed destination to them too.
+        ReferralPayout::saveBank($userId, $bank['bank'], $bank['account_name'], $bank['account_number'], $code !== '' ? $code : null);
+
+        // ── AUTOMATIC, WHERE NOTHING IS DOUBTFUL ─────────────────────────────
+        $ps ??= new PaymentService();
+        $auto = WalletAutoPay::enabled($ps) ? WalletAutoPay::process($ps, $kind, $id)
+                                            : ['state' => '', 'message' => '', 'tell' => []];
+        $w = WalletAutoPay::load($kind, $id);
+        $net = '₦' . number_format((int) ($w['net_kobo'] ?? 0) / 100, 2);
+        $message = match ($auto['state']) {
+            WalletAutoPay::A_DONE    => $net . ' has been paid to your bank.',
+            WalletAutoPay::A_SENDING => $net . ' is on its way to your bank. We will tell you the moment it lands.',
+            WalletAutoPay::A_HELD    => 'Requested. A person will check this one before it is sent'
+                                        . ($auto['tell'] !== [] ? ': ' . implode(' ', $auto['tell']) : ', usually within a working day.'),
+            default                  => (string) $r['message'],
+        };
+        // The debit alert a banking app sends: what was asked for, and what happens next.
+        $moving = in_array($auto['state'], [WalletAutoPay::A_SENDING, WalletAutoPay::A_DONE], true);
+        self::tell($userId, $moving ? 'Your withdrawal is on its way' : 'We received your withdrawal request', $message, $key);
+        return ['ok' => true, 'message' => $message, 'key' => $key, 'auto' => $auto['state']];
     }
 
     /**
@@ -387,11 +411,12 @@ final class MemberWallet
                     CommunityReturnWithdrawals::WD_PAID      => self::ST_PAID,
                     default                                  => self::ST_REFUSED,
                 };
+                [$status, $extra] = self::auto($w, $status);
                 $out[] = self::withdrawalTx('crw-' . (int) $w->id, (int) $w->amount_kobo, (int) $w->fee_kobo,
                     (string) $w->bank_name, (string) $w->account_name, (string) $w->account_number,
-                    $status, (string) ($w->paid_at ?: $w->reviewed_at ?: $w->requested_at),
+                    $status, (string) ($w->paid_at ?: ($w->sent_at ?? null) ?: $w->reviewed_at ?: $w->requested_at),
                     (string) ($w->payment_ref ?? ''), (string) ($w->review_note ?? ''), 'Community return · ' . $page,
-                    (string) $w->requested_at);
+                    (string) $w->requested_at, $extra);
             }
         }
         return $out;
@@ -452,19 +477,50 @@ final class MemberWallet
                 'paid'      => self::ST_PAID,
                 default     => self::ST_REFUSED,
             };
+            [$status, $extra] = self::auto($p, $status);
             $out[] = self::withdrawalTx('rp-' . (int) $p->id, (int) $p->amount_naira * 100,
                 (int) ($p->fee_naira ?? 0) * 100, (string) $p->bank_name, (string) $p->account_name,
-                (string) $p->account_number, $status, (string) ($p->settled_at ?: $p->requested_at),
+                (string) $p->account_number, $status, (string) ($p->settled_at ?: ($p->sent_at ?? null) ?: $p->requested_at),
                 (string) ($p->payment_ref ?? ''), (string) ($p->note ?? ''), 'Referral earnings',
-                (string) $p->requested_at);
+                (string) $p->requested_at, $extra);
         }
         return $out;
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * What the automatic payout adds to a withdrawal's status and receipt.
+     *
+     * In flight is PROCESSING whatever the request's own status says — a referral payout
+     * stays `requested` until the gateway confirms it. Held is IN REVIEW, with only the
+     * member-safe half of what was found: "the bank says this account is X" helps them;
+     * "account used by another member" would teach somebody what is watched.
+     *
+     * @return array{0:string, 1:list<array{0:string,1:string}>}
+     */
+    private static function auto(object $w, string $status): array
+    {
+        $state = $w->auto_state ?? null;
+        $extra = [];
+        if ((string) ($w->resolved_name ?? '') !== '') $extra[] = ['Name at the bank', (string) $w->resolved_name];
+        if ($state === WalletAutoPay::A_SENDING) {
+            $status = self::ST_PROCESSING;
+            $extra[] = ['Checks', 'Passed automatically · sent to your bank'];
+        } elseif ($state === WalletAutoPay::A_DONE) {
+            $extra[] = ['Checks', 'Passed automatically'];
+        } elseif ($state === WalletAutoPay::A_HELD && $status === self::ST_PENDING) {
+            $tell = array_values(array_filter(array_column(WalletAutoPay::findings($w), 'tell')));
+            $extra[] = ['Checks', 'A person is checking this one' . ($tell !== [] ? ': ' . implode(' ', array_unique($tell)) : '')];
+        }
+        return [$status, $extra];
+    }
+
+    /**
+     * @param list<array{0:string,1:string}> $extra
+     * @return array<string,mixed>
+     */
     private static function withdrawalTx(string $key, int $amount, int $fee, string $bank, string $name, string $number,
                                          string $status, string $at, string $ref, string $note, string $pocket,
-                                         string $requestedAt): array
+                                         string $requestedAt, array $extra = []): array
     {
         $last4 = substr($number, -4);
         $details = [
@@ -477,6 +533,7 @@ final class MemberWallet
             // exactly as it formats the transaction's own date — never a raw database string.
             ['Requested', $requestedAt, 'date'],
         ];
+        foreach ($extra as $e) $details[] = $e;
         if ($note !== '') $details[] = [$status === self::ST_REFUSED ? 'Why it was refused' : 'Note', $note];
         return self::tx($key, 'out', 'Withdrawal to ' . ($bank !== '' ? $bank : 'your bank'),
             $name . ($last4 !== '' ? ' ••' . $last4 : ''), $amount, $status, $at, $ref, $fee,

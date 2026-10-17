@@ -78,13 +78,15 @@ use Illuminate\Support\Carbon;
  * opts in; nothing switches by deploy, because a rule a nominee was told must not change
  * under them.
  *
- * ── MONEY LEAVES ONLY THROUGH A REVIEWED REQUEST ─────────────────────────────
+ * ── MONEY LEAVES ONLY THROUGH A CHECKED REQUEST ──────────────────────────────
  *
- * A nominee asks; the request is checked automatically, reviewed by a person, and paid by
- * bank transfer against a recorded reference — {@see CommunityReturnWithdrawals}. Nothing
- * here moves money by itself, and nothing calls a gateway: the payin path still loses
- * contributions on the way IN (see {@see PaymentTriage}), and an automatic payout on top
- * of that would multiply the problem.
+ * A nominee asks from their Wallet; the request is checked — {@see WalletRisk} — and,
+ * where nothing is doubtful, sent by Paystack transfer without a person (owner, 17 Oct
+ * 2026); anything doubtful is held for one — {@see WalletAutoPay}. Nothing in THIS class
+ * moves money: the ledger's `payout` entry is written only when the gateway confirms the
+ * transfer (or a person records a reference), never when a transfer is merely asked for.
+ * That ordering is what keeps an automatic payout from compounding the payin path's own
+ * losses (see {@see PaymentTriage}): money the ledger has not been told left, has not.
  */
 final class CommunityReturnService
 {

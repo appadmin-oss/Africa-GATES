@@ -25,9 +25,14 @@
       {% elseif t.status in ['refused', 'reversed'] %}<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
       {% else %}<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/></svg>{% endif %}
     </span>
-    {% if fresh %}
+    {% if fresh and t.status == 'paid' %}
+      <h2 class="wl-rc__h" id="wl-rc-h">{{ 'Paid to your bank'|trans }}</h2>
+    {% elseif fresh and t.status == 'processing' %}
+      <h2 class="wl-rc__h" id="wl-rc-h">{{ 'On its way to your bank'|trans }}</h2>
+      <p class="wl-rc__p">{{ 'It passed our checks and has been sent. Most banks credit it within minutes; we will notify you here and by email the moment it lands.'|trans }}</p>
+    {% elseif fresh %}
       <h2 class="wl-rc__h" id="wl-rc-h">{{ 'Withdrawal sent for review'|trans }}</h2>
-      <p class="wl-rc__p">{{ 'A person checks every withdrawal before it is paid. We will notify you here and by email the moment it moves.'|trans }}</p>
+      <p class="wl-rc__p">{{ 'A person will check this one before it is paid. We will notify you here and by email the moment it moves.'|trans }}</p>
     {% else %}
       <h2 class="wl-rc__h" id="wl-rc-h">{{ t.title|trans }}</h2>
     {% endif %}

@@ -160,6 +160,9 @@ final class Maintenance
             // charity's payout left in an unknown state is exactly the thing nobody notices
             // until they ask where their money is.
             $ran[] = ['payouts',       $this->task('payouts',       fn() => $this->sweepPartnerPayouts())];
+            // Members' automatic withdrawals: requests the request path left unchecked, and
+            // transfers the webhook has not settled. Same reasoning as the line above.
+            $ran[] = ['walletpay',     $this->task('walletpay',     fn() => $this->sweepWalletPayouts())];
             // Stand offers nobody accepted in time. On every tick rather than daily, because
             // the place an expired offer is holding was promised to a waiting list that was
             // told it would move — and a list that only moves at 06:00 is a list that does
@@ -359,6 +362,7 @@ final class Maintenance
                 'support'   => $ran[] = ['support', $this->task('support', fn() => $this->answerTickets())],
                 'refunds'   => $ran[] = ['refunds', $this->task('refunds', fn() => $this->refundUnminted())],
                 'payouts'   => $ran[] = ['payouts', $this->task('payouts', fn() => $this->sweepPartnerPayouts())],
+                'walletpay' => $ran[] = ['walletpay', $this->task('walletpay', fn() => $this->sweepWalletPayouts())],
                 'standoffers' => $ran[] = ['standoffers', $this->task('standoffers', fn() => $this->expireStandOffers())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'qdisqualify' => $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())],
@@ -809,6 +813,22 @@ final class Maintenance
      * returns an error for a transfer Paystack has not created yet, which reads exactly like
      * a failure and would mark a healthy payout dead.
      */
+    /**
+     * Members' automatic withdrawals (WalletAutoPay): check what is waiting, and ask the
+     * gateway about transfers it has not reported. A no-op while the engine is off.
+     */
+    private function sweepWalletPayouts(): int
+    {
+        try {
+            $r = \AfricaGates\Services\WalletAutoPay::sweep(new \AfricaGates\Services\PaymentService());
+            $this->log('wallet payouts: processed ' . $r['processed'] . ', checked ' . $r['checked'] . ', resolved ' . $r['changed']);
+            return $r['processed'] + $r['changed'];
+        } catch (\Throwable $e) {
+            $this->log('wallet payouts error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
     private function sweepPartnerPayouts(): int
     {
         try {

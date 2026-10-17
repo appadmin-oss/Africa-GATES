@@ -181,12 +181,11 @@ final class ReferralPayout
      */
     public static function bankFor(int $userId): array
     {
-        $empty = ['bank' => '', 'account_name' => '', 'account_number' => ''];
+        $empty = ['bank' => '', 'account_name' => '', 'account_number' => '', 'bank_code' => ''];
         if ($userId < 1) return $empty;
 
         try {
-            $u = DB::table('gates_users')->where('id', $userId)
-                ->first(['payout_bank', 'payout_account_name', 'payout_account_number']);
+            $u = DB::table('gates_users')->where('id', $userId)->first();
         } catch (\Throwable) {
             return $empty;
         }
@@ -196,6 +195,8 @@ final class ReferralPayout
             'bank'           => (string) ($u->payout_bank ?? ''),
             'account_name'   => (string) ($u->payout_account_name ?? ''),
             'account_number' => (string) ($u->payout_account_number ?? ''),
+            // The Paystack bank code, where the details were saved from the bank list.
+            'bank_code'      => (string) ($u->payout_bank_code ?? ''),
         ];
     }
 
@@ -208,7 +209,7 @@ final class ReferralPayout
      *
      * @return array{ok:bool, message:string}
      */
-    public static function saveBank(int $userId, string $bank, string $accountName, string $accountNumber): array
+    public static function saveBank(int $userId, string $bank, string $accountName, string $accountNumber, ?string $bankCode = null): array
     {
         if ($userId < 1) return ['ok' => false, 'message' => 'Sign in first.'];
 
@@ -224,11 +225,27 @@ final class ReferralPayout
         }
 
         try {
-            DB::table('gates_users')->where('id', $userId)->update([
+            $row = [
                 'payout_bank'           => mb_substr($bank, 0, 120),
                 'payout_account_name'   => mb_substr($name, 0, 160),
                 'payout_account_number' => mb_substr($number, 0, 32),
-            ]);
+            ];
+            // When the DESTINATION changes, say when: new bank details followed at once by a
+            // withdrawal is the commonest shape of a taken-over account, and the automatic
+            // payout holds that combination for a person (WalletRisk). A name edit alone is
+            // not a new destination. The code is kept where the details came from the list.
+            if (\AfricaGates\Support\SchemaHas::column('gates_users', 'payout_bank_changed_at')) {
+                $was = DB::table('gates_users')->where('id', $userId)->first(['payout_account_number', 'payout_bank_code']);
+                $code = $bankCode !== null ? mb_substr(trim($bankCode), 0, 12) : (string) ($was->payout_bank_code ?? '');
+                // Only a REPLACEMENT counts: somebody saving details for the first time has
+                // not changed anything, and the new-account limit already covers them.
+                $prev = (string) ($was->payout_account_number ?? '');
+                if ($prev !== '' && ($prev !== $number || ((string) ($was->payout_bank_code ?? '') !== '' && (string) $was->payout_bank_code !== $code))) {
+                    $row['payout_bank_changed_at'] = Carbon::now()->toDateTimeString();
+                }
+                $row['payout_bank_code'] = $code !== '' ? $code : null;
+            }
+            DB::table('gates_users')->where('id', $userId)->update($row);
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not save those details just now.'];
         }
@@ -293,6 +310,8 @@ final class ReferralPayout
                 'row'   => $r,
                 'name'  => (string) ($u->name ?? ('Member #' . $r->user_id)),
                 'email' => (string) ($u->email ?? ''),
+                // What the automatic payout found, if it held this one (WalletAutoPay).
+                'found' => WalletAutoPay::findings($r),
             ];
         }
         return $out;
@@ -312,7 +331,7 @@ final class ReferralPayout
      *
      * @return array{ok:bool, message:string}
      */
-    public static function markPaid(int $id, string $reference, int $adminId = 0): array
+    public static function markPaid(int $id, string $reference, int $adminId = 0, bool $alreadySent = false): array
     {
         $reference = trim($reference);
         if ($reference === '') {
@@ -322,6 +341,7 @@ final class ReferralPayout
 
         $p = self::find($id);
         if (!$p)                              return ['ok' => false, 'message' => 'No such request.'];
+        if (!$alreadySent && ($busy = WalletAutoPay::busy($p))) return ['ok' => false, 'message' => $busy];
         if ((string) $p->status !== 'requested') {
             return ['ok' => false, 'message' => 'That request is already ' . $p->status . '.'];
         }
@@ -339,7 +359,9 @@ final class ReferralPayout
         // between request and payment. So the request is refused instead: rejecting it puts
         // the live credits back in the member's balance, and their next request is for
         // exactly what is still owed.
-        if ($ids !== [] && \AfricaGates\Support\SchemaHas::column('gates_referral_credits', 'reversed_at')) {
+        // Not when the gateway has already confirmed the transfer (WalletAutoPay): the money
+        // has gone, and the record must say so — see CommunityReturnWithdrawals::markPaid().
+        if (!$alreadySent && $ids !== [] && \AfricaGates\Support\SchemaHas::column('gates_referral_credits', 'reversed_at')) {
             try {
                 $reversed = (int) DB::table('gates_referral_credits')->whereIn('id', $ids)
                     ->whereNotNull('reversed_at')->count();
@@ -398,6 +420,7 @@ final class ReferralPayout
         $p = self::find($id);
         if (!$p)                                 return ['ok' => false, 'message' => 'No such request.'];
         if ((string) $p->status !== 'requested') return ['ok' => false, 'message' => 'That request is already ' . $p->status . '.'];
+        if ($busy = WalletAutoPay::busy($p)) return ['ok' => false, 'message' => $busy];
 
         try {
             DB::table('gates_referral_payouts')->where('id', $id)->update([

@@ -85,6 +85,10 @@ final class CommunityReturnWithdrawals
             // Published means an operator said so AND the one term no default can supply is
             // present. A flag alone could be ticked over an empty tax position.
             'published'      => (bool) ($eff['community_return_terms_published'] ?? false) && $tax !== '',
+            // Whether a withdrawal that passes every check is sent without a person. Read
+            // from the engine, so the published terms cannot promise a review that no longer
+            // happens, or speed that is switched off.
+            'automatic'      => WalletAutoPay::enabled(null, $eff),
         ];
     }
 
@@ -143,8 +147,11 @@ final class CommunityReturnWithdrawals
                 : ($accepted ? 'You accepted the published rules.' : 'Read and accept the published rules.')];
 
         $checks[] = ['key' => 'review', 'label' => 'Payout review', 'ok' => true,
-            'detail' => 'A person reviews every request before it is paid, usually within '
-                      . $terms['payout_days'] . ' working days.'];
+            'detail' => $terms['automatic']
+                ? 'Checked automatically and usually sent within minutes; anything that needs a closer look is checked by a person first, within '
+                  . $terms['payout_days'] . ' working days.'
+                : 'A person reviews every request before it is paid, usually within '
+                  . $terms['payout_days'] . ' working days.'];
 
         $reason = '';
         foreach ($checks as $c) { if (!$c['ok']) { $reason = $c['detail']; break; } }
@@ -330,7 +337,7 @@ final class CommunityReturnWithdrawals
      *
      * @return array{ok:bool, message:string}
      */
-    public static function markPaid(int $id, string $reference, int $adminId): array
+    public static function markPaid(int $id, string $reference, int $adminId, bool $alreadySent = false): array
     {
         $reference = trim($reference);
         if ($reference === '') {
@@ -339,11 +346,17 @@ final class CommunityReturnWithdrawals
         }
         $w = self::find($id);
         if (!$w) return ['ok' => false, 'message' => 'No such request.'];
+        if (!$alreadySent && ($busy = WalletAutoPay::busy($w))) return ['ok' => false, 'message' => $busy];
         if ((string) $w->status !== self::WD_APPROVED) {
             return ['ok' => false, 'message' => (string) $w->status === self::WD_REQUESTED
                 ? 'Review and approve it first.' : 'That request is already ' . $w->status . '.'];
         }
-        if ($why = self::stillCovered($w)) return ['ok' => false, 'message' => $why];
+        // `$alreadySent` is the automatic payout reporting a transfer the GATEWAY has
+        // confirmed. The money has left; refusing to record it would leave it on the ledger
+        // as still owed — a second payment waiting to happen. So it is recorded whatever the
+        // balance now says, and a balance that dips below zero is the truth an operator
+        // needs to see (WalletAutoPay raises it), not something to hide by refusing.
+        if (!$alreadySent && ($why = self::stillCovered($w))) return ['ok' => false, 'message' => $why];
 
         try {
             DB::transaction(static function () use ($w, $reference, $adminId): void {
@@ -396,6 +409,7 @@ final class CommunityReturnWithdrawals
         $w = self::find($id);
         if (!$w) return ['ok' => false, 'message' => 'No such request.'];
         if (!in_array((string) $w->status, self::OPEN, true)) return ['ok' => false, 'message' => 'That request is already ' . $w->status . '.'];
+        if ($busy = WalletAutoPay::busy($w)) return ['ok' => false, 'message' => $busy];
 
         DB::table('gates_return_withdrawals')->where('id', $id)->whereIn('status', self::OPEN)->update([
             'status' => self::WD_REJECTED, 'reviewed_by' => $adminId > 0 ? $adminId : null,
@@ -425,7 +439,8 @@ final class CommunityReturnWithdrawals
         }
         $out = [];
         foreach ($rows as $r) {
-            $out[] = ['row' => $r, 'checks' => (array) json_decode((string) ($r->checks_json ?? '[]'), true)];
+            $out[] = ['row' => $r, 'checks' => (array) json_decode((string) ($r->checks_json ?? '[]'), true),
+                      'found' => WalletAutoPay::findings($r)];
         }
         return $out;
     }

@@ -1726,7 +1726,11 @@ class AccountController
             'page_title' => 'Withdraw — Africa GATES', 'gates_page' => 'account',
             'app_bar' => ['variant' => 'child', 'title' => 'Withdraw', 'back' => '/account/wallet', 'share' => false],
             'step' => 'form', 'pockets' => $pockets, 'pocket' => $pocket,
-            'bank' => is_array($old) ? $old + ['amount' => ''] : \AfricaGates\Services\ReferralPayout::bankFor($id) + ['amount' => ''],
+            'bank' => is_array($old) ? $old + ['amount' => '', 'bank_code' => ''] : \AfricaGates\Services\ReferralPayout::bankFor($id) + ['amount' => ''],
+            // The bank is CHOSEN from Paystack's list where there is one: an automatic
+            // transfer is built from the bank's code, never from a name somebody typed.
+            'banks'     => \AfricaGates\Services\WalletAutoPay::banks(),
+            'auto_on'   => \AfricaGates\Services\WalletAutoPay::enabled(),
             'fee_bands' => \AfricaGates\Services\WalletFee::bands(),
             'fee_text'  => \AfricaGates\Services\WalletFee::describe(),
             'terms'     => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
@@ -1741,24 +1745,50 @@ class AccountController
         $W  = \AfricaGates\Services\MemberWallet::class;
         $b  = (array) $req->getParsedBody();
         $key = (string) ($b['pocket'] ?? '');
+        $code = preg_replace('/[^0-9A-Za-z]/', '', (string) ($b['bank_code'] ?? '')) ?? '';
         $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
-                 'account_number' => (string) ($b['account_number'] ?? '')];
+                 'account_number' => (string) ($b['account_number'] ?? ''), 'bank_code' => $code];
+        // A bank chosen from the list is named by the list, not by the form.
+        if ($code !== '') {
+            foreach (\AfricaGates\Services\WalletAutoPay::banks() as $bk) {
+                if ($bk['code'] === $code) { $bank['bank'] = $bk['name']; break; }
+            }
+        }
         $typed = trim((string) ($b['amount'] ?? ''));
         $amount = $typed === '' ? null : $W::parseNaira($typed);
+        $back = function (string $why) use ($res, $bank, $typed, $key): Response {
+            $_SESSION['flash_error'] = $why;
+            $_SESSION['wallet_wd_old'] = $bank + ['amount' => $typed];
+            return $res->withHeader('Location', '/account/wallet/withdraw?pocket=' . rawurlencode($key))->withStatus(303);
+        };
 
         $q = $typed !== '' && $amount === null
             ? ['ok' => false, 'reason' => 'Type the amount in naira, like 2500.']
             : $W::quote($id, $key, $amount, $bank);
-        if (!$q['ok']) {
-            $_SESSION['flash_error'] = $q['reason'];
-            $_SESSION['wallet_wd_old'] = $bank + ['amount' => $typed];
-            return $res->withHeader('Location', '/account/wallet/withdraw?pocket=' . rawurlencode($key))->withStatus(303);
+        if (!$q['ok']) return $back($q['reason']);
+
+        // ── WHO THE BANK SAYS THIS IS, BEFORE ANYTHING IS CONFIRMED ──────────
+        //
+        // The step every Nigerian banking app has: the account name, from the bank, on the
+        // confirm screen. A mistyped digit shows up as a stranger's name here rather than
+        // as money sent to them. The automatic checks ask the bank again at send time; this
+        // is for the person's eyes. Nobody to ask is not a reason to stop them.
+        $resolved = '';
+        $ps = new \AfricaGates\Services\PaymentService();
+        if ($code !== '' && $ps->isEnabled('paystack')) {
+            $r = $ps->resolveAccount($bank['account_number'], $code);
+            if (!$r['ok'] && $r['reachable']) {
+                return $back('Your bank did not recognise that account number. Check it and try again.');
+            }
+            $resolved = $r['ok'] ? $r['name'] : '';
         }
 
         return $this->view->render($res, 'pages/account/wallet-withdraw.twig', $this->railFor($user, 'wallet') + [
             'page_title' => 'Check and confirm — Africa GATES', 'gates_page' => 'account',
             'app_bar' => ['variant' => 'child', 'title' => 'Check and confirm', 'back' => '/account/wallet/withdraw?pocket=' . rawurlencode($key), 'share' => false],
-            'step' => 'review', 'pocket' => $W::pocket($id, $key), 'q' => $q,
+            'step' => 'review', 'pocket' => $W::pocket($id, $key), 'q' => $q + ['bank_code' => $code],
+            'resolved' => $resolved,
+            'auto_on' => \AfricaGates\Services\WalletAutoPay::enabled($ps) && $code !== '',
             'terms' => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
         ]);
     }
@@ -1771,7 +1801,7 @@ class AccountController
         $b = (array) $req->getParsedBody();
         $key = (string) ($b['pocket'] ?? '');
         $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
-                 'account_number' => (string) ($b['account_number'] ?? '')];
+                 'account_number' => (string) ($b['account_number'] ?? ''), 'bank_code' => (string) ($b['bank_code'] ?? '')];
         $amount = ($b['amount_kobo'] ?? '') === '' ? null : max(0, (int) $b['amount_kobo']);
 
         $r = $W::withdraw((int) $user->id, $key, $amount, $bank, ($b['accept'] ?? '') === '1');

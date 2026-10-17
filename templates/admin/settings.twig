@@ -1496,6 +1496,52 @@
         </div>
       </div>
       <label class="checkbox"><input type="checkbox" name="community_return_terms_published" value="1" {% if _t.published %}checked{% endif %}> These terms are final: publish them and open withdrawals</label>
+
+      {# Automatic withdrawals (WalletAutoPay / WalletRisk). Every check can only HOLD a
+         withdrawal for a person, never refuse it; these numbers decide what is sent alone. #}
+      {% set _wa = wallet_auto %}
+      <h4 id="wallet-auto">Automatic withdrawals</h4>
+      <input type="hidden" name="wallet_auto_form" value="1">
+      <label class="checkbox"><input type="checkbox" name="wallet_auto_payout" value="1" {% if _wa.on %}checked{% endif %}> Send withdrawals automatically when every check passes</label>
+      <p class="hint">{% if not _wa.paystack %}<strong>Paystack is not configured, so nothing is sent automatically yet — every withdrawal waits for a person.</strong> {% endif %}Checked first: the bank confirms the account and that the name on it matches the member; no other member uses the account; no password reset or change of bank details in the last {{ _wa.wallet_auto_change_hours }} hours; no fraud-flagged or refund-requested money behind the balance; and the limits below. Anything doubtful is held for a person with the reason written on it. Paystack must have transfer OTPs turned off.</p>
+      <div class="row">
+        <div>
+          <label for="f-wa-max">Largest withdrawal sent automatically (₦)</label>
+          <input type="number" name="wallet_auto_max_naira" id="f-wa-max" min="0" step="1000" value="{{ _wa.wallet_auto_max_naira }}">
+        </div>
+        <div>
+          <label for="f-wa-new">First payment to a new account, up to (₦)</label>
+          <input type="number" name="wallet_auto_new_account_naira" id="f-wa-new" min="0" step="1000" value="{{ _wa.wallet_auto_new_account_naira }}">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-wa-day">Per member, per 24 hours (₦)</label>
+          <input type="number" name="wallet_auto_daily_naira" id="f-wa-day" min="0" step="1000" value="{{ _wa.wallet_auto_daily_naira }}">
+        </div>
+        <div>
+          <label for="f-wa-count">Per member, withdrawals per 24 hours</label>
+          <input type="number" name="wallet_auto_daily_count" id="f-wa-count" min="0" step="1" value="{{ _wa.wallet_auto_daily_count }}">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-wa-all">Whole platform, per 24 hours (₦)</label>
+          <input type="number" name="wallet_auto_platform_daily_naira" id="f-wa-all" min="0" step="10000" value="{{ _wa.wallet_auto_platform_daily_naira }}">
+          <p class="hint">A circuit breaker: above it, automatic payouts pause and everything waits for a person.</p>
+        </div>
+        <div>
+          <label for="f-wa-age">Member account at least (days old)</label>
+          <input type="number" name="wallet_auto_min_account_days" id="f-wa-age" min="0" step="1" value="{{ _wa.wallet_auto_min_account_days }}">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-wa-chg">Hold after a password reset or new bank details (hours)</label>
+          <input type="number" name="wallet_auto_change_hours" id="f-wa-chg" min="0" step="1" value="{{ _wa.wallet_auto_change_hours }}">
+        </div>
+        <div></div>
+      </div>
     </div>
   </div></div>
   <div class="ad-card" data-sec="site" data-keys="display values nations count cpi recompute interval review sla nomination seconds otp expiry processing fee donation goal target fundraising" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">

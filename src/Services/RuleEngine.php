@@ -171,6 +171,16 @@ class RuleEngine
         // The withdrawal fee is not a community-return term: it is the WALLET's, one
         // schedule for every way a member takes money out. See WalletFee.
         'wallet_fee_bands'                      => WalletFee::DEFAULT_BANDS,
+        // Automatic withdrawals (owner, 17 Oct 2026): sent without a person when every check
+        // in WalletRisk passes, held for one when any doubts. The limits are WalletRisk's.
+        'wallet_auto_payout'                    => true,
+        'wallet_auto_max_naira'                 => WalletRisk::DEFAULTS['wallet_auto_max_naira'],
+        'wallet_auto_daily_naira'               => WalletRisk::DEFAULTS['wallet_auto_daily_naira'],
+        'wallet_auto_daily_count'               => WalletRisk::DEFAULTS['wallet_auto_daily_count'],
+        'wallet_auto_platform_daily_naira'      => WalletRisk::DEFAULTS['wallet_auto_platform_daily_naira'],
+        'wallet_auto_new_account_naira'         => WalletRisk::DEFAULTS['wallet_auto_new_account_naira'],
+        'wallet_auto_min_account_days'          => WalletRisk::DEFAULTS['wallet_auto_min_account_days'],
+        'wallet_auto_change_hours'              => WalletRisk::DEFAULTS['wallet_auto_change_hours'],
         'community_return_payout_days'          => 10,
         'community_return_appeal_days'          => 14,
         'community_return_unclaimed_days'       => 365,

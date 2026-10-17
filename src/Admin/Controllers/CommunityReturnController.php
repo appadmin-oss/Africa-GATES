@@ -197,6 +197,20 @@ final class CommunityReturnController
         return $this->back($res);
     }
 
+    /** POST …/withdrawals/{id}/send — release a held request to be paid by transfer. */
+    public function send(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $r  = \AfricaGates\Services\WalletAutoPay::release(new \AfricaGates\Services\PaymentService(),
+            \AfricaGates\Services\WalletAutoPay::KIND_RETURN, $id, $this->adminId());
+        $ok = in_array($r['state'], [\AfricaGates\Services\WalletAutoPay::A_SENDING, \AfricaGates\Services\WalletAutoPay::A_DONE], true);
+
+        $_SESSION[$ok ? 'flash' : 'flash_error'] = $r['message'];
+        if ($ok) $this->audit?->record($this->adminId(), 'community_return.withdrawal_released', 'withdrawal', $id);
+        return $this->back($res);
+    }
+
     public function reject(Request $req, Response $res, array $args): Response
     {
         if ($b = $this->blocked($res)) return $b;

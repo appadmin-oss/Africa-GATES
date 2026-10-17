@@ -79,12 +79,16 @@
       rows: [
         ['Smallest withdrawal'|trans, '₦' ~ (_t.min_kobo / 100)|number_format, 'Below this, the balance waits until there is more.'|trans|e],
         ['Fee'|trans, _t.fee_text|e, 'Taken from each withdrawal, by amount, and shown before it is asked for.'|trans|e],
-        ['Paid within'|trans, '%n% working days'|trans({'%n%': _t.payout_days}), 'After a person has reviewed the request.'|trans|e],
+        ['Paid within'|trans, '%n% working days'|trans({'%n%': _t.payout_days}), _t.automatic
+            ? 'At the latest. A request that passes every automatic check is usually sent within minutes; one that needs a closer look waits for a person.'|trans|e
+            : 'After a person has reviewed the request.'|trans|e],
         ['Appeals'|trans, '%n% days'|trans({'%n%': _t.appeal_days}), 'To appeal a refused withdrawal or a hold, reply to the email that told you.'|trans|e],
         ['Unclaimed balances'|trans, '%n% days'|trans({'%n%': _t.unclaimed_days}), 'Claim a released balance within this period. Nothing is forfeited automatically; a person decides, on the record.'|trans|e],
         ['Tax'|trans, '—', _t.tax_note|e]
       ]}},
-    {p: 'Money is paid by bank transfer, to an account in the nominee’s own name, after six checks: the money is released, the person asking holds the page’s verified claim, the account is theirs, every share traces to a valid contribution, these terms were accepted, and a person has reviewed the request.'|trans|e}
+    {p: _t.automatic
+      ? 'Money is paid by bank transfer, to an account in the nominee’s own name. Before anything is sent: the money is released, the person asking holds the page’s verified claim, the bank confirms the account and that the name on it is theirs, every share traces to a valid contribution with nothing fraud-flagged or awaiting a refund, these terms were accepted, and the request is within the automatic limits. A request that passes all of it is sent automatically; anything doubtful — a recent password reset or change of bank details, an account another member uses, an amount above the limits — is checked by a person first.'|trans|e
+      : 'Money is paid by bank transfer, to an account in the nominee’s own name, after six checks: the money is released, the person asking holds the page’s verified claim, the account is theirs, every share traces to a valid contribution, these terms were accepted, and a person has reviewed the request.'|trans|e}
   ] %}
 {% else %}
   {% set _ret_terms = [{p: 'Withdrawals open once the withdrawal terms — the smallest amount, the fee, the timeline, appeals, unclaimed balances and the tax position — are published here.'|trans|e}] %}

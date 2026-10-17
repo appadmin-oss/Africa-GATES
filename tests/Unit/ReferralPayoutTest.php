@@ -364,7 +364,7 @@ final class ReferralPayoutTest extends TestCase
     {
         $b = ReferralPayout::bankFor(4242);
 
-        $this->assertSame(['bank' => '', 'account_name' => '', 'account_number' => ''], $b);
+        $this->assertSame(['bank' => '', 'account_name' => '', 'account_number' => '', 'bank_code' => ''], $b);
     }
 
     /**

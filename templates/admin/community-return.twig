@@ -154,7 +154,7 @@
   {% if not terms.published %}
     <p class="ad-callout ad-callout--warn">Withdrawals are closed: the withdrawal terms are not published yet. Set them, including the tax position, under Settings → Community return.</p>
   {% endif %}
-  <p class="ad-stat__hint">{{ totals.open }} open · {{ m.naira(totals.open_kobo) }} under review · {{ m.naira(totals.paid_kobo) }} paid all time. Approve once you have confirmed the account is in the nominee’s own name; transfer the money; then record the reference. Nothing here moves money by itself.</p>
+  <p class="ad-stat__hint">{{ totals.open }} open · {{ m.naira(totals.open_kobo) }} under review · {{ m.naira(totals.paid_kobo) }} paid all time. {% if terms.automatic %}Requests that pass every automatic check are sent by Paystack and settle themselves when the bank confirms; what waits here is what the checks held, each with its reason. Send it by transfer, or approve, pay by hand and record the reference.{% else %}Approve once you have confirmed the account is in the nominee’s own name; transfer the money; then record the reference. Automatic payouts are off, so nothing here moves money by itself.{% endif %}</p>
 
   <nav class="cn-tabs" aria-label="Withdrawal status">
     {% for key, label in statuses %}
@@ -190,7 +190,10 @@
         </div>
       </div>
 
-      {% if w.status == 'requested' %}
+      {% include 'admin/partials/wallet-auto.twig' with {row: w, found: item.found, send: '/admin/community-return/withdrawals/' ~ w.id ~ '/send', amount: m.naira(w.amount_kobo - w.fee_kobo)} only %}
+      {% set _busy = w.auto_state|default('') in ['sending', 'checking', 'done'] %}
+      {% if _busy %}
+      {% elseif w.status == 'requested' %}
         <div class="ad-form__actions">
           <form method="post" action="/admin/community-return/withdrawals/{{ w.id }}/approve" class="ad-form__actions">
             <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -210,7 +213,7 @@
           </form>
         </div>
       {% endif %}
-      {% if w.status in ['requested', 'approved'] %}
+      {% if w.status in ['requested', 'approved'] and not _busy %}
         <form method="post" action="/admin/community-return/withdrawals/{{ w.id }}/reject" class="ad-form__actions">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <label for="crWhy{{ w.id }}">Or refuse, with a reason the nominee will read</label>

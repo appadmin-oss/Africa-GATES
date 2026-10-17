@@ -360,6 +360,9 @@ class SettingsController
             // The withdrawal terms, through the resolver the withdrawals and /integrity read.
             'community_return_terms' => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
             'wallet_fee_text'        => \AfricaGates\Services\WalletFee::format(),
+            // Automatic withdrawals: the switch, whether Paystack can actually send, and the
+            // limits WalletRisk holds anything above.
+            'wallet_auto'            => self::walletAuto(),
             // The scoring curves, so the form can show what is actually in force rather
             // than the defaults. Whole ruleset rather than five picked keys: the template
             // reads them by name and a missing one under strict_variables is a 500.
@@ -1075,6 +1078,17 @@ class SettingsController
                     $_SESSION['flash_error'] = 'Withdrawal fee not saved: ' . $fees['message'];
                 }
             }
+
+            // Automatic withdrawals. A checkbox posts nothing when it is off, so the form
+            // says it was drawn (`wallet_auto_form`) — otherwise saving any OTHER part of
+            // Settings would switch automatic payouts off without anybody choosing to.
+            if (($b['wallet_auto_form'] ?? '') === '1') {
+                $auto = ['wallet_auto_payout' => ($b['wallet_auto_payout'] ?? '') === '1'];
+                foreach (array_keys(\AfricaGates\Services\WalletRisk::DEFAULTS) as $k) {
+                    if (array_key_exists($k, $b)) $auto[$k] = max(0, (int) $b[$k]);
+                }
+                $engine->merge('global', null, $auto);
+            }
         }
 
         // ── The scoring curves ───────────────────────────────────────────────
@@ -1448,6 +1462,24 @@ class SettingsController
         } catch (\Throwable) {}
 
         return $res->withHeader('Location', '/admin/settings#ai-probe')->withStatus(302);
+    }
+
+    /**
+     * Automatic withdrawals as the form draws them: the rules in force, and whether the
+     * gateway can send at all — a switch that is on over an unconfigured Paystack pays
+     * nobody, and the screen has to say so rather than look switched on.
+     *
+     * @return array<string,mixed>
+     */
+    private static function walletAuto(): array
+    {
+        $eff = (new \AfricaGates\Services\RuleEngine())->effective();
+        $out = ['on' => !empty($eff['wallet_auto_payout']),
+                'paystack' => (new \AfricaGates\Services\PaymentService())->isEnabled('paystack')];
+        foreach (array_keys(\AfricaGates\Services\WalletRisk::DEFAULTS) as $k) {
+            $out[$k] = \AfricaGates\Services\WalletRisk::limit($eff, $k);
+        }
+        return $out;
     }
 
     /**
