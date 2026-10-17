@@ -130,6 +130,50 @@ class RuleEngine
         // capping rather than counting heads — generosity is rewarded, concentration
         // is not.
         'community_return_supporter_cap_pct' => 10,
+
+        // ── Community return: the two-stage model ────────────────────────────
+        //
+        // WHICH RULE AN EDITION RUNS. `threshold` is the rule above: nothing until a
+        // nominee personally gathers qualifying support, then `community_return_bps`.
+        // `milestone` is the owner's two-stage brief (16 Oct 2026): every eligible paid
+        // vote earns `community_return_locked_bps`, held LOCKED, until the EDITION's
+        // collective milestone is confirmed by a person; after that the locked credits
+        // become available and every later contribution earns `community_return_bps`.
+        //
+        // `threshold` stays the default ON PURPOSE. A rule a nominee was told when the
+        // edition opened must not change under them, so the new model is chosen per
+        // edition (a cycle-scope rule set, written from /admin/community-return) and
+        // never arrives by deploy. See CommunityReturnService::model().
+        'community_return_model' => 'threshold',
+        'community_return_locked_bps' => 1000,
+        // The milestone: the edition's eligible paid-vote revenue, in NAIRA, that has to
+        // be reached before somebody may confirm it. 0 means NOT SET, and an unset
+        // milestone can never be confirmed — a target of nothing would unlock everything
+        // on the first contribution, which is the opposite of what a milestone is for.
+        'community_return_milestone_naira' => 0,
+        // Flat, tiered and custom (CommunityReturnLadder): the ladder as [from naira,
+        // basis points] steps, what it is measured on, and whether a custom ladder holds
+        // its credits locked until the milestone. An empty ladder on `tiered` is the
+        // house ladder; on `custom` it earns nothing, by design — a custom rule nobody
+        // wrote must not pay anybody.
+        'community_return_ladder'        => [],
+        'community_return_ladder_basis'  => 'nominee',
+        'community_return_ladder_locked' => false,
+
+        // ── Community return: withdrawal terms ───────────────────────────────
+        //
+        // Published on /integrity from these same values, so the page and the arithmetic
+        // cannot disagree. Withdrawals stay CLOSED until an operator marks the terms as
+        // published (`community_return_terms_published`), and that cannot be saved with
+        // no tax note: the brief requires every term to be public before money can be
+        // asked for, and the one term no default can supply is the tax position.
+        'community_return_min_withdrawal_naira' => 1000,
+        'community_return_fee_naira'            => 0,
+        'community_return_payout_days'          => 10,
+        'community_return_appeal_days'          => 14,
+        'community_return_unclaimed_days'       => 365,
+        'community_return_tax_note'             => '',
+        'community_return_terms_published'      => false,
     ];
 
     /** @return array<string,mixed> merged ruleset */

@@ -1,0 +1,226 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Community return{% endblock %}
+{#
+  COMMUNITY RETURN — an edition's rules and milestone, and the withdrawals queue.
+
+  Built from the console's existing classes and no page stylesheet: a money screen is
+  read beside a bank app, and what it needs is plain forms and plain figures. Amounts
+  arrive in kobo and are printed as naira here, never computed here.
+
+  The milestone is CONFIRMED by a person, not reached by a number: the button exists only
+  when the target is met and nothing has been confirmed, and it goes through the console's
+  confirm-with-reason dialog so the reason lands on the audit row.
+#}
+{% import 'admin/partials/kit.twig' as kit %}
+{% macro naira(k) %}₦{{ (k / 100)|number_format(2) }}{% endmacro %}
+{% import _self as m %}
+
+{% block content %}
+
+{# ── WHICH EDITION ──────────────────────────────────────────────────────────── #}
+<form class="ad-filters" method="get" action="/admin/community-return">
+  <label for="crCycle">Edition</label>
+  <select id="crCycle" name="cycle">
+    {% for c in cycles %}
+      <option value="{{ c.id }}" {% if c.id == cycle_id %}selected{% endif %}>{{ c.programme|default('Programme') }} · {{ c.edition_label ?: c.year }} ({{ c.status }})</option>
+    {% endfor %}
+  </select>
+  <button class="ad-btn" type="submit">Show</button>
+</form>
+
+{% if progress %}
+{% set p = progress %}
+<section class="cn-card ad-card__body" aria-labelledby="crRulesH">
+  <div class="ad-stat-grid">
+    <div class="ad-stat">
+      <div class="ad-stat__lbl">Model</div>
+      <div class="ad-stat__num">{{ model_names[p.model]|default(p.model) }}</div>
+      <div class="ad-stat__hint">{{ p.summary }}</div>
+    </div>
+    {% if p.uses_milestone %}
+    <div class="ad-stat {{ p.reached ? 'ad-stat--accent' : '' }}">
+      <div class="ad-stat__lbl">Raised toward the milestone</div>
+      <div class="ad-stat__num">{{ m.naira(p.measured_kobo) }}</div>
+      <div class="ad-stat__hint">of {{ p.target_kobo > 0 ? m.naira(p.target_kobo) : 'no target set' }} · confirmed paid-vote money, less refunds and flagged orders</div>
+    </div>
+    <div class="ad-stat">
+      <div class="ad-stat__lbl">Locked credits</div>
+      <div class="ad-stat__num">{{ m.naira(p.locked_kobo) }}</div>
+      <div class="ad-stat__hint">{{ p.confirmed_at ? 'confirmed ' ~ p.confirmed_at|slice(0, 16) : 'released when the milestone is confirmed' }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if p.uses_milestone %}
+    {% if p.confirmed_at %}
+      <p class="ad-callout">Milestone confirmed on {{ p.confirmed_at|slice(0, 16) }}. Locked credits are available to their nominees, and contributions since earn the full share.</p>
+    {% elseif p.reached %}
+      <form method="post" action="/admin/community-return/{{ p.cycle_id }}/confirm" class="ad-form__actions">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ad-btn ad-btn--primary" type="submit"
+          data-confirm="Confirm the milestone at {{ m.naira(p.measured_kobo) }}? Every locked credit in this edition becomes available to withdraw, and later contributions earn the full share. This cannot be undone.">Confirm the milestone</button>
+        <span class="ad-stat__hint">The target is met. Check the figure against the gateway before confirming.</span>
+      </form>
+    {% else %}
+      <p class="ad-stat__hint">The confirm button appears once the edition has raised its target.</p>
+    {% endif %}
+  {% endif %}
+
+  <h2 id="crRulesH">This edition’s rules</h2>
+  {% if p.rules_locked %}
+    <p class="ad-callout">These rules are fixed: the edition already has entries on the ledger, and nominees earned them under the rules as they stood.</p>
+  {% else %}
+    <form class="ad-form" method="post" action="/admin/community-return/{{ p.cycle_id }}/rules">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="ad-form__row">
+        <div>
+          <label for="crModel">Model</label>
+          <select id="crModel" name="model">
+            {% for key, label in model_choices %}
+              <option value="{{ key }}" {% if p.model == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="crTarget">Milestone target (₦)</label>
+          <input id="crTarget" type="number" name="milestone_naira" min="0" step="1000" value="{{ p.rules.community_return_milestone_naira }}">
+          <p class="hint">Two-stage, or a custom ladder held locked: the edition’s eligible paid-vote revenue that has to be reached before you can confirm.</p>
+        </div>
+      </div>
+      <div class="ad-form__row">
+        <div>
+          <label for="crLadder">Ladder (tiered and custom)</label>
+          <textarea id="crLadder" name="ladder" rows="4" placeholder="0: 10&#10;50000: 30&#10;200000: 50">{{ ladder_text }}</textarea>
+          <p class="hint">One step per line: from how much has been raised (₦), the share (%). “0: 10” then “50000: 30” means 10% from the first naira and 30% once ₦50,000 has been raised. Tiered left blank uses 10% · 30% from ₦50,000 · 50% from ₦200,000.</p>
+        </div>
+        <div>
+          <label for="crBasis">Custom ladder is measured on</label>
+          <select id="crBasis" name="basis">
+            <option value="nominee" {% if p.rules.community_return_ladder_basis|default('nominee') != 'edition' %}selected{% endif %}>What the nominee has raised</option>
+            <option value="edition" {% if p.rules.community_return_ladder_basis|default('') == 'edition' %}selected{% endif %}>What the whole edition has raised</option>
+          </select>
+          <label class="checkbox"><input type="checkbox" name="ladder_locked" value="1" {% if p.rules.community_return_ladder_locked|default(false) %}checked{% endif %}> Hold custom credits locked until the milestone is confirmed</label>
+          <p class="hint">Flat uses the full share below on every contribution. Each contribution is priced on what had been raised before it, so a later refund never re-prices earlier ones.</p>
+        </div>
+      </div>
+      <div class="ad-form__row">
+        <div>
+          <label for="crLocked">Share before the milestone (%)</label>
+          <input id="crLocked" type="number" name="locked_pct" min="0" max="100" step="0.5" value="{{ p.rules.community_return_locked_bps / 100 }}">
+          <p class="hint">Held locked in the nominee’s wallet until the milestone is confirmed.</p>
+        </div>
+        <div>
+          <label for="crFull">Full share (%) — threshold, two-stage and flat</label>
+          <input id="crFull" type="number" name="full_pct" min="0" max="100" step="0.5" value="{{ p.rules.community_return_bps / 100 }}">
+          <p class="hint">After the milestone (two-stage), or once a nominee qualifies (threshold).</p>
+        </div>
+      </div>
+      <div class="ad-form__actions"><button class="ad-btn ad-btn--primary" type="submit">Save this edition’s rules</button></div>
+      <p class="hint">These lock with the edition’s first entry. Publish them before the edition opens.</p>
+    </form>
+  {% endif %}
+</section>
+
+<section class="cn-card ad-card__body" aria-labelledby="crNomH">
+  <h2 id="crNomH">Nominees in this edition</h2>
+  {% if nominees is empty %}
+    {{ kit.empty('Nothing earned yet', 'Nominees appear here once a contribution in their name sets a share aside.', 'finance') }}
+  {% else %}
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr><th scope="col">Nominee</th><th scope="col">Locked</th><th scope="col">Awaiting results</th><th scope="col">Available</th><th scope="col">Under review</th><th scope="col">Paid</th><th scope="col">Held</th></tr></thead>
+      <tbody>
+      {% for n in nominees %}
+        <tr>
+          <td>{{ n.name }}{% if n.wallet.claim_block %} <span class="ad-chip ad-chip--gold" title="{{ n.wallet.claim_block.reason }}">claim: {{ n.wallet.claim_block.code|lower|replace({'_': ' '}) }}</span>{% endif %}</td>
+          <td>{{ m.naira(n.wallet.locked_kobo) }}</td>
+          <td>{{ m.naira(n.wallet.awaiting_kobo) }}</td>
+          <td>{{ m.naira(n.wallet.available_kobo) }}</td>
+          <td>{{ m.naira(n.wallet.under_review_kobo) }}</td>
+          <td>{{ m.naira(n.wallet.paid_kobo) }}</td>
+          <td>{{ m.naira(n.wallet.held_kobo) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ── WITHDRAWALS ───────────────────────────────────────────────────────────── #}
+<section class="cn-card ad-card__body" aria-labelledby="crWdH">
+  <h2 id="crWdH">Withdrawals</h2>
+  {% if not terms.published %}
+    <p class="ad-callout ad-callout--warn">Withdrawals are closed: the withdrawal terms are not published yet. Set them, including the tax position, under Settings → Community return.</p>
+  {% endif %}
+  <p class="ad-stat__hint">{{ totals.open }} open · {{ m.naira(totals.open_kobo) }} under review · {{ m.naira(totals.paid_kobo) }} paid all time. Approve once you have confirmed the account is in the nominee’s own name; transfer the money; then record the reference. Nothing here moves money by itself.</p>
+
+  <nav class="cn-tabs" aria-label="Withdrawal status">
+    {% for key, label in statuses %}
+      <a class="ad-tab {{ status == key ? 'is-active' : '' }}" href="/admin/community-return?cycle={{ cycle_id }}&amp;status={{ key }}" {% if status == key %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+    <a class="ad-tab {{ status == 'all' ? 'is-active' : '' }}" href="/admin/community-return?cycle={{ cycle_id }}&amp;status=all" {% if status == 'all' %}aria-current="page"{% endif %}>All</a>
+  </nav>
+
+  {% for item in queue %}
+    {% set w = item.row %}
+    <article class="cn-card ad-card__body">
+      <div class="ad-grid-2">
+        <div>
+          <strong>{{ w.nominee_name|default('Nominee #' ~ w.nominee_id) }}</strong>
+          <p class="ad-stat__hint">requested {{ w.requested_at|slice(0, 16) }}{% if w.paid_at %} · paid {{ w.paid_at|slice(0, 16) }}{% endif %}</p>
+          <dl class="cn-facts">
+            <div><dt>Amount</dt><dd>{{ m.naira(w.amount_kobo) }}</dd></div>
+            <div><dt>Fee</dt><dd>{{ m.naira(w.fee_kobo) }}</dd></div>
+            <div><dt>To transfer</dt><dd>{{ m.naira(w.amount_kobo - w.fee_kobo) }}</dd></div>
+            <div><dt>Account</dt><dd>{{ w.bank_name }} · {{ w.account_name }} · <span class="cn-code">{{ w.account_number }}</span></dd></div>
+            <div><dt>Status</dt><dd><span class="ad-chip {{ w.status == 'paid' ? 'ad-chip--green' : (w.status == 'rejected' ? 'ad-chip--red' : 'ad-chip--gold') }}">{{ statuses[w.status]|default(w.status) }}</span></dd></div>
+            {% if w.payment_ref %}<div><dt>Reference</dt><dd><span class="cn-code">{{ w.payment_ref }}</span></dd></div>{% endif %}
+            {% if w.review_note %}<div><dt>Note</dt><dd>{{ w.review_note }}</dd></div>{% endif %}
+          </dl>
+        </div>
+        <div>
+          <p class="ad-stat__lbl">Checks when it was asked</p>
+          <ul class="ad-callout">
+            {% for c in item.checks %}
+              <li>{{ c.ok ? 'Passed' : 'Not met' }} — {{ c.label }}: {{ c.detail }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      {% if w.status == 'requested' %}
+        <div class="ad-form__actions">
+          <form method="post" action="/admin/community-return/withdrawals/{{ w.id }}/approve" class="ad-form__actions">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <label for="crNote{{ w.id }}">Review note</label>
+            <input id="crNote{{ w.id }}" type="text" name="note" maxlength="400" placeholder="e.g. name matches the BVN on the account">
+            <button class="ad-btn ad-btn--primary" type="submit">Approve</button>
+          </form>
+        </div>
+      {% elseif w.status == 'approved' %}
+        <div class="ad-form__actions">
+          <form method="post" action="/admin/community-return/withdrawals/{{ w.id }}/pay" class="ad-form__actions">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <label for="crRef{{ w.id }}">Transfer reference</label>
+            <input id="crRef{{ w.id }}" type="text" name="reference" required maxlength="120">
+            <button class="ad-btn ad-btn--primary" type="submit"
+              data-confirm="Record {{ m.naira(w.amount_kobo - w.fee_kobo) }} as paid to {{ w.account_name }}? Only after the transfer has gone.">Record as paid</button>
+          </form>
+        </div>
+      {% endif %}
+      {% if w.status in ['requested', 'approved'] %}
+        <form method="post" action="/admin/community-return/withdrawals/{{ w.id }}/reject" class="ad-form__actions">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <label for="crWhy{{ w.id }}">Or refuse, with a reason the nominee will read</label>
+          <input id="crWhy{{ w.id }}" type="text" name="why" required maxlength="400">
+          <button class="ad-btn ad-btn--danger" type="submit">Refuse</button>
+        </form>
+      {% endif %}
+    </article>
+  {% else %}
+    {{ kit.empty(status == 'requested' ? 'No withdrawals waiting' : 'Nothing here', 'Nominees ask from their own account once money is released to them.', 'payouts') }}
+  {% endfor %}
+</section>
+{% endblock %}

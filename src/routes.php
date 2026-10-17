@@ -2920,6 +2920,10 @@ return function(App $app) {
                 'return_cap_pct'   => $ret['cap_pct'],
                 'return_cap_votes' => $ret['cap_votes'],
                 'return_people'    => $ret['min_supporters'],
+                // The two-stage editions and the withdrawal terms, from the resolvers the
+                // ledger and the withdrawals use — never typed into the page.
+                'return_editions'  => \AfricaGates\Services\CommunityReturnMilestone::publicEditions(),
+                'return_terms'     => \AfricaGates\Services\CommunityReturnWithdrawals::terms($eff),
             ];
         };
 
@@ -3789,6 +3793,9 @@ return function(App $app) {
         // Save the bank details a withdrawal defaults to. Each payout still snapshots
         // them, so changing these never restates an earlier transfer.
         $a->post('/bank', AccountController::class . ':bank');
+        // Ask for a nominee page's community return. Creates a request a person reviews and
+        // settles against a transfer reference — see CommunityReturnWithdrawals.
+        $a->post('/return/withdraw', AccountController::class . ':returnWithdraw');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
         // Display & reading, saved to the member so it follows them between devices
@@ -4351,6 +4358,16 @@ return function(App $app) {
         $a->get('/payouts',                      \AfricaGates\Admin\Controllers\PayoutsController::class.':index');
         $a->post('/payouts/{id:[0-9]+}/pay',     \AfricaGates\Admin\Controllers\PayoutsController::class.':pay');
         $a->post('/payouts/{id:[0-9]+}/reject',  \AfricaGates\Admin\Controllers\PayoutsController::class.':reject');
+        // ── COMMUNITY RETURN ──────────────────────────────────────────────
+        //
+        // An edition's return rules and milestone confirmation, and the nominees'
+        // withdrawals queue. See CommunityReturnController.
+        $a->get('/community-return',                                   \AfricaGates\Admin\Controllers\CommunityReturnController::class.':index');
+        $a->post('/community-return/{cycle:[0-9]+}/rules',             \AfricaGates\Admin\Controllers\CommunityReturnController::class.':saveRules');
+        $a->post('/community-return/{cycle:[0-9]+}/confirm',           \AfricaGates\Admin\Controllers\CommunityReturnController::class.':confirm');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/approve',  \AfricaGates\Admin\Controllers\CommunityReturnController::class.':approve');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/pay',      \AfricaGates\Admin\Controllers\CommunityReturnController::class.':pay');
+        $a->post('/community-return/withdrawals/{id:[0-9]+}/reject',   \AfricaGates\Admin\Controllers\CommunityReturnController::class.':reject');
         $a->get('/finance/export',               AdminFinanceController::class.':export');
         // Re-verify stale pending payments against the gateway. POST because it makes
         // outbound calls and, in apply mode, moves money — a GET would let a prefetch

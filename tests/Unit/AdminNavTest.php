@@ -77,6 +77,11 @@ final class AdminNavTest extends TestCase
         '/admin/settings/providers' => 'health',
         '/admin/settings/mail'      => 'health',
         '/admin/alerts'             => 'health',
+        // New with the two-stage community return (17 Oct 2026). Left UNMAPPED — superadmin
+        // only — exactly like Payouts beside it: it confirms milestones that release money and
+        // settles withdrawals, and widening that to `finance` is the owner's decision, not a
+        // side effect of adding the page.
+        '/admin/community-return'   => null,
     ];
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];

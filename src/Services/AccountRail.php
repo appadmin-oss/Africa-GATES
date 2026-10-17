@@ -28,6 +28,7 @@ final class AccountRail
         'overview'   => ['Overview',   '/account',                 'M3 9.5 12 3l9 6.5V20H3z', 'ink'],
         'points'     => ['Points',     '/account/points',          'M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z', 'green'],
         'referral'   => ['Referrals',  '/account?tab=referral',    'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6', 'live'],
+        'return'     => ['Community return', '/account?tab=return', 'M3 7h18v12H3zM3 7l3-3h12l3 3M16 13h2', 'gold'],
         'challenges' => ['Challenges', '/account?tab=challenges',  'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4', 'gold'],
         'purchases'  => ['Purchases',  '/account?tab=purchases',   'M5.5 8h13l-1 12h-11zM9 8V7a3 3 0 0 1 6 0v1', 'info'],
         'activity'   => ['Activity',   '/account/notifications',   'M3 12h4l3-7 4 14 3-7h4', 'green'],
@@ -37,12 +38,24 @@ final class AccountRail
     ];
 
     /** The tabs `/account?tab=` itself draws. The others are their own pages. */
-    public const PAGE_TABS = ['overview', 'referral', 'challenges', 'purchases', 'saved', 'security', 'settings'];
+    public const PAGE_TABS = ['overview', 'referral', 'return', 'challenges', 'purchases', 'saved', 'security', 'settings'];
+
+    /**
+     * Sections drawn only for the members they concern.
+     *
+     * The community return is a nominee's wallet: it exists for a member who holds a
+     * claimed nominee page with something on the ledger, and for nobody else. Every other
+     * member would be offered a section that can only ever say "nothing here", so it is
+     * drawn when {@see countsFor()} gives it a number and not otherwise. The page itself
+     * still answers at its URL, with an honest empty state.
+     */
+    public const CONDITIONAL = ['return'];
 
     /** The lede under each section's title (the DC's `pageLead`, where it states a fact). */
     private const LEADS = [
         'points'     => 'Earned by taking part, and spent on votes.',
         'referral'   => 'Share your link. When people you invite join and take part, it counts for you.',
+        'return'     => 'Your share of what supporters contributed in your name, and how to ask for it.',
         'challenges' => 'The challenges you have entered, and how far each has got.',
         'purchases'  => 'Tickets and orders, with where each one is up to.',
         'activity'   => 'What has happened to the things you nominated, voted for and bought.',
@@ -67,6 +80,7 @@ final class AccountRail
     {
         $out = [];
         foreach (self::SECTIONS as $k => [$label, $href, $d, $tone]) {
+            if (in_array($k, self::CONDITIONAL, true) && $k !== $current && !isset($counts[$k])) continue;
             $n = $counts[$k] ?? '';
             $out[] = [
                 'key' => $k, 'label' => Translator::t($label), 'href' => $href, 'd' => $d, 'tone' => $tone,
@@ -103,6 +117,10 @@ final class AccountRail
         $c = [];
         try { if (PointsService::enabled()) $c['points'] = PointsService::balance($id); } catch (\Throwable) {}
         try { $c['referral'] = (int) (ReferralService::stats($id)['referrals'] ?? 0); } catch (\Throwable) {}
+        try {
+            $pages = count(CommunityReturnWithdrawals::pagesFor($id));
+            if ($pages > 0) $c['return'] = $pages;
+        } catch (\Throwable) {}
         try { $c['challenges'] = count(ChallengeService::minePublic($id)); } catch (\Throwable) {}
         try { $c['purchases'] = count(MemberActivityService::ordersFor($email, 10)) + count(MemberActivityService::ticketsFor($email, 10)); } catch (\Throwable) {}
         try {

@@ -52,6 +52,44 @@
   {% set _ret = '%p%% after %t% votes'|trans({'%p%': return_pct|default('50'), '%t%': return_threshold|default(250)|number_format}) %}
 {% endif %}
 
+{# The two-stage editions and the withdrawal terms, built here from the figures the
+   ledger and the withdrawals read (CommunityReturnMilestone::publicEditions(),
+   CommunityReturnWithdrawals::terms()) — never typed. Template scope, because the
+   sections list below reads them (CLAUDE.md, the Twig block-scope trap). #}
+{% set _ret_editions = [] %}
+{% if return_editions|default([]) is not empty %}
+  {% set _rows = [] %}
+  {% for e in return_editions %}
+    {% set _rows = _rows|merge([[e.title, e.summary|e,
+        (not e.uses_milestone ? 'Released when the edition announces its results'|trans
+          : (e.confirmed_at
+            ? 'Confirmed on %d% at ₦%t%'|trans({'%d%': e.confirmed_at|date('j M Y'), '%t%': (e.target_kobo / 100)|number_format})
+            : '₦%m% raised of ₦%t%'|trans({'%m%': (e.measured_kobo / 100)|number_format, '%t%': (e.target_kobo / 100)|number_format})))|e]]) %}
+  {% endfor %}
+  {% set _ret_editions = [
+    {p: 'Some editions run a different rule, chosen before the edition opens and fixed once anything is earned under it. A two-stage edition earns a smaller share from the first contribution, held locked until its collective milestone — its eligible paid-vote revenue reaching a published target — is confirmed by a person, then the full share. A flat edition earns one share on every contribution. A tiered or custom edition earns a share that rises with how much has been raised, priced on what had been raised before each contribution. Refunded and fraud-flagged contributions earn nothing and count for nothing.'|trans|e},
+    {table: {caption: 'Editions with their own return rule'|trans, head: ['Edition'|trans, 'Rule'|trans, 'When it is released'|trans], rows: _rows}}
+  ] %}
+{% endif %}
+{% set _t = return_terms|default(null) %}
+{% set _ret_terms = [] %}
+{% if _t and _t.published %}
+  {% set _ret_terms = [
+    {table: {caption: 'Asking for the money'|trans, head: ['Term'|trans, 'Setting'|trans, 'What it means'|trans],
+      rows: [
+        ['Smallest withdrawal'|trans, '₦' ~ (_t.min_kobo / 100)|number_format, 'Below this, the balance waits until there is more.'|trans|e],
+        ['Fee'|trans, '₦' ~ (_t.fee_kobo / 100)|number_format, 'Taken from each withdrawal, and shown before it is asked for.'|trans|e],
+        ['Paid within'|trans, '%n% working days'|trans({'%n%': _t.payout_days}), 'After a person has reviewed the request.'|trans|e],
+        ['Appeals'|trans, '%n% days'|trans({'%n%': _t.appeal_days}), 'To appeal a refused withdrawal or a hold, reply to the email that told you.'|trans|e],
+        ['Unclaimed balances'|trans, '%n% days'|trans({'%n%': _t.unclaimed_days}), 'Claim a released balance within this period. Nothing is forfeited automatically; a person decides, on the record.'|trans|e],
+        ['Tax'|trans, '—', _t.tax_note|e]
+      ]}},
+    {p: 'Money is paid by bank transfer, to an account in the nominee’s own name, after six checks: the money is released, the person asking holds the page’s verified claim, the account is theirs, every share traces to a valid contribution, these terms were accepted, and a person has reviewed the request.'|trans|e}
+  ] %}
+{% else %}
+  {% set _ret_terms = [{p: 'Withdrawals open once the withdrawal terms — the smallest amount, the fee, the timeline, appeals, unclaimed balances and the tax position — are published here.'|trans|e}] %}
+{% endif %}
+
 {% set _toc = [
   {id: 'why',      title: 'Why this exists'|trans},
   {id: 'score',    title: 'The score'|trans},
@@ -190,7 +228,8 @@
         ['No single pocket'|trans, return_cap_pct|default(10) ~ '%', 'One supporter counts for at most %v% votes toward the threshold, so it takes at least %n% different people.'|trans({'%v%': return_cap_votes|default(25)|number_format, '%n%': return_people|default(10)})|e],
         ['The share'|trans, return_pct|default('50') ~ '%', 'That share of each later contribution is set aside. Crossing the line doesn’t reach backwards.'|trans|e]
       ]}},
-    {p: 'It is an append-only ledger. A refund reverses the share and the reversal stays on the record. Nothing is payable until the edition’s results are announced.'|trans|e},
+    {p: 'It is an append-only ledger. A refund reverses the share and the reversal stays on the record. Under this rule, nothing is payable until the edition’s results are announced.'|trans|e}
+  ])|merge(_ret_editions)|merge(_ret_terms)|merge([
     {refs: [{href: '/help/the-community-return', label: 'The community return, in full'|trans}]}
   ])},
   {id: 'honest', blocks: [

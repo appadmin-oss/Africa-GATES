@@ -1055,8 +1055,21 @@ final class HelpCentre
                         . 'any figure can be explained line by line.',
                     'If a contribution is refunded or charged back, the share accrued on it is reversed — '
                         . 'and the reversal stays on the record beside the original.',
-                    'Nothing is payable until that cycle has ended and its results have been announced.',
+                    'Under this rule, nothing is payable until that cycle has ended and its results have been announced.',
                 ]],
+                ['p' => 'Some editions run a <strong>different rule</strong>, chosen before the edition opens '
+                      . 'and fixed once anything is earned under it: a <strong>two-stage</strong> rule (a '
+                      . 'smaller share held locked until the edition\'s collective milestone is confirmed '
+                      . 'by a person, then the full share), a <strong>flat</strong> share on every '
+                      . 'contribution, or a <strong>tiered</strong> or <strong>custom</strong> ladder whose '
+                      . 'share rises with how much has been raised. Each edition\'s rule, its milestone and '
+                      . 'how far it has got are on <a href="/integrity#return">the integrity page</a>.'],
+                ['p' => 'To be paid, ask from your account under <strong>Community return</strong>. A request '
+                      . 'is checked six ways — the money is released, you hold the page\'s verified claim, '
+                      . 'the bank account is in your own name, every share traces to a valid contribution, '
+                      . 'you accepted the published terms, and a person has reviewed it — and is then paid '
+                      . 'by bank transfer. The smallest amount, the fee, the timeline, appeals and the tax '
+                      . 'position are published on the integrity page; withdrawals open once they are.'],
                 ['note' => 'The share, the threshold and the per-supporter ceiling are all per-cycle '
                          . 'settings, and this page always states the ones currently in force. It is '
                          . '{return_pct}% today.'],

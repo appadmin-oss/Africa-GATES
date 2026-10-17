@@ -580,7 +580,9 @@ final class CommunityVotingPhilosophy
     {
         if ($figures === []) return $s;
         $map = [];
-        foreach ($figures as $k => $v) $map['{' . $k . '}'] = (string) $v;
+        // Scalars only: the figures array is shared with /integrity, which also carries
+        // lists (the editions with their own return rule), and no token names a list.
+        foreach ($figures as $k => $v) { if (is_scalar($v)) $map['{' . $k . '}'] = (string) $v; }
         return strtr($s, $map);
     }
 

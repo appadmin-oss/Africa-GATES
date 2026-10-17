@@ -1375,6 +1375,39 @@ class AccountController
         return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
     }
 
+    /**
+     * POST /account/return/withdraw — ask for a nominee page's community return.
+     *
+     * The page is named in the body, and nothing here trusts that: the six conditions are
+     * asked again by CommunityReturnWithdrawals, and the identity one is that THIS member
+     * holds the page's verified claim. The bank details used are saved as the member's
+     * default, the way the referral form does, so the next request is ready.
+     */
+    public function returnWithdraw(Request $req, Response $res): Response
+    {
+        $id = (int) ($_SESSION['user_id'] ?? 0);
+        if ($id < 1) {
+            return $res->withHeader('Location', '/account/login')->withStatus(302);
+        }
+
+        $b    = (array) $req->getParsedBody();
+        $bank = [
+            'bank'           => (string) ($b['bank'] ?? ''),
+            'account_name'   => (string) ($b['account_name'] ?? ''),
+            'account_number' => (string) ($b['account_number'] ?? ''),
+        ];
+        $r = \AfricaGates\Services\CommunityReturnWithdrawals::request(
+            (int) ($b['nominee_id'] ?? 0), $id, $bank, ($b['accept'] ?? '') === '1'
+        );
+        if ($r['ok']) {
+            \AfricaGates\Services\ReferralPayout::saveBank($id, $bank['bank'], $bank['account_name'], $bank['account_number']);
+        }
+
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
+
+        return $res->withHeader('Location', '/account?tab=return#me-return')->withStatus(303);
+    }
+
     public function dashboard(Request $req, Response $res): Response
     {
         $user = $this->accounts->current();
@@ -1438,6 +1471,10 @@ class AccountController
             'payout_why'     => $pa['reason'],
             'payout_history' => \AfricaGates\Services\ReferralPayout::historyFor((int) $user->id, 8),
             'payout_bank'    => \AfricaGates\Services\ReferralPayout::bankFor((int) $user->id),
+            // ── THE COMMUNITY RETURN (a nominee's wallet) ──
+            // Read only on its own tab: it walks every claimed page's ledger and checks.
+            'returns'        => $tab === 'return' ? \AfricaGates\Services\CommunityReturnWithdrawals::panelsFor((int) $user->id) : [],
+            'return_terms'   => $tab === 'return' ? \AfricaGates\Services\CommunityReturnWithdrawals::terms() : null,
             // A stand vendor's stall, where a trader already looks (VendorAccount). Null for
             // everybody else, and the section is not drawn.
             'vendor'         => \AfricaGates\Services\VendorAccount::panel($user),

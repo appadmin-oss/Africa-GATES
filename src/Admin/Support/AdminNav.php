@@ -119,6 +119,7 @@ final class AdminNav
              'sub' => 'Money going out to partners and referrers.',
              'children' => [
                  ['page' => 'partner-orgs', 'label' => 'Partner organisations', 'href' => '/admin/partner-orgs'],
+                 ['page' => 'community-return', 'label' => 'Community return', 'href' => '/admin/community-return'],
              ]],
             ['page' => 'payments-ledger', 'label' => 'Ledger', 'href' => '/admin/payments/ledger', 'icon' => 'payments-ledger',
              'sub' => 'Every payment exactly as the gateway reported it.'],

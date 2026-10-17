@@ -894,6 +894,10 @@ return [
         $c->get(Twig::class),
         $c->get(\AfricaGates\Admin\Services\AuditService::class)
     ),
+    \AfricaGates\Admin\Controllers\CommunityReturnController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\CommunityReturnController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class)
+    ),
     \AfricaGates\Admin\Controllers\CampaignsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\CampaignsController(
         $c->get(Twig::class),
         $c->get(\AfricaGates\Admin\Services\AuditService::class),

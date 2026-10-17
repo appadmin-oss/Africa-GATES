@@ -69,12 +69,22 @@ use Illuminate\Support\Carbon;
  * unanswerable. The balance is SUM(amount_kobo) and there is no cached total to
  * drift away from it.
  *
- * ── AND NOTHING IS PAYABLE YET ───────────────────────────────────────────────
+ * ── TWO MODELS, CHOSEN PER EDITION ───────────────────────────────────────────
  *
- * There is no withdrawal here. Accrual runs, people can see what they have raised,
- * and the money stays put. Opening cash-out while contributions are still going
- * missing on the way IN would multiply a problem the platform already has — see
- * {@see PaymentTriage}. Turn it on when the payin path is trustworthy.
+ * Everything above is the THRESHOLD model, and it is still the default. The MILESTONE
+ * model (owner's brief, 16 Oct 2026) earns a smaller LOCKED share on every eligible
+ * contribution until the edition's collective milestone is confirmed by a person, then
+ * the full share from that moment on — see {@see CommunityReturnMilestone}. An edition
+ * opts in; nothing switches by deploy, because a rule a nominee was told must not change
+ * under them.
+ *
+ * ── MONEY LEAVES ONLY THROUGH A REVIEWED REQUEST ─────────────────────────────
+ *
+ * A nominee asks; the request is checked automatically, reviewed by a person, and paid by
+ * bank transfer against a recorded reference — {@see CommunityReturnWithdrawals}. Nothing
+ * here moves money by itself, and nothing calls a gateway: the payin path still loses
+ * contributions on the way IN (see {@see PaymentTriage}), and an automatic payout on top
+ * of that would multiply the problem.
  */
 final class CommunityReturnService
 {
@@ -241,6 +251,50 @@ final class CommunityReturnService
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Which rule an edition runs
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public const MODEL_THRESHOLD = 'threshold';
+    public const MODEL_MILESTONE = 'milestone';
+
+    /** A locked accrual: earned before its edition's milestone was confirmed. */
+    public const STAGE_LOCKED = 'locked';
+
+    /**
+     * The model a set of effective rules names, normalised.
+     *
+     * Anything unrecognised is the threshold model, because that is the rule every
+     * edition ran before the milestone model existed: a stray string in a rule set must
+     * fall back to what nominees were already told, never switch how money is shared.
+     *
+     * @param array<string,mixed> $eff a RuleEngine::effective() result
+     */
+    public static function modelOf(array $eff): string
+    {
+        $m = (string) ($eff['community_return_model'] ?? '');
+        return ($m === self::MODEL_MILESTONE || CommunityReturnLadder::isLadder($m)) ? $m : self::MODEL_THRESHOLD;
+    }
+
+    /**
+     * Does this edition release its money at a MILESTONE CONFIRMATION rather than at its
+     * results? The two-stage model always does; a custom ladder does when it is set to hold
+     * its credits locked.
+     *
+     * @param array<string,mixed> $eff
+     */
+    public static function usesMilestone(array $eff): bool
+    {
+        $m = self::modelOf($eff);
+        return $m === self::MODEL_MILESTONE || CommunityReturnLadder::locked($eff, $m);
+    }
+
+    /** The model an edition runs. */
+    public static function modelForCycle(?int $cycleId): string
+    {
+        return self::modelOf(CommunityReturnMilestone::rulesForCycle($cycleId));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Qualification
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -404,14 +458,66 @@ final class CommunityReturnService
         $nomineeId = (int) ($don->intent_nominee_id ?? 0);
         if ($nomineeId < 1) return $no('NO_NOMINEE');
 
-        $rate = self::rateBps($nomineeId);
-        if ($rate <= 0) return $no('RATE_OFF');
+        $ctx = DB::table('gates_nominees as n')
+            ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+            ->where('n.id', $nomineeId)
+            ->select('n.profile_id', 'c.cycle_id')->first();
+        $cycleId = isset($ctx->cycle_id) ? (int) $ctx->cycle_id : null;
 
-        // Qualification is checked NOW, at the moment of the contribution, and the
-        // answer is never revisited for entries already written. That is what makes
-        // earning prospective: crossing the line changes the future, not the past.
-        $q = self::qualification($nomineeId, (string) $don->created_at);
-        if (!$q['qualified']) return $no('NOT_QUALIFIED');
+        $stage = null;
+        $rules = CommunityReturnMilestone::rulesForCycle($cycleId);
+        $model = self::modelOf($rules);
+        if (CommunityReturnLadder::isLadder($model)) {
+            // ── FLAT, TIERED AND CUSTOM: A LADDER ─────────────────────────────
+            //
+            // The step is read against eligible money raised strictly BEFORE this
+            // contribution, so the price is the contribution's own and a re-run cannot
+            // move it. Fraud-flagged money is ineligible here as in the two-stage model.
+            if (self::fraudFlagged($donationId)) return $no('NOT_ELIGIBLE');
+
+            $raised = CommunityReturnLadder::raisedBefore(
+                CommunityReturnLadder::basis($rules, $model), $nomineeId, $cycleId, $don);
+            $rate = CommunityReturnLadder::rateFor(CommunityReturnLadder::steps($rules, $model), $raised);
+            if ($rate <= 0) return $no('RATE_OFF');
+
+            if (CommunityReturnLadder::locked($rules, $model)) {
+                $confirmed = CommunityReturnMilestone::confirmedAt($cycleId);
+                if ($confirmed === null || (string) $don->created_at < $confirmed) $stage = self::STAGE_LOCKED;
+            }
+        } elseif ($model === self::MODEL_MILESTONE) {
+            // ── THE TWO-STAGE MODEL ──────────────────────────────────────────
+            //
+            // No individual threshold: under this model every eligible paid vote earns
+            // from the first one. What decides the RATE is whether the edition's
+            // milestone had been confirmed when this contribution was made — judged at
+            // the contribution's own moment, exactly as qualification is below, so a
+            // re-run mint or a late webhook cannot reach back and re-price money that
+            // arrived before the confirmation.
+            //
+            // A contribution the platform's own fraud scoring flagged is not eligible.
+            // The brief lists "valid transactions (not fraudulent, reversed or
+            // refunded)" as a condition of the money, and the cheapest place to keep
+            // that promise is to never set the share aside.
+            if (self::fraudFlagged($donationId)) return $no('NOT_ELIGIBLE');
+
+            $confirmed = CommunityReturnMilestone::confirmedAt($cycleId);
+            $after     = $confirmed !== null && (string) $don->created_at >= $confirmed;
+
+            $rate  = $after
+                ? max(0, min(10000, (int) ($rules['community_return_bps'] ?? self::FALLBACK_RATE_BPS)))
+                : max(0, min(10000, (int) ($rules['community_return_locked_bps'] ?? 0)));
+            $stage = $after ? null : self::STAGE_LOCKED;
+            if ($rate <= 0) return $no('RATE_OFF');
+        } else {
+            $rate = self::rateBps($nomineeId);
+            if ($rate <= 0) return $no('RATE_OFF');
+
+            // Qualification is checked NOW, at the moment of the contribution, and the
+            // answer is never revisited for entries already written. That is what makes
+            // earning prospective: crossing the line changes the future, not the past.
+            $q = self::qualification($nomineeId, (string) $don->created_at);
+            if (!$q['qualified']) return $no('NOT_QUALIFIED');
+        }
 
         $basis = (int) round(((int) $don->amount_naira) * 100);   // naira → kobo
         if ($basis <= 0) return $no('NO_AMOUNT');
@@ -421,30 +527,47 @@ final class CommunityReturnService
         $kobo = intdiv($basis * $rate, 10000);
         if ($kobo <= 0) return $no('TOO_SMALL');
 
-        $ctx = DB::table('gates_nominees as n')
-            ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
-            ->where('n.id', $nomineeId)
-            ->select('n.profile_id', 'c.cycle_id')->first();
+        $row = [
+            'nominee_id'  => $nomineeId,
+            'profile_id'  => $ctx->profile_id ?? null,
+            'cycle_id'    => $cycleId,
+            'entry_type'  => 'accrual',
+            'amount_kobo' => $kobo,
+            'basis_kobo'  => $basis,
+            'rate_bps'    => $rate,
+            'donation_id' => $donationId,
+            'created_by'  => $adminId,
+            'created_at'  => Carbon::now()->toDateTimeString(),
+        ];
+        // Written only where the column exists, so a ledger on a database that has not
+        // run the milestone migration keeps accruing under the threshold model.
+        if ($stage !== null) $row['stage'] = $stage;
 
         try {
-            DB::table('gates_community_returns')->insert([
-                'nominee_id'  => $nomineeId,
-                'profile_id'  => $ctx->profile_id ?? null,
-                'cycle_id'    => $ctx->cycle_id ?? null,
-                'entry_type'  => 'accrual',
-                'amount_kobo' => $kobo,
-                'basis_kobo'  => $basis,
-                'rate_bps'    => $rate,
-                'donation_id' => $donationId,
-                'created_by'  => $adminId,
-                'created_at'  => Carbon::now()->toDateTimeString(),
-            ]);
+            DB::table('gates_community_returns')->insert($row);
         } catch (\Throwable) {
             // uq_return_entry: already accrued. Re-running a mint must not pay twice.
             return $no('ALREADY_ACCRUED');
         }
 
-        return ['ok' => true, 'code' => 'ACCRUED', 'kobo' => $kobo];
+        return ['ok' => true, 'code' => $stage === self::STAGE_LOCKED ? 'ACCRUED_LOCKED' : 'ACCRUED', 'kobo' => $kobo];
+    }
+
+    /**
+     * Did the platform's own fraud scoring flag the votes this contribution bought?
+     *
+     * Paid votes carry `donation_id`, so the question is asked of the vote rows the order
+     * minted. A read failure answers "not flagged": refusing a share because a query
+     * failed would be a silent loss to the nominee that nothing records.
+     */
+    private static function fraudFlagged(int $donationId): bool
+    {
+        try {
+            return DB::table('gates_votes')->where('donation_id', $donationId)
+                ->where('fraud_flag', 1)->exists();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**
@@ -463,20 +586,26 @@ final class CommunityReturnService
             ->where('donation_id', $donationId)->where('entry_type', 'accrual')->first();
         if (!$accrual) return ['ok' => false, 'code' => 'NOTHING_ACCRUED', 'kobo' => 0];
 
+        $row = [
+            'nominee_id'  => (int) $accrual->nominee_id,
+            'profile_id'  => $accrual->profile_id,
+            'cycle_id'    => $accrual->cycle_id,
+            'entry_type'  => 'reversal',
+            'amount_kobo' => -1 * (int) $accrual->amount_kobo,
+            'basis_kobo'  => (int) $accrual->basis_kobo,
+            'rate_bps'    => (int) $accrual->rate_bps,
+            'donation_id' => $donationId,
+            'note'        => mb_substr(trim($reason) ?: 'contribution reversed', 0, 400),
+            'created_by'  => $adminId,
+            'created_at'  => Carbon::now()->toDateTimeString(),
+        ];
+        // The reversal takes its accrual's stage, so a refunded LOCKED credit comes off
+        // the locked figure. Without it the pair would net to zero overall while showing
+        // the nominee a locked credit that had gone and an available debit they never had.
+        if (($accrual->stage ?? null) !== null) $row['stage'] = (string) $accrual->stage;
+
         try {
-            DB::table('gates_community_returns')->insert([
-                'nominee_id'  => (int) $accrual->nominee_id,
-                'profile_id'  => $accrual->profile_id,
-                'cycle_id'    => $accrual->cycle_id,
-                'entry_type'  => 'reversal',
-                'amount_kobo' => -1 * (int) $accrual->amount_kobo,
-                'basis_kobo'  => (int) $accrual->basis_kobo,
-                'rate_bps'    => (int) $accrual->rate_bps,
-                'donation_id' => $donationId,
-                'note'        => mb_substr(trim($reason) ?: 'contribution reversed', 0, 400),
-                'created_by'  => $adminId,
-                'created_at'  => Carbon::now()->toDateTimeString(),
-            ]);
+            DB::table('gates_community_returns')->insert($row);
         } catch (\Throwable) {
             return ['ok' => false, 'code' => 'ALREADY_REVERSED', 'kobo' => 0];
         }
@@ -617,22 +746,137 @@ final class CommunityReturnService
      */
     private static function payableFor(int $nomineeId, $rows): int
     {
+        // ── PAYOUTS ARE COUNTED APART FROM THE CYCLES ─────────────────────────
+        //
+        // A withdrawal takes money earned in several editions at once, and its ledger row
+        // has to sit in SOME cycle. Netting it inside that cycle would let it vanish when
+        // that cycle happened not to be released — the payout would stop reducing what is
+        // payable, and the same naira would be offered for withdrawal twice. So a payout
+        // always comes off the payable total, whatever cycle it is filed under.
         $byCycle = [];
+        $paidOut = 0;
         foreach ($rows as $r) {
+            if ((string) $r->entry_type === 'payout') { $paidOut += (int) $r->amount_kobo; continue; }
             $byCycle[(int) ($r->cycle_id ?? 0)] = ($byCycle[(int) ($r->cycle_id ?? 0)] ?? 0) + (int) $r->amount_kobo;
         }
         if (!$byCycle) return 0;
 
-        $settled = DB::table('gates_award_cycles')
-            ->whereIn('id', array_keys($byCycle))
-            ->whereIn('status', ['results', 'archived'])
-            ->pluck('id')->map(fn ($v) => (int) $v)->all();
+        $released = self::releasedCycles(array_keys($byCycle));
 
         $payable = 0;
         foreach ($byCycle as $cycleId => $kobo) {
-            if (in_array($cycleId, $settled, true)) $payable += $kobo;
+            if (isset($released[$cycleId])) $payable += $kobo;
         }
-        return max(0, $payable);
+        return max(0, $payable + $paidOut);
+    }
+
+    /**
+     * Of these editions, which have released their community-return money?
+     *
+     * The two models answer differently, and each answer is the act that model hangs the
+     * money on. Under the threshold model, nothing is payable until the edition has
+     * ANNOUNCED ITS RESULTS (the rule since the ledger shipped). Under the milestone
+     * model it is the MILESTONE CONFIRMATION: the brief makes that the moment locked
+     * credits become available, and a payout review stands where the results gate stood
+     * as the protection against paying out money a fraud finding might reverse.
+     *
+     * Cycle 0 — an entry whose nominee had no category — is never released.
+     *
+     * @param  list<int> $cycleIds
+     * @return array<int,true>
+     */
+    public static function releasedCycles(array $cycleIds): array
+    {
+        $cycleIds = array_values(array_filter(array_map('intval', $cycleIds), static fn (int $c): bool => $c > 0));
+        if ($cycleIds === []) return [];
+
+        $out = [];
+        try {
+            $announced = DB::table('gates_award_cycles')->whereIn('id', $cycleIds)
+                ->whereIn('status', ['results', 'archived'])->pluck('id')->map(fn ($v) => (int) $v)->all();
+        } catch (\Throwable) {
+            $announced = [];
+        }
+        foreach ($cycleIds as $c) {
+            if (self::usesMilestone(CommunityReturnMilestone::rulesForCycle($c))) {
+                if (CommunityReturnMilestone::confirmedAt($c) !== null) $out[$c] = true;
+            } elseif (in_array($c, $announced, true)) {
+                $out[$c] = true;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * The wallet: every naira of a nominee's return, in the state it is actually in.
+     *
+     * The brief names the states and asks that a locked credit is never presented as
+     * cash, so they are separate figures rather than one balance with footnotes:
+     *
+     *   locked        earned before the edition's milestone was confirmed; theirs, not yet
+     *                 releasable
+     *   awaiting      earned under the threshold model in an edition that has not
+     *                 announced its results
+     *   available     released, and not inside a withdrawal somebody is reviewing
+     *   under_review  inside a requested or approved withdrawal
+     *   paid          gone, against a transfer reference
+     *   held / reversed / forfeited — taken off, each for its own recorded reason
+     *
+     * There is no "pending" figure for contributions still being paid: the ledger only
+     * ever records confirmed money, and an estimate on an order that may never complete
+     * is exactly the "locked credit presented as cash" the brief rules out.
+     *
+     * @return array{locked_kobo:int, awaiting_kobo:int, available_kobo:int, under_review_kobo:int,
+     *               paid_kobo:int, held_kobo:int, reversed_kobo:int, forfeited_kobo:int,
+     *               raised_kobo:int, payable_kobo:int, withdrawable_kobo:int,
+     *               claim_block:?array{code:string,reason:string}}
+     */
+    public static function wallet(int $nomineeId): array
+    {
+        $b = self::balance($nomineeId);
+
+        try {
+            $rows = DB::table('gates_community_returns')->where('nominee_id', $nomineeId)->get();
+        } catch (\Throwable) {
+            $rows = collect();
+        }
+
+        $cycles   = [];
+        foreach ($rows as $r) $cycles[(int) ($r->cycle_id ?? 0)] = true;
+        $released = self::releasedCycles(array_keys($cycles));
+
+        $locked = 0; $unreleased = 0; $paid = 0; $reversed = 0; $forfeited = 0;
+        foreach ($rows as $r) {
+            $type = (string) $r->entry_type;
+            $amt  = (int) $r->amount_kobo;
+            if ($type === 'payout')   { $paid      += -$amt; continue; }
+            if ($type === 'reversal') $reversed  += -$amt;
+            if ($type === 'forfeit')  $forfeited += -$amt;
+
+            if (isset($released[(int) ($r->cycle_id ?? 0)])) continue;
+            $unreleased += $amt;
+            if ((string) ($r->stage ?? '') === self::STAGE_LOCKED) $locked += $amt;
+        }
+
+        $review = CommunityReturnWithdrawals::underReviewKobo($nomineeId);
+
+        return [
+            'locked_kobo'       => max(0, $locked),
+            // Unreleased money that is not locked: threshold-model earnings waiting for an
+            // announcement. Holds filed in an unreleased cycle come off this figure, which is
+            // why it is clamped — a hold larger than what is waiting is shown on its own line.
+            'awaiting_kobo'     => max(0, $unreleased - max(0, $locked)),
+            'available_kobo'    => max(0, $b['withdrawable_kobo'] - $review),
+            'under_review_kobo' => $review,
+            'paid_kobo'         => $paid,
+            'held_kobo'         => $b['held_kobo'],
+            'reversed_kobo'     => $reversed,
+            'forfeited_kobo'    => $forfeited,
+            'raised_kobo'       => $b['raised_kobo'],
+            'payable_kobo'      => $b['payable_kobo'],
+            'withdrawable_kobo' => $b['withdrawable_kobo'],
+            'claim_block'       => $b['claim_block'],
+        ];
     }
 
     /**
@@ -654,6 +898,10 @@ final class CommunityReturnService
                 'amount'    => (int) $r->amount_kobo,
                 'basis'     => (int) $r->basis_kobo,
                 'rate_pct'  => (int) $r->rate_bps > 0 ? round((int) $r->rate_bps / 100, 2) : null,
+                // Locked is shown on the line, not only in a total: "where did this come
+                // from" has to be answerable per row, and a locked credit read as cash is
+                // exactly what the brief rules out.
+                'locked'    => (string) ($r->stage ?? '') === self::STAGE_LOCKED,
                 'reference' => $r->donation_id
                     ? (string) (DB::table('gates_donations')->where('id', (int) $r->donation_id)->value('payment_ref') ?? '')
                     : null,
@@ -676,10 +924,11 @@ final class CommunityReturnService
      *
      * @return array<int, array{entry:int, problem:string}>
      */
-    public static function audit(?int $cycleId = null): array
+    public static function audit(?int $cycleId = null, ?int $nomineeId = null): array
     {
         $q = DB::table('gates_community_returns')->where('entry_type', 'accrual');
-        if ($cycleId !== null) $q->where('cycle_id', $cycleId);
+        if ($cycleId !== null)   $q->where('cycle_id', $cycleId);
+        if ($nomineeId !== null) $q->where('nominee_id', $nomineeId);
 
         $bad = [];
         foreach ($q->get() as $e) {
@@ -693,6 +942,14 @@ final class CommunityReturnService
             }
             if ((int) $d->intent_nominee_id !== (int) $e->nominee_id) {
                 $bad[] = ['entry' => (int) $e->id, 'problem' => 'credited to a different nominee']; continue;
+            }
+            // A refund that never reached the ledger. RefundService reverses the share on
+            // its own path, but a clawback or a hand-stamped refund does not, and the share
+            // would then stay on a balance a withdrawal could take.
+            if (($d->refunded_at ?? null) !== null
+                && !DB::table('gates_community_returns')->where('donation_id', (int) $e->donation_id)
+                       ->where('entry_type', 'reversal')->exists()) {
+                $bad[] = ['entry' => (int) $e->id, 'problem' => 'contribution refunded but the share was not reversed']; continue;
             }
             $expected = intdiv((int) $e->basis_kobo * (int) $e->rate_bps, 10000);
             if ($expected !== (int) $e->amount_kobo) {

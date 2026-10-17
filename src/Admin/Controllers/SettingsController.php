@@ -357,6 +357,8 @@ class SettingsController
             'community_return' => \AfricaGates\Services\CommunityReturnService::displayRules(
                 (new \AfricaGates\Services\RuleEngine())->effective()
             ),
+            // The withdrawal terms, through the resolver the withdrawals and /integrity read.
+            'community_return_terms' => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
             // The scoring curves, so the form can show what is actually in force rather
             // than the defaults. Whole ruleset rather than five picked keys: the template
             // reads them by name and a missing one under strict_variables is a 500.
@@ -1041,6 +1043,25 @@ class SettingsController
                 // trusted input just because an admin typed it: 0 would lock every
                 // nominee out of qualifying forever, and >100 would stop being a cap.
                 'community_return_supporter_cap_pct' => max(1, min(100, (int) ($b['community_return_supporter_cap_pct'] ?? 10))),
+            ]);
+
+            // ── The withdrawal terms ─────────────────────────────────────────
+            //
+            // Published on /integrity from these values, and withdrawals stay closed until
+            // they are marked published. "Published" is refused without a tax position:
+            // it is the one term no default can supply, and the brief requires every term
+            // to be public before anybody can ask for money. Floors at the read too, in
+            // CommunityReturnWithdrawals::terms(), so a hand-edited rule set cannot publish
+            // "paid within 0 days".
+            $tax = mb_substr(trim((string) ($b['community_return_tax_note'] ?? '')), 0, 1000);
+            $engine->merge('global', null, [
+                'community_return_min_withdrawal_naira' => max(0, (int) ($b['community_return_min_withdrawal_naira'] ?? 1000)),
+                'community_return_fee_naira'            => max(0, (int) ($b['community_return_fee_naira'] ?? 0)),
+                'community_return_payout_days'          => max(1, (int) ($b['community_return_payout_days'] ?? 10)),
+                'community_return_appeal_days'          => max(1, (int) ($b['community_return_appeal_days'] ?? 14)),
+                'community_return_unclaimed_days'       => max(1, (int) ($b['community_return_unclaimed_days'] ?? 365)),
+                'community_return_tax_note'             => $tax,
+                'community_return_terms_published'      => ($b['community_return_terms_published'] ?? '') === '1' && $tax !== '',
             ]);
         }
 

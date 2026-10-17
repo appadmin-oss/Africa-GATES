@@ -1455,7 +1455,47 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Free votes and contributions are added together per person, so splitting an order cannot buy a second allowance. Refunded and undelivered orders count for nothing.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)"><strong>Qualifying support is a turnout test, not a revenue test.</strong> It counts every vote a nominee has — free, bought, or awarded — because what it is checking is that a real community showed up. What the nominee then earns is a share of money, and only money accrues.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Earning is <strong>prospective</strong>: crossing the line changes what happens next, never what already happened. Contributions made before a nominee qualified stay unshared however many times accrual is re-run over them.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Nothing is payable until a cycle reaches its results, and <strong>no payout path exists yet</strong> — the ledger accrues and displays. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--cn-ink)">integrity page</a> exactly as set here.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-grey-500)">Under this rule nothing is payable until a cycle reaches its results; under an edition's <strong>two-stage</strong> rule, until its milestone is confirmed. The rule an edition runs, its milestone and the withdrawals queue are on <a href="/admin/community-return" style="color:var(--cn-ink)">Community return</a>; money leaves only through a request a person reviews and pays against a transfer reference. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--cn-ink)">integrity page</a> exactly as set here.</p>
+
+      {# Withdrawal terms. Global, because a withdrawal draws on every edition a nominee
+         earned in. No inline styles: the console's .row and .hint carry it. #}
+      {% set _t = community_return_terms %}
+      <h3 id="crTermsH">Withdrawal terms</h3>
+      <p class="hint">{% if _t.published %}Published. Withdrawals are open, and these terms are on the integrity page.{% else %}Not published, so withdrawals are closed.{% if _t.tax_note == '' %} Publishing needs the tax position.{% endif %}{% endif %}</p>
+      <div class="row">
+        <div>
+          <label for="f-crt-min">Smallest withdrawal (₦)</label>
+          <input type="number" name="community_return_min_withdrawal_naira" id="f-crt-min" min="0" step="100" value="{{ (_t.min_kobo / 100)|round }}">
+        </div>
+        <div>
+          <label for="f-crt-fee">Fee per withdrawal (₦)</label>
+          <input type="number" name="community_return_fee_naira" id="f-crt-fee" min="0" step="10" value="{{ (_t.fee_kobo / 100)|round }}">
+          <p class="hint">Taken from the amount and shown to the nominee before they ask.</p>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-crt-days">Paid within (working days)</label>
+          <input type="number" name="community_return_payout_days" id="f-crt-days" min="1" step="1" value="{{ _t.payout_days }}">
+        </div>
+        <div>
+          <label for="f-crt-appeal">Appeal window (days)</label>
+          <input type="number" name="community_return_appeal_days" id="f-crt-appeal" min="1" step="1" value="{{ _t.appeal_days }}">
+          <p class="hint">How long a nominee has to appeal a refused withdrawal or a hold.</p>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-crt-unclaimed">Unclaimed after (days)</label>
+          <input type="number" name="community_return_unclaimed_days" id="f-crt-unclaimed" min="1" step="1" value="{{ _t.unclaimed_days }}">
+          <p class="hint">Published as the period after release within which a balance must be claimed. Nothing is forfeited automatically; a person decides, on the record.</p>
+        </div>
+        <div>
+          <label for="f-crt-tax">Tax position</label>
+          <textarea name="community_return_tax_note" id="f-crt-tax" maxlength="1000" placeholder="Take advice first. State whether anything is withheld and who is responsible for declaring it.">{{ _t.tax_note }}</textarea>
+        </div>
+      </div>
+      <label class="checkbox"><input type="checkbox" name="community_return_terms_published" value="1" {% if _t.published %}checked{% endif %}> These terms are final: publish them and open withdrawals</label>
     </div>
   </div></div>
   <div class="ad-card" data-sec="site" data-keys="display values nations count cpi recompute interval review sla nomination seconds otp expiry processing fee donation goal target fundraising" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">

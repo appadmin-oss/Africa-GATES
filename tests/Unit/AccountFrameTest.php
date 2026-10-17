@@ -71,7 +71,10 @@ final class AccountFrameTest extends TestCase
             $href = htmlspecialchars(AccountRail::SECTIONS[$key][1], ENT_QUOTES);
             $this->assertMatchesRegularExpression('~<a class="acx-tab" href="' . preg_quote($href, '~') . '" aria-current="page">~', $html, "$uri marks $key");
             $this->assertSame(1, substr_count($html, 'aria-current="page">'), "$uri: one current section");
-            foreach (AccountRail::SECTIONS as [, $h]) {
+            foreach (AccountRail::SECTIONS as $k => [, $h]) {
+                // A conditional section is drawn only for the members it concerns (a
+                // nominee's community return); its own test asserts that both ways.
+                if (in_array($k, AccountRail::CONDITIONAL, true)) continue;
                 $this->assertStringContainsString('href="' . htmlspecialchars($h, ENT_QUOTES) . '"', $html, "$uri reaches $h");
             }
         }
@@ -94,7 +97,7 @@ final class AccountFrameTest extends TestCase
         $this->assertStringContainsString('aria-label="Quick actions"', $html);
         $this->assertStringContainsString('class="ag-list acx-rows"', $html, 'the phone\'s section list');
         foreach (AccountRail::SECTIONS as $k => [, $h]) {
-            if ($k === 'overview') continue;
+            if ($k === 'overview' || in_array($k, AccountRail::CONDITIONAL, true)) continue;
             $this->assertMatchesRegularExpression('~acx-rows.*href="' . preg_quote(htmlspecialchars($h, ENT_QUOTES), '~') . '"~s', $html, $k);
         }
     }
