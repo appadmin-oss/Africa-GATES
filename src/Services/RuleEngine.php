@@ -168,7 +168,9 @@ class RuleEngine
         // no tax note: the brief requires every term to be public before money can be
         // asked for, and the one term no default can supply is the tax position.
         'community_return_min_withdrawal_naira' => 1000,
-        'community_return_fee_naira'            => 0,
+        // The withdrawal fee is not a community-return term: it is the WALLET's, one
+        // schedule for every way a member takes money out. See WalletFee.
+        'wallet_fee_bands'                      => WalletFee::DEFAULT_BANDS,
         'community_return_payout_days'          => 10,
         'community_return_appeal_days'          => 14,
         'community_return_unclaimed_days'       => 365,

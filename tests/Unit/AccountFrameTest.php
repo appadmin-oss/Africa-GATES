@@ -61,7 +61,8 @@ final class AccountFrameTest extends TestCase
             ['dashboard', '/account?tab=referral', 'referral'],
             ['dashboard', '/account?tab=security', 'security'],
             ['dashboard', '/account?tab=settings', 'settings'],
-            ['points', '/account/points', 'points'],
+            ['points', '/account/points', 'wallet'],
+            ['wallet', '/account/wallet', 'wallet'],
             ['notifications', '/account/notifications', 'activity'],
             ['display', '/account/display', 'settings'],
         ];

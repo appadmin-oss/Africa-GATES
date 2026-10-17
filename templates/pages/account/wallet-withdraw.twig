@@ -1,0 +1,108 @@
+{% extends 'pages/account/_frame.twig' %}
+{#
+  WITHDRAW — /account/wallet/withdraw · two screens, one template
+
+  step 'form'    which pocket, how much (with "All"), which account. The fee is shown as the
+                 amount is typed (wallet.js reads the bands from `data-wl-fees`); without
+                 the script the schedule is printed beside the field and the next screen
+                 shows the exact figure.
+  step 'review'  OPay's confirm sheet as a page: the amount, the fee taken from it, what
+                 arrives, where it goes, and the rules to accept. Nothing has been written
+                 until Confirm, and Confirm asks every condition again under a lock.
+
+  Points have no withdraw: they are spent on votes, and the pocket list says so.
+#}
+{% import 'partials/field.twig' as f %}
+{% set acc_tab = 'wallet' %}
+{% set colour_tier = '2' %}
+{% block acc_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/wallet.css') }}">{% endblock %}
+
+{% block acc_body %}
+<div class="wl">
+{% if step == 'review' %}
+  <section class="acx-card wl-rc" aria-labelledby="wl-rv-h">
+    <h2 class="wl-rc__h" id="wl-rv-h">{{ 'You are withdrawing'|trans }}</h2>
+    <p class="wl-rc__n ag-num">₦{{ (q.amount_kobo / 100)|number_format(2) }}</p>
+    <p class="wl-rc__p">{{ 'from %p%'|trans({'%p%': pocket.label|trans ~ (pocket.sub ? ' · ' ~ pocket.sub : '')}) }}</p>
+  </section>
+  <section class="acx-card wl-rc__box" aria-label="{{ 'Summary'|trans }}">
+    <dl class="wl-dl">
+      <div><dt>{{ 'Amount'|trans }}</dt><dd>₦{{ (q.amount_kobo / 100)|number_format(2) }}</dd></div>
+      <div><dt>{{ 'Withdrawal fee'|trans }}</dt><dd>−₦{{ (q.fee_kobo / 100)|number_format(2) }}</dd></div>
+      <div class="wl-dl__total"><dt>{{ 'You receive'|trans }}</dt><dd>₦{{ (q.net_kobo / 100)|number_format(2) }}</dd></div>
+      <div><dt>{{ 'To'|trans }}</dt><dd>{{ q.bank.account_name }}<br>{{ q.bank.bank }} · <span class="wl-ref">{{ q.bank.account_number }}</span></dd></div>
+      <div><dt>{{ 'Arrives'|trans }}</dt><dd>{{ 'After a person checks it — usually within %d% working days'|trans({'%d%': terms.payout_days}) }}</dd></div>
+    </dl>
+  </section>
+  <form method="post" action="/account/wallet/withdraw" class="acx-card wl-form" novalidate data-ag-validate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="pocket" value="{{ pocket.key }}">
+    <input type="hidden" name="amount_kobo" value="{{ pocket.partial ? q.amount_kobo : '' }}">
+    <input type="hidden" name="bank" value="{{ q.bank.bank }}">
+    <input type="hidden" name="account_name" value="{{ q.bank.account_name }}">
+    <input type="hidden" name="account_number" value="{{ q.bank.account_number }}">
+    <label class="wl-check"><input type="checkbox" name="accept" value="1" required>
+      <span>{{ 'The account is in my own name, and I accept the withdrawal rules and the fee.'|trans }} <a href="/integrity#return">{{ 'Read the rules'|trans }}</a></span></label>
+    <button class="ag-btn ag-btn--primary wl-btn" type="submit">{{ 'Confirm withdrawal'|trans }}</button>
+    <a class="ag-btn ag-btn--secondary wl-btn" href="/account/wallet/withdraw?pocket={{ pocket.key|url_encode }}">{{ 'Change something'|trans }}</a>
+  </form>
+
+{% else %}
+  {% if pocket is null %}
+    <section class="wl-sec" aria-labelledby="wl-wf-h">
+      <h2 class="wl-h" id="wl-wf-h">{{ 'Withdraw from which pocket?'|trans }}</h2>
+      <ul class="acx-card wl-list">
+        {% for p in pockets %}
+          <li>
+            {% if p.can %}
+              <a class="wl-tx" href="/account/wallet/withdraw?pocket={{ p.key|url_encode }}">
+                <span class="wl-tx__b"><b>{{ p.label|trans }}</b><span>{{ p.sub|trans }}</span></span>
+                <span class="wl-tx__r"><span class="wl-tx__a">₦{{ (p.available_kobo / 100)|number_format(2) }}</span></span>
+              </a>
+            {% else %}
+              <div class="wl-tx wl-tx--off">
+                <span class="wl-tx__b"><b>{{ p.label|trans }}</b><span>{{ p.why|trans }}</span></span>
+                <span class="wl-tx__r">{% if p.kind != 'points' %}<span class="wl-tx__a">₦{{ (p.available_kobo / 100)|number_format(2) }}</span>{% endif %}</span>
+              </div>
+            {% endif %}
+          </li>
+        {% else %}
+          <li><p class="wl-none">{{ 'You have no pockets to withdraw from yet.'|trans }}</p></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% elseif not pocket.can %}
+    <section class="acx-card wl-rc" aria-labelledby="wl-no-h">
+      <h2 class="wl-rc__h" id="wl-no-h">{{ 'This pocket can’t be withdrawn from yet'|trans }}</h2>
+      <p class="wl-rc__p">{{ pocket.why|trans }}</p>
+      <a class="ag-btn ag-btn--secondary wl-btn" href="/account/wallet">{{ 'Back to wallet'|trans }}</a>
+    </section>
+  {% else %}
+    <form method="post" action="/account/wallet/withdraw/review" class="acx-card wl-form" novalidate data-ag-validate
+          data-wl-fees="{{ fee_bands|json_encode }}" data-wl-max="{{ pocket.available_kobo }}">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="pocket" value="{{ pocket.key }}">
+      <p class="wl-form__from">{{ 'From'|trans }} <b>{{ pocket.label|trans }}</b>{% if pocket.sub %} · {{ pocket.sub }}{% endif %}</p>
+      <p class="wl-form__bal">{{ 'Available'|trans }} <b class="ag-num">₦{{ (pocket.available_kobo / 100)|number_format(2) }}</b></p>
+
+      {% if pocket.partial %}
+        <div class="wl-amtf">
+          {{ f.text({id: 'wl-amount', name: 'amount', label: 'Amount (₦)'|trans, value: bank.amount, inputmode: 'decimal', autocomplete: 'off', placeholder: ((pocket.available_kobo / 100)|number_format(2, '.', '')), hint: 'Leave it empty to withdraw everything available.'|trans, data: 'data-wl-amount'}, '') }}
+          <button type="button" class="ag-btn ag-btn--secondary ag-btn--pill wl-all" data-wl-all hidden>{{ 'All'|trans }}</button>
+        </div>
+      {% else %}
+        <p class="wl-form__bal">{{ 'Referral earnings are withdrawn whole.'|trans }}</p>
+      {% endif %}
+      <p class="wl-form__fee" data-wl-fee aria-live="polite">{{ 'Withdrawal fee'|trans }}: {{ fee_text }}</p>
+
+      {{ f.text({id: 'wl-bank', name: 'bank', label: 'Bank'|trans, value: bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
+      {{ f.text({id: 'wl-name', name: 'account_name', label: 'Account name'|trans, value: bank.account_name, required: true, maxlength: 120, autocomplete: 'name', hint: 'It must be an account in your own name.'|trans}, '') }}
+      {{ f.text({id: 'wl-num', name: 'account_number', label: 'Account number'|trans, value: bank.account_number, required: true, maxlength: 10, pattern: '[0-9]{10}', inputmode: 'numeric', autocomplete: 'off', hint: 'The 10-digit NUBAN.'|trans}, '') }}
+      <button class="ag-btn ag-btn--primary wl-btn" type="submit">{{ 'Continue'|trans }}</button>
+    </form>
+  {% endif %}
+{% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/wallet.js') }}"></script>{% endblock %}

@@ -55,27 +55,23 @@
   {% endif %}
 
 
-  <div class="acx-top{{ points_enabled ? '' : ' acx-top--one' }}">
-    {% if points_enabled %}
+  {# The wallet's headline: available naira, with points beside it in their own unit —
+     the overview's one balance card, for every member (MemberWallet::summary()). #}
+  {% set _wready = wallet.pockets|filter(p => p.can) %}
+  <div class="acx-top">
     <section class="acx-card acx-bal" aria-labelledby="acx-bal-h">
       <div class="acx-bal__head">
-        <h2 class="acx-bal__h" id="acx-bal-h">{{ 'Voting points'|trans }}</h2>
-        <a class="acx-more" href="/account/points">{{ 'History'|trans }}<svg class="ag-ico-dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+        <h2 class="acx-bal__h" id="acx-bal-h">{{ 'Wallet balance'|trans }}</h2>
+        <a class="acx-more" href="/account/wallet">{{ 'Open wallet'|trans }}<svg class="ag-ico-dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
       </div>
-      <p class="acx-bal__n"><b>{{ points|number_format }}</b> <span>{{ 'pts'|trans }}</span></p>
-      <p class="acx-bal__p">{{ redeemable == 1 ? 'Worth 1 vote'|trans : 'Worth %n% votes'|trans({'%n%': redeemable}) }}</p>
+      <p class="acx-bal__n"><b>₦{{ (wallet.available_kobo / 100)|number_format(2) }}</b></p>
+      <p class="acx-bal__p">{% if points_enabled or points > 0 %}{{ '%n% points'|trans({'%n%': points|number_format}) }} · {{ redeemable == 1 ? 'worth 1 vote'|trans : 'worth %n% votes'|trans({'%n%': redeemable}) }}{% endif %}{% if wallet.coming_kobo > 0 %}{{ points_enabled or points > 0 ? ' · ' }}{{ '₦%a% coming'|trans({'%a%': (wallet.coming_kobo / 100)|number_format(2)}) }}{% endif %}</p>
       <div class="acx-bal__acts">
-        {% if redeemable > 0 %}<a class="ag-btn ag-btn--primary acx-btn" href="/vote">{{ 'Redeem for votes'|trans }}</a>{% endif %}
-        <a class="ag-btn ag-btn--secondary acx-btn" href="/account?tab=referral">{{ 'Earn more'|trans }}</a>
+        {% if _wready|length %}<a class="ag-btn ag-btn--primary acx-btn" href="/account/wallet/withdraw">{{ 'Withdraw'|trans }}</a>{% endif %}
+        {% if points_enabled and redeemable > 0 %}<a class="ag-btn ag-btn--secondary acx-btn" href="/vote">{{ 'Use points to vote'|trans }}</a>{% endif %}
+        <a class="ag-btn ag-btn--secondary acx-btn" href="/account/wallet">{{ 'Transactions'|trans }}</a>
       </div>
-      {% if referral.code and (payout_can or referral.accrued_naira > 0) %}
-      <div class="acx-bal__ref">
-        <span class="acx-bal__rk"><span>{{ 'Referral earnings'|trans }}</span><b>₦{{ (payout_can ? payout_amount : referral.accrued_naira)|number_format }}{% if payout_can %} <span class="acx-ready">{{ 'ready'|trans }}</span>{% endif %}</b></span>
-        <a class="ag-btn ag-btn--secondary ag-btn--pill acx-btn-sm" href="/account?tab=referral#me-referral">{{ payout_can ? 'Withdraw'|trans : 'See referrals'|trans }}</a>
-      </div>
-      {% endif %}
     </section>
-    {% endif %}
     <nav class="acx-card acx-quick" aria-label="{{ 'Quick actions'|trans }}">
       {% set _quick = [
         {label: 'Vote'|trans, href: '/vote', d: 'M4 12.5 9 17.5 20 6.5', tone: 'green'},
@@ -83,7 +79,7 @@
         {label: 'Tickets'|trans, href: '/account?tab=purchases', d: 'M4 7h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z', tone: 'info', n: my_tickets|length},
         {label: 'Refer & earn'|trans, href: '/account?tab=referral', d: 'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6', tone: 'live'},
         {label: 'Challenges'|trans, href: my_challenges|length ? '/account?tab=challenges' : '/challenges', d: 'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4', tone: 'gold', n: my_challenges|length},
-        {label: 'Orders'|trans, href: '/account?tab=purchases', d: 'M5.5 8h13l-1 12h-11zM9 8V7a3 3 0 0 1 6 0v1', tone: 'info'},
+        {label: 'Wallet'|trans, href: '/account/wallet', d: 'M3 7h18v12H3zM3 7l3-3h12l3 3M16 13h2', tone: 'gold'},
         {label: 'Events'|trans, href: '/events', d: 'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4', tone: 'live'},
         {label: 'Help'|trans, href: '/help', d: 'M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14', tone: 'ink'}
       ] %}
@@ -216,7 +212,7 @@
         {% elseif payout_can %}
           <form method="post" action="/account/payout" class="acc__form" novalidate data-ag-validate>
             <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <p class="acc__p">{{ 'You can withdraw ₦%a%.'|trans({'%a%': payout_amount|number_format}) }}</p>
+            <p class="acc__p">{{ 'You can withdraw ₦%a%.'|trans({'%a%': payout_amount|number_format}) }}{% if payout_fee > 0 %} {{ 'A withdrawal fee of ₦%f% is taken from it.'|trans({'%f%': payout_fee|number_format}) }}{% endif %} <a href="/account/wallet">{{ 'See it in your wallet'|trans }}</a></p>
             {{ f.text({id: 'po-bank', name: 'bank', label: 'Bank'|trans, value: payout_bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
             {{ f.text({id: 'po-name', name: 'account_name', label: 'Account name'|trans, value: payout_bank.account_name, required: true, maxlength: 120, autocomplete: 'name'}, '') }}
             {{ f.text({id: 'po-num', name: 'account_number', label: 'Account number'|trans, value: payout_bank.account_number, required: true, maxlength: 10, pattern: '[0-9]{10}', inputmode: 'numeric', autocomplete: 'off', hint: 'The 10-digit NUBAN.'|trans}, '') }}
@@ -246,75 +242,6 @@
     {% endif %}
   </section>
 
-
-{% elseif tab == 'return' %}
-  {# ── The community return: a nominee's wallet ─────────────────────────────────
-     One panel per claimed page. Every figure is a separate line, because the brief
-     forbids a locked credit being read as cash; and the withdrawal form appears only
-     when every condition but the person's own answers is met — otherwise the section
-     names the condition that is missing instead of drawing a form that cannot succeed. #}
-  <section class="acc__sec" id="me-return" aria-labelledby="acc-ret-h">
-    <h2 class="acc__h2" id="acc-ret-h">{{ 'Your community return'|trans }}</h2>
-    {% if returns is empty %}
-      <p class="acc__p">{{ 'When supporters contribute in the name of a nominee page you have claimed, your share is shown here.'|trans }}</p>
-    {% endif %}
-    {% for r in returns %}
-      {% set w = r.wallet %}
-      <div class="acc__pay">
-        <h3 class="acc__h3">{{ r.name }}</h3>
-        {% if r.milestone %}<p class="acc__p">{{ 'Your edition’s rule'|trans }}: {{ r.milestone.summary }}</p>{% endif %}
-        {% if r.milestone and r.milestone.uses_milestone and not r.milestone.confirmed_at %}
-          <p class="acc__p">{{ 'Your edition is working toward its milestone: ₦%m% raised of ₦%t%. Until it is confirmed, your share is held locked.'|trans({'%m%': (r.milestone.measured_kobo / 100)|number_format, '%t%': (r.milestone.target_kobo / 100)|number_format}) }}</p>
-        {% endif %}
-        <ul class="ag-list acc__plain">
-          <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ 'Available'|trans }}</span><span class="ag-list__sub">{{ 'Released, and yours to ask for'|trans }}</span></span><span class="ag-list__value">₦{{ (w.available_kobo / 100)|number_format(2) }}</span></li>
-          {% if w.locked_kobo > 0 %}<li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ 'Locked'|trans }}</span><span class="ag-list__sub">{{ 'Yours, released when the milestone is confirmed'|trans }}</span></span><span class="ag-list__value">₦{{ (w.locked_kobo / 100)|number_format(2) }}</span></li>{% endif %}
-          {% if w.awaiting_kobo > 0 %}<li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ 'Awaiting results'|trans }}</span><span class="ag-list__sub">{{ 'Released when your edition announces its results'|trans }}</span></span><span class="ag-list__value">₦{{ (w.awaiting_kobo / 100)|number_format(2) }}</span></li>{% endif %}
-          {% if w.under_review_kobo > 0 %}<li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ 'Under review'|trans }}</span><span class="ag-list__sub">{{ 'In a withdrawal a person is checking'|trans }}</span></span><span class="ag-list__value">₦{{ (w.under_review_kobo / 100)|number_format(2) }}</span></li>{% endif %}
-          {% if w.paid_kobo > 0 %}<li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ 'Paid to you'|trans }}</span></span><span class="ag-list__value">₦{{ (w.paid_kobo / 100)|number_format(2) }}</span></li>{% endif %}
-          {% if w.held_kobo > 0 %}<li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ 'On hold'|trans }}</span><span class="ag-list__sub">{{ 'Held while our team checks something; you will be told why'|trans }}</span></span><span class="ag-list__value">₦{{ (w.held_kobo / 100)|number_format(2) }}</span></li>{% endif %}
-          {% if w.reversed_kobo > 0 %}<li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ 'Reversed'|trans }}</span><span class="ag-list__sub">{{ 'Contributions that were refunded'|trans }}</span></span><span class="ag-list__value">₦{{ (w.reversed_kobo / 100)|number_format(2) }}</span></li>{% endif %}
-        </ul>
-
-        {% if r.open %}
-          <p class="acc__p" role="status">{{ 'A withdrawal of ₦%a% is %s%'|trans({'%a%': (r.open.amount_kobo / 100)|number_format(2), '%s%': (r.open.status == 'approved' ? 'approved and being paid'|trans : 'being reviewed'|trans)}) }} — {{ 'asked for on %d%'|trans({'%d%': r.open.requested_at|date('j M Y')}) }}.</p>
-        {% elseif r.can %}
-          <form method="post" action="/account/return/withdraw" class="acc__form" novalidate data-ag-validate>
-            <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <input type="hidden" name="nominee_id" value="{{ r.nominee_id }}">
-            <p class="acc__p">{{ 'You can ask for ₦%a%.'|trans({'%a%': (r.amount / 100)|number_format(2)}) }}{% if r.fee > 0 %} {{ 'A fee of ₦%f% is taken from it.'|trans({'%f%': (r.fee / 100)|number_format(2)}) }}{% endif %}</p>
-            {{ f.text({id: 'rt-bank-' ~ r.nominee_id, name: 'bank', label: 'Bank'|trans, value: payout_bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
-            {{ f.text({id: 'rt-name-' ~ r.nominee_id, name: 'account_name', label: 'Account name'|trans, value: payout_bank.account_name, required: true, maxlength: 120, autocomplete: 'name', hint: 'It must be an account in your own name.'|trans}, '') }}
-            {{ f.text({id: 'rt-num-' ~ r.nominee_id, name: 'account_number', label: 'Account number'|trans, value: payout_bank.account_number, required: true, maxlength: 10, pattern: '[0-9]{10}', inputmode: 'numeric', autocomplete: 'off', hint: 'The 10-digit NUBAN.'|trans}, '') }}
-            <label class="acc__p"><input type="checkbox" name="accept" value="1" required> {{ 'I have read the community return rules on the integrity page, including the tax position.'|trans }} <a href="/integrity#return">{{ 'Read them'|trans }}</a></label>
-            <button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Request withdrawal'|trans }}</button>
-          </form>
-        {% else %}
-          <p class="acc__p">{{ r.why }}</p>
-        {% endif %}
-
-        {% if r.history|length %}
-          <h4 class="acc__h3">{{ 'Withdrawals'|trans }}</h4>
-          <ul class="ag-list acc__plain">
-            {% for h in r.history %}
-              <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">₦{{ (h.amount_kobo / 100)|number_format(2) }}</span><span class="ag-list__sub">{{ h.requested_at ? h.requested_at|date('j M Y') : '' }}{% if h.payment_ref %} · <span class="acc__ref">{{ h.payment_ref }}</span>{% endif %}{% if h.status == 'rejected' and h.review_note %} · {{ h.review_note }}{% endif %}</span></span><span class="ag-list__value">{{ h.status|trans }}</span></li>
-            {% endfor %}
-          </ul>
-        {% endif %}
-
-        {% if r.statement|length %}
-          <details>
-            <summary class="acc__p">{{ 'Every entry'|trans }}</summary>
-            <ul class="ag-list acc__plain">
-              {% for e in r.statement %}
-                <li class="ag-list__row"><span class="ag-list__b"><span class="ag-list__label">{{ e.type|trans }}{% if e.locked %} · {{ 'locked'|trans }}{% endif %}</span><span class="ag-list__sub">{{ e.at|date('j M Y') }}{% if e.rate_pct %} · {{ e.rate_pct }}%{% endif %}{% if e.reference %} · <span class="acc__ref">{{ e.reference }}</span>{% endif %}</span></span><span class="ag-list__value">{{ e.amount < 0 ? '−' : '' }}₦{{ ((e.amount|abs) / 100)|number_format(2) }}</span></li>
-              {% endfor %}
-            </ul>
-          </details>
-        {% endif %}
-      </div>
-    {% endfor %}
-  </section>
 
 {% elseif tab == 'challenges' %}
   {% if my_challenges|length %}

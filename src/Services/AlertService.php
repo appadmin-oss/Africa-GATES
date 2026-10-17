@@ -68,6 +68,7 @@ final class AlertService
             $this->saves($mine, $userId),
             $this->follows($email),
             $this->milestones($email),
+            $this->wallet($userId),
         );
 
         // Newest first BEFORE grouping, so each group keeps its most recent
@@ -157,6 +158,7 @@ final class AlertService
             'save'      => $lead . ' saved your post',
             'follow'    => $lead . ' started following you',
             'milestone' => $g['label'],
+            'wallet'    => $g['label'],
             default     => $lead,
         };
     }
@@ -334,6 +336,78 @@ final class AlertService
             'at' => (string) $r->achieved_at,
             'href' => '/registry/' . (string) ($r->slug ?? ''),
         ])->all();
+    }
+
+    /**
+     * The wallet's news, derived from the same rows the wallet draws (MemberWallet), so a
+     * notification can never name money the wallet does not show.
+     *
+     * Credits are summed per pocket per day — a nominee with forty supporters on a busy
+     * evening gets "₦4,000 came in from 40 contributions", not forty lines. A withdrawal is
+     * one item that moves: its time is its latest change, so "paid" arrives as news even
+     * though "in review" was read days ago.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function wallet(int $userId): array
+    {
+        try {
+            $tx = MemberWallet::transactions($userId, 150);
+        } catch (\Throwable $e) {
+            error_log('[alerts] wallet unavailable: ' . $e->getMessage());
+            return [];
+        }
+        $out = [];
+        $credits = [];
+        foreach ($tx as $t) {
+            $pts = ($t['unit'] ?? 'naira') === 'pts';
+            if ($t['dir'] === 'in') {
+                $k = $t['pocket'] . ':' . substr((string) $t['at'], 0, 10) . ':' . $t['status'];
+                $credits[$k] ??= ['n' => 0, 'sum' => 0, 'at' => '', 'pts' => $pts, 'pocket' => $t['pocket'],
+                                  'status' => $t['status'], 'href' => '/account/wallet/tx/' . $t['key']];
+                $credits[$k]['n']++;
+                $credits[$k]['sum'] += (int) $t['amount_kobo'];
+                if (strcmp((string) $t['at'], $credits[$k]['at']) > 0) $credits[$k]['at'] = (string) $t['at'];
+                continue;
+            }
+            if ($pts || !in_array($t['pocket'], ['return', 'referral'], true)) continue;
+            $amt = '₦' . number_format(intdiv((int) $t['amount_kobo'], 100));
+            $label = match ($t['status']) {
+                MemberWallet::ST_PENDING    => 'Your ' . $amt . ' withdrawal is being reviewed',
+                MemberWallet::ST_PROCESSING => 'Your ' . $amt . ' withdrawal was approved and is being paid',
+                MemberWallet::ST_PAID       => 'Your ' . $amt . ' withdrawal was paid — check your bank',
+                default                     => 'Your ' . $amt . ' withdrawal was refused — see why',
+            };
+            $out[] = ['kind' => 'wallet', 'subject_id' => $t['key'] . ':' . $t['status'], 'actor' => '',
+                      'label' => $label, 'at' => (string) $t['at'], 'href' => '/account/wallet/tx/' . $t['key']];
+        }
+        foreach ($credits as $k => $c) {
+            $what = $c['pts'] ? '+' . number_format($c['sum']) . ' points'
+                              : '₦' . number_format($c['sum'] / 100, 2);
+            $from = match ($c['pocket']) {
+                'return'   => $c['n'] === 1 ? ' from a supporter' : ' from ' . $c['n'] . ' supporters’ contributions',
+                'referral' => $c['n'] === 1 ? ' in referral commission' : ' in referral commission from ' . $c['n'] . ' purchases',
+                default    => '',
+            };
+            $tail = match ($c['status']) {
+                MemberWallet::ST_LOCKED   => ' — locked until your edition’s milestone',
+                MemberWallet::ST_AWAITING => ' — released when results are announced',
+                default                   => '',
+            };
+            $out[] = ['kind' => 'wallet', 'subject_id' => 'in:' . $k, 'actor' => '',
+                      'label' => ($c['pts'] ? $what . ' added to your wallet' : $what . ' came into your wallet' . $from) . $tail,
+                      'at' => $c['at'], 'href' => $c['n'] === 1 ? $c['href'] : '/account/wallet'];
+        }
+        try {
+            foreach (MemberWallet::pockets($userId) as $p) {
+                $ms = $p['milestone'] ?? null;
+                if (!$ms || empty($ms['uses_milestone']) || empty($ms['confirmed_at'])) continue;
+                $out[] = ['kind' => 'wallet', 'subject_id' => 'ms:' . (int) $ms['cycle_id'], 'actor' => '',
+                          'label' => 'Your edition’s milestone was confirmed — your community return is released',
+                          'at' => (string) $ms['confirmed_at'], 'href' => '/account/wallet'];
+            }
+        } catch (\Throwable) {}
+        return $out;
     }
 
     // ── names ────────────────────────────────────────────────────────────────

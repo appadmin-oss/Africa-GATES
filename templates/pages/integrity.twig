@@ -78,7 +78,7 @@
     {table: {caption: 'Asking for the money'|trans, head: ['Term'|trans, 'Setting'|trans, 'What it means'|trans],
       rows: [
         ['Smallest withdrawal'|trans, '₦' ~ (_t.min_kobo / 100)|number_format, 'Below this, the balance waits until there is more.'|trans|e],
-        ['Fee'|trans, '₦' ~ (_t.fee_kobo / 100)|number_format, 'Taken from each withdrawal, and shown before it is asked for.'|trans|e],
+        ['Fee'|trans, _t.fee_text|e, 'Taken from each withdrawal, by amount, and shown before it is asked for.'|trans|e],
         ['Paid within'|trans, '%n% working days'|trans({'%n%': _t.payout_days}), 'After a person has reviewed the request.'|trans|e],
         ['Appeals'|trans, '%n% days'|trans({'%n%': _t.appeal_days}), 'To appeal a refused withdrawal or a hold, reply to the email that told you.'|trans|e],
         ['Unclaimed balances'|trans, '%n% days'|trans({'%n%': _t.unclaimed_days}), 'Claim a released balance within this period. Nothing is forfeited automatically; a person decides, on the record.'|trans|e],

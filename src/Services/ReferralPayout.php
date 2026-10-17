@@ -49,7 +49,7 @@ final class ReferralPayout
     /**
      * What this member could ask for right now, and why not if they cannot.
      *
-     * @return array{ok:bool, amount:int, credits:list<int>, reason:string}
+     * @return array{ok:bool, amount:int, fee?:int, credits:list<int>, reason:string}
      */
     public static function available(int $userId): array
     {
@@ -88,7 +88,11 @@ final class ReferralPayout
         if ($sum < self::MIN_NAIRA)   return $no('The smallest withdrawal is ₦' . number_format(self::MIN_NAIRA)
                                               . '. You have ₦' . number_format($sum) . ' so far.');
 
-        return ['ok' => true, 'amount' => $sum, 'credits' => $ids, 'reason' => ''];
+        // The wallet's withdrawal fee, from the one schedule every withdrawal uses.
+        $fee = intdiv(WalletFee::forKobo($sum * 100), 100);
+        if ($fee >= $sum) return $no('The withdrawal fee would take the whole amount.');
+
+        return ['ok' => true, 'amount' => $sum, 'fee' => $fee, 'credits' => $ids, 'reason' => ''];
     }
 
     /**
@@ -136,7 +140,7 @@ final class ReferralPayout
                 $avail = self::available($userId);
                 if (!$avail['ok']) return ['ok' => false, 'message' => $avail['reason']];
 
-                $id = (int) DB::table('gates_referral_payouts')->insertGetId([
+                $row = [
                     'user_id'        => $userId,
                     'amount_naira'   => $avail['amount'],
                     'credit_ids'     => json_encode($avail['credits']),
@@ -145,18 +149,24 @@ final class ReferralPayout
                     'account_name'   => mb_substr($name, 0, 160),
                     'account_number' => mb_substr($number, 0, 32),
                     'requested_at'   => Carbon::now()->toDateTimeString(),
-                ]);
-                return ['ok' => true, 'id' => $id, 'amount' => $avail['amount']];
+                ];
+                // Frozen on the row where the column exists (2027_03_23_wallet_fee.php).
+                if (\AfricaGates\Support\SchemaHas::column('gates_referral_payouts', 'fee_naira')) {
+                    $row['fee_naira'] = (int) $avail['fee'];
+                }
+                $id = (int) DB::table('gates_referral_payouts')->insertGetId($row);
+                return ['ok' => true, 'id' => $id, 'amount' => $avail['amount'], 'fee' => (int) $avail['fee']];
             });
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'The request could not be saved just now.'];
         }
         if (!$out['ok']) return $out;
-        $id    = (int) $out['id'];
-        $avail = ['amount' => (int) $out['amount']];
+        $id  = (int) $out['id'];
+        $fee = (int) $out['fee'];
 
         return ['ok' => true, 'id' => $id,
-                'message' => 'Requested ₦' . number_format($avail['amount'])
+                'message' => 'Requested ₦' . number_format((int) $out['amount'])
+                           . ($fee > 0 ? ' (₦' . number_format((int) $out['amount'] - $fee) . ' after the ₦' . number_format($fee) . ' fee)' : '')
                            . '. Withdrawals are paid by bank transfer — you will hear from us when it is done.'];
     }
 
@@ -360,6 +370,14 @@ final class ReferralPayout
             return ['ok' => false, 'message' => 'Could not record it: ' . $e->getMessage()];
         }
 
+        // The request told the member "we will email you when it has been paid", and for its
+        // whole life nothing did. The wallet's one sender, with the receipt link.
+        $fee = (int) ($p->fee_naira ?? 0);
+        MemberWallet::tell((int) $p->user_id, 'Your referral earnings have been paid',
+            'We have paid ₦' . number_format((int) $p->amount_naira - $fee) . ' to ' . $p->account_name
+            . ($fee > 0 ? ' (₦' . number_format((int) $p->amount_naira) . ' less the ₦' . number_format($fee) . ' withdrawal fee)' : '')
+            . ".\nTransfer reference: " . $reference . '.', 'rp-' . $id);
+
         return ['ok' => true, 'message' => 'Recorded ₦' . number_format((int) $p->amount_naira)
                                         . ' paid to ' . $p->account_name . ' (' . $reference . ').'];
     }
@@ -389,6 +407,10 @@ final class ReferralPayout
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not record it: ' . $e->getMessage()];
         }
+
+        MemberWallet::tell((int) $p->user_id, 'About your referral withdrawal',
+            "We could not pay your withdrawal request.\n\nReason: " . $why
+            . "\n\nThe money is still yours. Correct this and ask again from your wallet.", 'rp-' . $id);
 
         return ['ok' => true, 'message' => 'Refused, and the balance stays owed.'];
     }

@@ -1,0 +1,166 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE WALLET — /account/wallet, a transaction's receipt, and the withdrawal
+   pages/account/wallet*.twig · Services\MemberWallet
+
+   OPay's reading order: the balance card (ink, the one dark field on the page, so the
+   figure is the first thing the eye lands on), its actions, the pockets, then the history
+   by day. Status is always a word in a pill; colour only repeats what the word says.
+   Every colour is a token, every size a ladder step in rem.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.wl{ display:flex; flex-direction:column; gap:var(--ag-sp-16) }
+.wl-sec{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
+.wl-h{ margin:0; font-weight:700; font-size:var(--ag-fs-18) }
+
+/* the balance card */
+.wl-card{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding:var(--ag-sp-18); border-radius:var(--ag-r-22);
+  background:var(--ag-ink); color:var(--ag-surface); box-shadow:var(--ag-sh-tile) }
+.wl-card__top{ display:flex; align-items:center; gap:var(--ag-sp-8) }
+.wl-card__h{ margin:0; font-size:var(--ag-fs-14); font-weight:600 }
+.wl-card__hist,
+.wl-card__hist:hover{ margin-inline-start:auto; display:inline-flex; align-items:center; gap:4px; min-height:44px; color:var(--ag-surface); font-size:var(--ag-fs-14); font-weight:600; text-decoration:none }
+.wl-eye{ display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border:0; border-radius:var(--ag-r-pill);
+  background:transparent; color:var(--ag-surface); cursor:pointer }
+.wl-eye:focus-visible{ outline:2px solid var(--ag-surface); outline-offset:2px }
+.wl-eye__off{ display:none }
+.wl--hide .wl-eye__on{ display:none }
+.wl--hide .wl-eye__off{ display:inline }
+.wl-card__n{ margin:0 }
+.wl-card__subs{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8) }
+.wl-chip,
+.wl-chip:hover{ display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:0 12px; border-radius:var(--ag-r-pill);
+  background:color-mix(in srgb, var(--ag-surface) 12%, transparent); color:var(--ag-surface); font-size:var(--ag-fs-13-5); text-decoration:none }
+.wl-chip > span:first-child{ font-weight:600 }
+.wl-chip__k{ opacity:.85 }
+.wl-card__acts{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:var(--ag-sp-8) }
+.wl-card .ag-btn--secondary{ background:var(--ag-surface); color:var(--ag-ink); border-color:var(--ag-surface) }
+.wl-btn{ min-height:48px; border-radius:var(--ag-r-14); white-space:normal; text-align:center }
+
+/* amounts: the figure, and its mask while the balance is hidden */
+.wl-amt{ font-variant-numeric:tabular-nums; white-space:nowrap }
+.wl-amt--big{ font-size:var(--ag-fs-38); font-weight:800; letter-spacing:-.02em; line-height:1.05 }
+.wl-amt__m{ display:none }
+.wl--hide .wl-amt__v{ display:none }
+.wl--hide .wl-amt__m{ display:inline }
+.wl--hide .wl-chip__k{ display:none }
+
+/* quick actions reuse the account's tiles */
+.wl-quick{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; padding:var(--ag-sp-10) var(--ag-sp-8) }
+
+/* the toast */
+.wl-toast{ display:flex; align-items:center; gap:var(--ag-sp-10); padding:var(--ag-sp-12) var(--ag-sp-16); border-radius:var(--ag-r-14);
+  background:var(--ag-green-wash); border:1px solid var(--ag-green-edge); color:var(--ag-ink); font-size:var(--ag-fs-14-5); font-weight:600 }
+.wl-toast[hidden]{ display:none }
+.wl-toast a{ margin-inline-start:auto; color:var(--ag-green-deep) }
+
+/* pockets */
+.wl-pk{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding:var(--ag-sp-16) }
+.wl-pk__top{ display:flex; align-items:center; gap:var(--ag-sp-12) }
+.wl-pk__id{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.wl-pk__id b{ font-size:var(--ag-fs-15-5) }
+.wl-pk__id span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.wl-pk__n{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; font-size:var(--ag-fs-16); font-weight:700 }
+.wl-pk__k{ font-size:var(--ag-fs-12); font-weight:500; color:var(--ag-soft) }
+.wl-pk__lines{ margin:0; display:flex; flex-direction:column; gap:var(--ag-sp-8); padding-top:var(--ag-sp-10); border-top:1px solid var(--ag-line-3) }
+.wl-pk__lines > div{ display:flex; justify-content:space-between; align-items:flex-start; gap:var(--ag-sp-12) }
+.wl-pk__lines dt{ display:flex; flex-direction:column; gap:1px; font-size:var(--ag-fs-14); font-weight:600 }
+.wl-pk__lines dt span{ font-size:var(--ag-fs-12-5); font-weight:400; color:var(--ag-soft) }
+.wl-pk__lines dd{ margin:0; font-size:var(--ag-fs-14); font-weight:600 }
+.wl-pk__why,
+.wl-pk__note{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+.wl-pk__acts{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8) }
+.wl-pk__go{ align-self:flex-start; min-height:44px }
+
+/* the milestone bar */
+.wl-prog{ display:flex; flex-direction:column; gap:6px }
+.wl-prog__l{ margin:0; display:flex; justify-content:space-between; gap:var(--ag-sp-8); font-size:var(--ag-fs-13-5); font-weight:600 }
+.wl-prog__bar{ appearance:none; width:100%; height:8px; border:0; border-radius:var(--ag-r-pill); background:var(--ag-line-3); overflow:hidden }
+.wl-prog__bar::-webkit-progress-bar{ background:var(--ag-line-3); border-radius:var(--ag-r-pill) }
+.wl-prog__bar::-webkit-progress-value{ background:var(--ag-gold-edge); border-radius:var(--ag-r-pill) }
+.wl-prog__bar::-moz-progress-bar{ background:var(--ag-gold-edge); border-radius:var(--ag-r-pill) }
+
+.wl-empty{ display:flex; flex-direction:column; gap:var(--ag-sp-8); padding:var(--ag-sp-18) }
+.wl-empty__t{ margin:0; font-weight:700; font-size:var(--ag-fs-16) }
+.wl-empty__p{ margin:0; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.wl-empty__ways{ margin:0; padding-inline-start:1.1em; display:flex; flex-direction:column; gap:var(--ag-sp-8); font-size:var(--ag-fs-14) }
+.wl-fee{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-ink-2) }
+
+/* history */
+.wl-month{ margin:0; display:grid; grid-template-columns:1fr 1fr; gap:var(--ag-sp-8) }
+.wl-month > div{ padding:var(--ag-sp-12); border-radius:var(--ag-r-14); background:var(--ag-surface); border:1px solid var(--ag-line) }
+.wl-month dt{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.wl-month dd{ margin:2px 0 0; font-size:var(--ag-fs-16); font-weight:700 }
+.wl-filters{ display:flex; gap:6px; overflow-x:auto; padding-bottom:2px }
+.wl-filter,
+.wl-filter:hover{ flex:none; display:inline-flex; align-items:center; min-height:40px; padding:0 14px; border-radius:var(--ag-r-pill);
+  border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink); font-size:var(--ag-fs-13-5); font-weight:600; text-decoration:none }
+.wl-filter[aria-current="true"]{ background:var(--ag-ink); border-color:var(--ag-ink); color:var(--ag-surface) }
+.wl-day{ margin:var(--ag-sp-8) 0 0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
+.wl-list{ margin:0; padding:0; list-style:none; overflow:hidden }
+.wl-list > li + li{ border-top:1px solid var(--ag-line-3) }
+.wl-tx,
+.wl-tx:hover{ display:flex; align-items:center; gap:var(--ag-sp-12); min-height:64px; padding:var(--ag-sp-10) var(--ag-sp-14); color:var(--ag-ink); text-decoration:none }
+.wl-tx:hover{ background:color-mix(in srgb, var(--ag-ground) 60%, transparent) }
+.wl-tx--off{ color:var(--ag-ink-2) }
+.wl-tx__i{ flex:none; width:38px; height:38px; border-radius:var(--ag-r-pill); display:flex; align-items:center; justify-content:center; background:var(--ag-line-3) }
+.wl-tx__i--in{ color:var(--ag-green-deep) }
+.wl-tx__i--out{ color:var(--ag-ink-2) }
+.wl-tx__b{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
+.wl-tx__b b{ font-size:var(--ag-fs-14-5) }
+.wl-tx__b span{ font-size:var(--ag-fs-13); color:var(--ag-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.wl-tx__r{ display:flex; flex-direction:column; align-items:flex-end; gap:4px }
+.wl-tx__a{ font-size:var(--ag-fs-14-5); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap }
+.wl-tx__a--in{ color:var(--ag-green-deep) }
+.wl-none{ margin:0; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+
+/* the status pill — the word carries it, the tint repeats it */
+.wl-pill{ display:inline-flex; align-items:center; min-height:22px; padding:0 8px; border-radius:var(--ag-r-pill); font-size:var(--ag-fs-12); font-weight:600;
+  background:var(--ag-line-3); color:var(--ag-ink-2) }
+.wl-pill--received,
+.wl-pill--paid{ background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.wl-pill--pending,
+.wl-pill--processing,
+.wl-pill--awaiting,
+.wl-pill--locked{ background:var(--ag-gold-wash); color:var(--ag-gold-ink) }
+.wl-pill--refused,
+.wl-pill--reversed,
+.wl-pill--held{ background:var(--ag-line-3); color:var(--ag-error) }
+
+/* the receipt */
+.wl-rc{ display:flex; flex-direction:column; align-items:center; gap:var(--ag-sp-8); padding:var(--ag-sp-24) var(--ag-sp-16); text-align:center }
+.wl-rc > p{ margin:0 }
+.wl-rc__i{ width:56px; height:56px; border-radius:var(--ag-r-pill); display:flex; align-items:center; justify-content:center; background:var(--ag-gold-wash); color:var(--ag-gold-ink) }
+.wl-rc__i--paid,
+.wl-rc__i--received{ background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.wl-rc__i--refused,
+.wl-rc__i--reversed{ background:var(--ag-line-3); color:var(--ag-error) }
+.wl-rc__h{ margin:0; font-size:var(--ag-fs-17); font-weight:700 }
+.wl-rc__n{ font-size:var(--ag-fs-36); font-weight:800; letter-spacing:-.02em; line-height:1.1 }
+.wl-rc__p{ font-size:var(--ag-fs-14); color:var(--ag-ink-2); max-width:36rem }
+.wl-rc__box{ padding:var(--ag-sp-6) var(--ag-sp-16) }
+.wl-dl{ margin:0 }
+.wl-dl > div{ display:flex; justify-content:space-between; align-items:flex-start; gap:var(--ag-sp-16); padding:var(--ag-sp-12) 0 }
+.wl-dl > div + div{ border-top:1px solid var(--ag-line-3) }
+.wl-dl dt{ flex:none; font-size:var(--ag-fs-14); color:var(--ag-soft) }
+.wl-dl dd{ margin:0; font-size:var(--ag-fs-14); font-weight:600; text-align:end; overflow-wrap:anywhere }
+.wl-dl__total dt,
+.wl-dl__total dd{ font-size:var(--ag-fs-16); font-weight:700; color:var(--ag-ink) }
+.wl-ref{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-13-5) }
+.wl-rc__acts{ display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--ag-sp-8) }
+
+/* the withdrawal form */
+.wl-form{ display:flex; flex-direction:column; gap:var(--ag-sp-12); padding:var(--ag-sp-18) }
+.wl-form__from,
+.wl-form__bal{ margin:0; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.wl-form__fee{ margin:0; padding:var(--ag-sp-10) var(--ag-sp-12); border-radius:var(--ag-r-12); background:var(--ag-ground); font-size:var(--ag-fs-14) }
+.wl-amtf{ display:flex; align-items:flex-start; gap:var(--ag-sp-8) }
+.wl-amtf > .ag-fieldset{ flex:1; min-width:0 }
+.wl-all{ margin-top:28px; min-height:48px }
+.wl-check{ display:flex; gap:var(--ag-sp-10); align-items:flex-start; font-size:var(--ag-fs-14) }
+.wl-check input{ width:22px; height:22px; flex:none; margin-top:1px }
+
+@media (min-width:600px){
+  .wl-card{ padding:var(--ag-sp-24) }
+  .wl-amt--big{ font-size:var(--ag-fs-46) }
+  .wl-rc__acts{ grid-template-columns:repeat(3, minmax(0, 1fr)) }
+}

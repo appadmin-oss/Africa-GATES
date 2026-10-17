@@ -3793,9 +3793,6 @@ return function(App $app) {
         // Save the bank details a withdrawal defaults to. Each payout still snapshots
         // them, so changing these never restates an earlier transfer.
         $a->post('/bank', AccountController::class . ':bank');
-        // Ask for a nominee page's community return. Creates a request a person reviews and
-        // settles against a transfer reference — see CommunityReturnWithdrawals.
-        $a->post('/return/withdraw', AccountController::class . ':returnWithdraw');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
         // Display & reading, saved to the member so it follows them between devices
@@ -3817,6 +3814,15 @@ return function(App $app) {
         $a->get('/notifications',      AccountController::class.':notifications');
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
+        // The wallet: one balance across every pocket (MemberWallet), each movement's receipt,
+        // and the three-step withdrawal. The JSON is what an open wallet polls, so money that
+        // arrives while it is on screen says so. Every one reads the member from the session.
+        $a->get('/wallet',             AccountController::class.':wallet');
+        $a->get('/wallet.json',        AccountController::class.':walletJson');
+        $a->get('/wallet/tx/{key:(?:cr|crw|rc|rp|pt)-[0-9]+}', AccountController::class.':walletTx');
+        $a->get('/wallet/withdraw',    AccountController::class.':walletWithdraw');
+        $a->post('/wallet/withdraw/review', AccountController::class.':walletWithdrawReview');
+        $a->post('/wallet/withdraw',   AccountController::class.':walletWithdrawConfirm');
         $a->get('/display',            AccountController::class.':display');
         // The seasonal greeting (HOLIDAY-THEMES): "not this year" for one theme, and the
         // member's own switch for all of them.

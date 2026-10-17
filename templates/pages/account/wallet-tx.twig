@@ -1,0 +1,59 @@
+{% extends 'pages/account/_frame.twig' %}
+{#
+  ONE TRANSACTION — /account/wallet/tx/{key} · MemberWallet::transaction()
+
+  OPay's receipt: the amount large, the status in words under it, then every detail a
+  person would read out to a bank or to us — and two ways out: share it, or report a
+  problem with it, the report carrying the transaction's own reference so nobody has to
+  describe it.
+
+  `fresh` is the moment after a withdrawal was asked for. It says "sent for review" and
+  not "successful", because nothing has been paid yet; a wallet that celebrates a request
+  as a transfer is lying about the one thing it is for.
+#}
+{% set acc_tab = 'wallet' %}
+{% set colour_tier = '2' %}
+{% set _pts = t.unit == 'pts' %}
+{% set _amount = _pts ? t.amount_kobo|number_format ~ ' pts' : '₦' ~ (t.amount_kobo / 100)|number_format(2) %}
+{% block acc_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/wallet.css') }}">{% endblock %}
+
+{% block acc_body %}
+<div class="wl">
+  <section class="acx-card wl-rc" aria-labelledby="wl-rc-h">
+    <span class="wl-rc__i wl-rc__i--{{ t.status }}" aria-hidden="true">
+      {% if t.status in ['paid', 'received'] %}<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"/></svg>
+      {% elseif t.status in ['refused', 'reversed'] %}<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      {% else %}<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/></svg>{% endif %}
+    </span>
+    {% if fresh %}
+      <h2 class="wl-rc__h" id="wl-rc-h">{{ 'Withdrawal sent for review'|trans }}</h2>
+      <p class="wl-rc__p">{{ 'A person checks every withdrawal before it is paid. We will notify you here and by email the moment it moves.'|trans }}</p>
+    {% else %}
+      <h2 class="wl-rc__h" id="wl-rc-h">{{ t.title|trans }}</h2>
+    {% endif %}
+    <p class="wl-rc__n ag-num">{{ t.dir == 'in' ? '+' : '−' }}{{ _amount }}</p>
+    <p><span class="wl-pill wl-pill--{{ t.status }}">{{ t.status_label|trans }}</span></p>
+    {% if t.fee_kobo > 0 %}<p class="wl-rc__p">{{ 'You receive ₦%n% after the ₦%f% withdrawal fee.'|trans({'%n%': ((t.amount_kobo - t.fee_kobo) / 100)|number_format(2), '%f%': (t.fee_kobo / 100)|number_format(2)}) }}</p>{% endif %}
+  </section>
+
+  <section class="acx-card wl-rc__box" aria-label="{{ 'Details'|trans }}">
+    <dl class="wl-dl">
+      {% for d in t.details %}
+        <div><dt>{{ d[0]|trans }}</dt><dd>{{ d[2] is defined and d[1] ? d[1]|date('j M Y, g:i a') : d[1] }}</dd></div>
+      {% endfor %}
+      <div><dt>{{ 'Date'|trans }}</dt><dd>{{ t.at|date('j M Y, g:i a') }}</dd></div>
+      {% if t.ref %}<div><dt>{{ 'Reference'|trans }}</dt><dd><span class="wl-ref">{{ t.ref }}</span></dd></div>{% endif %}
+      <div><dt>{{ 'Transaction number'|trans }}</dt><dd><span class="wl-ref">{{ t.key|upper }}</span></dd></div>
+    </dl>
+  </section>
+
+  <p class="wl-fee">{{ 'Something wrong with this one? Tell us, and quote its transaction number, %k%.'|trans({'%k%': t.key|upper}) }}</p>
+  <div class="wl-rc__acts">
+    <button type="button" class="ag-btn ag-btn--secondary wl-btn" data-wl-share data-wl-share-text="{{ (t.title|trans) ~ ' · ' ~ (t.dir == 'in' ? '+' : '−') ~ _amount ~ ' · ' ~ (t.status_label|trans) ~ ' · ' ~ t.at|date('j M Y') ~ ' · ' ~ t.key|upper }}" hidden>{{ 'Share receipt'|trans }}</button>
+    <a class="ag-btn ag-btn--secondary wl-btn" href="/support">{{ 'Report a problem'|trans }}</a>
+    <a class="ag-btn ag-btn--primary wl-btn" href="/account/wallet">{{ 'Back to wallet'|trans }}</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/wallet.js') }}"></script>{% endblock %}

@@ -1375,39 +1375,6 @@ class AccountController
         return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
     }
 
-    /**
-     * POST /account/return/withdraw — ask for a nominee page's community return.
-     *
-     * The page is named in the body, and nothing here trusts that: the six conditions are
-     * asked again by CommunityReturnWithdrawals, and the identity one is that THIS member
-     * holds the page's verified claim. The bank details used are saved as the member's
-     * default, the way the referral form does, so the next request is ready.
-     */
-    public function returnWithdraw(Request $req, Response $res): Response
-    {
-        $id = (int) ($_SESSION['user_id'] ?? 0);
-        if ($id < 1) {
-            return $res->withHeader('Location', '/account/login')->withStatus(302);
-        }
-
-        $b    = (array) $req->getParsedBody();
-        $bank = [
-            'bank'           => (string) ($b['bank'] ?? ''),
-            'account_name'   => (string) ($b['account_name'] ?? ''),
-            'account_number' => (string) ($b['account_number'] ?? ''),
-        ];
-        $r = \AfricaGates\Services\CommunityReturnWithdrawals::request(
-            (int) ($b['nominee_id'] ?? 0), $id, $bank, ($b['accept'] ?? '') === '1'
-        );
-        if ($r['ok']) {
-            \AfricaGates\Services\ReferralPayout::saveBank($id, $bank['bank'], $bank['account_name'], $bank['account_number']);
-        }
-
-        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
-
-        return $res->withHeader('Location', '/account?tab=return#me-return')->withStatus(303);
-    }
-
     public function dashboard(Request $req, Response $res): Response
     {
         $user = $this->accounts->current();
@@ -1430,6 +1397,10 @@ class AccountController
         $bal = PointsService::balance((int) $user->id);
         $alerts = (new \AfricaGates\Services\AlertService())->forMember((int) $user->id, (string) $user->email);
 
+        // The community-return tab became a pocket of the Wallet; its address still lands.
+        if (($req->getQueryParams()['tab'] ?? '') === 'return') {
+            return $res->withHeader('Location', '/account/wallet')->withStatus(301);
+        }
         $tab = \AfricaGates\Services\AccountRail::valid((string) ($req->getQueryParams()['tab'] ?? 'overview'));
 
         return $this->view->render($res, 'pages/account/dashboard.twig', $this->railFor($user, $tab) + [
@@ -1442,6 +1413,8 @@ class AccountController
             'points'         => $bal,
             'points_enabled' => PointsService::enabled(),
             'redeemable'     => PointsService::votesForPoints($bal),
+            // The overview's balance card is the wallet's headline, from the same reader.
+            'wallet'         => $tab === 'overview' ? \AfricaGates\Services\MemberWallet::summary((int) $user->id) : null,
             // Has this member ever done ANYTHING? It decides between the sections and a
             // first-run list of next steps — six empty panels is the worst possible welcome.
             'is_new'         => $ledger === [] && $orders === [] && $tickets === []
@@ -1468,13 +1441,12 @@ class AccountController
             'payout_open'    => \AfricaGates\Services\ReferralPayout::openFor((int) $user->id),
             'payout_can'     => $pa['ok'],
             'payout_amount'  => $pa['amount'],
+            'payout_fee'     => (int) ($pa['fee'] ?? 0),
             'payout_why'     => $pa['reason'],
             'payout_history' => \AfricaGates\Services\ReferralPayout::historyFor((int) $user->id, 8),
             'payout_bank'    => \AfricaGates\Services\ReferralPayout::bankFor((int) $user->id),
             // ── THE COMMUNITY RETURN (a nominee's wallet) ──
             // Read only on its own tab: it walks every claimed page's ledger and checks.
-            'returns'        => $tab === 'return' ? \AfricaGates\Services\CommunityReturnWithdrawals::panelsFor((int) $user->id) : [],
-            'return_terms'   => $tab === 'return' ? \AfricaGates\Services\CommunityReturnWithdrawals::terms() : null,
             // A stand vendor's stall, where a trader already looks (VendorAccount). Null for
             // everybody else, and the section is not drawn.
             'vendor'         => \AfricaGates\Services\VendorAccount::panel($user),
@@ -1617,7 +1589,8 @@ class AccountController
         if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
         $bal = PointsService::balance((int) $user->id);
 
-        return $this->view->render($res, 'pages/account/points.twig', $this->railFor($user, 'points') + [
+        return $this->view->render($res, 'pages/account/points.twig', $this->railFor($user, 'wallet') + [
+            'app_bar' => ['variant' => 'child', 'title' => 'Voting points', 'back' => '/account/wallet', 'share' => false],
             'page_title' => 'Points — Africa GATES', 'gates_page' => 'account',
             'points'          => $bal,
             'points_enabled'  => PointsService::enabled(),
@@ -1625,6 +1598,210 @@ class AccountController
             'redeemable'      => PointsService::votesForPoints($bal),
             'ledger'          => PointsService::ledger((int) $user->id, 200),
         ]);
+    }
+
+    // ══ THE WALLET — one balance across every pocket, OPay's shape ════════════════
+
+    /**
+     * GET /account/wallet — the balance, the pockets behind it, and every movement.
+     *
+     * For every member, not only nominees: referral commission is a pocket too, and a
+     * member with nothing yet is shown how money arrives rather than a blank page.
+     */
+    public function wallet(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $id = (int) $user->id;
+        $W  = \AfricaGates\Services\MemberWallet::class;
+
+        // The history's filter, as OPay's: everything, money in, money out, or what is still
+        // moving. Links, not a script, so it works where the script does not.
+        $show = (string) ($req->getQueryParams()['show'] ?? 'all');
+        if (!in_array($show, ['all', 'in', 'out', 'pending'], true)) $show = 'all';
+        $all = $W::transactions($id, 300);
+        $moving = [$W::ST_PENDING, $W::ST_PROCESSING, $W::ST_LOCKED, $W::ST_AWAITING, $W::ST_HELD];
+        $list = array_values(array_filter($all, static fn ($t) => match ($show) {
+            'in'      => $t['dir'] === 'in',
+            'out'     => $t['dir'] === 'out',
+            'pending' => in_array($t['status'], $moving, true),
+            default   => true,
+        }));
+
+        // This month's naira in and out — settled money only, so a request still in review
+        // is not counted as gone and a locked credit is not counted as arrived.
+        $month = date('Y-m');
+        $in = 0; $out = 0;
+        foreach ($all as $t) {
+            if (($t['unit'] ?? 'naira') !== 'naira' || !str_starts_with((string) $t['at'], $month)) continue;
+            if ($t['dir'] === 'in' && $t['status'] === $W::ST_RECEIVED) $in += $t['amount_kobo'];
+            if ($t['dir'] === 'out' && $t['status'] === $W::ST_PAID) $out += $t['amount_kobo'];
+        }
+
+        return $this->view->render($res, 'pages/account/wallet.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Wallet — Africa GATES', 'gates_page' => 'account',
+            'w'        => $W::summary($id),
+            'days'     => $this->walletDays(array_slice($list, 0, 80)),
+            'show'     => $show,
+            'month'    => ['label' => date('F'), 'in_kobo' => $in, 'out_kobo' => $out],
+            'fee_text' => \AfricaGates\Services\WalletFee::describe(),
+            'points_on' => PointsService::enabled(),
+            'has_code' => (\AfricaGates\Services\ReferralService::stats($id)['code'] ?? null) !== null,
+            // The moment the page was drawn: wallet.js asks for anything newer than this.
+            'since'    => \Illuminate\Support\Carbon::now()->toDateTimeString(),
+        ]);
+    }
+
+    /**
+     * GET /account/wallet.json — the live figures, and credits since a moment.
+     *
+     * Polled by an open wallet page so money that arrives while it is open says so. The
+     * member is the session's; there is no id here to change.
+     */
+    public function walletJson(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        $out = ['ok' => false];
+        if ($user) {
+            $id    = (int) $user->id;
+            $since = (string) ($req->getQueryParams()['since'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $since)) $since = \Illuminate\Support\Carbon::now()->toDateTimeString();
+            $s = \AfricaGates\Services\MemberWallet::summary($id);
+            $credits = array_map(static fn ($t) => ['title' => $t['title'], 'amount_kobo' => $t['amount_kobo'], 'unit' => $t['unit'] ?? 'naira',
+                'status_label' => $t['status_label'], 'href' => '/account/wallet/tx/' . $t['key']],
+                \AfricaGates\Services\MemberWallet::creditsSince($id, $since));
+            $out = ['ok' => true, 'available_kobo' => $s['available_kobo'], 'coming_kobo' => $s['coming_kobo'],
+                    'review_kobo' => $s['review_kobo'], 'points' => $s['points'], 'credits' => array_slice($credits, 0, 5),
+                    'now' => \Illuminate\Support\Carbon::now()->toDateTimeString()];
+        }
+        $res->getBody()->write((string) json_encode($out));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store')
+                   ->withStatus($user ? 200 : 401);
+    }
+
+    /** GET /account/wallet/tx/{key} — one movement's receipt. Only ever this member's own. */
+    public function walletTx(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $t = \AfricaGates\Services\MemberWallet::transaction((int) $user->id, (string) ($args['key'] ?? ''));
+        if ($t === null) {
+            $_SESSION['flash_error'] = 'That transaction is not in your wallet.';
+            return $res->withHeader('Location', '/account/wallet')->withStatus(302);
+        }
+        return $this->view->render($res, 'pages/account/wallet-tx.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Transaction — Africa GATES', 'gates_page' => 'account',
+            'app_bar' => ['variant' => 'child', 'title' => 'Transaction details', 'back' => '/account/wallet', 'share' => false],
+            't' => $t, 'fresh' => ($req->getQueryParams()['new'] ?? '') === '1',
+        ]);
+    }
+
+    /**
+     * GET /account/wallet/withdraw — step one: which pocket, how much, to which account.
+     * POST /account/wallet/withdraw/review — step two: the figures, the fee, the rules.
+     * POST /account/wallet/withdraw — the request, then its receipt.
+     *
+     * Three steps because a transfer is the one act in a wallet a person must see the whole
+     * of before it happens — the amount, the fee taken from it and where it is going — and a
+     * single form shows the fee only after it has been charged.
+     */
+    public function walletWithdraw(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $id = (int) $user->id;
+        $W  = \AfricaGates\Services\MemberWallet::class;
+        $pockets = $W::pockets($id);
+        $key = (string) ($req->getQueryParams()['pocket'] ?? '');
+        $pocket = $W::pocket($id, $key);
+        // One pocket that can be withdrawn from is the obvious choice; skip the question.
+        if ($pocket === null) {
+            $ready = array_values(array_filter($pockets, static fn ($p) => $p['can']));
+            if (count($ready) === 1) $pocket = $ready[0];
+        }
+        $old = $_SESSION['wallet_wd_old'] ?? null;
+        unset($_SESSION['wallet_wd_old']);
+
+        return $this->view->render($res, 'pages/account/wallet-withdraw.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Withdraw — Africa GATES', 'gates_page' => 'account',
+            'app_bar' => ['variant' => 'child', 'title' => 'Withdraw', 'back' => '/account/wallet', 'share' => false],
+            'step' => 'form', 'pockets' => $pockets, 'pocket' => $pocket,
+            'bank' => is_array($old) ? $old + ['amount' => ''] : \AfricaGates\Services\ReferralPayout::bankFor($id) + ['amount' => ''],
+            'fee_bands' => \AfricaGates\Services\WalletFee::bands(),
+            'fee_text'  => \AfricaGates\Services\WalletFee::describe(),
+            'terms'     => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
+        ]);
+    }
+
+    public function walletWithdrawReview(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $id = (int) $user->id;
+        $W  = \AfricaGates\Services\MemberWallet::class;
+        $b  = (array) $req->getParsedBody();
+        $key = (string) ($b['pocket'] ?? '');
+        $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
+                 'account_number' => (string) ($b['account_number'] ?? '')];
+        $typed = trim((string) ($b['amount'] ?? ''));
+        $amount = $typed === '' ? null : $W::parseNaira($typed);
+
+        $q = $typed !== '' && $amount === null
+            ? ['ok' => false, 'reason' => 'Type the amount in naira, like 2500.']
+            : $W::quote($id, $key, $amount, $bank);
+        if (!$q['ok']) {
+            $_SESSION['flash_error'] = $q['reason'];
+            $_SESSION['wallet_wd_old'] = $bank + ['amount' => $typed];
+            return $res->withHeader('Location', '/account/wallet/withdraw?pocket=' . rawurlencode($key))->withStatus(303);
+        }
+
+        return $this->view->render($res, 'pages/account/wallet-withdraw.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Check and confirm — Africa GATES', 'gates_page' => 'account',
+            'app_bar' => ['variant' => 'child', 'title' => 'Check and confirm', 'back' => '/account/wallet/withdraw?pocket=' . rawurlencode($key), 'share' => false],
+            'step' => 'review', 'pocket' => $W::pocket($id, $key), 'q' => $q,
+            'terms' => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
+        ]);
+    }
+
+    public function walletWithdrawConfirm(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $W = \AfricaGates\Services\MemberWallet::class;
+        $b = (array) $req->getParsedBody();
+        $key = (string) ($b['pocket'] ?? '');
+        $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
+                 'account_number' => (string) ($b['account_number'] ?? '')];
+        $amount = ($b['amount_kobo'] ?? '') === '' ? null : max(0, (int) $b['amount_kobo']);
+
+        $r = $W::withdraw((int) $user->id, $key, $amount, $bank, ($b['accept'] ?? '') === '1');
+        if (!$r['ok']) {
+            $_SESSION['flash_error'] = $r['message'];
+            $_SESSION['wallet_wd_old'] = $bank + ['amount' => $amount === null ? '' : (string) ($amount / 100)];
+            return $res->withHeader('Location', '/account/wallet/withdraw?pocket=' . rawurlencode($key))->withStatus(303);
+        }
+        return $res->withHeader('Location', '/account/wallet/tx/' . $r['key'] . '?new=1')->withStatus(303);
+    }
+
+    /**
+     * Transactions grouped under Today, Yesterday and dates, the way a banking app lists them.
+     *
+     * @param  list<array<string,mixed>> $tx
+     * @return list<array{label:string, items:list<array<string,mixed>>}>
+     */
+    private function walletDays(array $tx): array
+    {
+        $today = date('Y-m-d');
+        $yest  = date('Y-m-d', strtotime('-1 day'));
+        $days = [];
+        foreach ($tx as $t) {
+            $d = substr((string) $t['at'], 0, 10);
+            $label = $d === $today ? 'Today' : ($d === $yest ? 'Yesterday'
+                : (($ts = strtotime($d)) ? date(date('Y', $ts) === date('Y') ? 'j M' : 'j M Y', $ts) : $d));
+            $days[$label] ??= ['label' => $label, 'items' => []];
+            $days[$label]['items'][] = $t;
+        }
+        return array_values($days);
     }
 
     /**

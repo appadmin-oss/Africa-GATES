@@ -194,6 +194,9 @@ final class CookieRegistry
             // its four defaults. A signed-in member's count is kept on their account instead.
             ['key' => 'ag-menu-use', 'category' => self::PREFERENCES, 'where' => 'local', 'audience' => 'everyone',
              'purpose' => 'Which places you open from the Menu on your phone, and roughly how often and how recently, so the four squares at the top of the Menu become the ones you use most. Kept on this device only if you allow Preferences, and only while you are not signed in; without it nothing is stored and the Menu shows its usual four.'],
+            // The wallet's eye (wallet.js): a glance convenience, never a privacy control.
+            ['key' => 'ag-hide-bal', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'members',
+             'purpose' => 'That you chose to hide the figures in your wallet, so they stay hidden the next time you open it. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab. It holds no amount — only the choice.'],
             // Gee (Phase 3): its transcript and the privacy note's dismissal.
             ['key' => 'ag-gee-chat:', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'everyone',
              'purpose' => 'Your conversation with Gee, the site guide and help desk — one for each — so it survives moving between pages and an accidental reload in this tab. Gone when you close the tab. Nothing you type is kept on our server unless you pass it to a person, when it is kept with your support ticket.'],

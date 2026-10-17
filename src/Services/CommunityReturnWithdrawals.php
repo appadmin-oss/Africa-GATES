@@ -67,7 +67,7 @@ final class CommunityReturnWithdrawals
      * Global rules, not per edition: a withdrawal draws on every edition a nominee earned
      * in, so its terms cannot depend on which one.
      *
-     * @return array{min_kobo:int, fee_kobo:int, payout_days:int, appeal_days:int,
+     * @return array{min_kobo:int, fee_text:string, payout_days:int, appeal_days:int,
      *               unclaimed_days:int, tax_note:string, published:bool}
      */
     public static function terms(?array $eff = null): array
@@ -76,7 +76,8 @@ final class CommunityReturnWithdrawals
         $tax = trim((string) ($eff['community_return_tax_note'] ?? ''));
         return [
             'min_kobo'       => max(0, (int) ($eff['community_return_min_withdrawal_naira'] ?? 1000)) * 100,
-            'fee_kobo'       => max(0, (int) ($eff['community_return_fee_naira'] ?? 0)) * 100,
+            // The wallet's fee schedule, in words; WalletFee::forKobo() does the arithmetic.
+            'fee_text'       => WalletFee::describe($eff),
             'payout_days'    => max(1, (int) ($eff['community_return_payout_days'] ?? 10)),
             'appeal_days'    => max(1, (int) ($eff['community_return_appeal_days'] ?? 14)),
             'unclaimed_days' => max(1, (int) ($eff['community_return_unclaimed_days'] ?? 365)),
@@ -96,20 +97,22 @@ final class CommunityReturnWithdrawals
      *               checks:list<array{key:string, label:string, ok:bool, detail:string}>}
      */
     public static function checks(int $nomineeId, int $userId, bool $accepted = false, ?array $bank = null,
-                                  bool $beforeForm = false): array
+                                  bool $beforeForm = false, ?int $amountKobo = null): array
     {
         $terms  = self::terms();
         $wallet = CommunityReturnService::wallet($nomineeId);
         $open   = self::openFor($nomineeId);
         $ctl    = ClaimGuard::controlledBy($nomineeId);
         $state  = ClaimGuard::payoutState($nomineeId);
-        $amount = $wallet['available_kobo'];
+        $available = $wallet['available_kobo'];
+        // Part of the balance may be asked for, as from any wallet; null means all of it.
+        $amount = $amountKobo === null ? $available : max(0, $amountKobo);
 
         $checks = [];
 
-        $checks[] = ['key' => 'released', 'label' => 'Money released', 'ok' => $amount > 0,
-            'detail' => $amount > 0
-                ? '₦' . CommunityReturnService::naira($amount) . ' is available.'
+        $checks[] = ['key' => 'released', 'label' => 'Money released', 'ok' => $available > 0,
+            'detail' => $available > 0
+                ? '₦' . CommunityReturnService::naira($available) . ' is available.'
                 : ($wallet['locked_kobo'] > 0
                     ? '₦' . CommunityReturnService::naira($wallet['locked_kobo']) . ' is locked until your edition’s milestone is confirmed.'
                     : ($wallet['awaiting_kobo'] > 0
@@ -148,16 +151,20 @@ final class CommunityReturnWithdrawals
         if ($reason === '' && $open !== null) {
             $reason = 'You already have a withdrawal being reviewed.';
         }
+        if ($reason === '' && $amount > $available) {
+            $reason = 'You can ask for up to ₦' . CommunityReturnService::naira($available) . '.';
+        }
         if ($reason === '' && $amount < $terms['min_kobo']) {
             $reason = 'The smallest withdrawal is ₦' . CommunityReturnService::naira($terms['min_kobo'])
-                    . '. You have ₦' . CommunityReturnService::naira($amount) . '.';
+                    . ($amountKobo === null ? '. You have ₦' . CommunityReturnService::naira($amount) . '.' : '.');
         }
-        if ($reason === '' && $terms['fee_kobo'] >= $amount) {
+        $fee = WalletFee::forKobo($amount);
+        if ($reason === '' && $fee >= $amount) {
             $reason = 'The withdrawal fee would take the whole amount.';
         }
 
-        return ['ok' => $reason === '', 'amount_kobo' => $amount, 'fee_kobo' => $terms['fee_kobo'],
-                'reason' => $reason, 'checks' => $checks];
+        return ['ok' => $reason === '', 'amount_kobo' => $amount, 'fee_kobo' => $fee,
+                'available_kobo' => $available, 'reason' => $reason, 'checks' => $checks];
     }
 
     /**
@@ -166,11 +173,11 @@ final class CommunityReturnWithdrawals
      * @param array{bank:string, account_name:string, account_number:string} $bank
      * @return array{ok:bool, message:string, id?:int}
      */
-    public static function request(int $nomineeId, int $userId, array $bank, bool $accepted): array
+    public static function request(int $nomineeId, int $userId, array $bank, bool $accepted, ?int $amountKobo = null): array
     {
         $bank = self::cleanBank($bank);
 
-        $pre = self::checks($nomineeId, $userId, $accepted, $bank);
+        $pre = self::checks($nomineeId, $userId, $accepted, $bank, false, $amountKobo);
         if (!$pre['ok']) return ['ok' => false, 'message' => $pre['reason']];
 
         // ── ONE OPEN REQUEST, DECIDED UNDER A LOCK ───────────────────────────
@@ -180,10 +187,10 @@ final class CommunityReturnWithdrawals
         // a transaction holding the nominee's row, so the second waits and then finds the
         // first. SQLite has no row lock and serialises the write instead — the same answer.
         try {
-            $out = DB::transaction(static function () use ($nomineeId, $userId, $bank, $accepted): array {
+            $out = DB::transaction(static function () use ($nomineeId, $userId, $bank, $accepted, $amountKobo): array {
                 DB::table('gates_nominees')->where('id', $nomineeId)->lockForUpdate()->first();
 
-                $c = self::checks($nomineeId, $userId, $accepted, $bank);
+                $c = self::checks($nomineeId, $userId, $accepted, $bank, false, $amountKobo);
                 if (!$c['ok']) return ['ok' => false, 'message' => $c['reason']];
 
                 $now = Carbon::now()->toDateTimeString();
@@ -237,46 +244,6 @@ final class CommunityReturnWithdrawals
         } catch (\Throwable) {
             return [];
         }
-    }
-
-    /**
-     * Everything the member's Community return section draws, one panel per page.
-     *
-     * @return list<array<string,mixed>>
-     */
-    public static function panelsFor(int $userId): array
-    {
-        $out = [];
-        foreach (self::pagesFor($userId) as $nomineeId) {
-            $name = '';
-            $cycleId = null;
-            try {
-                $n = DB::table('gates_nominees as n')->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
-                    ->where('n.id', $nomineeId)->first(['n.name', 'c.cycle_id', 'c.title as category']);
-                $name    = trim((string) ($n->name ?? '') . (isset($n->category) && $n->category ? ' · ' . $n->category : ''));
-                $cycleId = isset($n->cycle_id) ? (int) $n->cycle_id : null;
-            } catch (\Throwable) {}
-
-            $c = self::checks($nomineeId, $userId, true, null, true);
-            $out[] = [
-                'nominee_id' => $nomineeId,
-                'name'       => $name !== '' ? $name : 'Your page',
-                'wallet'     => CommunityReturnService::wallet($nomineeId),
-                'model'      => CommunityReturnService::modelForCycle($cycleId),
-                'milestone'  => $cycleId ? CommunityReturnMilestone::progress($cycleId) : null,
-                // Asked as if the rules were accepted and the account given, so the section
-                // can say which OTHER condition is missing before somebody fills a form.
-                'checks'     => $c['checks'],
-                'can'        => $c['ok'],
-                'why'        => $c['reason'],
-                'amount'     => $c['amount_kobo'],
-                'fee'        => $c['fee_kobo'],
-                'open'       => self::openFor($nomineeId),
-                'history'    => self::historyFor($nomineeId, 8),
-                'statement'  => CommunityReturnService::statement($nomineeId, 20),
-            ];
-        }
-        return $out;
     }
 
     /** This nominee's open request, if any. */
@@ -502,7 +469,7 @@ final class CommunityReturnWithdrawals
     }
 
     /** @return array{bank:string, account_name:string, account_number:string} */
-    private static function cleanBank(array $b): array
+    public static function cleanBank(array $b): array
     {
         return [
             'bank'           => mb_substr(trim((string) ($b['bank'] ?? '')), 0, 120),
@@ -513,7 +480,7 @@ final class CommunityReturnWithdrawals
     }
 
     /** The same rule ReferralPayout applies, so one set of bank details satisfies both. */
-    private static function bankProblem(array $b): ?string
+    public static function bankProblem(array $b): ?string
     {
         $b = self::cleanBank($b);
         if ($b['bank'] === '' || $b['account_name'] === '') return 'We need the bank name and the account name.';
@@ -522,16 +489,11 @@ final class CommunityReturnWithdrawals
         return null;
     }
 
-    /** Email the member who asked. Best-effort; a mail outage never undoes a recorded act. */
+    /** Email the member who asked, with the receipt link — MemberWallet::tell(), the one sender. */
     private static function tell(int $id, string $subject, string $body): void
     {
         $w = self::find($id);
         if (!$w) return;
-        $to = '';
-        try {
-            $to = (string) (DB::table('gates_users')->where('id', (int) ($w->user_id ?? 0))->value('email') ?? '');
-        } catch (\Throwable) {}
-        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return;
-        try { Notifier::confirm(OtpService::boot(), $to, $subject, $body); } catch (\Throwable) {}
+        MemberWallet::tell((int) ($w->user_id ?? 0), $subject, $body, 'crw-' . $id);
     }
 }

@@ -299,7 +299,7 @@ class CommunityReturnMilestoneTest extends TestCase
     }
 
     /**
-     * The account page offers the form to somebody with NO saved bank details. Asking the
+     * The wallet offers the withdrawal to somebody with NO saved bank details. Asking the
      * account condition before the form is drawn kept the form from ever appearing for the
      * one person who needed it — found in the browser, not by a test, so held here now.
      */
@@ -307,10 +307,10 @@ class CommunityReturnMilestoneTest extends TestCase
     {
         $this->available();
         $this->publishTerms();
-        $panels = Wd::panelsFor(7);
-        $this->assertCount(1, $panels);
-        $this->assertTrue($panels[0]['can'], $panels[0]['why']);
-        $this->assertSame(100000, $panels[0]['amount']);
+        $pockets = \AfricaGates\Services\MemberWallet::pockets(7);
+        $this->assertCount(1, $pockets);
+        $this->assertTrue($pockets[0]['can'], $pockets[0]['why']);
+        $this->assertSame(100000, $pockets[0]['available_kobo']);
     }
 
     public function test_a_payout_reduces_the_balance_even_when_filed_under_an_unreleased_edition(): void

@@ -1468,9 +1468,9 @@
           <input type="number" name="community_return_min_withdrawal_naira" id="f-crt-min" min="0" step="100" value="{{ (_t.min_kobo / 100)|round }}">
         </div>
         <div>
-          <label for="f-crt-fee">Fee per withdrawal (₦)</label>
-          <input type="number" name="community_return_fee_naira" id="f-crt-fee" min="0" step="10" value="{{ (_t.fee_kobo / 100)|round }}">
-          <p class="hint">Taken from the amount and shown to the nominee before they ask.</p>
+          <label for="f-crt-fee">Withdrawal fee, by amount (₦)</label>
+          <textarea name="wallet_fee_bands" id="f-crt-fee" rows="3">{{ wallet_fee_text }}</textarea>
+          <p class="hint">One band per line, “from: fee”. “5001: 25” means a ₦25 fee from ₦5,001. Applies to every wallet withdrawal — community return and referral earnings — and is shown before the member confirms. Now: {{ _t.fee_text }}.</p>
         </div>
       </div>
       <div class="row">

@@ -359,6 +359,7 @@ class SettingsController
             ),
             // The withdrawal terms, through the resolver the withdrawals and /integrity read.
             'community_return_terms' => \AfricaGates\Services\CommunityReturnWithdrawals::terms(),
+            'wallet_fee_text'        => \AfricaGates\Services\WalletFee::format(),
             // The scoring curves, so the form can show what is actually in force rather
             // than the defaults. Whole ruleset rather than five picked keys: the template
             // reads them by name and a missing one under strict_variables is a 500.
@@ -1056,13 +1057,24 @@ class SettingsController
             $tax = mb_substr(trim((string) ($b['community_return_tax_note'] ?? '')), 0, 1000);
             $engine->merge('global', null, [
                 'community_return_min_withdrawal_naira' => max(0, (int) ($b['community_return_min_withdrawal_naira'] ?? 1000)),
-                'community_return_fee_naira'            => max(0, (int) ($b['community_return_fee_naira'] ?? 0)),
                 'community_return_payout_days'          => max(1, (int) ($b['community_return_payout_days'] ?? 10)),
                 'community_return_appeal_days'          => max(1, (int) ($b['community_return_appeal_days'] ?? 14)),
                 'community_return_unclaimed_days'       => max(1, (int) ($b['community_return_unclaimed_days'] ?? 365)),
                 'community_return_tax_note'             => $tax,
                 'community_return_terms_published'      => ($b['community_return_terms_published'] ?? '') === '1' && $tax !== '',
             ]);
+
+            // The wallet's withdrawal fee schedule. Refused whole rather than half-read: a
+            // fee is money taken from somebody, and a line the parser guessed at is a fee
+            // nobody chose. The schedule in force stays until a valid one is saved.
+            if (array_key_exists('wallet_fee_bands', $b)) {
+                $fees = \AfricaGates\Services\WalletFee::parse((string) $b['wallet_fee_bands']);
+                if ($fees['ok']) {
+                    $engine->merge('global', null, ['wallet_fee_bands' => $fees['bands']]);
+                } else {
+                    $_SESSION['flash_error'] = 'Withdrawal fee not saved: ' . $fees['message'];
+                }
+            }
         }
 
         // ── The scoring curves ───────────────────────────────────────────────
