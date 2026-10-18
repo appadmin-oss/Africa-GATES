@@ -983,6 +983,25 @@
       </p>
   </div></div>
 
+  {# The formal letter to verified nominees once their award is on the public vote
+     (Services\NomineeVotingNotice). Who signs it is the one thing only a person can say. #}
+  {% set _vl = voting_letter %}
+  <div class="ad-card" data-sec="mail" data-keys="nominee voting letter notification formal official signatory signed verified public vote" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Nominee voting letter<small>The formal letter each verified nominee receives when their award opens to the public vote.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="voting_letter_form" value="1">
+    <label class="checkbox"><input type="checkbox" name="voting_letter_auto" value="1" {% if _vl.on %}checked{% endif %}> Send the letter automatically</label>
+    <p class="hint">Sent once to each nominee who has verified (claimed their page, or confirmed their nomination) while voting is open, with the letter attached as a PDF. Nobody is written to whose address is missing or could belong to two people. Each award edition shows how many have been sent on its own page.</p>
+    <div class="row">
+      <div>
+        <label for="f-vl_name">Signed by <small>optional</small></label>
+        <input type="text" name="voting_letter_signatory" id="f-vl_name" maxlength="80" value="{{ _vl.signatory }}" placeholder="A person's name">
+      </div>
+      <div>
+        <label for="f-vl_title">Title or office</label>
+        <input type="text" name="voting_letter_signatory_title" id="f-vl_title" maxlength="80" value="{{ _vl.signatory_title }}">
+      </div>
+    </div>
+  </div></div>
+
   <div class="ad-card" data-sec="integrity" data-keys="tracking visits analytics arrivals referrer utm campaign source privacy retention do not track" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Arrivals<small>Where the people who come here came from.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       {# The report this feeds is Analytics → "Where people came from". Everything else on

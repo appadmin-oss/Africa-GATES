@@ -363,6 +363,8 @@ class SettingsController
             // Automatic withdrawals: the switch, whether Paystack can actually send, and the
             // limits WalletRisk holds anything above.
             'wallet_auto'            => self::walletAuto(),
+            // The nominee's voting letter: on or off, and who signs it.
+            'voting_letter'          => \AfricaGates\Services\NomineeVotingNotice::settings(),
             // The scoring curves, so the form can show what is actually in force rather
             // than the defaults. Whole ruleset rather than five picked keys: the template
             // reads them by name and a missing one under strict_variables is a 500.
@@ -1089,6 +1091,19 @@ class SettingsController
                 }
                 $engine->merge('global', null, $auto);
             }
+        }
+
+        // ── The nominee's voting letter ──────────────────────────────────────
+        //
+        // A checkbox posts nothing when it is off, so the card says it was drawn
+        // (`voting_letter_form`); otherwise saving any other card would switch the letters
+        // off without anybody choosing to.
+        if (($b['voting_letter_form'] ?? '') === '1') {
+            (new \AfricaGates\Services\RuleEngine())->merge('global', null, [
+                'voting_letter_auto'            => ($b['voting_letter_auto'] ?? '') === '1',
+                'voting_letter_signatory'       => mb_substr(trim((string) ($b['voting_letter_signatory'] ?? '')), 0, 80),
+                'voting_letter_signatory_title' => mb_substr(trim((string) ($b['voting_letter_signatory_title'] ?? '')), 0, 80),
+            ]);
         }
 
         // ── The scoring curves ───────────────────────────────────────────────

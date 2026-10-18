@@ -253,6 +253,38 @@ class ProgrammesController
         return $res->withHeader('Location', '/admin/programmes/' . $id . '/wording')->withStatus(302);
     }
 
+    /**
+     * The voting letter as this edition's nominees will receive it: its first nominee, or a
+     * specimen when it has none. Inline, so it opens in the browser rather than downloading.
+     */
+    public function votingLetterPreview(Request $req, Response $res, array $args): Response
+    {
+        $programme = DB::table('gates_award_programmes')->where('id', (int) $args['id'])->first();
+        $cycle = $programme ? DB::table('gates_award_cycles')
+            ->where('id', (int) ($req->getQueryParams()['cycle'] ?? 0))
+            ->where('programme_id', (int) $programme->id)->first() : null;
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $cycle->programme_title = $programme->title;
+        $cycle->programme_slug  = $programme->slug;
+        $res->getBody()->write(\AfricaGates\Services\NomineeVotingNotice::previewPdf($cycle));
+
+        return $res->withHeader('Content-Type', 'application/pdf')
+                   ->withHeader('Content-Disposition', 'inline; filename="voting-letter-preview.pdf"')
+                   ->withHeader('Cache-Control', 'no-store');
+    }
+
+    /** @return array<string,mixed>|null null when the counts cannot be read, never a 500 */
+    private static function votingLetterStatus(object $cycle): ?array
+    {
+        try {
+            return \AfricaGates\Services\NomineeVotingNotice::status($cycle);
+        } catch (\Throwable $e) {
+            error_log('[voting-letter] status for cycle ' . (int) $cycle->id . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
     public function cycleEdit(Request $req, Response $res, array $args): Response
     {
         $programmeId = (int)$args['id'];
@@ -307,6 +339,8 @@ class ProgrammesController
             // and closes the ballot early. Asked of the stored row with the same rule the
             // save uses, so the screen and the save cannot disagree about what is wrong.
             'window_error' => $cycle ? \AfricaGates\Services\CycleService::windowError((array) $cycle) : null,
+            // The nominee voting letter for this edition: on, sending, and how far it has got.
+            'voting_letter' => $cycle ? self::votingLetterStatus($cycle) : null,
             'history'    => $history,
             // The DISPLAY zone, not Clock::timezone(). This said UTC, and the form
             // stored what was typed verbatim — so an operator in Lagos had to convert

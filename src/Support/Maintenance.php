@@ -163,6 +163,11 @@ final class Maintenance
             // Members' automatic withdrawals: requests the request path left unchecked, and
             // transfers the webhook has not settled. Same reasoning as the line above.
             $ran[] = ['walletpay',     $this->task('walletpay',     fn() => $this->sweepWalletPayouts())];
+            // The formal letter to every verified nominee whose award is on the public vote.
+            // Every tick, because either half (voting opening, the nominee verifying) can
+            // become true second, and a nominee who verifies on day nine is told on day nine.
+            // Claimed before it is sent, so overlapping ticks cannot double a letter.
+            $ran[] = ['votingletters', $this->task('votingletters', fn() => $this->sendVotingLetters())];
             // Stand offers nobody accepted in time. On every tick rather than daily, because
             // the place an expired offer is holding was promised to a waiting list that was
             // told it would move — and a list that only moves at 06:00 is a list that does
@@ -363,6 +368,7 @@ final class Maintenance
                 'refunds'   => $ran[] = ['refunds', $this->task('refunds', fn() => $this->refundUnminted())],
                 'payouts'   => $ran[] = ['payouts', $this->task('payouts', fn() => $this->sweepPartnerPayouts())],
                 'walletpay' => $ran[] = ['walletpay', $this->task('walletpay', fn() => $this->sweepWalletPayouts())],
+                'votingletters' => $ran[] = ['votingletters', $this->task('votingletters', fn() => $this->sendVotingLetters())],
                 'standoffers' => $ran[] = ['standoffers', $this->task('standoffers', fn() => $this->expireStandOffers())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'qdisqualify' => $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())],
@@ -825,6 +831,20 @@ final class Maintenance
             return $r['processed'] + $r['changed'];
         } catch (\Throwable $e) {
             $this->log('wallet payouts error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    private function sendVotingLetters(): int
+    {
+        try {
+            $mailer = $this->container?->get(OtpService::class) ?? OtpService::boot();
+            $r = \AfricaGates\Services\NomineeVotingNotice::sweep($mailer);
+            $this->log('voting letters: sent ' . $r['sent'] . ', failed ' . $r['failed']
+                     . ', held ' . $r['held'] . ', unreachable ' . $r['unreachable']);
+            return $r['sent'];
+        } catch (\Throwable $e) {
+            $this->log('voting letters error: ' . $e->getMessage());
             throw $e;
         }
     }

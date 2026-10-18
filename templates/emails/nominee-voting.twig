@@ -1,0 +1,67 @@
+{#
+  THE NOMINEE'S VOTING NOTICE: a BODY, not a document.
+
+  Sent by Services\NomineeVotingNotice once a nominee is verified and their award is in
+  its voting phase, with the formal letter (Services\NomineeVotingLetter) attached. Like
+  every transactional message here it is a fragment dropped into the house shell
+  (OtpService::brandWrap()), which already provides the wordmark, the category chip, the
+  footer and the card; see emails/invitation.twig for why a whole document here would
+  arrive as two nested ones.
+
+  The paragraphs are the LETTER's (NomineeVotingLetter::body()), passed in as `body`, so
+  the email and the document somebody keeps cannot say different things. What the email
+  adds is the button, because a link is the one thing a letter cannot do.
+
+  Type is on REFERENCE §6.2's ladder in px (right for mail); every colour is `c.<token>`
+  from Accent::mail().
+#}
+
+<p style="margin:0 0 6px;font-family:'Playfair Display',Georgia,serif;font-size:21px;line-height:1.3;color:{{ c.ink }}">Dear {{ name }},</p>
+
+{% for para in body %}
+<p style="margin:0 0 14px;font-size:16px;line-height:1.65;color:{{ c['ink-2'] }}">{{ para }}</p>
+{% endfor %}
+
+{# ── THE PARTICULARS ────────────────────────────────────────────────────────
+   The same schedule the letter carries, as the house callout. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="margin:8px 0 22px;background:{{ c['green-wash'] }};border-left:4px solid {{ c.green }};border-radius:0 8px 8px 0">
+  <tr>
+    <td style="padding:16px 20px">
+      <p style="margin:0 0 10px;font-family:'Playfair Display',Georgia,serif;font-size:17px;line-height:1.3;color:{{ c.ink }}">Particulars of nomination</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;line-height:1.5">
+        <tr><td style="padding:3px 12px 3px 0;color:{{ c['green-deep'] }};width:120px;vertical-align:top">Award</td><td style="padding:3px 0;color:{{ c.ink }}">{{ award }}</td></tr>
+        <tr><td style="padding:3px 12px 3px 0;color:{{ c['green-deep'] }};vertical-align:top">Category</td><td style="padding:3px 0;color:{{ c.ink }}">{{ category }}</td></tr>
+        <tr><td style="padding:3px 12px 3px 0;color:{{ c['green-deep'] }};vertical-align:top">Reference</td><td style="padding:3px 0;color:{{ c.ink }};font-family:Consolas,'Courier New',monospace">{{ reference }}</td></tr>
+        <tr><td style="padding:3px 12px 3px 0;color:{{ c['green-deep'] }};vertical-align:top">Public voting</td><td style="padding:3px 0;color:{{ c.ink }}">{{ opens }} to {{ closes }}</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+{# ── THE PAGE ─────────────────────────────────────────────────────────────
+   The house button, with VML behind it for Outlook desktop. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px">
+  <tr><td>
+    <!--[if mso]>
+    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ vote_url }}" style="height:46px;v-text-anchor:middle;width:256px" arcsize="50%" strokecolor="{{ c.green }}" fillcolor="{{ c.green }}">
+      <w:anchorlock/>
+      <center style="color:{{ c.surface }};font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:16px;font-weight:600">Open your voting page</center>
+    </v:roundrect>
+    <![endif]-->
+    <!--[if !mso]><!-->
+    <a href="{{ vote_url }}" style="display:inline-block;background:{{ c.green }};color:{{ c.surface }};text-decoration:none;font-weight:600;font-size:16px;padding:13px 26px;border-radius:999px">Open your voting page</a>
+    <!--<![endif]-->
+  </td></tr>
+</table>
+<p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:{{ c.soft }}">
+  Or copy this address: <a href="{{ vote_url }}" style="color:{{ c.green }};word-break:break-all">{{ vote_url }}</a>
+</p>
+
+<p style="margin:0 0 4px;font-size:16px;line-height:1.65;color:{{ c['ink-2'] }}">
+  The formal letter of notification is attached, for your records.
+</p>
+<p style="margin:0;font-size:16px;line-height:1.65;color:{{ c.ink }}">
+  Yours sincerely,<br>
+  {% if signatory %}<strong style="font-weight:600">{{ signatory }}</strong><br>{{ signatory_title }}<br>{% else %}<strong style="font-weight:600">{{ signatory_title }}</strong><br>{% endif %}For and on behalf of Africa GATES
+</p>

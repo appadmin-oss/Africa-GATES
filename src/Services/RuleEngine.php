@@ -186,6 +186,12 @@ class RuleEngine
         'community_return_unclaimed_days'       => 365,
         'community_return_tax_note'             => '',
         'community_return_terms_published'      => false,
+        // The formal letter to a verified nominee once their award is on the public vote
+        // (NomineeVotingNotice). Per programme and per cycle, like everything here, so an
+        // award can be signed by its own committee. An empty title means the office.
+        'voting_letter_auto'                    => true,
+        'voting_letter_signatory'               => '',
+        'voting_letter_signatory_title'         => '',
     ];
 
     /** @return array<string,mixed> merged ruleset */

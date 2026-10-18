@@ -74,6 +74,37 @@
       </div>
       {% endif %}
 
+      {% if voting_letter|default(null) %}
+      {# The formal letter each verified nominee receives once this edition is on the public
+         vote (Services\NomineeVotingNotice). Counted here so nobody has to chase whether it
+         went out: verified, sent, waiting for the next tick, and unreachable. #}
+      {% set _vl = voting_letter %}
+      <div class="ad-card" style="margin-bottom:14px">
+        <div class="ad-card__head">
+          <div class="ad-card__title">Nominee voting letter<small>Sent automatically to verified nominees while voting is open</small></div>
+          <span class="ad-chip ad-chip--{{ not _vl.on ? 'grey' : (_vl.voting ? 'green' : 'gold') }}">{{ not _vl.on ? 'Off' : (_vl.voting ? 'Sending' : 'Waits for voting') }}</span>
+        </div>
+        <div class="ad-card__body">
+          <p style="margin:0;font-size:14px;color:var(--cn-ink)">
+            Verified nominees: <strong>{{ _vl.verified }}</strong> ·
+            Letters sent: <strong>{{ _vl.sent }}</strong>{% if _vl.voting and _vl.on %} ·
+            Due on the next run: <strong>{{ _vl.due }}</strong>{% endif %}
+            {% if _vl.failed %} · Failed: <strong>{{ _vl.failed }}</strong>{% endif %}
+          </p>
+          {% if _vl.unreachable %}
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-grey-500)">
+            {{ _vl.unreachable }} verified {{ _vl.unreachable == 1 ? 'nominee has' : 'nominees have' }} no
+            address we can be sure is theirs, so no letter is sent to them.
+          </p>
+          {% endif %}
+          <p style="margin:8px 0 0;font-size:13px">
+            <a href="/admin/programmes/{{ programme.id }}/cycle/voting-letter?cycle={{ cycle.id }}">Preview the letter (PDF)</a>
+            · Signatory and on/off are in <a href="/admin/settings#f-vl_title">Settings</a>.
+          </p>
+        </div>
+      </div>
+      {% endif %}
+
       <div class="ad-card">
         <div class="ad-card__head"><div class="ad-card__title">Cycle window<small>Entered in {{ timezone }} · stored as UTC</small></div></div>
         <div class="ad-card__body">
