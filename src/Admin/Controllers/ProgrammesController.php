@@ -301,6 +301,12 @@ class ProgrammesController
             // What the platform ACTUALLY thinks, so the admin can trust the
             // automation instead of inferring it from five date fields.
             'phase'      => $phase,
+            // Dates ALREADY SAVED out of order. The save refuses an inverted window, but a
+            // row saved before that rule, imported, or seeded can still hold one — a results
+            // date before voting closes reads as "results" while voting is meant to be open,
+            // and closes the ballot early. Asked of the stored row with the same rule the
+            // save uses, so the screen and the save cannot disagree about what is wrong.
+            'window_error' => $cycle ? \AfricaGates\Services\CycleService::windowError((array) $cycle) : null,
             'history'    => $history,
             // The DISPLAY zone, not Clock::timezone(). This said UTC, and the form
             // stored what was typed verbatim — so an operator in Lagos had to convert

@@ -55,6 +55,13 @@
             Nominations accepted: <strong>{{ phase.is_nominations_open ? 'yes' : 'no' }}</strong>
             {% if cycle.next_boundary_at %} · Next change <strong>{{ cycle.next_boundary_at|date('j M Y, H:i') }}</strong>{% endif %}
           </p>
+          {% if window_error|default(null) %}
+          <div class="ad-flash ad-flash--err" role="alert" style="margin:14px 0 0">
+            ⚠ The saved dates are out of order: {{ window_error }} The site follows the dates, so
+            this edition is behaving as the latest date that has passed says. Correct the dates below
+            and save.
+          </div>
+          {% endif %}
           {% if phase.drifted %}
           <div class="ad-flash ad-flash--err" role="alert" style="margin:14px 0 0">
             ⚠ The stored status column says <code>{{ phase.stored_status }}</code> but the dates compute

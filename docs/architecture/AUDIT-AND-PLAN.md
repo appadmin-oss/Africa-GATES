@@ -75,7 +75,7 @@ hosting, and leave out the ones that only make sense at their size. Gee's resear
 
 Everything moves one piece at a time, behind the live site, and every step ships on its own.
 
-**What I need from you** is in §16: thirty-two decisions, three of them now settled. The ones that shape everything are:
+**What I need from you** is in §16: thirty-three decisions, seven of them now settled. The ones that shape everything are:
 
 - what a **centre** is for Africa GATES (D11);
 - who may **sell** (D13);
@@ -90,7 +90,7 @@ first. I verified each one in the code.
 
 | # | Fault | Evidence | Effect |
 |---|---|---|---|
-| 1 | **15 page templates are missing.** Their routes still render them. | `pages/{my-work, my-work/interview, honour, interview, nominee-claim, claim-dispute, donate-giving, form, gated-form, registry/register, stands/apply, stands/call, stands/offer, shop/alert-stopped, pulse/_cards}.twig`, rendered by MyWorkController, HonourController and others | 500 on each. `/my-work` is where a nominee answers their questionnaire. |
+| 1 | **15 page templates are missing.** Their routes still render them. They were removed in the 3 Oct redesign (`docs/handoff/DESTROYED.md`) and wait for their rebuild. *Corrected 18 Oct:* `my-work`, `my-work/interview` and `donate-giving` have since been rebuilt; three were missing from this list. | `pages/{nominee-confirm, nominee-confirm-done, shop/order, honour, interview, nominee-claim, claim-dispute, form, gated-form, registry/register, stands/apply, stands/call, stands/offer, shop/alert-stopped, pulse/_cards}.twig` | 500 on each. **The first three matter most:** `/n/confirm/{token}` is where a nominee confirms their nomination, so consent cannot be recorded; `/shop/order/{ref}` is the buyer's order page their receipt links to. Rebuild those first. |
 | 2 | Shop stylesheet and script are missing | `shop/index.twig:67`, `shop/item.twig:49`, `:244`; no `components/shop.css` or `js/shop.js` | The shop renders unstyled, and its buttons do nothing. |
 | 3 | Admin reads a table that does not exist | `QuestionnairesController.php:162` reads `gates_questionnaire_submissions`; the real table is `gates_nominee_submissions` | That action always says "That submission no longer exists". |
 | 4 | Payment reference has no index | `gates_donations.payment_ref`: 28 lookups, including the webhook and verify paths; no key | Every gateway callback scans the donations table, and it gets slower as giving grows. |
@@ -101,6 +101,12 @@ first. I verified each one in the code.
 | 9 | Developer documents state the retired paid-vote rule | `PaidVoteService.php:20-22` and `CODEBASE-INDEX.md:261` say "never move rank" | Whoever changes scoring next reads the wrong rule. |
 | 10 | **Fixed on 16 Oct:** Gee promised a check and never made it | The loop accepted any reply that was not a tool call as final, and the planner never looked up a signed-in member's own payments | "I will check your payments, hold on", three times, then a ticket. See §12. |
 | 11 | **Fixed in the previous commit:** my 16 Oct change replaced `Support\Brand`'s logo helpers | `OtpService:849`, `ChallengeFlier:217` and `InviteLetter:116` call `Brand::logoUrl`/`LOGO_ON_TINT` | The email masthead, challenge flier and invite letter broke. The helpers are restored, alongside the name rule. |
+| 12 | **Fixed 17 Oct:** a released award showed as "With the jury" | `CyclePolicy::phaseFor()` trusted only `archived` from the stored status, so an award released before its results date (or with none) still read as being judged | Every page drawing the phase, beside the published result. |
+| 13 | **Fixed 17 Oct:** referral payouts promised an email when paid and never sent one | `ReferralPayout::request()`'s message; `markPaid()` sent nothing | Members were told to expect an email that never came. |
+| 14 | **Fixed 18 Oct:** saved award dates out of order were never flagged | The editor refuses an inverted window, but rows saved before that rule (two seen locally, with results dated before voting closes) are shown as normal | A results date before voting close makes the site treat voting as closed. The edition screen now says so, using the save's own rule. |
+| 15 | **Fixed 18 Oct:** "select the secret" fields did nothing | `data-ag-do="select-all"` on the webhook secret and the interview link had no handler | One tap was meant to select the value for copying. |
+| 16 | **Open, found 18 Oct: nothing backs up the database.** | No backup or restore code anywhere in `src/`, `cron/` or `deploy/`, and no procedure in `docs/`; whatever the host keeps is unknown | The payment records, sealed results, audit log and wallet ledgers exist in one copy on one machine. See §5.5. |
+| 17 | **Open, found 18 Oct: retention and erasure have never run.** | `PrivacyPurgeCommand` (retention) and `PrivacyEraseUserCommand` (a person's erasure request) are console commands; the host has no shell and nothing in `Maintenance` or the console calls them | Personal data past its retention window is kept indefinitely, and an erasure request cannot be carried out from any screen, both duties under the NDPA. Needs your retention windows first (D33). |
 
 **The test suite is not green today.** The full run (7,085 tests) has 12 failures that
 predate this audit. Each one is a real finding, not noise:
@@ -117,6 +123,14 @@ predate this audit. Each one is a real finding, not noise:
 
 A restructure on a red suite cannot tell its own breakage from what was already broken, so
 Phase 0 ends green.
+
+**Sweeps run on 18 Oct, each first shown to catch a planted fault:** every internal link,
+form action and script call against the live route table (none dead); every POST form for
+its CSRF token (all carry one or are deliberately exempt); every static call, constant and
+`new` against the classes that exist (none broken); every template compiled with the app's
+Twig setup (all compile); every `data-ag-do` action against a handler (#15). The template and
+action checks are now tests (`TemplatesExistTest`), with the missing pages in #1 as a list
+that may only shrink.
 
 Phase 0 also includes **one sweep that would have caught #1**: boot the router, render
 every public GET route, and fail on any template that does not exist. This repo already has
@@ -399,6 +413,58 @@ src/
 `route (domain routes file) → middleware (Actor resolved once) → controller (thin) →
 application service (rules and transaction) → data (queries owned by the domain) → view
 (domain templates and shared components) → Reporter on any failure`
+
+### 5.4 Every part of the platform has a home
+
+The domain list above was drawn from the code's largest areas and missed a number of real,
+working parts. Each one belongs somewhere, and moves with its domain:
+
+| Part (where it lives today) | Domain |
+|---|---|
+| Challenges (`ChallengeService`, `/challenges`) | Awards, as a kind of programme with computed qualification |
+| Recognitions, the legacy vault, hall of fame, supporter honours (`LegacyVault`, `SupporterHonours`) | Results |
+| Leaderboard, Discover, Registry and profiles, the nations globe (`GlobeBand`, `NationsLive`) | a public **Discovery** read layer over Awards and Results, owning no writes |
+| Vote recovery (`votes:recover`, its admin review), collusion scans (`CollusionService`) | Voting |
+| Points, referrals, the member wallet, automatic withdrawals (`PointsService`, `ReferralService`, `MemberWallet`, `WalletAutoPay`) | Money |
+| Partner organisations' giving pages and console (`PartnerOrg`, `OrgBrand`, `OrgPayout`, `/org`) | Money (giving), with the organisation as a scope (§6) |
+| The judge console (`src/Judge`) | Judging |
+| The door's voice and greetings (`DoorWelcome`, `DoorVoice`) | Events |
+| Celebrations, seasonal themes, display and reading settings (`Celebration`, `HolidayTheme`, `DisplayReading`) | the experience layer (§11), not a domain |
+| Passkeys and one-time codes (`passkeys`, `OtpAttempt`) | Platform/Auth |
+| Media storage (`R2Service`, `CloudinaryService`) | Platform, as one storage facade |
+| The public API and outgoing webhooks (`/api/v1`, `WebhookService`) | Platform, with each domain publishing its own events |
+| The status page, `CronHealth`, `MailHealth` | Ops |
+| The sandbox (`DemoSeeder`) | Ops, kept outside every public reader (`liveAwardOnly()`) |
+| Newsletter and broadcasts (`NewsletterAudience`, `BroadcastLog`) | Comms |
+| Search (`SearchLanding`) | Discovery |
+
+### 5.5 Cross-cutting duties the plan had not covered
+
+These belong to no one domain, and each needs an owner and a test like everything else.
+
+- **Backups and restore (fault 16).** Nothing backs up the database today. On a host with no
+  shell: a scheduled task writes an encrypted, compressed dump in batches (a few tables per
+  tick, so no tick hits the time limit) to a second location in Nigeria (D22), keeps 30 daily
+  and 12 monthly copies, and records each run in `CronHealth` so a missed backup raises the
+  same alert as a missed tick. A **restore drill every quarter**, into a scratch database, is
+  the only proof a backup works; its result is shown on the status page.
+- **Retention and erasure (fault 17).** The rules exist in `PrivacyPurgeCommand` and
+  `PrivacyEraseUserCommand` but can only be run from a shell. Retention runs on the daily tick
+  once you set the windows (D33); erasure becomes a reviewed work item in the console,
+  carried out by the same code, with the audit log recording what was removed.
+- **Security.** Strong already and scattered: the content-security policy (`Csp`, with its
+  static copy in `.htaccess` kept equal by a test), security headers, CSRF, rate limits,
+  one-time-code attempt caps, passkeys and the audit log. The kernel (§5.1) gathers them; the
+  existing tests stay as the guard. Add a yearly outside review before Events opens to
+  outside organisers.
+- **Accessibility and languages.** Display & reading settings, the WCAG 2.2 work (§25 of the
+  codebase index) and the `|trans` layer exist. Every new screen meets the same rules, checked
+  by the existing guards; Nigerian languages arrive as catalogues (§9.4).
+- **Observability.** Structured logs, `CronHealth`, `MailHealth`, the status page and alert
+  webhooks exist. Every domain reports through the one `Reporter` (§5.2 rule 4).
+- **Migrations by URL.** Migrations are applied by opening a URL, and a repair migration is
+  the only way to correct a constraint (the CLAUDE.md lessons). That stays the deploy path,
+  and the MySQL parity run (`scripts/mysql-parity.sh`) runs before every migration ships.
 
 ---
 
@@ -1176,6 +1242,35 @@ ledger, then promotions. Each step is usable on its own.
 
 ## 10b. Community Return: what participation gives back
 
+**Status (18 Oct 2026): built, and ahead of this section.** What follows is the brief and
+the plan as written on 16 Oct; since then the owner answered its questions and it shipped:
+
+- **Models, chosen per edition and opt-in:** the original threshold model, the two-stage
+  **milestone** model of the brief, and three ladder models (**flat**, **tiered**, and
+  **custom**, which may be measured on the nominee's own total or the whole edition's and may
+  be held locked until the milestone). `CommunityReturnService`, `CommunityReturnLadder`,
+  `CommunityReturnMilestone`; `/admin/community-return`.
+- **The milestone** is total eligible paid-vote revenue in the edition, confirmed by a person
+  as an audited act, exactly as planned.
+- **A nominee's own buying counts.** So the per-supporter cap applies only under the original
+  threshold model; the milestone and ladder models have none. (This is the opposite of D20's
+  recommendation, and it was the owner's call.)
+- **The wallet** is now for every member, not only nominees: community return per claimed
+  page, referral earnings and voting points as pockets, a full history with receipts,
+  notifications and a live balance (`MemberWallet`, `/account/wallet`).
+- **Withdrawals are automatic**, not a work item. A request that passes every check
+  (`WalletRisk`: the money is valid and unflagged, the bank confirms the account is in the
+  member's name, no shared account, no recent password reset or new bank details, an
+  established account, and per-withdrawal, daily and platform limits) is sent by Paystack
+  transfer at once (`WalletAutoPay`). Anything doubtful is held for a person with the reason
+  written on it. The ledger moves only on the gateway's confirmation.
+- **One banded withdrawal fee** for every withdrawal (`WalletFee`; ₦10 / ₦25 / ₦50 by
+  default), set in Settings and frozen on each request.
+- **The published rules** on `/integrity` are generated from the same settings, as planned.
+
+What is still open is legal and tax advice on paying nominees (D21) and the milestone
+target per edition, which operators set.
+
 **The brief (owner, 16 Oct).**
 
 - Participants build up a share of the paid-vote money attributed to them, in two stages:
@@ -1506,13 +1601,13 @@ before it lay down.
 
 | Phase | What | Depends on | Exit criteria |
 |---|---|---|---|
-| **0. Stop the bleeding** | The 9 open faults in §2: the 15 missing pages (starting with `/my-work`), shop CSS/JS, the wrong table name, the `payment_ref` index (repair migration), transactions on money writes, the dead settings table, the Pulse fragment, stand fees in the webhook and reconciler, and the two documents stating the retired rule. (Gee's promise-without-action was fixed on 16 Oct.) Add the "every route renders" sweep and turn the suite green. | — | Every public route renders. The suite and a MySQL parity run are green. Gee's scenario suite has zero unkept promises. |
+| **0. Stop the bleeding** | **First, backups and a tested restore (§2 fault 16, §5.5)**, because every later phase changes data. Then the open faults in §2, rebuilding `nominee-confirm` and `shop/order` first: the 15 missing pages (starting with `/my-work`), shop CSS/JS, the wrong table name, the `payment_ref` index (repair migration), transactions on money writes, the dead settings table, the Pulse fragment, stand fees in the webhook and reconciler, and the two documents stating the retired rule. (Gee's promise-without-action was fixed on 16 Oct.) Add the "every route renders" sweep and turn the suite green. | — | Every public route renders. The suite and a MySQL parity run are green. Gee's scenario suite has zero unkept promises. |
 | **1. Kernel and operating model** | Settings registry, Actor, Reporter, Http client, one rate limiter, one Twig factory. Then the operating model: process registry, work items, evidence, scopes and templates. Today's queues (nominations, claims, tickets, refunds, stands, moderation) move onto work items **behind their existing screens**. | 0 | Every queue is a view over work items, and every item has an owner and a due time. The §6.2 table is printed by the registry. |
 | **2. Forms and award profiles** | The one form engine and the award profile (§8): definitions and versions, field library, interpreter, rules into the registry, look presets, the Award setup screen, house form v1. | 1 | Today's form renders identically from its definition. A second award with a different form passes end to end. |
 | **3. Experience structure** | The IA registry, generated navigation, **My Africa GATES** as one home with role panels, the scoped Workspace, one design system in two densities, and `AssetBundle` served. | 1 | Every nav surface is generated. One home per person. The page-local component count is falling. |
 | **4. Volunteers** | §7.3 on work items, grants, evidence and forms: apply, screen, train, activate, shifts and tasks, hours, levels, certificates. | 1, 2, 3 | A volunteer can be recruited, trained, given a scoped grant, work a shift verified by scans, and see verified hours, all without staff doing anything by hand except the screening decision. |
 | **5. Africa GATES Events** | §9, in five stages (§9.12): E1 workspace and hosts (organisers, free and paid plans, verification, scope, roles, tasks, budget, templates); E2 plan (vendors, risks, permits, capacity, offline planner, linked awards and nominee mobilisation); E3 sell and admit (signed tickets if D25, installments, virtual accounts, failover); E4 operate (cues, shifts, incidents, safety pack); E5 learn (generated report, message costs, AI change-sets). Stands onto the ledger. | 1, 4, and the ledger from 6 for E3 | Each stage's exit test in §9.12. The last: a post-event report with no manual figures. |
-| **6. Money and the market** | One payment ledger first (D8); Community Return two-stage model and wallet (§10b); then highlights (no money); then sellers, listings, orders, reviews and disputes; then promotions and one code system (§10). | 1, 2, 3 | Every payment stream writes to the one ledger. A verified seller lists, sells, is paid out after the hold, and a dispute resolves through a work item. |
+| **6. Money and the market** | One payment ledger first (D8), bringing the wallet's streams onto it (Community Return, the member wallet and automatic withdrawals are **already built**, §10b); then highlights (no money); then sellers, listings, orders, reviews and disputes; then promotions and one code system (§10). | 1, 2, 3 | Every payment stream writes to the one ledger. A verified seller lists, sells, is paid out after the hold, and a dispute resolves through a work item. |
 | **7. Domains and data** | Continue moving code into `Domain/*`, thin the controllers, unify a person's identity (D6), one schema source, votes stop cascading on delete, scenario hardcodes move into data, dead paths removed. | all | The write-ownership and controller ratchets are at zero. Schema parity runs on every test run. |
 
 Gee improves alongside every phase: each new domain brings its tools to the Assist core,
@@ -1561,7 +1656,10 @@ with scenarios in the suite.
 | D15 | May an individual **nominee** be promoted with paid placement during voting? | **No.** It would read as buying reach, which the scoring rule forbids. Awards, events, sellers and highlights yes, always labelled "Promoted". |
 | D16 | May Gee **file** a refund request itself after the person confirms? | **Yes**: it files a request, a person decides it, and Gee never moves money. |
 | D17 | Will you fund a card sort and tree test with real users per audience before the navigation is rebuilt (§13.2)? | **Yes**: about 15 people per audience for the sort and 50 for the test. It is the cheapest way not to rebuild the navigation twice. |
-| D18–D21 | Community Return: who participates, the milestone, eligibility, withdrawal terms | See §10b. |
+| D18 | Community Return: who is the participant? | **Decided:** the nominee holding a claimed page earns it; every member has a wallet for referral earnings and points. |
+| D19 | The milestone's measure? | **Decided:** total eligible paid-vote revenue in the edition, per-edition opt-in; operators set the target. |
+| D20 | Keep the per-supporter cap? | **Decided:** a nominee's own buying counts, so the cap stays only in the original threshold model. |
+| D21 | Withdrawal terms and tax? | **Partly decided:** automatic withdrawals with risk checks and a banded fee are built and settable. **Still open:** legal and tax advice on paying nominees in Nigeria before terms are published. |
 | D22 | Where is the host physically, and must event data stay in Nigeria? | **Decided (17 Oct): the host is Nigerian.** Backups go to a second Nigerian location; anything sent abroad is encrypted and recorded as a cross-border transfer. |
 | D23 | Who runs events on Africa GATES Events? | **Decided (17 Oct): anybody who hosts an event**, with a free and a paid tier. Organiser verification, first-event review and post-event settlement for new organisers come in E1 (§9.15). |
 | D24 | Stay on PHP and MySQL on this host for Events, rather than the plan's TypeScript, Postgres and Kubernetes? | **Yes.** One language, one deploy, one team. §9.2 lists when to revisit each part. |
@@ -1573,6 +1671,7 @@ with scenarios in the suite.
 | D30 | What is in the free tier and the paid tier, and what does the paid tier cost? | The split in §9.15 as a first cut. Every limit is a setting, so it can change without code. |
 | D31 | What does the platform take on tickets: a fee per ticket on both tiers, or none on paid? | Your call. A per-ticket fee on free, lower or none on paid, is the common shape. |
 | D32 | Must the platform's own mobilisation help be identical for every nominee in a category? | **Yes.** Nominees may campaign as hard as they like; the platform must never help one more than another. |
+| D33 | Retention windows: how long is each kind of personal data kept (nominations not taken forward, support tickets, OTPs, visit logs, interview recordings)? | Set them with the legal advice in D27. Once set, retention runs on the daily tick and erasure requests become a console task (§5.5). |
 
 ---
 

@@ -753,4 +753,12 @@
       if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
     }
   });
+
+  // A read-only field holding something to copy (a webhook's signing secret, an interview
+  // link) selects itself on focus, so one tap and a copy takes all of it. The fields carried
+  // `data-ag-do="select-all"` with no handler anywhere, so the tap selected nothing.
+  document.addEventListener('focusin', function (e) {
+    var f = e.target.closest && e.target.closest('[data-ag-do="select-all"]');
+    if (f && typeof f.select === 'function') f.select();
+  });
 })();
