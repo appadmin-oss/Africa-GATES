@@ -1,6 +1,6 @@
 # Africa GATES: architecture audit and restructuring plan
 
-*Draft for the owner's review, 16 Oct 2026; Africa GATES Events added 17 Oct 2026 (§9). Each phase waits for your approval.*
+*Draft for the owner's review, 16 Oct 2026; Africa GATES Events added 17 Oct 2026 and restructured 18 Oct 2026 (§9). Each phase waits for your approval.*
 
 You asked for an audit of how the app is built, research, and a plan that covers every part
 of the platform. That includes:
@@ -57,9 +57,11 @@ layers:
 3. **Domains built on it**, each owning its data:
    - Awards, with configurable award profiles and dynamic forms;
    - Volunteers;
-   - **Africa GATES Events**, a new product open to anybody who hosts an event (free and paid
-    tiers) that plans, sells, admits, operates, settles and learns from events, including
-    the awards they carry and the mobilising of nominees, sized to this host (§9);
+   - **Africa GATES Events**, a new product for events that honour people first: it runs the
+    whole award behind a ceremony (nominations, voting, judging, mobilising nominees, the
+    result released on stage) as well as selling and admitting the night. Ticketing and the
+    door are free to anybody who hosts; the award bundle is the paid offer; each opening
+    waits for a pilot. Sized to this host (§9);
    - one Market for selling, highlights and promotions;
    - Money, on one payment ledger;
    - the rest of today's site.
@@ -75,13 +77,13 @@ hosting, and leave out the ones that only make sense at their size. Gee's resear
 
 Everything moves one piece at a time, behind the live site, and every step ships on its own.
 
-**What I need from you** is in §16: thirty-three decisions, seven of them now settled. The ones that shape everything are:
+**What I need from you** is in §16: thirty-five decisions, eight of them now settled. The ones that shape everything are:
 
 - what a **centre** is for Africa GATES (D11);
 - who may **sell** (D13);
 - whether nominees may be **promoted** (D15);
 - whether existing awards keep today's form as version 1 (D1);
-- what the free and paid event tiers include, and the fee on tickets (D30, D31).
+- the price of the award bundle and the fee on tickets (D30, D31).
 
 ## 2. Broken right now: fix before any restructuring (Phase 0)
 
@@ -459,7 +461,7 @@ These belong to no one domain, and each needs an owner and a test like everythin
   outside organisers.
 - **Accessibility and languages.** Display & reading settings, the WCAG 2.2 work (§25 of the
   codebase index) and the `|trans` layer exist. Every new screen meets the same rules, checked
-  by the existing guards; Nigerian languages arrive as catalogues (§9.4).
+  by the existing guards; Nigerian languages arrive as catalogues (§9.11).
 - **Observability.** Structured logs, `CronHealth`, `MailHealth`, the status page and alert
   webhooks exist. Every domain reports through the one `Reporter` (§5.2 rule 4).
 - **Migrations by URL.** Migrations are applied by opening a URL, and a repair migration is
@@ -756,19 +758,77 @@ can open (see §16, D5).
 
 ## 9. Africa GATES Events: a new product
 
-*Added 17 Oct 2026 from the Events Chief Engineer Plan (v1.0, 17 Oct 2026), toned down to the
-host this platform actually runs on. The plan's principles and feature catalogue are kept; its
-infrastructure is replaced by what a shared cPanel host can run.*
+*Added 17 Oct 2026 from the Events Chief Engineer Plan (v1.0, 17 Oct 2026), sized to the host
+this platform actually runs on. **Restructured 18 Oct 2026** around one position (9.1), with
+market research (9.2), a priced offer (9.4), the trust rules an open platform needs (9.5),
+pilots that decide each opening (9.7) and a stage order that starts where Africa GATES can
+win (9.8). The engineering sections (9.9–9.18) keep the plan's catalogue, sized to the host.*
 
-**What it is.** Africa GATES Events is a new product, not a tidy-up of today's event pages.
-It is one place that **plans, sells, admits, operates, settles and learns from** an event,
-and keeps working in real African venue conditions: weak connectivity, power cuts, low-end
-Android phones, a volatile naira, fragmented payment rails and fast-moving regulation. **Anybody who hosts an event gets it**, on a free
-tier or a paid tier (9.15). When an event carries an award, the plan covers the whole award:
-planning it and mobilising its nominees, not only the ceremony (9.14).
+The section is in three parts:
 
-**It starts from a strong base.** The events code is already the largest domain here (26.7k
-lines), and much of the new plan's "Sell" and "Admit" catalogue exists:
+- **Part A, the product** (9.1–9.8): who it is for, what it sells, how it is kept honest, and
+  the order it opens in.
+- **Part B, how it is built** (9.9–9.18): the host, the domain, phones, the door, money,
+  messages, safety, privacy, AI and targets.
+- **Part C, what could go wrong** (9.19–9.20): risks, and the evidence that would change
+  this plan.
+
+### Part A. The product
+
+### 9.1 The position: events that honour people
+
+**Africa GATES Events is the platform for events that honour people first, and a general
+events platform second.** Anybody who hosts an event gets it (D23, decided), and that stands.
+What this section decides is the order: the product **leads** with events that carry an
+award, and the general tools follow once pilots show organisers want them (D35, decided
+18 Oct 2026).
+
+**Why this, and not general ticketing first.**
+
+- **On plain ticketing the market competes on fees and payouts**, and established players
+  are already there (9.2). A new entrant cannot win on a fee it can only match.
+- **On award events nobody does the whole job.** Ticketing apps sell the night. Paid-voting
+  vendors run the vote. Nobody runs nominations, shortlist, voting, judging with quorum,
+  sealed results, nominee mobilisation, the ceremony's run-sheet, results released on stage
+  and the honoured guest greeted by name at the door, in one place. Africa GATES has most of
+  that built (9.3).
+- **Award events are common.** School prize-givings, community and church recognitions,
+  industry and professional awards, alumni and association galas. Each one also brings
+  nominees, and every nominee brings a community: an award event recruits its own audience.
+- **It is where Africa GATES's name already carries weight**, and where its integrity rules
+  (sealed results, "money buys the tally, never the reach") are a selling point rather than
+  a cost.
+
+**Who it is for, in order.**
+
+1. **Africa GATES's own awards and centres** (D11): the first users, and the pilots.
+2. **Outside award organisers**: schools, associations, professional bodies, community and
+   faith groups, companies with staff awards.
+3. **Any event organiser**, on the free core: ticketing and the door.
+
+**What it is not, for now.** Not a concert promoter's platform competing on fees; not a
+cashless or wallet provider (D29); not a venue marketplace; not a general project-management
+tool. Each of those waits for evidence (9.20).
+
+### 9.2 What the market research says
+
+*Researched 18 Oct 2026. Third-party figures are reported, not verified with the companies;
+confirm before quoting externally. Sources in §17.*
+
+| Finding | What it means here |
+|---|---|
+| **Ticketing fees.** Tix Africa is reported to charge about 5% plus a small per-ticket fee on paid events, nothing on free events, and dropped its subscription plan (Tix Pro) in 2023. Syticks is reported at 3.5%. Eventbrite's published fees are dollar-priced, and Nigerian competitors report it does not pay out to Nigerian bank accounts. Tix Africa launched in the UK in 2026. | Fees are where the market competes, and a subscription for ticketing has already been tried and dropped. **Do not sell ticketing by subscription and do not lead on fee.** Price the free core at the market level (D31) and charge for the award bundle (9.4). |
+| **Paid voting is an established business.** Nigerian vendors list contestants, set a fee per vote, take a service fee and remit the rest; winners are decided by a published mix of public votes and judges' scores. AFRIMA, the .ng Awards (NiRA) and the Nigerian Healthcare Excellence Awards all ran public voting in 2025. | The demand is proven. What those vendors do not have is the rest of the award: nominations, judging with quorum, a sealed and verifiable result, nominee mobilisation and the ceremony. That gap is the product. |
+| **"Pay to be honoured" schemes exist.** In one reported case a person staged an awards event without authorisation, charged builders for awards, and was expelled from the professional body in May 2025. Promoters of non-existent events have sold tickets and vanished. | An open award platform will be tried by exactly these people, and the damage lands on the Africa GATES name. **Award integrity rules are part of the product** (9.5), not an afterthought. |
+| **Safety rules after the December 2024 stampedes.** Lagos requires events expected to draw more than 250 people to register with the Lagos State Safety Commission and hold an Event Safety Permit; above 500, trained safety marshals must be on the ground. A noise permit is a precondition of the safety certificate. Reported requirements for large events include two marshals per 500 guests, ambulance cover and a medical retainer. | The capacity and permit tools (9.15) are worth more in Nigeria now than planning or AI features, and few competitors offer them. Rules are held as data per state, each with the date it was last checked. |
+| **Data law.** The GAID 2025 sets tiers for data controllers "of major importance" by the number of people whose data they hold (reported: 2,500, 10,000 and 50,000), with annual compliance audit filings and fees reported from ₦100,000 to ₦1,000,000. | Africa GATES may already be in a tier from its awards alone; Events adds every organiser's guests. Legal advice (D27) before outside organisers come in. |
+| **Settlement.** Paystack subaccounts support `auto`, `weekly`, `monthly` and `manual` schedules (the platform already accepts all four in `PartnerOrg`). Reports say the manual schedule may need Paystack to enable it on the account. | "New organisers are paid after the event" (9.5) depends on it. **Confirm with Paystack before E2**; 9.5 names the fallback. |
+| **Surge protection.** Cloudflare's Waiting Room is only on the Business and Enterprise plans (a basic room on Business). | The free plan cannot queue an on-sale. Decide the upgrade before the first big one (9.9). |
+
+### 9.3 What already exists, and what does not
+
+The events code is already the largest domain here (26.7k lines), and much of the "Sell" and
+"Admit" catalogue exists:
 
 | Already built | Where |
 |---|---|
@@ -783,305 +843,98 @@ lines), and much of the new plan's "Sell" and "Admit" catalogue exists:
 | A spoken greeting at the door, rendered hours ahead | `DoorWelcome`, `DoorVoice` |
 | Rotating 30-second codes (for guest-of-honour passes only) | `InvitePass` |
 | Agenda by day and track; invites to nominees and judges with letters and reminders | `EventAgenda`, `EventInvites` and family |
+| An event linked to the award programmes it serves; nominee invite references that double as discount codes | `gates_event_programmes`, `EventInvites` |
 | Stands: calls, types, floor plan, applications, offers, fees, waitlist | `StandApplication`, `StandFee`, `StandFloorPlan` and family |
 | Ticket artwork, PDF tickets, a GD-drawn "I will be there" flier | `TicketArtwork`, `TicketPdf`, `EventFlier` |
 | Payment reconciliation for tickets; signed, logged webhooks | `PaymentReconciler`, `GatewayEventLog` |
 | SMS (Africa's Talking, Termii, Twilio) and WhatsApp (Meta Cloud API) | `SmsService` |
+| The whole award: nominations, shortlist, paid and free voting, judging with quorum, sealed release | the awards domain, `CycleMaterialiser`, `ReleasedStanding` |
+| Organisations with CAC checks, a verified settlement account and a Paystack subaccount on any schedule | `PartnerOrg` |
 
-**What does not exist.** Everything in "Plan", "Operate" and "Learn": project management,
-budgets, vendor commitments, safety and permits, run-of-show cues, staff shifts, incidents, a
-post-event report, event templates. Plus signed tickets, installments, per-message cost
-tracking, a ledger and a consent ledger.
+**What does not exist.**
 
-### 9.1 The plan's principles, kept
+- **Per-organiser settlement for tickets.** Ticket money today goes to one destination for
+  the whole `events` stream (`PaymentDestination`), which is right while Africa GATES is the
+  only organiser and wrong the day a second one sells. Each organiser's sales must split to
+  their own subaccount before any outside organiser sells (stage E2).
+- Everything in "Plan", "Operate" and "Learn": tasks, budgets, vendor commitments, safety and
+  permits, run-of-show cues, staff shifts, incidents, a post-event report, event templates.
+- Signed tickets, installments, per-message cost tracking, the one ledger (D8), a consent
+  ledger.
 
-All ten of the plan's principles stand, each mapped to something already in this document:
+### 9.4 The offer: a free core and the award bundle
 
-1. **Offline-first where the door, the stage and the cash are.** See 9.5.
-2. **Android-first, low-end-first.** One Android web app (a PWA) first; see 9.4.
-3. **Money is a ledger, not a feature.** D8, the one payment ledger.
-4. **Never lose a scan, a payment or a decision.** The door's queue, the webhook's 200, the
-   reconciliation sweep and the seal already follow this; every new module must too.
-5. **Modular monolith first.** That is §5.
-6. **Privacy and safety by design.** `CookiePrefs`, `SendPolicy` and the audit log are the
-   start; 9.9 adds the rest.
-7. **Humans approve consequential AI actions.** That is §12 (Gee proposes; a person decides).
-8. **Operable by a small team.** The process registry and work items in §6.
-9. **Cost-aware by default.** New here: see 9.7.
-10. **Partner-ready.** Scopes and templates in §6, and the API in 9.10.
+**Organisers pay for what makes or saves them money on the night**, not for planning tools
+they already do in WhatsApp and spreadsheets. So the paid offer is the award, and ticketing is
+free to adopt.
 
-### 9.2 Toned down for the host
-
-The plan was written for a funded engineering organisation with its own cloud. This
-platform runs on one shared cPanel host: PHP-FPM behind Apache, MySQL on the same machine, no
-shell, no long-running process, no Redis, no websockets, a job queue in a database table, and
-one scheduled tick every 15 minutes through a Cloudflare Worker. Cloudflare sits in front.
-
-Each part of the plan's architecture, against what can run here:
-
-| The plan says | What we do on this host | When to revisit |
+| | Free core | Award bundle |
 |---|---|---|
-| TypeScript backend, Go for the scan gateway | **Stay on PHP 8.4 / Slim / Twig.** One language and one deploy, which is the plan's own reason for choosing one language. | Only if the team is rebuilt from scratch. |
-| PostgreSQL with row-level security | **MySQL.** There is no row-level security, so every events table carries `scope_id` (§6), and a test sweeps every query on those tables for a scope clause, the way other sweeps work here. | If a managed Postgres becomes affordable. |
-| Redis, a durable queue (SQS, NATS) | **`gates_jobs`** drained on the tick. Anything that cannot wait 15 minutes (a gate change, a payment confirmation) is sent **inline, best-effort, with a queued retry**, which is how mail and SMS already work. | When the job table is the bottleneck, which it is not. |
-| Separately deployed scan gateway, payments service, messaging dispatcher, AI pool, realtime service | **Modules inside the monolith** (`Domain/Events/...`), each owning its tables. The scan endpoint stays a small, fast controller. | If one module's load is shown, by measurement, to hurt the rest. |
-| Websocket realtime for live mode | **Short polling**: an open screen asks a small JSON endpoint every 10–30 seconds and only while visible, as the wallet already does. Cloudflare caches what is public. | When a command-centre screen with many viewers actually exists. |
-| Kubernetes, infrastructure as code | **The host as it is**, plus repeatable deploys and migrations applied by URL. | With a host change. |
-| OpenTelemetry traces | **Structured logs** with event and scope on every line, `CronHealth`, the status page, and alerts by webhook. | When there is somewhere to send traces. |
-| Native Kotlin scanner and field apps; iOS later | **A PWA first**: the door already runs in the browser, works offline and uses the camera. The planner gets the same treatment. A native Android scanner only if pilots show the PWA failing on real budget phones (D26). | After two pilots. |
-| Device-to-device mesh between scanners (local Wi-Fi or Bluetooth) | **Deferred.** A browser cannot form a local mesh without a server, and Web Bluetooth is too limited. Instead: signed tickets (9.5) make each phone safe alone, and duplicates across gates are settled at sync. | With a native scanner. |
-| Event sourcing for every state change | **The existing audit log**, made complete for events: actor, action, before and after, source. Undo where the domain needs it (the door already has it). | Not needed as a pattern. |
-| Change data capture into a warehouse | **Nightly summary tables** written by the tick, and CSV exports. | When reporting outgrows the live database. |
-| Table partitioning (scans, messages, audit) | **Archive tables**, moved monthly by the tick. | With a managed database. |
-| In-country primary hosting in Lagos with a secondary site | **The host is already in Nigeria** (owner, 17 Oct 2026), so the primary copy is in-country. Nightly backups go to a **second Nigerian location**; a backup sent abroad (for example to the R2 bucket the platform uses for media) is encrypted first and recorded as a cross-border transfer. A restore drill each quarter. Cloudflare in front for public pages. | A standby second site when revenue pays for it. |
-| A virtual waiting room for on-sales | **Inventory holds** with expiry, the rate limiter, and Cloudflare caching of the event page. Cloudflare's own Waiting Room depends on the plan; check before relying on it. | Before the first on-sale big enough to need it. |
-| Cashless NFC/RFID wallets, agent top-up booths | **Deferred.** It needs hardware, and holding attendees' money raises licensing questions. The member wallet is not a cashless wallet. | After licensing advice (D29). |
-| Escrow for vendor payments | **Settlement mode** through gateway subaccounts (as `OrgPayout` already does), with holds on the platform's own fees only. Holding client funds needs a licence. | After licensing advice (D29). |
-| Squads, platform teams, an architecture group | **One small team.** Streams of work, not squads. Decisions as short records in `docs/`. | When there are people to staff squads. |
+| **For** | Anybody hosting an event | Anybody running an award with a ceremony |
+| **Includes** | Event page, ticketing with tiers and codes, waitlists and transfers, refunds, the door scanner (online and offline), the agenda, email, the capacity check, the state's permit checklist, the incident log and the safety evidence pack (safety is never paywalled, 9.15) | Everything in the free core, plus: nominations with the award's own form (§8), shortlist, free and paid voting, judging with quorum, sealed results and the public result page; the award's timeline as the event's plan; nominee mobilisation kits with costs shown (D32); the ceremony run-sheet per category; **results released at the cue**; honours seating and greeting; certificates and badges; SMS and WhatsApp with a messaging budget; the generated post-event report; own branding |
+| **Platform takes** | A per-ticket fee on paid tickets only, at market level (D31). Free events are free. | A fee per **edition** (awards run per edition, not per month), or a share of paid-vote revenue for editions that use paid voting, whichever the organiser picks (D30). Ticket fees as in the free core. |
+| **Limits** | A guest cap per event until the organiser is verified | Set per plan |
 
-### 9.3 The domain: one event, many workspaces
+**Why per edition and not monthly.** An award organiser runs one edition a year. A monthly
+plan charges them for eleven months they do not use, and the market already dropped
+subscription ticketing (9.2).
 
-Events is one domain inside the modular monolith (§5.1). It is built on the operating model
-(§6), because almost everything in "Plan" and "Operate" is **work with an owner and a due
-time**.
+**Why the share-of-votes option.** Small awards (a school, a church) cannot pay up front, and
+the share is paid from money the award brings in. It must never change the scoring rule, and
+it must be disclosed on the award's rules page beside the vote price.
 
-- **An event is a scope** (§6.1): Platform → Country → State → Centre → Event. Roles at the
-  event are grants at that scope, time-boxed to the event: organiser, co-host organisation,
-  door, stewards, stand manager, programme and MC, media, safety lead, volunteers.
-- **Tasks, milestones and approvals are work items** in the event's scope, each with an
-  owner and a deadline. The plan's project manager (dependencies, critical path, baselines)
-  is a view over them: a dependency is a link between two items, and the critical path is
-  computed, not drawn.
-- **The plan's "Event Graph" becomes ordinary tables**, added module by module, never all at
-  once:
-  - **Plan:** budget lines (estimate, committed, actual, paid), vendor commitments, risks and
-    issues, decisions, change requests, permits.
-  - **Operate:** run-of-show cues (built on `EventAgenda`), staff and volunteer shifts (§7.3),
-    incidents.
-  - **Sell / Admit:** today's tables, kept.
-  - **Learn:** the post-event report.
-- **Templates.** An event is cloned with its tiers, roles, run-sheet, task set, budget lines
-  and forms. 100 centres can each host a local event without 100 setups. This is the plan's
-  "event-type templates" and §6's replication test at once.
-- **The audit trail** records every state change with actor, before and after, and source. It
-  is what the safety evidence pack (9.8) and the post-event report are built from.
+**Every limit and price is a setting** resolved through one plan resolver, so the owner can
+change them without code.
 
-### 9.4 Phones and data
+### 9.5 Trust: who may host, and protecting guests and nominees
 
-- **One web app, installable (a PWA)**, targeting Android 10 and up on low-end phones. It has
-  a performance budget enforced in tests: page weight, script size and time to usable on a
-  throttled connection.
-- **A small device shelf** instead of a device lab: three or four budget Android phones (a
-  Tecno, an Infinix, an Itel, one older Samsung) for every release that touches the door or
-  the planner.
-- **Data saver.** Images are resized server-side already; add compressed JSON, sync of only
-  what changed, and media deferred until on Wi-Fi.
-- **Guests without smartphones.** Printable tickets exist. Add an SMS link to retrieve a
-  ticket, and an SMS RSVP. USSD needs a short code and an aggregator contract, so it is
-  deferred until an event needs it.
-- **Languages.** The translation layer (`|trans`) exists. Catalogues for Nigerian Pidgin,
-  Yoruba, Hausa and Igbo come first, French and Swahili for expansion, each checked by a
-  native speaker before it ships.
+Anybody can host (D23). An open platform will be used to sell tickets to events that never
+happen and to run awards people pay to win. The protections ship **with** each opening (9.8),
+never after the first incident.
 
-### 9.5 The door and offline tickets (the critical path)
+**Every organiser.**
 
-**Today's rule, and why.** An offline door phone records scans and does **not** decide
-(`DoorOfflineTest`). The reasons are written in that test:
+- **The organiser is an organisation scope** (§6.1): its own team, roles and events, isolated
+  from every other organiser, starting from `PartnerOrg`.
+- **Verification before money.** Drafting an event needs nothing. Selling needs a confirmed
+  email and phone. Being paid needs a CAC or identity check and a settlement account in the
+  organiser's own name, confirmed with the bank (the check `PartnerOrg` and the wallet's
+  automatic payouts already make).
+- **A new organiser's first event is reviewed** before it goes on sale: a work item with an
+  owner and a time limit, so review cannot become a silent queue.
+- **New organisers are paid after the event.** Their subaccount runs on the `manual`
+  schedule, and settlement is released after the event plus a short window. The money waits
+  at Paystack, not with Africa GATES, so this needs no licence to hold funds (D29). A clean
+  record moves an organiser to the normal schedule.
+  - **If Paystack will not enable `manual` on the account**, the fallback is a `weekly`
+    schedule with a cap on a new organiser's sales before the event, so an event that never
+    happens can only ever have taken a bounded amount. Do not route their money through the
+    platform's own account instead: that is holding client funds.
+- **Attendees can report an event.** A report is a work item with a deadline, and enough
+  reports pause sales automatically until a person looks.
+- **Sales fraud**: velocity limits per buyer and per card, and refund and chargeback watching
+  (9.13).
 
-- an eight-character code is brute-forceable against a list of hashes in minutes, so a
-  list on a volunteer's phone is the whole event's set of valid codes;
-- a list downloaded at 18:00 would confidently refuse a ticket sold at 19:30.
+**Award organisers, additionally.** An award on Africa GATES carries the Africa GATES name,
+so it is held to the platform's own rules:
 
-**The plan's signed tickets answer both, but only if the signature is public-key.**
+- **Nobody pays to be honoured** (D34). An award may sell tickets and votes; it may never
+  charge a nominee to be nominated, shortlisted, to win, or to receive their award. A guest
+  ticket for the nominee's family is fine; a fee for the honour is not.
+- **Rules before voting.** The scoring rule, the vote price and what money can and cannot buy
+  are published before voting opens, and frozen for the edition (`RuleEngine` already
+  versions them per cycle).
+- **Sealed results.** The result is the one announced and sealed (`CycleMaterialiser`,
+  `ReleasedStanding`), on every award, not only Africa GATES's own.
+- **Equal help** (D32): the platform's own mobilisation help is identical for every nominee
+  in a category.
+- **A named, verified award organiser**, shown on the award's page, so the public knows whose
+  award it is.
 
-- Each ticket carries a compact payload (event, ticket, tier, zones, valid window) **signed
-  with Ed25519** (`sodium_crypto_sign`; confirm the host enables PHP's sodium extension).
-  The phone verifies it in the browser, with a small vendored library where the browser
-  lacks Ed25519.
-- The door phone holds only the **public** key, so nothing on it can mint or recover a
-  ticket. HMAC, which the platform uses elsewhere, cannot be used here: the phone would need
-  the secret.
-- A ticket sold after the door's last sync still verifies, because the signature does not
-  depend on any list.
-- The phone downloads a small **revocation list** (cancelled, refunded, transferred tickets)
-  when online. A ticket revoked after the last download is the one remaining gap, and it is
-  caught when the scan syncs.
-- **Duplicates across gates**, offline, are settled at sync: the earliest scan wins, later
-  ones are logged with the reason, and a supervisor can override with a note. The door's
-  existing "already in" and undo carry over.
+**Support** for organisers is the help desk and Gee, with playbooks generated from the
+process registry (§6).
 
-This changes a deliberate rule in the code. **Decided (owner, 17 Oct 2026): yes** (D25). It
-ships in stage E3, after a pilot with the network deliberately cut at the gate; until that
-pilot passes, the door works as it does today.
-
-**Also:**
-
-- **Rotating codes** on the ticket screen, as `InvitePass` already does for guests of
-  honour, so a screenshot stops working. **High-value tiers only**, and checked online,
-  because checking a rotating code offline needs a per-ticket secret on the door phone.
-- **Clock safety.** The door records the phone's clock and the server's offset at every sync,
-  because phone clocks are often wrong. The queue already carries the moment of each scan.
-- **Power.** A low-power scan mode (camera off between scans, screen dimmed), the printable
-  paper list per gate that exists today, and power banks in the event runbook.
-- **Testing offline.** Network cut-offs, clock skew, duplicated and reordered syncs, and a
-  phone killed mid-sync, in tests and then in a pilot with the network deliberately cut.
-
-### 9.6 Money for events
-
-Everything goes through the **one payment ledger** (D8). Stand fees fall outside every
-backstop today, which is the Phase 0 lesson.
-
-- **Two gateways exist** (Paystack primary, Flutterwave). Add **failover**: if one gateway's
-  start-payment call fails or its health check is red, offer the other.
-- **Dynamic virtual accounts** (one per order, through Paystack) for exact bank-transfer
-  matching. This is a gateway feature to enable, not something to build.
-- **Installments and pay-later for tickets**, reusing the recurring-payment code from giving.
-  The ticket is issued when the last payment clears, and a missed payment releases the seat
-  after a published grace period.
-- **Settlement for organisers** through gateway subaccounts (settlement mode). The platform
-  never holds an organiser's ticket money unless D29 says it may. A new organiser settles
-  after the event, on the gateway's manual schedule (9.15).
-- **FX:** store the currency, the amount and the rate's source and time on every payment from
-  the start, even while only naira is sold. Changing this later is a migration across money
-  tables.
-- **Fraud on sales:** velocity limits per buyer and per card, refund and chargeback
-  watching, and the risk checks from the wallet (`WalletRisk`) applied to organiser payouts.
-- **PCI:** card data never reaches this server. The gateways' hosted pages already ensure
-  this; keep it that way.
-
-### 9.7 Messaging, with costs shown
-
-`SmsService` and the mail transport exist. What the plan adds:
-
-- **A cost table** per channel and provider, held in settings, so the console can show
-  **"this send will cost about ₦X"** before it goes, and record the cost of every message
-  sent.
-- **A per-event messaging budget**, checked before a send, exactly as `SendPolicy` already
-  checks rules before mail goes out.
-- **Cheapest effective channel per person**, from their consent and preference: email first,
-  then WhatsApp utility templates, then SMS.
-- **WhatsApp templates labelled utility or marketing**, because they are priced differently
-  (the plan reports about USD 0.01 and 0.06 per delivered message in Nigeria; verify before
-  relying on it).
-- **One consent record per person per channel**, with when and where it was given, built on
-  `Suppression` and the opt-out list. Quiet hours per event.
-- **Critical messages** (gate change, cancellation) are sent inline with delivery receipts,
-  not left to the 15-minute tick.
-
-### 9.8 Safety and compliance
-
-This is new, and it matters: after the December 2024 stampedes, Lagos asks organisers of
-large gatherings for Safety Commission clearance, and Oyo State moved to require safety
-standards for venues of 500 or more (as the plan reports).
-
-- **A capacity and density calculator** per venue area, tied to the tier and event capacity
-  limits that already exist, so tickets cannot be sold beyond the safe figure.
-- **A permit tracker per state**: what is needed, from whom, the lead time, and the date the
-  rule was last legally reviewed. Each permit is a work item with an owner and a deadline.
-- **Incident log** at the event: what, where, when, who responded, outcome. A work item with
-  evidence.
-- **An evidence pack for the authorities**, generated from the event's records: capacity,
-  door counts by time (from scans), incidents, stewards on shift.
-- **Emergency and medical plans** as checklists on the event template.
-
-### 9.9 Privacy, and what not to build
-
-- Nigeria's NDPA 2023 and the GAID 2025 apply: registration if the platform is of "major
-  importance", a Data Protection Officer, impact assessments, breach notification and annual
-  audit filings. **Legal advice first** (D27).
-- **Data classification** for event data: public, internal, personal, sensitive (bank
-  details, health and access needs). Each class has its own handling and retention, and a
-  monthly tick deletes what has passed its retention.
-- **Guest data on a need-to-know basis.** Planners see counts and segments; seeing an
-  individual guest is logged. The door already cannot show the guest list.
-- **Biometrics: do not build** (D28). QR codes and printed tickets cover admission, and face
-  data would bring the heaviest obligations in the law for no gain the door needs.
-
-### 9.10 AI for events
-
-Every AI call goes through the one gateway (§5.1, `AiGateway`) with a per-event spend cap. The
-platform keeps working when AI is unavailable or over budget, falling back to templates and
-rules.
-
-- **Agents propose, people approve** (§12). A planner, budget or risk agent writes a
-  **change-set** (these tasks, this budget move) that a person approves; nothing is applied
-  silently. Financial and contract changes are never applied without approval.
-- **Grounded in the event's own records** (tasks, budget lines, commitments, incidents), not
-  general knowledge.
-- **Local reference data** (lead times, price ranges, vendor categories in Nigerian cities),
-  each item with its source and the date it was last checked.
-- **Evaluated before it ships**: past events replayed and the agent's suggestions scored,
-  the way Gee's scenario suite works today.
-- **Customer data is not used to train shared models** without opt-in.
-
-### 9.11 Targets that fit the host
-
-The plan's SLOs assume a multi-node cloud. On one shared host they are rewritten as:
-
-| Objective | Target here | The plan's target |
-|---|---|---|
-| Door decision on a low-end phone | p95 under 300 ms, works offline (signed tickets) | same |
-| A scan reaching the server after reconnecting | within 60 seconds | same |
-| Checkout availability | 99.5% monthly | 99.95% |
-| Payment confirmed to ticket delivered | p95 under 60 seconds by webhook; under 15 minutes by the reconciliation tick | p95 under 30 seconds |
-| Critical messages | sent inline, within 60 seconds of the action | 99% within 60 seconds |
-| Recovery point | 24 hours (nightly off-site backup), aiming for 1 hour if the host allows | 5 minutes |
-| Recovery time | 4 hours, from a rehearsed restore | 1 hour |
-
-**Event mode** applies on event days: no deploys from the day before, the cron and the status
-page watched, and a named person on call.
-
-### 9.12 The order of work
-
-Events builds on the operating model (§6), volunteers (§7.3) and the one ledger (D8), so it
-follows them in §14. Inside Events the order is:
-
-| Stage | What | Exit test |
-|---|---|---|
-| **E1. Workspace and hosts** | Organiser scopes, free and paid plans with one plan resolver, organiser verification, first-event review, post-event settlement for new organisers; event scope and roles, tasks and milestones as work items, budget lines, event templates and cloning, the audit trail complete for events. | An outside organiser signs up, is verified, runs a free event and is paid after it; a cloned event runs at a second centre with nothing configured beyond venue, date and lead. |
-| **E2. Plan** | Vendor commitments, risks and issues, change requests, permits tracker, capacity calculator, the planner as a PWA with offline editing of its own tasks. **Linked awards:** the award's timeline as milestones, and nominee mobilisation stages with kits and sequences (9.14). | One real award and its ceremony planned end to end in the product, not in a spreadsheet. |
-| **E3. Sell and admit** | Signed tickets and the revocation list (D25, decided yes), rotating codes for high-value tiers, installments, virtual accounts, gateway failover, SMS ticket retrieval. | A pilot with the network deliberately cut at the gate, with zero lost scans and zero false refusals. |
-| **E4. Operate** | Run-of-show cues on the agenda (per category for an award), results released at the cue, honours seating, staff and volunteer shifts verified by scans, incident log, live view by polling, the safety evidence pack. | A 1,000-guest event run from the product, with its evidence pack produced on the night. |
-| **E5. Learn** | Generated post-event report (attendance from scans, money from the ledger, hours from shifts, feedback from the form engine), messaging cost per event, AI change-sets. | The post-event report needs no manual figures. |
-
-Cashless wallets, escrow, the device mesh, native apps, multi-region hosting and expansion
-markets wait for the decisions and evidence named in 9.2.
-
-**Where each area of the plan's feature catalogue lands:**
-
-| Area | Stage | Note |
-|---|---|---|
-| Project manager (templates, scheduling, dependencies, critical path, approvals) | E1–E2 | On work items; WhatsApp task updates and voice-note-to-task later |
-| Budget and finance (four-value lines, commitments, cost per attendee, live P&L) | E1–E2, E5 | Live P&L reads the ledger; supplier price benchmarks need data first |
-| Ticketing (tiers, codes, waitlists, transfers) | built | Add installments, group and table products, face-value resale limits (E3) |
-| Guest management (lists, plus-ones, dietary and access needs, seating) | E3 | Walk-in approval and a host's live arrival view reuse the door |
-| Access control (rotating QR, zones, re-entry, overrides) | E3 | NFC and the mesh wait for a native scanner |
-| Safety and compliance | E2, E4 | §9.8 |
-| Operations (run-of-show, shifts, dispatch, vendor check-in) | E4 | Radio and call-tree fallbacks are runbook items, not code |
-| Cashless | deferred | D29 |
-| Vendors and venues (RFQs, quotes, contracts, scorecards, venue database) | E2 | The market (§10) supplies verified vendors |
-| Sponsors and talent | after E5 | Pipelines on work items; riders and travel as checklists |
-| Communications | E3–E5 | §9.7 |
-| Insights | E5 | The generated post-event report first; benchmarks once there are events to compare |
-| AI agents | E5 | §9.10; one agent at a time, each evaluated before it ships |
-| Accessibility and language | every stage | §9.4 |
-| Platform (API, webhooks, white-label editions) | after E5 | The existing `/api/v1` and webhooks grow; editions are scopes and settings (§6), never code forks |
-
-### 9.13 Risks
-
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| Offline door wrongly admits a duplicate or refuses a paying guest | Medium | High | Signed tickets, sync-time duplicate settlement, supervisor override, a network-cut pilot before any large event |
-| A gateway outage during an on-sale | Medium | High | Failover to the second gateway, inventory holds, the reconciliation tick |
-| Scope growth across too many modules | High | High | The stages in 9.12, each with an exit test; nothing starts until the stage before passes |
-| The shared host saturates on a big on-sale | Medium | High | Cloudflare caching, holds, rate limits, a load test at three times the expected peak, and a host upgrade path decided before the first large on-sale |
-| One person holds the knowledge | High | High | The process registry and generated playbooks (§6), runbooks per module |
-| Data-law or safety rules change | Medium | Medium | Rule libraries with review dates, legal review before launch |
-| Messaging or AI costs overrun | Medium | Medium | Cost preview, per-event budgets, spend caps |
-| A fake event sells tickets on the open platform | High | High | Verification before selling and before payouts, first-event review, new organisers settled after the event at the gateway, attendee reports as work items (9.15) |
-| Mobilisation help favours one nominee | Low | High | Identical kits, messages and timing for every nominee in a category, checked by a test (D32) |
-
-### 9.14 Events that carry an award
+### 9.6 Events that carry an award
 
 An award's ceremony is an event, and the event plan carries **the whole award, not only the
 night**. Today the link already exists: an event names the award programmes it serves
@@ -1098,8 +951,8 @@ two cannot disagree:
 2. shortlist published;
 3. voting opens and closes;
 4. judging (scorecards, interviews, questionnaires) complete, with quorum;
-5. results release, as an act at a moment the organiser chooses (§10b's "an act, not a
-   date" rule, already how `CycleMaterialiser::release()` works);
+5. results release, as an act at a moment the organiser chooses (already how
+   `CycleMaterialiser::release()` works);
 6. the ceremony.
 
 Each milestone carries its work items, owners and due times: judges recruited and
@@ -1128,7 +981,7 @@ engine, and the event plan runs that as a programme with stages:
 | After | Certificates, photos, the winner's or finalist's badge, a feedback form | Feedback returned |
 
 Each stage is a set of work items for the award's team ("these 12 nominees have not claimed
-their page") and a message sequence with its cost shown (§9.7). Volunteers can own a group of
+their page") and a message sequence with its cost shown (9.14). Volunteers can own a group of
 nominees (§7.3).
 
 **The rule mobilisation must keep.** The platform's own help is **identical for every
@@ -1136,42 +989,339 @@ nominee in a category**: the same kit, the same messages, at the same times. Nom
 mobilise as hard as they like; the platform must never help one more than another, or it
 becomes a party to the result. This extends "money buys the tally, never the reach" and D15
 (no paid promotion of a nominee during voting) to everything the platform does itself. It is
-D32.
+D32, and a test holds it.
 
-### 9.15 Who can host, and the paid tier
+### 9.7 Proving it: three pilots before opening
 
-**Anybody who hosts an event gets Africa GATES Events** (owner, 17 Oct 2026), with a free
-tier and a paid tier. That means organisers outside Africa GATES from the start, so the
-duties that come with them start in stage E1, not later.
+Nothing opens to outside organisers on a belief. Three pilots, each measured:
 
-- **The organiser is an organisation scope** (§6.1): its own team, roles and events, isolated
-  from every other organiser. Partner organisations already exist (`PartnerOrg`), with CAC
-  checks and settlement accounts, and are the starting point.
-- **Free and paid tiers are settings, not code.** Each feature checks the organiser's plan
-  through one resolver. A first cut, for you to set (D30):
+| Pilot | What it proves |
+|---|---|
+| **1. An Africa GATES ceremony** | The award bundle end to end on our own award: timeline as plan, mobilisation, release at the cue, honours seating, the door greeting. |
+| **2. A school or community award run by its own people** | Somebody who did not design it can run it unassisted (the five tests' repeatability), on budget phones, with a small budget. |
+| **3. One event with no award** | The control: whether the free core holds an organiser on its own, or whether the award is the whole reason anybody stays. |
 
-  | Free | Paid |
-  |---|---|
-  | Event page, ticketing with tiers and codes, the door scanner, the agenda, email | Everything in Free, plus: the planning workspace (tasks, budget, vendors, permits), event templates and cloning, the safety evidence pack, SMS and WhatsApp with a messaging budget, linked awards with nominee mobilisation, the generated post-event report, AI assistance, own branding |
-  | A guest cap per event | Higher or no cap |
+**Measured in every pilot:**
 
-- **Billing** through the one ledger: a monthly or per-event plan, paid with the recurring
-  payments giving already uses (`RecurringGiving`).
-- **Verification before money.** An organiser can draft an event at once, but selling
-  tickets needs a confirmed email and phone; being paid needs a CAC or identity check and a
-  settlement account in the organiser's own name, confirmed with the bank (the same check
-  the wallet's automatic payouts make).
-- **Protecting attendees from a fake event.** An open platform will be used to sell tickets
-  to events that never happen. So:
-  - a new organiser's first event is reviewed before it goes on sale (a work item with an
-    owner and a time limit);
-  - a new organiser's ticket money settles **after** the event, plus a short window, on the
-    gateway's own manual settlement schedule. The money waits at Paystack, not with Africa
-    GATES, so this needs no licence to hold funds (D29);
-  - a trusted organiser moves to the normal schedule after a clean record;
-  - attendees can report an event, and a report is a work item with a deadline.
-- **Support** for organisers is the help desk and Gee, with organiser playbooks generated
-  from the process registry (§6).
+- at the door: zero lost scans, zero false refusals, queue time at peak;
+- for the organiser: hours spent compared with their last edition, what they still did in a
+  spreadsheet or WhatsApp, and whether they would pay, and how much;
+- for nominees: pages claimed, kits used, supporters reached as people;
+- afterwards: whether the organiser books the next edition.
+
+**The decision each pilot feeds** is written down before it starts (9.20), so a result
+cannot be argued into the answer somebody wanted.
+
+### 9.8 The order of work
+
+Events builds on the operating model (§6), volunteers (§7.3) and the one ledger (D8), so it
+follows them in §14. Inside Events, each stage opens only when the one before has passed its
+exit test:
+
+| Stage | What | Exit test |
+|---|---|---|
+| **E0. Ready** | The prerequisites, none of them features: backups and a tested restore (§2 fault 16); legal advice on the NDPA and GAID (D27); retention running (D33); Paystack's `manual` settlement confirmed on the account, or the fallback in 9.5 chosen; a load test that measures this host's ceiling for an on-sale (9.9). | Each of the five has evidence: a restore drill's result, the advice in writing, a retention run in the log, Paystack's answer, a load-test report. |
+| **E1. Award events, in house** | For Africa GATES's own awards and its centres: the award's timeline as the event's plan; tasks and milestones as work items; budget lines; templates and cloning; ceremony cues per category; results released at the cue; honours seating; nominee mobilisation kits (D32); the capacity check and the state permit checklist; the audit trail complete for events. | Pilots 1 and 2 pass (9.7); a cloned award event runs at a second centre with nothing configured beyond venue, date and lead. |
+| **E2. The award bundle, open** | Outside award organisers: organiser scopes, verification, first-event review, **per-organiser settlement** to their own subaccount (new organisers after the event, 9.5), the award integrity rules (D34), per-edition billing and the share-of-votes option (D30). | One outside award runs end to end, is paid after its event, and has no unresolved report. |
+| **E3. The door and selling, hardened** | Signed tickets and the revocation list (D25), rotating codes for high-value tiers, gateway failover, virtual accounts, SMS ticket retrieval, installments. | A pilot with the network deliberately cut at the gate: zero lost scans, zero false refusals. |
+| **E4. The free core, open to anybody** | Self-serve sign-up for any organiser; attendee reports that pause sales; sales velocity limits; staff and volunteer shifts verified by scans; the incident log; the safety evidence pack; a live view by polling. | Pilot 3 passes; thirty days open with every report closed inside its deadline and no organiser paid for an event that did not happen. |
+| **E5. Learn, then grow on demand** | The generated post-event report (attendance from scans, money from the ledger, hours from shifts, feedback from the form engine); messaging cost per event; AI change-sets. General planning tools (vendors and RFQs, change requests, sponsors and talent) are built **only when organisers ask for a specific one**, recorded as requests. | The post-event report needs no manual figures. |
+
+Cashless wallets, escrow, the device mesh, native apps, multi-region hosting and expansion
+markets wait for the decisions and evidence named in 9.9 and 9.20.
+
+**Where each area of the source plan's feature catalogue lands:**
+
+| Area | Stage | Note |
+|---|---|---|
+| Award planning, mobilisation, ceremony, release at the cue | E1, opened in E2 | 9.6; the product's lead |
+| Project manager (templates, scheduling, dependencies, critical path, approvals) | E1 (on work items), more in E5 | WhatsApp task updates and voice-note-to-task only on demand |
+| Budget and finance (four-value lines, commitments, cost per attendee, live P&L) | E1, E5 | Live P&L reads the ledger; price benchmarks need data first |
+| Ticketing (tiers, codes, waitlists, transfers) | built | Installments in E3; group and table products and face-value resale limits on demand |
+| Guest management (lists, plus-ones, dietary and access needs, seating) | E1 (honours), E3 | Walk-in approval and a host's live arrival view reuse the door |
+| Access control (rotating QR, zones, re-entry, overrides) | E3 | NFC and the mesh wait for a native scanner |
+| Safety and compliance | E1 (capacity, permits), E4 (evidence pack, incidents) | 9.15; never paywalled |
+| Operations (run-of-show, shifts, dispatch, vendor check-in) | E1 (cues), E4 | Radio and call-tree fallbacks are runbook items, not code |
+| Cashless | deferred | D29 |
+| Vendors and venues (RFQs, quotes, contracts, scorecards, venue database) | E5, on demand | The market (§10) supplies verified vendors |
+| Sponsors and talent | E5, on demand | Pipelines on work items; riders and travel as checklists |
+| Communications | E1–E5 | 9.14 |
+| Insights | E5 | The generated report first; benchmarks once there are events to compare |
+| AI agents | E5 | 9.17; one agent at a time, each evaluated before it ships |
+| Accessibility and language | every stage | 9.11 |
+| Platform (API, webhooks, white-label editions) | after E5 | `/api/v1` and webhooks grow; editions are scopes and settings (§6), never code forks |
+
+### Part B. How it is built
+
+### 9.9 Built for this host
+
+**The source plan's ten principles stand**, each mapped to something already in this
+document: offline-first where the door, the stage and the cash are (9.12); Android-first,
+low-end-first (9.11); money is a ledger (D8); never lose a scan, a payment or a decision (the
+door's queue, the webhook's 200, the reconciliation sweep and the seal already follow it);
+modular monolith (§5); privacy and safety by design (9.15, 9.16); people approve consequential
+AI actions (§12); operable by a small team (§6); cost-aware by default (9.14); partner-ready
+(scopes and templates in §6, the API in 9.8).
+
+**The host.** One shared cPanel host in Nigeria: PHP-FPM behind Apache, MySQL on the same
+machine, no shell, no long-running process, no Redis, no websockets, a job queue in a
+database table, and one scheduled tick every 15 minutes through a Cloudflare Worker.
+Cloudflare sits in front. Each part of the source plan's architecture, against what can run
+here:
+
+| The plan says | What we do on this host | When to revisit |
+|---|---|---|
+| TypeScript backend, Go for the scan gateway | **Stay on PHP 8.4 / Slim / Twig** (D24). One language and one deploy. | Only if the team is rebuilt from scratch. |
+| PostgreSQL with row-level security | **MySQL.** No row-level security, so every events table carries `scope_id` (§6), and a test sweeps every query on those tables for a scope clause. | If a managed Postgres becomes affordable. |
+| Redis, a durable queue (SQS, NATS) | **`gates_jobs`** drained on the tick. Anything that cannot wait 15 minutes (a gate change, a payment confirmation) is sent **inline, best-effort, with a queued retry**, as mail and SMS already are. | When the job table is the bottleneck. |
+| Separately deployed scan gateway, payments service, messaging dispatcher, AI pool, realtime service | **Modules inside the monolith** (`Domain/Events/...`), each owning its tables. The scan endpoint stays a small, fast controller. | If one module's load is shown, by measurement, to hurt the rest. |
+| Websocket realtime for live mode | **Short polling**: an open screen asks a small JSON endpoint every 10–30 seconds, only while visible, as the wallet already does. | When a command-centre screen with many viewers exists. |
+| Kubernetes, infrastructure as code | **The host as it is**, plus repeatable deploys and migrations applied by URL. | With a host change. |
+| OpenTelemetry traces | **Structured logs** with event and scope on every line, `CronHealth`, the status page, and alerts by webhook. | When there is somewhere to send traces. |
+| Native Kotlin scanner and field apps; iOS later | **A PWA first** (D26): the door already runs in the browser, works offline and uses the camera. | After two pilots show the PWA failing on budget phones. |
+| Device-to-device mesh between scanners | **Deferred.** A browser cannot form a local mesh. Signed tickets (9.12) make each phone safe alone, and duplicates across gates are settled at sync. | With a native scanner. |
+| Event sourcing | **The existing audit log**, made complete for events. Undo where the domain needs it. | Not needed as a pattern. |
+| Change data capture into a warehouse | **Nightly summary tables** written by the tick, and CSV exports. | When reporting outgrows the live database. |
+| Table partitioning | **Archive tables**, moved monthly by the tick. | With a managed database. |
+| In-country primary with a secondary site | **The host is already in Nigeria** (D22). Nightly backups to a second Nigerian location; anything sent abroad is encrypted and recorded as a cross-border transfer. A restore drill each quarter. | A standby site when revenue pays for it. |
+| A virtual waiting room for on-sales | **Inventory holds** with expiry, the rate limiter, and Cloudflare caching of the event page. Cloudflare's Waiting Room needs its Business plan (9.2). | See the ceiling below. |
+| Cashless NFC/RFID wallets, agent top-up booths | **Deferred.** Hardware, and holding attendees' money needs a licence. The member wallet is not a cashless wallet. | After licensing advice (D29). |
+| Escrow for vendor payments | **Settlement through gateway subaccounts**, with holds on the platform's own fees only. | After licensing advice (D29). |
+| Squads, platform teams, an architecture group | **One small team.** Streams of work, not squads. Decisions as short records in `docs/`. | When there are people to staff squads. |
+
+**The ceiling, decided in advance.** One shared host has a ceiling, and the first time it is
+found must not be during an on-sale. Stage E0's load test measures how many concurrent buyers
+the host takes before checkout slows past its target (9.18). Then:
+
+- an event whose expected on-sale is **below half that figure** sells as normal;
+- **above half**, the organiser is told before scheduling the on-sale, and either the sale is
+  staggered by tier and time, or the owner moves to Cloudflare's Business plan for its
+  Waiting Room (or a bigger host) before it opens.
+
+The figure and the rule are settings, re-measured after any host change.
+
+### 9.10 The domain: one event, many workspaces
+
+Events is one domain inside the modular monolith (§5.1), built on the operating model (§6),
+because almost everything in "Plan" and "Operate" is **work with an owner and a due time**.
+
+- **An event is a scope** (§6.1): Platform → Country → State → Centre → Event, or an outside
+  organiser's scope → Event. Roles at the event are grants at that scope, time-boxed to the
+  event: organiser, co-host organisation, door, stewards, stand manager, programme and MC,
+  media, safety lead, volunteers.
+- **Tasks, milestones and approvals are work items** in the event's scope, each with an
+  owner and a deadline. Dependencies are links between items, and the critical path is
+  computed, not drawn.
+- **The source plan's "Event Graph" becomes ordinary tables**, added module by module, never
+  all at once:
+  - **Plan:** budget lines (estimate, committed, actual, paid), then on demand vendor
+    commitments, risks and issues, decisions, change requests, permits.
+  - **Operate:** run-of-show cues (built on `EventAgenda`), staff and volunteer shifts
+    (§7.3), incidents.
+  - **Sell / Admit:** today's tables, kept.
+  - **Learn:** the post-event report.
+- **Templates.** An event is cloned with its tiers, roles, run-sheet, task set, budget lines
+  and forms, and an award event with its award's categories and timeline. 100 centres can
+  each host a local event without 100 setups.
+- **The audit trail** records every state change with actor, before and after, and source.
+  The safety evidence pack (9.15) and the post-event report are built from it.
+
+### 9.11 Phones and data
+
+- **One web app, installable (a PWA)**, targeting Android 10 and up on low-end phones, with a
+  performance budget enforced in tests: page weight, script size and time to usable on a
+  throttled connection.
+- **A small device shelf**: three or four budget Android phones (a Tecno, an Infinix, an
+  Itel, one older Samsung) for every release that touches the door or the planner.
+- **Data saver.** Images are resized server-side already; add compressed JSON, sync of only
+  what changed, and media deferred until on Wi-Fi.
+- **Guests without smartphones.** Printable tickets exist. Add an SMS link to retrieve a
+  ticket, and an SMS RSVP. USSD needs a short code and an aggregator contract, so it waits
+  until an event needs it.
+- **Languages.** The translation layer (`|trans`) exists. Catalogues for Nigerian Pidgin,
+  Yoruba, Hausa and Igbo first, French and Swahili for expansion, each checked by a native
+  speaker before it ships.
+
+### 9.12 The door and offline tickets (the critical path)
+
+**Today's rule, and why.** An offline door phone records scans and does **not** decide
+(`DoorOfflineTest`). The reasons are written in that test:
+
+- an eight-character code is brute-forceable against a list of hashes in minutes, so a
+  list on a volunteer's phone is the whole event's set of valid codes;
+- a list downloaded at 18:00 would confidently refuse a ticket sold at 19:30.
+
+**Signed tickets answer both, but only if the signature is public-key.**
+
+- Each ticket carries a compact payload (event, ticket, tier, zones, valid window) **signed
+  with Ed25519** (`sodium_crypto_sign`; confirm the host enables PHP's sodium extension).
+  The phone verifies it in the browser, with a small vendored library where the browser
+  lacks Ed25519.
+- The door phone holds only the **public** key, so nothing on it can mint or recover a
+  ticket. HMAC, used elsewhere here, cannot be: the phone would need the secret.
+- A ticket sold after the door's last sync still verifies, because the signature does not
+  depend on any list.
+- The phone downloads a small **revocation list** (cancelled, refunded, transferred tickets)
+  when online. A ticket revoked after the last download is the one remaining gap, caught
+  when the scan syncs.
+- **Duplicates across gates**, offline, are settled at sync: the earliest scan wins, later
+  ones are logged with the reason, and a supervisor can override with a note.
+
+This changes a deliberate rule in the code. **Decided (owner, 17 Oct 2026): yes** (D25). It
+ships in stage E3, after a pilot with the network deliberately cut at the gate; until then
+the door works as it does today.
+
+**Also:**
+
+- **Rotating codes** on the ticket screen, as `InvitePass` does for guests of honour, so a
+  screenshot stops working. **High-value tiers only**, checked online, because checking a
+  rotating code offline needs a per-ticket secret on the door phone.
+- **Clock safety.** The door records the phone's clock and the server's offset at every sync.
+- **Power.** A low-power scan mode (camera off between scans, screen dimmed), the printable
+  paper list per gate that exists today, and power banks in the event runbook.
+- **Testing offline.** Network cut-offs, clock skew, duplicated and reordered syncs, and a
+  phone killed mid-sync, in tests and then in the network-cut pilot.
+
+### 9.13 Money for events
+
+Everything goes through the **one payment ledger** (D8). Stand fees fall outside every
+backstop today, which is the Phase 0 lesson.
+
+- **Per-organiser settlement** (stage E2): each organiser's ticket and vote sales split to
+  their own subaccount at payment time, replacing the single `events` destination
+  (`PaymentDestination`) for anybody but Africa GATES. The platform's fee is the split's
+  platform share. A new organiser's subaccount runs on `manual` (9.5).
+- **Two gateways exist** (Paystack primary, Flutterwave). Add **failover**: if one gateway's
+  start-payment call fails or its health check is red, offer the other.
+- **Dynamic virtual accounts** (one per order, through Paystack) for exact bank-transfer
+  matching: a gateway feature to enable, not something to build.
+- **Installments for tickets**, reusing the recurring-payment code from giving
+  (`RecurringGiving`). The ticket is issued when the last payment clears, and a missed
+  payment releases the seat after a published grace period.
+- **FX:** store the currency, the amount and the rate's source and time on every payment from
+  the start, even while only naira is sold.
+- **Fraud on sales:** velocity limits per buyer and per card, refund and chargeback watching,
+  and the wallet's risk checks (`WalletRisk`) applied to any payout the platform itself makes.
+- **PCI:** card data never reaches this server; the gateways' hosted pages ensure it.
+- **VAT** (7.5%) on the platform's own fees, shown on the organiser's statement.
+
+### 9.14 Messaging, with costs shown
+
+`SmsService` and the mail transport exist. What Events adds:
+
+- **A cost table** per channel and provider, held in settings, so the console shows
+  **"this send will cost about ₦X"** before it goes, and records the cost of every message.
+- **A per-event messaging budget**, checked before a send, as `SendPolicy` already checks
+  rules before mail goes out.
+- **Cheapest effective channel per person**, from their consent and preference: email first,
+  then WhatsApp utility templates, then SMS.
+- **WhatsApp templates labelled utility or marketing**, because they are priced differently
+  (the source plan reports about USD 0.01 and 0.06 per delivered message in Nigeria; check
+  Meta's current price list before relying on it).
+- **One consent record per person per channel**, with when and where it was given, built on
+  `Suppression` and the opt-out list. Quiet hours per event.
+- **Critical messages** (gate change, cancellation) are sent inline with delivery receipts,
+  not left to the 15-minute tick.
+
+### 9.15 Safety and compliance
+
+Safety is in the free core and never paywalled: an unsafe event on the platform is a risk to
+people first and to the platform's name second.
+
+- **A capacity and density calculator** per venue area, tied to the tier and event capacity
+  limits that already exist, so tickets cannot be sold beyond the safe figure.
+- **State rules as data.** Each state's thresholds and permits, with the authority, the lead
+  time and the date the rule was last checked. Lagos first, from 9.2: registration with the
+  Lagos State Safety Commission above 250 expected guests, an Event Safety Permit, a noise
+  permit, and trained safety marshals above 500. When an event's capacity crosses a
+  threshold, the matching permits become work items with an owner and a deadline.
+- **Incident log** at the event: what, where, when, who responded, outcome.
+- **An evidence pack for the authorities**, generated from the event's records: capacity,
+  door counts by time (from scans), incidents, marshals and stewards on shift.
+- **Emergency and medical plans** as checklists on the event template, including the
+  ambulance and medical cover large events are asked for.
+
+### 9.16 Privacy, and what not to build
+
+- Nigeria's NDPA 2023 and the GAID 2025 apply: registration as a controller "of major
+  importance" by tier, a Data Protection Officer, impact assessments, breach notification and
+  annual compliance audit filings (9.2). **Legal advice first** (D27), which also settles
+  what outside organisers agree to as controllers or processors of their guests' data.
+- **Data classification** for event data: public, internal, personal, sensitive (bank
+  details, health and access needs). Each class has its own handling and retention (D33).
+- **Guest data on a need-to-know basis.** Planners see counts and segments; seeing an
+  individual guest is logged. The door already cannot show the guest list.
+- **Biometrics: do not build** (D28).
+
+### 9.17 AI for events
+
+Every AI call goes through the one gateway (§5.1, `AiGateway`) with a per-event spend cap. The
+platform keeps working when AI is unavailable or over budget, falling back to templates and
+rules. AI is stage E5, after the product works without it.
+
+- **Agents propose, people approve** (§12). An agent writes a **change-set** (these tasks,
+  this budget move) that a person approves; nothing is applied silently, and financial and
+  contract changes never without approval.
+- **Grounded in the event's own records**, not general knowledge.
+- **Local reference data** (lead times, price ranges, vendor categories in Nigerian cities),
+  each item with its source and the date it was last checked.
+- **Evaluated before it ships**: past events replayed and the agent's suggestions scored, as
+  Gee's scenario suite works today.
+- **Customer data is not used to train shared models** without opt-in.
+
+### 9.18 Targets that fit the host
+
+The source plan's SLOs assume a multi-node cloud. On one shared host:
+
+| Objective | Target here | The source plan's target |
+|---|---|---|
+| Door decision on a low-end phone | p95 under 300 ms, works offline (signed tickets) | same |
+| A scan reaching the server after reconnecting | within 60 seconds | same |
+| Checkout availability | 99.5% monthly | 99.95% |
+| Checkout under load | p95 under 2 seconds up to the measured ceiling (9.9) | — |
+| Payment confirmed to ticket delivered | p95 under 60 seconds by webhook; under 15 minutes by the reconciliation tick | p95 under 30 seconds |
+| Critical messages | sent inline, within 60 seconds of the action | 99% within 60 seconds |
+| Recovery point | 24 hours (nightly off-site backup), aiming for 1 hour if the host allows | 5 minutes |
+| Recovery time | 4 hours, from a rehearsed restore | 1 hour |
+
+**Event mode** applies on event days: no deploys from the day before, the cron and the status
+page watched, and a named person on call.
+
+### Part C. What could go wrong
+
+### 9.19 Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| Scope grows across too many modules | High | High | One position (9.1); stages that open only on an exit test (9.8); general tools built only on recorded demand |
+| A fake event sells tickets on the open platform | High | High | Verification before selling and before payouts, first-event review, new organisers paid after the event at the gateway, reports that pause sales (9.5) |
+| An award charges people to be honoured, under our name | Medium | High | D34, enforced at setup and in review; a named, verified organiser on every award's page |
+| Mobilisation help favours one nominee | Low | High | Identical kits, messages and timing per category, held by a test (D32) |
+| Offline door wrongly admits a duplicate or refuses a paying guest | Medium | High | Signed tickets, sync-time duplicate settlement, supervisor override, the network-cut pilot before any large event |
+| The shared host saturates on a big on-sale | Medium | High | The measured ceiling and the rule in 9.9; caching, holds and rate limits |
+| A gateway outage during an on-sale | Medium | High | Failover to the second gateway, inventory holds, the reconciliation tick |
+| Paystack will not enable manual settlement | Medium | Medium | The weekly-with-a-cap fallback in 9.5; never the platform's own account |
+| Organisers will not pay for the award bundle | Medium | High | Pilots measure it before E2 (9.7); the share-of-votes option for those who cannot pay up front |
+| One person holds the knowledge | High | High | The process registry and generated playbooks (§6), runbooks per module |
+| Data-law or safety rules change | Medium | Medium | Rules as data with review dates (9.15); legal review before opening |
+| Messaging or AI costs overrun | Medium | Medium | Cost preview, per-event budgets, spend caps |
+
+### 9.20 What would change this plan
+
+Written before the pilots, so their results decide rather than persuade:
+
+- **If pilot 3 (no award) keeps its organiser as well as the award pilots do**, the free core
+  is a product on its own: bring stage E4 forward.
+- **If organisers in pilots 1 and 2 would not pay for the award bundle** at any price that
+  covers its running cost, keep the award features for Africa GATES's own awards and centres,
+  and stop before E2.
+- **If the PWA door fails on the device shelf or in the network-cut pilot**, build the native
+  Android scanner (D26) before E3 opens to outside organisers.
+- **If the load test puts the ceiling below the on-sales the pilots need**, the host decision
+  in 9.9 comes before E2, not after.
+- **If legal advice says outside organisers make Africa GATES a controller of their guests'
+  data in a way the platform cannot meet**, open the award bundle only to organisers who sign
+  the processing terms, and hold E4.
 
 ---
 
@@ -1606,7 +1756,7 @@ before it lay down.
 | **2. Forms and award profiles** | The one form engine and the award profile (§8): definitions and versions, field library, interpreter, rules into the registry, look presets, the Award setup screen, house form v1. | 1 | Today's form renders identically from its definition. A second award with a different form passes end to end. |
 | **3. Experience structure** | The IA registry, generated navigation, **My Africa GATES** as one home with role panels, the scoped Workspace, one design system in two densities, and `AssetBundle` served. | 1 | Every nav surface is generated. One home per person. The page-local component count is falling. |
 | **4. Volunteers** | §7.3 on work items, grants, evidence and forms: apply, screen, train, activate, shifts and tasks, hours, levels, certificates. | 1, 2, 3 | A volunteer can be recruited, trained, given a scoped grant, work a shift verified by scans, and see verified hours, all without staff doing anything by hand except the screening decision. |
-| **5. Africa GATES Events** | §9, in five stages (§9.12): E1 workspace and hosts (organisers, free and paid plans, verification, scope, roles, tasks, budget, templates); E2 plan (vendors, risks, permits, capacity, offline planner, linked awards and nominee mobilisation); E3 sell and admit (signed tickets if D25, installments, virtual accounts, failover); E4 operate (cues, shifts, incidents, safety pack); E5 learn (generated report, message costs, AI change-sets). Stands onto the ledger. | 1, 4, and the ledger from 6 for E3 | Each stage's exit test in §9.12. The last: a post-event report with no manual figures. |
+| **5. Africa GATES Events** | §9, award events first (§9.1), in six stages (§9.8), each opening only when the one before passes: E0 ready (backups, legal advice, retention, Paystack manual settlement, a load test of the host's ceiling); E1 award events in house (the award's timeline as the plan, mobilisation, ceremony cues, release at the cue, honours seating, capacity and permits); E2 the award bundle open to outside award organisers (verification, per-organiser settlement, integrity rules, per-edition billing); E3 the door and selling hardened (signed tickets, failover, virtual accounts, installments); E4 the free core open to anybody (reports, velocity limits, shifts, incidents, the evidence pack); E5 learn, then general tools on demand. Three pilots decide the openings (§9.7). Stands onto the ledger. | 0 (backups), 1, 4, and the ledger from 6 for E2 | Each stage's exit test in §9.8. The last: a post-event report with no manual figures. |
 | **6. Money and the market** | One payment ledger first (D8), bringing the wallet's streams onto it (Community Return, the member wallet and automatic withdrawals are **already built**, §10b); then highlights (no money); then sellers, listings, orders, reviews and disputes; then promotions and one code system (§10). | 1, 2, 3 | Every payment stream writes to the one ledger. A verified seller lists, sells, is paid out after the hold, and a dispute resolves through a work item. |
 | **7. Domains and data** | Continue moving code into `Domain/*`, thin the controllers, unify a person's identity (D6), one schema source, votes stop cascading on delete, scenario hardcodes move into data, dead paths removed. | all | The write-ownership and controller ratchets are at zero. Schema parity runs on every test run. |
 
@@ -1661,17 +1811,19 @@ with scenarios in the suite.
 | D20 | Keep the per-supporter cap? | **Decided:** a nominee's own buying counts, so the cap stays only in the original threshold model. |
 | D21 | Withdrawal terms and tax? | **Partly decided:** automatic withdrawals with risk checks and a banded fee are built and settable. **Still open:** legal and tax advice on paying nominees in Nigeria before terms are published. |
 | D22 | Where is the host physically, and must event data stay in Nigeria? | **Decided (17 Oct): the host is Nigerian.** Backups go to a second Nigerian location; anything sent abroad is encrypted and recorded as a cross-border transfer. |
-| D23 | Who runs events on Africa GATES Events? | **Decided (17 Oct): anybody who hosts an event**, with a free and a paid tier. Organiser verification, first-event review and post-event settlement for new organisers come in E1 (§9.15). |
-| D24 | Stay on PHP and MySQL on this host for Events, rather than the plan's TypeScript, Postgres and Kubernetes? | **Yes.** One language, one deploy, one team. §9.2 lists when to revisit each part. |
+| D23 | Who runs events on Africa GATES Events? | **Decided (17 Oct): anybody who hosts an event**, with a free core and a paid award bundle. Award organisers open in E2 and every organiser in E4 (§9.8), each with verification, first-event review and post-event settlement for new organisers (§9.5). |
+| D24 | Stay on PHP and MySQL on this host for Events, rather than the plan's TypeScript, Postgres and Kubernetes? | **Yes.** One language, one deploy, one team. §9.9 lists when to revisit each part. |
 | D25 | Should an offline door phone **decide** for signed tickets, replacing today's rule that it only records? | **Decided (17 Oct): yes**, with public-key (Ed25519) signatures only, shipping after a network-cut pilot. |
 | D26 | A PWA first for the door and planner, and a native Android app only if pilots show the PWA failing on budget phones? | **Yes.** |
-| D27 | Commission legal advice on the NDPA and GAID 2025 (registration, a DPO, impact assessments) before Events opens to outside organisers? | **Yes, before E1 ships**, because outside organisers come in from the start (D23). It also covers what organisers agree to as processors of their guests' data. |
+| D27 | Commission legal advice on the NDPA and GAID 2025 (registration, a DPO, impact assessments) before Events opens to outside organisers? | **Yes, in stage E0**, before any outside organiser comes in (§9.8). It also covers what organisers agree to as controllers or processors of their guests' data. |
 | D28 | Biometrics (face check-in) at the door? | **No.** QR and printed tickets cover admission; face data carries the heaviest legal duties for no gain. |
 | D29 | May the platform ever hold attendees' or organisers' money (cashless wallets, vendor escrow)? | **Not without licensing advice.** Until then, settlement goes straight to organisers through gateway subaccounts. |
-| D30 | What is in the free tier and the paid tier, and what does the paid tier cost? | The split in §9.15 as a first cut. Every limit is a setting, so it can change without code. |
-| D31 | What does the platform take on tickets: a fee per ticket on both tiers, or none on paid? | Your call. A per-ticket fee on free, lower or none on paid, is the common shape. |
+| D30 | What is in the free core and the award bundle, and what does the bundle cost? | The split in §9.4. **Price the bundle per edition, not per month**, with a share of paid-vote revenue as the alternative for awards that cannot pay up front; set the figures after pilots 1 and 2 have measured what organisers would pay (§9.7). Every limit and price is a setting. |
+| D31 | What does the platform take on tickets? | **A per-ticket fee on paid tickets only, at market level** (reported at 3.5–5% in Nigeria, §9.2), nothing on free events, the same on both offers. The market competes on this fee, so do not try to win on it (§9.1). A setting. |
 | D32 | Must the platform's own mobilisation help be identical for every nominee in a category? | **Yes.** Nominees may campaign as hard as they like; the platform must never help one more than another. |
 | D33 | Retention windows: how long is each kind of personal data kept (nominations not taken forward, support tickets, OTPs, visit logs, interview recordings)? | Set them with the legal advice in D27. Once set, retention runs on the daily tick and erasure requests become a console task (§5.5). |
+| D34 | May an award hosted on Africa GATES charge a nominee to be nominated, shortlisted, to win or to receive their award? | **No** (§9.5). Tickets and votes may be sold; the honour may not. "Pay to be honoured" schemes exist and would carry the Africa GATES name. |
+| D35 | Lead Africa GATES Events with award events, and open the free core to every organiser only after pilots? | **Decided (18 Oct): yes.** Events that honour people first, general events second (§9.1); three pilots decide each opening (§9.7, §9.20). |
 
 ---
 
@@ -1687,7 +1839,32 @@ with scenarios in the suite.
   reporting (yournotify.com, msmeafricaonline.com). Data law: NDPA 2023 and GAID 2025
   commentary (mondaq.com, privacymatters.dlapiper.com, captaincompliance.com). Safety rules
   after the December 2024 stampedes: gazettengr.com, primebusiness.africa. The plan's SLOs
-  and stack were its own proposals, not benchmarks; §9.11 rewrites them for this host.
+  and stack were its own proposals, not benchmarks; §9.18 rewrites them for this host.
+- **Events market research (§9.2, 18 Oct 2026).** Reported figures, not confirmed with the
+  companies. Ticketing fees and Tix Pro's end:
+  [Dealroom, Tix Africa](https://app.dealroom.co/companies/tix_africa),
+  [The Ticketing Business, Tix Africa launches in the UK](https://www.theticketingbusiness.com/2026/08/tix-africa-launches-in-the-uk/),
+  [IQ International Ticketing Report 2025, Nigeria](https://www.iqmagazine.com/publications/international-ticketing-report-2025/market-report-nigeria/),
+  [Demfati, ticketing platforms in Nigeria](https://blog.demfati.com/top-10-ticketing-platforms-in-nigeria-2025---why-demfati-is-the-innovation-leader-to-watch1754736322)
+  (a competitor's ranking). Paid voting:
+  [Daily Trust](https://dailytrust.com/?p=1925653),
+  [.ng Awards voting](https://techpoint.africa/?p=344477),
+  [NHEA 2025 voting](https://businessday.ng/news/article/public-voting-begins-for-nhea-2025-nominees/),
+  [AFRIMA 2025 voting](https://guardian.ng/?p=2672731). Award and event fraud:
+  [Peoples Gazette on an unauthorised awards event](https://gazettengr.com/serial-impersonator-kunle-onabekun-defrauds-tinubu-wike-others-despite-expulsion-from-uk-institution/).
+  Lagos safety rules:
+  [TheCable, events over 250 must register](https://www.thecable.ng/?p=791282),
+  [Prime Business Africa](https://primebusiness.africa/stampede-lagos-govt-warns-event-organisers-show-promoters-to-priortise-crowd-management),
+  [Peoples Gazette, clearance in Lagos](https://gazettengr.com/deadly-stampedes-event-organisers-need-clearance-in-lagos-sanwo-olu-says/);
+  confirm current thresholds with the Lagos State Safety Commission. GAID tiers and audit fees:
+  [KPMG review](https://assets.kpmg.com/content/dam/kpmg/ng/pdf/2025/05/Review%20of%20the%20NDPA%20General%20Application%20and%20Implementation%20Directive%20GAID%202025.pdf),
+  [Afriwise](https://www.afriwise.com/blog/key-updates-from-the-nigeria-data-protection-act---general-application-and-implementation-directive-2025)
+  (the sources disagree on some band edges; read the GAID itself). Paystack settlement
+  schedules: [Paystack support, splits](https://support.paystack.com/hc/en-us/articles/360009881460-How-do-I-split-a-payment-ac-)
+  and community notes that `manual` may need enabling
+  ([mctaba.com](https://mctaba.com/learn/paystack/delayed-settlement-patterns-for-marketplaces));
+  Paystack's API reference refused automated reading, so confirm with Paystack. Cloudflare
+  Waiting Room plans: [Cloudflare docs](https://developers.cloudflare.com/waiting-room/plans).
 
 - **Award platforms.** Award Force configures an entry form per *season* (their word for an
   edition). Each field applies to all categories or only selected ones, and fields can be
