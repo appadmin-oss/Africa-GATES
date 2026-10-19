@@ -90,6 +90,11 @@ final class MyWorkInterviewPageTest extends TestCase
         $this->assertMatchesRegularExpression('/body\[data-page="mw-interview"\] \.ag-main\{[^}]*overflow:hidden/', $css);
         $this->assertMatchesRegularExpression('/\.iv__log\{[^}]*overflow-y:auto/', $css, 'nothing scrolls the conversation');
         $this->assertStringContainsString('data-iv-attach', $html, 'there is no way to send a file from the conversation');
+        // The header is one row: the title and the promise are the first card of the
+        // conversation, so they scroll away instead of holding half a phone screen.
+        $this->assertMatchesRegularExpression('/data-iv-log[^>]*>\s*<li class="iv__intro"[^>]*>.*?<h1/s', $html, 'the title is back above the conversation');
+        // The URL carries the nominee's token — their whole credential. Nothing offers to share it.
+        $this->assertStringNotContainsString('data-ag-share', $html, 'the page offers to share a link that IS the nominee\'s login');
         $this->assertStringContainsString('/assets/js/my-work-interview.js', $html);
     }
 

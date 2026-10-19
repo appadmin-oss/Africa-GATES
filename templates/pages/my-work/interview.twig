@@ -34,8 +34,10 @@
 {# A flow in the shell's own terms: no tab bar (the composer would sit under it) and a child
    app bar — the controller's hide_chrome drops the footer and the guide, not these. #}
 {% set flow_page = true %}
-{% set app_bar = {variant: 'child', title: 'Your interview'|trans} %}
 {% set _who = persona ?: 'Interviewer'|trans %}
+{# No share button: this URL carries the nominee's token, which is their whole credential —
+   sharing the page would hand somebody else their interview. #}
+{% set app_bar = {variant: 'child', title: 'Your interview'|trans, sub: persona ? 'with %p%'|trans({'%p%': persona}) : form.programme, share: false} %}
 {% set _stopped = iv.degraded in ['no_ai', 'ceiling', 'off', 'unknown'] %}
 {% set _status = {met: 'Covered'|trans, partial: 'Partly covered'|trans, unmet: 'Not yet'|trans} %}
 {% set _accept = {document: 'application/pdf', image: 'image/*', any: 'application/pdf,image/*'} %}
@@ -47,41 +49,40 @@
 {% block content %}
 <div class="iv" data-iv data-token="{{ token }}" data-say-max="{{ say_max }}" data-phase="{{ iv.phase }}" data-who="{{ _who }}"{% if voice %} data-voice{% endif %}>
 
+  {#
+    ── THE HEADER IS ONE ROW ────────────────────────────────────────────────
+    It used to hold the programme, a two-line title, the deadline, the promise, the way out
+    and the progress — 270px of a 780px phone, nearly half the screen, above a conversation
+    that then had the rest. Everything that is READ ONCE (title, deadline, the promise) is the
+    first card of the conversation now and scrolls away like the top of any chat; what is
+    USED every turn (the three parts, the count, the way out) stays, in one row.
+  #}
   <header class="iv__top">
-    {% if form.is_test %}<p class="mw__test" role="status">{{ 'This is a test link. Nothing said here reaches a judge.'|trans }}</p>{% endif %}
-    <p class="mw__kicker iv__kicker">{{ form.programme }}{% if form.category %} · {{ form.category }}{% endif %}</p>
-    <h1 class="iv__h1">{{ '%n% — tell the judges about your work'|trans({'%n%': form.nominee}) }}</h1>
-    <div class="iv__fine-row">
-      <p class="iv__fine">{{ 'Nothing is sent until you press Send with your name typed.'|trans }}{% if deadline %} {{ 'Please send it by %d%.'|trans({'%d%': deadline}) }}{% endif %}</p>
-      {% if not iv.submitted and not _stopped %}
+    {% if form.is_test %}<p class="mw__test iv__test" role="status">{{ 'Test link — nothing said here reaches a judge.'|trans }}</p>{% endif %}
+    {% if notice %}<p class="mw__flash mw__flash--ok iv__flash" role="status">{{ notice }}</p>{% endif %}
+    {% if error %}<p class="mw__flash mw__flash--err iv__flash" role="alert">{{ error }}</p>{% endif %}
+    {% if not iv.submitted and not _stopped %}
+      {% set _pc = iv.progress.total > 0 ? (100 * iv.progress.met / iv.progress.total)|round : 0 %}
+      <div class="iv__row">
+        <nav class="iv__tabs" aria-label="{{ 'Parts of the interview'|trans }}" data-iv-tabs>
+          <a class="iv__tab" href="#iv-talk" data-iv-tab="talk"{% if iv.phase == 'talk' %} aria-current="step"{% endif %}>{{ 'Talk'|trans }}</a>
+          <a class="iv__tab" href="#iv-show" data-iv-tab="show"{% if iv.phase == 'show' %} aria-current="step"{% endif %}>{{ 'Files'|trans }}</a>
+          <a class="iv__tab" href="#iv-review" data-iv-tab="review"{% if iv.phase == 'review' %} aria-current="step"{% endif %}>{{ 'Review'|trans }} <span class="iv__count" data-iv-count>{{ iv.progress.met }}/{{ iv.progress.total }}</span><span class="ag-sr"> {{ 'covered'|trans }}</span></a>
+        </nav>
         <form method="post" action="/my-work/{{ token }}/interview/switch" class="iv__out-form">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <button type="submit" class="iv__link">{{ 'Use the form instead'|trans }}</button>
+          <button type="submit" class="iv__link">{{ 'Use the form'|trans }}</button>
         </form>
-      {% endif %}
-    </div>
-    {% if notice %}<p class="mw__flash mw__flash--ok" role="status">{{ notice }}</p>{% endif %}
-    {% if error %}<p class="mw__flash mw__flash--err" role="alert">{{ error }}</p>{% endif %}
-
-    {% if not iv.submitted %}
-      {% set _pc = iv.progress.total > 0 ? (100 * iv.progress.met / iv.progress.total)|round : 0 %}
-      <div class="iv__prog" data-iv-prog>
-        <span class="iv__bar"><span class="iv__fill" aria-hidden="true" style="width:{{ _pc }}%"></span><span class="ag-sr" data-iv-pc>{{ '%p%% covered'|trans({'%p%': _pc}) }}</span></span>
-        <p class="iv__fine" data-iv-prog-t>{{ 'About %m% of %t% covered — approximate.'|trans({'%m%': iv.progress.met, '%t%': iv.progress.total}) }}</p>
       </div>
-    {% endif %}
-
-    {% if not iv.submitted and not _stopped %}
-      <nav class="iv__tabs" aria-label="{{ 'Parts of the interview'|trans }}" data-iv-tabs>
-        {% for p, l in {talk: 'Talk'|trans, show: 'Show the work'|trans, review: 'Read it back'|trans} %}
-          <a class="iv__tab" href="#iv-{{ p }}" data-iv-tab="{{ p }}"{% if iv.phase == p %} aria-current="step"{% endif %}>{{ l }}</a>
-        {% endfor %}
-      </nav>
+      <div class="iv__prog" data-iv-prog>
+        <span class="iv__bar"><span class="iv__fill" aria-hidden="true" style="width:{{ _pc }}%"></span><span class="ag-sr" data-iv-pc>{{ 'About %p%% covered — approximate'|trans({'%p%': _pc}) }}</span></span>
+      </div>
     {% endif %}
   </header>
 
   {% if iv.submitted %}
     <section class="iv__pane iv__pane--scroll" aria-labelledby="iv-sent">
+      <h1 class="iv__h1 iv__h1--pane">{{ '%n% — tell the judges about your work'|trans({'%n%': form.nominee}) }}</h1>
       <div class="mw__card">
         <h2 class="mw__h2" id="iv-sent">{{ 'This has been sent.'|trans }}</h2>
         <p class="mw__p">{{ 'Thank you%n%. It went to the judging panel%d%. You do not need to do anything else; we will email you if the panel has a question.'|trans({'%n%': iv.declared ? ', ' ~ iv.declared : '', '%d%': iv.submitted_at ? ' on ' ~ iv.submitted_at|date('j M Y') : ''}) }}</p>
@@ -89,6 +90,7 @@
     </section>
   {% elseif _stopped %}
     <section class="iv__pane iv__pane--scroll" aria-labelledby="iv-lost">
+      <h1 class="iv__h1 iv__h1--pane">{{ '%n% — tell the judges about your work'|trans({'%n%': form.nominee}) }}</h1>
       <div class="mw__card">
         <h2 class="mw__h2" id="iv-lost">{{ 'Nothing you said is lost.'|trans }}</h2>
         <p class="mw__p">{{ iv.degraded_message }}</p>
@@ -103,6 +105,11 @@
   {# ── talk: the only part that is a conversation ─────────────────────────── #}
   <section class="iv__pane iv__talk" id="iv-talk" data-iv-pane="talk" aria-label="{{ 'The conversation'|trans }}">
     <ol class="iv__log" data-iv-log aria-live="polite" tabindex="0" aria-label="{{ 'Messages'|trans }}">
+      <li class="iv__intro" data-iv-intro>
+        <p class="mw__kicker">{{ form.programme }}{% if form.category %} · {{ form.category }}{% endif %}</p>
+        <h1 class="iv__h1">{{ '%n% — tell the judges about your work'|trans({'%n%': form.nominee}) }}</h1>
+        <p class="iv__fine">{{ 'Nothing is sent until you press Send with your name typed.'|trans }}{% if deadline %} {{ 'Please send it by %d%.'|trans({'%d%': deadline}) }}{% endif %} {{ 'Nothing here costs money.'|trans }}</p>
+      </li>
       {% for t in iv.turns %}
         {% if t.role == 'event' %}
           <li class="iv__event" data-i="{{ t.i }}">{{ t.text }}</li>
@@ -156,7 +163,7 @@
           <button type="submit" class="iv__send">{{ 'Send'|trans }}</button>
         </div>
       </form>
-      <noscript><p class="iv__note">{{ 'The conversation needs JavaScript, which is off in this browser. The form asks the same things — use "Use the form instead" above.'|trans }}</p></noscript>
+      <noscript><p class="iv__note">{{ 'The conversation needs JavaScript, which is off in this browser. The form asks the same things — press "Use the form" above.'|trans }}</p></noscript>
     {% endif %}
   </section>
 
@@ -181,6 +188,7 @@
   <section class="iv__pane iv__pane--scroll" id="iv-review" data-iv-pane="review" aria-labelledby="iv-review-h">
     <div class="mw__card">
       <h2 class="mw__h2" id="iv-review-h">{{ 'Read it before it goes.'|trans }}</h2>
+      <p class="mw__help">{{ 'About %m% of %t% things the panel asks about are covered so far. This is approximate.'|trans({'%m%': iv.progress.met, '%t%': iv.progress.total}) }}</p>
       <p class="mw__help">{{ 'Each line is our summary of something you said, with your own words underneath. The summary is ours, not yours — correct it or take it out if it is wrong.'|trans }}</p>
       <div data-iv-ledger>
         {% set _left = iv.ledger|filter(o => o.required and o.status != 'met') %}

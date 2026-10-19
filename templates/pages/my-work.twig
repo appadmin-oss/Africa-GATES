@@ -24,7 +24,8 @@
   deleted by the HTML parser (NestedFormTest).
 #}
 {% set colour_tier = '2' %}
-{% set app_bar = {variant: 'child', title: 'Your work'|trans} %}
+{# No share button: the URL carries the nominee's token, which is their whole credential. #}
+{% set app_bar = {variant: 'child', title: 'Your work'|trans, share: false} %}
 {% set _a = form ? form.answers : {} %}
 {% set _works = form ? form.works : [] %}
 

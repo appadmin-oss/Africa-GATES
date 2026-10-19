@@ -102,6 +102,7 @@ final class MyWorkPageTest extends TestCase
         // without it must still post every answer.
         $this->assertDoesNotMatchRegularExpression('/<fieldset[^>]*data-mw-step[^>]*\bhidden\b/', $html);
         $this->assertStringContainsString('/assets/js/my-work.js', $html);
+        $this->assertStringNotContainsString('data-ag-share', $html, 'the page offers to share a link that IS the nominee\'s login');
     }
 
     public function test_the_upload_is_its_own_form_after_the_main_one(): void

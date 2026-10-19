@@ -89,9 +89,12 @@
     return li;
   }
 
+  // The intro card (title, deadline, the promise) heads the log and is kept across redraws.
+  var intro = log ? log.querySelector('[data-iv-intro]') : null;
   function draw(turns) {
     if (!log) return;
     log.textContent = '';
+    if (intro) log.appendChild(intro);
     var last = null;
     turns.forEach(function (t) {
       if (t.role === 'event') { log.appendChild(el('li', 'iv__event', t.text)); return; }
@@ -123,8 +126,9 @@
     if (!box_ || !p) return;
     var pc = p.total ? Math.round(100 * p.met / p.total) : 0;
     box_.querySelector('.iv__fill').style.width = pc + '%';
-    box_.querySelector('[data-iv-pc]').textContent = pc + '% covered';
-    box_.querySelector('[data-iv-prog-t]').textContent = 'About ' + p.met + ' of ' + p.total + ' covered — approximate.';
+    box_.querySelector('[data-iv-pc]').textContent = 'About ' + pc + '% covered — approximate';
+    var n = root.querySelector('[data-iv-count]');
+    if (n) n.textContent = p.met + '/' + p.total;
   }
   function works(list) {
     var ul = root.querySelector('[data-iv-works]');
