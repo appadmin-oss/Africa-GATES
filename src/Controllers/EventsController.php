@@ -791,6 +791,61 @@ class EventsController
     }
 
     /**
+     * GET /events/ticket/{ref}/qr.png — the ticket's code as a PNG, for the ticket email.
+     *
+     * Mail cannot carry an inline SVG and must not carry a data: URI (docs/handoff/inventory/
+     * _emails.md: a hosted image, or Gmail and Outlook strip it), so the email needs a URL.
+     * Reached by the REFERENCE alone, the same credential the ticket page is reached by, and
+     * drawn from the CURRENT code — after a transfer or a reissue the old email's image shows
+     * the new code's absence rather than a code that no longer opens the door.
+     *
+     * Support\Qr::encode() is the ticket-code encoder (version 1, alphanumeric). The quiet
+     * zone is the specification's four modules and is not trimmed (CLAUDE.md, Support\Qr).
+     */
+    public function ticketQr(Request $req, Response $res, array $args): Response
+    {
+        $reg  = EventTicketService::byReference(trim((string) ($args['ref'] ?? '')));
+        // Only a confirmed booking draws a code — the PDF's rule. A cancelled or refunded
+        // ticket's old email must not go on showing something that looks like entry.
+        $code = $reg && (string) ($reg->status ?? '') === 'confirmed' ? (string) ($reg->ticket_code ?? '') : '';
+        $m    = $code !== '' ? \AfricaGates\Support\Qr::encode($code) : null;
+        if (!$m || !function_exists('imagecreatetruecolor')) {
+            return $res->withStatus(404)->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
+
+        $scale = 8;
+        $quiet = 4;
+        $n     = count($m);
+        $px    = ($n + 2 * $quiet) * $scale;
+        $img   = imagecreatetruecolor($px, $px);
+        [$ir, $ig, $ib] = sscanf(\AfricaGates\Support\Accent::hex('ink'), '#%02x%02x%02x');
+        [$sr, $sg, $sb] = sscanf(\AfricaGates\Support\Accent::hex('surface'), '#%02x%02x%02x');
+        $ink  = imagecolorallocate($img, (int) $ir, (int) $ig, (int) $ib);
+        $bg   = imagecolorallocate($img, (int) $sr, (int) $sg, (int) $sb);
+        imagefilledrectangle($img, 0, 0, $px - 1, $px - 1, $bg);
+        foreach ($m as $y => $row) {
+            foreach ($row as $x => $on) {
+                if (!$on) continue;
+                $x0 = ($x + $quiet) * $scale;
+                $y0 = ($y + $quiet) * $scale;
+                // imagefilledrectangle() is INCLUSIVE of both corners: one pixel less.
+                imagefilledrectangle($img, $x0, $y0, $x0 + $scale - 1, $y0 + $scale - 1, $ink);
+            }
+        }
+        ob_start();
+        imagepng($img);
+        $png = (string) ob_get_clean();
+        imagedestroy($img);
+
+        $res->getBody()->write($png);
+        return $res->withHeader('Content-Type', 'image/png')
+            ->withHeader('Content-Length', (string) strlen($png))
+            // Private: the URL carries the reference, which is the ticket's credential.
+            ->withHeader('Cache-Control', 'private, max-age=300')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
      * The ticket. Reachable with the reference alone, and deliberately so.
      *
      * Same doctrine as the claim link, the interview page and the questionnaire: an

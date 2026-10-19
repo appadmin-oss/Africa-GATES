@@ -47,6 +47,10 @@ final class EmailsTest extends TestCase
                           'help_url' => 'https://x.test/support'],
             'milestone' => ['first_name' => 'Ngozi', 'full_name' => 'Ngozi Eze', 'votes' => '1,000', 'closes' => '20 November, 18:00 WAT',
                           'page_url' => 'https://x.test/vote/p/1-ngozi', 'by_people' => true, 'unsubscribe_url' => 'https://x.test/email/unsubscribe?e=x&t=y'],
+            'ticket'   => ['first_name' => 'Ada', 'event' => 'Gala night', 'when' => 'Sat 21 Nov 2026, 18:00 WAT', 'where' => 'Eko Hotel, Lagos',
+                          'code' => 'AG7K2M9QX4', 'tier' => 'Standard', 'qr_url' => 'https://x.test/events/ticket/abcd1234ef/qr.png',
+                          'ticket_url' => 'https://x.test/events/ticket/abcd1234ef', 'ics_url' => 'https://x.test/events/ticket/abcd1234ef/calendar.ics',
+                          'seats' => 2, 'paid' => '₦10,000', 'note' => "Doors at 17:30.\n\nParking is at the back & free.", 'waitlisted' => false],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }
@@ -75,7 +79,7 @@ final class EmailsTest extends TestCase
 
     public function test_account_and_nomination_emails_are_transactional_and_carry_no_unsubscribe(): void
     {
-        foreach (['otp', 'confirm', 'reset', 'welcome', 'nom-in', 'nominated', 'approved', 'rejected', 'vote', 'notminted', 'gift', 'refund'] as $key) {
+        foreach (['otp', 'confirm', 'reset', 'welcome', 'nom-in', 'nominated', 'approved', 'rejected', 'vote', 'notminted', 'gift', 'refund', 'ticket'] as $key) {
             $this->assertTrue(Emails::compose($key, self::sample($key))['transactional'],
                 "$key would carry an Unsubscribe link — a sign-in code with one invites somebody to switch off the way in");
         }
@@ -190,5 +194,26 @@ final class EmailsTest extends TestCase
             $this->assertStringNotContainsString('midnight', $m['html'], 'the design\'s daily free vote is not the rule');
             $this->assertStringNotContainsString('each day', $m['html'], 'the design\'s daily free vote is not the rule');
         }
+    }
+
+    public function test_a_ticket_links_its_calendar_and_never_claims_an_attachment(): void
+    {
+        $m = Emails::compose('ticket', self::sample('ticket'));
+        $this->assertStringContainsString('https://x.test/events/ticket/abcd1234ef/qr.png', $m['html']);
+        $this->assertStringContainsString('alt="Ticket code AG7K2M9QX4"', $m['html'], 'a blocked QR leaves nothing to show at the door');
+        $this->assertStringContainsString('https://x.test/events/ticket/abcd1234ef/calendar.ics', $m['html']);
+        $this->assertStringNotContainsStringIgnoringCase('attached', $m['html'] . $m['text'], 'the calendar is a link, nothing is attached');
+        $this->assertStringContainsString('Parking is at the back &amp; free.', $m['html'], 'the organiser\'s note was not escaped');
+        $this->assertStringContainsString('Doors at 17:30.<br><br>Parking', $m['html'], 'the organiser\'s paragraphs were run together');
+        $this->assertStringContainsString('Seats: 2', $m['text']);
+    }
+
+    public function test_a_waitlisted_guest_is_not_told_they_are_going(): void
+    {
+        $m = Emails::compose('ticket', ['waitlisted' => true, 'code' => '', 'qr_url' => ''] + self::sample('ticket'));
+        $this->assertStringNotContainsStringIgnoringCase('going', $m['html'] . $m['text'] . $m['subject']);
+        $this->assertStringContainsString('waiting list', $m['subject']);
+        $this->assertStringNotContainsString('qr.png', $m['html'], 'a waitlisted guest was shown something that looks like entry');
+        $this->assertStringNotContainsString('Ticket code', $m['text']);
     }
 }

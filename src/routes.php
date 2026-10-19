@@ -2031,6 +2031,7 @@ return function(App $app) {
         // TicketPdf — "Fit to page" silently rescales the QR below what a scanner resolves,
         // and nobody finds out until a queue has stopped.
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/ticket.pdf', EventsController::class.':ticketPdf');
+        $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/qr.png',     EventsController::class.':ticketQr');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/calendar.ics',
                 EventsController::class.':ticketCalendar');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}', EventsController::class.':ticket');

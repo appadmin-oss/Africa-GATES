@@ -1,0 +1,34 @@
+{#- Ticket · Events. Sender: EventTicketMailer::send (confirmed, and waitlisted).
+    Variables: first_name, event, when, where, code, tier, qr_url, ticket_url, ics_url, seats,
+    paid (₦ or ''), note (the organiser's attendee note), waitlisted (bool).
+    Design: Email Templates.dc.html → "Ticket", corrected to the live site (owner, 19 Oct 2026):
+    the calendar file is a LINK, not an attachment; there is no doors time on an event, so the
+    line is its date; a WAITLISTED guest is not "going" — they get the waiting-list truth
+    (EventWaitlist::promote() offers a freed seat to whoever has waited longest, by email) and
+    no code. The tier's own colour is not used: mail draws only from the palette, so the tier
+    is named in gold-ink like every other label. The QR is a hosted PNG
+    (/events/ticket/{ref}/qr.png) with the printed code as its alt and beside it. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Events{% endblock %}
+{% block hero %}illo-trophy2{% endblock %}
+{% block why %}You booked a ticket on Africa GATES.{% endblock %}
+{% block subject %}{{ waitlisted ? 'You’re on the waiting list — ' : 'Your ticket — ' }}{{ event }}{% endblock %}
+{% block preheader %}{{ when }}{{ where ? ' · ' ~ where : '' }}{{ waitlisted ? ' · we email you if a seat comes free.' : ' · show the code at the door.' }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{% if waitlisted %}
+{{ b.h1("You’re on the waiting list, #{first_name}") }}
+{{ b.p("If a seat for #{event} comes free, we email you an offer. The people who have waited longest are offered first.") }}
+{{ b.facts([['Event', event, 'b'], ['When', when]]|merge(where ? [['Where', where]] : [])) }}
+{{ b.link('See your place', ticket_url) }}
+{% else %}
+{{ b.h1("You’re going, #{first_name}") }}
+{% if code %}{{ b.ticket(event, when, where, code, tier ?: 'Ticket', qr_url) }}
+{% else %}{{ b.facts([['Event', event, 'b'], ['When', when]]|merge(where ? [['Where', where]] : [])) }}
+{% endif %}{% if seats > 1 or paid %}{{ b.facts([]|merge(seats > 1 ? [['Seats', seats]] : [])|merge(paid ? [['Paid', paid]] : [])) }}{% endif %}
+{{ b.note(code ? 'Show the code at the door — on your phone or printed. Your ticket page has it too.' : 'Your name is on the list. Your ticket page has the details.') }}
+{% if ics_url %}{{ b.button('Add to calendar', ics_url) }}{% endif %}
+{{ b.link('Open, change or transfer this ticket', ticket_url) }}
+{% endif %}
+{% if note %}{{ b.warn(note|replace({"\r\n": "\n"})|split("\n\n")|map(l => l|trim)|filter(l => l), 'Before you come') }}{% endif %}
+{% endblock %}

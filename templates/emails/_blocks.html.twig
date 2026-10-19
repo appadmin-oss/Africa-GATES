@@ -54,7 +54,7 @@
 {% endmacro %}
 
 {% macro warn(text, label = null) %}
-<tr><td style="padding:0 0 18px;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="{{ c['gold-wash'] }}" style="background:{{ c['gold-wash'] }};border-radius:12px;padding:16px 18px;font-family:Arial,Helvetica,sans-serif;">{% if label %}<div style="margin-bottom:4px;font-size:11.5px;line-height:16px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:{{ c['gold-ink'] }};">{{ label }}</div>{% endif %}<div style="font-size:14.5px;line-height:23px;color:{{ c.ink }};">{{ text }}</div></td></tr></table></td></tr>
+<tr><td style="padding:0 0 18px;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="{{ c['gold-wash'] }}" style="background:{{ c['gold-wash'] }};border-radius:12px;padding:16px 18px;font-family:Arial,Helvetica,sans-serif;">{% if label %}<div style="margin-bottom:4px;font-size:11.5px;line-height:16px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:{{ c['gold-ink'] }};">{{ label }}</div>{% endif %}<div style="font-size:14.5px;line-height:23px;color:{{ c.ink }};">{% if text is iterable %}{% for l in text %}{{ l }}{% if not loop.last %}<br><br>{% endif %}{% endfor %}{% else %}{{ text }}{% endif %}</div></td></tr></table></td></tr>
 {% endmacro %}
 
 {% macro steps(items) %}

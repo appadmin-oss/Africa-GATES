@@ -97,71 +97,45 @@ final class EventTicketMailer
             'ticket'   => ['code' => $ticketCode, 'quantity' => $qty, 'amount_naira' => $amount],
         ]);
 
-        $base  = rtrim(\AfricaGates\Support\SiteUrl::base(), '/');
-        $e     = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-        $title = $e((string) ($event->title ?? 'the event'));
-        $when  = $e((string) ($event->event_date ?? ''));
-        $where = $e((string) ($event->location ?? ''));
-        $nm    = $e((string) $reg->name);
-
+        $base = rtrim(\AfricaGates\Support\SiteUrl::base(), '/');
+        // The ticket page, not the event page. This is the link somebody opens at the door,
+        // and it is reachable with the reference alone precisely so that they do not need an
+        // account they never made in a queue with no signal.
         $ticketUrl = $reference !== ''
             ? $base . '/events/ticket/' . rawurlencode($reference)
             : $base . '/events/' . rawurlencode((string) ($event->slug ?? ''));
 
-        $codeRow = $ticketCode !== ''
-            ? '<br>Ticket code: <strong style="font-family:monospace;font-size:16px">' . $e($ticketCode) . '</strong>'
-            : '';
-        $seatRow = $qty > 1 ? '<br>Seats: <strong>' . $qty . '</strong>' : '';
-        $paidRow = $amount > 0 ? '<br>Paid: <strong>₦' . number_format($amount) . '</strong>' : '';
-
-        $html = "<p>Hi <strong>{$nm}</strong>,</p>"
-              . '<p>' . ($amount > 0
-                  ? 'Your payment has been received and your ticket is confirmed.'
-                  : 'You are registered — we have saved your spot.') . '</p>'
-              . '<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
-              . 'style="margin:16px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:14px 18px">'
-              . "<tr><td style=\"font-size:14px;color:#166534;line-height:1.7\">Event: <strong>{$title}</strong><br>"
-              . "When: <strong>{$when}</strong>"
-              . ($where !== '' ? "<br>Where: <strong>{$where}</strong>" : '')
-              . $seatRow . $paidRow . $codeRow . '</td></tr></table>'
-              // The ticket page, not the event page. This is the link somebody opens at the
-              // door, and it is reachable with the reference alone precisely so that they do
-              // not need an account they never made in a queue with no signal.
-              . '<p style="text-align:center;margin:22px 0 8px"><a href="' . $ticketUrl . '"'
-              . ' style="display:inline-block;padding:12px 28px;background:#10292C;color:#fff;'
-              . 'border-radius:999px;font-weight:600;text-decoration:none;font-size:15px">Your ticket →</a></p>'
-              // And the date, as a file their calendar understands. A seat that goes unused is
-              // usually not a change of mind — it is somebody who read the date here, meant to
-              // write it down, and did not.
-              . ($reference !== ''
-                  ? '<p style="text-align:center;margin:0 0 20px;font-size:13px">'
-                    . '<a href="' . $ticketUrl . '/calendar.ics"'
-                    . ' style="color:#237b22;font-weight:600;text-decoration:none">'
-                    . 'Add it to your calendar</a></p>'
-                  : '')
-              . self::noteHtml($event);
-
-        $note  = trim((string) ($event->attendee_note ?? ''));
-        $plain = "Hi {$reg->name},\n\n"
-               . ($amount > 0 ? "Your payment has been received and your ticket is confirmed.\n"
-                              : "You are registered.\n")
-               . 'Event: ' . (string) ($event->title ?? '') . "\n"
-               . 'When: ' . (string) ($event->event_date ?? '') . "\n"
-               . ($ticketCode !== '' ? "Ticket code: {$ticketCode}\n" : '')
-               . "\nYour ticket: {$ticketUrl}\n"
-               . ($reference !== '' ? "Add to your calendar: {$ticketUrl}/calendar.ics\n" : '')
-               . ($note !== '' ? "\n" . $note . "\n" : '')
-               . "\n— Africa GATES";
-
         if ($mailer) {
+            $tier = '';
+            if (!empty($reg->tier_id)) {
+                try {
+                    $tier = (string) (DB::table('gates_event_tiers')->where('id', (int) $reg->tier_id)->value('name') ?? '');
+                } catch (\Throwable) { /* a ticket without its tier's name is still a ticket */ }
+            }
+            $where = implode(', ', array_values(array_unique(array_filter([
+                trim((string) ($event->venue ?? '')), trim((string) ($event->location ?? '')),
+            ]))));
             try {
-                $mailer->sendBranded(
-                    (string) $reg->email,
-                    ($amount > 0 ? 'Your ticket — ' : 'You are registered — ')
-                        . (string) ($event->title ?? 'Africa GATES event'),
-                    $html, $plain, 'Events',
-                    $base . '/assets/img/illustrations/illo-trophy2.jpg'
-                );
+                \AfricaGates\Services\Mail\Emails::send($mailer, (string) $reg->email, 'ticket', [
+                    'first_name' => DoorWelcome::firstName((string) $reg->name) ?: 'there',
+                    'event'      => (string) ($event->title ?? 'the event'),
+                    'when'       => \AfricaGates\Support\DisplayTime::showZoned((string) ($event->event_date ?? '')),
+                    'where'      => $where,
+                    'code'       => $ticketCode,
+                    'tier'       => $tier,
+                    // A hosted PNG: most inboxes refuse a data: image, and the code is printed
+                    // beside it and as its alt, so a blocked image still gets somebody in.
+                    'qr_url'     => $reference !== '' && $ticketCode !== '' ? $ticketUrl . '/qr.png' : '',
+                    'ticket_url' => $ticketUrl,
+                    // And the date, as a file their calendar understands. A seat that goes
+                    // unused is usually not a change of mind — it is somebody who read the date
+                    // here, meant to write it down, and did not. A link, not an attachment.
+                    'ics_url'    => $reference !== '' ? $ticketUrl . '/calendar.ics' : '',
+                    'seats'      => $qty,
+                    'paid'       => $amount > 0 ? '₦' . number_format($amount) : '',
+                    'note'       => trim((string) ($event->attendee_note ?? '')),
+                    'waitlisted' => (string) $reg->status === 'waitlisted',
+                ]);
             } catch (\Throwable) { /* a mail failure must never undo a confirmed ticket */ }
         }
 
@@ -171,28 +145,5 @@ final class EventTicketMailer
             . "\nPhone: " . (string) ($reg->phone ?? '') . "\nSeats: {$qty}"
             . ($amount > 0 ? "\nPaid: NGN " . number_format($amount) : '')
             . ($ticketCode !== '' ? "\nTicket: {$ticketCode}" : ''));
-    }
-
-    /**
-     * The organiser's note to attendees, as one escaped block.
-     *
-     * Escaped and THEN given paragraph breaks, in that order: an organiser typing an ampersand
-     * or an angle bracket into a note about a venue must not be able to inject markup into an
-     * email that goes out over this platform's name.
-     */
-    private static function noteHtml(?object $event): string
-    {
-        $note = trim((string) ($event->attendee_note ?? ''));
-        if ($note === '') return '';
-        $safe = htmlspecialchars($note, ENT_QUOTES, 'UTF-8');
-        $safe = str_replace(["\r\n", "\r"], "\n", $safe);
-        $safe = implode('</p><p style="margin:0 0 10px">',
-                        array_filter(array_map('trim', explode("\n\n", $safe))));
-        return '<table role="presentation" cellpadding="0" cellspacing="0" border="0"'
-             . ' style="margin:18px 0;background:#fffbeb;border-left:4px solid #f59e0b;'
-             . 'border-radius:0 8px 8px 0;padding:14px 18px"><tr><td'
-             . ' style="font-size:14px;color:#78350f;line-height:1.7">'
-             . '<strong>Before you come</strong><p style="margin:8px 0 10px">'
-             . nl2br($safe) . '</p></td></tr></table>';
     }
 }

@@ -47,6 +47,7 @@ final class Emails
         'gift'       => 'CheckoutMailer::receipt (gift)',
         'refund'     => 'RefundService::tellTheBuyer',
         'milestone'  => 'MilestoneService::checkAndNotify (to the nominee)',
+        'ticket'     => 'EventTicketMailer::send (confirmed and waitlisted)',
     ];
 
     /**
