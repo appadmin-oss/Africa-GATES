@@ -50,6 +50,7 @@ final class Emails
         'ticket'     => 'EventTicketMailer::send (confirmed and waitlisted)',
         'invite'     => 'InviteMailer::compose (guest of honour)',
         'judge'      => 'Admin JudgesController::sendJudgeForm (welcome + profile form)',
+        'winner'     => 'CycleAnnouncer::email (winner and runner-up, at the release)',
     ];
 
     /**

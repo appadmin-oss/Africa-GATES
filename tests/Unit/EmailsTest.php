@@ -60,6 +60,8 @@ final class EmailsTest extends TestCase
             'judge'    => ['first_name' => 'Kofi', 'programme' => 'Teaching Award', 'form_url' => 'https://x.test/form/t',
                           'login_url' => 'https://x.test/judge/login', 'scoring_opens' => '20 November 2026, 18:00',
                           'scoring_closes' => '5 December 2026, 12:00', 'form_days' => 30, 'help_url' => 'https://x.test/support'],
+            'winner'   => ['first_name' => 'Ngozi', 'kind' => 'winner', 'award' => 'Teaching Award', 'category' => 'Primary',
+                          'edition' => '5th Edition', 'result_url' => 'https://x.test/results/12-primary'],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }
@@ -88,7 +90,7 @@ final class EmailsTest extends TestCase
 
     public function test_account_and_nomination_emails_are_transactional_and_carry_no_unsubscribe(): void
     {
-        foreach (['otp', 'confirm', 'reset', 'welcome', 'nom-in', 'nominated', 'approved', 'rejected', 'vote', 'notminted', 'gift', 'refund', 'ticket', 'judge'] as $key) {
+        foreach (['otp', 'confirm', 'reset', 'welcome', 'nom-in', 'nominated', 'approved', 'rejected', 'vote', 'notminted', 'gift', 'refund', 'ticket', 'judge', 'winner'] as $key) {
             $this->assertTrue(Emails::compose($key, self::sample($key))['transactional'],
                 "$key would carry an Unsubscribe link — a sign-in code with one invites somebody to switch off the way in");
         }
@@ -249,5 +251,19 @@ final class EmailsTest extends TestCase
         $many = Emails::compose('judge', ['scoring_opens' => '', 'scoring_closes' => ''] + self::sample('judge'));
         $this->assertStringNotContainsString('Scoring closes', $many['html'], 'a date was printed for a judge whose programmes disagree');
         $this->assertStringContainsString('when public voting closes', $many['preheader']);
+    }
+
+    public function test_the_result_mail_says_it_is_public_and_asks_nobody_to_keep_a_secret(): void
+    {
+        $m = Emails::compose('winner', self::sample('winner'));
+        $this->assertSame('You won — Primary, 5th Edition', $m['subject']);
+        $this->assertStringContainsString('https://x.test/results/12-primary', $m['html']);
+        foreach (['keep it to yourself', 'not public yet', 'gala', 'thousands', 'overall winner'] as $bad) {
+            $this->assertStringNotContainsStringIgnoringCase($bad, $m['html'] . $m['text'] . $m['preheader'],
+                "the result mail says '$bad' — it is sent as the result is published, for one category");
+        }
+        $second = Emails::compose('winner', ['kind' => 'runner_up'] + self::sample('winner'));
+        $this->assertStringContainsString('runner-up in Primary', $second['html']);
+        $this->assertStringNotContainsString('You won', $second['subject'], 'a runner-up was told they won');
     }
 }
