@@ -44,11 +44,13 @@ final class ShareVideoController
         ])->withHeader('X-Robots-Tag', 'noindex');
     }
 
+    /**
+     * The one base-URL resolver. A private copy here trusted the request's Host header
+     * whenever APP_URL was blank, so a forged header put somebody else's address on the
+     * link a share video ends on.
+     */
     private function base(Request $req): string
     {
-        $env = rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/');
-        if ($env !== '') return $env;
-        $u = $req->getUri();
-        return $u->getScheme() . '://' . $u->getHost() . ($u->getPort() ? ':' . $u->getPort() : '');
+        return \AfricaGates\Support\SiteUrl::base($req);
     }
 }
