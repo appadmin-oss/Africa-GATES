@@ -3,8 +3,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\DisplayTime;
-use Twig\Environment;
-use Twig\Loader\FilesystemLoader;
+use AfricaGates\Services\Mail\Emails;
 use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -20,7 +19,7 @@ use Illuminate\Support\Carbon;
  * person, it has one thing to say, and reusing a newsletter chassis for it produced
  * exactly what it sounds like.
  *
- * `emails/invitation.twig` is its own copy and its own hierarchy, but it is a FRAGMENT:
+ * `emails/invite.html.twig` is its own copy and its own hierarchy, but it is a FRAGMENT:
  * the doctype, the letterhead, the hero band, the footer and the hidden preheader come
  * from {@see OtpService::brandWrap()}, like every other transactional message here. It
  * was briefly a whole document, which meant the recipient got two mastheads and two
@@ -84,18 +83,7 @@ final class InviteMailer
         $mailer ??= OtpService::boot();
         $m = self::compose($invite, $event);
 
-        $r = $mailer->sendBranded(
-            $email,
-            $m['subject'],
-            $m['html'],
-            $m['plain'],
-            'Invitation',
-            $m['hero'],
-            EmailOptOut::url(rtrim(SiteUrl::base(), '/'), $email),
-            $m['attachments'],
-            $m['preheader'],
-            self::HERO_H
-        );
+        $r = self::deliver($mailer, $email, $m);
 
         $ok    = (bool) ($r['success'] ?? false);
         $error = (string) ($r['error'] ?? '');
@@ -120,26 +108,21 @@ final class InviteMailer
      * scar: the invitation's own "why" sentence was assembled in the Twig template AND in
      * the plain-text builder, and fixing one left the other sending the mangled version.
      *
-     * @return array{subject:string, html:string, plain:string,
-     *               attachments:list<array{name:string,mime:string,body:string}>}
+     * Emails::compose() over invite.html.twig / invite.txt.twig, plus the attachments.
+     *
+     * @return array<string,mixed>
      */
     private static function compose(object $invite, object $event): array
     {
         $spec = InviteAudience::spec((string) $invite->audience);
         $tier = EventInvites::lowestTier((int) $event->id);
+        $attachments = self::attachments($invite, $event, $tier);
         $view = self::view($invite, $event, $spec, $tier, rtrim(SiteUrl::base(), '/'));
+        // The sentence about the letter is only true when the letter rendered.
+        $view['letter_attached'] = (bool) array_filter($attachments,
+            static fn(array $a): bool => $a['mime'] === 'application/pdf');
 
-        return [
-            'subject'     => (string) $view['subject'],
-            'html'        => self::html($view),
-            'plain'       => self::plain($view),
-            'attachments' => self::attachments($invite, $event, $tier),
-            // What the SHELL needs. The invitation is a body fragment now — brandWrap
-            // supplies the masthead, the hero band, the footer and the preheader, the same
-            // way it does for every other transactional message on this platform.
-            'preheader'   => (string) $view['preheader'],
-            'hero'        => (string) $view['cover_url'],
-        ];
+        return Emails::compose('invite', $view) + ['attachments' => $attachments];
     }
 
     /**
@@ -177,18 +160,7 @@ final class InviteMailer
         $mailer ??= OtpService::boot();
         $m = self::compose($invite, $event);
 
-        $r = $mailer->sendBranded(
-            $to,
-            $m['subject'],
-            $m['html'],
-            $m['plain'],
-            'Invitation',
-            $m['hero'],
-            EmailOptOut::url(rtrim(SiteUrl::base(), '/'), $to),
-            $m['attachments'],
-            $m['preheader'],
-            self::HERO_H
-        );
+        $r = self::deliver($mailer, $to, $m);
 
         return ['ok' => (bool) ($r['success'] ?? false), 'error' => (string) ($r['error'] ?? '')];
     }
@@ -204,20 +176,24 @@ final class InviteMailer
         // house shell without anybody seeing it. A preview that is not the message is a
         // preview of nothing.
         return ($mailer ?? OtpService::boot())->brandWrap(
-            $m['subject'],
-            $m['html'],
-            'Invitation',
-            $m['hero'],
-            '',
-            $m['preheader'],
-            self::HERO_H
+            $m['subject'], $m['html'], $m['category'], $m['hero'],
+            '', $m['preheader'], self::HERO_H, $m['why']
         );
     }
 
-
-
-
-
+    /**
+     * One send, for both paths. The unsubscribe link is the RECIPIENT'S — an operator's test
+     * carries their own — and travels because this is an announcement (invite.html.twig).
+     *
+     * @param array<string,mixed> $m
+     * @return array<string,mixed>
+     */
+    private static function deliver(OtpService $mailer, string $to, array $m): array
+    {
+        return $mailer->sendBranded($to, $m['subject'], $m['html'], $m['text'], $m['category'], $m['hero'],
+            $m['transactional'] ? '' : EmailOptOut::url(rtrim(SiteUrl::base(), '/'), $to),
+            $m['attachments'], $m['preheader'], self::HERO_H, $m['why']);
+    }
 
     /**
      * Everything the template renders, resolved once.
@@ -240,15 +216,6 @@ final class InviteMailer
         ])));
 
         return [
-            // Their own name in the subject, because this is not a campaign — it is an
-            // invitation to one person, and the inbox has to read that way at a glance.
-            'subject'   => trim((string) $invite->name) . ', you are invited to ' . trim((string) $event->title),
-            // The line an inbox shows beside the subject. It carries the ASK, because the
-            // subject already carries the invitation and repeating it wastes the one
-            // sentence somebody reads before deciding whether to open.
-            'preheader' => 'As a guest of honour — with ' . $quota
-                         . ' discounted seats for the people you bring.',
-
             'name'         => trim((string) $invite->name),
             // "Dear". Per audience, and it has to be HERE: the template opens the letter
             // with `{{ salutation }} {{ name }},` and a key the view does not supply
@@ -276,15 +243,16 @@ final class InviteMailer
             'when_date'   => DisplayTime::show((string) $event->event_date, 'j F Y'),
             'when_time'   => DisplayTime::showZoned((string) $event->event_date, 'H:i'),
             'where'       => $where,
+            // The preheader's short form: the venue alone, or the town where there is none.
+            'where_short' => trim((string) ($event->venue ?? '')) ?: trim((string) ($event->location ?? '')),
             'cover_url'   => self::coverUrl($event, $base),
             'reference' => trim((string) $invite->reference),
             'quota'     => $quota,
             'discount'  => $pct,
-            // Prefixed here rather than in the template, so the sentence reads correctly
-            // both with a tier and without one.
-            'tier_line' => $tier !== null
-                ? ', from ₦' . number_format((int) $tier->price_naira)
-                  . ' (' . trim((string) $tier->name) . ') upwards'
+            // Where guests' seats start: the cheapest PAID tier, named, so the discount has a
+            // figure to come off.
+            'tier_from' => $tier !== null
+                ? '₦' . number_format((int) $tier->price_naira) . ' (' . trim((string) $tier->name) . ')'
                 : '',
 
             'id_url'          => EventInvites::idUrl((string) $invite->reference, $base),
@@ -292,77 +260,6 @@ final class InviteMailer
             'unsubscribe_url' => EmailOptOut::url($base, (string) $invite->email),
             'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
-    }
-
-    /** @param array<string,mixed> $view */
-    private static function html(array $view): string
-    {
-        static $twig = null;
-        $twig ??= \AfricaGates\Support\Translator::register(new Environment(
-            new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
-            ['autoescape' => 'html']
-        ));
-
-        // `c`: the palette, by name — mail cannot read var() (Accent::mail()).
-        return $twig->render('emails/invitation.twig', $view + ['c' => \AfricaGates\Support\Accent::mail()]);
-    }
-
-    /**
-     * The plain-text part, WRITTEN rather than stripped.
-     *
-     * `strip_tags()` over a table layout produces a column of orphaned words. This part is
-     * what a plain-text client shows, what a screen reader may be handed, and what every
-     * spam filter reads to decide whether the HTML half is worth trusting.
-     *
-     * @param array<string,mixed> $view
-     */
-    private static function plain(array $view): string
-    {
-        return implode("\n", [
-            'AFRICA GATES — An Afrovanguard Initiative',
-            '',
-            'You are invited to ' . $view['event_title'] . ', as a guest of honour.',
-            '',
-            // Greeted, not merely named. A bare line carrying somebody's name reads as a
-            // record header; this is a letter.
-            $view['salutation'] . ' ' . $view['name'] . ',',
-            '',
-            // The witness sentence WHOLE, exactly as the HTML half renders it. It used to
-            // be prefixed here too — "We want the hall packed " plus the operator's
-            // fragment plus a trailing clause — and the fragment is now a complete
-            // sentence, so a prefix here would send the plain-text reader "We want the
-            // hall packed We want the hall packed to witness…". One sentence, one author:
-            // that is the whole reason the default moved into InviteAudience.
-            (string) $view['witness'],
-            'We would like the people who know that work best to be in the room to see it',
-            'recognised.',
-            '',
-            'WHEN   ' . $view['when'],
-            'WHERE  ' . ($view['where'] !== '' ? $view['where'] : 'Venue to be confirmed'),
-            '',
-            'YOUR ENTRY',
-            'Arranged already — no ticket needed for you. Your pass is a live page; open it on',
-            'your phone at the door:',
-            '  ' . $view['id_url'],
-            '',
-            'BRING YOUR PEOPLE',
-            '  ' . $view['reference'] . '  —  ' . $view['discount'] . '% off, up to '
-                . $view['quota'] . ' guests',
-            'Share it with the people you want in the room. It takes ' . $view['discount']
-                . '% off their tickets, for up to ' . $view['quota'] . ' of them'
-                . $view['tier_line'] . '.',
-            '  ' . $view['events_url'],
-            '',
-            'We would be honoured to have you with us. The formal invitation is attached, for',
-            'your records.',
-            '',
-            'With respect,',
-            'Africa GATES',
-            '',
-            '--',
-            (string) $view['postal_address'],
-            'Stop receiving email: ' . $view['unsubscribe_url'],
-        ]);
     }
 
     /** The cover as an ABSOLUTE url, or '' — a relative src is a broken image in an inbox. */

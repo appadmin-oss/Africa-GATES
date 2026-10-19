@@ -51,6 +51,12 @@ final class EmailsTest extends TestCase
                           'code' => 'AG7K2M9QX4', 'tier' => 'Standard', 'qr_url' => 'https://x.test/events/ticket/abcd1234ef/qr.png',
                           'ticket_url' => 'https://x.test/events/ticket/abcd1234ef', 'ics_url' => 'https://x.test/events/ticket/abcd1234ef/calendar.ics',
                           'seats' => 2, 'paid' => '₦10,000', 'note' => "Doors at 17:30.\n\nParking is at the back & free.", 'waitlisted' => false],
+            'invite'   => ['salutation' => 'Dear', 'name' => 'Ada Obi', 'event_title' => 'Gala 2026', 'witness' => 'We want the hall packed.',
+                          'when' => 'Saturday 12 December 2026 at 18:00 WAT', 'when_day' => 'Saturday', 'when_date' => '12 December 2026',
+                          'when_time' => '18:00 WAT', 'where' => 'Eko Convention Centre, Lagos', 'where_short' => 'Eko Convention Centre',
+                          'cover_url' => '', 'id_url' => 'https://x.test/honour/AGI-7K2M', 'events_url' => 'https://x.test/events/gala',
+                          'quota' => 25, 'discount' => 10, 'tier_from' => '₦5,000 (Supporter)', 'reference' => 'AGI-7K2M',
+                          'letter_attached' => true, 'unsubscribe_url' => 'https://x.test/email/unsubscribe?e=x&t=y'],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }
@@ -215,5 +221,17 @@ final class EmailsTest extends TestCase
         $this->assertStringContainsString('waiting list', $m['subject']);
         $this->assertStringNotContainsString('qr.png', $m['html'], 'a waitlisted guest was shown something that looks like entry');
         $this->assertStringNotContainsString('Ticket code', $m['text']);
+    }
+
+    public function test_an_invitation_is_an_announcement_and_says_attached_only_when_it_is(): void
+    {
+        $m = Emails::compose('invite', self::sample('invite'));
+        $this->assertFalse($m['transactional'], 'an invitation run must carry Unsubscribe and meet the bulk rules');
+        $this->assertStringContainsString('is attached', $m['html']);
+        $this->assertStringContainsString('/illo-trophy2.jpg', $m['hero'], 'an event with no artwork lost its hero');
+
+        $bare = Emails::compose('invite', ['letter_attached' => false, 'cover_url' => 'https://x.test/uploads/gala.jpg'] + self::sample('invite'));
+        $this->assertStringNotContainsString('attached', $bare['html'] . $bare['text'], 'a letter that failed to render was promised');
+        $this->assertSame('https://x.test/uploads/gala.jpg', $bare['hero'], 'the event\'s own artwork was not the hero');
     }
 }

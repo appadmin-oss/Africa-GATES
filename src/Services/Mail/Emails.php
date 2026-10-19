@@ -48,6 +48,7 @@ final class Emails
         'refund'     => 'RefundService::tellTheBuyer',
         'milestone'  => 'MilestoneService::checkAndNotify (to the nominee)',
         'ticket'     => 'EventTicketMailer::send (confirmed and waitlisted)',
+        'invite'     => 'InviteMailer::compose (guest of honour)',
     ];
 
     /**
@@ -74,7 +75,13 @@ final class Emails
             'category'      => $one('category'),
             'why'           => $one('why'),
             'transactional' => $one('transactional') !== '0',
-            'hero'          => $hero !== '' ? $base . '/assets/img/illustrations/' . basename($hero) . '.jpg' : '',
+            // A name is one of the shipped illustrations; an absolute URL is the caller's own
+            // artwork (an event's cover), already resolved against the site.
+            'hero'          => match (true) {
+                $hero === ''                               => '',
+                preg_match('~^https?://~i', $hero) === 1  => $hero,
+                default => $base . '/assets/img/illustrations/' . basename($hero) . '.jpg',
+            },
             // The blocks are table rows; this is the table they are rows of.
             'html'          => '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
                              . $tpl->renderBlock('body', $vars) . '</table>',

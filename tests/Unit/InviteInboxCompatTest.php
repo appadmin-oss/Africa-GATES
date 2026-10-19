@@ -78,7 +78,7 @@ final class InviteInboxCompatTest extends EmailInboxCompatTest
 
     protected static function tpl(): string
     {
-        return __DIR__ . '/../../templates/emails/invitation.twig';
+        return __DIR__ . '/../../templates/emails/invite.html.twig';
     }
 
     /** The whole message: shell plus body, exactly as it goes on the wire. */
@@ -182,7 +182,7 @@ final class InviteInboxCompatTest extends EmailInboxCompatTest
      * Counted on the BODY rather than the whole message, because the shell's footer
      * carries Help, Privacy and Unsubscribe on every message the platform sends and
      * those are chrome, not asks. The hierarchy decision this holds is the one made in
-     * `invitation.twig`.
+     * `invite.html.twig`.
      */
     public function test_there_are_exactly_two_actions(): void
     {

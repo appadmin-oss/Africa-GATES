@@ -36,7 +36,6 @@ use Tests\Support\PublicSurface;
 final class MailPaletteTest extends TestCase
 {
     private const SENDERS = [
-        'src/Services/InviteMailer.php'          => 'emails/invitation.twig',
         'src/Services/InviteReminders.php'       => 'emails/invite-reminder.twig',
         'src/Services/QuestionnaireInvites.php'  => 'emails/questionnaire.twig',
         'src/Services/NomineeVotingNotice.php'   => 'emails/nominee-voting.twig',

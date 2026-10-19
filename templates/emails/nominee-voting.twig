@@ -5,7 +5,7 @@
   its voting phase, with the formal letter (Services\NomineeVotingLetter) attached. Like
   every transactional message here it is a fragment dropped into the house shell
   (OtpService::brandWrap()), which already provides the wordmark, the category chip, the
-  footer and the card; see emails/invitation.twig for why a whole document here would
+  footer and the card; see emails/invite.html.twig and OtpService::brandWrap() for why a whole document here would
   arrive as two nested ones.
 
   The paragraphs are the LETTER's (NomineeVotingLetter::body()), passed in as `body`, so

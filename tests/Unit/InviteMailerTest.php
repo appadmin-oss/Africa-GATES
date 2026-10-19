@@ -317,8 +317,9 @@ final class InviteMailerTest extends TestCase
         // which is the copy the invitee KEEPS — and a scan over two of them would have
         // left the worst one doing it.
         foreach ([
-            'templates/emails/invitation.twig'   => 'the HTML half',
-            'src/Services/InviteMailer.php'      => 'the plain-text half',
+            'templates/emails/invite.html.twig'   => 'the HTML half',
+            'templates/emails/invite.txt.twig'    => 'the plain-text half',
+            'src/Services/InviteMailer.php'      => 'the mailer',
             'src/Services/InviteLetter.php'      => 'the PDF letter',
         ] as $rel => $which) {
             $src = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel);
