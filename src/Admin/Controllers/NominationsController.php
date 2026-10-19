@@ -497,9 +497,8 @@ HTML;
                 'due'          => \Illuminate\Support\Carbon::now()->addDays($ttl)->format('j F Y'),
                 'voting_opens' => $opens,
                 'form_url'     => $link,
-                'page_url'     => !empty($row->programme_slug)
-                    ? $base . '/vote/' . rawurlencode((string) $row->programme_slug) . '/' . \AfricaGates\Support\Slug::idSegment((int) $row->id, $name)
-                    : '',
+                // The one builder, so the link in the email is the page's own link.
+                'page_url'     => !empty($row->programme_slug) ? \AfricaGates\Support\NomineeUrl::ballot($nomineeId) : '',
                 'site_url'     => $base,
             ]);
             if (!($r['success'] ?? false)) return false;

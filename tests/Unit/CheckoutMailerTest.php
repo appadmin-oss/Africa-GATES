@@ -134,7 +134,8 @@ class CheckoutMailerTest extends TestCase
         $this->assertStringContainsString($ref, $m['html'], 'the reference is what a refund or a query is made against');
         $this->assertStringContainsString('Music of the Year', $m['html']);
         // Categorised, so gates_mail_log can answer "are buyers getting receipts?".
-        $this->assertSame('Paid votes', $m['category']);
+        // The masthead label is the handoff's (design_handoff_letter_email_admin, "Vote receipt").
+        $this->assertSame('Voting', $m['category']);
     }
 
     /**

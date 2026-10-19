@@ -37,6 +37,16 @@ final class EmailsTest extends TestCase
                           'voting_opens' => '1 November 2026', 'form_url' => 'https://x.test/f/t', 'page_url' => 'https://x.test/vote/p/1-ngozi'],
             'rejected' => ['nominee' => 'Ngozi Eze', 'reason' => 'Outside the award’s region.', 'rules_url' => 'https://x.test/awards/p',
                           'help_url' => 'https://x.test/support'],
+            'vote'     => ['first_name' => 'Ada', 'nominee' => 'Ngozi Eze', 'nominee_first_name' => 'Ngozi', 'category' => 'Primary',
+                          'votes' => 20, 'votes_label' => '20', 'amount' => '₦2,000', 'reference' => 'paystack_123', 'page_url' => 'https://x.test/vote/p/1-ngozi'],
+            'notminted' => ['first_name' => 'Ada', 'votes_label' => '20', 'nominee' => 'Ngozi Eze', 'amount' => '₦2,000', 'reference' => 'paystack_123',
+                          'auto_refund' => true, 'assistant_url' => 'https://x.test/support/assistant', 'ticket_url' => 'https://x.test/support/tickets'],
+            'gift'     => ['first_name' => 'Ada', 'amount' => '₦5,000', 'to_name' => 'Bright Futures', 'impact_line' => 'With gratitude.',
+                          'reference' => 'AFG-DON-7', 'stop_url' => '', 'progress' => null, 'campaign_url' => ''],
+            'refund'   => ['first_name' => 'Ada', 'charged' => '₦2,000', 'back' => '₦2,000', 'settled' => false, 'reference' => 'paystack_123',
+                          'help_url' => 'https://x.test/support'],
+            'milestone' => ['first_name' => 'Ngozi', 'full_name' => 'Ngozi Eze', 'votes' => '1,000', 'closes' => '20 November, 18:00 WAT',
+                          'page_url' => 'https://x.test/vote/p/1-ngozi', 'by_people' => true, 'unsubscribe_url' => 'https://x.test/email/unsubscribe?e=x&t=y'],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }
@@ -65,7 +75,7 @@ final class EmailsTest extends TestCase
 
     public function test_account_and_nomination_emails_are_transactional_and_carry_no_unsubscribe(): void
     {
-        foreach (['otp', 'confirm', 'reset', 'welcome', 'nom-in', 'nominated', 'approved', 'rejected'] as $key) {
+        foreach (['otp', 'confirm', 'reset', 'welcome', 'nom-in', 'nominated', 'approved', 'rejected', 'vote', 'notminted', 'gift', 'refund'] as $key) {
             $this->assertTrue(Emails::compose($key, self::sample($key))['transactional'],
                 "$key would carry an Unsubscribe link — a sign-in code with one invites somebody to switch off the way in");
         }
@@ -113,6 +123,58 @@ final class EmailsTest extends TestCase
         $m = Emails::compose('rejected', ['reason' => ''] + self::sample('rejected'));
         $this->assertStringNotContainsString('Reason', $m['html']);
         $this->assertStringNotContainsString('eligibility', $m['html'], 'a reason nobody gave was supplied');
+    }
+
+    public function test_a_receipt_never_describes_a_daily_free_vote(): void
+    {
+        foreach (['vote', 'refund', 'welcome'] as $key) {
+            $m = Emails::compose($key, self::sample($key));
+            foreach (['daily', 'midnight', 'each day', 'every day'] as $bad) {
+                $this->assertStringNotContainsStringIgnoringCase($bad, $m['html'] . $m['text'],
+                    "$key describes a free vote that comes back daily — it is one per category");
+            }
+        }
+    }
+
+    public function test_votes_not_added_never_promises_the_votes_and_states_the_refund_that_runs(): void
+    {
+        $auto = Emails::compose('notminted', self::sample('notminted'));
+        $this->assertStringNotContainsStringIgnoringCase('adds your votes', $auto['html'], 'the votes cannot be added after a category closes');
+        $this->assertStringContainsString('refund it automatically', $auto['html']);
+        $this->assertStringNotContainsString('/support/assistant', $auto['html'], 'an automatic refund was sent to the assistant to ask for one');
+
+        $manual = Emails::compose('notminted', ['auto_refund' => false] + self::sample('notminted'));
+        $this->assertStringNotContainsString('automatically', $manual['html']);
+        $this->assertStringContainsString('/support/assistant', $manual['html']);
+    }
+
+    public function test_a_monthly_gift_always_says_so_with_its_stop_link(): void
+    {
+        $m = Emails::compose('gift', ['stop_url' => 'https://x.test/giving/stop?r=AFG-DON-7'] + self::sample('gift'));
+        $this->assertStringContainsString('https://x.test/giving/stop?r=AFG-DON-7', $m['html']);
+        $this->assertStringContainsString('https://x.test/giving/stop?r=AFG-DON-7', $m['text']);
+        $this->assertStringContainsString('monthly gift', $m['html']);
+        $one = Emails::compose('gift', self::sample('gift'));
+        $this->assertStringNotContainsString('monthly', $one['html'], 'a one-off gift was called monthly');
+    }
+
+    public function test_a_refund_does_not_describe_votes_that_were_never_added(): void
+    {
+        $m = Emails::compose('refund', self::sample('refund'));
+        $this->assertStringNotContainsString('removed from the tally', $m['html']);
+        $this->assertStringContainsString('no votes were added', $m['html']);
+        $quiet = Emails::compose('refund', ['back' => ''] + self::sample('refund'));
+        $this->assertStringContainsString('In full', $quiet['html'], 'an unreported amount was printed as a figure');
+    }
+
+    public function test_the_milestone_counts_votes_and_is_an_announcement(): void
+    {
+        $m = Emails::compose('milestone', self::sample('milestone'));
+        $this->assertFalse($m['transactional'], 'the milestone must carry Unsubscribe and List-Unsubscribe');
+        $this->assertStringNotContainsString('people stood up', $m['html'], 'votes were called people');
+        $this->assertStringContainsString('https://x.test/email/unsubscribe', $m['text']);
+        $flat = Emails::compose('milestone', ['by_people' => false] + self::sample('milestone'));
+        $this->assertStringNotContainsString('separate people', $flat['html'], 'a basis that does not count people was said to');
     }
 
     public function test_the_welcome_states_the_voting_rule_that_runs(): void

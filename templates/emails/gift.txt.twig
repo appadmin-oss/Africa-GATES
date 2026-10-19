@@ -1,0 +1,20 @@
+{#- Plain-text part for gift.html.twig. -#}
+Thank you, {{ first_name }}
+
+Your {{ amount }} is now with {{ to_name }}. {{ impact_line }}
+{% if progress %}
+{{ progress.raised }} of {{ progress.goal }} — {{ progress.caption }}
+{% endif %}
+{{ stop_url ? 'Gift · monthly' : 'Gift' }}: {{ amount }}
+Receipt reference: {{ reference }}
+{% if stop_url %}
+This is a MONTHLY gift of {{ amount }}. Stop it at any time, no sign-in needed:
+{{ stop_url }}
+Keep this email; the link stays valid.
+{% endif %}{% if campaign_url %}
+Share the campaign: {{ campaign_url }}
+{% endif %}
+—
+You gave {{ to_name ? 'to ' ~ to_name : '' }} through Africa GATES.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

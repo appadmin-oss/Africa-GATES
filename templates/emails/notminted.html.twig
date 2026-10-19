@@ -1,0 +1,32 @@
+{#- Votes not added · Voting. Sender: CheckoutMailer::receipt (unminted).
+    Variables: first_name, votes_label, nominee, amount, reference, auto_refund (bool), assistant_url, ticket_url.
+    Design: Email Templates.dc.html → "Votes not added", corrected to the live site (owner, 19 Oct
+    2026). The design said the help assistant "adds your votes on the spot". It cannot, and
+    must not: PaidVoteService::mint() refuses votes for a category that closed between payment
+    and confirmation, which is what this email is about. What happens instead is a refund —
+    automatic where `auto_refund_unminted` is on (RefundService::autoEnabled()), and asked for
+    otherwise. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Voting{% endblock %}
+{% block hero %}illo-ballot-countdown{% endblock %}
+{% block why %}You contributed votes on Africa GATES.{% endblock %}
+{% block subject %}Payment received — but your votes could not be added{% endblock %}
+{% block preheader %}Your money is safe. {{ auto_refund ? 'We are refunding it automatically.' : 'Here’s how to get it back.' }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1('We took your payment and your votes never arrived. We are sorry.') }}
+{{ b.p("You paid for #{votes_label} #{votes_label == '1' ? 'vote' : 'votes'} for #{nominee ?: 'your nominee'} and they were not added. Your money is not lost and your bank did nothing wrong. Voting in that category had closed by the time the payment reached us, and we never add votes after a category closes, for any amount.") }}
+{{ b.ref('Your payment reference', reference, 'Keep this. A bank or wallet app shows its own number. This is the one we can look up.') }}
+{% if auto_refund %}
+{{ b.h2('What happens now') }}
+{{ b.p('We refund it automatically, in full, to the card or account you paid with. You will get a second email when it is on its way. Nothing is needed from you.') }}
+{% else %}
+{{ b.h2('Fastest fix') }}
+{{ b.p('Open the help assistant and paste the reference. It checks the payment and can ask for your refund straight away.') }}
+{{ b.button('Check my payment now', assistant_url) }}
+{% endif %}
+{{ b.h2('If that doesn’t work') }}
+{{ b.p('Open a ticket with the same reference, and a person will look at it.') }}
+{{ b.link('Open a support ticket', ticket_url) }}
+{{ b.sign('We’re sorry,', 'The Africa GATES team') }}
+{% endblock %}

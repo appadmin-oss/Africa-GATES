@@ -266,8 +266,8 @@ final class CheckoutMailer
                 $kind   = $minted ? 'minted' : 'unminted';
             }
 
-            $r = $mailer->sendBranded($to, $mail['subject'], $mail['html'], $mail['text'],
-                                      $gift ? 'Donations' : 'Paid votes', $mail['hero'] ?? '');
+            // The handoff's bodies (Services\Mail\Emails): gift, vote, notminted.
+            $r = \AfricaGates\Services\Mail\Emails::send($mailer, $to, $mail['key'], $mail['vars']);
             if (empty($r['success'])) {
                 // Nothing reached a mail server. Give the claim back so a later
                 // confirm, reconcile or resend can try again — an unsent receipt for a
@@ -329,112 +329,84 @@ final class CheckoutMailer
      */
     private static function giftBody(object $don): array
     {
-        $e     = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-        $total = '₦' . number_format((int) $don->amount_naira);
-        $ref   = (string) ($don->payment_ref ?? '');
-        $stop  = RecurringGiving::stopLink($ref, SiteUrl::base());
+        $amount = '₦' . number_format((int) $don->amount_naira);
+        $ref    = (string) ($don->payment_ref ?? '');
+        // Said plainly and in the same breath as the amount, because the one thing a
+        // monthly donor must not have to hunt for is the fact that it is monthly and where
+        // the off switch is. The link is RecurringGiving::stopLink(), never built here.
+        $stop   = RecurringGiving::stopLink($ref, SiteUrl::base());
 
         // Named, because a gift to somebody else's appeal thanked the donor for a gift "to
         // Africa GATES" — the one organisation it was not for.
-        $orgName = '';
+        $org = null;
         if (!empty($don->recipient_org_id)) {
+            try { $org = DB::table('gates_partner_orgs')->where('id', (int) $don->recipient_org_id)->first(['name', 'slug']); } catch (\Throwable) {}
+        }
+        $toName = $org && (string) $org->name !== '' ? (string) $org->name : 'Africa GATES';
+
+        // The campaign's progress, drawn only above the low-data thresholds — the same rules
+        // as the campaign page, so the email never prints "1% of the goal, 1 person".
+        $progress = null;
+        $campaignUrl = '';
+        if (!empty($don->campaign_id) && $org) {
             try {
-                $orgName = (string) (DB::table('gates_partner_orgs')
-                    ->where('id', (int) $don->recipient_org_id)->value('name') ?? '');
+                $c = DB::table('gates_org_campaigns')->where('id', (int) $don->campaign_id)->first();
+                if ($c) {
+                    $campaignUrl = SiteUrl::base() . \AfricaGates\Support\GivingUrl::org((string) $org->slug, (string) $c->slug);
+                    $p = OrgCampaign::progress((int) $c->id);
+                    if ($p['target'] > 0 && \AfricaGates\Support\DisplayThreshold::met('campaign_pct_ring', $p['pct'])) {
+                        $days = OrgCampaign::daysLeft($c);
+                        $bits = [];
+                        if ($days !== null && $days <= \AfricaGates\Support\DisplayThreshold::min('days_left_show')) $bits[] = $days . ($days === 1 ? ' day' : ' days') . ' left';
+                        if (\AfricaGates\Support\DisplayThreshold::met('gifts_count', $p['count'])) $bits[] = number_format($p['count']) . ' gifts';
+                        $progress = ['raised' => '₦' . number_format($p['raised']), 'goal' => '₦' . number_format($p['target']),
+                                     'pct' => min(100, (int) $p['pct']), 'caption' => implode(' · ', $bits) ?: min(100, (int) $p['pct']) . '% of the goal'];
+                    }
+                }
             } catch (\Throwable) {}
         }
-        $to = $orgName !== '' ? $orgName : 'Africa GATES';
-
-        $html = '<p>Thank you, ' . $e($don->donor_name) . ' — your gift of <strong>' . $total . '</strong>'
-            . ($orgName !== '' ? ' to <strong>' . $e($orgName) . '</strong>' : '') . ' is confirmed.</p>'
-            . '<p style="font-family:monospace">Receipt ' . $e($ref) . '</p>'
-            // Said plainly and in the same breath as the amount, because the one thing a
-            // monthly donor must not have to hunt for is the fact that it is monthly and
-            // where the off switch is.
-            . ($stop === '' ? ''
-                : '<p>This is a <strong>monthly</strong> gift of ' . $total . ', and you can '
-                . 'stop it at any time — no sign-in, no email to anybody: '
-                . '<a href="' . $e($stop) . '">' . $e($stop) . '</a>. '
-                . 'Keep this email; the link stays valid.</p>')
-            . ($orgName !== ''
-                ? '<p>Your gift goes to ' . $e($orgName) . '. With gratitude.</p>'
-                : '<p>Your gift funds child leadership programmes across the continent — mentorship, '
-                . 'scholarships and grassroots education. With gratitude.</p>');
-
-        $text = "Thank you, {$don->donor_name} — your gift of {$total} to {$to} is confirmed.\n\nReceipt: {$ref}\n"
-            . ($stop === '' ? '' : "\nThis is a MONTHLY gift of {$total}. Stop it at any time, no sign-in needed:\n{$stop}\n"
-                                  . "Keep this email; the link stays valid.\n")
-            . "\n— Africa GATES";
 
         return [
-            'subject' => 'Thank you for your gift to ' . $to,
-            'html'    => $html,
-            'text'    => $text,
-            'kind'    => $stop === '' ? 'gift' : 'monthly',
+            'key'  => 'gift',
+            'kind' => $stop === '' ? 'gift' : 'monthly',
+            'vars' => [
+                'first_name'   => DoorWelcome::firstName((string) $don->donor_name) ?: 'there',
+                'amount'       => $amount,
+                'to_name'      => $toName,
+                'impact_line'  => $org ? 'With gratitude.' : 'Your gift funds child leadership programmes across the continent — mentorship, scholarships and grassroots education. With gratitude.',
+                'reference'    => $ref,
+                'stop_url'     => $stop,
+                'progress'     => $progress,
+                'campaign_url' => $campaignUrl,
+            ],
         ];
     }
 
-    /** "Your votes are in" — the ordinary, happy receipt. */
+    /**
+     * "Your votes are in" — the ordinary, happy receipt.
+     *
+     * What the votes DO is stated on it, because a receipt is the document a dispute is
+     * argued from: they count toward the tally and the community half exactly as a free vote
+     * does, and they never reach the judging half. (It once said they were "never moved by
+     * money", which was not the rule — the worst place on the platform to say it.)
+     */
     private static function mintedBody(object $don): array
     {
-        $e     = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-        $qty   = (int) $don->bonus_votes;
-        $votes = number_format($qty);
-        $total = '₦' . number_format((int) $don->amount_naira);
-        $ref   = (string) ($don->payment_ref ?? '');
-        $nom   = self::nominee((int) ($don->intent_nominee_id ?? 0));
-        $name  = $nom['name'] !== '' ? $nom['name'] : 'your nominee';
-        $ballot = $nom['url'];
-
-        $html = '<p style="margin:0 0 14px;font-size:15px;color:#374151">Hi <strong>' . $e($don->donor_name) . '</strong>,</p>'
-            . '<p style="margin:0 0 6px;font-size:15px;color:#374151">Your payment is confirmed and your votes are '
-            . 'already counted in the public tally.</p>'
-            . '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;background:#f0fdf4;'
-            . 'border-left:4px solid #22c55e;border-radius:0 10px 10px 0;padding:16px 20px">'
-            . '<tr><td style="font-size:15px;color:#166534;line-height:1.8">'
-            . 'Votes added: <strong style="color:#14532d">' . $votes . '</strong><br>'
-            . 'For: <strong>' . $e($name) . '</strong>'
-            . ($nom['category'] !== '' ? '<br>Category: <strong>' . $e($nom['category']) . '</strong>' : '')
-            . '<br>Amount paid: <strong>' . $total . '</strong>'
-            . '</td></tr></table>'
-            . '<p style="margin:0 0 18px;font-size:15px;color:#374151">The fastest way to add to this is to send the ballot '
-            . 'to people who would back ' . $e($name) . ' too — every share is worth more than the last vote you bought.</p>'
-            . '<p style="text-align:center;margin:24px 0"><a href="' . $e($ballot) . '" '
-            . 'style="display:inline-block;padding:13px 30px;background:#10292C;color:#fff;border-radius:999px;'
-            . 'font-weight:700;text-decoration:none;font-size:15px">See the live standing &rarr;</a></p>'
-            . '<p style="margin:0;font-size:12.5px;color:#9ca3af;font-family:monospace">Receipt ' . $e($ref) . '</p>'
-            // WHAT THIS PARAGRAPH USED TO SAY, AND WHY IT MATTERED MOST HERE.
-            //
-            // "The jury score and the organic community signal that feed the Cultural Power
-            // Index are separate and are never moved by money." That was the methodology
-            // when it was written and it is not now — the community half normalises over a
-            // nominee's full tally, so the votes this person just bought do count.
-            //
-            // Of every surface that carried the old claim, this one was the worst: it is a
-            // receipt, sent to somebody who has just paid, and it told them their money had
-            // bought no influence over the ranking. Whichever way the rule ran, one of the
-            // two readings left them misled about what they had paid for — and a receipt is
-            // the document a dispute is argued from.
-            . '<p style="margin:10px 0 0;font-size:13px;color:#9ca3af">These votes count toward '
-            . $e($name) . '&rsquo;s public tally and toward the community half of the Cultural Power '
-            . 'Index, exactly as a free vote does. They do not reach the judging half — judges are '
-            . 'never shown a nominee&rsquo;s vote count. Every published result states a nominee&rsquo;s '
-            . 'full tally beside how much of it was contributed. Keep this receipt for your records.</p>';
-
-        $text = "Hi {$don->donor_name},\n\nYour payment is confirmed and {$votes} vote(s) for {$name} are now in the "
-            . "public tally.\n\nAmount paid: {$total}\nReceipt: {$ref}\n\nSee the live standing: {$ballot}\n\n"
-            . "— Africa GATES";
-
+        $qty = (int) $don->bonus_votes;
+        $nom = self::nominee((int) ($don->intent_nominee_id ?? 0));
         return [
-            // "for your nominee" is a fine fallback mid-sentence and clumsy in a subject
-            // line — and the fallback fires exactly when a nominee has since been deleted
-            // or merged away, which is when an old order is most likely to be receipted.
-            'subject' => $nom['name'] === ''
-                ? ($qty === 1 ? 'Your vote is confirmed' : "Your {$votes} votes are confirmed")
-                : ($qty === 1 ? "Your vote for {$name} is confirmed" : "Your {$votes} votes for {$name} are confirmed"),
-            'html'    => $html,
-            'text'    => $text,
-            'hero'    => SiteUrl::base() . '/assets/img/illustrations/illo-ballot-countdown.jpg',
+            'key'  => 'vote',
+            'vars' => [
+                'first_name'         => DoorWelcome::firstName((string) $don->donor_name) ?: 'there',
+                'nominee'            => $nom['name'],
+                'nominee_first_name' => $nom['name'] !== '' ? (DoorWelcome::firstName($nom['name']) ?: $nom['name']) : '',
+                'category'           => $nom['category'],
+                'votes'              => $qty,
+                'votes_label'        => number_format($qty),
+                'amount'             => '₦' . number_format((int) $don->amount_naira),
+                'reference'          => (string) ($don->payment_ref ?? ''),
+                'page_url'           => $nom['url'],
+            ],
         ];
     }
 
@@ -448,41 +420,21 @@ final class CheckoutMailer
      */
     private static function unmintedBody(object $don): array
     {
-        $e     = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-        $votes = number_format((int) $don->bonus_votes);
-        $total = '₦' . number_format((int) $don->amount_naira);
-        $ref   = (string) ($don->payment_ref ?? '');
-        $nom   = self::nominee((int) ($don->intent_nominee_id ?? 0));
-        $name  = $nom['name'] !== '' ? $nom['name'] : 'your nominee';
-        $help  = SiteUrl::base() . '/help';
-
-        $html = '<p style="margin:0 0 14px;font-size:15px;color:#374151">Hi <strong>' . $e($don->donor_name) . '</strong>,</p>'
-            . '<p style="margin:0 0 6px;font-size:15px;color:#374151">We received your payment of <strong>' . $total
-            . '</strong> &mdash; but the ' . $votes . ' vote(s) for <strong>' . $e($name) . '</strong> could <strong>not</strong> '
-            . 'be added, so we owe you a refund.</p>'
-            . '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;background:#fffbeb;'
-            . 'border-left:4px solid #f59e0b;border-radius:0 10px 10px 0;padding:16px 20px">'
-            . '<tr><td style="font-size:14.5px;color:#92400e;line-height:1.8">'
-            . 'The most common cause is timing: voting closed for this category between starting the payment and the '
-            . 'gateway confirming it. We do not add votes after a category closes, for any amount &mdash; that rule is '
-            . 'what makes every published result defensible.<br><br>'
-            . 'Amount paid: <strong>' . $total . '</strong><br>Reference: <strong style="font-family:monospace">'
-            . $e($ref) . '</strong>'
-            . '</td></tr></table>'
-            . '<p style="margin:0 0 18px;font-size:15px;color:#374151">Reply to this email with that reference and we will '
-            . 'process the refund. Nothing further is needed from you &mdash; this order is already flagged on our side.</p>'
-            . '<p style="margin:0;font-size:13px;color:#9ca3af">More on how voting windows work: '
-            . '<a href="' . $e($help) . '" style="color:#10785a">' . $e($help) . '</a></p>';
-
-        $text = "Hi {$don->donor_name},\n\nWe received your payment of {$total}, but the {$votes} vote(s) for {$name} "
-            . "could NOT be added — most often because voting closed for the category between your payment starting and "
-            . "the gateway confirming it.\n\nReference: {$ref}\n\nReply to this email with that reference and we will "
-            . "process your refund.\n\n— Africa GATES";
-
+        $nom  = self::nominee((int) ($don->intent_nominee_id ?? 0));
+        $base = SiteUrl::base();
         return [
-            'subject' => 'Payment received — but your votes could not be added',
-            'html'    => $html,
-            'text'    => $text,
+            'key'  => 'notminted',
+            'vars' => [
+                'first_name'    => DoorWelcome::firstName((string) $don->donor_name) ?: 'there',
+                'votes_label'   => number_format((int) $don->bonus_votes),
+                'nominee'       => $nom['name'],
+                'amount'        => '₦' . number_format((int) $don->amount_naira),
+                'reference'     => (string) ($don->payment_ref ?? ''),
+                // Whether the refund is coming on its own — the same switch the sweep reads.
+                'auto_refund'   => RefundService::autoEnabled() && RefundService::ready(),
+                'assistant_url' => $base . '/support/assistant',
+                'ticket_url'    => $base . '/support/tickets',
+            ],
         ];
     }
 
