@@ -49,6 +49,7 @@ final class Emails
         'milestone'  => 'MilestoneService::checkAndNotify (to the nominee)',
         'ticket'     => 'EventTicketMailer::send (confirmed and waitlisted)',
         'invite'     => 'InviteMailer::compose (guest of honour)',
+        'judge'      => 'Admin JudgesController::sendJudgeForm (welcome + profile form)',
     ];
 
     /**

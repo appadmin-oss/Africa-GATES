@@ -1,0 +1,35 @@
+{#- Judge welcome · Judges. Sender: Admin JudgesController::sendJudgeWelcome (new judge, and
+    "re-send the form" — a fresh link voids the last).
+    Variables: first_name, programme, form_url, login_url, scoring_opens, scoring_closes,
+    form_days, help_url.
+    Design: Email Templates.dc.html → "Judge welcome", corrected to the live site (owner,
+    19 Oct 2026):
+      · the profile is shown on the Meet the Judges page (/judges), not "the programme
+        page", and of what the form takes only the bio is shown there — the photo is the
+        programme team's upload, not the judge's;
+      · conflicts are declared from the ballot (JudgeService::declareConflict), per programme;
+      · scoring opens when voting closes (CyclePolicy::phaseFor) and closes on the results
+        date — both read from the cycle, and left out when a judge sits on several
+        programmes whose dates differ rather than printing one of them as everybody's;
+      · this ONE message replaces the two a new judge used to receive (an "appointment" with
+        a typed 2026, typed weights and "reply to this email"), so the way into the panel is
+        a link here rather than a second email;
+      · questions go to the help desk, not to a reply. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Judges{% endblock %}
+{% block hero %}illo-shield{% endblock %}
+{% block why %}You were invited to judge an Africa GATES award.{% endblock %}
+{% block subject %}Complete your Africa GATES judge profile{% endblock %}
+{% block preheader %}{{ scoring_opens ? 'Scoring opens when voting closes on ' ~ scoring_opens ~ '.' : 'Scoring opens when public voting closes.' }}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{% if programme %}{{ b.eyebrow(programme) }}{% endif %}
+{{ b.h1("Welcome to the panel, #{first_name}") }}
+{{ b.p('Thank you for agreeing to judge. Here’s how it works.') }}
+{{ b.steps([['Complete your profile', 'Your bio appears beside your name on the Meet the Judges page.'], ['Declare any conflicts', 'Before you score, tell us if you know anyone on the shortlist. You can do it from your ballot.'], ['Score the shortlist', 'Scoring opens only after public voting closes, so the two never mix.']]) }}
+{% if scoring_opens or scoring_closes %}{{ b.facts([]|merge(scoring_opens ? [['Scoring opens', scoring_opens]] : [])|merge(scoring_closes ? [['Scoring closes', scoring_closes, 'b']] : [])) }}{% endif %}
+{{ b.button('Complete my profile', form_url) }}
+{{ b.note("This link is private to you, works once, and lasts #{form_days} days.") }}
+{{ b.link('Sign in to the judging panel', login_url) }}
+{{ b.note('A question about judging? Ask us through the help desk: ' ~ help_url) }}
+{% endblock %}

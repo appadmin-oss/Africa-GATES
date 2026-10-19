@@ -878,41 +878,4 @@ HTML;
         );
     }
 
-    /**
-     * Judge assignment — sent when an admin assigns a judge to a programme.
-     */
-    public function sendJudgeAssignment(
-        string $to,
-        string $judgeName,
-        string $programme,
-        string $loginUrl,
-    ): array {
-        $html = <<<HTML
-<p>Hi <strong>{$judgeName}</strong>,</p>
-<p>You have been appointed as a judge for the <strong>{$programme}</strong> in the Africa GATES 2026 awards cycle. Your scores will form 55% of each nominee's final Cultural Power Index (CPI) score.</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:14px 18px">
-  <tr><td style="font-size:14px;color:#166534;line-height:1.7">
-    Programme: <strong>{$programme}</strong><br>
-    Your weight: <strong>55% of final score</strong><br>
-    Criteria: Impact · Originality · Reach · Integrity (25% each)
-  </td></tr>
-</table>
-<p>Access the judging panel using your assigned credentials. Score each nominee independently on the four criteria — you can save and update scores at any time before the panel closes.</p>
-<p style="text-align:center;margin:24px 0">
-  <a href="{$loginUrl}"
-     style="display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px">
-    Access the judging panel →
-  </a>
-</p>
-<p style="font-size:13px;color:#9ca3af">Questions? Reply to this email and a programme director will assist you.</p>
-HTML;
-        return $this->sendBranded(
-            $to,
-            "You've been appointed as a judge — {$programme}",
-            $html,
-            "Hi {$judgeName},\n\nYou've been appointed as a judge for {$programme} in Africa GATES 2026.\n\nAccess the panel: {$loginUrl}\n\n— Africa GATES",
-            'Judges',
-            $this->base() . '/assets/img/illustrations/illo-shield.jpg'
-        );
-    }
 }

@@ -57,6 +57,9 @@ final class EmailsTest extends TestCase
                           'cover_url' => '', 'id_url' => 'https://x.test/honour/AGI-7K2M', 'events_url' => 'https://x.test/events/gala',
                           'quota' => 25, 'discount' => 10, 'tier_from' => '₦5,000 (Supporter)', 'reference' => 'AGI-7K2M',
                           'letter_attached' => true, 'unsubscribe_url' => 'https://x.test/email/unsubscribe?e=x&t=y'],
+            'judge'    => ['first_name' => 'Kofi', 'programme' => 'Teaching Award', 'form_url' => 'https://x.test/form/t',
+                          'login_url' => 'https://x.test/judge/login', 'scoring_opens' => '20 November 2026, 18:00',
+                          'scoring_closes' => '5 December 2026, 12:00', 'form_days' => 30, 'help_url' => 'https://x.test/support'],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }
@@ -85,7 +88,7 @@ final class EmailsTest extends TestCase
 
     public function test_account_and_nomination_emails_are_transactional_and_carry_no_unsubscribe(): void
     {
-        foreach (['otp', 'confirm', 'reset', 'welcome', 'nom-in', 'nominated', 'approved', 'rejected', 'vote', 'notminted', 'gift', 'refund', 'ticket'] as $key) {
+        foreach (['otp', 'confirm', 'reset', 'welcome', 'nom-in', 'nominated', 'approved', 'rejected', 'vote', 'notminted', 'gift', 'refund', 'ticket', 'judge'] as $key) {
             $this->assertTrue(Emails::compose($key, self::sample($key))['transactional'],
                 "$key would carry an Unsubscribe link — a sign-in code with one invites somebody to switch off the way in");
         }
@@ -233,5 +236,18 @@ final class EmailsTest extends TestCase
         $bare = Emails::compose('invite', ['letter_attached' => false, 'cover_url' => 'https://x.test/uploads/gala.jpg'] + self::sample('invite'));
         $this->assertStringNotContainsString('attached', $bare['html'] . $bare['text'], 'a letter that failed to render was promised');
         $this->assertSame('https://x.test/uploads/gala.jpg', $bare['hero'], 'the event\'s own artwork was not the hero');
+    }
+
+    public function test_the_judge_welcome_states_no_dates_it_cannot_know_and_no_retired_promises(): void
+    {
+        $m = Emails::compose('judge', self::sample('judge'));
+        $this->assertStringContainsString('https://x.test/judge/login', $m['html'], 'the way into the panel was dropped with the second email');
+        $this->assertStringContainsString('lasts 30 days', $m['text']);
+        foreach (['photo', 'reply to this email', '2026 awards cycle', '25% each'] as $bad) {
+            $this->assertStringNotContainsStringIgnoringCase($bad, $m['html'] . $m['text'], "the judge welcome says '$bad', which is not the live rule");
+        }
+        $many = Emails::compose('judge', ['scoring_opens' => '', 'scoring_closes' => ''] + self::sample('judge'));
+        $this->assertStringNotContainsString('Scoring closes', $many['html'], 'a date was printed for a judge whose programmes disagree');
+        $this->assertStringContainsString('when public voting closes', $many['preheader']);
     }
 }
