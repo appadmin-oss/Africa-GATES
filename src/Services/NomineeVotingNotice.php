@@ -288,7 +288,7 @@ final class NomineeVotingNotice
      * The one view both the letter and the email read.
      *
      * @param array{on:bool, signatory:string, signatory_title:string} $cfg
-     * @return array<string,string>
+     * @return array<string,mixed> strings, and `how` from {@see howVotingWorks()}
      */
     public static function view(object $nominee, object $cycle, array $cfg, string $base): array
     {
@@ -311,7 +311,82 @@ final class NomineeVotingNotice
             'rules_url'       => $rulesHost . '/integrity',
             'signatory'       => $cfg['signatory'],
             'signatory_title' => $cfg['signatory_title'],
+            'how'             => self::howVotingWorks((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
         ];
+    }
+
+    /**
+     * How the public vote works and how the outcome is decided, as this edition runs it.
+     *
+     * ── EVERY FIGURE IS READ, NONE IS TYPED ──────────────────────────────────
+     *
+     * The letter is kept for years and the rules are settings per programme and per cycle.
+     * So the split between the panel and the public comes from {@see RuleEngine::weights()},
+     * the people-versus-votes split from {@see CpiService::REACH_PEOPLE_SHARE} and the
+     * edition's basis, the quorum from `min_judges_per_nominee`, and the vote price and
+     * whether free votes exist from {@see PaidVoteService} — the same resolvers the ballot,
+     * the scorer and /integrity read. A sentence that would be false for this edition is
+     * left out rather than softened: an award that sells no votes is not told about prices.
+     *
+     * @return list<array{title:string, text:string}>
+     */
+    public static function howVotingWorks(?int $programmeId = null, ?int $cycleId = null): array
+    {
+        $rules = new RuleEngine();
+        $eff   = $rules->effective($programmeId, $cycleId);
+        $w     = $rules->weights($programmeId, $cycleId);
+        $judge = (int) round($w['judge'] * 100);
+        $comm  = 100 - $judge;
+        $basis = CpiService::basis($eff['community_basis'] ?? null);
+        $byPeople = in_array($basis, [CpiService::BASIS_IDEAL, CpiService::BASIS_REACH], true);
+        $people   = (int) round(CpiService::REACH_PEOPLE_SHARE * 100);
+        $quorum   = max(1, (int) ($eff['min_judges_per_nominee'] ?? 2));
+        $paid     = PaidVoteService::enabled();
+        $freeOff  = PaidVoteService::freeVotingDisabled();
+
+        $out = [];
+
+        $out[] = ['title' => 'Casting a vote', 'text' => $freeOff
+            ? 'Members of the public vote for you on your voting page. In this edition votes are '
+              . 'cast by contribution, through our secure payment provider.'
+            : 'Any member of the public may vote for you on your voting page. Each person has one '
+              . 'free vote in each category, confirmed by a one-time code sent to their email '
+              . 'address, so that a vote cannot be cast in another person\'s name.'];
+
+        if ($paid) {
+            $out[] = ['title' => 'Contributed votes', 'text' =>
+                'Supporters may ' . ($freeOff ? '' : 'also ') . 'contribute for votes at ₦'
+                . number_format(PaidVoteService::pricePerVote()) . ' per vote. '
+                . PaidVoteCopy::sentence($programmeId, $cycleId)
+                . ' Votes from a refunded payment are removed, and every published result shows '
+                . 'how much of a tally was contributed.'];
+        }
+
+        $out[] = ['title' => 'How the outcome is decided', 'text' =>
+            'Your final score combines the assessment of an independent judging panel, which '
+            . 'carries ' . $judge . '% of the score, with public support, which carries '
+            . $comm . '%. '
+            . ($byPeople
+                ? 'Within public support, ' . $people . '% reflects how many separate people back '
+                  . 'you, each counted once however many votes they cast, and ' . (100 - $people)
+                  . '% reflects the total number of votes.'
+                : 'Public support is measured by the total number of votes.')];
+
+        $out[] = ['title' => 'The judging panel', 'text' =>
+            'Each nominee is assessed by at least ' . $quorum . ' ' . ($quorum === 1 ? 'judge' : 'judges')
+            . ' against the published criteria. Judges do not see votes or payments.'];
+
+        $out[] = ['title' => 'Results', 'text' =>
+            'Voting is monitored for irregular activity. Results are sealed at the moment they '
+            . 'are announced and are not altered afterwards.'];
+
+        if ($byPeople) {
+            $out[] = ['title' => 'Your part', 'text' =>
+                'Share your voting page with the people who know your work. The number of '
+                . 'separate supporters counts for more than the number of votes.'];
+        }
+
+        return $out;
     }
 
     /** "AG/VOT/{cycle}/{nominee}": stable, so a reprint and the original agree. */
@@ -359,6 +434,12 @@ final class NomineeVotingNotice
                 'Reference: ' . $v['reference'],
                 'Public voting: ' . $v['opens'] . ' to ' . $v['closes'],
                 'Your voting page: ' . $v['vote_url'],
+                '',
+                'How the public vote works',
+            ],
+            array_merge(...array_map(static fn (array $h, int $i): array =>
+                [($i + 1) . '. ' . $h['title'] . '. ' . $h['text']], $v['how'], array_keys($v['how']))),
+            [
                 '',
                 'The formal letter of notification is attached, for your records.',
                 '',

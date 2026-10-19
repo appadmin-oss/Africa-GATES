@@ -21,9 +21,11 @@ use AfricaGates\Support\Qr;
  *
  * ── WHAT IT DELIBERATELY DOES NOT SAY ────────────────────────────────────────
  *
- *   · no scoring arithmetic. The weights are settings per programme and per cycle
- *     (`RuleEngine`), and a figure typed into a letter people keep for years is the
- *     shape this codebase has paid for four times. It names the published rules page.
+ *   · no TYPED figure. How the vote works is in the annex, and every number there (the
+ *     panel and public shares, the people-versus-votes split, the quorum, the vote price)
+ *     is read from the rules for this edition by NomineeVotingNotice::howVotingWorks().
+ *     A figure typed into a letter people keep for years is the shape this codebase has
+ *     paid for four times, so the annex is dated and names the published rules page.
  *   · not "shortlisted". The ballot holds approved nominees; whether a programme also
  *     publishes a shortlist is a separate fact, and a letter must not claim one.
  *   · no rotating code or vote count — anything that is false a minute after the file
@@ -33,7 +35,7 @@ use AfricaGates\Support\Qr;
  * to receive an award (plan D34). A letter like this is exactly what a "pay to be
  * honoured" scheme forges, so the genuine one says, on the page, what a forgery asks for.
  *
- * ── ONE PAGE, A4, MEASURED ───────────────────────────────────────────────────
+ * ── THE LETTER ON ONE PAGE, A4, MEASURED; THE ANNEX ON THE NEXT ───────────────────────────────────────────────────
  *
  * The particulars and the close are anchored to the page foot and the body is measured
  * against the real face before it is drawn, tightening its leading rather than pushing the
@@ -56,9 +58,9 @@ final class NomineeVotingLetter
     private const SIGN_Y = Letterhead::PAGE_H - Letterhead::MARGIN - 40.0;
 
     /**
-     * @param array<string,string> $v the view {@see NomineeVotingNotice::view()} builds:
+     * @param array<string,mixed> $v the view {@see NomineeVotingNotice::view()} builds:
      *        name, category, award, reference, date, opens, closes, vote_url, rules_url,
-     *        signatory, signatory_title
+     *        signatory, signatory_title, and `how` (the annex; omitted, no annex is drawn)
      * @return string the PDF bytes
      */
     public static function render(array $v): string
@@ -191,13 +193,84 @@ final class NomineeVotingLetter
                    $x, $footY, 'text', 7.5, self::MUTE);
         $pdf->text($host, $x + $w - $pdf->width($host, 'text', 7.5), $footY, 'text', 7.5, self::MUTE);
 
+        self::annex($pdf, $v);
+
         return $pdf->output();
+    }
+
+    /**
+     * Page two: how the public vote works, as this edition runs it.
+     *
+     * A page of its own rather than squeezed into the letter, because it is the part a
+     * nominee forwards to the people they ask for votes, and the letter's one-page rule is
+     * about the CLOSE landing in the same place on every copy, which a second page does not
+     * disturb. Headed as an annex to the letter's reference, as an enclosure is.
+     *
+     * The text is {@see NomineeVotingNotice::howVotingWorks()}, read from the rules; nothing
+     * here is typed. Measured like the letter: the leading gives before anything runs off.
+     *
+     * @param array<string,mixed> $v
+     */
+    private static function annex(Pdf $pdf, array $v): void
+    {
+        $how = (array) ($v['how'] ?? []);
+        if ($how === []) return;
+
+        $pdf->addPage();
+        $x = self::X;
+        $w = self::W;
+
+        $y = Letterhead::draw($pdf);
+        $y += 12.0;
+        $ref = 'Annex to our ref: ' . $v['reference'];
+        $pdf->text($ref, $x + $w - $pdf->width($ref, 'text', 9.0), $y, 'text', 9.0, self::MUTE);
+        $y += 10.0;
+
+        $y = $pdf->paragraph('How the public vote works', $x, $y, self::MW, 'display', 17.0, 7.0, self::INK, 2);
+        $y = $pdf->paragraph($v['award'], $x, $y - 1.0, self::MW, 'text', 9.5, 4.8, self::MUTE, 2);
+        $y += 4.0;
+        $pdf->line($x, $y, $x + $w, $y, self::INK, 0.35);
+        $y += 3.0;
+
+        $footY = Letterhead::PAGE_H - Letterhead::MARGIN;
+        $room  = $footY - 22.0 - $y;
+        $lead  = 5.3;
+        $gap   = 6.0;
+        $rows  = 0;
+        foreach ($how as $h) $rows += 1 + $pdf->lines((string) $h['text'], self::MW - 10.0, 'text', 10.5, 10);
+        while ($rows * $lead + count($how) * $gap > $room) {
+            if ($lead > 4.6) { $lead = max(4.6, $lead - 0.1); continue; }
+            if ($gap  > 3.0) { $gap  = max(3.0, $gap  - 0.2); continue; }
+            break;
+        }
+
+        foreach (array_values($how) as $i => $h) {
+            $y += $gap;
+            $num = ($i + 1) . '.';
+            $pdf->text($num, $x, $y + 4.0, 'semi', 10.5, self::INK);
+            $pdf->text((string) $h['title'], $x + 10.0, $y + 4.0, 'semi', 10.5, self::INK);
+            $y = $pdf->paragraph((string) $h['text'], $x + 10.0, $y + 4.0 + $lead, self::MW - 10.0,
+                                 'text', 10.5, $lead, self::INK, 10) - $lead;
+        }
+
+        // Dated, because the figures are the edition's rules on the day the letter was
+        // written, and the published page is where any later change would be.
+        $y += 10.0;
+        $pdf->paragraph('The figures above are the rules in force for this edition on ' . $v['date']
+                        . '. The published rules at ' . $v['rules_url'] . ' are authoritative.',
+                        $x, $y, self::MW, 'text', 9.0, 4.6, self::MUTE, 3);
+
+        $pdf->line($x, $footY - 6.0, $x + $w, $footY - 6.0, self::RULE, 0.3);
+        $pdf->text('Annex to the letter issued under reference ' . $v['reference'] . '.',
+                   $x, $footY, 'text', 7.5, self::MUTE);
+        $host = Letterhead::host();
+        $pdf->text($host, $x + $w - $pdf->width($host, 'text', 7.5), $footY, 'text', 7.5, self::MUTE);
     }
 
     /**
      * The paragraphs, shared with the email's plain part so the two cannot disagree.
      *
-     * @param array<string,string> $v
+     * @param array<string,mixed> $v
      * @return list<string>
      */
     public static function body(array $v): array
@@ -208,9 +281,9 @@ final class NomineeVotingLetter
                 . 'been verified and admitted to the public vote, which is open from '
                 . $v['opens'] . ' to ' . $v['closes'] . '.',
 
-            'The outcome will be decided under the rules published for this edition at '
-                . $v['rules_url'] . ', which combine the assessment of an independent judging '
-                . 'panel with public support.',
+            'The enclosed annex sets out how the public vote works and how the outcome is '
+                . 'decided. The rules are published in full for this edition at '
+                . $v['rules_url'] . '.',
 
             'You may share your voting page freely. Africa GATES never asks a nominee to pay '
                 . 'to be nominated, to remain on the ballot or to receive an award; any such '
@@ -221,6 +294,7 @@ final class NomineeVotingLetter
     }
 
     /** The filename a nominee wants to see in their downloads folder. */
+    /** @param array<string,mixed> $v */
     public static function fileName(array $v): string
     {
         $stem = \AfricaGates\Support\Slug::make($v['name'], 40);

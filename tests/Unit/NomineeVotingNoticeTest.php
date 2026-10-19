@@ -118,7 +118,7 @@ final class NomineeVotingNoticeTest extends TestCase
         $pdf = $sent['attachments'][0];
         $this->assertSame('application/pdf', $pdf['mime']);
         $this->assertStringStartsWith('%PDF', $pdf['body']);
-        $this->assertSame(1, self::pages($pdf['body']));
+        $this->assertSame(2, self::pages($pdf['body']), 'the letter, and its annex on how the vote works');
         $this->assertStringEndsWith('.pdf', $pdf['name']);
     }
 
@@ -265,26 +265,62 @@ final class NomineeVotingNoticeTest extends TestCase
     }
 
     /**
-     * The letter is kept for years, and the scoring weights are settings. A figure typed
-     * into it is the prose-outlives-the-rule fault this codebase has paid for four times.
+     * The letter is kept for years and the scoring weights are settings, so the body states
+     * no figure at all, and the annex's figures are READ: changing the rules must change
+     * the annex, which is the only way to tell a computed figure from a typed one.
      */
-    public function test_the_letter_states_no_scoring_arithmetic(): void
+    public function test_how_the_vote_works_is_read_from_the_rules_and_not_typed(): void
     {
-        $text = implode(' ', NomineeVotingLetter::body(self::view()));
-
-        $this->assertDoesNotMatchRegularExpression('~\b(1000|550|450|315|135)\b|per cent|%~', $text);
-        $this->assertStringNotContainsStringIgnoringCase('shortlist', $text,
+        $body = implode(' ', NomineeVotingLetter::body(self::view()));
+        $this->assertDoesNotMatchRegularExpression('~\d+\s*%|per cent~', $body);
+        $this->assertStringNotContainsStringIgnoringCase('shortlist', $body,
             'the ballot holds approved nominees; a shortlist is a separate fact the letter must not claim');
+
+        $text = fn (): string => implode(' ', array_column(
+            NomineeVotingNotice::howVotingWorks($this->programmeId, $this->cycleId), 'text'));
+
+        $this->assertStringContainsString('carries 55% of the score', $text());
+        $this->assertStringContainsString('at least 2 judges', $text());
+        $this->assertStringNotContainsString('₦', $text(), 'an award that sells no votes is not told about prices');
+
+        $engine = new RuleEngine();
+        $engine->merge('global', null, ['judge_weight' => 0.6, 'community_weight' => 0.4, 'min_judges_per_nominee' => 3]);
+        DB::table('gates_settings')->insert([
+            ['key_name' => 'paid_voting_enabled', 'value' => '1'],
+            ['key_name' => 'vote_price_naira', 'value' => '250'],
+        ]);
+
+        $this->assertStringContainsString('carries 60% of the score', $text());
+        $this->assertStringContainsString('which carries 40%', $text());
+        $this->assertStringContainsString('at least 3 judges', $text());
+        $this->assertStringContainsString('₦250 per vote', $text());
+        $this->assertStringContainsString('one free vote', $text());
+
+        DB::table('gates_settings')->insert(['key_name' => 'paid_voting_disable_free', 'value' => '1']);
+        $this->assertStringNotContainsString('one free vote', $text(), 'never promise a free vote that does not exist');
     }
 
-    public function test_the_letter_is_one_page_at_the_longest_inputs(): void
+    public function test_the_annex_reaches_the_nominee_in_the_email_too(): void
     {
-        $v = self::view();
+        $this->nominee('Ada Obi');
+        $m = $this->recorder();
+
+        NomineeVotingNotice::sweep($m);
+
+        foreach (['htmlBody', 'plainBody'] as $part) {
+            $this->assertStringContainsString('How the public vote works', $m->sent[0][$part]);
+            $this->assertStringContainsString('carries 55% of the score', $m->sent[0][$part]);
+        }
+    }
+
+    public function test_the_letter_is_one_page_and_its_annex_one_more_at_the_longest_inputs(): void
+    {
+        $v = self::view() + ['how' => NomineeVotingNotice::howVotingWorks()];
         $v['name']     = str_repeat('Ọlásùnkànmí Adébáyọ̀-Williams ', 5);
         $v['category'] = str_repeat('Outstanding Contribution to Rural Education ', 4);
         $v['award']    = str_repeat('Continental Teachers Award ', 3) . '11th Edition';
 
-        $this->assertSame(1, self::pages(NomineeVotingLetter::render($v)));
+        $this->assertSame(2, self::pages(NomineeVotingLetter::render($v)));
     }
 
     /** @return array<string,string> */
