@@ -62,6 +62,7 @@ final class EmailsTest extends TestCase
                           'scoring_closes' => '5 December 2026, 12:00', 'form_days' => 30, 'help_url' => 'https://x.test/support'],
             'winner'   => ['first_name' => 'Ngozi', 'kind' => 'winner', 'award' => 'Teaching Award', 'category' => 'Primary',
                           'edition' => '5th Edition', 'result_url' => 'https://x.test/results/12-primary'],
+            'final'    => \AfricaGates\Services\EmailCampaign::sampleVars(),
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }
@@ -265,5 +266,15 @@ final class EmailsTest extends TestCase
         $second = Emails::compose('winner', ['kind' => 'runner_up'] + self::sample('winner'));
         $this->assertStringContainsString('runner-up in Primary', $second['html']);
         $this->assertStringNotContainsString('You won', $second['subject'], 'a runner-up was told they won');
+    }
+
+    public function test_final_hours_states_no_figure_nobody_measured(): void
+    {
+        $m = Emails::compose('final', self::sample('final'));
+        $this->assertFalse($m['transactional'], 'a broadcast must carry Unsubscribe');
+        foreach (['72 hours', 'first two weeks', 'vote more', 'stay longer'] as $bad) {
+            $this->assertStringNotContainsString($bad, $m['html'] . $m['text'], "final hours claims '$bad' — the platform never measured it");
+        }
+        $this->assertStringContainsString('Voting closes Fri 29 Aug 2026, 23:59 WAT', $m['html'], 'the deadline is not in the text');
     }
 }

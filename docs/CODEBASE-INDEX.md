@@ -624,8 +624,16 @@ operator has no SSH, and `/__setup/broadcast` sits beside the database migrator.
 | `templates/emails/campaign.twig` | The skeleton — built from `final-hours.twig` so the proven structure is unchanged. |
 | `database/migrations/2026_08_22_email_campaigns.php` | `gates_email_campaigns` + `_versions`. |
 
+On 19 Oct 2026 the fixed message itself moved into the house shell with the email handoff:
+`final-hours.twig` is gone, the fallback is `emails/final.html.twig` (via `Mail\Emails`,
+wrapped by `OtpService::brandWrap()`), and the starter blocks carry its words —
+`EmailCampaignTest` holds that the starter says every sentence the fixed message says.
+The twelve inbox properties are `EmailInboxCompatCase` (abstract), run per skeleton by
+`CampaignInboxCompatTest`, `InviteInboxCompatTest`, `NewsletterInboxCompatTest` and
+`FinalHoursInboxCompatTest`.
+
 **Structured blocks, not a document.** A rich-text editor emits `<div>`s and inline styles
-Outlook drops on the floor, and `EmailInboxCompatTest` holds twelve properties a WYSIWYG
+Outlook drops on the floor, and `EmailInboxCompatCase` holds twelve properties a WYSIWYG
 would break in an afternoon. So the skeleton is fixed and the editor edits *fields*; every
 text value is `strip_tags`'d on the way in and there is no block type that emits raw markup.
 `CampaignInboxCompatTest` extends the original test so those twelve properties apply to the

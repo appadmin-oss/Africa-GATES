@@ -753,7 +753,7 @@ HTML;
      * ── WHAT WAS ADDED, AND FOR WHICH CLIENT ─────────────────────────────────
      *
      * This carried the design and none of the scaffolding. Six of the twelve properties
-     * EmailInboxCompatTest holds were missing — from the shell EVERY transactional message
+     * EmailInboxCompatCase holds were missing — from the shell EVERY transactional message
      * on this platform goes out in, not from one template:
      *
      *   · No MSO conditional table. Outlook desktop ignores `max-width`, so the 600px card

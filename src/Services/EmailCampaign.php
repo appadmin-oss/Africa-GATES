@@ -21,7 +21,7 @@ use Twig\Loader\FilesystemLoader;
  * cannot be free-form HTML. The fluid-hybrid wrapper, the MSO conditionals, the styled alt
  * text, `role="presentation"` on every layout table, the absence of a CSP nonce — all of
  * it is invisible to whoever is typing, and a rich-text editor emits `<div>`s and inline
- * styles that Outlook drops on the floor. {@see \Tests\Unit\EmailInboxCompatTest} holds
+ * styles that Outlook drops on the floor. {@see \Tests\Unit\EmailInboxCompatCase} holds
  * twelve of those properties and a WYSIWYG would break most of them in an afternoon.
  *
  * So the skeleton stays in `templates/emails/campaign.twig`, and what is editable is:
@@ -427,33 +427,21 @@ final class EmailCampaign
     /** The copy a new campaign starts from — the shipped "final hours" shape. */
     public static function starter(): array
     {
+        // The same words as the fixed message (emails/final.html.twig), so a campaign started
+        // here says what the platform would have sent anyway. EmailCampaignTest holds it.
         return [
             ['type' => 'hero', 'headline' => 'Finish', 'accent' => 'strong',
-             'standfirst' => "{first_name|Friend}, you're in the final stretch of Africa GATES voting"
-                           . " in {category_name|your category}."],
-            ['type' => 'quote', 'text' => 'The end of a matter is better than its beginning.',
-             'source' => 'The Preacher'],
-            ['type' => 'paragraph',
-             'text' => "This is no longer just about how the journey began — it's about how we choose to finish it. "
-                     . "You've come this far because your work, influence, and contribution to your community have been "
-                     . "seen and recognised.\n"
-                     . "Now, help us make Africa GATES one of the most remarkable community experiences "
-                     . "we've ever created."],
-            ['type' => 'heading', 'text' => "Two things we're asking of you"],
-            ['type' => 'ask', 'title' => 'Mobilise your supporters',
-             'text' => 'Rally your fans, friends, family, colleagues and community to vote for you and help secure '
-                     . 'your place in this historic moment.',
+             'standfirst' => "{first_name|Friend}, you’re in the final stretch of Africa GATES voting"
+                           . " in {category_name|your category}. Two things make the difference."],
+            ['type' => 'ask', 'title' => 'Send your link to five people',
+             'text' => 'Personally. A message beats a post.',
              'link_label' => 'Share your voting link', 'link' => 'vote_url'],
             ['type' => 'ask', 'title' => 'Fill the room',
-             'text' => 'Encourage your supporters to get their event tickets and physically join us — the people who '
+             'text' => 'Encourage your supporters to get their event tickets and join us — the people who '
                      . 'believed in you should be there to celebrate with you.',
              'link_label' => 'Get event tickets', 'link' => 'events_url'],
-            ['type' => 'callout', 'text' => 'Every vote matters. Every supporter matters. Every ticket matters.'],
-            ['type' => 'button', 'label' => 'Vote & Share Your Link', 'link' => 'vote_url',
+            ['type' => 'button', 'label' => 'Vote and share your link', 'link' => 'vote_url',
              'secondary_label' => 'Get event tickets', 'secondary_link' => 'events_url'],
-            ['type' => 'signoff',
-             'text' => 'Let us not simply participate in Africa GATES. Let us make history together.',
-             'salutation' => 'With appreciation and anticipation,', 'signature' => 'The Africa GATES Team'],
         ];
     }
 

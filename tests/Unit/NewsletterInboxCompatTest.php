@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
  * claim from one that holds for a full issue. The fixture is the busiest realistic issue:
  * every section filled to its cap.
  */
-final class NewsletterInboxCompatTest extends EmailInboxCompatTest
+final class NewsletterInboxCompatTest extends EmailInboxCompatCase
 {
     private static string $rendered = '';
 

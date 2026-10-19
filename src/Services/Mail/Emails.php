@@ -51,6 +51,7 @@ final class Emails
         'invite'     => 'InviteMailer::compose (guest of honour)',
         'judge'      => 'Admin JudgesController::sendJudgeForm (welcome + profile form)',
         'winner'     => 'CycleAnnouncer::email (winner and runner-up, at the release)',
+        'final'      => 'NomineeBroadcast (the fixed final-hours message)',
     ];
 
     /**

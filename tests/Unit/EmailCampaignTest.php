@@ -17,14 +17,16 @@ use Tests\TestCase;
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * `HANDOFF.md` §6 warns that "a WYSIWYG editor is the fastest way to break every one of
- * them" — them being the twelve inbox properties in {@see EmailInboxCompatTest}. So the
+ * them" — them being the twelve inbox properties in {@see EmailInboxCompatCase}. So the
  * first thing held here is that the editor CANNOT emit markup: every text field is
  * strip_tags'd on the way in and the template supplies the HTML.
  *
- * The second is that a campaign built from the starter blocks renders the SAME VISIBLE COPY
- * as `templates/emails/final-hours.twig`, the file it replaces. That was the acceptance
+ * The second is that a campaign built from the starter blocks SAYS EVERYTHING the fixed
+ * final-hours message says (`templates/emails/final.html.twig`). That was the acceptance
  * test for the whole change: a migration to editable copy that quietly altered the campaign
- * would be a regression dressed as a feature.
+ * would be a regression dressed as a feature. The two no longer share a chassis — the fixed
+ * message moved to the house shell with the handoff (19 Oct 2026), the editor keeps
+ * campaign.twig — so it is held on the WORDS of the message's body, sentence by sentence.
  */
 final class EmailCampaignTest extends TestCase
 {
@@ -76,18 +78,12 @@ final class EmailCampaignTest extends TestCase
     // ══ the acceptance test ══════════════════════════════════════════════════
 
     /**
-     * The starter campaign must read exactly like the file it replaces. Compared as visible
-     * text with entities decoded, because the markup differs (a loop instead of fixed rows)
-     * while the words must not.
+     * The starter campaign must say every sentence of the fixed message's body. Compared as
+     * visible text with entities decoded, because the markup differs while the words must not.
      */
-    public function test_the_starter_campaign_reads_exactly_like_the_template_it_replaces(): void
+    public function test_the_starter_campaign_says_everything_the_fixed_message_says(): void
     {
         $vars = EmailCampaign::sampleVars();
-
-        $twig = new \Twig\Environment(
-            new \Twig\Loader\FilesystemLoader(dirname(__DIR__, 2) . '/templates'),
-            ['autoescape' => 'html']
-        );
 
         $visible = static function (string $html): string {
             $html = (string) preg_replace('/<!--.*?-->/s', '', $html);
@@ -98,14 +94,20 @@ final class EmailCampaignTest extends TestCase
                 html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
         };
 
-        $this->assertSame(
-            $visible($twig->render('emails/final-hours.twig', $vars)),
-            $visible(EmailCampaign::render('s', 'p', EmailCampaign::starter(), $vars)),
-            'the editable campaign does not say the same thing as the template it replaces'
-        );
+        $fixed   = \AfricaGates\Services\Mail\Emails::compose('final', $vars);
+        $starter = $visible(EmailCampaign::render('s', 'p', EmailCampaign::starter(), $vars));
+        $body    = $visible('<table>' . $fixed['html'] . '</table>');
+        // The h1 is "Finish strong, <name>" in one and a headline+accent pair in the other;
+        // every other line is a sentence, and each must be there.
+        foreach (['Two things make the difference.', 'Send your link to five people', 'Personally. A message beats a post.',
+                  'Fill the room', 'the people who believed in you should be there to celebrate with you.',
+                  'Vote and share your link', 'Get event tickets'] as $sentence) {
+            $this->assertStringContainsString($sentence, $body, "the fixed message lost '$sentence'");
+            $this->assertStringContainsString($sentence, $starter, "the editable starter does not say '$sentence'");
+        }
     }
 
-    /** The structural properties EmailInboxCompatTest holds must survive the new skeleton. */
+    /** The structural properties EmailInboxCompatCase holds must survive the new skeleton. */
     public function test_the_rendered_campaign_keeps_the_structure_outlook_needs(): void
     {
         $html = EmailCampaign::render('s', 'p', EmailCampaign::starter(), EmailCampaign::sampleVars());
@@ -373,7 +375,10 @@ final class EmailCampaignTest extends TestCase
     public function test_the_plain_text_follows_the_blocks_and_spells_out_links(): void
     {
         $vars = EmailCampaign::sampleVars();
-        $txt  = EmailCampaign::plainOf(EmailCampaign::starter(), $vars);
+        // A heading block is added to the starter: the starter no longer carries one, and the
+        // rule being held is how a heading reaches a text client, not the starter's wording.
+        $txt  = EmailCampaign::plainOf(array_merge(EmailCampaign::starter(),
+            [['type' => 'heading', 'text' => "Two things we're asking of you"]]), $vars);
 
         $this->assertStringContainsString('Finish strong', $txt);
         $this->assertStringContainsString("TWO THINGS WE'RE ASKING OF YOU", $txt);

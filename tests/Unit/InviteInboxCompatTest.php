@@ -38,7 +38,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  * remote images by default — so it is asserted below against the invitation's own
  * critical facts and its own two images.
  */
-final class InviteInboxCompatTest extends EmailInboxCompatTest
+final class InviteInboxCompatTest extends EmailInboxCompatCase
 {
     private static string $rendered = '';
 

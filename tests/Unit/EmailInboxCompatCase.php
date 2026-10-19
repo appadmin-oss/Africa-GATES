@@ -13,20 +13,17 @@ use Tests\TestCase;
  * client it is for, because a rule with no client attached gets deleted by the next person
  * as superstition.
  */
-class EmailInboxCompatTest extends TestCase
+abstract class EmailInboxCompatCase extends TestCase
 {
-    private const TPL = __DIR__ . '/../../templates/emails/final-hours.twig';
-
     /**
-     * The template under test. Overridable so the SAME twelve properties apply to every
-     * mail skeleton rather than only the first one written — see
-     * {@see CampaignInboxCompatTest}. Duplicating these assertions per template would mean
-     * twelve rules in two places and one of them silently behind.
+     * The template under test. Per subclass, so the SAME twelve properties apply to every
+     * mail skeleton rather than only the first one written — {@see CampaignInboxCompatTest},
+     * {@see InviteInboxCompatTest}, {@see FinalHoursInboxCompatTest}. Duplicating these
+     * assertions per template would mean twelve rules in two places and one of them
+     * silently behind. Abstract since the fixed final-hours file this class was written
+     * against moved into the house shell (19 Oct 2026).
      */
-    protected static function tpl(): string
-    {
-        return self::TPL;
-    }
+    abstract protected static function tpl(): string;
 
     /**
      * The markup these properties are asserted against.

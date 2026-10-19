@@ -40,7 +40,6 @@ final class MailPaletteTest extends TestCase
         'src/Services/QuestionnaireInvites.php'  => 'emails/questionnaire.twig',
         'src/Services/NomineeVotingNotice.php'   => 'emails/nominee-voting.twig',
         'src/Services/StandNotice.php'           => 'emails/stand-decision.twig',
-        'src/Services/NomineeBroadcast.php'      => 'emails/final-hours.twig',
         'src/Services/EmailCampaign.php'         => 'emails/campaign.twig',
         'src/Services/Newsletter/Newsletter.php' => 'emails/newsletter.twig',
         'src/Services/OtpService.php'            => 'emails/_shell.twig',
