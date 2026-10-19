@@ -31,5 +31,5 @@
 {{ b.button('Complete my profile', form_url) }}
 {{ b.note("This link is private to you, works once, and lasts #{form_days} days.") }}
 {{ b.link('Sign in to the judging panel', login_url) }}
-{{ b.note('A question about judging? Ask us through the help desk: ' ~ help_url) }}
+{{ b.link('A question about judging? Ask the help desk', help_url) }}
 {% endblock %}
