@@ -44,6 +44,7 @@ final class MailPaletteTest extends TestCase
         'src/Services/NomineeBroadcast.php'      => 'emails/final-hours.twig',
         'src/Services/EmailCampaign.php'         => 'emails/campaign.twig',
         'src/Services/Newsletter/Newsletter.php' => 'emails/newsletter.twig',
+        'src/Services/OtpService.php'            => 'emails/_shell.twig',
     ];
 
     public function test_every_colour_a_mail_template_names_is_a_palette_token(): void

@@ -775,199 +775,41 @@ HTML;
      *                          the subject rather than to the body's first words, which is
      *                          what a client picks up when there is nothing hidden for it.
      */
-    public function brandWrap(string $subject, string $body, string $category = '', string $hero = '', string $unsubscribeUrl = '', string $preheader = '', int $heroHeight = 0): string
+    public function brandWrap(string $subject, string $body, string $category = '', string $hero = '', string $unsubscribeUrl = '', string $preheader = '', int $heroHeight = 0, string $why = ''): string
     {
-        $year    = date('Y');
-        $base    = $this->base();
-        // THE SHELL'S COLOURS ARE THE PALETTE'S (rebuilt 3 Oct 2026 with the email
-        // templates it carries — docs/handoff/inventory/_emails.md). It typed eleven
-        // colours of its own, none in Support\Accent; mail cannot read var(), so it asks
-        // Accent for the value by name. Three levels as before: the page on `tint`, the
-        // masthead on `ground`, the card on `surface`; the footer is ink with `line-2`
-        // words and `surface` links.
-        $c = Accent::mail();
-        [$cInk, $cInk2, $cSoft, $cTint, $cGround, $cSurface, $cLine, $cLine2, $cGreen, $cGreenLight]
-            = [$c['ink'], $c['ink-2'], $c['soft'], $c['tint'], $c['ground'], $c['surface'],
-               $c['line'], $c['line-2'], $c['green'], $c['green-light']];
-        $shadow = Accent::shadows()['sh-float'];
-        // The labels are 11.5px, the §6.2 floor — they were 10 and 10.5. A tracked label is
-        // small text and owes the full 4.5:1: `soft` is 4.80 on the ground it sits on.
-        $catCell = $category !== ''
-            ? '<div style="margin-top:5px;font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:' . $cInk . '">'
-              . htmlspecialchars($category, ENT_QUOTES) . '</div>'
-            : '';
-        // HEIGHT as well as width. Outlook desktop blocks remote images by default, and a
-        // blocked image with no height collapses the band it is the only thing in — the
-        // reader gets a hairline where the picture was. 260 is the shipped 600×260 crop;
-        // a caller with different artwork passes its own.
-        $hh = $heroHeight > 0 ? $heroHeight : 260;
-        $heroRow = $hero !== ''
-            ? '<tr><td style="padding:0;font-size:0;line-height:0"><img src="' . htmlspecialchars($hero, ENT_QUOTES)
-              . '" alt="" width="600" height="' . $hh . '" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>'
-            : '';
-
-        // The line an inbox shows beside the subject. Without it every message on this
-        // platform previewed as "Africa GATES Cultural Power Index" — the words in the
-        // pre-header strip, which is the first text in the document. Padded with
-        // zero-width joiners so the client does not pull body copy in after it.
-        $pre = htmlspecialchars($preheader !== '' ? $preheader : $subject, ENT_QUOTES);
-        $preRow = '<div style="display:none;max-height:0;max-width:0;font-size:1px;line-height:1px;opacity:0;overflow:hidden;mso-hide:all">'
-                . $pre . str_repeat('&#8202;&zwnj;', 7) . '</div>';
-        // A visible way out, next to the other two footer links. The List-Unsubscribe
-        // header is what Gmail reads; this is what a person reads, and only one of those
-        // two is a promise the platform made in writing.
-        // THE REAL MARK, at a size it can actually be read at.
+        // The markup is templates/emails/_shell.twig (design_handoff_letter_email_admin,
+        // "Shell, final"), whose docblock lists what it must keep and which test keeps it.
+        // What is decided HERE is only what the template cannot know:
         //
-        // This masthead was a "G" set in a 34px tile beside the words "Africa GATES" — a
-        // lockup drawn in CSS, because the shipped artwork is green on OPAQUE white and
-        // the band was ink. The band is the paper ground now, so the mark is the real
-        // green one; Brand::LOGO_ON_TINT is that artwork with the paper turned to alpha,
-        // because the masthead's ground is close enough to white that the opaque file's box is
-        // invisible in a screenshot and obvious in an inbox. Asking Brand for it rather
-        // than typing a path is what keeps the letter and the email it arrives with
-        // showing the same logo.
-        //
-        // ── WHY IT IS 72px, AND WHY THE FILE IS 144 ──────────────────────────────
-        //
-        // The lockup is a LARGE-FORMAT mark: a hairline coastline with "Africa" set
-        // inside it over "G.A.T.E.S." tracked at 4% of the artwork's height. At 42px —
-        // the size a horizontal wordmark would want — the coastline goes sub-pixel and
-        // what arrives is a smudge. 72 is the floor at which "Africa" still reads; the
-        // tracked line below it is texture at any size a masthead can carry, and that is
-        // the artwork rather than the layout.
-        //
-        // What made it look dirty was never the size, though — it was serving the 640px
-        // master and letting the client reduce it 8x, which washes a 2.5px stroke out to
-        // a third of a pixel of coverage. `scripts/gen-mark-alpha.php` does that
-        // reduction properly, ONCE, at 2x this box. Change 72 here and change OUT_W
-        // there: the two are one decision.
-        //
-        // width AND height on the tag: Outlook desktop blocks remote images by default
-        // and a blocked image with no height collapses the band it is the only thing in.
-        // The alt is the organisation's name, styled — an unstyled alt renders as 10px
-        // serif and reads as a broken attachment rather than as a wordmark.
-        $logo = htmlspecialchars(Brand::logoUrl($base, onTint: true), ENT_QUOTES);
-        // The footer used to end "We hash every email — plain text is never stored", on
-        // every branded message this platform sends. It was not true: the newsletter list,
-        // the opt-out list and the broadcast log all hold the address, because mail cannot
-        // be sent to a hash. A footer is a statement in writing to every recipient; it now
-        // says who sent the message and where they are, which is what one owes.
-        $postal = htmlspecialchars(MailConfig::postal(), ENT_QUOTES);
-        $unsub = $unsubscribeUrl !== ''
-            ? ' · <a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES)
-              . '" style="color:' . $cSurface . ';text-decoration:underline">Unsubscribe</a>'
-            : '';
-        // ── THE SKELETON, AND THE THREE THINGS THAT ARE EASY TO GET WRONG IN IT ──
-        //
-        // A comment written INSIDE the heredoc ships to every recipient and is scanned by
-        // the compat tests as if it were markup — an HTML comment saying "padding on a
-        // <table>" was read as an eighth layout table with no presentation role. So the
-        // reasoning lives out here.
-        //
-        // THE CARD is width="100%" with a max-width, never width="600". Fixed at 600 it
-        // did not shrink on a phone: measured in a 390px frame, the header labels and the
-        // right edge of every paragraph were off-screen, on every branded message this
-        // platform sends. The [if mso] table hands Outlook back the fixed 600 it needs,
-        // because it is the one engine that ignores max-width.
-        //
-        // THE GUTTER is on the cell, not on the wrapper. Browsers inset it either way;
-        // Outlook's Word engine ignores CSS padding on a table element and honours it on
-        // a cell, so on the wrapper it is a gutter that silently is not there in the one
-        // client the conditional exists for. Same convention as the campaign skeleton.
-        //
-        // THE MASTHEAD puts the mark where a letterhead puts it and hangs the descriptor
-        // and the message's category off the TOP line opposite — centred, they floated
-        // against the outline's empty lower half. There used to be a separate near-white
-        // strip above it reading "Africa GATES · Cultural Power Index"; it is gone,
-        // because two light bands of almost the same value read as a printing fault and
-        // half of what it said is the wordmark directly beneath it.
-        return <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
-  <meta name="color-scheme" content="light">
-  <meta name="supported-color-schemes" content="light">
-  <title>$subject</title>
-  <style>
-    /* iOS still finds dates and addresses with format-detection set, wraps them in its
-       own anchor and restyles them blue — through the middle of a sentence. */
-    a[x-apple-data-detectors] {
-      color:inherit !important; text-decoration:none !important; font-size:inherit !important;
-      font-family:inherit !important; font-weight:inherit !important; line-height:inherit !important;
-    }
-    @media only screen and (max-width:620px) {
-      .ag-pad { padding-left:22px !important; padding-right:22px !important; }
-    }
-    /* This shell does NOT go dark, and that is a decision rather than an omission.
-       Every body it wraps is a FRAGMENT whose ink is set inline — ink headings on
-       white, per-message callouts in their own tints — so a card flipped dark
-       here would render all of it dark-on-dark in exactly the clients that honour this
-       query and nothing else.
-       What the block is for is colour-LOCKING. Outlook.com and the Windows Outlook apps
-       invert regardless of color-scheme and do it partially, which leaves a near-white
-       surface muddy grey with the ink on it untouched. Restating each surface with
-       !important is what stops that. */
-    @media (prefers-color-scheme: dark) {
-      .ag-ground { background-color:$cTint !important; }
-      .ag-head   { background-color:$cGround !important; }
-      .ag-card   { background-color:$cSurface !important; }
-      .ag-body   { background-color:$cSurface !important; color:$cInk2 !important; }
-      .ag-foot   { background-color:$cInk !important; }
-    }
-  </style>
-</head>
-<body style="margin:0;padding:0;background:$cTint;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-  $preRow
-  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:$cTint">
-    <tr><td align="center" style="padding:28px 16px">
-      <!--[if mso]>
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px"><tr><td>
-      <![endif]-->
-      <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:$cSurface;border-radius:6px;overflow:hidden;border:1px solid $cLine;box-shadow:$shadow">
-
-        <!-- Masthead -->
-        <tr><td class="ag-head" style="background:$cGround;border-bottom:1px solid $cLine;padding:20px 32px">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-            <td align="left" style="vertical-align:middle">
-              <img src="$logo" width="72" height="83" alt="Africa GATES"
-                   style="display:block;width:72px;max-width:72px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:$cGreen">
-            </td>
-            <td align="right" style="vertical-align:top;padding-top:12px">
-              <div style="font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:$cSoft">Cultural Power Index</div>
-              $catCell
-            </td>
-          </tr></table>
-        </td></tr>
-
-        $heroRow
-
-        <!-- Body -->
-        <tr><td class="ag-pad ag-body" style="padding:34px 40px 30px;background:$cSurface;color:$cInk2;font-size:15px;line-height:1.65">
-          $body
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td class="ag-foot" style="background:$cInk;padding:24px 40px">
-          <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:14px;color:$cSurface">Africa<span style="color:$cGreenLight">GATES</span></span>
-          <div style="height:1px;background:$cInk2;margin:14px 0"></div>
-          <p style="margin:0;font-size:11.5px;line-height:1.7;color:$cLine2">
-            © $year Africa GATES, an Afrovanguard initiative · $postal<br>
-            <a href="{$base}/help" style="color:$cSurface;text-decoration:underline">Help Center</a> ·
-            <a href="{$base}/privacy" style="color:$cSurface;text-decoration:underline">Privacy</a>$unsub
-          </p>
-        </td></tr>
-
-      </table>
-      <!--[if mso]></td></tr></table><![endif]-->
-    </td></tr>
-  </table>
-</body>
-</html>
-HTML;
+        //  · the mark comes from Brand, never a typed path, so the letter and the email it
+        //    arrives with show the same logo. It is the alpha artwork at 72×83 (the file is
+        //    144 wide — scripts/gen-mark-alpha.php reduces it once, properly; a client
+        //    reducing the 640px master washes the coastline out to a smudge);
+        //  · the hero keeps a HEIGHT even when the caller has none: Outlook desktop blocks
+        //    remote images by default, and a blocked image with no height collapses the band
+        //    it is the only thing in — 260 is the shipped 600×260 crop;
+        //  · the preheader falls back to the subject — without one, every message here
+        //    previewed as the first words of the masthead;
+        //  · the footer says who sent it and where they are (MailConfig::postal()). It used
+        //    to claim "we hash every email — plain text is never stored", which three tables
+        //    contradict; a footer is a statement in writing to every recipient.
+        return \AfricaGates\Services\Mail\EmailView::env()->render('emails/_shell.twig', [
+            'c'               => Accent::mail(),
+            'subject'         => $subject,
+            'preheader'       => $preheader !== '' ? $preheader : $subject,
+            'category'        => $category,
+            'hero'            => $hero,
+            'hero_height'     => $heroHeight > 0 ? $heroHeight : 260,
+            'body'            => $body,
+            'why'             => $why,
+            'logo'            => Brand::logoUrl($this->base(), onTint: true),
+            'base'            => $this->base(),
+            'postal'          => MailConfig::postal(),
+            'year'            => date('Y'),
+            // A visible way out beside Help and Privacy. The List-Unsubscribe header is what
+            // Gmail reads; this is what a person reads.
+            'unsubscribe_url' => $unsubscribeUrl,
+        ]);
     }
 
     /* ── Additional transactional emails ─────────────────────── */
