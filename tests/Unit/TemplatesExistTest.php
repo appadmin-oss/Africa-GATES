@@ -33,7 +33,7 @@ final class TemplatesExistTest extends TestCase
      * Each must also be recorded in docs/handoff/DESTROYED.md.
      */
     private const AWAITING_REBUILD = [
-        'pages/claim-dispute.twig', 'pages/form.twig', 'pages/gated-form.twig', 'pages/honour.twig',
+        'pages/claim-dispute.twig', 'pages/form.twig', 'pages/honour.twig',
         'pages/interview.twig', 'pages/nominee-claim.twig', 'pages/nominee-confirm-done.twig',
         'pages/nominee-confirm.twig', 'pages/registry/register.twig',
         'pages/shop/alert-stopped.twig', 'pages/shop/order.twig', 'pages/stands/apply.twig',

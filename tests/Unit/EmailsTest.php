@@ -27,6 +27,16 @@ final class EmailsTest extends TestCase
             'confirm' => ['first_name' => 'Ada', 'email' => 'ada@x.test', 'confirm_url' => 'https://x.test/account/verify?token=t', 'hours' => UserAccountService::VERIFY_TTL_HOURS],
             'reset'   => ['reset_url' => 'https://x.test/account/reset?token=t', 'ttl' => 'an hour'],
             'welcome' => ['first_name' => 'Ada', 'account_url' => 'https://x.test/account', 'free_voting' => true, 'vote_price' => ''],
+            'nom-in'  => ['programme' => 'Teaching Award', 'nominee' => 'Ngozi Eze', 'nominee_first_name' => 'Ngozi', 'category' => 'Primary',
+                          'reference' => 'AFG-NOM-0042', 'decide_by' => 'Monday 21 October', 'nominee_contacted' => true,
+                          'voting_opens' => '1 November 2026', 'watch_url' => 'https://x.test/leaderboard'],
+            'nominated' => ['programme' => 'Teaching Award', 'first_name' => 'Ngozi', 'quote' => 'She runs a reading club for 60 children.',
+                          'quote_by' => 'Kofi Mensah, colleague', 'confirm_url' => '', 'confirm_days' => 7,
+                          'watch_url' => 'https://x.test/leaderboard', 'help_url' => 'https://x.test/support'],
+            'approved' => ['programme' => 'Teaching Award', 'first_name' => 'Ngozi', 'category' => 'Primary', 'due' => '18 November 2026',
+                          'voting_opens' => '1 November 2026', 'form_url' => 'https://x.test/f/t', 'page_url' => 'https://x.test/vote/p/1-ngozi'],
+            'rejected' => ['nominee' => 'Ngozi Eze', 'reason' => 'Outside the award’s region.', 'rules_url' => 'https://x.test/awards/p',
+                          'help_url' => 'https://x.test/support'],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }
@@ -53,9 +63,9 @@ final class EmailsTest extends TestCase
         }
     }
 
-    public function test_the_account_emails_are_transactional_and_carry_no_unsubscribe(): void
+    public function test_account_and_nomination_emails_are_transactional_and_carry_no_unsubscribe(): void
     {
-        foreach (['otp', 'confirm', 'reset', 'welcome'] as $key) {
+        foreach (['otp', 'confirm', 'reset', 'welcome', 'nom-in', 'nominated', 'approved', 'rejected'] as $key) {
             $this->assertTrue(Emails::compose($key, self::sample($key))['transactional'],
                 "$key would carry an Unsubscribe link — a sign-in code with one invites somebody to switch off the way in");
         }
@@ -69,6 +79,40 @@ final class EmailsTest extends TestCase
 
         $confirm = Emails::compose('confirm', self::sample('confirm'));
         $this->assertStringContainsString('works for ' . UserAccountService::VERIFY_TTL_HOURS . ' hours', $confirm['text']);
+    }
+
+    public function test_a_private_nominator_is_never_named_to_the_nominee(): void
+    {
+        $private = Emails::compose('nominated', ['quote_by' => ''] + self::sample('nominated'));
+        $this->assertStringNotContainsString('Kofi', $private['html'] . $private['text'] . $private['preheader']);
+        $this->assertStringContainsString('Someone who knows your work', $private['html']);
+
+        $named = Emails::compose('nominated', self::sample('nominated'));
+        $this->assertStringContainsString('Kofi Mensah, colleague', $named['html']);
+    }
+
+    public function test_the_nominee_is_never_told_to_reply_to_an_unread_inbox(): void
+    {
+        foreach (['nominated' => ['confirm_url' => ''], 'nominated ' => ['confirm_url' => 'https://x.test/c/t'], 'rejected' => []] as $key => $extra) {
+            $key = trim($key);
+            $m = Emails::compose($key, $extra + self::sample($key));
+            $this->assertStringNotContainsStringIgnoringCase('reply to this email', $m['html'] . $m['text'],
+                "$key tells somebody to reply to an inbox nobody reads (owner, 19 Oct 2026: the help desk)");
+        }
+    }
+
+    public function test_the_confirm_path_states_the_link_window_from_the_constant(): void
+    {
+        $m = Emails::compose('nominated', ['confirm_url' => 'https://x.test/c/t', 'confirm_days' => \AfricaGates\Services\NomineeConfirmation::TTL_DAYS] + self::sample('nominated'));
+        $this->assertStringContainsString('works for ' . \AfricaGates\Services\NomineeConfirmation::TTL_DAYS . ' days', $m['text']);
+        $this->assertStringContainsString('https://x.test/c/t', $m['html']);
+    }
+
+    public function test_a_rejection_with_no_reason_does_not_invent_one(): void
+    {
+        $m = Emails::compose('rejected', ['reason' => ''] + self::sample('rejected'));
+        $this->assertStringNotContainsString('Reason', $m['html']);
+        $this->assertStringNotContainsString('eligibility', $m['html'], 'a reason nobody gave was supplied');
     }
 
     public function test_the_welcome_states_the_voting_rule_that_runs(): void

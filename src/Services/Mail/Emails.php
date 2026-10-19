@@ -28,12 +28,20 @@ use AfricaGates\Support\SiteUrl;
  */
 final class Emails
 {
+    /** Where a key's two parts live. EmailsTest renders every key, so a missing file fails there. */
+    private const BODY = 'emails/%s.html.twig';
+    private const TEXT = 'emails/%s.txt.twig';
+
     /** key → the sender that sends it. A key here with no body file is a test failure. */
     public const KEYS = [
         'otp'        => 'AccountController::otpRequest',
         'confirm'    => 'AccountController::sendVerification',
         'reset'      => 'AccountController::forgot',
         'welcome'    => 'AccountController::sendWelcome',
+        'nom-in'     => 'NominationAftercare::email (to the nominator)',
+        'nominated'  => 'NominationAftercare::email + NomineeConfirmation::ask (to the nominee)',
+        'approved'   => 'Admin NominationsController::sendNomineeForm',
+        'rejected'   => 'Admin NominationsController (reject)',
     ];
 
     /**
@@ -50,7 +58,7 @@ final class Emails
         $vars += ['site_url' => $base, 'postal_address' => MailConfig::postal(), 'c' => Accent::mail()];
 
         $env  = EmailView::env();
-        $tpl  = $env->load('emails/' . $key . '.html.twig');
+        $tpl  = $env->load(sprintf(self::BODY, $key));
         $one  = static fn(string $b): string => trim(html_entity_decode($tpl->renderBlock($b, $vars), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $hero = $one('hero');
 
@@ -64,7 +72,7 @@ final class Emails
             // The blocks are table rows; this is the table they are rows of.
             'html'          => '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
                              . $tpl->renderBlock('body', $vars) . '</table>',
-            'text'          => trim($env->render('emails/' . $key . '.txt.twig', $vars)),
+            'text'          => trim($env->render(sprintf(self::TEXT, $key), $vars)),
         ];
     }
 

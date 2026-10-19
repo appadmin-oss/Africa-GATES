@@ -300,31 +300,61 @@ final class NominationAftercare
                                  $adminHtml, strip_tags($adminHtml), 'Nominations');
         } catch (\Throwable) {}
 
-        // ── 2 · the nominator ────────────────────────────────────────────────
+        // ── 2 and 3 · the nominator and the nominee: the handoff's emails ─────
+        //
+        // What they promise is read from what makes it true: the review time is the
+        // setting the acknowledgement mail is sent against (NominationFeedbackService::
+        // slaHours()), the voting date is the cycle's own, and a nominator who asked to
+        // stay private is never named to the nominee (nominator_private).
+        $cycle = null;
+        try {
+            if (!empty($data['cycle_id'])) {
+                $cycle = DB::table('gates_award_cycles')->where('id', (int) $data['cycle_id'])->first(['voting_open']);
+            }
+        } catch (\Throwable) {}
+        $votingOpens = '';
+        if ($cycle && !empty($cycle->voting_open)) {
+            try { $votingOpens = \Illuminate\Support\Carbon::parse((string) $cycle->voting_open)->format('j F Y'); } catch (\Throwable) {}
+        }
+        $progOnly = trim((string) ($data['programme_title'] ?? '')) ?: (string) explode(' · ', $catLine)[0];
+        $nomFirst = \AfricaGates\Services\DoorWelcome::firstName($nomName) ?: $nomName;
+        $nomPhone = trim((string) ($data['nominee_phone'] ?? ''));
+
         if ($byEmail !== '' && filter_var($byEmail, FILTER_VALIDATE_EMAIL)) {
-            $byHtml = '<p>Hi ' . $esc($byName) . ',</p>'
-                . '<p>Thank you for nominating <strong>' . $esc($nomName) . '</strong> for <strong>' . $esc($catLine)
-                . '</strong>. We&rsquo;ve logged your entry (reference <strong>' . $esc($reference)
-                . '</strong>), and our panel reviews every profile before it joins the cycle.</p>'
-                . '<p><a href="' . $esc($watchUrl) . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:999px">View your entry &amp; watch the cycle &rarr;</a></p>'
-                . '<p style="color:#6b7674;font-size:13.5px">We&rsquo;ll email you the moment the profile goes live and voting opens.</p>';
             try {
-                $mailer->sendBranded($byEmail, 'Your nomination is in — ' . $nomName,
-                                     $byHtml, strip_tags($byHtml), 'Nominations');
+                \AfricaGates\Services\Mail\Emails::send($mailer, $byEmail, 'nom-in', [
+                    'programme'          => $progOnly,
+                    'nominee'            => $nomName,
+                    'nominee_first_name' => $nomFirst,
+                    'category'           => (string) (explode(' · ', $catLine, 2)[1] ?? $catLine),
+                    'reference'          => $reference,
+                    'decide_by'          => \Illuminate\Support\Carbon::now()
+                        ->addHours(\AfricaGates\Services\NominationFeedbackService::slaHours())->format('l j F'),
+                    'nominee_contacted'  => $nomEmail !== '' || $nomPhone !== '',
+                    'voting_opens'       => $votingOpens,
+                    'watch_url'          => $watchUrl,
+                    'site_url'           => $base,
+                ]);
             } catch (\Throwable) {}
         }
 
-        // ── 3 · the nominee, only when an email was given ────────────────────
         if ($nomEmail !== '' && filter_var($nomEmail, FILTER_VALIDATE_EMAIL)) {
-            $nomHtml = '<p>Hello ' . $esc($nomName) . ',</p>'
-                . '<p>Wonderful news &mdash; you&rsquo;ve been nominated for <strong>' . $esc($catLine)
-                . '</strong> on Africa GATES, the continental Cultural Power Index.</p>'
-                . '<p>Our panel verifies every profile before it joins the cycle. Once it&rsquo;s live, the community can vote and your Cultural Power Index begins to build.</p>'
-                . '<p><a href="' . $esc($watchUrl) . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:999px">Watch the cycle &rarr;</a> &nbsp; <a href="'
-                . $esc($base . '/register') . '" style="color:#237b22;font-weight:600">Claim &amp; verify your profile</a></p>';
+            $relation = \AfricaGates\Services\NominationRules::relation($data['nominator_relation'] ?? null);
+            $label    = $relation !== null && $relation !== 'other'
+                ? (\AfricaGates\Services\NominationRules::RELATIONS[$relation] ?? '') : '';
+            $reason   = trim(preg_replace('/\s+/u', ' ', \AfricaGates\Services\NominationRules::reasonText($data, $catTitles)) ?? '');
             try {
-                $mailer->sendBranded($nomEmail, "You've been nominated — Africa GATES",
-                                     $nomHtml, strip_tags($nomHtml), 'Nominations');
+                \AfricaGates\Services\Mail\Emails::send($mailer, $nomEmail, 'nominated', [
+                    'programme'  => $progOnly,
+                    'first_name' => $nomFirst,
+                    'quote'      => mb_strlen($reason) > 220 ? rtrim(mb_substr($reason, 0, 217)) . '…' : $reason,
+                    'quote_by'   => !empty($data['nominator_private']) || $byName === ''
+                        ? '' : $byName . ($label !== '' ? ', ' . mb_strtolower($label) : ''),
+                    'confirm_url' => '',
+                    'watch_url'  => $watchUrl,
+                    'help_url'   => $base . '/support',
+                    'site_url'   => $base,
+                ]);
             } catch (\Throwable) {}
         }
     }

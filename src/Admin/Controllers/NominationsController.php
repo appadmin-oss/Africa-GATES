@@ -214,34 +214,27 @@ class NominationsController
                 ]);
             }
 
-            // Email the nominator when their nomination is rejected
+            // Email the nominator when their nomination is rejected — the handoff's "Not taken
+            // forward". The reviewer's reason travels as written; with none, the email says
+            // so rather than guessing one ("did not meet the eligibility criteria" was a
+            // reason nobody had given).
             if ($action === 'reject' && $this->mailer && filter_var($nom->nominator_email ?? '', FILTER_VALIDATE_EMAIL)) {
-                // Escape attacker-controlled names before interpolating into HTML email.
-                $nn = htmlspecialchars((string)$nom->nominee_name, ENT_QUOTES, 'UTF-8');
-                $by = htmlspecialchars((string)$nom->nominator_name, ENT_QUOTES, 'UTF-8');
-                $reasonBlock = $reason !== ''
-                    ? '<p style="font-size:14px;line-height:1.7;color:#3a4448">' . nl2br(htmlspecialchars($reason, ENT_QUOTES, 'UTF-8')) . '</p>'
-                    : '<p>This may be because the submission did not fully meet the eligibility criteria for the selected category, or because sufficient supporting detail was not provided.</p>';
-                $html = <<<HTML
-<p>Hi <strong>{$by}</strong>,</p>
-<p>Thank you for taking the time to nominate <strong>{$nn}</strong> for the Africa GATES 2026 awards.</p>
-<p>After review, our moderation team was unable to approve this nomination at this time.</p>
-{$reasonBlock}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;background:#fef2f2;border-left:4px solid #fca5a5;border-radius:0 8px 8px 0;padding:12px 16px">
-  <tr><td style="font-size:14px;color:#7f1d1d">
-    Nominee: <strong>{$nn}</strong><br>
-    Status: <strong>Not approved</strong>
-  </td></tr>
-</table>
-<p>You are welcome to submit a revised nomination with additional supporting evidence. If you believe this decision was made in error, please reply to this email.</p>
-HTML;
-                $this->mailer->sendBranded(
-                    $nom->nominator_email,
-                    "Update on your nomination of {$nom->nominee_name}",
-                    $html,
-                    "Hi {$nom->nominator_name},\n\nYour nomination of {$nom->nominee_name} was not approved after review." . ($reason !== '' ? "\n\n{$reason}" : '') . "\n\nYou may resubmit with additional supporting evidence.\n\n— Africa GATES",
-                    'Nominations'
-                );
+                $base = \AfricaGates\Support\SiteUrl::base();
+                $slug = '';
+                try {
+                    $slug = (string) (DB::table('gates_award_cycles as cy')
+                        ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                        ->where('cy.id', (int) ($nom->cycle_id ?? 0))->value('p.slug') ?? '');
+                } catch (\Throwable) {}
+                try {
+                    \AfricaGates\Services\Mail\Emails::send($this->mailer, (string) $nom->nominator_email, 'rejected', [
+                        'nominee'   => (string) $nom->nominee_name,
+                        'reason'    => $reason,
+                        'rules_url' => $base . ($slug !== '' ? '/awards/' . rawurlencode($slug) : '/awards'),
+                        'help_url'  => $base . '/support',
+                        'site_url'  => $base,
+                    ]);
+                } catch (\Throwable) {}
             }
 
             $msg = 'Nomination ' . $status . ($reason !== '' && $action === 'reject' ? ' — reason sent to the nominator.' : '.');
@@ -480,16 +473,36 @@ HTML;
         // a missing gates_form_tokens table (stale DB) or a mail failure must
         // never bubble up and 500 an approval that already committed.
         try {
-            $raw  = GatedFormService::issue('nominee', $nomineeId, $email);
+            $ttl  = 30;
+            $raw  = GatedFormService::issue('nominee', $nomineeId, $email, $ttl);
             $link = GatedFormService::link($raw);
-            $nn   = htmlspecialchars((string)$nom->nominee_name, ENT_QUOTES, 'UTF-8');
-            $html = "<p>Hi <strong>{$nn}</strong>,</p>"
-                . "<p>Congratulations — your nomination has been <strong style=\"color:#15803d\">verified and approved</strong> on Africa GATES.</p>"
-                . "<p>Please confirm your details using your private form below. It takes a minute and helps us present you accurately to the continent.</p>"
-                . "<p style=\"text-align:center;margin:24px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Complete your form →</a></p>"
-                . "<p style=\"font-size:12.5px;color:#6b7674\">This is a private, single-use link just for you — it works once.</p>";
-            $plain = "Hi {$nom->nominee_name},\n\nCongratulations — your nomination has been verified and approved on Africa GATES.\nPlease complete your details using your private, single-use form:\n{$link}\n\n— Africa GATES";
-            $this->mailer->sendBranded($email, 'Congratulations — complete your Africa GATES nominee form', $html, $plain, 'Nominations');
+            // The handoff's "Approved". The page, the dates and the deadline are the live
+            // ones: the form is due when this single-use link expires.
+            $base = \AfricaGates\Support\SiteUrl::base();
+            $row  = DB::table('gates_nominees as n')
+                ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                ->where('n.id', $nomineeId)
+                ->first(['n.id', 'n.name', 'c.title as category', 'cy.voting_open', 'p.title as programme', 'p.slug as programme_slug']);
+            $opens = '';
+            if ($row && !empty($row->voting_open)) {
+                try { $opens = \Illuminate\Support\Carbon::parse((string) $row->voting_open)->format('j F Y'); } catch (\Throwable) {}
+            }
+            $name = (string) ($row->name ?? $nom->nominee_name);
+            $r = \AfricaGates\Services\Mail\Emails::send($this->mailer, $email, 'approved', [
+                'programme'    => (string) ($row->programme ?? ''),
+                'first_name'   => \AfricaGates\Services\DoorWelcome::firstName($name) ?: $name,
+                'category'     => (string) ($row->category ?? ''),
+                'due'          => \Illuminate\Support\Carbon::now()->addDays($ttl)->format('j F Y'),
+                'voting_opens' => $opens,
+                'form_url'     => $link,
+                'page_url'     => !empty($row->programme_slug)
+                    ? $base . '/vote/' . rawurlencode((string) $row->programme_slug) . '/' . \AfricaGates\Support\Slug::idSegment((int) $row->id, $name)
+                    : '',
+                'site_url'     => $base,
+            ]);
+            if (!($r['success'] ?? false)) return false;
             return true;
         } catch (\Throwable $e) { /* token issue or mail failure — never break approval */ }
         return false;

@@ -1,0 +1,16 @@
+{#- Plain-text part for approved.html.twig. -#}
+You’re a nominee, {{ first_name }}
+
+Your nomination has been checked and approved. One step left: your nominee form, so the panel and the public see you as you are. The link works once.
+
+Category: {{ category }}
+Form due: {{ due }}
+{% if voting_opens %}Voting opens: {{ voting_opens }}
+{% endif %}
+Complete my nominee form: {{ form_url }}
+{% if page_url %}See your public page: {{ page_url }}
+{% endif %}
+—
+Your nomination for an Africa GATES award was approved.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

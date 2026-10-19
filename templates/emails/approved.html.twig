@@ -1,0 +1,23 @@
+{#- Approved (to the nominee) · Nominations. Sender: Admin NominationsController::sendNomineeForm.
+    Variables: programme, first_name, category, due, voting_opens, form_url, page_url.
+    Design: Email Templates.dc.html → "Approved", corrected to the live site (owner, 19 Oct
+    2026): the nominee's page is live from approval, so the design's "one step left before
+    your page goes live" is not what happens; `due` is the date the single-use form link
+    expires (GatedFormService::issue). -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Nominations{% endblock %}
+{% block hero %}illo-medallion{% endblock %}
+{% block why %}Your nomination for an Africa GATES award was approved.{% endblock %}
+{% block subject %}Congratulations — complete your Africa GATES nominee form{% endblock %}
+{% block preheader %}You’re a nominee for {{ category }}. Your form is due {{ due }}.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{% if programme %}{{ b.eyebrow(programme) }}{% endif %}
+{{ b.h1("You’re a nominee, #{first_name}") }}
+{{ b.p('Your nomination has been checked and approved. One step left: your nominee form, so the panel and the public see you as you are. The link works once.') }}
+{% set _facts = [['Category', category], ['Form due', due, 'b']] %}
+{% if voting_opens %}{% set _facts = _facts|merge([['Voting opens', voting_opens]]) %}{% endif %}
+{{ b.facts(_facts) }}
+{{ b.button('Complete my nominee form', form_url) }}
+{% if page_url %}{{ b.link('See your public page', page_url) }}{% endif %}
+{% endblock %}
