@@ -415,7 +415,8 @@ final class UserAccountService
     // account; a verification link only proves an address. They are not the same risk and
     // must not share a window.
     public const RESET_PURPOSE = 'user_pwreset';
-    private const RESET_TTL_MINUTES = 60;
+    /** How long a reset link lives. Public because the email that carries it says so. */
+    public const RESET_TTL_MINUTES = 60;
 
     /**
      * Mint a single-use reset token, invalidating any earlier unused one. Returns the RAW

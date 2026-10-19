@@ -117,23 +117,34 @@ class AccountController
      * the member what they can actually do (vote, nominate, community, points)
      * instead of leaving them at a dead end. Best-effort, never blocks login.
      */
+    /**
+     * How an email greets somebody: their first name, a title not mistaken for one
+     * (DoorWelcome::firstName — "Chief Bola Ige" is Bola, not Chief), or "there".
+     */
+    private static function firstName(string $name): string
+    {
+        $f = \AfricaGates\Services\DoorWelcome::firstName($name);
+        return $f !== '' ? $f : 'there';
+    }
+
     private function sendWelcome(Request $req, object $user): void
     {
         if (!$this->otp) return;
         $base = \AfricaGates\Support\SiteUrl::base($req);
-        $esc  = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-        $btn  = static fn(string $href, string $label) => '<a href="' . $href . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:10px 18px;border-radius:999px;margin:0 6px 8px 0">' . $label . '</a>';
-        $html = '<p>Hi ' . $esc($user->name) . ',</p>'
-            . '<p>Your Africa GATES account is verified — welcome. Here&rsquo;s what your membership unlocks right now:</p>'
-            . '<ul style="margin:0 0 14px;padding-left:18px;line-height:1.8;color:#10292c;font-size:14px">'
-            . '<li><strong>Vote</strong> for the nominees shaping African culture — one verified vote per category.</li>'
-            . '<li><strong>Nominate</strong> someone extraordinary, and share a link so others can second them.</li>'
-            . '<li><strong>Earn voting points</strong> from shop purchases, tickets and donations, then redeem them at the ballot.</li>'
-            . '<li><strong>Join the community</strong> — threads, polls and the people behind the platform.</li>'
-            . '</ul>'
-            . '<p>' . $btn($esc($base . '/vote'), 'Explore the ballot →') . $btn($esc($base . '/nominate'), 'Nominate someone') . $btn($esc($base . '/community'), 'Join the community') . '</p>'
-            . '<p style="color:#6b7674;font-size:13px">Your dashboard at <a href="' . $esc($base . '/account') . '" style="color:#237b22;font-weight:600">' . $esc($base ?: '') . '/account</a> tracks your votes, nominations, points and share links.</p>';
-        try { $this->otp->sendBranded((string) $user->email, 'Welcome to Africa GATES — your account is live', $html, strip_tags($html), 'Membership'); } catch (\Throwable) {}
+        // What the account offers is stated by the rules that run (handoff email "Welcome",
+        // corrected to the live site): one free vote per category where the edition has
+        // free voting at all, and the contribution price where it does not.
+        $free = !\AfricaGates\Services\PaidVoteService::freeVotingDisabled();
+        $price = \AfricaGates\Services\PaidVoteService::enabled() ? \AfricaGates\Services\PaidVoteService::pricePerVote() : 0;
+        try {
+            \AfricaGates\Services\Mail\Emails::send($this->otp, (string) $user->email, 'welcome', [
+                'first_name'  => self::firstName((string) $user->name),
+                'account_url' => $base . '/account',
+                'free_voting' => $free,
+                'vote_price'  => $price > 0 ? '₦' . number_format($price) : '',
+                'site_url'    => $base,
+            ]);
+        } catch (\Throwable) {}
     }
 
     // ── Register ────────────────────────────────────────────────────────────
@@ -527,16 +538,14 @@ class AccountController
         if ($raw === null) return false;
         $base = \AfricaGates\Support\SiteUrl::base($req);
         $link = $base . '/account/verify?token=' . urlencode($raw);
-        $nm   = htmlspecialchars($name !== '' ? $name : 'there', ENT_QUOTES, 'UTF-8');
-        $html = "<p>Hello <strong>{$nm}</strong>,</p>"
-            . "<p>Welcome to Africa GATES. Confirm your email to activate your account — this link expires in 24 hours.</p>"
-            . "<p style=\"text-align:center;margin:26px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:13px 30px;background:#10292C;color:#fff;border-radius:999px;font-weight:700;text-decoration:none\">Verify my email &rarr;</a></p>"
-            . "<p style=\"font-size:13px;color:#92a6a7;word-break:break-all\">If the button doesn't work, paste this into your browser:<br>{$link}</p>"
-            . "<p style=\"font-size:13px;color:#92a6a7\">Didn't create an account? Ignore this email.</p>";
         try {
-            $r = $this->otp->sendBranded($email, 'Confirm your Africa GATES email', $html,
-                "Confirm your email to activate your Africa GATES account:\n{$link}\n\nThis link expires in 24 hours.",
-                'Accounts', $base . '/assets/img/illustrations/illo-envelope.jpg');
+            $r = \AfricaGates\Services\Mail\Emails::send($this->otp, $email, 'confirm', [
+                'first_name'  => $name !== '' ? self::firstName($name) : 'there',
+                'email'       => $email,
+                'confirm_url' => $link,
+                'hours'       => UserAccountService::VERIFY_TTL_HOURS,
+                'site_url'    => $base,
+            ]);
             return (bool) ($r['success'] ?? false);
         } catch (\Throwable $e) {
             return false;
@@ -604,16 +613,14 @@ class AccountController
             if ($raw !== null) {
                 $base = \AfricaGates\Support\SiteUrl::base($req);
                 $link = $base . '/account/reset?token=' . urlencode($raw);
-                $nm   = htmlspecialchars((string) $user->name, ENT_QUOTES, 'UTF-8');
-                $html = "<p>Hello <strong>{$nm}</strong>,</p>"
-                    . "<p>Use the button below to set a new Africa GATES password. The link works once and expires in an hour.</p>"
-                    . "<p style=\"text-align:center;margin:26px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:13px 30px;background:#10292C;color:#fff;border-radius:999px;font-weight:700;text-decoration:none\">Set a new password &rarr;</a></p>"
-                    . "<p style=\"font-size:13px;color:#92a6a7;word-break:break-all\">If the button doesn\u{2019}t work, paste this into your browser:<br>{$link}</p>"
-                    . "<p style=\"font-size:13px;color:#92a6a7\">Didn\u{2019}t ask for this? Ignore this email — your password has not changed.</p>";
+                $mins = UserAccountService::RESET_TTL_MINUTES;
                 try {
-                    $this->otp->sendBranded($user->email, 'Set a new Africa GATES password', $html,
-                        "Set a new password:\n{$link}\n\nValid once, for one hour. Didn\u{2019}t ask for this? Ignore this email.",
-                        'Accounts');
+                    \AfricaGates\Services\Mail\Emails::send($this->otp, (string) $user->email, 'reset', [
+                        'reset_url' => $link,
+                        // Said the way a person says it, from the constant that expires it.
+                        'ttl'       => $mins % 60 === 0 ? ($mins === 60 ? 'an hour' : intdiv($mins, 60) . ' hours') : $mins . ' minutes',
+                        'site_url'  => $base,
+                    ]);
                 } catch (\Throwable) {
                     // Deliberately swallowed: a mailer failure must not be reportable as a
                     // different outcome from "no such account", or the difference IS the
@@ -1153,12 +1160,13 @@ class AccountController
         $sendFailed = false;
         if ($channel === 'email') {
             if ($this->otp) {
-                $nm = htmlspecialchars($user ? (string) $user->name : 'there', ENT_QUOTES, 'UTF-8');
-                $html = "<p>Hello <strong>{$nm}</strong>,</p><p>Your Africa GATES code is below — it expires in {$ttl} minutes.</p>"
-                    . "<div style=\"font:700 34px/1 'JetBrains Mono',monospace;letter-spacing:.3em;color:#10292C;margin:18px 0\">{$code}</div>"
-                    . "<p style=\"font-size:13px;color:#92a6a7\">Didn't request this? Ignore this email.</p>";
                 try {
-                    $r = $this->otp->sendBranded($value, 'Your Africa GATES sign-in code', $html, "Your sign-in code is {$code} (valid {$ttl} minutes).", 'Accounts');
+                    $r = \AfricaGates\Services\Mail\Emails::send($this->otp, $value, 'otp', [
+                        'code'        => $code,
+                        'minutes'     => $ttl,
+                        'valid_until' => \AfricaGates\Support\DisplayTime::showZoned(Carbon::now()->addMinutes($ttl), 'H:i'),
+                        'site_url'    => \AfricaGates\Support\SiteUrl::base($req),
+                    ]);
                     $sendFailed = !($r['success'] ?? false);
                 } catch (\Throwable) { $sendFailed = true; }
             } else {

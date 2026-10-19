@@ -305,12 +305,12 @@ class OtpService
      *        attaches is generated for the message (a schedule, a receipt), and accepting a
      *        path would make it possible to attach a file somebody else's request named.
      */
-    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
     {
         return $this->dispatch($to, $subject, $category, $unsubscribeUrl, $plainBody ?: strip_tags($htmlBody),
-            function (PHPMailer $m) use ($subject, $htmlBody, $plainBody, $category, $hero, $unsubscribeUrl, $attachments, $preheader, $heroHeight): void {
+            function (PHPMailer $m) use ($subject, $htmlBody, $plainBody, $category, $hero, $unsubscribeUrl, $attachments, $preheader, $heroHeight, $why): void {
                 $m->isHTML(true);
-                $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero, $unsubscribeUrl, $preheader, $heroHeight);
+                $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero, $unsubscribeUrl, $preheader, $heroHeight, $why);
                 $m->AltBody = $plainBody ?: strip_tags($htmlBody);
                 foreach ($attachments as $f) {
                     $name = trim((string) ($f['name'] ?? ''));

@@ -1,0 +1,24 @@
+{#- Welcome · Account. Sender: AccountController::sendWelcome (after the email is confirmed).
+    Variables: first_name, account_url, free_voting (bool — PaidVoteService), vote_price.
+    Design: Email Templates.dc.html → "Welcome". Corrected to the live rules (owner, 19 Oct
+    2026): the design's "one free vote per category each day, it comes back at midnight" is
+    not the rule — it is one free vote per category, and on an edition that votes only by
+    contribution there is no free vote at all; "most awards end in a gala" is not a fact the
+    platform holds, and the "five minutes" estimate is one nobody measured. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Membership{% endblock %}
+{% block hero %}illo-ribbon{% endblock %}
+{% block why %}You confirmed an Africa GATES account with this address.{% endblock %}
+{% block subject %}Welcome to Africa GATES — your account is live{% endblock %}
+{% block preheader %}Three ways to start celebrating the people who make Africa.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1("Welcome, #{first_name}") }}
+{{ b.p('Africa GATES celebrates the teachers, builders and leaders who hold communities together. Here’s where to start.') }}
+{{ b.steps([
+  ['Nominate someone', 'A teacher, a nurse, a neighbour.'],
+  ['Vote', free_voting ? 'One free vote in each category, confirmed with a code sent to your email.' : 'Votes are contributed through our secure payment provider' ~ (vote_price ? ', at ' ~ vote_price ~ ' a vote' : '') ~ '.'],
+  ['Be in the room', 'Award events and their tickets are on the events page.']
+]) }}
+{{ b.button('Go to your account', account_url) }}
+{% endblock %}

@@ -138,7 +138,7 @@ class MaintenanceTest extends TestCase
             public function canSend(bool $bulk = false): bool { return true; }
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
                                         string $category = '', string $hero = '', string $unsubscribeUrl = '',
-                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
             {
                 if ($this->throw) throw new \RuntimeException('transport down');
                 $this->sink[] = $to;

@@ -31,7 +31,9 @@ final class EmailView
     {
         if (self::$env === null) {
             self::$env = Translator::register(new Environment(new FilesystemLoader(\dirname(__DIR__, 3) . '/templates'), [
-                'autoescape' => 'html', 'strict_variables' => false, 'cache' => false,
+                // By NAME: `x.html.twig` and a bare `x.twig` escape as HTML, `x.txt.twig` does
+                // not — a plain-text part escaped as HTML mails somebody "&amp;" and "&#039;".
+                'autoescape' => 'name', 'strict_variables' => false, 'cache' => false,
             ]));
             self::$env->addGlobal('c', Accent::mail());
         }

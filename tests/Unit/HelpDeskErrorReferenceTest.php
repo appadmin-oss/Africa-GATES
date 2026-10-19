@@ -89,7 +89,7 @@ final class HelpDeskErrorReferenceTest extends TestCase
         $mailer = new class(['from_address' => 'x@y.io']) extends OtpService {
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
                                         string $category = '', string $hero = '', string $unsubscribeUrl = '',
-                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
             { return ['ok' => true]; }
         };
         $desk = new SupportAgentService(null, new SupportTicketService($mailer));
