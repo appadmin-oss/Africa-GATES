@@ -102,15 +102,6 @@
       return;
     }
     if (e.target.closest('[data-ag-do="side-close"]')) { setOverlay(false); return; }
-    var kt = e.target.closest('[data-ag-do="nav-kids"]');
-    if (kt) {
-      var it = kt.closest('[data-kids]');
-      var on = !it.hasAttribute('data-kids-open');
-      if (on) it.setAttribute('data-kids-open', ''); else it.removeAttribute('data-kids-open');
-      kt.setAttribute('aria-expanded', on ? 'true' : 'false');
-      var ck = readCol(); ck['i:' + it.getAttribute('data-kids')] = !on; writeCol(ck);
-      return;
-    }
     var fold = e.target.closest('[data-ag-do="nav-fold"]');
     if (fold) {
       var g = fold.closest('[data-group]');
@@ -122,9 +113,8 @@
 
   // ── THE RAIL'S GROUPS: smart, and then yours (README §10b) ───────────────────
   //
-  // The server opens a group that holds this page or has work waiting. A person's own
-  // open/close overrides that, kept in `ac2.col` as {group: closed} (and a page's own
-  // sub-pages as {"i:page": closed}), except for the
+  // Every group starts open (the rail opens in full). A person's own open/close is kept
+  // in `ac2.col` as {group: closed} and applied on load, except for the
   // group holding this page, which is always open: arriving anywhere shows where you are.
   function readCol() { try { return JSON.parse(localStorage.getItem('ac2.col')) || {}; } catch (e) { return {}; } }
   function writeCol(c) { try { localStorage.setItem('ac2.col', JSON.stringify(c)); } catch (e) {} }
@@ -139,14 +129,6 @@
       var k = g.getAttribute('data-group');
       if (g.hasAttribute('data-here') || !(k in c)) return;
       setGroup(g, !c[k]);
-    });
-    // A page's sub-pages stay as the person left them, except under the page you are on.
-    document.querySelectorAll('.cn-nav [data-kids]').forEach(function (it) {
-      var k = 'i:' + it.getAttribute('data-kids');
-      if (it.hasAttribute('data-here') || !(k in c)) return;
-      var on = !c[k];
-      if (on) it.setAttribute('data-kids-open', ''); else it.removeAttribute('data-kids-open');
-      var b = it.querySelector('[data-ag-do="nav-kids"]'); if (b) b.setAttribute('aria-expanded', on ? 'true' : 'false');
     });
   })();
 

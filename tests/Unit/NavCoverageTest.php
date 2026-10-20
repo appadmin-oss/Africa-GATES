@@ -82,8 +82,11 @@ final class NavCoverageTest extends TestCase
         $this->assertArrayHasKey('judge-schedule', AdminNav::hrefs());
     }
 
-    public function test_the_rail_draws_a_pages_sub_pages_and_opens_them_where_you_are(): void
+    public function test_the_rail_is_one_level_and_a_sub_page_lights_its_item(): void
     {
+        // Owner, 20 Oct 2026: only a GROUP opens and closes; pages are not nested in the
+        // rail. A sub-page is reached from its item's "also here" strip and from ⌘K, and
+        // while you are on one the rail item it belongs under is lit.
         $_SESSION['admin_id'] = 1;
         $_SESSION['admin_role'] = 'superadmin';
         $_SESSION['admin_name'] = 'Chioma Obi';
@@ -95,12 +98,39 @@ final class NavCoverageTest extends TestCase
             (new \Slim\Psr7\Factory\ResponseFactory())->createResponse()
         )->getBody();
 
-        // Judges holds the page we are on, so its sub-pages are open and the child is marked.
-        $this->assertMatchesRegularExpression('~data-kids="judges" data-kids-open data-here>~', $html);
-        $this->assertMatchesRegularExpression('~class="cn-nav__kid" href="/admin/rubric" aria-current="page"~', $html);
-        $this->assertStringContainsString('href="/admin/judges/schedule"', $html);
-        // Elsewhere they are behind the toggle, closed.
-        $this->assertMatchesRegularExpression('~data-kids="payments">~', $html);
-        $this->assertMatchesRegularExpression('~aria-controls="cnKids-payments"~', $html);
+        preg_match('~<nav class="cn-nav".*?</nav>~s', $html, $m);
+        $rail = $m[0] ?? '';
+        $this->assertNotSame('', $rail);
+        $this->assertStringNotContainsString('href="/admin/rubric"', $rail, 'a sub-page was nested in the rail');
+        $this->assertStringNotContainsString('nav-kids', $rail);
+        $this->assertMatchesRegularExpression('~href="/admin/judges" title="Judges" aria-current="page"~', $rail);
+        // …and the sub-page is one press away on the strip under the title.
+        $this->assertMatchesRegularExpression('~class="cn-related__i" href="/admin/rubric" aria-current="page"~', $html);
+        $this->assertStringContainsString('class="cn-related__i" href="/admin/judges/schedule"', $html);
+    }
+
+    public function test_every_page_a_role_can_open_is_reachable_from_its_rail(): void
+    {
+        // A page is reachable when it is a rail item for the role, or on the "also here"
+        // strip of one — and it is in the role's ⌘K either way. The case this exists for:
+        // a role that may open a sub-page but not the item it sits under (Analytics under
+        // Audit log for an admin) must still find it; the rail promotes it to an item.
+        foreach (array_keys(\AfricaGates\Admin\Support\Permissions::ROLES) as $role) {
+            $nav = AdminNav::forRole($role);
+            $rail = []; $strip = [];
+            foreach ($nav['groups'] as $g) foreach ($g['items'] as $i) {
+                $rail[] = $i['href'];
+                foreach ($i['children'] as $c) $strip[] = $c['href'];
+            }
+            $palette = array_column(AdminNav::destinations($role), 'href');
+            foreach (AdminNav::groups() as $g) foreach ($g['items'] as $i) {
+                foreach (array_merge([$i], $i['children']) as $p) {
+                    if (!\AfricaGates\Admin\Support\Permissions::canOpen($role, $p['href'])) continue;
+                    $this->assertTrue(in_array($p['href'], $rail, true) || in_array($p['href'], $strip, true),
+                        "$role can open {$p['href']} and cannot reach it from the rail or a strip");
+                    $this->assertContains($p['href'], $palette, "$role can open {$p['href']} and ⌘K does not list it");
+                }
+            }
+        }
     }
 }

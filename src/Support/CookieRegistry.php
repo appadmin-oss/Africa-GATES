@@ -216,7 +216,7 @@ final class CookieRegistry
             ['key' => 'cn-ux:scroll', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
              'purpose' => 'For administrators only: where you were on a console page when you pressed save, so the page comes back there instead of at the top. Kept for at most a minute.'],
             ['key' => 'ac2.col', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'administrators',
-             'purpose' => 'For administrators only: which groups and sub-page lists of the console\'s sidebar you opened or closed yourself, so they stay that way. It holds only their names.'],
+             'purpose' => 'For administrators only: which groups of the console\'s sidebar you opened or closed yourself, so they stay that way. It holds only the group names.'],
             ['key' => 'ag-copilot', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
              'purpose' => 'For administrators only: the console assistant\'s conversation, so it survives moving between pages in one tab.'],
             ['key' => 'ag-asst', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',

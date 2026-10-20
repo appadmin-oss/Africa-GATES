@@ -104,9 +104,9 @@
         </div>
       {% endif %}
 
-      {# A group opens when it holds this page or has work waiting (ConsoleShell::rail);
-         a person's own choice overrides that in admin.js. Without script every group is
-         open — a collapse nobody can expand is a missing page. #}
+      {# Every group starts open (ConsoleShell::rail); a person's own choice is applied by
+         admin.js. Without script every group stays open — a collapse nobody can expand is a
+         missing page. #}
       {% for g in shell.groups %}
         <div class="cn-nav__group" data-group="{{ g.key }}"{% if g.open %} data-open{% endif %}{% if g.here %} data-here{% endif %}>
           <button type="button" class="cn-nav__label cn-nav__fold" data-ag-do="nav-fold" id="cnGroup{{ loop.index }}"
@@ -117,12 +117,11 @@
           </button>
           <ul id="cnGroupList{{ loop.index }}" aria-labelledby="cnGroup{{ loop.index }}">
             {% for i in g.items %}
-              {# A page's sub-pages open under it: always for the page you are on, otherwise
-                 on the toggle. Every console page is reachable from the rail this way, not
-                 only from its parent's "also here" strip or ⌘K. #}
-              {% set kids_open = shell.current == i.page %}
-              <li class="cn-nav__it"{% if i.children %} data-kids="{{ i.page }}"{% if kids_open %} data-kids-open data-here{% endif %}{% endif %}>
-                <a class="cn-nav__i" href="{{ i.href }}" title="{{ i.label }}"{% if shell.current == i.page and (shell.current_page == i.page or not i.children) %} aria-current="page"{% endif %}>
+              {# One level, by design (owner, 20 Oct 2026): only a GROUP opens and closes; a
+                 page's sub-pages are on its "also here" strip and in ⌘K, never nested here.
+                 A rail item stays lit while you are on one of its sub-pages. #}
+              <li>
+                <a class="cn-nav__i" href="{{ i.href }}" title="{{ i.label }}"{% if shell.current == i.page or shell.current_page == i.page %} aria-current="page"{% endif %}>
                   <svg aria-hidden="true" focusable="false"><use href="#ic-{{ i.icon }}"/></svg>
                   <span class="cn-nav__l">{{ i.label }}</span>
                   {% if i.n %}
@@ -130,17 +129,6 @@
                     <span class="cn-nav__dot{% if i.urgent %} cn-nav__dot--urgent{% endif %}" aria-hidden="true"></span>
                   {% endif %}
                 </a>
-                {% if i.children %}
-                  <button type="button" class="cn-nav__kids-t" data-ag-do="nav-kids" aria-expanded="{{ kids_open ? 'true' : 'false' }}"
-                          aria-controls="cnKids-{{ i.page }}" aria-label="Pages under {{ i.label }}" title="Pages under {{ i.label }}">
-                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
-                  </button>
-                  <ul class="cn-nav__kids" id="cnKids-{{ i.page }}" aria-label="Pages under {{ i.label }}">
-                    {% for c in i.children %}
-                      <li><a class="cn-nav__kid" href="{{ c.href }}"{% if shell.current_page == c.page %} aria-current="page"{% endif %}>{{ c.label }}</a></li>
-                    {% endfor %}
-                  </ul>
-                {% endif %}
               </li>
             {% endfor %}
           </ul>

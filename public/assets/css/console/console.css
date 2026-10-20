@@ -146,28 +146,6 @@ body[data-side="closed"] .cn-side { display: none; }
 .cn-nav__dot { display: none; position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--cn-green); box-shadow: 0 0 0 2px var(--cn-ground); }
 .cn-nav__dot--urgent { background: var(--cn-red); }
 
-/* A page's sub-pages, opened under it. The toggle sits at the row's end; a row that has
-   one keeps its count clear of it. Without script only the current page's sub-pages
-   show — the rest are on each page's "also here" strip and in ⌘K. */
-.cn-nav__it { position: relative; }
-.cn-nav__it[data-kids] > .cn-nav__i { padding-inline-end: 34px; }
-.cn-nav__kids-t {
-  position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; display: grid; place-items: center;
-  padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--cn-faint); cursor: pointer;
-}
-.cn-nav__kids-t:hover { background: var(--cn-hover); color: var(--cn-ink); }
-.cn-nav__kids-t svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transform: rotate(-90deg); transition: transform var(--cn-dur-toggle) ease-out; }
-.cn-nav__it[data-kids-open] > .cn-nav__kids-t svg { transform: none; }
-.cn-nav .cn-nav__kids { display: none; margin: 1px 0 4px; padding: 0 0 0 26px; }
-.cn-nav .cn-nav__it[data-kids-open] > .cn-nav__kids { display: flex; }
-.cn-nav__kid {
-  display: flex; align-items: center; min-height: 28px; padding: 0 10px; border-radius: 7px;
-  color: var(--cn-soft) !important; font-size: var(--cn-fs-13); text-decoration: none;
-  border-inline-start: 1px solid var(--cn-line); border-radius: 0 7px 7px 0;
-}
-.cn-nav__kid:hover { background: var(--cn-hover); color: var(--cn-ink) !important; }
-.cn-nav__kid[aria-current="page"] { color: var(--cn-ink) !important; font-weight: 600; border-inline-start-color: var(--cn-green); background: var(--cn-surface); }
-
 .cn-pin { display: flex; align-items: center; border-radius: 8px; }
 .cn-pin:hover { background: var(--cn-hover); }
 .cn-pin .cn-nav__i { flex: 1; min-width: 0; }
@@ -654,8 +632,6 @@ body[data-readonly] [data-write] { opacity: .45; }
   .cn-nav__fold { pointer-events: none; }
   .cn-js .cn-nav__group:not([data-open]) > ul { display: flex; }
   .cn-pin__x { display: none; }
-  .cn-nav__kids-t, .cn-nav .cn-nav__kids, .cn-nav .cn-nav__it[data-kids-open] > .cn-nav__kids { display: none; }
-  .cn-nav__it[data-kids] > .cn-nav__i { padding-inline-end: 0; }
   .cn-menu--up { left: calc(100% + 6px); bottom: 0; }
   .cn-main { padding: 24px 24px 56px; }
 }
@@ -684,9 +660,6 @@ body[data-readonly] [data-write] { opacity: .45; }
   .cn-nav__chev, .cn-nav__num { display: none !important; }
   .cn-js .cn-nav__group:not([data-open]) > ul { display: flex; }
   .cn-pin__x { opacity: 1; }
-  .cn-nav__kids-t { top: 4px; width: 44px; height: 44px; }
-  .cn-nav__it[data-kids] > .cn-nav__i { padding-inline-end: 52px; }
-  .cn-nav__kid { min-height: 44px; font-size: var(--cn-fs-15); }
   .cn-menu--up { left: 0; right: 0; width: auto; }
 
   .cn-bar { height: 56px; gap: 2px; padding: 0 6px 0 14px; }

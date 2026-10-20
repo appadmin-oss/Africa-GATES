@@ -276,10 +276,20 @@ final class AdminNav
         foreach (self::groups() as $g) {
             $items = [];
             foreach ($g['items'] as $i) {
-                if (!Permissions::canOpen($role, $i['href'])) continue;
-                $i['children'] = array_values(array_filter($i['children'],
+                $kids = array_values(array_filter($i['children'],
                     static fn (array $c): bool => Permissions::canOpen($role, $c['href'])));
-                $items[] = $i;
+                if (Permissions::canOpen($role, $i['href'])) {
+                    $i['children'] = $kids;
+                    $items[] = $i;
+                    continue;
+                }
+                // The role cannot open this item, but may open pages under it — Analytics
+                // under Audit log for an admin, Legal under Settings. Each stands in the rail
+                // in its own right, at the same single level, or it would be reachable from
+                // nowhere: not the rail, not a strip, not ⌘K, which is built from this list.
+                foreach ($kids as $c) {
+                    $items[] = $c + ['icon' => $i['icon'], 'group' => $g['label'], 'sub' => $i['sub'], 'children' => []];
+                }
             }
             if ($items !== []) { $g['items'] = $items; $groups[] = $g; }
         }

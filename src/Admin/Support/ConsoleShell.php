@@ -103,13 +103,14 @@ final class ConsoleShell
     private static function rail(array $groups, array $current, array $counts): array
     {
         $cur = $current['item']['page'] ?? null;
+        $curPage = $current['page']['page'] ?? null;      // a sub-page standing in the rail
         foreach ($groups as &$g) {
             $sum = 0; $urgent = false; $here = false;
             foreach ($g['items'] as &$i) {
                 [$n, $hot] = self::itemCount((string) $i['page'], $counts);
                 $i['n'] = $n; $i['urgent'] = $hot && $n > 0;
                 $sum += $n; $urgent = $urgent || $i['urgent'];
-                $here = $here || $i['page'] === $cur;
+                $here = $here || $i['page'] === $cur || $i['page'] === $curPage;
             }
             unset($i);
             $g['here']   = $here;

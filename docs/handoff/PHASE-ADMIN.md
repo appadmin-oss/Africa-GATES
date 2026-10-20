@@ -197,3 +197,15 @@ Each v2 screen is a NEW template (owner, 20 Oct 2026); the old one is left untou
 |---|---|
 | No "Post a status update" on the banner | The status page is computed from checks; there is no hand-written update to post. |
 | The service strip's last line is "7 days", not a per-service note | Only the state is recorded per component, not a cause. |
+
+### The rail is one level (owner, 20 Oct 2026)
+Only a group (Awards, Engage, …) opens and closes. Pages are never nested in the rail: a
+sub-page is on its parent page's "also here" strip and in ⌘K, and its rail item stays lit
+while you are on it. `NavCoverageTest` still requires every rendered page to be in the
+tree, so a page cannot drop out of both.
+
+When a role may open a sub-page but not the item it sits under (an admin and Analytics,
+All data, Legal or Operations scripts; a moderator and Event registrations), that page
+stands in the rail as an item of its own, at the same single level. Without this it was
+reachable from nowhere for that role. `NavCoverageTest` checks, role by role, that every
+page the guard lets a role open is in its rail or on a strip, and in its ⌘K.
