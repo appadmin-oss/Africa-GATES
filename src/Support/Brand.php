@@ -50,6 +50,26 @@ final class Brand
      */
     public const LOGO_ON_TINT = 'assets/img/logo-africa-gates-alpha.png';
 
+    /**
+     * The square mark, relative to `public/` — what an email masthead carries.
+     *
+     * The email handoff (design_handoff_letter_email_admin, "Shell, final" in Email
+     * Templates.dc.html) draws the masthead as this mark at 26×26 inside a 40px white tile
+     * with a hairline, the name "Africa GATES" set as TEXT beside it. Its README said the
+     * 72×83 lockup; the drawing is the decision (owner, 20 Oct 2026: "you used the wrong
+     * logo for the email"). The file is white-backed, which is why it sits in a white tile:
+     * on the paper ground it would be a white box, in the tile it is the tile.
+     */
+    public const MARK = 'assets/img/logo-mark.png';
+
+    /** The absolute URL of {@see MARK}. */
+    public static function markUrl(string $base = ''): string
+    {
+        $base = rtrim($base !== '' ? $base : (string) SiteUrl::base(), '/');
+
+        return $base . '/' . self::MARK;
+    }
+
     /** Width ÷ height of {@see LOGO}, so a caller can size a box without loading it. */
     public const LOGO_RATIO = 640 / 734;
 

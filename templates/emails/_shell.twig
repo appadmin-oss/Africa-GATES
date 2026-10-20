@@ -15,9 +15,11 @@
     · a fluid card (width="100%" + max-width) with an [if mso] fixed 600 table — Outlook's
       Word engine ignores max-width, and a fixed 600 does not shrink on a phone;
     · the gutter on CELLS, never on a table — Outlook ignores padding on a table;
-    · the real alpha mark at 72×83 with a styled alt (an unstyled alt reads as a broken
-      attachment) and width AND height on every image (a blocked image with no height
-      collapses its band);
+    · the masthead as the design draws it: Brand::MARK at 26×26 in a 40px white tile with a
+      `line-2` hairline and an 8px radius, and "Africa GATES" set as TEXT beside it — so with
+      images blocked the name is still there, and the alt is styled (an unstyled alt reads
+      as a broken attachment); width AND height on every image (a blocked image with no
+      height collapses its band);
     · the `ag-pad ag-body` cell, which InviteInboxCompatTest cuts the letter out on;
     · the footer: why this arrived, © · postal address, Help · Privacy · Unsubscribe — the
       last only on an announcement.
@@ -66,9 +68,10 @@
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px">
         <tr><td class="ag-head" style="padding:0 8px 20px;background:{{ c.ground }}">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-            <td align="left" valign="middle">
-              <img src="{{ logo }}" width="72" height="83" alt="Africa GATES" style="display:block;width:72px;max-width:72px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:{{ c.green }}">
+            <td valign="middle" width="40" align="center" bgcolor="{{ c.surface }}" style="width:38px;height:38px;border:1px solid {{ c['line-2'] }};border-radius:8px;background:{{ c.surface }};">
+              <img src="{{ logo }}" width="26" height="26" alt="Africa GATES" style="display:block;width:26px;height:26px;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:12px;font-weight:700;color:{{ c.green }}">
             </td>
+            <td align="left" valign="middle" style="padding-left:10px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:20px;font-weight:700;color:{{ c.ink }}">Africa GATES</td>
             {% if category %}<td align="right" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:11.5px;line-height:16px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:{{ c.ink }}">{{ category }}</td>{% endif %}
           </tr></table>
         </td></tr>

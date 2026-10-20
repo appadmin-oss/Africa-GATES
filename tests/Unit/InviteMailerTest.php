@@ -386,15 +386,12 @@ final class InviteMailerTest extends TestCase
             'the shell hard-codes a path instead of asking Brand — and `public/assets/img/` '
             . 'holds fourteen files with "logo", "mark" or "brand" in the name');
 
-        // The email takes the ALPHA lockup, because its masthead is the paper ground and
-        // the shipped artwork is opaque. Getting this wrong is not subtle in an inbox and
-        // nearly invisible in a screenshot, which is why it is asserted rather than
-        // eyeballed: #f0f2f2 behind a white box is a difference of four levels.
+        // The email takes the SQUARE MARK the handoff draws in its masthead tile (owner,
+        // 20 Oct 2026: the 72×83 lockup was the wrong logo), from Brand, never typed.
         $html = InviteMailer::preview($this->invite(), $this->event);
-        $this->assertStringContainsString(Brand::LOGO_ON_TINT, $html,
-            'the email is not using the alpha mark');
-        $this->assertFileExists(dirname(__DIR__, 2) . '/public/' . Brand::LOGO_ON_TINT,
-            'the alpha lockup is not in the deploy');
+        $this->assertStringContainsString(Brand::MARK, $html, 'the email is not using the masthead mark');
+        $this->assertStringNotContainsString(Brand::LOGO_ON_TINT, $html, 'the old lockup is back in the masthead');
+        $this->assertFileExists(dirname(__DIR__, 2) . '/public/' . Brand::MARK, 'the mark is not in the deploy');
 
         // And the letter embeds the same file's bytes.
         $this->assertNotNull(Brand::logoJpeg(320), 'the mark could not be transcoded for the PDF');
@@ -418,40 +415,16 @@ final class InviteMailerTest extends TestCase
             'Brand::LOGO_RATIO no longer describes the file — a new export was dropped in '
             . 'without it');
 
-        // Asserted on the RENDERED message: the box is written in the shell, and the
-        // reversed export is a separate file that a designer could replace at a
-        // different aspect without anyone noticing until it was in the post.
+        // Asserted on the RENDERED message: the email's mark is the square file, so its box
+        // must be square, and it is served at better than 2x the 26px it is drawn at.
         $html = InviteMailer::preview($this->invite(), $this->event);
-        preg_match('/<img src="[^"]*' . preg_quote(Brand::LOGO_ON_TINT, '/')
-                   . '" width="(\d+)" height="(\d+)"/', $html, $m);
+        preg_match('/<img src="[^"]*' . preg_quote(Brand::MARK, '/') . '" width="(\d+)" height="(\d+)"/', $html, $m);
         $this->assertNotEmpty($m, 'the mark carries no width and height — a blocked image '
                                 . 'then collapses the band it is the only thing in');
-        $this->assertEqualsWithDelta((int) $m[1] / (int) $m[2], Brand::LOGO_RATIO, 0.02,
-            'the declared box is not the artwork\'s shape');
-
-        // The derived raster is small enough that a float delta on the ratio is mostly
-        // measuring its own rounding, so this asserts the pixel instead: the height is
-        // the master's shape applied to whatever width the script was run at.
-        $alpha = dirname(__DIR__, 2) . '/public/' . Brand::LOGO_ON_TINT;
-        [$rw, $rh] = getimagesize($alpha);
-        $this->assertEqualsWithDelta((int) round($rw / Brand::LOGO_RATIO), $rh, 1,
-            'the alpha export is a different shape from the lockup it was derived from');
-
-        // And it is served at 2x the declared box, which is what makes it clean on a
-        // phone. Reduced in the mail client instead, the hairline coastline washes out.
-        $this->assertSame((int) $m[1] * 2, $rw,
-            'the raster is no longer 2x the CSS box — scripts/gen-mark-alpha.php OUT_W and '
-            . 'the width in OtpService::brandWrap() are one decision');
-
-        // And it is actually transparent where the paper was. Replace it with the shipped
-        // opaque lockup and every assertion above still passes — same name, same ratio,
-        // same src — while the masthead grows a white card four levels off its ground.
-        // That is a difference nobody sees in a screenshot and everybody sees in an inbox.
-        $im = imagecreatefrompng($alpha);
-        $this->assertNotFalse($im);
-        $corner = imagecolorsforindex($im, imagecolorat($im, 2, 2));
-        $this->assertSame(127, $corner['alpha'],
-            'the top-left corner is opaque — this is the white-backed lockup, not the alpha one');
+        [$mw, $mh] = getimagesize(dirname(__DIR__, 2) . '/public/' . Brand::MARK);
+        $this->assertSame($mw, $mh, 'the masthead mark is not square any more');
+        $this->assertSame((int) $m[1], (int) $m[2], 'the declared box is not the artwork\'s shape');
+        $this->assertGreaterThanOrEqual((int) $m[1] * 2, $mw, 'the mark is soft on a phone below 2x');
     }
 
     /**

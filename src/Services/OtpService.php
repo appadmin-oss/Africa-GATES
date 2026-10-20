@@ -781,10 +781,9 @@ HTML;
         // "Shell, final"), whose docblock lists what it must keep and which test keeps it.
         // What is decided HERE is only what the template cannot know:
         //
-        //  · the mark comes from Brand, never a typed path, so the letter and the email it
-        //    arrives with show the same logo. It is the alpha artwork at 72×83 (the file is
-        //    144 wide — scripts/gen-mark-alpha.php reduces it once, properly; a client
-        //    reducing the 640px master washes the coastline out to a smudge);
+        //  · the mark comes from Brand, never a typed path: Brand::MARK, the square mark the
+        //    handoff draws at 26×26 in a 40px white tile beside the name set as text (the
+        //    file is 192px, so it is sharp at 2x and better on a phone);
         //  · the hero keeps a HEIGHT even when the caller has none: Outlook desktop blocks
         //    remote images by default, and a blocked image with no height collapses the band
         //    it is the only thing in — 260 is the shipped 600×260 crop;
@@ -802,7 +801,7 @@ HTML;
             'hero_height'     => $heroHeight > 0 ? $heroHeight : 260,
             'body'            => $body,
             'why'             => $why,
-            'logo'            => Brand::logoUrl($this->base(), onTint: true),
+            'logo'            => Brand::markUrl($this->base()),
             'base'            => $this->base(),
             'postal'          => MailConfig::postal(),
             'year'            => date('Y'),

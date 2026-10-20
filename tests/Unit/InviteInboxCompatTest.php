@@ -120,7 +120,7 @@ final class InviteInboxCompatTest extends EmailInboxCompatCase
         // The mark. Its alt is the organisation's name and it has to be STYLED: an
         // unstyled alt renders as 10px serif and reads as a broken attachment rather
         // than as a wordmark.
-        $mark = self::img('logo-africa-gates');
+        $mark = self::img('logo-mark');
         $this->assertStringContainsString('alt="Africa GATES"', $mark);
         $this->assertStringContainsString('font-family', $mark,
             'unstyled alt text renders as 10px serif');
