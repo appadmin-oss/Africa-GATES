@@ -5,7 +5,7 @@
     Design: Email Templates.dc.html → "Guest of honour invitation", corrected to the live
     site (owner, 19 Oct 2026):
       · the hero is the EVENT'S OWN artwork where it has one — an invitation to an evening
-        shows that evening — and the trophy illustration only where it has none;
+        shows that evening — and the sealed envelope (the handoff's own hero, 20 Oct 2026) only where it has none;
       · the greeting is "Dear <name>", not "Dear <salutation>": InviteAudience resolves the
         word, the person is the name;
       · the operator's reason (InviteAudience `witness`) is kept: it is the one sentence
@@ -20,7 +20,7 @@
     door and typed by a steward. -#}
 {% extends 'emails/_layout.html.twig' %}
 {% block category %}Invitations{% endblock %}
-{% block hero %}{{ cover_url ?: 'illo-trophy2' }}{% endblock %}
+{% block hero %}{{ cover_url ?: 'illo-sealed' }}{% endblock %}
 {% block why %}You are a guest of honour at an Africa GATES event.{% endblock %}
 {% block transactional %}0{% endblock %}
 {% block subject %}{{ name }}, you are invited — {{ event_title }}{% endblock %}

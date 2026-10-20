@@ -8,7 +8,7 @@
     stop link is, in the same breath as the amount (RecurringGiving::stopLink()). -#}
 {% extends 'emails/_layout.html.twig' %}
 {% block category %}Giving{% endblock %}
-{% block hero %}illo-ribbon{% endblock %}
+{% block hero %}illo-gift{% endblock %}
 {% block why %}You gave {{ to_name ? 'to ' ~ to_name : '' }} through Africa GATES.{% endblock %}
 {% block subject %}Thank you for your gift to {{ to_name }}{% endblock %}
 {% block preheader %}{{ amount }} received{{ stop_url ? ' · a monthly gift you can stop at any time' : '' }}.{% endblock %}

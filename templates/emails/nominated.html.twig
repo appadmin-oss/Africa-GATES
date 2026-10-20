@@ -8,7 +8,7 @@
     the path without a confirm link says what actually happens next. -#}
 {% extends 'emails/_layout.html.twig' %}
 {% block category %}Nominations{% endblock %}
-{% block hero %}illo-ribbon{% endblock %}
+{% block hero %}illo-gift{% endblock %}
 {% block why %}Somebody nominated you for an Africa GATES award.{% endblock %}
 {% block subject %}You’ve been nominated — Africa GATES{% endblock %}
 {% block preheader %}{{ quote_by ? quote_by ~ ' nominated you' : 'Somebody nominated you' }}{{ programme ? ' for ' ~ programme : '' }}.{% endblock %}

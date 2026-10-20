@@ -234,7 +234,7 @@ final class EmailsTest extends TestCase
         $m = Emails::compose('invite', self::sample('invite'));
         $this->assertFalse($m['transactional'], 'an invitation run must carry Unsubscribe and meet the bulk rules');
         $this->assertStringContainsString('is attached', $m['html']);
-        $this->assertStringContainsString('/illo-trophy2.jpg', $m['hero'], 'an event with no artwork lost its hero');
+        $this->assertStringContainsString('/illo-sealed.jpg', $m['hero'], 'an event with no artwork lost its hero');
 
         $bare = Emails::compose('invite', ['letter_attached' => false, 'cover_url' => 'https://x.test/uploads/gala.jpg'] + self::sample('invite'));
         $this->assertStringNotContainsString('attached', $bare['html'] . $bare['text'], 'a letter that failed to render was promised');
