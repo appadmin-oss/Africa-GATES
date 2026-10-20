@@ -3997,9 +3997,17 @@ return function(App $app) {
         $a->get('/nominations',     AdminNominationsController::class.':index');
         // Review DESK — high-volume queue walker ({id} below is digit-constrained, no conflict)
         $a->post('/nominations/ai-filter', AdminNominationsController::class.':aiFilter');
-        $a->get('/nominations/review', AdminNominationsController::class.':desk');
+        // The review list (v2) is "Nominations" in the rail; the one-at-a-time desk is
+        // its own page. `/review/next` stays the desk's fragment, which it has always fetched.
+        $a->get('/nominations/review', AdminNominationsController::class.':queue');
+        $a->get('/nominations/review/count', AdminNominationsController::class.':queueCount');
+        $a->get('/nominations/review/export.csv', AdminNominationsController::class.':queueExport');
+        $a->post('/nominations/review/bulk', AdminNominationsController::class.':bulk');
+        $a->post('/nominations/review/presence', AdminNominationsController::class.':presence');
+        $a->get('/nominations/desk', AdminNominationsController::class.':desk');
         $a->get('/nominations/review/next', AdminNominationsController::class.':deskFragment');
         $a->get('/nominations/{id:[0-9]+}',           AdminNominationsController::class.':review');
+        $a->post('/nominations/{id:[0-9]+}/note', AdminNominationsController::class.':note');
         $a->post('/nominations/{id:[0-9]+}/suggest-reason', AdminNominationsController::class.':suggestReason');
         $a->post('/nominations/{id:[0-9]+}/ai-insight', AdminNominationsController::class.':aiInsight');
         $a->post('/nominations/{id:[0-9]+}/regenerate-form', AdminNominationsController::class.':regenerateForm');

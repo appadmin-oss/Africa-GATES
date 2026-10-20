@@ -602,40 +602,77 @@ class AwardService {
      */
     public function nomineeEligibility(string $nomineeName, int $cycleId): array
     {
+        return $this->eligibilityMany([[$nomineeName, $cycleId]], true)[self::eligibilityKey($nomineeName, $cycleId)];
+    }
+
+    /**
+     * The same answer for many nominees at once — the review queue asks it of every row.
+     *
+     * One rule read and one schema probe for the whole batch, and the SAME per-nominee query
+     * the approve gate runs, so the list can never call somebody eligible whom Approve then
+     * refuses. With the rule switched off nothing is queried — everybody is eligible —
+     * unless `$measureWhenOff` asks for the counts anyway (the review screen prints them).
+     *
+     * @param list<array{0:string,1:int}> $pairs [nominee name, cycle id]
+     * @return array<string, array{total:int, distinct_locations:int, min:int, enabled:bool, eligible:bool}>
+     *         keyed by {@see eligibilityKey()}
+     */
+    public function eligibilityMany(array $pairs, bool $measureWhenOff = false): array
+    {
         $rule = $this->eligibilityRule();
-        $name = mb_strtolower(trim($nomineeName));
-        $total = 0;
-        $locs = [];
         // Can we actually evaluate "different locations"? Only if the nominator
         // location columns exist. If not, the rule can't be enforced — fail OPEN
         // (never block approvals on a schema gap).
-        $schema = DB::getSchemaBuilder();
-        $evaluable = $schema->hasColumn('gates_nominations', 'nominator_country') || $schema->hasColumn('gates_nominations', 'nominator_state');
-        try {
-            if ($evaluable) {
-                $rows = DB::table('gates_nominations')
-                    ->where('cycle_id', $cycleId)
-                    ->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])
-                    ->get(['nominator_country', 'nominator_state']);
-                $total = count($rows);
-                foreach ($rows as $r) {
-                    $key = strtoupper(trim((string) ($r->nominator_country ?? ''))) . '|' . mb_strtolower(trim((string) ($r->nominator_state ?? '')));
-                    if (trim($key, '|') !== '') $locs[$key] = true;
-                }
-            } else {
-                $total = (int) DB::table('gates_nominations')->where('cycle_id', $cycleId)->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])->count();
-            }
-        } catch (\Throwable $e) {
-            $evaluable = false;
-            $total = (int) DB::table('gates_nominations')->where('cycle_id', $cycleId)->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])->count();
+        $evaluable = false;
+        if ($rule['enabled'] || $measureWhenOff) {
+            $schema = DB::getSchemaBuilder();
+            $evaluable = $schema->hasColumn('gates_nominations', 'nominator_country') || $schema->hasColumn('gates_nominations', 'nominator_state');
         }
-        $distinct = count($locs);
-        return [
-            'total'              => $total,
-            'distinct_locations' => $distinct,
-            'min'                => $rule['min'],
-            'enabled'            => $rule['enabled'] && $evaluable,                       // can't enforce without location data
-            'eligible'           => !$rule['enabled'] || !$evaluable || $distinct >= $rule['min'],
-        ];
+        $out = [];
+        foreach ($pairs as [$nomineeName, $cycleId]) {
+            $key = self::eligibilityKey((string) $nomineeName, (int) $cycleId);
+            if (isset($out[$key])) continue;
+            if (!$rule['enabled'] && !$measureWhenOff) {
+                $out[$key] = ['total' => 0, 'distinct_locations' => 0, 'min' => $rule['min'], 'enabled' => false, 'eligible' => true];
+                continue;
+            }
+            $name = mb_strtolower(trim((string) $nomineeName));
+            $total = 0;
+            $locs = [];
+            $ok = $evaluable;
+            try {
+                if ($ok) {
+                    $rows = DB::table('gates_nominations')
+                        ->where('cycle_id', (int) $cycleId)
+                        ->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])
+                        ->get(['nominator_country', 'nominator_state']);
+                    $total = count($rows);
+                    foreach ($rows as $r) {
+                        $k = strtoupper(trim((string) ($r->nominator_country ?? ''))) . '|' . mb_strtolower(trim((string) ($r->nominator_state ?? '')));
+                        if (trim($k, '|') !== '') $locs[$k] = true;
+                    }
+                } else {
+                    $total = (int) DB::table('gates_nominations')->where('cycle_id', (int) $cycleId)->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])->count();
+                }
+            } catch (\Throwable $e) {
+                $ok = false;
+                $total = (int) DB::table('gates_nominations')->where('cycle_id', (int) $cycleId)->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])->count();
+            }
+            $distinct = count($locs);
+            $out[$key] = [
+                'total'              => $total,
+                'distinct_locations' => $distinct,
+                'min'                => $rule['min'],
+                'enabled'            => $rule['enabled'] && $ok,               // can't enforce without location data
+                'eligible'           => !$rule['enabled'] || !$ok || $distinct >= $rule['min'],
+            ];
+        }
+        return $out;
+    }
+
+    /** How {@see eligibilityMany()} keys its answers. */
+    public static function eligibilityKey(string $nomineeName, int $cycleId): string
+    {
+        return $cycleId . '|' . mb_strtolower(trim($nomineeName));
     }
 }

@@ -38,6 +38,16 @@ class NominationTriageService
      */
     private static function norm(string $name): string
     {
+        return self::nameKey($name);
+    }
+
+    /**
+     * The same key, public: the review queue batches this check over a whole page and must
+     * group names exactly as {@see duplicatesFor()} matches them, or the list flags a
+     * duplicate the desk then cannot find (or the reverse).
+     */
+    public static function nameKey(string $name): string
+    {
         return (string) preg_replace('/\s+/u', '', mb_strtolower(trim($name)));
     }
 

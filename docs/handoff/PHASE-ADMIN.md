@@ -209,3 +209,41 @@ All data, Legal or Operations scripts; a moderator and Event registrations), tha
 stands in the rail as an item of its own, at the same single level. Without this it was
 reachable from nowhere for that role. `NavCoverageTest` checks, role by role, that every
 page the guard lets a role open is in its rail or on a strip, and in its ⌘K.
+
+## Step 5 — Nomination review (screenshot 02)
+- **Where**: `/admin/nominations/review` — the rail's "Nominations" — is the list now,
+  `admin/nominations/queue.twig` (+ `_queue_peek.twig`, `_queue_filter.twig`,
+  `console/review.css`, `js/review-queue.js`). The one-at-a-time desk moved to
+  `/admin/nominations/desk` (a sub-page; `desk.twig` unchanged but for its title), and an
+  old desk link carrying `?after=` is sent there. `/admin/nominations` is still the full
+  record.
+- **The data**: `Admin\Services\ReviewQueue`. To review · Asked (`needs_details`) ·
+  Approved (`approved` and `verified`, the two spellings of a pass) · Rejected, counted
+  inside the programme scope. The queue tabs are read whole (up to 2,000, said on screen
+  past that) so quick views and facet counts are true of the queue, not of one page; the
+  record tabs page in SQL. Counts and GROUP BYs carry no ORDER BY (MySQL error 1140 under
+  ONLY_FULL_GROUP_BY; a test reads the query log for it).
+- **The checks, each from the code that acts on it**: Duplicate? (the desk's own name key,
+  `NominationTriageService::nameKey()`), No evidence (evidence rows plus the old
+  `reference_url*` columns, one per address), Needs N more places (the Approve gate,
+  batched as `AwardService::eligibilityMany()`), and the category line from
+  `NominationCategoryFit::suggestions()` — the first reader that method family ever had.
+- **The peek**: inline at ≥1360px (docked to the work surface, the page gives up the
+  room), a floating drawer below, a bottom sheet on a phone. Every field, the per-category
+  case, links and files, the checks spelled out, History (the audit log plus team notes),
+  a note box (`gates_nomination_notes`), Reject with a reason, Full record, Approve. J/K or
+  ↓/↑ step, Esc closes, A approves, R opens the rejection, D opens the desk.
+- **Bulk**: Approve N goes through the single-approve action once per row (same gate, same
+  emails, same audit rows); whatever is refused is named. Export (filtered list or the
+  selection) carries no email or phone.
+- **Presence** (`gates_admin_presence`): "N others here" and "… is viewing", from a
+  45-second heartbeat. It only informs.
+- **Saved views, density, columns**: `ac2.views`, `ac2.dens`, `ac2.hide`, declared in
+  `CookieRegistry`.
+
+| Deviation | Why |
+|---|---|
+| "Phone unverified" is not a check; "Needs N more places" takes its slot, only while the eligibility rule is on | Nothing verifies a nominator's phone, so the pill would be on every row. The eligibility rule is what actually stops an approval. |
+| No "Ask for more" yet, in the peek or the bulk bar | It needs the message to the nominator and the way back in for them; it ships with the desk (step 6). |
+| No bulk Reject | A rejection emails each nominator its reason at once and cannot be recalled; one reason typed for many is not a reason. It waits for the undo window. |
+| Toasts are the console's own (`agToast`) | One toast system, not a second. |

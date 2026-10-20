@@ -150,6 +150,11 @@ class NominationsController
         // in the next nomination instead of following a redirect.
         $wantsJson = strtolower($req->getHeaderLine('X-Requested-With')) === 'fetch';
         $deskBack  = '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : '');
+        // The review list (v2) posts its decisions with `back` = the list as it stood, so
+        // the reviewer lands where they were, filters and all. Only that one path is
+        // accepted: a free `back` is an open redirect wearing an admin session.
+        $back = self::reviewBack((string) (((array) $req->getParsedBody())['back'] ?? ''));
+        if ($back !== null) $deskBack = $back;
 
         // Uniform exits: JSON for the SPA, flash+redirect for the classic flow.
         $fail = function (string $msg, int $code = 422) use ($res, $wantsJson, $deskBack): Response {
@@ -238,7 +243,7 @@ class NominationsController
             }
 
             $msg = 'Nomination ' . $status . ($reason !== '' && $action === 'reject' ? ' — reason sent to the nominator.' : '.');
-            return $ok($msg, $fromDesk ? '/admin/nominations/review?after=' . $id : '/admin/nominations?status=' . $nom->status);
+            return $ok($msg, $back ?? ($fromDesk ? '/admin/nominations/desk?after=' . $id : '/admin/nominations?status=' . $nom->status));
         }
 
         // Approve flow — admin must pick a category (POST body category_id)
@@ -417,7 +422,7 @@ HTML;
 
         return $ok(
             'Nomination approved and added to "' . $cat->title . '".',
-            $fromDesk ? '/admin/nominations/review?after=' . $id : '/admin/nominations?status=approved'
+            $back ?? ($fromDesk ? '/admin/nominations/desk?after=' . $id : '/admin/nominations?status=approved')
         );
     }
 
@@ -520,18 +525,18 @@ HTML;
         $lite  = \AfricaGates\Services\NominationTriageService::nextPending($after ?: null);
         if (!$lite && $after > 0) {
             $_SESSION['flash_ok'] = 'You reached the end of the queue. Anything you skipped is still pending — restart the desk to pick it up.';
-            return $res->withHeader('Location', '/admin/nominations?status=pending&sort=oldest')->withStatus(302);
+            return $res->withHeader('Location', '/admin/nominations/review')->withStatus(302);
         }
         if (!$lite) {
-            $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations. 🎉';
-            return $res->withHeader('Location', '/admin/nominations')->withStatus(302);
+            $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations.';
+            return $res->withHeader('Location', '/admin/nominations/review')->withStatus(302);
         }
         // Render the SPA desk shell with the first nomination server-side (so it
         // works with JS off too). Subsequent nominations load as fragments.
         $nom = $this->fullNomination((int)$lite->id);
         if (!$nom) {
-            $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations. 🎉';
-            return $res->withHeader('Location', '/admin/nominations')->withStatus(302);
+            $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations.';
+            return $res->withHeader('Location', '/admin/nominations/review')->withStatus(302);
         }
         return $this->view->render($res, 'admin/nominations/desk.twig', [
             'page_title' => 'Review desk — Admin',
@@ -658,5 +663,175 @@ HTML;
             'admin_page' => 'nominations',
             // Flash renders from the Twig globals via the layout — do not shadow it.
         ] + $this->reviewContext($nom));
+    }
+
+    // ══ THE REVIEW LIST (AdminConsole v2, screenshot 02) ═════════════════════════════
+    //
+    // `/admin/nominations/review` is the rail's "Nominations": the list a reviewer works
+    // from, with the checks on every row, quick views, facets, a side peek and a bulk bar.
+    // The one-at-a-time desk it used to be moved to `/admin/nominations/desk`; an old desk
+    // link still carrying `?after=` is sent there rather than dropped on the list.
+
+    /** Only the review list itself is an acceptable `back`. */
+    private static function reviewBack(string $back): ?string
+    {
+        // Anchored on the path itself, so `//host`, a scheme or another page never matches;
+        // what follows the `?` is only ever this list's own query.
+        return preg_match('~^/admin/nominations/review(\?[^#\s]*)?$~', $back) ? $back : null;
+    }
+
+    public function queue(Request $req, Response $res): Response
+    {
+        $q = $req->getQueryParams();
+        if (isset($q['after'])) {
+            return $res->withHeader('Location', '/admin/nominations/desk?after=' . (int) $q['after'])->withStatus(302);
+        }
+        $p = \AfricaGates\Admin\Services\ReviewQueue::params($q);
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        \AfricaGates\Admin\Services\Presence::touch($adminId, 'review', $p['open'] ?: null);
+
+        $peek = $p['open'] ? \AfricaGates\Admin\Services\ReviewQueue::peek($p['open'], $this->awards) : null;
+        $others = \AfricaGates\Admin\Services\Presence::others($adminId, 'review');
+        $viewing = [];
+        if ($peek) foreach ($others as $o) if ($o['target_id'] === (int) $peek['id']) $viewing[] = $o['short'];
+
+        // The peek alone, for the list's own script: J/K and a row click swap it in place
+        // rather than reloading the whole list.
+        if (($q['part'] ?? '') === 'peek') {
+            if (!$peek) throw new \Slim\Exception\HttpNotFoundException($req);
+            // Rendered without the layout, so the shell's `can_write` is not in scope: pass
+            // the same answer it gives, or a writer's fragment would draw read-only.
+            return $this->view->render($res, 'admin/nominations/_queue_peek.twig', [
+                'shell' => ['can_write' => \AfricaGates\Admin\Support\Permissions::canWrite((string) ($_SESSION['admin_role'] ?? ''))],
+                'peek' => $peek, 'viewing' => $viewing, 'back' => \AfricaGates\Admin\Services\ReviewQueue::qs($p),
+                'close' => \AfricaGates\Admin\Services\ReviewQueue::qs($p, ['open' => 0]),
+            ]);
+        }
+
+        $m = \AfricaGates\Admin\Services\ReviewQueue::build($p, $this->awards);
+        $pos = '';
+        if ($peek) {
+            foreach ($m['rows'] as $i => $r) {
+                if ((int) $r['id'] === (int) $peek['id']) { $pos = ($m['from'] + $i) . ' of ' . number_format($m['total']); break; }
+            }
+        }
+        return $this->view->render($res, 'admin/nominations/queue.twig', $m + [
+            'pos'        => $pos,
+            'page_title' => 'Nomination review — Admin',
+            'admin_page' => 'review',
+            'sub_line'   => \AfricaGates\Admin\Services\ReviewQueue::subLine($p['scope']),
+            'peek'       => $peek,
+            'viewing'    => $viewing,
+            'others'     => $others,
+            'back'       => \AfricaGates\Admin\Services\ReviewQueue::qs($p),
+            'close'      => \AfricaGates\Admin\Services\ReviewQueue::qs($p, ['open' => 0]),
+            'pending'    => (int) DB::table('gates_nominations')->where('status', 'pending')->count(),
+            'nominate_url' => \AfricaGates\Support\SiteUrl::base() . '/nominate',
+        ]);
+    }
+
+    /** GET /admin/nominations/review/count — the Filter popover's live "Show N". */
+    public function queueCount(Request $req, Response $res): Response
+    {
+        $m = \AfricaGates\Admin\Services\ReviewQueue::build(\AfricaGates\Admin\Services\ReviewQueue::params($req->getQueryParams()), $this->awards);
+        $res->getBody()->write((string) json_encode(['ok' => true, 'n' => $m['total']]));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store');
+    }
+
+    /**
+     * GET /admin/nominations/review/export.csv — the list as filtered, or the selected rows.
+     *
+     * Working columns only: who, what, where it stands and what the checks say. No email
+     * address and no phone number — this is for working the queue, and a spreadsheet of
+     * contact details is a different thing with a different lawful basis (Contacts).
+     */
+    public function queueExport(Request $req, Response $res): Response
+    {
+        $q = $req->getQueryParams();
+        $p = \AfricaGates\Admin\Services\ReviewQueue::params($q);
+        $ids = array_values(array_filter(array_map('intval', (array) ($q['ids'] ?? []))));
+        $rows = \AfricaGates\Admin\Services\ReviewQueue::exportRows($p, $this->awards, $ids);
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.export', 'nomination', null,
+            ['tab' => $p['tab'], 'rows' => count($rows), 'selected' => count($ids)]);
+
+        $fh = fopen('php://temp', 'r+');
+        \AfricaGates\Support\Csv::put($fh, ['Reference', 'Nominee', 'Organisation', 'Country', 'Programme', 'Category',
+            'Reads closer to', 'Nominated by', 'How they know them', 'Checks', 'Supporting links or files', 'Status', 'Received'], ',', '"', '\\');
+        foreach ($rows as $r) {
+            \AfricaGates\Support\Csv::put($fh, [
+                (string) ($r['reference'] ?? ''), $r['name'], $r['org'], (string) ($r['country_code'] ?? ''), $r['edition'],
+                $r['category'], $r['suggest']['title'] ?? '', $r['by'], $r['rel'],
+                implode('; ', array_column($r['checks'], 't')), (string) $r['evidence'],
+                \AfricaGates\Support\NominationStatus::label((string) $r['status']), (string) $r['created_at'],
+            ], ',', '"', '\\');
+        }
+        rewind($fh);
+        $csv = (string) stream_get_contents($fh);
+        fclose($fh);
+        $res->getBody()->write($csv);
+        return $res->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="nominations-' . $p['tab'] . '-' . date('Y-m-d') . '.csv"');
+    }
+
+    /**
+     * POST /admin/nominations/review/bulk — Approve the selected nominations.
+     *
+     * Each one goes through {@see action()} exactly as a single Approve does — the same
+     * category check, the same eligibility gate, the same emails and the same audit row —
+     * so a bulk approval is N approvals and never a second, laxer way to approve. Whatever
+     * one of them refuses is reported by name and the rest still go through.
+     */
+    public function bulk(Request $req, Response $res): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $back = self::reviewBack((string) ($b['back'] ?? '')) ?? '/admin/nominations/review';
+        $ids = array_slice(array_values(array_unique(array_filter(array_map('intval', (array) ($b['ids'] ?? []))))), 0, 100);
+        if (($b['do'] ?? '') !== 'approve' || $ids === []) {
+            $_SESSION['flash_error'] = 'Choose at least one nomination to approve.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $done = 0; $refused = [];
+        $factory = new \Slim\Psr7\Factory\ResponseFactory();
+        foreach ($ids as $id) {
+            $nom = DB::table('gates_nominations')->where('id', $id)->first(['id', 'nominee_name', 'status']);
+            if (!$nom) continue;
+            if ($nom->status !== 'pending') { $refused[] = $nom->nominee_name . ' (already ' . \AfricaGates\Support\NominationStatus::label((string) $nom->status) . ')'; continue; }
+            $one = $req->withParsedBody(['_token' => $b['_token'] ?? ''])->withHeader('X-Requested-With', 'fetch');
+            $r = $this->action($one, $factory->createResponse(), ['id' => $id, 'action' => 'approve']);
+            $j = json_decode((string) $r->getBody(), true);
+            if (!empty($j['ok'])) $done++; else $refused[] = $nom->nominee_name . ' — ' . (string) ($j['error'] ?? 'refused');
+        }
+        if ($done) $_SESSION['flash_ok'] = $done . ' nomination' . ($done === 1 ? '' : 's') . ' approved.';
+        if ($refused) $_SESSION['flash_error'] = 'Not approved: ' . implode('; ', array_slice($refused, 0, 8)) . (count($refused) > 8 ? ' and ' . (count($refused) - 8) . ' more.' : '.');
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /** POST /admin/nominations/{id}/note — a note for the team, never shown outside the console. */
+    public function note(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) $args['id'];
+        $b = (array) $req->getParsedBody();
+        $back = self::reviewBack((string) ($b['back'] ?? '')) ?? '/admin/nominations/' . $id;
+        if (!DB::table('gates_nominations')->where('id', $id)->exists()) throw new \Slim\Exception\HttpNotFoundException($req);
+        $saved = \AfricaGates\Admin\Services\ReviewQueue::addNote($id, (int) ($_SESSION['admin_id'] ?? 0), (string) ($b['body'] ?? ''));
+        if ($saved) {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.note', 'nomination', $id);
+            $_SESSION['flash_ok'] = 'Note saved for the team.';
+        } else {
+            $_SESSION['flash_error'] = trim((string) ($b['body'] ?? '')) === '' ? 'Write the note first.' : 'The note could not be saved.';
+        }
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /** POST /admin/nominations/review/presence — the heartbeat; answers who else is here. */
+    public function presence(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $target = (int) (((array) $req->getParsedBody())['target'] ?? 0);
+        \AfricaGates\Admin\Services\Presence::touch($adminId, 'review', $target ?: null);
+        $others = \AfricaGates\Admin\Services\Presence::others($adminId, 'review');
+        $res->getBody()->write((string) json_encode(['ok' => true, 'others' => array_map(
+            static fn (array $o): array => ['short' => $o['short'], 'initials' => $o['initials'], 'target' => $o['target_id']], $others)]));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store');
     }
 }

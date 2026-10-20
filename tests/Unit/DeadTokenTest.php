@@ -207,7 +207,7 @@ final class DeadTokenTest extends TestCase
         // The admin console's v2 palette (AdminConsole v2, 20 Oct 2026): tokens the v2
         // shell, pills, banners and Home draw, declared with the palette and read as each
         // of those lands. Each leaves this list the moment a rebuilt piece reads it.
-        '--cn-green-edge', '--cn-green-edge-2', '--cn-ink-deep', '--cn-slate-wash',
+        '--cn-green-edge-2',
     ];
 
     public function test_the_awaiting_rebuild_list_only_shrinks(): void

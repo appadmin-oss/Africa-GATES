@@ -50,7 +50,7 @@ final class AdminNavTest extends TestCase
     private const BEFORE = [
         '/admin/dashboard' => 'overview', '/admin/assistant' => 'overview', '/admin/handbook' => null,
         '/admin/profiles' => 'moderation', '/admin/nominations' => 'moderation',
-        '/admin/nominations/review' => 'moderation', '/admin/nominees' => 'moderation',
+        '/admin/nominations/review' => 'moderation', '/admin/nominations/desk' => 'moderation', '/admin/nominees' => 'moderation',
         '/admin/moderation' => 'moderation', '/admin/interviews' => 'moderation',
         '/admin/questionnaires' => 'moderation', '/admin/questionnaires/invitations' => 'moderation',
         '/admin/campaigns' => null, '/admin/support' => null,

@@ -308,7 +308,7 @@ body[data-side="closed"] .cn-side { display: none; }
   border-radius: 9px; background: var(--cn-ground); overflow-x: auto; scrollbar-width: none;
 }
 .cn-related__i {
-  display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 7px; white-space: nowrap;
+  flex: none; display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 7px; white-space: nowrap;
   color: var(--cn-soft) !important; font-size: var(--cn-fs-12-5); font-weight: 500; text-decoration: none;
 }
 .cn-related__i:hover { color: var(--cn-ink) !important; }

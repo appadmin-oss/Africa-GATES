@@ -264,7 +264,9 @@
           <div class="cn-head__text">
             <div class="cn-head__eyebrow">{% block topbar_eyebrow %}{% endblock %}</div>
             <h1 class="cn-h1">{% block topbar_title %}{{ shell.label|default(page_title|default('Admin')) }}{% endblock %}</h1>
-            {% if shell.sub %}<p class="cn-head__sub">{{ shell.sub }}</p>{% endif %}
+            {# A page may say what it is about more exactly than the rail's one line can. #}
+            {% set head_sub %}{% block topbar_sub %}{{ shell.sub }}{% endblock %}{% endset %}
+            {% if head_sub|trim %}<p class="cn-head__sub">{{ head_sub }}</p>{% endif %}
           </div>
           <div class="cn-head__side">
             <div class="cn-head__actions">{% block topbar_actions %}{% endblock %}</div>

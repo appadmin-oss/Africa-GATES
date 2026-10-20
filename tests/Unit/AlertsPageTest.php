@@ -58,30 +58,33 @@ final class AlertsPageTest extends TestCase
 
     public function test_the_chips_offer_only_what_is_open_and_the_old_high_tab_still_filters(): void
     {
+        // AdminConsole v2 (20 Oct 2026): severity chips with counts, drawn only for a
+        // severity that has an open alert (or is the one selected).
         $html = $this->page('');
-        $this->assertStringContainsString('+</span> Severity', $html);
-        $this->assertStringContainsString('+</span> Source', $html);
-        $this->assertStringContainsString('Platform status', $html);
-
-        // The pill and older links say ?tab=high; that is the Severity chip set to high.
-        $high = $this->page('tab=high');
-        if (ConsoleAlerts::high() !== []) {
-            $this->assertStringContainsString('Remove filter: Severity High', $high);
-        } else {
-            $this->assertStringContainsString('No open alert matches those filters', $high);
+        $open = ConsoleAlerts::open();
+        foreach ([ConsoleAlerts::HIGH, ConsoleAlerts::MEDIUM, ConsoleAlerts::LOW] as $sev) {
+            $n = count(array_filter($open, static fn (array $a): bool => $a['severity'] === $sev));
+            $chip = 'al2-sev-dot--' . $sev . '" aria-hidden="true"></span>' . ucfirst($sev) . '<span class="al2-chip__num">' . $n . '</span>';
+            $n > 0 ? $this->assertStringContainsString($chip, $html) : $this->assertStringNotContainsString($chip, $html);
         }
+
+        // The pill and older links say ?tab=high; that is the High chip, pressed.
+        $high = $this->page('tab=high');
+        $this->assertMatchesRegularExpression('~href="[^"]*" aria-pressed="true">\s*<span class="al2-sev-dot al2-sev-dot--high"~', $high);
     }
 
     public function test_the_timeline_reads_the_status_record(): void
     {
         $now = time();
-        foreach ([3, 2, 1] as $h) {
+        foreach ([30, 18, 6] as $h) {
             DB::table('gates_status_log')->insert(['taken_at' => date('Y-m-d H:i:s', $now - $h * 3600),
-                'overall' => $h === 2 ? SystemStatus::DOWN : SystemStatus::OK, 'components_json' => '[]',
+                'overall' => $h === 18 ? SystemStatus::DOWN : SystemStatus::OK,
+                'components_json' => json_encode([['name' => 'Payments', 'status' => $h === 18 ? SystemStatus::DOWN : SystemStatus::OK, 'label' => 'x']]),
                 'created_at' => date('Y-m-d H:i:s')]);
         }
-        $html = $this->page('range=24h');
-        $this->assertMatchesRegularExpression('~class="al-tl__b al-tl__b--down"[^>]*aria-label="[^"]*: Not working"~', $html);
-        $this->assertStringContainsString('al-tl__b--gap', $html, 'hours with no record are not shown as gaps');
+        $html = $this->page('');
+        // Worst wins in a twelve-hour block, and a block with no record is a gap, never green.
+        $this->assertMatchesRegularExpression('~class="al2-block al2-block--red" title="[^"]*: down"~', $html);
+        $this->assertStringContainsString('al2-block al2-block--none', $html, 'blocks with no record are not shown as gaps');
     }
 }

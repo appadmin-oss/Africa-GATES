@@ -80,8 +80,9 @@ final class AdminNav
              ]],
             // The handoff's "Nominations" is the review screen; the full record stays a child.
             ['page' => 'review', 'label' => 'Nominations', 'href' => '/admin/nominations/review', 'icon' => 'noms',
-             'sub' => 'Nominations wait here until a person approves them. Target: under 4 hours.',
+             'sub' => 'Nominations wait here until a person approves them.',
              'children' => [
+                 ['page' => 'desk',           'label' => 'Review desk',     'href' => '/admin/nominations/desk'],
                  ['page' => 'nominations',    'label' => 'All nominations', 'href' => '/admin/nominations'],
                  ['page' => 'nominees',       'label' => 'Nominees',        'href' => '/admin/nominees'],
                  ['page' => 'profiles',       'label' => 'Profiles',        'href' => '/admin/profiles'],

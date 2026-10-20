@@ -1,0 +1,244 @@
+{% extends "admin/layout.twig" %}
+{#
+  NOMINATION REVIEW — AdminConsole v2, README §10b, screenshot 02 (20 Oct 2026).
+
+  The rail's "Nominations". Underline-free segmented tabs with counts (To review · Asked ·
+  Approved · Rejected), a search that filters (`/` focuses it), a Filter popover of facets
+  built from the data, the quick views, a table of every nomination with the checks this
+  platform can actually run (Admin\Services\ReviewQueue says which, and why "Phone
+  unverified" is not one of them), a side peek, and a bulk bar.
+
+  Everything works without JavaScript: tabs, views, facets, sort and pages are links or GET
+  forms; a row opens the peek with `?open=`; the bulk bar appears by `:has(:checked)`. The
+  script (review-queue.js) only makes it quicker — the peek swaps in place, J/K step, A
+  approves, D opens the desk, the Filter's "Show N" counts live, and saved views and the
+  Display menu live in this browser.
+
+  The one-at-a-time desk is `/admin/nominations/desk`; the full record of every
+  nomination is still `/admin/nominations`.
+#}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/list.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/console/review.css') }}">{% endblock %}
+
+{% block topbar_title %}Nomination review{% endblock %}
+{% block topbar_sub %}{{ sub_line }}{% endblock %}
+{% block topbar_actions %}
+  {% if others %}
+    <span class="rq-here" title="Also reviewing now: {{ others|map(o => o.short)|join(', ') }}" data-rq-here>
+      {% for o in others|slice(0, 3) %}<span class="rq-here__av rq-av--{{ ['green', 'slate', 'gold'][loop.index0] }}" aria-hidden="true">{{ o.initials }}</span>{% endfor %}
+      <span class="rq-here__t">{{ others|length }} other{{ others|length == 1 ? '' : 's' }} here</span>
+    </span>
+  {% endif %}
+  <a class="cn-pillbtn" href="{{ export }}" title="Download this list as a spreadsheet">Export</a>
+  <a class="rq-desk" href="/admin/nominations/desk" title="Open review desk (D)" data-rq-desk>Open review desk<kbd class="rq-desk__kbd">D</kbd></a>
+{% endblock %}
+
+{% block content %}
+{# The overlays (peek, scrim, bulk bar, toast) sit OUTSIDE `.rq`: it is a size container,
+   and a size container is the containing block for anything fixed inside it — a drawer
+   in there scrolls away with the list. They are placed by the viewport, like the shell. #}
+<div class="rq-wrap{% if peek %} rq-wrap--peek{% endif %}" data-rq data-rq-count="/admin/nominations/review/count" data-rq-page="{{ back }}">
+<div class="rq">
+
+  {# ── the toolbar (tablet and desktop) ──────────────────────────────────── #}
+  <div class="rq-bar">
+    <nav class="ls-tabs" aria-label="Status">
+      {% for t in tabs %}
+        <a class="ls-tab" href="{{ t.href }}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}<span class="ls-tab__num">{{ t.n|number_format }}</span></a>
+      {% endfor %}
+    </nav>
+    <span class="ls-bar__gap"></span>
+    <form class="rq-find" method="get" action="/admin/nominations/review" role="search" data-ux="off">
+      {% for k, v in {tab: p.tab, scope: p.scope, view: p.view, sort: p.sort, dir: p.dir} %}{% if v and not (k == 'tab' and v == 'pending') and not (k == 'view' and v == 'all') and not (k == 'dir' and not p.sort) %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+      {% for k in ['cat', 'chk', 'rel', 'cc'] %}{% for v in p[k] %}<input type="hidden" name="{{ k }}[]" value="{{ v }}">{% endfor %}{% endfor %}
+      <label class="ls-search">
+        <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
+        <input type="search" name="q" value="{{ p.q }}" placeholder="Search nominees, schools, nominators" aria-label="Search nominees, schools, nominators" autocomplete="off" data-page-search>
+        {% if p.q %}<a class="rq-find__x" href="{{ clear_q }}" aria-label="Clear search"><svg aria-hidden="true" focusable="false"><use href="#ic-x"/></svg></a>{% else %}<kbd class="ls-search__kbd" aria-hidden="true">/</kbd>{% endif %}
+      </label>
+    </form>
+    {% if scopes|length > 1 %}
+      <form method="get" action="/admin/nominations/review" class="rq-scope" data-ux="off" data-rq-scope>
+        {% if p.tab != 'pending' %}<input type="hidden" name="tab" value="{{ p.tab }}">{% endif %}
+        {% if p.q %}<input type="hidden" name="q" value="{{ p.q }}">{% endif %}
+        <label class="sr-only" for="rqScope">Programme</label>
+        <select id="rqScope" name="scope" class="ls-select">
+          <option value="">Every programme</option>
+          {% for pr in scopes %}
+            <optgroup label="{{ pr.label }}">
+              <option value="{{ pr.value }}"{% if p.scope == pr.value %} selected{% endif %}>{{ pr.label }} · every edition</option>
+              {% for e in pr.editions %}<option value="{{ e.value }}"{% if p.scope == e.value %} selected{% endif %}>{{ e.label }}</option>{% endfor %}
+            </optgroup>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="cn-pillbtn">Show</button></noscript>
+      </form>
+    {% endif %}
+    {% include 'admin/nominations/_queue_filter.twig' %}
+    <details class="rq-pop rq-display" data-rq-display>
+      <summary class="cn-pillbtn" aria-label="Display options"><svg aria-hidden="true" focusable="false"><use href="#ic-sliders"/></svg><span class="rq-display__t">Display</span></summary>
+      <div class="rq-pop__panel" role="group" aria-label="Display">
+        <span class="rq-pop__h">Density</span>
+        <div class="rq-seg" role="radiogroup" aria-label="Density">
+          <button type="button" role="radio" aria-checked="true" data-rq-dens="comfortable">Comfortable</button>
+          <button type="button" role="radio" aria-checked="false" data-rq-dens="compact">Compact</button>
+        </div>
+        <span class="rq-pop__h">Columns</span>
+        {% for k, l in {cat: 'Category', by: 'Nominated by', checks: 'Checks', recv: 'Received'} %}
+          <label class="rq-pop__opt"><input type="checkbox" checked data-rq-col="{{ k }}"><span>{{ l }}</span></label>
+        {% endfor %}
+        <p class="rq-pop__note">Kept in this browser only.</p>
+      </div>
+    </details>
+  </div>
+
+  {# ── the phone's sticky chip bar ────────────────────────────────────────── #}
+  <div class="rq-chipbar" aria-label="Status and views">
+    <button type="button" class="rq-chip rq-chip--filter rq-js" data-rq-open-filter aria-controls="rqFilter"><svg aria-hidden="true" focusable="false"><use href="#ic-filter"/></svg>Filter{% if chips|length %}<span class="rq-filter__n">{{ chips|length }}</span>{% endif %}</button>
+    {% for t in tabs %}
+      <a class="rq-chip" href="{{ t.href }}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }} <span class="rq-chip__num">{{ t.n|number_format }}</span></a>
+    {% endfor %}
+    {% if views %}
+      <span class="rq-chipbar__rule" aria-hidden="true"></span>
+      {% for v in views|filter(v => v.key != 'all') %}
+        <a class="rq-chip" href="{{ v.href }}"{% if v.on %} aria-current="true"{% endif %}><span class="rq-dot rq-dot--{{ v.tone }}" aria-hidden="true"></span>{{ v.label }} <span class="rq-chip__num">{{ v.n }}</span></a>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  {# ── quick views, saved views ──────────────────────────────────────────── #}
+  {% if views %}
+    <div class="rq-views" role="group" aria-label="Quick views">
+      {% for v in views %}
+        <a class="rq-view" href="{{ v.href }}" aria-pressed="{{ v.on ? 'true' : 'false' }}">{% if v.tone %}<span class="rq-dot rq-dot--{{ v.tone }}" aria-hidden="true"></span>{% endif %}{{ v.label }}<span class="rq-view__num">{{ v.n }}</span></a>
+      {% endfor %}
+      <span class="rq-saved" data-rq-saved hidden></span>
+    </div>
+  {% endif %}
+
+  {% if suggest %}
+    <div class="rq-instead">
+      <span class="rq-instead__t">Filter instead</span>
+      {% for s in suggest %}
+        <a class="rq-instead__c" href="{{ s.href }}"{% if loop.first %} data-rq-instead{% endif %}><span class="rq-instead__k">{{ s.k }}</span>{{ s.v }}<span class="rq-view__num">{{ s.n }}</span></a>
+      {% endfor %}
+      <span class="rq-instead__hint">Enter applies the first</span>
+    </div>
+  {% endif %}
+
+  {% if chips %}
+    <div class="rq-chips">
+      {% for c in chips %}
+        <a class="rq-applied" href="{{ c.href }}" aria-label="Remove filter {{ c.k }} {{ c.v }}"><span class="rq-applied__k">{{ c.k }}</span>{{ c.v }}<svg aria-hidden="true" focusable="false"><use href="#ic-x"/></svg></a>
+      {% endfor %}
+      <a class="rq-clear" href="{{ clear }}">Clear all</a>
+      <button type="button" class="rq-clear rq-js" data-rq-save-view>Save view</button>
+      <span class="ls-bar__gap"></span>
+      <span class="rq-summary">{{ total|number_format }} of {{ base_total|number_format }} shown</span>
+    </div>
+  {% endif %}
+
+  {% if capped %}
+    <p class="cn-note" role="status">This queue has more than {{ constant('AfricaGates\\Admin\\Services\\ReviewQueue::CAP')|number_format }} nominations. The views and counts cover the {{ constant('AfricaGates\\Admin\\Services\\ReviewQueue::CAP')|number_format }} that sort first; narrow it with the programme select to see the rest.</p>
+  {% endif %}
+
+  <div class="rq-body">
+    <div class="rq-list">
+    {% if rows %}
+      <form id="rqBulk" method="post" action="/admin/nominations/review/bulk" data-confirm="Approve the selected nominations? Each nominator and nominee is emailed straight away, exactly as a single approval does." data-confirm-title="Approve selected">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="back" value="{{ back }}">
+      </form>
+      <div class="rq-table" role="table" aria-label="Nominations" aria-rowcount="{{ total }}">
+        <div class="rq-row rq-head" role="row">
+          <span role="columnheader" class="rq-c rq-c--cb">
+            {% if p.tab == 'pending' and shell.can_write %}<input type="checkbox" class="rq-cb rq-js" aria-label="Select all on this page" data-rq-all>{% endif %}
+          </span>
+          {% set arrows = {asc: '↑', desc: '↓', off: ''} %}
+          <span role="columnheader" class="rq-c rq-c--who" aria-sort="{{ sorts.name.state == 'off' ? 'none' : (sorts.name.state == 'asc' ? 'ascending' : 'descending') }}"><a href="{{ sorts.name.href }}">Nominee<span aria-hidden="true">{{ arrows[sorts.name.state] }}</span></a></span>
+          <span role="columnheader" class="rq-c rq-c--cat" data-col="cat" aria-sort="{{ sorts.cat.state == 'off' ? 'none' : (sorts.cat.state == 'asc' ? 'ascending' : 'descending') }}"><a href="{{ sorts.cat.href }}">Category<span aria-hidden="true">{{ arrows[sorts.cat.state] }}</span></a></span>
+          <span role="columnheader" class="rq-c rq-c--by" data-col="by">Nominated by</span>
+          <span role="columnheader" class="rq-c rq-c--checks" data-col="checks">Checks</span>
+          <span role="columnheader" class="rq-c rq-c--recv" data-col="recv" aria-sort="{{ sorts.recv.state == 'off' ? 'none' : (sorts.recv.state == 'asc' ? 'ascending' : 'descending') }}"><a href="{{ sorts.recv.href }}">Received<span aria-hidden="true">{{ arrows[sorts.recv.state] }}</span></a></span>
+        </div>
+        {% for r in rows %}
+          <div class="rq-row rq-item{% if peek and peek.id == r.id %} is-open{% endif %}" role="row" data-rq-row="{{ r.id }}">
+            <span role="cell" class="rq-c rq-c--cb">
+              {% if p.tab == 'pending' and shell.can_write %}<input type="checkbox" class="rq-cb" form="rqBulk" name="ids[]" value="{{ r.id }}" aria-label="Select {{ r.name }}" data-rq-cb>{% endif %}
+            </span>
+            <span role="cell" class="rq-c rq-c--who">
+              <span class="rq-av rq-av--{{ r.tone }}" aria-hidden="true">{{ r.initials }}</span>
+              <span class="rq-who">
+                <a class="rq-who__n" href="{{ r.open_href }}" data-rq-open="{{ r.id }}"{% if peek and peek.id == r.id %} aria-current="true"{% endif %}>{{ r.name }}</a>
+                <span class="rq-who__s">{{ r.org ?: (r.country_code ~ (r.nominee_state ? ' · ' ~ r.nominee_state : '')) }}</span>
+              </span>
+              <span class="rq-c__time rq-phone-only">{{ r.recv }}</span>
+            </span>
+            <span role="cell" class="rq-c rq-c--cat" data-col="cat">
+              <span class="rq-cat">{{ r.category ?: 'No category yet' }}</span>
+              {% if r.suggest %}<span class="rq-cat__sug" title="Category fit {{ r.suggest.fit }} against {{ r.suggest.filed_fit }} for the filed category">→ {{ r.suggest.title }}</span>{% endif %}
+            </span>
+            <span role="cell" class="rq-c rq-c--by" data-col="by">{{ r.by }}{% if r.rel %}<span class="rq-by__rel"> · {{ r.rel }}</span>{% endif %}</span>
+            <span role="cell" class="rq-c rq-c--checks" data-col="checks">
+              {% for c in r.checks %}<span class="rq-sig rq-sig--{{ c.tone }}"><span class="rq-dot rq-dot--{{ c.tone }}" aria-hidden="true"></span>{{ c.t }}</span>{% endfor %}
+            </span>
+            <span role="cell" class="rq-c rq-c--recv" data-col="recv"><span class="rq-c__time" title="{{ r.recv_at }}">{{ r.recv }}</span></span>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="rq-foot">
+        <span>{{ from|number_format }}–{{ to|number_format }} of {{ total|number_format }}</span>
+        <span class="rq-pager">
+          {% if prev %}<a class="rq-pager__b" href="{{ prev }}" aria-label="Previous page" rel="prev"><svg aria-hidden="true" focusable="false"><use href="#ic-left"/></svg></a>{% else %}<span class="rq-pager__b" aria-disabled="true"><svg aria-hidden="true" focusable="false"><use href="#ic-left"/></svg></span>{% endif %}
+          {% if next %}<a class="rq-pager__b" href="{{ next }}" aria-label="Next page" rel="next"><svg aria-hidden="true" focusable="false"><use href="#ic-right"/></svg></a>{% else %}<span class="rq-pager__b" aria-disabled="true"><svg aria-hidden="true" focusable="false"><use href="#ic-right"/></svg></span>{% endif %}
+        </span>
+      </div>
+
+
+    {% elseif filtered %}
+      <div class="ls-empty">
+        <span class="ls-empty__t">No nominations match</span>
+        <span class="ls-empty__m">Try fewer filters or a shorter search.</span>
+        <a class="cn-pillbtn" href="{{ clear }}">Clear filters</a>
+      </div>
+    {% else %}
+      <div class="ls-empty rq-empty">
+        <span class="ls-empty__ic rq-empty__ic" aria-hidden="true"><svg focusable="false"><use href="#ic-check"/></svg></span>
+        {% if p.tab == 'pending' %}
+          <span class="ls-empty__t">Queue clear</span>
+          <span class="ls-empty__m">New nominations land here as they arrive. Share the nomination link to bring more in.</span>
+          <button type="button" class="cn-pillbtn" data-ag-do="copy" data-copy="{{ nominate_url }}">Copy nomination link</button>
+        {% elseif p.tab == 'needs_details' %}
+          <span class="ls-empty__t">Nobody has been asked for more</span>
+          <span class="ls-empty__m">A nomination waiting on its nominator for a missing detail is listed here until they send it.</span>
+        {% else %}
+          <span class="ls-empty__t">None {{ p.tab == 'approved' ? 'approved' : 'rejected' }} yet</span>
+          <span class="ls-empty__m">Decisions made in the review queue are listed here.</span>
+        {% endif %}
+      </div>
+    {% endif %}
+    </div>
+  </div>
+</div>
+
+    {% if peek %}
+      <a class="rq-scrim" href="{{ close }}" aria-label="Close the nomination" tabindex="-1" data-rq-close></a>
+      <aside class="rq-peek" aria-label="Nomination" data-rq-peek>
+        {% include 'admin/nominations/_queue_peek.twig' %}
+      </aside>
+    {% else %}
+      <a class="rq-scrim" href="{{ close }}" aria-label="Close the nomination" tabindex="-1" data-rq-close hidden></a>
+      <aside class="rq-peek" aria-label="Nomination" data-rq-peek hidden></aside>
+    {% endif %}
+  {% if p.tab == 'pending' and shell.can_write %}
+    <div class="rq-bulk" role="region" aria-label="Selected nominations">
+      <span class="rq-bulk__n" data-rq-sel>Selected</span>
+      <button type="submit" form="rqBulk" name="do" value="approve" class="rq-bulk__go">Approve</button>
+      <button type="button" class="rq-bulk__b rq-js" data-rq-export-sel data-export="{{ export }}">Export</button>
+      <button type="button" class="rq-bulk__x rq-js" data-rq-clear-sel aria-label="Clear selection"><svg aria-hidden="true" focusable="false"><use href="#ic-x"/></svg></button>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/review-queue.js') }}"></script>{% endblock %}
