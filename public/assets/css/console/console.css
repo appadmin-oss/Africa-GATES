@@ -203,7 +203,7 @@ body[data-side="closed"] .cn-side { display: none; }
 .cn-crumb__a { color: var(--cn-faint); }
 .cn-crumb__sep { color: var(--cn-ghost); }
 .cn-crumb__b { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.cn-bar__phone { display: none; }
+.cn-bar .cn-bar__phone { display: none; }
 
 .cn-iconbtn {
   flex: none; width: 34px; height: 34px; border: 0; border-radius: var(--cn-r-8);
@@ -237,6 +237,16 @@ body[data-side="closed"] .cn-side { display: none; }
 .cn-bell__dot { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--cn-green); box-shadow: 0 0 0 2px var(--cn-surface); }
 .cn-bell--high .cn-bell__dot { background: var(--cn-red); box-shadow: 0 0 0 2px var(--cn-red-wash); }
 
+.cn-pillbtn {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px;
+  border: 1px solid var(--cn-line); border-radius: var(--cn-r-8); background: var(--cn-surface);
+  color: var(--cn-ink) !important; font-size: var(--cn-fs-13); font-weight: 500; text-decoration: none;
+  white-space: nowrap; cursor: pointer; box-shadow: 0 1px 0 color-mix(in srgb, var(--cn-ink) 4%, transparent);
+}
+.cn-pillbtn:hover { background: var(--cn-panel); }
+.cn-pillbtn svg { width: 14px; height: 14px; }
+.cn-pillbtn--sm { font-size: var(--cn-fs-12-5); color: var(--cn-ink-2) !important; }
+
 .cn-newbtn {
   display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
   border: 1px solid var(--cn-line); border-radius: var(--cn-r-8); background: var(--cn-surface);
@@ -244,7 +254,7 @@ body[data-side="closed"] .cn-side { display: none; }
 }
 .cn-newbtn svg { width: 13px; height: 13px; }
 .cn-newbtn:hover { background: var(--cn-panel); }
-.cn-new__pop { width: 272px; padding: 6px; gap: 4px; border-radius: 14px; }
+.cn-new .cn-new__pop { width: 272px; max-height: min(560px, calc(100dvh - 80px)); padding: 6px; gap: 4px; border-radius: 14px; }
 .cn-new__g { display: flex; flex-direction: column; gap: 1px; }
 .cn-new__g + .cn-new__g { padding-top: 4px; border-top: 1px solid var(--cn-line-soft); }
 .cn-new__h { padding: 6px 10px 4px; font-size: var(--cn-fs-11-5); font-weight: 500; color: var(--cn-faint); }
@@ -639,11 +649,19 @@ body[data-readonly] [data-write] { opacity: .45; }
   .cn-bar { height: 56px; gap: 2px; padding: 0 6px 0 14px; }
   .cn-bar__toggle-form, .cn-bar__toggle, .cn-crumb__a, .cn-crumb__sep, .cn-new { display: none; }
   .cn-bar__title { font-size: var(--cn-fs-17); font-weight: 600; letter-spacing: -.01em; }
-  .cn-bar__phone { display: grid; }
+  .cn-bar .cn-bar__phone { display: grid; }
   .cn-bar .cn-iconbtn { width: 44px; height: 44px; }
   .cn-bar .cn-iconbtn svg { width: 19px; height: 19px; }
-  /* The signal is a word, so on a phone it is shown only when it says something. */
+  /* The signal is a word, so on a phone it is shown only when it says something — as a
+     tinted strip under the app bar, the full width, rather than squeezed beside the bell. */
   .cn-alertpill--none, .cn-alertpill--some { display: none; }
+  .cn-bar { flex-wrap: wrap; height: auto; min-height: 56px; }
+  .cn-bar > .cn-bar__title { min-height: 56px; }
+  .cn-bar > .cn-bell { display: flex; align-items: center; min-height: 56px; }
+  .cn-alertpill--high {
+    order: 9; flex: 1 0 100%; height: auto; min-height: 44px; margin: 0 -6px 0 -14px; padding: 0 16px;
+    border-width: 1px 0 0; border-radius: 0; font-size: var(--cn-fs-14); font-weight: 500;
+  }
   .cn-bell__pop { position: fixed; top: 60px; left: 8px; right: 8px; width: auto; }
 
   .cn-main { padding: 18px 16px calc(96px + env(safe-area-inset-bottom)); }
@@ -1007,7 +1025,7 @@ tr.ad-out > td { opacity: .62; }
 .cn-code--danger { background: var(--cn-red-ink); }
 
 /* ── the bell (the alert pill's menu) and the top bar's Feedback / Docs ─────────── */
-.cn-bell__pop { width: 380px; max-width: calc(100vw - 16px); padding: 8px; gap: 2px; border-radius: 14px; }
+.cn-bell__pop { width: 380px; max-width: calc(100vw - 16px); max-height: min(560px, calc(100dvh - 80px)); padding: 8px; gap: 2px; border-radius: 14px; }
 .cn-bell__h { padding: 6px 8px 8px; font-size: var(--cn-fs-12-5); font-weight: 600; color: var(--cn-soft); }
 .cn-bell__i { display: grid; gap: 3px; padding: 9px 10px; border-radius: var(--cn-r-8); color: var(--cn-ink) !important; text-decoration: none; }
 .cn-bell__i:hover, .cn-bell__i:focus-visible { background: var(--cn-hover); outline: none; }
