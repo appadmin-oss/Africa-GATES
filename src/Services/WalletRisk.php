@@ -27,12 +27,20 @@ use Illuminate\Support\Carbon;
  *              inside a referral payout)
  *   account    the bank knows the account (Paystack /bank/resolve), and the name the
  *              BANK holds matches the member — what they typed is a claim, the bank's
- *              answer is evidence. The cheapest anti-impersonation check there is.
+ *              answer is evidence. Matched against a name the member cannot edit where
+ *              there is one (the nominee page's, for a community return), and never on a
+ *              single word: one shared word matches any account that contains it.
  *   shared     no other member has used the same account number. One account collecting
  *              several members' money is the shape of a ring, whatever else is true.
- *   takeover   no password reset and no change of bank details in the last N hours. A new
- *              destination followed at once by a withdrawal is how a taken-over account
- *              is emptied; the owner of a real one waits a day without noticing.
+ *   takeover   no password reset, no change of bank details — the FIRST saved account
+ *              included — and no change of the member's name in the last N hours, and no
+ *              sign-in by one-time code before a payment to an account this member has
+ *              never been paid at. A new destination followed at once by a withdrawal is
+ *              how a taken-over account is emptied; the owner of a real one waits a day
+ *              without noticing. (Review, 20 Oct 2026: a code sign-in, a name edited to
+ *              match, and a first bank account each counted as nothing, so somebody reading
+ *              a member's inbox could take up to the first-payment limit with no person
+ *              involved.)
  *   new        the first payment to an account this member has never been paid at is
  *              capped; above the cap a person looks.
  *   member     an active, verified account older than a few days.
@@ -114,7 +122,7 @@ final class WalletRisk
         $add('member', 'An active, confirmed, established member', $m);
 
         // ── a takeover ───────────────────────────────────────────────────────
-        $add('takeover', 'No recent password reset or change of bank details', self::takeover($w, $user, $eff, $f));
+        $add('takeover', 'No recent password reset, sign-in by code, or change of name or bank details', self::takeover($w, $user, $eff, $f));
 
         // ── the limits ───────────────────────────────────────────────────────
         $amt = (int) $w['amount_kobo'];
@@ -125,15 +133,8 @@ final class WalletRisk
             : null);
 
         $since = Carbon::now()->subDay()->toDateTimeString();
-        [$userSum, $userCount] = self::sentSince($since, (int) $w['user_id']);
         [$allSum] = self::sentSince($since, null);
-        $day = self::limit($eff, 'wallet_auto_daily_naira') * 100;
-        $cnt = self::limit($eff, 'wallet_auto_daily_count');
-        $add('velocity', 'Within the member’s daily limit', ($userSum + $amt > $day || $userCount >= $cnt)
-            ? $f('Daily limit', 'Sent automatically to this member in 24 hours: ' . $naira($userSum) . ' in '
-                 . $userCount . ' withdrawal' . ($userCount === 1 ? '' : 's') . '.',
-                 'You have reached today’s limit for instant withdrawals, so a person will check this one.')
-            : null);
+        $add('velocity', 'Within the member’s daily limit', self::overDaily((int) $w['user_id'], $amt, $eff));
         $cap = self::limit($eff, 'wallet_auto_platform_daily_naira') * 100;
         $add('platform', 'Within the platform’s daily limit', $allSum + $amt > $cap
             ? $f('Platform daily limit reached', 'Sent automatically today across every member: ' . $naira($allSum)
@@ -160,7 +161,11 @@ final class WalletRisk
                         'Your bank did not recognise that account number. Check it and try again.'));
             } else {
                 $resolved = $r['name'];
-                $names = array_values(array_filter([(string) ($user->name ?? ''), (string) ($w['page_name'] ?? '')]));
+                // The page's name where there is one: it is set by the programme, and the
+                // member cannot edit it. The account name otherwise — editable, which is why
+                // a recent edit is a takeover signal above.
+                $page  = trim((string) ($w['page_name'] ?? ''));
+                $names = $page !== '' ? [$page] : array_values(array_filter([(string) ($user->name ?? '')]));
                 $add('account', 'The bank confirms the account and the name matches',
                      self::nameMatches($resolved, $names) ? null
                      : $f('Name does not match', 'The bank holds this account as “' . $resolved . '”; the member is “'
@@ -195,8 +200,8 @@ final class WalletRisk
      *
      * Nigerian banks print "SURNAME FIRSTNAME MIDDLENAME", members type "Firstname
      * Surname", and either may drop a middle name — so it is the SET of names compared,
-     * and two shared (or every name of a one-name member) is a match. One shared name of
-     * several is not: "Amina Yusuf" and "Yusuf Bello" share a surname and are two people.
+     * and two shared is a match. One shared name is not: "Amina Yusuf" and "Yusuf Bello"
+     * share a surname and are two people, and a one-name member is held for a person.
      *
      * @param list<string> $candidates
      */
@@ -206,9 +211,10 @@ final class WalletRisk
         if ($b === []) return false;
         foreach ($candidates as $c) {
             $t = self::tokens($c);
-            if ($t === []) continue;
-            $shared = count(array_intersect($b, $t));
-            if ($shared >= min(2, count($t), count($b))) return true;
+            // Two shared names, always. A one-word name ("Burna") shares its one word with
+            // every account that contains it — any "BURNA" anywhere — so it is never an
+            // automatic match; a person compares it instead.
+            if (count(array_intersect($b, $t)) >= 2) return true;
         }
         return false;
     }
@@ -284,11 +290,28 @@ final class WalletRisk
         $h = self::limit($eff, 'wallet_auto_change_hours');
         if ($h < 1 || !$user) return null;
         $since = Carbon::now()->subHours($h)->toDateTimeString();
+        $recent = static fn (string $at): bool => $at !== '' && strcmp($at, $since) > 0;
 
         $changed = (string) ($user->payout_bank_changed_at ?? '');
-        if ($changed !== '' && strcmp($changed, $since) > 0) {
-            return $f('Bank details just changed', 'The member replaced their saved bank details at ' . $changed . '.',
+        if ($recent($changed)) {
+            return $f('Bank details just changed', 'The member saved new bank details at ' . $changed . '.',
                       'Your bank details changed recently, so a person will check this withdrawal first.');
+        }
+        $renamed = (string) ($user->name_changed_at ?? '');
+        if ($recent($renamed)) {
+            return $f('Name just changed', 'The member changed the name on their account at ' . $renamed
+                      . ', and the bank\'s account name is checked against it.',
+                      'The name on your account changed recently, so a person will check this withdrawal first.');
+        }
+        // A code proves the inbox or the phone, nothing more. It counts only before a payment
+        // to an account this member has never been paid at: the owner withdrawing to their
+        // usual account after a code sign-in is the ordinary case, a stranger's account after
+        // one is the takeover.
+        $code = (string) ($user->otp_signin_at ?? '');
+        if ($recent($code) && !self::paidBefore($w)) {
+            return $f('Signed in with a code, new account', 'The member signed in with a one-time code at ' . $code
+                      . ' and has never been paid at this account.',
+                      'This is the first payment to this account since you signed in with a code, so a person will check it first.');
         }
         try {
             $reset = DB::table('gates_otp_tokens')->where('purpose', UserAccountService::RESET_PURPOSE)
@@ -299,6 +322,26 @@ final class WalletRisk
         }
         return $reset ? $f('Password just reset', 'A password reset for this account was used in the last ' . $h . ' hours.',
                            'Your password was reset recently, so a person will check this withdrawal first.') : null;
+    }
+
+    /**
+     * The member's daily limit, as a finding or null. Public because it is asked TWICE: once
+     * with the other checks, and again by WalletAutoPay::send() under a lock on the member's
+     * row at the moment the transfer is committed — two withdrawals checked at the same
+     * instant each saw the other as not yet sent, and both passed (review, 20 Oct 2026).
+     *
+     * @return array{title:string, detail:string, tell:string}|null
+     */
+    public static function overDaily(int $userId, int $amountKobo, array $eff): ?array
+    {
+        [$sum, $n] = self::sentSince(Carbon::now()->subDay()->toDateTimeString(), $userId);
+        $day = self::limit($eff, 'wallet_auto_daily_naira') * 100;
+        $cnt = self::limit($eff, 'wallet_auto_daily_count');
+        if ($sum + $amountKobo <= $day && $n < $cnt) return null;
+        return ['title'  => 'Daily limit',
+                'detail' => 'Sent automatically to this member in 24 hours: ₦' . number_format($sum / 100, 2) . ' in '
+                          . $n . ' withdrawal' . ($n === 1 ? '' : 's') . '.',
+                'tell'   => 'You have reached today’s limit for instant withdrawals, so a person will check this one.'];
     }
 
     /** @return array{0:int,1:int} kobo sent automatically since a moment, and how many */

@@ -1083,10 +1083,15 @@ class PaymentService
         $body = $res['json'];
         $st   = strtolower(trim((string) ($body['data']['status'] ?? '')));
         if (!$res['ok'] || ($body['status'] ?? false) !== true || $st === '') {
-            return ['ok' => false, 'status' => '', 'reachable' => true,
-                    'message' => (string) ($body['message'] ?? 'Paystack did not recognise that transfer.')];
+            $msg = (string) ($body['message'] ?? 'Paystack did not recognise that transfer.');
+            // `absent`: Paystack ANSWERED that it holds no such transfer — a 4xx saying so,
+            // not a 5xx or a body we could not read. Only this licenses a person to pay the
+            // same withdrawal by hand (WalletAutoPay::busy()); anything vaguer might be a
+            // transfer that went through.
+            $absent = in_array((int) $res['code'], [400, 404], true) && stripos($msg, 'not found') !== false;
+            return ['ok' => false, 'status' => '', 'reachable' => true, 'absent' => $absent, 'message' => $msg];
         }
-        return ['ok' => true, 'status' => $st, 'reachable' => true, 'message' => ''];
+        return ['ok' => true, 'status' => $st, 'reachable' => true, 'absent' => false, 'message' => ''];
     }
 
     /**

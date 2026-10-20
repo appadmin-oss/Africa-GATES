@@ -234,13 +234,16 @@ final class ReferralPayout
             // withdrawal is the commonest shape of a taken-over account, and the automatic
             // payout holds that combination for a person (WalletRisk). A name edit alone is
             // not a new destination. The code is kept where the details came from the list.
+            //
+            // The FIRST save counts too (review, 20 Oct 2026). Treating it as no change meant
+            // somebody in a member's inbox who added their own account as the first one met
+            // no takeover check at all; a member's first withdrawal now waits for a person,
+            // which is a day's delay once, against the money.
             if (\AfricaGates\Support\SchemaHas::column('gates_users', 'payout_bank_changed_at')) {
                 $was = DB::table('gates_users')->where('id', $userId)->first(['payout_account_number', 'payout_bank_code']);
                 $code = $bankCode !== null ? mb_substr(trim($bankCode), 0, 12) : (string) ($was->payout_bank_code ?? '');
-                // Only a REPLACEMENT counts: somebody saving details for the first time has
-                // not changed anything, and the new-account limit already covers them.
                 $prev = (string) ($was->payout_account_number ?? '');
-                if ($prev !== '' && ($prev !== $number || ((string) ($was->payout_bank_code ?? '') !== '' && (string) $was->payout_bank_code !== $code))) {
+                if ($prev !== $number || ((string) ($was->payout_bank_code ?? '') !== '' && (string) $was->payout_bank_code !== $code)) {
                     $row['payout_bank_changed_at'] = Carbon::now()->toDateTimeString();
                 }
                 $row['payout_bank_code'] = $code !== '' ? $code : null;
@@ -331,7 +334,7 @@ final class ReferralPayout
      *
      * @return array{ok:bool, message:string}
      */
-    public static function markPaid(int $id, string $reference, int $adminId = 0, bool $alreadySent = false): array
+    public static function markPaid(int $id, string $reference, int $adminId = 0, bool $alreadySent = false, ?PaymentService $ps = null): array
     {
         $reference = trim($reference);
         if ($reference === '') {
@@ -341,7 +344,7 @@ final class ReferralPayout
 
         $p = self::find($id);
         if (!$p)                              return ['ok' => false, 'message' => 'No such request.'];
-        if (!$alreadySent && ($busy = WalletAutoPay::busy($p))) return ['ok' => false, 'message' => $busy];
+        if (!$alreadySent && ($busy = WalletAutoPay::busy($p, $ps))) return ['ok' => false, 'message' => $busy];
         if ((string) $p->status !== 'requested') {
             return ['ok' => false, 'message' => 'That request is already ' . $p->status . '.'];
         }
@@ -412,7 +415,7 @@ final class ReferralPayout
      *
      * @return array{ok:bool, message:string}
      */
-    public static function reject(int $id, string $why, int $adminId = 0): array
+    public static function reject(int $id, string $why, int $adminId = 0, ?PaymentService $ps = null): array
     {
         $why = trim($why);
         if ($why === '') return ['ok' => false, 'message' => 'Say why, so the member can fix it and ask again.'];
@@ -420,7 +423,7 @@ final class ReferralPayout
         $p = self::find($id);
         if (!$p)                                 return ['ok' => false, 'message' => 'No such request.'];
         if ((string) $p->status !== 'requested') return ['ok' => false, 'message' => 'That request is already ' . $p->status . '.'];
-        if ($busy = WalletAutoPay::busy($p)) return ['ok' => false, 'message' => $busy];
+        if ($busy = WalletAutoPay::busy($p, $ps)) return ['ok' => false, 'message' => $busy];
 
         try {
             DB::table('gates_referral_payouts')->where('id', $id)->update([

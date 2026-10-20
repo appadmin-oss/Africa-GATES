@@ -173,7 +173,9 @@ class RuleEngine
         'wallet_fee_bands'                      => WalletFee::DEFAULT_BANDS,
         // Automatic withdrawals (owner, 17 Oct 2026): sent without a person when every check
         // in WalletRisk passes, held for one when any doubts. The limits are WalletRisk's.
-        'wallet_auto_payout'                    => true,
+        // OFF until an operator switches it on (owner, 20 Oct 2026) — the same rule as the
+        // community return: something that moves money must not arrive by deploy.
+        'wallet_auto_payout'                    => false,
         'wallet_auto_max_naira'                 => WalletRisk::DEFAULTS['wallet_auto_max_naira'],
         'wallet_auto_daily_naira'               => WalletRisk::DEFAULTS['wallet_auto_daily_naira'],
         'wallet_auto_daily_count'               => WalletRisk::DEFAULTS['wallet_auto_daily_count'],

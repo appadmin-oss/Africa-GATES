@@ -1295,6 +1295,10 @@ class AccountController
         }
         unset($_SESSION['user_login_email'], $_SESSION['user_login_phone'], $_SESSION['user_login_via'], $_SESSION['user_login_country']);
         $this->accounts->startSession($user, $this->ip($req));
+        // A code proves the inbox or the phone and nothing more, so an automatic withdrawal
+        // to an account this member has never been paid at waits for a person after one
+        // (WalletRisk::takeover()).
+        \AfricaGates\Services\UserAccountService::markCodeSignIn((int) $user->id);
         return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }
 

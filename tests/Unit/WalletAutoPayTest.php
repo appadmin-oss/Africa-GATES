@@ -48,6 +48,13 @@ final class WalletAutoPayTest extends TestCase
             DB::table('gates_users')->insert(['id' => $id, 'name' => $name, 'email' => strtolower(explode(' ', $name)[0]) . '@example.com',
                 'status' => 'active', 'email_verified' => 1, 'created_at' => Carbon::now()->subDays(30)->toDateTimeString()]);
         }
+        // An ESTABLISHED member: Ada saved these details a month ago. A first save counts as a
+        // change of destination now (review, 20 Oct 2026), so a member with none on file is a
+        // takeover case of its own — held below, in its own test.
+        DB::table('gates_users')->where('id', 7)->update(['payout_account_number' => self::BANK['account_number'],
+            'payout_bank_code' => self::BANK['bank_code'], 'payout_bank_changed_at' => Carbon::now()->subDays(30)->toDateTimeString()]);
+        // Automatic payouts are OFF by default now; every test here is about the engine.
+        (new RuleEngine())->merge('global', null, ['wallet_auto_payout' => true]);
         $this->gw = (object) ['resolve' => ['ok' => true, 'name' => 'OBI ADA CHIOMA', 'reachable' => true, 'message' => ''],
                               'transfers' => [], 'recipients' => 0, 'verify' => [], 'initiate' => null];
     }
@@ -72,7 +79,7 @@ final class WalletAutoPayTest extends TestCase
             }
             public function verifyTransfer(string $ref): array
             {
-                return $this->gw->verify[$ref] ?? ['ok' => false, 'status' => '', 'reachable' => true, 'message' => 'Transfer not found'];
+                return $this->gw->verify[$ref] ?? ['ok' => false, 'status' => '', 'reachable' => true, 'absent' => true, 'message' => 'Transfer not found'];
             }
         };
     }
@@ -189,9 +196,10 @@ final class WalletAutoPayTest extends TestCase
         $this->assertSame(Auto::A_HELD, $this->withdraw()['auto'], 'saved details replaced by these');
         $this->assertContains('takeover', $this->codes());
 
-        // A first-ever save is not a change.
+        // A password reset, on otherwise established details.
         DB::table('gates_return_withdrawals')->delete();
-        DB::table('gates_users')->where('id', 7)->update(['payout_bank_changed_at' => null, 'payout_account_number' => null]);
+        DB::table('gates_users')->where('id', 7)->update(['payout_account_number' => self::BANK['account_number'],
+            'payout_bank_code' => self::BANK['bank_code'], 'payout_bank_changed_at' => Carbon::now()->subDays(30)->toDateTimeString()]);
         // The row issuePasswordReset() writes, spent by consumePasswordReset() three hours ago.
         DB::table('gates_otp_tokens')->insert(['email_hash' => hash('sha256', 'ada@example.com'), 'token_hash' => 'y',
             'purpose' => UserAccountService::RESET_PURPOSE, 'nominee_id' => 7, 'award_id' => 0, 'attempts' => 0, 'is_used' => 1,
@@ -354,6 +362,8 @@ final class WalletAutoPayTest extends TestCase
                 'commission_naira' => 1000, 'rate_bps' => 1000, 'created_at' => '2026-08-01 10:00:00']);
         }
         $this->gw->resolve['name'] = 'ADE BOLA';
+        DB::table('gates_users')->where('id', 8)->update(['payout_account_number' => '1111111111',
+            'payout_bank_code' => self::BANK['bank_code'], 'payout_bank_changed_at' => Carbon::now()->subDays(30)->toDateTimeString()]);
         $r = W::withdraw(8, 'ref', null, ['account_number' => '1111111111'] + self::BANK, true, $this->ps());
         $this->assertSame(Auto::A_SENDING, $r['auto'], $r['message']);
         $p = DB::table('gates_referral_payouts')->first();
@@ -392,9 +402,134 @@ final class WalletAutoPayTest extends TestCase
     {
         $this->assertTrue(WalletRisk::nameMatches('YUSUF AMINA BINTA', ['Amina Yusuf']));
         $this->assertTrue(WalletRisk::nameMatches('MR. OBI ADA', ['Ada Obi']));
-        $this->assertTrue(WalletRisk::nameMatches('BURNA BOY', ['Burna']), 'a one-name member: their one name');
+        $this->assertFalse(WalletRisk::nameMatches('BURNA BOY', ['Burna']),
+            'one shared word matches any account containing it — a one-name member is a person\'s to compare');
+        $this->assertFalse(WalletRisk::nameMatches('ADA MUSA IBRAHIM', ['Ada']));
         $this->assertFalse(WalletRisk::nameMatches('YUSUF BELLO', ['Amina Yusuf']));
         $this->assertFalse(WalletRisk::nameMatches('', ['Amina Yusuf']));
         $this->assertTrue(WalletRisk::nameMatches('KWAME MENSAH', ['Amina Yusuf', 'Kwame Mensah']), 'or the nominee page’s name');
+    }
+
+    // ══ the review of 20 Oct 2026: four ways past the checks, each closed ═══════
+
+    public function test_it_is_off_until_an_operator_switches_it_on(): void
+    {
+        $this->assertFalse(RuleEngine::DEFAULTS['wallet_auto_payout'], 'moving money must not arrive by deploy');
+    }
+
+    public function test_a_first_ever_bank_account_is_a_change_of_destination(): void
+    {
+        $this->returnAvailable();
+        DB::table('gates_users')->where('id', 7)->update(['payout_bank_changed_at' => null, 'payout_account_number' => null,
+                                                          'payout_bank_code' => null]);
+        $this->assertSame(Auto::A_HELD, $this->withdraw()['auto'], 'somebody in the inbox adding their own account as the first');
+        $this->assertSame(['takeover'], $this->codes());
+        $this->assertSame([], $this->gw->transfers);
+    }
+
+    public function test_a_name_changed_to_match_the_account_is_held(): void
+    {
+        $this->returnAvailable();
+        // The profile form, renaming Ada to the stranger whose account this is.
+        $this->assertTrue((new UserAccountService())->updateProfile(7, 'Musa Ibrahim', '')['ok']);
+        $this->assertNotNull(DB::table('gates_users')->where('id', 7)->value('name_changed_at'), 'the edit was not recorded');
+        $this->gw->resolve['name'] = 'MUSA IBRAHIM';
+        $this->assertSame(Auto::A_HELD, $this->withdraw()['auto']);
+        // And the page's own name decides the match: the edited account name is not consulted.
+        $this->assertContains('account', $this->codes());
+        $this->assertContains('takeover', $this->codes());
+
+        // Saving the same name again is not a change.
+        DB::table('gates_users')->where('id', 7)->update(['name_changed_at' => null]);
+        (new UserAccountService())->updateProfile(7, 'Musa Ibrahim', '');
+        $this->assertNull(DB::table('gates_users')->where('id', 7)->value('name_changed_at'));
+    }
+
+    public function test_a_code_sign_in_holds_a_payment_to_an_account_never_paid_before_and_only_that(): void
+    {
+        $this->returnAvailable();
+        UserAccountService::markCodeSignIn(7);
+        $this->assertSame(Auto::A_HELD, $this->withdraw()['auto'], 'a code proves the inbox, and this account was never paid');
+        $this->assertSame(['takeover'], $this->codes());
+
+        // Paid there before: the owner withdrawing to their usual account is the ordinary case.
+        DB::table('gates_return_withdrawals')->delete();
+        DB::table('gates_return_withdrawals')->insert(['nominee_id' => 1, 'user_id' => 7, 'amount_kobo' => 100, 'fee_kobo' => 0,
+            'bank_name' => 'GTBank', 'account_name' => 'Ada Obi', 'account_number' => self::BANK['account_number'],
+            'status' => 'paid', 'requested_at' => Carbon::now()->subDays(40)->toDateTimeString()]);
+        $this->assertSame(Auto::A_SENDING, $this->withdraw(7, 50000)['auto']);
+    }
+
+    public function test_a_stuck_transfer_is_paid_by_hand_only_once_paystack_says_it_never_went(): void
+    {
+        $this->returnAvailable();
+        $this->gw->initiate = ['ok' => false, 'status' => '', 'transfer_code' => '', 'transfer_id' => null, 'message' => 'timeout'];
+        $this->withdraw();
+        $ref = $this->row()->transfer_ref;
+        DB::table('gates_return_withdrawals')->update(['transfer_attempts' => Auto::MAX_ATTEMPTS,
+            'sent_at' => Carbon::now()->subMinutes(30)->toDateTimeString()]);
+        Auto::sweep($this->ps());
+        $this->assertSame(Auto::A_HELD, $this->row()->auto_state);
+        $id = (int) $this->row()->id;
+        $CR = \AfricaGates\Services\CommunityReturnWithdrawals::class;
+
+        // Paystack cannot be asked: no manual payment, no refusal.
+        $this->gw->verify[$ref] = ['ok' => false, 'status' => '', 'reachable' => false, 'absent' => false, 'message' => 'timeout'];
+        $this->assertFalse($CR::markPaid($id, 'MANUAL-1', 1, false, $this->ps())['ok'], 'paid by hand with the original unaccounted for');
+        $this->assertFalse($CR::reject($id, 'try again', 1, $this->ps())['ok'], 'refunded to the wallet while the bank may pay it');
+
+        // Paystack has it after all: its answer is applied, and nobody pays it twice.
+        $this->gw->verify[$ref] = ['ok' => true, 'status' => 'success', 'reachable' => true, 'absent' => false, 'message' => ''];
+        $this->assertFalse($CR::markPaid($id, 'MANUAL-1', 1, false, $this->ps())['ok']);
+        $this->assertSame('paid', $this->row()->status);
+        $this->assertSame($ref, (string) DB::table('gates_return_withdrawals')->where('id', $id)->value('payment_ref'),
+            'the payment recorded is the gateway\'s, not the manual one');
+    }
+
+    public function test_a_stuck_transfer_paystack_confirms_absent_can_be_settled_by_hand(): void
+    {
+        $this->returnAvailable();
+        $this->gw->initiate = ['ok' => false, 'status' => '', 'transfer_code' => '', 'transfer_id' => null, 'message' => 'timeout'];
+        $this->withdraw();
+        DB::table('gates_return_withdrawals')->update(['transfer_attempts' => Auto::MAX_ATTEMPTS,
+            'sent_at' => Carbon::now()->subMinutes(30)->toDateTimeString()]);
+        Auto::sweep($this->ps());
+        $id = (int) $this->row()->id;
+        $this->assertTrue(\AfricaGates\Services\CommunityReturnWithdrawals::markPaid($id, 'MANUAL-1', 1, false, $this->ps())['ok']);
+        $risk = json_decode((string) $this->row()->risk_json, true);
+        $this->assertArrayHasKey('unsent_confirmed_at', $risk, 'the evidence a person paid on is not on the record');
+    }
+
+    public function test_the_daily_limit_is_asked_again_when_the_transfer_is_committed(): void
+    {
+        $this->returnAvailable(100000);
+        $this->rules(['wallet_auto_daily_count' => 1]);
+        // A second withdrawal committing WHILE this one is being checked: the account lookup
+        // runs after the first daily check, so the race lands exactly between the two.
+        $this->gw->resolve['_side'] = true;
+        $gw = $this->gw;
+        $ps = new class ($gw) extends PaymentService {
+            public function __construct(private object $gw) { parent::__construct(); }
+            public function isEnabled(string $p): bool { return $p === 'paystack'; }
+            public function resolveAccount(string $n, string $c): array
+            {
+                DB::table('gates_referral_payouts')->insert(['user_id' => 7, 'amount_naira' => 100, 'bank_name' => 'x',
+                    'account_name' => 'x', 'account_number' => '0123456789', 'status' => 'requested',
+                    'auto_state' => 'sending', 'sent_at' => Carbon::now()->toDateTimeString(),
+                    'requested_at' => Carbon::now()->toDateTimeString()]);
+                return ['ok' => true, 'name' => 'OBI ADA CHIOMA', 'reachable' => true, 'message' => ''];
+            }
+            public function createTransferRecipient(string $name, string $n, string $c): array { return ['ok' => true, 'code' => 'R', 'message' => '']; }
+            public function initiateTransferKobo(int $k, string $r, string $ref, string $why = ''): array
+            {
+                $this->gw->transfers[] = $ref;
+                return ['ok' => true, 'status' => 'pending', 'transfer_code' => 'T', 'transfer_id' => '1', 'message' => ''];
+            }
+        };
+        $r = W::withdraw(7, 'page-1', 60000, self::BANK, true, $ps);
+        $this->assertTrue($r['ok'], $r['message']);
+        $this->assertSame(Auto::A_HELD, $r['auto'], 'both passed the daily limit because each saw the other as not yet sent');
+        $this->assertSame(['velocity'], $this->codes());
+        $this->assertSame([], $this->gw->transfers);
     }
 }

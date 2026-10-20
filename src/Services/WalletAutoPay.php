@@ -99,9 +99,41 @@ final class WalletAutoPay
      * hand the money back to the wallet while the bank pays it anyway — the shape of paying
      * twice. Asked by every manual settle and refuse, in the services, so no screen can
      * forget it.
+     *
+     * ── AND A HELD TRANSFER THAT WAS SENT IS ASKED ABOUT AGAIN, NOW ──────────
+     *
+     * A row held as "stuck" carries a reference Paystack was asked to pay up to
+     * MAX_ATTEMPTS times. "Not recognised" at the sweep's last look is not proof it never
+     * went: a late completion of the original would pay the member a second time beside a
+     * manual payment (review, 20 Oct 2026). So a held row with a reference that was sent is
+     * settled or refused by hand only once Paystack answers, at that moment, that it holds
+     * no such transfer — and if it does hold it, its answer is applied and the gateway
+     * settles it as usual.
      */
-    public static function busy(object $row): ?string
+    public static function busy(object $row, ?PaymentService $ps = null): ?string
     {
+        $ref = (string) ($row->transfer_ref ?? '');
+        if (($row->auto_state ?? null) === self::A_HELD && $ref !== '' && (int) ($row->transfer_attempts ?? 0) > 0) {
+            $v = ($ps ?? new PaymentService())->verifyTransfer($ref);
+            if ($v['ok']) {
+                self::applyStatus($ref, (string) $v['status'], 'Found when a person went to settle it by hand.');
+                return 'Paystack has this transfer (reference ' . $ref . ', ' . $v['status'] . '), so it was not paid by hand: '
+                     . 'the bank’s answer settles it. Refresh to see where it is.';
+            }
+            if (empty($v['absent'])) {
+                return 'Paystack could not confirm that transfer ' . $ref . ' never went through ('
+                     . ($v['message'] !== '' ? $v['message'] : 'no answer') . '). Paying it by hand now could pay it twice; '
+                     . 'try again when Paystack answers.';
+            }
+            // Confirmed absent: written on the row, so the reviewer's evidence is on record.
+            try {
+                $risk = json_decode((string) ($row->risk_json ?? ''), true) ?: ['checks' => [], 'findings' => []];
+                $risk['unsent_confirmed_at'] = Carbon::now()->toDateTimeString();
+                $t = isset($row->amount_kobo) ? self::TABLES[self::KIND_RETURN] : self::TABLES[self::KIND_REFERRAL];
+                DB::table($t)->where('id', (int) $row->id)->update(['risk_json' => json_encode($risk)]);
+            } catch (\Throwable) {}
+            return null;
+        }
         return match ($row->auto_state ?? null) {
             self::A_SENDING  => 'This one is being paid automatically (reference ' . ($row->transfer_ref ?? '?')
                               . '). The bank’s answer settles it; nothing to do by hand.',
@@ -169,7 +201,7 @@ final class WalletAutoPay
                 return $out(self::A_HELD, $ap['message']);
             }
         }
-        return self::send($ps, $kind, $id);
+        return self::send($ps, $kind, $id, true);
     }
 
     /**
@@ -210,8 +242,18 @@ final class WalletAutoPay
         return self::send($ps, $kind, $id);
     }
 
-    /** @return array{state:string, message:string, tell:list<string>} */
-    private static function send(PaymentService $ps, string $kind, int $id): array
+    /**
+     * Commit the reference and hand the row to the gateway.
+     *
+     * $recheck (the automatic path; a person's release is the check itself) asks the
+     * member's daily limit again INSIDE a transaction holding the member's row, and moves the
+     * row to SENDING in the same transaction — so a second withdrawal checked at the same
+     * moment waits on the lock, then counts this one. On SQLite the lock is a no-op and the
+     * suite runs one process; it is MySQL, where requests are concurrent, that it serves.
+     *
+     * @return array{state:string, message:string, tell:list<string>}
+     */
+    private static function send(PaymentService $ps, string $kind, int $id, bool $recheck = false): array
     {
         $t = self::TABLES[$kind];
         $w = self::load($kind, $id);
@@ -219,10 +261,26 @@ final class WalletAutoPay
 
         // ── THE REFERENCE, COMMITTED FIRST ───────────────────────────────────
         $ref = (string) ($w['transfer_ref'] ?? '') ?: self::PREFIX . $kind . '-' . $id . '-' . bin2hex(random_bytes(4));
-        $n = DB::table($t)->where('id', $id)->where('auto_state', self::A_CHECKING)->update([
+        $commit = static fn (): int => DB::table($t)->where('id', $id)->where('auto_state', self::A_CHECKING)->update([
             'transfer_ref' => $ref, 'auto_state' => self::A_SENDING,
             'sent_at' => Carbon::now()->toDateTimeString(), 'transfer_checked_at' => Carbon::now()->toDateTimeString(),
         ]);
+
+        if ($recheck) {
+            $over = null;
+            $n = DB::transaction(static function () use ($w, $commit, &$over): int {
+                DB::table('gates_users')->where('id', (int) $w['user_id'])->lockForUpdate()->first(['id']);
+                $over = WalletRisk::overDaily((int) $w['user_id'], (int) $w['amount_kobo'], (new RuleEngine())->effective());
+                return $over === null ? $commit() : 0;
+            });
+            if ($over !== null) {
+                self::hold($t, $id, 'velocity', $over['title'], $over['detail']);
+                return ['state' => self::A_HELD, 'message' => 'Held for a person: ' . $over['title'] . '.',
+                        'tell' => $over['tell'] !== '' ? [$over['tell']] : []];
+            }
+        } else {
+            $n = $commit();
+        }
         if ($n !== 1) return ['state' => '', 'message' => 'Already being handled.', 'tell' => []];
 
         return self::initiate($ps, self::load($kind, $id) ?? $w);

@@ -337,7 +337,7 @@ final class CommunityReturnWithdrawals
      *
      * @return array{ok:bool, message:string}
      */
-    public static function markPaid(int $id, string $reference, int $adminId, bool $alreadySent = false): array
+    public static function markPaid(int $id, string $reference, int $adminId, bool $alreadySent = false, ?PaymentService $ps = null): array
     {
         $reference = trim($reference);
         if ($reference === '') {
@@ -346,7 +346,7 @@ final class CommunityReturnWithdrawals
         }
         $w = self::find($id);
         if (!$w) return ['ok' => false, 'message' => 'No such request.'];
-        if (!$alreadySent && ($busy = WalletAutoPay::busy($w))) return ['ok' => false, 'message' => $busy];
+        if (!$alreadySent && ($busy = WalletAutoPay::busy($w, $ps))) return ['ok' => false, 'message' => $busy];
         if ((string) $w->status !== self::WD_APPROVED) {
             return ['ok' => false, 'message' => (string) $w->status === self::WD_REQUESTED
                 ? 'Review and approve it first.' : 'That request is already ' . $w->status . '.'];
@@ -402,14 +402,14 @@ final class CommunityReturnWithdrawals
      *
      * @return array{ok:bool, message:string}
      */
-    public static function reject(int $id, string $why, int $adminId): array
+    public static function reject(int $id, string $why, int $adminId, ?PaymentService $ps = null): array
     {
         $why = trim($why);
         if ($why === '') return ['ok' => false, 'message' => 'Say why, so the nominee can fix it and ask again.'];
         $w = self::find($id);
         if (!$w) return ['ok' => false, 'message' => 'No such request.'];
         if (!in_array((string) $w->status, self::OPEN, true)) return ['ok' => false, 'message' => 'That request is already ' . $w->status . '.'];
-        if ($busy = WalletAutoPay::busy($w)) return ['ok' => false, 'message' => $busy];
+        if ($busy = WalletAutoPay::busy($w, $ps)) return ['ok' => false, 'message' => $busy];
 
         DB::table('gates_return_withdrawals')->where('id', $id)->whereIn('status', self::OPEN)->update([
             'status' => self::WD_REJECTED, 'reviewed_by' => $adminId > 0 ? $adminId : null,
