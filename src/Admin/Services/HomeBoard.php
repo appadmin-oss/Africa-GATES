@@ -375,7 +375,7 @@ final class HomeBoard
 
         return [
             'ok'    => $pill['total'] === 0 && $cronOk,
-            'items' => array_slice($pill['items'], 0, 3),
+            'items' => array_slice(array_merge($pill['production'], $pill['items']), 0, 3),
             'total' => $pill['total'],
             'cron'  => ['ok' => $cronOk, 'say' => (string) ($cron['say'] ?? ''), 'last' => $cron['last'] ?? null],
         ];

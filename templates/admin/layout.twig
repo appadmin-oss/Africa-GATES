@@ -33,9 +33,7 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <script nonce="{{ csp_nonce }}">document.documentElement.classList.add('cn-js');</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preload" href="/assets/fonts/geist/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
 <link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
@@ -211,9 +209,10 @@
       {% endif %}
 
       {% if shell.alert_pill %}
-        {# The production signal sits left of the bell: red while a high alert is open,
-           grey while any is, green when every check passes. It is a link, so it works
-           with no script; the words carry the count, never the dot alone. #}
+        {# The production signal sits left of the bell: red and pulsing while an alert is
+           reaching people, amber while one may, grey while any other is open, green when
+           every check passes. It is a link, so it works with no script; the words carry
+           the count, never the dot alone. #}
         <a class="cn-alertpill cn-alertpill--{{ shell.alert_pill.tone }}" href="{{ shell.alert_pill.href }}">
           <span class="cn-dot" aria-hidden="true"></span>{{ shell.alert_pill.label }}
         </a>
@@ -224,7 +223,17 @@
             {% if shell.alert_pill.total|default(0) > 0 %}<span class="cn-bell__dot" aria-hidden="true"></span>{% endif %}
           </summary>
           <div class="cn-pop cn-pop--end cn-bell__pop" role="menu">
-            <span class="cn-bell__h">Alerts</span>
+            {% if shell.alert_pill.production|default([]) %}
+              <span class="cn-bell__h cn-bell__h--prod">Production</span>
+              {% for a in shell.alert_pill.production %}
+                <a class="cn-bell__i cn-bell__i--{{ a.impact }}" role="menuitem" href="{{ a.href }}">
+                  <span class="cn-bell__imp cn-bell__imp--{{ a.impact }}">{{ a.impact == 'affects' ? 'Affects production' : 'May affect production' }}</span>
+                  <span class="cn-bell__t">{{ a.title }}</span>
+                  <span class="cn-bell__m">{{ a.source }}{% if a.raised %} · {{ a.raised|when }}{% endif %}</span>
+                </a>
+              {% endfor %}
+            {% endif %}
+            {% if shell.alert_pill.items|default([]) or not shell.alert_pill.production|default([]) %}<span class="cn-bell__h">Alerts</span>{% endif %}
             {% for a in shell.alert_pill.items|default([]) %}
               <a class="cn-bell__i" role="menuitem" href="{{ a.href }}">
                 <span class="cn-status cn-status--{{ a.severity }}">{{ a.severity|capitalize }}</span>
@@ -232,7 +241,7 @@
                 <span class="cn-bell__m">{{ a.source }}{% if a.raised %} · {{ a.raised|when }}{% endif %}</span>
               </a>
             {% else %}
-              <span class="cn-bell__none">Nothing needs a person. The checks are all passing.</span>
+              {% if not shell.alert_pill.production|default([]) %}<span class="cn-bell__none">Nothing needs a person. The checks are all passing.</span>{% endif %}
             {% endfor %}
             <a class="cn-pop__i cn-bell__all" role="menuitem" href="{{ shell.alert_pill.href }}">View all alerts{% if shell.alert_pill.total|default(0) > 5 %} ({{ shell.alert_pill.total }}){% endif %}</a>
           </div>

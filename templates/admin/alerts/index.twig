@@ -1,0 +1,220 @@
+{% extends "admin/layout.twig" %}
+{#
+  ALERTS — AdminConsole v2 (README §10b), 20 Oct 2026. A new template; `admin/alerts.twig`
+  is the previous one, left as it was.
+
+  Top to bottom: the production banner (only while something reaches people or will); the
+  service strip (each status-page component, its state now and seven days in twelve-hour
+  blocks); Open and Resolved · 7 days, severity chips with counts, "Affects production",
+  a source select; then the list beside a sticky detail — summary, who it reaches, facts,
+  the steps in order, the page that fixes it, the diagnosis to copy, recheck, the owner
+  and the timeline.
+
+  SEVERITY AND IMPACT ARE TWO AXES. Severity is how bad the fault is; impact is whether
+  people using the site are failing now (`affects`), will be (`may`), or cannot tell.
+  Every filter is a link, so the page works without script; Copy uses admin.js's copy.
+#}
+{% set q = params %}
+{% macro url(base, params, change) %}{% set p = params|merge(change)|filter(v => v is not null and v != '') %}{{ base }}{% if p %}?{{ p|url_encode }}{% endif %}{% endmacro %}
+{% import _self as m %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/alerts.css') }}">{% endblock %}
+
+{% block topbar_title %}Alerts{% endblock %}
+{% block topbar_actions %}
+  <a class="cn-pillbtn" href="/status" target="_blank" rel="noopener">Status page</a>
+  <a class="al2-btn al2-btn--primary" href="{{ m.url('/admin/alerts', q, {}) }}">Run all checks</a>
+{% endblock %}
+
+{% block content %}
+<div class="al2">
+
+  {# ── PRODUCTION BANNER ───────────────────────────────────────────────────────── #}
+  {% if affects or may %}
+    {% set lead = affects ? affects : may %}
+    <section class="al2-banner al2-banner--{{ affects ? 'affects' : 'may' }}" role="status" aria-labelledby="alBanH">
+      <span class="al2-banner__dot" aria-hidden="true"><span></span></span>
+      <span class="al2-banner__t">
+        <strong id="alBanH">
+          {%- if affects -%}{{ affects|length }} alert{{ affects|length == 1 ? ' is' : 's are' }} affecting production
+          {%- else -%}{{ may|length }} alert{{ may|length == 1 ? '' : 's' }} may affect production{%- endif -%}
+        </strong>
+        <span>{{ lead|map(a => a.who)|filter(w => w)|join(' ') }}</span>
+      </span>
+      <a class="al2-btn" href="{{ m.url('/admin/alerts', {}, {impact: 'production'}) }}">Show {{ affects|length + may|length == 1 ? 'it' : 'them' }}</a>
+    </section>
+  {% endif %}
+
+  {# ── SERVICE STRIP ───────────────────────────────────────────────────────────── #}
+  {% if services %}
+    <section class="al2-svc" aria-label="Service health, last 7 days">
+      {% for s in services %}
+        {% set tone = s.status == 'ok' ? 'green' : (s.status == 'degraded' ? 'gold' : (s.status == 'down' ? 'red' : 'grey')) %}
+        <div class="al2-svc__i">
+          <span class="al2-svc__n"><span class="al2-sdot al2-sdot--{{ tone }}" aria-hidden="true"></span>{{ s.name }}</span>
+          <span class="al2-svc__s al2-svc__s--{{ tone }}">{{ s.label }}</span>
+          <span class="al2-blocks" role="img" aria-label="{{ s.name }}, last 7 days in 12-hour blocks">
+            {% for b in s.blocks %}
+              {% set bt = b.state is null ? 'none' : (b.state == 'ok' ? 'green' : (b.state == 'degraded' ? 'gold' : (b.state == 'down' ? 'red' : 'grey'))) %}
+              <span class="al2-block al2-block--{{ bt }}" title="{{ b.label }}: {{ b.state is null ? 'nothing recorded' : b.state }}"></span>
+            {% endfor %}
+          </span>
+          <span class="al2-svc__time">7 days</span>
+        </div>
+      {% endfor %}
+    </section>
+  {% else %}
+    <p class="al2-quiet">The status check has not recorded anything yet. It runs with scheduled maintenance, every 15 minutes.</p>
+  {% endif %}
+
+  {# ── TABS, CHIPS, SOURCE ─────────────────────────────────────────────────────── #}
+  <div class="al2-bar">
+    <nav class="al2-tabs" aria-label="Alerts">
+      <a class="al2-tab" href="{{ m.url('/admin/alerts', {}, {}) }}"{% if tab == 'open' %} aria-current="page"{% endif %}>Open<span class="al2-tab__num">{{ n_open }}</span></a>
+      <a class="al2-tab" href="{{ m.url('/admin/alerts', {}, {tab: 'resolved'}) }}"{% if tab == 'resolved' %} aria-current="page"{% endif %}>Resolved · 7 days<span class="al2-tab__num">{{ logged ? n_resolved : '–' }}</span></a>
+    </nav>
+    <span class="al2-bar__sep" aria-hidden="true"></span>
+    {% for c in sev_chips %}
+      <a class="al2-chip" href="{{ m.url('/admin/alerts', q, {severity: severity == c.v ? null : c.v, alert: null}) }}" aria-pressed="{{ severity == c.v ? 'true' : 'false' }}">
+        <span class="al2-sev-dot al2-sev-dot--{{ c.v }}" aria-hidden="true"></span>{{ c.l }}<span class="al2-chip__num">{{ c.n }}</span>
+      </a>
+    {% endfor %}
+    {% if prod_n or prod_only %}
+      <a class="al2-chip" href="{{ m.url('/admin/alerts', q, {impact: prod_only ? null : 'production', alert: null}) }}" aria-pressed="{{ prod_only ? 'true' : 'false' }}">
+        <span class="al2-sev-dot al2-sev-dot--high" aria-hidden="true"></span>Affects production<span class="al2-chip__num">{{ prod_n }}</span>
+      </a>
+    {% endif %}
+    <span class="al2-bar__gap"></span>
+    {% if sources|length > 1 or source %}
+      <form method="get" action="/admin/alerts" class="al2-src">
+        {% for k, v in q|filter((v, k) => k != 'source') %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+        <label class="sr-only" for="alSrc">Source</label>
+        <select id="alSrc" name="source" class="al2-select">
+          <option value="">All sources</option>
+          {% for s in sources %}<option value="{{ s }}"{% if s == source %} selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+        <noscript><button type="submit" class="cn-pillbtn">Show</button></noscript>
+      </form>
+    {% endif %}
+  </div>
+
+  {# ── LIST + DETAIL ──────────────────────────────────────────────────────────── #}
+  {% if list %}
+    <div class="al2-split">
+      <ul class="al2-list" aria-label="{{ tab == 'open' ? 'Open alerts' : 'Resolved alerts' }}">
+        {% for a in list %}
+          <li>
+            <a class="al2-row" href="{{ m.url('/admin/alerts', q, {alert: a.key}) }}"{% if focus and focus.key == a.key %} aria-current="true"{% endif %}>
+              <span class="al2-sev al2-sev--{{ a.severity }}" aria-hidden="true">{{ a.severity|first|upper }}</span>
+              <span class="al2-row__t">
+                <strong>{{ a.title }}</strong>
+                <span class="al2-row__m">
+                  <span>{{ a.source }}</span>
+                  {% if tab == 'resolved' %}<span aria-hidden="true">·</span><span>resolved {{ a.resolved_at|ago }}</span>
+                  {% elseif a.first_seen %}<span aria-hidden="true">·</span><span>{{ a.first_seen|ago }}</span>{% endif %}
+                  {% if a.impact %}<span class="al2-imp al2-imp--{{ a.impact }}">{{ a.impact == 'affects' ? 'Affects production' : 'May affect production' }}</span>{% endif %}
+                  {% if a.reopened %}<span class="al2-imp al2-imp--back">Back {{ a.reopened }}×</span>{% endif %}
+                </span>
+              </span>
+              <span class="al2-sev-l al2-sev-l--{{ a.severity }}">{{ a.severity|capitalize }}</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+
+      {% if focus %}
+        <article class="al2-detail" aria-labelledby="alDetH">
+          <header class="al2-detail__h">
+            <span class="al2-detail__tags">
+              <span class="al2-tag al2-tag--{{ focus.severity }}">{{ focus.severity|capitalize }} severity</span>
+              {% if focus.impact %}<span class="al2-imp al2-imp--{{ focus.impact }}">{{ focus.impact == 'affects' ? 'Affects production' : 'May affect production' }}</span>{% endif %}
+              <span class="al2-detail__src">{{ focus.source }}{% if focus.first_seen %} · first seen {{ focus.first_seen|ago }}{% endif %}</span>
+            </span>
+            <h2 id="alDetH">{{ focus.title }}</h2>
+            <p>{{ focus.summary }}</p>
+            {% if focus.who %}<p class="al2-who"><strong>Who it reaches:</strong> {{ focus.who }}</p>{% endif %}
+          </header>
+
+          {% if focus.facts %}
+            <dl class="al2-facts">
+              {% for f in focus.facts %}<dt>{{ f[0] }}</dt><dd>{{ f[1] }}</dd>{% endfor %}
+              {% if tab == 'resolved' %}<dt>Resolved</dt><dd>{{ focus.resolved_at|when }}</dd>{% endif %}
+            </dl>
+          {% elseif tab == 'resolved' %}
+            <dl class="al2-facts"><dt>First seen</dt><dd>{{ focus.first_seen|when }}</dd><dt>Resolved</dt><dd>{{ focus.resolved_at|when }}</dd></dl>
+          {% endif %}
+
+          {% if tab == 'open' %}
+            <section class="al2-do" aria-labelledby="alDoH">
+              <h3 id="alDoH">What to do</h3>
+              {% if focus.steps %}
+                <ol class="al2-steps">{% for st in focus.steps %}<li>{{ st }}</li>{% endfor %}</ol>
+              {% endif %}
+              <div class="al2-do__acts">
+                {% if focus.can_act and focus.cta %}<a class="al2-btn al2-btn--primary" href="{{ focus.href }}">{{ focus.cta }}</a>{% endif %}
+                <button type="button" class="al2-btn" data-ag-do="copy" data-copy="{{ focus.diagnosis }}">Copy diagnosis</button>
+                <a class="al2-btn" href="{{ m.url('/admin/alerts', q, {alert: focus.key}) }}">Recheck now</a>
+              </div>
+            </section>
+
+            <div class="al2-owner">
+              <span class="al2-owner__k">Owner</span>
+              {% if focus.owner %}
+                <span class="al2-ini" aria-hidden="true">{{ focus.owner|split(' ')|map(p => p|first)|slice(0, 2)|join|upper }}</span>
+                <span class="al2-owner__v">{{ focus.owner }}{% if focus.owner_at %} <span class="al2-owner__at">· since {{ focus.owner_at|ago }}</span>{% endif %}</span>
+              {% else %}
+                <span class="al2-owner__v al2-owner__v--none">Nobody yet</span>
+              {% endif %}
+              {% if logged and can_write and focus.owner_id != admin_id %}
+                <form method="post" action="/admin/alerts/{{ focus.key }}/assign" data-cn-safe>
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <button type="submit" class="al2-link">Assign to me</button>
+                </form>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          <section class="al2-tl" aria-labelledby="alTlH">
+            <h3 id="alTlH">Timeline</h3>
+            {% if focus.timeline %}
+              <ol>
+                {% for t in focus.timeline %}
+                  {% set tc = t.kind == 'resolved' ? 'green' : (t.kind == 'raised' or t.kind == 'reopened' ? 'red' : 'gold') %}
+                  <li>
+                    <span class="al2-tl__time">{{ t.at|when('j M, H:i') }}</span>
+                    <span class="al2-tl__dot al2-tl__dot--{{ tc }}" aria-hidden="true"></span>
+                    <span class="al2-tl__e">
+                      {%- if t.kind == 'raised' %}The check started failing
+                      {%- elseif t.kind == 'reopened' %}It came back after being resolved
+                      {%- elseif t.kind == 'resolved' %}The check passed again
+                      {%- elseif t.kind == 'assigned' %}{{ t.who ?: 'An admin' }} took it
+                      {%- else %}{{ t.kind }}{% endif -%}
+                    </span>
+                  </li>
+                {% endfor %}
+              </ol>
+            {% else %}
+              <p class="al2-quiet">{{ logged ? 'Nothing recorded yet. The log fills in from the next check.' : 'The alert log needs its database step (2027_03_26_console_alert_state) applied.' }}</p>
+            {% endif %}
+          </section>
+        </article>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="al2-empty">
+      <span class="al2-empty__ok" aria-hidden="true"><svg focusable="false" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></span>
+      {% if severity or prod_only or source %}
+        <strong>No alerts match</strong>
+        <span>Nothing open matches these filters.</span>
+        <a class="cn-pillbtn" href="{{ m.url('/admin/alerts', {}, {tab: tab == 'resolved' ? 'resolved' : null}) }}">Clear filters</a>
+      {% elseif tab == 'resolved' %}
+        <strong>Nothing resolved in 7 days</strong>
+        <span>An alert lands here the moment its check passes again.</span>
+      {% else %}
+        <strong>All systems normal</strong>
+        <span>Every check this page reads is passing. If one fails, it appears here and in the top bar.</span>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

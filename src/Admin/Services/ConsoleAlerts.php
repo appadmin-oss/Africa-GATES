@@ -56,6 +56,7 @@ final class ConsoleAlerts
     public static function reset(): void
     {
         self::$memo = null;
+        self::$errored = [];
     }
 
     /**
@@ -70,10 +71,12 @@ final class ConsoleAlerts
         if (self::$memo !== null) return self::$memo;
 
         $out = [];
-        foreach (self::probes() as $probe) {
+        self::$errored = [];
+        foreach (self::probes() as $key => $probe) {
             try {
                 $a = $probe();
             } catch (\Throwable) {
+                self::$errored[] = $key;
                 continue;
             }
             if ($a !== null) $out[] = $a;
@@ -102,28 +105,53 @@ final class ConsoleAlerts
         if (!Permissions::canOpen($role, '/admin/alerts')) return null;
 
         $open = self::open();
-        $high = count(self::high());
-        // What the bell's menu lists: the five most severe, each linking to its own detail.
-        // From the same memoised read as the count, so the menu and the number agree.
-        $items = array_map(static fn (array $a): array => [
-            'title' => $a['title'], 'severity' => $a['severity'], 'source' => $a['source'],
+        $affects = array_values(array_filter($open, static fn (array $a): bool => ($a['impact'] ?? null) === 'affects'));
+        $may     = array_values(array_filter($open, static fn (array $a): bool => ($a['impact'] ?? null) === 'may'));
+        // What the bell's menu lists, production first: the alerts reaching people, then
+        // the ones that will, then the rest — each linking to its own detail. From the
+        // same memoised read as the count, so the menu and the number agree.
+        $shape = static fn (array $a): array => [
+            'title' => $a['title'], 'severity' => $a['severity'], 'source' => $a['source'], 'impact' => $a['impact'] ?? null,
             'raised' => $a['raised'], 'href' => '/admin/alerts?alert=' . rawurlencode((string) $a['key']),
-        ], array_slice($open, 0, 5));
-        if ($high > 0) {
-            return ['label' => $high . ' high alert' . ($high === 1 ? '' : 's'), 'tone' => 'high',
-                    'href' => '/admin/alerts?tab=high', 'items' => $items, 'total' => count($open)];
+        ];
+        $prod = array_map($shape, array_merge($affects, $may));
+        $rest = array_map($shape, array_values(array_filter($open, static fn (array $a): bool => ($a['impact'] ?? null) === null)));
+        $base = ['href' => '/admin/alerts', 'production' => $prod, 'items' => array_slice($rest, 0, 5),
+                 'total' => count($open), 'high' => count(self::high())];
+
+        // Severity and impact are not the same thing, and the pill says the one that
+        // matters to somebody outside: whether the site is failing people now.
+        if ($affects !== []) {
+            $n = count($affects);
+            return ['label' => $n . ' affecting production', 'tone' => 'high'] + $base;
+        }
+        if ($may !== []) {
+            $n = count($may);
+            return ['label' => $n . ' may affect production', 'tone' => 'may'] + $base;
         }
         $n = count($open);
         return ['label' => $n > 0 ? $n . ' alert' . ($n === 1 ? '' : 's') : 'All systems normal',
-                'tone' => $n > 0 ? 'some' : 'none', 'href' => '/admin/alerts', 'items' => $items, 'total' => $n];
+                'tone' => $n > 0 ? 'some' : 'none'] + $base;
     }
 
-    /** @return list<callable():?array<string,mixed>> */
+    /**
+     * Each check, by the key its alert carries. Keyed so a check that THROWS is known by
+     * name ({@see errored()}): an alert whose check could not run is not an alert that
+     * resolved, and the alert log must not close it.
+     *
+     * Every alert states two things separately, because they are not the same thing
+     * (README §10b): SEVERITY, how bad the fault is; and PRODUCTION IMPACT — `affects`
+     * when people using the site are failing right now, `may` when they will if it is
+     * left, null when nobody outside the console can tell. `who` names the people, and
+     * `steps` are the fix in order.
+     *
+     * @return array<string, callable():?array<string,mixed>>
+     */
     private static function probes(): array
     {
         return [
             // ── email is down — the outage that cannot report itself ─────────────
-            static function (): ?array {
+            'mail' => static function (): ?array {
                 $b = \AfricaGates\Services\Mail\MailHealth::banner();
                 if ($b === null) return null;
                 return self::alert('mail', self::HIGH, 'Email is not sending — ' . $b['title'], 'Email',
@@ -132,11 +160,15 @@ final class ConsoleAlerts
                         $b['since'] ? ['Since', (string) $b['since']] : null,
                         ['Read from', $b['live'] ? 'the last hour of the send log' : 'the open incident'],
                     ])),
-                    '/admin/settings/mail', 'See the diagnosis', $b['since'] ?? null);
+                    '/admin/settings/mail', 'See the diagnosis', $b['since'] ?? null,
+                    'affects', 'Sign-in codes, receipts, tickets and invitations are not reaching people.',
+                    ['Open Email health and read the diagnosis — it names the step that fails.',
+                     'Fix that one setting (host, port, sign-in or sender), then press Send a test.',
+                     'Once a test arrives, this alert resolves on its own.']);
             },
 
             // ── the schedule has stopped — reconciliation and refunds with it ────
-            static function (): ?array {
+            'cron' => static function (): ?array {
                 $h = \AfricaGates\Support\CronHealth::status();
                 if ($h['ok']) return null;
                 $title = $h['never'] ? 'Scheduled maintenance has never run'
@@ -144,41 +176,49 @@ final class ConsoleAlerts
                                       : 'Scheduled maintenance is failing');
                 return self::alert('cron', self::HIGH, $title, 'Platform', (string) ($h['say'] ?? ''),
                     [['Last run', (string) ($h['last'] ?? 'never')], ['Last clean run', (string) ($h['clean'] ?? 'never')]],
-                    '/admin/settings', 'Open Automation & cron', $h['last'] ?? null);
+                    '/admin/settings', 'Open Automation & cron', $h['last'] ?? null,
+                    'affects', 'Payments the browser callback missed are not being confirmed, and refunds owed are not being paid.',
+                    ['Open Settings → Automation & cron and press Run maintenance now.',
+                     'If it fails, the run\'s own result names the task; if it succeeds, check the webcron job still calls /__cron/run.',
+                     'The alert resolves after the next clean run.']);
             },
 
             // ── the schema is behind the code ───────────────────────────────────
-            static function (): ?array {
+            'migrations' => static function (): ?array {
                 $pending = \AfricaGates\Services\MigrationRunner::status()['pending'] ?? [];
                 $n = count($pending);
                 if ($n === 0) return null;
                 return self::alert('migrations', self::HIGH,
                     $n . ' database migration step' . ($n === 1 ? '' : 's') . ' not applied', 'Platform',
                     'If actions that write new data — approving nominations, creating judges, building '
-                    . 'forms — fail while pages still load, this is why: the schema is behind the code. '
-                    . 'Run `php bin/console db:migrate` on the server or, with no shell, open '
-                    . '/__setup/migrate?token=YOUR_SETUP_TOKEN. It is idempotent and safe to re-run.',
+                    . 'forms — fail while pages still load, this is why: the schema is behind the code.',
                     [['Pending', implode(', ', array_slice(array_map('strval', $pending), 0, 6))
                                  . ($n > 6 ? ' +' . ($n - 6) . ' more' : '')]],
-                    null, null, null);
+                    null, null, null,
+                    'may', 'Any page that saves something new may fail while the rest of the site keeps loading.',
+                    ['With no shell, open /__setup/migrate?token=YOUR_SETUP_TOKEN in a browser (or run php bin/console db:migrate on the server).',
+                     'It is idempotent and safe to re-run; each step prints OK.',
+                     'The alert resolves when nothing is pending.']);
             },
 
             // ── money on a clock: a chargeback Paystack will accept for you ───────
-            static function (): ?array {
+            'chargebacks' => static function (): ?array {
                 $n = (int) DB::table('gates_support_tickets')
                     ->whereIn('status', ['open', 'pending'])
                     ->where('subject', 'like', 'Chargeback%')->count();
                 if ($n === 0) return null;
+                $hours = \AfricaGates\Services\DisputeService::RESPOND_WITHIN_HOURS;
                 return self::alert('chargebacks', self::HIGH,
                     $n . ($n === 1 ? ' chargeback awaits' : ' chargebacks await') . ' a response', 'Payments',
-                    'Paystack accepts a dispute for you after '
-                    . \AfricaGates\Services\DisputeService::RESPOND_WITHIN_HOURS
+                    'Paystack accepts a dispute for you after ' . $hours
                     . ' hours and refunds from your balance. The disputes screen attaches the receipt in one press.',
-                    [['Open', (string) $n]], '/admin/payments/disputes', 'Respond', null);
+                    [['Open', (string) $n], ['Respond within', $hours . ' hours']], '/admin/payments/disputes', 'Respond', null,
+                    'may', 'Money already paid out of the balance if nobody answers within ' . $hours . ' hours.',
+                    ['Open Disputes and choose the oldest.', 'Attach the generated receipt and send the response.']);
             },
 
             // ── a guarantee the platform advertises is missing from the schema ───
-            static function (): ?array {
+            'schema' => static function (): ?array {
                 $w = \AfricaGates\Services\VoteIndexRepair::warnings();
                 if ($w === []) return null;
                 $critical = array_values(array_filter($w, static fn ($x): bool => ($x['severity'] ?? '') === 'critical'));
@@ -187,11 +227,14 @@ final class ConsoleAlerts
                     $critical ? 'The vote table is missing a guarantee' : 'The vote table is missing an index',
                     'Database', (string) ($first['message'] ?? ''),
                     [['Fix', (string) ($first['fix'] ?? '')], ['Warnings', (string) count($w)]],
-                    null, null, null);
+                    null, null, null,
+                    $critical ? 'may' : null,
+                    $critical ? 'A vote could be counted twice until the guarantee is restored.' : '',
+                    array_values(array_filter([(string) ($first['fix'] ?? ''), 'The alert resolves when the index is in place.'])));
             },
 
             // ── money arrives and the gateway has gone quiet ─────────────────────
-            static function (): ?array {
+            'callbacks' => static function (): ?array {
                 $hour = Carbon::now()->subHour()->toDateTimeString();
                 $stuck = DB::table('gates_donations')->where('status', 'pending')
                     ->where('created_at', '<', $hour)
@@ -206,44 +249,67 @@ final class ConsoleAlerts
                     'Payments are still pending here an hour after they started and the gateway has not called '
                     . 'back since before the oldest of them. The money may be at the gateway; asking it settles each one.',
                     [['Pending over an hour', (string) $n], ['Last gateway event', $last !== '' ? $last : 'never']],
-                    '/admin/payments', 'Ask the gateway', $oldest);
+                    '/admin/payments', 'Ask the gateway', $oldest,
+                    'affects', $n . ' supporter' . ($n === 1 ? ' has' : 's have') . ' paid and may not yet see their votes or receipt.',
+                    ['Open Payments and press Ask the gateway on the pending rows.',
+                     'If the gateway confirms them, the votes are minted and receipts sent.',
+                     'If callbacks stay quiet, check the webhook URL in the gateway\'s dashboard.']);
             },
 
             // ── messages the platform tried to send and could not ───────────────
-            static function (): ?array {
+            'messages' => static function (): ?array {
                 $n = (int) DB::table('gates_messages')->where('status', 'failed')
                     ->where('created_at', '>=', Carbon::now()->subDay()->toDateTimeString())->count();
                 if ($n === 0) return null;
                 return self::alert('messages', self::MEDIUM,
                     $n . ' message' . ($n === 1 ? '' : 's') . ' failed in 24 hours', 'Messaging',
-                    'SMS or WhatsApp sends the provider refused. Sign-in codes are among them. The integrations '
-                    . 'check asks each provider a real question and prints its answer.',
-                    [['Failed in 24 hours', (string) $n]], '/admin/settings/providers', 'Run the checks', null);
+                    'SMS or WhatsApp sends the provider refused. Sign-in codes are among them.',
+                    [['Failed in 24 hours', (string) $n]], '/admin/settings/providers', 'Run the checks', null,
+                    'may', 'People signing in by text may not get their code.',
+                    ['Open Integrations and press Run all checks.', 'Each prints the provider\'s own answer — usually credit or a sender ID.']);
             },
 
             // ── outbound webhooks that did not land ─────────────────────────────
-            static function (): ?array {
+            'webhooks' => static function (): ?array {
                 $n = (int) DB::table('gates_webhook_deliveries')->where('ok', 0)
                     ->where('created_at', '>=', Carbon::now()->subDay()->toDateTimeString())->count();
                 if ($n === 0) return null;
                 return self::alert('webhooks', self::LOW,
                     $n . ' webhook deliver' . ($n === 1 ? 'y' : 'ies') . ' failed in 24 hours', 'Integrations',
                     'An endpoint this platform sends events to did not accept them.',
-                    [['Failed in 24 hours', (string) $n]], '/admin/webhooks', 'Open webhooks', null);
+                    [['Failed in 24 hours', (string) $n]], '/admin/webhooks', 'Open webhooks', null,
+                    null, '', ['Open Webhooks and read the failed deliveries\' responses.']);
             },
         ];
     }
 
+    /** Keys of the checks that threw on this request — unknown, never resolved. */
+    private static array $errored = [];
+
+    /** @return list<string> */
+    public static function errored(): array
+    {
+        self::open();
+        return self::$errored;
+    }
+
+    /** Every key a check can raise, for the alert log and the tests. @return list<string> */
+    public static function keys(): array
+    {
+        return array_keys(self::probes());
+    }
+
     /**
      * @param list<array{0:string,1:string}> $facts
+     * @param list<string> $steps
      * @return array<string,mixed>
      */
     private static function alert(string $key, string $severity, string $title, string $source,
                                   string $summary, array $facts, ?string $href, ?string $cta,
-                                  ?string $raised): array
+                                  ?string $raised, ?string $impact = null, string $who = '', array $steps = []): array
     {
         return ['key' => $key, 'severity' => $severity, 'title' => $title, 'source' => $source,
                 'summary' => $summary, 'facts' => $facts, 'href' => $href, 'cta' => $cta,
-                'raised' => $raised];
+                'raised' => $raised, 'impact' => $impact, 'who' => $who, 'steps' => $steps];
     }
 }

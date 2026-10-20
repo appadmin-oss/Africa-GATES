@@ -170,8 +170,14 @@ final class ConsoleShellTest extends TestCase
         $keys = array_column(ConsoleAlerts::high(), 'key');
         $this->assertContains('chargebacks', $keys);
         $pill = ConsoleAlerts::pill('admin');
-        $this->assertSame('high', $pill['tone']);
-        $this->assertSame(count(ConsoleAlerts::high()) . ' high alerts', $pill['label']);
+        // The pill speaks PRODUCTION IMPACT (AdminConsole v2), not severity: a chargeback is
+        // high and "may" affect production, while anything reaching people now outranks it.
+        $affects = count(array_filter(ConsoleAlerts::open(), static fn (array $a): bool => $a['impact'] === 'affects'));
+        $may     = count(array_filter(ConsoleAlerts::open(), static fn (array $a): bool => $a['impact'] === 'may'));
+        $this->assertSame($affects ? 'high' : 'may', $pill['tone']);
+        $this->assertSame($affects ? $affects . ' affecting production' : $may . ' may affect production', $pill['label']);
+        $this->assertContains('/admin/alerts?alert=chargebacks', array_column($pill['production'], 'href'),
+            'the bell lists a chargeback in its production block');
         $this->assertNull(ConsoleAlerts::pill('moderator'), 'a moderator was linked to a page they cannot open');
         $this->assertNull(ConsoleAlerts::pill('editor'));
         $this->assertNotNull(ConsoleAlerts::pill('viewer'));

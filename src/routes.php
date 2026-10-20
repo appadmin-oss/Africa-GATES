@@ -4682,6 +4682,8 @@ return function(App $app) {
         // an email outage, a stalled schedule, chargebacks on a clock, schema behind the
         // code. The top bar's alert pill and Home's "needs a person" read the same list.
         $a->get('/alerts', \AfricaGates\Admin\Controllers\AlertsController::class.':index');
+        // "Assign to me" — the alert's owner and its timeline (AdminConsole v2).
+        $a->post('/alerts/{key:[a-z_]+}/assign', \AfricaGates\Admin\Controllers\AlertsController::class.':assign');
 
         // ── THE ADMIN'S OWN CONSOLE: PINNED VIEWS AND THE SIDEBAR ─────────────────
         //

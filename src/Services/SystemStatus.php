@@ -424,6 +424,34 @@ final class SystemStatus
         return $out;
     }
 
+    /**
+     * Each component's recorded states between two timestamps, oldest first — for the
+     * console's service strip, where every service gets its own row of blocks. A component
+     * missing from a snapshot simply has no sample there, which the strip draws as a gap.
+     *
+     * @return array<string, list<array{0:string,1:string}>> name => [taken_at, state]
+     */
+    public static function componentsBetween(string $from, string $to): array
+    {
+        try {
+            $rows = DB::table('gates_status_log')->whereBetween('taken_at', [$from, $to])
+                ->orderBy('taken_at')->limit(20000)->get(['taken_at', 'components_json']);
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $cs = json_decode((string) $r->components_json, true);
+            if (!is_array($cs)) continue;
+            foreach ($cs as $c) {
+                $st = (string) ($c['status'] ?? '');
+                if (!isset(self::RANK[$st])) continue;
+                $out[(string) ($c['name'] ?? '')][] = [(string) $r->taken_at, $st];
+            }
+        }
+        return $out;
+    }
+
     /** Worst-wins rank of a state, for a caller folding snapshots into buckets. */
     public static function rank(string $state): ?int
     {

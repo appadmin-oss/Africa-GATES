@@ -16,7 +16,7 @@
 
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/home.css') }}">{% endblock %}
 
-{% block topbar_crumb %}Home{% endblock %}
+{% block topbar_crumb %}<span class="cn-crumb__a">Home</span>{% endblock %}
 {% block topbar_title %}{{ greeting }}, {{ shell.name|split(' ')|first }}{% endblock %}
 
 {% block page_head %}

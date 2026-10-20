@@ -228,6 +228,10 @@ final class Maintenance
             // the thing that stopped.
             $ran[] = ['status', $this->task('status',
                 fn() => \AfricaGates\Services\SystemStatus::record())];
+            // The console's alert log, on the same tick: a fault that came and went while
+            // nobody had the Alerts page open still gets its raised and resolved rows.
+            $ran[] = ['alertlog', $this->task('alertlog',
+                fn() => \AfricaGates\Admin\Services\ConsoleAlertLog::sync())];
             // Every hour
             if ((int)$now->minute < 15) {
                 $ran[] = ['otp',        $this->task('otp',        fn() => $this->purgeExpiredOtp())];

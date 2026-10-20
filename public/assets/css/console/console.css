@@ -222,7 +222,7 @@ body[data-side="closed"] .cn-side { display: none; }
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
   font-size: var(--cn-fs-13-5); white-space: nowrap; overflow: hidden;
 }
-.cn-crumb__a { color: var(--cn-faint); }
+.cn-crumb__a { color: var(--cn-faint); font-weight: 400; }
 .cn-crumb__sep { color: var(--cn-ghost); }
 .cn-crumb__b { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cn-bar .cn-bar__phone { display: none; }
@@ -245,6 +245,8 @@ body[data-side="closed"] .cn-side { display: none; }
 .cn-alertpill--none .cn-dot { background: var(--cn-green); }
 .cn-alertpill--high { background: var(--cn-red-wash); border-color: var(--cn-red-edge); color: var(--cn-red-ink) !important; }
 .cn-alertpill--high .cn-dot { background: var(--cn-red); }
+.cn-alertpill--may { background: var(--cn-gold-wash); border-color: var(--cn-gold-edge); color: var(--cn-gold-ink) !important; }
+.cn-alertpill--may .cn-dot { background: var(--cn-gold); }
 @keyframes cnProdPulse {
   0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cn-red) 45%, transparent); }
   70%  { box-shadow: 0 0 0 7px color-mix(in srgb, var(--cn-red) 0%, transparent); }
@@ -688,7 +690,7 @@ body[data-readonly] [data-write] { opacity: .45; }
   .cn-menu--up { left: 0; right: 0; width: auto; }
 
   .cn-bar { height: 56px; gap: 2px; padding: 0 6px 0 14px; }
-  .cn-bar__toggle-form, .cn-bar__toggle, .cn-crumb__a, .cn-crumb__sep, .cn-new { display: none; }
+  .cn-bar__toggle-form, .cn-bar__toggle, .cn-bar__title > .cn-crumb__a, .cn-crumb__sep, .cn-new { display: none; }
   .cn-bar__title { font-size: var(--cn-fs-17); font-weight: 600; letter-spacing: -.01em; }
   .cn-bar .cn-bar__phone { display: grid; }
   .cn-bar .cn-iconbtn { width: 44px; height: 44px; }
@@ -696,6 +698,10 @@ body[data-readonly] [data-write] { opacity: .45; }
   /* The signal is a word, so on a phone it is shown only when it says something — as a
      tinted strip under the app bar, the full width, rather than squeezed beside the bell. */
   .cn-alertpill--none, .cn-alertpill--some { display: none; }
+  .cn-alertpill--may {
+    order: 9; flex: 1 0 100%; height: auto; min-height: 44px; margin: 0 -6px 0 -14px; padding: 0 16px;
+    border-width: 1px 0 0; border-radius: 0; font-size: var(--cn-fs-14); font-weight: 500;
+  }
   .cn-bar { flex-wrap: wrap; height: auto; min-height: 56px; }
   .cn-bar > .cn-bar__title { min-height: 56px; }
   .cn-bar > .cn-bell { display: flex; align-items: center; min-height: 56px; }
@@ -1072,6 +1078,13 @@ tr.ad-out > td { opacity: .62; }
 .cn-bell__t { font-size: var(--cn-fs-13-5); font-weight: 600; line-height: 1.35; }
 .cn-bell__m { font-size: var(--cn-fs-12); color: var(--cn-soft); }
 .cn-bell__none { padding: 10px; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
+.cn-bell__h--prod { color: var(--cn-red-ink); }
+.cn-bell__i--affects { background: var(--cn-red-wash-2); }
+.cn-bell__i--may { background: var(--cn-gold-wash-2); }
+.cn-bell__i--affects + .cn-bell__i, .cn-bell__i--may + .cn-bell__i { margin-top: 2px; }
+.cn-bell__imp { justify-self: start; display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: var(--cn-r-pill); font-size: var(--cn-fs-11-5); font-weight: 500; }
+.cn-bell__imp--affects { background: var(--cn-red-wash); color: var(--cn-red-ink); }
+.cn-bell__imp--may { background: var(--cn-gold-wash); color: var(--cn-gold-ink); }
 .cn-bell__all { margin-top: 4px; border-top: 1px solid var(--cn-line-row); border-radius: 0 0 var(--cn-r-8) var(--cn-r-8); font-weight: 600; }
 .cn-confirm textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-8); font: inherit; font-size: var(--cn-fs-14); resize: vertical; }
 

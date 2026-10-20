@@ -172,3 +172,27 @@ Each v2 screen is a NEW template (owner, 20 Oct 2026); the old one is left untou
 | No "Add date" or "Subscribe" on Calendar | Dates belong to the programme, event or challenge they are set on, and there is no calendar feed yet. |
 | The side column sits beside the work from 1040px of content width | The design's 1200px is the whole canvas; its work column is about 1040px at that size. |
 | No Payouts in This week | Payouts are not scheduled on this platform; they are paid when requested. |
+
+## Step 4 — Alerts, and the console's own faces
+- **Two axes.** Every alert carries `impact` (`affects` / `may` / none) beside its
+  severity, plus `who` (the people it reaches) and `steps` (the fix in order). The top
+  bar's pill now speaks impact: "N affecting production" (red, pulsing), "N may affect
+  production" (amber), "N alerts" (grey), "All systems normal" (green). The bell opens
+  with a Production block above the other alerts.
+- **Alert state** (`2027_03_26_console_alert_state.php`, `Admin\Services\ConsoleAlertLog`):
+  first seen, resolved, reopened count, owner, timeline. "Resolved" is written when a
+  check passes, never by a button. A check that throws is unknown, never resolved. The log
+  syncs on every Alerts view and every maintenance tick.
+- **Page**: `admin/alerts/index.twig` + `console/alerts.css` (new; `admin/alerts.twig`
+  is left as it was). Production banner, service strip (status-page components, 7 days
+  in 12-hour blocks, a dashed gap where nothing was recorded), Open / Resolved · 7 days,
+  severity and impact chips, source select, list and sticky detail with Copy diagnosis,
+  Run all checks, Assign to me and the timeline.
+- **Geist is self-hosted** (`public/assets/fonts/geist/`, variable files, SIL OFL), not
+  loaded from Google Fonts. That also lets a render without network access be compared
+  against the design's screenshots face for face.
+
+| Deviation | Why |
+|---|---|
+| No "Post a status update" on the banner | The status page is computed from checks; there is no hand-written update to post. |
+| The service strip's last line is "7 days", not a per-service note | Only the state is recorded per component, not a cause. |
