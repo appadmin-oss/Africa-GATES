@@ -26,6 +26,22 @@ final class TimeSeries
      */
     public static function bars(iterable $stamps, TimeRange $range, int $max = 56): array
     {
+        $pairs = (static function () use ($stamps): \Generator {
+            foreach ($stamps as $s) yield [$s, 1];
+        })();
+        return self::weighted($pairs, $range, $max);
+    }
+
+    /**
+     * The same buckets, each SUMMING a weight rather than counting rows — money over time
+     * (Home's "Raised"). `bars()` is this with every weight one, so a count chart and a sum
+     * chart over the same window always have the same bars.
+     *
+     * @param iterable<array{0:string|int|null, 1:int|float}> $pairs [timestamp, weight]
+     * @return array{step:int, max:int|float, total:int|float, bars:list<array{from:int,to:int,n:int|float,label:string,q_from:string,q_to:string}>}
+     */
+    public static function weighted(iterable $pairs, TimeRange $range, int $max = 56): array
+    {
         $span = $range->seconds();
         $step = self::STEPS[count(self::STEPS) - 1];
         foreach (self::STEPS as $s) {
@@ -39,14 +55,14 @@ final class TimeSeries
 
         $counts = array_fill(0, $n, 0);
         $total = 0;
-        foreach ($stamps as $s) {
+        foreach ($pairs as [$s, $w]) {
             if ($s === null || $s === '') continue;
             $t = is_int($s) ? $s : strtotime(str_replace('T', ' ', (string) $s));
             if ($t === false || $t < $range->from || $t > $range->to) continue;
             $i = (int) floor(($t - $start) / $step);
             if ($i < 0 || $i >= $n) continue;
-            $counts[$i]++;
-            $total++;
+            $counts[$i] += $w;
+            $total += $w;
         }
 
         $fmt = $step >= 86400 ? 'j M' : 'j M, H:i';

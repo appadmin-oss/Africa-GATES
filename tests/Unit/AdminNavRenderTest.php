@@ -107,10 +107,11 @@ final class AdminNavRenderTest extends TestCase
     {
         $html = $this->render(\AfricaGates\Admin\Controllers\DashboardController::class, 'index', 'admin', '/admin/dashboard');
         foreach (['id="cnConfirm"', 'id="cnAssist"', 'id="cnPal"', 'id="cnToasts"', 'class="cn-h1"',
-                  'Reason, for the audit log', 'At a glance', 'Activity', 'Jump to',
-                  'Only jobs you can act on are shown', 'class="cn-side__search"', 'class="cn-tabbar"'] as $needle) {
+                  'Reason, for the audit log', 'Needs attention', 'Editions', 'Performance', 'This week',
+                  'class="cn-side__search"', 'class="cn-tabbar"'] as $needle) {
             $this->assertStringContainsString($needle, $html, "missing $needle");
         }
-        $this->assertStringContainsString('Every job waiting on a person, across everything your role can reach, most urgent first.', $html);
+        // Home's line under the greeting is the state of the day, not a purpose line.
+        $this->assertMatchesRegularExpression('~(\d+ things? needs? you|Nothing needs you right now)~', $html);
     }
 }

@@ -110,7 +110,7 @@ body[data-side="closed"] .cn-side { display: none; }
 }
 .cn-nav::-webkit-scrollbar { display: none; }
 .cn-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
-.cn-nav__group { display: flex; flex-direction: column; gap: 1px; }
+.cn-nav__top, .cn-nav__group { display: flex; flex-direction: column; gap: 1px; }
 .cn-nav__label { padding: 0 10px 4px; font-size: var(--cn-fs-11-5); font-weight: 500; color: var(--cn-faint); }
 .cn-nav__fold {
   display: flex; align-items: center; gap: 6px; height: 22px; margin-bottom: 2px; padding: 0 10px;
@@ -276,17 +276,26 @@ body[data-side="closed"] .cn-side { display: none; }
    it stays in the tree, so a live region still announces when it is filled. */
 .cn-main__in > div:empty { margin: -28px 0 0 !important; }
 
-.cn-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-.cn-head__text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; }
+.cn-head__text { flex: 1 1 320px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cn-head__eyebrow:empty { display: none; }
 .cn-head__eyebrow { font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
-.cn-h1 { margin: 0; font-size: var(--cn-fs-26); font-weight: 600; line-height: 1.15; letter-spacing: -.025em; }
+.cn-h1 { margin: 0; font-size: var(--cn-fs-22); font-weight: 600; line-height: 1.2; letter-spacing: -.02em; }
 .cn-h1 small { display: block; font-size: var(--cn-fs-13); font-weight: 500; letter-spacing: 0; color: var(--cn-soft); }
-.cn-head__sub { margin: 0; font-size: var(--cn-fs-14); line-height: 1.5; color: var(--cn-ink-3); max-width: 76ch; text-wrap: pretty; }
+.cn-head__sub { margin: 0; font-size: var(--cn-fs-14); line-height: 1.5; color: var(--cn-soft); max-width: 76ch; text-wrap: pretty; }
 .cn-head__side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cn-head__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cn-head__actions:empty { display: none; }
 .cn-head__side form { margin: 0; }
+.cn-pin-btn {
+  flex: none; width: 32px; height: 32px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--cn-line); border-radius: var(--cn-r-8); background: var(--cn-surface);
+  color: var(--cn-faint); cursor: pointer;
+}
+.cn-pin-btn svg { width: 15px; height: 15px; }
+.cn-pin-btn:hover { background: var(--cn-panel); color: var(--cn-ink); }
+.cn-pin-btn[aria-pressed="true"] { color: var(--cn-gold-icon); }
+.cn-pin-btn[aria-pressed="true"] svg { fill: currentColor; }
 .cn-chip {
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: var(--cn-r-pill);
   background: var(--cn-ground); font-size: var(--cn-fs-12-5); font-weight: 600; color: var(--cn-ink-3);
@@ -691,7 +700,6 @@ body[data-readonly] [data-write] { opacity: .45; }
 
 /* ── under 768px every target is at least 44px (rule 12) ───────────────────── */
 @media (max-width: 768px) {
-  .cn-h1 { font-size: var(--cn-fs-24); }
   .cn-pillbtn,
   .cn-btn, .cn-tab, .cn-related__i, .cn-menu__i, .cn-suggest__q, .cn-pal__i, .cn-roundbtn, .cn-send {
     min-height: 44px; min-width: 44px;

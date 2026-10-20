@@ -286,6 +286,39 @@ final class SystemStatus
         return ['status' => (string) $r->overall, 'label' => self::LABELS[(string) $r->overall]];
     }
 
+    /**
+     * The last recorded snapshot, component by component, for the console's System card.
+     *
+     * Read from the log rather than by running {@see report()}: Home is opened all day by
+     * every operator, and a live report on each view would be six probes per page load.
+     * The same freshness rule as {@see light()} — past {@see LIGHT_FRESH_MIN} minutes, or
+     * with no row, the answer is null and the card says the check has not run, rather than
+     * showing an old all-clear as the present.
+     *
+     * @return array{taken_at:string, components:list<array{name:string,status:string,label:string}>}|null
+     */
+    public static function snapshot(): ?array
+    {
+        try {
+            $r = DB::table('gates_status_log')->orderByDesc('taken_at')->first(['taken_at', 'components_json']);
+            if (!$r) return null;
+            $age = Carbon::parse((string) $r->taken_at)->diffInMinutes(Carbon::now(), false);
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($age > self::LIGHT_FRESH_MIN) return null;
+
+        $rows = json_decode((string) $r->components_json, true);
+        if (!is_array($rows)) return null;
+        $out = [];
+        foreach ($rows as $c) {
+            $st = (string) ($c['status'] ?? self::UNKNOWN);
+            if (!isset(self::LABELS[$st])) $st = self::UNKNOWN;
+            $out[] = ['name' => (string) ($c['name'] ?? ''), 'status' => $st, 'label' => self::LABELS[$st]];
+        }
+        return ['taken_at' => (string) $r->taken_at, 'components' => $out];
+    }
+
     /** Drop snapshots past {@see KEEP_DAYS}. */
     public static function prune(): int
     {

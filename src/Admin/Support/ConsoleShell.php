@@ -58,6 +58,7 @@ final class ConsoleShell
             'email'       => (string) ($_SESSION['admin_email'] ?? ''),
             'initials'    => self::initials((string) ($_SESSION['admin_name'] ?? '')),
             'home'        => $nav['home'],
+            'top'         => $nav['top'],
             'groups'      => self::rail($nav['groups'], $current, $counts),
             'current'     => $item['page'] ?? null,
             'current_page'=> $page['page'] ?? null,

@@ -132,6 +132,56 @@
     });
   })();
 
+  // ── HOME'S AREA TABS: All · Awards · Money · Content ─────────────────────────
+  // Without script every job shows, which is the All tab; this only narrows it.
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-ag-do="hm-area"]');
+    if (!t) return;
+    var area = t.getAttribute('data-area');
+    t.closest('[data-hm-tabs]').querySelectorAll('[role="tab"]').forEach(function (b) {
+      b.setAttribute('aria-selected', b === t ? 'true' : 'false');
+    });
+    var list = document.querySelector('[data-hm-jobs]');
+    if (!list) return;
+    var shown = 0;
+    list.querySelectorAll('li[data-area]').forEach(function (li) {
+      var on = area === '' || li.getAttribute('data-area') === area;
+      li.hidden = !on; if (on) shown++;
+    });
+    var none = list.querySelector('[data-hm-none]');
+    if (none) none.hidden = shown > 0;
+  });
+
+  // ── THE LIST PAGE'S SEARCH (list.css): filters the rows in place ─────────────
+  // A row carries its searchable words in data-ls-text. "No matches" is its own state,
+  // distinct from a page with no data, and the footer says "N of M shown".
+  function lsFilter(root) {
+    var inp = root.querySelector('[data-ls-q]');
+    var q = inp ? inp.value.trim().toLowerCase() : '';
+    var rows = root.querySelectorAll('[data-ls-row]'), shown = 0;
+    rows.forEach(function (r) {
+      var on = q === '' || (r.getAttribute('data-ls-text') || '').indexOf(q) !== -1;
+      r.hidden = !on; if (on) shown++;
+    });
+    var none = root.querySelector('[data-ls-none]'); if (none) none.hidden = shown > 0;
+    var foot = root.querySelector('[data-ls-foot]');
+    if (foot) {
+      var total = foot.getAttribute('data-total');
+      if (!foot.hasAttribute('data-all')) foot.setAttribute('data-all', foot.textContent);
+      foot.textContent = q === '' ? foot.getAttribute('data-all') : shown + ' of ' + total + ' shown';
+    }
+  }
+  document.addEventListener('input', function (e) {
+    if (e.target.matches && e.target.matches('[data-ls-q]')) lsFilter(e.target.closest('[data-ls]'));
+  });
+  document.addEventListener('click', function (e) {
+    var c = e.target.closest('[data-ag-do="ls-clear"]');
+    if (!c) return;
+    var root = c.closest('[data-ls]'), inp = root.querySelector('[data-ls-q]');
+    if (inp) { inp.value = ''; inp.focus(); }
+    lsFilter(root);
+  });
+
   // ── THE ACCOUNT MENU ─────────────────────────────────────────────────────────
   var acctBtn = document.querySelector('[data-ag-do="acct-toggle"]');
   var acct = document.getElementById('cnAcct');

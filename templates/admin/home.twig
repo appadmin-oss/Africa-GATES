@@ -1,0 +1,239 @@
+{% extends "admin/layout.twig" %}
+{#
+  HOME — AdminConsole v2 (`design_handoff_letter_email_admin`, README §10b), 20 Oct 2026.
+
+  Top to bottom: the greeting and one line of state; Today's brief (up to three facts,
+  most serious first); Needs attention, with All · Awards · Money · Content; the running
+  editions on their five-stage tracker; Performance, where the four figures ARE the tabs
+  and the range lives in the section's own header. Beside them at ≥1200px of main width —
+  and under them below that, never hidden — This week, System and Recent.
+
+  Every figure comes from HomeBlocks, which reads records the platform keeps; nothing is
+  typed here. Each block has a calm empty state rather than disappearing, because an
+  operator has to be able to see that a count is zero. Without script: the area tabs show
+  every job, the range and the figures are plain links.
+#}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/home.css') }}">{% endblock %}
+
+{% block topbar_crumb %}Home{% endblock %}
+{% block topbar_title %}{{ greeting }}, {{ shell.name|split(' ')|first }}{% endblock %}
+
+{% block page_head %}
+<div class="cn-head">
+  <div class="cn-head__text">
+    <h1 class="cn-h1">{{ greeting }}, {{ shell.name|split(' ')|first }}</h1>
+    <p class="cn-head__sub">
+      {%- if jobs|length -%}
+        {{ jobs|length }} thing{{ jobs|length == 1 ? '' : 's' }} need{{ jobs|length == 1 ? 's' : '' }} you
+      {%- else -%}
+        Nothing needs you right now
+      {%- endif -%}
+      {%- if state %} · {{ state }}{% endif -%}
+    </p>
+  </div>
+  {% if not shell.can_write %}<div class="cn-head__side"><span class="cn-chip">Read-only for {{ shell.role_label }}</span></div>{% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="hm2">
+
+  {# ── TODAY'S BRIEF ─────────────────────────────────────────────────────────── #}
+  {% if brief %}
+    <section class="hm2-brief" aria-labelledby="hmBriefH">
+      <svg class="hm2-brief__spark" aria-hidden="true" focusable="false"><use href="#ic-spark"/></svg>
+      <div class="hm2-brief__body">
+        <h2 class="hm2-brief__h" id="hmBriefH">Today's brief</h2>
+        <ul class="hm2-brief__list">
+          {% for b in brief %}<li><span class="hm2-dot hm2-dot--{{ b.tone }}" aria-hidden="true"></span>{{ b.text }}</li>{% endfor %}
+        </ul>
+      </div>
+      {% if shell.assistant %}
+        <button type="button" class="hm2-btn hm2-btn--sm" data-ag-do="assist-ask"
+                data-q="{{ ('Here is today\'s brief: ' ~ (brief|map(b => b.text)|join(' ')) ~ ' What should I do first?') }}">Ask a follow-up</button>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <div class="hm2-grid">
+    <div class="hm2-main">
+
+      {# ── NEEDS ATTENTION ──────────────────────────────────────────────────────── #}
+      <section class="hm2-sec" aria-labelledby="hmAttH">
+        <header class="hm2-sec__h">
+          <h2 id="hmAttH">Needs attention</h2>
+          {% if jobs %}
+            <div class="hm2-tabs" role="tablist" aria-label="Area" data-hm-tabs>
+              <button type="button" role="tab" class="hm2-tab" aria-selected="true" data-ag-do="hm-area" data-area="">All</button>
+              {% for k, label in areas %}
+                <button type="button" role="tab" class="hm2-tab" aria-selected="false" data-ag-do="hm-area" data-area="{{ k }}">{{ label }}</button>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </header>
+        {% if jobs %}
+          <ul class="hm2-list" data-hm-jobs>
+            {% for j in jobs %}
+              {% set tone = j.tone == 'danger' ? 'red' : (j.tone == 'warning' ? 'gold' : 'grey') %}
+              <li data-area="{{ j.area }}">
+                <a class="hm2-job" href="{{ j.href }}">
+                  <span class="hm2-ring hm2-ring--{{ tone }}" aria-hidden="true"><span></span></span>
+                  <span class="hm2-job__t">
+                    <span class="hm2-job__l">{{ j.label|capitalize }}</span>
+                    <span class="hm2-job__w">{{ j.why }}</span>
+                  </span>
+                  <span class="hm2-job__due{% if j.age and j.key == 'review' and j.late %} is-late{% endif %}">
+                    {%- if j.age %}Oldest {{ j.age_said }}{% endif -%}
+                  </span>
+                  <span class="hm2-num">{{ j.count|number_format }}</span>
+                  <svg class="hm2-chev" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+                </a>
+              </li>
+            {% endfor %}
+            <li class="hm2-list__none" data-hm-none hidden>Nothing in this area needs a person.</li>
+          </ul>
+        {% else %}
+          <div class="hm2-empty">
+            <span class="hm2-empty__ok" aria-hidden="true"><svg focusable="false" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></span>
+            <span class="hm2-empty__t"><strong>You're all caught up</strong><span>Work lands here the moment something needs a person.</span></span>
+          </div>
+        {% endif %}
+      </section>
+
+      {# ── EDITIONS ─────────────────────────────────────────────────────────────── #}
+      <section class="hm2-sec" aria-labelledby="hmEdH">
+        <header class="hm2-sec__h">
+          <h2 id="hmEdH">Editions</h2>
+          <a class="hm2-link" href="/admin/programmes">View all</a>
+        </header>
+        {% if editions %}
+          <div class="hm2-table" role="table" aria-labelledby="hmEdH">
+            <div class="hm2-table__head" role="row">
+              <span role="columnheader">Programme</span><span role="columnheader">Stage</span><span role="columnheader" class="hm2-wide">Next milestone</span>
+            </div>
+            {% for e in editions %}
+              <a class="hm2-ed" role="row" href="{{ e.href }}">
+                <span class="hm2-ed__name" role="cell"><strong>{{ e.name }}</strong><span>{{ e.edition }}</span></span>
+                <span class="hm2-ed__stage" role="cell">
+                  <span class="hm2-track" aria-hidden="true">{% for s in e.stages %}<span class="hm2-track__s hm2-track__s--{{ s.state }}"></span>{% endfor %}</span>
+                  <span class="hm2-ed__now"><strong>{{ e.stage }}</strong> · step {{ e.step }} of 5</span>
+                </span>
+                <span class="hm2-ed__next hm2-wide" role="cell">{{ e.next }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="hm2-empty hm2-empty--act">
+            <span class="hm2-empty__t"><span>No edition is running. Set one up and its stages, dates and queues show here.</span></span>
+            {% if can_setup %}<a class="hm2-btn hm2-btn--primary" href="/admin/programmes/new">Set up an edition</a>{% endif %}
+          </div>
+        {% endif %}
+      </section>
+
+      {# ── PERFORMANCE ──────────────────────────────────────────────────────────── #}
+      {% if kpis %}
+        <section class="hm2-sec" aria-labelledby="hmPerfH">
+          <header class="hm2-sec__h">
+            <h2 id="hmPerfH">Performance</h2>
+            <nav class="hm2-seg" aria-label="Range">
+              {% for r in ['7d', '30d', '90d'] %}
+                <a class="hm2-seg__i" href="/admin/dashboard?range={{ r }}&amp;metric={{ metric }}"{% if r == rkey %} aria-current="true"{% endif %}>{{ r }}</a>
+              {% endfor %}
+            </nav>
+          </header>
+          <div class="hm2-perf">
+            <nav class="hm2-kpis" aria-label="Metric">
+              {% for k in kpis %}
+                <a class="hm2-kpi" href="/admin/dashboard?range={{ rkey }}&amp;metric={{ k.key }}"{% if k.on %} aria-current="true"{% endif %}>
+                  <span class="hm2-kpi__h">{{ k.label }} · {{ rkey }}
+                    {% if k.delta is not null %}<span class="hm2-kpi__delta-num{{ k.delta < 0 ? ' is-down' }}">{{ k.delta > 0 ? '+' : (k.delta < 0 ? '−' : '') }}{{ k.delta|abs }}%</span>{% endif %}
+                  </span>
+                  <span class="hm2-kpi__v">
+                    <span class="hm2-kpi__n">{{ k.value }}</span>
+                    {% if k.spark.line and k.total > 0 %}
+                      <svg class="hm2-spark" viewBox="0 0 96 30" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path class="hm2-spark__a" d="{{ k.spark.area }}"/><path class="hm2-spark__l" d="{{ k.spark.line }}"/></svg>
+                    {% endif %}
+                  </span>
+                </a>
+              {% endfor %}
+            </nav>
+            {% if chart %}
+              {% set mx = chart.series.max %}
+              <figure class="hm2-chart">
+                <figcaption class="hm2-chart__h">
+                  <span class="hm2-chart__n">{{ chart.money ? chart.value : chart.total|number_format }}</span>
+                  <span class="hm2-chart__u">{{ chart.money ? 'raised' : (chart.key == 'votes' ? 'votes cast' : (chart.key == 'tickets' ? 'tickets sold' : chart.unit)) }}{% if chart.delta is not null %} · {{ chart.delta > 0 ? 'up ' : (chart.delta < 0 ? 'down ' : '') }}{{ chart.delta == 0 ? 'the same as' : chart.delta|abs ~ '% on' }} the {{ rkey }} before{% endif %}</span>
+                </figcaption>
+                <div class="hm2-bars" role="img" aria-label="{{ chart.label }} per {{ chart.series.step >= 86400 ? 'day' : 'period' }} over the last {{ rkey }}">
+                  {% for b in chart.series.bars %}
+                    <span class="hm2-bar{{ loop.last ? ' is-now' }}" style="--h: {{ mx > 0 ? (b.n / mx * 100)|round : 0 }}%" title="{{ b.label }}: {{ chart.money ? '₦' ~ b.n|number_format : b.n|number_format }}"></span>
+                  {% endfor %}
+                </div>
+                <div class="hm2-chart__axis-time"><span>−{{ rkey }}</span><span>Today</span></div>
+              </figure>
+            {% endif %}
+          </div>
+        </section>
+      {% endif %}
+    </div>
+
+    {# ── THE SIDE COLUMN ─────────────────────────────────────────────────────── #}
+    <aside class="hm2-side" aria-label="This week, system and recent changes">
+      <section class="hm2-sec" aria-labelledby="hmWeekH">
+        <header class="hm2-sec__h">
+          <h2 id="hmWeekH">This week</h2>
+          {% if can_cal %}<a class="hm2-link hm2-link--green" href="/admin/calendar">Calendar</a>{% endif %}
+        </header>
+        {% if week %}
+          <ul class="hm2-week">
+            {% for d in week %}
+              <li><a href="{{ d.href }}">
+                <span class="hm2-day hm2-day--{{ d.tone }}"><span class="hm2-day__w">{{ d.at|when('D') }}</span><span class="hm2-day__d">{{ d.at|when('j') }}</span></span>
+                <span class="hm2-week__t"><strong>{{ d.title }}</strong><span>{{ d.sub }} · {{ d.at|when('H:i') }}</span></span>
+              </a></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="hm2-quiet">No deadlines this week.</p>
+        {% endif %}
+      </section>
+
+      {% if system is not null %}
+        <section class="hm2-sec" aria-labelledby="hmSysH">
+          <header class="hm2-sec__h"><h2 id="hmSysH">System</h2><a class="hm2-link" href="/admin/alerts">Alerts</a></header>
+          {% if system.rows %}
+            <ul class="hm2-sys">
+              {% for h in system.rows %}
+                {% set tone = h.status == 'ok' ? 'green' : (h.status == 'degraded' ? 'gold' : (h.status == 'down' ? 'red' : 'grey')) %}
+                <li><span class="hm2-sysdot hm2-sysdot--{{ tone }}" aria-hidden="true"></span><span class="hm2-sys__n">{{ h.name }}</span><span class="hm2-sys__s hm2-sys__s--{{ tone }}">{{ h.label }}</span></li>
+              {% endfor %}
+            </ul>
+            <p class="hm2-quiet hm2-quiet--sm">Checked {{ system.taken_at|ago }} ago</p>
+          {% else %}
+            <p class="hm2-quiet">The status check has not run in the last 45 minutes, so there is no current reading. It runs with scheduled maintenance.</p>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      {% if can_audit %}
+        <section class="hm2-sec" aria-labelledby="hmRecH">
+          <header class="hm2-sec__h"><h2 id="hmRecH">Recent</h2><a class="hm2-link" href="/admin/audit">Audit log</a></header>
+          {% if recent %}
+            <ul class="hm2-feed">
+              {% for a in recent %}
+                <li>
+                  <span class="hm2-ini" aria-hidden="true">{{ a.initials }}</span>
+                  <span class="hm2-feed__t"><strong>{{ a.who }}</strong> {% if a.href %}<a href="{{ a.href }}">{{ a.what }}</a>{% else %}{{ a.what }}{% endif %} <span class="hm2-feed__at">· {{ a.at|ago }}</span></span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="hm2-quiet">Changes by your team show here.</p>
+          {% endif %}
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

@@ -159,6 +159,9 @@ final class Permissions
         // The signed-in admin's own console preferences — pinned views and whether the
         // sidebar is open. Nothing on the platform changes, so every role may write here.
         'me' => 'overview',
+        // The console's calendar (AdminConsole v2): every dated thing, each entry filtered
+        // by the page it links to, so the page itself shows a role nothing it cannot open.
+        'calendar' => 'overview',
         // health — what the platform noticed on its own (Admin\Services\ConsoleAlerts).
         'alerts' => 'health',
     ];

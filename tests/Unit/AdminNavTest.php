@@ -82,6 +82,9 @@ final class AdminNavTest extends TestCase
         // settles withdrawals, and widening that to `finance` is the owner's decision, not a
         // side effect of adding the page.
         '/admin/community-return'   => null,
+        // New with AdminConsole v2 (20 Oct 2026). Home's own gate: every entry on it is
+        // filtered by the page it links to, so the page shows a role nothing it cannot open.
+        '/admin/calendar'           => 'overview',
     ];
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];

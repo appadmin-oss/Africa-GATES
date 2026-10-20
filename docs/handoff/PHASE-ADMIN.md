@@ -143,3 +143,32 @@ draws under 4.5:1 are reported in `Accent::CONSOLE_REPORTED`, not re-valued.
 | New broadcast and Upload media open their list pages | Both create forms live on those pages (the broadcast's is a POST from the list). |
 | The desktop sidebar toggle is kept, before the crumb | An existing, persisted control (§10 says keep everything `console_shell()` provides). |
 | Send feedback moved into the account menu; the top bar's Docs and Feedback buttons are gone | The v2 bar carries only crumb, signal, bell and New. |
+
+## Step 3 — Home and Calendar
+Each v2 screen is a NEW template (owner, 20 Oct 2026); the old one is left untouched.
+- **Home** is `admin/home.twig` + `console/home.css`, fed by `Admin\Services\HomeBlocks`.
+  `admin/dashboard.twig` is no longer rendered and is kept as it was.
+  - The brief is up to three recorded facts, most serious first: a high alert, money owed,
+    the review queue's oldest wait, a quorum shortfall, then votes against the day before.
+    It is not an AI summary. "Ask a follow-up" hands those sentences to Ask.
+  - Needs attention is `HomeBoard::board()` with an area per job (All · Awards · Money ·
+    Content). Alerts and partner enquiries show under All only.
+  - Editions are placed on the tracker by `CyclePolicy::stateFor()`, the computed phase
+    and not the stored status. An edition leaves the list a month after its results.
+  - Performance shows Votes, Nominations, Raised and Tickets over 7d, 30d or 90d, each
+    compared with the window before. Raised is confirmed money not refunded.
+  - System reads the status page's last snapshot (`SystemStatus::snapshot()`). If no
+    check ran in the last 45 minutes it says there is no current reading.
+  - Recent is changes only: sign-ins, sign-outs and views are left out.
+- **Calendar** is `/admin/calendar`, under Home in the rail. It is gated `overview`, and
+  every entry is filtered by the page it links to. It is fed by `Admin\Services\ConsoleCalendar`,
+  which is also where Home's This week comes from. Dates are only the stored ones: cycle
+  boundaries, event days and early-bird deadlines, and challenge open, close and draw.
+- **List pattern**: `console/list.css`, the v2 list page. Calendar is its first user;
+  step 4 extends it.
+
+| Deviation | Why |
+|---|---|
+| No "Add date" or "Subscribe" on Calendar | Dates belong to the programme, event or challenge they are set on, and there is no calendar feed yet. |
+| The side column sits beside the work from 1040px of content width | The design's 1200px is the whole canvas; its work column is about 1040px at that size. |
+| No Payouts in This week | Payouts are not scheduled on this platform; they are paid when requested. |

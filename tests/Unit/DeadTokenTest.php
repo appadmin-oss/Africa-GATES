@@ -208,7 +208,7 @@ final class DeadTokenTest extends TestCase
         // shell, pills, banners and Home draw, declared with the palette and read as each
         // of those lands. Each leaves this list the moment a rebuilt piece reads it.
         '--cn-gold-edge', '--cn-green-edge', '--cn-green-edge-2', '--cn-ink-deep',
-        '--cn-line-dash', '--cn-line-faint', '--cn-red-wash-2', '--cn-slate-wash',
+        '--cn-red-wash-2', '--cn-slate-wash',
     ];
 
     public function test_the_awaiting_rebuild_list_only_shrinks(): void

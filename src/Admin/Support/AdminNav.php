@@ -56,6 +56,15 @@ final class AdminNav
     ];
 
     /**
+     * The rail's top items after Home — v2's Workspace (README §10b). Not a group: no
+     * label, never collapsed, because these are the pages a day starts from.
+     */
+    private const TOP = [
+        ['page' => 'calendar', 'label' => 'Calendar', 'href' => '/admin/calendar', 'icon' => 'cal',
+         'sub' => 'Every deadline, event day and draw across programmes, in date order.'],
+    ];
+
+    /**
      * AdminConsole v2's rail (README §10b, 20 Oct 2026), grouped by job, in order. `sub` is
      * the page's purpose line; `tip` is the group's, used where a page has none of its own.
      * Every page the rail does not name is a CHILD of the page it belongs under.
@@ -208,6 +217,12 @@ final class AdminNav
         return $i;
     }
 
+    /** The Workspace items after Home, dressed. @return list<array<string,mixed>> */
+    public static function top(): array
+    {
+        return array_map(static fn (array $i): array => self::dress($i, '', (string) $i['sub']), self::TOP);
+    }
+
     /** The Home item, dressed. @return array<string,mixed> */
     public static function home(): array
     {
@@ -240,11 +255,12 @@ final class AdminNav
      * What this role is shown: Home, then each group with only the pages the guard will
      * let it open (children too). A group left with nothing is not drawn.
      *
-     * @return array{home: ?array<string,mixed>, groups: list<array<string,mixed>>}
+     * @return array{home: ?array<string,mixed>, top: list<array<string,mixed>>, groups: list<array<string,mixed>>}
      */
     public static function forRole(string $role): array
     {
         $home = Permissions::canOpen($role, self::HOME['href']) ? self::home() : null;
+        $top = array_values(array_filter(self::top(), static fn (array $i): bool => Permissions::canOpen($role, $i['href'])));
         $groups = [];
         foreach (self::groups() as $g) {
             $items = [];
@@ -256,7 +272,7 @@ final class AdminNav
             }
             if ($items !== []) { $g['items'] = $items; $groups[] = $g; }
         }
-        return ['home' => $home, 'groups' => $groups];
+        return ['home' => $home, 'top' => $top, 'groups' => $groups];
     }
 
     /**
@@ -271,6 +287,7 @@ final class AdminNav
         $nav = self::forRole($role);
         $out = [];
         if ($nav['home']) $out[] = ['page' => 'dashboard', 'label' => 'Home', 'href' => self::HOME['href'], 'group' => 'Home'];
+        foreach ($nav['top'] as $t) $out[] = ['page' => $t['page'], 'label' => $t['label'], 'href' => $t['href'], 'group' => 'Workspace'];
         foreach ($nav['groups'] as $g) {
             foreach ($g['items'] as $i) {
                 $out[] = ['page' => $i['page'], 'label' => $i['label'], 'href' => $i['href'], 'group' => $g['label']];
@@ -306,6 +323,7 @@ final class AdminNav
         $candidates = [];
         $home = self::home();
         $candidates[] = [$home, $home];
+        foreach (self::top() as $t) $candidates[] = [$t, $t];
         foreach (self::groups() as $g) {
             foreach ($g['items'] as $i) {
                 $candidates[] = [$i, $i];
@@ -360,6 +378,7 @@ final class AdminNav
     public static function pages(): array
     {
         $out = [self::HOME['page']];
+        foreach (self::TOP as $t) $out[] = $t['page'];
         foreach (self::GROUPS as $g) {
             foreach ($g['items'] as $i) {
                 $out[] = $i['page'];
@@ -374,6 +393,7 @@ final class AdminNav
     public static function hrefs(): array
     {
         $out = [self::HOME['page'] => self::HOME['href']];
+        foreach (self::TOP as $t) $out[$t['page']] = $t['href'];
         foreach (self::GROUPS as $g) {
             foreach ($g['items'] as $i) {
                 $out[$i['page']] = $i['href'];
@@ -387,7 +407,7 @@ final class AdminNav
     /** The rail's own items — Home plus the groups' items, not children. @return list<array<string,mixed>> */
     public static function railItems(): array
     {
-        $out = [self::home()];
+        $out = [self::home(), ...self::top()];
         foreach (self::groups() as $g) foreach ($g['items'] as $i) $out[] = $i;
         return $out;
     }

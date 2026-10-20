@@ -1,0 +1,63 @@
+{% extends "admin/layout.twig" %}
+{#
+  CALENDAR — AdminConsole v2 (README §10b), 20 Oct 2026.
+
+  Every stored deadline, event day and draw across programmes, date-ordered, from
+  ConsoleCalendar — the list Home's "This week" is cut from. Three tabs with counts, a
+  search that filters the rows in place, and the v2 list table (admin/list.css). Each row
+  opens the page where that date is managed.
+
+  The design's "Add date" and "Subscribe" are not drawn: dates are set on the programme,
+  event or challenge they belong to, and there is no calendar feed yet. A button that
+  cannot do what it says is worse than no button.
+#}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/list.css') }}">{% endblock %}
+
+{% block topbar_title %}Calendar{% endblock %}
+
+{% block content %}
+<div class="ls" data-ls>
+  <div class="ls-bar">
+    <nav class="ls-tabs" aria-label="When">
+      {% for k, t in tabs %}
+        <a class="ls-tab" href="/admin/calendar?tab={{ k }}"{% if k == tab %} aria-current="page"{% endif %}>{{ t.label }}<span class="ls-tab__num">{{ t.n }}</span></a>
+      {% endfor %}
+    </nav>
+    <span class="ls-bar__gap"></span>
+    {% if rows %}
+      <label class="ls-search">
+        <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
+        <input type="search" placeholder="Search dates" aria-label="Search dates" data-ls-q autocomplete="off">
+        <kbd class="ls-search__kbd" aria-hidden="true">/</kbd>
+      </label>
+    {% endif %}
+  </div>
+
+  {% if rows %}
+    <div class="ls-table" style="--ls-cols: minmax(0, 2.2fr) minmax(0, 1.3fr) 110px 110px" role="table" aria-label="Dates">
+      <div class="ls-row ls-head" role="row">
+        <span role="columnheader">What</span><span role="columnheader">When</span>
+        <span role="columnheader" class="ls-opt">Type</span><span role="columnheader">Status</span>
+      </div>
+      {% for e in rows %}
+        <a class="ls-row ls-item" role="row" href="{{ e.href }}" data-ls-row data-ls-text="{{ (e.title ~ ' ' ~ e.sub ~ ' ' ~ areas[e.area])|lower }}">
+          <span class="ls-cell ls-cell--primary" role="cell"><strong>{{ e.title }}</strong><span>{{ e.sub }}</span></span>
+          <span class="ls-cell" role="cell"><span class="ls-cell__time">{{ e.at|when('D j M, H:i') }}</span></span>
+          <span class="ls-cell ls-opt" role="cell">{{ areas[e.area] }}</span>
+          <span class="ls-cell ls-cell--end" role="cell"><span class="ls-pill ls-pill--{{ e.status[1] }}">{{ e.status[0] }}</span></span>
+        </a>
+      {% endfor %}
+      <div class="ls-none" data-ls-none hidden>No dates match. <button type="button" data-ag-do="ls-clear">Clear search</button></div>
+    </div>
+    <p class="ls-foot" data-ls-foot data-total="{{ rows|length }}">{{ rows|length }} date{{ rows|length == 1 ? '' : 's' }}</p>
+  {% else %}
+    <div class="ls-empty">
+      <span class="ls-empty__ic" aria-hidden="true"><svg focusable="false"><use href="#ic-cal"/></svg></span>
+      <span class="ls-empty__t">Nothing dated {{ tab == 'later' ? 'later on' : (tab == 'month' ? 'this month' : 'in the next 14 days') }}</span>
+      <span class="ls-empty__m">Dates appear here when they are set on a programme's edition, an event or a challenge.</span>
+      {% if tab != 'later' and tabs.later.n %}<a class="cn-pillbtn" href="/admin/calendar?tab=later">See later dates</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -69,12 +69,20 @@
     </button>
 
     <nav class="cn-nav" aria-label="Console pages">
+      <div class="cn-nav__top">
       {% if shell.home %}
         <a class="cn-nav__i" href="{{ shell.home.href }}" title="Home"{% if shell.current == 'dashboard' %} aria-current="page"{% endif %}>
           <svg aria-hidden="true" focusable="false"><use href="#ic-home"/></svg>
           <span class="cn-nav__l">Home</span>
         </a>
       {% endif %}
+      {% for t in shell.top %}
+        <a class="cn-nav__i" href="{{ t.href }}" title="{{ t.label }}"{% if shell.current == t.page %} aria-current="page"{% endif %}>
+          <svg aria-hidden="true" focusable="false"><use href="#ic-{{ t.icon }}"/></svg>
+          <span class="cn-nav__l">{{ t.label }}</span>
+        </a>
+      {% endfor %}
+      </div>
 
       {% if shell.pins %}
         <div class="cn-nav__group">
@@ -239,6 +247,7 @@
     <main class="cn-main" id="cnMain" tabindex="-1">
       <div class="cn-main__in">
 
+        {% block page_head %}
         <div class="cn-head">
           <div class="cn-head__text">
             <div class="cn-head__eyebrow">{% block topbar_eyebrow %}{% endblock %}</div>
@@ -253,19 +262,20 @@
                 <form method="post" action="/admin/me/pins/{{ shell.pinned.id }}/unpin" data-cn-safe data-ag-do="unpin">
                   <input type="hidden" name="_token" value="{{ csrf_token }}">
                   <input type="hidden" name="back" value="{{ shell.here }}">
-                  <button type="submit" class="cn-pillbtn cn-pillbtn--sm" aria-pressed="true">Pinned ✓</button>
+                  <button type="submit" class="cn-pin-btn" aria-pressed="true" title="Unpin from the sidebar" aria-label="Unpin from the sidebar"><svg aria-hidden="true" focusable="false"><use href="#ic-star"/></svg></button>
                 </form>
               {% else %}
                 <form method="post" action="/admin/me/pins" data-cn-safe data-ag-do="pin">
                   <input type="hidden" name="_token" value="{{ csrf_token }}">
                   <input type="hidden" name="href" value="{{ shell.here }}">
                   <input type="hidden" name="label" value="{{ shell.label|default(page_title|default('Pinned view')) }}">
-                  <button type="submit" class="cn-pillbtn cn-pillbtn--sm" aria-pressed="false">+ Pin this view</button>
+                  <button type="submit" class="cn-pin-btn" aria-pressed="false" title="Pin to the sidebar" aria-label="Pin to the sidebar"><svg aria-hidden="true" focusable="false"><use href="#ic-star"/></svg></button>
                 </form>
               {% endif %}
             {% endif %}
           </div>
         </div>
+        {% endblock %}
 
         {% if shell.related %}
           <nav class="cn-related" aria-label="Also here">

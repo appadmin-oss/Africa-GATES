@@ -7,6 +7,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Admin\Services\HomeBlocks;
 
 class DashboardController
 {
@@ -44,39 +45,45 @@ class DashboardController
             );
         }
 
-        // ── HOME, REBUILT FROM THE ADMIN HANDOFF (README §3, 4 Oct 2026) ─────
+        // ── HOME, ADMINCONSOLE V2 (README §10b, 20 Oct 2026) ─────────────────
         //
-        // The hero ask box, the shortcut tiles, "N things need a person" and "The quiet
-        // numbers". Every figure is real and every card, tile and count is filtered by
-        // what this role can open (HomeBoard → Permissions::canOpen, the guard's own
-        // function). The old dashboard's region and tier distributions, fourteen-day vote
-        // chart, top nominees, last twelve audit rows and integrity brief are not on the
-        // handoff's Home; each is listed with its new home or as awaiting the owner in
-        // docs/handoff/inventory/_admin.md. The integrity brief's JSON route stays.
-        $role = (string) ($_SESSION['admin_role'] ?? '');
-
-        // ── REDESIGNED 13 OCT 2026 (owner: "more professional", the brand as accent) ──
-        // A greeting and the day's state, the work, then an activity chart driven by the
-        // console's range control, a health card, and the figures. The ask box and the
-        // tile row left: the top bar already carries Ask, Search and the alert bell.
+        // The brief, the work by area, the running editions and Performance, with This
+        // week, System and Recent beside them. Every block is read from a record the
+        // platform keeps (HomeBlocks) and filtered by what this role can open, and each
+        // has a calm empty state, because an operator must be able to see a zero.
+        $role   = (string) ($_SESSION['admin_role'] ?? '');
         $qp     = $req->getQueryParams();
-        $range  = \AfricaGates\Admin\Support\TimeRange::fromQuery($qp, '7d');
-        $metric = (string) ($qp['metric'] ?? 'votes');
+        $rkey   = in_array($qp['range'] ?? '', ['7d', '30d', '90d'], true) ? (string) $qp['range'] : '7d';
+        $range  = \AfricaGates\Admin\Support\TimeRange::fromQuery(['range' => $rkey], '7d');
+        $metric = isset(HomeBlocks::KPIS[$qp['metric'] ?? '']) ? (string) $qp['metric'] : 'votes';
         $hour   = (int) \AfricaGates\Admin\Support\TimeRange::show(time(), 'G');
 
-        return $this->view->render($res, 'admin/dashboard.twig', [
+        $jobs  = HomeBlocks::attention($role);
+        $kpis  = HomeBlocks::kpis($range, $metric);
+        $chart = null;
+        foreach ($kpis as $k) if ($k['on']) $chart = $k;
+        if ($chart === null && $kpis !== []) { $kpis[0]['on'] = true; $chart = $kpis[0]; }
+        $pill  = \AfricaGates\Admin\Services\ConsoleAlerts::pill($role);
+
+        return $this->view->render($res, 'admin/home.twig', [
             'page_title' => 'Home — Africa GATES Admin',
             'admin_page' => 'dashboard',
             'greeting'   => $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening'),
-            'today'      => \AfricaGates\Admin\Support\TimeRange::show(time(), 'l j F'),
-            'range'      => $range,
-            'params'     => array_intersect_key($qp, array_flip(['range', 'from', 'to', 'metric'])),
-            'activity'   => \AfricaGates\Admin\Services\HomeBoard::activity($range, $metric),
-            'metrics'    => array_map(static fn (array $m): string => $m[2], \AfricaGates\Admin\Services\HomeBoard::METRICS),
-            'health'     => \AfricaGates\Admin\Services\HomeBoard::health($role),
-            'board'      => \AfricaGates\Admin\Services\HomeBoard::board($role),
-            'shortcuts'  => \AfricaGates\Admin\Services\HomeBoard::shortcuts($role),
-            'quiet'      => \AfricaGates\Admin\Services\HomeBoard::quiet(),
+            'state'      => $pill['label'] ?? null,
+            'rkey'       => $rkey,
+            'metric'     => $chart['key'] ?? $metric,
+            'brief'      => HomeBlocks::brief($role, $jobs),
+            'jobs'       => $jobs,
+            'areas'      => HomeBlocks::AREAS,
+            'editions'   => HomeBlocks::editions($role),
+            'can_setup'  => \AfricaGates\Admin\Support\Permissions::canOpen($role, '/admin/programmes/new'),
+            'kpis'       => $kpis,
+            'chart'      => $chart,
+            'week'       => HomeBlocks::week($role),
+            'can_cal'    => \AfricaGates\Admin\Support\Permissions::canOpen($role, '/admin/calendar'),
+            'system'     => HomeBlocks::system($role),
+            'recent'     => HomeBlocks::recent($role, $this->audit),
+            'can_audit'  => \AfricaGates\Admin\Support\Permissions::canOpen($role, '/admin/audit'),
         ]);
     }
 
