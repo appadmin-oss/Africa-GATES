@@ -239,7 +239,7 @@
               <button class="ad-btn" type="submit"
                       formaction="/admin/events/{{ row.id }}/invites/repair?back=form"
                       formnovalidate>Create the awards link now</button>
-              <span style="margin-left:8px;color:var(--cn-grey-600)">Applies
+              <span style="margin-left:8px;color:var(--cn-ink-3)">Applies
                 <code>{{ programme_link.rerun }}</code> again. Safe to press twice.</span>
             </div>
           {% endif %}
@@ -260,7 +260,7 @@
         <fieldset style="grid-column:1/-1;border:0;padding:0;margin:0;min-width:0">
           <legend style="display:block;font-weight:600;font-size:13px;color:var(--cn-ink);margin-bottom:6px;padding:0">
             Awards presented at this event
-            <small style="display:block;font-weight:400;color:var(--cn-grey-600)">the invitation run draws its guests of honour from these — leave all unticked when the event is not a ceremony</small>
+            <small style="display:block;font-weight:400;color:var(--cn-ink-3)">the invitation run draws its guests of honour from these — leave all unticked when the event is not a ceremony</small>
           </legend>
           {# An empty value first, so CLEARING every box actually clears the set: unchecked
              boxes send nothing at all, and a save with none ticked would otherwise be
@@ -1073,7 +1073,7 @@
     {# The sibling screens, out of the save bar. They are navigation, not actions on this form,
        and sitting beside Save is how somebody loses an edit by pressing one of them. #}
     {% if row.id is defined %}
-    <p style="margin:12px 0 0;font-size:13px;color:var(--cn-grey-500)">
+    <p style="margin:12px 0 0;font-size:13px;color:var(--cn-soft)">
       Also for this event:
       <a href="/admin/events/{{ row.id }}/tickets" style="font-weight:600">Who is coming</a> ·
       <a href="/admin/events/{{ row.id }}/codes" style="font-weight:600">Discount codes</a> ·

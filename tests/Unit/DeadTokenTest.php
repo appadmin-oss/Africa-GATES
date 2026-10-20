@@ -204,10 +204,12 @@ final class DeadTokenTest extends TestCase
         // Phase 3 (Gee) gave green-edge, info-wash and green-light their readers; Phase 4
         // (Discover) gave gold-wash its reader back — the winner's chip and avatar; Phase 7
         // (Events) gave gold-edge its reader — the early-bird banner's rule.
-        // The admin console's palette (README §10, owner 4 Oct 2026): four of its tokens
-        // are drawn first by stage 2's screens — the provider pills' danger text, and
-        // the info, success and softest warning dots and fields.
-        '--cn-info-dot', '--cn-warning-tint-3',
+        // The admin console's v2 palette (AdminConsole v2, 20 Oct 2026): tokens the v2
+        // shell, pills, banners and Home draw, declared with the palette and read as each
+        // of those lands. Each leaves this list the moment a rebuilt piece reads it.
+        '--cn-gold-edge', '--cn-gold-icon', '--cn-green-edge', '--cn-green-edge-2', '--cn-ink-deep',
+        '--cn-line-dash', '--cn-line-faint', '--cn-line-soft', '--cn-red-wash-2', '--cn-scroll',
+        '--cn-scroll-hover', '--cn-sh-current', '--cn-slate-wash',
     ];
 
     public function test_the_awaiting_rebuild_list_only_shrinks(): void

@@ -13,8 +13,8 @@
 <style nonce="{{ csp_nonce }}">
   .pg-faq{ margin:0; padding:0; border:0; display:flex; flex-direction:column; gap:12px }
   .pg-faq legend{ font-size:var(--cn-fs-13); font-weight:600; margin-bottom:6px }
-  .pg-faq__row{ display:grid; gap:6px; padding:12px 14px; border:1px solid var(--cn-line-card); border-radius:var(--cn-r-12); background:var(--cn-fill-panel) }
-  .pg-faq__row label{ margin:0; font-weight:500; color:var(--cn-grey-700) }
+  .pg-faq__row{ display:grid; gap:6px; padding:12px 14px; border:1px solid var(--cn-line-card); border-radius:var(--cn-r-12); background:var(--cn-panel) }
+  .pg-faq__row label{ margin:0; font-weight:500; color:var(--cn-ink-2) }
   .pg-faq__more > summary{ cursor:pointer; font-size:var(--cn-fs-13); font-weight:600; min-height:32px; display:flex; align-items:center }
   .pg-faq__more[open] > summary{ margin-bottom:10px }
   .pg-faq__more .pg-faq__row + .pg-faq__row{ margin-top:12px }
@@ -47,7 +47,7 @@
         {% include 'admin/partials/ai-assist.twig' with { target: 'f-terms', kind: 'programme terms & conditions' } only %}
         <textarea name="terms" id="f-terms" rows="8" data-richtext placeholder="By participating you agree…">{{ row.terms|default('') }}</textarea></div>
         <div><label for="f-terms-log">What changed in the terms <span class="hint">(optional; shown in the public changelog when the wording changes)</span></label><input type="text" name="terms_changelog" id="f-terms-log" maxlength="500"></div>
-      {% if not is_new and row.slug %}<p style="margin:-4px 0 0;font-size:12px;color:var(--cn-grey-500)"><a href="/terms/{{ row.slug }}" target="_blank" rel="noopener" style="color:var(--cn-ink);font-weight:600">Preview public terms page →</a></p>{% endif %}
+      {% if not is_new and row.slug %}<p style="margin:-4px 0 0;font-size:12px;color:var(--cn-soft)"><a href="/terms/{{ row.slug }}" target="_blank" rel="noopener" style="color:var(--cn-ink);font-weight:600">Preview public terms page →</a></p>{% endif %}
     </div>
   </div></div>
 
@@ -92,7 +92,7 @@
   {% if not is_new %}
     <div class="ad-card"><div class="ad-card__body">
       <h3 style="margin:0 0 4px;font-size:14px">This award’s pages</h3>
-      <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:var(--cn-grey-500)">
+      <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:var(--cn-soft)">
         Saved separately from the details above.
       </p>
       <div style="display:flex;flex-wrap:wrap;gap:10px">

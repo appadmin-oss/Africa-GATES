@@ -28,42 +28,38 @@ use Tests\TestCase;
 final class ConsolePaletteTest extends TestCase
 {
     /** README §10 + the shell's own colours from `Admin Console v9.dc.html`, verbatim. */
+    /** AdminConsole v2 (design_handoff_letter_email_admin, 19 Oct 2026), value for value. */
     private const HANDOFF = [
-        'ink' => '#0a0a0a', 'grey-800' => '#262626', 'grey-700' => '#404040', 'grey-600' => '#525252',
-        'grey-500' => '#737373', 'grey-450' => '#8f8f8f', 'grey-400' => '#a3a3a3', 'grey-350' => '#bdbdbd',
-        'grey-300' => '#d4d4d4', 'line-control' => '#e5e5e5', 'line-card' => '#ebebeb',
-        'line-row' => '#f2f2f2', 'line-bar' => '#f0f0f0', 'link-line' => '#c4c4c4',
-        'fill-current' => '#ededed', 'fill-hover' => '#efefef', 'fill-subtle' => '#f2f2f2',
-        'fill-selected' => '#f5f5f5', 'fill-panel' => '#fafafa', 'surface' => '#ffffff',
-        'green' => '#086411', 'success' => '#1a6118', 'success-dot' => '#2f8f2c', 'success-tint' => '#eef6ee',
-        'warning' => '#8a5a00', 'warning-dot' => '#c98a00', 'warning-tint' => '#fdf0d2',
-        'warning-tint-2' => '#fdf6e3', 'warning-tint-3' => '#fdf9ee',
-        'danger' => '#b3261e', 'danger-pill' => '#8a2020', 'danger-dot' => '#d0362c',
-        'danger-tint' => '#fdf0ef', 'danger-edge' => '#f0c9c5',
-        'info' => '#2a5f9e', 'info-dot' => '#2a78d6', 'proposed-ink' => '#5c4400',
-        'scrim' => 'rgba(10,10,10,.32)', 'scrim-palette' => 'rgba(10,10,10,.28)',
-        'scrim-drawer' => 'rgba(10,10,10,.2)', 'on-ink-fill' => 'rgba(255,255,255,.14)',
+        'ink' => '#10292c', 'ink-2' => '#3a4a4c', 'ink-3' => '#4b5a5c', 'ink-deep' => '#26393b',
+        'soft' => '#6b7476', 'faint' => '#8a9294', 'faint-2' => '#9aa1a2', 'ghost' => '#c3c7c6',
+        'line-strong' => '#cfd3cc', 'line' => '#e3e3de', 'line-card' => '#e6e6e1', 'line-row' => '#efefeb',
+        'line-soft' => '#f0f0ec', 'line-faint' => '#ecece8', 'line-dash' => '#dedfd9',
+        'scroll' => '#d9dad4', 'scroll-hover' => '#b9bbb4',
+        'ground' => '#f3f3f0', 'surface' => '#ffffff', 'panel' => '#fafaf8', 'hover' => '#ebebe6',
+        'green' => '#237b22', 'green-ink' => '#1a5e1a', 'green-wash' => '#edf5ea', 'green-edge' => '#d9e6d5', 'green-edge-2' => '#b9d8b3',
+        'gold' => '#c8961e', 'gold-ink' => '#8a5d0b', 'gold-icon' => '#b07a12', 'gold-wash' => '#fbf4e4', 'gold-wash-2' => '#fdfaf2', 'gold-edge' => '#efdcae',
+        'red' => '#c4321f', 'red-ink' => '#a3271a', 'red-wash' => '#fdeeeb', 'red-wash-2' => '#fdf6f4', 'red-edge' => '#f3c9c1',
+        'slate' => '#5b7a80', 'slate-wash' => '#eaf0f1',
+        'scrim' => 'rgba(16,41,44,.32)', 'scrim-palette' => 'rgba(16,41,44,.28)', 'scrim-drawer' => 'rgba(16,41,44,.18)',
+        'on-ink-fill' => 'rgba(255,255,255,.14)',
     ];
 
     private const HANDOFF_SHADOWS = [
-        'sh-menu'    => '0 12px 32px rgba(10,10,10,.12)',
-        'sh-modal'   => '0 20px 48px rgba(10,10,10,.2)',
-        'sh-palette' => '0 20px 48px rgba(10,10,10,.22)',
-        'sh-drawer'  => '-12px 0 32px rgba(10,10,10,.12)',
-        'sh-toast'   => '0 10px 30px rgba(10,10,10,.25)',
-        'sh-hero'    => '0 1px 2px rgba(10,10,10,.04), 0 10px 30px rgba(10,10,10,.05)',
-        'sh-tile'    => '0 1px 2px rgba(10,10,10,.04)',
+        'sh-menu'    => '0 18px 48px rgba(16,41,44,.16)',
+        'sh-modal'   => '0 20px 50px rgba(16,41,44,.18)',
+        'sh-palette' => '0 18px 48px rgba(16,41,44,.16)',
+        'sh-drawer'  => '0 20px 50px rgba(16,41,44,.18)',
+        'sh-toast'   => '0 18px 48px rgba(16,41,44,.16)',
+        'sh-hero'    => '0 1px 2px rgba(16,41,44,.04)',
+        'sh-tile'    => '0 1px 0 rgba(16,41,44,.04)',
+        'sh-current' => '0 0 0 1px #e6e6e1, 0 1px 2px rgba(16,41,44,.06)',
     ];
 
     /**
-     * The brand accents the owner asked for on 13 Oct 2026 — the PUBLIC palette's own
-     * green and gold, by reference. Held as identity with that palette rather than as
-     * hexes, because the point of them is that the console's green is the site's green.
+     * The console's green IS the site's green — the same house colour on both surfaces, held
+     * as identity so one cannot drift from the other.
      */
-    private const BRAND = [
-        'brand-green' => 'green', 'brand-green-deep' => 'green-deep', 'brand-green-wash' => 'green-wash',
-        'brand-gold' => 'gold', 'brand-gold-ink' => 'gold-ink', 'brand-gold-wash' => 'gold-wash',
-    ];
+    private const BRAND = ['green' => 'green'];
 
     public function test_the_brand_accents_are_the_public_palettes_own(): void
     {
@@ -74,7 +70,7 @@ final class ConsolePaletteTest extends TestCase
 
     public function test_the_console_palette_is_the_handoffs_value_for_value(): void
     {
-        $got = array_diff_key(array_map(static fn (array $v): string => $v['value'], Accent::console()), self::BRAND);
+        $got = array_map(static fn (array $v): string => $v['value'], Accent::console());
         $this->assertSame(self::HANDOFF, $got,
             'the console palette drifted from the admin handoff. ±0 on colour — a value that '
           . 'fails a floor is REPORTED in Accent::consoleReported(), never adjusted.');
@@ -91,7 +87,7 @@ final class ConsolePaletteTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^:root\{(--cn-[a-z0-9-]+:[#a-z0-9 ,.()-]+;)+\}$/', $css);
         $this->assertStringNotContainsString('--ag-', $css, 'a public token leaked into the console');
-        $this->assertSame(count(self::HANDOFF) + count(self::BRAND) + count(self::HANDOFF_SHADOWS), substr_count($css, '--cn-'));
+        $this->assertSame(count(self::HANDOFF) + count(self::HANDOFF_SHADOWS), substr_count($css, '--cn-'));
 
         // And the public set is untouched by the second surface.
         $this->assertStringNotContainsString('--cn-', Accent::css());
@@ -103,8 +99,8 @@ final class ConsolePaletteTest extends TestCase
 
     public function test_a_console_colour_asked_for_by_a_wrong_name_throws(): void
     {
-        $this->assertSame('#737373', Accent::consoleHex('grey-500'));
-        foreach (['ad-text-mute', 'grey', 'soft', ''] as $bad) {
+        $this->assertSame('#6b7476', Accent::consoleHex('soft'));
+        foreach (['ad-text-mute', 'grey-500', 'fill-panel', ''] as $bad) {
             try {
                 Accent::consoleHex($bad);
                 $this->fail("'$bad' resolved to a console colour");
@@ -151,12 +147,11 @@ final class ConsolePaletteTest extends TestCase
     public function test_the_words_measured_cover_what_the_shell_draws(): void
     {
         // By name, so a word cannot drop out of the table and stop being measured.
-        foreach (['ink', 'grey-800', 'grey-700', 'grey-600', 'grey-500', 'grey-450', 'danger',
-                  'warning', 'success', 'info', 'surface'] as $w) {
+        foreach (['ink', 'ink-2', 'ink-3', 'soft', 'faint', 'red', 'red-ink', 'gold-ink', 'green', 'green-ink', 'slate', 'surface'] as $w) {
             $this->assertArrayHasKey($w, Accent::consoleWords(), "$w is no longer measured");
         }
-        $this->assertContains('ink', Accent::consoleWords()['surface'], 'white on a black button or the toast');
-        $this->assertContains('fill-panel', Accent::consoleWords()['grey-450'], 'the sidebar group labels');
+        $this->assertContains('green', Accent::consoleWords()['surface'], 'white on the green primary button');
+        $this->assertContains('ground', Accent::consoleWords()['faint'], 'the rail group labels');
     }
 
     public function test_what_was_accepted_below_a_floor_is_not_a_word_and_is_below_it(): void
@@ -173,7 +168,7 @@ final class ConsolePaletteTest extends TestCase
     {
         // Seen failing before trusted passing: the group label grey on the sidebar.
         $this->assertLessThan(Contrast::TEXT,
-            round(Contrast::ratio(Accent::consoleHex('grey-450'), Accent::consoleHex('fill-panel')), 2));
+            round(Contrast::ratio(Accent::consoleHex('faint'), Accent::consoleHex('ground')), 2));
         $this->assertNotSame([], self::failingWords());
     }
 

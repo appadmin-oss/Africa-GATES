@@ -23,7 +23,7 @@
   .st-strip__c{ background:var(--cn-surface); padding:14px 16px; }
   .st-strip__n{ font-family:'Space Mono',monospace; font-weight:700; font-size:21px; line-height:1.1; }
   .st-strip__l{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-                color:var(--cn-grey-600); margin-top:5px; }
+                color:var(--cn-ink-3); margin-top:5px; }
 
   /* Capacity. The bar is decoration — the figures beside it are the fact, because a width
      is not readable and a screen reader user is entitled to the same number. */
@@ -42,7 +42,7 @@
      every row is unreadable, and the reason to open one is a correction, not a habit. */
   .st-editrow > td{ border-top:none; }
   .st-edit__sum{ cursor:pointer; padding:8px 0 12px; font-size:13px; font-weight:600;
-    color:var(--cn-grey-600); list-style:none; }
+    color:var(--cn-ink-3); list-style:none; }
   .st-edit__sum::-webkit-details-marker{ display:none; }
   .st-edit__sum::before{ content:'✎ '; }
   .st-edit__sum:hover{ color:var(--cn-ink); text-decoration:underline; }
@@ -51,8 +51,8 @@
      hunting for where the size went when they pick Custom. */
   [data-ag-size-wrap]:has(input:disabled){ opacity:.45; }
 
-  .st-locked{ border-left:4px solid var(--cn-warning-dot); }
-  .st-app__meta{ font-size:12px; color:var(--cn-grey-600); line-height:1.55; }
+  .st-locked{ border-left:4px solid var(--cn-gold); }
+  .st-app__meta{ font-size:12px; color:var(--cn-ink-3); line-height:1.55; }
   .st-miss{ color:#b91c1c; font-size:12px; }
   .st-tabs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
   .st-tab{ display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:6px 13px;
@@ -71,7 +71,7 @@
   .viz-swatches{ display:flex; flex-wrap:wrap; gap:22px; align-items:flex-end; }
   .viz-swatch{ text-align:center; }
   .viz-swatch__l{ margin-top:7px; font-size:12px; font-weight:600; color:var(--cn-ink); }
-  .viz-swatch__d{ font-size:12px; color:var(--cn-grey-600);
+  .viz-swatch__d{ font-size:12px; color:var(--cn-ink-3);
                   font-family:'Space Mono',monospace; }
   .viz-bar{ display:block; overflow:visible; }
   .viz-plan{ display:block; max-width:100%; height:auto; }
@@ -79,17 +79,17 @@
   .viz-legend{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 18px;
                margin:12px 0 0; padding:0; font-size:13px; color:var(--cn-ink); }
   .viz-legend li{ display:flex; align-items:center; gap:7px; }
-  .viz-legend em{ font-style:normal; color:var(--cn-grey-600);
+  .viz-legend em{ font-style:normal; color:var(--cn-ink-3);
                   font-family:'Space Mono',monospace; }
   .viz-legend__dot{ width:11px; height:11px; border-radius:3px; flex:none; }
   .viz-figs{ display:flex; flex-wrap:wrap; gap:26px; margin-top:4px; }
   .viz-fig__n{ font-family:'Space Mono',monospace; font-weight:700; font-size:19px; }
   .viz-fig__l{ font-size:11px; font-weight:700; letter-spacing:.12em;
-               text-transform:uppercase; color:var(--cn-grey-600); margin-top:4px; }
+               text-transform:uppercase; color:var(--cn-ink-3); margin-top:4px; }
   .viz-warn{ margin-top:14px; border-left:4px solid #d03b3b; background:#fdf2f2;
              border-radius:0 10px 10px 0; padding:12px 15px; font-size:14px;
              line-height:1.65; color:#7f1d1d; }
-  .viz-caveat{ margin-top:12px; font-size:13px; line-height:1.65; color:var(--cn-grey-600); }
+  .viz-caveat{ margin-top:12px; font-size:13px; line-height:1.65; color:var(--cn-ink-3); }
 </style>
 {% endblock %}
 
@@ -137,7 +137,7 @@
   <div class="ad-card__body">
 
   {% if call and call.locked_at %}
-    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--cn-grey-600)">
+    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--cn-ink-3)">
       These terms were <strong>locked on {{ call.locked_at|slice(0,16) }}</strong> and cannot be
       edited. That is not a limitation of this screen — it is the mechanism. A rule that can be
       changed once you know who applied is not a rule, and every rejection made under this call
@@ -203,14 +203,14 @@
           </div>
           <button class="ad-btn ad-btn--sm" type="submit">Reopen</button>
         </form>
-        <p style="margin:10px 0 0;font-size:13px;line-height:1.7;color:var(--cn-grey-600)">
+        <p style="margin:10px 0 0;font-size:13px;line-height:1.7;color:var(--cn-ink-3)">
           The published terms do not change. Only the closing date moves — everything a
           vendor was shown when they applied stays exactly as it was.</p>
       </details>
     {% endif %}
 
   {% elseif may_decide %}
-    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--cn-grey-600)">
+    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--cn-ink-3)">
       A draft. Nothing here is public and everything is editable. Publishing locks the closing
       date, the prices and the quotas <strong>permanently</strong> — read them once more first.
     </p>
@@ -226,7 +226,7 @@
           <label for="stCloses">Closes <span aria-hidden="true">*</span></label>
           <input id="stCloses" name="closes_at" type="datetime-local" required
                  value="{{ call and call.closes_at ? call.closes_at|when_input : '' }}" step="1">
-          <small style="color:var(--cn-grey-500)">A window with no deadline is an appeal that never resolves</small>
+          <small style="color:var(--cn-soft)">A window with no deadline is an appeal that never resolves</small>
         </div>
       </div>
       <div style="margin-top:12px">
@@ -247,12 +247,12 @@
            here would be a confirmation that silently never fires. #}
         <button class="ad-btn" type="submit"
                 data-confirm="Publish this call? The closing date, the prices and the quotas can never be edited afterwards — changing them means closing this call and opening another.">Publish and lock the terms</button>
-        <small style="display:block;margin-top:6px;color:var(--cn-grey-500)">
+        <small style="display:block;margin-top:6px;color:var(--cn-soft)">
           Needs a closing date and at least one stand type.</small>
       </form>
     {% endif %}
   {% else %}
-    <p style="margin:0;color:var(--cn-grey-600)">No call has been set up for this event.</p>
+    <p style="margin:0;color:var(--cn-ink-3)">No call has been set up for this event.</p>
   {% endif %}
   </div>
 </div>
@@ -398,7 +398,7 @@
                     <input id="eQ{{ c.type.id }}" name="quota" type="number" min="1" required
                            value="{{ c.type.quota }}">
                     {% if c.taken > 0 %}
-                      <small style="color:var(--cn-grey-500)">{{ c.taken }} already allocated —
+                      <small style="color:var(--cn-soft)">{{ c.taken }} already allocated —
                         a quota below that leaves them over the cap.</small>
                     {% endif %}
                   </div>
@@ -423,7 +423,7 @@
         </tr>
         {% endif %}
       {% else %}
-        <tr><td colspan="8" style="color:var(--cn-grey-600)">
+        <tr><td colspan="8" style="color:var(--cn-ink-3)">
           Nothing on offer yet. A call with no stand types is a form with no options.</td></tr>
       {% endfor %}
       </tbody>
@@ -432,7 +432,7 @@
 
   {% if may_decide %}
     {% if call and call.status == 'open' %}
-      <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card);color:var(--cn-grey-600);font-size:14px;line-height:1.7">
+      <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card);color:var(--cn-ink-3);font-size:14px;line-height:1.7">
         The call is open, so prices and quotas are locked. They were published before anybody
         applied, and that is the whole of what makes the allocation defensible.
       </div>
@@ -488,7 +488,7 @@
                 {% endfor %}
                 <option value="custom">Custom — use the boxes beside this</option>
               </select>
-              <small style="color:var(--cn-grey-500)">A market is built from stock parts: hired
+              <small style="color:var(--cn-soft)">A market is built from stock parts: hired
                 gazebos and multiples of them. 2.8m fits nothing and orders nothing.</small>
             </div>
             {# ── THE BOXES ARE DISABLED UNTIL “CUSTOM” IS CHOSEN ──────────────
@@ -507,14 +507,14 @@
               <label for="stD">Custom depth (m)</label>
               <input id="stD" name="depth_m" type="number" min="0.5" max="50" step="0.01"
                      data-ag-size-custom value="3">
-              <small style="color:var(--cn-grey-500)">Live only when the size is “Custom”</small>
+              <small style="color:var(--cn-soft)">Live only when the size is “Custom”</small>
             </div>
             <div>
               <label for="stCat">Category</label>
               <select id="stCat" name="category">
                 {% for slug, label in categories %}<option value="{{ slug }}">{{ label }}</option>{% endfor %}
               </select>
-              <small style="color:var(--cn-grey-500)">Quotas are what stop twelve of one thing</small>
+              <small style="color:var(--cn-soft)">Quotas are what stop twelve of one thing</small>
             </div>
             <div>
               <label for="stPrice">Price (₦)</label>
@@ -540,7 +540,7 @@
               <input type="checkbox" name="step_free" value="1"> Step-free pitch</label>
             <button class="ad-btn ad-btn--primary" type="submit">Add stand type</button>
           </div>
-          <small style="display:block;margin-top:8px;color:var(--cn-grey-500)">
+          <small style="display:block;margin-top:8px;color:var(--cn-soft)">
             Step-free pitches are inventory, not a favour — marking them here is what lets a
             vendor request one on the form instead of asking and hoping.</small>
         </form>
@@ -581,7 +581,7 @@
       column of numbers cannot do.
     </p>
   {% else %}
-    <p style="margin:0;color:var(--cn-grey-600)">Add a stand type and its size appears here.</p>
+    <p style="margin:0;color:var(--cn-ink-3)">Add a stand type and its size appears here.</p>
   {% endif %}
 
   {# ── the venue ──────────────────────────────────────────────────────── #}
@@ -604,7 +604,7 @@
           <label for="flA">Aisles and circulation (%)</label>
           <input id="flA" name="aisle_pct" type="number" min="0" max="80" step="1"
                  value="{{ plan.aisle_pct }}">
-          <small style="color:var(--cn-grey-500)">The floor no pitch can stand on. 35% is
+          <small style="color:var(--cn-soft)">The floor no pitch can stand on. 35% is
             deliberately generous — a market with nowhere to walk is one a fire officer closes.</small>
         </div>
       </div>
@@ -615,7 +615,7 @@
       </div>
       <div style="margin-top:14px">
         <button class="ad-btn ad-btn--primary" type="submit">Save the venue</button>
-        <small style="display:block;margin-top:6px;color:var(--cn-grey-500)">
+        <small style="display:block;margin-top:6px;color:var(--cn-soft)">
           Editable at any time, including after the call locks. The lock stops the
           <em>rules</em> changing once you know who applied; how wide the hall is, is a fact
           somebody may measure better next week.</small>
@@ -884,12 +884,12 @@
                 </form>
               {% endif %}
             {% else %}
-              <span style="color:var(--cn-grey-600)">Read only</span>
+              <span style="color:var(--cn-ink-3)">Read only</span>
             {% endif %}
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="5" style="color:var(--cn-grey-600)">
+        <tr><td colspan="5" style="color:var(--cn-ink-3)">
           {% if summary.total > 0 %}No application matches that filter.
           {% else %}Nobody has applied yet.{% endif %}</td></tr>
       {% endfor %}
@@ -897,7 +897,7 @@
     </table>
   </div>
 
-  <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card);font-size:13px;line-height:1.7;color:var(--cn-grey-600)">
+  <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card);font-size:13px;line-height:1.7;color:var(--cn-ink-3)">
     An offer is held for <strong>{{ offer_hours }} hours</strong>. After that the maintenance run
     returns the place to the waiting list automatically — a place held by somebody who stopped
     replying is a place the waiting list was promised and never got.
@@ -965,7 +965,7 @@
     </table>
   </div>
 
-  <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card);font-size:13px;line-height:1.7;color:var(--cn-grey-600)">
+  <div class="ad-card__body" style="border-top:1px solid var(--cn-line-card);font-size:13px;line-height:1.7;color:var(--cn-ink-3)">
     A vendor pays from their own offer link, which is in the email that told them they had
     been offered a pitch. Nothing here is marked paid by hand — the amount comes from the
     gateway's own verification, so a row saying Paid is a row the gateway confirmed.

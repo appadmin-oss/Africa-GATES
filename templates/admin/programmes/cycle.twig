@@ -50,7 +50,7 @@
         </div>
         <div class="ad-card__body">
           <p style="margin:0;font-size:14px;color:var(--cn-ink)">{{ phase.detail }}</p>
-          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-grey-500)">
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-soft)">
             Votes accepted: <strong>{{ phase.is_voting_open ? 'yes' : 'no' }}</strong> ·
             Nominations accepted: <strong>{{ phase.is_nominations_open ? 'yes' : 'no' }}</strong>
             {% if cycle.next_boundary_at %} · Next change <strong>{{ cycle.next_boundary_at|date('j M Y, H:i') }}</strong>{% endif %}
@@ -92,7 +92,7 @@
             {% if _vl.failed %} · Failed: <strong>{{ _vl.failed }}</strong>{% endif %}
           </p>
           {% if _vl.unreachable %}
-          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-grey-500)">
+          <p style="margin:8px 0 0;font-size:13px;color:var(--cn-soft)">
             {{ _vl.unreachable }} verified {{ _vl.unreachable == 1 ? 'nominee has' : 'nominees have' }} no
             address we can be sure is theirs, so no letter is sent to them.
           </p>
@@ -303,7 +303,7 @@
               and order, from the most recent edition that has any. Nothing else comes with
               them: no nominees, no votes, no shortlists, no scorecards.</span>
           </label>
-          <p style="margin:10px 0 0;font-size:12px;line-height:1.65;color:var(--cn-grey-500)">
+          <p style="margin:10px 0 0;font-size:12px;line-height:1.65;color:var(--cn-soft)">
             The new edition opens as <strong>upcoming with no dates</strong>. A results date
             inherited from last year is a promise nobody made, arriving already passed
             &mdash; the public site would publish a &ldquo;this award is late&rdquo; notice
@@ -317,10 +317,10 @@
     <div class="ad-card">
       <div class="ad-card__head"><div class="ad-card__title">Categories<small>For the current cycle</small></div></div>
       <div class="ad-card__body">
-        {% if categories|length == 0 %}<p style="color:var(--cn-grey-500);font-size:13px">No categories yet.</p>{% endif %}
+        {% if categories|length == 0 %}<p style="color:var(--cn-soft);font-size:13px">No categories yet.</p>{% endif %}
         {% for c in categories %}
         <details style="border:1px solid var(--cn-line-card);border-radius:8px;padding:12px;margin-bottom:8px">
-          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--cn-grey-500);font-weight:500">· {{ c.slug }}</span></summary>
+          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--cn-soft);font-weight:500">· {{ c.slug }}</span></summary>
           <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:12px">
             <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ c.id }}">
             <div class="row">
@@ -349,7 +349,7 @@
         </details>
         {% endfor %}
 
-        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--cn-fill-panel);border-radius:8px">
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--cn-panel);border-radius:8px">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <strong style="font-size:13px">+ Add category</strong>
           <div class="row">

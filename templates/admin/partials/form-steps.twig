@@ -52,7 +52,7 @@
   .af__tab{ flex:none; cursor:pointer; display:flex; align-items:center; gap:9px;
     border:1px solid var(--cn-line-card); background:var(--cn-surface);
     border-radius:999px; padding:8px 15px 8px 10px; font-family:inherit; font-size:13px;
-    font-weight:600; color:var(--cn-grey-500) }
+    font-weight:600; color:var(--cn-soft) }
   .af__tab:hover{ border-color:rgba(16,41,44,.28); color:var(--cn-ink) }
   .af__tab.is-on{ background:#10292C; border-color:#10292C; color:#fff }
   .af__n{ flex:none; width:21px; height:21px; border-radius:50%; display:flex;
@@ -80,12 +80,12 @@
 
   .af__head{ margin:4px 0 14px }
   .af__head h2{ margin:0; font-size:17px; font-weight:700; color:var(--cn-ink) }
-  .af__head p{ margin:5px 0 0; font-size:13px; line-height:1.6; color:var(--cn-grey-500) }
+  .af__head p{ margin:5px 0 0; font-size:13px; line-height:1.6; color:var(--cn-soft) }
 
   /* Required fields marked, once, consistently. The absence of this was most of the confusion:
      an admin cannot tell a mandatory field from an optional one by looking at it. */
   .af-req{ color:#a4243a; font-weight:700; margin-left:2px }
-  .af-opt{ font-weight:400; color:var(--cn-grey-500); font-size:12px; margin-left:4px }
+  .af-opt{ font-weight:400; color:var(--cn-soft); font-size:12px; margin-left:4px }
 
   /* ── the bar ─────────────────────────────────────────────────────────────
      Sticky, so Save is never a scroll away, and it SAYS whether there is anything unsaved.
@@ -93,7 +93,7 @@
      you press again just in case. */
   .af__bar{ position:sticky; bottom:0; z-index:5; display:flex; align-items:center; gap:12px;
     flex-wrap:wrap; margin-top:18px; padding:13px 0;
-    background:linear-gradient(to top, var(--cn-fill-panel) 62%, rgba(244,247,244,0));
+    background:linear-gradient(to top, var(--cn-panel) 62%, rgba(244,247,244,0));
     border-top:1px solid var(--cn-line-card);
     /* Room for the assistant button, which is `position:fixed` at right:20px / bottom:20px on
        every admin page (admin/partials/copilot.twig). Without this it sits directly on top of
@@ -101,7 +101,7 @@
        and a fixed button both anchored to the bottom-right WILL collide; the bar is the one
        that can move. */
     padding-right:88px }
-  .af__state{ flex:1; min-width:150px; font-size:13px; color:var(--cn-grey-500) }
+  .af__state{ flex:1; min-width:150px; font-size:13px; color:var(--cn-soft) }
   .af__state.is-dirty{ color:#8a5a00; font-weight:600 }
   .af__state.is-blocked{ color:#a4243a; font-weight:600 }
   .af__steps{ display:flex; gap:8px }

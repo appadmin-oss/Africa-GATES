@@ -23,7 +23,7 @@
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cn-ink)" stroke-width="2" aria-hidden="true"><path d="M12 3l2.1 5.4L19.5 10l-5.4 2.1L12 17l-2.1-4.9L4.5 10l5.4-1.6z"/></svg>
         <strong style="font-size:13px">Generate fields with AI</strong>
-        <span style="font-size:12px;color:var(--cn-grey-500)">— describe the form; review before saving</span>
+        <span style="font-size:12px;color:var(--cn-soft)">— describe the form; review before saving</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
         <label class="sr-only" for="aiFormPrompt">Describe the form</label>
@@ -57,7 +57,7 @@
           <input type="number" x-model="f.maxlength" aria-label="Max length" min="0" placeholder="Max length" style="width:120px">
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-          <span style="font-size:12px;color:var(--cn-grey-500)">Show only if</span>
+          <span style="font-size:12px;color:var(--cn-soft)">Show only if</span>
           <select x-model="f.showIfField" aria-label="Show only when field" style="min-width:150px"><option value="">— always shown —</option><template x-for="o in fieldNames(i)" :key="o.name"><option :value="o.name" x-text="o.label"></option></template></select>
           <span style="font-size:12px">equals</span>
           <input x-model="f.showIfValue" aria-label="Show only when value" placeholder="value" style="width:150px" :disabled="!f.showIfField">
@@ -65,7 +65,7 @@
       </div>
     </template>
     <button type="button" @click="add()" class="ad-btn" style="margin-top:4px">+ Add field</button>
-    <p style="font-size:12px;color:var(--cn-grey-500);margin:10px 0 0">Field types: text, email, tel, number, textarea, select, radio, checkbox, date, file. "Show only if" creates conditional logic; the regex + max length enforce validation (server-side too).</p>
+    <p style="font-size:12px;color:var(--cn-soft);margin:10px 0 0">Field types: text, email, tel, number, textarea, select, radio, checkbox, date, file. "Show only if" creates conditional logic; the regex + max length enforce validation (server-side too).</p>
   </div></div>
 
   <div style="display:flex;justify-content:flex-end;gap:10px">

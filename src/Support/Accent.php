@@ -277,141 +277,119 @@ final class Accent
     //
     // ── A SECOND SURFACE, AND STILL ONE FILE ─────────────────────────────────
     //
-    // The admin console is not drawn by the public handoff. Its own handoff
-    // (`design_handoff_admin_console`, README §10) is monochrome — near-black ink on
-    // white, a ramp of neutral greys, and four status families — and the owner chose it
-    // (4 Oct 2026, GAPS §8d: option (A), with DM Sans and the house JetBrains Mono in
-    // place of Geist). The teal `--ad-*` set it replaces was typed into `admin.css`, a
-    // second colour file; it was destroyed with that sheet rather than aliased.
+    // The admin console is not drawn by the public handoff. Its own handoff is
+    // `design_handoff_letter_email_admin/admin-console` (AdminConsole v2.dc.html, README
+    // §10b, 19 Oct 2026), which supersedes the monochrome v9 set the console was rebuilt
+    // on in October (README §10: "v2 supersedes §10 visuals"). Rebuilt here on 20 Oct
+    // 2026: the house ink, a warm neutral ground, the house green, and gold and red for
+    // waiting and stuck. Every `--cn-*` read in the console was renamed to these names in
+    // the same change — no old name survives as an alias.
     //
     // The console set lives HERE, beside the public one, so "Accent is the only file a
     // colour literal may be typed in" stays true with two surfaces. It is emitted under
     // its own prefix, `--cn-*`, by `css('console')` into the admin layout's nonced
     // `<style>`, and never into a public page: the two palettes share no name, so a
-    // public stylesheet can never pick up a console grey by accident, and the reverse.
+    // public stylesheet can never pick up a console colour by accident, and the reverse.
     //
-    // ── THE VALUES ARE THE HANDOFF'S, ±0, AND SO ARE ITS FAILURES ─────────────
+    // ── THE VALUES ARE THE DESIGN'S, ±0, AND SO ARE ITS FAILURES ──────────────
     //
-    // README §10 plus the colours the HTML (which wins on what users see) draws in the
-    // shell, Home and the overlays: `green` (#086411, the ticks and the all-clear dot),
-    // `line-row` (#f2f2f2 row rules), `line-bar` (#f0f0f0 under the top bar),
-    // `link-line` (#c4c4c4 underlines), `danger-edge` (#f0c9c5, the high-alert pill)
-    // and the three scrims. Every word the console draws is measured at 4.5:1 on every
-    // ground it is drawn on (`consoleWords()`); the ones that fail are REPORTED in
-    // `CONSOLE_REPORTED`, never re-valued, exactly as the public palette's are.
+    // Read off the HTML, which wins on what users see. Every word the console draws is
+    // measured at 4.5:1 on every ground it is drawn on (`consoleWords()`); the ones that
+    // fail are REPORTED in `CONSOLE_REPORTED`, never re-valued, exactly as the public
+    // palette's are.
 
     /**
-     * README §10 of the admin handoff, plus the shell's own colours from its HTML.
+     * AdminConsole v2's colours, by role.
      *
      * @var array<string,array{value:string,use:string}>
      */
     private const CONSOLE = [
-        'ink'           => ['value' => '#0a0a0a', 'use' => 'text, primary buttons, the current state, focus'],
-        'grey-800'      => ['value' => '#262626', 'use' => 'body text'],
-        'grey-700'      => ['value' => '#404040', 'use' => 'nav items at rest'],
-        'grey-600'      => ['value' => '#525252', 'use' => 'secondary text'],
-        'grey-500'      => ['value' => '#737373', 'use' => 'muted text, counts, icons at rest'],
-        'grey-450'      => ['value' => '#8f8f8f', 'use' => 'sidebar group labels'],
-        'grey-400'      => ['value' => '#a3a3a3', 'use' => 'dots'],
-        'grey-350'      => ['value' => '#bdbdbd', 'use' => 'disabled fills (the empty send button)'],
-        'grey-300'      => ['value' => '#d4d4d4', 'use' => 'toggles off, dashed outlines'],
-        'line-control'  => ['value' => '#e5e5e5', 'use' => 'input and pill borders'],
-        'line-card'     => ['value' => '#ebebeb', 'use' => 'card borders'],
-        'line-row'      => ['value' => '#f2f2f2', 'use' => 'rules between rows inside a card or a drawer'],
-        'line-bar'      => ['value' => '#f0f0f0', 'use' => 'the rule under the top bar'],
-        'link-line'     => ['value' => '#c4c4c4', 'use' => 'a link\'s underline at rest'],
-        'fill-current'  => ['value' => '#ededed', 'use' => 'the current nav item'],
-        'fill-hover'    => ['value' => '#efefef', 'use' => 'hover on a nav item'],
-        'fill-subtle'   => ['value' => '#f2f2f2', 'use' => 'chips, the round close button'],
-        'fill-selected' => ['value' => '#f5f5f5', 'use' => 'a focused row, a highlighted option'],
-        'fill-panel'    => ['value' => '#fafafa', 'use' => 'the sidebar, table heads, the palette footer'],
-        'surface'       => ['value' => '#ffffff', 'use' => 'the main area, cards, menus'],
-        'green'         => ['value' => '#086411', 'use' => 'ticks and the all-clear dot'],
-        'success'       => ['value' => '#1a6118', 'use' => 'success text'],
-        'success-dot'   => ['value' => '#2f8f2c', 'use' => 'success dot'],
-        'success-tint'  => ['value' => '#eef6ee', 'use' => 'success field'],
-        'warning'       => ['value' => '#8a5a00', 'use' => 'warning text'],
-        'warning-dot'   => ['value' => '#c98a00', 'use' => 'warning dot, a waiting count'],
-        'warning-tint'  => ['value' => '#fdf0d2', 'use' => 'warning field'],
-        'warning-tint-2'=> ['value' => '#fdf6e3', 'use' => 'a softer warning field, the "Proposed" note'],
-        'warning-tint-3'=> ['value' => '#fdf9ee', 'use' => 'the softest warning field (a send-a-real-message card)'],
-        'danger'        => ['value' => '#b3261e', 'use' => 'danger text, a destructive confirm, an urgent count'],
-        'danger-pill'   => ['value' => '#8a2020', 'use' => 'danger text inside a pill'],
-        'danger-dot'    => ['value' => '#d0362c', 'use' => 'danger dot'],
-        'danger-tint'   => ['value' => '#fdf0ef', 'use' => 'danger field, the high-alert pill'],
-        'danger-edge'   => ['value' => '#f0c9c5', 'use' => 'the high-alert pill\'s border'],
-        'info'          => ['value' => '#2a5f9e', 'use' => 'info text, "in progress"'],
-        'info-dot'      => ['value' => '#2a78d6', 'use' => 'info dot'],
-        'proposed-ink'  => ['value' => '#5c4400', 'use' => 'text of a "Proposed" note'],
-        'scrim'         => ['value' => 'rgba(10,10,10,.32)', 'use' => 'behind the confirm dialog'],
-        'scrim-palette' => ['value' => 'rgba(10,10,10,.28)', 'use' => 'behind the command palette'],
-        'scrim-drawer'  => ['value' => 'rgba(10,10,10,.2)',  'use' => 'behind the assistant drawer'],
-        'on-ink-fill'   => ['value' => 'rgba(255,255,255,.14)', 'use' => 'a button on the black toast'],
-
-        // ── THE BRAND, AS AN ACCENT (owner, 13 Oct 2026) ───────────────────────
-        // "Make use of the Africa GATES colours as accent where best", on the console
-        // Home. The console stays monochrome; these six are the house green and gold,
-        // spent on what identifies the platform (the Home's header rule, the chart, the
-        // primary action on a job, a figure's icon). They are the PUBLIC palette's
-        // values by reference rather than typed again, so the console's green is the
-        // site's green by construction and cannot drift into a fifth gold.
-        'brand-green'      => ['value' => self::PALETTE['green']['value'],      'use' => 'the house green: a primary action on Home, chart bars, figure icons'],
-        'brand-green-deep' => ['value' => self::PALETTE['green-deep']['value'], 'use' => 'green words on a green wash'],
-        'brand-green-wash' => ['value' => self::PALETTE['green-wash']['value'], 'use' => 'a figure\'s icon field, the all-clear field'],
-        'brand-gold'       => ['value' => self::PALETTE['gold']['value'],       'use' => 'honour: the Home header rule, a results figure\'s mark'],
-        'brand-gold-ink'   => ['value' => self::PALETTE['gold-ink']['value'],   'use' => 'gold words, on white or the gold wash'],
-        'brand-gold-wash'  => ['value' => self::PALETTE['gold-wash']['value'],  'use' => 'a results figure\'s icon field'],
+        'ink'          => ['value' => '#10292c', 'use' => 'text, the current state, primary words'],
+        'ink-2'        => ['value' => '#3a4a4c', 'use' => 'nav items at rest, secondary body text'],
+        'ink-3'        => ['value' => '#4b5a5c', 'use' => 'neutral pill text, quieter body text'],
+        'ink-deep'     => ['value' => '#26393b', 'use' => 'the toast and tooltip field'],
+        'soft'         => ['value' => '#6b7476', 'use' => 'sub-lines, captions, muted text'],
+        'faint'        => ['value' => '#8a9294', 'use' => 'group labels, table heads, meta'],
+        'faint-2'      => ['value' => '#9aa1a2', 'use' => 'keycap hints, icons at rest, the grey dot'],
+        'ghost'        => ['value' => '#c3c7c6', 'use' => 'the crumb separator, a disabled fill'],
+        'line-strong'  => ['value' => '#cfd3cc', 'use' => 'a toggle that is off, a dashed outline'],
+        'line'         => ['value' => '#e3e3de', 'use' => 'control and pill borders, the rail rules'],
+        'line-card'    => ['value' => '#e6e6e1', 'use' => 'the work surface and card borders, the current item\'s ring'],
+        'line-row'     => ['value' => '#efefeb', 'use' => 'rules between rows, the rule under the top bar'],
+        'line-soft'    => ['value' => '#f0f0ec', 'use' => 'rules inside a drawer or a panel'],
+        'line-faint'   => ['value' => '#ecece8', 'use' => 'the bar-chart track, quiet separators'],
+        'line-dash'    => ['value' => '#dedfd9', 'use' => 'the dashed outline of an empty state'],
+        'scroll'       => ['value' => '#d9dad4', 'use' => 'scrollbar thumb'],
+        'scroll-hover' => ['value' => '#b9bbb4', 'use' => 'scrollbar thumb on hover'],
+        'ground'       => ['value' => '#f3f3f0', 'use' => 'the rail and the page ground, chips, segmented tracks'],
+        'surface'      => ['value' => '#ffffff', 'use' => 'the work surface, cards, menus'],
+        'panel'        => ['value' => '#fafaf8', 'use' => 'table heads, the brief, a selected row'],
+        'hover'        => ['value' => '#ebebe6', 'use' => 'hover on a rail item or a quiet button'],
+        'green'        => ['value' => '#237b22', 'use' => 'the primary action, live, paid, links, focus'],
+        'green-ink'    => ['value' => '#1a5e1a', 'use' => 'green words on a green wash, link hover'],
+        'green-wash'   => ['value' => '#edf5ea', 'use' => 'a live or paid pill, the bulk bar, the selected tab'],
+        'green-edge'   => ['value' => '#d9e6d5', 'use' => 'a green pill\'s border'],
+        'green-edge-2' => ['value' => '#b9d8b3', 'use' => 'the selected settings group\'s border'],
+        'gold'         => ['value' => '#c8961e', 'use' => 'waiting: dots, the current stage bar, a changed row'],
+        'gold-ink'     => ['value' => '#8a5d0b', 'use' => 'pending, draft and judging words'],
+        'gold-icon'    => ['value' => '#b07a12', 'use' => 'the Ask spark'],
+        'gold-wash'    => ['value' => '#fbf4e4', 'use' => 'a pending pill, the setup strip'],
+        'gold-wash-2'  => ['value' => '#fdfaf2', 'use' => 'the "may affect production" banner, a softer note'],
+        'gold-edge'    => ['value' => '#efdcae', 'use' => 'a pending pill\'s border'],
+        'red'          => ['value' => '#c4321f', 'use' => 'stuck, failed, overdue: dots and words'],
+        'red-ink'      => ['value' => '#a3271a', 'use' => 'red words inside a pill or banner'],
+        'red-wash'     => ['value' => '#fdeeeb', 'use' => 'a failed pill, the production pill and bell'],
+        'red-wash-2'   => ['value' => '#fdf6f4', 'use' => 'the "affecting production" banner'],
+        'red-edge'     => ['value' => '#f3c9c1', 'use' => 'a red pill\'s border'],
+        'slate'        => ['value' => '#5b7a80', 'use' => 'the Content hub, informational words'],
+        'slate-wash'   => ['value' => '#eaf0f1', 'use' => 'a Content tile\'s field'],
+        'scrim'        => ['value' => 'rgba(16,41,44,.32)', 'use' => 'behind the confirm dialog'],
+        'scrim-palette'=> ['value' => 'rgba(16,41,44,.28)', 'use' => 'behind the command palette'],
+        'scrim-drawer' => ['value' => 'rgba(16,41,44,.18)', 'use' => 'behind a drawer or the Ask pane'],
+        'on-ink-fill'  => ['value' => 'rgba(255,255,255,.14)', 'use' => 'a button on the dark toast'],
     ];
 
     /**
-     * README §10's shadows, verbatim, plus the palette's (which the HTML draws at .22).
+     * AdminConsole v2's shadows (README "Design tokens": popovers and drawers), plus the
+     * ring that marks the current rail item and the lift under a control.
      *
      * @var array<string,string>
      */
     private const CONSOLE_SHADOWS = [
-        'sh-menu'    => '0 12px 32px rgba(10,10,10,.12)',
-        'sh-modal'   => '0 20px 48px rgba(10,10,10,.2)',
-        'sh-palette' => '0 20px 48px rgba(10,10,10,.22)',
-        'sh-drawer'  => '-12px 0 32px rgba(10,10,10,.12)',
-        'sh-toast'   => '0 10px 30px rgba(10,10,10,.25)',
-        'sh-hero'    => '0 1px 2px rgba(10,10,10,.04), 0 10px 30px rgba(10,10,10,.05)',
-        'sh-tile'    => '0 1px 2px rgba(10,10,10,.04)',
+        'sh-menu'    => '0 18px 48px rgba(16,41,44,.16)',
+        'sh-modal'   => '0 20px 50px rgba(16,41,44,.18)',
+        'sh-palette' => '0 18px 48px rgba(16,41,44,.16)',
+        'sh-drawer'  => '0 20px 50px rgba(16,41,44,.18)',
+        'sh-toast'   => '0 18px 48px rgba(16,41,44,.16)',
+        'sh-hero'    => '0 1px 2px rgba(16,41,44,.04)',
+        'sh-tile'    => '0 1px 0 rgba(16,41,44,.04)',
+        'sh-current' => '0 0 0 1px #e6e6e1, 0 1px 2px rgba(16,41,44,.06)',
     ];
 
     /**
-     * Every word the console draws, on every ground the handoff draws it on.
-     *
-     * Read off the HTML, not imagined: `grey-500` is the muted line on a white card, the
-     * table head on `fill-panel`, a second line in a focused row (`fill-selected`) and
-     * the count beside the CURRENT nav item (`fill-current`); `warning-dot` is the colour
-     * of a waiting count on a Home card. Failures are listed in CONSOLE_REPORTED.
+     * Every word the console draws, on every ground the design draws it on. Failures are
+     * listed in CONSOLE_REPORTED.
      *
      * @var array<string,list<string>>
      */
     private const CONSOLE_WORDS = [
-        'ink'          => ['surface', 'fill-panel', 'fill-selected', 'fill-current', 'fill-hover', 'fill-subtle',
-                           'success-tint', 'warning-tint', 'warning-tint-2', 'warning-tint-3', 'danger-tint'],
-        'grey-800'     => ['surface', 'fill-panel', 'fill-selected'],
-        'grey-700'     => ['fill-panel', 'fill-hover', 'surface'],
-        'grey-600'     => ['surface', 'fill-panel', 'fill-subtle', 'fill-selected'],
-        'grey-500'     => ['surface', 'fill-panel', 'fill-selected', 'fill-current'],
-        'grey-450'     => ['fill-panel'],
-        'success'      => ['surface', 'success-tint'],
-        'green'        => ['surface'],
-        'warning'      => ['surface', 'warning-tint', 'warning-tint-2', 'warning-tint-3'],
-        'warning-dot'  => ['surface'],
-        'danger'       => ['surface', 'danger-tint'],
-        'danger-pill'  => ['surface', 'danger-tint'],
-        'info'         => ['surface'],
-        'proposed-ink' => ['warning-tint-2'],
-        'surface'      => ['ink', 'danger', 'green', 'brand-green'],
-        'brand-green'      => ['surface', 'fill-panel'],
-        'brand-green-deep' => ['surface', 'brand-green-wash'],
-        'brand-gold-ink'   => ['surface', 'brand-gold-wash'],
+        'ink'       => ['surface', 'ground', 'panel', 'hover', 'green-wash', 'gold-wash', 'gold-wash-2', 'red-wash', 'red-wash-2'],
+        'ink-2'     => ['surface', 'ground', 'panel', 'hover'],
+        'ink-3'     => ['surface', 'panel', 'ground'],
+        'soft'      => ['surface', 'panel', 'ground', 'hover'],
+        'faint'     => ['surface', 'panel', 'ground'],
+        'faint-2'   => ['surface', 'ground'],
+        'green'     => ['surface', 'panel', 'green-wash'],
+        'green-ink' => ['surface', 'green-wash'],
+        'gold-ink'  => ['surface', 'gold-wash', 'gold-wash-2'],
+        'red'       => ['surface', 'red-wash'],
+        'red-ink'   => ['surface', 'red-wash', 'red-wash-2'],
+        'slate'     => ['surface', 'slate-wash'],
+        'surface'   => ['ink', 'ink-deep', 'green', 'red'],
     ];
 
     /**
-     * Words the handoff draws under 4.5:1 — REPORTED to the owner, not re-valued.
+     * Words the design draws under 4.5:1 — REPORTED to the owner, not re-valued.
      *
      * The test holds this list EXACTLY: a pair that starts passing must leave it, and a
      * new failure must be added here with where it is drawn, which is the report.
@@ -419,10 +397,14 @@ final class Accent
      * @var array<string,array{on:string,where:string}>
      */
     private const CONSOLE_REPORTED = [
-        'grey-450@fill-panel'    => ['on' => 'fill-panel',    'where' => 'sidebar group labels, 12.5px (3.10:1)'],
-        'grey-500@fill-selected' => ['on' => 'fill-selected', 'where' => 'the second line of a focused row, 12–12.5px (4.35:1)'],
-        'grey-500@fill-current'  => ['on' => 'fill-current',  'where' => 'the count beside the current nav item, 11.5px (4.04:1)'],
-        'warning-dot@surface'    => ['on' => 'surface',       'where' => 'a waiting count on a Home card, 22px at 500 — not large text (2.95:1)'],
+        'soft@ground'      => ['on' => 'ground',     'where' => 'a sub-line on the rail ground ("Programme lead"), 12px (4.31:1)'],
+        'soft@hover'       => ['on' => 'hover',      'where' => 'a sub-line on a hovered rail item, 12px (4.00:1)'],
+        'faint@surface'    => ['on' => 'surface',    'where' => 'table heads, meta and timestamps on the work surface, 11.5–13px (3.17:1)'],
+        'faint@panel'      => ['on' => 'panel',      'where' => 'the brief\'s label and a table head on the panel, 12–13px (3.04:1)'],
+        'faint@ground'     => ['on' => 'ground',     'where' => 'the rail\'s group labels and counts, 11.5px (2.85:1)'],
+        'faint-2@surface'  => ['on' => 'surface',    'where' => 'keycap hints (⌘K, ⌘J) and the search placeholder, 11–13px (2.59:1)'],
+        'faint-2@ground'   => ['on' => 'ground',     'where' => 'keycap hints on the rail, 11px (2.33:1)'],
+        'slate@slate-wash' => ['on' => 'slate-wash', 'where' => 'a Content hub count on its tile, 13px (4.02:1)'],
     ];
 
     /**
@@ -431,16 +413,18 @@ final class Accent
      * @var array<string,array{on:string,why:string}>
      */
     private const CONSOLE_ACCEPTED = [
-        'grey-350'     => ['on' => 'surface',    'why' => 'a DISABLED control\'s fill; WCAG 1.4.3 exempts an inactive control'],
-        'grey-300'     => ['on' => 'surface',    'why' => 'a toggle that is off, a dashed outline'],
-        'line-control' => ['on' => 'surface',    'why' => 'input and pill borders, as the handoff draws them'],
-        'line-card'    => ['on' => 'surface',    'why' => 'card borders'],
-        'line-row'     => ['on' => 'surface',    'why' => 'row rules'],
-        'line-bar'     => ['on' => 'surface',    'why' => 'the rule under the top bar'],
-        'link-line'    => ['on' => 'surface',    'why' => 'an underline beside words that carry the contrast'],
-        'fill-panel'   => ['on' => 'surface',    'why' => 'the sidebar field'],
-        'grey-400'     => ['on' => 'surface',    'why' => 'a dot that always sits beside its word'],
-        'brand-gold'   => ['on' => 'surface',    'why' => 'the Home header rule and a mark beside words; gold is never a word'],
+        'ghost'       => ['on' => 'surface', 'why' => 'the crumb separator and a DISABLED fill; WCAG 1.4.3 exempts an inactive control'],
+        'line-strong' => ['on' => 'surface', 'why' => 'a toggle that is off, a dashed outline'],
+        'line'        => ['on' => 'surface', 'why' => 'control and pill borders, as the design draws them'],
+        'line-card'   => ['on' => 'surface', 'why' => 'card borders'],
+        'line-row'    => ['on' => 'surface', 'why' => 'row rules'],
+        'line-soft'   => ['on' => 'surface', 'why' => 'rules inside a drawer'],
+        'line-faint'  => ['on' => 'surface', 'why' => 'the bar-chart track'],
+        'line-dash'   => ['on' => 'surface', 'why' => 'the dashed outline of an empty state'],
+        'scroll'      => ['on' => 'surface', 'why' => 'a scrollbar thumb'],
+        'ground'      => ['on' => 'surface', 'why' => 'the rail field'],
+        'panel'       => ['on' => 'surface', 'why' => 'a table head\'s field'],
+        'gold'        => ['on' => 'surface', 'why' => 'a dot or a bar beside its word; gold is never a word'],
     ];
 
     // ══ the default-graphics tones (DEFAULT-GRAPHICS §4, handoff 5 Oct 2026) ═══════════════

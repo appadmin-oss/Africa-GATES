@@ -90,9 +90,9 @@ class AdminContrastTest extends TestCase
      */
     public function test_admin_text_tokens_clear_aa_on_both_grounds(): void
     {
-        foreach (['ink', 'grey-800', 'grey-600', 'grey-500'] as $name) {
+        foreach (['ink', 'ink-2', 'ink-3', 'soft'] as $name) {
             $hex = \AfricaGates\Support\Accent::consoleHex($name);
-            foreach (['surface', 'fill-panel'] as $g) {
+            foreach (['surface', 'panel'] as $g) {
                 $r = self::ratio($hex, \AfricaGates\Support\Accent::consoleHex($g));
                 $this->assertGreaterThanOrEqual(4.5, round($r, 2), sprintf('%s is %.2f:1 on %s', $name, $r, $g));
             }
@@ -140,21 +140,21 @@ class AdminContrastTest extends TestCase
 
     /**
      * The sidebar's group labels. The old rail was dark and its headings were measured
-     * white-on-ink; the console's rail is `fill-panel` and the handoff draws its labels in
-     * `grey-450` — 3.10:1, under the floor. The owner's rule is REPORT, never re-value, so
+     * white-on-ink; the v2 rail is `ground` and the design draws its labels in `faint` —
+     * 2.85:1, under the floor. The owner's rule is REPORT, never re-value, so
      * this holds that the failure is on the reported list rather than silently shipped.
      */
     public function test_sidebar_section_headings_clear_aa_on_the_rail(): void
     {
-        $r = self::ratio(\AfricaGates\Support\Accent::consoleHex('grey-450'), \AfricaGates\Support\Accent::consoleHex('fill-panel'));
+        $r = self::ratio(\AfricaGates\Support\Accent::consoleHex('faint'), \AfricaGates\Support\Accent::consoleHex('ground'));
         if (round($r, 2) < 4.5) {
-            $this->assertArrayHasKey('grey-450@fill-panel', \AfricaGates\Support\Accent::consoleReported(),
+            $this->assertArrayHasKey('faint@ground', \AfricaGates\Support\Accent::consoleReported(),
                 sprintf('the rail labels are %.2f:1 and nobody has been told', $r));
         } else {
             $this->addToAssertionCount(1);
         }
         $css = self::css('public/assets/css/console/console.css');
-        $this->assertMatchesRegularExpression('/\.cn-nav__label\s*\{[^}]*color:\s*var\(--cn-grey-450\)/', $css);
+        $this->assertMatchesRegularExpression('/\.cn-nav__label\s*\{[^}]*color:\s*var\(--cn-faint\)/', $css);
     }
 
     /**

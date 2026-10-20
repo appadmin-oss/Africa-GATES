@@ -19,7 +19,7 @@
           <form method="post" action="/admin/forms/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete this form? Its existing submissions are kept.">×</button></form>
         </td>
       </tr>
-      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--cn-grey-500);padding:30px">No forms yet. <a href="/admin/forms/new" style="color:var(--cn-ink)">Build your first →</a></td></tr>{% endfor %}
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--cn-soft);padding:30px">No forms yet. <a href="/admin/forms/new" style="color:var(--cn-ink)">Build your first →</a></td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>

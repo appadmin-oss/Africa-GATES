@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════════════════════════
    AFRICA GATES — ADMIN CONSOLE TOKENS (everything but colour)
-   The admin handoff's README §10 (`design_handoff_admin_console`), built 4 Oct 2026
-   when the owner chose its monochrome design (GAPS §8d, option (A)).
+   Built 4 Oct 2026 from the v9 admin handoff; faces and measures moved to AdminConsole v2
+   (design_handoff_letter_email_admin/admin-console, 20 Oct 2026).
    ══════════════════════════════════════════════════════════════════════════════
 
    ── NO COLOUR HERE, FOR THE PUBLIC TOKENS' REASON ───────────────────────────
@@ -12,8 +12,8 @@
 
    ── THE FACE IS THE HOUSE'S, THE SCALE IS THE CONSOLE'S ────────────────────
 
-   The handoff draws Geist and Geist Mono; the owner kept DM Sans and the house
-   JetBrains Mono (GAPS §8d). The SIZES are the handoff's own ladder (§10: 11 · 11.5 ·
+   Geist and Geist Mono, as AdminConsole v2 draws them (20 Oct 2026; v2 supersedes the
+   v9 choice of DM Sans and JetBrains Mono). The SIZES are the handoff's own ladder (§10: 11 · 11.5 ·
    12 · 12.5 · 13 · 13.5 · 14 · 15 · 17 · 18 · 22 · 24 · 26 · 30), plus the two its HTML
    draws in the shell that §10 leaves out — 10.5 for a count badge and 16 for the hero
    ask box. The public ladder (tokens.css) is not this one and neither may borrow the
@@ -29,8 +29,8 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 
 :root{
-  --cn-font: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --cn-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --cn-font: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cn-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   --cn-fs-10-5: .65625rem;
   --cn-fs-11:   .6875rem;
