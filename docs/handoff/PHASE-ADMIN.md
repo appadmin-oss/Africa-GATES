@@ -115,10 +115,11 @@ draws under 4.5:1 are reported in `Accent::CONSOLE_REPORTED`, not re-valued.
 - **Rail groups** are the v2 job groups in `AdminNav::GROUPS`: Awards · Engage · Audience ·
   Money · Content · Organisation. Every page keeps its own gate (`sectionForPath`), so the
   regrouping changes no access; `AdminNavTest` still diffs every gate against the guard.
-- **Smart groups** (`ConsoleShell::rail()`): open when the group holds the current page or
-  has work waiting; collapsed groups show their summed count, red when one of them is
-  urgent. A person's own choice is kept in `ac2.col` (declared in `CookieRegistry`) and
-  never closes the group holding the current page. Without script every group is open.
+- **Groups** (`ConsoleShell::rail()`): the rail opens in full — every group starts open
+  (owner, 20 Oct 2026, over README §10b's collapse-when-idle). A person may close any
+  group; the choice is kept in `ac2.col` (declared in `CookieRegistry`) and never closes
+  the group holding the current page. A closed group shows its summed count, red when one
+  of them is urgent.
 - **Counts** come from `HomeBoard::counts()` only: review, payments (urgent), alerts (urgent
   while one is high) and, new, moderation (held comments plus held threads — the moderation
   page's own two queues).

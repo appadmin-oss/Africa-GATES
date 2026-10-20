@@ -59,22 +59,22 @@ final class AdminNavRenderTest extends TestCase
         $this->assertMatchesRegularExpression('~<span class="cn-crumb__a">Money</span>~', $html);
     }
 
-    public function test_a_group_opens_for_the_page_you_are_on_or_for_work_waiting_and_is_idle_otherwise(): void
+    public function test_the_rail_opens_in_full_and_a_closed_group_still_carries_its_count(): void
     {
-        // Payouts is in Money, so Money is open and marked as here; Content has nothing
-        // waiting and nothing current, so it is idle.
+        // Every group starts open (owner, 20 Oct 2026): the nav opens in full.
         $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index', 'superadmin', '/admin/payouts');
         $this->assertMatchesRegularExpression('~data-group="money" data-open data-here>~', $html);
-        $this->assertMatchesRegularExpression('~data-group="content">~', $html);
+        $this->assertMatchesRegularExpression('~data-group="content" data-open>~', $html);
+        $this->assertDoesNotMatchRegularExpression('~data-group="[a-z]+">~', $html, 'a group was drawn closed');
 
-        // One held comment is work for Moderation: Content opens, and its sum is drawn.
+        // One held comment is work for Moderation: its count is drawn on the page and summed
+        // on the group, ready for when somebody closes it.
         \Illuminate\Database\Capsule\Manager::table('gates_comments')->insert([
             'target_type' => 'profile', 'target_id' => 1, 'author_name' => 'A reader', 'body' => 'Held for a person.',
             'status' => \AfricaGates\Services\CommunityService::HELD,
         ]);
         HomeBoard::resetAll();
         $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index', 'superadmin', '/admin/payouts');
-        $this->assertMatchesRegularExpression('~data-group="content" data-open>~', $html);
         $this->assertMatchesRegularExpression('~<span class="cn-nav__num" aria-label="1 waiting">1</span>~', $html);
         $this->assertMatchesRegularExpression('~href="/admin/moderation"[^>]*>.*?<span class="cn-nav__n">1~s', $html);
     }

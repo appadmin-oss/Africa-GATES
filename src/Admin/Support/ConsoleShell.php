@@ -86,12 +86,11 @@ final class ConsoleShell
     }
 
     /**
-     * AdminConsole v2's smart groups (README §10b). A group is OPEN when it holds the
-     * current page or has work waiting — any count on one of its pages — and collapsed
-     * when it is idle. Collapsed, it shows the sum of its counts, red if any of them is
-     * urgent. A person's own open/close choice overrides this in the browser (`ac2.col`,
-     * admin.js), except that the group holding the current page is always open: arriving
-     * anywhere shows where you are.
+     * The rail's groups. Every group starts OPEN — the nav opens in full (owner, 20 Oct
+     * 2026, over README §10b's idle-collapse) — and a person may close any of them; that
+     * choice is kept in the browser (`ac2.col`, admin.js), except that the group holding
+     * the current page is always open, so arriving anywhere shows where you are. A closed
+     * group shows the sum of its counts, red if any of them is urgent.
      *
      * Every count comes from {@see HomeBoard::counts()}, the same read as Home, so the rail
      * and Home cannot disagree about how many are waiting.
@@ -116,7 +115,10 @@ final class ConsoleShell
             $g['here']   = $here;
             $g['count']  = $sum;
             $g['urgent'] = $urgent;
-            $g['open']   = $here || $sum > 0;
+            // The rail opens in full (owner, 20 Oct 2026): every group starts expanded and
+            // closes only when a person closes it (`ac2.col`, admin.js). The group holding
+            // this page is always open, whatever was chosen before.
+            $g['open']   = true;
         }
         unset($g);
         return $groups;
