@@ -267,7 +267,9 @@ class ProgrammesController
 
         $cycle->programme_title = $programme->title;
         $cycle->programme_slug  = $programme->slug;
-        $res->getBody()->write(\AfricaGates\Services\NomineeVotingNotice::previewPdf($cycle));
+        // ?paper=letter shows the US Letter copy; the page must hold at both sizes.
+        $res->getBody()->write(\AfricaGates\Services\NomineeVotingNotice::previewPdf($cycle,
+            (string) ($req->getQueryParams()['paper'] ?? '')));
 
         return $res->withHeader('Content-Type', 'application/pdf')
                    ->withHeader('Content-Disposition', 'inline; filename="voting-letter-preview.pdf"')

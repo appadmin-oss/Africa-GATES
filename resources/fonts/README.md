@@ -71,3 +71,20 @@ That is a separate fix and is not addressed here.
 
 DejaVu fonts are released under a permissive Bitstream Vera / Arev derivative licence that
 allows redistribution and modification. Full text: `LICENCE-DejaVu.txt`.
+
+## The voting letter's faces
+
+`SourceSerif4-{Regular,SemiBold,Bold}.ttf` and `InstrumentSans-{Regular,SemiBold}.ttf` are the
+two faces the nominee voting letter's design names (design_handoff_letter_email_admin/letter),
+embedded by `Support\Pdf` — never fetched. Both are OFL (`OFL-SourceSerif4.txt`,
+`OFL-InstrumentSans.txt`).
+
+- Source Serif 4: Adobe's static TTFs (npm `source-serif` 4.5.1), subset with fontTools to the
+  ranges above.
+- Instrument Sans: published only as variable fonts and web fonts, so built from the
+  `@fontsource/instrument-sans` 5.3.0 latin and latin-ext WOFF files at 400 and 600, merged
+  into one TTF per weight.
+
+**Instrument Sans has no ọ, ẹ or ṣ, and Source Serif 4 has no Ɓ or Ɗ.** `NomineeVotingLetter`
+registers each with a fallback (DM Sans, AG Text), so `Support\Pdf` sets those characters
+from the fallback rather than drawing boxes.

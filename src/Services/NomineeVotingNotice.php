@@ -278,7 +278,7 @@ final class NomineeVotingNotice
             'attachments' => [[
                 'name' => NomineeVotingLetter::fileName($v),
                 'mime' => 'application/pdf',
-                'body' => NomineeVotingLetter::render($v),
+                'body' => NomineeVotingLetter::render($v, (string) $v['paper']),
             ]],
             'view'        => $v,
         ];
@@ -312,7 +312,40 @@ final class NomineeVotingNotice
             'signatory'       => $cfg['signatory'],
             'signatory_title' => $cfg['signatory_title'],
             'how'             => self::howVotingWorks((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
+            'steps'           => self::steps((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
+            'paper'           => NomineeVotingLetter::paperFor((string) ($nominee->country_code ?? '')),
         ];
+    }
+
+    /**
+     * The letter's "How voting works" — the design's four short steps, each sentence true of
+     * THIS edition. Read from the same resolvers as howVotingWorks(): an edition with no free
+     * vote is not told about one, and one that sells no votes is not told about prices. The
+     * vote form's own required fields are name, phone and email; the message, and showing a
+     * name with it, are optional (templates/pages/vote-nominee.twig).
+     *
+     * @return list<string>
+     */
+    public static function steps(?int $programmeId = null, ?int $cycleId = null): array
+    {
+        $paid    = PaidVoteService::enabled();
+        $freeOff = PaidVoteService::freeVotingDisabled();
+        $price   = '₦' . number_format(PaidVoteService::pricePerVote());
+
+        $out = ['Supporters open your voting page or scan the code below.'];
+        $out[] = $freeOff
+            ? 'In this edition votes are cast by contribution, at ' . $price . ' a vote, through our secure '
+              . 'payment provider. Supporters give their name, phone number and email.'
+            : 'Each person has one free vote in your category, confirmed by a code sent to their email. They '
+              . 'give their name, phone number and email; a message is optional, and so is showing their name with it.';
+        if ($paid && !$freeOff) {
+            $out[] = 'Supporters may also make an optional contribution, at ' . $price . ' a vote, which adds votes '
+                   . 'and supports the programme. No one has to pay to vote.';
+        }
+        $out[] = 'When voting closes, the independent panel judges the nominees, and its marks are combined with '
+               . 'public support.';
+
+        return $out;
     }
 
     /**
@@ -458,7 +491,7 @@ final class NomineeVotingNotice
             ->where('c.cycle_id', $cycleId)
             ->where('n.status', 'approved')
             ->whereNull('n.merged_into')
-            ->select('n.id', 'n.name', 'n.profile_id', 'n.category_id', 'c.title as category_title')
+            ->select('n.id', 'n.name', 'n.profile_id', 'n.category_id', 'n.country_code', 'c.title as category_title')
             ->orderBy('n.id')
             ->get()->all();
     }
@@ -494,12 +527,13 @@ final class NomineeVotingNotice
      * The letter an operator previews: the cycle's first nominee, or a specimen when it has
      * none, so the screen can always show what will go out.
      */
-    public static function previewPdf(object $cycle): string
+    public static function previewPdf(object $cycle, string $paper = ''): string
     {
         $cfg = self::settings((int) $cycle->programme_id, (int) $cycle->id);
         $n   = self::nominees((int) $cycle->id)[0]
             ?? (object) ['id' => 0, 'name' => 'Specimen Nominee', 'category_title' => 'Specimen Category'];
+        $v   = self::view($n, $cycle, $cfg, SiteUrl::base());
 
-        return NomineeVotingLetter::render(self::view($n, $cycle, $cfg, SiteUrl::base()));
+        return NomineeVotingLetter::render($v, isset(NomineeVotingLetter::PAPER[$paper]) ? $paper : (string) $v['paper']);
     }
 }

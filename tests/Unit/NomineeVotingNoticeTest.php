@@ -118,7 +118,7 @@ final class NomineeVotingNoticeTest extends TestCase
         $pdf = $sent['attachments'][0];
         $this->assertSame('application/pdf', $pdf['mime']);
         $this->assertStringStartsWith('%PDF', $pdf['body']);
-        $this->assertSame(2, self::pages($pdf['body']), 'the letter, and its annex on how the vote works');
+        $this->assertSame(1, self::pages($pdf['body']), 'the v2 letter is one page, its steps inline');
         $this->assertStringEndsWith('.pdf', $pdf['name']);
     }
 
@@ -313,14 +313,51 @@ final class NomineeVotingNoticeTest extends TestCase
         }
     }
 
-    public function test_the_letter_is_one_page_and_its_annex_one_more_at_the_longest_inputs(): void
+    /**
+     * The design's one rule about paper: ONE page, at A4 and at US Letter, which is 17.6mm
+     * shorter. The longest name, category and award the console allows must still fit, with
+     * the close above the pinned footer.
+     */
+    public function test_the_letter_is_one_page_at_a4_and_at_letter_at_the_longest_inputs(): void
     {
-        $v = self::view() + ['how' => NomineeVotingNotice::howVotingWorks()];
+        $v = self::view() + ['steps' => NomineeVotingNotice::steps()];
         $v['name']     = str_repeat('Ọlásùnkànmí Adébáyọ̀-Williams ', 5);
         $v['category'] = str_repeat('Outstanding Contribution to Rural Education ', 4);
         $v['award']    = str_repeat('Continental Teachers Award ', 3) . '11th Edition';
 
-        $this->assertSame(2, self::pages(NomineeVotingLetter::render($v)));
+        foreach (['A4', 'letter'] as $paper) {
+            $pdf = NomineeVotingLetter::render($v, $paper);
+            $this->assertSame(1, self::pages($pdf), "the letter ran past one page on $paper");
+            [$w, $h] = NomineeVotingLetter::PAPER[$paper];
+            $this->assertStringContainsString(sprintf('/MediaBox [0 0 %.2F %.2F]', $w * 72 / 25.4, $h * 72 / 25.4), $pdf,
+                "the page is not $paper");
+        }
+        $this->assertSame('letter', NomineeVotingLetter::paperFor('US'));
+        $this->assertSame('A4', NomineeVotingLetter::paperFor('NG'));
+        $this->assertSame('A4', NomineeVotingLetter::paperFor(''));
+    }
+
+    /** The steps are true of THIS edition: no free vote promised where there is none, no price where none is sold. */
+    public function test_the_letters_steps_follow_the_voting_rules(): void
+    {
+        $steps = implode(' ', NomineeVotingNotice::steps());
+        $this->assertStringContainsString('one free vote in your category', $steps);
+        $this->assertStringNotContainsString('₦', $steps, 'an award that sells no votes is not told about prices');
+        $this->assertStringNotContainsStringIgnoringCase('shortlist', $steps);
+        $this->assertStringNotContainsString('a message;', $steps, 'the message is optional on the vote form');
+
+        DB::table('gates_settings')->insert([
+            ['key_name' => 'paid_voting_enabled', 'value' => '1'],
+            ['key_name' => 'vote_price_naira', 'value' => '250'],
+        ]);
+        $steps = implode(' ', NomineeVotingNotice::steps());
+        $this->assertStringContainsString('₦250 a vote', $steps);
+        $this->assertStringContainsString('No one has to pay to vote', $steps);
+
+        DB::table('gates_settings')->insert(['key_name' => 'paid_voting_disable_free', 'value' => '1']);
+        $steps = implode(' ', NomineeVotingNotice::steps());
+        $this->assertStringNotContainsString('free vote', $steps, 'never promise a free vote that does not exist');
+        $this->assertStringNotContainsString('No one has to pay', $steps, 'false where every vote is a contribution');
     }
 
     /** @return array<string,string> */
