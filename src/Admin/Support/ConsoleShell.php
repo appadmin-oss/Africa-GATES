@@ -58,10 +58,13 @@ final class ConsoleShell
             'email'       => (string) ($_SESSION['admin_email'] ?? ''),
             'initials'    => self::initials((string) ($_SESSION['admin_name'] ?? '')),
             'home'        => $nav['home'],
-            'groups'      => self::fold($nav['groups'], $current),
+            'groups'      => self::rail($nav['groups'], $current, $counts),
             'current'     => $item['page'] ?? null,
             'current_page'=> $page['page'] ?? null,
             'label'       => $page['label'] ?? null,
+            // The crumb's first half: the rail group the page sits in ("Money / Refunds").
+            'group_label' => (string) ($item['group'] ?? ''),
+            'tabs'        => self::tabs($role, $item['page'] ?? null, $counts),
             'sub'         => $sub,
             'related'     => AdminNav::related($role, $path, $adminPage),
             'here'        => $here,
@@ -74,6 +77,7 @@ final class ConsoleShell
             'alert_pill'  => ConsoleAlerts::pill($role),
             'sidebar_closed' => ConsolePins::sidebarClosed($adminId),
             'destinations'   => AdminNav::destinations($role),
+            'create'      => self::create($role),
             'recent'      => self::recent($role, $path, $page),
             'handbook'    => Permissions::canOpen($role, '/admin/handbook'),
             'assistant'   => Permissions::canOpen($role, '/admin/assistant'),
@@ -81,28 +85,115 @@ final class ConsoleShell
     }
 
     /**
-     * §2.1's overflow: a group with more than five pages shows four and a "··· N more"
-     * row — and is forced open when the current page is beyond the fourth, so arriving
-     * anywhere shows where you are without a click.
+     * AdminConsole v2's smart groups (README §10b). A group is OPEN when it holds the
+     * current page or has work waiting — any count on one of its pages — and collapsed
+     * when it is idle. Collapsed, it shows the sum of its counts, red if any of them is
+     * urgent. A person's own open/close choice overrides this in the browser (`ac2.col`,
+     * admin.js), except that the group holding the current page is always open: arriving
+     * anywhere shows where you are.
+     *
+     * Every count comes from {@see HomeBoard::counts()}, the same read as Home, so the rail
+     * and Home cannot disagree about how many are waiting.
      *
      * @param list<array<string,mixed>> $groups
      * @param array{item:?array<string,mixed>} $current
+     * @param array<string,?int> $counts
      * @return list<array<string,mixed>>
      */
-    private static function fold(array $groups, array $current): array
+    private static function rail(array $groups, array $current, array $counts): array
     {
         $cur = $current['item']['page'] ?? null;
         foreach ($groups as &$g) {
-            $n = count($g['items']);
-            $g['fold'] = $n > AdminNav::FOLD_OVER;
-            $at = array_search($cur, array_column($g['items'], 'page'), true);
-            $g['forced_open'] = $g['fold'] && $at !== false && $at >= AdminNav::FOLD_SHOW;
-            $g['hidden_count'] = $g['fold'] ? $n - AdminNav::FOLD_SHOW : 0;
-            foreach ($g['items'] as $k => &$i) $i['folded'] = $g['fold'] && $k >= AdminNav::FOLD_SHOW;
+            $sum = 0; $urgent = false; $here = false;
+            foreach ($g['items'] as &$i) {
+                [$n, $hot] = self::itemCount((string) $i['page'], $counts);
+                $i['n'] = $n; $i['urgent'] = $hot && $n > 0;
+                $sum += $n; $urgent = $urgent || $i['urgent'];
+                $here = $here || $i['page'] === $cur;
+            }
             unset($i);
+            $g['here']   = $here;
+            $g['count']  = $sum;
+            $g['urgent'] = $urgent;
+            $g['open']   = $here || $sum > 0;
         }
         unset($g);
         return $groups;
+    }
+
+    /**
+     * A rail page's waiting count and whether it is urgent. Payments is urgent whenever it
+     * has any: each one is money somebody paid with nothing to show for it. Alerts is
+     * urgent only while one of them is high.
+     *
+     * @param array<string,?int> $counts
+     * @return array{0:int, 1:bool}
+     */
+    private static function itemCount(string $page, array $counts): array
+    {
+        return match ($page) {
+            'review'     => [(int) ($counts['review'] ?? 0), false],
+            'payments'   => [(int) ($counts['payments'] ?? 0), true],
+            'alerts'     => [(int) ($counts['alerts'] ?? 0), (int) ($counts['alerts_high'] ?? 0) > 0],
+            'moderation' => [(int) ($counts['moderation'] ?? 0), false],
+            default      => [0, false],
+        };
+    }
+
+    /**
+     * The top bar's New menu (README §10b): grouped Awards · Engage · Content, each item a
+     * page that starts the thing. Only real create flows are listed, and only those this
+     * role can open — the judges' routes also carry a superadmin-only RoleMiddleware, so
+     * the guard's answer is not enough there. A group left empty is not drawn.
+     *
+     * @return list<array{label:string, items:list<array{label:string, href:string, icon:string}>}>
+     */
+    private static function create(string $role): array
+    {
+        $menu = [
+            'Awards'  => [['New programme', '/admin/programmes/new', 'trophy'],
+                          ['Invite judge', '/admin/judges/new', 'users', 'superadmin'],
+                          ['Release results', '/admin/result-release', 'flag']],
+            'Engage'  => [['New event', '/admin/events/new', 'ticket'],
+                          ['New challenge', '/admin/challenges/new', 'bolt'],
+                          ['New broadcast', '/admin/campaigns', 'mega']],
+            'Content' => [['New post', '/admin/posts/new', 'doc'],
+                          ['Upload media', '/admin/media', 'image']],
+        ];
+        $out = [];
+        foreach ($menu as $label => $rows) {
+            $items = [];
+            foreach ($rows as $r) {
+                if (isset($r[3]) && $role !== $r[3]) continue;
+                if (!Permissions::canOpen($role, $r[1])) continue;
+                $items[] = ['label' => $r[0], 'href' => $r[1], 'icon' => $r[2]];
+            }
+            if ($items !== []) $out[] = ['label' => $label, 'items' => $items];
+        }
+        return $out;
+    }
+
+    /**
+     * The phone's tab bar (README §10b): Home · Review · Money · Alerts, then More, which
+     * opens the whole rail as a sheet. A tab this role cannot open is left out rather than
+     * drawn disabled, so a bar of three is honest about what the role reaches.
+     *
+     * @param array<string,?int> $counts
+     * @return list<array{label:string, href:string, icon:string, on:bool, n:int, urgent:bool}>
+     */
+    private static function tabs(string $role, ?string $current, array $counts): array
+    {
+        $out = [];
+        foreach ([['Home', '/admin/dashboard', 'home', 'dashboard'],
+                  ['Review', '/admin/nominations/review', 'noms', 'review'],
+                  ['Money', '/admin/payments', 'card', 'payments'],
+                  ['Alerts', '/admin/alerts', 'bell', 'alerts']] as [$label, $href, $icon, $page]) {
+            if (!Permissions::canOpen($role, $href)) continue;
+            [$n, $hot] = self::itemCount($page, $counts);
+            $out[] = ['label' => $label, 'href' => $href, 'icon' => $icon, 'on' => $current === $page,
+                      'n' => $n, 'urgent' => $hot && $n > 0];
+        }
+        return $out;
     }
 
     /** A pin of a page that carries a rail count shows that count. */
@@ -113,6 +204,7 @@ final class ConsoleShell
             '/admin/nominations/review' => $counts['review'] ?? null,
             '/admin/payments'           => $counts['payments'] ?? null,
             '/admin/alerts'             => $counts['alerts'] ?? null,
+            '/admin/moderation'         => $counts['moderation'] ?? null,
             default                     => null,
         };
     }

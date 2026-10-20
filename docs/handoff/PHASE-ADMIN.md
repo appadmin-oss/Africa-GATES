@@ -100,3 +100,46 @@ Every page except Home and Alerts: their bodies are the destroyed design's marku
 ## 8. Tests
 
 Narrow filter: 1,744 tests, 1 failure (`PasskeyTest`, PHP 8.3). **Full suite (once): 6,731 tests, 10 failures** — 8 `PasskeyTest` (PHP 8.4 needed; environmental); `DeployedEndpointTest` (the deploy-check page's Home marker, mine — fixed and re-run green); `DevUiTest::test_components_css_holds_the_base_components_and_nothing_else` (`.ag-photo--cover` in `components.css`, a concurrent public-site agent's change, not this stage).
+
+---
+
+# AdminConsole v2 (`design_handoff_letter_email_admin`, README §10b) — 20 Oct 2026
+
+Built in steps; each step is one commit.
+
+## Step 1 — palette and faces
+`Accent::CONSOLE` is the v2 set, faces are Geist and Geist Mono. Eight text pairs the design
+draws under 4.5:1 are reported in `Accent::CONSOLE_REPORTED`, not re-valued.
+
+## Step 2 — the shell and the rail
+- **Rail groups** are the v2 job groups in `AdminNav::GROUPS`: Awards · Engage · Audience ·
+  Money · Content · Organisation. Every page keeps its own gate (`sectionForPath`), so the
+  regrouping changes no access; `AdminNavTest` still diffs every gate against the guard.
+- **Smart groups** (`ConsoleShell::rail()`): open when the group holds the current page or
+  has work waiting; collapsed groups show their summed count, red when one of them is
+  urgent. A person's own choice is kept in `ac2.col` (declared in `CookieRegistry`) and
+  never closes the group holding the current page. Without script every group is open.
+- **Counts** come from `HomeBoard::counts()` only: review, payments (urgent), alerts (urgent
+  while one is high) and, new, moderation (held comments plus held threads — the moderation
+  page's own two queues).
+- **Page titles** were renamed to the rail's labels (`AdminIaTest`): Programmes, Nominations
+  (the review screen), All nominations, Judges, Events, Broadcasts, Refunds, Finance,
+  Products, Posts, Moderation, Team, Settings.
+- **Handbook** moved from the account menu into Organisation. Its gate is unchanged (still
+  unmapped, so superadmin only — open question 1 above still stands).
+- **New menu** lists only real create flows the role can open. Invite judge is superadmin
+  only because the judges routes carry a `RoleMiddleware` on top of the guard.
+- **Phone** (<600): app bar, floating tab bar (Home · Review · Money · Alerts · More), and the
+  rail itself as the More sheet. **Tablet** (600–1023): the 60px icon rail.
+
+### Deviations
+| What | Why |
+|---|---|
+| Workspace group (Inbox, Calendar), Check-in and Contacts are not in the rail | The pages do not exist yet (step 8). A rail item with no page is a dead link. |
+| Refunds shows no count | Its queue is the same money as Payments' "refund owed" bucket; counting it twice would show one fact twice. |
+| The alert pill says "N high alerts", not "N affecting production" | `ConsoleAlerts` has severity but no production-impact axis yet (step 5). Severity is not impact, so the impact wording waits for the data. |
+| The bell lists alerts only, with no "Mark all read" | There is no notification store; the bell's only source is `ConsoleAlerts`. |
+| New menu: "Release results", not "Schedule result release"; no "New giving campaign" | Results are released by an act on `/admin/result-release`, not scheduled; giving pages are created by the organisations themselves. |
+| New broadcast and Upload media open their list pages | Both create forms live on those pages (the broadcast's is a POST from the list). |
+| The desktop sidebar toggle is kept, before the crumb | An existing, persisted control (§10 says keep everything `console_shell()` provides). |
+| Send feedback moved into the account menu; the top bar's Docs and Feedback buttons are gone | The v2 bar carries only crumb, signal, bell and New. |

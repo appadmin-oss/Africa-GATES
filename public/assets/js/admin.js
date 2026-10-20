@@ -19,7 +19,7 @@
   // Read at the moment of use: csrf-fresh.js rewrites the meta tag when a page that has been
   // open a while is checked, and a copy taken at load would go on posting the dead token.
   function csrf() { return (document.querySelector('meta[name="csrf-token"]') || {}).content || ''; }
-  var phone = window.matchMedia ? window.matchMedia('(max-width: 768px)') : { matches: false };
+  var phone = window.matchMedia ? window.matchMedia('(max-width: 599px)') : { matches: false };
 
   // ── TOAST (§7): a black pill at the bottom centre, 5.2 s, optional Undo ────────
   var toastMs = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cn-toast-ms'), 10) || 5200;
@@ -79,8 +79,9 @@
   function setOverlay(open) {
     if (open) { body.setAttribute('data-side-open', ''); if (scrim) scrim.hidden = false; }
     else { body.removeAttribute('data-side-open'); if (scrim) scrim.hidden = true; }
-    var t = document.querySelector('[data-ag-do="side-toggle"]');
-    if (t) t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.querySelectorAll('[data-ag-do="side-toggle"]').forEach(function (t) {
+      t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
   }
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-ag-do="side-toggle"]');
@@ -101,15 +102,35 @@
       return;
     }
     if (e.target.closest('[data-ag-do="side-close"]')) { setOverlay(false); return; }
-    var more = e.target.closest('[data-ag-do="nav-more"]');
-    if (more) {
-      var g = more.closest('[data-fold]');
+    var fold = e.target.closest('[data-ag-do="nav-fold"]');
+    if (fold) {
+      var g = fold.closest('[data-group]');
       var open = !g.hasAttribute('data-open');
-      if (open) g.setAttribute('data-open', ''); else g.removeAttribute('data-open');
-      more.setAttribute('aria-expanded', open ? 'true' : 'false');
-      more.querySelector('.cn-nav__more-l').textContent = open ? more.getAttribute('data-less') : more.getAttribute('data-more');
+      setGroup(g, open);
+      var c = readCol(); c[g.getAttribute('data-group')] = !open; writeCol(c);
     }
   });
+
+  // ── THE RAIL'S GROUPS: smart, and then yours (README §10b) ───────────────────
+  //
+  // The server opens a group that holds this page or has work waiting. A person's own
+  // open/close overrides that, kept in `ac2.col` as {group: closed}, except for the
+  // group holding this page, which is always open: arriving anywhere shows where you are.
+  function readCol() { try { return JSON.parse(localStorage.getItem('ac2.col')) || {}; } catch (e) { return {}; } }
+  function writeCol(c) { try { localStorage.setItem('ac2.col', JSON.stringify(c)); } catch (e) {} }
+  function setGroup(g, open) {
+    if (open) g.setAttribute('data-open', ''); else g.removeAttribute('data-open');
+    var b = g.querySelector('[data-ag-do="nav-fold"]');
+    if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  (function () {
+    var c = readCol();
+    document.querySelectorAll('.cn-nav [data-group]').forEach(function (g) {
+      var k = g.getAttribute('data-group');
+      if (g.hasAttribute('data-here') || !(k in c)) return;
+      setGroup(g, !c[k]);
+    });
+  })();
 
   // ── THE ACCOUNT MENU ─────────────────────────────────────────────────────────
   var acctBtn = document.querySelector('[data-ag-do="acct-toggle"]');
@@ -266,6 +287,7 @@
   var shown = [], at = 0;
   if (!/Mac|iPhone|iPad/.test(navigator.platform || '')) {
     document.querySelectorAll('[data-cn-kbd]').forEach(function (k) { k.textContent = 'Ctrl K'; });
+    document.querySelectorAll('[data-cn-kbd-j]').forEach(function (k) { k.textContent = 'Ctrl J'; });
   }
   function rows() { return Array.prototype.slice.call(pal.querySelectorAll('.cn-pal__list > li')); }
   function mark() {
@@ -324,6 +346,12 @@
   }
 
   document.addEventListener('keydown', function (e) {
+    // ⌘J / Ctrl+J toggles the Ask pane (README §10b), from anywhere on the page.
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J') && drawer) {
+      e.preventDefault();
+      if (drawer.hidden) openAssist(); else closeAssist();
+      return;
+    }
     if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
       if (!pal) return;
       e.preventDefault();

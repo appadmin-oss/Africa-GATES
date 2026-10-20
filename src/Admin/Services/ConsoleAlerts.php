@@ -114,7 +114,7 @@ final class ConsoleAlerts
                     'href' => '/admin/alerts?tab=high', 'items' => $items, 'total' => count($open)];
         }
         $n = count($open);
-        return ['label' => $n > 0 ? $n . ' alert' . ($n === 1 ? '' : 's') : 'No alerts',
+        return ['label' => $n > 0 ? $n . ' alert' . ($n === 1 ? '' : 's') : 'All systems normal',
                 'tone' => $n > 0 ? 'some' : 'none', 'href' => '/admin/alerts', 'items' => $items, 'total' => $n];
     }
 

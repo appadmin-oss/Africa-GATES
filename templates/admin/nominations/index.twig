@@ -1,7 +1,7 @@
 {% extends "admin/layout.twig" %}
 {% import "admin/partials/ui.twig" as ui %}
 {% block topbar_eyebrow %}<small>Moderation</small>{% endblock %}
-{% block topbar_title %}Nominations{% endblock %}
+{% block topbar_title %}All nominations{% endblock %}
 {% block topbar_actions %}
   {% if counts.pending > 0 %}<a class="ad-btn ad-btn--primary" href="/admin/nominations/review" title="Work through pending nominations one by one, oldest first, with keyboard shortcuts">▶ Review desk <span style="opacity:.85">({{ counts.pending }})</span></a>{% endif %}
 {% endblock %}

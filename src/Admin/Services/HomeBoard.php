@@ -272,6 +272,10 @@ final class HomeBoard
                 ? $safe(static function () { $t = self::triage(); return $t['refund_owed'] + $t['recoverable']; }) : null,
             'alerts'      => Permissions::canOpen($role, '/admin/alerts') ? count(ConsoleAlerts::open()) : null,
             'alerts_high' => Permissions::canOpen($role, '/admin/alerts') ? count(ConsoleAlerts::high()) : null,
+            // The moderation page's own two queues: held comments and held threads.
+            'moderation'  => Permissions::canOpen($role, '/admin/moderation')
+                ? $safe(static fn () => DB::table('gates_comments')->where('status', \AfricaGates\Services\CommunityService::HELD)->count()
+                    + DB::table('gates_threads')->where('status', \AfricaGates\Services\CommunityService::HELD)->count()) : null,
         ];
         self::$counts = $c + ['_role' => $role];
         return $c;

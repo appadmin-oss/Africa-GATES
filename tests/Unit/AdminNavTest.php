@@ -134,15 +134,16 @@ final class AdminNavTest extends TestCase
         $got = [];
         foreach (AdminNav::groups() as $g) $got[$g['label']] = array_column($g['items'], 'label');
 
+        // AdminConsole v2's rail (README §10b), in its order and words. Its Workspace group
+        // (Inbox, Calendar) and Check-in and Contacts are pages not built yet; each joins
+        // this list the day it is routed.
         $this->assertSame([
-            'Daily work' => ['Review queue', 'Payment issues', 'Alerts', 'Support tickets'],
-            // Hosts (not built, owner) and Editions (stage 2) are recorded as deviations.
-            'Programmes' => ['Awards', 'Events & stands', 'Challenges'],
-            'Entries'    => ['Nominations', 'Nominees', 'Profiles', 'Interviews'],
-            'Money'      => ['Revenue', 'Payouts', 'Ledger', 'Refunds & disputes', 'Vote delivery', 'Vendor rules'],
-            'Publishing' => ['Blog', 'Media', 'Awards page', 'Opportunities', 'Forms', 'Shop', 'Legal', 'Legacy vault'],
-            'Monitoring' => ['Integrations', 'Email health', 'Audit log', 'Integrity', 'Analytics', 'All data'],
-            'Settings'   => ['People & roles', 'Judges & rubric', 'Site & keys', 'Webhooks', 'AI & interview bot', 'Test data'],
+            'Awards'       => ['Programmes', 'Nominations', 'Shortlists', 'Judges', 'Result release'],
+            'Engage'       => ['Events', 'Challenges', 'Giving', 'Forms'],
+            'Audience'     => ['Broadcasts'],
+            'Money'        => ['Payments', 'Refunds', 'Payouts', 'Finance', 'Shop orders'],
+            'Content'      => ['Posts', 'Media', 'Moderation'],
+            'Organisation' => ['Team', 'Alerts', 'Handbook', 'Audit log', 'Integrations', 'Settings'],
         ], $got);
         $this->assertSame('Home', AdminNav::home()['label']);
     }
@@ -180,7 +181,7 @@ final class AdminNavTest extends TestCase
     public function test_every_icon_the_nav_names_is_in_the_sprite(): void
     {
         $sprite = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/partials/nav-icons.twig');
-        $icons = ['home', 'sidebar', 'search', 'assistant', 'shortlists'];   // the shell's own
+        $icons = ['home', 'sidebar', 'search', 'assistant', 'list', 'spark', 'more', 'plus', 'bell'];   // the shell's own
         foreach (AdminNav::railItems() as $i) $icons[] = $i['icon'];
         foreach (AdminNav::elsewhere() as $e) $icons[] = $e['icon'];
         foreach (HomeBoard::shortcuts('superadmin') as $t) $icons[] = $t['icon'];
@@ -253,17 +254,19 @@ final class AdminNavTest extends TestCase
     {
         $labels = static function (string $role): array {
             $out = [];
-            foreach (AdminNav::forRole($role)['groups'] as $g) foreach ($g['items'] as $i) $out[] = $i['label'];
+            foreach (AdminNav::forRole($role)['groups'] as $g) foreach ($g['items'] as $i) {
+                $out[] = $i['label'];
+                foreach ($i['children'] as $c) $out[] = $c['label'];
+            }
             return $out;
         };
-        $this->assertContains('Site & keys', $labels('superadmin'));
-        $this->assertNotContains('Site & keys', $labels('admin'), 'an admin was offered configuration');
-        $this->assertNotContains('Revenue', $labels('moderator'), 'a moderator was offered money');
+        $this->assertContains('Settings', $labels('superadmin'));
+        $this->assertNotContains('Settings', $labels('admin'), 'an admin was offered configuration');
+        $this->assertNotContains('Finance', $labels('moderator'), 'a moderator was offered money');
         $this->assertNotContains('Integrations', $labels('editor'), 'an editor was offered health');
         $this->assertContains('Integrations', $labels('viewer'), 'the viewer lost the owner-approved health pages');
         $this->assertContains('Email health', $labels('admin'));
-        // A viewer sees no Settings group and (Hosts not being built) no Hosts.
-        $this->assertNotContains('Settings', array_column(AdminNav::forRole('viewer')['groups'], 'label'));
+        $this->assertNotContains('Settings', $labels('viewer'));
     }
 
     // ══ where a request is ═══════════════════════════════════════════════════
@@ -271,14 +274,16 @@ final class AdminNavTest extends TestCase
     public function test_a_request_finds_its_page_by_path_before_its_key(): void
     {
         $this->assertSame('review', AdminNav::current('/admin/nominations/review')['item']['page']);
-        $this->assertSame('nominations', AdminNav::current('/admin/nominations/42')['item']['page']);
+        $n = AdminNav::current('/admin/nominations/42');
+        $this->assertSame('review', $n['item']['page']);
+        $this->assertSame('nominations', $n['page']['page']);
         // The integrations check passes `admin_page: settings`; the path wins.
         $this->assertSame('providers', AdminNav::current('/admin/settings/providers', 'settings')['item']['page']);
-        $this->assertSame('mail-health', AdminNav::current('/admin/settings/mail/x')['item']['page']);
+        $this->assertSame('mail-health', AdminNav::current('/admin/settings/mail/x')['page']['page']);
         // A child lights its parent in the rail and itself in the strip.
-        $c = AdminNav::current('/admin/shortlists');
-        $this->assertSame('programmes', $c['item']['page']);
-        $this->assertSame('shortlists', $c['page']['page']);
+        $c = AdminNav::current('/admin/rubric');
+        $this->assertSame('judges', $c['item']['page']);
+        $this->assertSame('rubric', $c['page']['page']);
         $this->assertSame('dashboard', AdminNav::current('/admin')['item']['page']);
         $this->assertNull(AdminNav::current('/admin/nowhere')['item']);
     }

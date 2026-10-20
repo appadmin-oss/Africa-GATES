@@ -60,8 +60,8 @@
   --cn-r-pill: 999px;
 
   /* §2: the shell's own measures. */
-  --cn-side-w: 248px;
-  --cn-bar-h: 56px;
+  --cn-side-w: 232px;
+  --cn-bar-h: 52px;
   --cn-max: 1240px;
 
   /* §10 motion: agIn over .14s (menus), .16s (toasts, modals), .18s (drawers); toggles

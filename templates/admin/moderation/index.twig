@@ -1,5 +1,5 @@
 {% extends "admin/layout.twig" %}
-{% block topbar_title %}Moderation Queue{% endblock %}
+{% block topbar_title %}Moderation{% endblock %}
 {# ── WHY EVERY "REMOVE" HERE ASKS FIRST ───────────────────────────────────────
    The removes are SOFT — status becomes `rejected`, the row survives, and the
    controller says so. That is not the same as reversible: this queue lists

@@ -105,7 +105,15 @@ final class HandbookTest extends TestCase
         // what the guard denied. Whether to map it to `overview` (every role, as CLAUDE.md
         // intends) is an ACCESS change the owner has to make: PHASE-ADMIN.md, open
         // question 1. Until then the shell offers it exactly where it opens.
-        $this->assertContains('handbook', array_column(AdminNav::elsewhere(), 'page'));
+        // AdminConsole v2 (20 Oct 2026) puts it in the rail's Organisation group, which is
+        // still gated per page: a role the guard refuses is not shown it there either.
+        $org = array_values(array_filter(AdminNav::groups(), static fn (array $g): bool => $g['key'] === 'organisation'))[0];
+        $this->assertContains('handbook', array_column($org['items'], 'page'));
+        foreach (array_keys(Permissions::ROLES) as $role) {
+            $offered = [];
+            foreach (AdminNav::forRole($role)['groups'] as $g) foreach ($g['items'] as $i) $offered[] = $i['page'];
+            $this->assertSame(Permissions::canOpen($role, '/admin/handbook'), in_array('handbook', $offered, true), $role);
+        }
         $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/layout.twig');
         $this->assertStringContainsString('{% if shell.handbook %}', $layout);
         $this->assertStringContainsString('href="/admin/handbook"', $layout);

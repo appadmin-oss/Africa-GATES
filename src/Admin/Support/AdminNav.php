@@ -14,8 +14,8 @@ namespace AfricaGates\Admin\Support;
  * The rail used to be seven sections, one per permission gate, and that file argued
  * seven was a floor: "a section can carry only one gate, so fewer sections would move a
  * page to a different gate". The handoff's rule 7 removes the premise — **access is per
- * page, not per sidebar group** — so the groups are now named for the job ("Daily work",
- * "Money", "Monitoring") and each PAGE carries its own gate.
+ * page, not per sidebar group** — so the groups are named for the job ("Awards", "Engage",
+ * "Money") and each PAGE carries its own gate.
  *
  * And that gate is not typed here. The old tree typed one per section while the guard
  * ({@see \AfricaGates\Admin\Middleware\SectionGuardMiddleware}) read the PATH, and the
@@ -36,16 +36,16 @@ namespace AfricaGates\Admin\Support;
  * THE TAIL IS LINKED FROM ITS PARENT, NOT ADDED TO THE RAIL
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * The handoff's rail names 37 pages; the console has more. Each of the rest is a CHILD of
- * the page it belongs under — Shortlists under Awards, Disputes under Refunds & disputes,
- * the judging rubric under Judges & rubric — and is drawn as the "also here" strip under
- * that page's header, and in the palette. That is CLAUDE.md's "a sub-page is linked from
- * the page it belongs under": the rail stays scannable and every page stays findable
- * (`AdminIaTest`).
+ * The rail names the pages AdminConsole v2 (README §10b) puts in it; the console has more.
+ * Each of the rest is a CHILD of the page it belongs under — the rubric under Judges,
+ * Disputes under Refunds, Email health under Integrations — and is drawn as the "also
+ * here" strip under that page's header, and in the palette. That is CLAUDE.md's "a
+ * sub-page is linked from the page it belongs under": the rail stays scannable and every
+ * page stays findable (`AdminIaTest`).
  *
- * Labels and order are §2.2's, exactly. Purpose lines are the HTML's `static SUBS`,
- * verbatim except where a sentence describes host organisations, which are not built
- * (owner, 4 Oct 2026) — those are listed in docs/handoff/PHASE-ADMIN.md as deviations.
+ * Groups and labels are v2's. Where v2 names a page that does not exist yet (Inbox,
+ * Calendar, Check-in, Contacts) the rail leaves it out until it is routed; the list of
+ * deviations is in docs/handoff/PHASE-ADMIN.md.
  */
 final class AdminNav
 {
@@ -56,152 +56,140 @@ final class AdminNav
     ];
 
     /**
-     * README §2.2, in order. `sub` is the page's purpose line; `tip` is the group's,
-     * used where a page has none of its own (the HTML does the same).
+     * AdminConsole v2's rail (README §10b, 20 Oct 2026), grouped by job, in order. `sub` is
+     * the page's purpose line; `tip` is the group's, used where a page has none of its own.
+     * Every page the rail does not name is a CHILD of the page it belongs under.
      *
      * @var list<array{key:string, label:string, tip:string, items:list<array<string,mixed>>}>
      */
     private const GROUPS = [
-        ['key' => 'daily', 'label' => 'Daily work', 'tip' => 'Every job waiting on a person.', 'items' => [
-            // The handoff routes this to /admin/moderation. In this codebase that path is the
-            // COMMUNITY moderation queue; the nomination review the handoff draws (nominee,
-            // nominator, approve/reject) is the review desk. The codebase wins on routing
-            // (README §0) — recorded as a question for the owner.
-            ['page' => 'review', 'label' => 'Review queue', 'href' => '/admin/nominations/review', 'icon' => 'moderation',
+        ['key' => 'awards', 'label' => 'Awards', 'tip' => 'Each edition from nominations to sealed results.', 'items' => [
+            ['page' => 'programmes', 'label' => 'Programmes', 'href' => '/admin/programmes', 'icon' => 'trophy',
+             'sub' => 'Every award on the platform, and each edition\'s dates and rules.',
+             'children' => [
+                 ['page' => 'awards_page', 'label' => 'Awards page', 'href' => '/admin/awards-page'],
+             ]],
+            // The handoff's "Nominations" is the review screen; the full record stays a child.
+            ['page' => 'review', 'label' => 'Nominations', 'href' => '/admin/nominations/review', 'icon' => 'noms',
              'sub' => 'Nominations wait here until a person approves them. Target: under 4 hours.',
              'children' => [
-                 ['page' => 'moderation', 'label' => 'Moderation queue', 'href' => '/admin/moderation'],
+                 ['page' => 'nominations',    'label' => 'All nominations', 'href' => '/admin/nominations'],
+                 ['page' => 'nominees',       'label' => 'Nominees',        'href' => '/admin/nominees'],
+                 ['page' => 'profiles',       'label' => 'Profiles',        'href' => '/admin/profiles'],
+                 ['page' => 'interviews',     'label' => 'Interviews',      'href' => '/admin/interviews'],
+                 ['page' => 'questionnaires', 'label' => 'Questionnaires',  'href' => '/admin/questionnaires'],
+                 ['page' => 'invitations',    'label' => 'Invitations',     'href' => '/admin/questionnaires/invitations'],
              ]],
-            ['page' => 'payments', 'label' => 'Payment issues', 'href' => '/admin/payments', 'icon' => 'payments',
-             'sub' => 'Our records against the gateway\'s. Fix the ones that disagree before someone pays twice.'],
-            ['page' => 'alerts', 'label' => 'Alerts', 'href' => '/admin/alerts', 'icon' => 'bell',
-             'sub' => 'Everything the platform noticed on its own, most severe first. Each one says what to do next.'],
-            ['page' => 'support', 'label' => 'Support tickets', 'href' => '/admin/support', 'icon' => 'support',
-             'sub' => 'Questions from voters, nominees and vendors. Oldest open first.'],
-        ]],
-        ['key' => 'programmes', 'label' => 'Programmes', 'tip' => 'Each edition from nominations to sealed results.', 'items' => [
-            ['page' => 'programmes', 'label' => 'Awards', 'href' => '/admin/programmes', 'icon' => 'shortlists',
-             'sub' => 'Every award on the platform.',
+            ['page' => 'shortlists', 'label' => 'Shortlists', 'href' => '/admin/shortlists', 'icon' => 'list',
+             'sub' => 'Who goes through to judging in each category.'],
+            ['page' => 'judges', 'label' => 'Judges', 'href' => '/admin/judges', 'icon' => 'users',
+             'sub' => 'Judging panels and who still owes a scorecard.',
              'children' => [
-                 ['page' => 'shortlists',     'label' => 'Shortlists',     'href' => '/admin/shortlists'],
-                 ['page' => 'result-release', 'label' => 'Result release', 'href' => '/admin/result-release'],
+                 ['page' => 'rubric',        'label' => 'Judging rubric', 'href' => '/admin/rubric'],
+                 ['page' => 'judging-audit', 'label' => 'Judging audit',  'href' => '/admin/judging-audit'],
              ]],
-            ['page' => 'events', 'label' => 'Events & stands', 'href' => '/admin/events', 'icon' => 'stand_presets',
+            ['page' => 'result-release', 'label' => 'Result release', 'href' => '/admin/result-release', 'icon' => 'flag',
+             'sub' => 'What each edition will publish, and the release itself.'],
+        ]],
+        ['key' => 'engage', 'label' => 'Engage', 'tip' => 'Events, challenges, giving and forms.', 'items' => [
+            ['page' => 'events', 'label' => 'Events', 'href' => '/admin/events', 'icon' => 'ticket',
              'sub' => 'Every event on the platform, with tickets and stands.',
              'children' => [
                  ['page' => 'stand_presets', 'label' => 'Stand presets',       'href' => '/admin/stand-presets'],
                  ['page' => 'registrations', 'label' => 'Event registrations', 'href' => '/admin/registrations'],
              ]],
-            ['page' => 'challenges', 'label' => 'Challenges', 'href' => '/admin/challenges', 'icon' => 'challenges',
+            ['page' => 'challenges', 'label' => 'Challenges', 'href' => '/admin/challenges', 'icon' => 'bolt',
              'sub' => 'Paid challenges and where each one stands.'],
-        ]],
-        ['key' => 'entries', 'label' => 'Entries', 'tip' => 'Nominations, nominees and profiles waiting on a person.', 'items' => [
-            ['page' => 'nominations', 'label' => 'Nominations', 'href' => '/admin/nominations', 'icon' => 'nominations',
-             'sub' => 'Every nomination, with the decision and who made it.'],
-            ['page' => 'nominees', 'label' => 'Nominees', 'href' => '/admin/nominees', 'icon' => 'nominees',
-             'sub' => 'Everyone on a ballot, and whether they have claimed their profile.',
+            ['page' => 'partner-orgs', 'label' => 'Giving', 'href' => '/admin/partner-orgs', 'icon' => 'mail',
+             'sub' => 'Organisations raising money on Africa GATES, and their donation pages.',
              'children' => [
-                 ['page' => 'campaigns', 'label' => 'Campaigns', 'href' => '/admin/campaigns'],
-             ]],
-            ['page' => 'profiles', 'label' => 'Profiles', 'href' => '/admin/profiles', 'icon' => 'profiles',
-             'sub' => 'People and organisations with an Africa GATES profile.'],
-            ['page' => 'interviews', 'label' => 'Interviews', 'href' => '/admin/interviews', 'icon' => 'interviews',
-             'sub' => 'Nominee interviews, from booking to a published transcript.',
-             'children' => [
-                 ['page' => 'questionnaires', 'label' => 'Questionnaires', 'href' => '/admin/questionnaires'],
-                 ['page' => 'invitations',    'label' => 'Invitations',    'href' => '/admin/questionnaires/invitations'],
-             ]],
-        ]],
-        ['key' => 'money', 'label' => 'Money', 'tip' => 'Every naira taken and owed.', 'items' => [
-            ['page' => 'finance', 'label' => 'Revenue', 'href' => '/admin/finance', 'icon' => 'finance',
-             'sub' => 'What has been taken and what the platform kept.'],
-            ['page' => 'payouts', 'label' => 'Payouts', 'href' => '/admin/payouts', 'icon' => 'payouts',
-             'sub' => 'Money going out to partners and referrers.',
-             'children' => [
-                 ['page' => 'partner-orgs', 'label' => 'Partner organisations', 'href' => '/admin/partner-orgs'],
                  ['page' => 'community-return', 'label' => 'Community return', 'href' => '/admin/community-return'],
              ]],
-            ['page' => 'payments-ledger', 'label' => 'Ledger', 'href' => '/admin/payments/ledger', 'icon' => 'payments-ledger',
-             'sub' => 'Every payment exactly as the gateway reported it.'],
-            ['page' => 'refunds', 'label' => 'Refunds & disputes', 'href' => '/admin/refunds', 'icon' => 'refunds',
-             'sub' => 'Refund requests and card chargebacks.',
-             'children' => [
-                 ['page' => 'payments-disputes', 'label' => 'Disputes', 'href' => '/admin/payments/disputes'],
-             ]],
-            ['page' => 'vote-delivery', 'label' => 'Vote delivery', 'href' => '/admin/vote-delivery', 'icon' => 'vote-delivery',
-             'sub' => 'Paid votes that have not reached their nominee yet.',
-             'children' => [
-                 ['page' => 'vote-recovery', 'label' => 'Vote recovery', 'href' => '/admin/vote-recovery'],
-             ]],
-            ['page' => 'vendor-policy', 'label' => 'Vendor rules', 'href' => '/admin/vendor-policy', 'icon' => 'vendor-policy'],
-        ]],
-        ['key' => 'publishing', 'label' => 'Publishing', 'tip' => 'Everything the public sees.', 'items' => [
-            ['page' => 'posts', 'label' => 'Blog', 'href' => '/admin/posts', 'icon' => 'posts', 'sub' => 'The blog.'],
-            ['page' => 'media', 'label' => 'Media', 'href' => '/admin/media', 'icon' => 'media'],
-            ['page' => 'awards_page', 'label' => 'Awards page', 'href' => '/admin/awards-page', 'icon' => 'awards_page'],
-            ['page' => 'opportunities', 'label' => 'Opportunities', 'href' => '/admin/opportunities', 'icon' => 'opportunities',
-             'sub' => 'Fellowships, grants and calls listed on the site.'],
-            ['page' => 'forms', 'label' => 'Forms', 'href' => '/admin/forms', 'icon' => 'forms',
+            ['page' => 'forms', 'label' => 'Forms', 'href' => '/admin/forms', 'icon' => 'form',
              'sub' => 'Submissions from the site’s forms.',
              'children' => [
                  ['page' => 'partners', 'label' => 'Partner enquiries', 'href' => '/admin/partners'],
              ]],
-            ['page' => 'products', 'label' => 'Shop', 'href' => '/admin/products', 'icon' => 'products',
-             'children' => [
-                 ['page' => 'shop_orders', 'label' => 'Shop orders', 'href' => '/admin/shop/orders'],
-             ]],
-            ['page' => 'legal', 'label' => 'Legal', 'href' => '/admin/legal', 'icon' => 'legal',
-             'sub' => 'Terms and policies. Each version is kept, and acceptances are counted.'],
-            ['page' => 'legacy', 'label' => 'Legacy vault', 'href' => '/admin/legacy', 'icon' => 'legacy'],
         ]],
-        ['key' => 'monitoring', 'label' => 'Monitoring', 'tip' => 'Is everything the platform depends on working?', 'items' => [
-            ['page' => 'providers', 'label' => 'Integrations', 'href' => '/admin/settings/providers', 'icon' => 'webhooks',
-             'sub' => 'Each check asks the provider a real question and prints their answer. Every check is a read, so running them sends nothing and is safe during an event.'],
-            ['page' => 'mail-health', 'label' => 'Email health', 'href' => '/admin/settings/mail', 'icon' => 'campaigns',
-             'sub' => 'Is email sending, since when, why not, and what to change.'],
-            ['page' => 'audit', 'label' => 'Audit log', 'href' => '/admin/audit', 'icon' => 'audit',
-             'sub' => 'Every change made in this console, with who, when and why. Entries can\'t be edited.'],
-            ['page' => 'integrity', 'label' => 'Integrity', 'href' => '/admin/integrity', 'icon' => 'integrity',
-             'sub' => 'Votes and scores the checks have questioned, and what was decided.',
-             'children' => [
-                 ['page' => 'judging-audit', 'label' => 'Judging audit', 'href' => '/admin/judging-audit'],
-             ]],
-            ['page' => 'analytics', 'label' => 'Analytics', 'href' => '/admin/analytics', 'icon' => 'analytics',
-             'sub' => 'How people move from arriving to a counted vote.'],
-            ['page' => 'data', 'label' => 'All data', 'href' => '/admin/data', 'icon' => 'data',
-             'sub' => 'Every dataset the platform keeps. Exports are logged.'],
+        ['key' => 'audience', 'label' => 'Audience', 'tip' => 'Who we reach, and what we send them.', 'items' => [
+            ['page' => 'campaigns', 'label' => 'Broadcasts', 'href' => '/admin/campaigns', 'icon' => 'mega',
+             'sub' => 'Campaigns sent to nominees and the newsletter, to opted-in people only.'],
         ]],
-        ['key' => 'settings', 'label' => 'Settings', 'tip' => 'People, roles and keys. Superadmin only.', 'items' => [
-            ['page' => 'admins', 'label' => 'People & roles', 'href' => '/admin/admins', 'icon' => 'admins',
+        ['key' => 'money', 'label' => 'Money', 'tip' => 'Every naira taken and owed.', 'items' => [
+            ['page' => 'payments', 'label' => 'Payments', 'href' => '/admin/payments', 'icon' => 'card',
+             'sub' => 'Our records against the gateway\'s. Fix the ones that disagree before someone pays twice.',
+             'children' => [
+                 ['page' => 'payments-ledger', 'label' => 'Ledger',        'href' => '/admin/payments/ledger'],
+                 ['page' => 'vote-delivery',   'label' => 'Vote delivery', 'href' => '/admin/vote-delivery'],
+                 ['page' => 'vote-recovery',   'label' => 'Vote recovery', 'href' => '/admin/vote-recovery'],
+             ]],
+            ['page' => 'refunds', 'label' => 'Refunds', 'href' => '/admin/refunds', 'icon' => 'undo',
+             'sub' => 'Refund requests and card chargebacks.',
+             'children' => [
+                 ['page' => 'payments-disputes', 'label' => 'Disputes', 'href' => '/admin/payments/disputes'],
+             ]],
+            ['page' => 'payouts', 'label' => 'Payouts', 'href' => '/admin/payouts', 'icon' => 'send',
+             'sub' => 'Money going out to partners and referrers.'],
+            ['page' => 'finance', 'label' => 'Finance', 'href' => '/admin/finance', 'icon' => 'chart',
+             'sub' => 'What has been taken and what the platform kept.',
+             'children' => [
+                 ['page' => 'vendor-policy', 'label' => 'Vendor rules', 'href' => '/admin/vendor-policy'],
+             ]],
+            ['page' => 'shop_orders', 'label' => 'Shop orders', 'href' => '/admin/shop/orders', 'icon' => 'bag',
+             'sub' => 'Orders from the shop, and what is still to send.',
+             'children' => [
+                 ['page' => 'products', 'label' => 'Products', 'href' => '/admin/products'],
+             ]],
+        ]],
+        ['key' => 'content', 'label' => 'Content', 'tip' => 'Everything the public reads.', 'items' => [
+            ['page' => 'posts', 'label' => 'Posts', 'href' => '/admin/posts', 'icon' => 'doc', 'sub' => 'The blog.',
+             'children' => [
+                 ['page' => 'opportunities', 'label' => 'Opportunities', 'href' => '/admin/opportunities'],
+                 ['page' => 'legacy',        'label' => 'Legacy vault',  'href' => '/admin/legacy'],
+             ]],
+            ['page' => 'media', 'label' => 'Media', 'href' => '/admin/media', 'icon' => 'image'],
+            ['page' => 'moderation', 'label' => 'Moderation', 'href' => '/admin/moderation', 'icon' => 'shield',
+             'sub' => 'Comments, messages and quotes waiting on a person.',
+             'children' => [
+                 ['page' => 'support', 'label' => 'Support tickets', 'href' => '/admin/support'],
+             ]],
+        ]],
+        ['key' => 'organisation', 'label' => 'Organisation', 'tip' => 'People, roles, health and keys.', 'items' => [
+            ['page' => 'admins', 'label' => 'Team', 'href' => '/admin/admins', 'icon' => 'team',
              'sub' => 'Who can sign in to this console and what each role reaches.'],
-            ['page' => 'judges', 'label' => 'Judges & rubric', 'href' => '/admin/judges', 'icon' => 'judges',
-             'sub' => 'Judging panels and who still owes a scorecard.',
+            ['page' => 'alerts', 'label' => 'Alerts', 'href' => '/admin/alerts', 'icon' => 'bell',
+             'sub' => 'Everything the platform noticed on its own, most severe first. Each one says what to do next.'],
+            ['page' => 'handbook', 'label' => 'Handbook', 'href' => '/admin/handbook', 'icon' => 'hb',
+             'sub' => 'How this console is organised, who can open what, and the rules it runs on.'],
+            ['page' => 'audit', 'label' => 'Audit log', 'href' => '/admin/audit', 'icon' => 'clock',
+             'sub' => 'Every change made in this console, with who, when and why. Entries can\'t be edited.',
              'children' => [
-                 ['page' => 'rubric', 'label' => 'Judging rubric', 'href' => '/admin/rubric'],
+                 ['page' => 'integrity', 'label' => 'Integrity', 'href' => '/admin/integrity'],
+                 ['page' => 'analytics', 'label' => 'Analytics', 'href' => '/admin/analytics'],
+                 ['page' => 'data',      'label' => 'All data',  'href' => '/admin/data'],
              ]],
-            ['page' => 'settings', 'label' => 'Site & keys', 'href' => '/admin/settings', 'icon' => 'settings'],
-            ['page' => 'webhooks', 'label' => 'Webhooks', 'href' => '/admin/webhooks', 'icon' => 'webhooks',
-             'sub' => 'Where the platform sends events, and whether they arrive.'],
-            ['page' => 'ai', 'label' => 'AI & interview bot', 'href' => '/admin/ai-prompts', 'icon' => 'ai',
+            ['page' => 'providers', 'label' => 'Integrations', 'href' => '/admin/settings/providers', 'icon' => 'plug',
+             'sub' => 'Each check asks the provider a real question and prints their answer. Every check is a read, so running them sends nothing and is safe during an event.',
              'children' => [
+                 ['page' => 'mail-health', 'label' => 'Email health', 'href' => '/admin/settings/mail'],
+                 ['page' => 'webhooks',    'label' => 'Webhooks',     'href' => '/admin/webhooks'],
+             ]],
+            ['page' => 'settings', 'label' => 'Settings', 'href' => '/admin/settings', 'icon' => 'gear',
+             'children' => [
+                 ['page' => 'legal',    'label' => 'Legal',         'href' => '/admin/legal'],
+                 ['page' => 'ai',       'label' => 'AI prompts',    'href' => '/admin/ai-prompts'],
                  ['page' => 'attendee', 'label' => 'Interview bot', 'href' => '/admin/attendee'],
+                 ['page' => 'sandbox',  'label' => 'Test data',     'href' => '/admin/sandbox'],
              ]],
-            ['page' => 'sandbox', 'label' => 'Test data', 'href' => '/admin/sandbox', 'icon' => 'sandbox'],
         ]],
     ];
 
     /**
-     * Pages the shell reaches OUTSIDE the rail: the handbook from the account menu, the
-     * assistant's full page from its drawer. Gated like everything else.
+     * Pages the shell reaches OUTSIDE the rail: the assistant's full page, from its pane. Gated like everything else.
      */
     private const ELSEWHERE = [
-        ['page' => 'handbook',  'label' => 'Handbook',     'href' => '/admin/handbook',  'icon' => 'handbook'],
         ['page' => 'assistant', 'label' => 'AI assistant', 'href' => '/admin/assistant', 'icon' => 'assistant'],
     ];
-
-    /** A group with more than this many pages shows four and folds the rest (§2.1). */
-    public const FOLD_OVER = 5;
-    public const FOLD_SHOW = 4;
 
     /** The guard's own gate for a path; null means unmapped, i.e. superadmin-only. */
     public static function gateOf(string $href): ?string
