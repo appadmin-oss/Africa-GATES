@@ -70,6 +70,11 @@ final class AdminNavTest extends TestCase
         '/admin/ai-prompts' => null, '/admin/attendee' => 'configuration', '/admin/sandbox' => 'configuration',
         '/admin/judges' => 'configuration', '/admin/rubric' => 'configuration',
         '/admin/settings/providers' => 'configuration', '/admin/settings/mail' => 'configuration',
+        // Routed and gated before, and only NAMED in the tree on 20 Oct 2026 (NavCoverageTest),
+        // so these are the guard's gates as they already stood — naming a page grants nothing.
+        '/admin/judges/schedule' => 'configuration', '/admin/recognitions' => null,
+        '/admin/campaigns/newsletter' => null, '/admin/campaigns/greetings' => null,
+        '/admin/shop/codes' => 'content', '/admin/shop/shipping' => 'content', '/admin/assistant/scripts' => 'overview',
     ];
 
     /** The owner-approved widening (GAPS §8d), and the one new page. */

@@ -119,8 +119,12 @@
           </button>
           <ul id="cnGroupList{{ loop.index }}" aria-labelledby="cnGroup{{ loop.index }}">
             {% for i in g.items %}
-              <li>
-                <a class="cn-nav__i" href="{{ i.href }}" title="{{ i.label }}"{% if shell.current == i.page %} aria-current="page"{% endif %}>
+              {# A page's sub-pages open under it: always for the page you are on, otherwise
+                 on the toggle. Every console page is reachable from the rail this way, not
+                 only from its parent's "also here" strip or ⌘K. #}
+              {% set kids_open = shell.current == i.page %}
+              <li class="cn-nav__it"{% if i.children %} data-kids="{{ i.page }}"{% if kids_open %} data-kids-open data-here{% endif %}{% endif %}>
+                <a class="cn-nav__i" href="{{ i.href }}" title="{{ i.label }}"{% if shell.current == i.page and (shell.current_page == i.page or not i.children) %} aria-current="page"{% endif %}>
                   <svg aria-hidden="true" focusable="false"><use href="#ic-{{ i.icon }}"/></svg>
                   <span class="cn-nav__l">{{ i.label }}</span>
                   {% if i.n %}
@@ -128,6 +132,17 @@
                     <span class="cn-nav__dot{% if i.urgent %} cn-nav__dot--urgent{% endif %}" aria-hidden="true"></span>
                   {% endif %}
                 </a>
+                {% if i.children %}
+                  <button type="button" class="cn-nav__kids-t" data-ag-do="nav-kids" aria-expanded="{{ kids_open ? 'true' : 'false' }}"
+                          aria-controls="cnKids-{{ i.page }}" aria-label="Pages under {{ i.label }}" title="Pages under {{ i.label }}">
+                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
+                  <ul class="cn-nav__kids" id="cnKids-{{ i.page }}" aria-label="Pages under {{ i.label }}">
+                    {% for c in i.children %}
+                      <li><a class="cn-nav__kid" href="{{ c.href }}"{% if shell.current_page == c.page %} aria-current="page"{% endif %}>{{ c.label }}</a></li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
               </li>
             {% endfor %}
           </ul>

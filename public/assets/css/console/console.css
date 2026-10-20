@@ -124,7 +124,7 @@ body[data-side="closed"] .cn-side { display: none; }
 .cn-nav__num--urgent { color: var(--cn-red); }
 .cn-js .cn-nav__group:not([data-open]) .cn-nav__chev { transform: rotate(-90deg); }
 .cn-js .cn-nav__group:not([data-open]) .cn-nav__num { display: inline; }
-.cn-js .cn-nav__group:not([data-open]) ul { display: none; }
+.cn-js .cn-nav__group:not([data-open]) > ul { display: none; }
 
 .cn-nav__i {
   position: relative; display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 10px;
@@ -145,6 +145,28 @@ body[data-side="closed"] .cn-side { display: none; }
 /* The icon rail's corner dot — drawn only where the label and count are not. */
 .cn-nav__dot { display: none; position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--cn-green); box-shadow: 0 0 0 2px var(--cn-ground); }
 .cn-nav__dot--urgent { background: var(--cn-red); }
+
+/* A page's sub-pages, opened under it. The toggle sits at the row's end; a row that has
+   one keeps its count clear of it. Without script only the current page's sub-pages
+   show — the rest are on each page's "also here" strip and in ⌘K. */
+.cn-nav__it { position: relative; }
+.cn-nav__it[data-kids] > .cn-nav__i { padding-inline-end: 34px; }
+.cn-nav__kids-t {
+  position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; display: grid; place-items: center;
+  padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--cn-faint); cursor: pointer;
+}
+.cn-nav__kids-t:hover { background: var(--cn-hover); color: var(--cn-ink); }
+.cn-nav__kids-t svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transform: rotate(-90deg); transition: transform var(--cn-dur-toggle) ease-out; }
+.cn-nav__it[data-kids-open] > .cn-nav__kids-t svg { transform: none; }
+.cn-nav .cn-nav__kids { display: none; margin: 1px 0 4px; padding: 0 0 0 26px; }
+.cn-nav .cn-nav__it[data-kids-open] > .cn-nav__kids { display: flex; }
+.cn-nav__kid {
+  display: flex; align-items: center; min-height: 28px; padding: 0 10px; border-radius: 7px;
+  color: var(--cn-soft) !important; font-size: var(--cn-fs-13); text-decoration: none;
+  border-inline-start: 1px solid var(--cn-line); border-radius: 0 7px 7px 0;
+}
+.cn-nav__kid:hover { background: var(--cn-hover); color: var(--cn-ink) !important; }
+.cn-nav__kid[aria-current="page"] { color: var(--cn-ink) !important; font-weight: 600; border-inline-start-color: var(--cn-green); background: var(--cn-surface); }
 
 .cn-pin { display: flex; align-items: center; border-radius: 8px; }
 .cn-pin:hover { background: var(--cn-hover); }
@@ -301,14 +323,19 @@ body[data-side="closed"] .cn-side { display: none; }
   background: var(--cn-ground); font-size: var(--cn-fs-12-5); font-weight: 600; color: var(--cn-ink-3);
 }
 
-.cn-related { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -14px; }
-.cn-related__i {
-  padding: 6px 12px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-pill);
-  background: var(--cn-surface); color: var(--cn-ink-2) !important; font-size: var(--cn-fs-12-5);
-  font-weight: 600; text-decoration: none;
+.cn-related {
+  align-self: flex-start; max-width: 100%; display: flex; gap: 2px; margin-top: -12px; padding: 2px;
+  border-radius: 9px; background: var(--cn-ground); overflow-x: auto; scrollbar-width: none;
 }
-.cn-related__i:hover { border-color: var(--cn-ink); }
-.cn-related__i[aria-current="page"] { background: var(--cn-ink); border-color: var(--cn-ink); color: var(--cn-surface) !important; }
+.cn-related__i {
+  display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 7px; white-space: nowrap;
+  color: var(--cn-soft) !important; font-size: var(--cn-fs-12-5); font-weight: 500; text-decoration: none;
+}
+.cn-related__i:hover { color: var(--cn-ink) !important; }
+.cn-related__i[aria-current="page"] {
+  background: var(--cn-surface); color: var(--cn-ink) !important;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--cn-ink) 10%, transparent);
+}
 
 /* ── states (§8) ─────────────────────────────────────────────────────────────── */
 .cn-error {
@@ -623,8 +650,10 @@ body[data-readonly] [data-write] { opacity: .45; }
   .cn-nav__dot { display: block; }
   .cn-nav__label { height: 1px; margin: 2px 12px 6px; padding: 0; background: var(--cn-line); overflow: hidden; }
   .cn-nav__fold { pointer-events: none; }
-  .cn-js .cn-nav__group:not([data-open]) ul { display: flex; }
+  .cn-js .cn-nav__group:not([data-open]) > ul { display: flex; }
   .cn-pin__x { display: none; }
+  .cn-nav__kids-t, .cn-nav .cn-nav__kids, .cn-nav .cn-nav__it[data-kids-open] > .cn-nav__kids { display: none; }
+  .cn-nav__it[data-kids] > .cn-nav__i { padding-inline-end: 0; }
   .cn-menu--up { left: calc(100% + 6px); bottom: 0; }
   .cn-main { padding: 24px 24px 56px; }
 }
@@ -651,8 +680,11 @@ body[data-readonly] [data-write] { opacity: .45; }
   .cn-nav__i, .cn-side__me { height: auto; min-height: 52px; font-size: var(--cn-fs-15); }
   .cn-nav__fold { pointer-events: none; height: auto; padding-top: 4px; }
   .cn-nav__chev, .cn-nav__num { display: none !important; }
-  .cn-js .cn-nav__group:not([data-open]) ul { display: flex; }
+  .cn-js .cn-nav__group:not([data-open]) > ul { display: flex; }
   .cn-pin__x { opacity: 1; }
+  .cn-nav__kids-t { top: 4px; width: 44px; height: 44px; }
+  .cn-nav__it[data-kids] > .cn-nav__i { padding-inline-end: 52px; }
+  .cn-nav__kid { min-height: 44px; font-size: var(--cn-fs-15); }
   .cn-menu--up { left: 0; right: 0; width: auto; }
 
   .cn-bar { height: 56px; gap: 2px; padding: 0 6px 0 14px; }

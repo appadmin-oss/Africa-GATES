@@ -94,11 +94,15 @@ final class AdminNav
             ['page' => 'judges', 'label' => 'Judges', 'href' => '/admin/judges', 'icon' => 'users',
              'sub' => 'Judging panels and who still owes a scorecard.',
              'children' => [
+                 ['page' => 'judge-schedule', 'label' => 'Judging schedule', 'href' => '/admin/judges/schedule'],
                  ['page' => 'rubric',        'label' => 'Judging rubric', 'href' => '/admin/rubric'],
                  ['page' => 'judging-audit', 'label' => 'Judging audit',  'href' => '/admin/judging-audit'],
              ]],
             ['page' => 'result-release', 'label' => 'Result release', 'href' => '/admin/result-release', 'icon' => 'flag',
-             'sub' => 'What each edition will publish, and the release itself.'],
+             'sub' => 'What each edition will publish, and the release itself.',
+             'children' => [
+                 ['page' => 'recognitions', 'label' => 'Recognitions', 'href' => '/admin/recognitions'],
+             ]],
         ]],
         ['key' => 'engage', 'label' => 'Engage', 'tip' => 'Events, challenges, giving and forms.', 'items' => [
             ['page' => 'events', 'label' => 'Events', 'href' => '/admin/events', 'icon' => 'ticket',
@@ -122,7 +126,11 @@ final class AdminNav
         ]],
         ['key' => 'audience', 'label' => 'Audience', 'tip' => 'Who we reach, and what we send them.', 'items' => [
             ['page' => 'campaigns', 'label' => 'Broadcasts', 'href' => '/admin/campaigns', 'icon' => 'mega',
-             'sub' => 'Campaigns sent to nominees and the newsletter, to opted-in people only.'],
+             'sub' => 'Campaigns sent to nominees and the newsletter, to opted-in people only.',
+             'children' => [
+                 ['page' => 'newsletter', 'label' => 'Newsletter',         'href' => '/admin/campaigns/newsletter'],
+                 ['page' => 'greetings',  'label' => 'Seasonal greetings', 'href' => '/admin/campaigns/greetings'],
+             ]],
         ]],
         ['key' => 'money', 'label' => 'Money', 'tip' => 'Every naira taken and owed.', 'items' => [
             ['page' => 'payments', 'label' => 'Payments', 'href' => '/admin/payments', 'icon' => 'card',
@@ -147,7 +155,9 @@ final class AdminNav
             ['page' => 'shop_orders', 'label' => 'Shop orders', 'href' => '/admin/shop/orders', 'icon' => 'bag',
              'sub' => 'Orders from the shop, and what is still to send.',
              'children' => [
-                 ['page' => 'products', 'label' => 'Products', 'href' => '/admin/products'],
+                 ['page' => 'products',    'label' => 'Products',            'href' => '/admin/products'],
+                 ['page' => 'shop-codes',  'label' => 'Shop discount codes', 'href' => '/admin/shop/codes'],
+                 ['page' => 'shipping',    'label' => 'Delivery charges',    'href' => '/admin/shop/shipping'],
              ]],
         ]],
         ['key' => 'content', 'label' => 'Content', 'tip' => 'Everything the public reads.', 'items' => [
@@ -189,6 +199,7 @@ final class AdminNav
                  ['page' => 'ai',       'label' => 'AI prompts',    'href' => '/admin/ai-prompts'],
                  ['page' => 'attendee', 'label' => 'Interview bot', 'href' => '/admin/attendee'],
                  ['page' => 'sandbox',  'label' => 'Test data',     'href' => '/admin/sandbox'],
+                 ['page' => 'ops-scripts', 'label' => 'Operations scripts', 'href' => '/admin/assistant/scripts'],
              ]],
         ]],
     ];
