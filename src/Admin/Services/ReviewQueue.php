@@ -133,7 +133,10 @@ final class ReviewQueue
             'sort'  => $sort,
             'dir'   => $sort === '' ? 'desc' : $dir,
             'page'  => max(1, (int) ($q['page'] ?? 1)),
-            'open'  => max(0, (int) ($q['open'] ?? 0)),
+            // The address calls it `item`, not `open`: production's request filter answered
+            // `?open=510` with a 406 before PHP saw it, so the peek and its plain-link
+            // fallback both died. `open` is still read, for a link somebody kept.
+            'open'  => max(0, (int) ($q['item'] ?? $q['open'] ?? 0)),
         ];
     }
 
@@ -148,7 +151,7 @@ final class ReviewQueue
         if ($p['view'] !== 'all') $out['view'] = $p['view'];
         if ($p['sort'] !== '') { $out['sort'] = $p['sort']; $out['dir'] = $p['dir']; }
         if ($p['page'] > 1) $out['page'] = $p['page'];
-        if (!empty($p['open'])) $out['open'] = $p['open'];
+        if (!empty($p['open'])) $out['item'] = $p['open'];
         $s = http_build_query($out);
         return '/admin/nominations/review' . ($s !== '' ? '?' . preg_replace('/%5B[0-9]+%5D/', '%5B%5D', $s) : '');
     }

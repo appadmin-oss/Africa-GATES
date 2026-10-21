@@ -223,17 +223,17 @@ final class ReviewQueueTest extends TestCase
     {
         $this->as();
         $id = $this->nom('Grace Mensah');
-        $req = (new ServerRequestFactory())->createServerRequest('GET', '/admin/nominations/review')->withQueryParams(['open' => (string) $id]);
+        $req = (new ServerRequestFactory())->createServerRequest('GET', '/admin/nominations/review')->withQueryParams(['item' => (string) $id]);
         $html = (string) $this->controller()->queue($req, (new ResponseFactory())->createResponse())->getBody();
         $this->assertStringContainsString('Nomination review', $html);
         $this->assertStringContainsString('data-rq-row="' . $id . '"', $html);
         $this->assertStringContainsString('action="/admin/nominations/' . $id . '/approve"', $html);
         $this->assertStringContainsString('action="/admin/nominations/' . $id . '/reject"', $html);
-        $this->assertStringContainsString('name="back" value="/admin/nominations/review?open=' . $id . '"', $html);
+        $this->assertStringContainsString('name="back" value="/admin/nominations/review?item=' . $id . '"', $html);
 
         // The fragment the script swaps in draws the same decisions: it has no layout, so
         // a forgotten `shell` would quietly draw every peek read-only.
-        $frag = (string) $this->controller()->queue($req->withQueryParams(['open' => (string) $id, 'part' => 'peek']), (new ResponseFactory())->createResponse())->getBody();
+        $frag = (string) $this->controller()->queue($req->withQueryParams(['item' => (string) $id, 'part' => 'peek']), (new ResponseFactory())->createResponse())->getBody();
         $this->assertStringNotContainsString('<html', $frag);
         $this->assertStringContainsString('/approve"', $frag);
     }
@@ -242,7 +242,7 @@ final class ReviewQueueTest extends TestCase
     {
         $this->as('viewer');
         $id = $this->nom('Grace Mensah');
-        $req = (new ServerRequestFactory())->createServerRequest('GET', '/admin/nominations/review')->withQueryParams(['open' => (string) $id]);
+        $req = (new ServerRequestFactory())->createServerRequest('GET', '/admin/nominations/review')->withQueryParams(['item' => (string) $id]);
         $html = (string) $this->controller()->queue($req, (new ResponseFactory())->createResponse())->getBody();
         $this->assertStringNotContainsString('/approve"', $html);
         $this->assertStringNotContainsString('rq-bulk"', $html);

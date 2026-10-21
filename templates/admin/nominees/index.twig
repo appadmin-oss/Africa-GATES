@@ -38,8 +38,8 @@
   <button class="ad-btn ad-btn--sm" type="button" data-ux-reveal="#nmTable, #mergeForm" aria-expanded="false" hidden>Choose rows to merge</button>
   <span class="ux-when-on" style="font-size:12px;color:var(--cn-ink-3)">Tick the duplicate rows, pick one to <em>keep</em>, then:</span>
   <button class="ad-btn ad-btn--sm ad-btn--primary ux-when-on" type="submit"
-          data-confirm="Merge the ticked nominees into the one marked “keep”? Their votes and judge scores will be combined and the duplicates hidden. You can undo it from Duplicates → Recently merged.">⤵ Merge selected</button>
-  <button class="ad-btn ad-btn--sm" type="button" id="dupScanBtn" style="margin-left:auto">⚡ Scan for duplicates</button>
+          data-confirm="Merge the ticked nominees into the one marked “keep”? Their votes and judge scores will be combined and the duplicates hidden. You can undo it from Duplicates → Recently merged.">Merge selected</button>
+  <button class="ad-btn ad-btn--sm" type="button" id="dupScanBtn" style="margin-left:auto">Scan for duplicates</button>
 </form>
 <div id="dupScanPanel" aria-live="polite" style="margin:0 0 12px"></div>
 {% endif %}
@@ -170,29 +170,9 @@
 </div>
 {% endif %}
 
-{# Recently merged nominees — tombstones an admin can restore. A merge is now
-   reversible: undoing moves the votes + judge scores back and relists the row. #}
+{# Merges are undone in one place — Duplicates → Recently merged — not two. #}
 {% if admin_role in ['superadmin','admin'] and merged is defined and merged|length %}
-<details class="ad-card" style="margin-top:18px">
-  <summary style="cursor:pointer;font-weight:600;font-size:13px">↩ Recently merged ({{ merged|length }}) — undo a merge</summary>
-  <p style="font-size:12px;color:var(--cn-soft);margin:6px 0 10px">
-    These nominees were folded into a survivor and hidden from voting, judging and the leaderboard.
-    Undoing restores the nominee and moves its votes + judge scores back off the survivor.
-  </p>
-  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px">
-    {% for m in merged %}
-    <li style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px">
-      <span><strong>{{ m.name }}</strong> → kept as <strong>{{ m.keep_name ?? ('#' ~ m.keep_id) }}</strong>
-        {% if m.merged_at %}<small style="color:var(--cn-soft)"> · {{ m.merged_at }}</small>{% endif %}</span>
-      <form method="post" action="/admin/nominees/unmerge" style="margin-left:auto">
-        <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <input type="hidden" name="merged_id" value="{{ m.id }}">
-        <button class="ad-btn ad-btn--xs" type="submit" data-confirm="Undo this merge? {{ m.name }} becomes live again and its votes + judge scores move back off the survivor.">Undo merge</button>
-      </form>
-    </li>
-    {% endfor %}
-  </ul>
-</details>
+<p style="margin:18px 0 0"><a class="ad-btn ad-btn--sm" href="/admin/nominees/duplicates?tab=merged">Recently merged · {{ merged|length }}</a></p>
 {% endif %}
 
 {% if admin_role in ['superadmin','admin'] %}

@@ -1,127 +1,121 @@
 {% extends "admin/layout.twig" %}
-{% import "admin/partials/ui.twig" as ui %}
-{% block topbar_eyebrow %}<small>Moderation</small>{% endblock %}
+{#
+  ALL NOMINATIONS — the console's list pattern (21 Oct 2026, rebuilt).
+
+  Every nomination, any status, sliced by programme, edition, country and date. The
+  review queue is where pending ones are decided; this is where any one is found. A row
+  opens the nomination. The filters are one GET form and apply on change (console-ux.js).
+#}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/list.css') }}">{% endblock %}
+
 {% block topbar_title %}All nominations{% endblock %}
 {% block topbar_actions %}
-  {% if counts.pending > 0 %}<a class="ad-btn ad-btn--primary" href="/admin/nominations/review" title="Work through pending nominations one by one, oldest first, with keyboard shortcuts">▶ Review desk <span style="opacity:.85">({{ counts.pending }})</span></a>{% endif %}
+  {% if counts.pending > 0 %}<a class="ad-btn ad-btn--primary" href="/admin/nominations/review">Review {{ counts.pending|number_format }}</a>{% endif %}
 {% endblock %}
 
 {% block content %}
 {% set qp = qs_base ? '&' ~ qs_base : '' %}
-<div class="ad-card" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;padding:12px 14px">
-  <span style="font-size:12px;font-weight:600;color:var(--cn-soft)">Quick filters <span class="ad-info" data-tip="One-click presets to triage nominations. Start with the review queue (oldest pending first) to work through fairly in order." tabindex="0" aria-label="Filter presets">i</span></span>
-  <a class="ad-tab {% if filters.status == 'pending' and filters.sort == 'oldest' %}is-active{% endif %}" href="/admin/nominations?status=pending&sort=oldest{{ qp }}">📋 Review queue <span class="n">{{ counts.pending }}</span></a>
-  <a class="ad-tab {% if filters.status == 'pending' and filters.sort != 'oldest' %}is-active{% endif %}" href="/admin/nominations?status=pending&sort=newest{{ qp }}">🕘 Latest pending</a>
-  <a class="ad-tab {% if filters.status == 'approved' %}is-active{% endif %}" href="/admin/nominations?status=approved{{ qp }}">✓ Approved <span class="n">{{ counts.approved }}</span></a>
-  <a class="ad-tab {% if filters.status == 'rejected' %}is-active{% endif %}" href="/admin/nominations?status=rejected{{ qp }}">✕ Rejected <span class="n">{{ counts.rejected }}</span></a>
-  <a class="ad-tab {% if filters.status == 'all' %}is-active{% endif %}" href="/admin/nominations?status=all{{ qp }}">All</a>
-</div>
-{% if ai_enabled|default(false) %}
-{# Plain-English filtering: the phrase is parsed into the SAME whitelisted GET
-   filters below (status/country/range/sort/search) and applied via redirect. #}
-<form method="post" action="/admin/nominations/ai-filter" class="ad-card" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:10px 14px">
-  <input type="hidden" name="_token" value="{{ csrf_token }}">
-  <span aria-hidden="true" style="font-size:16px">✦</span>
-  <label for="aiQuery" class="sr-only">Filter nominations in plain English</label>
-  <input id="aiQuery" type="text" name="ai_query" maxlength="200"
-         placeholder="Ask in plain English — e.g. “pending nominations from Kenya this month, oldest first”"
-         style="flex:1;min-width:220px;border:1px solid var(--cn-line-card);border-radius:9px;padding:8px 11px;font:inherit;font-size:13px">
-  <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit">Filter with AI</button>
-</form>
-{% endif %}
-<form class="ad-filters" method="get" action="/admin/nominations" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-  <input type="hidden" name="status" value="{{ filters.status }}">
-  <input type="hidden" name="sort" value="{{ filters.sort }}">
-  <div style="flex:1;min-width:180px">
-    <label style="display:block;font-size:12px;font-weight:600;color:var(--cn-soft);margin-bottom:4px">Search</label>
-    <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee or nominator…" aria-label="Search nominee or nominator" style="width:100%">
-  </div>
-  <div>
-    <label style="display:block;font-size:12px;font-weight:600;color:var(--cn-soft);margin-bottom:4px">Programme</label>
-    <select name="programme" aria-label="Filter by programme" style="padding:9px 12px;border:1px solid var(--cn-line-card);border-radius:9px">
-      <option value="">All programmes</option>
-      {% for pr in programmes %}<option value="{{ pr.id }}" {% if filters.programme == pr.id %}selected{% endif %}>{{ pr.title }}</option>{% endfor %}
-    </select>
-  </div>
-  <div>
-    <label style="display:block;font-size:12px;font-weight:600;color:var(--cn-soft);margin-bottom:4px">Cycle</label>
-    <select name="cycle" aria-label="Filter by cycle" style="padding:9px 12px;border:1px solid var(--cn-line-card);border-radius:9px">
-      <option value="">All cycles</option>
-      {% for c in cycles %}<option value="{{ c.id }}" {% if filters.cycle == c.id %}selected{% endif %}>{{ c.title }} · {{ c.year }}</option>{% endfor %}
-    </select>
-  </div>
-  <div>
-    <label style="display:block;font-size:12px;font-weight:600;color:var(--cn-soft);margin-bottom:4px">Country</label>
-    <select name="country" aria-label="Filter by country" style="padding:9px 12px;border:1px solid var(--cn-line-card);border-radius:9px">
-      <option value="">All countries</option>
-      {% for cc in countries %}<option value="{{ cc }}" {% if filters.country == cc %}selected{% endif %}>{{ cc }}</option>{% endfor %}
-    </select>
-  </div>
-  {% include 'admin/partials/datefields.twig' with {range: filters.range, from: filters.from, to: filters.to} only %}
-  <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
-  {% if filters.q or filters.programme or filters.cycle or filters.country or (filters.range not in ['','all']) or filters.from or filters.to %}<a class="ad-btn" href="/admin/nominations?status={{ filters.status }}&sort={{ filters.sort }}">Clear</a>{% endif %}
-</form>
-
-<div class="ad-card"><div class="ad-table-wrap">
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 4px 12px">
-    <strong style="font-size:14px">{{ total|number_format }} nomination{{ total == 1 ? '' : 's' }}</strong>
-    {% if pages > 1 %}<span style="font-size:12px;color:var(--cn-soft)">Page {{ page }} of {{ pages }}</span>{% endif %}
-  </div>
-  <table class="ad-table">
-    <thead><tr>
-      <th scope="col">Nominee</th>
-      <th scope="col">Contact</th>
-      <th scope="col">Programme</th>
-      <th scope="col">Nominated by</th>
-      <th scope="col">Reason</th>
-      <th scope="col">When</th>
-      <th scope="col">Status</th>
-      <th scope="col" class="col-actions">Actions</th>
-    </tr></thead>
-    <tbody>
-      {% for r in rows %}
-      <tr>
-        <td>
-          <div style="display:flex;align-items:center;gap:9px">
-            {% if r.nominee_photo_path %}
-            <button type="button" class="ad-avatar-btn" data-view-media="{{ r.nominee_photo_path }}" data-view-title="{{ r.nominee_name }}" aria-label="View photo of {{ r.nominee_name }}"
-                    style="flex:none;width:34px;height:34px;border-radius:8px;border:1px solid var(--cn-line-card);background-image:url('{{ r.nominee_photo_path }}');background-size:cover;background-position:center;cursor:zoom-in"></button>
-            {% endif %}
-            <div style="min-width:0">
-              <strong>{{ r.nominee_name }}</strong>
-              <div style="font-size:11px;color:var(--cn-soft);font-family:'Space Mono',monospace">{{ r.reference|default('—') }}</div>
-            </div>
-          </div>
-        </td>
-        <td style="font-size:13px;color:var(--cn-ink-3)">
-          {% if r.nominee_email %}<div>✉ {{ ui.cell(r.nominee_email, 26, 'Nominee email') }}</div>{% endif %}
-          {% if r.nominee_phone %}<div>☎ {{ r.nominee_phone }}</div>{% endif %}
-          {% if not r.nominee_email and not r.nominee_phone %}<span class="ad-dim">—</span>{% endif %}
-          <div style="color:var(--cn-soft)">{{ r.country_code|default('—') }}{% if r.nominee_state %} · {{ r.nominee_state }}{% endif %}</div>
-        </td>
-        <td>{{ r.programme_title|default('—') }}<div style="font-size:11px;color:var(--cn-soft)">{{ r.cycle_year }}</div></td>
-        <td style="font-size:13px">
-          {{ ui.cell(r.nominator_name, 22, 'Nominator') }}
-          <div style="font-size:12px;color:var(--cn-ink-3)">{{ ui.cell(r.nominator_email, 24, 'Nominator email') }}</div>
-        </td>
-        <td style="max-width:240px">{{ ui.cell(r.reason, 60, 'Reason for nominating ' ~ r.nominee_name) }}</td>
-        <td style="font-size:12px;color:var(--cn-ink-3);font-family:'Space Mono',monospace;white-space:nowrap">{{ r.created_at|slice(0, 16) }}</td>
-        <td>
-          {% set chip = {'approved':'green','pending':'gold','rejected':'red'}[r.status]|default('grey') %}
-          <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|capitalize }}</span>
-        </td>
-        <td class="col-actions">
-          <a class="ad-btn ad-btn--sm" href="/admin/nominations/{{ r.id }}">Review</a>
-          {% if r.status != 'rejected' %}
-          <form method="post" action="/admin/nominations/{{ r.id }}/reject" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Reject the nomination of {{ r.nominee_name }}? The nominator is EMAILED the decision straight away and a webhook fires — neither can be recalled. Add a reason first if you have not; without one they get the generic wording.">Reject</button></form>
-          {% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="8" style="text-align:center;color:var(--cn-soft);padding:30px">Nothing here.</td></tr>
+{% set sep = qs ? '?' ~ qs ~ '&' : '?' %}
+<div class="ls">
+  <div class="ls-bar">
+    <nav class="ls-tabs" aria-label="Status">
+      {% for k, l in {pending: 'Pending', approved: 'Approved', rejected: 'Rejected', all: 'All'} %}
+        <a class="ls-tab" href="/admin/nominations?status={{ k }}&sort={{ filters.sort }}{{ qp }}"{% if filters.status == k %} aria-current="page"{% endif %}>{{ l }}{% if counts[k] is defined %} <span class="ls-tab__num">{{ counts[k]|number_format }}</span>{% endif %}</a>
       {% endfor %}
-    </tbody>
-  </table>
-  {% include 'admin/partials/pager.twig' with {base: '/admin/nominations', qs: qs, page: page, pages: pages, window: window} only %}
-</div></div>
+    </nav>
+  </div>
+
+  {% if ai_enabled|default(false) %}
+    {# The phrase becomes the same whitelisted GET filters below, applied by redirect. #}
+    <form method="post" action="/admin/nominations/ai-filter" class="ls-bar">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label class="ls-search" style="flex:1;width:auto">
+        <span class="sr-only">Ask in plain English</span>
+        <input type="text" name="ai_query" maxlength="200" placeholder="Ask, e.g. pending from Kenya this month">
+      </label>
+      <button class="ad-btn ad-btn--sm" type="submit">Ask</button>
+    </form>
+  {% endif %}
+
+  <form class="ls-bar" method="get" action="/admin/nominations">
+    <input type="hidden" name="status" value="{{ filters.status }}">
+    <label class="ls-search">
+      <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
+      <span class="sr-only">Search</span>
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="Nominee or nominator">
+    </label>
+    <select class="ls-select" name="programme" aria-label="Programme">
+      <option value="">All programmes</option>
+      {% for pr in programmes %}<option value="{{ pr.id }}"{% if filters.programme == pr.id %} selected{% endif %}>{{ pr.title }}</option>{% endfor %}
+    </select>
+    <select class="ls-select" name="cycle" aria-label="Edition">
+      <option value="">All editions</option>
+      {% for c in cycles %}<option value="{{ c.id }}"{% if filters.cycle == c.id %} selected{% endif %}>{{ c.title }} {{ c.year }}</option>{% endfor %}
+    </select>
+    {% if countries|length > 1 %}
+      <select class="ls-select" name="country" aria-label="Country">
+        <option value="">All countries</option>
+        {% for cc in countries %}<option value="{{ cc }}"{% if filters.country == cc %} selected{% endif %}>{{ cc }}</option>{% endfor %}
+      </select>
+    {% endif %}
+    <select class="ls-select" name="range" aria-label="When">
+      {% for key, label in {'all': 'Any time', 'today': 'Today', '7d': 'Last 7 days', '30d': 'Last 30 days', 'month': 'This month', 'year': 'This year', 'custom': 'Dates…'} %}
+        <option value="{{ key }}"{% if filters.range == key or (key == 'all' and filters.range in ['', 'all']) %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <span class="ls-bar" data-ux-show-when="range=custom"{% if filters.from or filters.to %} data-ux-keep{% endif %}>
+      <input class="ls-select" type="date" name="from" value="{{ filters.from }}" aria-label="From">
+      <input class="ls-select" type="date" name="to" value="{{ filters.to }}" aria-label="To">
+    </span>
+    <span class="ls-bar__gap"></span>
+    <select class="ls-select" name="sort" aria-label="Order">
+      <option value="newest"{% if filters.sort != 'oldest' %} selected{% endif %}>Newest first</option>
+      <option value="oldest"{% if filters.sort == 'oldest' %} selected{% endif %}>Oldest first</option>
+    </select>
+    <noscript><button class="ad-btn ad-btn--sm" type="submit">Show</button></noscript>
+  </form>
+
+  {% if rows %}
+    <div class="ls-table" style="--ls-cols: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1.4fr) 110px 96px" role="table" aria-label="Nominations">
+      <div class="ls-row ls-head" role="row">
+        <span role="columnheader">Nominee</span>
+        <span role="columnheader" class="ls-opt">Programme</span>
+        <span role="columnheader" class="ls-opt">Nominated by</span>
+        <span role="columnheader" class="ls-opt">When</span>
+        <span role="columnheader">Status</span>
+      </div>
+      {% for r in rows %}
+        {% set tone = {approved: 'green', pending: 'gold', rejected: 'red'}[r.status]|default('grey') %}
+        <a class="ls-row ls-item" role="row" href="/admin/nominations/{{ r.id }}">
+          <span class="ls-cell ls-cell--primary" role="cell">
+            <strong>{{ r.nominee_name }}</strong>
+            <span>{{ r.country_code|default('') }}{% if r.nominee_state %} · {{ r.nominee_state }}{% endif %}{% if r.reference %} · {{ r.reference }}{% endif %}</span>
+          </span>
+          <span class="ls-cell ls-cell--primary ls-opt" role="cell">
+            <strong>{{ r.programme_title|default('No programme') }}</strong>
+            <span>{{ r.cycle_year }}</span>
+          </span>
+          <span class="ls-cell ls-cell--primary ls-opt" role="cell">
+            <strong>{{ r.nominator_name|default('Unknown') }}</strong>
+            <span>{{ r.nominator_email }}</span>
+          </span>
+          <span class="ls-cell ls-opt" role="cell"><span class="ls-cell__time">{{ r.created_at|slice(0, 10) }}</span></span>
+          <span class="ls-cell ls-cell--end" role="cell"><span class="ls-pill ls-pill--{{ tone }}">{{ r.status|capitalize }}</span></span>
+        </a>
+      {% endfor %}
+    </div>
+    <div class="ls-bar ls-foot">
+      <span>{{ total|number_format }} nomination{{ total == 1 ? '' : 's' }}{% if pages > 1 %} · page {{ page }} of {{ pages }}{% endif %}</span>
+      <span class="ls-bar__gap"></span>
+      {% if page > 1 %}<a class="ad-btn ad-btn--sm" href="/admin/nominations{{ sep }}page={{ page - 1 }}" rel="prev">Previous</a>{% endif %}
+      {% if page < pages %}<a class="ad-btn ad-btn--sm" href="/admin/nominations{{ sep }}page={{ page + 1 }}" rel="next">Next</a>{% endif %}
+    </div>
+  {% else %}
+    <div class="ls-empty">
+      <span class="ls-empty__t">No nominations</span>
+      <span class="ls-empty__m">Nothing matches these filters.</span>
+      <a class="ad-btn ad-btn--sm" href="/admin/nominations?status={{ filters.status }}">Clear filters</a>
+    </div>
+  {% endif %}
+</div>
 {% endblock %}

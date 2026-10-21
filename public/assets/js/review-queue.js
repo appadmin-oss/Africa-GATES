@@ -1,7 +1,7 @@
 // ═══ The nomination review list — AdminConsole v2 (README §10b, screenshot 02) ══════════
 //
 // Everything on this page works without this file: tabs, views, facets, sort and pages are
-// links; a row opens its peek with `?open=`; the bulk bar appears by `:has(:checked)`; the
+// links; a row opens its peek with `?item=`; the bulk bar appears by `:has(:checked)`; the
 // decisions are forms. This makes it quicker, and nothing here decides anything:
 //
 //   · a row click swaps the peek in place (`?part=peek`) instead of reloading the list;
@@ -297,7 +297,7 @@
   var saved = wrap.querySelector('[data-rq-saved]');
   function views() { var v = read('ac2.views') || {}; return Array.isArray(v.review) ? v.review : []; }
   function keep(all) { try { localStorage.setItem('ac2.views', JSON.stringify(all)); } catch (err) {} }
-  function clean(href) { return href.replace(/([?&])(open|page)=[^&]*/g, '$1').replace(/[?&]+$/, '').replace(/\?&/, '?'); }
+  function clean(href) { return href.replace(/([?&])(item|open|page)=[^&]*/g, '$1').replace(/[?&]+$/, '').replace(/\?&/, '?'); }
   function drawViews() {
     if (!saved) return;
     var here = clean(location.pathname + location.search);
