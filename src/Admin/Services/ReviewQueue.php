@@ -253,6 +253,26 @@ final class ReviewQueue
     }
 
     /**
+     * The review desk's queue: what is waiting, oldest first, in the list's scope and
+     * quick view. The same rows the list's To review tab would show, so a nomination is
+     * "up next" on the desk exactly when it is waiting on the list.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function deskQueue(array $p, ?AwardService $awards = null): array
+    {
+        $q = self::scoped($p)->where('n.status', NS::PENDING);
+        $q->orderBy('n.created_at')->orderBy('n.id');
+        try {
+            $rows = self::annotate(self::rows($q->limit(self::CAP)), $awards);
+        } catch (\Throwable $e) {
+            error_log('[review-desk] queue: ' . $e->getMessage());
+            return [];
+        }
+        return array_values(array_filter($rows, static fn (array $r): bool => self::inView($r, $p['view'])));
+    }
+
+    /**
      * Every row the list would show for an export: the same filters, no page.
      *
      * @param list<int> $ids when set, only these (the bulk bar's "Export")
@@ -315,7 +335,8 @@ final class ReviewQueue
         $cols = ['n.id', 'n.cycle_id', 'n.category_id', 'n.nominee_name', 'n.country_code', 'n.nominee_state',
                  'n.nominator_name', 'n.status', 'n.created_at', 'n.reference', 'n.reason',
                  'cat.title as category_title', 'pr.title as programme_title', 'c.year as cycle_year'];
-        foreach (['nominee_org', 'nominator_relation', 'nominee_photo_path', 'reference_url', 'reference_url_2', 'reference_url_3'] as $c) {
+        foreach (['nominee_org', 'nominator_relation', 'nominee_photo_path', 'reference_url', 'reference_url_2', 'reference_url_3',
+                  'nominator_email', 'asked_message', 'asked_at', 'merged_into'] as $c) {
             if (SchemaHas::column('gates_nominations', $c)) $cols[] = 'n.' . $c;
         }
         try {
@@ -341,9 +362,15 @@ final class ReviewQueue
         $cycles = array_values(array_unique(array_map(static fn (array $r): int => (int) $r['cycle_id'], $rows)));
 
         // Duplicates: every name in the rows' editions, grouped by the desk's own key.
+        // A reviewer's "Not a duplicate" ruling (the desk) takes that entry out of every
+        // group, its own and the earlier one's — or the same pair is flagged for ever.
         $byKey = [];
+        $ruledApart = [];
         try {
-            foreach (DB::table('gates_nominations')->whereIn('cycle_id', $cycles)->get(['id', 'cycle_id', 'nominee_name']) as $o) {
+            $ruled = SchemaHas::column('gates_nominations', 'not_duplicate');
+            foreach (DB::table('gates_nominations')->whereIn('cycle_id', $cycles)
+                         ->get(array_merge(['id', 'cycle_id', 'nominee_name'], $ruled ? ['not_duplicate'] : [])) as $o) {
+                if ($ruled && (int) ($o->not_duplicate ?? 0) === 1) { $ruledApart[(int) $o->id] = true; continue; }
                 $byKey[(int) $o->cycle_id . '|' . NominationTriageService::nameKey((string) $o->nominee_name)][] = (int) $o->id;
             }
         } catch (\Throwable) {}
@@ -378,7 +405,8 @@ final class ReviewQueue
                 $u = trim((string) ($r[$c] ?? ''));
                 if ($u !== '') $ev[$id][$u] = true;
             }
-            $others = array_values(array_diff($byKey[(int) $r['cycle_id'] . '|' . NominationTriageService::nameKey((string) $r['nominee_name'])] ?? [], [$id]));
+            $others = isset($ruledApart[$id]) ? []
+                : array_values(array_diff($byKey[(int) $r['cycle_id'] . '|' . NominationTriageService::nameKey((string) $r['nominee_name'])] ?? [], [$id]));
             $e = $elig[AwardService::eligibilityKey((string) $r['nominee_name'], (int) $r['cycle_id'])] ?? null;
             $short = ($e && $e['enabled'] && !$e['eligible']) ? max(1, (int) $e['min'] - (int) $e['distinct_locations']) : 0;
 

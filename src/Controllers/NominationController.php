@@ -644,6 +644,77 @@ class NominationController {
      * (NominationLinkService): somebody opening it starts their own nomination of the same
      * person, in their own name — "rally more nominations".
      */
+    /**
+     * The page a nominator reaches from the "Ask for more" email (NominationAsk). It shows
+     * what the reviewer asked for and takes links and files — the same kinds, caps and
+     * checks as the nomination form — then sends the nomination back to the queue.
+     *
+     * A spent, expired or unknown link answers 200 with one plain sentence and a way to
+     * get help, never a 404: whoever follows an old link is exactly the person owed an
+     * explanation.
+     */
+    public function answerForm(Request $req, Response $res, array $args): Response
+    {
+        $nom = \AfricaGates\Services\NominationAsk::find((string) ($args['token'] ?? ''));
+        return $this->answerPage($res, $nom, (string) ($args['token'] ?? ''), $_SESSION['nom_answer_done'] ?? null);
+    }
+
+    public function answer(Request $req, Response $res, array $args): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $nom = \AfricaGates\Services\NominationAsk::find($token);
+        if ($nom === null) return $this->answerPage($res, null, $token, null);
+
+        $R = \AfricaGates\Services\NominationRules::class;
+        $b = (array) $req->getParsedBody();
+        $links = array_values(array_filter(array_map('strval', (array) ($b['links'] ?? [])), static fn (string $u): bool => trim($u) !== ''));
+        $files = self::uploadedEvidence($req);
+        if (count($links) + count($files) > $R::MAX_EVIDENCE) {
+            return $this->answerPage($res, $nom, $token, null, 'You can add up to ' . $R::MAX_EVIDENCE . ' pieces at once.');
+        }
+        foreach ($links as $u) {
+            if (!$R::isHttpUrl(trim($u))) return $this->answerPage($res, $nom, $token, null, 'Each link has to start with https:// or http://.');
+        }
+
+        $stored = [];
+        foreach ($files as $file) {
+            try {
+                $up = (new \AfricaGates\Admin\Services\UploadService())->uploadDocument(
+                    $file, 'nominations', (int) ceil($R::MAX_FILE_BYTES / 1048576), null, 'public'
+                );
+                $stored[] = ['path' => (string) ($up['path'] ?? $up['url']), 'label' => $file->getClientFilename(),
+                             'mime' => $file->getClientMediaType(), 'bytes' => $file->getSize()];
+            } catch (\Throwable $e) {
+                return $this->answerPage($res, $nom, $token, null, 'That file could not be added: ' . $e->getMessage());
+            }
+        }
+        if ($links === [] && $stored === []) {
+            return $this->answerPage($res, $nom, $token, null, 'Add a link or a file first.');
+        }
+
+        $kept = \AfricaGates\Services\NominationAsk::answer($nom, $links, $stored);
+        if ($kept === 0) return $this->answerPage($res, $nom, $token, null, 'Nothing could be saved just now. Please try again.');
+        $_SESSION['nom_answer_done'] = (string) $nom->nominee_name;
+        return $res->withHeader('Location', '/nominate/answer/' . $token)->withStatus(303);
+    }
+
+    private function answerPage(Response $res, ?object $nom, string $token, ?string $done, string $error = ''): Response
+    {
+        unset($_SESSION['nom_answer_done']);
+        return $this->view->render($res, 'pages/nominate-answer.twig', [
+            'page_title'  => 'Add to your nomination — Africa GATES',
+            'meta_robots' => 'noindex',
+            'state'       => $done !== null ? 'done' : ($nom ? 'form' : 'gone'),
+            'nominee'     => $done ?? (string) ($nom->nominee_name ?? ''),
+            'asked'       => (string) ($nom->asked_message ?? ''),
+            'closes_on'   => $nom ? \AfricaGates\Services\NominationAsk::closesOn($nom) : '',
+            'action'      => '/nominate/answer/' . $token,
+            'error'       => $error,
+            'max_links'   => \AfricaGates\Services\NominationAsk::MAX_LINKS,
+            'max_file_mb' => (int) round(\AfricaGates\Services\NominationRules::MAX_FILE_BYTES / 1048576),
+        ]);
+    }
+
     public function success(Request $req, Response $res): Response
     {
         $d = $_SESSION['nom_done'] ?? null;

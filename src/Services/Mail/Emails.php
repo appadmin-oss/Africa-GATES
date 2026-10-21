@@ -42,6 +42,7 @@ final class Emails
         'nominated'  => 'NominationAftercare::email + NomineeConfirmation::ask (to the nominee)',
         'approved'   => 'Admin NominationsController::sendNomineeForm',
         'rejected'   => 'Admin NominationsController (reject)',
+        'asked'      => 'NominationAsk::ask (the review desk\'s Ask for more, to the nominator)',
         'vote'       => 'CheckoutMailer::receipt (votes added)',
         'notminted'  => 'CheckoutMailer::receipt (votes not added)',
         'gift'       => 'CheckoutMailer::receipt (gift)',

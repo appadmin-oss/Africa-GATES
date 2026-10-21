@@ -101,7 +101,7 @@ class NominationsController
         // Desk SPA posts over fetch with this header: return JSON so it can swap
         // in the next nomination instead of following a redirect.
         $wantsJson = strtolower($req->getHeaderLine('X-Requested-With')) === 'fetch';
-        $deskBack  = '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : '');
+        $deskBack  = $fromDesk ? '/admin/nominations/desk?item=' . $id : '/admin/nominations/' . $id;
         // The review list (v2) posts its decisions with `back` = the list as it stood, so
         // the reviewer lands where they were, filters and all. Only that one path is
         // accepted: a free `back` is an open redirect wearing an admin session.
@@ -126,6 +126,44 @@ class NominationsController
             return $res->withHeader('Location', $redirect)->withStatus(302);
         };
 
+        // The desk's one decision form names its choice; it runs exactly the action the
+        // three separate buttons on the list run.
+        if ($action === 'decide') {
+            $choice = (string) (((array) $req->getParsedBody())['choice'] ?? '');
+            if (!in_array($choice, ['approve', 'ask', 'reject'], true)) return $fail('Choose Approve, Ask for more or Reject.');
+            $action = $choice;
+        }
+
+        // The desk's optional team note travels with whichever decision it was written
+        // beside, and is kept only once that decision has landed.
+        $teamNote = trim((string) (((array) $req->getParsedBody())['team_note'] ?? ''));
+        $keepNote = function () use ($teamNote, $id): void {
+            if ($teamNote !== '') \AfricaGates\Admin\Services\ReviewQueue::addNote($id, (int) ($_SESSION['admin_id'] ?? 0), $teamNote);
+        };
+
+        // Ask for more — the nominator is emailed one link to add what is missing; the
+        // nomination waits in Asked until they do. NominationAsk holds the rules.
+        if ($action === 'ask') {
+            $r = \AfricaGates\Services\NominationAsk::ask($nom, (string) (((array) $req->getParsedBody())['asked_message'] ?? ''), $this->mailer);
+            if (!$r['ok']) return $fail($r['error'] ?? 'The request could not be sent.');
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.ask', 'nomination', $id);
+            $keepNote();
+            return $ok('Asked the nominator for more. It is in Asked until they reply.',
+                $back ?? ($fromDesk ? '/admin/nominations/desk?after=' . $id : '/admin/nominations/review?tab=needs_details'));
+        }
+
+        // Not a duplicate — a reviewer's ruling that a same-name entry is somebody else.
+        // Kept on the row, so the desk and the list stop raising the same pair. It is not
+        // a decision about the nomination, which stays where it was.
+        if ($action === 'apart') {
+            if (!\AfricaGates\Support\SchemaHas::column('gates_nominations', 'not_duplicate')) {
+                return $fail('The database needs its latest update before this works.');
+            }
+            DB::table('gates_nominations')->where('id', $id)->update(['not_duplicate' => 1]);
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.not_duplicate', 'nomination', $id);
+            return $ok('Marked as a different person.', $back ?? ($fromDesk ? '/admin/nominations/desk?item=' . $id : '/admin/nominations/' . $id));
+        }
+
         // Reject / pending — no category needed
         if ($action === 'reject' || $action === 'pending') {
             $status = ['reject' => 'rejected', 'pending' => 'pending'][$action];
@@ -133,6 +171,13 @@ class NominationsController
             // when they leave it blank on a rejection — an AI-drafted reason
             // (moderation AI, free backup). Collected here, shown in the email.
             $reason = mb_substr(trim((string) (((array) $req->getParsedBody())['decision_reason'] ?? '')), 0, 800);
+            // The desk rejects with one of four reasons, and the nominator is shown it.
+            // There, no reason is a refusal rather than a drafted one: the reviewer was
+            // made to pick, so an empty pick means the form was bypassed.
+            if ($action === 'reject' && $reason === '' && $fromDesk) {
+                $reason = \AfricaGates\Admin\Services\ReviewDesk::reasonText((string) (((array) $req->getParsedBody())['reject_reason'] ?? ''));
+                if ($reason === '') return $fail('Pick the reason the nominator will see.');
+            }
             if ($action === 'reject' && $reason === '') {
                 try { $reason = (string) (\AfricaGates\Services\NominationFeedbackService::suggestReason($nom, 'rejected') ?? ''); }
                 catch (\Throwable $e) { $reason = ''; }
@@ -194,14 +239,32 @@ class NominationsController
                 } catch (\Throwable) {}
             }
 
+            $keepNote();
             $msg = 'Nomination ' . $status . ($reason !== '' && $action === 'reject' ? ' — reason sent to the nominator.' : '.');
             return $ok($msg, $back ?? ($fromDesk ? '/admin/nominations/desk?after=' . $id : '/admin/nominations?status=' . $nom->status));
         }
 
         // Approve flow — admin must pick a category (POST body category_id)
-        if ($action !== 'approve') throw new \Slim\Exception\HttpNotFoundException($req);
+        if ($action !== 'approve' && $action !== 'merge') throw new \Slim\Exception\HttpNotFoundException($req);
         $b = (array)$req->getParsedBody();
         $catId = (int)($b['category_id'] ?? $nom->category_id ?? 0);
+
+        // Merge — the desk's "Merge into earlier": this nomination is a repeat of one
+        // already approved, so it is approved INTO that entry's category and resolves to
+        // the same nominee (one ballot entry, both nominators credited). Never a
+        // rejection, and never a second nominee: if the earlier entry's nominee cannot be
+        // found, nothing is written.
+        $mergeInto = null;
+        if ($action === 'merge') {
+            $mergeInto = DB::table('gates_nominations')->where('id', (int) ($b['merge_into'] ?? 0))->first();
+            if (!$mergeInto || (int) $mergeInto->id === $id || (int) $mergeInto->cycle_id !== (int) $nom->cycle_id
+                || (string) $mergeInto->status !== 'approved' || (int) ($mergeInto->category_id ?? 0) < 1
+                || \AfricaGates\Services\NominationTriageService::nameKey((string) $mergeInto->nominee_name)
+                   !== \AfricaGates\Services\NominationTriageService::nameKey((string) $nom->nominee_name)) {
+                return $fail('That earlier nomination cannot take a merge. Only an approved entry for the same name in this edition can.');
+            }
+            $catId = (int) $mergeInto->category_id;
+        }
         if (!$catId) {
             return $fail('Choose a category before approving.');
         }
@@ -230,7 +293,7 @@ class NominationsController
         // actionable flash, never a raw 500 with a half-approved nomination.
         $nomineeId = 0;
         try {
-            DB::transaction(function () use ($id, $catId, $approveReason, $nom, &$nomineeId) {
+            DB::transaction(function () use ($id, $catId, $approveReason, $nom, $mergeInto, &$nomineeId) {
                 DB::table('gates_nominations')->where('id', $id)->update(
                     // Same rule as the reject path: the approval must land even when the
                     // feedback column does not exist yet. `status` and `category_id` are
@@ -247,7 +310,14 @@ class NominationsController
                 // that would split their votes. The resolver is honorific / case /
                 // punctuation insensitive ("Dr. Jane Doe" → existing "jane doe") and
                 // skips tombstones — the prevention that pairs with the merge cure.
-                $nomineeId = \AfricaGates\Services\MergeSuggestionService::findLiveMatch($catId, (string)$nom->nominee_name);
+                // Unless a reviewer ruled this a different person who shares the name
+                // ("Not a duplicate" on the desk): then joining the existing entry is
+                // exactly the wrong answer, and a nominee of their own is minted.
+                $nomineeId = (int) ($nom->not_duplicate ?? 0) === 1 && $mergeInto === null ? 0
+                    : \AfricaGates\Services\MergeSuggestionService::findLiveMatch($catId, (string)$nom->nominee_name);
+                if ($nomineeId < 1 && $mergeInto !== null) {
+                    throw new \RuntimeException('merge: the earlier entry has no live nominee to join');
+                }
                 if ($nomineeId < 1) {
                     // Best-effort auto-link to an existing registry profile so this
                     // nominee's votes + judge scores roll up into the CPI leaderboard.
@@ -309,8 +379,20 @@ class NominationsController
                 }
             });
         } catch (\Throwable $e) {
+            if ($mergeInto !== null && str_starts_with($e->getMessage(), 'merge:')) {
+                return $fail('The earlier entry is not on the ballot any more, so nothing was merged. Approve or reject this one instead.');
+            }
             return $fail($this->dbErrorFlash($e), 500);
         }
+        if ($mergeInto !== null) {
+            try {
+                if (\AfricaGates\Support\SchemaHas::column('gates_nominations', 'merged_into')) {
+                    DB::table('gates_nominations')->where('id', $id)->update(['merged_into' => (int) $mergeInto->id]);
+                }
+            } catch (\Throwable) {}
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.merge', 'nomination', $id, ['into' => (int) $mergeInto->id]);
+        }
+        $keepNote();
 
         // The counterpart of the rejection record. Agreement is only meaningful if
         // BOTH verdicts are captured — logging only one outcome silently biases
@@ -369,11 +451,13 @@ HTML;
             );
         }
 
-        // Verified nominee → congratulatory email with a single-use gated form link.
-        $this->sendNomineeForm($nom, $nomineeId);
+        // Verified nominee → congratulatory email with a single-use gated form link. Not on
+        // a merge: the nominee already had theirs when the earlier entry was approved.
+        if ($mergeInto === null) $this->sendNomineeForm($nom, $nomineeId);
 
         return $ok(
-            'Nomination approved and added to "' . $cat->title . '".',
+            $mergeInto !== null ? 'Merged into the earlier entry in "' . $cat->title . '". Both nominators keep credit.'
+                                : 'Nomination approved and added to "' . $cat->title . '".',
             $back ?? ($fromDesk ? '/admin/nominations/desk?after=' . $id : '/admin/nominations?status=approved')
         );
     }
@@ -464,42 +548,24 @@ HTML;
         return false;
     }
 
-    /** Review page — preview the nomination + pick a category before approving. */
     /**
-     * Review DESK — the high-volume flow: serves the oldest pending nomination
-     * (or the next one after ?after=N when walking the queue) and redirects to
-     * its review page in desk mode. Decisions go through the SAME audited
-     * approve/reject actions — the desk changes navigation speed, never process.
+     * The review desk (AdminConsole v2, README §10b): the queue, one nomination, and the
+     * decision beside it. `?item=N` opens one; `?after=N` opens the one after it (where a
+     * decision landed); neither opens the oldest. The list's scope and quick view carry
+     * over, so the desk works the same rows the list's To review tab shows.
      */
     public function desk(Request $req, Response $res): Response
     {
-        $after = (int)($req->getQueryParams()['after'] ?? 0);
-        $lite  = \AfricaGates\Services\NominationTriageService::nextPending($after ?: null);
-        if (!$lite && $after > 0) {
-            $_SESSION['flash_ok'] = 'You reached the end of the queue. Anything you skipped is still pending — restart the desk to pick it up.';
-            return $res->withHeader('Location', '/admin/nominations/review')->withStatus(302);
-        }
-        if (!$lite) {
-            $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations.';
-            return $res->withHeader('Location', '/admin/nominations/review')->withStatus(302);
-        }
-        // Render the SPA desk shell with the first nomination server-side (so it
-        // works with JS off too). Subsequent nominations load as fragments.
-        $nom = $this->fullNomination((int)$lite->id);
-        if (!$nom) {
-            $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations.';
-            return $res->withHeader('Location', '/admin/nominations/review')->withStatus(302);
-        }
         return $this->view->render($res, 'admin/nominations/desk.twig', [
             'page_title' => 'Review desk — Admin',
             'admin_page' => 'review',
-        ] + $this->reviewContext($nom));
+        ] + $this->deskContext($req->getQueryParams()));
     }
 
     /**
-     * SPA fragment endpoint: the next pending nomination's review body as JSON
-     * ({ok, done, html, id, position, total, nominee}). The desk swaps this in
-     * without a full reload. Same FIFO/eligibility/duplicate logic as desk().
+     * The desk's two working panes for review-desk.js, as JSON
+     * ({ok, done, id, nominee, position, total, html}). Same choice of nomination as
+     * desk(); `done` when nothing is left.
      */
     public function deskFragment(Request $req, Response $res): Response
     {
@@ -507,31 +573,83 @@ HTML;
             $res->getBody()->write((string) json_encode($p, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
             return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
         };
-        $after = (int)($req->getQueryParams()['after'] ?? 0);
-        $lite  = \AfricaGates\Services\NominationTriageService::nextPending($after ?: null);
-        if (!$lite) {
-            return $json([
-                'ok'   => true,
-                'done' => true,
-                'message' => $after > 0
-                    ? 'You reached the end of the queue. Anything you skipped is still pending — reopen the desk to pick it up.'
-                    : 'No more pending nominations.',
-            ]);
+        $ctx = $this->deskContext($req->getQueryParams());
+        if ($ctx['n'] === null) {
+            return $json(['ok' => true, 'done' => true, 'message' => 'Nothing is left in this queue.']);
         }
-        $nom = $this->fullNomination((int)$lite->id);
-        if (!$nom) return $json(['ok' => true, 'done' => true, 'message' => 'No more pending nominations.']);
-
-        $ctx  = $this->reviewContext($nom);
-        $html = $this->view->fetch('admin/nominations/_review_body.twig', $ctx + ['spa' => true, 'csrf_token' => ($_SESSION['csrf_token'] ?? '')]);
+        $html = $this->view->fetch('admin/nominations/_desk_main.twig', $ctx + [
+            'csrf_token' => ($_SESSION['csrf_token'] ?? ''),
+            'shell' => ['can_write' => \AfricaGates\Admin\Support\Permissions::canWrite((string) ($_SESSION['admin_role'] ?? ''))],
+        ]);
         return $json([
             'ok'       => true,
             'done'     => false,
-            'id'       => (int)$nom->id,
-            'nominee'  => (string)$nom->nominee_name,
-            'position' => $ctx['queue']['position'] ?? null,
-            'total'    => $ctx['queue']['total'] ?? null,
+            'id'       => (int) $ctx['n']['id'],
+            'nominee'  => (string) $ctx['n']['name'],
+            'position' => $ctx['pos'],
+            'total'    => $ctx['total'],
             'html'     => $html,
         ]);
+    }
+
+    /** @return array<string,mixed> what both desk views draw */
+    private function deskContext(array $q): array
+    {
+        $p = \AfricaGates\Admin\Services\ReviewQueue::params(['tab' => 'pending'] + array_intersect_key($q, ['scope' => 1, 'view' => 1]));
+        $queue = \AfricaGates\Admin\Services\ReviewQueue::deskQueue($p, $this->awards);
+        $ids = array_map(static fn (array $r): int => (int) $r['id'], $queue);
+        $id = self::deskPick($ids, (int) ($q['item'] ?? 0), (int) ($q['after'] ?? 0));
+
+        $keep = array_filter(['scope' => $p['scope'], 'view' => $p['view'] === 'all' ? '' : $p['view']]);
+        $qbase = '/admin/nominations/desk?' . ($keep ? http_build_query($keep) . '&' : '');
+        $at = array_search($id, $ids, true);
+        $n = $id > 0 ? \AfricaGates\Admin\Services\ReviewDesk::view($id, $this->awards) : null;
+        $count = count($ids);
+        return [
+            'queue'      => $queue,
+            'n'          => $n,
+            'pos'        => $at === false ? null : $at + 1,
+            'total'      => $count,
+            'qbase'      => $qbase,
+            'back'       => $qbase . 'item=' . $id,
+            'prev_href'  => $count ? $qbase . 'item=' . $ids[$at === false ? 0 : ($at - 1 + $count) % $count] : null,
+            'next_href'  => $count ? $qbase . 'item=' . $ids[$at === false ? 0 : ($at + 1) % $count] : null,
+            'list_href'  => \AfricaGates\Admin\Services\ReviewQueue::qs($p),
+            'scope_line' => \AfricaGates\Admin\Services\ReviewQueue::scopeLine($p['scope']),
+            'view_label' => $p['view'] === 'all' ? 'Everything waiting' : (\AfricaGates\Admin\Services\ReviewQueue::VIEWS[$p['view']] ?? ''),
+        ];
+    }
+
+    /**
+     * Which nomination the desk opens. An item still waiting is opened even when the
+     * quick view would not list it — a link somebody followed must land on what it
+     * named. An item already decided means "the one after it", which is where the
+     * no-script flow comes back to after a decision. The end of the queue wraps to its
+     * start, so anything skipped comes round again.
+     *
+     * @param list<int> $ids the queue, oldest first
+     */
+    private static function deskPick(array $ids, int $item, int $after): int
+    {
+        if ($item > 0) {
+            if (in_array($item, $ids, true)) return $item;
+            $st = DB::table('gates_nominations')->where('id', $item)->value('status');
+            if ($st === 'pending') return $item;
+            $after = $item;
+        }
+        if ($ids === []) return 0;
+        if ($after > 0) {
+            $ref = DB::table('gates_nominations')->where('id', $after)->first(['id', 'created_at']);
+            if ($ref) {
+                $order = DB::table('gates_nominations')->whereIn('id', $ids)->get(['id', 'created_at']);
+                $by = [];
+                foreach ($order as $o) $by[(int) $o->id] = (string) $o->created_at;
+                foreach ($ids as $i) {
+                    if ($by[$i] > (string) $ref->created_at || ($by[$i] === (string) $ref->created_at && $i > (int) $ref->id)) return $i;
+                }
+            }
+        }
+        return $ids[0];
     }
 
     /** Load a nomination joined to its programme/cycle (the review view's shape). */
@@ -629,7 +747,7 @@ HTML;
     {
         // Anchored on the path itself, so `//host`, a scheme or another page never matches;
         // what follows the `?` is only ever this list's own query.
-        return preg_match('~^/admin/nominations/review(\?[^#\s]*)?$~', $back) ? $back : null;
+        return preg_match('~^/admin/nominations/(review|desk)(\?[^#\s]*)?$~', $back) ? $back : null;
     }
 
     public function queue(Request $req, Response $res): Response

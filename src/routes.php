@@ -2199,6 +2199,11 @@ return function(App $app) {
         // The done screen (NominationFlow.dc.html step 6): a controller method now, because it
         // draws the award's own timeline and mints the share link once on the server.
         $g->get('/nominate/success', NominationController::class.':success');
+        // The nominator's answer to the review desk's "Ask for more": one link, emailed,
+        // that takes what was asked for and sends the nomination back to the queue.
+        // Two segments, so `/nominate/{slug}` below never matches it.
+        $g->get('/nominate/answer/{token:[a-f0-9]{64}}',  NominationController::class.':answerForm');
+        $g->post('/nominate/answer/{token:[a-f0-9]{64}}', NominationController::class.':answer');
         // ── ONE AWARD'S OWN NOMINATION PAGE ──────────────────────────────────
         //
         // AFTER `/nominate/success`, and the order is the whole of it: a literal

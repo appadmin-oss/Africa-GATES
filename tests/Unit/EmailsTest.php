@@ -37,6 +37,8 @@ final class EmailsTest extends TestCase
                           'voting_opens' => '1 November 2026', 'form_url' => 'https://x.test/f/t', 'page_url' => 'https://x.test/vote/p/1-ngozi'],
             'rejected' => ['nominee' => 'Ngozi Eze', 'reason' => 'Outside the award’s region.', 'rules_url' => 'https://x.test/awards/p',
                           'help_url' => 'https://x.test/support'],
+            'asked'    => ['nominee' => 'Ngozi Eze', 'first_name' => 'Ada', 'reviewer_note' => 'Please add one photo, letter or link that shows her work.',
+                          'fix_url' => 'https://x.test/nominate/answer/' . str_repeat('a', 64), 'closes_on' => '20 November 2026'],
             'vote'     => ['first_name' => 'Ada', 'nominee' => 'Ngozi Eze', 'nominee_first_name' => 'Ngozi', 'category' => 'Primary',
                           'votes' => 20, 'votes_label' => '20', 'amount' => '₦2,000', 'reference' => 'paystack_123', 'page_url' => 'https://x.test/vote/p/1-ngozi'],
             'notminted' => ['first_name' => 'Ada', 'votes_label' => '20', 'nominee' => 'Ngozi Eze', 'amount' => '₦2,000', 'reference' => 'paystack_123',
