@@ -45,7 +45,7 @@
     </div>
   </form>
 </div>
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 function postPoll(seed){
   let nextId = 100;
   const opts = (seed.opts && seed.opts.length >= 2) ? seed.opts.map(o => ({id:o.id, v:o.v})) : [{id:1,v:''},{id:2,v:''}];

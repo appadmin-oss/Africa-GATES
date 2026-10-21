@@ -246,7 +246,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 function scForm(){
   var blank = { id: 0, code: '', label: '', kind: 'percent', amount: 10, min_spend_naira: '',
                 max_uses: '', max_per_email: 1, starts_at: '', ends_at: '',

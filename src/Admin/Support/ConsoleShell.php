@@ -24,6 +24,17 @@ final class ConsoleShell
     /** Pages remembered for the palette's "Recent" (the HTML keeps four). */
     private const RECENT = 4;
 
+    /**
+     * Whether this request is the console fetching a page AHEAD of a click (console-nav.js,
+     * on hover or touch). Nothing about it is a visit: a prefetch must not reorder the
+     * palette's Recent or tell a colleague "Ada is viewing this" about a link Ada only
+     * passed the pointer over. Read by every recorder of "who looked at what".
+     */
+    public static function prefetch(): bool
+    {
+        return ($_SERVER['HTTP_X_CONSOLE_PREFETCH'] ?? '') === '1';
+    }
+
     /** @return array<string,mixed> */
     public static function context(?string $adminPage = null): array
     {
@@ -234,7 +245,7 @@ final class ConsoleShell
         $shown = array_values(array_filter($list, static fn ($r): bool =>
             is_array($r) && ($r['href'] ?? '') !== $path && Permissions::canOpen($role, (string) ($r['href'] ?? ''))));
 
-        if ($page !== null && $page['href'] === $path && session_status() === PHP_SESSION_ACTIVE) {
+        if ($page !== null && $page['href'] === $path && session_status() === PHP_SESSION_ACTIVE && !self::prefetch()) {
             $list = array_values(array_filter($list, static fn ($r): bool => is_array($r) && ($r['href'] ?? '') !== $path));
             array_unshift($list, ['page' => (string) $page['page'], 'label' => (string) $page['label'], 'href' => $path]);
             $_SESSION['cn_recent'] = array_slice($list, 0, self::RECENT + 1);

@@ -122,7 +122,7 @@
 {# Self-continue. Submits the next batch on its own so an operator does not click
    through a few thousand photos twenty-five at a time. Each POST carries the CSRF
    token above, and the loop ends when the controller stops returning ?migrate=running. #}
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
   setTimeout(function () {
     var f = document.getElementById('cdnRun');
     if (f) f.submit();

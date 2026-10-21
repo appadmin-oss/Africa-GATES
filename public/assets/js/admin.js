@@ -43,8 +43,16 @@
     setTimeout(function () { t.remove(); }, toastMs);
   }
   window.agToast = agToast;
-  // A flash from the previous request arrives as a toast already in the markup.
-  if (toasts) toasts.querySelectorAll('.cn-toast').forEach(function (t) { setTimeout(function () { t.remove(); }, toastMs); });
+  // A flash from the previous request arrives as a toast already in the markup — on a
+  // full load, or appended by console-nav.js when a page is swapped in without one.
+  function armToasts() {
+    if (toasts) toasts.querySelectorAll('.cn-toast:not([data-armed])').forEach(function (t) {
+      t.setAttribute('data-armed', '');
+      setTimeout(function () { t.remove(); }, toastMs);
+    });
+  }
+  armToasts();
+  document.addEventListener('cn:load', armToasts);
 
   // ── A VIEWER READS AND CHANGES NOTHING (rule 8) ─────────────────────────────
   //
@@ -123,14 +131,17 @@
     var b = g.querySelector('[data-ag-do="nav-fold"]');
     if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
-  (function () {
+  // Re-applied when console-nav.js swaps the rail's tree for the next page's.
+  function applyFolds() {
     var c = readCol();
     document.querySelectorAll('.cn-nav [data-group]').forEach(function (g) {
       var k = g.getAttribute('data-group');
       if (g.hasAttribute('data-here') || !(k in c)) return;
       setGroup(g, !c[k]);
     });
-  })();
+  }
+  applyFolds();
+  document.addEventListener('cn:load', applyFolds);
 
   // ── HOME'S AREA TABS: All · Awards · Money · Content ─────────────────────────
   // Without script every job shows, which is the All tab; this only narrows it.
@@ -432,11 +443,16 @@
 
   // ══ the page behaviours, carried over (inventory: docs/handoff/inventory/_admin.md) ══
 
+  // ── Everything below that FINDS elements on the page runs again for every page
+  // console-nav.js swaps in (`cn:load`), and marks what it has done so a second pass over
+  // the same element is a no-op. Delegated listeners above never need this.
+
   // File-zone previews
-  document.querySelectorAll('[data-file-zone]').forEach(zone => {
+  const mountFileZones = () => document.querySelectorAll('[data-file-zone]:not([data-mounted])').forEach(zone => {
     const input = zone.querySelector('input[type=file]');
     const preview = zone.parentElement.querySelector('[data-file-preview]');
     if (!input) return;
+    zone.setAttribute('data-mounted', '');
     zone.addEventListener('click', () => input.click());
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--cn-ink)'; });
     zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
@@ -458,6 +474,8 @@
       });
     }
   });
+  mountFileZones();
+  document.addEventListener('cn:load', mountFileZones);
 
   // NProgress-style top loading bar on form submit
   if (window.NProgress) {
@@ -478,8 +496,7 @@
   // A region that does not scroll gets no tab stop; one that starts scrolling on
   // resize gains one. The name comes from the table's own caption or the card title
   // above it, so the announcement is "Judges, region" rather than "region".
-  const scrollers = document.querySelectorAll('.ad-table-wrap');
-  if (scrollers.length) {
+  {
     const sync = (el) => {
       const scrolls = el.scrollWidth > el.clientWidth + 1;
       if (scrolls === el.hasAttribute('tabindex')) return;
@@ -497,13 +514,14 @@
         el.removeAttribute('role');
       }
     };
-    scrollers.forEach(sync);
-    if (window.ResizeObserver) {
-      const ro = new ResizeObserver(entries => entries.forEach(e => sync(e.target)));
-      scrollers.forEach(el => ro.observe(el));
-    } else {
-      window.addEventListener('resize', () => scrollers.forEach(sync));
-    }
+    const ro = window.ResizeObserver ? new ResizeObserver(entries => entries.forEach(e => sync(e.target))) : null;
+    const mountScrollers = () => {
+      const scrollers = document.querySelectorAll('.ad-table-wrap:not([data-mounted])');
+      scrollers.forEach(el => { el.setAttribute('data-mounted', ''); sync(el); if (ro) ro.observe(el); });
+    };
+    mountScrollers();
+    document.addEventListener('cn:load', mountScrollers);
+    if (!ro) window.addEventListener('resize', () => document.querySelectorAll('.ad-table-wrap').forEach(sync));
   }
 
   // ── THE TIER COLOUR DOT ─────────────────────────────────────────────────
@@ -587,6 +605,7 @@
     if (sel) agSizeSync(sel);
   });
   document.querySelectorAll('[data-ag-do="stand-size"]').forEach(agSizeSync);
+  document.addEventListener('cn:load', () => document.querySelectorAll('[data-ag-do="stand-size"]').forEach(agSizeSync));
 
   // ── HEAR ONE NAME IN THE DOOR'S VOICE ─────────────────────────────────────
   //
@@ -783,14 +802,18 @@
   })();
 
   // Tippy.js tooltips
-  if (window.tippy) {
-    window.tippy('[data-tip]', {
+  const mountTips = () => {
+    if (!window.tippy) return;
+    const fresh = Array.prototype.filter.call(document.querySelectorAll('[data-tip]'), el => !el._tippy);
+    if (fresh.length) window.tippy(fresh, {
       content: el => el.getAttribute('data-tip'),
       delay: [400, 80],
       animation: 'shift-away-subtle',
       theme: 'gates',
     });
-  }
+  };
+  mountTips();
+  document.addEventListener('cn:load', mountTips);
 })();
 
 // ── The kit's menus, the feedback dialog and "copy link" (owner's screenshots, 13 Oct) ──

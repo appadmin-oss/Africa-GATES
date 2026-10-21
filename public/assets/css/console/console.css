@@ -1080,3 +1080,18 @@ tr.ad-out > td { opacity: .62; }
 .al-tl__sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
 .al-src { color: var(--cn-ink-2) !important; text-decoration: none; }
 .al-src:hover { text-decoration: underline; }
+
+/* ══ Moving between pages (console-nav.js) ═══════════════════════════════════════
+   A hairline across the top while a page is on its way — only once the wait is long
+   enough to notice (120 ms), so a page answered from memory shows nothing at all. */
+.cn-progress {
+  position: fixed; inset: 0 0 auto 0; height: 2px; z-index: calc(var(--cn-z-drawer) + 10);
+  background: var(--cn-ink); transform-origin: 0 50%; transform: scaleX(0); opacity: 0;
+  pointer-events: none;
+}
+.cn-progress[data-on] { opacity: 1; transform: scaleX(.7); transition: transform 2.4s cubic-bezier(.1, .7, .2, 1), opacity .1s; }
+.cn-progress[data-on][data-done] { transform: scaleX(1); opacity: 0; transition: transform .18s ease-out, opacity .2s .05s; }
+.cn-main[aria-busy="true"] { cursor: progress; }
+@media (prefers-reduced-motion: reduce) {
+  .cn-progress[data-on], .cn-progress[data-on][data-done] { transition: none; transform: scaleX(1); }
+}

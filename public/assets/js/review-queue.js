@@ -27,6 +27,22 @@
   var page = wrap.getAttribute('data-rq-page') || location.pathname + location.search;
 
   function csrf() { return (document.querySelector('meta[name="csrf-token"]') || {}).content || ''; }
+
+  // ── Bound to this page, and unbound when it goes ─────────────────────────────
+  // console-nav.js swaps this page in and out without a reload, so a listener on the
+  // document or a heartbeat would otherwise outlive the list it belongs to — and A on the
+  // next page would approve a nomination from this one. Every binding outside the list's
+  // own elements goes through on(), and all of them end at `cn:unload`.
+  var offs = [];
+  function on(target, type, fn) { target.addEventListener(type, fn); offs.push(function () { target.removeEventListener(type, fn); }); }
+  document.addEventListener('cn:unload', function bye() {
+    offs.forEach(function (f) { f(); });
+    offs = [];
+    document.removeEventListener('cn:unload', bye);
+  });
+  function go(href) { if (window.cnNav) window.cnNav.go(href); else location.href = href; }
+  // The address changes as the peek opens and closes; the entry keeps console-nav's state.
+  function setUrl(href) { history.replaceState(history.state, '', href); }
   function toast(m) { if (window.agToast) window.agToast(m); }
   function typing(el) {
     if (!el) return false;
@@ -73,7 +89,7 @@
         wrap.classList.add('rq-wrap--peek');
         mark(id);
         position(id);
-        history.replaceState(null, '', href);
+        setUrl(href);
         page = href;
         if (focus !== false) {
           var h = peek.querySelector('.rq-peek__name');
@@ -93,7 +109,7 @@
     if (scrim) scrim.hidden = true;
     wrap.classList.remove('rq-wrap--peek');
     mark(null);
-    history.replaceState(null, '', href);
+    setUrl(href);
     page = href;
     if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
     beat();
@@ -135,7 +151,7 @@
   }
 
   // ── keys ────────────────────────────────────────────────────────────────────
-  document.addEventListener('keydown', function (e) {
+  on(document, 'keydown', function (e) {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
     if (document.querySelector('dialog[open]')) return;
     var k = e.key;
@@ -165,7 +181,7 @@
     if (isOpen && (k === 'r' || k === 'R')) { e.preventDefault(); openReject(); return; }
     if (k === 'd' || k === 'D') {
       var desk = document.querySelector('[data-rq-desk]');
-      if (desk) { e.preventDefault(); location.href = desk.getAttribute('href'); }
+      if (desk) { e.preventDefault(); go(desk.getAttribute('href')); }
     }
   });
 
@@ -217,7 +233,7 @@
       wrap.querySelectorAll('details.rq-pop[open]').forEach(function (o) { if (o !== d) o.open = false; });
     });
   });
-  document.addEventListener('click', function (e) {
+  on(document, 'click', function (e) {
     wrap.querySelectorAll('details.rq-pop[open]').forEach(function (d) {
       if (!d.contains(e.target) && !e.target.closest('[data-rq-open-filter]')) d.open = false;
     });
@@ -242,7 +258,7 @@
   if (q && instead) {
     var asked = q.value;
     q.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && q.value === asked) { e.preventDefault(); location.href = instead.getAttribute('href'); }
+      if (e.key === 'Enter' && q.value === asked) { e.preventDefault(); go(instead.getAttribute('href')); }
     });
   }
 
@@ -347,7 +363,8 @@
       })
       .catch(function () {});
   }
-  setInterval(beat, 45000);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) beat(); });
+  var beating = setInterval(beat, 45000);
+  offs.push(function () { clearInterval(beating); });
+  on(document, 'visibilitychange', function () { if (!document.hidden) beat(); });
   if (openId()) position(openId());
 })();

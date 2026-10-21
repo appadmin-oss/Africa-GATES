@@ -17,7 +17,7 @@
   .rt__ed blockquote{ border-left:3px solid var(--cn-ink); margin:.7em 0; padding:2px 12px; color:#475; }
   .rt__ed ul,.rt__ed ol{ padding-left:1.4em; } .rt__ed a{ color:var(--cn-ink); text-decoration:underline; }
 </style>
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="shell">
 (function(){
   // Dependency-free scrub of stored HTML before it touches a live DOM. DOMParser
   // parses INERTLY (no script execution, no resource loads, so no onerror fires);
@@ -130,5 +130,7 @@
   }
   function init(){ document.querySelectorAll('textarea[data-richtext]').forEach(enhance); }
   if(document.readyState !== 'loading') init(); else document.addEventListener('DOMContentLoaded', init);
+  // Again for every page console-nav.js swaps in; enhance() skips a textarea it has done.
+  document.addEventListener('cn:load', init);
 })();
 </script>

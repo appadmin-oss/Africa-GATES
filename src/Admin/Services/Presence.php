@@ -22,7 +22,8 @@ final class Presence
 
     public static function touch(int $adminId, string $area, ?int $targetId = null): void
     {
-        if ($adminId <= 0 || !SchemaHas::table('gates_admin_presence')) return;
+        // A page fetched ahead of a click is not somebody looking at it.
+        if ($adminId <= 0 || \AfricaGates\Admin\Support\ConsoleShell::prefetch() || !SchemaHas::table('gates_admin_presence')) return;
         try {
             DB::table('gates_admin_presence')->updateOrInsert(
                 ['admin_id' => $adminId],

@@ -432,7 +432,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 /* The same stable-id repeater the event forms use: a row keyed by its index loses focus on
    every keystroke, because re-rendering the list replaces the input being typed into. `vid`
    is the DATABASE id, carried separately so a save upserts rather than reissuing — the ids are

@@ -411,7 +411,7 @@
    a child template, so while this sat below {% endblock %} the whole page was a
    SyntaxError — /admin/payments rendered a 500, not a triage screen. The
    confirmation it holds was dead for the same reason. #}
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
   // Confirming orders moves money. One deliberate pause before it happens.
   document.getElementById('pt-repair')?.addEventListener('submit', function (e) {
     if (!window.confirm('Confirm these orders and deliver what is owed?')) e.preventDefault();

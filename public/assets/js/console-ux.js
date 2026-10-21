@@ -41,6 +41,9 @@
     return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
   }
   function say(live, msg) { if (live) live.textContent = msg; }
+  // Open a record: through console-nav.js when it is running, so a row click swaps the
+  // page in place like any other link; a plain navigation otherwise.
+  function go(href) { if (window.cnNav) window.cnNav.go(href); else location.href = href; }
 
   // ══ LISTS ══════════════════════════════════════════════════════════════════════
 
@@ -76,7 +79,8 @@
   }
 
   function enhanceTable(table, n) {
-    if (table.closest('[data-ux="off"]') || table.getAttribute('data-ux') === 'off') return;
+    if (table.closest('[data-ux="off"]') || table.getAttribute('data-ux') === 'off' || table.hasAttribute('data-ux-done')) return;
+    table.setAttribute('data-ux-done', '');
     var head = table.tHead && table.tHead.rows[0];
     var body = table.tBodies[0];
     if (!head || !body) return;
@@ -184,8 +188,14 @@
     wrap.parentNode.insertBefore(live, wrap);
   }
 
-  var tables = main.querySelectorAll('table');
-  for (var t = 0; t < tables.length; t++) enhanceTable(tables[t], t);
+  // Every one-off scan of the page lives in a mount function, run at load and again for
+  // each page console-nav.js swaps in (`cn:load`) — the listeners on `main` and on the
+  // document are bound once, because `main` itself is never replaced, only its contents.
+  function mountLists() {
+    lists.length = 0;
+    var tables = main.querySelectorAll('table');
+    for (var t = 0; t < tables.length; t++) enhanceTable(tables[t], t);
+  }
 
   // A click anywhere on a row that is not itself a control opens the row's record.
   main.addEventListener('click', function (e) {
@@ -193,7 +203,7 @@
     if (!tr || e.target.closest('a,button,input,select,textarea,label,summary,form,[contenteditable],.col-actions')) return;
     if (window.getSelection && String(window.getSelection())) return;   // they were selecting text
     var href = tr.getAttribute('data-row-href');
-    if (e.metaKey || e.ctrlKey) window.open(href, '_blank'); else location.href = href;
+    if (e.metaKey || e.ctrlKey) window.open(href, '_blank'); else go(href);
   });
 
   function visibleRows(l) { return l.rows.filter(function (r) { return !r.hidden; }); }
@@ -209,6 +219,7 @@
 
   // ══ FILTERS ════════════════════════════════════════════════════════════════════
 
+  function mountFilters() {
   [].forEach.call(main.querySelectorAll('form[method="get" i]'), function (f) {
     if (f.getAttribute('data-ux') === 'off' || f.closest('.cn-find')) return;
     var fields = f.querySelectorAll('select, input:not([type=hidden]):not([type=submit]):not([type=button])');
@@ -284,6 +295,7 @@
       });
     }
   });
+  }
 
   // ══ ON DEMAND, AND MENUS ═══════════════════════════════════════════════════════
 
@@ -291,6 +303,7 @@
   // on. For controls only in the way until somebody starts a task (the merge columns).
   // The button is `hidden` in the markup, so a browser with no script shows the controls
   // and never a button that does nothing.
+  function mountReveal() {
   [].forEach.call(main.querySelectorAll('[data-ux-reveal]'), function (b) {
     var targets = document.querySelectorAll(b.getAttribute('data-ux-reveal'));
     if (!targets.length) return;
@@ -303,6 +316,7 @@
       b.textContent = on ? 'Done' : label;
     });
   });
+  }
 
   // `details.cn-more`: one open at a time, closed by Escape or a press anywhere else.
   function closeMenus(except) {
@@ -401,13 +415,16 @@
   });
 
   // After a save, come back to where you were — the row you just changed, not the top.
-  try {
-    var s = JSON.parse(sessionStorage.getItem(SCROLL) || 'null');
-    sessionStorage.removeItem(SCROLL);
-    if (s && s.p === location.pathname + location.search && Date.now() - s.at < 60000 && s.y > 0) {
-      requestAnimationFrame(function () { main.scrollTop = s.y; });
-    }
-  } catch (_) {}
+  // (A save console-nav.js sends keeps its place by itself; this is the full-load case.)
+  function restoreScroll() {
+    try {
+      var s = JSON.parse(sessionStorage.getItem(SCROLL) || 'null');
+      sessionStorage.removeItem(SCROLL);
+      if (s && s.p === location.pathname + location.search && Date.now() - s.at < 60000 && s.y > 0) {
+        requestAnimationFrame(function () { main.scrollTop = s.y; });
+      }
+    } catch (_) {}
+  }
 
   function submitFrom(el) {
     var f = el && el.closest ? el.closest('form') : null;
@@ -469,7 +486,22 @@
     else if (k === 'k') { e.preventDefault(); cursor(l, -1); }
     else if (k === 'Enter' && l.at >= 0) {
       var r = visibleRows(l)[l.at];
-      if (r && r.getAttribute('data-row-href')) { e.preventDefault(); location.href = r.getAttribute('data-row-href'); }
+      if (r && r.getAttribute('data-row-href')) { e.preventDefault(); go(r.getAttribute('data-row-href')); }
     }
   });
+
+  // ══ MOUNTING ═══════════════════════════════════════════════════════════════════
+
+  function mount() { mountLists(); mountFilters(); mountReveal(); }
+  mount();
+  restoreScroll();
+  document.addEventListener('cn:load', function () {
+    // The page those edits and that pending send belonged to is gone.
+    dirty.clear();
+    restore(document);
+    mount();
+  });
+
+  // What console-nav.js asks before it leaves a page: are there edits it would lose?
+  window.cnUx = { dirty: function () { return dirty.size > 0; }, restore: restore };
 })();

@@ -285,3 +285,30 @@ one definition.
 **Open for the owner.** (1) Imported tallies on merge — keep the ledger rule, or carry the
 imported difference? (2) Net voters (one inbox = one person) is shown, never scored; scoring it
 would be a new, named basis.
+
+## The console moves without reloading — `console-nav.js` (21 Oct 2026)
+
+Owner: "make the admin a smart SPA, to improve the speed and the UX". Built as page swaps over
+the server-rendered console rather than a client-rendered app: every page still renders on
+the server and works with JavaScript off, and the guards on templates (CSP, Twig scope,
+colour, type) keep applying because the HTML is the same HTML.
+
+- Links and forms (GET and POST) inside `/admin` fetch the next page and swap only what
+  changes; the shell, the open assistant and loaded scripts stay. Measured on the dev server:
+  a swap is ~35% faster than a full load, and ~70–80% faster when the link was hovered first
+  (prefetched, kept 20 s, cleared by any save).
+- Back/Forward keep their scroll; a save that lands on its own page keeps your place;
+  focus moves to the page and its title is announced; a 120 ms-delayed hairline shows a wait.
+- Unsaved edits ask before leaving; a dropped connection on a save says so rather than
+  guessing; a file answer to a POST is handed over as a download; a signed-out answer loads
+  the sign-in page normally.
+- Pages with their own scripts take part only when marked `data-nav="rerun"` (13 templates
+  and the review list's `review-queue.js`, which now unbinds its shortcuts and heartbeat on
+  `cn:unload`). Still full loads, by design until their scripts are adapted: Providers,
+  the single nomination review, the review desk, multi-step forms (`form-steps`), the event
+  editor and tickets.
+- Server: `ConsoleShell::prefetch()` — a prefetch is not a visit (Recent, Presence). A
+  prefetched page that is then shown sends a `HEAD` so the visit is counted after all.
+- Test: `ConsoleNavTest` (rerun sweep and shell marking each proven to fail). Verified in
+  Chromium at 1280 and on an iPhone 13 profile: 24 of 26 rail pages swap, no console errors,
+  no CSP violations.

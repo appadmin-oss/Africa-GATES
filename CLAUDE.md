@@ -134,6 +134,29 @@ on a form routes it through `agConfirm` — since the console rebuild a confirm-
 dialog: a POSTing form cannot be confirmed without a reason, which travels as `_reason` and
 `AuditService::record()` attaches to the audit row (one place, not 124 call sites).
 
+## The admin console swaps pages; a page script must say whether it may run twice
+
+`public/assets/js/console-nav.js` (21 Oct 2026) fetches the next console page and swaps in
+`#cnMain`'s contents, the rail's tree, the top bar and the tab bar — no reload, links fetched
+ahead on hover. `#cnMain` itself is never replaced, so listeners on it survive; anything that
+SCANS the page runs again on `cn:load` (admin.js, console-ux.js, richtext), and scripts can
+clean up on `cn:unload`.
+
+**A page's own `<script>` is the hazard.** Re-executed on every visit, a listener it put on
+the document or window outlives its page — the review list's A key approves the open
+nomination, and a stale one pressed on the next page would approve one from the last. So:
+unmarked, a page loads the ordinary way (into it and out of it); `data-nav="rerun"` lets it be
+swapped, and `ConsoleNavTest` only allows that while it binds nothing outside its own elements
+(no document/window listener except through a `cn:unload` teardown, no uncleared
+`setInterval`, no top-level `const`/`let`). Shell scripts say `data-nav="shell"` — one left
+unmarked turns the swap off on EVERY page, silently. Navigation listens on `window`, so a
+page script's document listener always gets a click first, whenever it was added.
+
+A swapped page's nonce is not this document's: console-nav re-signs the fetched HTML BEFORE
+parsing, because Chromium checks a `<style>` against the policy even in an inert parsed
+document. A prefetch carries `X-Console-Prefetch: 1`, and `ConsoleShell::prefetch()` keeps it
+out of Recent and Presence — a link hovered over is not a page viewed.
+
 ## A header can switch a feature off in a way nothing on the page can see
 
 `Permissions-Policy: camera=()` denied the camera on **every page of the site**, so the

@@ -441,13 +441,17 @@
 
 {# Script order is load-bearing: ag-chat BEFORE Alpine (Alpine evaluates x-data on load,
    and agChat must exist by then); Popper before Tippy; admin.js last. #}
-<script defer src="{{ asset('/assets/js/ag-chat.js') }}"></script>
-<script defer src="{{ asset('/assets/js/vendor/alpine-3.13.5.min.js') }}"></script>
-<script defer src="{{ asset('/assets/js/vendor/popper-2.11.8.min.js') }}"></script>
-<script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}"></script>
+<script defer src="{{ asset('/assets/js/ag-chat.js') }}" data-nav="shell"></script>
+<script defer src="{{ asset('/assets/js/vendor/alpine-3.13.5.min.js') }}" data-nav="shell"></script>
+<script defer src="{{ asset('/assets/js/vendor/popper-2.11.8.min.js') }}" data-nav="shell"></script>
+<script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}" data-nav="shell"></script>
+{# A page's own scripts. Unmarked, the page loads the ordinary way; `data-nav="rerun"` lets
+   console-nav.js swap it in, and ConsoleNavTest decides who may say that. #}
 {% block foot_scripts %}{% endblock %}
-<script defer src="{{ asset('/assets/js/admin.js') }}"></script>
-<script defer src="{{ asset('/assets/js/console-ux.js') }}"></script>
+<script defer src="{{ asset('/assets/js/admin.js') }}" data-nav="shell"></script>
+<script defer src="{{ asset('/assets/js/console-ux.js') }}" data-nav="shell"></script>
+{# Last: it listens after everything else has had its chance to handle a click. #}
+<script defer src="{{ asset('/assets/js/console-nav.js') }}" data-nav="shell"></script>
 {% include 'admin/partials/richtext.twig' %}
 {% include 'admin/partials/ui.twig' %}
 </body>
