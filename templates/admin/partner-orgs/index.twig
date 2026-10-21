@@ -46,9 +46,9 @@
 <details class="ad-card" style="margin-bottom:16px">
   <summary style="cursor:pointer;padding:14px 18px;font-weight:600">Add an organisation</summary>
   <div class="ad-card__body">
-    <form method="post" action="/admin/partner-orgs">
+    <form method="post" action="/admin/partner-orgs" class="ad-form">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="row">
         <div>
           <label for="poName">Name shown to donors</label>
           <input id="poName" name="name" type="text" maxlength="200" required>

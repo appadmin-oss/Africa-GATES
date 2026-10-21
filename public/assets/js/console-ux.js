@@ -102,6 +102,7 @@
         });
       });
       table.setAttribute('data-stack', '');
+      stackable.push(table);
     }
 
     // ── which cell names the row: the one holding its main link, else the first one that
@@ -191,6 +192,30 @@
   // Every one-off scan of the page lives in a mount function, run at load and again for
   // each page console-nav.js swaps in (`cn:load`) — the listeners on `main` and on the
   // document are bound once, because `main` itself is never replaced, only its contents.
+  // ── which stackable tables are drawn as cards: on a phone always; below desktop when
+  // the table's natural width is more than its room. The natural width is measured with the
+  // table UNSTACKED (a stacked table is as wide as its box by construction, so measuring it
+  // then would flip it straight back).
+  var stackable = [];
+  var wide = window.matchMedia('(min-width: 1024px)');
+  var cards = window.matchMedia('(max-width: 768px)');
+  function fit() {
+    stackable = stackable.filter(function (t) { return t.isConnected; });
+    stackable.forEach(function (t) {
+      var room = (t.closest('.ad-table-wrap, .cn-split__list') || t.parentElement).clientWidth;
+      var stack = cards.matches;
+      if (!stack && !wide.matches) {
+        var was = t.hasAttribute('data-stacked');
+        if (was) t.removeAttribute('data-stacked');
+        stack = t.scrollWidth > room + 1;
+        if (was && stack) t.setAttribute('data-stacked', '');
+      }
+      if (stack) t.setAttribute('data-stacked', ''); else t.removeAttribute('data-stacked');
+    });
+  }
+  var fitTimer = 0;
+  window.addEventListener('resize', function () { cancelAnimationFrame(fitTimer); fitTimer = requestAnimationFrame(fit); });
+
   function mountLists() {
     lists.length = 0;
     var tables = main.querySelectorAll('table');
@@ -492,7 +517,7 @@
 
   // ══ MOUNTING ═══════════════════════════════════════════════════════════════════
 
-  function mount() { mountLists(); mountFilters(); mountReveal(); }
+  function mount() { mountLists(); fit(); mountFilters(); mountReveal(); }
   mount();
   restoreScroll();
   document.addEventListener('cn:load', function () {

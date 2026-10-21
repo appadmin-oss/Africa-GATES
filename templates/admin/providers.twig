@@ -43,6 +43,17 @@
               border:1px solid rgba(16,41,44,.12); }
   .pv-s--run{ background:rgba(243,180,22,.14); color:#8a6a00; border:1px solid rgba(243,180,22,.35); }
   .pv-bar{ display:flex; gap:10px; align-items:center; margin:0 0 16px; flex-wrap:wrap; }
+  /* Phone: five cells do not fit 358px, and the Run button ended up past the edge. Name and
+     state on one line, the answer under them, the time and Run below. */
+  @media (max-width:599px){
+    .pv-t, .pv-t tbody{ display:block; }
+    .pv-t tr{ display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:6px 10px;
+              padding:11px 0; border-top:1px solid var(--cn-line-row); }
+    .pv-t tr:first-child{ border-top:0; }
+    .pv-t td{ display:block; padding:0; border:0; width:auto !important; text-align:left !important; }
+    .pv-t .pv-n{ white-space:normal; }
+    .pv-t .pv-d{ grid-column:1 / -1; }
+  }
 
   /* The send test. Set apart on purpose: everything above it is free and reversible and
      this is neither, so it must not read as one more row in the table. */

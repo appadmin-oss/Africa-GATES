@@ -44,6 +44,9 @@
   .st{display:block}
   .st-bar{position:sticky;top:0;z-index:20;background:var(--cn-panel);padding:12px 0 14px;margin-bottom:4px;border-bottom:1px solid var(--cn-line-card)}
   .st-tabs{display:flex;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:none}
+  /* From a tablet up the eight groups wrap: scrolled sideways they ran to 1,405px and most
+     of them were off the screen with nothing to say they were there. */
+  @media (min-width:600px){ .st-tabs{flex-wrap:wrap;overflow:visible} }
   .st-tab{flex:none;border:1px solid var(--cn-line-card);background:var(--cn-surface);color:var(--cn-ink);border-radius:var(--cn-r-pill);padding:7px 14px;font:inherit;font-size:var(--cn-fs-13);font-weight:600;line-height:1.2;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
   .st-tab[aria-pressed="true"]{background:var(--cn-ink);border-color:transparent;color:var(--cn-surface)}
   .st-search{flex:1;min-width:170px;max-width:280px;padding:7px 12px;border:1px solid var(--cn-line-card);border-radius:var(--cn-r-pill);font:inherit;font-size:var(--cn-fs-13);background:var(--cn-surface);color:inherit}

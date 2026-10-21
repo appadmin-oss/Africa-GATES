@@ -67,7 +67,6 @@ html, body.cn { overflow: hidden; overscroll-behavior: none; }
   overflow: hidden; background: var(--cn-ground);
 }
 .cn-col { display: flex; min-width: 0; min-height: 0; padding: 8px 8px 8px 0; }
-body[data-side="closed"] .cn-col { padding-inline-start: 8px; }
 .cn-surface {
   position: relative; flex: 1; min-width: 0; min-height: 0;
   display: flex; flex-direction: column; overflow: hidden;
@@ -81,7 +80,6 @@ body[data-side="closed"] .cn-col { padding-inline-start: 8px; }
   display: flex; flex-direction: column; padding: 10px;
   background: var(--cn-ground);
 }
-body[data-side="closed"] .cn-side { display: none; }
 
 .cn-side__brand { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 8px; border-radius: 10px; }
 .cn-side__mark {
@@ -285,7 +283,8 @@ body[data-side="closed"] .cn-side { display: none; }
 .cn-h1 { margin: 0; font-size: var(--cn-fs-22); font-weight: 600; line-height: 1.2; letter-spacing: -.02em; }
 .cn-h1 small { display: block; font-size: var(--cn-fs-13); font-weight: 500; letter-spacing: 0; color: var(--cn-soft); }
 .cn-head__sub { margin: 0; font-size: var(--cn-fs-14); line-height: 1.5; color: var(--cn-soft); max-width: 76ch; text-wrap: pretty; }
-.cn-head__side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cn-head__side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.cn-head__side > * { min-width: 0; max-width: 100%; }
 .cn-head__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cn-head__actions:empty { display: none; }
 .cn-head__side form { margin: 0; }
@@ -304,8 +303,8 @@ body[data-side="closed"] .cn-side { display: none; }
 }
 
 .cn-related {
-  align-self: flex-start; max-width: 100%; display: flex; gap: 2px; margin-top: -12px; padding: 2px;
-  border-radius: 9px; background: var(--cn-ground); overflow-x: auto; scrollbar-width: none;
+  align-self: flex-start; max-width: 100%; display: flex; flex-wrap: wrap; gap: 2px; margin-top: -12px; padding: 2px;
+  border-radius: 9px; background: var(--cn-ground);
 }
 .cn-related__i {
   flex: none; display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 7px; white-space: nowrap;
@@ -615,25 +614,59 @@ body[data-readonly] form:not([data-cn-safe]):not([method="get" i]):not(:not([met
 body[data-readonly] [data-write] { opacity: .45; }
 
 
-/* ── tablet (600–1023): the 60px icon rail ───────────────────────────────────
-   Labels, group names and counts give way: a hairline between groups, a corner dot
-   where a page has work, the label as the item's title. Every group is shown open —
-   a collapsed group of icons would be a row of pages nobody can see. */
+/* ── the icon rail: tablet (600–1023), and the desktop rail when it is closed ──
+   One thin column, 52px: icons only, the label as each item's title, a corner dot where a
+   page has work. No tiles and no rules between groups — the current page is a soft square
+   and groups are told apart by space, so a closed rail reads as a toolbar rather than a
+   strip of boxes. Every group is shown open: a collapsed group of icons would be a row of
+   pages nobody can see. The same rules twice, once per condition, because a media query
+   and an attribute on <body> cannot share one selector. */
 @media (min-width: 600px) and (max-width: 1023px) {
-  .cn-side { width: 60px; padding: 10px 8px; }
-  .cn-side__brand { justify-content: center; padding: 0; }
-  .cn-side__who, .cn-side__search-l, .cn-side__kbd, .cn-nav__l, .cn-nav__n, .cn-nav__num, .cn-nav__chev, .cn-nav__fold-l { display: none; }
-  .cn-side__search { justify-content: center; height: 40px; margin: 6px 0 2px; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--cn-ink-2); }
-  .cn-side__search svg { width: 16px; height: 16px; }
+  .cn-side { width: 52px; padding: 8px 8px 10px; align-items: center; }
+  .cn-side__brand { justify-content: center; width: 36px; min-height: 36px; padding: 0; }
+  .cn-side__mark { width: 28px; height: 28px; border-radius: 8px; }
+  :is(.cn-side__who, .cn-side__search-l, .cn-side__kbd, .cn-nav__l, .cn-nav__n, .cn-nav__num, .cn-nav__chev, .cn-nav__fold-l, .cn-pin__x) { display: none; }
+  .cn-side__search { justify-content: center; width: 36px; height: 36px; margin: 8px 0 2px; padding: 0; border: 0; border-radius: 10px; background: transparent; box-shadow: none; color: var(--cn-ink-2); }
+  .cn-side__search svg { width: 18px; height: 18px; }
   .cn-side__search:hover { background: var(--cn-hover); }
-  .cn-nav__i { height: 40px; padding: 0; justify-content: center; }
-  .cn-nav__dot { display: block; }
-  .cn-nav__label { height: 1px; margin: 2px 12px 6px; padding: 0; background: var(--cn-line); overflow: hidden; }
-  .cn-nav__fold { pointer-events: none; }
+  .cn-nav { width: 100%; align-items: center; gap: 10px; padding-top: 4px; }
+  :is(.cn-nav ul, .cn-nav__top, .cn-nav__group) { align-items: center; gap: 2px; }
+  .cn-nav__label { display: none; }
   .cn-js .cn-nav__group:not([data-open]) > ul { display: flex; }
-  .cn-pin__x { display: none; }
+  .cn-pin { border-radius: 10px; }
+  .cn-nav__i { width: 36px; height: 36px; padding: 0; justify-content: center; border-radius: 10px; }
+  .cn-nav__i svg { width: 18px; height: 18px; }
+  .cn-nav__i[aria-current="page"] { background: color-mix(in srgb, var(--cn-ink) 8%, transparent); box-shadow: none; }
+  .cn-nav__dot { display: block; top: 5px; right: 5px; width: 6px; height: 6px; }
+  .cn-side__foot { width: 100%; align-items: center; padding-top: 6px; border-top: 0; }
+  .cn-side__me { height: 36px; }
+  .cn-avatar { width: 28px; height: 28px; font-size: var(--cn-fs-11); }
   .cn-menu--up { left: calc(100% + 6px); bottom: 0; }
+  .cn-nav__fold { pointer-events: none; }
   .cn-main { padding: 24px 24px 56px; }
+}
+@media (min-width: 1024px) {
+  body[data-side="closed"] .cn-side { width: 52px; padding: 8px 8px 10px; align-items: center; }
+  body[data-side="closed"] .cn-side__brand { justify-content: center; width: 36px; min-height: 36px; padding: 0; }
+  body[data-side="closed"] .cn-side__mark { width: 28px; height: 28px; border-radius: 8px; }
+  body[data-side="closed"] :is(.cn-side__who, .cn-side__search-l, .cn-side__kbd, .cn-nav__l, .cn-nav__n, .cn-nav__num, .cn-nav__chev, .cn-nav__fold-l, .cn-pin__x) { display: none; }
+  body[data-side="closed"] .cn-side__search { justify-content: center; width: 36px; height: 36px; margin: 8px 0 2px; padding: 0; border: 0; border-radius: 10px; background: transparent; box-shadow: none; color: var(--cn-ink-2); }
+  body[data-side="closed"] .cn-side__search svg { width: 18px; height: 18px; }
+  body[data-side="closed"] .cn-side__search:hover { background: var(--cn-hover); }
+  body[data-side="closed"] .cn-nav { width: 100%; align-items: center; gap: 10px; padding-top: 4px; }
+  body[data-side="closed"] :is(.cn-nav ul, .cn-nav__top, .cn-nav__group) { align-items: center; gap: 2px; }
+  body[data-side="closed"] .cn-nav__label { display: none; }
+  .cn-js body[data-side="closed"] .cn-nav__group:not([data-open]) > ul { display: flex; }
+  body[data-side="closed"] .cn-pin { border-radius: 10px; }
+  body[data-side="closed"] .cn-nav__i { width: 36px; height: 36px; padding: 0; justify-content: center; border-radius: 10px; }
+  body[data-side="closed"] .cn-nav__i svg { width: 18px; height: 18px; }
+  body[data-side="closed"] .cn-nav__i[aria-current="page"] { background: color-mix(in srgb, var(--cn-ink) 8%, transparent); box-shadow: none; }
+  body[data-side="closed"] .cn-nav__dot { display: block; top: 5px; right: 5px; width: 6px; height: 6px; }
+  body[data-side="closed"] .cn-side__foot { width: 100%; align-items: center; padding-top: 6px; border-top: 0; }
+  body[data-side="closed"] .cn-side__me { height: 36px; }
+  body[data-side="closed"] .cn-avatar { width: 28px; height: 28px; font-size: var(--cn-fs-11); }
+  body[data-side="closed"] .cn-menu--up { left: calc(100% + 6px); bottom: 0; }
+  body[data-side="closed"] .cn-nav__fold { display: none; }
 }
 
 /* ── phone (<600): an app bar, the page, and a floating tab bar ───────────────
@@ -819,22 +852,26 @@ form.cn-folded { display: none !important; }
   background: transparent; color: inherit; border-color: color-mix(in srgb, var(--cn-surface) 45%, transparent);
 }
 
-/* phones: a list is a column of labelled cards, never a strip scrolled sideways */
+/* A list that does not fit is a column of labelled cards, never a strip scrolled sideways.
+   console-ux.js sets `data-stacked` on a phone (≤768) always, and below desktop (<1024)
+   whenever the table's natural width is more than the room it has — measured, not guessed
+   from the viewport, so a narrow table stays a table on a tablet and a wide one never makes
+   the page scroll sideways. Without the script a table simply scrolls inside its wrap. */
+table[data-stacked], table[data-stacked] tbody, table[data-stacked] tr, table[data-stacked] td { display: block; width: 100%; min-width: 0; }
+table[data-stacked] { min-width: 0 !important; }
+table[data-stacked] thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+table[data-stacked] tr { padding: 12px 14px; border-top: 1px solid var(--cn-line-row); }
+table[data-stacked] tr:first-child { border-top: 0; }
+table[data-stacked] td { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 4px 0 !important; border: 0 !important; text-align: right; }
+table[data-stacked] td::before { content: attr(data-label); flex: none; max-width: 45%; text-align: left; font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
+table[data-stacked] td:not([data-label])::before, table[data-stacked] td[data-label=""]::before { content: none; }
+table[data-stacked] td[data-cell="name"] { display: block; text-align: left; font-weight: 600; }
+table[data-stacked] td[data-cell="name"]::before { content: none; }
+table[data-stacked] td.col-actions { justify-content: flex-start; flex-wrap: wrap; gap: 8px; padding-top: 8px !important; }
+table[data-stacked] td.col-actions::before { content: none; }
+table[data-stacked] td:empty { display: none; }
+.ad-table-wrap:has(> table[data-stacked]) { overflow: visible; }
 @media (max-width: 768px) {
-  table[data-stack], table[data-stack] tbody, table[data-stack] tr, table[data-stack] td { display: block; width: 100%; min-width: 0; }
-  table[data-stack] { min-width: 0 !important; }
-  table[data-stack] thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  table[data-stack] tr { padding: 12px 14px; border-top: 1px solid var(--cn-line-row); }
-  table[data-stack] tr:first-child { border-top: 0; }
-  table[data-stack] td { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 4px 0 !important; border: 0 !important; text-align: right; }
-  table[data-stack] td::before { content: attr(data-label); flex: none; max-width: 45%; text-align: left; font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
-  table[data-stack] td:not([data-label])::before, table[data-stack] td[data-label=""]::before { content: none; }
-  table[data-stack] td[data-cell="name"] { display: block; text-align: left; font-weight: 600; }
-  table[data-stack] td[data-cell="name"]::before { content: none; }
-  table[data-stack] td.col-actions { justify-content: flex-start; flex-wrap: wrap; gap: 8px; padding-top: 8px !important; }
-  table[data-stack] td.col-actions::before { content: none; }
-  table[data-stack] td:empty { display: none; }
-  .ad-table-wrap:has(> table[data-stack]) { max-height: none; overflow: visible; }
   .cn-find__in { flex-basis: 100%; min-height: 44px; }
 }
 
@@ -874,7 +911,10 @@ form.cn-folded { display: none !important; }
 .ad-chip--gold { background: var(--cn-gold-wash); color: var(--cn-gold-ink); }
 .ad-chip--red { background: var(--cn-red-wash); color: var(--cn-red); }
 .ad-chip--blue, .ad-chip--purple { background: var(--cn-ground); color: var(--cn-slate); }
-.ad-table-wrap { overflow: auto; max-height: calc(100vh - 220px); }
+/* Sideways only, when a table is wider than its room. It used to be capped at the window's
+   height, which put a second vertical scrollbar inside <main> on every long list (§10b:
+   only <main> and the drawer scroll). */
+.ad-table-wrap { overflow-x: auto; }
 .ad-table { width: 100%; border-collapse: collapse; font-size: var(--cn-fs-13); }
 .ad-table th { position: sticky; top: 0; background: var(--cn-panel); color: var(--cn-soft); font-size: var(--cn-fs-12-5); font-weight: 500; text-align: left; padding: 10px 14px; }
 .ad-table td { padding: 10px 14px; border-top: 1px solid var(--cn-line-row); vertical-align: middle; }
@@ -891,6 +931,17 @@ tr.ad-out > td { opacity: .62; }
 .ad-filters input, .ad-filters select { width: auto; }
 .ad-form { display: grid; gap: 14px; }
 .ad-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ad-form .row > *, .ad-form .ad-form__row > * { min-width: 0; }
+@media (max-width: 599px) { .ad-form .row, .ad-form .ad-form__row { grid-template-columns: minmax(0, 1fr); } }
+/* A control is never wider than the page: a select sizes itself to its LONGEST option, and a
+   programme named "DEMO — Sandbox Programme — 2026 Rehearsal" pushed two pages sideways. */
+.cn-main :is(select, input:not([type=checkbox]):not([type=radio]), textarea) { max-width: 100%; }
+.cn-main select { min-width: 0; text-overflow: ellipsis; }
+/* …which only works if what holds it can narrow too: a form, a label or a header action is a
+   flex item whose minimum is its content, so it grew with the select and took the page
+   with it (Shortlists, Result release). */
+.cn-main :is(form, label, .cn-head__actions > *) { min-width: 0; max-width: 100%; }
+.ad-filters > div { flex-wrap: wrap; min-width: 0; max-width: 100%; }
 .ad-form .ad-form__row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .ad-form label { display: block; font-size: var(--cn-fs-13); font-weight: 600; margin-bottom: 6px; }
 .ad-form .hint { font-size: var(--cn-fs-12); color: var(--cn-ink-3); margin-top: 4px; }
