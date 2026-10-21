@@ -47,20 +47,23 @@
 
   // ── parts ────────────────────────────────────────────────────────────────
   var panes = root.querySelectorAll('[data-iv-pane]');
-  var tabs = root.querySelectorAll('[data-iv-tab]');
+  var tabs = root.querySelectorAll('.iv__tab[data-iv-tab]');
   function show(phase, remember) {
     var known = false;
     panes.forEach(function (p) { if (p.getAttribute('data-iv-pane') === phase) known = true; });
     if (!known) phase = 'talk';
     panes.forEach(function (p) { p.hidden = p.getAttribute('data-iv-pane') !== phase; });
+    // The welcome and "where we stopped" are screens of their own: no parts bar over them.
+    root.setAttribute('data-showing', phase);
     tabs.forEach(function (t) {
       if (t.getAttribute('data-iv-tab') === phase) t.setAttribute('aria-current', 'step'); else t.removeAttribute('aria-current');
     });
     if (phase === 'talk') toBottom(true);
     if (remember) post('/interview/phase', { phase: phase }).catch(function () {});
   }
-  tabs.forEach(function (t) {
-    t.addEventListener('click', function (e) { e.preventDefault(); show(t.getAttribute('data-iv-tab'), true); });
+  root.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-iv-tab]');
+    if (t) { e.preventDefault(); show(t.getAttribute('data-iv-tab'), true); }
   });
 
   // ── the log: stays at the newest message unless the nominee has scrolled up to read ──
@@ -91,6 +94,16 @@
 
   // The intro card (title, deadline, the promise) heads the log and is kept across redraws.
   var intro = log ? log.querySelector('[data-iv-intro]') : null;
+  var ledgerNow = [];
+  function noted(o) {
+    var li = el('li', 'iv__noted');
+    li.appendChild(el('p', 'iv__noted-k', 'Noted · worked out by the interviewer'));
+    var t = el('p', 'iv__noted-t'); t.appendChild(el('b', null, o.label));
+    if (o.quote) t.appendChild(document.createTextNode(' — “' + o.quote + '”'));
+    li.appendChild(t);
+    li.appendChild(el('p', 'iv__fine', 'You read and correct every one of these before anything is sent.'));
+    return li;
+  }
   function draw(turns) {
     if (!log) return;
     log.textContent = '';
@@ -100,7 +113,7 @@
       if (t.role === 'event') { log.appendChild(el('li', 'iv__event', t.text)); return; }
       var me = t.role === 'nominee';
       var li = el('li', 'iv__turn iv__turn--' + (me ? 'me' : 'them'));
-      li.setAttribute('data-i', t.i);
+      li.setAttribute('data-i', t.i); li.id = 'iv-t' + t.i;
       li.appendChild(el('p', 'iv__who', (me ? 'You' : who) + (t.amended ? ' · changed' : '')));
       li.appendChild(el('p', 'iv__text', t.text));
       var act = el('div', 'iv__acts');
@@ -108,6 +121,7 @@
       else if (voice) act.appendChild(button('Listen', 'ag-btn ag-btn--secondary iv__mini', 'data-iv-speak', t.i));
       if (act.childNodes.length) li.appendChild(act);
       log.appendChild(li);
+      ledgerNow.forEach(function (o) { if (o.turn === t.i && o.status !== 'unmet') log.appendChild(noted(o)); });
       (t.requests || []).forEach(function (r) { log.appendChild(askCard(r)); });
       last = t;
     });
@@ -121,16 +135,45 @@
       var b = button(c, 'iv__chip'); b.addEventListener('click', function () { send(c); }); chipsBox.appendChild(b);
     });
   }
-  function progress(p) {
-    var box_ = root.querySelector('[data-iv-prog]');
-    if (!box_ || !p) return;
-    var pc = p.total ? Math.round(100 * p.met / p.total) : 0;
-    box_.querySelector('.iv__fill').style.width = pc + '%';
-    box_.querySelector('[data-iv-pc]').textContent = 'About ' + pc + '% covered — approximate';
+  function progress(p, ledger) {
+    if (!p) return;
+    var words = p.met + ' of ' + p.total;
+    root.querySelectorAll('[data-iv-left-n], [data-iv-left-count]').forEach(function (n) { n.textContent = words; });
     var n = root.querySelector('[data-iv-count]');
     if (n) n.textContent = p.met + '/' + p.total;
+    if (!ledger) return;
+    root.querySelectorAll('.iv__prog').forEach(function (rail) {
+      rail.textContent = '';
+      ledger.forEach(function (o) { rail.appendChild(el('span', 'iv__seg iv__seg--' + o.status)); });
+    });
+    var rows = root.querySelector('[data-iv-rows]');
+    if (!rows) return;
+    rows.textContent = '';
+    ledger.forEach(function (o) {
+      var li = el('li', 'iv__rowo iv__rowo--' + o.status + (o.required ? '' : ' is-optional'));
+      li.appendChild(el('span', 'iv__mark'));
+      var t = el('span', 'iv__rowo-t'); t.appendChild(el('b', null, o.label));
+      var q = o.quote && o.quote.length > 60 ? o.quote.slice(0, 60) + '…' : o.quote;
+      // A word for every state — never the colour alone.
+      t.appendChild(el('span', 'iv__rowo-s', o.status === 'met' ? 'Done' + (q ? ' · “' + q + '”' : '')
+        : o.status === 'partial' ? 'Part-answered · we are on this now'
+        : !o.required ? 'Optional · saying so has never cost anyone an award' : 'Not yet'));
+      li.appendChild(t);
+      rows.appendChild(li);
+    });
   }
   function works(list) {
+    var rv = root.querySelector('[data-iv-works-review]');
+    if (rv && list) {
+      rv.textContent = '';
+      if (!list.length) rv.appendChild(el('li', 'mw__help', 'No files or links. That is allowed.'));
+      list.forEach(function (w) {
+        var li = el('li'); li.appendChild(el('b', null, w.title || w.file_name || 'Untitled'));
+        if (w.file_name) li.appendChild(document.createTextNode(' · file attached'));
+        else if (w.link) li.appendChild(document.createTextNode(' · link'));
+        rv.appendChild(li);
+      });
+    }
     var ul = root.querySelector('[data-iv-works]');
     if (!ul || !list) return;
     ul.textContent = '';
@@ -146,8 +189,9 @@
   var stopped = ['no_ai', 'ceiling', 'off', 'sent'];
   function apply(st) {
     if (!st) return st;
+    if (st.ledger) ledgerNow = st.ledger;
     if (st.turns) draw(st.turns);
-    progress(st.progress);
+    progress(st.progress, st.ledger);
     if (st.works) works(st.works);
     // A conversation that has stopped is a different screen (the way out, in the service's own
     // words), and the server draws it — so go and get it rather than imitate it here.
@@ -191,17 +235,27 @@
     post('/interview', { say: text }).then(json).then(function (r) {
       thinking(false); lock(false);
       if (!r.ok) {
-        mine.remove();
-        if (box && !box.value) { box.value = text; grow(); }
-        tell(r.message || 'That did not get through. Your answer is still here — try again.');
+        failed(mine, text);
+        tell(r.message || 'That did not get through. Your answer is kept — try again.');
+        return;
       }
       apply(r);
       if (box && window.matchMedia('(pointer:fine)').matches) box.focus();
     }).catch(function () {
-      thinking(false); lock(false); mine.remove();
-      if (box && !box.value) { box.value = text; grow(); }
-      tell('No connection. Your answer is still here — send it again when you are back online.');
+      thinking(false); lock(false);
+      failed(mine, text);
     });
+  }
+  // Re-typing something already said is a trust failure as well as WCAG 3.3.7's: the bubble
+  // keeps its words, says it was not sent, and sends again from where it is.
+  function failed(li, text) {
+    li.classList.remove('is-pending'); li.classList.add('is-failed');
+    var row = el('p', 'iv__failed'); row.setAttribute('role', 'alert');
+    row.appendChild(document.createTextNode('Not sent · kept here'));
+    var again = button('Try again');
+    again.addEventListener('click', function () { li.remove(); send(text); });
+    row.appendChild(again);
+    li.appendChild(row);
   }
   function grow() { if (!box) return; box.style.height = 'auto'; box.style.height = Math.min(box.scrollHeight, 152) + 'px'; }
 
@@ -247,7 +301,11 @@
       var a = e.target.closest('[data-iv-amend]');
       var s = e.target.closest('[data-iv-speak]');
       var d = e.target.closest('[data-iv-decline]');
-      if (a) amend(a.closest('li'), a.getAttribute('data-iv-amend'));
+      var own = e.target.closest('.iv__turn--me[data-i]');
+      if (a || (own && !e.target.closest('button, textarea, a') && !own.querySelector('textarea'))) {
+        var li = a ? a.closest('li') : own;
+        take(li, li.getAttribute('data-i'));
+      }
       if (s) speak(s, s.getAttribute('data-iv-speak'));
       if (d && !busy) {
         lock(true);
@@ -257,6 +315,66 @@
       }
     });
   }
+
+  // A sheet opens at its top, with focus on its heading — the browser would otherwise focus
+  // its only button, at the bottom, and scroll the heading out of sight.
+  function openSheet(d) {
+    d.showModal();
+    d.scrollTop = 0;
+    var h = d.querySelector('h2');
+    if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  }
+
+  // ── taking something back ────────────────────────────────────────────────
+  var takeSheet = document.getElementById('iv-take');
+  var taking = null;
+  function take(li, i) {
+    if (!takeSheet || !takeSheet.showModal) { amend(li, i); return; }
+    taking = { li: li, i: i };
+    li.classList.add('is-picked');
+    takeSheet.querySelector('[data-iv-take-text]').textContent = li.querySelector('.iv__text').textContent;
+    openSheet(takeSheet);
+  }
+  if (takeSheet) {
+    takeSheet.addEventListener('close', function () { if (taking) taking.li.classList.remove('is-picked'); });
+    takeSheet.addEventListener('click', function (e) {
+      if (e.target === takeSheet) { takeSheet.close(); return; }
+      var b = e.target.closest('[data-iv-take]');
+      if (!b || !taking) return;
+      var how = b.getAttribute('data-iv-take'), t = taking;
+      takeSheet.close();
+      if (how === 'edit') amend(t.li, t.i);
+      else if (how === 'again') { show('talk', true); if (box) { box.value = t.li.querySelector('.iv__text').textContent; grow(); box.focus(); } tell('Say it the way you mean it, then press Send. The interviewer uses the newer answer.'); }
+      else if (how === 'remove') {
+        post('/interview/amend', { turn: t.i, how: 'remove', text: '' }).then(json).then(function (r) {
+          if (!r.ok && r.message) tell(r.message); else tell('Removed. The judges will never see it.');
+          apply(r);
+        }).catch(function () { tell('No connection. Nothing was changed.'); });
+      }
+    });
+  }
+
+  // ── what's left, and the way back to a turn ──────────────────────────────
+  var leftSheet = document.getElementById('iv-left');
+  root.addEventListener('click', function (e) {
+    var l = e.target.closest('[data-iv-left]');
+    if (l && leftSheet && leftSheet.showModal) { e.preventDefault(); openSheet(leftSheet); return; }
+    var j = e.target.closest('[data-iv-jump]');
+    if (j) {
+      e.preventDefault();
+      show('talk', true);
+      var turn = document.getElementById('iv-t' + j.getAttribute('data-iv-jump'));
+      if (turn) {
+        pinned = false;
+        turn.scrollIntoView({ block: 'center' });
+        turn.classList.add('is-flash');
+        setTimeout(function () { turn.classList.remove('is-flash'); }, 1600);
+      }
+    }
+    var st = e.target.closest('[data-iv-start]');
+    if (st) { show('talk', true); if (box && window.matchMedia('(pointer:fine)').matches) box.focus(); }
+  });
+  if (leftSheet) leftSheet.addEventListener('click', function (e) { if (e.target === leftSheet) leftSheet.close(); });
 
   // ── changing a turn of your own ──────────────────────────────────────────
   function amend(li, i) {
@@ -345,7 +463,7 @@
   }
 
   // ── first paint ──────────────────────────────────────────────────────────
-  if (panes.length) show(location.hash.replace('#iv-', '') || root.getAttribute('data-phase'), false);
+  if (panes.length) show(location.hash.replace('#iv-', '').replace(/^t\d+$/, 'talk') || root.getAttribute('data-entry') || root.getAttribute('data-phase'), false);
   if (log) {
     toBottom(true);
     // Draw again from live state (adds the buttons the server render leaves to the script),

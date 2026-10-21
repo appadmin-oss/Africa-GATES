@@ -126,6 +126,85 @@ final class MyWorkInterviewPageTest extends TestCase
         $this->assertSame('Seed bank ledger', $works[0]['title']);
     }
 
+    // ── the screens from the live-interview handoff (design_handoff_live_interview) ──
+
+    /** Write a conversation onto the submission, as the engine stores it. */
+    private function converse(string $token, array $turns, string $savedAt): object
+    {
+        $s = Q::byToken($token);
+        $env = json_decode((string) ($s->transcript_json ?? ''), true) ?: [];
+        $env['turns'] = array_merge((array) ($env['turns'] ?? []), $turns);
+        DB::table('gates_nominee_submissions')->where('id', $s->id)
+            ->update(['transcript_json' => json_encode($env), 'updated_at' => $savedAt]);
+        return Q::byToken($token);
+    }
+
+    public function test_a_first_visit_opens_on_the_welcome_with_its_four_facts(): void
+    {
+        $html = (string) $this->send('GET', '/my-work/' . $this->open())->getBody();
+        $this->assertStringContainsString('data-entry="welcome"', $html);
+        $this->assertStringContainsString('data-iv-pane="welcome"', $html);
+        foreach (['You are talking to an AI.', 'About 15 minutes.', 'Nothing reaches the judges until you read it and send it.',
+                  'Switch to the form whenever you like.', 'Start the conversation', 'Fill in the form instead', 'Nothing about this costs money.'] as $line) {
+            $this->assertStringContainsString($line, $html);
+        }
+        // Progress is outcomes, one segment each, with no percentage anywhere.
+        preg_match('~<div class="iv__prog" data-iv-prog[^>]*>(.*?)</div>~s', $html, $rail);
+        $this->assertSame(1, substr_count($rail[1] ?? '', 'iv__seg iv__seg--unmet'), 'the rail is not one segment per outcome');
+        $this->assertDoesNotMatchRegularExpression('~\d+% covered~', $html, 'the rail is a guide, not a score');
+        $this->assertStringContainsString('0 of 1', $html);
+    }
+
+    public function test_the_way_to_the_form_is_on_every_screen(): void
+    {
+        $token = $this->open();
+        $html = (string) $this->send('GET', '/my-work/' . $token)->getBody();
+        // the welcome, the conversation, the files, the read-back
+        $this->assertGreaterThanOrEqual(4, substr_count($html, 'action="/my-work/' . $token . '/interview/switch"'));
+    }
+
+    public function test_coming_back_after_a_gap_shows_where_we_stopped(): void
+    {
+        $token = $this->open();
+        $this->converse($token, [
+            ['role' => 'nominee', 'text' => 'We run a seed bank in Kano.', 'at' => '2026-09-01 10:00:00'],
+            ['role' => 'interviewer', 'text' => 'How many farmers borrow seed from it each season?', 'at' => '2026-09-01 10:00:05'],
+        ], date('Y-m-d H:i:s', time() - 2 * 86400));
+        $html = (string) $this->send('GET', '/my-work/' . $token)->getBody();
+        $this->assertStringContainsString('data-entry="back"', $html);
+        $this->assertStringContainsString('Where we stopped', $html);
+        $this->assertStringContainsString('How many farmers borrow seed from it each season?', $html);
+        $this->assertStringContainsString('Pick up where we left off', $html);
+
+        // A visit a minute after the last message goes straight back into the conversation.
+        $this->converse($token, [], date('Y-m-d H:i:s', time() - 60));
+        $this->assertStringContainsString('data-entry=""', (string) $this->send('GET', '/my-work/' . $token)->getBody());
+    }
+
+    public function test_what_was_noted_is_shown_at_its_turn_labelled_and_linked_back(): void
+    {
+        $token = $this->open();
+        $s = $this->converse($token, [
+            ['role' => 'nominee', 'text' => 'Four hundred farmers borrow seed from us every season.', 'at' => '2026-09-01 10:00:00'],
+        ], date('Y-m-d H:i:s'));
+        $env = json_decode((string) $s->transcript_json, true);
+        $turn = count($env['turns']) - 1;
+        $r = \AfricaGates\Services\QuestionnaireLedger::record($s, 'scale', 'met', 'Reaches about 400 farmers a season.',
+            'Four hundred farmers borrow seed', $env['turns']);
+        $this->assertTrue($r['ok'] ?? false, json_encode($r));
+
+        $html = (string) $this->send('GET', '/my-work/' . $token)->getBody();
+        $at = strpos($html, 'id="iv-t' . $turn . '"');
+        $this->assertNotFalse($at, 'the turn has no anchor to link back to');
+        $note = strpos($html, 'Noted · worked out by the interviewer', (int) $at);
+        $this->assertNotFalse($note, 'the note is not drawn after the turn it came from');
+        $this->assertStringContainsString('You read and correct every one of these before anything is sent.', $html);
+        $this->assertStringContainsString('href="#iv-t' . $turn . '" data-iv-jump="' . $turn . '"', $html, 'the read-back cannot find its turn');
+        $this->assertStringContainsString('iv__rowo iv__rowo--met', $html);
+        $this->assertStringContainsString('Done · “Four hundred farmers borrow seed”', $html, 'a state is drawn without its word');
+        $this->assertStringContainsString('1 of 1', $html);
+    }
+
     private function open(): string
     {
         $r = Q::open(self::NOM);
