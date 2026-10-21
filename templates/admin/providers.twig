@@ -148,12 +148,13 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 (function () {
   'use strict';
   // Delegated on `data-ag-do`, never an inline handler: the admin CSP has no
   // 'unsafe-inline', so an onclick= here is a button that does nothing at all.
-  var TOKEN = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  // Read when sending, never copied at load: csrf-fresh.js rewrites the meta as the page ages.
+  function token() { return (document.querySelector('meta[name="csrf-token"]') || {}).content || ''; }
 
   function row(id) { return document.querySelector('[data-pv-row="' + id + '"]'); }
 
@@ -186,7 +187,7 @@
     return fetch('/admin/settings/providers/run', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': TOKEN },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': token() },
       body: id ? 'id=' + encodeURIComponent(id) : '',
     })
       .then(function (r) { return r.json(); })
@@ -231,7 +232,7 @@
     fetch('/admin/settings/providers/send-test', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': TOKEN },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': token() },
       body: 'channel=' + encodeURIComponent(ch.value) + '&number=' + encodeURIComponent(n),
     })
       .then(function (r) { return r.json(); })
@@ -268,7 +269,7 @@
       });
   }
 
-  document.addEventListener('click', function (e) {
+  cnPage.on(document, 'click', function (e) {
     var snd = e.target.closest('[data-ag-do="pv-send"]');
     if (snd) { sendTest(snd); return; }
 

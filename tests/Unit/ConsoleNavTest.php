@@ -33,8 +33,14 @@ final class ConsoleNavTest extends TestCase
             foreach ($m as $x) if ($x[3] !== 'cn:unload') $out[] = "{$x[1]}.addEventListener('{$x[3]}') outlives the page — bind it through a teardown on cn:unload";
         }
         if (preg_match('/\b(document|window)\.addEventListener\(\s*[^\'"\s]/', $js)) $out[] = 'a document/window listener with a computed type';
+        // #cnMain is never replaced — only its contents — so a listener on it is as permanent
+        // as one on the document, and piles up one more copy per visit.
+        if (preg_match('/(getElementById\(\s*[\'"]cnMain[\'"]\s*\)|querySelector\(\s*[\'"]\.cn-main[\'"]\s*\))\s*\.addEventListener/', $js)) $out[] = 'a listener on #cnMain, which outlives every page swapped into it';
         if (substr_count($js, 'setInterval(') > substr_count($js, 'clearInterval(')) $out[] = 'a setInterval nothing clears';
-        if (str_contains($js, 'onbeforeunload') || str_contains($js, "'beforeunload'")) $out[] = 'an unload prompt';
+        // An unload prompt assigned as a property cannot be taken back by a teardown. (One added
+        // through cnPage.on is removed with its page, and the listener rule above catches the
+        // direct form.)
+        if (preg_match('/\bonbeforeunload\s*=/', $js)) $out[] = 'an unload prompt assigned to window.onbeforeunload';
         // A classic script's top-level const/let/class throws "already declared" the second time.
         if (preg_match('/^(const|let|class)\s/m', $js)) $out[] = 'a top-level const/let/class, which throws when the script runs a second time';
         return $out;
@@ -81,6 +87,9 @@ final class ConsoleNavTest extends TestCase
         $this->assertNotEmpty(self::rerunFaults("setInterval(beat, 45000);"));
         $this->assertNotEmpty(self::rerunFaults("const TOKEN = 'x';"));
         $this->assertNotEmpty(self::rerunFaults("window.addEventListener('beforeunload', f);"));
+        $this->assertNotEmpty(self::rerunFaults("window.onbeforeunload = f;"));
+        $this->assertNotEmpty(self::rerunFaults("document.getElementById('cnMain').addEventListener('click', f);"));
+        $this->assertSame([], self::rerunFaults("cnPage.on(document, 'keydown', f); cnPage.every(f, 1000); cnPage.leave(shut);"));
         $this->assertSame([], self::rerunFaults("document.addEventListener('cn:unload', function bye() {});\nfunction x(){ const y = 1; }\nvar t = setInterval(f, 1); clearInterval(t);"));
         // And the real review list's script, with its teardown removed, is caught.
         $rq = (string) file_get_contents(self::ROOT . '/public/assets/js/review-queue.js');
@@ -112,6 +121,27 @@ final class ConsoleNavTest extends TestCase
         // Loaded last, so everything else has had the chance to handle a click first.
         preg_match_all('~<script\b[^>]*src="\{\{ asset\(\'([^\']+)\'\) \}\}"~', $layout, $src);
         $this->assertSame('/assets/js/console-nav.js', end($src[1]));
+    }
+
+    public function test_the_teardown_exists_before_any_page_script_runs(): void
+    {
+        // Page scripts inside the content run DURING the parse on a full load, before any
+        // deferred shell script — so cnPage has to be defined inline in the head.
+        $layout = (string) file_get_contents(self::ROOT . '/templates/admin/layout.twig');
+        $head = substr($layout, 0, (int) strpos($layout, '</head>'));
+        $this->assertMatchesRegularExpression('~<script nonce="\{\{ csp_nonce \}\}" data-nav="shell">[^<]*window\.cnPage\s*=~s', $head);
+        foreach (['on:', 'every:', 'leave:', "'cn:unload'"] as $part) $this->assertStringContainsString($part, $head);
+        // And every page in the console now takes part: no unmarked page script is left.
+        $unmarked = [];
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(self::ROOT . '/templates/admin'));
+        foreach ($it as $f) {
+            if (!$f->isFile() || !str_ends_with($f->getFilename(), '.twig') || $f->getFilename() === 'layout.twig') continue;
+            // A Twig comment reaches nobody; "there is no <script>" in one is not a script.
+            $src = (string) preg_replace('~\{#.*?#\}~s', '', (string) file_get_contents($f->getPathname()));
+            preg_match_all('~<script\b[^>]*>~', $src, $m);
+            foreach ($m[0] as $tag) if (!preg_match('~data-nav="(rerun|shell)"|type="(application/(ld\+)?json|text/template)"~', $tag)) $unmarked[] = $f->getFilename() . ': ' . $tag;
+        }
+        $this->assertSame([], $unmarked, 'a console page with an unmarked script reloads the whole console every time it is opened or left');
     }
 
     public function test_navigation_listens_on_the_window_so_page_scripts_always_go_first(): void

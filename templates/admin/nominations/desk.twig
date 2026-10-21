@@ -41,7 +41,7 @@
   </div>
 </div>
 
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 (function () {
   var spa = document.getElementById('deskSPA');
   if (!spa) return;
@@ -51,8 +51,8 @@
   var done   = document.getElementById('deskDone');
   var doneMsg= document.getElementById('deskDoneMsg');
   var skip   = document.getElementById('deskSkip');
-  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
-  var csrf   = csrfMeta ? csrfMeta.getAttribute('content') : '';
+  // Read when sending, never copied at load: csrf-fresh.js rewrites the meta as the page ages.
+  function csrf() { return (document.querySelector('meta[name="csrf-token"]') || {}).content || ''; }
 
   function currentId() { return parseInt(spa.getAttribute('data-desk-current') || '0', 10) || 0; }
   function announce(msg) { if (live) live.textContent = msg; }
@@ -144,7 +144,7 @@
     var orig = b.textContent; b.disabled = true; b.textContent = '✦ Thinking…';
     fetch('/admin/nominations/' + nom + '/suggest-reason', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': csrf },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': csrf() },
       credentials: 'same-origin',
       body: 'decision=' + encodeURIComponent(b.getAttribute('data-suggest'))
     })
@@ -161,7 +161,8 @@
   if (skip) skip.addEventListener('click', function () { loadNext(currentId()); });
 
   // Keyboard flow: A approve · R reject · S skip. Ignored while typing.
-  document.addEventListener('keydown', function (e) {
+  // Through cnPage: removed when the desk is left, so A on the next page approves nothing.
+  cnPage.on(document, 'keydown', function (e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (body.hidden) return;
     var t = (e.target || {}).tagName || '';

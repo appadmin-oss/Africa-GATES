@@ -578,7 +578,9 @@
   // keeps a visible submit button, so choosing a cycle works with this file absent.
   document.addEventListener('change', function (e) {
     const el = e.target.closest('[data-ag-do="submit-form"]');
-    if (el && el.form) el.form.submit();
+    // requestSubmit, not submit(): submit() skips the submit event, so the form bypassed
+    // the confirm, the one-press guard and console-nav.js, and reloaded the whole console.
+    if (el && el.form) { if (el.form.requestSubmit) el.form.requestSubmit(); else el.form.submit(); }
   });
 
   // ── THE CUSTOM SIZE BOXES FOLLOW THE SIZE SELECT ──────────────────────────

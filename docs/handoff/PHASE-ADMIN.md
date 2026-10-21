@@ -302,11 +302,16 @@ colour, type) keep applying because the HTML is the same HTML.
 - Unsaved edits ask before leaving; a dropped connection on a save says so rather than
   guessing; a file answer to a POST is handed over as a download; a signed-out answer loads
   the sign-in page normally.
-- Pages with their own scripts take part only when marked `data-nav="rerun"` (13 templates
-  and the review list's `review-queue.js`, which now unbinds its shortcuts and heartbeat on
-  `cn:unload`). Still full loads, by design until their scripts are adapted: Providers,
-  the single nomination review, the review desk, multi-step forms (`form-steps`), the event
-  editor and tickets.
+- Pages with their own scripts take part only when marked `data-nav="rerun"`. Since the
+  follow-up the same day, EVERY console page does: the review desk, the single nomination
+  review, Providers, multi-step forms, the event editor and its tickets were converted to
+  `cnPage` (layout head) — document/window listeners, timers and the ticket scanner's camera
+  are undone when the page goes. Verified: 26 of 26 rail pages and all six converted pages
+  swap; the desk's A/R/S work on the desk and send nothing after leaving; the tickets page
+  keeps its own focus in the code box. Two stale-token copies were fixed on the way (review,
+  desk, Providers now read the CSRF meta when they send), and the ticket page's duplicate
+  `submit-form` listener was removed — admin.js's now uses `requestSubmit()`, so the
+  confirm, the one-press guard and the swap apply to a select that submits its form.
 - Server: `ConsoleShell::prefetch()` — a prefetch is not a visit (Recent, Presence). A
   prefetched page that is then shown sends a `HEAD` so the visit is counted after all.
 - Test: `ConsoleNavTest` (rerun sweep and shell marking each proven to fail). Verified in

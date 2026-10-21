@@ -118,7 +118,7 @@
   }
 </style>
 
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 /* ── afSteps ──────────────────────────────────────────────────────────────────
    `titles` names the steps. Everything else is read from the DOM rather than declared twice:
    the component counts its own `.af__step` children and finds required fields inside them, so
@@ -163,7 +163,9 @@ function afSteps(titles){
 
       /* Leaving with unsaved work is the one thing worth interrupting for. Only when dirty, and
          removed on submit so saving never triggers it. */
-      window.addEventListener('beforeunload', function(e){
+      /* Through cnPage, so it goes with the page when console-nav.js swaps it out (which asks
+         console-ux.js about unsaved edits itself — a swap fires no beforeunload). */
+      cnPage.on(window, 'beforeunload', function(e){
         if(!self.dirty) return;
         e.preventDefault(); e.returnValue = '';
       });

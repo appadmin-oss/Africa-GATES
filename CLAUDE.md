@@ -145,10 +145,13 @@ clean up on `cn:unload`.
 **A page's own `<script>` is the hazard.** Re-executed on every visit, a listener it put on
 the document or window outlives its page — the review list's A key approves the open
 nomination, and a stale one pressed on the next page would approve one from the last. So:
-unmarked, a page loads the ordinary way (into it and out of it); `data-nav="rerun"` lets it be
-swapped, and `ConsoleNavTest` only allows that while it binds nothing outside its own elements
-(no document/window listener except through a `cn:unload` teardown, no uncleared
-`setInterval`, no top-level `const`/`let`). Shell scripts say `data-nav="shell"` — one left
+`data-nav="rerun"` lets it be swapped, and `ConsoleNavTest` only allows that while it binds
+nothing outside its own elements directly — no document/window/`#cnMain` listener, no
+uncleared `setInterval`, no top-level `const`/`let`. **Bind those through `cnPage`** (defined
+inline in the layout head, so it exists before any page script): `cnPage.on(target, type, fn)`,
+`cnPage.every(fn, ms)`, `cnPage.leave(fn)` — all undone at `cn:unload`. Since 21 Oct 2026
+every console page takes part, and the test fails on an unmarked page script, because one
+unmarked script means the whole console reloads every time that page is opened or left. Shell scripts say `data-nav="shell"` — one left
 unmarked turns the swap off on EVERY page, silently. Navigation listens on `window`, so a
 page script's document listener always gets a click first, whenever it was added.
 

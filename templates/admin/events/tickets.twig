@@ -723,7 +723,7 @@
 {# Focus the code box on load. The person opening this page at a door has a queue in front
    of them, and one tap saved per attendee is the difference between a moving line and a
    stationary one. Nonced, and nothing on the page depends on it running. #}
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 /* The one-shot door link. Copy-to-clipboard because the alternative is somebody
    hand-transcribing 64 hex characters into WhatsApp, and the token is shown exactly once. */
 (function () {
@@ -738,7 +738,7 @@
   });
 })();
 </script>
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 (function () {
   var box = document.getElementById('txCode');
   // Not on a touch device: focusing there opens the on-screen keyboard over the page, and the
@@ -746,19 +746,8 @@
   if (box && !('ontouchstart' in window)) box.focus();
 })();
 
-// ── the seat boxes ─────────────────────────────────────────────────────────
-// `change` rather than `input`: on a text input it fires on BLUR and only when the value
-// actually changed, which is exactly "save when you move to the next one" and never a POST
-// per keystroke. Enter submits natively because each box is alone in its form, so this adds
-// nothing that the form did not already do — it just removes the need to press it.
-//
-// A delegated listener with `data-ag-do`, not an inline handler: CspTest fails the build on
-// an inline event handler.
-document.addEventListener('change', function (e) {
-  var el = e.target.closest('[data-ag-do="submit-form"]');
-  if (!el || !el.form) return;
-  el.form.submit();
-});
+// The seat boxes save on `change` through admin.js's delegated `data-ag-do="submit-form"`,
+// which this page used to repeat here — two listeners submitting the same form.
 </script>
 
 {# ── SCANNING A TICKET ────────────────────────────────────────────────────────
@@ -771,7 +760,7 @@ document.addEventListener('change', function (e) {
    itself: the server has always been the thing that decides whether a code is valid, already
    paid and not already used, and giving the camera its own path would mean two implementations
    of the one question that matters at a door. #}
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 (function () {
   var btn   = document.getElementById('txScanBtn');
   var panel = document.getElementById('txScan');
@@ -831,7 +820,7 @@ document.addEventListener('change', function (e) {
             said.textContent = 'Read ' + value + ' — checking in…';
             box.value = value;
             shut();
-            form.submit();
+            form.requestSubmit ? form.requestSubmit() : form.submit();
             return;
           }
           said.textContent = 'That is not a ticket from this platform. Try again, or type the code.';
@@ -843,8 +832,10 @@ document.addEventListener('change', function (e) {
 
   btn.addEventListener('click', open);
   stop.addEventListener('click', shut);
-  // Leaving the page with the camera on drains a battery an organiser needs all evening.
-  window.addEventListener('pagehide', shut);
+  // Leaving the page with the camera on drains a battery an organiser needs all evening —
+  // by a full navigation (pagehide) or by console-nav.js swapping the page out (leave).
+  cnPage.on(window, 'pagehide', shut);
+  cnPage.leave(shut);
 })();
 </script>
 {% endblock %}

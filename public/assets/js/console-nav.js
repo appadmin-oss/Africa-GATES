@@ -286,7 +286,9 @@
         if (target) target.scrollIntoView();
         else main.scrollTop = o.pop ? (o.y || 0) : (keepY != null ? keepY : 0);
 
-        if (!o.pop) main.focus({ preventScroll: true });
+        // Focus to the page, unless the page's own script already placed it inside — the door
+        // desk puts the cursor in the ticket-code box on purpose, and that choice wins.
+        if (!o.pop && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
         live.textContent = document.title;
         busy(false);
         return true;

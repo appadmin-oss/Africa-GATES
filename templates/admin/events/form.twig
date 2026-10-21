@@ -1083,7 +1083,7 @@
     {% endif %}
   </form>
 </div>
-<script nonce="{{ csp_nonce }}">
+<script nonce="{{ csp_nonce }}" data-nav="rerun">
 function evRepeater(seed, blank){
   let nextId = 1000;
   const rows = (seed && seed.length) ? seed.map(r => Object.assign({}, r)) : [Object.assign({id:1}, blank)];
@@ -1374,14 +1374,11 @@ function tkDesign(seed){
         px = e.clientX; py = e.clientY;
         this.artClamp();
       };
-      const up = () => {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-        window.removeEventListener('pointercancel', up);
-      };
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-      window.addEventListener('pointercancel', up);
+      // Through cnPage: a drag cut short by leaving the page must not leave a window listener
+      // moving a picture that no longer exists.
+      const offs = [];
+      const up = () => { offs.splice(0).forEach(off => off()); };
+      offs.push(cnPage.on(window, 'pointermove', move), cnPage.on(window, 'pointerup', up), cnPage.on(window, 'pointercancel', up));
     },
 
     /* Arrows nudge, +/− zoom. Not decoration: a pointer drag is the only way to set this

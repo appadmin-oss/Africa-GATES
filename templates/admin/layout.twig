@@ -32,7 +32,28 @@
 <meta name="csrf-token" content="{{ csrf_token }}">
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<script nonce="{{ csp_nonce }}">document.documentElement.classList.add('cn-js');</script>
+<script nonce="{{ csp_nonce }}" data-nav="shell">document.documentElement.classList.add('cn-js');
+/* cnPage: what a page script binds OUTSIDE its own elements, undone when the page goes.
+   console-nav.js swaps pages without a reload, so a listener on the document or window, a
+   timer or an open camera would otherwise outlive its page. In the head, so it exists before
+   any page script runs on a full load too. ConsoleNavTest sends every such binding here. */
+window.cnPage = (function () {
+  var offs = [];
+  document.addEventListener('cn:unload', function () {
+    var o = offs; offs = [];
+    o.forEach(function (f) { try { f(); } catch (e) {} });
+  });
+  return {
+    on: function (t, type, fn, opt) {
+      t.addEventListener(type, fn, opt);
+      var off = function () { t.removeEventListener(type, fn, opt); };
+      offs.push(off);
+      return off;
+    },
+    every: function (fn, ms) { var id = setInterval(fn, ms); offs.push(function () { clearInterval(id); }); return id; },
+    leave: function (fn) { offs.push(fn); }
+  };
+})();</script>
 <link rel="preload" href="/assets/fonts/geist/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
 <link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">

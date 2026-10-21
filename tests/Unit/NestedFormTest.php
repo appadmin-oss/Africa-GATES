@@ -130,8 +130,11 @@ final class NestedFormTest extends TestCase
 
         // Both paths: the form-level data-confirm listener and the standalone-button one.
         // `\.requestSubmit(` — the CALL, not the word. Counting the word matched the
-        // comment above the call and made this pass at three.
-        $this->assertSame(2, preg_match_all('~\.requestSubmit\s*\(~', $js, $unused),
+        // comment above the call and made this pass at three. And the call WITH A SUBMITTER,
+        // which is the claim: a bare `requestSubmit()` elsewhere (the select that submits its
+        // own form) has no button to keep, and counting it would let one confirm path fall
+        // back to submit() while the total still read two.
+        $this->assertSame(2, preg_match_all('~\.requestSubmit\s*\(\s*[A-Za-z_$]~', $js, $unused),
             'one of the two confirm paths still re-submits without its submitter');
     }
 
