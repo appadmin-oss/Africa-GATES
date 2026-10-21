@@ -57,26 +57,25 @@
     <div class="dp-fig">
       <span class="dp-fig__l">Nominee entries</span>
       <span class="dp-fig__v">{{ people.entries|number_format }}</span>
-      <span class="dp-fig__m">Every live entry in every category, merged duplicates left out.</span>
+      <span class="dp-fig__m">Live entries, all categories.</span>
     </div>
     <div class="dp-fig dp-fig--key">
       <span class="dp-fig__l">Nominated people</span>
       <span class="dp-fig__v">{{ people.people|number_format }}</span>
       <span class="dp-fig__m">
-        {% if people.people_low < people.people %}As few as <strong>{{ people.people_low|number_format }}</strong> if the {{ people.possible }} near match{{ people.possible == 1 ? '' : 'es' }} are the same person.{% else %}Each person counted once, wherever they stand.{% endif %}
+        {% if people.people_low < people.people %}Or <strong>{{ people.people_low|number_format }}</strong> if the near matches are one person.{% else %}Each person counted once.{% endif %}
       </span>
     </div>
     <div class="dp-fig">
       <span class="dp-fig__l">Voters</span>
       <span class="dp-fig__v">{{ voters.people|number_format }}</span>
-      <span class="dp-fig__m">A paid order is its buyer and a grant is nobody — the rule the CPI pays its 70% on.{% if voters.recorded_ids > voters.people %} The ledger holds {{ voters.recorded_ids|number_format }} voter ids.{% endif %}</span>
+      <span class="dp-fig__m">Counted the way the score counts them.</span>
     </div>
     <div class="dp-fig dp-fig--key">
       <span class="dp-fig__l">Net voters</span>
       <span class="dp-fig__v">{{ voters.net|number_format }}</span>
       <span class="dp-fig__m">
-        One inbox is one person{% if voters.alias_joins %} — {{ voters.alias_joins|number_format }} address{{ voters.alias_joins == 1 ? '' : 'es' }} joined as aliases{% endif %}.
-        {% if voters.likely < voters.net %}About <strong>{{ voters.likely|number_format }}</strong> counting a phone number typed on a few addresses as one person.{% endif %}
+        One inbox, one person.{% if voters.likely < voters.net %} About <strong>{{ voters.likely|number_format }}</strong> by phone number.{% endif %}
       </span>
     </div>
   </section>
@@ -116,7 +115,7 @@
     <section class="dp-preview" aria-labelledby="dpPrevH">
       <h2 class="dp-preview__h" id="dpPrevH">Merge preview</h2>
       {% if preview.ok %}
-        <p class="dp-preview__lede">Keeping <strong>{{ preview.names[preview.keep_id]|default('#' ~ preview.keep_id) }}</strong>. It goes from <span class="dp-who__num">{{ preview.votes_before|number_format }}</span> to <span class="dp-who__num">{{ preview.votes_after|number_format }}</span> votes. Nothing has changed yet — this is the merge, run and rolled back.</p>
+        <p class="dp-preview__lede">Keeping <strong>{{ preview.names[preview.keep_id]|default('#' ~ preview.keep_id) }}</strong>. It goes from <span class="dp-who__num">{{ preview.votes_before|number_format }}</span> to <span class="dp-who__num">{{ preview.votes_after|number_format }}</span> votes. Nothing has changed yet.</p>
         {% if preview.votes_lost > 0 %}
           <p class="dp-preview__warn" role="note">The entries show <span class="dp-who__num">{{ preview.votes_listed|number_format }}</span> votes between them, but only <span class="dp-who__num">{{ preview.votes_after|number_format }}</span> have a ballot behind them. The other <span class="dp-who__num">{{ preview.votes_lost|number_format }}</span> were imported as a total, and a merge counts ballots — so they would not carry over. Undo puts them back.</p>
         {% endif %}
@@ -201,7 +200,7 @@
         </article>
       {% endfor %}
     {% else %}
-      <div class="ls-empty"><span class="ls-empty__t">No split votes</span><span class="ls-empty__m">Nobody is entered twice in one category. When a nomination is approved under a name already listed, it lands here.</span></div>
+      <div class="ls-empty"><span class="ls-empty__t">No split votes</span><span class="ls-empty__m">Nobody is entered twice in one category.</span></div>
     {% endfor %}
 
   {% elseif tab == 'across' %}
@@ -225,7 +224,7 @@
         {% endif %}
       </article>
     {% else %}
-      <div class="ls-empty"><span class="ls-empty__t">Nobody stands in more than one category</span><span class="ls-empty__m">When the same person is nominated for two awards in this edition, they are listed here and counted once.</span></div>
+      <div class="ls-empty"><span class="ls-empty__t">Nobody stands in more than one category</span><span class="ls-empty__m">People in several categories show here.</span></div>
     {% endfor %}
 
   {% elseif tab == 'near' %}
@@ -250,7 +249,7 @@
         {% endif %}
       </article>
     {% else %}
-      <div class="ls-empty"><span class="ls-empty__t">No near matches</span><span class="ls-empty__m">Names that are close but not the same — an initial, a spelling — wait here for a ruling. There are none in this edition.</span></div>
+      <div class="ls-empty"><span class="ls-empty__t">No near matches</span><span class="ls-empty__m">Close names wait here for a ruling.</span></div>
     {% endfor %}
 
   {% else %}
@@ -265,7 +264,7 @@
         {% endif %}
       </article>
     {% else %}
-      <div class="ls-empty"><span class="ls-empty__t">Nothing merged yet</span><span class="ls-empty__m">Every merge is listed here with an Undo. An undone merge puts back every vote, mark and claim it moved.</span></div>
+      <div class="ls-empty"><span class="ls-empty__t">Nothing merged yet</span><span class="ls-empty__m">Merges show here, each with Undo.</span></div>
     {% endfor %}
   {% endif %}
 

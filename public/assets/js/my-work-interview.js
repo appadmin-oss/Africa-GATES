@@ -97,11 +97,10 @@
   var ledgerNow = [];
   function noted(o) {
     var li = el('li', 'iv__noted');
-    li.appendChild(el('p', 'iv__noted-k', 'Noted · worked out by the interviewer'));
+    li.appendChild(el('p', 'iv__noted-k', 'Noted · you can fix it later'));
     var t = el('p', 'iv__noted-t'); t.appendChild(el('b', null, o.label));
     if (o.quote) t.appendChild(document.createTextNode(' — “' + o.quote + '”'));
     li.appendChild(t);
-    li.appendChild(el('p', 'iv__fine', 'You read and correct every one of these before anything is sent.'));
     return li;
   }
   function draw(turns) {
@@ -156,8 +155,8 @@
       var q = o.quote && o.quote.length > 60 ? o.quote.slice(0, 60) + '…' : o.quote;
       // A word for every state — never the colour alone.
       t.appendChild(el('span', 'iv__rowo-s', o.status === 'met' ? 'Done' + (q ? ' · “' + q + '”' : '')
-        : o.status === 'partial' ? 'Part-answered · we are on this now'
-        : !o.required ? 'Optional · saying so has never cost anyone an award' : 'Not yet'));
+        : o.status === 'partial' ? 'Part-answered'
+        : !o.required ? 'Optional' : 'Not yet'));
       li.appendChild(t);
       rows.appendChild(li);
     });
@@ -166,7 +165,7 @@
     var rv = root.querySelector('[data-iv-works-review]');
     if (rv && list) {
       rv.textContent = '';
-      if (!list.length) rv.appendChild(el('li', 'mw__help', 'No files or links. That is allowed.'));
+      if (!list.length) rv.appendChild(el('li', 'mw__help', 'No files. That’s fine.'));
       list.forEach(function (w) {
         var li = el('li'); li.appendChild(el('b', null, w.title || w.file_name || 'Untitled'));
         if (w.file_name) li.appendChild(document.createTextNode(' · file attached'));
@@ -236,7 +235,7 @@
       thinking(false); lock(false);
       if (!r.ok) {
         failed(mine, text);
-        tell(r.message || 'That did not get through. Your answer is kept — try again.');
+        tell(r.message || 'Not sent. Try again.');
         return;
       }
       apply(r);
@@ -344,10 +343,10 @@
       var how = b.getAttribute('data-iv-take'), t = taking;
       takeSheet.close();
       if (how === 'edit') amend(t.li, t.i);
-      else if (how === 'again') { show('talk', true); if (box) { box.value = t.li.querySelector('.iv__text').textContent; grow(); box.focus(); } tell('Say it the way you mean it, then press Send. The interviewer uses the newer answer.'); }
+      else if (how === 'again') { show('talk', true); if (box) { box.value = t.li.querySelector('.iv__text').textContent; grow(); box.focus(); } tell('Change it, then press Send.'); }
       else if (how === 'remove') {
         post('/interview/amend', { turn: t.i, how: 'remove', text: '' }).then(json).then(function (r) {
-          if (!r.ok && r.message) tell(r.message); else tell('Removed. The judges will never see it.');
+          if (!r.ok && r.message) tell(r.message); else tell('Removed.');
           apply(r);
         }).catch(function () { tell('No connection. Nothing was changed.'); });
       }

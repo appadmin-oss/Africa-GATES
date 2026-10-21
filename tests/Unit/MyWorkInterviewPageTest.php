@@ -80,7 +80,7 @@ final class MyWorkInterviewPageTest extends TestCase
         $this->assertStringContainsString('action="/my-work/' . $token . '/interview/switch"', $html);
         // Sending needs a typed name, and says nothing goes until then.
         $this->assertMatchesRegularExpression('/name="declared_name"[^>]*required/', $html);
-        $this->assertStringContainsString('Nothing is sent until you press Send with your name typed.', $html);
+        $this->assertStringContainsString('Nothing is sent until you type your name and send it.', $html);
         // The composer is the script's: without it, a post to the JSON turn endpoint would
         // land the nominee on a page of JSON.
         $this->assertMatchesRegularExpression('/<form class="iv__composer" data-iv-say hidden>/', $html);
@@ -144,8 +144,8 @@ final class MyWorkInterviewPageTest extends TestCase
         $html = (string) $this->send('GET', '/my-work/' . $this->open())->getBody();
         $this->assertStringContainsString('data-entry="welcome"', $html);
         $this->assertStringContainsString('data-iv-pane="welcome"', $html);
-        foreach (['You are talking to an AI.', 'About 15 minutes.', 'Nothing reaches the judges until you read it and send it.',
-                  'Switch to the form whenever you like.', 'Start the conversation', 'Fill in the form instead', 'Nothing about this costs money.'] as $line) {
+        foreach (['You are talking to an AI.', 'About 15 minutes.', 'Nothing is sent until you send it.',
+                  'Switch to the form any time.', 'Start the conversation', 'Fill in the form instead', 'We never ask for money.'] as $line) {
             $this->assertStringContainsString($line, $html);
         }
         // Progress is outcomes, one segment each, with no percentage anywhere.
@@ -174,7 +174,7 @@ final class MyWorkInterviewPageTest extends TestCase
         $this->assertStringContainsString('data-entry="back"', $html);
         $this->assertStringContainsString('Where we stopped', $html);
         $this->assertStringContainsString('How many farmers borrow seed from it each season?', $html);
-        $this->assertStringContainsString('Pick up where we left off', $html);
+        $this->assertStringContainsString('Carry on', $html);
 
         // A visit a minute after the last message goes straight back into the conversation.
         $this->converse($token, [], date('Y-m-d H:i:s', time() - 60));
@@ -196,9 +196,8 @@ final class MyWorkInterviewPageTest extends TestCase
         $html = (string) $this->send('GET', '/my-work/' . $token)->getBody();
         $at = strpos($html, 'id="iv-t' . $turn . '"');
         $this->assertNotFalse($at, 'the turn has no anchor to link back to');
-        $note = strpos($html, 'Noted · worked out by the interviewer', (int) $at);
+        $note = strpos($html, 'Noted · you can fix it later', (int) $at);
         $this->assertNotFalse($note, 'the note is not drawn after the turn it came from');
-        $this->assertStringContainsString('You read and correct every one of these before anything is sent.', $html);
         $this->assertStringContainsString('href="#iv-t' . $turn . '" data-iv-jump="' . $turn . '"', $html, 'the read-back cannot find its turn');
         $this->assertStringContainsString('iv__rowo iv__rowo--met', $html);
         $this->assertStringContainsString('Done · “Four hundred farmers borrow seed”', $html, 'a state is drawn without its word');

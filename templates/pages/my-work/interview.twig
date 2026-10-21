@@ -119,7 +119,7 @@
       <li class="iv__intro" data-iv-intro>
         <p class="mw__kicker">{{ form.programme }}{% if form.category %} · {{ form.category }}{% endif %}</p>
         <h1 class="iv__h1">{{ '%n% — tell the judges about your work'|trans({'%n%': form.nominee}) }}</h1>
-        <p class="iv__fine">{{ 'Nothing is sent until you press Send with your name typed.'|trans }}{% if deadline %} {{ 'Please send it by %d%.'|trans({'%d%': deadline}) }}{% endif %} {{ 'Nothing here costs money.'|trans }}</p>
+        <p class="iv__fine">{{ 'Nothing is sent until you type your name and send it.'|trans }}{% if deadline %} {{ 'Due %d%.'|trans({'%d%': deadline}) }}{% endif %} {{ 'Free.'|trans }}</p>
       </li>
       {% for t in iv.turns %}
         {% if t.role == 'event' %}
@@ -131,9 +131,8 @@
           </li>
           {% for o in iv.ledger|filter(o => o.turn is not null and o.turn == t.i and o.status != 'unmet') %}
             <li class="iv__noted">
-              <p class="iv__noted-k">{{ 'Noted · worked out by the interviewer'|trans }}</p>
+              <p class="iv__noted-k">{{ 'Noted · you can fix it later'|trans }}</p>
               <p class="iv__noted-t"><b>{{ o.label }}</b>{% if o.quote %} — “{{ o.quote }}”{% endif %}</p>
-              <p class="iv__fine">{{ 'You read and correct every one of these before anything is sent.'|trans }}</p>
             </li>
           {% endfor %}
           {% for r in t.requests %}
@@ -203,7 +202,7 @@
         <label class="mw__lbl">{{ 'File'|trans }}<input class="mw__in" type="file" name="file" accept="application/pdf,image/*" required></label>
         <button type="submit" class="ag-btn ag-btn--secondary">{{ 'Upload'|trans }}</button>
       </form>
-      <p class="mw__help">{{ 'Nothing to show? That is allowed and is not held against you — plenty of good work leaves no paper.'|trans }}</p>
+      <p class="mw__help">{{ 'Nothing to show? That’s fine.'|trans }}</p>
     </div>
     {{ ivm.way_out(token, csrf_token) }}
   </section>
@@ -212,8 +211,7 @@
   <section class="iv__pane iv__pane--scroll" id="iv-review" data-iv-pane="review" aria-labelledby="iv-review-h">
     <div class="mw__card">
       <h2 class="mw__h2" id="iv-review-h">{{ 'Read it before it goes.'|trans }}</h2>
-      <p class="mw__help">{{ 'About %m% of %t% things the panel asks about are covered so far. This is approximate.'|trans({'%m%': iv.progress.met, '%t%': iv.progress.total}) }}</p>
-      <p class="mw__help">{{ 'Each line is our summary of something you said, with your own words underneath. The summary is ours, not yours — correct it or take it out if it is wrong.'|trans }}</p>
+      <p class="mw__help">{{ 'Our summary on top, your words below. Fix anything that is wrong.'|trans }}</p>
       <div data-iv-ledger>
         {% set _left = iv.ledger|filter(o => o.required and o.status != 'met') %}
         {% if _left %}
@@ -241,17 +239,17 @@
       <h3 class="iv__h3">{{ 'What you are showing them'|trans }} · {{ form.works|length }}</h3>
       <ul class="iv__works" data-iv-works-review>
         {% for w in form.works %}<li><b>{{ w.title ?: w.file_name ?: 'Untitled'|trans }}</b>{% if w.file_name ?? '' %} · {{ 'file attached'|trans }}{% endif %}{% if w.link ?? '' %} · {{ 'link'|trans }}{% endif %}</li>
-        {% else %}<li class="mw__help">{{ 'No files or links. That is allowed.'|trans }}</li>{% endfor %}
+        {% else %}<li class="mw__help">{{ 'No files. That’s fine.'|trans }}</li>{% endfor %}
       </ul>
       <a class="iv__jump" href="#iv-show" data-iv-tab="show">{{ 'Add or change items'|trans }}</a>
-      <p class="mw__help">{{ 'The full conversation goes with it: %n% messages.'|trans({'%n%': iv.turns|filter(t => t.role != 'event')|length}) }}</p>
+      <p class="mw__help">{{ 'The conversation goes too (%n% messages).'|trans({'%n%': iv.turns|filter(t => t.role != 'event')|length}) }}</p>
       {% if iv.closing %}<p class="mw__p">{{ iv.closing }}</p>{% endif %}
       <form method="post" action="/my-work/{{ token }}" class="iv__send-form">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <input type="hidden" name="action" value="submit">
         <label class="mw__lbl" for="iv-name">{{ 'Your full name'|trans }}</label>
         <input class="mw__in" id="iv-name" name="declared_name" value="{{ iv.declared }}" maxlength="200" autocomplete="name" required>
-        <p class="mw__help">{{ 'Typing your name confirms that what you said is true. Nothing is sent until you press the button.'|trans }}</p>
+        <p class="mw__help">{{ 'Your name confirms it is true.'|trans }}</p>
         <button type="submit" class="ag-btn ag-btn--primary">{{ 'Send this to the judges'|trans }}</button>
       </form>
     </div>
@@ -262,33 +260,33 @@
   {% if _entry == 'welcome' %}
   <section class="iv__pane iv__pane--scroll iv__entry" data-iv-pane="welcome" aria-labelledby="iv-welcome-h">
     <p class="mw__kicker">{{ form.programme }}{% if form.category %} · {{ form.category }}{% endif %}</p>
-    <h1 class="iv__big" id="iv-welcome-h">{{ 'Tell the judges about your work, in a conversation.'|trans }}</h1>
-    <p class="mw__p">{{ '%n%, instead of a list of questions, the interviewer talks with you until the panel has what it needs.'|trans({'%n%': form.nominee}) }}</p>
+    <h1 class="iv__big" id="iv-welcome-h">{{ 'Tell the judges about your work.'|trans }}</h1>
+    <p class="mw__p">{{ 'A short conversation instead of a form.'|trans }}</p>
     <ol class="iv__facts">
-      <li><b>{{ 'You are talking to an AI.'|trans }}</b> {{ 'It asks. It never writes your answers for you.'|trans }}</li>
-      <li><b>{{ 'About 15 minutes.'|trans }}</b> {{ 'Saved after every message — close it and come back.'|trans }}</li>
-      <li><b>{{ 'Nothing reaches the judges until you read it and send it.'|trans }}</b>{% if deadline %} {{ 'Please send it by %d%.'|trans({'%d%': deadline}) }}{% endif %}</li>
-      <li><b>{{ 'Switch to the form whenever you like.'|trans }}</b> {{ 'Nothing is lost either way.'|trans }}</li>
+      <li><b>{{ 'You are talking to an AI.'|trans }}</b> {{ 'It asks; you answer.'|trans }}</li>
+      <li><b>{{ 'About 15 minutes.'|trans }}</b> {{ 'Saved as you go.'|trans }}</li>
+      <li><b>{{ 'Nothing is sent until you send it.'|trans }}</b>{% if deadline %} {{ 'Due %d%.'|trans({'%d%': deadline}) }}{% endif %}</li>
+      <li><b>{{ 'Switch to the form any time.'|trans }}</b> {{ 'Nothing is lost.'|trans }}</li>
     </ol>
     <button type="button" class="ag-btn ag-btn--primary iv__go" data-iv-start>{{ 'Start the conversation'|trans }}</button>
     {{ ivm.way_out(token, csrf_token, 'Fill in the form instead'|trans) }}
-    <p class="iv__fine iv__centre">{{ 'Nothing about this costs money.'|trans }}</p>
+    <p class="iv__fine iv__centre">{{ 'Free. We never ask for money.'|trans }}</p>
   </section>
   {% elseif _entry == 'back' %}
   <section class="iv__pane iv__pane--scroll iv__entry" data-iv-pane="back" aria-labelledby="iv-back-h">
     <p class="mw__kicker">{{ 'Saved · %d%'|trans({'%d%': iv.saved_at|date('l j M, g:ia')}) }}</p>
-    <h1 class="iv__big" id="iv-back-h">{{ 'Welcome back. Everything is where you left it.'|trans }}</h1>
+    <h1 class="iv__big" id="iv-back-h">{{ 'Welcome back.'|trans }}</h1>
     <div class="iv__prog iv__prog--inline" aria-hidden="true">{% for o in iv.ledger %}<span class="iv__seg iv__seg--{{ o.status }}"></span>{% endfor %}</div>
     {% if _asked %}
       <p class="iv__who">{{ 'Where we stopped'|trans }}</p>
       <p class="iv__turn iv__turn--them iv__turn--quote">{{ _asked.text }}</p>
     {% endif %}
-    <button type="button" class="ag-btn ag-btn--primary iv__go" data-iv-start>{{ 'Pick up where we left off'|trans }}</button>
+    <button type="button" class="ag-btn ag-btn--primary iv__go" data-iv-start>{{ 'Carry on'|trans }}</button>
     <div class="iv__two">
-      <a class="ag-btn ag-btn--secondary" href="#iv-review" data-iv-left>{{ 'See what is left'|trans }}</a>
+      <a class="ag-btn ag-btn--secondary" href="#iv-review" data-iv-left>{{ 'What’s left'|trans }}</a>
       <a class="ag-btn ag-btn--secondary" href="#iv-review" data-iv-tab="review">{{ 'Read it back'|trans }}</a>
     </div>
-    <p class="iv__fine">{{ 'Still nothing sent.'|trans }}{% if deadline %} {{ 'The deadline is %d%.'|trans({'%d%': deadline}) }}{% endif %}</p>
+    <p class="iv__fine">{{ 'Nothing sent yet.'|trans }}{% if deadline %} {{ 'Due %d%.'|trans({'%d%': deadline}) }}{% endif %}</p>
     {{ ivm.way_out(token, csrf_token) }}
   </section>
   {% endif %}
@@ -297,21 +295,21 @@
   <dialog class="iv__sheet" id="iv-left" aria-labelledby="iv-left-h">
     <div class="iv__sheet-in">
       <div class="iv__sheet-head">
-        <h2 class="iv__sheet-h" id="iv-left-h">{{ 'What is left'|trans }}</h2>
+        <h2 class="iv__sheet-h" id="iv-left-h">{{ 'What’s left'|trans }}</h2>
         <span class="iv__sheet-n" data-iv-left-count>{{ '%m% of %t%'|trans({'%m%': iv.progress.met, '%t%': iv.progress.total}) }}</span>
       </div>
-      <p class="mw__help">{{ 'It moves in jumps — one answer often settles several. A guide, not a score.'|trans }}</p>
+      <p class="mw__help">{{ 'A guide, not a score.'|trans }}</p>
       <ul class="iv__rows" data-iv-rows>
         {% for o in iv.ledger %}
           <li class="iv__rowo iv__rowo--{{ o.status }}{% if not o.required %} is-optional{% endif %}">
             <span class="iv__mark" aria-hidden="true"></span>
             <span class="iv__rowo-t"><b>{{ o.label }}</b>
-              <span class="iv__rowo-s">{% if o.status == 'met' %}{{ 'Done'|trans }}{% if o.quote %} · “{{ o.quote|length > 60 ? o.quote|slice(0, 60) ~ '…' : o.quote }}”{% endif %}{% elseif o.status == 'partial' %}{{ 'Part-answered · we are on this now'|trans }}{% elseif not o.required %}{{ 'Optional · saying so has never cost anyone an award'|trans }}{% else %}{{ 'Not yet'|trans }}{% endif %}</span>
+              <span class="iv__rowo-s">{% if o.status == 'met' %}{{ 'Done'|trans }}{% if o.quote %} · “{{ o.quote|length > 60 ? o.quote|slice(0, 60) ~ '…' : o.quote }}”{% endif %}{% elseif o.status == 'partial' %}{{ 'Part-answered'|trans }}{% elseif not o.required %}{{ 'Optional'|trans }}{% else %}{{ 'Not yet'|trans }}{% endif %}</span>
             </span>
           </li>
         {% endfor %}
       </ul>
-      <form method="dialog"><button class="ag-btn ag-btn--primary iv__go">{{ 'Back to the conversation'|trans }}</button></form>
+      <form method="dialog"><button class="ag-btn ag-btn--primary iv__go">{{ 'Back'|trans }}</button></form>
     </div>
   </dialog>
 
@@ -321,8 +319,8 @@
       <h2 class="iv__sheet-h" id="iv-take-h">{{ 'Your words'|trans }}</h2>
       <p class="iv__quote" data-iv-take-text></p>
       <button type="button" class="iv__opt" data-iv-take="edit"><b>{{ 'Edit these words'|trans }}</b><span>{{ 'The old version is not kept.'|trans }}</span></button>
-      <button type="button" class="iv__opt" data-iv-take="again"><b>{{ 'Say it again instead'|trans }}</b><span>{{ 'Adds a new answer; the interviewer uses the newer one.'|trans }}</span></button>
-      <button type="button" class="iv__opt iv__opt--danger" data-iv-take="remove"><b>{{ 'Remove it from the record'|trans }}</b><span>{{ 'The judges will never see it. This cannot be undone.'|trans }}</span></button>
+      <button type="button" class="iv__opt" data-iv-take="again"><b>{{ 'Say it again instead'|trans }}</b><span>{{ 'Adds a newer answer.'|trans }}</span></button>
+      <button type="button" class="iv__opt iv__opt--danger" data-iv-take="remove"><b>{{ 'Remove it from the record'|trans }}</b><span>{{ 'The judges won’t see it. Can’t be undone.'|trans }}</span></button>
       <form method="dialog"><button class="iv__link iv__centre">{{ 'Leave it as it is'|trans }}</button></form>
     </div>
   </dialog>
