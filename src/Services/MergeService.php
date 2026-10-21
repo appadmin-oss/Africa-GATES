@@ -47,10 +47,24 @@ final class MergeService
     private const NOMINEE_OTP_PURPOSES = ['vote', 'claim', 'preflight', 'paid-vote'];
 
     /**
+     * The fields on the nominee row a merge can carry over from a merged-away entry.
+     *
+     * The survivor used to keep its own row wholesale and adopt only a profile link and a
+     * photo, and only where it had none — so a merge could not keep the better STORY,
+     * the right spelling of the name or the organisation the other entry had, and an admin
+     * had to pick the survivor by which fields it happened to hold rather than by which
+     * entry the record should live on. `$take` names, per field, the entry whose value the
+     * survivor carries. Every change is journalled, so an unmerge puts the original back.
+     */
+    public const TAKEABLE = ['name', 'tagline', 'organisation', 'country_code', 'story', 'photo_path'];
+
+    /**
      * @param int[] $mergeIds nominees to fold in (the survivor id, if included, and non-existent ids are ignored)
+     * @param bool $dryRun run the whole merge and ROLL IT BACK, returning what it would have done
+     * @param array<string,int> $take field → id of the entry whose value the survivor keeps
      * @return array{ok:bool,error?:string,merged:int,votes:int,keep_id:int}
      */
-    public static function mergeNominees(int $keepId, array $mergeIds, ?int $adminId = null): array
+    public static function mergeNominees(int $keepId, array $mergeIds, ?int $adminId = null, bool $dryRun = false, array $take = []): array
     {
         $fail = static fn(string $msg): array => ['ok' => false, 'error' => $msg, 'merged' => 0, 'votes' => 0, 'keep_id' => $keepId];
 
@@ -66,7 +80,7 @@ final class MergeService
 
         // Never fold in a nominee that is already a tombstone (it would double-merge).
         $others = DB::table('gates_nominees')->whereIn('id', $ids)
-            ->where(function ($q) { self::notMerged($q); })->get();
+            ->where(function ($q) { self::notMerged($q); })->orderBy('id')->get();
         if ($others->isEmpty()) return $fail('None of the selected nominees exist any more.');
 
         foreach ($others as $o) {
@@ -79,8 +93,9 @@ final class MergeService
         $now   = date('Y-m-d H:i:s');
         $log   = [];
 
+        $report = null;
         try {
-            DB::transaction(function () use ($keepId, $mergedIds, $keep, $others, $batch, $now, &$log) {
+            DB::transaction(function () use ($keepId, $mergedIds, $keep, $others, $batch, $now, $dryRun, $take, &$log, &$report) {
                 foreach ($mergedIds as $from) {
                     self::reassignAll($from, $keepId, $batch, $log);
                 }
@@ -97,14 +112,26 @@ final class MergeService
                         }
                     }
                 }
-                if (empty($keep->photo_path)) {
-                    foreach ($others as $o) {
-                        if (!empty($o->photo_path)) {
-                            $adopt['photo_path'] = (string) $o->photo_path;
-                            $log[] = self::entry($batch, $keepId, (int) $o->id, 'reassign', 'gates_nominees', $keepId, 'photo_path', $keep->photo_path ?? null);
-                            break;
+                // The row fields: the admin's choice where one was made, else the survivor's
+                // own value, else the first merged entry that has one. The same default the
+                // duplicates screen ticks, so what it shows is what happens.
+                $byId = [];
+                foreach ($others as $o) $byId[(int) $o->id] = $o;
+                foreach (self::TAKEABLE as $f) {
+                    if (!self::hasCol('gates_nominees', $f)) continue;
+                    $own = trim((string) ($keep->{$f} ?? ''));
+                    $from = null;
+                    $src = (int) ($take[$f] ?? 0);
+                    if ($src > 0 && $src !== $keepId && isset($byId[$src]) && trim((string) ($byId[$src]->{$f} ?? '')) !== '') {
+                        $from = $byId[$src];
+                    } elseif ($own === '' && $src !== $keepId) {
+                        foreach ($others as $o) {
+                            if (trim((string) ($o->{$f} ?? '')) !== '') { $from = $o; break; }
                         }
                     }
+                    if ($from === null || (string) $from->{$f} === (string) ($keep->{$f} ?? '')) continue;
+                    $adopt[$f] = (string) $from->{$f};
+                    $log[] = self::entry($batch, $keepId, (int) $from->id, 'reassign', 'gates_nominees', $keepId, $f, $keep->{$f} ?? null);
                 }
                 if ($adopt) DB::table('gates_nominees')->where('id', $keepId)->update($adopt);
 
@@ -114,12 +141,19 @@ final class MergeService
                 DB::table('gates_nominees')->whereIn('id', $mergedIds)
                     ->update(['merged_into' => $keepId, 'merged_at' => $now]);
 
+                if ($dryRun) {
+                    $report = self::report($keepId, $mergedIds, $log);
+                    throw new MergeRolledBack();
+                }
+
                 if ($log) {
                     foreach (array_chunk($log, 200) as $chunk) {
                         DB::table('gates_merge_log')->insert($chunk);
                     }
                 }
             });
+        } catch (MergeRolledBack) {
+            return ['ok' => true, 'dry_run' => true, 'merged' => count($mergedIds), 'keep_id' => $keepId] + $report;
         } catch (\Throwable $e) {
             error_log('[MergeService] ' . $e->getMessage());
             return $fail(\AfricaGates\Admin\Support\ActionError::dbMessage($e));
@@ -133,6 +167,73 @@ final class MergeService
 
         $votes = (int) (DB::table('gates_nominees')->where('id', $keepId)->value('vote_count') ?? 0);
         return ['ok' => true, 'merged' => count($mergedIds), 'votes' => $votes, 'keep_id' => $keepId];
+    }
+
+    /**
+     * What a merge WOULD do: the real merge, run inside a transaction and rolled back.
+     *
+     * Not a second implementation of the merge, which would be a description that drifts
+     * from the thing it describes — the preview is the merge, so it cannot promise a
+     * vote total or a kept field that the real one then does differently.
+     *
+     * @param list<int> $mergeIds
+     * @param array<string,int> $take
+     * @return array<string,mixed>
+     */
+    public static function preview(int $keepId, array $mergeIds, array $take = []): array
+    {
+        return self::mergeNominees($keepId, $mergeIds, null, true, $take);
+    }
+
+    /**
+     * The live entry a merged-away nominee now lives on, or null when it was never merged
+     * (or the chain is broken). Follows a chain, because a survivor can itself be merged
+     * later; bounded, because a cycle in hand-edited data must not hang a public page.
+     */
+    public static function survivorOf(int $id): ?int
+    {
+        if (!self::hasCol('gates_nominees', 'merged_into')) return null;
+        $seen = [];
+        $cur = $id;
+        try {
+            for ($hop = 0; $hop < 10; $hop++) {
+                $next = DB::table('gates_nominees')->where('id', $cur)->value('merged_into');
+                if ($next === null || (int) $next <= 0) return $cur === $id ? null : $cur;
+                $cur = (int) $next;
+                if (isset($seen[$cur])) return null;
+                $seen[$cur] = true;
+            }
+        } catch (\Throwable) {}
+        return null;
+    }
+
+    /**
+     * Counted from inside the rolled-back transaction, so every figure is the merge's own.
+     *
+     * @param list<int> $mergedIds
+     * @param list<array<string,mixed>> $log
+     * @return array{votes:int, organic:int, moved:array<string,int>, dropped:array<string,int>, survivor:array<string,string>}
+     */
+    private static function report(int $keepId, array $mergedIds, array $log): array
+    {
+        $moved = $dropped = [];
+        foreach ($log as $e) {
+            if ($e['tbl'] === 'gates_nominees') continue;
+            if ($e['op'] === 'delete') $dropped[$e['tbl']] = ($dropped[$e['tbl']] ?? 0) + 1;
+            else $moved[$e['tbl']] = ($moved[$e['tbl']] ?? 0) + 1;
+        }
+        $row = DB::table('gates_nominees')->where('id', $keepId)->first();
+        $survivor = [];
+        foreach (self::TAKEABLE as $f) {
+            if (self::hasCol('gates_nominees', $f)) $survivor[$f] = (string) ($row->{$f} ?? '');
+        }
+        return [
+            'votes'    => (int) ($row->vote_count ?? 0),
+            'organic'  => (int) ($row->organic_vote_count ?? $row->vote_count ?? 0),
+            'moved'    => $moved,
+            'dropped'  => $dropped,
+            'survivor' => $survivor,
+        ];
     }
 
     /**
@@ -472,3 +573,6 @@ final class MergeService
         return SchemaHas::table($table);
     }
 }
+
+/** Thrown inside a preview's transaction so the merge rolls back; never escapes MergeService. */
+final class MergeRolledBack extends \RuntimeException {}

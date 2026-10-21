@@ -247,3 +247,41 @@ page the guard lets a role open is in its rail or on a strip, and in its ⌘K.
 | No "Ask for more" yet, in the peek or the bulk bar | It needs the message to the nominator and the way back in for them; it ships with the desk (step 6). |
 | No bulk Reject | A rejection emails each nominator its reason at once and cannot be recalled; one reason typed for many is not a reason. It waits for the undo window. |
 | Toasts are the console's own (`agToast`) | One toast system, not a second. |
+
+## Duplicates and net counts — `/admin/nominees/duplicates` (21 Oct 2026)
+
+A sub-page of Nominees (linked from it, not on the rail; `admin_page: nominees`, gate
+unchanged — `moderation` via the `nominees` path segment). It answers one question the merge
+scan and the totals had answered separately: **how many people** are in this edition, and how
+many people voted.
+
+**Files.** `Admin\Controllers\DuplicatesController`, `Admin\Services\{NomineePeople,
+VoterPeople, IdentityVerdicts}`, `Support\EmailCanon`, `templates/admin/nominees/duplicates.twig`,
+`public/assets/css/console/dupes.css`, migration `2027_03_28_identity_resolution.php`
+(`gates_votes.voter_canon_hash`, `gates_identity_verdicts`), AI capability
+`nominee.identity_verify`. Test: `tests/Unit/DuplicatesPeopleTest.php` (four mutations each
+proven to fail it: no redirect, a committing preview, `take` ignored, the AI overruling a person).
+
+**One matcher, not two.** `NomineePeople` calls `MergeSuggestionService::{nameKeys, pairScore,
+explain, survivor}` — thin public faces on the scan's own private rule — and `VoterPeople`
+calls `VoterReach::{personKey, buyerHashes}`, so the console's people and the CPI's people are
+one definition.
+
+**The merge, improved.**
+- *Preview is the merge, rolled back* (`MergeService::preview()` = `mergeNominees(…, dryRun:
+  true)`), so its totals cannot disagree with what Merge then does.
+- *The survivor keeps what the admin picks*: `MergeService::TAKEABLE` (name, tagline,
+  organisation, country, story, photo); default is the survivor's own value, else the first
+  merged entry that has one. Every change is journalled; Undo restores it.
+- *A merged entry's public link now goes to the survivor* (302, because a merge can be
+  undone). It 404'd before — on posters and WhatsApp the day the votes were joined.
+  `MergeService::survivorOf()` follows the chain; the redirect goes through the survivor's own
+  lookup, so sandbox and status rules still hold (tested).
+- *Imported tallies are named before they are lost.* The merge rebuilds totals from ballot
+  rows (pre-existing behaviour); a tally imported without rows shrinks. The preview now says
+  how many votes would not carry over. Whether a merge should instead ADD imported totals is a
+  scoring question for the owner — not changed here.
+
+**Open for the owner.** (1) Imported tallies on merge — keep the ledger rule, or carry the
+imported difference? (2) Net voters (one inbox = one person) is shown, never scored; scoring it
+would be a new, named basis.

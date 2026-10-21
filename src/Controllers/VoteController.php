@@ -264,7 +264,11 @@ class VoteController {
             ->where('n.id', $id)->whereIn('n.status', self::PUBLIC_STATUSES)
             ->where(fn($q) => \AfricaGates\Services\MergeService::notMerged($q, 'n.merged_into'))
             ->select(['n.id', 'n.name', 'p.slug as programme_slug'])->first();
-        if (!$row) return $res->withHeader('Location', '/vote')->withStatus(302);
+        if (!$row) {
+            $to = \AfricaGates\Services\MergeService::survivorOf($id);
+            if ($to !== null) return $this->nomineeRedirect($res, $to);
+            return $res->withHeader('Location', '/vote')->withStatus(302);
+        }
         return $res->withHeader('Location', $this->nomineeUrl($id, (string) $row->name, (string) $row->programme_slug))->withStatus(302);
     }
 
@@ -413,7 +417,20 @@ class VoteController {
                 \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'organic_vote_count')
                     ? ['n.organic_vote_count'] : []))
             ->first();
-        if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
+        if (!$nom) {
+            // ── A MERGED ENTRY'S LINK GOES TO THE ENTRY IT WAS MERGED INTO ─────────
+            //
+            // A duplicate exists because somebody campaigned on it: its link is on posters,
+            // in WhatsApp groups and in the nominee's own bio, and its votes now count on
+            // the survivor. A 404 there tells every supporter who follows it that the
+            // nominee was removed, on the day their votes were in fact added together.
+            // 302, not 301: a merge can be undone, and a permanent redirect would be
+            // cached by every browser that ever followed it. The survivor's own lookup
+            // (nomineeRedirect) carries the sandbox and status rules, so this opens nothing.
+            $to = \AfricaGates\Services\MergeService::survivorOf($id);
+            if ($to !== null) return $this->nomineeRedirect($res, $to);
+            throw new \Slim\Exception\HttpNotFoundException($req);
+        }
 
         // Canonical URL: the {program} segment must match the nominee's programme.
         if ($programSeg !== '' && $programSeg !== (string) $nom->programme_slug) {

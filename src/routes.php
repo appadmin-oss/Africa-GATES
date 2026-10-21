@@ -4230,6 +4230,12 @@ return function(App $app) {
 
         $a->get('/nominees',        AdminNomineesController::class.':index');
         $a->get('/nominees/duplicate-scan', AdminNomineesController::class.':duplicateScan');
+        // Duplicates and net counts: people, not entries — nominees across the whole
+        // edition, voters by inbox. A sub-page of Nominees, linked from it.
+        $a->get('/nominees/duplicates',        \AfricaGates\Admin\Controllers\DuplicatesController::class.':index');
+        $a->post('/nominees/duplicates/rule',  \AfricaGates\Admin\Controllers\DuplicatesController::class.':rule');
+        $a->post('/nominees/duplicates/ai',    \AfricaGates\Admin\Controllers\DuplicatesController::class.':ai');
+        $a->post('/nominees/duplicates/merge', \AfricaGates\Admin\Controllers\DuplicatesController::class.':merge');
         $a->post('/nominees/merge', AdminNomineesController::class.':merge');
         $a->post('/nominees/not-duplicate', AdminNomineesController::class.':notDuplicate');
         $a->post('/nominees/unmerge', AdminNomineesController::class.':unmerge');

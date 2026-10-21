@@ -165,7 +165,7 @@ final class VoterReach
      *
      * @param array<int,string> $buyers donation id → buyer's voter hash
      */
-    private static function personKey(object $r, array $buyers): ?string
+    public static function personKey(object $r, array $buyers): ?string
     {
         $hash = (string) ($r->voter_email_hash ?? '');
         $type = (string) ($r->vote_type ?? 'standard');
@@ -217,7 +217,7 @@ final class VoterReach
      * @param  iterable<object> $rows
      * @return array<int,string> donation id → VoteService::voterHash(donor_email)
      */
-    private static function buyerHashes(iterable $rows): array
+    public static function buyerHashes(iterable $rows): array
     {
         $ids = [];
         foreach ($rows as $r) {

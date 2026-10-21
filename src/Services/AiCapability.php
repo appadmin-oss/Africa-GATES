@@ -1238,6 +1238,29 @@ final class AiCapability
                 'timeout'         => 20,
                 'untrusted_input' => true,
             ]),
+            /**
+             * "Are these two entries one person?" for the near matches the rules will not
+             * count on their own (Admin\Services\NomineePeople). Advisory twice over: an
+             * answer under the trust bar is shown and not counted, and a person's ruling
+             * always replaces it. The prompt tells it to answer "unsure" whenever the
+             * names cannot settle it, because a wrong "same" joins two strangers.
+             */
+            'nominee.identity_verify' => $c('nominee.identity_verify', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::primary(self::TIER_REASON),
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 2400,
+                'calls_per_day'   => 60,
+                'tokens_per_day'  => 300_000,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'Pairs of nominee names with the country, award category and organisation each '
+                    . 'was entered under — nothing else. No contact details, no nomination text, nothing about voters.',
+                'data_purpose'    => 'To say whether two nominee entries that are close but not identical are the '
+                    . 'same person, so a person count is not inflated. An administrator can overrule every answer.',
+            ]),
             'nominee.merge_suggest' => $c('nominee.merge_suggest', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_REASON,

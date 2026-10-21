@@ -85,6 +85,7 @@ final class AdminNav
                  ['page' => 'desk',           'label' => 'Review desk',     'href' => '/admin/nominations/desk'],
                  ['page' => 'nominations',    'label' => 'All nominations', 'href' => '/admin/nominations'],
                  ['page' => 'nominees',       'label' => 'Nominees',        'href' => '/admin/nominees'],
+                 ['page' => 'duplicates',     'label' => 'Duplicates',      'href' => '/admin/nominees/duplicates'],
                  ['page' => 'profiles',       'label' => 'Profiles',        'href' => '/admin/profiles'],
                  ['page' => 'interviews',     'label' => 'Interviews',      'href' => '/admin/interviews'],
                  ['page' => 'questionnaires', 'label' => 'Questionnaires',  'href' => '/admin/questionnaires'],

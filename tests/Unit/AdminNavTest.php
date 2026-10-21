@@ -51,6 +51,7 @@ final class AdminNavTest extends TestCase
         '/admin/dashboard' => 'overview', '/admin/assistant' => 'overview', '/admin/handbook' => null,
         '/admin/profiles' => 'moderation', '/admin/nominations' => 'moderation',
         '/admin/nominations/review' => 'moderation', '/admin/nominations/desk' => 'moderation', '/admin/nominees' => 'moderation',
+        '/admin/nominees/duplicates' => 'moderation',   // new 21 Oct 2026, under its parent's gate
         '/admin/moderation' => 'moderation', '/admin/interviews' => 'moderation',
         '/admin/questionnaires' => 'moderation', '/admin/questionnaires/invitations' => 'moderation',
         '/admin/campaigns' => null, '/admin/support' => null,

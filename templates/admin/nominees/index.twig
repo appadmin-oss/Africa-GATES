@@ -22,6 +22,7 @@
 </p>
 {% endif %}
 
+<p style="margin:0 0 12px;font-size:13px"><a href="/admin/nominees/duplicates">Duplicates and people counts</a> — who is entered twice, who stands in several categories, and how many people (not entries) were nominated and voted.</p>
 {% if admin_role in ['superadmin','admin'] %}
 {# Merge duplicates: tick the rows that are the same person, choose which one to
    KEEP, then merge — votes + judge scores fold together. The inputs live in the
@@ -37,7 +38,7 @@
   <button class="ad-btn ad-btn--sm" type="button" data-ux-reveal="#nmTable, #mergeForm" aria-expanded="false" hidden>Choose rows to merge</button>
   <span class="ux-when-on" style="font-size:12px;color:var(--cn-ink-3)">Tick the duplicate rows, pick one to <em>keep</em>, then:</span>
   <button class="ad-btn ad-btn--sm ad-btn--primary ux-when-on" type="submit"
-          data-confirm="Merge the ticked nominees into the one marked “keep”? Their votes and judge scores will be combined and the duplicates removed. This can't be undone.">⤵ Merge selected</button>
+          data-confirm="Merge the ticked nominees into the one marked “keep”? Their votes and judge scores will be combined and the duplicates hidden. You can undo it from Duplicates → Recently merged.">⤵ Merge selected</button>
   <button class="ad-btn ad-btn--sm" type="button" id="dupScanBtn" style="margin-left:auto">⚡ Scan for duplicates</button>
 </form>
 <div id="dupScanPanel" aria-live="polite" style="margin:0 0 12px"></div>

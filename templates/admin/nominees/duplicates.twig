@@ -1,0 +1,274 @@
+{% extends "admin/layout.twig" %}
+{#
+  DUPLICATES AND NET COUNTS — people, not entries (21 Oct 2026).
+
+  Admin\Controllers\DuplicatesController. Four figures across the top — nominee entries
+  and the people they are, votes' recorded voter ids and the people they are — each with
+  the sentence that says what it counts. Then the work, in tabs:
+
+    Split votes        one person entered twice in ONE category: their votes are split.
+                       Merge, after a preview that runs the merge and rolls it back.
+    Across categories  one person standing in several categories: legitimate entries,
+                       counted once. A ruling, never a merge.
+    Near matches       a near name the rules will not count on their own. A person rules,
+                       or the AI is asked; the AI's answer is marked as its own.
+    Recently merged    every merge, with Undo.
+
+  Rulings and merges need the integrity permission; without it the page is read-only.
+#}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/list.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/console/dupes.css') }}">{% endblock %}
+
+{% block topbar_title %}Duplicates{% endblock %}
+{% block topbar_sub %}People, not entries — who was nominated, and who voted.{% endblock %}
+{% block topbar_actions %}
+  {% if cycles|length > 1 %}
+    <form method="get" action="/admin/nominees/duplicates" class="dp-cycle">
+      <label class="sr-only" for="dpCycle">Edition</label>
+      <select id="dpCycle" name="cycle" class="ls-select">
+        {% for c in cycles %}<option value="{{ c.id }}"{% if c.id == cycle_id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+      </select>
+      <noscript><button type="submit" class="cn-pillbtn">Show</button></noscript>
+    </form>
+  {% endif %}
+{% endblock %}
+
+{% macro who(m) %}
+  <span class="dp-who"><strong>{{ m.name }}</strong><span>{{ m.category }}{% if m.country %} · {{ m.country }}{% endif %} · <span class="dp-who__num">{{ m.votes|number_format }}</span> vote{{ m.votes == 1 ? '' : 's' }}{% if m.linked %} · linked profile{% endif %}</span></span>
+{% endmacro %}
+{% macro basis(l) %}
+  {% set tone = {human: 'ink', profile: 'green', name: 'green', ai: 'gold', possible: 'grey'}[l.basis]|default('grey') %}
+  {% set word = {human: 'Ruled by a person', profile: 'Same profile', name: 'Same name', ai: 'AI', possible: 'Near match'}[l.basis]|default(l.basis) %}
+  <span class="dp-basis dp-basis--{{ tone }}">{{ word }}</span>
+{% endmacro %}
+{% import _self as dp %}
+
+{% block content %}
+<div class="dp">
+  {% if not cycle_id %}
+    <div class="ls-empty">
+      <span class="ls-empty__t">No edition yet</span>
+      <span class="ls-empty__m">People are counted per edition. Set one up under Programmes and its nominees and voters are counted here.</span>
+      <a class="cn-pillbtn" href="/admin/programmes">Open Programmes</a>
+    </div>
+  {% else %}
+
+  {# ── the four figures ──────────────────────────────────────────────────── #}
+  <section class="dp-figs" aria-label="Counts">
+    <div class="dp-fig">
+      <span class="dp-fig__l">Nominee entries</span>
+      <span class="dp-fig__v">{{ people.entries|number_format }}</span>
+      <span class="dp-fig__m">Every live entry in every category, merged duplicates left out.</span>
+    </div>
+    <div class="dp-fig dp-fig--key">
+      <span class="dp-fig__l">Nominated people</span>
+      <span class="dp-fig__v">{{ people.people|number_format }}</span>
+      <span class="dp-fig__m">
+        {% if people.people_low < people.people %}As few as <strong>{{ people.people_low|number_format }}</strong> if the {{ people.possible }} near match{{ people.possible == 1 ? '' : 'es' }} are the same person.{% else %}Each person counted once, wherever they stand.{% endif %}
+      </span>
+    </div>
+    <div class="dp-fig">
+      <span class="dp-fig__l">Voters</span>
+      <span class="dp-fig__v">{{ voters.people|number_format }}</span>
+      <span class="dp-fig__m">A paid order is its buyer and a grant is nobody — the rule the CPI pays its 70% on.{% if voters.recorded_ids > voters.people %} The ledger holds {{ voters.recorded_ids|number_format }} voter ids.{% endif %}</span>
+    </div>
+    <div class="dp-fig dp-fig--key">
+      <span class="dp-fig__l">Net voters</span>
+      <span class="dp-fig__v">{{ voters.net|number_format }}</span>
+      <span class="dp-fig__m">
+        One inbox is one person{% if voters.alias_joins %} — {{ voters.alias_joins|number_format }} address{{ voters.alias_joins == 1 ? '' : 'es' }} joined as aliases{% endif %}.
+        {% if voters.likely < voters.net %}About <strong>{{ voters.likely|number_format }}</strong> counting a phone number typed on a few addresses as one person.{% endif %}
+      </span>
+    </div>
+  </section>
+
+  {% set notes = [] %}
+  {% if voters.canon_column and voters.canon_coverage < 1 and voters.people > 0 %}{% set notes = notes|merge(['Inbox matching sees ' ~ (voters.canon_coverage * 100)|round ~ '% of voters. Votes cast before 21 Oct 2026 kept only a fingerprint of the address as typed, so an alias among them cannot be found.']) %}{% endif %}
+  {% if not voters.canon_column %}{% set notes = notes|merge(['Inbox matching needs its database step (2027_03_28_identity_resolution) applied.']) %}{% endif %}
+  {% if voters.placeholders %}{% set notes = notes|merge([voters.placeholders ~ ' phone number' ~ (voters.placeholders == 1 ? ' was' : 's were') ~ ' typed on more than ' ~ constant('AfricaGates\\Admin\\Services\\VoterPeople::PHONE_CAP') ~ ' addresses — a placeholder, not a person — and joined nobody.']) %}{% endif %}
+  {% if voters.shared_devices %}{% set notes = notes|merge([voters.shared_devices ~ ' device' ~ (voters.shared_devices == 1 ? '' : 's') ~ ' voted for more than one person. A family, a school lab or a cybercafé does that, so a device joins nobody; Integrity reads it as a signal.']) %}{% endif %}
+  {% if people.crowded %}{% set notes = notes|merge([people.crowded ~ ' group' ~ (people.crowded == 1 ? '' : 's') ~ ' of names were too alike to compare (a shared word like "Foundation"), so a duplicate among them is not found.']) %}{% endif %}
+  {% if notes %}
+    <ul class="dp-notes">{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  {# ── the work ──────────────────────────────────────────────────────────── #}
+  <div class="dp-bar">
+    <nav class="ls-tabs" aria-label="Duplicates">
+      {% for k, l in {split: 'Split votes', across: 'Across categories', near: 'Near matches', merged: 'Recently merged'} %}
+        {% set n = {split: split|length, across: across|length, near: people.pairs|length, merged: merged|length}[k] %}
+        <a class="ls-tab" href="{{ base }}&amp;tab={{ k }}"{% if tab == k %} aria-current="page"{% endif %}>{{ l }}<span class="ls-tab__num">{{ n }}</span></a>
+      {% endfor %}
+    </nav>
+    <span class="ls-bar__gap"></span>
+    {% if tab == 'near' and can_rule and people.pairs %}
+      <form method="post" action="/admin/nominees/duplicates/ai" class="dp-ai">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="cycle" value="{{ cycle_id }}">
+        <button type="submit" class="dp-ai__b"{% if not ai_ready or not ai_waiting %} disabled aria-disabled="true"{% endif %}>
+          <svg aria-hidden="true" focusable="false"><use href="#ic-spark"/></svg>
+          {% if not ai_ready %}AI unavailable{% elseif ai_waiting %}Ask the AI about {{ ai_waiting }}{% else %}AI has seen them all{% endif %}
+        </button>
+      </form>
+    {% endif %}
+  </div>
+
+  {% if preview %}
+    <section class="dp-preview" aria-labelledby="dpPrevH">
+      <h2 class="dp-preview__h" id="dpPrevH">Merge preview</h2>
+      {% if preview.ok %}
+        <p class="dp-preview__lede">Keeping <strong>{{ preview.names[preview.keep_id]|default('#' ~ preview.keep_id) }}</strong>. It goes from <span class="dp-who__num">{{ preview.votes_before|number_format }}</span> to <span class="dp-who__num">{{ preview.votes_after|number_format }}</span> votes. Nothing has changed yet — this is the merge, run and rolled back.</p>
+        {% if preview.votes_lost > 0 %}
+          <p class="dp-preview__warn" role="note">The entries show <span class="dp-who__num">{{ preview.votes_listed|number_format }}</span> votes between them, but only <span class="dp-who__num">{{ preview.votes_after|number_format }}</span> have a ballot behind them. The other <span class="dp-who__num">{{ preview.votes_lost|number_format }}</span> were imported as a total, and a merge counts ballots — so they would not carry over. Undo puts them back.</p>
+        {% endif %}
+        <ul class="dp-moves">
+          {% for mv in preview.moves %}
+            <li class="dp-move{% if mv.kind == 'drop' %} dp-move--drop{% endif %}"><span class="dp-move__num">{{ mv.n|number_format }}</span><span>{{ mv.label }}{% if mv.kind == 'move' and mv.n != 1 %}s{% endif %}{{ mv.kind == 'move' ? ' move to the survivor' : '' }}</span></li>
+          {% else %}
+            <li class="dp-move"><span>Nothing else is attached to the entries being merged.</span></li>
+          {% endfor %}
+          {% for a in preview.adopt %}<li class="dp-move"><span class="dp-move__num">+</span><span>{{ a }}</span></li>{% endfor %}
+        </ul>
+        {% if preview.fields %}
+          <form method="get" action="/admin/nominees/duplicates" class="dp-fields">
+            <input type="hidden" name="cycle" value="{{ cycle_id }}"><input type="hidden" name="tab" value="split">
+            <input type="hidden" name="keep" value="{{ preview.keep_id }}"><input type="hidden" name="ids" value="{{ preview.ids|join(',') }}">
+            <span class="dp-fields__h">What the survivor keeps, where the entries differ</span>
+            {% for f in preview.fields %}
+              <fieldset class="dp-field">
+                <legend class="dp-field__l">{{ f.label }}</legend>
+                {% for o in f.options %}
+                  <label class="dp-field__o"><input type="radio" name="take[{{ f.field }}]" value="{{ o.id }}"{% if o.on %} checked{% endif %}><span>{{ o.value }}</span></label>
+                {% endfor %}
+              </fieldset>
+            {% endfor %}
+            <button type="submit" class="cn-pillbtn cn-pillbtn--sm">Update preview</button>
+          </form>
+        {% endif %}
+        {% if can_rule %}
+          <form method="post" action="/admin/nominees/duplicates/merge" class="dp-preview__go" data-confirm="Merge into {{ preview.names[preview.keep_id]|default('the survivor') }}? The votes count together from now on. You can undo it from Recently merged." data-confirm-title="Merge duplicates">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <input type="hidden" name="cycle" value="{{ cycle_id }}">
+            <input type="hidden" name="keep_id" value="{{ preview.keep_id }}">
+            {% for i in preview.ids %}{% if i != preview.keep_id %}<input type="hidden" name="merge_ids[]" value="{{ i }}">{% endif %}{% endfor %}
+            {% for f, from in preview.take %}<input type="hidden" name="take[{{ f }}]" value="{{ from }}">{% endfor %}
+            <a class="cn-pillbtn" href="{{ base }}&amp;tab=split">Cancel</a>
+            <button type="submit" class="dp-merge">Merge</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <p class="dp-preview__lede">{{ preview.error }}</p>
+        <a class="cn-pillbtn" href="{{ base }}&amp;tab=split">Back</a>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if tab == 'split' %}
+    {% for c in split %}
+      {% for g in c.mergeable %}
+        <article class="dp-card">
+          <header class="dp-card__head">
+            <span class="dp-card__t">{{ g.ids|length }} entries for one person in {{ g.category }}</span>
+            <span class="dp-card__m">Their <span class="dp-who__num">{{ g.votes|number_format }}</span> votes are split between them.{% set elsewhere = c.members|filter(m => m.id not in g.ids)|map(m => m.category)|join(', ') %}{% if elsewhere %} The same person also stands in {{ elsewhere }} — that entry stays, and is counted as the same person.{% endif %}</span>
+          </header>
+          <form method="get" action="/admin/nominees/duplicates" class="dp-pick">
+            <input type="hidden" name="cycle" value="{{ cycle_id }}">
+            <input type="hidden" name="tab" value="split">
+            <input type="hidden" name="ids" value="{{ g.ids|join(',') }}">
+            <fieldset class="dp-members">
+              <legend class="sr-only">Which entry to keep</legend>
+              {% for m in c.members|filter(m => m.id in g.ids) %}
+                <label class="dp-member"><input type="radio" name="keep" value="{{ m.id }}"{% if m.id == g.keep %} checked{% endif %}>{{ dp.who(m) }}{% if m.id == g.keep %}<span class="dp-keep">Suggested to keep</span>{% endif %}</label>
+              {% endfor %}
+            </fieldset>
+            <ul class="dp-why">
+              {% for l in c.links|filter(l => l.a in g.ids and l.b in g.ids) %}<li>{{ dp.basis(l) }}<span>{{ l.why }}</span></li>{% endfor %}
+            </ul>
+            <div class="dp-card__act">
+              {% if can_rule %}
+                <button type="submit" class="cn-pillbtn">Preview merge</button>
+                {# Its own POST form, reached by `form=` — the preview is a GET, and a GET
+                   form must not carry the token into an address bar. #}
+                <button type="submit" class="cn-pillbtn cn-pillbtn--sm" form="dpNot{{ g.ids|join('-') }}" name="verdict" value="different">Not the same person</button>
+              {% endif %}
+            </div>
+          </form>
+          {% if can_rule %}
+            <form method="post" action="/admin/nominees/duplicates/rule" id="dpNot{{ g.ids|join('-') }}" hidden data-confirm="Mark these as different people? Neither the scan nor the AI will pair them again." data-confirm-title="Not the same person">
+              <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle" value="{{ cycle_id }}"><input type="hidden" name="tab" value="split">
+              {% for i in g.ids %}<input type="hidden" name="ids[]" value="{{ i }}">{% endfor %}
+            </form>
+          {% endif %}
+        </article>
+      {% endfor %}
+    {% else %}
+      <div class="ls-empty"><span class="ls-empty__t">No split votes</span><span class="ls-empty__m">Nobody is entered twice in one category. When a nomination is approved under a name already listed, it lands here.</span></div>
+    {% endfor %}
+
+  {% elseif tab == 'across' %}
+    {% for c in across %}
+      <article class="dp-card">
+        <header class="dp-card__head">
+          <span class="dp-card__t">One person in {{ c.categories }} categories</span>
+          <span class="dp-card__m">Separate entries, counted once. Nothing to merge.</span>
+        </header>
+        <div class="dp-members">{% for m in c.members %}<div class="dp-member">{{ dp.who(m) }}</div>{% endfor %}</div>
+        <ul class="dp-why">{% for l in c.links %}<li>{{ dp.basis(l) }}<span>{{ l.why }}</span>
+          {% if can_rule and l.basis == 'human' %}
+            <form method="post" action="/admin/nominees/duplicates/rule" class="dp-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle" value="{{ cycle_id }}"><input type="hidden" name="tab" value="across"><input type="hidden" name="ids[]" value="{{ l.a }}"><input type="hidden" name="ids[]" value="{{ l.b }}"><button type="submit" name="verdict" value="forget" class="dp-link">Withdraw ruling</button></form>
+          {% endif %}</li>{% endfor %}</ul>
+        {% if can_rule %}
+          <form method="post" action="/admin/nominees/duplicates/rule" class="dp-card__act" data-confirm="Mark these as different people? They will be counted separately." data-confirm-title="Not the same person">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle" value="{{ cycle_id }}"><input type="hidden" name="tab" value="across">
+            {% for i in c.ids %}<input type="hidden" name="ids[]" value="{{ i }}">{% endfor %}
+            <button type="submit" name="verdict" value="different" class="cn-pillbtn cn-pillbtn--sm">Not the same person</button>
+          </form>
+        {% endif %}
+      </article>
+    {% else %}
+      <div class="ls-empty"><span class="ls-empty__t">Nobody stands in more than one category</span><span class="ls-empty__m">When the same person is nominated for two awards in this edition, they are listed here and counted once.</span></div>
+    {% endfor %}
+
+  {% elseif tab == 'near' %}
+    {% for p in people.pairs %}
+      <article class="dp-card dp-card--pair">
+        <div class="dp-pair">
+          <div class="dp-member">{{ dp.who(p.members[0]) }}</div>
+          <span class="dp-pair__num" title="Name match">{{ (p.score * 100)|round }}%</span>
+          <div class="dp-member">{{ dp.who(p.members[1]) }}</div>
+        </div>
+        <ul class="dp-why">
+          <li>{{ dp.basis(p) }}<span>{{ p.why }}</span></li>
+          {% if p.ai %}<li><span class="dp-basis dp-basis--gold">AI</span><span>{{ p.ai.verdict == 'same' ? 'Same person' : 'Different people' }}{% if p.ai.confidence is not null %} ({{ (p.ai.confidence * 100)|round }}% sure){% endif %}{% if p.ai.reason %} — {{ p.ai.reason }}{% endif %}{% if p.ai.verdict == 'same' %}. Not counted: under {{ (constant('AfricaGates\\Admin\\Services\\NomineePeople::AI_TRUST') * 100)|round }}% sure.{% endif %}</span></li>{% endif %}
+        </ul>
+        {% if can_rule %}
+          <form method="post" action="/admin/nominees/duplicates/rule" class="dp-card__act">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle" value="{{ cycle_id }}"><input type="hidden" name="tab" value="near">
+            <input type="hidden" name="ids[]" value="{{ p.a }}"><input type="hidden" name="ids[]" value="{{ p.b }}">
+            <button type="submit" name="verdict" value="same" class="cn-pillbtn">Same person</button>
+            <button type="submit" name="verdict" value="different" class="cn-pillbtn cn-pillbtn--sm">Different people</button>
+          </form>
+        {% endif %}
+      </article>
+    {% else %}
+      <div class="ls-empty"><span class="ls-empty__t">No near matches</span><span class="ls-empty__m">Names that are close but not the same — an initial, a spelling — wait here for a ruling. There are none in this edition.</span></div>
+    {% endfor %}
+
+  {% else %}
+    {% for m in merged %}
+      <article class="dp-card dp-card--row">
+        <span class="dp-who"><strong>{{ m.name }}</strong><span>Merged into {{ m.keep_name|default('#' ~ m.keep_id) }}{% if m.merged_at %} · {{ m.merged_at|ago }}{% endif %}</span></span>
+        {% if can_rule %}
+          <form method="post" action="/admin/nominees/unmerge" data-confirm="Undo this merge? The entry comes back with its own votes and scores." data-confirm-title="Undo merge">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="merged_id" value="{{ m.id }}">
+            <button type="submit" class="cn-pillbtn cn-pillbtn--sm">Undo merge</button>
+          </form>
+        {% endif %}
+      </article>
+    {% else %}
+      <div class="ls-empty"><span class="ls-empty__t">Nothing merged yet</span><span class="ls-empty__m">Every merge is listed here with an Undo. An undone merge puts back every vote, mark and claim it moved.</span></div>
+    {% endfor %}
+  {% endif %}
+
+  {% endif %}
+</div>
+{% endblock %}
