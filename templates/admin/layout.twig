@@ -442,7 +442,7 @@ window.cnPage = (function () {
         <li role="option" aria-selected="false"><a class="cn-pal__i" href="{{ d.href }}" data-cmd="{{ (d.label ~ ' ' ~ d.group)|lower }}">{{ d.label }}<span class="cn-pal__k">{{ d.group }}</span></a></li>
       {% endfor %}
       {% for f in [
-          ['Show nominations waiting longest', '/admin/nominations?status=pending&sort=oldest', 'late old overdue waiting oldest 4h'],
+          ['Show nominations waiting longest', '/admin/nominations/review?sort=recv&dir=asc', 'late old overdue waiting oldest 4h'],
           ['Show paid orders with no votes', '/admin/payments', 'refund owed no votes paid stuck'],
           ['Show high alerts', '/admin/alerts?tab=high', 'alert high urgent broken down'],
         ] %}

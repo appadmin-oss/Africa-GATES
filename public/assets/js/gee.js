@@ -391,6 +391,8 @@
   function send(text) {
     text = String(text || '').trim();
     if (!text || state.busy) return;
+    // A pasted reference is the repair, asked for by name — not a question for the planner.
+    if (/^AFG-[A-Za-z0-9_\-]{4,116}$/i.test(text)) { input.value = ''; runCheck(text); return; }
     var prior = priorTurns();
     push({ kind: 'me', text: text });
     input.value = '';
@@ -437,8 +439,8 @@
       .then(function () { busy(false); });
   }
 
-  function stepLabel(key, ref, provider) {
-    if (key === 'order') return M('step-order', { ref: ref });
+  function stepLabel(key, ref, provider, st) {
+    if (key === 'order') return st === 'failed' ? M('step-order-none', { ref: ref }) : M('step-order', { ref: ref });
     if (key === 'provider') return M('step-provider', { provider: provider || M('the-provider') });
     return M('step-votes');
   }
@@ -452,8 +454,8 @@
     var no = svg(['M10 5v6M10 14.5v.5'], 10, '3'); no.setAttribute('viewBox', '0 0 20 20'); no.setAttribute('class', 'gee__ring-no');
     ring.appendChild(ok); ring.appendChild(no);
     row.appendChild(ring);
-    row.appendChild(document.createTextNode(stepLabel(key, ref, provider)));
-    if (st === 'failed') row.appendChild(el('span', 'ag-sr', ' — ' + M('step-failed')));
+    row.appendChild(document.createTextNode(stepLabel(key, ref, provider, st)));
+    if (st === 'failed' && key !== 'order') row.appendChild(el('span', 'ag-sr', ' — ' + M('step-failed')));
     return row;
   }
 

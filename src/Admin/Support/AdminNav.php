@@ -79,11 +79,12 @@ final class AdminNav
                  ['page' => 'awards_page', 'label' => 'Awards page', 'href' => '/admin/awards-page'],
              ]],
             // The handoff's "Nominations" is the review screen; the full record stays a child.
-            ['page' => 'review', 'label' => 'Nominations', 'href' => '/admin/nominations/review', 'icon' => 'noms',
+            // `match`: a nomination's own page (/admin/nominations/42) sits under this item —
+            // the only list of nominations since "All nominations" was retired.
+            ['page' => 'review', 'label' => 'Nominations', 'href' => '/admin/nominations/review', 'match' => '/admin/nominations', 'icon' => 'noms',
              'sub' => 'Nominations wait here until a person approves them.',
              'children' => [
                  ['page' => 'desk',           'label' => 'Review desk',     'href' => '/admin/nominations/desk'],
-                 ['page' => 'nominations',    'label' => 'All nominations', 'href' => '/admin/nominations'],
                  ['page' => 'nominees',       'label' => 'Nominees',        'href' => '/admin/nominees'],
                  ['page' => 'duplicates',     'label' => 'Duplicates',      'href' => '/admin/nominees/duplicates'],
                  ['page' => 'profiles',       'label' => 'Profiles',        'href' => '/admin/profiles'],
@@ -358,8 +359,9 @@ final class AdminNav
         foreach ($candidates as [$item, $page]) {
             $href = $page['href'];
             if ($path === $href) { return ['item' => $item, 'page' => $page, 'exact' => true]; }
-            if (str_starts_with($path, $href . '/') && strlen($href) > $bestLen) {
-                $best = [$item, $page]; $bestLen = strlen($href);
+            $pre = (string) ($page['match'] ?? $href);
+            if (str_starts_with($path, $pre . '/') && strlen($pre) > $bestLen) {
+                $best = [$item, $page]; $bestLen = strlen($pre);
             }
         }
         if ($best !== null) return ['item' => $best[0], 'page' => $best[1], 'exact' => $exact];

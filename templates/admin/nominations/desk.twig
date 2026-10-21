@@ -2,7 +2,7 @@
 {% block topbar_eyebrow %}<small>Nominations</small>{% endblock %}
 {% block topbar_title %}Review desk{% endblock %}
 {% block topbar_actions %}
-  <a class="ad-btn" href="/admin/nominations">Exit desk</a>
+  <a class="ad-btn" href="/admin/nominations/review">Exit desk</a>
 {% endblock %}
 
 {% block content %}
@@ -37,7 +37,7 @@
   <div id="deskDone" class="ad-card" hidden style="text-align:center;padding:40px 20px">
     <p style="font-size:16px;font-weight:700;margin:0 0 6px">Review queue is clear 🎉</p>
     <p style="color:var(--cn-ink-3);margin:0 0 16px" id="deskDoneMsg">No more pending nominations.</p>
-    <a class="ad-btn ad-btn--primary" href="/admin/nominations?status=pending&sort=oldest">Back to nominations</a>
+    <a class="ad-btn ad-btn--primary" href="/admin/nominations/review">Back to nominations</a>
   </div>
 </div>
 

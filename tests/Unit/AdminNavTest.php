@@ -95,6 +95,13 @@ final class AdminNavTest extends TestCase
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];
 
+    /**
+     * Pages retired from the console, and where their address now forwards. "All
+     * nominations" was a second list of the same nominations the review list already
+     * shows by status (21 Oct 2026); its address answers 301 to the review list.
+     */
+    private const RETIRED = ['/admin/nominations' => '/admin/nominations/review'];
+
     public function test_no_page_moved_across_a_permission_boundary_but_the_three_health_pages(): void
     {
         $now = AdminNav::hrefs();
@@ -112,8 +119,12 @@ final class AdminNavTest extends TestCase
         }
         $this->assertSame([], $drift, "an access change rode along inside the navigation:\n  " . implode("\n  ", $drift));
 
-        // And every page the old console had is still named somewhere.
-        $missing = array_diff(array_keys(self::BEFORE), array_values($now));
+        // And every page the old console had is still named somewhere — unless it was
+        // retired on purpose, which is a forwarding address, never a silent disappearance.
+        $missing = array_diff(array_keys(self::BEFORE), array_values($now), array_keys(self::RETIRED));
+        foreach (self::RETIRED as $href => $to) {
+            $this->assertNotContains($href, array_values($now), "$href is retired and is in the nav again");
+        }
         $this->assertSame([], array_values($missing), 'pages vanished from the console');
     }
 
@@ -285,7 +296,8 @@ final class AdminNavTest extends TestCase
         $this->assertSame('review', AdminNav::current('/admin/nominations/review')['item']['page']);
         $n = AdminNav::current('/admin/nominations/42');
         $this->assertSame('review', $n['item']['page']);
-        $this->assertSame('nominations', $n['page']['page']);
+        // A nomination's own page sits under the review list, now the only list of them.
+        $this->assertSame('review', $n['page']['page']);
         // The integrations check passes `admin_page: settings`; the path wins.
         $this->assertSame('providers', AdminNav::current('/admin/settings/providers', 'settings')['item']['page']);
         $this->assertSame('mail-health', AdminNav::current('/admin/settings/mail/x')['page']['page']);

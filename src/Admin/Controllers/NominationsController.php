@@ -24,75 +24,27 @@ class NominationsController
         private readonly ?AwardService $awards = null,
     ) {}
 
+    /**
+     * The old "All nominations" list, retired 21 Oct 2026: it was a second page for the same
+     * nominations the review list already shows by status, so the console had two
+     * Nominations pages. The address forwards there, carrying what it can say in the
+     * review list's own words — so the many links into it (the desk, the attention board,
+     * the staff alert email, the palette) keep landing somewhere sensible.
+     */
     public function index(Request $req, Response $res): Response
     {
         $p = $req->getQueryParams();
-        $status = (string)($p['status'] ?? 'pending');
-        $q = (string)($p['q'] ?? '');
-        $sort = in_array(($p['sort'] ?? ''), ['oldest', 'newest'], true) ? (string)$p['sort'] : 'newest';
-        $page = max(1, (int)($p['page'] ?? 1));
-        $per = 25;
-        // Accountability filters: slice the queue by programme, cycle and country
-        // so a reviewer can audit exactly one segment at a time.
-        $programmeId = (int)($p['programme'] ?? 0);
-        $cycleId     = (int)($p['cycle'] ?? 0);
-        $country     = strtoupper(trim((string)($p['country'] ?? '')));
-
-        $base = DB::table('gates_nominations as n')
-            ->leftJoin('gates_award_cycles as c', 'c.id', '=', 'n.cycle_id')
-            ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
-            ->select(['n.*', 'p.title as programme_title', 'c.year as cycle_year']);
-        if ($status !== '' && $status !== 'all') $base->where('n.status', $status);
-        if ($q !== '') $base->where(function ($x) use ($q) {
-            $x->whereRaw(\AfricaGates\Support\Like::clause('n.nominee_name'), [\AfricaGates\Support\Like::contains($q)])
-              ->orWhereRaw(\AfricaGates\Support\Like::clause('n.nominator_name'), [\AfricaGates\Support\Like::contains($q)])
-              ->orWhereRaw(\AfricaGates\Support\Like::clause('n.nominator_email'), [\AfricaGates\Support\Like::contains($q)]);
-        });
-        if ($programmeId > 0) $base->where('c.programme_id', $programmeId);
-        if ($cycleId > 0)     $base->where('n.cycle_id', $cycleId);
-        if ($country !== '')  $base->where('n.country_code', $country);
-        // Date-range filter (day/week/month presets + custom from/to) on submission date.
-        $dateMeta = Filters::applyDateRange($base, 'n.created_at', $p);
-
-        $base->orderBy('n.id', $sort === 'oldest' ? 'asc' : 'desc');
-        $pg = Paginator::paginate($base, $page, $per);
-        $rows = $pg['rows']; $total = $pg['total']; $pages = $pg['pages']; $page = $pg['page'];
-
-        // Option lists for the filter dropdowns.
-        $programmes = DB::table('gates_award_programmes')->orderBy('title')->get(['id', 'title'])->map(fn($r)=>(array)$r)->all();
-        $cycles = DB::table('gates_award_cycles as c')->join('gates_award_programmes as p','p.id','=','c.programme_id')
-            ->orderByDesc('c.year')->get(['c.id', 'c.year', 'p.title'])->map(fn($r)=>(array)$r)->all();
-        $countries = DB::table('gates_nominations')->whereNotNull('country_code')->where('country_code','!=','')
-            ->distinct()->orderBy('country_code')->pluck('country_code')->all();
-
-        $filterState = ['status' => $status, 'sort' => $sort, 'q' => $q, 'programme' => $programmeId ?: '', 'cycle' => $cycleId ?: '', 'country' => $country, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']];
-        return $this->view->render($res, 'admin/nominations/index.twig', [
-            'page_title'  => 'Nominations — Admin',
-            'admin_page'  => 'nominations',
-            'rows'        => $rows->map(fn($r)=>(array)$r)->all(),
-            'total'       => $total,
-            'page'        => $page,
-            'pages'       => $pages,
-            'per'         => $per,
-            'window'      => Filters::pageWindow($page, $pages),
-            'programmes'  => $programmes,
-            'cycles'      => $cycles,
-            'countries'   => $countries,
-            // `qs` keeps every filter (for the pager); `qs_base` drops status/sort
-            // (for the status tabs, which set those themselves).
-            'qs'          => Filters::qs($filterState),
-            'qs_base'     => Filters::qs(['q' => $q, 'programme' => $programmeId ?: '', 'cycle' => $cycleId ?: '', 'country' => $country, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
-            'filters'     => $filterState,
-            // Show the plain-English AI filter box only when a provider is set.
-            // Would the call actually run? A configured() probe alone showed the
-            // button even when a switch was off or the budget was spent.
-            'ai_enabled'  => \AfricaGates\Services\AiGateway::available('nomination.triage'),
-            'counts'      => [
-                'pending'  => (int)DB::table('gates_nominations')->where('status','pending')->count(),
-                'approved' => (int)DB::table('gates_nominations')->where('status','approved')->count(),
-                'rejected' => (int)DB::table('gates_nominations')->where('status','rejected')->count(),
-            ],
-        ]);
+        $tabs = \AfricaGates\Admin\Services\ReviewQueue::TABS;
+        $out = [];
+        $status = (string) ($p['status'] ?? '');
+        if (isset($tabs[$status])) $out['tab'] = $status;
+        if (($q = trim((string) ($p['q'] ?? ''))) !== '') $out['q'] = $q;
+        if (($c = (int) ($p['cycle'] ?? 0)) > 0) $out['scope'] = 'c' . $c;
+        elseif (($pr = (int) ($p['programme'] ?? 0)) > 0) $out['scope'] = 'p' . $pr;
+        if (($cc = strtoupper(trim((string) ($p['country'] ?? '')))) !== '') $out['cc'] = [$cc];
+        if (($p['sort'] ?? '') === 'oldest') { $out['sort'] = 'recv'; $out['dir'] = 'asc'; }
+        $qs = http_build_query($out);
+        return $res->withHeader('Location', '/admin/nominations/review' . ($qs !== '' ? '?' . $qs : ''))->withStatus(301);
     }
 
     /**
@@ -540,7 +492,7 @@ HTML;
         }
         return $this->view->render($res, 'admin/nominations/desk.twig', [
             'page_title' => 'Review desk — Admin',
-            'admin_page' => 'nominations',
+            'admin_page' => 'review',
         ] + $this->reviewContext($nom));
     }
 
@@ -660,7 +612,7 @@ HTML;
         // the reviewer's position in the pending queue.
         return $this->view->render($res, 'admin/nominations/review.twig', [
             'page_title' => 'Review nomination — Admin',
-            'admin_page' => 'nominations',
+            'admin_page' => 'review',
             // Flash renders from the Twig globals via the layout — do not shadow it.
         ] + $this->reviewContext($nom));
     }

@@ -1447,7 +1447,12 @@ final class SupportContext
             'asked'   => array_values((array) ($r['asked'] ?? [])),
             // The service already phrases this for a person. The model should
             // relay it rather than reword it into a claim of its own.
-            'say'     => $r['message'],
+            // Except NOT_FOUND: the reconciler's sentence ("not on this account … a different
+            // email address") is for its email-scoped callers, and this lookup is not scoped,
+            // so it blamed an address for a reference that simply does not exist.
+            'say'     => $r['code'] === 'NOT_FOUND'
+                ? "We have no payment with the reference {$ref}. Check it against your payment email or SMS — one wrong character is the usual cause."
+                : $r['message'],
         ];
     }
 
