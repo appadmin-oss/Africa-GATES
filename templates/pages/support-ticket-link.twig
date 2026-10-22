@@ -1,0 +1,68 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE SUPPORT TICKET, OPENED BY A LINK, WITH NO ACCOUNT — /support/t/{token} · Phase 9
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Rebuilt on the shell (inventory: pages--support-ticket-link.md). Deliberately NOT the
+  member desk with a flag: that page lists, filters and links to "your other support
+  tickets", every one a capability a link must not have — it is permission for ONE
+  conversation, not for an address's history. So this renders exactly one thread and
+  offers no navigation into anything else (the turns come from the shared, capability-free
+  partials/support-thread.twig).
+
+  · Every failure — unknown, expired, revoked — lands on the SAME words (404): telling them
+    apart would make this URL an oracle for which references exist.
+  · The reply posts to /support/t/{token}/reply. The token is read from the address bar by
+    tickets.js, never printed into the page, and the CSRF token comes from the one tag the
+    layout emits (`csrf_meta`), not a copy.
+  · No sign-in, no jargon: the audience tapped a link in an email on a phone.
+#}
+{% set colour_tier = '1' %}
+{% set flow_page = true %}
+{% set csrf_meta = true %}
+{% set app_bar = {variant: 'child', title: 'Support ticket'|trans, back: '/support'} %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/help.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/support.css') }}">
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<div class="hc st" data-st>
+  {% if thread is null %}
+    <section class="sp__form st-gone" aria-labelledby="tl-h">
+      <h1 class="hc__h1 st__h1" id="tl-h">{{ 'This link is no longer active'|trans }}</h1>
+      <p class="hc__lede">{{ 'Support links stop working after a while, for your safety. Nothing has gone wrong with your support ticket and nothing has been lost.'|trans }}</p>
+      <p class="hc__lede"><strong>{{ 'Just reply to the last email we sent you'|trans }}</strong> — {{ 'it reaches the same people and lands on the same conversation.'|trans }}</p>
+      <a class="hc-btn hc-btn--out" href="/support">{{ 'Or start a new conversation'|trans }}</a>
+    </section>
+  {% else %}
+    {% set t = thread.ticket %}
+    {% set settled = t.status in ['resolved', 'closed'] %}
+    <div class="hc__head hc__head--start">
+      <p class="st-ref">{{ 'Support ticket'|trans }} <code class="st-ref__code">{{ t.reference }}</code> · <span>{{ settled ? 'Settled'|trans : 'Open'|trans }}</span></p>
+      <h1 class="hc__h1 st__h1">{{ t.subject }}</h1>
+    </div>
+    <section class="sp__form" aria-label="{{ 'Conversation'|trans }}">
+      {% include 'partials/support-thread.twig' with {t: t, messages: thread.messages, attachments: [], me: 'You'|trans} only %}
+      {# Shown by tickets.js: the reply address carries the token, which is never printed into
+         the page, so without a script there is nowhere for a plain form to post — the
+         email route below is the no-script answer. #}
+      <p class="ag-hint" data-st-noscript>{{ 'To reply, answer the last email we sent you — it lands on this conversation.'|trans }}</p>
+      <form class="st-compose" method="post" action="" data-st-form="link" hidden>
+        <label class="ag-label" for="tlReply">{{ 'Your reply'|trans }}</label>
+        <span class="ag-field sp__area"><textarea id="tlReply" name="body" maxlength="5000" rows="4" required
+              placeholder="{{ settled ? 'Still not right? Reply and this reopens.'|trans : 'Tell us anything that would help…'|trans }}"></textarea></span>
+        <button class="ag-btn ag-btn--primary st-go" type="submit">{{ 'Send reply'|trans }}</button>
+        <p class="st-note" role="status" aria-live="polite" data-st-note></p>
+        <p class="ag-hint">{{ 'You do not need an account. Your reply reaches the team by email, and theirs reaches you the same way.'|trans }}</p>
+      </form>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}{% if thread is not null %}<script defer src="{{ asset('/assets/js/tickets.js') }}"></script>{% endif %}{% endblock %}

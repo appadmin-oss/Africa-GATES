@@ -1,0 +1,77 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /giving/success — the donation receipt (DonationController::success). GivingPage
+  view=done + Celebration kind=give (GAPS route map, Phase 7); rebuilt on the shell with the
+  other receipts after the 3 Oct destroy left every confirmed gift landing on a 500 — a donor
+  whose money had cleared was shown an error reference instead of a thank-you.
+
+  The celebration asks `gift_confirmed` with `confirmed`, so an unconfirmed gift is never
+  celebrated (Services\Celebration refuses it). Keyed on the reference: a reopened receipt
+  is a document.
+
+  ── A PROMISE THAT WAS NOT TRUE, AND STAYS GONE ──────────────────────────────
+  The old page closed with "make it recurring any time". Whether a monthly gift exists is
+  not this page's to promise; what it says next is three things that actually happen, each
+  checkable from somewhere else on the site.
+#}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', share: false, title: confirmed ? 'Donation received'|trans : 'Confirming your donation'|trans, back: '/giving'} %}
+{% set _ctx = {moment: 'gift_confirmed', confirmed: confirmed|default(false), subject: reference|default('')} %}
+{% set _cel = confirmed and reference and celebration_allowed('give', _ctx) %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/receipt.css') }}">
+  <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<div class="rc">
+  {% if confirmed %}
+    {% if _cel %}
+      {% include 'partials/celebration.twig' with {
+        kind: 'give', heading: 'h1', context: _ctx, title: 'Thank you'|trans,
+        sub: 'Your donation funds child-leadership programmes across the continent.'|trans,
+        primary: {label: 'Back to giving'|trans, href: '/giving'},
+        secondary: {label: 'See where it goes'|trans, href: '/integrity'}
+      } only %}
+    {% endif %}
+    <section class="rc__card" aria-labelledby="{{ _cel ? 'rcNext' : 'rcH' }}">
+      {% if not _cel %}
+        <p class="rc__kicker">{{ 'Donation received'|trans }}</p>
+        <h1 class="rc__h1" id="rcH">{{ 'Thank you'|trans }}</h1>
+        <p class="rc__p">{{ 'Your donation funds child-leadership programmes across the continent — mentorship, scholarships and classrooms.'|trans }}</p>
+      {% endif %}
+      <dl class="rc__ref"><dt>{{ 'Receipt'|trans }}</dt><dd>{{ reference }}</dd>
+        {%- if amount_naira|default(0) > 0 %}<dd class="rc__ref-amount">₦{{ amount_naira|number_format }}</dd>{% endif -%}
+      </dl>
+      <h2 class="rc__h2" id="rcNext">{{ 'What happens now'|trans }}</h2>
+      <ul class="rc__rows">
+        <li class="rc__row"><span class="rc__row-k">{{ 'A receipt is on its way to the email you gave. That one is the record — this page is the copy.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'The amount joins the confirmed total on the giving page. Nothing is counted there until it has cleared.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'How the fund is accounted for is published in the Integrity Center.'|trans }}</span></li>
+      </ul>
+      {% if not _cel %}
+        <div class="rc__do">
+          <a class="ag-btn ag-btn--primary" href="/giving">{{ 'Back to giving'|trans }}</a>
+          <a class="ag-btn ag-btn--secondary" href="/integrity">{{ 'See where it goes'|trans }}</a>
+        </div>
+      {% endif %}
+    </section>
+  {% else %}
+    <section class="rc__card" aria-labelledby="rcH">
+      <div class="rc__verdict rc__verdict--wait" role="status">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.2 1.9"/></svg>
+        <div class="rc__verdict-b"><p class="rc__verdict-t">{{ 'Not confirmed yet'|trans }}</p>
+          <p class="rc__verdict-s">{{ 'No charge is confirmed until you receive an emailed receipt.'|trans }}</p></div>
+      </div>
+      <h1 class="rc__h1" id="rcH">{{ 'We’re confirming your payment'|trans }}</h1>
+      <p class="rc__p">{{ 'If you completed payment, your receipt will arrive by email shortly — gateway confirmations can take a moment. One re-check asks the gateway directly.'|trans }}</p>
+      {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
+      <div class="rc__do">
+        <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Re-check this payment'|trans }}</a>
+        <a class="ag-btn ag-btn--secondary" href="/giving">{{ 'Back to giving'|trans }}</a>
+      </div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

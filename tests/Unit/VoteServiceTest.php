@@ -58,6 +58,18 @@ class VoteServiceTest extends TestCase
         $this->assertSame(1, (int) DB::table('gates_nominees')->where('id', 1)->value('vote_count'));
     }
 
+    public function test_standard_vote_increments_organic_vote_count(): void
+    {
+        // The CPI community signal lives in organic_vote_count — every organic OTP
+        // vote must bump it (paid bonus votes must NOT).
+        $this->seedNominee();
+        $this->seedOtp('v@x.io', '123456');
+
+        (new VoteService())->castVote('v@x.io', '123456', 1, 0, '1.2.3.4');
+
+        $this->assertSame(1, (int) DB::table('gates_nominees')->where('id', 1)->value('organic_vote_count'));
+    }
+
     public function test_wrong_code_does_not_consume_token(): void
     {
         $this->seedNominee();
@@ -149,6 +161,23 @@ class VoteServiceTest extends TestCase
         $this->assertSame(1, DB::table('gates_votes')->count());
     }
 
+    public function test_two_voters_may_share_an_idempotency_key(): void
+    {
+        // A shared/buggy client key must NOT let one voter's request block another's.
+        // Idempotency is scoped per-voter, so two different people can carry the same key.
+        $this->seedNominee();
+        $this->seedOtp('a@x.io', '111111');
+        $this->seedOtp('b@x.io', '222222');
+        $svc = new VoteService();
+
+        $ra = $svc->castVote('a@x.io', '111111', 1, 0, '1.1.1.1', null, 'shared-key');
+        $rb = $svc->castVote('b@x.io', '222222', 1, 0, '2.2.2.2', null, 'shared-key');
+
+        $this->assertTrue($ra['success']);
+        $this->assertTrue($rb['success'], 'second voter with the same idempotency key must still be able to vote');
+        $this->assertSame(2, DB::table('gates_votes')->count());
+    }
+
     public function test_vote_blocked_when_cycle_not_voting(): void
     {
         // Nominee is approved, but its cycle is in 'judging' — voting is closed.
@@ -160,5 +189,18 @@ class VoteServiceTest extends TestCase
         $this->assertFalse($r['success']);
         $this->assertSame('VOTING_CLOSED', $r['code']);
         $this->assertSame(0, DB::table('gates_votes')->count());
+    }
+
+    public function test_voter_name_and_phone_are_stored(): void
+    {
+        // Voting now captures the voter's full name + phone alongside the hashed email.
+        $this->seedNominee();
+        $this->seedOtp('v@x.io', '123456');
+
+        (new VoteService())->castVote('v@x.io', '123456', 1, 0, '1.2.3.4', null, null, 'Ada Obi', '+234 801 234 5678');
+
+        $row = DB::table('gates_votes')->first();
+        $this->assertSame('Ada Obi', $row->voter_name);
+        $this->assertSame('+234 801 234 5678', $row->voter_phone);
     }
 }

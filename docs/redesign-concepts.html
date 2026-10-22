@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Africa GATES — Redesign Concepts</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{ --maxw:1080px; }
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#0c0d10;color:#e9e9ec;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 20px}
+  img{max-width:100%}
+  .topbar{padding:40px 0 28px;border-bottom:1px solid #232530}
+  .kicker{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#8a8d9c;font-weight:700}
+  h1{font-size:clamp(28px,5vw,46px);line-height:1.05;margin:10px 0 12px;font-weight:800;letter-spacing:-.02em}
+  .lede{color:#b7bac6;max-width:62ch;font-size:16px}
+  .pick{margin-top:18px;display:flex;flex-wrap:wrap;gap:10px}
+  .pick b{display:inline-block;background:#1a1c24;border:1px solid #2c2f3c;color:#cfd2dc;border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600}
+  .concept{margin:0 0 14px;border-radius:18px;overflow:hidden;border:1px solid #232530}
+  .c-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 16px;padding:22px 24px 18px}
+  .c-tag{font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;opacity:.7}
+  .c-name{font-size:clamp(22px,3.4vw,30px);font-weight:800;letter-spacing:-.01em}
+  .c-ethos{flex:1 1 280px;font-size:14px;opacity:.85}
+  .specrow{display:grid;grid-template-columns:1fr;gap:0}
+  .swatches{display:flex;flex-wrap:wrap;gap:8px;padding:0 24px 16px}
+  .sw{width:54px;height:54px;border-radius:10px;display:flex;align-items:flex-end;justify-content:center;font-size:9px;font-weight:700;padding:4px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12)}
+  .sw.dk{color:#1a1a1a;text-shadow:none}
+  .type{padding:0 24px 18px;font-size:13px;opacity:.8}
+  .type .big{font-size:26px;opacity:1;margin-bottom:2px}
+  /* mock canvas */
+  .mock{padding:18px;display:grid;gap:14px}
+  .mlabel{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;opacity:.55;padding:0 6px}
+  .card{border-radius:14px;overflow:hidden;position:relative}
+  .stage,.row,.foot{border-radius:14px;overflow:hidden}
+  .pill{display:inline-block;border-radius:999px;padding:8px 16px;font-weight:700;font-size:13px}
+  .chip{display:inline-block;border-radius:999px;padding:4px 11px;font-size:11px;font-weight:600}
+  .step{display:flex;gap:6px;margin:10px 0}
+  .dot{height:6px;border-radius:3px;flex:1}
+  .field{height:34px;border-radius:9px;margin:7px 0;display:flex;align-items:center;padding:0 12px;font-size:12px}
+  .silhouette{position:absolute;right:-6%;bottom:-2%;width:46%;opacity:.16}
+  .cut{border-radius:12px;display:flex;align-items:flex-end;justify-content:center;min-height:150px;position:relative;overflow:hidden}
+  .cut span{font-size:11px;opacity:.8;padding:8px;text-align:center}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:center}
+  @media(max-width:560px){.two{grid-template-columns:1fr}}
+  .foot{padding:20px}
+  .footcols{display:flex;flex-wrap:wrap;gap:18px;font-size:11px;opacity:.8}
+  .footcols div{display:flex;flex-direction:column;gap:5px}
+  .note{padding:22px 24px;font-size:13px;opacity:.85;border-top:1px solid rgba(255,255,255,.08)}
+  .rec{background:#11150f;border:1px solid #2a3a22;border-radius:16px;padding:20px 22px;margin:18px 0 50px}
+  .rec h3{font-size:15px;margin-bottom:8px;color:#7ee08a}
+  .rec p{font-size:14px;color:#c3c8c0;margin-bottom:6px}
+
+  /* ===== Concept A: Gilded Continental ===== */
+  .A{background:#F7F3EA;color:#16271E}
+  .A .c-tag{color:#1B5E3F}
+  .A .c-ethos{color:#3c5547}
+  .A .mlabel{color:#1B5E3F}
+  .A .stage{background:linear-gradient(160deg,#1B5E3F,#0f3c28);color:#F7F3EA;padding:22px;position:relative}
+  .A .chip{background:rgba(201,162,75,.22);color:#F0D9A0;border:1px solid rgba(201,162,75,.5)}
+  .A .stage h4{font-family:Georgia,'Times New Roman',serif;font-size:24px;line-height:1.1;margin:10px 0;font-weight:700}
+  .A .stage h4 i{color:#D8B45F;font-style:italic}
+  .A .pill{background:#C9A24B;color:#1a130a}
+  .A .dot{background:rgba(201,162,75,.3)} .A .dot.on{background:#C9A24B}
+  .A .field{background:rgba(247,243,234,.12);border:1px solid rgba(247,243,234,.25);color:#e8e2d2}
+  .A .row{background:#fff;border:1px solid #e7dfca;padding:18px}
+  .A .row h5{font-family:Georgia,serif;font-size:19px;margin-bottom:6px}
+  .A .cut{background:linear-gradient(180deg,#f0e6cf,#e4d3a8)}
+  .A .cut::after{content:"";position:absolute;left:50%;top:14px;transform:translateX(-50%);width:120px;height:120px;border-radius:50%;border:2px solid #C9A24B;opacity:.5}
+  .A .foot{background:#12281d;color:#dcd2bb}
+  .A .footmark{font-family:Georgia,serif;font-size:22px;color:#C9A24B;font-weight:700}
+
+  /* ===== Concept B: Bold Kinetic ===== */
+  .B{background:#0E0F0C;color:#F2F3EE}
+  .B .c-tag{color:#5BE36A}
+  .B .c-ethos{color:#aeb2a6}
+  .B .mlabel{color:#5BE36A}
+  .B .stage{background:#16180F;border:1px solid #283019;padding:22px;position:relative}
+  .B .chip{background:#5BE36A;color:#0b1206;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .B .stage h4{font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:30px;line-height:.98;letter-spacing:-.02em;margin:12px 0;text-transform:uppercase}
+  .B .stage h4 em{color:#5BE36A;font-style:normal}
+  .B .pill{background:#5BE36A;color:#0b1206}
+  .B .dot{background:#283019} .B .dot.on{background:#5BE36A}
+  .B .field{background:#0E0F0C;border:1px solid #283019;color:#9aa08e}
+  .B .row{background:linear-gradient(120deg,#F6B73C,#FF6B4A);color:#1a0e06;padding:18px}
+  .B .row h5{font-weight:900;font-size:21px;text-transform:uppercase;letter-spacing:-.01em;margin-bottom:6px}
+  .B .cut{background:#0E0F0C;border:1px dashed #3a4427}
+  .B .cut::after{content:"";position:absolute;inset:auto 0 0 0;height:60%;background:radial-gradient(60% 80% at 50% 100%,rgba(91,227,106,.35),transparent)}
+  .B .foot{background:#16180F;color:#aeb2a6;border:1px solid #283019}
+  .B .footmark{font-family:Arial,Helvetica,sans-serif;font-weight:900;font-size:22px;color:#5BE36A;text-transform:uppercase}
+
+  /* ===== Concept C: Warm Editorial ===== */
+  .C{background:#F3EBDD;color:#2A2520}
+  .C .c-tag{color:#C76B43}
+  .C .c-ethos{color:#6b5d4d}
+  .C .mlabel{color:#C76B43}
+  .C .stage{background:#234B38;color:#F3EBDD;padding:22px;position:relative;border-radius:20px}
+  .C .chip{background:rgba(243,235,221,.16);color:#f3ebdd}
+  .C .stage h4{font-family:'Palatino Linotype',Palatino,Georgia,serif;font-size:25px;line-height:1.08;margin:10px 0}
+  .C .stage h4 i{color:#E8A87C;font-style:italic}
+  .C .pill{background:#C76B43;color:#fff}
+  .C .dot{background:rgba(243,235,221,.25)} .C .dot.on{background:#E8A87C}
+  .C .field{background:rgba(243,235,221,.1);border:1px solid rgba(243,235,221,.22);color:#e7dcc9}
+  .C .row{background:#fff;border-radius:20px;padding:18px;border:1px solid #e6dccb}
+  .C .row h5{font-family:'Palatino Linotype',Palatino,serif;font-size:20px;margin-bottom:6px}
+  .C .cut{background:radial-gradient(circle at 50% 120%,#F0D9C2,#e7d4bd);border-radius:20px}
+  .C .cut::after{content:"";position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:70%;height:16px;border-radius:50%;background:rgba(0,0,0,.12);filter:blur(5px)}
+  .C .foot{background:#234B38;color:#e7dcc9;border-radius:20px}
+  .C .footmark{font-family:'Palatino Linotype',Palatino,serif;font-size:22px;color:#E8A87C;font-style:italic}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="kicker">Africa GATES · redesign directions</div>
+    <h1>Three bold directions to choose from</h1>
+    <p class="lede">Each treats the same three jobs: the rebuilt <b>nominations</b> hero + step flow, a <b>home</b> cut-out&nbsp;image / text row, and a fixed <b>footer</b>. Pick one to take forward — or mix (e.g. “A’s palette, B’s nominations flow”). Cut-out people are shown as composed slots so they never read as cropped.</p>
+    <div class="pick">
+      <b>Goal: bold &amp; premium</b><b>Shorter, stepped nominate flow</b><b>Mobile-first</b><b>Higher conversion</b>
+    </div>
+  </header>
+</div>
+
+<!-- CONCEPT A -->
+<div class="wrap"><div class="concept A">
+  <div class="c-head"><span class="c-tag">Concept A</span><span class="c-name">Gilded Continental</span><span class="c-ethos">Prestige awards institution. Forest green + brass gold + ivory, high-contrast serif display, arches &amp; medallions. Feels like a continental honour.</span></div>
+  <div class="swatches">
+    <div class="sw" style="background:#1B5E3F">#1B5E3F</div>
+    <div class="sw" style="background:#0f3c28">#0F3C28</div>
+    <div class="sw dk" style="background:#C9A24B">#C9A24B</div>
+    <div class="sw dk" style="background:#F7F3EA">#F7F3EA</div>
+    <div class="sw" style="background:#16271E">#16271E</div>
+  </div>
+  <div class="type"><div class="big" style="font-family:Georgia,serif">Put someone <i style="color:#1B5E3F">on the stage.</i></div>Display: high-contrast serif (e.g. Fraunces) · Body: clean grotesk (e.g. Inter)</div>
+  <div class="mock">
+    <div class="mlabel">Nominations — hero + step 1</div>
+    <div class="stage card">
+      <div class="silhouette">🌍</div>
+      <span class="chip">◆ 3 quick steps · 90 seconds</span>
+      <h4>Put someone <i>on the stage.</i></h4>
+      <div class="step"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></div>
+      <div class="field">Who are you nominating?</div>
+      <div class="field">Country / region</div>
+      <span class="pill">Continue →</span>
+    </div>
+    <div class="mlabel">Home — cut-out / text row</div>
+    <div class="row two">
+      <div class="cut"><span>cut-out slot · gold arch backdrop grounds the figure</span></div>
+      <div><h5>A continent of people, not pixels.</h5><p style="font-size:13px;opacity:.8">Real nominees, framed on an ivory stage with a brass arch — the figure reads as placed, never cropped.</p></div>
+    </div>
+    <div class="mlabel">Footer</div>
+    <div class="foot"><div class="footcols"><div><b style="opacity:.6">Participate</b><span>Nominate</span><span>Vote</span></div><div><b style="opacity:.6">Explore</b><span>Awards</span><span>Registry</span></div><div style="margin-left:auto;text-align:right"><span class="footmark">Africa GATES</span><span style="font-size:10px">by Afrovanguard · ©2026</span></div></div></div>
+  </div>
+</div></div>
+
+<!-- CONCEPT B -->
+<div class="wrap"><div class="concept B">
+  <div class="c-head"><span class="c-tag">Concept B</span><span class="c-name">Bold Kinetic</span><span class="c-ethos">Dark, vibrant, social-first. Near-black canvas, electric green + amber/coral blocks, heavy uppercase display, mono labels. Young, continental, punchy on mobile.</span></div>
+  <div class="swatches">
+    <div class="sw" style="background:#0E0F0C">#0E0F0C</div>
+    <div class="sw dk" style="background:#5BE36A">#5BE36A</div>
+    <div class="sw dk" style="background:#F6B73C">#F6B73C</div>
+    <div class="sw" style="background:#FF6B4A">#FF6B4A</div>
+    <div class="sw dk" style="background:#F2F3EE">#F2F3EE</div>
+  </div>
+  <div class="type"><div class="big" style="font-family:Arial;font-weight:900;text-transform:uppercase;letter-spacing:-.02em">Put someone <em style="color:#3FCF54">on the stage</em></div>Display: heavy grotesk (e.g. Space Grotesk / Archivo) · Labels: mono · Body: Inter</div>
+  <div class="mock">
+    <div class="mlabel">Nominations — hero + step 1</div>
+    <div class="stage card">
+      <span class="chip">[ STEP 1 / 3 · 90s ]</span>
+      <h4>Put someone <em>on the stage</em></h4>
+      <div class="step"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="field">Who are you nominating?</div>
+      <div class="field">Country / region</div>
+      <span class="pill">Continue →</span>
+    </div>
+    <div class="mlabel">Home — cut-out / text row</div>
+    <div class="row two">
+      <div><h5>Recognition, in&nbsp;motion.</h5><p style="font-size:13px">Cut-out figures bleed off a colour block with a glow base — bold, alive, unmistakably mobile-native.</p></div>
+      <div class="cut"><span style="color:#9aa08e">cut-out slot · glow base + colour block</span></div>
+    </div>
+    <div class="mlabel">Footer</div>
+    <div class="foot"><div class="footcols"><div><b style="color:#5BE36A">Participate</b><span>Nominate</span><span>Vote</span></div><div><b style="color:#5BE36A">Explore</b><span>Awards</span><span>Registry</span></div><div style="margin-left:auto;text-align:right"><span class="footmark">AFRICA GATES</span><span style="font-size:10px">by Afrovanguard · ©2026</span></div></div></div>
+  </div>
+</div></div>
+
+<!-- CONCEPT C -->
+<div class="wrap"><div class="concept C">
+  <div class="c-head"><span class="c-tag">Concept C</span><span class="c-name">Warm Editorial</span><span class="c-ethos">Human and approachable. Sand &amp; cream, terracotta + deep green, humanist serif, rounded cards, soft shadows. Leans into “people, not pixels”.</span></div>
+  <div class="swatches">
+    <div class="sw dk" style="background:#F3EBDD">#F3EBDD</div>
+    <div class="sw" style="background:#234B38">#234B38</div>
+    <div class="sw" style="background:#C76B43">#C76B43</div>
+    <div class="sw dk" style="background:#E8A87C">#E8A87C</div>
+    <div class="sw" style="background:#2A2520">#2A2520</div>
+  </div>
+  <div class="type"><div class="big" style="font-family:'Palatino Linotype',Palatino,serif">Put someone <i style="color:#C76B43">on the stage.</i></div>Display: humanist serif (e.g. Source Serif) · Body: warm sans (e.g. Mulish)</div>
+  <div class="mock">
+    <div class="mlabel">Nominations — hero + step 1</div>
+    <div class="stage card">
+      <span class="chip">● A few warm questions · 90s</span>
+      <h4>Put someone <i>on the stage.</i></h4>
+      <div class="step"><span class="dot on"></span><span class="dot on"></span><span class="dot"></span></div>
+      <div class="field">Who are you nominating?</div>
+      <div class="field">Country / region</div>
+      <span class="pill">Continue →</span>
+    </div>
+    <div class="mlabel">Home — cut-out / text row</div>
+    <div class="row two">
+      <div class="cut"><span>cut-out slot · soft circle + grounded shadow</span></div>
+      <div><h5>A continent of people.</h5><p style="font-size:13px;opacity:.8">Figures sit on a soft disc with a real grounding shadow — warm, calm, and obviously intentional.</p></div>
+    </div>
+    <div class="mlabel">Footer</div>
+    <div class="foot"><div class="footcols"><div><b style="opacity:.7">Participate</b><span>Nominate</span><span>Vote</span></div><div><b style="opacity:.7">Explore</b><span>Awards</span><span>Registry</span></div><div style="margin-left:auto;text-align:right"><span class="footmark">Africa GATES</span><span style="font-size:10px">by Afrovanguard · ©2026</span></div></div></div>
+  </div>
+</div></div>
+
+<div class="wrap">
+  <div class="rec">
+    <h3>My recommendation</h3>
+    <p><b>Concept B — Bold Kinetic</b> matches every signal you gave: bold/new, mobile-first, conversion-driven, and it reads young and continental. The dark canvas makes cut-out people and colour blocks pop, which directly serves the image-heavy home you want.</p>
+    <p>If you'd rather the site feel like a <b>prestigious institution</b>, go <b>A — Gilded Continental</b>. If you want <b>warm and human</b>, go <b>C</b>. Mixing is fine — tell me e.g. “B layout + A’s green/gold palette”.</p>
+  </div>
+  <div class="rec" style="background:#0f1116;border-color:#232530">
+    <h3 style="color:#cfd2dc">The footer fix (all concepts)</h3>
+    <p>The current footer ends in a giant “Afrovanguard” wordmark that swamps everything. New footer: tidy link columns + a compact brand lockup, a single newsletter/CTA line, legal row — no oversized wordmark.</p>
+  </div>
+</div>
+</body>
+</html>

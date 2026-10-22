@@ -2,21 +2,49 @@
 <?php
 declare(strict_types=1);
 
+use AfricaGates\Support\Env;
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
 
 $dotenv = Dotenv\Dotenv::createImmutable($root);
 $dotenv->safeLoad();
 
+// Every process must agree on what time it is: the award-cycle phase is
+// computed from date windows against the clock, so a CLI/web SAPI timezone
+// disagreement would make cron and web requests disagree about whether voting
+// is open — permanently and silently. Runs after .env so APP_TIMEZONE applies.
+\AfricaGates\Support\Clock::boot();
+
 use Illuminate\Database\Capsule\Manager as DB;
 use Symfony\Component\Console\Application;
+use AfricaGates\Services\{PaymentService, OtpService};
 use AfricaGates\Console\Commands\{
+    DemoSeedCommand,
+    LegalSeedCommand,
     AdminCreateCommand,
+    AssetsBuildCommand,
     CacheClearCommand,
     CollusionScanCommand,
     CpiRecomputeCommand,
     CycleAdvanceCommand,
-    MigrateCommand
+    CycleAuditCommand,
+    DoctorCommand,
+    MailCheckoutCommand,
+    MediaMigrateCommand,
+    NomineeBroadcastCommand,
+    MigrateCommand,
+    PaymentReconcileCommand,
+    PaymentClawbackCommand,
+    PaymentsTriageCommand,
+    PrivacyPurgeCommand,
+    PrivacyEraseUserCommand,
+    RegistryBackfillCommand,
+    RepairIndexesCommand,
+    StandingsVerifyCommand,
+    VotesRecoverCommand,
+    VotesRemintCommand,
+    SupportGapsCommand,
+    VotesProofCommand
 };
 
 $capsule = new DB();
@@ -26,9 +54,48 @@ $capsule->bootEloquent();
 
 $app = new Application('Africa GATES Console', '1.0.0');
 $app->add(new AdminCreateCommand());
+$app->add(new AssetsBuildCommand());
 $app->add(new CacheClearCommand());
 $app->add(new CollusionScanCommand());
 $app->add(new CpiRecomputeCommand());
 $app->add(new CycleAdvanceCommand());
+$app->add(new CycleAuditCommand());
+$app->add(new DoctorCommand());
+$app->add(new MailCheckoutCommand());
+$app->add(new MediaMigrateCommand());
 $app->add(new MigrateCommand());
+$app->add(new PaymentReconcileCommand(
+    new PaymentService(),
+    new OtpService([
+        'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
+        'port'         => Env::int('SMTP_PORT', 587),
+        'username'     => Env::get('SMTP_USER', ''),
+        'password'     => Env::get('SMTP_PASS', ''),
+        'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
+        'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
+    ])
+));
+$app->add(new NomineeBroadcastCommand(
+    new OtpService([
+        'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
+        'port'         => Env::int('SMTP_PORT', 587),
+        'username'     => Env::get('SMTP_USER', ''),
+        'password'     => Env::get('SMTP_PASS', ''),
+        'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
+        'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
+    ])
+));
+$app->add(new PaymentClawbackCommand());
+$app->add(new PaymentsTriageCommand());
+$app->add(new PrivacyPurgeCommand());
+$app->add(new PrivacyEraseUserCommand());
+$app->add(new RegistryBackfillCommand());
+$app->add(new RepairIndexesCommand());
+$app->add(new StandingsVerifyCommand());
+$app->add(new VotesRecoverCommand());
+$app->add(new VotesRemintCommand());
+$app->add(new SupportGapsCommand());
+$app->add(new VotesProofCommand());
+$app->add(new DemoSeedCommand());
+$app->add(new LegalSeedCommand());
 $app->run();

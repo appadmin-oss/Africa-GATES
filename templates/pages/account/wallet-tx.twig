@@ -1,0 +1,80 @@
+{% extends 'pages/account/_frame.twig' %}
+{#
+  ONE TRANSACTION — /account/wallet/tx/{key} · Wallet Receipt.dc.html (revision 3)
+
+  The page IS the receipt card the file is: the same WalletReceipt::facts(), already masked
+  (012****789, a session ID missing four digits), drawn as the ticket — logo, the amount,
+  the status with a tick, a perforation, the people and the money, the numbers in one grey
+  block, the support line. Downloading it gives the same card as a PNG or a PDF.
+
+  Only paid and received movements get a file (WalletReceipt::issuable()). Anything still
+  moving shows its status in words and never says "successful": a wallet that celebrates a
+  request as a transfer is lying about the one thing it is for.
+
+  `fresh` is the moment after a withdrawal was asked for: "On its way to your bank", the
+  amount that will arrive, the status, and the receipt one tap away.
+#}
+{% set acc_tab = 'receipt' %}
+{% set colour_tier = '2' %}
+{% set _key = t.key|upper %}
+{% set _net = t.fee_kobo > 0 ? t.amount_kobo - t.fee_kobo : t.amount_kobo %}
+{% block acc_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/wallet.css') }}">{% endblock %}
+{% block acc_crumb %}<a class="wl-crumb" href="/account/wallet/history"><svg class="ag-ico-dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>{{ 'Transaction history'|trans }}</a>{% endblock %}
+
+{% block acc_body %}
+<div class="wl">
+{% if fresh and t.dir == 'out' and t.unit|default('naira') != 'pts' %}
+  <section class="acx-card wl-sent" aria-labelledby="wl-sent-h">
+    <span class="wl-sent__i wl-sent__i--{{ t.status }}" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.status == 'paid' ? 'M5 12.5 10 17.5 19 7' : 'M22 2 11 13M22 2l-7 20-4-9-9-4z' }}"/></svg></span>
+    <h2 class="wl-sent__h" id="wl-sent-h">{{ t.status == 'paid' ? 'Paid to your bank'|trans : (t.status == 'processing' ? 'On its way to your bank'|trans : 'Sent for review'|trans) }}</h2>
+    <p class="wl-sent__n">₦{{ (_net / 100)|number_format(2) }}</p>
+    <p><span class="wl-pill wl-pill--{{ t.status }}">{{ t.status_label|trans }}</span></p>
+    <p class="wl-sent__p">{{ t.status == 'processing'
+      ? 'It passed our checks and has been sent. Most banks credit it within minutes; we’ll tell you here and by email the moment it lands.'|trans
+      : (t.status == 'paid' ? 'Your bank has it.'|trans : 'A person will check this one before it is paid. We’ll tell you here and by email the moment it moves.'|trans) }}</p>
+    <div class="wl-sent__acts">
+      <a class="ag-btn ag-btn--secondary wl-btn" href="/account/wallet/tx/{{ t.key }}">{{ 'View receipt'|trans }}</a>
+      <a class="ag-btn ag-btn--primary wl-btn" href="/account/wallet">{{ 'Back to wallet'|trans }}</a>
+    </div>
+  </section>
+{% else %}
+  <div class="wl-rcpage">
+    <article class="wl-ticket" aria-labelledby="wl-tk-h">
+      <div class="wl-ticket__top">
+        <img class="wl-ticket__logo" src="{{ asset('/assets/img/logo-mark.png') }}" width="64" height="64" alt="Africa GATES">
+        <h2 class="wl-ticket__k" id="wl-tk-h">{{ 'Transaction receipt'|trans }}</h2>
+        <p class="wl-ticket__n">{{ rc.amount }}</p>
+        <p class="wl-ticket__st wl-ticket__st--{{ rc.ok ? 'ok' : 'wait' }}">
+          {% if rc.ok %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7"/></svg>{% endif %}
+          {{ rc.status|trans }}
+        </p>
+        <p class="wl-ticket__line">{{ rc.line }}</p>
+      </div>
+      <div class="wl-ticket__perf" aria-hidden="true"></div>
+      <dl class="wl-ticket__rows">
+        {% for r in rc.rows %}
+          <dt>{{ r.k|trans }}</dt>
+          <dd{% if r.green %} class="wl-ticket__green"{% endif %}><b>{{ r.v }}</b>{% if r.sub or r.subm|default('') %}<span>{{ r.sub }}{% if r.subm|default('') %} <span class="wl-ref">{{ r.subm }}</span>{% endif %}</span>{% endif %}</dd>
+        {% endfor %}
+      </dl>
+      <dl class="wl-ticket__ids">
+        {% for i in rc.ids %}<dt>{{ i.k|trans }}</dt><dd class="wl-ref{{ i.soft ? ' wl-ticket__soft' }}">{{ i.v }}</dd>{% endfor %}
+      </dl>
+      <p class="wl-ticket__help">{{ 'Not received? Contact support'|trans }}{% if support_host %} {{ 'at'|trans }} <a href="/support">{{ support_host }}/support</a>{% endif %} {{ 'and quote'|trans }} <b class="wl-ref">{{ _key }}</b>.</p>
+    </article>
+    {% if not issuable %}<p class="wl-rcpage__note">{{ 'A receipt file is issued once the money has moved.'|trans }}</p>{% endif %}
+  </div>
+
+  <div class="wl-rc__acts">
+    {% if issuable %}
+      <button type="button" class="ag-btn ag-btn--secondary wl-btn" data-wl-share data-wl-share-png="/account/wallet/tx/{{ t.key }}.png" data-wl-share-text="{{ (t.title|trans) ~ ' · ' ~ rc.amount ~ ' · ' ~ (rc.status|trans) ~ ' · ' ~ _key }}" hidden>{{ 'Share receipt'|trans }}</button>
+      <a class="ag-btn ag-btn--secondary wl-btn" href="/account/wallet/tx/{{ t.key }}.pdf" download>{{ 'Download PDF'|trans }}</a>
+      <a class="ag-btn ag-btn--secondary wl-btn" href="/account/wallet/tx/{{ t.key }}.png" download>{{ 'Save image'|trans }}</a>
+    {% endif %}
+    <a class="ag-btn ag-btn--secondary wl-btn" href="/support">{{ 'Report a problem'|trans }}</a>
+  </div>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/wallet.js') }}"></script>{% endblock %}

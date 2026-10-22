@@ -1,0 +1,36 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE FIRST-VISIT LANGUAGE PROMPT — REFERENCE §7.2 · skill §3
+  ══════════════════════════════════════════════════════════════════════════════
+
+  One row under the root app bar asking, IN the visitor's language, whether they want
+  the site in it ("Voir Africa GATES en français ? · Oui · Keep English").
+
+  ── TWO HALVES, AND THIS FILE IS DRAWN ONLY WHEN THE SERVER'S HALF IS TRUE ──
+
+  The SERVER answers "has this visitor answered?" — `lang_ask()`, the absence of the
+  `ag_lang` cookie — and `app-bar.twig` includes this file only inside that gate. That is
+  the GAPS §3.8 fault, fixed rather than carried: the old include was unconditional while
+  the gate sat registered and unread, so "Keep English" was asked again on every page. A
+  prompt that returns after it has been answered is an advert.
+
+  The BROWSER answers "which language does this person read?" — `navigator.languages[0]`,
+  first only ("English, then French" reads English) — so every writable prompt is
+  rendered hidden and `chrome.js` reveals the one row that matches, or none. Rendered
+  rather than built in script: no JSON in an attribute, and the words come from the
+  catalogues (`lang_prompts()`), not `|trans`, which answers in the PAGE's language.
+
+  Both answers are LINKS carrying `?lang=`, so LanguageMiddleware stays the one writer of
+  the cookie, either answer sets it, and the prompt works with scripting off. It hides on
+  the first scroll of `<main>` and does not come back on that page.
+#}
+<div class="ag-langask" data-ag-langask hidden>
+  {% for l in lang_prompts() %}
+    <div class="ag-langask__row" data-ag-langask-for="{{ l.code }}" hidden>
+      <p class="ag-langask__q" lang="{{ l.code }}" dir="{{ l.dir }}">{{ l.ask }}</p>
+      <a class="ag-langask__yes" href="{{ lang_url(l.code) }}" hreflang="{{ l.code }}" lang="{{ l.code }}" dir="{{ l.dir }}">{{ l.yes }}</a>
+      {# In English on purpose: it is the option it describes. #}
+      <a class="ag-langask__no" href="{{ lang_url('en') }}" hreflang="en" lang="en" dir="ltr">{{ 'Keep English'|trans }}</a>
+    </div>
+  {% endfor %}
+</div>

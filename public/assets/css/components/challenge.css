@@ -1,0 +1,317 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHALLENGES — the theme, /challenges/{slug}, and the list
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Rebuilt 5 Oct 2026 after the 3 Oct destroy. `DESTROYED.md` schedules this one
+   to "no phase — ChallengePage.dc.html is not in the bundle (Q16)", so unlike
+   every other destroyed page there was nothing coming to rebuild it: `/challenges`
+   had been answering 500 since the destroy with no owner. Written on the current
+   tokens, against the feature inventories in `inventory/pages--challenges--*.md`
+   and the pre-destroy templates at `882d768^`.
+
+   What is HERE is only what a challenge has and nothing else does: its theme, its
+   hero, its rail and its list card. The shared pieces — steps, ticks, notice, faq,
+   meter, facts — are `ui.twig` on `components/library.css`, and are not restyled
+   here beyond handing them the theme's colour through custom properties.
+
+   ── THE THEME IS FOUR NAMES, NEVER A HEX ──────────────────────────────────
+
+   An admin picks `green | blue | gold | rose`. A free hex field is the fault
+   `Support\Accent` exists to prevent — 642 hand-derived values across the
+   templates, four different golds among them — so a theme is a NAME resolving to
+   tokens that already hold their floors.
+
+     --ch-fill   the identity: a meter segment, a bar. Owes no contrast floor.
+     --ch-edge   anything owing 3:1 against white — a ring, the kicker.
+     --ch-wash   the hero's ground.
+     --ch-solid  a background carrying WHITE TEXT at 4.5:1 — the step numbers and
+                 the primary action.
+
+   `--ch-solid` is NOT `--ch-fill`, and that is the whole reason it exists: gold's
+   fill is `#f3b416`, which holds white at 1.9:1, so a gold challenge's main button
+   had white text nobody could read. Re-measured against the live tokens with
+   `Support\Contrast` on the day of this rebuild:
+
+       green     white on #237b22 = 5.35
+       blue      white on #1f6fa3 = 5.44
+       gold-ink  white on #7a5600 = 6.65
+       rose      white on #b0224f = 6.59
+
+   `ChallengePageTest::test_each_themes_solid_holds_white_text` re-derives those
+   rather than trusting this comment.
+
+   The hairline is MIXED from the edge rather than typed: two of the four themes
+   would otherwise need their own, and a fifth hand-mixed value is how a palette
+   stops being a palette.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── THE THEME ARRIVES INLINE, FROM `Accent::challengeStyle()` ─────────────
+   `--ch-fill | edge | wash | solid` are set in a `style` attribute on the card and
+   on the page root, exactly as a programme's identity is by `programme_style()`.
+
+   They were four `[data-theme]` blocks here, and that was wrong twice over.
+   `ColourBudgetTest` charges a page for every family its sheet names, and four is
+   more than a tier-2 page may spend — fairly, because the index really does show
+   cards of four themes at once. And the flier held the same four as hexes, because
+   there is no CSS in a PNG: one rule written twice, in two languages, with only a
+   test between them.
+
+   One table in PHP now, read by the page and the flier. See `Accent::challengeTheme()`
+   for why `solid` is not `fill`.
+
+   The fallback keeps a page that somehow renders without the attribute drawing plain
+   rather than drawing with every property undefined — a transparent hero and a
+   `currentColor` kicker. */
+.ch, .chl__card {
+  --ch-line: color-mix(in srgb, var(--ch-edge, var(--ag-green-deep)) 16%, var(--ag-surface));
+}
+
+/* ═══ /challenges/{slug} ═══════════════════════════════════════════════════ */
+
+/* The shared pieces take the theme from here. `--ag-step-fill` is READ by
+   `library.css` with its own fallback, so a page that sets none of them still
+   draws; the meter and the ticks are handed theirs directly, because declaring a
+   property nothing reads is what `DeadTokenTest` refuses — and it caught two here. */
+.ch { --ag-step-fill: var(--ch-solid, var(--ag-green)); }
+.ch .ag-steps__n  { background: var(--ch-solid, var(--ag-green)); }
+.ch .ag-ticks__i  { color: var(--ch-edge, var(--ag-green-deep)); }
+
+/* ── the hero ── */
+.ch-hero { background: var(--ch-wash, var(--ag-green-wash)); border-bottom: 1px solid var(--ch-line); }
+.ch-hero__in {
+  max-width: 1100px;
+  margin: 0 auto;
+  /* `padding-block`, never the shorthand: this element carries the page gutter and
+     `padding: 28px 0` would run the hero's text to both screen edges. */
+  padding-block: clamp(22px, 4vw, 40px);
+  padding-inline: var(--ag-gutter);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(18px, 3vw, 34px);
+  min-width: 0;
+}
+.ch-hero__art,
+.ch-hero__icon {
+  flex: none;
+  width: clamp(96px, 22vw, 150px);
+  aspect-ratio: 1;
+  border-radius: var(--ag-r-20);
+  object-fit: cover;
+}
+.ch-hero__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ag-surface);
+  color: var(--ch-edge, var(--ag-green-deep));
+  box-shadow: inset 0 0 0 1px var(--ch-line);
+}
+.ch-hero__icon svg { width: 46%; height: 46%; }
+.ch-hero__b { flex: 1 1 320px; min-width: 0; }
+
+.ch-hero__k {
+  margin: 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-size: var(--ag-fs-13);
+  font-weight: 700;
+  color: var(--ch-edge, var(--ag-green-deep));
+}
+/* Drawn, not an emoji: 🇳🇬 has no glyph on Windows and renders as the letters "NG".
+   ONE element with a gradient, not three empty coloured <span>s —
+   `ColourIsNeverAloneTest` refuses a span that carries colour and says nothing, and it
+   is right to: three of them is three findings for one decorative object. The parent
+   is `aria-hidden`, so the flag says nothing to a screen reader and the kicker beside
+   it carries the words. */
+.ch-flag {
+  display: inline-block;
+  width: 18px; height: 12px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    var(--ag-green) 0 33.34%, var(--ag-surface) 33.34% 66.67%, var(--ag-green) 66.67%);
+  box-shadow: inset 0 0 0 1px var(--ag-line-2);
+}
+
+.ch-state {
+  display: inline-flex; align-items: center; min-height: 22px;
+  padding: 0 9px; border-radius: var(--ag-r-pill);
+  background: var(--ag-surface);
+  box-shadow: inset 0 0 0 1px var(--ch-line);
+  color: var(--ch-edge, var(--ag-green-deep));
+}
+/* An ended challenge drops the theme: it is no longer an offer, and wearing the
+   live colour is the page implying it still is. */
+.ch-state[data-state="ended"] { color: var(--ag-soft); box-shadow: inset 0 0 0 1px var(--ag-line-2); }
+
+.ch-hero__h {
+  margin: 10px 0 0;
+  /* A FIXED size per breakpoint, never clamp() or a viewport unit (§6.2/§4.5,
+     TypeScaleTest). Fluid type was the old sheet's idiom and it is not this one's:
+     a size that slides has no step anybody chose, and no two pages land on the
+     same one at the same width. */
+  font-family: var(--ag-font-display);
+  font-weight: 700;
+  font-size: var(--ag-fs-28);
+  line-height: 1.1;
+  color: var(--ag-ink);
+  text-wrap: balance;
+}
+.ch-hero__p { margin: 10px 0 0; max-width: 56ch;
+              font: 400 var(--ag-fs-16-5)/1.55 var(--ag-font-ui); color: var(--ag-ink-2); }
+
+.ch-host { margin: 14px 0 0; display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+           font: 400 var(--ag-fs-14)/1.4 var(--ag-font-ui); color: var(--ag-ink-2); }
+.ch-host img { height: 28px; width: auto; border-radius: 6px; }
+.ch-host a { color: var(--ag-ink); }
+
+/* The fact strip, on the wash: cells of white with the theme's hairline, so the
+   values read as laid on the hero rather than floating in it. */
+.ch-hero .ag-facts { margin-top: 18px; }
+.ch-hero .ag-facts dt { color: var(--ch-edge, var(--ag-green-deep)); }
+
+/* ── the body, and the rail ── */
+.ch-body {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding-block: clamp(20px, 3.5vw, 34px) clamp(90px, 14vw, 56px);
+  padding-inline: var(--ag-gutter);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 34px);
+}
+.ch-main { min-width: 0; display: grid; gap: clamp(22px, 3.5vw, 34px); align-content: start; }
+.ch-sec { min-width: 0; }
+.ch-h2 { margin: 0 0 var(--ag-sp-14); font-family: var(--ag-font-display); font-weight: 700;
+         font-size: var(--ag-fs-20); line-height: 1.2; color: var(--ag-ink); }
+
+.ch-meter { padding: var(--ag-sp-16); border: 1px solid var(--ag-line); border-radius: var(--ag-r-16);
+            background: var(--ag-surface); }
+.ch-mine { display: block; margin: 10px 0 0; font: 400 var(--ag-fs-13-5)/1.4 var(--ag-font-ui); color: var(--ag-ink-2); }
+
+.ch-winners { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ch-winners > li { display: flex; align-items: center; gap: var(--ag-sp-12); min-width: 0;
+                   padding: 10px 0; border-bottom: 1px solid var(--ag-line); }
+.ch-winners__n { flex: none; min-width: 34px; font-size: var(--ag-fs-14); font-weight: 700;
+                 font-variant-numeric: tabular-nums; color: var(--ch-edge, var(--ag-green-deep)); }
+.ch-winners__b { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.ch-winners__b > b    { font: 600 var(--ag-fs-15)/1.3 var(--ag-font-ui); color: var(--ag-ink); }
+.ch-winners__b > span { font: 400 var(--ag-fs-13)/1.3 var(--ag-font-ui); color: var(--ag-soft); }
+.ch-winners__t { flex: none; font-size: var(--ag-fs-12-5); color: var(--ag-mute); }
+
+.ch-terms { display: inline-block; margin: var(--ag-sp-14) 0 0;
+            font: 400 var(--ag-fs-13-5)/1.4 var(--ag-font-ui); color: var(--ag-ink-2); }
+
+.ch-more { display: grid; gap: 2px; }
+
+.ch-rail {
+  min-width: 0;
+  align-self: start;
+  padding: var(--ag-sp-18);
+  border: 1px solid var(--ch-line);
+  border-radius: var(--ag-r-18);
+  background: var(--ag-surface);
+  box-shadow: var(--ag-sh-float);
+  display: grid;
+  gap: var(--ag-sp-12);
+}
+.ch-rail__k { font-size: var(--ag-fs-12-5); font-weight: 700; color: var(--ag-soft); }
+/* The figure, in the UI face with tabular figures. A money amount is not a code:
+   §6.2 keeps the monospace face for references, and a prize set in it reads as a
+   reference number rather than as what somebody wins. */
+.ch-rail__prize { font-size: var(--ag-fs-32); font-weight: 700;
+                  font-variant-numeric: tabular-nums; line-height: 1; color: var(--ag-ink); }
+.ch-rail__prize span { font-size: var(--ag-fs-16); font-weight: 600; color: var(--ag-ink-2); }
+.ch-rail__mine { font: 400 var(--ag-fs-13-5)/1.4 var(--ag-font-ui); color: var(--ag-ink-2); }
+.ch-rail__acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.ch-rail__acts > * { flex: 1 1 auto; justify-content: center; }
+
+/* The theme's solid action. Only the COLOUR is the theme's — the button is the
+   shared one, so its height, radius and focus ring cannot drift from every other
+   primary action on the site. */
+/* `--ag-surface`, never `#fff`: `ColourLiteralTest` refuses a literal in a public
+   sheet, and the reason is the one Support\Accent exists for — a hex here is a
+   value nothing can move. */
+.ch-cta { background: var(--ch-solid, var(--ag-green)); border-color: var(--ch-solid, var(--ag-green)); color: var(--ag-surface); }
+.ch-cta:hover { filter: brightness(.93); }
+
+/* The phone bar carries the same solid, and is hidden from 600px by library.css. */
+.ch-bar .ch-cta { flex: none; }
+
+/* The meter is drawn twice — the phone card and the rail — so exactly one shows. */
+.ch-meter--phone { display: block; }
+@media (min-width: 600px) { .ch-meter--phone { display: none; } }
+
+@media (min-width: 600px) {
+  .ch-hero__h { font-size: var(--ag-fs-40); }
+  .chl__h     { font-size: var(--ag-fs-40); }
+}
+
+@media (min-width: 1024px) {
+  .ch-body { grid-template-columns: minmax(0, 1fr) 320px; }
+  /* The rail stays beside the column as it scrolls. `top` clears the sticky app
+     bar rather than being typed, so the two cannot drift. */
+  .ch-rail { position: sticky; top: calc(var(--ag-z-appbar, 0) * 0 + 84px); }
+}
+
+/* ═══ /challenges — the list ═══════════════════════════════════════════════ */
+
+.chl { max-width: 1100px; margin: 0 auto; padding-block: clamp(18px, 3vw, 32px) clamp(40px, 7vw, 72px);
+       padding-inline: var(--ag-gutter); }
+.chl__head { margin: 0 0 clamp(18px, 3vw, 28px); }
+.chl__h { margin: 0; font-family: var(--ag-font-display); font-weight: 700;
+          font-size: var(--ag-fs-30); line-height: 1.1; color: var(--ag-ink); }
+.chl__lede { margin: 10px 0 0; max-width: 60ch;
+             font: 400 var(--ag-fs-16)/1.55 var(--ag-font-ui); color: var(--ag-ink-2); }
+
+.chl__grid { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-sp-16);
+             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-items: stretch; }
+/* The grid item is the <li> and the card is the <a> inside it; stretching the grid
+   alone levels the items and leaves the cards uneven. */
+.chl__grid > li { display: flex; }
+
+.chl__card {
+  flex: 1;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: var(--ag-sp-16);
+  border: 1px solid var(--ch-line);
+  border-radius: var(--ag-r-16);
+  background: var(--ag-surface);
+  color: inherit;
+  text-decoration: none;
+}
+.chl__card:hover { border-color: var(--ch-edge, var(--ag-green-deep)); }
+.chl__card:focus-visible { outline: 3px solid var(--ag-green); outline-offset: 2px; }
+
+.chl__tile {
+  width: 40px; height: 40px; margin-bottom: 4px;
+  border-radius: var(--ag-r-12);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ch-wash, var(--ag-green-wash));
+  color: var(--ch-edge, var(--ag-green-deep));
+}
+.chl__tile svg { width: 22px; height: 22px; }
+
+.chl__pill {
+  justify-self: start;
+  display: inline-flex; align-items: center; min-height: 22px;
+  padding: 0 9px; border-radius: var(--ag-r-pill);
+  box-shadow: inset 0 0 0 1px var(--ch-line);
+  font-size: var(--ag-fs-12);
+  font-weight: 700;
+  color: var(--ch-edge, var(--ag-green-deep));
+}
+.chl__pill[data-state="ended"] { color: var(--ag-soft); box-shadow: inset 0 0 0 1px var(--ag-line-2); }
+
+.chl__kicker { font-size: var(--ag-fs-13); font-weight: 700; color: var(--ag-soft); }
+.chl__t    { font-family: var(--ag-font-display); font-weight: 700;
+             font-size: var(--ag-fs-18); line-height: 1.25; color: var(--ag-ink); }
+.chl__line { font: 600 var(--ag-fs-14-5)/1.4 var(--ag-font-ui); color: var(--ag-ink-2); }
+.chl__time { font-size: var(--ag-fs-13); color: var(--ag-mute); }
+
+/* An empty state that says WHEN, not just that there is nothing: "No challenges"
+   alone reads as a broken page. */
+.chl__empty { display: grid; gap: 6px; padding: clamp(24px, 5vw, 40px) var(--ag-sp-18);
+              border: 1px dashed var(--ag-line-2); border-radius: var(--ag-r-16); text-align: center; }
+.chl__empty > b    { font: 600 var(--ag-fs-17)/1.3 var(--ag-font-ui); color: var(--ag-ink); }
+.chl__empty > span { margin: 0 auto; max-width: 46ch;
+                     font: 400 var(--ag-fs-14-5)/1.6 var(--ag-font-ui); color: var(--ag-ink-2); }

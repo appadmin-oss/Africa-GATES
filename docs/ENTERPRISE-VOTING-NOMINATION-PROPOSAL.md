@@ -1,7 +1,55 @@
 # Africa GATES — Enterprise Voting & Nomination System
 ### Technical Proposal & Implementation Blueprint
 
-**Prepared:** 14 June 2026 · **Status:** Draft for review · **Owner:** Engineering / Afrovanguard
+**Prepared:** 14 June 2026 · **Owner:** Engineering / Afrovanguard
+**Status: SUPERSEDED — BUILT. Verified against the code on 16 September 2026.**
+
+> ## Read this before acting on anything below
+>
+> **This proposal has been implemented.** Every item in its roadmap is in the codebase, and
+> its opening premise — that the three pillars of the published methodology are "not
+> actually connected to outcomes" — has not been true for months. The document is kept
+> because it is the reasoning behind a lot of what shipped, and because its §3 design
+> principles still describe how this platform is built. It is a record, not a plan.
+>
+> Nothing below has been edited. A proposal rewritten to describe the world after its own
+> implementation stops being evidence of why any of it was done.
+>
+> ### The three integrity defects (§2.2) are fixed
+>
+> | | Claimed defect | Where it stands |
+> |---|---|---|
+> | **R1** | Winners chosen by raw `vote_count` | `CycleMaterialiser` decides on the CPI through the shared scorer, and says so at length in its own docblock. Winners are crowned and **sealed** at promotion (`SnapshotService::captureRelease()`), which the proposal did not anticipate. |
+> | **R2** | Fraud `decide()` has no `block` branch | `FraudService` has `'block' => 80` in its score bands and rejects before the vote is cast. |
+> | **R3** | Device fingerprint never persisted | `VoteService` writes `device_hash` on the vote row. |
+>
+> §2.3's "voting is not gated on cycle state" is fixed too — `VoteService::castVote()` reads
+> the cycle status, and `PublicResults` was separately tightened so a results *date* no
+> longer publishes an unannounced standing.
+>
+> ### The rest of the roadmap
+>
+> **Phase 2** — `RuleEngine` and `gates_rule_sets` exist, with per-programme and per-cycle
+> overrides; `gates_cycle_transitions` is the state ledger and carries the `notify` record
+> that gates sealing; `gates_vote_snapshots` is a live hash chain; paid and bonus vote types
+> are wired (`PaidVoteService`, `BonusVoteService`); `gates_jobs` is the queue.
+>
+> **Phase 3** — dedup and merge (`MergeService`, with a journal and an undo), AI moderation
+> (`AiFilterService`), collusion detection (`CollusionService`), and an SMS verifier
+> (`SmsService`) are all present.
+>
+> ### Two claims that were already wrong when written, or became so
+>
+> - **"Nominations are unmoderated."** They insert as `pending` and there is a
+>   `NominationTriageService`. Nothing reaches a public shortlist unreviewed.
+> - **The scoring weights.** §2.3 complains of emails saying 40/60 "while the engine uses
+>   45/55". The engine's split is a *setting* now (`RuleEngine::DEFAULTS`), and the judge
+>   half is the mark scaled straight — `550 × avg/10` — not the curve this document assumes.
+>   The community half was rebuilt twice more after that: it counts **people** as well as
+>   votes, and its denominator is the whole edition. See `CLAUDE.md`.
+>
+> **What is genuinely still open** is nothing in this document. The items that outlived it
+> are tracked in `HANDOFF.md` §3.
 
 ---
 

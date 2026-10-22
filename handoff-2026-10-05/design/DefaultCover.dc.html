@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+</helmet>
+
+<div ref="{{ rootRef }}" dir="{{ dir }}" data-density="{{ density }}" style="position:relative;width:100%;height:{{ h }};aspect-ratio:{{ ratio }};container-type:size;overflow:hidden;border-radius:{{ radius }};background:{{ bg }};font-family:'DM Sans',system-ui,sans-serif;color:#10292c">
+  <span aria-hidden="true" style="position:absolute;inset:0;background:{{ pattern }};-webkit-mask-image:{{ mask }};mask-image:{{ mask }}"></span>
+  <sc-if value="{{ isGraphic }}" hint-placeholder-val="{{ true }}">
+    <sc-if value="{{ showLogo }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><span style="width:clamp(28px,30cqmin,132px);aspect-ratio:1 / 1;border-radius:clamp(8px,7cqmin,30px);background:#fff;box-shadow:0 1px 0 rgba(16,41,44,.06),0 10px 28px -12px rgba(16,41,44,.35);display:flex;align-items:center;justify-content:center"><sc-if value="{{ hasHostLogo }}" hint-placeholder-val="{{ false }}"><img src="{{ logo }}" alt="" style="width:64%;height:64%;object-fit:contain"></sc-if><sc-if value="{{ noHostLogo }}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 24 24" fill="none" stroke="{{ ink }}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:44%;height:44%;overflow:visible"><path d="{{ glyph }}"></path></svg></sc-if></span></div></sc-if>
+    <sc-if value="{{ showDate }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:clamp(8px,6cqmin,24px);inset-inline-start:clamp(8px,6cqmin,24px);display:flex;flex-direction:column;align-items:center;min-width:clamp(38px,20cqmin,84px);padding:clamp(5px,2.6cqmin,12px) clamp(6px,3cqmin,14px) clamp(6px,3.2cqmin,14px);box-sizing:border-box;border-radius:clamp(9px,4.4cqmin,18px);background:#fff;box-shadow:0 8px 20px -12px rgba(16,41,44,.35)"><b style="font-size:clamp(10.5px,5.4cqmin,19px);line-height:1.1;color:{{ ink }}">{{ monthShort }}</b><span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;font-size:clamp(19px,13cqmin,52px);line-height:1">{{ day }}</span></span></sc-if>
+    <sc-if value="{{ showTitle }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset-inline-start:clamp(10px,6cqmin,28px);bottom:clamp(10px,6cqmin,28px);max-width:72%;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;font-size:clamp(14px,{{ gTitleK }}cqmin,40px);line-height:1.1;text-wrap:balance;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ title }}</span></sc-if>
+    <sc-if value="{{ showPill }}" hint-placeholder-val="{{ true }}"><span style="position:absolute;inset-inline-start:{{ pillX }};top:{{ pillTop }};bottom:{{ pillBottom }};display:flex;align-items:center;gap:6px;height:clamp(22px,9cqmin,34px);padding:0 clamp(8px,3.2cqmin,14px);border-radius:999px;background:#fff;color:{{ ink }};font-weight:700;font-size:clamp(11px,3.9cqmin,14.5px);white-space:nowrap"><span style="width:clamp(6px,1.8cqmin,8px);aspect-ratio:1 / 1;border-radius:50%;background:{{ line }}"></span>{{ label }}</span></sc-if>
+  </sc-if>
+  <sc-if value="{{ isStack }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:clamp(12px,7cqmin,72px)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <span style="display:flex;align-items:center;gap:7px;height:clamp(22px,8cqmin,52px);padding:0 clamp(8px,2.8cqmin,22px);border-radius:999px;background:#fff;color:{{ ink }};font-weight:700;font-size:clamp(11px,3.4cqmin,22px);white-space:nowrap"><span style="width:clamp(5px,1.5cqmin,11px);aspect-ratio:1 / 1;border-radius:50%;background:{{ line }}"></span>{{ label }}</span>
+        <sc-if value="{{ hasHostLogo }}" hint-placeholder-val="{{ false }}"><span style="width:clamp(28px,11cqmin,84px);aspect-ratio:1 / 1;border-radius:clamp(7px,2.6cqmin,20px);background:#fff;display:flex;align-items:center;justify-content:center"><img src="{{ logo }}" alt="" style="width:66%;height:66%;object-fit:contain"></span></sc-if>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:clamp(6px,2.4cqmin,20px);max-width:{{ textMax }}">
+        <sc-if value="{{ hasDate }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:clamp(8px,3cqmin,24px)">
+          <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;font-size:clamp(26px,{{ dayK }}cqmin,160px);line-height:.9;color:{{ ink }}">{{ day }}</span>
+          <span style="display:flex;flex-direction:column;gap:2px;padding-inline-start:clamp(8px,3cqmin,24px);border-inline-start:clamp(1px,.45cqmin,3px) solid {{ line }}"><b style="font-size:clamp(12px,4.6cqmin,36px);line-height:1.1">{{ monthYear }}</b><span style="font-size:clamp(10.5px,3.5cqmin,26px);color:#3a4a4c;line-height:1.25">{{ weekTime }}</span></span>
+        </div></sc-if>
+        <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;font-size:clamp(15px,{{ titleK }}cqmin,96px);line-height:1.08;letter-spacing:-.01em;text-wrap:balance;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:{{ lines }};-webkit-box-orient:vertical;overflow:hidden">{{ title }}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:clamp(2px,1cqmin,10px)">
+          <span style="min-width:0;font-size:clamp(10.5px,3.8cqmin,28px);color:#3a4a4c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ metaLine }}</span>
+          <span style="flex:none;display:flex;align-items:center;gap:clamp(4px,1.4cqmin,12px)"><img src="assets/logo-mark.png" alt="" style="width:clamp(16px,6cqmin,46px);height:clamp(16px,6cqmin,46px);border-radius:clamp(4px,1.4cqmin,10px);background:#fff;padding:2px;box-sizing:border-box;object-fit:contain"><span style="display:flex;flex-direction:column;line-height:1"><b style="font-family:'Playfair Display',Georgia,serif;font-size:clamp(10px,3.4cqmin,26px)">Africa</b><span style="font-size:clamp(6.5px,1.9cqmin,14px);font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isBanner }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;display:flex;align-items:center;gap:clamp(12px,7cqmin,64px);padding:0 clamp(14px,10cqmin,96px)">
+      <sc-if value="{{ hasDate }}" hint-placeholder-val="{{ false }}"><div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding-inline-end:clamp(12px,7cqmin,56px);border-inline-end:clamp(1px,.6cqmin,3px) solid {{ line }}"><span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;font-size:clamp(26px,34cqmin,180px);line-height:.9;color:{{ ink }}">{{ day }}</span><b style="font-size:clamp(11px,8cqmin,36px)">{{ monthShort }}</b></div></sc-if>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:clamp(4px,3cqmin,16px)">
+        <span style="align-self:flex-start;display:flex;align-items:center;gap:7px;height:clamp(20px,12cqmin,44px);padding:0 clamp(8px,4cqmin,18px);border-radius:999px;background:#fff;color:{{ ink }};font-weight:700;font-size:clamp(11px,5.4cqmin,18px);white-space:nowrap"><span style="width:clamp(5px,2.2cqmin,9px);aspect-ratio:1 / 1;border-radius:50%;background:{{ line }}"></span>{{ label }}</span>
+        <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;font-size:clamp(15px,{{ titleK }}cqmin,80px);line-height:1.08;text-wrap:balance;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ title }}</span>
+        <span style="font-size:clamp(11px,6cqmin,24px);color:#3a4a4c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ bannerMeta }}</span>
+      </div>
+      <sc-if value="{{ showBannerMark }}" hint-placeholder-val="{{ true }}"><span style="flex:none;width:clamp(36px,30cqmin,140px);aspect-ratio:1 / 1;border-radius:clamp(9px,7cqmin,30px);background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 28px -14px rgba(16,41,44,.35)"><sc-if value="{{ hasHostLogo }}" hint-placeholder-val="{{ false }}"><img src="{{ logo }}" alt="" style="width:64%;height:64%;object-fit:contain"></sc-if><sc-if value="{{ noHostLogo }}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 24 24" fill="none" stroke="{{ ink }}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:44%;height:44%;overflow:visible"><path d="{{ glyph }}"></path></svg></sc-if></span></sc-if>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:640,&quot;height&quot;:360},&quot;subject&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;event&quot;,&quot;award&quot;,&quot;campaign&quot;,&quot;blog&quot;,&quot;challenge&quot;,&quot;product&quot;],&quot;default&quot;:&quot;event&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;kind&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ceremony&quot;,&quot;gala&quot;,&quot;conference&quot;,&quot;workshop&quot;,&quot;training&quot;,&quot;webinar&quot;,&quot;livestream&quot;,&quot;community&quot;,&quot;concert&quot;,&quot;sports&quot;,&quot;fundraiser&quot;,&quot;exhibition&quot;],&quot;default&quot;:&quot;ceremony&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;graphic&quot;,&quot;full&quot;],&quot;default&quot;:&quot;graphic&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;content&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;none&quot;,&quot;date&quot;,&quot;title&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;ratio&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;16 / 9&quot;,&quot;4 / 3&quot;,&quot;1 / 1&quot;,&quot;1.91 / 1&quot;,&quot;3 / 1&quot;,&quot;4 / 5&quot;],&quot;default&quot;:&quot;16 / 9&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tone&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;green&quot;,&quot;gold&quot;,&quot;live&quot;,&quot;info&quot;,&quot;stone&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dir&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ltr&quot;,&quot;rtl&quot;],&quot;default&quot;:&quot;ltr&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;fit&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ratio&quot;,&quot;fill&quot;],&quot;default&quot;:&quot;ratio&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Kenya Creative Economy Awards · 11th Edition ceremony&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;date&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;2026-12-06&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;time&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;18:00 EAT&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;place&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;KICC, Nairobi&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;host&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Nairobi Creative Assembly&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;label&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:null,&quot;tsType&quot;:&quot;string&quot;},&quot;logo&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;radius&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;0&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const TONES={green:['#effaf0','#237b22','#1a6118'],gold:['#fcf4de','#c99a06','#7a5600'],live:['#fdecef','#e0245e','#b0224f'],info:['#e6f0f4','#1f6fa3','#1f5f8b'],stone:['#f1efe9','#3a4a4c','#10292c']};
+const KINDS={ceremony:['Awards ceremony','gold','arches'],gala:['Gala','gold','arches'],conference:['Conference','info','dots'],workshop:['Workshop','green','grid'],training:['Training','green','grid'],webinar:['Webinar','info','signal'],livestream:['Livestream','live','signal'],community:['Community','green','rings'],concert:['Concert','live','weave'],sports:['Sports','green','stripes'],fundraiser:['Fundraiser','live','stripes'],exhibition:['Exhibition','stone','weave']};
+const SUBJ={award:['Award','gold','arches'],campaign:['Giving','live','stripes'],blog:['Story','stone','dots'],challenge:['Challenge','green','games'],product:['Shop','stone','weave']};
+const GLYPH={"ceremony":"M6 4h12v4a6 6 0 0 1-12 0V4Z M6 6H3.5v1.5A3.5 3.5 0 0 0 7 11 M18 6h2.5v1.5A3.5 3.5 0 0 1 17 11 M12 14v4 M8 20h8","gala":"M6 4h12v4a6 6 0 0 1-12 0V4Z M6 6H3.5v1.5A3.5 3.5 0 0 0 7 11 M18 6h2.5v1.5A3.5 3.5 0 0 1 17 11 M12 14v4 M8 20h8","award":"M6 4h12v4a6 6 0 0 1-12 0V4Z M6 6H3.5v1.5A3.5 3.5 0 0 0 7 11 M18 6h2.5v1.5A3.5 3.5 0 0 1 17 11 M12 14v4 M8 20h8","conference":"M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z M5.5 11a6.5 6.5 0 0 0 13 0 M12 17.5V21","workshop":"M15.5 4.5l4 4L8 20H4v-4L15.5 4.5Z M13 7l4 4","training":"M3 5.5C5.5 4.5 8.5 4.5 12 6.5c3.5-2 6.5-2 9-1V19c-2.5-1-5.5-1-9 1-3.5-2-6.5-2-9-1V5.5Z M12 6.5V20","webinar":"M3.5 7h11a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z M15.5 10.5 21 7.5v9l-5.5-3","livestream":"M12 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z M8.2 15.8a5.4 5.4 0 0 1 0-7.6 M15.8 8.2a5.4 5.4 0 0 1 0 7.6 M5.3 18.7a9.5 9.5 0 0 1 0-13.4 M18.7 5.3a9.5 9.5 0 0 1 0 13.4","community":"M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z M3 20a6 6 0 0 1 12 0 M16 4.3a3.5 3.5 0 0 1 0 6.4 M18 14.5a6 6 0 0 1 3 5.5","concert":"M9 18V6l11-2v12 M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z M20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z","sports":"M8 3h8l-2 6h-4L8 3Z M12 21a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11Z M12 13.5v4","fundraiser":"M12 20s-7.5-4.6-7.5-10A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 7.5 3c0 5.4-7.5 10-7.5 10Z","campaign":"M12 20s-7.5-4.6-7.5-10A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 7.5 3c0 5.4-7.5 10-7.5 10Z","exhibition":"M4 5h16v14H4V5Z M4 15.5l4.5-4.5 4 4 2.5-2.5 5 5 M15.5 9.5h.01","blog":"M7 3h7l5 5v13H7V3Z M14 3v5h5 M10 13h6 M10 17h6","challenge":"M7.5 8h9A4.5 4.5 0 0 1 21 12.5v.5a3.5 3.5 0 0 1-6.2 2.2L14 14h-4l-.8 1.2A3.5 3.5 0 0 1 3 13v-.5A4.5 4.5 0 0 1 7.5 8Z M8 10.5v3 M6.5 12h3 M15.5 11h.01 M17.5 13h.01","product":"M5 8h14l-1.2 12H6.2L5 8Z M9 8V6.5a3 3 0 0 1 6 0V8"};
+const gamesSvg=c=>{const s=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' fill='none' stroke='${c}' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' opacity='.42'><g transform='translate(6 8) scale(.6)'><path d='M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z'/></g><g transform='translate(60 4) rotate(14 12 12) scale(.6)'><rect x='4' y='4' width='16' height='16' rx='3.5'/><path d='M9 9h.01M15 15h.01M15 9h.01M9 15h.01M12 12h.01'/></g><g transform='translate(34 40) scale(.6)'><circle cx='12' cy='12' r='8'/><circle cx='12' cy='12' r='3.5'/></g><g transform='translate(70 58) rotate(-12 12 12) scale(.6)'><path d='M13 2 4 14h7l-1 8 9-12h-7z'/></g><g transform='translate(4 62) rotate(-8 12 12) scale(.62)'><path d='M6 9h12a4 4 0 0 1 4 4v1a3 3 0 0 1-5.3 1.9L15 14H9l-1.7 1.9A3 3 0 0 1 2 14v-1a4 4 0 0 1 4-4ZM7 11v3M5.5 12.5h3M16 12h.01M18 13.5h.01'/></g></svg>`;return `url("data:image/svg+xml,${encodeURIComponent(s)}")`;};
+const MON=['January','February','March','April','May','June','July','August','September','October','November','December'], WD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const parseRatio=r=>{const m=String(r).split('/').map(Number); return m.length===2&&m[1]?m[0]/m[1]:16/9;};
+function pat(p,a,b,X){
+  switch(p){
+    case 'arches': return `radial-gradient(circle at ${X(80)}% 122%, ${b} 0 46cqmin, transparent 46.3cqmin), repeating-radial-gradient(circle at ${X(80)}% 122%, transparent 0 9cqmin, ${a} 9cqmin 9.8cqmin)`;
+    case 'dots': return `radial-gradient(circle at ${X(100)}% 0%, ${b} 0 56cqmin, transparent 56.3cqmin), radial-gradient(circle, ${a} 0 .6cqmin, transparent .7cqmin) 0 0 / 5.6cqmin 5.6cqmin`;
+    case 'grid': return `radial-gradient(circle at ${X(86)}% 20%, ${b} 0 36cqmin, transparent 36.3cqmin), linear-gradient(${a} 0 .28cqmin, transparent .28cqmin) 0 0 / 10.5cqmin 10.5cqmin, linear-gradient(90deg, ${a} 0 .28cqmin, transparent .28cqmin) 0 0 / 10.5cqmin 10.5cqmin`;
+    case 'signal': return `radial-gradient(circle at ${X(84)}% 46%, ${a.slice(0,7)} 0 2.6cqmin, transparent 2.75cqmin), repeating-radial-gradient(circle at ${X(84)}% 46%, transparent 0 7cqmin, ${a} 7cqmin 8cqmin)`;
+    case 'rings': return `repeating-radial-gradient(circle at ${X(96)}% 104%, transparent 0 7.6cqmin, ${a} 7.6cqmin 8.4cqmin), radial-gradient(circle at ${X(70)}% 10%, ${b} 0 26cqmin, transparent 26.3cqmin)`;
+    case 'games': return `radial-gradient(circle at ${X(86)}% 18%, ${b} 0 34cqmin, transparent 34.3cqmin), ${gamesSvg(a.slice(0,7))} 0 0 / 30cqmin 30cqmin`;
+    case 'weave': return `repeating-linear-gradient(90deg, ${b} 0 5.4cqmin, transparent 5.4cqmin 10.8cqmin), repeating-linear-gradient(0deg, ${a} 0 .8cqmin, transparent .8cqmin 10.8cqmin), repeating-linear-gradient(0deg, ${b} 0 5.4cqmin, transparent 5.4cqmin 10.8cqmin)`;
+    default: return `radial-gradient(circle at ${X(92)}% 8%, ${b} 0 42cqmin, transparent 42.3cqmin), repeating-linear-gradient(-45deg, ${a} 0 1.5cqmin, transparent 1.5cqmin 6cqmin)`;
+  }
+}
+class Component extends DCLogic {
+  state = { w:0, hh:0 };
+  rootRef=React.createRef();
+  componentDidMount(){ const el=this.rootRef.current; if(el&&window.ResizeObserver){ this.ro=new ResizeObserver(es=>{const r=es[0].contentRect, w=Math.round(r.width), hh=Math.round(r.height); if(w!==this.state.w||hh!==this.state.hh) this.setState({w,hh});}); this.ro.observe(el); } }
+  componentWillUnmount(){ if(this.ro) this.ro.disconnect(); }
+  renderVals(){
+    const p=this.props, S=this.state, subj=p.subject ?? 'event', def=subj==='event'?(KINDS[p.kind ?? 'ceremony']||KINDS.ceremony):(SUBJ[subj]||SUBJ.award);
+    const tone=TONES[(p.tone && p.tone!=='auto')?p.tone:def[1]]||TONES.green, full=(p.variant ?? 'graphic')==='full', rtl=(p.dir ?? 'ltr')==='rtl', fill=(p.fit ?? 'ratio')==='fill';
+    const X=v=>rtl?100-v:v, ratio=p.ratio ?? '16 / 9', w=S.w||640, ar=(S.w&&S.hh)?S.w/S.hh:parseRatio(ratio), minSide=Math.min(w,S.hh||w/ar);
+    const density=minSide<96?'xs':minSide<200?'sm':minSide<420?'md':'lg', shape=ar>=2.2?'banner':(ar<=.85?'tall':'normal');
+    let day='',monthYear='',monthShort='',weekTime='',hasDate=false;
+    if(p.date){ const d=new Date(p.date+'T12:00:00Z'); if(!isNaN(d)){ hasDate=true; day=String(d.getUTCDate()); monthYear=MON[d.getUTCMonth()]+' '+d.getUTCFullYear(); monthShort=MON[d.getUTCMonth()].slice(0,3); weekTime=WD[d.getUTCDay()]+(p.time?' · '+p.time:''); } }
+    const title=p.title ?? 'Kenya Creative Economy Awards · 11th Edition ceremony', len=title.length;
+    // graphic content: auto = date when there is one, otherwise the logo
+    const want=p.content ?? 'auto', mode=want==='auto'?(hasDate?'date':'none'):want;
+    const showDate=!full&&mode==='date'&&hasDate, showTitle=!full&&mode==='title'&&density!=='xs';
+    const showLogo=!full&&(mode==='none'||(mode==='date'&&!hasDate)||(mode==='title'&&density==='xs'));
+    const showPill=!full&&density!=='xs'&&!(showLogo&&density==='sm')&&(p.label ?? def[0])!=='';
+    const stack=full&&shape!=='banner', banner=full&&shape==='banner';
+    const tk=banner?(len<=36?17:len<=64?13.5:11):(shape==='tall'?(len<=36?12.5:len<=64?10.4:8.6):(len<=36?(hasDate?10.5:13):len<=64?(hasDate?8.4:10.2):(hasDate?6.8:8.2)));
+    const a=tone[1]+'38', b=tone[1]+'14';
+    const mask=!full?(showLogo?'radial-gradient(circle at 50% 50%, transparent 0 18cqmin, #000 46cqmin)':`linear-gradient(${rtl?260:100}deg, transparent 0 22%, #000 70%)`):(shape==='tall'||ar<1.1?'linear-gradient(180deg,#000 0 26%,transparent 66%)':`linear-gradient(${rtl?260:100}deg,transparent 0 36%,#000 74%)`);
+    const meta=[p.place,p.host].filter(Boolean).join(' · ');
+    return {
+      rootRef:this.rootRef, dir:rtl?'rtl':'ltr', density, ratio:fill?'auto':ratio, h:fill?'100%':'auto', radius:p.radius ?? '0', bg:tone[0], line:tone[1], ink:tone[2], label:p.label ?? def[0],
+      pattern:pat(def[2],a,b,X), mask,
+      isGraphic:!full, isStack:stack, isBanner:banner, showDate, showTitle, showLogo, showPill,
+      pillX:'clamp(8px,6cqmin,24px)', pillTop:showTitle?'clamp(8px,6cqmin,24px)':'auto', pillBottom:showTitle?'auto':'clamp(8px,6cqmin,24px)',
+      gTitleK:len<=28?11:len<=56?9:7.6,
+      logo:p.logo || 'assets/logo-mark.png', hasHostLogo:!!p.logo, noHostLogo:!p.logo, glyph:GLYPH[subj==='event'?(p.kind ?? 'ceremony'):subj]||GLYPH.ceremony, showBannerMark:minSide>=120,
+      title, hasDate, day, monthYear, monthShort, weekTime, metaLine:meta, bannerMeta:[meta,p.time].filter(Boolean).join(' · '),
+      textMax:(shape==='tall'||ar<1.1)?'100%':'80%', dayK:shape==='tall'?18:16, titleK:tk, lines:shape==='tall'?4:3
+    };
+  }
+}
+</script>
+</body>
+</html>

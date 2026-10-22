@@ -1,0 +1,66 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /nominate/answer/{token} — the nominator's answer to "Ask for more" (NominationAsk).
+
+  Reached from one email. It shows the reviewer's words, takes links and files (the
+  nomination form's own caps), and sends the nomination back to the reviewer. Three
+  states, all 200: the form, done, and a link that no longer works — which says so in
+  one sentence and points at the help desk, because whoever follows an old link is the
+  person owed the explanation. `noindex`: the page is for one person.
+#}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', share: false, title: 'Add to your nomination'|trans, back: '/nominate'} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/receipt.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="rc">
+  {% if state == 'form' %}
+    <section class="rc__card" aria-labelledby="naH">
+      <p class="rc__kicker">{{ 'Your nomination'|trans }}</p>
+      <h1 class="rc__h1" id="naH">{{ 'Add what is missing for %name%'|trans({'%name%': nominee}) }}</h1>
+      {% if asked %}
+        <h2 class="rc__h2">{{ 'What the reviewer asked'|trans }}</h2>
+        <p class="rc__p">{{ asked }}</p>
+      {% endif %}
+
+      {% if error %}<p class="rc__p" role="alert"><strong>{{ error }}</strong></p>{% endif %}
+
+      <form method="post" action="{{ action }}" enctype="multipart/form-data">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {% for i in 1..max_links %}
+          <label class="ag-label" for="naLink{{ i }}">{{ i == 1 ? 'A link that shows their work'|trans : 'Another link (optional)'|trans }}</label>
+          <input class="ag-field" id="naLink{{ i }}" type="url" name="links[]" inputmode="url" dir="ltr" placeholder="https://">
+        {% endfor %}
+        <label class="ag-label" for="naFiles">{{ 'Or add files: a photo or a letter'|trans }}</label>
+        <input class="ag-field" id="naFiles" type="file" name="evidence[]" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" aria-describedby="naFilesHint">
+        <p class="rc__fine" id="naFilesHint">{{ 'PDF, JPG or PNG, up to %mb% MB each.'|trans({'%mb%': max_file_mb}) }}</p>
+        <div class="rc__do">
+          <button type="submit" class="ag-btn ag-btn--primary">{{ 'Send it to the reviewer'|trans }}</button>
+        </div>
+      </form>
+      <p class="rc__fine">{{ 'It goes back to the reviewer as soon as you send it. This link works until %date%.'|trans({'%date%': closes_on}) }}</p>
+    </section>
+  {% elseif state == 'done' %}
+    <section class="rc__card" aria-labelledby="naH">
+      <p class="rc__kicker">{{ 'Your nomination'|trans }}</p>
+      <h1 class="rc__h1" id="naH">{{ 'Thank you. It is back with the reviewer.'|trans }}</h1>
+      <p class="rc__p">{{ 'We will email you when the nomination of %name% has been decided.'|trans({'%name%': nominee}) }}</p>
+      <div class="rc__do">
+        <a class="ag-btn ag-btn--secondary" href="/nominate">{{ 'Nominate someone else'|trans }}</a>
+      </div>
+    </section>
+  {% else %}
+    <section class="rc__card" aria-labelledby="naH">
+      <p class="rc__kicker">{{ 'Your nomination'|trans }}</p>
+      <h1 class="rc__h1" id="naH">{{ 'This link no longer works'|trans }}</h1>
+      <p class="rc__p">{{ 'It may have been used already, or be past its date. If a reviewer still needs something, tell us through the help desk and we will sort it out.'|trans }}</p>
+      <div class="rc__do">
+        <a class="ag-btn ag-btn--primary" href="/support">{{ 'Open the help desk'|trans }}</a>
+      </div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

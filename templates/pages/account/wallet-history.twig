@@ -1,0 +1,85 @@
+{% extends 'pages/account/_frame.twig' %}
+{#
+  THE FULL HISTORY — /account/wallet/history · WalletHistory · Account Wallet v2 (screen=history)
+
+  Search, month and type are a GET form and the chips are links, so every filter works
+  without a script and every filtered view is an address somebody can come back to. The
+  month summary and the two files read the SAME parameters (WalletHistory::query()), so the
+  statement downloaded here is exactly this list. It sits in its own column from 1200 and
+  above the list below that.
+#}
+{% set acc_tab = 'history' %}
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', title: 'Transaction history'|trans, back: '/account/wallet', share: false, eye: true} %}
+{% set _base = {q: p.q, month: p.month, type: p.type, f: p.f} %}
+{% block acc_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/wallet.css') }}">{% endblock %}
+{% block acc_crumb %}<a class="wl-crumb" href="/account/wallet"><svg class="ag-ico-dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>{{ 'Wallet'|trans }}</a>{% endblock %}
+{% block acc_title_act %}{% include 'pages/account/_wallet-eye.twig' with {pill: true} only %}{% endblock %}
+
+{% macro sum(r, p, month_label, file_qs, id) %}
+  <section class="acx-card wl-sum" aria-labelledby="{{ id }}">
+    <h2 class="wl-sum__h" id="{{ id }}">{{ month_label|trans }}</h2>
+    <dl class="wl-sum__two">
+      <div><dt class="wl-sum__in">{{ 'Money in'|trans }}</dt><dd><span class="wl-amt"><span class="wl-amt__v">₦{{ (r.in_kobo / 100)|number_format(2) }}</span><span class="wl-amt__m" aria-hidden="true">••••</span></span></dd></div>
+      <div><dt>{{ 'Money out'|trans }}</dt><dd><span class="wl-amt"><span class="wl-amt__v">₦{{ (r.out_kobo / 100)|number_format(2) }}</span><span class="wl-amt__m" aria-hidden="true">••••</span></span></dd></div>
+    </dl>
+    <p class="wl-sum__n">{{ r.total == 1 ? '1 transaction'|trans : '%n% transactions'|trans({'%n%': r.total|number_format}) }} · {{ 'tap one for its receipt'|trans }}</p>
+    <div class="wl-sum__files">
+      <a class="wl-file" href="/account/wallet/history.pdf?{{ file_qs }}" download><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>{{ 'Statement PDF'|trans }}</a>
+      <a class="wl-file" href="/account/wallet/history.csv?{{ file_qs }}" download><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>{{ 'CSV'|trans }}</a>
+    </div>
+  </section>
+{% endmacro %}
+{% import _self as h %}
+
+{% block acc_body %}
+<div class="wl wl-hist" data-wl>
+  <div class="wl-hist__main">
+    <div class="wl-hist__top">{{ h.sum(r, p, month_label, file_qs, 'wl-sum-a') }}</div>
+
+    <form class="wl-find" data-wl-find method="get" action="/account/wallet/history" role="search">
+      <label class="wl-search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+        <span class="ag-sr">{{ 'Search transactions'|trans }}</span>
+        <input class="wl-search__in" type="search" name="q" value="{{ p.q }}" maxlength="80" placeholder="{{ 'Search by name, bank or transaction number'|trans }}">
+      </label>
+      <div class="wl-find__two">
+        <label class="wl-sel">{{ 'Month'|trans }}
+          <select name="month" class="wl-sel__in">
+            {% for mo in months %}<option value="{{ mo.v }}"{% if mo.v == p.month %} selected{% endif %}>{{ mo.label|trans }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="wl-sel">{{ 'Type'|trans }}
+          <select name="type" class="wl-sel__in">
+            {% for k, l in types %}<option value="{{ k }}"{% if k == p.type %} selected{% endif %}>{{ l|trans }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+      {% if p.f != 'all' %}<input type="hidden" name="f" value="{{ p.f }}">{% endif %}
+      <button class="ag-btn ag-btn--secondary wl-find__go" type="submit">{{ 'Show'|trans }}</button>
+    </form>
+
+    <nav class="wl-chips" aria-label="{{ 'Show'|trans }}">
+      {% for k, l in chips %}
+        <a class="wl-chipf" href="/account/wallet/history?{{ _base|merge({f: k})|url_encode }}"{% if p.f == k %} aria-current="true"{% endif %}>{{ l|trans }}</a>
+      {% endfor %}
+    </nav>
+
+    {% include 'pages/account/_wallet-days.twig' with {days: days} only %}
+
+    {% if r.total == 0 %}
+      <div class="acx-card wl-nomatch">
+        <p>{{ has_any ? 'Nothing matches. Try another month, type or search.'|trans : 'No transactions yet. Every naira and every point in or out is listed here, with its receipt.'|trans }}</p>
+        {% if has_any %}<a class="wl-clear" href="/account/wallet/history?month=all">{{ 'Clear filters'|trans }}</a>{% endif %}
+      </div>
+    {% elseif r.more %}
+      <a class="ag-btn ag-btn--secondary wl-moreall" href="/account/wallet/history?{{ _base|merge({page: p.page + 1})|url_encode }}">{{ 'Show more'|trans }}</a>
+    {% else %}
+      <p class="wl-end">{{ p.month == 'all' ? 'That’s everything since you joined.'|trans : 'That’s everything for %m%. Change the month to see more.'|trans({'%m%': month_label|split(' ')|first|trans}) }}</p>
+    {% endif %}
+  </div>
+  <aside class="wl-hist__side">{{ h.sum(r, p, month_label, file_qs, 'wl-sum-b') }}</aside>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/wallet.js') }}"></script>{% endblock %}

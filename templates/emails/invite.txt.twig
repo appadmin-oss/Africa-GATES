@@ -1,0 +1,28 @@
+{#- Plain-text part for invite.html.twig — written, not stripped. -#}
+{{ salutation }} {{ name }},
+
+It would be our honour to welcome you as a guest of honour at the {{ event_title }}.
+{% if witness %}
+{{ witness }}
+{% endif %}
+When:  {{ when }}
+Where: {{ where ?: 'Venue to be confirmed' }}
+
+Open your pass: {{ id_url }}
+Your seat is arranged — there is no ticket for you to buy. The pass is a live page: open it on your phone at the door.
+
+BRING YOUR PEOPLE
+Up to {{ quota }} of your guests get {{ discount }}% off their tickets with your code.
+{% if tier_from %}Tickets start at {{ tier_from }}.
+{% endif %}Guest code: {{ reference }}
+Send them to the tickets: {{ events_url }}
+{% if letter_attached %}
+The formal invitation is attached, for your records.
+{% endif %}
+With respect,
+Africa GATES
+
+—
+You are a guest of honour at an Africa GATES event.
+{{ postal_address }}
+Stop receiving email: {{ unsubscribe_url }}

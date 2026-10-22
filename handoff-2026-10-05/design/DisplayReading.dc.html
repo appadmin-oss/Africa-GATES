@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="display:flex;flex-direction:column;gap:10px;font-family:'DM Sans',system-ui,sans-serif;color:#10292c">
+  <span style="font-weight:700;font-size:15px">Display &amp; reading</span>
+  <div role="radiogroup" aria-label="Text size" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;background:#e8e5dd;border-radius:14px"><sc-for list="{{ sizes }}" as="s" hint-placeholder-count="3"><button role="radio" aria-checked="{{ s.on }}" aria-label="{{ s.name }}" onClick="{{ s.pick }}" style="height:44px;border:0;border-radius:11px;background:{{ s.bg }};color:#10292c;font-family:inherit;font-weight:700;font-size:{{ s.fs }};cursor:pointer">A</button></sc-for></div>
+  <sc-for list="{{ toggles }}" as="g" hint-placeholder-count="7">
+    <button role="switch" aria-checked="{{ g.on }}" onClick="{{ g.pick }}" style="display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 2px;border:0;border-bottom:1px solid #f1efe9;background:transparent;color:#10292c;font-family:inherit;cursor:pointer;text-align:start"><span style="flex:1;display:flex;flex-direction:column;gap:1px"><span style="font-weight:600;font-size:14.5px">{{ g.label }}</span><span style="font-size:12.5px;color:#626a6e">{{ g.help }}</span></span><span style="flex:none;width:44px;height:26px;border-radius:999px;background:{{ g.track }};display:flex;align-items:center;padding:3px;box-sizing:border-box;justify-content:{{ g.justify }}"><span style="width:20px;height:20px;border-radius:50%;background:#fff"></span></span></button>
+  </sc-for>
+  <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;font-weight:600;font-size:14.5px">Language<select style="height:40px;padding:0 10px;border:1px solid #d6d4cc;border-radius:10px;font-family:inherit;font-size:14px;color:#10292c;background:#fff"><option>English</option><option>Français</option><option>العربية</option><option>Kiswahili</option><option>Português</option><option>Hausa</option><option>Yorùbá</option><option>Igbo</option></select></label>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:360,&quot;height&quot;:620}}">
+const T=[['hc','High contrast','Darker text and borders'],['easy','Easy-read font','Atkinson Hyperlegible, more letter spacing'],['space','More line spacing','Easier to track lines'],['ul','Underline all links','Links don’t rely on colour'],['motion','Reduce motion','No animation or auto-play'],['saver','Data saver','Photos and video load when you tap'],['listen','Read pages aloud','Adds Listen to every article and profile']];
+class Component extends DCLogic {
+  state = { size:0 };
+  renderVals(){
+    const S=this.state, set=o=>this.setState(o);
+    return {
+      sizes:[['Standard text','15px'],['Large text','19px'],['Largest text','23px']].map((s,i)=>({name:s[0],fs:s[1],on:S.size===i,bg:S.size===i?'#fff':'transparent',pick:()=>set({size:i})})),
+      toggles:T.map(t=>{const on=!!S[t[0]];return {label:t[1],help:t[2],on,pick:()=>set({[t[0]]:!on}),track:on?'#237b22':'#8b9295',justify:on?'flex-end':'flex-start'};})
+    };
+  }
+}
+</script>
+</body>
+</html>

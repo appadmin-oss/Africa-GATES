@@ -1,50 +1,95 @@
-{% extends "layout/gates.twig" %}
-{% block content %}
+{% extends 'layout/shell.twig' %}
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Blog</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Notes from the <em style="color:var(--emerald-600)">index.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Announcements, methodology and partnership stories — written in the open, like the scores.</p>
-    </div>
-  </div>
-</section>
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE BLOG — /blog · Phase 9 · design/BlogPage.dc.html (`view=index`) · §8.14
+  ══════════════════════════════════════════════════════════════════════════════
 
-<section class="section" style="padding-top:1rem">
-  <div class="wrap">
-    {% if posts is not empty %}
-    <div class="r26-mediagrid">
-      {% for p in posts %}
-      <a class="r26-mcard" href="/blog/{{ p.slug }}">
-        <div class="r26-mcard__media {% if not p.cover_image %}r26-mcard__media--empty{% endif %}">
-          {% if p.cover_image %}<img src="{{ p.cover_image }}" alt="" loading="lazy" decoding="async">{% endif %}
-          {% if p.tag %}<span class="r26-mcard__badge">{{ p.tag }}</span>{% endif %}
-        </div>
-        <div class="r26-mcard__body">
-          <p class="r26-mcard__meta">{{ p.published_at|date('j F Y') }}</p>
-          <h3 class="r26-mcard__title">{{ p.title }}</h3>
-          <p class="r26-mcard__desc">{{ p.excerpt }}</p>
-          <div class="r26-mcard__foot">
-            <span>{{ p.author }}</span>
-            <span class="r26-mcard__link">Read
-              <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          </div>
-        </div>
-      </a>
-      {% endfor %}
-    </div>
+  Rebuilt from the DC after the destroy (inventory: pages--blog--index.md). An editorial
+  index: masthead with search, topic chips, the newest story featured, then the rest.
+
+  · Search and topics are GET links/forms (BlogController): shareable, and they work with
+    no script. A search is `noindex, follow`.
+  · Topics are the tags the published posts actually carry — never a typed list, so a chip
+    cannot open an empty shelf. The DC's chips are role=tab buttons; here they are links
+    with aria-current, because each is a different URL (a tablist that navigates is not a
+    tablist).
+  · Reading time is counted from each body. A cover is the post's own image or the
+    generated cover (partials/photo.twig, GAPS §8 Q8) — never a stock photo.
+  · The empty state says what is true: nothing has been published yet.
+
+  Colour tier 1: the green kicker/tag WORDS are not fields; the selected chip is ink.
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'root', title: 'Blog'|trans} %}
+
+{% macro card(p, feature) %}
+<a class="bl-card{{ feature ? ' bl-card--feat' }}" href="/blog/{{ p.slug }}">
+  <span class="bl-card__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'blog', src: p.cover, name: p.title, content: feature ? 'title' : 'none', eager: feature} only %}</span>
+  <span class="bl-card__w">
+    {% if p.tag %}<span class="bl-tag">{{ p.tag }}</span>{% endif %}
+    <span class="bl-card__t">{{ p.title }}</span>
+    {% if p.excerpt %}<span class="bl-card__x">{{ p.excerpt }}</span>{% endif %}
+    {% if feature and p.author %}
+      <span class="bl-by">
+        {% include 'partials/photo.twig' with {kind: 'person', src: '', name: p.author, class: 'bl-by__av'} only %}
+        <span class="bl-by__w"><span class="bl-by__n">{{ p.author }}</span><span class="bl-meta">{% if p.published_at %}<time datetime="{{ p.published_at|date('Y-m-d') }}">{{ p.published_at|date('j M Y') }}</time> · {% endif %}{{ '%n% min read'|trans({'%n%': p.read_minutes}) }}</span></span>
+      </span>
     {% else %}
-    <div class="r26-empty">
-      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-      <h3>The first story is being written</h3>
-      <p>Announcements, methodology notes and partner stories will land here as the inaugural cycle unfolds.</p>
-      <a class="btn btn--emerald" href="/nominate">Submit a nomination</a>
-    </div>
+      <span class="bl-meta">{% if p.published_at %}<time datetime="{{ p.published_at|date('Y-m-d') }}">{{ p.published_at|date('j M Y') }}</time> · {% endif %}{{ '%n% min read'|trans({'%n%': p.read_minutes}) }}{% if p.audio %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" role="img" aria-label="{{ 'Has audio'|trans }}"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>{% endif %}</span>
     {% endif %}
-  </div>
-</section>
+  </span>
+</a>
+{% endmacro %}
 
+{% block head_styles %}
+{% include 'partials/seo-head.twig' %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/blog.css') }}">
+{% endblock %}
+
+{% block content %}
+{% import _self as m %}
+<div class="bl">
+  <div class="bl__mast">
+    <div class="bl__mast-w">
+      <span class="bl-tag">{{ 'Blog'|trans }}</span>
+      <h1 class="bl__h1">{{ 'Stories of recognition across Africa'|trans }}</h1>
+    </div>
+    <form class="bl__search" method="get" action="/blog" role="search">
+      {% if topic %}<input type="hidden" name="topic" value="{{ topic }}">{% endif %}
+      <label class="bl__field">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+        <span class="ag-sr">{{ 'Search stories'|trans }}</span>
+        <input type="search" name="q" value="{{ q }}" maxlength="120" enterkeyhint="search" placeholder="{{ 'Search stories'|trans }}">
+      </label>
+    </form>
+  </div>
+
+  {% if topics|length %}
+    <nav class="bl__topics" aria-label="{{ 'Topics'|trans }}">
+      <a class="bl-chip" href="/blog{{ q ? '?q=' ~ q|url_encode : '' }}"{% if not topic %} aria-current="page"{% endif %}>{{ 'All'|trans }}</a>
+      {% for t in topics %}
+        <a class="bl-chip" href="/blog?{{ {topic: t}|merge(q ? {q: q} : {})|url_encode }}"{% if topic == t %} aria-current="page"{% endif %}>{{ t }}</a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+
+  {% if featured %}{{ m.card(featured, true) }}{% endif %}
+
+  {% if posts|length %}
+    <section class="bl__list" aria-labelledby="bl-list">
+      <h2 class="bl__h2{{ featured ? ' bl__h2--rule' }}" id="bl-list">{{ featured ? 'Latest'|trans : (q ? 'Results'|trans : (topic ?: 'Stories'|trans)) }}</h2>
+      <div class="bl-grid">{% for p in posts %}{{ m.card(p, false) }}{% endfor %}</div>
+    </section>
+  {% elseif q or topic %}
+    <p class="bl__none">{{ 'No stories match “%q%”. Try a person’s name, an award or a country.'|trans({'%q%': q ?: topic}) }} <a href="/blog">{{ 'Every story'|trans }}</a></p>
+  {% elseif not featured %}
+    <div class="bl__empty">
+      <h2 class="bl__h2">{{ 'The first story is being written'|trans }}</h2>
+      <p>{{ 'Nothing has been published here yet. Winners’ stories and notes on how results are decided will appear on this page.'|trans }}</p>
+      <a class="bl-btn" href="/nominate">{{ 'Nominate someone'|trans }}</a>
+    </div>
+  {% endif %}
+</div>
 {% endblock %}

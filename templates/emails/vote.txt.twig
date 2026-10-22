@@ -1,0 +1,18 @@
+{#- Plain-text part for vote.html.twig. -#}
+{{ votes == 1 ? 'Your vote is in' : 'Your votes are in' }}
+
+Thank you, {{ first_name }}, for backing {{ nominee ?: 'your nominee' }}{{ category ? ' for ' ~ category : '' }}. They are already counted in the public tally.
+
+Contribution · {{ votes_label }} {{ votes == 1 ? 'vote' : 'votes' }}: {{ amount }}
+Total: {{ amount }}
+
+Your reference: {{ reference }}
+
+Share the page: {{ page_url }}
+
+These votes count toward {{ nominee ?: 'the nominee' }}’s public tally and the community half of the Cultural Power Index, exactly as a free vote does. Judges never see a nominee’s vote count, and every published result shows how much of a tally was contributed. Keep this receipt.
+
+—
+You contributed votes on Africa GATES.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

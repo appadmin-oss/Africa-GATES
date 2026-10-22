@@ -1,5 +1,25 @@
 {% extends "admin/layout.twig" %}
+{% macro faqrow(i, p) %}
+  <div class="pg-faq__row">
+    <label for="f-faq-q{{ i }}">Question {{ i + 1 }}</label>
+    <input type="text" name="details[faq_q][]" id="f-faq-q{{ i }}" value="{{ p.q }}" maxlength="200">
+    <label for="f-faq-a{{ i }}">Answer {{ i + 1 }}</label>
+    <textarea name="details[faq_a][]" id="f-faq-a{{ i }}" rows="2" maxlength="1200">{{ p.a }}</textarea>
+  </div>
+{% endmacro %}
 {% block topbar_title %}{{ is_new ? 'New Programme' : 'Edit · ' ~ row.title }}{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .pg-faq{ margin:0; padding:0; border:0; display:flex; flex-direction:column; gap:12px }
+  .pg-faq legend{ font-size:var(--cn-fs-13); font-weight:600; margin-bottom:6px }
+  .pg-faq__row{ display:grid; gap:6px; padding:12px 14px; border:1px solid var(--cn-line-card); border-radius:var(--cn-r-12); background:var(--cn-panel) }
+  .pg-faq__row label{ margin:0; font-weight:500; color:var(--cn-ink-2) }
+  .pg-faq__more > summary{ cursor:pointer; font-size:var(--cn-fs-13); font-weight:600; min-height:32px; display:flex; align-items:center }
+  .pg-faq__more[open] > summary{ margin-bottom:10px }
+  .pg-faq__more .pg-faq__row + .pg-faq__row{ margin-top:12px }
+</style>
+{% endblock %}
 {% block topbar_actions %}<a class="ad-btn" href="/admin/programmes">← Back</a>{% endblock %}
 
 {% block content %}
@@ -8,23 +28,79 @@
   <div class="ad-card"><div class="ad-card__body">
     <div class="ad-form">
       <div class="row">
-        <div><label>Title</label><input type="text" name="title" value="{{ row.title|default('') }}" required></div>
-        <div><label>Slug</label><input type="text" name="slug" value="{{ row.slug|default('') }}" required></div>
+        <div><label for="f-title">Title</label><input type="text" name="title" id="f-title" value="{{ row.title|default('') }}" required></div>
+        <div><label for="f-slug">Slug</label><input type="text" name="slug" id="f-slug" value="{{ row.slug|default('') }}" required></div>
       </div>
-      <div><label>Subtitle</label><input type="text" name="subtitle" value="{{ row.subtitle|default('') }}"></div>
-      <div><label>Description</label><textarea name="description" rows="4">{{ row.description|default('') }}</textarea></div>
+      <div><label for="f-subtitle">Subtitle</label><input type="text" name="subtitle" id="f-subtitle" value="{{ row.subtitle|default('') }}"></div>
+      <div><label for="f-description">Description</label><textarea name="description" id="f-description" rows="4">{{ row.description|default('') }}</textarea></div>
       <div class="row">
-        <div><label>Icon emoji</label><input type="text" name="icon_emoji" value="{{ row.icon_emoji|default('🏆') }}"></div>
-        <div><label>Scope</label>
-          <select name="scope">{% for s in ['continental','regional','national'] %}<option value="{{ s }}" {% if row.scope == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
+        <div><label for="f-icon_emoji">Icon emoji</label><input type="text" name="icon_emoji" id="f-icon_emoji" value="{{ row.icon_emoji|default('🏆') }}"></div>
+        <div><label for="f-scope">Scope</label>
+          <select name="scope" id="f-scope">{% for s in ['continental','regional','national'] %}<option value="{{ s }}" {% if row.scope == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
         </div>
       </div>
       <div class="row">
-        <div><label>Sort order</label><input type="number" name="sort_order" value="{{ row.sort_order|default(0) }}"></div>
+        <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" min="0" max="255" value="{{ row.sort_order|default(0) }}"></div>
         <div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> Active</label></div>
       </div>
+      <div><label for="f-terms">Terms &amp; conditions <small>(surfaced on this programme's nominate/vote forms; editable anytime)</small></label>
+        {% include 'admin/partials/ai-assist.twig' with { target: 'f-terms', kind: 'programme terms & conditions' } only %}
+        <textarea name="terms" id="f-terms" rows="8" data-richtext placeholder="By participating you agree…">{{ row.terms|default('') }}</textarea></div>
+        <div><label for="f-terms-log">What changed in the terms <span class="hint">(optional; shown in the public changelog when the wording changes)</span></label><input type="text" name="terms_changelog" id="f-terms-log" maxlength="500"></div>
+      {% if not is_new and row.slug %}<p style="margin:-4px 0 0;font-size:12px;color:var(--cn-soft)"><a href="/terms/{{ row.slug }}" target="_blank" rel="noopener" style="color:var(--cn-ink);font-weight:600">Preview public terms page →</a></p>{% endif %}
     </div>
   </div></div>
+
+  {# ── WHAT THIS AWARD SAYS ON ITS "AWARD DETAILS" TAB ───────────────────────
+     The platform writes the rule sentences (nomination limits, the scoring split, the
+     quorum) from the code that enforces them; these are the award's own words around
+     them. Every box is optional: a blank one adds nothing to the public page. #}
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Award details<small>What the public "Award details" tab says in this award's own words. The rules themselves are written by the platform.</small></div>
+      {% if not is_new and row.slug %}<a class="ad-btn ad-btn--sm" href="/awards/{{ row.slug }}?tab=details" target="_blank" rel="noopener">Preview the tab →</a>{% endif %}</div>
+    <div class="ad-card__body">
+      <div class="ad-form">
+        {% for k, fdef in detail_fields %}
+          <div>
+            <label for="f-d-{{ k }}">{{ fdef.label }}</label>
+            <textarea name="details[{{ k }}]" id="f-d-{{ k }}" rows="{{ k in ['eligibility', 'prize'] ? 4 : 3 }}" maxlength="{{ fdef.max }}" aria-describedby="f-d-{{ k }}-h">{{ details[k] }}</textarea>
+            <p class="hint" id="f-d-{{ k }}-h">{{ fdef.help }}</p>
+          </div>
+        {% endfor %}
+        <fieldset class="pg-faq">
+          <legend>Questions people ask <span class="hint">(up to {{ faq_max }}; both halves needed, a blank pair is dropped)</span></legend>
+          {% set _shown = min(details.faq|length + 1, faq_max) %}
+          {% import _self as pg %}
+          {% for i in 0..(_shown - 1) %}{{ pg.faqrow(i, details.faq[i]|default({q: '', a: ''})) }}{% endfor %}
+          {% if _shown < faq_max %}
+            <details class="pg-faq__more"><summary>Add more questions</summary>
+              {% for i in _shown..(faq_max - 1) %}{{ pg.faqrow(i, {q: '', a: ''}) }}{% endfor %}
+            </details>
+          {% endif %}
+        </fieldset>
+      </div>
+    </div>
+  </div>
+
+  {#
+    ── THE SUB-PAGES OF THIS AWARD ─────────────────────────────────────────────
+    Linked from the page they belong under rather than added to the rail, which is
+    what keeps the rail scannable and needs no page key or sprite. The wording page
+    is also the ONLY door to `wording_json`: unlinked, the column has a reader and no
+    writer, which is the state it shipped in.
+  #}
+  {% if not is_new %}
+    <div class="ad-card"><div class="ad-card__body">
+      <h3 style="margin:0 0 4px;font-size:14px">This award’s pages</h3>
+      <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:var(--cn-soft)">
+        Saved separately from the details above.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        <a class="ad-btn" href="/admin/programmes/{{ row.id }}/wording">Wording on the nomination form</a>
+        <a class="ad-btn" href="/admin/programmes/{{ row.id }}/sponsors">Sponsors</a>
+      </div>
+    </div></div>
+  {% endif %}
   <div style="display:flex;justify-content:flex-end;gap:10px">
     <a class="ad-btn" href="/admin/programmes">Cancel</a>
     <button class="ad-btn ad-btn--primary" type="submit">Save</button>

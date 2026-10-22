@@ -40,6 +40,13 @@ class LegacyController
             'admin_page' => 'legacy',
             'row'        => $row,
             'is_new'     => !$id,
+            // Phase 6: which ANNOUNCED edition this night was. Only released cycles of live
+            // programmes are offered — the vault draws winners from the cycle's seal.
+            'cycles'     => DB::table('gates_award_cycles as c')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
+                ->where('p.is_active', 1)->whereIn('c.status', \AfricaGates\Services\PublicResults::RELEASED)
+                ->orderByDesc('c.year')->get(['c.id', 'c.year', 'c.edition_label', 'c.edition_number', 'c.programme_id', 'p.title'])
+                ->map(fn ($c) => ['id' => (int) $c->id, 'label' => $c->title . ' · ' . \AfricaGates\Support\EditionName::full($c)])->all(),
         ]);
     }
 
@@ -97,6 +104,14 @@ class LegacyController
             'icon'           => (string)($b['icon'] ?? '🏆'),
             'is_published'   => isset($b['is_published']) ? 1 : 0,
         ];
+        // Phase 6 (2027_03_06_legacy_edition_link.php): the edition this night was, and its
+        // country — the vault's region filter is derived from it (Support\AfricaRegion).
+        if (\AfricaGates\Support\SchemaHas::column('gates_legacy_events', 'cycle_id')) {
+            $cyc = (int) ($b['cycle_id'] ?? 0);
+            $data['cycle_id'] = $cyc > 0 ? $cyc : null;
+            $cc = strtoupper(trim((string) ($b['country_code'] ?? '')));
+            $data['country_code'] = preg_match('/^[A-Z]{2}$/', $cc) ? $cc : null;
+        }
         if ($id) {
             DB::table('gates_legacy_events')->where('id', $id)->update($data);
             $this->audit->record($adminId, 'legacy.update', 'legacy_event', $id);

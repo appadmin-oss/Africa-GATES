@@ -1,0 +1,325 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   GIVING — /giving, /giving/{org}, /giving/{org}/{appeal} · GivingPage.dc.html · §8.13
+   ══════════════════════════════════════════════════════════════════════════════
+   Phone first. The campaign is one column with the DC's fixed Give bar; from 600 the
+   figures and the two buttons move into a rail beside the case and the bar goes (the DC's
+   isDesktop is "not phone"). The checkout is one centred column at every width.
+
+   Values are the DC's. COLOUR: tokens only — its pale-green selected amount is
+   `green-wash`, its grey body copy `ink-2`, its rail shadow `--ag-sh-mega`. TYPE: on the
+   ladder, in rem; the H1 is §6.2's 32 → 44, not the DC's 30/42. Its 11px "You're giving
+   to" kicker is 12.5. Colour tier 2: green is the give action and the progress, nothing
+   else. A partner's own accent arrives only as --ob-accent* (OrgBrand::css()) and paints
+   only their blocks. Logical properties throughout, so Arabic mirrors the page.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.gv{ padding:0 16px 40px }
+.gv-page{ max-width:1180px; margin:0 auto; display:grid; grid-template-columns:minmax(0, 1fr); gap:24px; align-items:start }
+.gv-main{ min-width:0; display:flex; flex-direction:column; gap:18px }
+
+/* The DC puts the phone H1 under the photo and the desktop one above it: one <h1>, moved. */
+.gv-h1{ order:2; margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-32); line-height:1.1; text-wrap:balance }
+.gv-media{ order:1; position:relative; aspect-ratio:16 / 10; margin:0 -16px; overflow:hidden; background:var(--ag-line); container-type:inline-size }
+.gv-media .ag-photo{ position:absolute; inset:0 }
+.gv-main > :not(.gv-h1):not(.gv-media){ order:3 }
+
+.gv-by{ display:flex; align-items:center; gap:12px; padding-bottom:16px; border-bottom:1px solid var(--ag-line) }
+.gv-by__av{ flex:none; display:flex }
+.gv-by__t{ min-width:0; display:flex; flex-direction:column; gap:3px }
+.gv-by__t b{ font-weight:700; font-size:var(--ag-fs-15) }
+.gv-by__t span{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+
+/* ── The figures ───────────────────────────────────────────────────────────── */
+.gv-prog{ display:flex; flex-direction:column; gap:10px }
+.gv-prog__bar{ display:block; height:8px; border-radius:4px; background:var(--ag-line-3); overflow:hidden }
+.gv-prog__bar > span{ display:block; height:100%; border-radius:4px; background:var(--ag-green) }
+.gv-prog__sum{ font-size:var(--ag-fs-14); color:var(--ag-soft) }
+.gv-prog__sum b{ font-weight:700; font-size:var(--ag-fs-17); color:var(--ag-ink); font-variant-numeric:tabular-nums }
+.gv-prog__meta{ display:flex; justify-content:space-between; gap:12px; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+.gv-prog__first{ font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-ink-2) }
+
+/* ── The case ─────────────────────────────────────────────────────────────── */
+.gv-prose{ display:flex; flex-direction:column; gap:14px }
+.gv-prose p{ margin:0; font-size:var(--ag-fs-16); line-height:1.65; color:var(--ag-ink-2) }
+.gv-prose .gv-lede,
+.gv-lede{ margin:0; font-size:var(--ag-fs-17); line-height:1.6; color:var(--ag-ink) }
+.gv-note{ margin:0; font-size:var(--ag-fs-14); line-height:1.55; color:var(--ag-ink-2) }
+.gv-note b{ color:var(--ag-ink) }
+.gv-hint{ margin:0; font-size:var(--ag-fs-13); line-height:1.5; color:var(--ag-soft) }
+.gv-fine{ margin:0; display:flex; gap:8px; align-items:flex-start; font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-ink-2) }
+.gv-fine svg{ flex:none; margin-top:2px; color:var(--ag-soft) }
+.gv-fine a, .gv-note a, .gv-hint a{ color:var(--ag-green); font-weight:600 }
+.gv-err{ margin:0; padding:12px 14px; border-radius:var(--ag-r-12); background:var(--ag-live-wash); color:var(--ag-error); font-size:var(--ag-fs-14); font-weight:600; line-height:1.45 }
+.gv-err[hidden]{ display:none }
+
+.gv-sec{ display:flex; flex-direction:column; gap:12px; padding-top:8px }
+.gv-h2{ margin:0; font-weight:700; font-size:var(--ag-fs-19); line-height:1.25 }
+
+/* A list of rows: appeals, recent gifts, an organisation's links and people. */
+.gv-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16); overflow:hidden }
+.gv-list > li + li{ border-top:1px solid var(--ag-line) }
+.gv-list__r{ display:flex; align-items:center; gap:12px; min-height:56px; padding:10px 16px; box-sizing:border-box }
+.gv-list__r--a{ color:var(--ag-ink); text-decoration:none }
+.gv-list__r--a:hover{ background:var(--ag-bar) }
+.gv-list__r--a:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+.gv-list__r--a .ag-ico-dir{ flex:none; color:var(--ag-soft) }
+.gv-list__av{ flex:none; display:flex }
+.gv-list__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; font-weight:600; font-size:var(--ag-fs-15) }
+.gv-list__m{ font-weight:400; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.gv-list__v{ flex:none; font-weight:700; font-size:var(--ag-fs-14-5); font-variant-numeric:tabular-nums }
+
+.gv-alloc{ list-style:none; margin:0; padding:0; counter-reset:gv; display:flex; flex-direction:column; gap:14px }
+.gv-alloc li{ counter-increment:gv; display:grid; grid-template-columns:32px minmax(0, 1fr); column-gap:12px; row-gap:3px }
+.gv-alloc li::before{ content:counter(gv); grid-row:1 / span 2; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--ag-green-wash); color:var(--ag-green-deep); font-weight:700; font-size:var(--ag-fs-13) }
+.gv-alloc b{ font-weight:700; font-size:var(--ag-fs-15) }
+.gv-alloc span{ font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+
+.gv-quote{ margin:8px 0 0; padding:0 0 0 18px; border-inline-start:3px solid var(--ag-line-2) }
+.gv-quote p{ margin:0 0 8px; font-family:var(--ag-font-display); font-size:var(--ag-fs-19); line-height:1.45 }
+.gv-quote cite{ font-style:normal; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.gv-share{ align-items:flex-start }
+
+.gv-faq{ display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16); overflow:hidden }
+.gv-faq__i + .gv-faq__i{ border-top:1px solid var(--ag-line) }
+.gv-faq__i summary{ min-height:52px; display:flex; align-items:center; padding:12px 16px; box-sizing:border-box; font-weight:600; font-size:var(--ag-fs-15); cursor:pointer }
+.gv-faq__i p{ margin:0; padding:0 16px 14px; font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.gv-btn{ display:flex; align-items:center; justify-content:center; gap:8px; min-height:52px; padding:0 22px; box-sizing:border-box; border-radius:var(--ag-r-16); font:700 var(--ag-fs-15-5)/1.2 var(--ag-font-ui); text-decoration:none; cursor:pointer; text-align:center }
+.gv-btn--go{ border:0; background:var(--ag-green); color:var(--ag-surface) }
+.gv-btn--go:hover{ background:var(--ag-green-deep); color:var(--ag-surface) }
+.gv-btn--go[aria-busy="true"]{ opacity:.75; pointer-events:none }
+.gv-btn--line{ border:1.5px solid var(--ag-ink); background:var(--ag-surface); color:var(--ag-ink) }
+.gv-btn--inline{ align-self:flex-start; min-height:48px; border-radius:var(--ag-r-pill); font-size:var(--ag-fs-14-5) }
+.gv-btn:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+
+/* The DC's phone Give bar (Gee clears it through data-bottom-ui). */
+.gv-bar{
+  position:fixed; inset-inline:0; bottom:0; z-index:var(--ag-z-bar);
+  display:flex; gap:10px; padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb, var(--ag-bar) 96%, transparent);
+  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+  border-top:1px solid var(--ag-line);
+}
+.gv-bar .gv-btn{ flex:1.6 }
+.gv-bar .gv-btn--line{ flex:1; border-radius:var(--ag-r-pill) }
+.gv-bar .gv-btn--go{ border-radius:var(--ag-r-pill) }
+.gv-bar .gv-note{ flex:1 }
+.gv:has(~ .gv-bar), .ag-main:has(.gv-bar) .gv{ padding-bottom:120px }
+
+.gv-rail{ display:none }
+.gv-card{ display:flex; flex-direction:column; gap:14px; padding:24px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20); box-shadow:var(--ag-sh-mega) }
+.gv-card .gv-prog__sum b{ font-size:var(--ag-fs-26) }
+.gv-card .gv-btn--line{ border-radius:var(--ag-r-pill); min-height:48px }
+.gv-card .gv-btn--go{ border-radius:var(--ag-r-pill) }
+
+/* ── For organisations (the fund's page only) ─────────────────────────────── */
+.gv-orgs{ max-width:1180px; margin:40px auto 0 }
+.gv-orgs__in{ display:flex; flex-direction:column; gap:20px; padding:24px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20) }
+.gv-orgs__t{ display:flex; flex-direction:column; gap:12px }
+.gv-orgs__t p{ margin:0; font-size:var(--ag-fs-15); line-height:1.6; color:var(--ag-ink-2) }
+.gv-orgs__figs{ margin:0; display:flex; flex-direction:column; gap:14px }
+.gv-orgs__figs div{ display:flex; flex-direction:column-reverse; gap:2px }
+.gv-orgs__figs dd{ margin:0; font-weight:700; font-size:var(--ag-fs-24); font-variant-numeric:tabular-nums }
+.gv-orgs__figs dt{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.gv-orgs__new{ margin:0; font-size:var(--ag-fs-14); line-height:1.55; color:var(--ag-ink-2) }
+
+/* ══ The checkout ═══════════════════════════════════════════════════════════ */
+.gv-co{ max-width:560px; margin:0 auto; padding-top:8px; display:flex; flex-direction:column; gap:20px }
+.gv-co__to{ display:flex; align-items:center; gap:12px }
+.gv-co__thumb{ position:relative; flex:none; width:52px; height:52px; border-radius:var(--ag-r-14); overflow:hidden; background:var(--ag-line); container-type:inline-size }
+.gv-co__thumb .ag-photo{ position:absolute; inset:0 }
+.gv-co__tot{ min-width:0; display:flex; flex-direction:column; gap:3px }
+.gv-co__k{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.gv-co__h{ margin:0; font-weight:700; font-size:var(--ag-fs-17); line-height:1.3 }
+
+.gv-fs{ margin:0; padding:0; border:0; min-width:0; display:flex; flex-direction:column; gap:10px }
+.gv-lab{ padding:0; margin-bottom:10px; font-weight:700; font-size:var(--ag-fs-15) }
+.gv-field{ display:flex; flex-direction:column; gap:6px }
+.gv-flab{ font-weight:600; font-size:var(--ag-fs-14) }
+.gv-opt{ font-weight:400; color:var(--ag-soft) }
+.gv-input{ width:100%; box-sizing:border-box; height:52px; padding:0 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14); background:var(--ag-surface); color:var(--ag-ink); font:400 var(--ag-fs-16)/1.2 var(--ag-font-ui) }
+.gv-input:focus-visible{ outline:3px solid var(--ag-green); outline-offset:1px; border-color:var(--ag-green) }
+.gv-input[aria-invalid="true"]{ border-color:var(--ag-error) }
+
+/* Radios drawn as the DC's tiles. The input stays a real radio, visually hidden but in the
+   tab order, so arrow keys move through a group exactly as the platform does. */
+.gv-seg__o input, .gv-amt input, .gv-method input{ position:absolute; opacity:0; width:1px; height:1px; margin:0 }
+.gv-seg{ display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0, 1fr); gap:4px; padding:4px; border-radius:var(--ag-r-14); background:var(--ag-tint) }
+.gv-seg--wrap{ grid-auto-flow:row; grid-template-columns:repeat(auto-fit, minmax(84px, 1fr)) }
+.gv-seg__o{ position:relative }
+.gv-seg__o span{ display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 10px; border-radius:var(--ag-r-10); font-weight:600; font-size:var(--ag-fs-14-5); color:var(--ag-ink-2); cursor:pointer }
+.gv-seg__o input:checked + span{ background:var(--ag-surface); color:var(--ag-ink); font-weight:700; box-shadow:var(--ag-sh-float) }
+.gv-seg__o input:focus-visible + span{ outline:3px solid var(--ag-green); outline-offset:1px }
+
+.gv-amts{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px }
+.gv-amt{ position:relative }
+.gv-amt span{ display:flex; align-items:center; justify-content:center; min-height:56px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14); background:var(--ag-surface); font-weight:700; font-size:var(--ag-fs-17); font-variant-numeric:tabular-nums; cursor:pointer }
+.gv-amt input:checked + span{ border:2px solid var(--ag-green); background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.gv-amt input:focus-visible + span{ outline:3px solid var(--ag-green); outline-offset:2px }
+.gv-amts[data-other] .gv-amt input:checked + span{ border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink) }
+.gv-other{ position:relative; display:flex; align-items:center }
+.gv-other__c{ position:absolute; inset-inline-start:14px; font-weight:700; color:var(--ag-soft) }
+.gv-other .gv-input{ padding-inline-start:32px; font-variant-numeric:tabular-nums }
+.gv-other .gv-input:not(:placeholder-shown){ border:2px solid var(--ag-green) }
+
+.gv-methods{ display:flex; flex-direction:column; gap:8px }
+.gv-method{ position:relative; display:flex }
+.gv-method__t{ flex:1; display:flex; flex-direction:column; gap:3px; min-height:60px; justify-content:center; padding:10px 16px; box-sizing:border-box; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14); background:var(--ag-surface); cursor:pointer }
+.gv-method__t b{ font-weight:700; font-size:var(--ag-fs-15) }
+.gv-method__t span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.gv-method input:checked + .gv-method__t{ border:2px solid var(--ag-ink) }
+.gv-method input:focus-visible + .gv-method__t{ outline:3px solid var(--ag-green); outline-offset:2px }
+
+.gv-check{ display:flex; gap:12px; align-items:flex-start; min-height:44px; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2); cursor:pointer }
+.gv-check input{ flex:none; width:22px; height:22px; margin:1px 0 0; accent-color:var(--ag-green) }
+
+.gv-recap{ margin:0; display:flex; flex-direction:column; gap:10px; padding:16px; border-radius:var(--ag-r-16); background:var(--ag-surface); border:1px solid var(--ag-line) }
+.gv-recap div{ display:flex; justify-content:space-between; gap:12px; font-size:var(--ag-fs-14-5) }
+.gv-recap div[hidden]{ display:none }
+.gv-recap dt{ color:var(--ag-ink-2) }
+.gv-recap dd{ margin:0; font-weight:600; font-variant-numeric:tabular-nums }
+.gv-recap .gv-recap__t{ padding-top:10px; border-top:1px solid var(--ag-line); font-size:var(--ag-fs-16) }
+.gv-recap .gv-recap__t dt{ color:var(--ag-ink); font-weight:700 }
+.gv-recap .gv-recap__t dd{ font-weight:700 }
+
+/* On a phone the primary is the action bar's (bottom_bar, form="give"); from 600 it is
+   this one, at the end of the form. */
+.gv-co__go{ display:none }
+.gv-co__go .gv-btn{ width:100% }
+.gv-bar--co{ align-items:center }
+.gv-bar__sum{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.gv-bar__sum b{ font-weight:700; font-size:var(--ag-fs-18); font-variant-numeric:tabular-nums }
+.gv-bar__sum span{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.gv-bar--co .gv-btn{ flex:none; min-width:140px; border-radius:var(--ag-r-16) }
+
+/* ══ An organisation's own blocks (partials/org-page.twig) ══════════════════ */
+.ob{ display:flex; flex-direction:column; gap:18px }
+.ob-figs{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px }
+.ob-fig{ display:flex; flex-direction:column; gap:4px; padding:16px; border-radius:var(--ag-r-16); background:var(--ob-accent-wash, var(--ag-green-wash)) }
+.ob-fig__n{ font-weight:700; font-size:var(--ag-fs-24); color:var(--ob-accent-dark, var(--ag-green-deep)); font-variant-numeric:tabular-nums }
+.ob-fig__l{ font-size:var(--ag-fs-13-5); line-height:1.45; color:var(--ag-ink-2) }
+.ob-vids{ display:grid; gap:12px }
+.ob-vid{ margin:0; display:flex; flex-direction:column; gap:8px }
+.ob-vid__play{ position:relative; display:flex; align-items:flex-end; gap:12px; aspect-ratio:16 / 9; width:100%; padding:16px; box-sizing:border-box; border:0; border-radius:var(--ag-r-16); background:var(--ag-ink); color:var(--ag-surface); font:inherit; text-align:start; cursor:pointer }
+.ob-vid__icon{ flex:none; width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--ob-accent, var(--ag-green)); color:var(--ag-surface) }
+.ob-vid__meta{ display:flex; flex-direction:column; gap:3px }
+.ob-vid__t{ font-weight:700; font-size:var(--ag-fs-15) }
+.ob-vid__p{ font-size:var(--ag-fs-12-5); color:var(--ag-line-2) }
+.ob-vid__play:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ob-vid iframe{ width:100%; aspect-ratio:16 / 9; border:0; border-radius:var(--ag-r-16) }
+.ob-vid__alt a{ display:inline-flex; align-items:center; min-height:44px; font-size:var(--ag-fs-13-5); color:var(--ag-green); font-weight:600 }
+.ob-shots{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px }
+.ob-shots img{ width:100%; aspect-ratio:4 / 3; object-fit:cover; border-radius:var(--ag-r-12) }
+.ob-quotes{ display:flex; flex-direction:column; gap:12px }
+.ob-quote{ margin:0; padding:16px 18px; border-radius:var(--ag-r-16); background:var(--ag-surface); border:1px solid var(--ag-line); border-inline-start:3px solid var(--ob-accent, var(--ag-green)) }
+.ob-quote p{ margin:0 0 8px; font-size:var(--ag-fs-15-5); line-height:1.55 }
+.ob-quote cite{ font-style:normal; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.ob-track{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:12px }
+.ob-track li{ display:grid; grid-template-columns:96px minmax(0, 1fr); gap:12px; font-size:var(--ag-fs-14-5); line-height:1.5 }
+.ob-track__w{ font-weight:700 }
+.ob-track__d{ color:var(--ag-ink-2) }
+.ob-gates{ display:flex; flex-direction:column; gap:6px; padding:16px; border-radius:var(--ag-r-16); background:var(--ag-tint) }
+.ob-gates p{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.55; color:var(--ag-ink-2) }
+.ob-gates__c{ font-weight:700; color:var(--ag-ink) }
+.ob-gates__l a{ display:inline-flex; align-items:center; min-height:44px; color:var(--ag-green); font-weight:600 }
+
+/* ══ Tablet and up: the rail beside the case, the bar gone ══════════════════ */
+@media (min-width:600px){
+  .gv{ padding:24px 28px 56px }
+  .ag-main:has(.gv-bar) .gv{ padding-bottom:56px }
+  .gv-bar{ display:none }
+  .gv-page{ grid-template-columns:minmax(0, 1fr) 300px; gap:28px }
+  .gv-rail{ display:block; position:sticky; top:84px }
+  .gv-prog--phone{ display:none }
+  .gv-h1{ order:0; font-size:var(--ag-fs-36) }
+  .gv-media{ margin:0; border-radius:var(--ag-r-20) }
+  .gv-amts{ grid-template-columns:repeat(4, minmax(0, 1fr)) }
+  .gv-co__go{ display:block }
+  .gv-co__go .gv-btn{ border-radius:var(--ag-r-pill) }
+  .gv-orgs__in{ flex-direction:row; align-items:flex-start; gap:40px; padding:32px }
+  .gv-orgs__t{ flex:1.4 }
+  .gv-orgs__figs, .gv-orgs__new{ flex:1 }
+  .ob-figs{ grid-template-columns:repeat(3, minmax(0, 1fr)) }
+  .ob-shots{ grid-template-columns:repeat(3, minmax(0, 1fr)) }
+}
+@media (min-width:1024px){
+  .gv{ padding:32px 32px 64px }
+  .gv-page{ grid-template-columns:minmax(0, 720px) 360px; justify-content:space-between; gap:40px }
+  .gv-h1{ font-size:var(--ag-fs-44) }
+  .gv-media{ aspect-ratio:16 / 10 }
+  .gv-co{ padding-top:24px }
+}
+
+
+/* ══ GivingPage V2 (16 Oct 2026) ═══════════════════════════════════════════════
+   The ring, the rail's share and gift rows, the folded story, the share card, the trust
+   strip and related appeals. Each block is behind LOW-DATA-RULES in the template.
+   The DC paints "N gifts this week" gold; it is green here, because a tier-2 page may spend
+   two families and this one already spends green and the error wash (ColourBudgetTest). */
+.gv-ring-row{ display:flex; align-items:center; gap:16px }
+.gv-ring{ position:relative; flex:none; width:72px; height:72px }
+.gv-ring__t{ stroke:var(--ag-line) }
+.gv-ring__f{ stroke:var(--ag-green) }
+.gv-ring__n{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:var(--ag-fs-15); font-variant-numeric:tabular-nums }
+.gv-ring__t2{ display:flex; flex-direction:column; gap:4px; min-width:0 }
+.gv-prog__raised{ font-weight:700; font-size:var(--ag-fs-26); line-height:1.1; font-variant-numeric:tabular-nums }
+.gv-ring__t2 .gv-prog__meta{ justify-content:flex-start; flex-wrap:wrap; gap:4px 10px }
+.gv-btn--soft{ min-height:46px; border:0; border-radius:var(--ag-r-pill); background:var(--ag-ground); color:var(--ag-ink); font-weight:600 }
+.gv-mom{ display:flex; align-items:center; gap:12px; margin:0; padding-top:14px; border-top:1px solid var(--ag-line); font-weight:700; font-size:var(--ag-fs-14-5); color:var(--ag-green-deep) }
+.gv-mom__ic{ flex:none; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--ag-green-wash) }
+.gv-gifts{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:12px }
+.gv-gift{ display:flex; align-items:center; gap:12px }
+.gv-gift__av{ flex:none; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--ag-green-wash); color:var(--ag-green-deep); font-weight:700; font-size:var(--ag-fs-14) }
+.gv-gift__t{ display:flex; flex-direction:column; min-width:0; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+.gv-gift__t b{ font-size:var(--ag-fs-14-5); color:var(--ag-ink) }
+
+.gv-prose.is-folded{ max-height:230px; overflow:hidden; position:relative }
+.gv-prose.is-folded::after{ content:""; position:absolute; inset:auto 0 0; height:72px; background:linear-gradient(to bottom, transparent, var(--ag-ground)) }
+.gv-fold{ align-self:flex-start; min-height:44px; padding:0; border:0; background:none; cursor:pointer; font:inherit; font-weight:700; font-size:var(--ag-fs-15); color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px }
+.gv-inline{ display:flex; gap:10px }
+.gv-inline .gv-btn{ flex:1; min-height:52px; border-radius:var(--ag-r-pill) }
+
+.gv-share__card{ display:flex; flex-direction:column; gap:14px; padding:20px; border-radius:var(--ag-r-20); background:var(--ag-surface); border:1px solid var(--ag-line) }
+.gv-share__btns{ display:flex; flex-wrap:wrap; gap:8px }
+.gv-sbtn{ display:flex; align-items:center; min-height:44px; padding:0 16px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none; cursor:pointer }
+.gv-meta{ display:flex; flex-wrap:wrap; gap:6px 16px; margin:0; padding-top:16px; border-top:1px solid var(--ag-line); font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.gv-meta a{ color:var(--ag-ink-2); text-decoration:underline; text-underline-offset:3px }
+
+.gv-trust{ display:grid; grid-template-columns:minmax(0, 1fr); gap:18px; max-width:1120px; margin:40px auto 0; padding:24px 16px; list-style:none; border-block:1px solid var(--ag-line) }
+.gv-trust__i{ display:flex; gap:14px; align-items:flex-start }
+.gv-trust__i > span:last-child{ display:flex; flex-direction:column; gap:2px; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+.gv-trust__i b{ font-size:var(--ag-fs-15-5); color:var(--ag-ink) }
+.gv-trust__ic{ flex:none; width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:var(--ag-green-wash); color:var(--ag-green) }
+.gv-rel{ display:flex; flex-direction:column; gap:16px; max-width:1120px; margin:40px auto 0; padding:0 16px }
+.gv-rel__l{ display:flex; gap:14px; margin:0 -16px; padding:0 16px 6px; list-style:none; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none }
+.gv-rel__l > li{ flex:0 0 72%; scroll-snap-align:start }
+.gv-rc{ display:flex; flex-direction:column; gap:6px; color:var(--ag-ink); text-decoration:none }
+.gv-rc__img{ position:relative; display:block; aspect-ratio:4 / 3; overflow:hidden; border-radius:var(--ag-r-18); background:var(--ag-tint) }
+.gv-rc__chip{ position:absolute; top:10px; inset-inline-start:10px; height:26px; padding:0 10px; border-radius:var(--ag-r-pill); display:flex; align-items:center; background:var(--ag-surface); font-weight:700; font-size:var(--ag-fs-12-5) }
+.gv-rc__t{ font-weight:700; font-size:var(--ag-fs-16); line-height:1.3 }
+.gv-rc__o{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.gv-rc__bar{ display:block; height:6px; border-radius:3px; background:var(--ag-line-3); overflow:hidden }
+.gv-rc__bar > span{ display:block; height:100%; background:var(--ag-green) }
+.gv-rc__r{ font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+
+@media (min-width:600px){
+  .gv-trust{ grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(0, 1fr); padding-inline:28px }
+  .gv-rel{ padding:0 28px }
+  .gv-rel__l{ margin:0 -28px; padding-inline:28px }
+  .gv-rel__l > li{ flex:0 0 260px }
+}
+@media (min-width:1024px){
+  .gv-trust{ padding-inline:0 }
+  .gv-rel{ padding:0 }
+  .gv-rel__l{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin:0; padding:0; overflow:visible }
+}
+
+@media (prefers-reduced-motion:reduce){ .gv *{ transition:none!important } }
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .gv-sbtn:hover{ border-color:var(--ag-ink); color:var(--ag-ink) }
+  .gv-btn--line:hover{ background:var(--ag-tint); color:var(--ag-ink) }
+}

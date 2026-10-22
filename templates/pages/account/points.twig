@@ -1,0 +1,54 @@
+{% extends 'pages/account/_frame.twig' %}
+{#
+  POINTS — /account/points · Phase 8 (no DC; built on the shell, base list rows)
+
+  The balance, what it buys, and every movement behind it, newest first — the ledger is the
+  evidence behind a number this platform turns into votes, so all of it is here and as a
+  file (`/account/points.csv`, the owner's alone: there is no id in either path). Figures are
+  tabular; a gain and a spend carry their sign as text, never colour alone.
+#}
+{% set acc_tab = 'points' %}
+{% set colour_tier = '1' %}
+{% block acc_body %}
+  {% if not points_enabled %}
+    <p class="acc__p">{{ 'Points are switched off on this site at the moment. Your balance is kept.'|trans }}</p>
+  {% endif %}
+  <div class="acx-split">
+  <section class="ag-card acc__card" aria-labelledby="pts-bal">
+    <h2 class="acc__h2" id="pts-bal">{{ 'Your balance'|trans }}</h2>
+    <p class="acc__big ag-num">{{ points|number_format }}</p>
+    {% if points_enabled %}
+      <p class="acc__p">{{ '%n% points buy one vote.'|trans({'%n%': points_per_vote|number_format}) }}
+        {{ redeemable == 1 ? 'Your balance covers 1 vote.'|trans : 'Your balance covers %n% votes.'|trans({'%n%': redeemable}) }}</p>
+    {% endif %}
+  </section>
+  {% if points_enabled %}
+  <section class="acx-card acx-redeem" aria-labelledby="pts-use">
+    <h2 class="acx-redeem__h" id="pts-use">{{ 'Turn points into votes'|trans }}</h2>
+    {% if redeemable > 0 %}<a class="ag-btn ag-btn--primary acx-btn" href="/vote">{{ redeemable == 1 ? 'Redeem 1 vote'|trans : 'Redeem %n% votes'|trans({'%n%': redeemable}) }}</a>
+    {% else %}<p class="acc__p">{{ 'Your balance does not cover a vote yet.'|trans }}</p>{% endif %}
+  </section>
+  {% endif %}
+  </div>
+  <section class="acc__sec" aria-labelledby="pts-hist">
+    <div class="acc__top">
+      <h2 class="acc__h2" id="pts-hist">{{ 'History'|trans }}</h2>
+      {% if ledger|length %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="/account/points.csv" download>{{ 'Download as a file'|trans }}</a>{% endif %}
+    </div>
+    {% if ledger|length %}
+      <ul class="ag-list acc__plain">
+        {% for e in ledger %}
+          <li class="ag-list__row">
+            <span class="ag-list__b"><span class="ag-list__label acc__wrap">{{ (e.note|default('') ?: e.reason|replace({'_': ' '}))|trans }}</span><span class="ag-list__sub">{{ e.created_at|date('j M Y') }} · {{ 'balance %n%'|trans({'%n%': e.balance_after|number_format}) }}</span></span>
+            <span class="ag-list__value ag-num">{{ e.delta > 0 ? '+' : '−' }}{{ e.delta|abs|number_format }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="ag-empty acc__empty">
+        <p class="ag-empty__t">{{ 'No points yet.'|trans }}</p>
+        <p>{{ 'Points arrive with purchases in the shop, tickets and gifts.'|trans }}</p>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

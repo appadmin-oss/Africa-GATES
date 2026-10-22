@@ -1,352 +1,273 @@
-{% extends "layout/gates.twig" %}
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  `/` — THE HOMEPAGE · Home V7 · HomePageV7.dc.html (handoff 21 Oct 2026, from V6)
+  ══════════════════════════════════════════════════════════════════════════════
+
+  V7 is V6 with the wallet's feel — soft green, white cards, icon tiles — and the site's
+  colour reference. Every block still follows the low-data rules, and rule 3 (never
+  fabricate) beats the DC wherever they disagree:
+
+    1 Hero ............ rotating recognitions: real decided awards (2+ rotate, 1 is static);
+                        none falls back to the owner's honour photos, naming nobody
+    2 Quick actions ... REMOVED by the owner (22 Oct 2026) after seeing it built
+    3 Honours counter . people honoured, from Recognitions::peopleCount(); a NUMBER only
+                        from 1,000 — below that the DC's own headline stands in
+    4 Who to honour ... six tiles, the owner's photographs, always shown
+    5 How it works .... static, green number tiles
+    6 Wall ............ NOT DRAWN: it needs approved quotes with consent (under 3: hide)
+    7 Featured ........ the open challenge (light gold: the one honour field), then three
+                        evergreen topics on green wash — never curated topics nobody made
+    8 Join band ....... signed-out visitors only
+    9 Giving .......... one campaign past ≥10% raised and ≥10 gifts, not funded, not closing
+   10 Recognise ....... four audience cards (photo, white label, arrow)
+   11 We Are Africa ... full bleed (partials/we-are-africa.twig)
+   12 Closing band .... green wash, with real winners' portraits once there are three
+
+  Colour tier 2 (transactional: it asks to nominate, join and give).
+#}
+
+{% set colour_tier = '2' %}
+{% set app_bar = {variant: 'root', title: 'Africa GATES', brand: true} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/home.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+{% endblock %}
 
 {% block content %}
+<div class="hm">
 
-{# ════ 1. HERO — Redesign 2026 (masked rotator · warm editorial) ══ #}
-<section class="r26-hero" aria-labelledby="hero-title">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1">Continental Cultural Power Index</p>
-      <h1 id="hero-title" class="r26-hl">
-        <span class="r26-hl__line r26-reveal r26-d2">African excellence,</span>
-        <span class="r26-rot r26-reveal r26-d3" aria-hidden="true"><span class="r26-rot__list" id="rotList"><span class="r26-rot__item">recognised.</span><span class="r26-rot__item">remembered.</span><span class="r26-rot__item">celebrated.</span><span class="r26-rot__item">immortalised.</span><span class="r26-rot__item">recognised.</span></span></span>
-        <span class="sr-only">recognised, remembered, celebrated, and immortalised.</span>
-      </h1>
-      <p class="r26-sub r26-reveal r26-d4">Africa GATES is the continental Cultural Power Index — the community nominates, expert panels score, and every cycle becomes part of the permanent record.</p>
-      <div class="r26-cta r26-reveal r26-d5">
-        <a class="btn btn--emerald" href="/nominate">Submit a nomination
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <a class="btn btn--white" href="/leaderboard">Explore the index
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+  {# ── 1 · Hero ───────────────────────────────────────────────────────────── #}
+  <section class="hm-hero" aria-labelledby="hm-h1" data-hm-hero{% if hero_slides|length > 1 %} data-hm-rotate{% endif %}>
+    <div class="hm-hero__text">
+      <h1 class="hm-hero__h1" id="hm-h1">{{ 'Where Africa recognises its people'|trans }}</h1>
+      <p class="hm-hero__lead">{{ 'Communities, organisations, businesses and governments use Africa GATES to honour the people who make a difference. Every recognition is verified and stays on the record.'|trans }}</p>
+      <div class="hm-hero__ctas">
+        <a class="hm-cta hm-cta--go" href="/nominate">{{ 'Nominate someone'|trans }}</a>
+        <a class="hm-cta hm-cta--line" href="#hm-host">{{ 'Recognise with Africa GATES'|trans }}</a>
       </div>
-      <div class="r26-chip r26-reveal r26-d6"><span class="r26-chip__dot"></span>Live · CPI recomputed every 6 hours</div>
-      {% set _vp = site_stats.total_profiles|default(0) %}
-      <p class="r26-trust r26-reveal r26-d6">{% if _vp > 0 %}{{ _vp|number_format }} verified profile{{ _vp == 1 ? '' : 's' }} · {% endif %}An Afrovanguard initiative · live in Nigeria · building toward 54 nations</p>
     </div>
-  </div>
-</section>
-
-{# ════ 2. CONTINENTAL FOOTPRINT — location chips ═══════════════════ #}
-<section class="section section--sm" style="padding-top:0">
-  <div class="wrap">
-    <p class="r26-eyebrow r26-reveal" style="justify-content:center;display:flex">Nominees, judges &amp; partners across the continent</p>
-    <div class="r26-strip r26-reveal">
-      {% for it in ['Lagos · NG','Accra · GH','Nairobi · KE','Johannesburg · ZA','Addis Ababa · ET','Cairo · EG','Dakar · SN','Kigali · RW','Kampala · UG','Abidjan · CI','Casablanca · MA','Lusaka · ZM','Maputo · MZ','Windhoek · NA'] %}
-      <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ it }}</span>
+    <div class="hm-hero__media">
+      {% for sl in hero_slides %}
+        <div class="hm-slide{{ loop.first ? ' is-on' }}" data-hm-slide{% if not loop.first %} aria-hidden="true"{% endif %}>
+          <div class="hm-slide__img">
+            {% if sl.img %}
+              <img src="{{ asset(sl.img) }}" srcset="{{ sl.srcset }}" sizes="(min-width: 1024px) 560px, 100vw" alt="{{ sl.alt }}"{{ loop.first ? ' fetchpriority="high"' : ' loading="lazy"' }}>
+            {% elseif sl.photo %}
+              {% include 'partials/photo.twig' with {kind: 'person', src: sl.photo|media_url('portrait'), name: sl.name, size: 160, alt: 'Photo of %name%'|trans({'%name%': sl.name}), eager: loop.first} only %}
+            {% else %}
+              {% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: '', name: sl.issuer ?: sl.name} only %}
+            {% endif %}
+          </div>
+        </div>
       {% endfor %}
-    </div>
-  </div>
-</section>
-
-{# ════ 3. ONE PLATFORM — clean curved cards (Redesign 2026) ════════ #}
-<section class="section">
-  <div class="wrap">
-    <div class="r26-surface r26-reveal">
-      <div class="r26-head r26-head--center">
-        <p class="r26-eyebrow">One platform</p>
-        <h2 class="r26-h2">Nominate, vote, <em>and recognise.</em></h2>
-        <p class="r26-lead">Continental scope. Community input. Transparent scoring — every cycle part of the permanent record.</p>
-      </div>
-      <div class="r26-cards">
-        <article class="r26-card r26-reveal r26-d1">
-          <div class="r26-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></div>
-          <span class="r26-card__step">01 · Nominate</span>
-          <h3 class="r26-card__title">Surface excellence wherever you find it</h3>
-          <ul class="r26-card__feat">
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>OTP-verified — no spam, no duplicates</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Education, integrity, choral &amp; business excellence</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Free and open to every African profile</li>
-          </ul>
-          <a href="/nominate" class="r26-card__link">Submit a nomination
-            <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </article>
-        <article class="r26-card r26-reveal r26-d2">
-          <div class="r26-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3a9 9 0 1 0 9 9"/></svg></div>
-          <span class="r26-card__step">02 · Vote</span>
-          <h3 class="r26-card__title">A vote that actually counts</h3>
-          <ul class="r26-card__feat">
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>One verified voter, one vote per category</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Cross-checked against fingerprint + email hash</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Tallies recompute every 6 hours, publicly</li>
-          </ul>
-          <a href="/vote" class="r26-card__link">Cast a vote
-            <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </article>
-        <article class="r26-card r26-reveal r26-d3">
-          <div class="r26-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
-          <span class="r26-card__step">03 · Recognise</span>
-          <h3 class="r26-card__title">Watch the continent rank itself</h3>
-          <ul class="r26-card__feat">
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Six-component transparent 0–1000 score</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Filterable by region, tier, and category</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Permanent legacy attribution for winners</li>
-          </ul>
-          <a href="/leaderboard" class="r26-card__link">Open the leaderboard
-            <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </article>
-      </div>
-    </div>
-  </div>
-</section>
-
-{# ════ 4. STATS — honest metrics + empty state (Redesign 2026) ═════ #}
-<section class="section r26-stats" id="numbers">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <div class="wrap">
-    {% set _p = dash_stats.total_profiles|default(0) %}
-    {% set _v = dash_stats.total_votes|default(0) %}
-    {% set _e = dash_stats.events_count|default(0) %}
-    <div class="r26-stats__head" data-anim>
-      <p class="r26-eyebrow">The index, in the open</p>
-      <h2>Transparent recognition, <em>counted publicly.</em></h2>
-      <p>Every score traces back to community votes and expert panels — recomputed every six hours, archived every cycle.</p>
-    </div>
-    {% if _p > 0 or _v > 0 or _e > 0 %}
-      <div class="r26-metrics" data-anim>
-        <div class="r26-metric">
-          <div class="r26-metric__num"><span data-count="{{ _p }}">{{ _p|number_format }}</span></div>
-          <div class="r26-metric__lbl">Verified profiles</div>
-        </div>
-        <div class="r26-metric">
-          <div class="r26-metric__num"><span data-count="{{ _v }}">{{ _v|number_format }}</span></div>
-          <div class="r26-metric__lbl">Community votes cast</div>
-        </div>
-        <div class="r26-metric">
-          <div class="r26-metric__num"><span data-count="{{ _e }}">{{ _e|number_format }}</span></div>
-          <div class="r26-metric__lbl">Legacy editions archived</div>
-        </div>
-      </div>
-      <p class="r26-stats__context" data-anim>Live in Nigeria — <strong>building toward all 54 nations.</strong></p>
-    {% else %}
-      <div class="r26-empty" data-anim>
-        <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-        <h3>The inaugural index is being assembled</h3>
-        <p>No cycle has been scored yet. Be among the first verified profiles on the continental Cultural Power Index — and help shape the inaugural board.</p>
-        <div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center">
-          <a class="btn btn--emerald" href="/register">Register your profile
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          <a class="btn btn--white" href="/awards">How the CPI works</a>
-        </div>
-      </div>
-    {% endif %}
-  </div>
-</section>
-
-{# ════ 5. LIVING MAP — honest registry, cut-out ready (Redesign 2026) ══ #}
-<section class="section r26-map" id="faces">
-  <div class="wrap">
-    {% set _profiles = ticker_profiles|default([]) %}
-    {% set _pc = dash_stats.total_profiles|default(0) %}
-    <div class="r26-map__grid">
-      <div class="r26-map__copy" data-anim>
-        <p class="r26-eyebrow">The living registry</p>
-        <h2>A continent of <em>people</em>, not pixels.</h2>
-        <p>Africa GATES is a registry of real, verified African excellence — names and records, never stock photos. The map fills as the community grows.</p>
-        <div class="r26-faces-grid">
-          {% if _profiles is not empty %}
-            {% for e in _profiles|slice(0, 9) %}
-            <a class="r26-face" href="/registry/{{ e.slug }}" title="{{ e.display_name }}">{{ e.display_name|default('·')|first|upper }}</a>
-            {% endfor %}
-            {% if _pc > 9 %}<a class="r26-face r26-face--more" href="/registry" title="Browse all profiles">+{{ (_pc - 9)|number_format }}</a>{% endif %}
-          {% else %}
-            {# Seed slots until the first profiles arrive — the wall reads as "this fills up", never bare. #}
-            {% for i in 1..7 %}<span class="r26-face r26-face--ghost" aria-hidden="true"></span>{% endfor %}
-          {% endif %}
-        </div>
-        <p class="r26-map__count">
-          {% if _pc > 0 %}<strong>{{ _pc|number_format }}</strong> verified profile{{ _pc == 1 ? '' : 's' }} · live in Nigeria{% else %}<strong>The first faces appear here</strong> — be part of the founding registry{% endif %}
-        </p>
-        <div style="margin-top:1.5rem;display:flex;gap:.75rem;flex-wrap:wrap">
-          <a class="btn btn--emerald" href="/register">Register your profile
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          <a class="btn btn--white" href="/registry">Browse the registry
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </div>
-      </div>
-      {# Cut-out stage: drop transparent PNGs at /assets/img/cutouts/map-{1,2,3}.png and
-         they fade in over the map. Until then the outline map shows on its own. #}
-      <div class="r26-map__art r26-stage" data-anim="scale">
-        <img src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="Outline map of Africa" loading="lazy" decoding="async">
-        <img class="r26-cutout r26-cutout--lead"  data-cutout src="/assets/img/cutouts/map-1.png" alt="">
-        <img class="r26-cutout r26-cutout--mid"   data-cutout src="/assets/img/cutouts/map-2.png" alt="">
-        <img class="r26-cutout r26-cutout--trail" data-cutout src="/assets/img/cutouts/map-3.png" alt="">
-      </div>
-    </div>
-  </div>
-</section>
-
-{# ════ 5b. EVENTS PREVIEW — next on the calendar ═══════════════════ #}
-{% set _events = site_events|default([]) %}
-{% if _events is not empty %}
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="r26-head r26-head--center">
-      <p class="r26-eyebrow">Events</p>
-      <h2 class="r26-h2">Next on the <em>calendar.</em></h2>
-      <p class="r26-lead">Ceremonies, webinars and community sessions across the cycle.</p>
-    </div>
-    <div class="r26-mediagrid">
-      {% for e in _events %}
-      <article class="r26-mcard">
-        <div class="r26-mcard__media {% if not e.cover_image %}r26-mcard__media--empty{% endif %}">
-          {% if e.cover_image %}<img src="{{ e.cover_image }}" alt="{{ e.title }}" loading="lazy" decoding="async">{% endif %}
-          <span class="r26-mcard__badge">{{ e.location|default('Africa GATES') }}</span>
-        </div>
-        <div class="r26-mcard__body">
-          <div class="r26-when">
-            <span class="r26-when__cal" aria-hidden="true">
-              <span class="r26-when__mon">{{ e.event_date|date('M') }}</span>
-              <span class="r26-when__day">{{ e.event_date|date('j') }}</span>
-            </span>
-            <span class="r26-mcard__meta" style="margin:0">{{ e.event_date|date('D, j M Y · H:i') }}</span>
-          </div>
-          <h3 class="r26-mcard__title">{{ e.title }}</h3>
-          <p class="r26-mcard__desc">{{ e.tagline }}</p>
-          <div class="r26-mcard__foot">
-            <span>{{ e.location }}</span>
-            <a class="r26-mcard__link" href="/events">Details
-              <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          </div>
-        </div>
-      </article>
-      {% endfor %}
-    </div>
-    <div class="text-center" style="margin-top:2rem">
-      <a class="btn btn--white" href="/events">All events
-        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-    </div>
-  </div>
-</section>
-{% endif %}
-
-{# ════ 5c. BLOG PREVIEW — latest from the index ═════════════════════ #}
-{% set _posts = latest_posts|default([]) %}
-{% if _posts is not empty %}
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="r26-surface">
-      <div class="r26-head r26-head--center">
-        <p class="r26-eyebrow">Blog</p>
-        <h2 class="r26-h2">Notes from the <em>index.</em></h2>
-      </div>
-      <div class="r26-mediagrid">
-        {% for p in _posts %}
-        <a class="r26-mcard" href="/blog/{{ p.slug }}">
-          <div class="r26-mcard__media {% if not p.cover_image %}r26-mcard__media--empty{% endif %}">
-            {% if p.cover_image %}<img src="{{ p.cover_image }}" alt="" loading="lazy" decoding="async">{% endif %}
-            {% if p.tag %}<span class="r26-mcard__badge">{{ p.tag }}</span>{% endif %}
-          </div>
-          <div class="r26-mcard__body">
-            <p class="r26-mcard__meta">{{ p.published_at|date('j F Y') }}</p>
-            <h3 class="r26-mcard__title">{{ p.title }}</h3>
-            <p class="r26-mcard__desc">{{ p.excerpt|slice(0,120) }}{% if p.excerpt|length > 120 %}…{% endif %}</p>
-            <div class="r26-mcard__foot">
-              <span>{{ p.author }}</span>
-              <span class="r26-mcard__link">Read
-                <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-            </div>
-          </div>
-        </a>
-        {% endfor %}
-      </div>
-      <div class="text-center" style="margin-top:2rem">
-        <a class="btn btn--white" href="/blog">Browse the blog
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-      </div>
-    </div>
-  </div>
-</section>
-{% endif %}
-
-{# ════ 6. LEGACY VAULT — clean editions + honest empty (Redesign 2026) ══ #}
-<section class="section">
-  <div class="wrap">
-    <div class="r26-surface r26-surface--tint r26-reveal">
-      <div class="r26-head r26-head--center">
-        <p class="r26-eyebrow">Legacy Vault</p>
-        <h2 class="r26-h2">Recognition is a record, <em>not a moment.</em></h2>
-        <p class="r26-lead">Every cycle becomes part of the permanent vault — searchable, attributed, and forever credited.</p>
-      </div>
-      {% set legacy = legacy_events|default([]) %}
-      {% if legacy is not empty %}
-        <div class="r26-legacy__grid">
-          {% for L in legacy %}
-          <a class="r26-edition" href="/legacy">
-            <div class="r26-edition__cover" style="background-image:url('{{ L.cover_path }}')">
-              <span class="r26-edition__yr">{{ L.event_date|date('Y') }}</span>
-            </div>
-            <div class="r26-edition__body">
-              <h3 class="r26-edition__title">{{ L.title }}</h3>
-              <p class="r26-edition__meta">{{ L.award_count }} awards conferred · {{ L.location }}</p>
-            </div>
-          </a>
+      {% if hero_slides|length > 1 %}
+        <div class="hm-dots" role="group" aria-label="{{ 'Recognitions'|trans }}">
+          {% for sl in hero_slides %}
+            <button type="button" class="hm-dots__b{{ loop.first ? ' is-on' }}" data-hm-dot="{{ loop.index0 }}" aria-label="{{ 'Show %name%'|trans({'%name%': sl.name}) }}"{{ loop.first ? ' aria-current="true"' }}><span aria-hidden="true"></span></button>
           {% endfor %}
         </div>
-        <div class="text-center" style="margin-top:2rem">
-          <a href="/legacy" class="btn btn--emerald">Browse the full vault
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </div>
-      {% else %}
-        <div class="r26-empty" style="border:none;background:transparent;box-shadow:none">
-          <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-          <h3>The first edition hasn’t been archived yet</h3>
-          <p>When the inaugural cycle concludes, every winner and edition is preserved here — permanently credited and searchable.</p>
-          <a class="btn btn--white" href="/nominate">Help shape the first cycle</a>
-        </div>
       {% endif %}
-    </div>
-  </div>
-</section>
-
-{# ════ 7. FINAL CTA — dark statement band, cut-out ready (Redesign 2026) ══ #}
-<section class="section">
-  <div class="wrap">
-    <div class="r26-band">
-      <div class="r26-band__inner r26-stage">
-        <div class="r26-band__glow" aria-hidden="true"></div>
-        <img class="r26-band__wm" src="/assets/img/africa-watermark-light.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-        {# Cut-out slot: drop a transparent PNG at /assets/img/cutouts/band-1.png to populate. #}
-        <img class="r26-cutout r26-band__cutout" data-cutout src="/assets/img/cutouts/band-1.png" alt="">
-        <div class="r26-band__content">
-          <p class="r26-eyebrow">Join the index</p>
-          <h2 class="r26-band__title">Someone you know deserves <em>this stage.</em></h2>
-          <p class="r26-band__sub">Nominate them in 90 seconds — free, OTP-verified, and reviewed by a panel of African judges. Every nomination becomes part of the permanent record.</p>
-          <div class="r26-band__cta">
-            <a class="btn btn--white" href="/nominate">Submit a nomination
-              <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-            <a class="btn btn--ghostlight" href="/register">Register a profile</a>
-          </div>
-        </div>
+      <div class="hm-rec-box" aria-live="polite">
+        {% for sl in hero_slides %}
+          <a class="hm-rec{{ loop.first ? ' is-on' }}" href="{{ sl.url }}" data-hm-card{% if not loop.first %} hidden{% endif %}>
+            <span class="hm-rec__who">
+              {% if sl.real %}<span class="hm-av hm-av--44" aria-hidden="true">{% include 'partials/photo.twig' with {kind: 'person', src: sl.photo ? sl.photo|media_url('avatar') : '', name: sl.name, ini: sl.ini} only %}</span>{% endif %}
+              <span class="hm-rec__t"><span class="hm-rec__n">{{ sl.name }}</span><span class="hm-rec__s">{{ sl.what }}</span></span>
+            </span>
+            <span class="hm-rec__by">
+              <span class="hm-rec__tile" aria-hidden="true">{{ sl.issuer|first|upper }}</span>
+              <span class="hm-rec__issuer">{{ sl.issuer }}</span>
+              {% if sl.real %}<span class="hm-rec__chip">{{ 'Winner'|trans }}</span>{% endif %}
+            </span>
+          </a>
+        {% endfor %}
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
+  {# ── 3 · Honours counter — a number only from 1,000 ─────────────────────── #}
+  <section class="hm-ctr" aria-label="{{ 'Honours so far'|trans }}">
+    <div class="hm-ctr__fig">
+      {% if honoured >= 1000 %}
+        <span class="hm-ctr__n" data-hm-count="{{ honoured }}">{{ honoured|number_format }}</span>
+        <span class="hm-ctr__l">{{ 'people honoured on Africa GATES'|trans }}</span>
+      {% else %}
+        <span class="hm-ctr__h">{{ 'Every honour here is checked, then kept for good'|trans }}</span>
+      {% endif %}
+    </div>
+    <div class="hm-ctr__side">
+      <p class="hm-ctr__p">{{ 'Each one was nominated by someone who knew them, verified by a real issuer, and stays on their profile where anyone can check it.'|trans }}</p>
+      <a class="hm-cta hm-cta--go" href="/nominate">{{ 'Add the next name'|trans }}</a>
+    </div>
+  </section>
+
+  {# ── 4 · Who do you want to honour? ─────────────────────────────────────── #}
+  <section class="hm-sec" aria-labelledby="hm-honour">
+    <div class="hm-head hm-head--row">
+      <h2 class="hm-h2" id="hm-honour">{{ 'Who do you want to honour?'|trans }}</h2>
+      <a class="hm-more hm-more--lg" href="/awards">{{ 'All categories'|trans }}</a>
+    </div>
+    <ul class="hm-honour" role="list">
+      {% for t in honour %}
+        <li><a class="hm-hon" href="/nominate?who={{ t.key }}">
+          <img class="hm-hon__img" src="{{ asset(t.src) }}" srcset="{{ t.srcset }}" sizes="(min-width: 1200px) 180px, (min-width: 600px) 200px, 46vw" alt="{{ t.alt }}" loading="lazy" width="480" height="480">
+          <span class="hm-hon__row"><span class="hm-hon__l">{{ t.label|trans }}</span><span class="hm-hon__go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M5 10h10M11 6l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>
+        </a></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {# ── 5 · How it works ──────────────────────────────────────────────────── #}
+  <section class="hm-sec" aria-labelledby="hm-how">
+    <h2 class="hm-h2" id="hm-how">{{ 'Honouring someone takes five minutes'|trans }}</h2>
+    <ol class="hm-how" role="list">
+      <li class="hm-how__c"><span class="hm-how__n" aria-hidden="true">1</span><h3 class="hm-how__t">{{ 'Nominate'|trans }}</h3><p class="hm-how__d">{{ 'Pick an award and up to three categories. Say why in your own words, and add a photo or link if you have one.'|trans }}</p></li>
+      <li class="hm-how__c"><span class="hm-how__n" aria-hidden="true">2</span><h3 class="hm-how__t">{{ 'Your community votes'|trans }}</h3><p class="hm-how__d">{{ 'Friends, family and old students vote for them. Judges score the finalists after voting closes.'|trans }}</p></li>
+      <li class="hm-how__c"><span class="hm-how__n" aria-hidden="true">3</span><h3 class="hm-how__t">{{ 'It stays on their record'|trans }}</h3><p class="hm-how__d">{{ 'Winners get a verified honour on their profile that anyone can check, for good.'|trans }}</p></li>
+    </ol>
+  </section>
+
+  {# ── 7 · Featured: the open challenge, then three evergreen topics ─────── #}
+  <section class="hm-sec" aria-labelledby="hm-feat">
+    <h2 class="hm-vh" id="hm-feat">{{ 'Featured'|trans }}</h2>
+    {% if challenge %}
+    <a class="hm-feat" href="{{ challenge.url }}">
+      <span class="hm-feat__media">
+        {% if challenge.img %}<img src="{{ challenge.img }}" alt="" loading="lazy">{% else %}{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: '', name: challenge.title} only %}{% endif %}
+        <span class="hm-feat__tag">{{ 'Challenge'|trans }}</span>
+      </span>
+      <span class="hm-feat__body">
+        <span class="hm-feat__t">{{ challenge.title }}</span>
+        {% if challenge.body %}<span class="hm-feat__d">{{ challenge.body }}</span>{% endif %}
+        <span class="hm-feat__go">{{ 'Join the challenge'|trans }} <span aria-hidden="true">→</span></span>
+      </span>
+    </a>
+    {% endif %}
+    <div class="hm-topics">
+      {% for tp in [
+        {t: 'Find an event near you', d: 'Galas, ceremonies and community days, with tickets in one place.', tag: 'Events', h: '/events', img: 'community-leader'},
+        {t: 'Run your awards on Africa GATES', d: 'Editions, judging and public voting in one place.', tag: 'For organisers', h: '/partner', img: 'business'},
+        {t: 'Frame your recognition', d: 'Certificates and frames for the honours on your profile.', tag: 'Shop', h: '/shop', img: 'creative'}
+      ] %}
+        <a class="hm-topic" href="{{ tp.h }}">
+          <span class="hm-topic__field">
+            <img class="hm-topic__pic hm-topic__pic--{{ loop.index }}" src="{{ asset('/assets/img/honour/' ~ tp.img ~ '-480.webp') }}" alt="" loading="lazy" width="480" height="480">
+            <span class="hm-topic__tag">{{ tp.tag|trans }}</span>
+          </span>
+          <span class="hm-topic__body"><span class="hm-topic__t">{{ tp.t|trans }}</span><span class="hm-topic__d">{{ tp.d|trans }}</span></span>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ── 8 · Join band — signed-out visitors only ───────────────────────────── #}
+  {% if not is_member %}
+  <section class="hm-join" aria-labelledby="hm-join-h">
+    <div class="hm-join__text">
+      <span class="hm-join__pill">{{ 'Free for everyone'|trans }}</span>
+      <h2 class="hm-join__h" id="hm-join-h">{{ 'Join the people celebrating Africa'|trans }}</h2>
+      <p class="hm-join__d">{{ 'One free account to nominate, vote, follow the people you admire and keep your own honours in one place.'|trans }}</p>
+      <div class="hm-join__ctas">
+        <a class="hm-cta hm-cta--white" href="/account/register">{{ 'Join free'|trans }}</a>
+        <a class="hm-cta hm-cta--whiteline" href="/account/login">{{ 'Sign in'|trans }}</a>
+      </div>
+      <p class="hm-join__note">{{ 'Use your phone number or email. No password to remember.'|trans }}</p>
+    </div>
+    <ul class="hm-perks" role="list">
+      {% for pk in [
+        ['Nominate and vote', 'Back the people you believe in, in any open award.', 'M12 5v14M5 12h14'],
+        ['Hear first', 'Get a message when an award opens near you.', 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16ZM10 20.5a2 2 0 0 0 4 0'],
+        ['Follow people', 'See when someone you admire is honoured.', 'M5 12.5 10 17 19 7'],
+        ['Keep your honours', 'One verified profile for every recognition you receive.', 'M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.7l5.9-.9L12 3.5Z']
+      ] %}
+        <li class="hm-perk">
+          <span class="hm-perk__ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="{{ pk[2] }}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="hm-perk__t">{{ pk[0]|trans }}</span>
+          <span class="hm-perk__d">{{ pk[1]|trans }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {# ── 9 · Giving — one campaign, past the low-data line (HomeFront::featurable) ────────────── #}
+  {% if campaign %}
+  <section class="hm-sec" aria-labelledby="hm-give">
+    <div class="hm-head hm-head--row">
+      <div class="hm-head">
+        <span class="hm-eyebrow">{{ 'Giving'|trans }}</span>
+        <h2 class="hm-h2" id="hm-give">{{ 'Back the programmes that grow Africa’s next leaders'|trans }}</h2>
+      </div>
+      <a class="hm-more hm-more--lg" href="/giving">{{ 'See all campaigns'|trans }}</a>
+    </div>
+    <a class="hm-give" href="{{ campaign.url }}">
+      <span class="hm-give__media">
+        {% if campaign.logo %}<img class="hm-give__logo" src="{{ campaign.logo }}" alt="{{ campaign.org }}">{% else %}{% include 'partials/photo.twig' with {kind: 'thing', subject: 'campaign', src: '', name: campaign.org} only %}{% endif %}
+      </span>
+      <span class="hm-give__body">
+        <span class="hm-give__org">{{ campaign.org }}</span>
+        <span class="hm-give__t">{{ campaign.title }}</span>
+        <span class="hm-give__prog">
+          {% if campaign.goal %}<span class="hm-give__bar"><span aria-hidden="true" style="--hm-pct:{{ campaign.pct }}%"></span><span class="hm-vh">{{ '%pct%% of the goal'|trans({'%pct%': campaign.pct}) }}</span></span>{% endif %}
+          <span class="hm-give__sum"><strong>{{ campaign.raised }}</strong> <span>{{ campaign.goal ? 'raised of %goal%'|trans({'%goal%': campaign.goal}) : 'raised'|trans }}</span></span>
+        </span>
+        <span class="hm-cta hm-cta--give">{{ 'Give'|trans }}</span>
+      </span>
+    </a>
+  </section>
+  {% endif %}
+
+  {# ── 10 · Recognise with Africa GATES — four audiences, only what exists today ── #}
+  <section class="hm-sec" id="hm-host" aria-labelledby="hm-host-h" tabindex="-1">
+    <div class="hm-head hm-head--row">
+      <div class="hm-head">
+        <span class="hm-eyebrow">{{ 'For organisations'|trans }}</span>
+        <h2 class="hm-h2" id="hm-host-h">{{ 'Recognise with Africa GATES'|trans }}</h2>
+      </div>
+      <a class="hm-more hm-more--lg" href="/partner">{{ 'How it works for organisers'|trans }}</a>
+    </div>
+    <ul class="hm-who" role="list">
+      {% for a in [
+        {k: 'Communities', cta: 'Nominate someone', href: '/nominate', img: 'creative', alt: 'A community celebrating together'},
+        {k: 'Organisations', cta: 'Host an award', href: '/partner', img: 'teacher', alt: 'A teacher with her class'},
+        {k: 'Businesses', cta: 'Recognise your team', href: '/partner', img: 'business', alt: 'A business owner at work'},
+        {k: 'Governments', cta: 'Talk to us', href: '/partner', img: 'community-leader', alt: 'A community leader speaking'}
+      ] %}
+        <li><a class="hm-whoc" href="{{ a.href }}">
+          <img class="hm-whoc__img" src="{{ asset('/assets/img/honour/' ~ a.img ~ '-960.webp') }}" alt="{{ a.alt|trans }}" loading="lazy" width="960" height="960">
+          <span class="hm-whoc__bar"><span class="hm-whoc__t"><b>{{ a.k|trans }}</b><span>{{ a.cta|trans }}</span></span><span class="hm-whoc__go" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></span>
+        </a></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {# ── 11 · We Are Africa — full bleed ────────────────────────────────────── #}
+  <div class="hm-bleed">{% include 'partials/we-are-africa.twig' with {countries: globe_countries, note: globe_note} only %}</div>
+
+  {# ── 12 · Closing band ─────────────────────────────────────────────────── #}
+  <section class="hm-close" aria-labelledby="hm-close-h">
+    <div class="hm-close__text">
+      <h2 class="hm-close__h" id="hm-close-h">{{ 'Someone you know deserves to be celebrated'|trans }}</h2>
+      <p class="hm-close__d">{{ 'Tell their story. It takes five minutes, and it might be the first time anyone has thanked them in public.'|trans }}</p>
+      <div class="hm-close__ctas">
+        <a class="hm-cta hm-cta--go" href="/nominate">{{ 'Start a nomination'|trans }}</a>
+        <a class="hm-cta hm-cta--line" href="/partner">{{ 'Run an award for your organisation'|trans }}</a>
+      </div>
+    </div>
+    <div class="hm-close__pics" aria-hidden="true">
+      {% for pc in closing_pics %}
+        <img class="hm-close__pic hm-close__pic--{{ loop.index }}" src="{{ pc.media ? pc.src|media_url('portrait') : asset(pc.src) }}" alt="" loading="lazy">
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
-(function(){
-  /* Hero rotator — masked seamless slot (one word visible, single-direction glide) */
-  var list=document.getElementById('rotList');
-  if(list && !matchMedia('(prefers-reduced-motion: reduce)').matches){
-    var n=list.children.length-1, step=1.32, i=0;
-    list.classList.add('is-anim');
-    setInterval(function(){
-      i++; list.style.transform='translateY(-'+(i*step)+'em)';
-      if(i===n){ setTimeout(function(){
-        list.classList.remove('is-anim'); i=0; list.style.transform='translateY(0em)';
-        void list.offsetWidth; list.classList.add('is-anim');
-      },640); }
-    },2800);
-  }
-  /* Cut-out images — reveal only the ones that actually load (drop a PNG in to populate) */
-  document.querySelectorAll('img.r26-cutout[data-cutout]').forEach(function(img){
-    var show=function(){ if(img.naturalWidth>1) img.classList.add('is-loaded'); };
-    if(img.complete) show(); else img.addEventListener('load', show);
-  });
-})();
-</script>
+  <script defer src="{{ asset('/assets/js/we-are-africa.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/home.js') }}"></script>
 {% endblock %}
