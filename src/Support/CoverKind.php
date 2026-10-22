@@ -43,6 +43,36 @@ final class CoverKind
         'product'   => ['Shop',      'stone', 'weave'],
     ];
 
+    /**
+     * A product's cover, from its CATEGORY (owner, 22 Oct 2026). The category is free text
+     * an operator types, so it is matched by word, not by key: "T-shirts", "Apparel" and
+     * "Clothing" are one kind. A category nothing here recognises keeps the shop's own
+     * cover. Order matters — the first match wins, so "Art prints" is art, not apparel.
+     * Each row: the words, then tone, pattern and glyph.
+     */
+    public const PRODUCT_KINDS = [
+        'art'       => [['art', 'print', 'poster', 'frame', 'canvas', 'painting'], 'stone', 'grid'],
+        'book'      => [['book', 'journal', 'notebook', 'stationery', 'diary', 'card'], 'info', 'dots'],
+        'headwear'  => [['cap', 'hat', 'headwear', 'beanie'], 'info', 'stripes'],
+        'apparel'   => [['apparel', 'tee', 'shirt', 'clothing', 'wear', 'hoodie', 'jersey', 'top'], 'green', 'weave'],
+        'bag'       => [['bag', 'tote', 'backpack', 'pouch'], 'gold', 'stripes'],
+        'home'      => [['mug', 'cup', 'home', 'kitchen', 'bottle', 'flask'], 'live', 'rings'],
+        'keepsake'  => [['keepsake', 'gift', 'souvenir', 'pin', 'badge', 'medal', 'accessor', 'jewel'], 'gold', 'arches'],
+    ];
+
+    /** The product kind for a category, or '' for the shop's own cover. */
+    public static function productKind(?string $category): string
+    {
+        $c = strtolower(trim((string) $category));
+        if ($c === '') return '';
+        if (isset(self::PRODUCT_KINDS[$c])) return $c;
+        foreach (self::PRODUCT_KINDS as $k => [$words]) {
+            foreach ($words as $w) if (str_contains($c, $w)) return $k;
+        }
+
+        return '';
+    }
+
     public const PATTERNS = ['arches', 'dots', 'grid', 'signal', 'rings', 'weave', 'stripes', 'games'];
 
     /** The content modes a slot may ask for (§5). */
@@ -91,6 +121,12 @@ final class CoverKind
                 $subject, implode(', ', array_keys(self::SUBJECTS))));
         }
         [$label, $tone, $pattern] = self::SUBJECTS[$subject];
+        if ($subject === 'product' && ($k = self::productKind($kind)) !== '') {
+            [, $tone, $pattern] = self::PRODUCT_KINDS[$k];
+
+            return ['subject' => 'product', 'kind' => $k, 'label' => $label, 'tone' => $tone,
+                    'pattern' => $pattern, 'glyph' => 'product-' . $k];
+        }
 
         return ['subject' => $subject, 'kind' => $subject, 'label' => $label, 'tone' => $tone,
                 'pattern' => $pattern, 'glyph' => $subject];

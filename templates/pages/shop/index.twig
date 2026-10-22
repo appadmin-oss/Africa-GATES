@@ -64,6 +64,8 @@
 {% set _ctx = {checkout_retry: checkout_retry, fx: fx, ship_free_over: ship_free_over, providers: providers, regions: regions, region: region} %}
 
 {% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/cover.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/shop.css') }}">
 {% endblock %}
 
@@ -131,6 +133,7 @@
         <input type="search" name="q" value="{{ F.q }}" aria-label="{{ 'Search the shop'|trans }}" placeholder="{{ 'Search tees, totes, keepsakes…'|trans }}">
         {% if F.q %}<a class="sp-search__x sp-search__x--wide" href="{{ u.url(_base|merge({q: null})) }}" aria-label="{{ 'Clear search'|trans }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></a>{% endif %}
       </form>
+      {{ sb.cartBtn('sp-cartw') }}
     </div>
     <ul class="sp-promises" aria-label="{{ 'Why shop here'|trans }}">
       <li><svg class="sp-promises__i sp-promises__i--live" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"></path></svg><span><b>{{ 'Gives back'|trans }}</b> · {{ 'funds child leadership programmes'|trans }}</span></li>
@@ -225,7 +228,7 @@
       <div class="sp-main">
         {% if promo %}
           <a class="sp-promo" href="/shop/{{ promo.slug }}">
-            <span class="sp-promo__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', src: promo.cover_path|default(''), name: promo.name, label: false} only %}</span>
+            <span class="sp-promo__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', cover_kind: promo.category|default(''), src: promo.cover_path|default(''), name: promo.name, label: false} only %}</span>
             <span class="sp-promo__b">
               <span class="sp-promo__k">{{ 'Featured in the shop'|trans }}</span>
               <span class="sp-promo__t">{{ promo.name }}</span>

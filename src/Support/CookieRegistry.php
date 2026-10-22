@@ -207,6 +207,10 @@ final class CookieRegistry
             // message, so the button stays pressed. Never the vote itself — that is the server's.
             ['key' => 'ag-vote:', 'category' => self::PREFERENCES, 'where' => 'local-or-session', 'audience' => 'everyone',
              'purpose' => 'Which award categories you have voted in on this device, and the messages of support you cheered or reported, so the voting pages can show your progress and keep those buttons pressed. Your vote itself is recorded on our server, not here. Kept on this device between visits if you allow Preferences; otherwise only until you close the tab.'],
+            // The shop's basket (shop.js). Essential: a cart is part of a purchase somebody
+            // asked for. Every figure in it is re-priced by the server at checkout.
+            ['key' => 'ag-cart', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'everyone',
+             'purpose' => 'What you put in your shop cart — each item, its option and how many — so the cart is still there when you move between pages or come back later. It holds no payment details, and prices are checked again on our server when you check out.'],
             ['key' => 'coi_declared_', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'judges',
              'purpose' => 'For judges only: that you have made this programme\'s conflict-of-interest declaration in this tab.'],
             ['key' => 'ag-door-q:', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'door staff',

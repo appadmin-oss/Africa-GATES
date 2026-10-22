@@ -111,6 +111,18 @@
 .ag-cover__tile img { width: 64%; height: 64%; object-fit: contain; }
 .ag-cover__glyph { width: 44%; height: 44%; overflow: visible; }
 
+/* ── a product (owner, 22 Oct 2026) ────────────────────────────────────────────
+   A shop card is a product, not an app: no white tile. The item's own line drawing
+   (CoverKind::PRODUCT_KINDS, from its category) sits large in the tone's ink, on a lit
+   centre, with the pattern kept to the edges and quieter than an event's. */
+.ag-cover--of-product { --cv-a: color-mix(in srgb, var(--cv-line) 11%, transparent); --cv-b: color-mix(in srgb, var(--cv-line) 5%, transparent); }
+.ag-cover--of-product::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--ag-surface) 70%, transparent) 0 24cqmin, transparent 52cqmin);
+}
+.ag-cover--of-product .ag-cover__tile { width: 46cqmin; background: none; box-shadow: none; }
+.ag-cover--of-product .ag-cover__glyph { width: 100%; height: 100%; stroke-width: .9; }
+
 /* ── the date tile ──────────────────────────────────────────────────────────── */
 .ag-cover__date {
   position: absolute; top: clamp(8px, 6cqmin, 24px); inset-inline-start: clamp(8px, 6cqmin, 24px);

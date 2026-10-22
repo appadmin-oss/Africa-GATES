@@ -39,7 +39,7 @@
 {%- set _logo  = logo|default('') -%}
 {%- set _label = label is defined ? label : _c.label|trans -%}
 {%- set _k     = cover_title_scale(_title) -%}
-<div class="ag-cover ag-cover--{{ _c.tone }} ag-cover--{{ _c.pattern }} ag-cover--{{ _mode }}{{ fill|default(false) ? ' ag-cover--fill' }}"
+<div class="ag-cover ag-cover--{{ _c.tone }} ag-cover--{{ _c.pattern }} ag-cover--{{ _mode }}{{ fill|default(false) ? ' ag-cover--fill' }} ag-cover--of-{{ _c.subject }}"
      {%- if not fill|default(false) %} style="aspect-ratio:{{ ratio|default('16/9') }}"{% endif %} aria-hidden="true">
   <span class="ag-cover__pat"></span>
   {%- if _mode == 'date' %}

@@ -43,7 +43,7 @@
   <article class="sp-card{{ p.sold_out ? ' is-gone' }}">
     <div class="sp-card__img">
       <a class="sp-card__media" href="/shop/{{ p.slug }}" tabindex="-1" aria-hidden="true">
-        {% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', src: p.cover_path|default(''), name: p.name, label: false} only %}
+        {% include 'partials/photo.twig' with {kind: 'thing', subject: 'product', cover_kind: p.category|default(''), src: p.cover_path|default(''), name: p.name, label: false} only %}
       </a>
       {% if p.sold_out %}<span class="sp-tag sp-tag--gone">{{ 'Sold out'|trans }}</span>
       {% elseif p.tag|default('') %}<span class="sp-tag">{{ p.tag }}</span>{% endif %}
@@ -97,7 +97,7 @@
             items: '%n% items'|trans, item: '1 item'|trans, empty: 'Your cart is empty.'|trans,
             remove: 'Remove'|trans, freeGot: 'You’ve got free delivery.'|trans,
             freeLeft: 'Add %amount% more for free delivery.'|trans, charged: 'Charged in Naira · %amount%'|trans,
-            free: 'Free'|trans, fewer: 'One fewer'|trans, more: 'One more'|trans, changed: 'Your cart changed:'|trans
+            free: 'Free'|trans, total: 'Total'|trans, delivery: 'Delivery'|trans, discount: 'Discount'|trans, fewer: 'One fewer'|trans, more: 'One more'|trans, changed: 'Your cart changed:'|trans
          }|json_encode }}">
     <div class="sp-cart__head">
       <h2 class="sp-cart__h" id="spCartH" data-sp-cart-title>{{ 'Your cart'|trans }}</h2>
@@ -111,7 +111,7 @@
       <p class="sp-cart__soon" role="status">{{ 'Online checkout is being set up. To order now, write to us and we’ll arrange payment and delivery.'|trans }}</p>
     {% endif %}
 
-    <form class="sp-cart__form" method="post" action="/shop/checkout" data-sp-checkout novalidate data-favicon-busy>
+    <form class="sp-cart__form" method="post" action="/shop/checkout" data-sp-checkout novalidate data-ag-validate data-favicon-busy>
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <input type="hidden" name="cart" value="{}" data-sp-cart-json>
       <div class="sp-cart__body">
