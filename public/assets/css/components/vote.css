@@ -43,8 +43,7 @@
 .vh-chip{ white-space:nowrap }
 
 .vh-list{ list-style:none; margin:0; padding:0; border-top:1px solid var(--ag-line) }
-.vh-row,
-.vh-row:hover{
+.vh-row{
   display:grid; grid-template-columns:60px minmax(0,1fr) auto 18px; gap:14px; align-items:center;
   min-height:88px; padding:14px 4px; box-sizing:border-box; border-bottom:1px solid var(--ag-line);
   color:var(--ag-ink); text-decoration:none;
@@ -93,8 +92,7 @@
 .vh-split__c, .vp-split__c{ display:flex; align-items:center; padding:0 10px; background:var(--ag-green); color:var(--ag-surface); white-space:nowrap }
 .vh-split__j, .vp-split__j{ display:flex; align-items:center; padding:0 10px; background:var(--ag-ink); color:var(--ag-surface); white-space:nowrap }
 .vh-card__p{ font-size:var(--ag-fs-13); line-height:1.5; color:var(--ag-ink-2) }
-.vh-card__a,
-.vh-card__a:hover{ display:inline-flex; align-items:center; gap:6px; min-height:44px; font-weight:600; font-size:var(--ag-fs-13-5); color:var(--ag-green); text-decoration:none }
+.vh-card__a{ display:inline-flex; align-items:center; gap:6px; min-height:44px; font-weight:600; font-size:var(--ag-fs-13-5); color:var(--ag-green); text-decoration:none }
 
 @media (min-width:600px){
   .vh{ padding:40px 32px 64px }
@@ -141,8 +139,7 @@
 
 .vp-tabs{ position:sticky; top:0; z-index:4; background:var(--ag-ground); border-bottom:1px solid var(--ag-line-2) }
 .vp-tabs__in{ max-width:1240px; margin:0 auto; padding:0 16px; display:flex; gap:4px }
-.vp-tab,
-.vp-tab:hover{ flex:1; display:flex; align-items:center; justify-content:center; height:52px; padding:0 14px; color:var(--ag-soft); font-weight:600; font-size:var(--ag-fs-15); text-decoration:none }
+.vp-tab{ flex:1; display:flex; align-items:center; justify-content:center; height:52px; padding:0 14px; color:var(--ag-soft); font-weight:600; font-size:var(--ag-fs-15); text-decoration:none }
 .vp-tab[aria-current="page"]{ color:var(--ag-ink); font-weight:700; box-shadow:inset 0 -3px 0 var(--ag-green) }
 
 .vp-body{ max-width:1240px; width:100%; box-sizing:border-box; margin:0 auto; padding:4px 16px 32px; display:grid; grid-template-columns:minmax(0,1fr); gap:20px; align-items:start }
@@ -160,8 +157,7 @@
 .vp-race__dot{ flex:none; width:7px; height:7px; border-radius:50%; background:var(--ag-live) }
 .vp-race{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20); overflow:hidden }
 .vp-race li + li{ border-top:1px solid var(--ag-line) }
-.vp-row,
-.vp-row:hover{ display:grid; grid-template-columns:56px minmax(0,1fr) auto; gap:14px; align-items:center; padding:14px; color:var(--ag-ink); text-decoration:none; background:var(--ag-surface) }
+.vp-row{ display:grid; grid-template-columns:56px minmax(0,1fr) auto; gap:14px; align-items:center; padding:14px; color:var(--ag-ink); text-decoration:none; background:var(--ag-surface) }
 .vp-row:hover{ background:var(--ag-bar) }
 .vp-row:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
 .vp-row__av{ position:relative; width:56px; height:56px; border-radius:var(--ag-r-14); overflow:hidden; background:var(--ag-line); container-type:inline-size }
@@ -195,8 +191,7 @@
 .vp-card__bar{ display:block; height:8px; border-radius:4px; background:var(--ag-ground); overflow:hidden }
 .vp-card__p{ font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-ink-2) }
 .vp-card__lock{ display:flex; gap:9px; align-items:flex-start; padding-top:12px; border-top:1px solid var(--ag-line); font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-ink-2) }
-.vp-card__a,
-.vp-card__a:hover{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
+.vp-card__a{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
 
 /* About the award. */
 .vp-about{ max-width:880px; width:100%; box-sizing:border-box; margin:0 auto; padding:16px 16px 28px; display:flex; flex-direction:column; gap:24px }
@@ -224,8 +219,7 @@
 .vp-faq__sign::before{ content:'+'; font-size:var(--ag-fs-20); color:var(--ag-soft) }
 .vp-faq[open] .vp-faq__sign::before{ content:'−' }
 .vp-faq__a{ margin:0; padding:0 16px 16px; font-size:var(--ag-fs-14-5); line-height:1.6; color:var(--ag-ink-2) }
-.vp-ev,
-.vp-ev:hover{ display:flex; align-items:center; gap:14px; padding:16px 18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18); color:var(--ag-ink); text-decoration:none }
+.vp-ev{ display:flex; align-items:center; gap:14px; padding:16px 18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18); color:var(--ag-ink); text-decoration:none }
 .vp-ev__date{ flex:none; width:52px; display:flex; flex-direction:column; align-items:center; line-height:1.1 }
 .vp-ev__mon{ font-size:var(--ag-fs-12); font-weight:700; color:var(--ag-live-ink) }
 .vp-ev__day{ font-size:var(--ag-fs-22); font-weight:700 }
@@ -291,8 +285,7 @@
   .vp-chips{ display:none }
   .vp-cats{ position:sticky; top:68px; display:flex; flex-direction:column; gap:2px }
   .vp-cats__k{ font-size:var(--ag-fs-12); font-weight:700; color:var(--ag-soft); padding:0 12px 8px }
-  .vp-cats__a,
-  .vp-cats__a:hover{ display:flex; align-items:center; gap:10px; min-height:46px; padding:0 12px; border-radius:var(--ag-r-12); color:var(--ag-ink); font-weight:500; font-size:var(--ag-fs-14-5); text-decoration:none }
+  .vp-cats__a{ display:flex; align-items:center; gap:10px; min-height:46px; padding:0 12px; border-radius:var(--ag-r-12); color:var(--ag-ink); font-weight:500; font-size:var(--ag-fs-14-5); text-decoration:none }
   .vp-cats__a span{ flex:1; min-width:0 }
   .vp-cats__a[aria-current="true"]{ background:var(--ag-surface); font-weight:700 }
   .vp-row{ gap:18px }
@@ -309,4 +302,10 @@
   .vp-row__figs--side{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; text-align:end }
   .vp-row__figs--side b{ font-weight:700; font-size:var(--ag-fs-15); line-height:1.1 }
   .vp-row__figs--side .vp-row__gap{ font-size:var(--ag-fs-12-5) }
+}
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .vh-row:hover{ background:var(--ag-ground) }
 }

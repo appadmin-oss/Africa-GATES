@@ -101,7 +101,12 @@ html.ag-shelled body{ height:100%; overflow:hidden }
    and is 16px exactly at 100%. */
 
 a{ color:var(--ag-green); text-decoration:none }
-a:hover{ color:var(--ag-green-deep) }
+/* `:where` keeps this at the specificity of a bare `a`: a classed link or button
+   sets its own hover. As `a:hover` it out-ranked every `.x{ color }`, so 160 rules
+   copied their whole base onto `.x:hover` to win it back — and that copy then
+   out-ranked their own breakpoint overrides, so hovering snapped a button, card
+   or tab back to its phone size. */
+a:where(:hover){ color:var(--ag-green-deep) }
 input,select,textarea,button{ font:inherit; color:inherit }
 input,select,textarea{ font-size:var(--ag-fs-16) }
 h1,h2,h3{ text-wrap:balance }

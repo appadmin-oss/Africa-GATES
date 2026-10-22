@@ -25,8 +25,7 @@
 /* The scrim lifts a PHOTOGRAPH's busy left side off the record card. Over the generated
    cover it only greyed a light pattern into a smear, so it is the photo's alone. */
 .who__img--photo::after{ content:""; position:absolute; inset:0; background:linear-gradient(90deg, color-mix(in srgb, var(--ag-ink) 55%, transparent) 0%, transparent 55%) }
-.who__rec,
-.who__rec:hover{
+.who__rec{
   position:absolute; inset-inline-end:12px; bottom:12px; width:calc(100% - 24px); box-sizing:border-box;
   display:flex; flex-direction:column; gap:12px; padding:18px;
   background:color-mix(in srgb, var(--ag-surface) 97%, transparent); color:var(--ag-ink);
@@ -52,8 +51,7 @@
 .who__bar-t{ display:flex; flex-direction:column; gap:6px; max-width:620px }
 .who__t{ font-weight:700; font-size:var(--ag-fs-18); line-height:1.25 }
 .who__b{ font-size:var(--ag-fs-14-5); line-height:1.55; color:var(--ag-ink-2) }
-.who__cta,
-.who__cta:hover{
+.who__cta{
   flex:none; display:flex; align-items:center; justify-content:center; height:48px; padding:0 24px;
   border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface); font-weight:600; font-size:var(--ag-fs-15); text-decoration:none;
 }
@@ -67,8 +65,7 @@
   .who__stage{ aspect-ratio:16 / 8 }
   /* A cover is a pattern, not a picture: it does not need half the screen. */
   .who__stage:not(:has(.who__img--photo)){ aspect-ratio:16 / 6 }
-  .who__rec,
-  .who__rec:hover{ inset-inline-end:28px; bottom:28px; width:380px }
+  .who__rec{ inset-inline-end:28px; bottom:28px; width:380px }
   .who__none{ inset-inline:auto 28px; bottom:28px; width:380px; box-sizing:border-box }
   .who__rec-t{ font-size:var(--ag-fs-20) }
   .who__bar{ flex-direction:row; align-items:center; padding:24px 28px }

@@ -54,9 +54,7 @@
   background:var(--ag-tint); border:1px solid var(--ag-tint); border-radius:var(--ag-r-14);
 }
 .nh-ask__new,
-.nh-ask__new:hover,
-.nh-ask__m,
-.nh-ask__m:hover{ display:flex; align-items:center; gap:12px; padding:12px 14px; min-height:64px; color:var(--ag-ink) }
+.nh-ask__m{ display:flex; align-items:center; gap:12px; padding:12px 14px; min-height:64px; color:var(--ag-ink) }
 .nh-ask__new{ background:var(--ag-green-wash) }
 .nh-ask__m{ background:var(--ag-surface); padding-block:10px }
 .nh-ask__plus{
@@ -98,8 +96,7 @@
   .nh-cards:not(.nh-cards--all) > .nh-card:nth-child(n+4){ display:none }
 }
 @media (max-width:599px){ .nh__more--desk{ display:none } }
-.nh-card,
-.nh-card:hover{
+.nh-card{
   display:flex; flex-direction:column; overflow:hidden; color:var(--ag-ink);
   background:var(--ag-surface); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-16);
 }
@@ -115,8 +112,7 @@
    broken bar. */
 .nh-fields{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px }
 @media (min-width:600px){ .nh-fields{ grid-template-columns:repeat(4,minmax(0,1fr)) } }
-.nh-fields__i,
-.nh-fields__i:hover{
+.nh-fields__i{
   display:flex; justify-content:space-between; align-items:baseline; gap:8px;
   min-height:46px; padding:14px 16px; background:var(--ag-surface); color:var(--ag-ink);
   font-weight:600; font-size:var(--ag-fs-14-5); border:1px solid var(--ag-line); border-radius:var(--ag-r-12);
@@ -129,8 +125,7 @@
   display:flex; flex-direction:column; gap:1px; overflow:hidden;
   background:var(--ag-tint); border:1px solid var(--ag-tint); border-radius:var(--ag-r-16);
 }
-.nh-rows__i,
-.nh-rows__i:hover{ display:flex; gap:12px; align-items:center; min-height:56px; padding:12px 14px; background:var(--ag-surface); color:var(--ag-ink) }
+.nh-rows__i{ display:flex; gap:12px; align-items:center; min-height:56px; padding:12px 14px; background:var(--ag-surface); color:var(--ag-ink) }
 .nh-rows__i--live{ align-items:baseline }
 .nh-rows__b{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
 .nh-rows__b b{ font-weight:600; font-size:var(--ag-fs-14-5) }
@@ -146,8 +141,7 @@
 
 /* The phone's start bar, above the tab bar; measured by shell.js (`data-bottom-ui`). */
 .nh-cta{ flex:none; background:var(--ag-bar); border-top:1px solid var(--ag-line-2); padding:10px 16px 6px }
-.nh-cta__go,
-.nh-cta__go:hover{
+.nh-cta__go{
   display:flex; align-items:center; justify-content:center; height:52px;
   border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface);
   font-weight:600; font-size:var(--ag-fs-16);
@@ -181,8 +175,7 @@
 }
 .nf__railk{ font-weight:700; font-size:var(--ag-fs-12); color:var(--ag-soft) }
 .nf__steps{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px }
-.nf__step,
-.nf__step:hover{
+.nf__step{
   display:flex; align-items:center; gap:12px; min-height:56px; padding:10px;
   border:1px solid transparent; border-radius:var(--ag-r-12); color:var(--ag-ink);
 }
@@ -402,14 +395,12 @@
 .nd__whob span{ font-size:var(--ag-fs-13); line-height:1.4; color:var(--ag-ink-2) }
 .nd__whob .nd__ed{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
 .nd__share{ display:flex; gap:8px; flex-wrap:wrap }
-.nd__btn,
-.nd__btn:hover{
+.nd__btn{
   flex:1 1 110px; display:flex; align-items:center; justify-content:center; min-height:48px;
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface);
   color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-15); cursor:pointer;
 }
-.nd__btn--go,
-.nd__btn--go:hover{ border-color:transparent; background:var(--ag-green); color:var(--ag-surface) }
+.nd__btn--go{ border-color:transparent; background:var(--ag-green); color:var(--ag-surface) }
 .nd__fine{ margin:0; font-size:var(--ag-fs-13); line-height:1.5; color:var(--ag-soft) }
 .nd__next{ display:flex; flex-direction:column; gap:12px }
 .nd__k{ margin:0; font-size:var(--ag-fs-14); font-weight:700; color:var(--ag-soft) }
@@ -419,3 +410,9 @@
    on the form rather than on another page. */
 .nf-cat__tb{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
 .nf-cat__d{ font-size:var(--ag-fs-13); line-height:1.45; color:var(--ag-soft); font-weight:400 }
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .nh-rows__i:hover{ background:var(--ag-ground); color:var(--ag-ink) }
+}

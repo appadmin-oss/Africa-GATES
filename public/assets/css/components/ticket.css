@@ -89,14 +89,12 @@
 
 /* ── 2×2 actions ── */
 .tk-acts{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
-.tk-act,
-.tk-act:hover{
+.tk-act{
   display:flex; align-items:center; justify-content:center; gap:8px; min-height:50px; padding:0 10px;
   border-radius:var(--ag-r-14); border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink);
   font-weight:600; font-size:var(--ag-fs-14); text-decoration:none; text-align:center;
 }
-.tk-act--go,
-.tk-act--go:hover{ background:var(--ag-green-deep); border-color:var(--ag-green-deep); color:var(--ag-surface) }
+.tk-act--go{ background:var(--ag-green-deep); border-color:var(--ag-green-deep); color:var(--ag-surface) }
 
 /* ── Manage this ticket ── */
 .tk-manage{ background:var(--ag-surface); color:var(--ag-ink); border:1px solid var(--ag-line); border-radius:var(--ag-r-16) }
@@ -137,8 +135,7 @@
 .tk-cut{ display:none }
 .tk-foot{ margin:0; text-align:center; font-size:var(--ag-fs-12-5); line-height:1.5; color:var(--ag-soft) }
 .tk-page--dark .tk-foot{ color:var(--ag-line-2) }
-.tk-page--dark .tk-act--go,
-.tk-page--dark .tk-act--go:hover{ background:var(--ag-green); border-color:var(--ag-green) }
+.tk-page--dark .tk-act--go{ background:var(--ag-green); border-color:var(--ag-green) }
 .tk-lost{ display:flex; flex-direction:column; gap:10px; font-size:var(--ag-fs-15); line-height:1.6 }
 .tk-lost__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26) }
 .tk-lost p{ margin:0 }

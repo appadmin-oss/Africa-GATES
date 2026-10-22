@@ -36,8 +36,7 @@
 .vn-head__sub{ font-size:var(--ag-fs-15-5); line-height:1.45; color:var(--ag-ink-2) }
 .vn-head__chips{ display:flex; gap:8px; flex-wrap:wrap; padding-top:4px }
 .vn-chip{ display:inline-flex; align-items:center; height:40px; padding:0 14px; border-radius:var(--ag-r-pill); background:var(--ag-tint); font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink) }
-.vn-chip--link,
-.vn-chip--link:hover{ height:44px; padding:0 16px; border:1px solid var(--ag-line-2); background:var(--ag-surface); font-size:var(--ag-fs-14); text-decoration:none; color:var(--ag-ink) }
+.vn-chip--link{ height:44px; padding:0 16px; border:1px solid var(--ag-line-2); background:var(--ag-surface); font-size:var(--ag-fs-14); text-decoration:none; color:var(--ag-ink) }
 
 .vn-race{ display:flex; flex-direction:column; gap:10px; padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
 .vn-race__t{ font-weight:700; font-size:var(--ag-fs-17) }
@@ -55,8 +54,7 @@
 .vn-sec__p{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-soft) }
 .vn-sub{ margin:6px 0 0; font-weight:700; font-size:var(--ag-fs-15) }
 .vn-story{ padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18); font-size:var(--ag-fs-15-5); line-height:1.6 }
-.vn-more,
-.vn-more:hover{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
+.vn-more{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
 .vn-placed{ display:flex; flex-direction:column; gap:6px; padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
 
 .vn-roll{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px }
@@ -70,8 +68,7 @@
 .vn-ev__ok{ flex:none; font-size:var(--ag-fs-12); font-weight:700; color:var(--ag-green-deep) }
 
 .vn-others{ list-style:none; margin:0; padding:0; display:grid; grid-template-columns:minmax(0,1fr); gap:10px }
-.vn-other,
-.vn-other:hover{ display:flex; align-items:center; gap:10px; padding:10px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-14); color:var(--ag-ink); text-decoration:none }
+.vn-other{ display:flex; align-items:center; gap:10px; padding:10px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-14); color:var(--ag-ink); text-decoration:none }
 .vn-other__av{ position:relative; flex:none; width:44px; height:44px; border-radius:var(--ag-r-12); overflow:hidden; background:var(--ag-line); container-type:inline-size }
 .vn-other__av .ag-photo{ position:absolute; inset:0 }
 .vn-other__av .ag-photo__ini{ font-size:var(--ag-fs-15) }
@@ -81,10 +78,8 @@
 
 .vn-bar{ flex:none; display:flex; gap:8px; padding:12px 16px calc(12px + env(safe-area-inset-bottom, 0px) + 16px); background:var(--ag-bar); border-top:1px solid var(--ag-line-2) }
 .vn-bar__share{ flex:none; width:52px; height:52px; border:1px solid var(--ag-line-2); border-radius:50%; background:var(--ag-surface); color:var(--ag-ink); display:flex; align-items:center; justify-content:center; cursor:pointer }
-.vn-bar__go,
-.vn-bar__go:hover{ flex:1; display:flex; align-items:center; justify-content:center; height:52px; border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface); font-weight:700; font-size:var(--ag-fs-16); text-decoration:none }
-.vn-bar__go--line,
-.vn-bar__go--line:hover{ background:var(--ag-surface); color:var(--ag-ink); border:1px solid var(--ag-line-2) }
+.vn-bar__go{ flex:1; display:flex; align-items:center; justify-content:center; height:52px; border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface); font-weight:700; font-size:var(--ag-fs-16); text-decoration:none }
+.vn-bar__go--line{ background:var(--ag-surface); color:var(--ag-ink); border:1px solid var(--ag-line-2) }
 
 /* ── The ballot ─────────────────────────────────────────────────────────────── */
 .vb{ display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-20); overflow:hidden; scroll-margin-top:16px }

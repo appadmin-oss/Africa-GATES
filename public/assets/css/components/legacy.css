@@ -76,8 +76,7 @@
 }
 .lv-cards > li:nth-child(n+5){ display:none }
 .lv-cards > li + li .lv-card{ border-top:1px solid var(--ag-line-3) }
-.lv-card,
-.lv-card:hover{
+.lv-card{
   display:grid; grid-template-columns:84px minmax(0,1fr); gap:12px; align-items:center;
   min-height:88px; padding:12px; box-sizing:border-box; color:var(--ag-ink); text-decoration:none;
 }
@@ -92,8 +91,7 @@
 .lv-card__foot{ display:flex }
 .lv-card__facts{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); font-variant-numeric:tabular-nums }
 .lv-card__go{ display:none }
-.lv-more,
-.lv-more:hover{
+.lv-more{
   display:flex; align-items:center; justify-content:center; min-height:52px; margin-top:-13px;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-top-color:var(--ag-line-3);
   border-radius:0 0 var(--ag-r-18) var(--ag-r-18);
@@ -120,8 +118,7 @@
 .lv-rail .lv-search input{ font-size:var(--ag-fs-15) }
 .lv-facet{ margin:0; padding:0; border:0; display:flex; flex-direction:column; gap:2px }
 .lv-facet__t{ padding:0 0 8px; font-size:var(--ag-fs-14); font-weight:700 }
-.lv-year,
-.lv-year:hover{
+.lv-year{
   display:flex; align-items:center; justify-content:space-between; height:40px; padding:0 12px;
   border-radius:var(--ag-r-10); color:var(--ag-ink); font-size:var(--ag-fs-14-5); font-weight:500; text-decoration:none;
 }
@@ -142,8 +139,7 @@
 }
 .lv-check input:focus-visible + .lv-check__box{ outline:3px solid var(--ag-green); outline-offset:2px }
 .lv-apply{ margin-top:8px; height:44px }
-.lv-note,
-.lv-note:hover{
+.lv-note{
   display:flex; gap:10px; align-items:flex-start; padding:14px; margin-top:22px;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
   color:var(--ag-ink); font-size:var(--ag-fs-13-5); line-height:1.5; text-decoration:none;
@@ -165,8 +161,7 @@
   .lv-cards{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; background:none; border:0; border-radius:0; overflow:visible }
   .lv-cards > li:nth-child(n+5){ display:block }
   .lv-cards > li + li .lv-card{ border-top:1px solid var(--ag-line) }
-  .lv-card,
-  .lv-card:hover{
+  .lv-card{
     display:flex; flex-direction:column; height:100%; padding:0; gap:0; align-items:stretch;
     border:1px solid var(--ag-line); border-radius:var(--ag-r-18); overflow:hidden; background:var(--ag-surface);
   }
@@ -188,8 +183,7 @@
   }
   .lv-card__facts{ font-size:var(--ag-fs-13); color:var(--ag-ink-2) }
   .lv-card__go{ flex:none; display:flex; align-items:center; gap:4px; font-weight:600; color:var(--ag-green); white-space:nowrap }
-  .lv-more,
-  .lv-more:hover{
+  .lv-more{
     align-self:flex-start; min-height:44px; margin:0; padding:0 18px;
     border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); font-size:var(--ag-fs-14);
   }
@@ -256,8 +250,7 @@
 .lve-wins__xp,
 .lve-wins__x{ display:none }
 .lve-wins.is-all > li{ display:block }
-.lve-win,
-.lve-win:hover{
+.lve-win{
   display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:12px; align-items:center;
   min-height:68px; padding:10px 14px; box-sizing:border-box; background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
 }
@@ -281,14 +274,12 @@
 .lve-gal .ag-photo{ position:absolute; inset:0 }
 
 .lve-phone{ display:flex; flex-direction:column; gap:12px }
-.lve-seal,
-.lve-seal:hover{
+.lve-seal{
   display:flex; gap:12px; align-items:flex-start; padding:16px 18px;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
   color:var(--ag-ink); text-decoration:none;
 }
-.lve-seal--row,
-.lve-seal--row:hover{ align-items:center; min-height:56px; padding:12px 14px; border-radius:var(--ag-r-16) }
+.lve-seal--row{ align-items:center; min-height:56px; padding:12px 14px; border-radius:var(--ag-r-16) }
 .lve-seal svg{ flex:none }
 .lve-seal__t{ flex:1; display:flex; flex-direction:column; gap:3px }
 .lve-seal__t b{ font-size:var(--ag-fs-14-5) }
@@ -297,8 +288,7 @@
 .lve-seal__ref{ font-family:var(--ag-font-mono) }
 .lve-chev{ color:var(--ag-chevron) }
 .lve-near{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
-.lve-near a,
-.lve-near a:hover{
+.lve-near a{
   display:flex; flex-direction:column; justify-content:center; gap:2px; min-height:64px; padding:0 14px;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-14); color:var(--ag-ink); text-decoration:none;
 }
@@ -316,8 +306,7 @@
 .lve-tl{ display:flex; flex-direction:column; gap:10px; padding:16px 18px }
 .lve-tl__t{ font-size:var(--ag-fs-14-5) }
 .lve-tl ol{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column }
-.lve-tl a,
-.lve-tl a:hover{
+.lve-tl a{
   display:grid; grid-template-columns:14px 1fr auto; gap:10px; align-items:center; min-height:40px;
   color:var(--ag-ink); font-size:var(--ag-fs-14); font-weight:500; text-decoration:none;
 }
@@ -360,6 +349,5 @@
 
 /* ── The public withdrawal log (`/recognitions/withdrawn`), in the vault's own parts ── */
 .lv--log{ max-width:880px }
-.lv-log .lve-win,
-.lv-log .lve-win:hover{ grid-template-columns:minmax(0,1fr) auto; background:var(--ag-surface) }
+.lv-log .lve-win{ grid-template-columns:minmax(0,1fr) auto; background:var(--ag-surface) }
 .lv-log__why{ font-size:var(--ag-fs-14-5); line-height:1.5; color:var(--ag-ink-2) }

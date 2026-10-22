@@ -32,8 +32,7 @@
 .lb-lede{ margin:0; max-width:54ch; font-size:var(--ag-fs-15-5); line-height:1.6; color:var(--ag-ink-2); text-wrap:pretty }
 .lb-updated{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
 
-.lb-how,
-.lb-how:hover{
+.lb-how{
   display:none; flex-direction:column; gap:10px; padding:18px 20px;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
   color:var(--ag-ink); text-decoration:none;
@@ -60,16 +59,14 @@
 
 /* ── Podium ───────────────────────────────────────────────────────────────── */
 .lb-pod{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; align-items:end }
-.lb-pod__c,
-.lb-pod__c:hover{
+.lb-pod__c{
   --medal:var(--ag-line-2);
   display:flex; flex-direction:column; align-items:center; gap:8px; padding:14px 8px; min-width:0;
   border-radius:var(--ag-r-20); background:var(--ag-surface); border:1px solid var(--ag-line);
   color:var(--ag-ink); text-align:center; text-decoration:none;
 }
 .lb-pod__c--1{ order:2 } .lb-pod__c--2{ order:1 } .lb-pod__c--3{ order:3; --medal:var(--ag-gold-edge) }
-.lb-pod__c.is-first,
-.lb-pod__c.is-first:hover{ --medal:var(--ag-gold); padding:18px 8px 16px; background:var(--ag-gold-wash); border-color:var(--ag-gold-edge) }
+.lb-pod__c.is-first{ --medal:var(--ag-gold); padding:18px 8px 16px; background:var(--ag-gold-wash); border-color:var(--ag-gold-edge) }
 .lb-pod__c:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .lb-pod__img{ position:relative; display:block; width:48px; height:48px }
 .is-first .lb-pod__img{ width:60px; height:60px }
@@ -120,8 +117,7 @@
 .lb-list{ list-style:none; margin:0; padding:0 }
 .lb-list > li + li .lb-row{ border-top:1px solid var(--ag-line-3) }
 .lb-list > li{ scroll-margin-top:120px }
-.lb-row,
-.lb-row:hover{
+.lb-row{
   display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:12px; align-items:center;
   min-height:68px; padding:10px 14px; color:var(--ag-ink); text-decoration:none;
 }
@@ -151,8 +147,7 @@
 .lb-none{ margin:0; padding:24px 8px; text-align:center; font-size:var(--ag-fs-15); color:var(--ag-ink-2) }
 .lb-none a{ color:var(--ag-green); font-weight:600 }
 .lb-foot{ display:flex; flex-direction:column; align-items:stretch; gap:10px; padding-top:4px }
-.lb-more,
-.lb-more:hover{ height:50px; border:1px solid var(--ag-ink); border-radius:var(--ag-r-14); font-weight:700 }
+.lb-more{ height:50px; border:1px solid var(--ag-ink); border-radius:var(--ag-r-14); font-weight:700 }
 .lb-note{ font-size:var(--ag-fs-13); color:var(--ag-soft); text-align:center }
 .lb-note a{ color:var(--ag-green) }
 
@@ -172,18 +167,15 @@
 @media (min-width:600px){
   .lb{ padding:28px 28px 48px; gap:28px }
   .lb-head{ grid-template-columns:minmax(0,1fr) 380px }
-  .lb-how,
-  .lb-how:hover{ display:flex }
+  .lb-how{ display:flex }
   .lb-h1{ font-size:var(--ag-fs-38) }
   .lb-lede{ font-size:var(--ag-fs-17) }
   .lb-empty{ padding:56px 24px }
   .lb-empty__do{ flex-direction:row; justify-content:center; width:auto }
   .lb-empty__go{ width:auto }
   .lb-pod{ gap:16px }
-  .lb-pod__c,
-  .lb-pod__c:hover{ gap:12px; padding:22px 18px }
-  .lb-pod__c.is-first,
-  .lb-pod__c.is-first:hover{ padding:30px 18px 26px }
+  .lb-pod__c{ gap:12px; padding:22px 18px }
+  .lb-pod__c.is-first{ padding:30px 18px 26px }
   .lb-pod__img{ width:64px; height:64px }
   .is-first .lb-pod__img{ width:84px; height:84px }
   .lb-pod__medal{ width:28px; height:28px; font-size:var(--ag-fs-13) }
@@ -196,11 +188,9 @@
   .lb-region select,
   .lb-region__go,
   .lb-chip{ height:40px }
-  .lb-row,
-  .lb-row:hover{ min-height:64px }
+  .lb-row{ min-height:64px }
   .lb-foot{ align-items:center }
-  .lb-more,
-  .lb-more:hover{ width:auto }
+  .lb-more{ width:auto }
 }
 
 /* ── Desktop: the five-column table and the 280px rail ────────────────────── */
@@ -218,8 +208,7 @@
   }
   .lb-th__end{ text-align:end }
   .lb-list > li:first-child .lb-row{ border-top:0 }
-  .lb-row,
-  .lb-row:hover{ grid-template-columns:56px minmax(0,1fr) 120px 150px 64px; gap:14px; padding:10px 20px }
+  .lb-row{ grid-template-columns:56px minmax(0,1fr) 120px 150px 64px; gap:14px; padding:10px 20px }
   .lb-row__m-phone{ display:none }
   .lb-row__m-desk{ display:inline }
   .lb-row__cat{ display:block; font-size:var(--ag-fs-14); color:var(--ag-ink-2); overflow-wrap:anywhere }
@@ -227,4 +216,10 @@
   .lb-rail{ position:sticky; top:24px; display:flex; flex-direction:column; gap:14px }
   .lb-find__f{ height:44px }
   .lb-find__f input{ font-size:var(--ag-fs-15) }
+}
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .lb-how:hover{ border-color:var(--ag-line-2); box-shadow:var(--ag-sh-pop) }
 }

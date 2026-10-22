@@ -216,7 +216,7 @@ final class EventsPagesTest extends TestCase
 
         $css = ChromeRender::code('public/assets/css/components/events-index.css');
         $this->assertMatchesRegularExpression('~\.ei-bar-sticky\{[^}]*position:sticky~', $css, 'the toolbar is sticky');
-        $this->assertMatchesRegularExpression('~\.ei-chip,\s*\.ei-chip:hover\{[^}]*height:44px~', $css, 'a chip is a 44px target');
+        $this->assertMatchesRegularExpression('~\.ei-chip\{[^}]*height:44px~', $css, 'a chip is a 44px target');
         $this->assertMatchesRegularExpression('~\.ei-bar\{[^}]*height:44px~', $css, 'a progress bar is a 44px target');
         $this->assertMatchesRegularExpression('~animation:ei-prog 6\.5s~', $css);
     }

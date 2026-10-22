@@ -29,8 +29,7 @@
   display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:22px 20px;
 }
 .ag-foot__brand{ grid-column:1 / -1 }
-.ag-foot__logo,
-.ag-foot__logo:hover{
+.ag-foot__logo{
   display:inline-flex; align-items:center; gap:11px; margin-bottom:16px;
   color:var(--ag-ink); text-decoration:none;
 }
@@ -69,8 +68,7 @@
 .ag-foot__copy{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .ag-foot__end{ display:flex; align-items:center; gap:18px; flex-wrap:wrap }
 .ag-foot__social{ display:flex; gap:9px; margin:0; padding:0; list-style:none }
-.ag-foot__so,
-.ag-foot__so:hover{
+.ag-foot__so{
   width:44px; height:44px; border-radius:50%;
   border:1px solid var(--ag-line-2); background:var(--ag-surface);
   display:flex; align-items:center; justify-content:center;

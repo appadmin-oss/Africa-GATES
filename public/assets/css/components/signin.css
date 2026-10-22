@@ -71,8 +71,7 @@
   position:absolute; left:40px; right:40px; bottom:40px;
   display:flex; flex-direction:column; gap:12px; color:var(--ag-ground);
 }
-.si__who,
-.si__who:hover{
+.si__who{
   color:var(--ag-ground);
   font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-28); line-height:1.25;
 }
@@ -100,8 +99,7 @@
 }
 .si__back:hover{ color:var(--ag-ink) }
 
-.si__brand,
-.si__brand:hover{ display:flex; align-items:center; gap:10px; min-height:44px; color:var(--ag-ink) }
+.si__brand{ display:flex; align-items:center; gap:10px; min-height:44px; color:var(--ag-ink) }
 .si__mark{
   width:32px; height:32px; padding:3px; border-radius:9px;
   border:1px solid var(--ag-line-2); background:var(--ag-surface); object-fit:contain;
@@ -140,8 +138,7 @@
   display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px;
   background:var(--ag-tint); border-radius:var(--ag-r-14);
 }
-.si__via-o,
-.si__via-o:hover{
+.si__via-o{
   height:44px; border-radius:11px;
   display:flex; align-items:center; justify-content:center;
   background:transparent; color:var(--ag-ink);

@@ -26,21 +26,15 @@
 .ei{ max-width:1240px; margin:0 auto; padding:4px 16px 40px; display:flex; flex-direction:column; gap:28px }
 
 /* ── buttons ── */
-.ei-btn,
-.ei-btn:hover{
+.ei-btn{
   display:inline-flex; align-items:center; justify-content:center; min-height:50px; padding:0 22px;
   border-radius:var(--ag-r-pill); font-size:var(--ag-fs-15-5); font-weight:700; text-decoration:none; white-space:nowrap;
 }
-.ei-btn--go,
-.ei-btn--go:hover{ background:var(--ag-green); color:var(--ag-surface) }
-.ei-btn--line,
-.ei-btn--line:hover{ padding:0 20px; border:1px solid var(--ag-ink); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; background:transparent }
-.ei-btn--ink,
-.ei-btn--ink:hover{ min-height:48px; padding:0 20px; background:var(--ag-green); color:var(--ag-surface); font-size:var(--ag-fs-15) }
-.ei-btn--sm,
-.ei-btn--sm:hover{ min-height:44px; padding:0 18px; font-size:var(--ag-fs-14-5) }
-.ei-link,
-.ei-link:hover{ display:inline-flex; align-items:center; min-height:44px; padding:0 6px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5); white-space:nowrap }
+.ei-btn--go{ background:var(--ag-green); color:var(--ag-surface) }
+.ei-btn--line{ padding:0 20px; border:1px solid var(--ag-ink); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; background:transparent }
+.ei-btn--ink{ min-height:48px; padding:0 20px; background:var(--ag-green); color:var(--ag-surface); font-size:var(--ag-fs-15) }
+.ei-btn--sm{ min-height:44px; padding:0 18px; font-size:var(--ag-fs-14-5) }
+.ei-link{ display:inline-flex; align-items:center; min-height:44px; padding:0 6px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5); white-space:nowrap }
 .ei-round{
   flex:none; width:44px; height:44px; display:flex; align-items:center; justify-content:center; padding:0;
   border:1px solid var(--ag-line-2); border-radius:50%; background:var(--ag-surface); color:var(--ag-ink); cursor:pointer; font-family:inherit;
@@ -74,8 +68,7 @@
 .ei-slide__chips{ display:flex; align-items:center; gap:8px; flex-wrap:wrap }
 .ei-slide__date{ font-weight:700; font-size:var(--ag-fs-15); color:var(--ei-ink) }
 .ei-slide__t{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-30); line-height:1.06; letter-spacing:-.015em; text-wrap:balance }
-.ei-slide__t a,
-.ei-slide__t a:hover{ color:var(--ag-ink); text-decoration:none }
+.ei-slide__t a{ color:var(--ag-ink); text-decoration:none }
 .ei-slide__m{ font-size:var(--ag-fs-15-5); color:var(--ag-ink-2) }
 .ei-slide__going{ font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
 .ei-slide__going b{ color:var(--ag-ink) }
@@ -116,8 +109,7 @@
 }
 .ei-spotph__track::-webkit-scrollbar{ display:none }
 .ei-spotph__track > li{ flex:none; width:86%; scroll-snap-align:start }
-.ei-spotph__card,
-.ei-spotph__card:hover{ display:flex; flex-direction:column; border-radius:var(--ag-r-22); overflow:hidden; background:var(--ei-wash); color:var(--ag-ink); text-decoration:none }
+.ei-spotph__card{ display:flex; flex-direction:column; border-radius:var(--ag-r-22); overflow:hidden; background:var(--ei-wash); color:var(--ag-ink); text-decoration:none }
 .ei-spotph__vis{ position:relative; display:block; aspect-ratio:4 / 3 }
 .ei-spotph__vis .ag-photo{ position:absolute; inset:0; width:100%; height:100% }
 .ei-spotph__vis .ei-pill{ position:absolute; top:10px; inset-inline-start:10px; height:28px; padding:0 11px; font-size:var(--ag-fs-12-5); gap:6px }
@@ -146,8 +138,7 @@
 .ei-search__x span{ width:26px; height:26px; border-radius:50%; background:var(--ag-line); display:flex; align-items:center; justify-content:center }
 .ei-chips{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; margin:0 -16px; padding:0 16px }
 .ei-chips::-webkit-scrollbar{ display:none }
-.ei-chip,
-.ei-chip:hover{
+.ei-chip{
   flex:none; display:inline-flex; align-items:center; height:44px; padding:0 16px; border-radius:var(--ag-r-pill);
   border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink); font-weight:500; font-size:var(--ag-fs-14-5);
   white-space:nowrap; text-decoration:none;
@@ -162,8 +153,7 @@
 .ei-types{ list-style:none; margin:0 -16px; padding:0 16px; display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none }
 .ei-types::-webkit-scrollbar{ display:none }
 .ei-types > li{ flex:none; width:38%; scroll-snap-align:start }
-.ei-type,
-.ei-type:hover{ display:flex; flex-direction:column; gap:8px; color:var(--ag-ink); text-decoration:none }
+.ei-type{ display:flex; flex-direction:column; gap:8px; color:var(--ag-ink); text-decoration:none }
 .ei-type__cover{ position:relative; display:block; aspect-ratio:1 / 1; border-radius:var(--ag-r-18); overflow:hidden; transition:transform .2s }
 .ei-type__cover .ag-photo{ position:absolute; inset:0; width:100%; height:100% }
 .ei-type:hover .ei-type__cover{ transform:translateY(-2px) }
@@ -200,8 +190,7 @@
   border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-live-ink); font-size:var(--ag-fs-12-5); font-weight:700;
 }
 .ei-livepill i{ width:7px; height:7px; border-radius:50%; background:currentColor }
-.ei-card__body,
-.ei-card__body:hover{ display:flex; flex-direction:column; gap:4px; color:var(--ag-ink); text-decoration:none; min-width:0 }
+.ei-card__body{ display:flex; flex-direction:column; gap:4px; color:var(--ag-ink); text-decoration:none; min-width:0 }
 .ei-card__t{ font-weight:700; font-size:var(--ag-fs-16); line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
 .ei-card__m{ font-size:var(--ag-fs-13-5); color:var(--ag-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100% }
 .ei-card__p{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:3px }
@@ -221,8 +210,7 @@
   background:color-mix(in srgb, var(--ag-surface) 96%, transparent); color:var(--ag-ink);
   box-shadow:0 10px 24px -10px color-mix(in srgb, var(--ag-ink) 45%, transparent);
 }
-.ei-rec__body,
-.ei-rec__body:hover{ display:flex; flex-direction:column; gap:3px; color:var(--ag-ink); text-decoration:none }
+.ei-rec__body{ display:flex; flex-direction:column; gap:3px; color:var(--ag-ink); text-decoration:none }
 .ei-rec__body b{ font-size:var(--ag-fs-16); line-height:1.3 }
 .ei-rec__body span{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
 
@@ -281,3 +269,12 @@
   .ei-track{ scroll-behavior:auto }
 }
 
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .ei-btn--go:hover,
+  .ei-btn--ink:hover{ background:var(--ag-green-deep); color:var(--ag-surface) }
+  .ei-btn--line:hover{ background:var(--ag-tint); color:var(--ag-ink) }
+  .ei-chip:hover{ border-color:var(--ag-ink); color:var(--ag-ink) }
+}

@@ -74,8 +74,7 @@
 .ag-menu__view{ display:flex; flex-direction:column; gap:22px }
 
 /* Profile card. `flex:none`, or the column squeezes it (the DC's own render clips it). */
-.ag-menu__me,
-.ag-menu__me:hover{
+.ag-menu__me{
   flex:none; display:flex; align-items:center; gap:14px;
   padding:14px; border-radius:var(--ag-r-18);
   background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
@@ -100,8 +99,7 @@
 }
 .ag-menu__join-t{ font-size:var(--ag-fs-17); font-weight:700 }
 .ag-menu__join-p{ font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
-.ag-menu__join-b,
-.ag-menu__join-b:hover{
+.ag-menu__join-b{
   display:flex; align-items:center; justify-content:center;
   height:50px; border-radius:var(--ag-r-14);
   background:var(--ag-green); color:var(--ag-surface);
@@ -110,8 +108,7 @@
 
 /* The four squares — most used, or the Participate four. */
 .ag-menu__quick{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px }
-.ag-menu__tile,
-.ag-menu__tile:hover{
+.ag-menu__tile{
   min-width:0; display:flex; flex-direction:column; align-items:center; gap:8px;
   padding:14px 4px 12px; border-radius:var(--ag-r-18);
   background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
@@ -128,8 +125,7 @@
 .ag-menu__h{ margin:0; padding:0 6px 8px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
 /* The DC's lists are white with no border — the base list's hairline is the card's. */
 .ag-menu__list{ border:0 }
-.ag-menu__list .ag-list__row,
-.ag-menu__list .ag-list__row:hover{ color:var(--ag-ink) }
+.ag-menu__list .ag-list__row{ color:var(--ag-ink) }
 .ag-menu__list .ag-list__value{ font-size:var(--ag-fs-14) }
 
 /* Status: the word is the state; the dot repeats it. */
@@ -144,8 +140,7 @@
 
 .ag-menu__foot{ display:flex; flex-direction:column; align-items:center; gap:14px; padding-top:4px }
 .ag-menu__legal{ display:flex; flex-wrap:wrap; justify-content:center; gap:4px 18px; font-size:var(--ag-fs-13-5) }
-.ag-menu__legal a,
-.ag-menu__legal a:hover{
+.ag-menu__legal a{
   min-height:44px; display:flex; align-items:center;
   color:var(--ag-ink-2); text-decoration:underline; text-underline-offset:3px;
 }

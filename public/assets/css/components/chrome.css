@@ -90,8 +90,7 @@
    "GATES" is 11.5px, not the DC's 9.5: §6.2 puts nothing on the public site under
    11.5, the owner applied that ladder with no exception (GAPS Q4), and REFERENCE
    outranks a DC (§0). Its .26em tracking is the DC's. */
-.ag-logo,
-.ag-logo:hover{
+.ag-logo{
   display:flex; align-items:center; gap:10px;
   margin-inline-end:18px;
   color:var(--ag-ink); text-decoration:none;
@@ -131,8 +130,7 @@
   border:1px solid var(--ag-line); border-radius:var(--ag-r-pill);
   background:var(--ag-surface);
 }
-.ag-tools__b,
-.ag-tools__b:hover{
+.ag-tools__b{
   display:flex; align-items:center; justify-content:center; gap:6px;
   height:34px; padding:0;
   border:0; border-radius:var(--ag-r-pill);
@@ -148,15 +146,13 @@
 
 /* Signed in: the 40px avatar, light (colour pass: no dark avatars). Signed out: an
    OUTLINED ink pill — never green. */
-.ag-head__av,
-.ag-head__av:hover{
+.ag-head__av{
   flex:none; display:flex; align-items:center; justify-content:center;
   width:40px; height:40px; border-radius:50%;
   background:var(--ag-tint); color:var(--ag-ink);
   font-weight:700; font-size:var(--ag-fs-13); text-decoration:none;
 }
-.ag-head__signin,
-.ag-head__signin:hover{
+.ag-head__signin{
   flex:none; display:flex; align-items:center;
   height:40px; padding:0 18px;
   border:1px solid var(--ag-ink); border-radius:var(--ag-r-pill);
@@ -179,8 +175,7 @@
   max-width:1180px; margin:0 auto; padding:26px 40px 30px;
   display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:4px;
 }
-.ag-mega__item,
-.ag-mega__item:hover{
+.ag-mega__item{
   display:flex; align-items:flex-start; gap:14px;
   padding:12px; border-radius:var(--ag-r-14);
   color:var(--ag-ink); text-decoration:none;
@@ -222,8 +217,7 @@
   width:210px; padding:6px; border-radius:var(--ag-r-16);
   display:flex; flex-direction:column;
 }
-.ag-pop__lang,
-.ag-pop__lang:hover{
+.ag-pop__lang{
   display:flex; align-items:center; justify-content:space-between;
   height:40px; padding:0 12px; border-radius:var(--ag-r-10);
   background:transparent; color:var(--ag-ink);
@@ -287,8 +281,7 @@
 .ag-ss__body{ flex:1; min-height:0; overflow:auto; padding:8px 10px 12px }
 .ag-ss__grp{ display:flex; flex-direction:column; gap:2px; padding:6px 0 }
 .ag-ss__gh{ padding:6px 10px; font-size:var(--ag-fs-12-5); font-weight:700; color:var(--ag-soft) }
-.ag-ss__opt,
-.ag-ss__opt:hover{
+.ag-ss__opt{
   display:flex; align-items:center; gap:12px;
   padding:9px 10px; border-radius:var(--ag-r-12);
   color:var(--ag-ink); text-decoration:none;
@@ -373,8 +366,7 @@
 .ag-appbar--root  .ag-appbar__row{ grid-template-columns:88px minmax(0, 1fr) 88px }
 .ag-appbar--child .ag-appbar__row{ grid-template-columns:44px minmax(0, 1fr) auto; height:56px }
 
-.ag-appbar__icon,
-.ag-appbar__icon:hover{
+.ag-appbar__icon{
   flex:none; width:44px; height:44px; padding:0;
   display:flex; align-items:center; justify-content:center;
   border:0; border-radius:50%;
@@ -425,8 +417,7 @@
    the start rail, no large title (the page's <h1> is in the hero). The DC's 30px mark and
    15px "Africa"; its 9px "GATES" stays 11.5, as in the header above. */
 .ag-appbar--brand .ag-appbar__row{ grid-template-columns:minmax(0, 1fr) 88px; padding-inline-start:16px }
-.ag-appbar__logo,
-.ag-appbar__logo:hover{ margin-inline-end:0; gap:9px; min-height:44px }
+.ag-appbar__logo{ margin-inline-end:0; gap:9px; min-height:44px }
 .ag-appbar__logo .ag-logo__mark{ width:30px; height:30px }
 .ag-appbar__logo .ag-logo__africa{ font-size:var(--ag-fs-15) }
 
@@ -450,14 +441,12 @@
 }
 [dir="rtl"] .ag-langask__row{ padding:8px 14px 8px 8px }
 .ag-langask__q{ flex:1 1 160px; margin:0; font-size:var(--ag-fs-14-5); font-weight:600; line-height:1.4 }
-.ag-langask__yes,
-.ag-langask__yes:hover{
+.ag-langask__yes{
   display:inline-flex; align-items:center; height:44px; padding:0 18px;
   border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface);
   font-size:var(--ag-fs-14-5); font-weight:700; text-decoration:none;
 }
-.ag-langask__no,
-.ag-langask__no:hover{
+.ag-langask__no{
   display:inline-flex; align-items:center; height:44px; padding:0 6px;
   color:var(--ag-ink); font-size:var(--ag-fs-14-5); font-weight:600;
   text-decoration:underline; text-underline-offset:3px;
@@ -474,8 +463,7 @@
   background:var(--ag-bar);
   border-top:1px solid var(--ag-line-2);
 }
-.ag-tabbar__t,
-.ag-tabbar__t:hover{
+.ag-tabbar__t{
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
   min-height:52px; padding:0;
   border:0; background:transparent; color:var(--ag-soft);
@@ -491,8 +479,7 @@
   display:flex; flex-direction:column; gap:18px;
   padding:6px 16px 16px;
 }
-.ag-qs__me,
-.ag-qs__me:hover{
+.ag-qs__me{
   display:flex; align-items:center; gap:14px;
   padding:14px; border-radius:var(--ag-r-18);
   background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
@@ -612,6 +599,13 @@
    name stay) and the bar takes the phone gutter. A deviation, listed in PHASE-2.md. */
 @media (min-width:600px) and (max-width:719px){
   .ag-logo__word{ display:none }
-  .ag-logo, .ag-logo:hover{ margin-inline-end:8px }
+  .ag-logo{ margin-inline-end:8px }
   .ag-head__bar{ padding:0 16px }
+}
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .ag-head__top:hover{ background:var(--ag-ground) }
+  .ag-head__signin:hover{ background:var(--ag-tint); color:var(--ag-ink) }
 }

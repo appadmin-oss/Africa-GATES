@@ -169,3 +169,9 @@
   .bp__body{ font-size:var(--ag-fs-19) }
   .bp-player{ inset-inline:auto 28px; width:420px }
 }
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .bl a.bl-btn:hover{ background:var(--ag-tint); color:var(--ag-ink) }
+}

@@ -17,8 +17,7 @@
 .vmi__who{ display:flex; align-items:center; gap:8px; font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .vmi__tag{ font-size:var(--ag-fs-12); color:var(--ag-soft) }
 .vmi__acts{ display:flex; align-items:center; gap:4px }
-.vmi__act,
-.vmi__act:hover{
+.vmi__act{
   display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 10px; border:0; background:transparent;
   color:var(--ag-ink-2); font:inherit; font-size:var(--ag-fs-13); font-weight:600; text-decoration:none; cursor:pointer;
 }
@@ -30,8 +29,7 @@
    No DC draws them; they take the ballot's vocabulary — the nominee's avatar and name as the
    head, white cards on the ground, one primary action back to the ballot. */
 .vs{ max-width:720px; margin:0 auto; padding:12px 16px 40px; display:flex; flex-direction:column; gap:18px }
-.vs-back,
-.vs-back:hover{ align-self:flex-start; display:none; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none }
+.vs-back{ align-self:flex-start; display:none; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none }
 .vs-head{ display:flex; gap:14px; align-items:center }
 .vs-head__av{ position:relative; flex:none; width:64px; height:64px; border-radius:50%; overflow:hidden; background:var(--ag-tint) }
 .vs-head__av .ag-photo{ position:absolute; inset:0 }

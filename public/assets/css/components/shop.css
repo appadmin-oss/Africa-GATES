@@ -562,3 +562,12 @@
   .sp-rail__body{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); column-gap:var(--ag-sp-24); overflow:visible }
   .sp-fs--rail:last-child{ border-bottom:1px solid var(--ag-line) }
 }
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
+   green deepens; an outline gains a light tint; a card gains its edge and a lift. */
+@media (hover:hover){
+  .sp-promo:hover{ border-color:var(--ag-gold-ink) }
+  .sp-rel__c:hover .sp-rel__n{ text-decoration:underline; text-underline-offset:3px }
+  .sp-col:hover:not(.is-on){ box-shadow:0 0 0 1px var(--ag-line-2) }
+  .sp-cartw:hover{ border-color:var(--ag-ink) }
+}
