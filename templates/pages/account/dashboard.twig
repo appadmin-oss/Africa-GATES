@@ -212,7 +212,7 @@
         {% elseif payout_can %}
           <form method="post" action="/account/payout" class="acc__form" novalidate data-ag-validate>
             <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <p class="acc__p">{{ 'You can withdraw ₦%a%.'|trans({'%a%': payout_amount|number_format}) }}{% if payout_fee > 0 %} {{ 'A withdrawal fee of ₦%f% is taken from it.'|trans({'%f%': payout_fee|number_format}) }}{% endif %} <a href="/account/wallet">{{ 'See it in your wallet'|trans }}</a></p>
+            <p class="acc__p">{{ 'You can withdraw ₦%a%.'|trans({'%a%': payout_amount|number_format}) }}{% if payout_fee > 0 %} {{ 'A service fee of ₦%f% is taken from it.'|trans({'%f%': payout_fee|number_format}) }}{% endif %} <a href="/account/wallet">{{ 'See it in your wallet'|trans }}</a></p>
             {{ f.text({id: 'po-bank', name: 'bank', label: 'Bank'|trans, value: payout_bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
             {{ f.text({id: 'po-name', name: 'account_name', label: 'Account name'|trans, value: payout_bank.account_name, required: true, maxlength: 120, autocomplete: 'name'}, '') }}
             {{ f.text({id: 'po-num', name: 'account_number', label: 'Account number'|trans, value: payout_bank.account_number, required: true, maxlength: 10, pattern: '[0-9]{10}', inputmode: 'numeric', autocomplete: 'off', hint: 'The 10-digit NUBAN.'|trans}, '') }}

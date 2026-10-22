@@ -90,7 +90,7 @@ final class ReferralPayout
 
         // The wallet's withdrawal fee, from the one schedule every withdrawal uses.
         $fee = intdiv(WalletFee::forKobo($sum * 100), 100);
-        if ($fee >= $sum) return $no('The withdrawal fee would take the whole amount.');
+        if ($fee >= $sum) return $no('The service fee would take the whole amount.');
 
         return ['ok' => true, 'amount' => $sum, 'fee' => $fee, 'credits' => $ids, 'reason' => ''];
     }
@@ -400,7 +400,7 @@ final class ReferralPayout
         $fee = (int) ($p->fee_naira ?? 0);
         MemberWallet::tell((int) $p->user_id, 'Your referral earnings have been paid',
             'We have paid ₦' . number_format((int) $p->amount_naira - $fee) . ' to ' . $p->account_name
-            . ($fee > 0 ? ' (₦' . number_format((int) $p->amount_naira) . ' less the ₦' . number_format($fee) . ' withdrawal fee)' : '')
+            . ($fee > 0 ? ' (₦' . number_format((int) $p->amount_naira) . ' less the ₦' . number_format($fee) . ' service fee)' : '')
             . ".\nTransfer reference: " . $reference . '.', 'rp-' . $id);
 
         return ['ok' => true, 'message' => 'Recorded ₦' . number_format((int) $p->amount_naira)

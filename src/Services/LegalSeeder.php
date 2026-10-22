@@ -437,7 +437,7 @@ HTML;
 <li>Crossing the threshold does not reach backwards. Earlier contributions stay unshared.</li>
 <li>The share is held as an <strong>append-only ledger</strong>. If a contribution is refunded or charged back, the share accrued on it is reversed and the reversal stays on the record beside the original.</li>
 <li>Nothing is payable until the cycle has ended and its results have been announced. A nominee cannot cash out mid-race.</li>
-<li>A nominee may withdraw an available return to a bank account in their own name, for the published withdrawal fee, or spend it on votes for any nominee. <strong>Votes paid from a return earn no return and do not count towards qualifying for one</strong>; otherwise they count exactly like any bought vote.</li>
+<li>A nominee may withdraw an available return to a bank account in their own name, for the published service fee, or spend it on votes for any nominee. <strong>Votes paid from a return earn no return and do not count towards qualifying for one</strong>; otherwise they count exactly like any bought vote.</li>
 </ul>
 <p>The current share, threshold and per-supporter cap are published at <a href="/integrity">/integrity</a>. Eligibility requirements and payment arrangements are communicated to qualifying nominees directly.</p>
 

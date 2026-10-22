@@ -167,7 +167,7 @@ final class CommunityReturnWithdrawals
         }
         $fee = WalletFee::forKobo($amount);
         if ($reason === '' && $fee >= $amount) {
-            $reason = 'The withdrawal fee would take the whole amount.';
+            $reason = 'The service fee would take the whole amount.';
         }
 
         return ['ok' => $reason === '', 'amount_kobo' => $amount, 'fee_kobo' => $fee,

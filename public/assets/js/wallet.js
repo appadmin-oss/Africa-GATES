@@ -139,7 +139,7 @@
       var f = bad ? 0 : feeFor(k);
       if (out) out.textContent = bad
         ? (k > max ? 'That is more than is available.' : 'Type the amount in naira, like 2500.')
-        : 'You receive ' + naira(Math.max(0, k - f)) + ' after the ' + naira(f) + ' withdrawal fee.';
+        : 'You receive ' + naira(Math.max(0, k - f)) + ' after the ' + naira(f) + ' service fee.';
       if (out) out.classList.toggle('wl-form__fee--bad', bad);
       Array.prototype.forEach.call(nets, function (n) { n.textContent = bad ? '—' : naira(Math.max(0, k - f)); });
       if (sumAmt) sumAmt.textContent = bad ? '—' : naira(k);

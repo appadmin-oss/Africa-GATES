@@ -33,7 +33,7 @@
 {% if step == 'review' %}
   {% set _rows = [
     {k: 'Amount'|trans, v: m.naira(q.amount_kobo)},
-    {k: 'Withdrawal fee'|trans, v: '−' ~ m.naira(q.fee_kobo)},
+    {k: 'Service fee'|trans, v: '−' ~ m.naira(q.fee_kobo)},
     {k: 'You receive'|trans, v: m.naira(q.net_kobo), total: true},
     {k: 'To'|trans, v: q.bank.bank ~ ' · ' ~ q.bank.account_number, ref: true},
     resolved ? {k: 'Account name'|trans, note: 'from your bank'|trans, v: resolved, total: true} : {k: 'Account name'|trans, v: q.bank.account_name},
@@ -110,7 +110,7 @@
         </div>
         <div class="wl-quickamt" data-wl-quick hidden></div>
         <p class="wl-wd__whole" data-wl-whole{% if _p.partial %} hidden{% endif %}>{{ 'Referral earnings are withdrawn whole.'|trans }}</p>
-        <p class="wl-form__fee" id="wl-fee" data-wl-fee aria-live="polite">{{ 'Withdrawal fee'|trans }}: {{ fee_text }}</p>
+        <p class="wl-form__fee" id="wl-fee" data-wl-fee aria-live="polite">{{ 'Service fee'|trans }}: {{ fee_text }}</p>
       </section>
 
       <fieldset class="wl-wd__sec">
@@ -156,7 +156,7 @@
       <b class="wl-wd__sh">{{ 'Summary'|trans }}</b>
       <dl class="wl-dl">
         <div><dt>{{ 'Amount'|trans }}</dt><dd data-wl-sum-amt>{{ m.naira(_p.available_kobo) }}</dd></div>
-        <div><dt>{{ 'Withdrawal fee'|trans }}</dt><dd data-wl-sum-fee>—</dd></div>
+        <div><dt>{{ 'Service fee'|trans }}</dt><dd data-wl-sum-fee>—</dd></div>
         <div class="wl-dl__total"><dt>{{ 'You receive'|trans }}</dt><dd data-wl-net>—</dd></div>
       </dl>
       <button class="ag-btn ag-btn--primary wl-btn" type="submit">{{ 'Continue'|trans }}</button>

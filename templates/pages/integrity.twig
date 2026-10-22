@@ -78,7 +78,7 @@
     {table: {caption: 'Asking for the money'|trans, head: ['Term'|trans, 'Setting'|trans, 'What it means'|trans],
       rows: [
         ['Smallest withdrawal'|trans, '₦' ~ (_t.min_kobo / 100)|number_format, 'Below this, the balance waits until there is more.'|trans|e],
-        ['Fee'|trans, _t.fee_text|e, 'Taken from each withdrawal and shown before you confirm. It covers the bank transfer and helps keep the platform running. It is a fee, not a donation.'|trans|e],
+        ['Service fee'|trans, _t.fee_text|e, 'Taken from each withdrawal and shown before you confirm. It covers the bank transfer and keeps the platform and the project running. It is a fee, not a donation.'|trans|e],
         ['Paid within'|trans, '%n% working days'|trans({'%n%': _t.payout_days}), _t.automatic
             ? 'At the latest. Most requests are sent within minutes. One that needs a closer look waits for a person.'|trans|e
             : 'After a person has reviewed the request.'|trans|e],

@@ -93,7 +93,7 @@ final class WalletReceipt
                        'sub' => trim((string) $p['bank']) . ($acct !== '' ? ' |' : ''), 'subm' => $acct, 'green' => false];
             $rows[] = ['k' => 'Sender', 'v' => $member, 'sub' => $wallet, 'green' => false];
             $fee = (int) ($t['fee_kobo'] ?? 0);
-            $rows[] = ['k' => 'Withdrawal fee', 'v' => $naira($fee), 'sub' => '', 'green' => false];
+            $rows[] = ['k' => 'Service fee', 'v' => $naira($fee), 'sub' => '', 'green' => false];
             $rows[] = ['k' => 'Amount received', 'v' => $naira(max(0, (int) $t['amount_kobo'] - $fee)), 'sub' => '', 'green' => true];
         } elseif ($t['dir'] === 'in') {
             $rows[] = ['k' => 'Recipient', 'v' => $member, 'sub' => $wallet, 'green' => false];
