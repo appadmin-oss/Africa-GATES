@@ -34,7 +34,7 @@
 }
 .who__rec:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .who__iss{ display:flex; align-items:center; gap:10px }
-.who__ini{ flex:none; width:34px; height:34px; border-radius:var(--ag-r-10); background:var(--ag-ink); color:var(--ag-surface); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:var(--ag-fs-14) }
+.who__ini{ flex:none; width:34px; height:34px; border-radius:var(--ag-r-10); background:var(--ag-tint); color:var(--ag-ink); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:var(--ag-fs-14) }
 .who__iss-t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
 .who__iss-n{ display:flex; align-items:center; gap:6px; font-weight:700; font-size:var(--ag-fs-14) }
 .who__iss-n svg{ flex:none }

@@ -83,7 +83,8 @@
 .ag-menu__av{
   flex:none; width:52px; height:52px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  background:var(--ag-ink); color:var(--ag-ground);
+  /* Light, by the colour pass: avatars are tint with ink initials, never a dark field. */
+  background:var(--ag-tint); color:var(--ag-ink);
   font-weight:700; font-size:var(--ag-fs-16);
 }
 .ag-menu__who{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
@@ -103,7 +104,7 @@
 .ag-menu__join-b:hover{
   display:flex; align-items:center; justify-content:center;
   height:50px; border-radius:var(--ag-r-14);
-  background:var(--ag-ink); color:var(--ag-surface);
+  background:var(--ag-green); color:var(--ag-surface);
   font-weight:700; font-size:var(--ag-fs-15-5); text-decoration:none;
 }
 

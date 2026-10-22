@@ -28,14 +28,15 @@ namespace AfricaGates\Support;
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Several values here are under a WCAG floor where they are drawn, and every one is
- * accepted by the owner rather than adjusted (Q2). Measured on the ground `#f1efe9`
- * unless said otherwise:
+ * accepted by the owner rather than adjusted (Q2). Measured on the ground (`#f1efe9` when
+ * these were decided; `#fafbf8` since the colour pass) unless said otherwise:
  *
  *   gold `#f3b416`            1.61   honour as a FIELD; drawn as a line it barely shows
  *   line / tint `#e8e5dd`     1.09   hairlines and neutral fills
  *   line-2 `#d6d4cc`          1.48 on white — the outlined chip and input border
  *   line-3, gold-edge, green-edge   1.03–1.32   separators and success/honour borders
- *   mute `#8b9295`            2.75   disabled text and the off-switch track
+ *   mute `#8b9295`            2.75 on the old ground; 3.04 on the new one, so it now clears
+ *                             3:1 as a line and is no longer on this list. Still never a word.
  *   green-light, chevron, grabber   under 2.1   accents on dark, a chevron, a sheet grabber
  *
  * The floors that DO hold are held, by {@see words()}: every token the handoff draws as a
@@ -71,12 +72,17 @@ final class Accent
         'ink-2'       => ['value' => '#3a4a4c', 'use' => 'secondary text'],
         'soft'        => ['value' => '#626a6e', 'use' => 'meta text, captions'],
         'mute'        => ['value' => '#8b9295', 'use' => 'disabled text, off-switch track'],
-        'ground'      => ['value' => '#f1efe9', 'use' => 'page background'],
+        // The colour pass (owner, 21 Oct 2026; design_handoff_account_wallet_home): the page
+        // ground went from the beige #f1efe9 to a near-white green-grey, so white cards sit on
+        // a lighter field and the one accent per block (green wash) carries the colour.
+        'ground'      => ['value' => '#fafbf8', 'use' => 'page background'],
         'surface'     => ['value' => '#ffffff', 'use' => 'cards, inputs'],
         'bar'         => ['value' => '#fbfbfa', 'use' => 'app bars and tab bars when filled'],
         'line'        => ['value' => '#e8e5dd', 'use' => 'hairlines, card borders'],
         'line-2'      => ['value' => '#d6d4cc', 'use' => 'input and outlined-chip borders'],
         'line-3'      => ['value' => '#eeece6', 'use' => 'separators inside a white list'],
+        // The light footer of the colour pass, replacing the ink footer: no dark fields.
+        'footer'      => ['value' => '#f4f6f2', 'use' => 'the site footer and other light bands'],
         'tint'        => ['value' => '#e8e5dd', 'use' => 'neutral fills (icon tiles, segmented track)'],
         'green'       => ['value' => '#237b22', 'use' => 'the primary action, success'],
         'green-deep'  => ['value' => '#1a6118', 'use' => 'success text'],
@@ -162,7 +168,6 @@ final class Accent
         'tint'        => ['on' => 'ground',  'why' => 'neutral fills'],
         'gold-edge'   => ['on' => 'surface', 'why' => 'honour borders'],
         'green-edge'  => ['on' => 'surface', 'why' => 'success borders'],
-        'mute'        => ['on' => 'ground',  'why' => 'disabled text — never a word'],
         'green-light' => ['on' => 'ground',  'why' => 'accents on dark only'],
         'chevron'     => ['on' => 'surface', 'why' => 'a decorative disclosure mark beside a labelled row'],
         'grabber'     => ['on' => 'surface', 'why' => 'a decorative sheet handle'],

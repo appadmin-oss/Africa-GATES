@@ -59,7 +59,7 @@ final class CoverKindTest extends TestCase
         // The spec's own hex, slot by slot — the cover shows exactly these.
         $want = ['green' => ['#effaf0', '#237b22', '#1a6118'], 'gold' => ['#fcf4de', '#c99a06', '#7a5600'],
                  'live' => ['#fdecef', '#e0245e', '#b0224f'], 'info' => ['#e6f0f4', '#1f6fa3', '#1f5f8b'],
-                 'stone' => ['#f1efe9', '#3a4a4c', '#10292c']];
+                 'stone' => ['#fafbf8', '#3a4a4c', '#10292c']];
         foreach ($want as $tone => [$bg, $line, $ink]) {
             $this->assertSame([$bg, $line, $ink],
                 [Accent::coverHex($tone, 'bg'), Accent::coverHex($tone, 'line'), Accent::coverHex($tone, 'ink')], $tone);

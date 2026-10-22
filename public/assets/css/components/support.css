@@ -30,7 +30,7 @@
 .st-thread{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:var(--ag-sp-16) }
 .st-turn{ display:grid; grid-template-columns:32px minmax(0,1fr); gap:var(--ag-sp-10) }
 .st-av{ width:32px; height:32px; border-radius:50%; background:var(--ag-tint); color:var(--ag-ink); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:var(--ag-fs-13) }
-.st-av--staff{ background:var(--ag-ink); color:var(--ag-surface) }
+.st-av--staff{ background:var(--ag-green-wash); color:var(--ag-green-deep) }
 .st-turn__b{ display:flex; flex-direction:column; gap:4px; min-width:0 }
 .st-who{ margin:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 10px; font-size:var(--ag-fs-14); font-weight:700 }
 .st-when{ font-weight:400; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }

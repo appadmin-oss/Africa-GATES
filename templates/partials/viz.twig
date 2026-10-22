@@ -286,8 +286,8 @@
   .viz__table{ width:100%; border-collapse:collapse; font-size:13px; }
   .viz__table th, .viz__table td{ text-align:left; padding:8px 12px 8px 0;
     border-top:1px solid var(--viz-line); white-space:nowrap; }
-  .viz__table thead th{ border-top:0; font:700 10px/1 var(--ag-font-mono,monospace);
-    letter-spacing:.13em; text-transform:uppercase; color:var(--viz-mute); }
+  /* Sentence case, 13px bold — the colour pass removed every uppercase label. */
+  .viz__table thead th{ border-top:0; font-size:13px; font-weight:700; line-height:1.2; color:var(--viz-mute); }
   .viz__table .num{ text-align:right; padding-right:0; font-family:var(--ag-font-mono,monospace);
     font-variant-numeric:tabular-nums; }
 

@@ -32,8 +32,10 @@ final class AccentTest extends TestCase
     /** REFERENCE §6.1 + snippets/css/tokens.css, verbatim. */
     private const HANDOFF = [
         'ink' => '#10292c', 'ink-2' => '#3a4a4c', 'soft' => '#626a6e', 'mute' => '#8b9295',
-        'ground' => '#f1efe9', 'surface' => '#ffffff', 'bar' => '#fbfbfa', 'line' => '#e8e5dd',
-        'line-2' => '#d6d4cc', 'line-3' => '#eeece6', 'tint' => '#e8e5dd',
+        // The colour pass (design_handoff_account_wallet_home, owner 21 Oct 2026): ground
+        // #f1efe9 → #fafbf8, and the light footer band.
+        'ground' => '#fafbf8', 'surface' => '#ffffff', 'bar' => '#fbfbfa', 'line' => '#e8e5dd',
+        'line-2' => '#d6d4cc', 'line-3' => '#eeece6', 'footer' => '#f4f6f2', 'tint' => '#e8e5dd',
         'green' => '#237b22', 'green-deep' => '#1a6118', 'green-light' => '#7fc87c',
         'green-wash' => '#effaf0', 'green-edge' => '#cfe6ce',
         'gold' => '#f3b416', 'gold-ink' => '#7a5600', 'gold-wash' => '#fcf4de',
@@ -93,7 +95,7 @@ final class AccentTest extends TestCase
         // a palette token where one is identical, the spec's own hex where none is.
         $tones = ['green' => ['#effaf0', '#237b22', '#1a6118', '#cfe6ce'], 'gold' => ['#fcf4de', '#c99a06', '#7a5600', '#f0dfae'],
                   'live' => ['#fdecef', '#e0245e', '#b0224f', '#f6c7d3'], 'info' => ['#e6f0f4', '#1f6fa3', '#1f5f8b', '#c9dde8'],
-                  'stone' => ['#f1efe9', '#3a4a4c', '#10292c', '#d6d4cc']];
+                  'stone' => ['#fafbf8', '#3a4a4c', '#10292c', '#d6d4cc']];
         foreach ($tones as $tone => $hex) {
             foreach (['bg', 'line', 'ink', 'edge'] as $i => $slot) {
                 $this->assertSame($hex[$i], Accent::coverHex($tone, $slot), "$tone.$slot");
