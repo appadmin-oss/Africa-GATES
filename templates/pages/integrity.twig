@@ -67,7 +67,7 @@
             : '₦%m% raised of ₦%t%'|trans({'%m%': (e.measured_kobo / 100)|number_format, '%t%': (e.target_kobo / 100)|number_format})))|e]]) %}
   {% endfor %}
   {% set _ret_editions = [
-    {p: 'Some editions run a different rule, chosen before the edition opens and fixed once anything is earned under it. A two-stage edition earns a smaller share from the first contribution, held locked until its collective milestone — its eligible paid-vote revenue reaching a published target — is confirmed by a person, then the full share. A flat edition earns one share on every contribution. A tiered or custom edition earns a share that rises with how much has been raised, priced on what had been raised before each contribution. Refunded and fraud-flagged contributions earn nothing and count for nothing.'|trans|e},
+    {p: 'Some editions use a different rule. It is chosen before the edition opens and does not change once anything is earned under it. Two-stage: a smaller share from the start, locked until the edition’s contributions reach a published target and a person confirms it; then the full share. Flat: one share on every contribution. Tiered: the share rises as more is raised. A refunded or fraudulent contribution earns nothing.'|trans|e},
     {table: {caption: 'Editions with their own return rule'|trans, head: ['Edition'|trans, 'Rule'|trans, 'When it is released'|trans], rows: _rows}}
   ] %}
 {% endif %}
@@ -78,32 +78,32 @@
     {table: {caption: 'Asking for the money'|trans, head: ['Term'|trans, 'Setting'|trans, 'What it means'|trans],
       rows: [
         ['Smallest withdrawal'|trans, '₦' ~ (_t.min_kobo / 100)|number_format, 'Below this, the balance waits until there is more.'|trans|e],
-        ['Fee'|trans, _t.fee_text|e, 'Taken from each withdrawal, by amount, and shown before it is asked for. It covers the bank transfer and helps keep the platform running. It is a fee, not a donation.'|trans|e],
+        ['Fee'|trans, _t.fee_text|e, 'Taken from each withdrawal and shown before you confirm. It covers the bank transfer and helps keep the platform running. It is a fee, not a donation.'|trans|e],
         ['Paid within'|trans, '%n% working days'|trans({'%n%': _t.payout_days}), _t.automatic
-            ? 'At the latest. A request that passes every automatic check is usually sent within minutes; one that needs a closer look waits for a person.'|trans|e
+            ? 'At the latest. Most requests are sent within minutes. One that needs a closer look waits for a person.'|trans|e
             : 'After a person has reviewed the request.'|trans|e],
-        ['Appeals'|trans, '%n% days'|trans({'%n%': _t.appeal_days}), 'To appeal a refused withdrawal or a hold, reply to the email that told you.'|trans|e],
-        ['Unclaimed balances'|trans, '%n% days'|trans({'%n%': _t.unclaimed_days}), 'Claim a released balance within this period. Nothing is forfeited automatically; a person decides, on the record.'|trans|e],
+        ['Appeals'|trans, '%n% days'|trans({'%n%': _t.appeal_days}), 'To appeal a refusal or a hold, reply to the email that told you.'|trans|e],
+        ['Unclaimed balances'|trans, '%n% days'|trans({'%n%': _t.unclaimed_days}), 'Claim your money within this time. Nothing is taken away automatically: a person decides, and it is recorded.'|trans|e],
         ['Tax'|trans, '—', _t.tax_note|e]
       ]}},
     {p: _t.automatic
-      ? 'Money is paid by bank transfer, to an account in the nominee’s own name. Before anything is sent: the money is released, the person asking holds the page’s verified claim, the bank confirms the account and that the name on it is theirs, every share traces to a valid contribution with nothing fraud-flagged or awaiting a refund, these terms were accepted, and the request is within the automatic limits. A request that passes all of it is sent automatically; anything doubtful — a recent password reset or change of bank details, an account another member uses, an amount above the limits — is checked by a person first.'|trans|e
-      : 'Money is paid by bank transfer, to an account in the nominee’s own name, after six checks: the money is released, the person asking holds the page’s verified claim, the account is theirs, every share traces to a valid contribution, these terms were accepted, and a person has reviewed the request.'|trans|e}
+      ? 'Money goes by bank transfer to an account in the nominee’s own name. Before it is sent we check that the money is released, the person asking owns the page, the bank confirms the name on the account, and every naira came from a real contribution. If all of that passes, it is sent automatically. Anything unusual — a recent password or bank change, a shared account, a large amount — is checked by a person first.'|trans|e
+      : 'Money goes by bank transfer to an account in the nominee’s own name, after a person has checked that the money is released, the person asking owns the page, the account is theirs, and every naira came from a real contribution.'|trans|e}
   ] %}
 {% else %}
-  {% set _ret_terms = [{p: 'Withdrawals open once the withdrawal terms — the smallest amount, the fee, the timeline, appeals, unclaimed balances and the tax position — are published here.'|trans|e}] %}
+  {% set _ret_terms = [{p: 'Withdrawals open once their terms are published here: the smallest amount, the fee, how long it takes, appeals, unclaimed money and tax.'|trans|e}] %}
 {% endif %}
 
 {% set _toc = [
   {id: 'why',      title: 'Why this exists'|trans},
-  {id: 'score',    title: 'The score'|trans},
+  {id: 'score',    title: 'How the score works'|trans},
   {id: 'eligible', title: 'Who can actually win'|trans},
   {id: 'criteria', title: 'What the judges score'|trans},
   {id: 'money',    title: 'What money does, and what it can’t reach'|trans},
   {id: 'return',   title: 'The community return'|trans},
   {id: 'honest',   title: 'Keeping the count honest'|trans},
   {id: 'failures', title: 'When a payment goes wrong'|trans},
-  {id: 'sealed',   title: 'Sealing the result'|trans},
+  {id: 'sealed',   title: 'Locking the result'|trans},
   {id: 'cycle',    title: 'The edition, stage by stage'|trans},
   {id: 'disputes', title: 'Disputes and your data'|trans}
 ] %}
@@ -113,7 +113,7 @@
   eyebrow: 'Integrity Centre · Methodology'|trans,
   title: doc_title,
   subtitle: doc_subtitle ~ ', ' ~ 'version %v%'|trans({'%v%': doc_version}),
-  standfirst: 'The Cultural Power Index is meant to survive being questioned. This is the whole method: what counts, what deliberately doesn’t, who checks it, and what happens when we get something wrong. Every figure below is read live from the scoring engine.'|trans,
+  standfirst: 'This is how a winner is decided: what counts, what doesn’t, who checks it, and what happens when we get something wrong. Every figure on this page comes straight from the live settings.'|trans,
   byline: [doc_author, 'Version %v%'|trans({'%v%': doc_version}), 'Updated %d%'|trans({'%d%': doc_updated|date('j M Y')})],
   listen: true,
   download: null,
@@ -132,16 +132,16 @@
       {k: 'Community votes'|trans, v: c ~ '%'},
       {k: 'Judge panel'|trans, v: j ~ '%'},
       {k: 'Judge quorum'|trans, v: '%n% complete scorecards'|trans({'%n%': q})},
-      {k: 'Contribution bonus cap'|trans, v: '%p%% of organic support'|trans({'%p%': paid_cap_pct|default(50)})},
+      {k: 'Bonus and points votes'|trans, v: 'Up to %p%% of other support'|trans({'%p%': paid_cap_pct|default(50)})},
       {k: 'Community return'|trans, v: _ret}
     ],
-    note: 'Read from the scoring engine, not typed. Set per award and edition.'|trans,
+    note: 'Taken from the live settings. Each award and edition can set its own.'|trans,
     disputes: '#disputes'
   },
   cite: {
     word: 'document'|trans,
     citations: doc_citations,
-    note: 'Please cite the version you read. The figures track live programme settings, so an undated reference may not describe what you saw. The version changes when the method changes, not when a figure moves.'|trans,
+    note: 'Cite the version you read. The figures follow the live settings, so a reference without a date may not match what you saw. The version changes when the method changes, not when a figure does.'|trans,
     action: 'share', url: doc_url
   },
   contact: 'integrity@afrovanguard.org.ng',
@@ -150,8 +150,8 @@
 
 {# ── Every section, as DocPage blocks. Built at template scope so `content` reads it. ── #}
 {% set _score_rule = rule_is_default|default(true)
-  ? 'Every vote counts, free or bought, measured against the edition’s strongest support. %pp%% of this half counts separate verified people; the rest counts total votes.'|trans({'%pp%': pp})
-  : 'Measured on an earlier basis kept so an announced standing stays reproducible. The help article below states the arithmetic in force.'|trans %}
+  ? 'Every vote counts, free or bought, compared with the biggest total in the edition. %pp%% of this part counts separate verified people; the rest counts votes.'|trans({'%pp%': pp})
+  : 'Counted under an earlier rule, kept so an announced result can be checked. The help article below shows the sums.'|trans %}
 
 {% set _sections = [
   {id: 'why', blocks: doc_summary|merge([
@@ -160,31 +160,31 @@
             blurb: 'What a vote means here, what we mean by a community, and what this model can’t do. Available to download and cite.'|trans}}
   ])},
   {id: 'score', blocks: [
-    {p: 'The Cultural Power Index is a weighted combination of verified community votes and an independent judge panel. Neither alone decides a winner, and that is the point of having both.'|trans},
+    {p: 'The score (the Cultural Power Index) combines verified community votes with an independent judge panel. Neither decides a winner alone.'|trans},
     {table: {caption: 'Composition of the Cultural Power Index'|trans, head: ['Input'|trans, 'Share'|trans, 'What it measures'|trans],
       rows: [
         ['Community votes'|trans, c ~ '%', _score_rule],
-        ['Judge panel'|trans, j ~ '%', 'The panel average out of ten on four equal criteria. Only complete scorecards count, and judges never see the tally.'|trans]
+        ['Judge panel'|trans, j ~ '%', 'The judges’ average mark out of ten, on four equal criteria. Only complete scorecards count, and judges never see the votes.'|trans]
       ],
-      foot: '%c%% community + %j%% judges = CPI. The split is set per edition, and this page always shows the one in force.'|trans({'%c%': c, '%j%': j})}},
-    {p: '<strong>' ~ ('Why %c%/%j%?'|trans({'%c%': c, '%j%': j})|e) ~ '</strong> ' ~ ('Popularity alone shouldn’t decide a winner. A well-funded campaign can generate disproportionate vote volume, and reach on the internet isn’t the same as impact on the continent. The tilt to the panel keeps merit, not marketing, in charge.'|trans|e)},
+      foot: '%c%% community + %j%% judges = the score. Each edition sets its own split, and this page shows the current one.'|trans({'%c%': c, '%j%': j})}},
+    {p: '<strong>' ~ ('Why %c%/%j%?'|trans({'%c%': c, '%j%': j})|e) ~ '</strong> ' ~ ('Popularity alone shouldn’t decide a winner. A well-funded campaign can buy a lot of votes, and being popular online isn’t the same as making a difference. Giving the judges the larger share keeps merit, not marketing, in charge.'|trans|e)},
     {refs: [{href: '/help/how-cpi-works', label: 'How the CPI is calculated'|trans},
             {href: '/help/why-a-small-category-is-not-a-disadvantage', label: 'How a small category is scored'|trans}]}
   ]},
   {id: 'eligible', blocks: [
     {p: 'Leading the public vote makes a nominee the front-runner. It doesn’t, by itself, make them eligible to win.'|trans|e},
-    {p: '<strong>' ~ ('Complete judge scorecards, minimum %n%.'|trans({'%n%': q})|e) ~ '</strong> ' ~ ('A nominee needs at least %n% judges to have scored them on every criterion. A half-finished card counts as nothing, not as a zero. If nobody in a category reaches the quorum, the award isn’t given.'|trans({'%n%': q})|e)},
-    {h3: 'Three exclusions that apply before anything is counted'|trans|e},
+    {p: '<strong>' ~ ('Complete judge scorecards, minimum %n%.'|trans({'%n%': q})|e) ~ '</strong> ' ~ ('At least %n% judges must score a nominee on every criterion. A half-finished scorecard counts as nothing, not as a zero. If nobody in a category reaches this, the award isn’t given.'|trans({'%n%': q})|e)},
+    {h3: 'Three rules before anything is counted'|trans|e},
     {list: [
-      '<strong>' ~ ('Judges recuse themselves.'|trans|e) ~ '</strong> ' ~ ('A judge with any connection to a nominee steps out of scoring them, and a judge’s own votes in a category they judge are left out of the community count.'|trans|e),
+      '<strong>' ~ ('Judges step aside.'|trans|e) ~ '</strong> ' ~ ('A judge with any link to a nominee doesn’t score them, and a judge’s own votes in a category they judge are not counted.'|trans|e),
       '<strong>' ~ ('The shortlist is frozen.'|trans|e) ~ '</strong> ' ~ ('Once a category opens for voting, nobody can be added to it.'|trans|e),
-      '<strong>' ~ ('Unverified profiles score nothing.'|trans|e) ~ '</strong> ' ~ ('A profile must clear human review before any votes attach to it.'|trans|e)
+      '<strong>' ~ ('Unverified profiles score nothing.'|trans|e) ~ '</strong> ' ~ ('A person checks every profile before it can receive votes.'|trans|e)
     ]},
     {refs: [{href: '/help/why-the-leader-may-not-be-eligible-to-win', label: 'Why the vote leader may not be eligible'|trans},
             {href: '/help/what-happens-if-two-nominees-tie', label: 'What happens if two nominees tie'|trans}]}
   ]},
   {id: 'criteria', blocks: [
-    {p: 'Every judge scores each nominee from 0 to 10 on four dimensions of equal weight. There is no hidden multiplier.'|trans|e},
+    {p: 'Each judge marks each nominee from 0 to 10 on four criteria of equal weight. Nothing is weighted in secret.'|trans|e},
     {table: {caption: 'The judging rubric'|trans, head: ['Criterion'|trans, 'Weight'|trans, 'What it asks'|trans],
       rows: [
         ['Impact'|trans, '25%', 'What is different because this person did the work?'|trans|e],
@@ -192,65 +192,65 @@
         ['Reach'|trans, '25%', 'Local, regional, continental, global. Reach isn’t follower count.'|trans|e],
         ['Integrity'|trans, '25%', 'Consistency of values and accountability, including when it costs them something.'|trans|e]
       ]}},
-    {note: {title: '', body: ['Judges see a nominee’s dossier, not their vote count. The tally is kept off the scoring screen so it can’t anchor a score.'|trans|e]}},
+    {note: {title: '', body: ['Judges see a nominee’s file, not their votes. The votes are kept off the scoring screen so they can’t sway a mark.'|trans|e]}},
     {refs: [{href: '/help/what-the-judges-actually-score', label: 'What the judges actually score you on'|trans}]}
   ]},
   {id: 'money', blocks: [
-    {p: ('Supporters can contribute in a nominee’s name, and each contribution adds votes to their tally. It buys community support, and community support is %c%% of the index. It buys nothing on the other %j%%, and it buys no privacy: every purchased vote is published as one.'|trans({'%c%': c, '%j%': j})|e)},
+    {p: ('Supporters can contribute in a nominee’s name, and each contribution adds votes. That helps the community part of the score (%c%%). It does nothing for the judges’ part (%j%%), and it isn’t secret: bought votes are shown as bought.'|trans({'%c%': c, '%j%': j})|e)},
     {cols: [
       {mark: 'yes', h: 'What a contribution does'|trans|e, items: [
-        'Adds to the nominee’s tally and the community half of their index.'|trans|e,
+        'Adds votes to the nominee and to the community part of their score.'|trans|e,
         (paid_sentence|default('') ? paid_sentence|e : 'Adds to the tally at full weight.'|trans|e),
-        'Has no ceiling on vote packs bought on the ballot.'|trans|e,
+        'Has no limit on how many votes can be bought.'|trans|e,
         'Names the supporter, if they chose to be named.'|trans|e,
         'Sets aside a share for the nominee once they qualify.'|trans|e
       ]},
       {mark: 'no', h: 'What it can’t reach'|trans|e, items: [
-        'None of the judging half: judges can’t see votes or money.'|trans|e,
-        'It isn’t hidden: every result shows how much of a tally was bought.'|trans|e,
-        ('A contribution mints bonus votes only up to %p%% of the organic support a nominee has earned. Vote packs on the ballot have no such limit.'|trans({'%p%': paid_cap_pct|default(50)})|e),
-        'It doesn’t survive a refund: reversed votes leave the tally.'|trans|e
+        'The judges’ part: judges can’t see votes or money.'|trans|e,
+        'Secrecy: every result shows how many votes were bought.'|trans|e,
+        ('Bonus and points votes beyond %p%% of a nominee’s other support. Votes bought on the ballot have no such limit.'|trans({'%p%': paid_cap_pct|default(50)})|e),
+        'A refund: refunded votes are taken off again.'|trans|e
       ]}
     ]},
     {p: rule_is_default|default(true)
-      ? '<strong>' ~ ('Put plainly:'|trans|e) ~ '</strong> ' ~ ('buying votes does help a nominee, and there is a rate. Both counts in the community half are measured against the edition’s largest total, so in that half one verified supporter is worth about %r% votes, in every edition. What money can’t do is multiply a supporter — one person is one person however many orders they place — reach the judging half, or hide.'|trans({'%r%': supporter_votes|default('2.33')})|e)
-      : '<strong>' ~ ('Put plainly:'|trans|e) ~ '</strong> ' ~ ('buying votes does help a nominee. What money can’t do is multiply a supporter, reach the judging half, or hide.'|trans|e)},
+      ? '<strong>' ~ ('Put plainly:'|trans|e) ~ '</strong> ' ~ ('buying votes does help a nominee. In the community part, one verified supporter is worth about %r% votes, in every edition. What money can’t do is turn one person into many (one person counts once, however many times they pay), reach the judges’ part, or stay hidden.'|trans({'%r%': supporter_votes|default('2.33')})|e)
+      : '<strong>' ~ ('Put plainly:'|trans|e) ~ '</strong> ' ~ ('buying votes does help a nominee. What money can’t do is turn one person into many, reach the judges’ part, or stay hidden.'|trans|e)},
     {refs: [{href: '/help/what-paid-votes-do', label: 'What paid votes actually do'|trans},
             {href: '/help/how-free-voting-works', label: 'How free voting works'|trans},
             {href: '/help/why-is-voting-paid', label: 'Why is voting paid?'|trans}]}
   ]},
   {id: 'return', blocks: (return_off_reason|default('') == 'no_paid_voting'
-      ? [{note: {title: 'Not running on this site'|trans|e, body: ['The return is a share of what supporters contribute, and this site doesn’t sell votes — voting here is free, and nothing is being raised in anybody’s name. So nothing accrues. The rules below are the ones that would apply if contributions were opened.'|trans|e]}}]
+      ? [{note: {title: 'Not running on this site'|trans|e, body: ['The return is a share of what supporters contribute. Voting here is free, so nothing is raised in anyone’s name and nothing is earned. The rules below would apply if contributions were turned on.'|trans|e]}}]
       : (return_off_reason|default('') == 'rate_zero'
-        ? [{note: {title: 'Currently set to nothing'|trans|e, body: ['The share is set to 0%, so no new contribution accrues anything for a nominee. Shares already recorded are unaffected — the ledger only ever grows.'|trans|e]}}]
+        ? [{note: {title: 'Currently set to nothing'|trans|e, body: ['The share is set to 0%, so new contributions earn nothing for a nominee. Money already earned is kept.'|trans|e]}}]
         : [])
     )|merge([
     {p: 'A nominee keeps a share of what supporters contribute in their name, win or lose, because they raised it either way.'|trans|e},
     {table: {caption: 'How a nominee qualifies, and what they keep'|trans, head: ['Rule'|trans, 'Setting'|trans, 'What it means'|trans],
       rows: [
-        ['Qualifying support'|trans, '%t% votes'|trans({'%t%': return_threshold|default(250)|number_format}), 'Earning starts once a nominee has %t% votes of qualifying support.'|trans({'%t%': return_threshold|default(250)|number_format})|e],
-        ['No single pocket'|trans, return_cap_pct|default(10) ~ '%', 'One supporter counts for at most %v% votes toward the threshold, so it takes at least %n% different people.'|trans({'%v%': return_cap_votes|default(25)|number_format, '%n%': return_people|default(10)})|e],
-        ['The share'|trans, return_pct|default('50') ~ '%', 'That share of each later contribution is set aside. Crossing the line doesn’t reach backwards.'|trans|e]
+        ['Qualifying support'|trans, '%t% votes'|trans({'%t%': return_threshold|default(250)|number_format}), 'A nominee starts earning once they have %t% votes of support.'|trans({'%t%': return_threshold|default(250)|number_format})|e],
+        ['No single pocket'|trans, return_cap_pct|default(10) ~ '%', 'One supporter counts for at most %v% of those votes, so it takes at least %n% different people.'|trans({'%v%': return_cap_votes|default(25)|number_format, '%n%': return_people|default(10)})|e],
+        ['The share'|trans, return_pct|default('50') ~ '%', 'That share of each later contribution is kept for the nominee. Earlier contributions don’t count.'|trans|e]
       ]}},
-    {p: 'It is an append-only ledger. A refund reverses the share and the reversal stays on the record. Under this rule, nothing is payable until the edition’s results are announced.'|trans|e}
+    {p: 'Every entry stays on the record. A refund takes its share back, and that is recorded too. Nothing can be paid out until the edition’s results are announced. A nominee can also spend an available return on votes for anyone: those votes earn no return and don’t count towards qualifying for one.'|trans|e}
   ])|merge(_ret_editions)|merge(_ret_terms)|merge([
     {refs: [{href: '/help/the-community-return', label: 'The community return, in full'|trans}]}
   ])},
   {id: 'honest', blocks: [
-    {p: 'Every vote needs a one-time code sent to a working email address, and every attempt is scored for risk from 0 to 100 before anything is written down.'|trans|e},
+    {p: 'Every free vote needs a one-time code sent to a working email address, and every attempt is given a risk score from 0 to 100 before it is counted.'|trans|e},
     {table: {caption: 'Risk bands, and what each one does'|trans, head: ['Band'|trans, 'Score'|trans, 'What happens'|trans],
       rows: [
         ['Clear'|trans, '0–' ~ fraud_monitor|default(30), 'Approved as it is cast.'|trans],
-        ['Monitored'|trans, fraud_monitor|default(30) ~ '–' ~ fraud_flag|default(60), 'Counted, and kept under observation.'|trans],
+        ['Monitored'|trans, fraud_monitor|default(30) ~ '–' ~ fraud_flag|default(60), 'Counted, and watched.'|trans],
         ['Flagged'|trans, fraud_flag|default(60) ~ '–' ~ fraud_block|default(80), 'Held for a person to review.'|trans],
         ['Blocked'|trans, fraud_block|default(80) ~ '+', 'Refused before the vote exists.'|trans]
       ]}},
     {list: [
-      '<strong>' ~ ('One identity, one vote,'|trans|e) ~ '</strong> ' ~ ('per category. The address is stored only as a hash.'|trans|e),
+      '<strong>' ~ ('One identity, one vote,'|trans|e) ~ '</strong> ' ~ ('per category. We keep only a scrambled form of the email address.'|trans|e),
       '<strong>' ~ ('Disposable mail is refused'|trans|e) ~ '</strong> ' ~ ('when a code is requested.'|trans|e),
       '<strong>' ~ ('A total can go down.'|trans|e) ~ '</strong> ' ~ ('Fraudulent votes are removed and refunds take their votes with them.'|trans|e)
     ]},
-    {note: {title: '', body: ['Being flagged isn’t an accusation. A campus network produces the same pattern a vote farm does, which is why a flag sends a vote to a person, not the bin.'|trans|e]}},
+    {note: {title: '', body: ['Being flagged isn’t an accusation. A campus network can look like a vote farm, so a flagged vote goes to a person, not the bin.'|trans|e]}},
     {refs: [{href: '/help/how-we-spot-a-vote-that-is-not-real', label: 'How we decide a vote is not real'|trans},
             {href: '/help/already-voted', label: 'It says I already voted'|trans}]}
   ]},
@@ -258,50 +258,50 @@
     {list: [
       '<strong>' ~ ('The votes are still owed to you.'|trans|e) ~ '</strong> ' ~ ('If the ballot was open when you started paying, the votes are yours even if confirmation arrived late.'|trans|e),
       '<strong>' ~ ('If they can’t be delivered, the money goes back.'|trans|e) ~ '</strong> ' ~ ('We don’t keep money for votes we didn’t deliver.'|trans|e),
-      '<strong>' ~ ('Tell Gee your reference.'|trans|e) ~ '</strong> ' ~ ('Every order has a reference starting AFG-. Gee re-checks it with the bank and adds the votes if the money arrived.'|trans|e)
+      '<strong>' ~ ('Tell Gee your reference.'|trans|e) ~ '</strong> ' ~ ('Every order has a reference starting AFG-. Gee checks it again with the payment provider and adds the votes if the money arrived.'|trans|e)
     ]},
-    {note: {title: '', body: ['The same honesty applies to our own failures. When our records show a voting code never left the building, that vote can be restored after voting closes — proposed by one person, approved by a different one, capped in size, and disclosed on the nominee’s page.'|trans|e]}},
+    {note: {title: '', body: ['The same goes for our own mistakes. If our records show a voting code never reached the voter, that vote can be restored after voting closes. One person proposes it, a different person approves it, the number is limited, and it is shown on the nominee’s page.'|trans|e]}},
     {refs: [{href: '/help/paid-but-no-votes', label: 'I paid but my votes haven’t appeared'|trans},
             {href: '/help/refund-when-votes-cannot-count', label: 'When do you refund?'|trans},
             {href: '/help/votes-we-could-not-deliver', label: 'Votes that never reached you'|trans}]}
   ]},
   {id: 'sealed', blocks: [
-    {p: 'Every time standings are computed they are sealed: each record carries a fingerprint of itself and of the record before it. Editing an old standing breaks every record after it.'|trans|e},
+    {p: 'Every time results are worked out they are locked: each record carries a fingerprint of itself and of the one before it. Changing an old result breaks every record after it.'|trans|e},
     {steps: [
       'The chain is re-verified automatically every day.'|trans|e,
-      'A break is raised to people, with the position of the broken link.'|trans|e,
-      'The database refuses two standings claiming the same predecessor.'|trans|e,
-      'An independent reviewer can replay the arithmetic from source.'|trans|e
+      'A break is reported to a person, with where it happened.'|trans|e,
+      'Two results can never claim the same record before them.'|trans|e,
+      'An independent reviewer can redo the sums from the original data.'|trans|e
     ]},
-    {p: 'A published result is the one that was announced: the standing is sealed at release, and a later change to the rules does not rewrite it.'|trans|e},
+    {p: 'A published result is the one that was announced. It is locked when it is released, and a later rule change does not rewrite it.'|trans|e},
     {refs: [{href: '/help/how-results-are-sealed', label: 'How you can tell a result was not edited'|trans},
             {href: '/help/dispute-a-result', label: 'I think a count or a ranking is wrong'|trans}]}
   ]},
   {id: 'cycle', blocks: [
-    {p: 'An edition moves through six stages in one direction. Each transition closes something permanently.'|trans|e},
+    {p: 'An edition moves through six stages, always forward. Each step closes something for good.'|trans|e},
     {steps: [
       '<strong>' ~ ('Nominated.'|trans|e) ~ '</strong> ' ~ ('Anyone can enter someone; entries queue for review.'|trans|e),
-      '<strong>' ~ ('Verified.'|trans|e) ~ '</strong> ' ~ ('Eligibility, accuracy and completeness are checked.'|trans|e),
+      '<strong>' ~ ('Verified.'|trans|e) ~ '</strong> ' ~ ('A person checks each entry is eligible, accurate and complete.'|trans|e),
       '<strong>' ~ ('Shortlisted.'|trans|e) ~ '</strong> ' ~ ('Approved nominees go public, and the list is frozen.'|trans|e),
-      '<strong>' ~ ('Voted.'|trans|e) ~ '</strong> ' ~ ('Code-verified, risk-scored votes are collected.'|trans|e),
-      '<strong>' ~ ('Judged.'|trans|e) ~ '</strong> ' ~ ('After voting closes, the panel scores the shortlist without seeing tallies.'|trans|e),
-      '<strong>' ~ ('Sealed.'|trans|e) ~ '</strong> ' ~ ('A signed snapshot is taken; results are published and archived.'|trans|e)
+      '<strong>' ~ ('Voted.'|trans|e) ~ '</strong> ' ~ ('Votes are collected, each one checked.'|trans|e),
+      '<strong>' ~ ('Judged.'|trans|e) ~ '</strong> ' ~ ('After voting closes, the judges score the shortlist without seeing the votes.'|trans|e),
+      '<strong>' ~ ('Sealed.'|trans|e) ~ '</strong> ' ~ ('The results are locked, published and kept.'|trans|e)
     ]},
-    {note: {title: '', body: ['Card contribution closes a little earlier than free voting, so payments already in flight have time to land before the ballot shuts. Free voting runs to the bell.'|trans|e]}},
+    {note: {title: '', body: ['Paid voting closes a few minutes before free voting, so payments in progress can finish in time. Free voting stays open until the end.'|trans|e]}},
     {refs: [{href: '/help/the-stages-of-an-award-cycle', label: 'The stages, and what freezes at each'|trans},
             {href: '/help/when-does-voting-close', label: 'When does voting close?'|trans}]}
   ]},
   {id: 'disputes', blocks: [
-    {p: 'If you believe a result was manipulated, say so. Every recomputation is logged, so a count can be replayed and the working shown to you. Appeals go to somebody independent of the original decision.'|trans|e},
+    {p: 'If you think a result is wrong, tell us. Every count is logged, so it can be redone and shown to you. An appeal goes to someone who wasn’t part of the first decision.'|trans|e},
     {p: ('Raise it at %m% or through %s%. We will:'|trans|e)|replace({'%m%': '<a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>', '%s%': '<a href="/support">' ~ ('Support and appeals'|trans|e) ~ '</a>'})},
     {steps: [
       'We acknowledge within %h% hours.'|trans({'%h%': review_sla_hours})|e,
-      'We export the relevant audit trail.'|trans|e,
-      'An independent reviewer is engaged if the complaint is substantiated.'|trans|e,
-      'A summary is published if the dispute affected a final result.'|trans|e
+      'We pull the records for it.'|trans|e,
+      'If the complaint holds up, an independent reviewer looks at it.'|trans|e,
+      'If it changed a final result, we publish a summary.'|trans|e
     ]},
     {h3: 'What we store when you vote'|trans|e},
-    {p: ('A hash of your email and IP, a device fingerprint, and the nominee and time of your vote. Never your plain-text email against a vote, and we never sell voter data. Full details: %p% · %t%.'|trans|e)|replace({'%p%': '<a href="/privacy">' ~ ('Privacy policy'|trans|e) ~ '</a>', '%t%': '<a href="/terms">' ~ ('Terms'|trans|e) ~ '</a>'})},
+    {p: ('A scrambled form of your email and internet address, a fingerprint of your device, and who you voted for and when. Never your readable email next to a vote, and we never sell voter data. Full details: %p% · %t%.'|trans|e)|replace({'%p%': '<a href="/privacy">' ~ ('Privacy policy'|trans|e) ~ '</a>', '%t%': '<a href="/terms">' ~ ('Terms'|trans|e) ~ '</a>'})},
     {refs: [{href: '/help/dispute-a-result', label: 'I think a count or a ranking is wrong'|trans},
             {href: '/help/report-a-profile', label: 'How do I report a nominee or profile?'|trans},
             {href: '/help/what-data-do-you-keep', label: 'What data do you keep about me?'|trans}]},
