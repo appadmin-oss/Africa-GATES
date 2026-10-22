@@ -171,7 +171,7 @@
 
 
 /* ══ WE ARE AFRICA — WeAreAfrica.dc.html, `standalone=false` ════════════════════
-   A dark band 560 (phone) / 720 tall, which narrows into the page and rounds its
+   A light band 560 (phone) / 720 tall, which narrows into the page and rounds its
    corners while it is away from the middle of the scroller and reaches the edges as it
    arrives there (the DC's `p`, set by the script as --waa-p; with no script, or reduced
    motion, it is drawn full-bleed — the DC's final state). */
@@ -181,7 +181,11 @@
   height:560px;
   margin:0 calc((1 - var(--waa-p)) * 16px);
   border-radius:calc((1 - var(--waa-p)) * 28px);
-  background:var(--ag-green-wash); color:var(--ag-ink);
+  /* The globe sits in a pool of the wash that fades to the page, so the band reads as
+     light around a lit sphere rather than as a flat green slab. */
+  background:radial-gradient(ellipse 70% 75% at 50% 62%, var(--ag-green-wash) 0%, var(--ag-green-wash) 35%, var(--ag-ground) 100%);
+  border-block:1px solid var(--ag-line);
+  color:var(--ag-ink);
 }
 .waa__globe{
   position:absolute; inset:0; width:100%; height:100%;
@@ -189,19 +193,20 @@
 }
 .waa__globe.is-grabbing{ cursor:grabbing }
 .waa__globe:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-6px }
-.waa__pins{ position:absolute; inset:0; pointer-events:none }
+.waa__pins{ position:absolute; inset:0; z-index:2; pointer-events:none }
 .waa__h{
   position:absolute; inset-inline:0; top:32px; margin:0;
   text-align:center; pointer-events:none;
   font-family:var(--ag-font-display); font-weight:700;
   font-size:var(--ag-fs-38); line-height:1; letter-spacing:-.01em;
-  text-shadow:0 0 24px var(--ag-green-wash);
+  text-shadow:0 1px 0 var(--ag-surface), 0 0 18px var(--ag-surface);
 }
 .waa__note{
-  position:absolute; inset-inline:16px; bottom:18px; margin:0 auto; max-width:64ch;
+  position:absolute; inset-inline:16px; bottom:16px; margin:0 auto; max-width:64ch; width:fit-content;
+  padding:8px 14px; border-radius:var(--ag-r-14);
+  background:color-mix(in srgb, var(--ag-surface) 86%, transparent); box-shadow:var(--ag-sh-dot);
   text-align:center; pointer-events:none;
   font-size:var(--ag-fs-13-5); line-height:1.45; color:var(--ag-ink-2);
-  text-shadow:0 0 12px var(--ag-green-wash);
 }
 
 /* A marker: a 44px target on the country's centroid; the visible mark is 12px, ringed
@@ -220,20 +225,21 @@
 .waa__m.is-far{ opacity:0; pointer-events:none }
 .waa__m:focus-visible{ opacity:1; outline:3px solid var(--ag-green); outline-offset:0 }
 .waa__dot{
-  width:12px; height:12px; border-radius:50%;
+  width:14px; height:14px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  background:var(--ag-surface);
-  box-shadow:0 0 0 2px var(--ag-ink);
+  background:var(--ag-green); color:var(--ag-surface);
+  box-shadow:0 0 0 3px var(--ag-surface), 0 2px 8px color-mix(in srgb, var(--ag-ink) 30%, transparent);
 }
 .waa__m--won .waa__dot{
   width:22px; height:22px;
-  box-shadow:0 0 0 2px var(--ag-green), 0 0 0 4px var(--ag-surface);
+  background:var(--ag-gold); color:var(--ag-ink);
+  box-shadow:0 0 0 3px var(--ag-surface), 0 0 0 5px var(--ag-gold-edge), 0 2px 10px color-mix(in srgb, var(--ag-ink) 30%, transparent);
 }
-.waa__m[aria-expanded="true"] .waa__dot{ box-shadow:0 0 0 3px var(--ag-green) }
+.waa__m[aria-expanded="true"] .waa__dot{ box-shadow:0 0 0 3px var(--ag-surface), 0 0 0 6px var(--ag-green) }
 .waa__lbl{
   position:absolute; top:calc(100% - 6px); inset-inline-start:50%; transform:translateX(-50%);
   white-space:nowrap; padding:2px 8px; border-radius:var(--ag-r-pill);
-  background:var(--ag-surface); border:1px solid var(--ag-line); color:var(--ag-ink);
+  background:var(--ag-surface); border:1px solid var(--ag-line); color:var(--ag-ink); box-shadow:var(--ag-sh-dot);
   font-size:var(--ag-fs-12); font-weight:700;
 }
 [dir="rtl"] .waa__lbl{ transform:translateX(50%) }
@@ -417,7 +423,7 @@
   background:var(--ag-surface); border:1px solid var(--ag-line); color:var(--ag-ink); text-decoration:none }
 .hm-topic:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .hm-topic__field{ position:relative; display:flex; align-items:center; justify-content:center; aspect-ratio:16 / 10; overflow:hidden; background:var(--ag-green-wash) }
-.hm-topic__pic{ flex:none; width:40%; height:auto; max-height:none; aspect-ratio:4 / 5; object-fit:cover; border-radius:18px; border:4px solid var(--ag-surface); box-shadow:var(--ag-sh-tile) }
+.hm-topic__pic{ flex:none; width:40%; height:auto; max-height:none; aspect-ratio:4 / 5; object-fit:cover; border-radius:18px; border:4px solid var(--ag-surface); box-shadow:var(--ag-sh-dot) }
 .hm-topic__pic--1{ transform:rotate(-4deg) }
 .hm-topic__pic--2{ transform:rotate(3deg) }
 .hm-topic__pic--3{ transform:rotate(-3deg) }

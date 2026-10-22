@@ -67,18 +67,26 @@
   }
   function palette() {
     return {
-      // Light, after the colour pass (owner, 21 Oct 2026: no dark bands anywhere). The
-      // sea is white at its lit edge falling to the green wash; Africa is the green,
-      // softened into white so the markers stay the loudest thing; the rest of the world
-      // is the neutral fill. Borders are white, as paper maps draw them.
+      // Light, after the colour pass (owner, 21 Oct 2026: no dark bands anywhere), and
+      // drawn as a SPHERE rather than a flat disc: a lit sea falling from white to the
+      // wash and then to the wash's edge at the limb, a soft atmosphere outside it, a
+      // shade on the far side over the land, and one highlight. Africa is the green; the
+      // rest of the world is the neutral fill, so the eye lands where the markers are.
       seaLit:  mix([['surface', 1]]),
-      sea:     mix([['green-wash', .7], ['tint', .3]]),
-      grid:    mix([['ink', 1]], .05),
-      africa:  mix([['green', .45], ['surface', .55]]),
-      world:   mix([['tint', .85], ['surface', .15]]),
-      border:  mix([['surface', 1]]),
-      rim:     mix([['green', 1]], .25),
-      pickFill: mix([['green', 1]], .3),
+      seaMid:  mix([['green-wash', .65], ['surface', .35]]),
+      sea:     mix([['green-edge', .55], ['green-wash', .45]]),
+      glow:    mix([['green', 1]], .16),
+      glowOut: mix([['green', 1]], 0),
+      grid:    mix([['green-deep', 1]], .07),
+      africa:  mix([['green', .62], ['surface', .38]]),
+      world:   mix([['tint', .8], ['surface', .2]]),
+      border:  mix([['surface', 1]], .9),
+      shade:   mix([['ink', 1]], .10),
+      shadeOff: mix([['ink', 1]], 0),
+      shine:   mix([['surface', 1]], .38),
+      shineOff: mix([['surface', 1]], 0),
+      rim:     mix([['green-edge', 1]]),
+      pickFill: mix([['green-deep', 1]], .35),
       pickLine: mix([['green-deep', 1]])
     };
   }
@@ -138,8 +146,11 @@
     /* The DC's geometry: a sphere larger than the band, centred below its middle, so the
        continent fills it; on a phone it is smaller and nearer whole. */
     function geom() {
-      var R = phone() ? Math.max(S.w * 0.72, 260) : Math.max(S.w * 0.62, 520);
-      return { R: R, cx: S.w / 2, cy: S.h * 0.5 + R * 0.12 };
+      // A phone shows Africa large with the limb at the sides; wider, the whole sphere
+      // rises into the band, so it reads as a globe and not as a flat map.
+      if (phone()) { var r = Math.max(S.w * 0.72, 260); return { R: r, cx: S.w / 2, cy: S.h * 0.5 + r * 0.12 }; }
+      var R = Math.max(S.h * 0.6, 360);
+      return { R: R, cx: S.w / 2, cy: S.h * 0.56 };
     }
     function proj(lon, lat) {
       var l0 = S.lam * RAD, p0 = S.phi * RAD, cp = Math.cos(lat), dl = lon - l0;
@@ -172,34 +183,63 @@
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, S.w, S.h);
 
-      var grad = g.createRadialGradient(G.cx - G.R * 0.3, G.cy - G.R * 0.35, G.R * 0.1, G.cx, G.cy, G.R);
-      grad.addColorStop(0, colours.seaLit); grad.addColorStop(1, colours.sea);
+      // The atmosphere: a soft green halo just outside the limb.
+      var halo = g.createRadialGradient(G.cx, G.cy, G.R * 0.98, G.cx, G.cy, G.R * 1.09);
+      halo.addColorStop(0, colours.glow); halo.addColorStop(1, colours.glowOut);
+      g.beginPath(); g.arc(G.cx, G.cy, G.R * 1.09, 0, Math.PI * 2); g.fillStyle = halo; g.fill();
+
+      // The sea, lit from the upper left.
+      var grad = g.createRadialGradient(G.cx - G.R * 0.35, G.cy - G.R * 0.4, G.R * 0.05, G.cx, G.cy, G.R);
+      grad.addColorStop(0, colours.seaLit); grad.addColorStop(0.55, colours.seaMid); grad.addColorStop(1, colours.sea);
       g.beginPath(); g.arc(G.cx, G.cy, G.R, 0, Math.PI * 2); g.fillStyle = grad; g.fill();
 
+      g.save();
+      g.beginPath(); g.arc(G.cx, G.cy, G.R, 0, Math.PI * 2); g.clip();
+
+      // The graticule: parallels and meridians, faint.
       g.strokeStyle = colours.grid; g.lineWidth = 1;
-      for (var lat = -60; lat <= 60; lat += 30) {
+      var line = function (pts) {
         g.beginPath(); var on = false;
-        for (var lon = -180; lon <= 180; lon += 4) {
-          var p = proj(lon * RAD, lat * RAD);
+        pts.forEach(function (ll) {
+          var p = proj(ll[0] * RAD, ll[1] * RAD);
           if (p[2] > 0) { var X = G.cx + p[0] * G.R, Y = G.cy - p[1] * G.R; if (on) g.lineTo(X, Y); else g.moveTo(X, Y); on = true; }
           else on = false;
-        }
+        });
         g.stroke();
-      }
+      };
+      for (var lat = -60; lat <= 60; lat += 30) { var row = []; for (var lo = -180; lo <= 180; lo += 4) row.push([lo, lat]); line(row); }
+      for (var lon = -180; lon < 180; lon += 30) { var col = []; for (var la = -80; la <= 80; la += 4) col.push([lon, la]); line(col); }
 
       if (S.shapes) {
         S.shapes.forEach(function (s) {
+          if (s.af) return;
           tracePath(g, s, G);
-          g.fillStyle = s.af ? colours.africa : colours.world; g.fill('evenodd');
-          g.strokeStyle = colours.border; g.lineWidth = s.af ? 0.9 : 0.6; g.stroke();
+          g.fillStyle = colours.world; g.fill('evenodd');
+          g.strokeStyle = colours.border; g.lineWidth = 0.6; g.stroke();
+        });
+        // Africa last, so its borders sit over its neighbours'.
+        S.shapes.forEach(function (s) {
+          if (!s.af) return;
+          tracePath(g, s, G);
+          g.fillStyle = colours.africa; g.fill('evenodd');
+          g.strokeStyle = colours.border; g.lineWidth = 1; g.stroke();
         });
         var sel = S.pick && S.byName[S.pick.dataset.geo];
         if (sel) {
           tracePath(g, sel, G);
           g.fillStyle = colours.pickFill; g.fill('evenodd');
-          g.strokeStyle = colours.pickLine; g.lineWidth = 1.6; g.stroke();
+          g.strokeStyle = colours.pickLine; g.lineWidth = 1.8; g.stroke();
         }
       }
+
+      // Volume: the far side falls into shade, and one highlight sits on the lit side.
+      var shade = g.createRadialGradient(G.cx - G.R * 0.3, G.cy - G.R * 0.35, G.R * 0.55, G.cx, G.cy, G.R * 1.05);
+      shade.addColorStop(0, colours.shadeOff); shade.addColorStop(1, colours.shade);
+      g.fillStyle = shade; g.fillRect(G.cx - G.R, G.cy - G.R, G.R * 2, G.R * 2);
+      var shine = g.createRadialGradient(G.cx - G.R * 0.42, G.cy - G.R * 0.5, 0, G.cx - G.R * 0.42, G.cy - G.R * 0.5, G.R * 0.45);
+      shine.addColorStop(0, colours.shine); shine.addColorStop(1, colours.shineOff);
+      g.fillStyle = shine; g.fillRect(G.cx - G.R, G.cy - G.R, G.R * 2, G.R * 2);
+      g.restore();
 
       g.beginPath(); g.arc(G.cx, G.cy, G.R, 0, Math.PI * 2);
       g.strokeStyle = colours.rim; g.lineWidth = 1.5; g.stroke();
