@@ -10,7 +10,7 @@
   Import: {% import 'emails/_blocks.html.twig' as b %}
 -#}
 {% macro eyebrow(text) %}
-<tr><td style="padding:0 0 12px;font-family:Arial,Helvetica,sans-serif;"><div style="font-size:11.5px;line-height:16px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:{{ c.green }};">{{ text }}</div></td></tr>
+<tr><td style="padding:0 0 12px;font-family:Arial,Helvetica,sans-serif;"><div style="font-size:11.5px;line-height:16px;font-weight:700;color:{{ c.green }};">{{ text }}</div></td></tr>
 {% endmacro %}
 
 {% macro h1(text) %}
@@ -30,7 +30,7 @@
 {% endmacro %}
 
 {% macro ref(label, value, caption = null) %}
-<tr><td style="padding:0 0 18px;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:18px 0;border-top:1px solid {{ c['line-3'] }};border-bottom:1px solid {{ c['line-3'] }};font-family:Arial,Helvetica,sans-serif;"><div style="font-size:11.5px;line-height:16px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:{{ c.soft }};">{{ label }}</div><div style="margin-top:6px;font-family:'Courier New',Courier,monospace;font-size:20px;line-height:26px;font-weight:700;color:{{ c.ink }};word-break:break-all;">{{ value }}</div>{% if caption %}<div style="margin-top:6px;font-size:13px;line-height:20px;color:{{ c.soft }};">{{ caption }}</div>{% endif %}</td></tr></table></td></tr>
+<tr><td style="padding:0 0 18px;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:18px 0;border-top:1px solid {{ c['line-3'] }};border-bottom:1px solid {{ c['line-3'] }};font-family:Arial,Helvetica,sans-serif;"><div style="font-size:11.5px;line-height:16px;font-weight:700;color:{{ c.soft }};">{{ label }}</div><div style="margin-top:6px;font-family:'Courier New',Courier,monospace;font-size:20px;line-height:26px;font-weight:700;color:{{ c.ink }};word-break:break-all;">{{ value }}</div>{% if caption %}<div style="margin-top:6px;font-size:13px;line-height:20px;color:{{ c.soft }};">{{ caption }}</div>{% endif %}</td></tr></table></td></tr>
 {% endmacro %}
 
 {% macro facts(items) %}
@@ -54,7 +54,7 @@
 {% endmacro %}
 
 {% macro warn(text, label = null) %}
-<tr><td style="padding:0 0 18px;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="{{ c['gold-wash'] }}" style="background:{{ c['gold-wash'] }};border-radius:12px;padding:16px 18px;font-family:Arial,Helvetica,sans-serif;">{% if label %}<div style="margin-bottom:4px;font-size:11.5px;line-height:16px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:{{ c['gold-ink'] }};">{{ label }}</div>{% endif %}<div style="font-size:14.5px;line-height:23px;color:{{ c.ink }};">{% if text is iterable %}{% for l in text %}{{ l }}{% if not loop.last %}<br><br>{% endif %}{% endfor %}{% else %}{{ text }}{% endif %}</div></td></tr></table></td></tr>
+<tr><td style="padding:0 0 18px;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="{{ c['gold-wash'] }}" style="background:{{ c['gold-wash'] }};border-radius:12px;padding:16px 18px;font-family:Arial,Helvetica,sans-serif;">{% if label %}<div style="margin-bottom:4px;font-size:11.5px;line-height:16px;font-weight:700;color:{{ c['gold-ink'] }};">{{ label }}</div>{% endif %}<div style="font-size:14.5px;line-height:23px;color:{{ c.ink }};">{% if text is iterable %}{% for l in text %}{{ l }}{% if not loop.last %}<br><br>{% endif %}{% endfor %}{% else %}{{ text }}{% endif %}</div></td></tr></table></td></tr>
 {% endmacro %}
 
 {% macro steps(items) %}
@@ -70,7 +70,7 @@
 {% endmacro %}
 
 {% macro ticket(title, when, where, code, tier, qr_url, tier_ink = null) %}
-<tr><td style="padding:0 0 18px;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid {{ c['line-3'] }};border-radius:14px;border-collapse:separate;"><tr><td valign="middle" style="padding:18px;font-family:Arial,Helvetica,sans-serif;"><div style="font-size:11.5px;line-height:16px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:{{ tier_ink ?: c['gold-ink'] }};">{{ tier }}</div><div style="margin-top:6px;font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-size:20px;line-height:25px;font-weight:700;color:{{ c.ink }};">{{ title }}</div><div style="margin-top:6px;font-size:14px;line-height:20px;color:{{ c['ink-2'] }};">{{ when }}</div><div style="margin-top:6px;font-size:14px;line-height:20px;color:{{ c.soft }};">{{ where }}</div><div style="margin-top:12px;font-family:'Courier New',Courier,monospace;font-size:14px;line-height:18px;font-weight:700;color:{{ c.ink }};">{{ code }}</div></td><td width="120" valign="middle" style="width:120px;padding:18px 18px 18px 0;"><img src="{{ qr_url }}" width="120" height="120" alt="Ticket code {{ code }}" style="display:block;width:120px;height:120px;border:0;border-radius:10px;font-family:'Courier New',Courier,monospace;font-size:12px;color:{{ c.soft }};"></td></tr></table></td></tr>
+<tr><td style="padding:0 0 18px;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid {{ c['line-3'] }};border-radius:14px;border-collapse:separate;"><tr><td valign="middle" style="padding:18px;font-family:Arial,Helvetica,sans-serif;"><div style="font-size:11.5px;line-height:16px;font-weight:700;color:{{ tier_ink ?: c['gold-ink'] }};">{{ tier }}</div><div style="margin-top:6px;font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-size:20px;line-height:25px;font-weight:700;color:{{ c.ink }};">{{ title }}</div><div style="margin-top:6px;font-size:14px;line-height:20px;color:{{ c['ink-2'] }};">{{ when }}</div><div style="margin-top:6px;font-size:14px;line-height:20px;color:{{ c.soft }};">{{ where }}</div><div style="margin-top:12px;font-family:'Courier New',Courier,monospace;font-size:14px;line-height:18px;font-weight:700;color:{{ c.ink }};">{{ code }}</div></td><td width="120" valign="middle" style="width:120px;padding:18px 18px 18px 0;"><img src="{{ qr_url }}" width="120" height="120" alt="Ticket code {{ code }}" style="display:block;width:120px;height:120px;border:0;border-radius:10px;font-family:'Courier New',Courier,monospace;font-size:12px;color:{{ c.soft }};"></td></tr></table></td></tr>
 {% endmacro %}
 
 {% macro progress(raised, of_goal, caption, pct) %}

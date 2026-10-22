@@ -255,20 +255,21 @@
 @media (min-width:600px){
   .vp-hero{ padding:0; gap:0 }
   .vp-hero__media, .vp-count, .vp-hero__line, .vp-hero .vp-hero__h1-sr{ display:none }
-  .vp-hero__band{ display:block; position:relative; background:var(--ag-ink); color:var(--ag-ground) }
+  /* The band is the green wash with ink words (colour pass, 21 Oct 2026: no dark bands). */
+  .vp-hero__band{ display:block; position:relative; background:var(--ag-green-wash); border-bottom:1px solid var(--ag-green-edge); color:var(--ag-ink) }
   .vp-hero__in{ position:relative; max-width:1240px; margin:0 auto; padding:44px 32px 40px; display:grid; grid-template-columns:minmax(0,1fr); gap:14px; align-items:end }
   .vp-hero__text{ min-width:0; display:flex; flex-direction:column; gap:14px }
   .vp-hero__chips{ display:flex; gap:8px; flex-wrap:wrap }
   .vp-hero__band .vp-hero__chip--live{ background:var(--ag-live); color:var(--ag-surface) }
   .vp-hero__band .vp-hero__chip--live .vp-hero__dot{ width:6px; height:6px; background:var(--ag-surface) }
-  .vp-hero__band .vp-hero__chip--quiet{ background:var(--ag-surface); color:var(--ag-ink) }
-  .vp-hero__chip--glass{ background:color-mix(in srgb, var(--ag-surface) 14%, transparent); color:var(--ag-ground) }
+  .vp-hero__band .vp-hero__chip--quiet{ background:var(--ag-surface); border:1px solid var(--ag-green-edge); color:var(--ag-ink) }
+  .vp-hero__chip--glass{ background:var(--ag-surface); border:1px solid var(--ag-green-edge); color:var(--ag-ink) }
   .vp-hero__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-36); line-height:1.08; text-wrap:balance }
-  .vp-hero__meta{ font-size:var(--ag-fs-15); color:var(--ag-ground) }
+  .vp-hero__meta{ font-size:var(--ag-fs-15); color:var(--ag-ink-2) }
   .vp-clock--dark{ gap:6px; justify-self:start }
-  .vp-clock--dark .vp-clock__c{ gap:3px; min-width:58px; padding:8px 6px; border-radius:var(--ag-r-12); background:color-mix(in srgb, var(--ag-surface) 10%, transparent) }
-  .vp-clock--dark .vp-clock__c b{ font-size:var(--ag-fs-22); color:var(--ag-green-light) }
-  .vp-clock--dark .vp-clock__c span{ font-size:var(--ag-fs-11-5); color:var(--ag-ground) }
+  .vp-clock--dark .vp-clock__c{ gap:3px; min-width:58px; padding:8px 6px; border-radius:var(--ag-r-12); background:var(--ag-surface); border:1px solid var(--ag-green-edge) }
+  .vp-clock--dark .vp-clock__c b{ font-size:var(--ag-fs-22); color:var(--ag-green-deep) }
+  .vp-clock--dark .vp-clock__c span{ font-size:var(--ag-fs-11-5); color:var(--ag-ink-2) }
   .vp-tabs__in{ padding:0 28px }
   .vp-tab{ flex:none }
   .vp-body{ padding:24px 28px 48px }

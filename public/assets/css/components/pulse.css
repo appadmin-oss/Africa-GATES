@@ -87,7 +87,7 @@
 .pl-left__av,
 .pl-compose__av{
   flex:none; width:40px; height:40px; border-radius:50%;
-  background:var(--ag-ink); color:var(--ag-green-light);
+  background:var(--ag-tint); color:var(--ag-ink);
   display:flex; align-items:center; justify-content:center;
   font-weight:700; font-size:var(--ag-fs-13);
 }
@@ -376,14 +376,14 @@ video.pl-post__media{ width:100% }
 .pl-box__av{ flex:none; width:40px; height:40px; border-radius:50%; overflow:hidden }
 .pl-box__av .ag-photo{ width:100%; height:100% }
 .pl-box__ini{
-  flex:none; width:40px; height:40px; border-radius:var(--ag-r-12); background:var(--ag-ink); color:var(--ag-ground);
+  flex:none; width:40px; height:40px; border-radius:var(--ag-r-12); background:var(--ag-tint); color:var(--ag-ink);
   display:flex; align-items:center; justify-content:center; font-weight:700; font-size:var(--ag-fs-14);
 }
 .pl-box__pb{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
 .pl-box__pb b{ font-weight:600; font-size:var(--ag-fs-14); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .pl-follow{
   flex:none; display:inline-flex; align-items:center; min-height:44px; padding:0 14px;
-  border-radius:var(--ag-r-pill); border:1px solid var(--ag-ink); background:var(--ag-ink); color:var(--ag-surface);
+  border-radius:var(--ag-r-pill); border:1px solid var(--ag-green); background:var(--ag-green); color:var(--ag-surface);
   font:inherit; font-weight:700; font-size:var(--ag-fs-13); text-decoration:none; cursor:pointer;
 }
 .pl-follow[aria-pressed="true"]{ background:var(--ag-surface); color:var(--ag-ink); border-color:var(--ag-line-2) }

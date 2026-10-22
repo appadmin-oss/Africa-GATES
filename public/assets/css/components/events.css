@@ -101,7 +101,7 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
   border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink);
   font-family:inherit; font-weight:600; font-size:var(--ag-fs-13-5); cursor:pointer;
 }
-.ed-track[aria-pressed="true"]{ background:var(--ag-ink); color:var(--ag-ground); border-color:var(--ag-ink) }
+.ed-track[aria-pressed="true"]{ background:var(--ag-surface); border:2px solid var(--ag-ink); color:var(--ag-ink) }
 .ed-ag__day{ margin:4px 0 0; font-size:var(--ag-fs-14-5); font-weight:700 }
 .ed-ag{
   list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px;
@@ -129,18 +129,19 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-fine dt{ font-weight:700 }
 .ed-fine dd{ margin:2px 0 0; color:var(--ag-ink-2) }
 
-/* The vendor call: ink, the DC's one dark card. */
+/* The vendor call: the block's one accent, the green wash (colour pass, 21 Oct 2026 — it
+   was the page's one ink card, and the site has no dark fields now). */
 .ed-vend{
   display:flex; flex-direction:column; gap:10px; padding:20px;
-  background:var(--ag-ink); color:var(--ag-ground); border-radius:var(--ag-r-20);
+  background:var(--ag-green-wash); border:1px solid var(--ag-green-edge); color:var(--ag-ink); border-radius:var(--ag-r-20);
 }
-.ed-vend a{ color:var(--ag-ground) }
+.ed-vend a{ color:var(--ag-green-deep) }
 .ed-vend__facts{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:4px; font-size:var(--ag-fs-14-5) }
 .ed-vend__note{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.5 }
 .ed-vend__go,
 .ed-vend__go:hover{
   align-self:flex-start; display:flex; align-items:center; min-height:44px; padding:0 18px; border-radius:var(--ag-r-pill);
-  background:var(--ag-ground); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none;
+  background:var(--ag-green); color:var(--ag-surface); font-weight:600; font-size:var(--ag-fs-14-5); text-decoration:none;
 }
 .ed-vend--shut p{ margin:0; font-size:var(--ag-fs-14-5) }
 

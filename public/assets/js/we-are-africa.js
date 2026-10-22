@@ -67,18 +67,19 @@
   }
   function palette() {
     return {
-      // The DC's sphere runs #1f4a4f → #0f2a2e: the ink, lifted toward the two cool
-      // accents at its lit edge, and the ink itself at the rim.
-      seaLit:  mix([['ink', .8], ['green-light', .1], ['info', .1]]),
-      sea:     mix([['ink', 1]]),
-      grid:    mix([['ground', 1]], .06),
-      // #4f9a86 (Africa) and #24494d (the rest of the world).
-      africa:  mix([['green-light', .5], ['info', .2], ['ink', .3]]),
-      world:   mix([['ink', .7], ['green-light', .15], ['info', .15]]),
-      border:  mix([['ink', 1]]),
-      rim:     mix([['green-light', 1]], .25),
-      pickFill: mix([['green-light', 1]], .35),
-      pickLine: mix([['green-light', 1]])
+      // Light, after the colour pass (owner, 21 Oct 2026: no dark bands anywhere). The
+      // sea is white at its lit edge falling to the green wash; Africa is the green,
+      // softened into white so the markers stay the loudest thing; the rest of the world
+      // is the neutral fill. Borders are white, as paper maps draw them.
+      seaLit:  mix([['surface', 1]]),
+      sea:     mix([['green-wash', .7], ['tint', .3]]),
+      grid:    mix([['ink', 1]], .05),
+      africa:  mix([['green', .45], ['surface', .55]]),
+      world:   mix([['tint', .85], ['surface', .15]]),
+      border:  mix([['surface', 1]]),
+      rim:     mix([['green', 1]], .25),
+      pickFill: mix([['green', 1]], .3),
+      pickLine: mix([['green-deep', 1]])
     };
   }
 

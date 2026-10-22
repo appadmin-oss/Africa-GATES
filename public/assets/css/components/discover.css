@@ -358,7 +358,7 @@
 }
 .dv-host{
   flex:none; width:40px; height:40px; border-radius:var(--ag-r-10);
-  background:var(--ag-ink); color:var(--ag-ground);
+  background:var(--ag-tint); color:var(--ag-ink);
   display:flex; align-items:center; justify-content:center;
   font-size:var(--ag-fs-14); font-weight:700;
 }

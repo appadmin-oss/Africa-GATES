@@ -84,7 +84,7 @@
 .dp .dp-pill:hover{ border-color:var(--ag-ink) }
 .dp-pill[hidden]{ display:none }
 .dp-pill__pause{ display:none }
-.dp-pill--listen[aria-pressed="true"]{ background:var(--ag-ink); border-color:var(--ag-ink); color:var(--ag-surface) }
+.dp-pill--listen[aria-pressed="true"]{ background:var(--ag-surface); border:2px solid var(--ag-ink); color:var(--ag-ink) }
 .dp-pill--listen[aria-pressed="true"] .dp-pill__play{ display:none }
 .dp-pill--listen[aria-pressed="true"] .dp-pill__pause{ display:inline }
 

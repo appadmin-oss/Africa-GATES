@@ -133,11 +133,11 @@
 .sx-scope code{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-13); background:var(--ag-ground); padding:2px 6px; border-radius:5px; color:var(--ag-ink) }
 
 /* The dark help band */
-.sx-help{ display:flex; flex-direction:column; align-items:stretch; gap:var(--ag-sp-16); padding:22px; border-radius:var(--ag-r-20); background:var(--ag-ink); color:var(--ag-ground) }
+.sx-help{ display:flex; flex-direction:column; align-items:stretch; gap:var(--ag-sp-16); padding:22px; border-radius:var(--ag-r-20); background:var(--ag-green-wash); border:1px solid var(--ag-green-edge); color:var(--ag-ink) }
 .sx-help__w{ flex:1; display:flex; flex-direction:column; gap:6px }
 .sx-help__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22); line-height:1.2 }
-.sx-help__p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.6; color:var(--ag-ground) }
-.sx a.sx-help__a{ flex:none; display:flex; align-items:center; justify-content:center; min-height:46px; padding:0 20px; border-radius:var(--ag-r-pill); background:var(--ag-ground); color:var(--ag-ink); font-weight:700; font-size:var(--ag-fs-15); text-decoration:none }
+.sx-help__p{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.6; color:var(--ag-ink-2) }
+.sx a.sx-help__a{ flex:none; display:flex; align-items:center; justify-content:center; min-height:46px; padding:0 20px; border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface); font-weight:700; font-size:var(--ag-fs-15); text-decoration:none }
 
 /* ── Get updates — a bottom sheet on a phone, a centred dialog from 600 ── */
 .sx-sub{ gap:var(--ag-sp-14); padding:0 22px 22px; background:var(--ag-surface) }

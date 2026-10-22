@@ -217,7 +217,7 @@
 .ha-pill[hidden]{ display:none }
 .ha-pill__a{
   display:inline-flex; align-items:center; gap:6px; height:44px; padding:0 14px;
-  border-radius:var(--ag-r-pill); background:var(--ag-ink); color:var(--ag-surface);
+  border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface);
   font-size:var(--ag-fs-14); font-weight:600; text-decoration:none; box-shadow:var(--ag-sh-float);
 }
 .ha-pill__a:hover{ color:var(--ag-surface) }

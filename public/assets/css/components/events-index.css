@@ -36,7 +36,7 @@
 .ei-btn--line,
 .ei-btn--line:hover{ padding:0 20px; border:1px solid var(--ag-ink); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; background:transparent }
 .ei-btn--ink,
-.ei-btn--ink:hover{ min-height:48px; padding:0 20px; background:var(--ag-ink); color:var(--ag-surface); font-size:var(--ag-fs-15) }
+.ei-btn--ink:hover{ min-height:48px; padding:0 20px; background:var(--ag-green); color:var(--ag-surface); font-size:var(--ag-fs-15) }
 .ei-btn--sm,
 .ei-btn--sm:hover{ min-height:44px; padding:0 18px; font-size:var(--ag-fs-14-5) }
 .ei-link,

@@ -80,8 +80,8 @@
 /* VotePage.dc.html: `style-hover="background:#fbfbfa"` on its outlined button. */
 .ag-btn--secondary:is(:hover,.is-hover){ background:var(--ag-bar); color:var(--ag-ink) }
 
-.ag-btn--ink{ background:var(--ag-ink); color:var(--ag-surface) }
-.ag-btn--ink:is(:hover,.is-hover){ color:var(--ag-surface) }
+.ag-btn--ink{ background:var(--ag-surface); border:1px solid var(--ag-ink); color:var(--ag-ink) }
+.ag-btn--ink:is(:hover,.is-hover){ background:var(--ag-ink); color:var(--ag-surface) }
 
 .ag-btn--text{
   height:44px; padding:0 var(--ag-sp-4);
@@ -456,7 +456,7 @@ button.ag-list__row{ width:100%; cursor:pointer }
 :is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch){
   background:var(--ag-green); justify-content:flex-end;
 }
-.ag-doc :is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch){ background:var(--ag-ink) }
+.ag-doc :is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch){ background:var(--ag-green) }
 .ag-switch:is([disabled],[aria-disabled="true"]){ background:var(--ag-tint); cursor:not-allowed }
 /* 28px of drawing inside a 44px target. */
 .ag-switch-target{

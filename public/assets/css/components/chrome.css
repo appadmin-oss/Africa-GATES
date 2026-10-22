@@ -146,12 +146,13 @@
 .ag-tools__lang{ padding:0 12px; font-weight:600; font-size:var(--ag-fs-13-5) }
 .ag-tools__div{ flex:none; width:1px; height:18px; background:var(--ag-line) }
 
-/* Signed in: the 40px ink avatar. Signed out: an OUTLINED ink pill — never green. */
+/* Signed in: the 40px avatar, light (colour pass: no dark avatars). Signed out: an
+   OUTLINED ink pill — never green. */
 .ag-head__av,
 .ag-head__av:hover{
   flex:none; display:flex; align-items:center; justify-content:center;
   width:40px; height:40px; border-radius:50%;
-  background:var(--ag-ink); color:var(--ag-ground);
+  background:var(--ag-tint); color:var(--ag-ink);
   font-weight:700; font-size:var(--ag-fs-13); text-decoration:none;
 }
 .ag-head__signin,
@@ -302,7 +303,7 @@
 }
 .ag-ss__tile--people{ border-radius:50% }
 .ag-ss__tile--pages,
-.ag-ss__tile--more{ background:var(--ag-ink); color:var(--ag-surface) }
+.ag-ss__tile--more{ background:var(--ag-green-wash); color:var(--ag-green) }
 .ag-ss__txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
 .ag-ss__t{ font-weight:600; font-size:var(--ag-fs-14-5) }
 .ag-ss__m{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
@@ -403,7 +404,7 @@
 .ag-appbar__av{
   width:34px; height:34px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  background:var(--ag-ink); color:var(--ag-ground);
+  background:var(--ag-tint); color:var(--ag-ink);
   font-weight:700; font-size:var(--ag-fs-12);
 }
 
@@ -452,7 +453,7 @@
 .ag-langask__yes,
 .ag-langask__yes:hover{
   display:inline-flex; align-items:center; height:44px; padding:0 18px;
-  border-radius:var(--ag-r-pill); background:var(--ag-ink); color:var(--ag-surface);
+  border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface);
   font-size:var(--ag-fs-14-5); font-weight:700; text-decoration:none;
 }
 .ag-langask__no,
@@ -499,7 +500,7 @@
 .ag-qs__av{
   flex:none; width:44px; height:44px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  background:var(--ag-ink); color:var(--ag-ground);
+  background:var(--ag-tint); color:var(--ag-ink);
   font-weight:700; font-size:var(--ag-fs-15);
 }
 .ag-qs__who{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
@@ -521,7 +522,7 @@
 .ag-qs__done{
   height:52px; width:100%;
   border:0; border-radius:var(--ag-r-16);
-  background:var(--ag-ink); color:var(--ag-surface);
+  background:var(--ag-green); color:var(--ag-surface);
   font-weight:700; font-size:var(--ag-fs-15-5); cursor:pointer;
 }
 

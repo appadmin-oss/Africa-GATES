@@ -63,7 +63,7 @@
   margin:var(--ag-sp-12);
   display:flex; align-items:center; gap:var(--ag-sp-12);
   padding:var(--ag-sp-14) var(--ag-sp-16);
-  background:var(--ag-ink); color:var(--ag-ground);
+  background:var(--ag-surface); border:1px solid var(--ag-green-edge); color:var(--ag-ink);
   border-radius:var(--ag-r-14);
   font-size:var(--ag-fs-14-5);
 }
@@ -75,8 +75,8 @@
   flex:none; display:inline-flex; align-items:center;
   min-height:44px; padding:0 var(--ag-sp-12);
   border-radius:var(--ag-r-pill);
-  border:1px solid var(--ag-ground);
-  background:transparent; color:var(--ag-ground);
+  border:1px solid var(--ag-line-2);
+  background:transparent; color:var(--ag-ink);
   font-size:var(--ag-fs-13-5); font-weight:600; text-decoration:none;
 }
 
@@ -187,7 +187,7 @@
   font-family:inherit; font-size:var(--ag-fs-15); font-weight:600;
   cursor:pointer;
 }
-.ag-consent-sheet__btn--save{ background:var(--ag-ink); color:var(--ag-ground) }
+.ag-consent-sheet__btn--save{ background:var(--ag-green); color:var(--ag-surface) }
 
 /* ══ From 600: the DC's desktop view ═════════════════════════════════════════
    The notice and the "saved" line float 28px from the corner at 460px; the sheet is a
