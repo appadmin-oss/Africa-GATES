@@ -3825,8 +3825,13 @@ return function(App $app) {
         // arrives while it is on screen says so. Every one reads the member from the session.
         $a->get('/wallet',             AccountController::class.':wallet');
         $a->get('/wallet.json',        AccountController::class.':walletJson');
-        $a->get('/wallet/tx/{key:(?:cr|crw|rc|rp|pt)-[0-9]+}', AccountController::class.':walletTx');
+        $a->get('/wallet/history',     AccountController::class.':walletHistory');
+        $a->get('/wallet/history.csv', AccountController::class.':walletHistoryCsv');
+        $a->get('/wallet/history.pdf', AccountController::class.':walletHistoryPdf');
+        $a->get('/wallet/tx/{key:(?:cr|crw|rc|rp|pt|wv)-[0-9]+}', AccountController::class.':walletTx');
+        $a->get('/wallet/tx/{key:(?:cr|crw|rc|rp|pt|wv)-[0-9]+}.{ext:png|pdf}', AccountController::class.':walletTxFile');
         $a->get('/wallet/withdraw',    AccountController::class.':walletWithdraw');
+        $a->get('/wallet/resolve.json', AccountController::class.':walletResolve');
         $a->post('/wallet/withdraw/review', AccountController::class.':walletWithdrawReview');
         $a->post('/wallet/withdraw',   AccountController::class.':walletWithdrawConfirm');
         $a->get('/display',            AccountController::class.':display');

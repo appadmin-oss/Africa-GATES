@@ -1,96 +1,118 @@
 {% extends 'pages/account/_frame.twig' %}
 {#
-  THE WALLET — /account/wallet · MemberWallet
+  THE WALLET — /account/wallet · MemberWallet · Account Wallet v2.dc.html (21 Oct 2026)
 
   OPay's shape, because it is the wallet most people here already read without thinking:
-  one balance at the top with an eye to hide it and the bonus balance beside it, the actions
-  under it, the pockets the balance is made of, then every movement grouped by day with its
-  status in words, filterable, each one opening its own receipt.
+  one balance at the top with an eye to hide it and the points beside it, the actions under
+  it, the pockets the balance is made of, then the last few movements and a way to all of
+  them (/account/wallet/history).
 
   ── THE HEADLINE IS AVAILABLE MONEY ONLY ─────────────────────────────────────
 
   Money that is the member's but not yet theirs to take — locked behind a milestone,
-  awaiting results, unlocking after more referrals — is its own line under the balance and
-  never inside it. A wallet that shows money a person cannot withdraw is a support ticket.
-  Voting points are part of the wallet in their own unit, and never added to the naira.
+  awaiting results, unlocking after more referrals — lives in its pocket and never inside
+  the headline. A wallet that shows money a person cannot withdraw is a support ticket. The
+  card says each fact once: available naira, and points in their own unit.
+
+  ── ONE POCKETS SECTION, TWO PLACES ─────────────────────────────────────────
+
+  Below 1200px the pockets sit between the toast and the recent list; from 1200 they are a
+  column of their own. That is ORDER and a grid in wallet.css over one section, not two
+  copies of it, so "Why can't I withdraw?" always has one #wl-pockets to land on.
 
   ── LIFE WITHOUT A LIE ───────────────────────────────────────────────────────
 
   wallet.js asks /account/wallet.json every so often while the page is visible; money or
-  points that arrive say so in a toast and the balance counts up to its new figure (at once
+  points that arrive say so in the toast and the balance counts up to its new figure (at once
   under reduced motion). Everything here renders without it, and the hidden-balance choice
   is a per-device convenience (`ag-hide-bal`, CookieRegistry), never a privacy control.
 #}
 {% set acc_tab = 'wallet' %}
 {% set colour_tier = '2' %}
+{% set app_bar = {variant: 'child', title: 'Wallet'|trans, back: '/account', share: false, eye: true, help: '/support'} %}
 {% macro naira(k) %}₦{{ (k / 100)|number_format(2) }}{% endmacro %}
 {% macro amt(k, cls, unit) %}<span class="wl-amt{{ cls ? ' ' ~ cls }}" data-wl-amt="{{ k }}" data-wl-unit="{{ unit|default('naira') }}"><span class="wl-amt__v">{% if unit|default('naira') == 'pts' %}{{ k|number_format }} pts{% else %}₦{{ (k / 100)|number_format(2) }}{% endif %}</span><span class="wl-amt__m" aria-hidden="true">••••</span></span>{% endmacro %}
 {% import _self as m %}
 {% set _ready = w.pockets|filter(p => p.can) %}
-{% set _filters = [
-  {k: 'all', l: 'All'|trans}, {k: 'in', l: 'Money in'|trans}, {k: 'out', l: 'Money out'|trans}, {k: 'pending', l: 'In progress'|trans}
-] %}
+{% set _money = w.pockets|filter(p => p.kind != 'points') %}
 {% block acc_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/wallet.css') }}">{% endblock %}
+{% block acc_title_act %}{% include 'pages/account/_wallet-eye.twig' with {pill: true} only %}{% endblock %}
 
 {% block acc_body %}
-<div class="wl" data-wl data-wl-since="{{ since }}">
+<div class="wl wl-grid" data-wl data-wl-since="{{ since }}">
+  <div class="wl-col">
 
-  <section class="wl-card" aria-labelledby="wl-bal-h">
-    <div class="wl-card__top">
-      <h2 class="wl-card__h" id="wl-bal-h">{{ 'Available balance'|trans }}</h2>
-      <button type="button" class="wl-eye" data-wl-eye aria-pressed="false" hidden>
-        <svg class="wl-eye__on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
-        <svg class="wl-eye__off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
-        <span class="ag-sr">{{ 'Hide balance'|trans }}</span>
-      </button>
-      <a class="wl-card__hist" href="#wl-tx-h">{{ 'History'|trans }}<svg class="ag-ico-dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
-    </div>
-    <p class="wl-card__n" data-wl-main>{{ m.amt(w.available_kobo, 'wl-amt--big') }}</p>
-    <div class="wl-card__subs">
+    <section class="wl-card" aria-labelledby="wl-bal-h">
+      <div class="wl-card__top">
+        <h2 class="wl-card__h" id="wl-bal-h">{{ 'Available balance'|trans }}</h2>
+        <a class="wl-card__hist" href="/account/wallet/history">{{ 'Transaction history'|trans }}<svg class="ag-ico-dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      </div>
+      <p class="wl-card__n" data-wl-main>{{ m.amt(w.available_kobo, 'wl-amt--big') }}</p>
       {% if points_on or w.points > 0 %}
-        <a class="wl-chip" href="/account/points"><span>{{ 'Points'|trans }}</span> {{ m.amt(w.points, '', 'pts') }}{% if w.points_votes > 0 %}<span class="wl-chip__k">· {{ w.points_votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': w.points_votes}) }}</span>{% endif %}</a>
+        <div class="wl-card__subs">
+          <a class="wl-chip" href="/account/points">
+            <svg class="wl-chip__star" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z"/></svg>
+            <b>{{ 'Points'|trans }}</b> {{ m.amt(w.points, '', 'pts') }}{% if w.points_votes > 0 %}<span class="wl-chip__k">· {{ w.points_votes == 1 ? '1 vote'|trans : '%n% votes'|trans({'%n%': w.points_votes}) }}</span>{% endif %}
+            <svg class="wl-chip__go ag-ico-dir" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </a>
+        </div>
       {% endif %}
-      {% if w.coming_kobo > 0 %}<span class="wl-chip"><span>{{ 'Coming'|trans }}</span> {{ m.amt(w.coming_kobo, '') }}</span>{% endif %}
-      {% if w.review_kobo > 0 %}<span class="wl-chip"><span>{{ 'In review'|trans }}</span> {{ m.amt(w.review_kobo, '') }}</span>{% endif %}
+      <div class="wl-card__acts">
+        {% if _ready|length %}
+          <a class="ag-btn ag-btn--primary wl-btn" href="/account/wallet/withdraw{{ _ready|length == 1 ? '?pocket=' ~ _ready|first.key }}">{{ 'Withdraw to bank'|trans }}</a>
+        {% else %}
+          <a class="ag-btn wl-btn wl-btn--soft" href="#wl-pockets">{{ _money is empty ? 'How money gets here'|trans : 'Why can’t I withdraw?'|trans }}</a>
+        {% endif %}
+        {% if points_on and w.points_votes > 0 %}<a class="ag-btn wl-btn wl-btn--soft" href="/vote">{{ 'Use points to vote'|trans }}</a>{% endif %}
+        {% if votes_from_wallet|default(false) %}<a class="ag-btn wl-btn wl-btn--soft" href="/vote">{{ 'Use for votes'|trans }}</a>{% endif %}
+      </div>
+      {# What the balance IS, said where it is read: money this platform owes the member,
+         not money they deposited, and nothing here can take money in. #}
+      <p class="wl-card__note">{{ 'Your wallet shows what Africa GATES owes you from your page and referrals. It isn’t a bank account, you can’t add money to it, and it is paid out only to a bank account in your name.'|trans }}</p>
+    </section>
+
+    <nav class="wl-quick" aria-label="{{ 'Wallet actions'|trans }}">
+      {% set _q = [
+        {label: 'Payout account'|trans, href: '/account/wallet/withdraw', d: 'M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18M12 3l9 5H3z', tone: 'green'},
+        {label: 'Earn points'|trans, href: '/account/points', d: 'M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z', tone: 'gold'},
+        {label: has_code ? 'Invite & earn'|trans : 'Start earning'|trans, href: '/account?tab=referral', d: 'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6', tone: 'live'},
+        {label: 'Help'|trans, href: '/support', d: 'M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14', tone: 'ink'}
+      ] %}
+      {% for a in _q %}
+        <a class="wl-qa" href="{{ a.href }}">
+          <span class="wl-qa__i acx-ico--{{ a.tone }}" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.d }}"/></svg></span>
+          <span class="wl-qa__l">{{ a.label }}</span>
+        </a>
+      {% endfor %}
+    </nav>
+
+    <div class="wl-toast" data-wl-toast role="status" aria-live="polite" aria-label="{{ 'Just arrived in your wallet'|trans }}" hidden>
+      <span class="wl-toast__dot" aria-hidden="true"></span>
+      <span class="wl-toast__t" data-wl-toast-t></span>
+      <a class="wl-toast__go" data-wl-toast-go href="/account/wallet/history">{{ 'View'|trans }}</a>
+      <button type="button" class="wl-toast__x" data-wl-toast-x aria-label="{{ 'Dismiss'|trans }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
-    {# What the balance IS, said where it is read. It is money this platform owes the
-       member, not money they deposited, and nothing here can take money in. #}
-    <p class="wl-card__note">{{ 'Your wallet shows what Africa GATES owes you from your page and referrals. It isn’t a bank account, you can’t add money to it, and it is paid out only to a bank account in your name.'|trans }}</p>
-    <div class="wl-card__acts">
-      {% if _ready|length %}
-        <a class="ag-btn ag-btn--primary wl-btn" href="/account/wallet/withdraw{{ _ready|length == 1 ? '?pocket=' ~ _ready|first.key }}">{{ 'Withdraw to bank'|trans }}</a>
-      {% else %}
-        <a class="ag-btn ag-btn--secondary wl-btn" href="#wl-pockets">{{ 'Why can’t I withdraw?'|trans }}</a>
+
+    {# ── recent: the last four, and a way to all of them ─────────────────────── #}
+    <section class="wl-sec wl-recent" aria-labelledby="wl-tx-h">
+      <div class="wl-sec__head">
+        <h2 class="wl-h" id="wl-tx-h">{{ 'Recent transactions'|trans }}</h2>
+        <a class="wl-more" href="/account/wallet/history">{{ 'See all'|trans }}<svg class="ag-ico-dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+      </div>
+      {% include 'pages/account/_wallet-days.twig' with {days: days} only %}
+      {% if days is empty %}
+        <p class="wl-none">{{ 'No transactions yet. Every naira and every point in or out is listed here, with its receipt.'|trans }}</p>
       {% endif %}
-      {% if points_on and w.points_votes > 0 %}<a class="ag-btn ag-btn--secondary wl-btn" href="/vote">{{ 'Use points to vote'|trans }}</a>{% endif %}
-      {% if votes_from_wallet|default(false) %}<a class="ag-btn ag-btn--secondary wl-btn" href="/vote">{{ 'Use for votes'|trans }}</a>{% endif %}
-    </div>
-  </section>
-
-  <nav class="wl-quick acx-card" aria-label="{{ 'Wallet actions'|trans }}">
-    {% set _q = [
-      {label: 'To bank'|trans, href: _ready|length ? '/account/wallet/withdraw' : '#wl-pockets', d: 'M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18M12 3l9 5H3z', tone: 'green'},
-      {label: 'Earn points'|trans, href: '/account/points', d: 'M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z', tone: 'gold'},
-      {label: has_code ? 'Invite & earn'|trans : 'Start earning'|trans, href: '/account?tab=referral', d: 'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6', tone: 'live'},
-      {label: 'Help'|trans, href: '/support', d: 'M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14', tone: 'ink'}
-    ] %}
-    {% for a in _q %}
-      <a class="acx-qa" href="{{ a.href }}">
-        <span class="acx-qa__i acx-ico--{{ a.tone }}" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.d }}"/></svg></span>
-        <span class="acx-qa__l">{{ a.label }}</span>
-      </a>
-    {% endfor %}
-  </nav>
-
-  <div class="wl-toast" data-wl-toast role="status" aria-live="polite" aria-label="{{ 'Just arrived in your wallet'|trans }}" hidden></div>
+    </section>
+  </div>
 
   {# ── pockets ─────────────────────────────────────────────────────────────── #}
-  <section class="wl-sec" id="wl-pockets" aria-labelledby="wl-pk-h">
+  <section class="wl-sec wl-side" id="wl-pockets" aria-labelledby="wl-pk-h">
     <h2 class="wl-h" id="wl-pk-h">{{ 'Your pockets'|trans }}</h2>
     {% for p in w.pockets %}
       <article class="acx-card wl-pk">
         <div class="wl-pk__top">
-          <span class="acx-ico acx-ico--{{ p.kind == 'referral' ? 'live' : (p.kind == 'points' ? 'green' : 'gold') }}" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ p.kind == 'referral' ? 'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6' : (p.kind == 'points' ? 'M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z' : 'M3 7h18v12H3zM3 7l3-3h12l3 3M16 13h2') }}"/></svg></span>
+          <span class="wl-pk__i acx-ico--{{ p.kind == 'referral' ? 'live' : (p.kind == 'points' ? 'green' : 'gold') }}" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ p.kind == 'referral' ? 'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6' : (p.kind == 'points' ? 'M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z' : 'M3 7h18v12H3zM3 7l3-3h12l3 3M16 13h2') }}"/></svg></span>
           <span class="wl-pk__id"><b>{{ p.label|trans }}</b>{% if p.sub %}<span>{{ p.sub|trans }}</span>{% endif %}</span>
           {% if p.kind == 'points' %}
             <span class="wl-pk__n">{{ m.amt(p.points, '', 'pts') }}<span class="wl-pk__k">{{ p.points_votes == 1 ? 'worth 1 vote'|trans : 'worth %n% votes'|trans({'%n%': p.points_votes}) }}</span></span>
@@ -102,9 +124,9 @@
         {% if ms and ms.uses_milestone and not ms.confirmed_at and ms.target_kobo > 0 %}
           {% set _pct = min(100, (ms.measured_kobo * 100 / ms.target_kobo)|round(0, 'floor')) %}
           <div class="wl-prog">
-            <p class="wl-prog__l"><span>{{ 'Your edition’s milestone'|trans }}</span> <span class="ag-num">{{ m.naira(ms.measured_kobo) }} / {{ m.naira(ms.target_kobo) }}</span></p>
+            <p class="wl-prog__l"><span>{{ 'Your edition’s milestone'|trans }}</span> <span>{{ _pct }}%</span></p>
             <progress class="wl-prog__bar" max="100" value="{{ _pct }}" aria-label="{{ 'Milestone progress'|trans }}">{{ _pct }}%</progress>
-            <p class="wl-pk__note">{{ ms.reached ? 'Reached — waiting for our team to confirm it.'|trans : 'When it is reached and confirmed, locked money is released.'|trans }}</p>
+            <p class="wl-pk__note">{{ '%a% of %b%'|trans({'%a%': m.naira(ms.measured_kobo), '%b%': m.naira(ms.target_kobo)}) }} · {{ ms.reached ? 'Reached — waiting for our team to confirm it.'|trans : 'When it is reached and confirmed, locked money is released.'|trans }}</p>
           </div>
         {% endif %}
         {% if p.coming_kobo > 0 or p.review_kobo > 0 or p.paid_kobo > 0 %}
@@ -116,17 +138,17 @@
         {% endif %}
         {% if p.kind == 'points' %}
           <div class="wl-pk__acts">
-            {% if p.points_votes > 0 %}<a class="ag-btn ag-btn--secondary ag-btn--pill wl-pk__go" href="/vote">{{ 'Use for votes'|trans }}</a>{% endif %}
-            <a class="ag-btn ag-btn--secondary ag-btn--pill wl-pk__go" href="/account/points">{{ 'Points history'|trans }}</a>
+            {% if p.points_votes > 0 %}<a class="ag-btn ag-btn--secondary wl-pk__go" href="/vote">{{ 'Use for votes'|trans }}</a>{% endif %}
+            <a class="ag-btn ag-btn--secondary wl-pk__go" href="/account/points">{{ 'Points history'|trans }}</a>
           </div>
         {% elseif p.can %}
-          <a class="ag-btn ag-btn--secondary ag-btn--pill wl-pk__go" href="/account/wallet/withdraw?pocket={{ p.key|url_encode }}">{{ 'Withdraw from this pocket'|trans }}</a>
+          <a class="ag-btn ag-btn--secondary wl-pk__go" href="/account/wallet/withdraw?pocket={{ p.key|url_encode }}">{{ 'Withdraw from this pocket'|trans }}</a>
         {% elseif p.why %}
           <p class="wl-pk__why">{{ p.why|trans }}</p>
         {% endif %}
       </article>
     {% endfor %}
-    {% if w.pockets|filter(p => p.kind != 'points') is empty %}
+    {% if _money is empty %}
       <div class="acx-card wl-empty">
         <p class="wl-empty__t">{{ 'No money in your wallet yet'|trans }}</p>
         <p class="wl-empty__p">{{ 'Money reaches it two ways.'|trans }}</p>
@@ -137,39 +159,6 @@
       </div>
     {% endif %}
     <p class="wl-fee">{{ 'Withdrawal fee'|trans }}: {{ fee_text }}. {{ 'It covers the bank transfer and helps keep the platform running. Paying for votes from your wallet has no fee.'|trans }} <a href="/integrity#return">{{ 'Rules'|trans }}</a></p>
-  </section>
-
-  {# ── history ─────────────────────────────────────────────────────────────── #}
-  <section class="wl-sec" aria-labelledby="wl-tx-h">
-    <h2 class="wl-h" id="wl-tx-h">{{ 'Transaction history'|trans }}</h2>
-    <dl class="wl-month">
-      <div><dt>{{ 'In, %m%'|trans({'%m%': month.label|trans}) }}</dt><dd>{{ m.amt(month.in_kobo, '') }}</dd></div>
-      <div><dt>{{ 'Out, %m%'|trans({'%m%': month.label|trans}) }}</dt><dd>{{ m.amt(month.out_kobo, '') }}</dd></div>
-    </dl>
-    <nav class="wl-filters" aria-label="{{ 'Show'|trans }}">
-      {% for f in _filters %}
-        <a class="wl-filter" href="/account/wallet{{ f.k == 'all' ? '' : '?show=' ~ f.k }}#wl-tx-h"{% if show == f.k %} aria-current="true"{% endif %}>{{ f.l }}</a>
-      {% endfor %}
-    </nav>
-    {% for d in days %}
-      <h3 class="wl-day">{{ d.label|trans }}</h3>
-      <ul class="acx-card wl-list">
-        {% for t in d.items %}
-          <li>
-            <a class="wl-tx" href="/account/wallet/tx/{{ t.key }}">
-              <span class="wl-tx__i wl-tx__i--{{ t.dir }}" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.dir == 'in' ? 'M17 7 7 17M7 9v8h8' : 'M7 17 17 7M9 7h8v8' }}"/></svg></span>
-              <span class="wl-tx__b"><b>{{ t.title|trans }}</b><span>{{ t.sub }}</span><span class="wl-tx__t">{{ t.at|date('g:i a') }}</span></span>
-              <span class="wl-tx__r">
-                <span class="wl-tx__a wl-tx__a--{{ t.dir }}"><span class="ag-sr">{{ t.dir == 'in' ? 'In'|trans : 'Out'|trans }}</span>{{ t.dir == 'in' ? '+' : '−' }}{{ m.amt(t.amount_kobo, '', t.unit) }}</span>
-                <span class="wl-pill wl-pill--{{ t.status }}">{{ t.status_label|trans }}</span>
-              </span>
-            </a>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="wl-none">{{ show == 'all' ? 'No transactions yet. Every naira and every point in or out is listed here, with its receipt.'|trans : 'Nothing to show under this filter.'|trans }}</p>
-    {% endfor %}
   </section>
 </div>
 {% endblock %}

@@ -501,6 +501,7 @@ return [
         // The member account's section titles and ledes (pages/account/_frame.twig): read
         // from the one list the rail is built from.
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_title', [\AfricaGates\Services\AccountRail::class, 'title']));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('account_groups', [\AfricaGates\Services\AccountRail::class, 'groups']));
         // LOW-DATA-RULES' thresholds, read in a template the same way a service reads them:
         // one table (config/display_thresholds.php), never a number typed into a page.
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('display_min', [\AfricaGates\Support\DisplayThreshold::class, 'min']));

@@ -42,7 +42,19 @@ final class AccountRail
      * so on is wallet"), so /account/points is the points pocket's own screen and the rail
      * marks Wallet while it is open.
      */
-    public const SUB_PAGES = ['points' => ['Voting points', 'wallet']];
+    public const SUB_PAGES = ['points' => ['Voting points', 'wallet'], 'history' => ['Transaction history', 'wallet'], 'withdraw' => ['Withdraw', 'wallet'], 'receipt' => ['Receipt', 'wallet']];
+
+    /**
+     * The rail's groups, named for the job (Account Wallet v2, 21 Oct 2026): the overview
+     * alone, then Money, Taking part and You. A section missing from every group is still
+     * drawn, under the last one, so a new section can never fall out of the rail.
+     */
+    public const GROUPS = [
+        ''            => ['overview'],
+        'Money'       => ['wallet', 'referral', 'purchases'],
+        'Taking part' => ['challenges', 'activity', 'saved'],
+        'You'         => ['security', 'settings'],
+    ];
 
     /** The tabs `/account?tab=` itself draws. The others are their own pages. */
     public const PAGE_TABS = ['overview', 'referral', 'challenges', 'purchases', 'saved', 'security', 'settings'];
@@ -98,6 +110,30 @@ final class AccountRail
         return $out;
     }
 
+    /**
+     * The tabs from tabs(), in their groups.
+     *
+     * @param  list<array<string,mixed>> $tabs
+     * @return list<array{label:string, items:list<array<string,mixed>>}>
+     */
+    public static function groups(array $tabs): array
+    {
+        $byKey = [];
+        foreach ($tabs as $t) $byKey[$t['key']] = $t;
+        $out = [];
+        foreach (self::GROUPS as $label => $keys) {
+            $items = [];
+            foreach ($keys as $k) {
+                if (isset($byKey[$k])) { $items[] = $byKey[$k]; unset($byKey[$k]); }
+            }
+            if ($items !== []) $out[] = ['label' => $label === '' ? '' : Translator::t($label), 'items' => $items];
+        }
+        if ($byKey !== [] && $out !== []) {
+            array_push($out[count($out) - 1]['items'], ...array_values($byKey));
+        }
+        return $out;
+    }
+
     public static function title(string $tab): string
     {
         return $tab === 'overview' ? Translator::t('Your account')
@@ -122,11 +158,8 @@ final class AccountRail
         $id = (int) $user->id; $email = (string) $user->email;
         $c = [];
         try { $c['referral'] = (int) (ReferralService::stats($id)['referrals'] ?? 0); } catch (\Throwable) {}
-        try {
-            // The available balance, the figure the wallet's own headline shows.
-            $k = MemberWallet::summary($id)['available_kobo'];
-            if ($k > 0) $c['wallet'] = '₦' . number_format(intdiv($k, 100));
-        } catch (\Throwable) {}
+        // No naira beside Wallet: the balance is the wallet's own headline, and a second
+        // copy in the rail is a figure the hide-balance eye cannot reach (v2, no repeated facts).
         try { $c['challenges'] = count(ChallengeService::minePublic($id)); } catch (\Throwable) {}
         try { $c['purchases'] = count(MemberActivityService::ordersFor($email, 10)) + count(MemberActivityService::ticketsFor($email, 10)); } catch (\Throwable) {}
         try {

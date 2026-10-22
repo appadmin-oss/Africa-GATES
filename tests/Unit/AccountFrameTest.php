@@ -108,7 +108,7 @@ final class AccountFrameTest extends TestCase
         $css = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/css/components/account.css');
         $this->assertMatchesRegularExpression('~@media \(min-width:600px\)\{[^@]*\.acx\{ grid-template-columns:210px minmax\(0, 1fr\)~', $css);
         $this->assertMatchesRegularExpression('~@media \(min-width:1024px\)\{[^@]*\.acx\{ grid-template-columns:250px minmax\(0, 1fr\) \}~', $css);
-        $this->assertMatchesRegularExpression('~\.acx\{[^}]*max-width:1200px~', $css);
+        $this->assertMatchesRegularExpression('~\.acx\{[^}]*max-width:1304px~', $css);
         $this->assertDoesNotMatchRegularExpression('~max-width:720px~', $css, 'the Phase 8 single column is gone');
         foreach (['dashboard', 'points', 'notifications', 'display'] as $t) {
             $this->assertStringContainsString("{% extends 'pages/account/_frame.twig' %}",

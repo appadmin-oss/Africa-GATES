@@ -74,6 +74,7 @@ final class AppTwig
             // upload now draws a cover or an avatar through these.
             'cover_kind'        => [\AfricaGates\Support\CoverKind::class, 'resolve'],
             'account_title'     => [\AfricaGates\Services\AccountRail::class, 'title'],
+            'account_groups'    => [\AfricaGates\Services\AccountRail::class, 'groups'],
             'gee_starters'      => static fn (): array => \AfricaGates\Services\GeePersonal::starters(\AfricaGates\Services\GeePersonal::facts()),
             'account_lead'      => [\AfricaGates\Services\AccountRail::class, 'lead'],
             'cover_content'     => [\AfricaGates\Support\CoverKind::class, 'content'],

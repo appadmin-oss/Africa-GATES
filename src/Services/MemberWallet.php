@@ -47,6 +47,8 @@ final class MemberWallet
     public const ST_REFUSED    = 'refused';
     public const ST_REVERSED   = 'reversed';
     public const ST_HELD       = 'held';
+    /** Used here, not paid to a bank: votes bought from a pocket, points spent on votes. */
+    public const ST_SPENT      = 'spent';
 
     public const STATUS_LABELS = [
         self::ST_RECEIVED   => 'Received',
@@ -54,10 +56,11 @@ final class MemberWallet
         self::ST_AWAITING   => 'Awaiting results',
         self::ST_PENDING    => 'In review',
         self::ST_PROCESSING => 'Processing',
-        self::ST_PAID       => 'Successful',
+        self::ST_PAID       => 'Paid',
         self::ST_REFUSED    => 'Refused',
         self::ST_REVERSED   => 'Reversed',
         self::ST_HELD       => 'On hold',
+        self::ST_SPENT      => 'Spent',
     ];
 
     // ══ pockets and the headline ═══════════════════════════════════════════════
@@ -432,10 +435,9 @@ final class MemberWallet
                 $for = self::pageName((int) $v->nominee_id);
                 $t = self::tx('wv-' . (int) $v->id, 'out', 'Spent on votes',
                     number_format((int) $v->votes) . ' vote' . ((int) $v->votes === 1 ? '' : 's') . ' for ' . $for,
-                    (int) $v->amount_kobo, self::ST_PAID, (string) $v->created_at, (string) $v->reference, 0, 'return',
+                    (int) $v->amount_kobo, self::ST_SPENT, (string) $v->created_at, (string) $v->reference, 0, 'return',
                     [['Pocket', 'Community return · ' . $page], ['Votes', number_format((int) $v->votes) . ' for ' . $for],
                      ['Fee', 'None. Nothing went to a bank.']]);
-                $t['status_label'] = 'Spent';
                 $out[] = $t;
             }
         }
@@ -451,12 +453,10 @@ final class MemberWallet
             if ($d === 0) continue;
             $what = trim((string) ($e['note'] ?? '')) ?: ucfirst(str_replace('_', ' ', (string) $e['reason']));
             $t = self::tx('pt-' . (int) $e['id'], $d > 0 ? 'in' : 'out', $d > 0 ? 'Points earned' : 'Points spent',
-                $what, abs($d), $d > 0 ? self::ST_RECEIVED : self::ST_PAID, (string) $e['created_at'],
+                $what, abs($d), $d > 0 ? self::ST_RECEIVED : self::ST_SPENT, (string) $e['created_at'],
                 (string) ($e['ref_id'] ?? ''), 0, 'points',
                 [['Pocket', 'Voting points'], ['What for', $what], ['Balance after', number_format((int) $e['balance_after']) . ' pts']]);
             $t['unit'] = 'pts';
-            // A spend is complete the moment it is made; "Successful" reads wrong for points.
-            if ($d < 0) $t['status_label'] = 'Spent';
             $out[] = $t;
         }
         return $out;
@@ -555,9 +555,13 @@ final class MemberWallet
         ];
         foreach ($extra as $e) $details[] = $e;
         if ($note !== '') $details[] = [$status === self::ST_REFUSED ? 'Why it was refused' : 'Note', $note];
-        return self::tx($key, 'out', 'Withdrawal to ' . ($bank !== '' ? $bank : 'your bank'),
+        $t = self::tx($key, 'out', 'Withdrawal to ' . ($bank !== '' ? $bank : 'your bank'),
             $name . ($last4 !== '' ? ' ••' . $last4 : ''), $amount, $status, $at, $ref, $fee,
             str_starts_with($key, 'rp') ? 'referral' : 'return', $details);
+        // The payee as the request recorded it, for the receipt file. The number is whole
+        // here and only here: WalletReceipt masks it before anything is drawn.
+        $t['payee'] = ['name' => $name, 'bank' => $bank, 'number' => $number];
+        return $t;
     }
 
     /** @return array<string,mixed> */

@@ -41,7 +41,8 @@
   and no <h1> here, so the page has one. §7.2 lists Home among the large-title roots; the
   conflict is recorded for the owner (docs/handoff/PHASE-4.md, "Home", blocked).
 
-  Args (all optional but `title`): variant, title, sub, back, share, search, avatar, brand.
+  Args (all optional but `title`): variant, title, sub, back, share, search, avatar, brand,
+  eye (a wallet page's hide-balance icon, bound by wallet.js) and help (an href for a ? icon).
   The sub must ADD information and never repeat the title (skill §3).
 #}
 {% set _root   = (variant|default('root')) != 'child' %}
@@ -78,6 +79,12 @@
     </div>{% endif %}
 
     <div class="ag-appbar__end">
+      {% if eye|default(false) %}{% include 'pages/account/_wallet-eye.twig' with {pill: false} only %}{% endif %}
+      {% if help|default('') %}
+        <a class="ag-appbar__icon" href="{{ help }}" aria-label="{{ 'Help'|trans }}">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14M12 17h.01"></path></svg>
+        </a>
+      {% endif %}
       {% if _search %}
         <a class="ag-appbar__icon" href="/discover" aria-label="{{ 'Search Africa GATES'|trans }}">
           <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>

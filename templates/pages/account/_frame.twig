@@ -37,21 +37,33 @@
       {% include 'partials/avatar.twig' with {name: rail_user.name|default(_me), id: rail_user.id|default(null), size: 44, named: true} only %}
       <span class="acx-rail__id"><b>{{ rail_user.name|default(_me) }}</b><span>{{ rail_user.email|default('') }}</span></span>
     </div>
+    {# Grouped by the job (Account Wallet v2): the overview, then Money, Taking part, You. #}
     <nav class="acx-rail__nav" aria-label="{{ 'Account sections'|trans }}">
-      {% for t in rail|default([]) %}
-        <a class="acx-tab" href="{{ t.href }}"{% if t.current %} aria-current="page"{% endif %}>
-          <span class="acx-ico acx-ico--{{ t.tone }}" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.d }}"/></svg></span>
-          <span class="acx-tab__l">{{ t.label }}</span>
-          {% if t.n %}<span class="acx-n{{ t.attention ? ' acx-n--on' }}">{{ t.n }}</span>{% endif %}
-        </a>
+      {% for g in account_groups(rail|default([])) %}
+        <div class="acx-grp">
+          {% if g.label %}<span class="acx-grp__t">{{ g.label }}</span>{% endif %}
+          {% for t in g.items %}
+            <a class="acx-tab" href="{{ t.href }}"{% if t.current %} aria-current="page"{% endif %}>
+              <svg class="acx-tab__i acx-ico--{{ t.tone }}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ t.d }}"/></svg>
+              <span class="acx-tab__l">{{ t.label }}</span>
+              {% if t.n %}<span class="acx-n{{ t.attention ? ' acx-n--on' }}">{{ t.n }}</span>{% endif %}
+            </a>
+          {% endfor %}
+        </div>
       {% endfor %}
     </nav>
   </aside>
 
   <div class="acx-main">
     <div class="acx-title">
-      <h1 class="acx-title__h">{{ _title }}</h1>
-      {% if _lead %}<p class="acx-title__p">{{ _lead }}</p>{% endif %}
+      {% block acc_crumb %}{% endblock %}
+      <div class="acx-title__row">
+        <div class="acx-title__t">
+          <h1 class="acx-title__h">{{ _title }}</h1>
+          {% if _lead %}<p class="acx-title__p">{{ _lead }}</p>{% endif %}
+        </div>
+        {% block acc_title_act %}{% endblock %}
+      </div>
     </div>
     {% if _lead %}<p class="acx-lead-ph">{{ _lead }}</p>{% endif %}
     {% block acc_body %}{% endblock %}

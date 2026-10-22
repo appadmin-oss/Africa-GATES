@@ -88,3 +88,10 @@ embedded by `Support\Pdf` — never fetched. Both are OFL (`OFL-SourceSerif4.txt
 **Instrument Sans has no ọ, ẹ or ṣ, and Source Serif 4 has no Ɓ or Ɗ.** `NomineeVotingLetter`
 registers each with a fallback (DM Sans, AG Text), so `Support\Pdf` sets those characters
 from the fallback rather than drawing boxes.
+
+## `JetBrainsMono-Medium` / `-Bold` — references and codes on the wallet receipt
+
+The receipt (Wallet Receipt.dc.html, revision 3) sets its transaction number, reference,
+session ID and masked account number in JetBrains Mono, the handoff's mono face. Used only by
+`Services\WalletReceipt` for the PNG; the PDF keeps `AGMono-Bold`. SIL Open Font License 1.1,
+`OFL-JetBrainsMono.txt`.

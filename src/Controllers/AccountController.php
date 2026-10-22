@@ -1627,35 +1627,18 @@ class AccountController
         $id = (int) $user->id;
         $W  = \AfricaGates\Services\MemberWallet::class;
 
-        // The history's filter, as OPay's: everything, money in, money out, or what is still
-        // moving. Links, not a script, so it works where the script does not.
-        $show = (string) ($req->getQueryParams()['show'] ?? 'all');
-        if (!in_array($show, ['all', 'in', 'out', 'pending'], true)) $show = 'all';
-        $all = $W::transactions($id, 300);
-        $moving = [$W::ST_PENDING, $W::ST_PROCESSING, $W::ST_LOCKED, $W::ST_AWAITING, $W::ST_HELD];
-        $list = array_values(array_filter($all, static fn ($t) => match ($show) {
-            'in'      => $t['dir'] === 'in',
-            'out'     => $t['dir'] === 'out',
-            'pending' => in_array($t['status'], $moving, true),
-            default   => true,
-        }));
-
-        // This month's naira in and out — settled money only, so a request still in review
-        // is not counted as gone and a locked credit is not counted as arrived.
-        $month = date('Y-m');
-        $in = 0; $out = 0;
-        foreach ($all as $t) {
-            if (($t['unit'] ?? 'naira') !== 'naira' || !str_starts_with((string) $t['at'], $month)) continue;
-            if ($t['dir'] === 'in' && $t['status'] === $W::ST_RECEIVED) $in += $t['amount_kobo'];
-            if ($t['dir'] === 'out' && $t['status'] === $W::ST_PAID) $out += $t['amount_kobo'];
+        // The old filter links now belong to the full history.
+        $show = (string) ($req->getQueryParams()['show'] ?? '');
+        if (in_array($show, ['in', 'out', 'pending'], true)) {
+            return $res->withHeader('Location', '/account/wallet/history?month=all&f=' . $show)->withStatus(302);
         }
+        $all = $W::transactions($id, 4);
 
         return $this->view->render($res, 'pages/account/wallet.twig', $this->railFor($user, 'wallet') + [
             'page_title' => 'Wallet — Africa GATES', 'gates_page' => 'account',
             'w'        => $W::summary($id),
-            'days'     => $this->walletDays(array_slice($list, 0, 80)),
-            'show'     => $show,
-            'month'    => ['label' => date('F'), 'in_kobo' => $in, 'out_kobo' => $out],
+            // The last four; the rest are on /account/wallet/history.
+            'days'     => $this->walletDays($all),
             'fee_text' => \AfricaGates\Services\WalletFee::describe(),
             'points_on' => PointsService::enabled(),
             // A community return can also pay for votes (WalletVotes), wherever it is available.
@@ -1664,6 +1647,71 @@ class AccountController
             // The moment the page was drawn: wallet.js asks for anything newer than this.
             'since'    => \Illuminate\Support\Carbon::now()->toDateTimeString(),
         ]);
+    }
+
+    /**
+     * GET /account/wallet/history — every movement, searchable, by month, type and chip.
+     * GET /account/wallet/history.csv and .pdf — the same rows as a file, the member's own.
+     *
+     * All three read WalletHistory with the same query string, so a statement downloaded
+     * from a filtered page is that page's rows. The member is the session's; there is no id.
+     */
+    public function walletHistory(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        [$all, $p, $r] = $this->walletHistoryRows((int) $user->id, $req->getQueryParams());
+        $H = \AfricaGates\Services\WalletHistory::class;
+        return $this->view->render($res, 'pages/account/wallet-history.twig', $this->railFor($user, 'wallet') + [
+            'page_title' => 'Transaction history — Africa GATES', 'gates_page' => 'account',
+            'p' => $p, 'r' => $r, 'days' => $this->walletDays($r['rows']),
+            'months' => $H::months($all, $p['month']), 'types' => $H::TYPES, 'chips' => $H::CHIPS,
+            'month_label' => $H::monthLabel($p['month']),
+            'has_any' => $all !== [],
+            'file_qs' => $this->walletHistoryQs($p),
+        ]);
+    }
+
+    public function walletHistoryCsv(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        [, $p, $r] = $this->walletHistoryRows((int) $user->id, $req->getQueryParams());
+        $res->getBody()->write(\AfricaGates\Services\WalletHistory::csv($r['all']));
+        return $res->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="africa-gates-wallet-' . $p['month'] . '.csv"')
+            ->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    public function walletHistoryPdf(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        [, $p, $r] = $this->walletHistoryRows((int) $user->id, $req->getQueryParams());
+        $res->getBody()->write(\AfricaGates\Services\WalletStatementPdf::render((string) ($user->name ?? 'Member'),
+            $r['all'], $p, $r['in_kobo'], $r['out_kobo']));
+        return $res->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'attachment; filename="africa-gates-statement-' . $p['month'] . '.pdf"')
+            ->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    /** @return array{0:list<array<string,mixed>>, 1:array<string,mixed>, 2:array<string,mixed>} */
+    private function walletHistoryRows(int $userId, array $query): array
+    {
+        $H = \AfricaGates\Services\WalletHistory::class;
+        $all = \AfricaGates\Services\MemberWallet::transactions($userId, 2000);
+        $p = $H::params($query, $all);
+        return [$all, $p, $H::query($all, $p)];
+    }
+
+    /** The filter as a query string, for the file links and "Show more"; defaults left out. */
+    private function walletHistoryQs(array $p): string
+    {
+        $q = [];
+        foreach (['q' => '', 'month' => null, 'type' => 'all', 'f' => 'all'] as $k => $default) {
+            if ($p[$k] !== $default) $q[$k] = $p[$k];
+        }
+        return http_build_query($q);
     }
 
     /**
@@ -1705,9 +1753,42 @@ class AccountController
         }
         return $this->view->render($res, 'pages/account/wallet-tx.twig', $this->railFor($user, 'wallet') + [
             'page_title' => 'Transaction — Africa GATES', 'gates_page' => 'account',
-            'app_bar' => ['variant' => 'child', 'title' => 'Transaction details', 'back' => '/account/wallet', 'share' => false],
+            'app_bar' => ['variant' => 'child', 'title' => 'Receipt', 'back' => '/account/wallet', 'share' => false],
             't' => $t, 'fresh' => ($req->getQueryParams()['new'] ?? '') === '1',
+            // The page draws the same card as the file, from the same masked facts.
+            'rc' => \AfricaGates\Services\WalletReceipt::facts($t, (string) ($user->name ?? '')),
+            'issuable' => \AfricaGates\Services\WalletReceipt::issuable($t),
+            'support_host' => (string) (parse_url(\AfricaGates\Support\SiteUrl::base(), PHP_URL_HOST) ?: ''),
         ]);
+    }
+
+    /**
+     * GET /account/wallet/tx/{key}.png and .pdf — the receipt as a file (WalletReceipt).
+     *
+     * Owner only (the session's member, looked up by key inside their own history), and only
+     * for money that has moved: anything still in progress has its page and no file.
+     */
+    public function walletTxFile(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $key = (string) ($args['key'] ?? '');
+        $t = \AfricaGates\Services\MemberWallet::transaction((int) $user->id, $key);
+        if ($t === null || !\AfricaGates\Services\WalletReceipt::issuable($t)) {
+            $res->getBody()->write('No receipt file for this transaction.');
+            return $res->withStatus(404)->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        }
+        $R = new \AfricaGates\Services\WalletReceipt();
+        $f = $R::facts($t, (string) ($user->name ?? ''));
+        $host = (string) (parse_url(\AfricaGates\Support\SiteUrl::base(), PHP_URL_HOST) ?: '');
+        $gen = date('j M Y, g:i a');
+        $png = ($args['ext'] ?? '') === 'png';
+        $res->getBody()->write($png ? $R->png($f, $host, $gen) : $R->pdf($f, $host, $gen));
+        $name = 'Africa-GATES-receipt-' . strtoupper($key) . ($png ? '.png' : '.pdf');
+        return $res->withHeader('Content-Type', $png ? 'image/png' : 'application/pdf')
+            ->withHeader('Content-Disposition', ($png ? 'inline' : 'attachment') . '; filename="' . $name . '"')
+            ->withHeader('Cache-Control', 'private, no-store')
+            ->withHeader('X-Robots-Tag', 'noindex');
     }
 
     /**
@@ -1740,7 +1821,10 @@ class AccountController
             'page_title' => 'Withdraw — Africa GATES', 'gates_page' => 'account',
             'app_bar' => ['variant' => 'child', 'title' => 'Withdraw', 'back' => '/account/wallet', 'share' => false],
             'step' => 'form', 'pockets' => $pockets, 'pocket' => $pocket,
-            'bank' => is_array($old) ? $old + ['amount' => '', 'bank_code' => ''] : \AfricaGates\Services\ReferralPayout::bankFor($id) + ['amount' => ''],
+            // The saved payout account is offered as its own choice; the new-account
+            // fields start empty, so a saved number is never edited by accident.
+            'saved' => \AfricaGates\Services\ReferralPayout::bankFor($id),
+            'bank' => is_array($old) ? $old + ['amount' => '', 'bank_code' => '', 'mode' => ''] : ['amount' => '', 'bank_code' => '', 'mode' => ''],
             // The bank is CHOSEN from Paystack's list where there is one: an automatic
             // transfer is built from the bank's code, never from a name somebody typed.
             'banks'     => \AfricaGates\Services\WalletAutoPay::banks(),
@@ -1759,6 +1843,16 @@ class AccountController
         $W  = \AfricaGates\Services\MemberWallet::class;
         $b  = (array) $req->getParsedBody();
         $key = (string) ($b['pocket'] ?? '');
+        // "Saved" means the account on file, read here — not whatever the form carried
+        // beside the radio, which a stale page or a hand-edited post could change.
+        $mode = (string) ($b['acct'] ?? 'new');
+        $saved = \AfricaGates\Services\ReferralPayout::bankFor($id);
+        if ($mode === 'saved' && $saved['account_number'] !== '') {
+            $b['bank'] = $saved['bank']; $b['bank_code'] = $saved['bank_code'];
+            $b['account_name'] = $saved['account_name']; $b['account_number'] = $saved['account_number'];
+        } else {
+            $mode = 'new';
+        }
         $code = preg_replace('/[^0-9A-Za-z]/', '', (string) ($b['bank_code'] ?? '')) ?? '';
         $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
                  'account_number' => (string) ($b['account_number'] ?? ''), 'bank_code' => $code];
@@ -1770,16 +1864,11 @@ class AccountController
         }
         $typed = trim((string) ($b['amount'] ?? ''));
         $amount = $typed === '' ? null : $W::parseNaira($typed);
-        $back = function (string $why) use ($res, $bank, $typed, $key): Response {
+        $back = function (string $why) use ($res, $bank, $typed, $key, $mode): Response {
             $_SESSION['flash_error'] = $why;
-            $_SESSION['wallet_wd_old'] = $bank + ['amount' => $typed];
+            $_SESSION['wallet_wd_old'] = ($mode === 'new' ? $bank : []) + ['amount' => $typed, 'mode' => $mode];
             return $res->withHeader('Location', '/account/wallet/withdraw?pocket=' . rawurlencode($key))->withStatus(303);
         };
-
-        $q = $typed !== '' && $amount === null
-            ? ['ok' => false, 'reason' => 'Type the amount in naira, like 2500.']
-            : $W::quote($id, $key, $amount, $bank);
-        if (!$q['ok']) return $back($q['reason']);
 
         // ── WHO THE BANK SAYS THIS IS, BEFORE ANYTHING IS CONFIRMED ──────────
         //
@@ -1795,7 +1884,15 @@ class AccountController
                 return $back('Your bank did not recognise that account number. Check it and try again.');
             }
             $resolved = $r['ok'] ? $r['name'] : '';
+            // The bank's name fills an empty name field: the DC asks for the number and
+            // shows the name, and the request still records a name either way.
+            if ($resolved !== '' && trim($bank['account_name']) === '') $bank['account_name'] = $resolved;
         }
+
+        $q = $typed !== '' && $amount === null
+            ? ['ok' => false, 'reason' => 'Type the amount in naira, like 2500.']
+            : $W::quote($id, $key, $amount, $bank);
+        if (!$q['ok']) return $back($q['reason']);
 
         return $this->view->render($res, 'pages/account/wallet-withdraw.twig', $this->railFor($user, 'wallet') + [
             'page_title' => 'Check and confirm — Africa GATES', 'gates_page' => 'account',
@@ -1825,6 +1922,41 @@ class AccountController
             return $res->withHeader('Location', '/account/wallet/withdraw?pocket=' . rawurlencode($key))->withStatus(303);
         }
         return $res->withHeader('Location', '/account/wallet/tx/' . $r['key'] . '?new=1')->withStatus(303);
+    }
+
+    /**
+     * GET /account/wallet/resolve.json — the name a bank holds for an account number.
+     *
+     * For the withdraw form's "Name from your bank" line. Signed-in members only, and
+     * counted per member and per connection: a resolver is a directory of who banks where,
+     * and an open one would be a free lookup against Paystack on our key.
+     */
+    public function walletResolve(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        $out = ['ok' => false, 'name' => ''];
+        $status = 401;
+        if ($user) {
+            $status = 200;
+            $q = $req->getQueryParams();
+            $num = preg_replace('/\D+/', '', (string) ($q['account_number'] ?? '')) ?? '';
+            $code = preg_replace('/[^0-9A-Za-z]/', '', (string) ($q['bank_code'] ?? '')) ?? '';
+            $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
+            $allowed = $this->rateLimit === null || (
+                $this->rateLimit->check('u:' . (int) $user->id, 'wallet_resolve', 20, 3600)
+                && $this->rateLimit->check(hash('sha256', $ip), 'wallet_resolve_ip', 40, 3600));
+            if (!$allowed) {
+                $status = 429;
+            } elseif (strlen($num) === 10 && $code !== '') {
+                $ps = new \AfricaGates\Services\PaymentService();
+                if ($ps->isEnabled('paystack')) {
+                    $r = $ps->resolveAccount($num, $code);
+                    if ($r['ok']) $out = ['ok' => true, 'name' => $r['name']];
+                }
+            }
+        }
+        $res->getBody()->write((string) json_encode($out));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store')->withStatus($status);
     }
 
     /**
