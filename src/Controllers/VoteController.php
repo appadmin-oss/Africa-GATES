@@ -476,6 +476,12 @@ class VoteController {
         // instead of blank — the difference between one retry and an abandoned sale.
         $retry = $this->takePaidRetry();
         $paidNotice = self::PAID_REASONS[trim((string) ($req->getQueryParams()['paid'] ?? ''))] ?? null;
+        // A wallet purchase says its own sentence (what it cost, the reference, or why
+        // not), kept for exactly the one page load it was written for.
+        if (($req->getQueryParams()['paid'] ?? '') === 'wallet' && isset($_SESSION['wallet_vote_notice'])) {
+            $paidNotice = (string) $_SESSION['wallet_vote_notice'];
+            unset($_SESSION['wallet_vote_notice']);
+        }
         if ($paidNotice !== null && ($retry['detail'] ?? '') !== '') {
             $paidNotice .= ' ' . $retry['detail'] . '.';
         }
@@ -614,6 +620,8 @@ class VoteController {
             // the page can never offer a quantity the next request refuses.
             'max_qty'            => PaidVoteService::maxQtyForOrder(),
             'pay_providers'      => (PaidVoteService::enabled() && $this->payments) ? $this->payments->enabledProviders() : [],
+            // The member's community return, offered as a way to pay (WalletVotes).
+            'wallet_sources'     => \AfricaGates\Services\WalletVotes::sources($memberId),
             // Supporters who ASKED to be named. Empty for every nominee until someone
             // ticks the box — the reader publishes consent, not names it happens to hold.
             'supporters'         => $supporters = \AfricaGates\Services\SupportersService::forNominee((int) $nom->id),

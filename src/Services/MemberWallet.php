@@ -418,6 +418,26 @@ final class MemberWallet
                     (string) ($w->payment_ref ?? ''), (string) ($w->review_note ?? ''), 'Community return · ' . $page,
                     (string) $w->requested_at, $extra);
             }
+
+            // Votes this page's return paid for (WalletVotes). Their ledger rows are
+            // `payout` entries, which the loop above leaves to their own receipts.
+            try {
+                $spends = SchemaHas::table('gates_wallet_votes')
+                    ? DB::table('gates_wallet_votes')->where('source_nominee_id', $nid)->orderByDesc('id')->limit(200)->get()
+                    : collect();
+            } catch (\Throwable) {
+                $spends = collect();
+            }
+            foreach ($spends as $v) {
+                $for = self::pageName((int) $v->nominee_id);
+                $t = self::tx('wv-' . (int) $v->id, 'out', 'Spent on votes',
+                    number_format((int) $v->votes) . ' vote' . ((int) $v->votes === 1 ? '' : 's') . ' for ' . $for,
+                    (int) $v->amount_kobo, self::ST_PAID, (string) $v->created_at, (string) $v->reference, 0, 'return',
+                    [['Pocket', 'Community return · ' . $page], ['Votes', number_format((int) $v->votes) . ' for ' . $for],
+                     ['Fee', 'None. Nothing went to a bank.']]);
+                $t['status_label'] = 'Spent';
+                $out[] = $t;
+            }
         }
         return $out;
     }

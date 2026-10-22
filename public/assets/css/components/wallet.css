@@ -27,6 +27,7 @@
 .wl--hide .wl-eye__off{ display:inline }
 .wl-card__n{ margin:0 }
 .wl-card__subs{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8) }
+.wl-card__note{ margin:0; font-size:var(--ag-fs-13); line-height:1.5; color:var(--ag-surface); opacity:.85 }
 .wl-chip,
 .wl-chip:hover{ display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:0 12px; border-radius:var(--ag-r-pill);
   background:color-mix(in srgb, var(--ag-surface) 12%, transparent); color:var(--ag-surface); font-size:var(--ag-fs-13-5); text-decoration:none }

@@ -53,6 +53,9 @@
       {% if w.coming_kobo > 0 %}<span class="wl-chip"><span>{{ 'Coming'|trans }}</span> {{ m.amt(w.coming_kobo, '') }}</span>{% endif %}
       {% if w.review_kobo > 0 %}<span class="wl-chip"><span>{{ 'In review'|trans }}</span> {{ m.amt(w.review_kobo, '') }}</span>{% endif %}
     </div>
+    {# What the balance IS, said where it is read. It is money this platform owes the
+       member, not money they deposited, and nothing here can take money in. #}
+    <p class="wl-card__note">{{ 'Your wallet shows what Africa GATES owes you from your page and referrals. It isn’t a bank account, you can’t add money to it, and it is paid out only to a bank account in your name.'|trans }}</p>
     <div class="wl-card__acts">
       {% if _ready|length %}
         <a class="ag-btn ag-btn--primary wl-btn" href="/account/wallet/withdraw{{ _ready|length == 1 ? '?pocket=' ~ _ready|first.key }}">{{ 'Withdraw to bank'|trans }}</a>
@@ -60,6 +63,7 @@
         <a class="ag-btn ag-btn--secondary wl-btn" href="#wl-pockets">{{ 'Why can’t I withdraw?'|trans }}</a>
       {% endif %}
       {% if points_on and w.points_votes > 0 %}<a class="ag-btn ag-btn--secondary wl-btn" href="/vote">{{ 'Use points to vote'|trans }}</a>{% endif %}
+      {% if votes_from_wallet|default(false) %}<a class="ag-btn ag-btn--secondary wl-btn" href="/vote">{{ 'Use for votes'|trans }}</a>{% endif %}
     </div>
   </section>
 
@@ -132,7 +136,7 @@
         </ul>
       </div>
     {% endif %}
-    <p class="wl-fee">{{ 'Withdrawal fee'|trans }}: {{ fee_text }}. <a href="/integrity#return">{{ 'Rules'|trans }}</a></p>
+    <p class="wl-fee">{{ 'Withdrawal fee'|trans }}: {{ fee_text }}. {{ 'It covers the bank transfer and helps keep the platform running. Paying for votes from your wallet has no fee.'|trans }} <a href="/integrity#return">{{ 'Rules'|trans }}</a></p>
   </section>
 
   {# ── history ─────────────────────────────────────────────────────────────── #}

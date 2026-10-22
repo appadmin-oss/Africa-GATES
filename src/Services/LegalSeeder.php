@@ -416,18 +416,18 @@ HTML;
 <p><strong>It does:</strong></p>
 <ul>
 <li>Add to the nominee&rsquo;s public tally, shown on their page and on the leaderboard.</li>
+<li><strong>Count in the community part of the score.</strong> Bought votes add to the nominee&rsquo;s total tally, and the total tally is one of the two things the community part measures.</li>
 <li>Place the supporter&rsquo;s name on the nominee&rsquo;s supporters list, if the supporter chose to be named.</li>
 <li>Set aside a share for the nominee once they qualify.</li>
 <li>Fund the programme.</li>
 </ul>
 <p><strong>It does not:</strong></p>
 <ul>
-<li><strong>Move the Cultural Power Index.</strong> The community component of the score is computed over organic, code-verified votes only. Purchased votes are held in a separate column the scorer does not read.</li>
-<li><strong>Break a tie.</strong> Where two nominees finish level, the tiebreak is organic votes. One verified supporter outranks any number of purchased votes.</li>
-<li><strong>Run without a ceiling.</strong> Purchased votes on a nominee are capped as a proportion of the organic support that nominee has earned, so money can amplify a real following and cannot manufacture one.</li>
-<li><strong>Buy consideration from a judge</strong>, who cannot see it.</li>
+<li><strong>Buy more than one person&rsquo;s worth of support.</strong> The larger share of the community part counts separate people, not votes. A supporter counts once however much they spend, and splitting one payment into many orders counts as one person.</li>
+<li><strong>Reach the judges&rsquo; part of the score.</strong> Judges score on equally-weighted criteria and cannot see the vote tally while they score.</li>
+<li><strong>Make a nominee eligible to win.</strong> A nominee needs a minimum number of complete judge scorecards; no amount of votes replaces them.</li>
 </ul>
-<p>Money can make a nominee look more popular. It cannot make them win. The current weightings, the ceiling and the judging quorum are published at <a href="/integrity">/integrity</a>, read live from the scoring configuration rather than restated here, so that page is always the authoritative figure.</p>
+<p>Money can make a nominee look more popular and can move the community part of their score. It cannot buy the judges&rsquo; part, and it cannot make somebody eligible to win. The current weightings and the judging quorum are published at <a href="/integrity">/integrity</a>, read live from the scoring configuration rather than restated here, so that page is always the authoritative figure.</p>
 
 <h2>The community return</h2>
 <p>Where a nominee&rsquo;s supporters raise contributions in their name, a share is set aside for the nominee &mdash; win or lose, because they raised it either way.</p>
@@ -437,13 +437,14 @@ HTML;
 <li>Crossing the threshold does not reach backwards. Earlier contributions stay unshared.</li>
 <li>The share is held as an <strong>append-only ledger</strong>. If a contribution is refunded or charged back, the share accrued on it is reversed and the reversal stays on the record beside the original.</li>
 <li>Nothing is payable until the cycle has ended and its results have been announced. A nominee cannot cash out mid-race.</li>
+<li>A nominee may withdraw an available return to a bank account in their own name, for the published withdrawal fee, or spend it on votes for any nominee. <strong>Votes paid from a return earn no return and do not count towards qualifying for one</strong>; otherwise they count exactly like any bought vote.</li>
 </ul>
 <p>The current share, threshold and per-supporter cap are published at <a href="/integrity">/integrity</a>. Eligibility requirements and payment arrangements are communicated to qualifying nominees directly.</p>
 
 <h2>How winners are decided</h2>
 <p>The Cultural Power Index combines verified community votes with an independent judging panel. Neither alone decides a winner.</p>
 <ul>
-<li>The community component is <strong>normalised within each category</strong>, against that category&rsquo;s strongest vote count, so a nominee in a small field is not penalised for being in one.</li>
+<li>The community component is measured against the <strong>strongest vote total anywhere in the edition</strong>, so a share means the same thing in every category. A programme that runs a different rule says so at <a href="/integrity">/integrity</a>.</li>
 <li>Judges score each shortlisted nominee on equally-weighted criteria and <strong>cannot see the vote tally</strong> while scoring.</li>
 <li>A nominee must have a minimum number of <strong>complete</strong> judge scorecards to be eligible to win. A partial scorecard counts as nothing. Where no nominee in a category reaches the quorum, the award is not given.</li>
 <li>Judges recuse themselves from nominees they are connected to, and their own votes in a category they judge are excluded.</li>

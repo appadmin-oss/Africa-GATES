@@ -1658,6 +1658,8 @@ class AccountController
             'month'    => ['label' => date('F'), 'in_kobo' => $in, 'out_kobo' => $out],
             'fee_text' => \AfricaGates\Services\WalletFee::describe(),
             'points_on' => PointsService::enabled(),
+            // A community return can also pay for votes (WalletVotes), wherever it is available.
+            'votes_from_wallet' => \AfricaGates\Services\WalletVotes::sources($id) !== [],
             'has_code' => (\AfricaGates\Services\ReferralService::stats($id)['code'] ?? null) !== null,
             // The moment the page was drawn: wallet.js asks for anything newer than this.
             'since'    => \Illuminate\Support\Carbon::now()->toDateTimeString(),

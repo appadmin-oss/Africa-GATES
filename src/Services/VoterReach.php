@@ -195,6 +195,14 @@ final class VoterReach
             return isset($parts[1]) && $parts[1] !== '' ? 'points:' . $parts[1] : null;
         }
 
+        // A vote paid from a member's wallet is that member, like a points redemption:
+        // 'walletvote:<userId>:<random>' → the same key a redemption by them gets, so a
+        // member who does both is still one person.
+        if (str_starts_with($hash, WalletVotes::HASH_PREFIX)) {
+            $parts = explode(':', $hash);
+            return isset($parts[1]) && $parts[1] !== '' ? 'points:' . $parts[1] : null;
+        }
+
         if (str_starts_with($hash, 'paidvote:')) {
             $don = (int) ($r->donation_id ?? 0);
             // The buyer where we can name them — colliding with their organic vote by

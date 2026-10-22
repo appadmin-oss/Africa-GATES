@@ -119,7 +119,13 @@ final class PaidVoteController
         // act on; a mint refused four minutes later is money gone and nothing to
         // show for it. Free OTP voting is untouched and runs to the bell.
         if (!PaidVoteService::checkoutOpenFor((int) $nominee->category_id))   return $bail('cutoff');
-        if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
+        // Paying from the member's wallet (WalletVotes) rather than a gateway: the same
+        // checks above and below, with the account's own address for the terms record.
+        $fromWallet = str_starts_with($provider, 'wallet:');
+        if ($fromWallet) {
+            $acct = \AfricaGates\Services\UserAccountService::memberForForms();
+            $email = strtolower(trim((string) ($acct['email'] ?? '')));
+        } elseif (!$this->payments->isEnabled($provider))                    return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
         // The award's terms, where it has published any (Phase 5, §8.3, AwardTerms): asked
         // before the gateway is, and recorded at the moment of the act — the buyer ticked it
@@ -133,6 +139,15 @@ final class PaidVoteController
         }
         if ($qty > $maxQty) {
             return $bail('toomany', number_format($maxQty) . ' votes');
+        }
+
+        if ($fromWallet) {
+            $r = \AfricaGates\Services\WalletVotes::buy((int) ($_SESSION['user_id'] ?? 0), substr($provider, 7), $nomineeId, $qty, $showName);
+            // The whole sentence, not a reason code: it carries the figures (what is left,
+            // what it cost, the reference), which a fixed chip cannot.
+            $_SESSION['wallet_vote_notice'] = (string) $r['message'];
+            if (!$r['ok']) $this->rememberOrder($qty, $email, $name, '');
+            return $this->redirect($res, $backUrl . (str_contains($backUrl, '?') ? '&' : '?') . 'paid=wallet');
         }
 
         $gate = (new CheckoutThrottle($this->rateLimit))->allow($req, 'paid_vote');

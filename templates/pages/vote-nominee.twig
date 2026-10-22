@@ -47,7 +47,7 @@
 {% set _won = award_kind == 'winner' %}
 {% set _placed = award_kind != '' %}
 {% set _free = not paid_free_disabled %}
-{% set _paid = voting_open and paid_voting and pay_providers is not empty %}
+{% set _paid = voting_open and paid_voting and (pay_providers is not empty or wallet_sources|default([]) is not empty) %}
 {% set _ts = voting_open and _free and turnstile_site_key %}
 {% set app_bar = {variant: 'child', title: n.name, sub: n.category ~ ' · ' ~ n.programme_title ~ (edition_label ? ' ' ~ edition_label), back: '/vote/' ~ n.programme_slug} %}
 {% set _ev_words = {nomination: 'nomination', interview: 'interview', document: 'document', link: 'link', media: 'recording', award: 'award', press: 'press article', note: 'note'} %}
@@ -153,9 +153,15 @@
           <textarea class="vb-input vb-input--area" id="{{ ctx.pre }}pvMsg" name="message" maxlength="{{ ctx.msg_max }}" rows="3"></textarea>
           <p class="vb-hint">{{ 'Appears on this page once checked. No links or phone numbers.'|trans }}</p>
         </div>
-        {% if ctx.providers|length > 1 %}
+        {# The wallet is always shown as a choice, never as a hidden default: paying from
+           a balance has to be something the member saw and picked. #}
+        {% if ctx.providers|length > 1 or ctx.wallet %}
           <fieldset class="vb-prov"><legend class="vb-label">{{ 'Contribute with'|trans }}</legend>
             {% for p in ctx.providers %}<label class="vb-prov__o"><input type="radio" name="provider" value="{{ p.id }}"{% if loop.first %} checked{% endif %}> {{ p.label }}</label>{% endfor %}
+            {# The member's own community return (WalletVotes). It earns no return and does
+               not count towards qualifying, which the hint says before anybody chooses it. #}
+            {% for w in ctx.wallet %}<label class="vb-prov__o"><input type="radio" name="provider" value="wallet:{{ w.key }}"{% if not ctx.providers and loop.first %} checked{% endif %}> {{ 'Your wallet · %sub% · ₦%n% available'|trans({'%sub%': w.sub, '%n%': (w.available_kobo / 100)|number_format(2)}) }}</label>{% endfor %}
+            {% if ctx.wallet %}<p class="vb-hint">{{ 'Votes paid from your wallet count like any bought vote. They earn no community return and do not count towards qualifying for one.'|trans }}</p>{% endif %}
           </fieldset>
         {% else %}<input type="hidden" name="provider" value="{{ ctx.providers[0].id }}">{% endif %}
         {% if ctx.terms %}
@@ -232,7 +238,7 @@
 {% set _bctx = {n: n, first: first, open: voting_open, phase: phase, paid_notice: paid_notice, can_redeem: can_redeem,
    member_points: member_points, points_per_vote: points_per_vote, member_logged_in: member_logged_in, points_enabled: points_enabled,
    paid: _paid, paid_sentence: paid_sentence, vote_price: vote_price, max_qty: max_qty, vote_tiers: vote_tiers, tiers: tier_prices,
-   retry: paid_retry, member: member, providers: pay_providers, msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed,
+   retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed,
    ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id} %}
 
 {% block content %}

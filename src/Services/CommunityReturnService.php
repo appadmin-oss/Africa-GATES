@@ -334,6 +334,10 @@ final class CommunityReturnService
             foreach ($q->pluck('voter_email_hash') as $h) {
                 $key = (string) $h;
                 if ($key === '') continue;
+                // A vote paid from a wallet is a nominee's own return spent again. It
+                // carries nobody over the line that starts a return (WalletVotes, rule 2)
+                // — or a return could qualify itself.
+                if (str_starts_with($key, WalletVotes::HASH_PREFIX)) continue;
                 $byPerson[$key] = ($byPerson[$key] ?? 0) + 1;
             }
         } catch (\Throwable) {}
