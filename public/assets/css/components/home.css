@@ -110,7 +110,7 @@
 .hm-more--lg{ font-size:var(--ag-fs-14-5) }
 
 /* ── 5 · We Are Africa — breaks out of the page gutter (the DC's waaBleed) ───── */
-.hm-bleed{ margin:0 -16px }
+.hm-bleed{ margin:0 }
 
 
 
@@ -171,40 +171,38 @@
 
 
 /* ══ WE ARE AFRICA — WeAreAfrica.dc.html, `standalone=false` ════════════════════
-   A light band 560 (phone) / 720 tall, which narrows into the page and rounds its
-   corners while it is away from the middle of the scroller and reaches the edges as it
-   arrives there (the DC's `p`, set by the script as --waa-p; with no script, or reduced
-   motion, it is drawn full-bleed — the DC's final state). */
+   A card inside the page width, 560 (phone) / 640 tall, rounded and hairlined. It no
+   longer widens to the screen's edges on scroll (owner, 22 Oct 2026). */
 .waa{
-  --waa-p:1;
   position:relative; overflow:hidden;
   height:560px;
-  margin:0 calc((1 - var(--waa-p)) * 16px);
-  border-radius:calc((1 - var(--waa-p)) * 28px);
-  /* The globe sits in a pool of the wash that fades to the page, so the band reads as
-     light around a lit sphere rather than as a flat green slab. */
-  background:radial-gradient(ellipse 70% 75% at 50% 62%, var(--ag-green-wash) 0%, var(--ag-green-wash) 35%, var(--ag-ground) 100%);
-  border-block:1px solid var(--ag-line);
+  border-radius:28px;
+  /* Plain, after Cloudflare's globe (owner, 22 Oct 2026): the page's ground and a
+     hairline top and bottom; the dots carry the picture. */
+  background:var(--ag-ground);
+  border:1px solid var(--ag-line);
   color:var(--ag-ink);
 }
+.waa{ --waa-foot:124px }
+/* The globe owns the band above a caption strip, so no marker can land on the words. */
 .waa__globe{
-  position:absolute; inset:0; width:100%; height:100%;
+  position:absolute; inset:0 0 var(--waa-foot) 0; width:100%; height:calc(100% - var(--waa-foot));
   cursor:grab; touch-action:pan-y;
 }
 .waa__globe.is-grabbing{ cursor:grabbing }
 .waa__globe:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-6px }
-.waa__pins{ position:absolute; inset:0; z-index:2; pointer-events:none }
+.waa__pins{ position:absolute; inset:0 0 var(--waa-foot) 0; z-index:2; pointer-events:none }
 .waa__h{
   position:absolute; inset-inline:0; top:32px; margin:0;
   text-align:center; pointer-events:none;
   font-family:var(--ag-font-display); font-weight:700;
   font-size:var(--ag-fs-38); line-height:1; letter-spacing:-.01em;
-  text-shadow:0 1px 0 var(--ag-surface), 0 0 18px var(--ag-surface);
+  text-shadow:0 0 16px var(--ag-ground), 0 0 4px var(--ag-ground);
 }
 .waa__note{
-  position:absolute; inset-inline:16px; bottom:16px; margin:0 auto; max-width:64ch; width:fit-content;
-  padding:8px 14px; border-radius:var(--ag-r-14);
-  background:color-mix(in srgb, var(--ag-surface) 86%, transparent); box-shadow:var(--ag-sh-dot);
+  position:absolute; inset-inline:0; bottom:0; height:var(--waa-foot); margin:0; padding:0 20px;
+  display:flex; align-items:center; justify-content:center;
+  border-top:1px solid var(--ag-line); background:var(--ag-surface);
   text-align:center; pointer-events:none;
   font-size:var(--ag-fs-13-5); line-height:1.45; color:var(--ag-ink-2);
 }
@@ -230,6 +228,15 @@
   background:var(--ag-green); color:var(--ag-surface);
   box-shadow:0 0 0 3px var(--ag-surface), 0 2px 8px color-mix(in srgb, var(--ag-ink) 30%, transparent);
 }
+.waa__dot{ position:relative }
+/* A soft pulse, the way a live point reads on a network map. Never under reduced motion. */
+.waa__dot::after{
+  content:""; position:absolute; inset:-3px; border-radius:50%;
+  border:2px solid var(--ag-green); opacity:0;
+  animation:waaPulse 2.4s var(--ag-ease) infinite;
+}
+.waa__m--won .waa__dot::after{ border-color:var(--ag-gold) }
+@keyframes waaPulse{ 0%{ transform:scale(1); opacity:.6 } 100%{ transform:scale(2.6); opacity:0 } }
 .waa__m--won .waa__dot{
   width:22px; height:22px;
   background:var(--ag-gold); color:var(--ag-ink);
@@ -285,13 +292,12 @@
   
   
   .hm-h2{ font-size:var(--ag-fs-30) }
-  .hm-bleed{ margin:0 -28px }
   
   .hm-give{ grid-template-columns:minmax(0, 1.1fr) minmax(0, 1fr) }
   .hm-give__media{ min-height:360px }
   .hm-give__body{ padding:40px }
   .hm-give__t{ font-size:var(--ag-fs-32) }
-  .waa{ height:720px; margin:0 calc((1 - var(--waa-p)) * 72px) }
+  .waa{ height:640px; --waa-foot:76px }
   .waa__h{ top:52px; font-size:var(--ag-fs-64) }
   /* From 600 the note is one or two lines, so the card can sit above it, clear of the
      heading; on a phone the note runs to four and the card hangs under the heading. */
@@ -306,7 +312,6 @@
   .hm-hero__lead{ font-size:var(--ag-fs-17) }
   .hm-hero__media{ min-height:400px }
   
-  .hm-bleed{ margin:0 -32px }
   
   .hm-h2{ font-size:var(--ag-fs-34) }
   
@@ -500,9 +505,9 @@
 /* Reduced motion: the final state at once. */
 @media (prefers-reduced-motion: reduce){
   .waa__m{ transition:none }
+  .waa__dot::after{ animation:none; opacity:0 }
   .hm-slide,
   .hm-hon,
   .hm-feat,
   .hm-dots__b span{ transition:none }
-  .waa{ --waa-p:1 !important }
 }

@@ -5,11 +5,10 @@
 
 Rebuilt in Phase 4 from `design/WeAreAfrica.dc.html` (the previous light band, its d3 script and
 its stat card were destroyed — their rules are in `docs/handoff/inventory/pages--home.md`,
-`_partials.md`, `_scripts.md`, `_stylesheets.md`). A dark band, 560px tall on a phone and 720 from
-600px, with a large orthographic globe centred on Africa, the heading over it and one line at its
-foot. The band narrows into the page and rounds its corners while it is away from the middle of
-the scroller and reaches the edges as it arrives there; under reduced motion it is simply drawn
-full-bleed.
+`_partials.md`, `_scripts.md`, `_stylesheets.md`). A light card inside the page width, 560px tall
+on a phone and 640 from 600px, holding a dot-matrix orthographic globe centred on Africa (owner,
+22 Oct 2026: "modern and simple, after Cloudflare"): land as dots, Africa's in a soft green, no
+borders or grid, softly pulsing markers. It no longer widens to the screen's edges on scroll.
 
 ## What is on it, and what it is allowed to claim
 
