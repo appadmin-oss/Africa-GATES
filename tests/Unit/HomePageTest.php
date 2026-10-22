@@ -86,15 +86,15 @@ final class HomePageTest extends TestCase
         $this->assertMatchesRegularExpression('~<a[^>]+aria-current="page"[^>]*>.*?Home~s', $html);
     }
 
-    /** Home V5's order (README, Screen 1), for the sections that are drawn. */
+    /** Home V7's order (HomePageV7.dc.html and its README), for the sections that are drawn. */
     public function test_the_sections_come_in_the_specified_order(): void
     {
         $id = $this->programme('open', 'Open Awards', ['voting_open' => $this->at(-1), 'voting_close' => $this->at(4)]);
         DB::table('gates_award_categories')->insert(['cycle_id' => $id, 'slug' => 'a', 'title' => 'A']);
         $html = $this->home();
 
-        $order = ['id="hm-h1"', 'id="hm-honour"', 'id="hm-how"', 'id="hm-join-h"', 'id="hm-host"', 'id="waa-h"',
-                  'id="hm-close-h"', 'class="ag-foot"'];
+        $order = ['id="hm-h1"', 'class="hm-qa"', 'class="hm-ctr"', 'id="hm-honour"', 'id="hm-how"', 'class="hm-topics"',
+                  'id="hm-join-h"', 'id="hm-host"', 'id="waa-h"', 'id="hm-close-h"', 'class="ag-foot"'];
         $last = -1;
         foreach ($order as $hook) {
             $at = strpos($html, $hook);
@@ -102,6 +102,45 @@ final class HomePageTest extends TestCase
             $this->assertGreaterThan($last, $at, "$hook is out of §8.1's order");
             $last = $at;
         }
+    }
+
+    // ══ V7: the quick actions and the honours counter ═════════════════════════
+
+    /**
+     * The counter is a NUMBER only from 1,000 people; below that the DC's own headline
+     * stands in, so a young platform never boasts a small figure. People, not records:
+     * three honours to one person count once.
+     */
+    public function test_the_honours_counter_counts_people_and_shows_a_number_only_from_a_thousand(): void
+    {
+        $html = $this->home();
+        $this->assertStringContainsString('Every honour here is checked, then kept for good', $html);
+        $this->assertStringNotContainsString('data-hm-count=', $html);
+
+        $tpl = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/home.twig');
+        $this->assertStringContainsString('{% if honoured >= 1000 %}', $tpl, 'the line is the DC\'s ctrShow (n >= 1000)');
+
+        $pid = $this->programme('rec', 'Rec Awards', ['status' => 'results']);
+        $prog = (int) DB::table('gates_award_cycles')->where('id', $pid)->value('programme_id');
+        $iss = (int) DB::table('gates_recognition_issuers')->insertGetId(['name' => 'Rec Awards',
+            'issuer_type' => 'award', 'programme_id' => $prog, 'created_at' => date('Y-m-d H:i:s')]);
+        foreach ([['Ada', 7], ['Ada', 7], ['Ada', 7], ['Bola', null]] as $i => [$n, $prof]) {
+            DB::table('gates_recognitions')->insert(['issuer_id' => $iss, 'recipient_name' => $n, 'recipient_profile_id' => $prof,
+                'title' => 'Winner ' . $i, 'reference' => 'R' . $i, 'visibility' => 'public', 'created_at' => date('Y-m-d H:i:s')]);
+        }
+        $this->assertSame(4, \AfricaGates\Services\Recognitions::count());
+        $this->assertSame(2, \AfricaGates\Services\Recognitions::peopleCount(), 'Ada three times is one person');
+    }
+
+    public function test_the_quick_actions_are_eight_and_vote_says_live_only_while_voting(): void
+    {
+        $html = $this->home();
+        $this->assertSame(8, preg_match_all('~class="hm-qa__a"~', $html));
+        $this->assertStringNotContainsString('class="hm-qa__live"', $html, 'nothing is taking votes');
+
+        $id = $this->programme('open', 'Open Awards', ['voting_open' => $this->at(-1), 'voting_close' => $this->at(4)]);
+        DB::table('gates_award_categories')->insert(['cycle_id' => $id, 'slug' => 'a', 'title' => 'A']);
+        $this->assertStringContainsString('class="hm-qa__live"', $this->home());
     }
 
     // ══ the numbers are counts ═══════════════════════════════════════════════

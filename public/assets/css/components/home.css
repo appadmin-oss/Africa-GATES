@@ -21,7 +21,7 @@
 .hm{
   max-width:1180px; margin:0 auto;
   padding:0 16px 32px;
-  display:flex; flex-direction:column; gap:64px;
+  display:flex; flex-direction:column; gap:56px;
 }
 
 /* ── 1 · Hero ─────────────────────────────────────────────────────────────── */
@@ -158,8 +158,7 @@
 }
 
 /* ── 8 · Recognise band ───────────────────────────────────────────────────── */
-.hm-host{ display:flex; flex-direction:column; gap:24px }
-.hm-host:focus{ outline:none }
+[id="hm-host"]:focus{ outline:none }
 
 
 
@@ -372,8 +371,9 @@
 
 /* 4 · how it works */
 .hm-how{ display:grid; grid-template-columns:minmax(0, 1fr); gap:14px; margin:0; padding:0; list-style:none }
-.hm-how__c{ display:flex; flex-direction:column; gap:10px; padding:24px; border-radius:28px; background:var(--ag-surface) }
-.hm-how__n{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-52); line-height:1; color:var(--ag-green) }
+.hm-how__c{ display:flex; flex-direction:column; gap:12px; padding:24px; border-radius:28px; background:var(--ag-surface); border:1px solid var(--ag-line) }
+/* V7: a green number tile, not a big Playfair numeral. */
+.hm-how__n{ width:52px; height:52px; border-radius:17px; background:var(--ag-green-wash); color:var(--ag-green-deep); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:var(--ag-fs-21) }
 .hm-how__t{ margin:0; font-weight:700; font-size:var(--ag-fs-20) }
 .hm-how__d{ margin:0; font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
 
@@ -400,27 +400,58 @@
 .hm-perk__t{ font-weight:700; font-size:var(--ag-fs-16) }
 .hm-perk__d{ font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
 
-/* 8 · recognise with Africa GATES */
-.hm-host__lead{ margin:0; max-width:60ch; font-size:var(--ag-fs-16); line-height:1.55; color:var(--ag-ink-2) }
-.hm-aud{ display:grid; grid-template-columns:minmax(0, 1fr); gap:22px }
-.hm-aud__rows{ display:flex; flex-direction:column; gap:8px }
-.hm-aud__row{ border-radius:16px; border:1px solid transparent }
-.hm-aud__row.is-on{ background:var(--ag-surface); border-color:var(--ag-line) }
-.hm-aud__tab{
-  width:100%; min-height:60px; padding:0 20px; border:0; background:none; cursor:pointer; text-align:start;
-  font:inherit; font-weight:700; font-size:var(--ag-fs-16); color:var(--ag-ink-2);
-}
-.hm-aud__row.is-on .hm-aud__tab{ color:var(--ag-ink) }
-.hm-aud__p{ display:flex; flex-direction:column; align-items:flex-start; gap:12px; padding:0 20px 22px }
-.hm-aud.is-js .hm-aud__row:not(.is-on) .hm-aud__p,
-[data-hm-aud].is-js .hm-aud__row:not(.is-on) .hm-aud__p{ display:none }
-.hm-aud__t{ margin:0; font-weight:700; font-size:var(--ag-fs-22); line-height:1.25 }
-.hm-aud__d{ margin:0; font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
-.hm-aud__pts{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px }
-.hm-aud__pts li{ display:flex; gap:10px; align-items:flex-start; font-size:var(--ag-fs-14-5) }
-.hm-aud__pts svg{ flex:none; margin-top:3px; color:var(--ag-green) }
-.hm-aud__stage{ order:-1; position:relative; overflow:hidden; aspect-ratio:1; border-radius:20px; background:var(--ag-tint) }
-.hm-aud__stage img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+/* 2 · quick actions — 4×2 on a phone, one row of eight from 600 (README, Homepage V7) */
+.hm-qa{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; margin-top:-24px; padding:10px 6px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-24) }
+.hm-qa__a,
+.hm-qa__a:hover{ position:relative; display:flex; flex-direction:column; align-items:center; gap:8px; min-height:84px; padding:8px 2px;
+  border-radius:var(--ag-r-16); color:var(--ag-ink); text-align:center; text-decoration:none }
+.hm-qa__a:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.hm-qa__i{ width:52px; height:52px; border-radius:17px; background:var(--ag-green-wash); color:var(--ag-green); display:flex; align-items:center; justify-content:center }
+.hm-qa__l{ font-size:var(--ag-fs-12-5); font-weight:600; line-height:1.2 }
+.hm-qa__live{ position:absolute; top:2px; inset-inline-end:calc(50% - 34px); height:18px; padding:0 6px; border-radius:var(--ag-r-pill);
+  border:2px solid var(--ag-surface); background:var(--ag-live); color:var(--ag-surface); font-size:var(--ag-fs-11-5); font-weight:700; line-height:14px }
+
+/* 3 · honours counter — the wash, the number in green, the button primary */
+.hm-ctr{ display:grid; grid-template-columns:minmax(0, 1fr); gap:20px; align-items:end; padding:28px 22px;
+  background:var(--ag-green-wash); border:1px solid var(--ag-green-edge); border-radius:28px; color:var(--ag-ink) }
+.hm-ctr__fig{ display:flex; flex-direction:column; gap:10px }
+.hm-ctr__n{ font-weight:700; font-size:var(--ag-fs-72); line-height:.9; letter-spacing:-.05em; font-variant-numeric:tabular-nums; color:var(--ag-green-deep) }
+.hm-ctr__l{ font-size:var(--ag-fs-18); font-weight:600; line-height:1.3 }
+.hm-ctr__h{ font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15; text-wrap:balance }
+.hm-ctr__side{ display:flex; flex-direction:column; gap:14px; align-items:flex-start }
+.hm-ctr__p{ margin:0; max-width:40ch; font-size:var(--ag-fs-16); line-height:1.55; color:var(--ag-ink-2) }
+
+/* 7 · topics — evergreen, on the green wash (V7: topic fields are all green wash) */
+.hm-topics{ display:flex; gap:16px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; margin:0 -16px; padding:0 16px 6px }
+.hm-topic,
+.hm-topic:hover{ flex:none; width:78%; scroll-snap-align:start; display:flex; flex-direction:column; overflow:hidden; border-radius:24px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); color:var(--ag-ink); text-decoration:none }
+.hm-topic:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.hm-topic__field{ position:relative; display:flex; align-items:center; justify-content:center; aspect-ratio:16 / 10; overflow:hidden; background:var(--ag-green-wash) }
+.hm-topic__pic{ flex:none; width:40%; height:auto; max-height:none; aspect-ratio:4 / 5; object-fit:cover; border-radius:18px; border:4px solid var(--ag-surface); box-shadow:var(--ag-sh-tile) }
+.hm-topic__pic--1{ transform:rotate(-4deg) }
+.hm-topic__pic--2{ transform:rotate(3deg) }
+.hm-topic__pic--3{ transform:rotate(-3deg) }
+.hm-topic__tag{ position:absolute; inset-inline-start:14px; top:14px; display:flex; align-items:center; height:28px; padding:0 11px; border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink); font-size:var(--ag-fs-12-5); font-weight:700 }
+.hm-topic__body{ display:flex; flex-direction:column; gap:6px; padding:18px 20px 22px }
+.hm-topic__t{ font-weight:700; font-size:var(--ag-fs-17); line-height:1.3 }
+.hm-topic__d{ font-size:var(--ag-fs-14); line-height:1.45; color:var(--ag-ink-2) }
+
+/* 10 · recognise — four photo cards with a white label */
+.hm-who{ display:flex; gap:16px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; margin:0 -16px; padding:0 16px 6px; list-style:none }
+.hm-who > li{ flex:0 0 72%; scroll-snap-align:start }
+.hm-whoc,
+.hm-whoc:hover{ position:relative; display:block; aspect-ratio:4 / 5; overflow:hidden; border-radius:24px; background:var(--ag-tint); color:var(--ag-ink); text-decoration:none }
+.hm-whoc:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.hm-whoc__img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.hm-whoc__bar{ position:absolute; inset-inline:12px; bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  min-height:56px; padding:0 10px 0 18px; border-radius:16px; background:var(--ag-surface) }
+.hm-whoc__t{ display:flex; flex-direction:column; gap:1px }
+.hm-whoc__t b{ font-size:var(--ag-fs-16-5) }
+.hm-whoc__t span{ font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-green) }
+.hm-whoc__go{ flex:none; width:36px; height:36px; border-radius:50%; background:var(--ag-green-wash); color:var(--ag-green); display:flex; align-items:center; justify-content:center }
 
 /* 10 · closing band */
 .hm-close{ display:grid; grid-template-columns:minmax(0, 1fr); gap:28px; padding:28px 20px; border-radius:32px; background:var(--ag-green-wash); border:1px solid var(--ag-green-edge) }
@@ -435,6 +466,14 @@
 .hm-close__pic--3{ margin-inline-start:-22px; transform:rotate(-2deg) }
 
 @media (min-width:600px){
+  .hm-qa{ grid-template-columns:repeat(8, minmax(0, 1fr)); padding:12px 8px }
+  .hm-ctr{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:32px; padding:44px 48px }
+  .hm-ctr__n{ font-size:var(--ag-fs-96) }
+  .hm-ctr__l{ font-size:var(--ag-fs-21) }
+  .hm-topics{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); overflow:visible; margin:0; padding:0 }
+  .hm-topic{ width:auto }
+  .hm-who{ margin:0 -28px; padding-inline:28px }
+  .hm-who > li{ flex:0 0 260px }
   .hm-honour{ margin:0 -28px; padding-inline:28px }
   .hm-honour > li{ flex:0 0 200px }
   .hm-how{ grid-template-columns:repeat(3, minmax(0, 1fr)) }
@@ -444,21 +483,20 @@
   .hm-close__h{ font-size:var(--ag-fs-42) }
   .hm-perks{ grid-template-columns:repeat(2, minmax(0, 1fr)) }
   .hm-perk{ padding:20px }
-  .hm-aud__stage{ aspect-ratio:16 / 9; border-radius:24px }
   .hm-close{ grid-template-columns:minmax(0, 1.2fr) minmax(0, 1fr); align-items:center; padding:48px 52px }
   .hm-close__pic{ width:150px; height:150px }
   .hm-close__pic--2{ width:190px; height:190px; margin-inline-start:-36px }
   .hm-close__pic--3{ margin-inline-start:-36px }
 }
 @media (min-width:1024px){
+  .hm-ctr__n{ font-size:var(--ag-fs-128) }
+  .hm-who{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin:0; padding:0; overflow:visible }
   .hm-honour{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); margin:0; padding:0; overflow:visible }
   .hm-feat{ grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr) }
   .hm-feat__media{ min-height:340px }
   .hm-feat__body{ padding:40px }
   .hm-feat__t{ font-size:var(--ag-fs-28) }
   .hm-join{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); align-items:center }
-  .hm-aud{ grid-template-columns:minmax(0, 5fr) minmax(0, 7fr); gap:48px; align-items:start }
-  .hm-aud__stage{ order:0; aspect-ratio:auto; min-height:520px }
   .hm-rec-box{ inset-inline:auto 20px; bottom:20px; width:360px }
 }
 @media (min-width:1200px){

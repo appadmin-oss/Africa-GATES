@@ -32,10 +32,14 @@ final class HomeController
         // "Happening now" and "Who recognises" are gone with the V3 layout. What is still
         // read is real records — decided awards for the hero and the closing band, the open
         // challenge, the featured campaign — and each block follows LOW-DATA-RULES.md.
-        $front = $this->cache->remember('home:front:v5', 300, static fn (): array => [
+        $front = $this->cache->remember('home:front:v7', 300, static fn (): array => [
             'decided'   => HomeFront::decided(),
             'campaign'  => HomeFront::campaign(),
             'challenge' => HomeFront::featuredChallenge(),
+            // V7's counter. Shown as a number only from 1,000 — below that the DC's own
+            // fallback headline stands in, so a young platform never boasts a small figure.
+            'honoured'  => \AfricaGates\Services\Recognitions::peopleCount(),
+            'voting'    => HomeFront::voting()['total'] > 0,
         ], ['leaderboard', 'registry']);
 
         $band = $this->cache->remember('home:globe', 900, static fn (): array => [
@@ -55,6 +59,8 @@ final class HomeController
             'hero_slides'      => HomeFront::heroSlides($front['decided']),
             'honour'           => HomeFront::honourTiles(),
             'challenge'        => $front['challenge'],
+            'honoured'         => (int) ($front['honoured'] ?? 0),
+            'voting_live'      => (bool) ($front['voting'] ?? false),
             'campaign'         => $front['campaign'],
             // The closing band's three portraits: real winners with photos when there are
             // three, otherwise the owner's honour photographs. Never a stock face.

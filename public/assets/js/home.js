@@ -1,8 +1,10 @@
-/* Home V5: the hero's rotating recognitions and the "Recognise with Africa GATES" tabs.
+/* Home V7: the hero's rotating recognitions and the honours counter's count-up.
  *
- * Progressive: without this file the first slide and the first audience show and every
- * link works. The rotation follows the handoff exactly: a 0.8s crossfade every 5.5s,
- * paused on hover, while the tab is hidden, and never under prefers-reduced-motion.
+ * Progressive: without this file the first slide shows, the counter shows its figure and
+ * every link works. The count-up runs once, when the counter scrolls into view, and not at
+ * all under prefers-reduced-motion (the figure is already in the markup). The rotation
+ * follows the handoff exactly: a 0.8s crossfade every 5.5s, paused on hover, while the tab
+ * is hidden, and never under prefers-reduced-motion.
  */
 (function () {
   'use strict';
@@ -48,34 +50,23 @@
     start();
   }
 
-  // ── the audiences ──────────────────────────────────────────────────────────
-  var aud = document.querySelector('[data-hm-aud]');
-  if (aud) {
-    aud.classList.add('is-js');
-    var rows = aud.querySelectorAll('[data-hm-aud-row]');
-    var tabs = aud.querySelectorAll('[data-hm-aud-tab]');
-    var stage = aud.querySelector('[data-hm-aud-stage]');
-    var pick = function (n, focus) {
-      for (var k = 0; k < rows.length; k++) {
-        var on = k === n;
-        rows[k].classList.toggle('is-on', on);
-        tabs[k].setAttribute('aria-selected', on ? 'true' : 'false');
-        tabs[k].tabIndex = on ? 0 : -1;
-        if (on && stage) {
-          var img = rows[k].querySelector('[data-hm-aud-img]');
-          if (img) stage.src = img.getAttribute('data-hm-aud-img');
-        }
-      }
-      if (focus) tabs[n].focus();
-    };
-    for (var t = 0; t < tabs.length; t++) {
-      tabs[t].addEventListener('click', function (e) { pick(parseInt(e.currentTarget.getAttribute('data-hm-aud-tab'), 10) || 0, false); });
-      tabs[t].addEventListener('keydown', function (e) {
-        var n = parseInt(e.currentTarget.getAttribute('data-hm-aud-tab'), 10) || 0;
-        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); pick((n + 1) % tabs.length, true); }
-        if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); pick((n - 1 + tabs.length) % tabs.length, true); }
-      });
-    }
-    pick(0, false);
+  // ── the honours counter ────────────────────────────────────────────────────
+  var ctr = document.querySelector('[data-hm-count]');
+  if (ctr && !reduce && 'IntersectionObserver' in window) {
+    var to = parseInt(ctr.getAttribute('data-hm-count'), 10) || 0;
+    var fmt = function (v) { return Math.round(v).toLocaleString('en-GB'); };
+    var io = new IntersectionObserver(function (es) {
+      if (!es[0].isIntersecting) return;
+      io.disconnect();
+      var t0 = null;
+      var tick = function (t) {
+        if (t0 === null) t0 = t;
+        var p = Math.min(1, (t - t0) / 1400), e = 1 - Math.pow(1 - p, 3);
+        ctr.textContent = fmt(to * e);
+        if (p < 1) window.requestAnimationFrame(tick);
+      };
+      window.requestAnimationFrame(tick);
+    }, { threshold: 0.4 });
+    io.observe(ctr);
   }
 })();

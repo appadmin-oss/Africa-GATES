@@ -95,6 +95,8 @@
   /* Awards and voting (Phase 5, AwardsPage / VotePage DCs): 42 the award page's desktop H1,
      46 the vote page's desktop hero title, 52 the awards index's desktop H1. */
   --ag-fs-42:2.625rem;  --ag-fs-46:2.875rem;  --ag-fs-52:3.25rem;
+  /* Home V7 (HomePageV7.dc.html): the honours counter's figure, 72 → 96 → 128. */
+  --ag-fs-72:4.5rem;    --ag-fs-96:6rem;      --ag-fs-128:8rem;
 
   /* ── Spacing · §6.3 — the px name is the px value ──────────────────────── */
   /* 20 and 22 (§6.3), the 22 radius (§6.4) and the bar 30 layer (§6.7)
