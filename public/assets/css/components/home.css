@@ -400,18 +400,6 @@
 .hm-perk__t{ font-weight:700; font-size:var(--ag-fs-16) }
 .hm-perk__d{ font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
 
-/* 2 · quick actions — 4×2 on a phone, one row of eight from 600 (README, Homepage V7) */
-.hm-qa{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; margin-top:-24px; padding:10px 6px;
-  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-24) }
-.hm-qa__a,
-.hm-qa__a:hover{ position:relative; display:flex; flex-direction:column; align-items:center; gap:8px; min-height:84px; padding:8px 2px;
-  border-radius:var(--ag-r-16); color:var(--ag-ink); text-align:center; text-decoration:none }
-.hm-qa__a:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-.hm-qa__i{ width:52px; height:52px; border-radius:17px; background:var(--ag-green-wash); color:var(--ag-green); display:flex; align-items:center; justify-content:center }
-.hm-qa__l{ font-size:var(--ag-fs-12-5); font-weight:600; line-height:1.2 }
-.hm-qa__live{ position:absolute; top:2px; inset-inline-end:calc(50% - 34px); height:18px; padding:0 6px; border-radius:var(--ag-r-pill);
-  border:2px solid var(--ag-surface); background:var(--ag-live); color:var(--ag-surface); font-size:var(--ag-fs-11-5); font-weight:700; line-height:14px }
-
 /* 3 · honours counter — the wash, the number in green, the button primary */
 .hm-ctr{ display:grid; grid-template-columns:minmax(0, 1fr); gap:20px; align-items:end; padding:28px 22px;
   background:var(--ag-green-wash); border:1px solid var(--ag-green-edge); border-radius:28px; color:var(--ag-ink) }
@@ -466,7 +454,6 @@
 .hm-close__pic--3{ margin-inline-start:-22px; transform:rotate(-2deg) }
 
 @media (min-width:600px){
-  .hm-qa{ grid-template-columns:repeat(8, minmax(0, 1fr)); padding:12px 8px }
   .hm-ctr{ grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:32px; padding:44px 48px }
   .hm-ctr__n{ font-size:var(--ag-fs-96) }
   .hm-ctr__l{ font-size:var(--ag-fs-21) }

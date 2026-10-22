@@ -11,8 +11,7 @@
 
     1 Hero ............ rotating recognitions: real decided awards (2+ rotate, 1 is static);
                         none falls back to the owner's honour photos, naming nobody
-    2 Quick actions ... eight icon tiles (README: 4×2 on a phone, one row from 600); Vote
-                        carries "Live" only while an award is taking votes
+    2 Quick actions ... REMOVED by the owner (22 Oct 2026) after seeing it built
     3 Honours counter . people honoured, from Recognitions::peopleCount(); a NUMBER only
                         from 1,000 — below that the DC's own headline stands in
     4 Who to honour ... six tiles, the owner's photographs, always shown
@@ -88,26 +87,6 @@
       </div>
     </div>
   </section>
-
-  {# ── 2 · Quick actions — eight tiles under the hero ─────────────────────── #}
-  <nav class="hm-qa" aria-label="{{ 'Quick actions'|trans }}">
-    {% for q in [
-      {l: 'Vote', h: '/vote', d: 'M4 12.5 9 17.5 20 6.5', live: voting_live},
-      {l: 'Results', h: '/results', d: 'M5 16 3 6l5 4 4-6 4 6 5-4-2 10z'},
-      {l: 'Events', h: '/events', d: 'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4'},
-      {l: 'Giving', h: '/giving', d: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z'},
-      {l: 'Challenges', h: '/challenges', d: 'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4'},
-      {l: 'Discover', h: '/discover', d: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-3.6-3.6'},
-      {l: 'Shop', h: '/shop', d: 'M5.5 8h13l-1 12h-11zM9 8V7a3 3 0 0 1 6 0v1'},
-      {l: 'Help', h: '/help', d: 'M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z'}
-    ] %}
-      <a class="hm-qa__a" href="{{ q.h }}">
-        <span class="hm-qa__i" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ q.d }}"/></svg></span>
-        <span class="hm-qa__l">{{ q.l|trans }}</span>
-        {% if q.live|default(false) %}<span class="hm-qa__live">{{ 'Live'|trans }}</span>{% endif %}
-      </a>
-    {% endfor %}
-  </nav>
 
   {# ── 3 · Honours counter — a number only from 1,000 ─────────────────────── #}
   <section class="hm-ctr" aria-label="{{ 'Honours so far'|trans }}">

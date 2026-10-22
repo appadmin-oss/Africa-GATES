@@ -93,7 +93,7 @@ final class HomePageTest extends TestCase
         DB::table('gates_award_categories')->insert(['cycle_id' => $id, 'slug' => 'a', 'title' => 'A']);
         $html = $this->home();
 
-        $order = ['id="hm-h1"', 'class="hm-qa"', 'class="hm-ctr"', 'id="hm-honour"', 'id="hm-how"', 'class="hm-topics"',
+        $order = ['id="hm-h1"', 'class="hm-ctr"', 'id="hm-honour"', 'id="hm-how"', 'class="hm-topics"',
                   'id="hm-join-h"', 'id="hm-host"', 'id="waa-h"', 'id="hm-close-h"', 'class="ag-foot"'];
         $last = -1;
         foreach ($order as $hook) {
@@ -104,7 +104,7 @@ final class HomePageTest extends TestCase
         }
     }
 
-    // ══ V7: the quick actions and the honours counter ═════════════════════════
+    // ══ V7: the honours counter ═════════════════════════
 
     /**
      * The counter is a NUMBER only from 1,000 people; below that the DC's own headline
@@ -130,17 +130,6 @@ final class HomePageTest extends TestCase
         }
         $this->assertSame(4, \AfricaGates\Services\Recognitions::count());
         $this->assertSame(2, \AfricaGates\Services\Recognitions::peopleCount(), 'Ada three times is one person');
-    }
-
-    public function test_the_quick_actions_are_eight_and_vote_says_live_only_while_voting(): void
-    {
-        $html = $this->home();
-        $this->assertSame(8, preg_match_all('~class="hm-qa__a"~', $html));
-        $this->assertStringNotContainsString('class="hm-qa__live"', $html, 'nothing is taking votes');
-
-        $id = $this->programme('open', 'Open Awards', ['voting_open' => $this->at(-1), 'voting_close' => $this->at(4)]);
-        DB::table('gates_award_categories')->insert(['cycle_id' => $id, 'slug' => 'a', 'title' => 'A']);
-        $this->assertStringContainsString('class="hm-qa__live"', $this->home());
     }
 
     // ══ the numbers are counts ═══════════════════════════════════════════════

@@ -39,7 +39,6 @@ final class HomeController
             // V7's counter. Shown as a number only from 1,000 — below that the DC's own
             // fallback headline stands in, so a young platform never boasts a small figure.
             'honoured'  => \AfricaGates\Services\Recognitions::peopleCount(),
-            'voting'    => HomeFront::voting()['total'] > 0,
         ], ['leaderboard', 'registry']);
 
         $band = $this->cache->remember('home:globe', 900, static fn (): array => [
@@ -60,7 +59,6 @@ final class HomeController
             'honour'           => HomeFront::honourTiles(),
             'challenge'        => $front['challenge'],
             'honoured'         => (int) ($front['honoured'] ?? 0),
-            'voting_live'      => (bool) ($front['voting'] ?? false),
             'campaign'         => $front['campaign'],
             // The closing band's three portraits: real winners with photos when there are
             // three, otherwise the owner's honour photographs. Never a stock face.
