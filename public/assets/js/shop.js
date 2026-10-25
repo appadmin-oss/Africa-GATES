@@ -18,6 +18,21 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var json = function (s, d) { try { return JSON.parse(s || ''); } catch (e) { return d; } };
+  /* What Tab can reach inside a sheet: enabled, not hidden, actually laid out. */
+  var FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  function focusables(root) {
+    return $$(FOCUSABLE, root).filter(function (el) { return !el.closest('[hidden]') && el.getClientRects().length > 0; });
+  }
+  /* Keep Tab inside an open sheet. aria-modal tells a screen reader the page behind is
+     out of reach; it does nothing for the keyboard, which walked straight out of the cart
+     and the filter sheet into a product grid hidden under the scrim. */
+  function trapTab(e, root) {
+    var f = focusables(root);
+    if (!f.length) { e.preventDefault(); root.focus(); return; }
+    var first = f[0], last = f[f.length - 1], at = document.activeElement;
+    if (e.shiftKey && (at === first || at === root || !root.contains(at))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (at === last || !root.contains(at))) { e.preventDefault(); first.focus(); }
+  }
   var put = function (s, map) { return String(s).replace(/%(\w+)%/g, function (m, k) { return k in map ? map[k] : m; }); };
 
   var drawer = $('[data-sp-cart]');
@@ -125,7 +140,7 @@
     row.hidden = !FREE || all.length < 1;
     if (FREE) {
       $('[data-sp-free-text]', drawer).textContent = sub >= FREE ? W.freeGot : put(W.freeLeft || '', { amount: money(FREE - sub) });
-      $('[data-sp-free-bar]', drawer).style.width = Math.min(100, Math.round(sub * 100 / FREE)) + '%';
+      freeMeter(Math.min(100, Math.round(sub * 100 / FREE)));
     }
     $('[data-sp-cart-json]', drawer).value = JSON.stringify(load());
   }
@@ -141,6 +156,12 @@
     $('[data-sp-pay]', drawer).hidden = !co;
     $('[data-sp-back]', drawer).hidden = !co;
     if (co) quote();
+  }
+  // The fill and the value a screen reader is told move together.
+  function freeMeter(p) {
+    $('[data-sp-free-bar]', drawer).style.width = p + '%';
+    var m = $('[data-sp-free-meter]', drawer);
+    if (m) m.setAttribute('aria-valuenow', String(p));
   }
   function open(at) {
     if (!drawer) return;
@@ -215,7 +236,7 @@
         if (q.free_over) {
           free.hidden = false;
           $('[data-sp-free-text]', drawer).textContent = q.short_by > 0 ? put(W.freeLeft || '', { amount: money(q.short_by) }) : W.freeGot;
-          $('[data-sp-free-bar]', drawer).style.width = Math.min(100, Math.round((q.free_over - q.short_by) * 100 / q.free_over)) + '%';
+          freeMeter(Math.min(100, Math.round((q.free_over - q.short_by) * 100 / q.free_over)));
         } else {
           free.hidden = true;
         }
@@ -286,6 +307,11 @@
   });
 
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab') {
+      if (drawer && !drawer.hidden) trapTab(e, drawer);
+      else if (rail && rail.classList.contains('is-open') && phone.matches) trapTab(e, rail);
+      return;
+    }
     if (e.key !== 'Escape') return;
     if (drawer && !drawer.hidden) close();
     else if (rail && rail.classList.contains('is-open')) sheet(false);
@@ -307,15 +333,44 @@
 
   var rail = $('[data-sp-sheet]');
   var wide = window.matchMedia('(min-width: 1024px)');
+  // Below 600 the rail is a bottom sheet over the page (shop.css), so it is a modal dialog
+  // there and says so. From 600 it is a panel above or beside the grid — an ordinary part
+  // of the page, which must not claim to be a dialog or hold the keyboard.
+  var phone = window.matchMedia('(max-width: 599.98px)');
+  var sheetBack = null;
+  function sheetRole() {
+    if (!rail) return;
+    var modal = rail.classList.contains('is-open') && phone.matches;
+    if (modal) { rail.setAttribute('role', 'dialog'); rail.setAttribute('aria-modal', 'true'); }
+    else { rail.removeAttribute('role'); rail.removeAttribute('aria-modal'); }
+    $$('[data-sp-filters-open]').forEach(function (b) { b.setAttribute('aria-expanded', modal ? 'true' : 'false'); });
+  }
   function sheet(on) {
     if (!rail) return;
+    var was = rail.classList.contains('is-open');
+    if (on && !was) sheetBack = document.activeElement;
     rail.classList.toggle('is-open', on);
     document.documentElement.classList.toggle('sp-locked', on && !wide.matches);
+    sheetRole();
     if (on) rail.focus();
-    else if (location.hash === '#spFilters') history.replaceState(null, '', location.pathname + location.search);
+    else {
+      if (location.hash === '#spFilters') history.replaceState(null, '', location.pathname + location.search);
+      // Back to whatever opened it — not left on a control that has just been hidden,
+      // which drops focus to the end of the document.
+      if (was && phone.matches) {
+        var to = (sheetBack && document.contains(sheetBack) && sheetBack.getClientRects().length) ? sheetBack : $('[data-sp-filters-open]');
+        if (to && to.focus) to.focus();
+      }
+      sheetBack = null;
+    }
+  }
+  if (rail) {
+    sheetRole();
+    if (phone.addEventListener) phone.addEventListener('change', sheetRole);
   }
 
   $$('[data-sp-autosubmit]').forEach(function (f) {
+    if (window.AGA11y && window.AGA11y.autoSubmit) { $$('select, input', f).forEach(function (el) { window.AGA11y.autoSubmit(el, f); }); return; }
     f.addEventListener('change', function () { f.submit(); });
   });
   // The rail applies on change where it sits beside the grid. As a sheet it waits for
@@ -323,7 +378,10 @@
   // sheet nobody can finish.
   var filters = $('[data-sp-filters]');
   if (filters) filters.addEventListener('change', function (e) {
-    if (wide.matches && e.target.type !== 'number') filters.submit();
+    if (!wide.matches || e.target.type === 'number') return;
+    // Back on the box that was ticked after the reload (a11y.js), not at the top of the page.
+    if (window.AGA11y && window.AGA11y.keepPlace) window.AGA11y.keepPlace(filters, e.target);
+    filters.submit();
   });
 
   function more(a) {

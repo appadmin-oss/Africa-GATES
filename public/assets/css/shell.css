@@ -72,6 +72,11 @@ html.ag-shelled body{ height:100%; overflow:hidden }
      toolbar at the top of the scroller. Scroll padding on the scroller does that
      for every focus move, including the browser's own. */
   scroll-padding-top:var(--ag-sp-64);
+  /* And the bottom, which had nothing: the Gee launcher (52px, 16px off the bars) floats
+     over the last lines of every page, above whatever fixed bar shell.js has measured
+     into --ag-bottom-ui. Tabbing down a page landed focus underneath it — measured on
+     the homepage's "All categories" link at 1280. */
+  scroll-padding-bottom:calc(var(--ag-bottom-ui, 0px) + 52px + 16px + var(--ag-sp-12) + env(safe-area-inset-bottom));
 }
 
 
@@ -157,10 +162,32 @@ html.ag-hc{
   --ag-line:var(--ag-ink);
   --ag-line-2:var(--ag-ink);
   --ag-line-3:var(--ag-ink);
+  /* The rest of Accent::ACCEPTED that is drawn as a mark somebody has to read: `mute`
+     (2.75:1 — counts, placeholders and the OFF track of every switch), the checkbox and
+     disclosure chevrons, and the sheet grabber. The owner accepted them below the floor
+     for the default look; somebody who has asked for high contrast has asked for the
+     opposite, and was still getting them. `mute` is also DISABLED text, so it is lifted
+     to a dark mix of the ink (about 6:1 on white) rather than to the ink itself — readable,
+     and still visibly not the same as a control that works. */
+  --ag-mute:color-mix(in srgb, var(--ag-ink) 72%, var(--ag-surface));
+  --ag-chevron:var(--ag-ink);
+  --ag-grabber:var(--ag-ink);
 }
+html.ag-hc ::placeholder{ color:var(--ag-mute); opacity:1 }
 html.ag-easy body{ font-family:'Atkinson Hyperlegible',var(--ag-font-ui); letter-spacing:.01em }
 html.ag-ls p, html.ag-ls li{ line-height:1.8 }
 html.ag-ul a{ text-decoration:underline; text-underline-offset:3px }
+
+/* Read pages aloud (a11y.js): while the switch is on, a page without its own Listen pill
+   gets this row at the top of <main>. 44px targets; pressed state is a filled ink pill as
+   well as aria-pressed, so it does not rest on colour. */
+.ag-listen{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8); max-width:1240px; margin:0 auto; padding:var(--ag-sp-12) var(--ag-gutter) 0 }
+.ag-listen__b{ display:inline-flex; align-items:center; gap:var(--ag-sp-8); min-height:44px; padding:0 var(--ag-sp-16);
+  border:1px solid var(--ag-ink); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink);
+  font:inherit; font-size:var(--ag-fs-14-5); font-weight:600; cursor:pointer }
+.ag-listen__b[aria-pressed="true"]{ background:var(--ag-ink); color:var(--ag-surface) }
+.ag-listen__b:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-listen__b[hidden]{ display:none }
 
 /* Data saver: nothing plays by itself, and an image marked for it waits for a tap. */
 html.ag-saver video[autoplay]{ display:none }

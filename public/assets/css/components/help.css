@@ -42,7 +42,9 @@
   height:52px; padding:0 6px 0 16px;
   background:var(--ag-surface); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-16); color:var(--ag-soft);
 }
-.hc__field:focus-within{ border-color:var(--ag-ink) }
+/* The house ring (REFERENCE §13), not only a border that darkens: a 1px hue change is
+   hard to find at low vision and is erased entirely by Windows high-contrast mode. */
+.hc__field:focus-within{ border-color:var(--ag-ink); outline:3px solid var(--ag-green); outline-offset:2px }
 .hc__q{ flex:1; min-width:0; height:100%; border:0; outline:0; background:transparent; font-size:var(--ag-fs-16); color:var(--ag-ink) }
 .hc__q::-webkit-search-cancel-button{ display:none }
 .hc a.hc__clear{ flex:none; width:44px; height:44px; display:flex; align-items:center; justify-content:center }

@@ -36,6 +36,9 @@
 {% set _total = F.total %}
 {% set _shown = products|length %}
 {% set _more = _total - _shown %}
+{# The shop has nothing on sale at all — not "nothing matches". The filter sheet is not
+   drawn then, so neither is anything that opens it or narrows an empty list. #}
+{% set _soon = F.total == 0 and not F.filtered %}
 {% set _onCount = F.categories|length + F.colours|length + F.sizes|length + (F.in_stock ? 1 : 0) + (F.featured ? 1 : 0) + ((F.min is not null or F.max is not null) ? 1 : 0) %}
 {% set _sheetCount = _onCount - F.categories|length %}
 {% set _base = {q: F.q, 'c': F.categories, col: F.colours, sz: F.sizes, min: F.min, max: F.max,
@@ -102,6 +105,9 @@
 
   {# ── PHONE: the sticky chip toolbar (§8.12) — Filters (the count of non-category
      filters), All, the categories single-select, and a native Sort select. ──────── #}
+  {# Not while the shop is opening soon: a Filters chip whose sheet is not on the page
+     opens nothing, and "All" and Sort act on a list that is empty by construction. #}
+  {% if not _soon %}
   <div class="sp-ptools" role="toolbar" aria-label="{{ 'Filter and sort'|trans }}">
     <a class="sp-chip sp-chip--filters" href="#spFilters" data-sp-filters-open aria-controls="spFilters">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>{{ 'Filters'|trans }}{% if _sheetCount > 0 %}<span class="sp-chip__n">{{ _sheetCount }}<span class="sp-sr"> {{ 'on'|trans }}</span></span>{% endif %}
@@ -119,6 +125,7 @@
       <noscript><button type="submit" class="sp-chip">{{ 'Sort'|trans }}</button></noscript>
     </form>
   </div>
+  {% endif %}
 
   <div class="sp-wrap">
     {# ── TABLET AND DESKTOP: masthead, search and the three promises ─────────────── #}
@@ -143,7 +150,7 @@
       <li><svg class="sp-promises__i sp-promises__i--gold" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"></path></svg><span><b>{{ 'Secure checkout'|trans }}</b> · {{ 'mobile money, card, bank transfer or USSD'|trans }}</span></li>
     </ul>
 
-    {% if found.total == 0 and not F.filtered %}
+    {% if _soon %}
       {# The shop has nothing on sale (DC shopState=soon). No email box: there is no
          "tell me when the shop opens" list in this codebase, and a field that stores
          nothing is a promise to nobody. #}

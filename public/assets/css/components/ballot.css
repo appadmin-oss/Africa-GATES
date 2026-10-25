@@ -165,3 +165,10 @@
 @media (min-width:1024px){
   .vn{ grid-template-columns:380px minmax(0,1fr); padding:40px 32px 64px }
 }
+
+/* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes
+   under forced colours, so it is redrawn in the system's selection colours (components.css). */
+@media (forced-colors:active){
+  .vb-tier:has(input:checked){ forced-color-adjust:none; background:Highlight; border-color:Highlight; color:HighlightText }
+  .vb-tier:has(input:checked) *{ color:HighlightText }
+}

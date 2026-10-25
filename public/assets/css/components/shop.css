@@ -68,7 +68,9 @@
 .sp-pintro__p b{ color:var(--ag-ink) }
 .sp-search{ position:relative; display:flex; align-items:center; gap:var(--ag-sp-10); height:52px; padding:0 var(--ag-sp-16);
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-mute) }
-.sp-search:focus-within{ border-color:var(--ag-ink) }
+/* The house ring (REFERENCE §13), not only a border that darkens: a 1px hue change is
+   hard to find at low vision and is erased entirely by Windows high-contrast mode. */
+.sp-search:focus-within{ border-color:var(--ag-ink); outline:3px solid var(--ag-green); outline-offset:2px }
 .sp-search input{ flex:1; min-width:0; height:100%; border:0; background:none; outline:0; color:var(--ag-ink) }
 .sp-search input::-webkit-search-cancel-button{ display:none }
 .sp-search__x{ display:inline-grid; place-items:center; width:32px; height:32px; color:var(--ag-ink) }
@@ -134,7 +136,7 @@
 .sp-rail__body{ flex:1; min-height:0; overflow-y:auto; padding:var(--ag-sp-4) var(--ag-sp-16) var(--ag-sp-16) }
 .sp-rail__foot{ display:flex; align-items:center; gap:var(--ag-sp-12); padding:var(--ag-sp-12) var(--ag-sp-16) calc(var(--ag-sp-12) + env(safe-area-inset-bottom));
   border-top:1px solid var(--ag-line) }
-.sp-rail__clearall{ color:var(--ag-ink); font-weight:600; text-decoration:underline; text-underline-offset:3px }
+.sp-rail__clearall{ display:inline-flex; align-items:center; min-height:44px; color:var(--ag-ink); font-weight:600; text-decoration:underline; text-underline-offset:3px }
 .sp-rail__show{ flex:1 }
 .sp-rail__apply{ margin:var(--ag-sp-12) var(--ag-sp-16) }
 
@@ -570,4 +572,16 @@
   .sp-rel__c:hover .sp-rel__n{ text-decoration:underline; text-underline-offset:3px }
   .sp-col:hover:not(.is-on){ box-shadow:0 0 0 1px var(--ag-line-2) }
   .sp-cartw:hover{ border-color:var(--ag-ink) }
+}
+
+/* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes
+   under forced colours, so it is redrawn in the system's selection colours (components.css). */
+@media (forced-colors:active){
+  /* A swatch IS its colour: keep it, or every colour option looks the same. */
+  .sp-swatch__d, .sp-col__d, .sp-dots__d{ forced-color-adjust:none }
+  .sp-swatch:has(input:checked), .sp-col.is-on{ forced-color-adjust:none; box-shadow:0 0 0 3px Highlight }
+  .sp-stock__track{ forced-color-adjust:none; background:Canvas; border:2px solid CanvasText }
+  .sp-stock__track span{ background:CanvasText; box-shadow:none }
+  .sp-stock input:checked + .sp-stock__track{ background:Highlight; border-color:Highlight }
+  .sp-stock input:checked + .sp-stock__track span{ background:HighlightText }
 }

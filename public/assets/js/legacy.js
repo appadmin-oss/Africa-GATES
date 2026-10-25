@@ -11,7 +11,17 @@
   'use strict';
   Array.prototype.forEach.call(document.querySelectorAll('[data-lv-form]'), function (f) {
     f.setAttribute('data-lv-js', '');
+    // The Apply button is clipped away once the form submits itself (legacy.css). Clipped is
+    // not gone: it stayed in the tab order as a 1px stop the keyboard landed on and nobody
+    // could see, and a screen reader announced a button that does nothing new.
+    Array.prototype.forEach.call(f.querySelectorAll('.lv-apply'), function (b) {
+      b.setAttribute('tabindex', '-1');
+      b.setAttribute('aria-hidden', 'true');
+    });
+    // Through the shared helper (a11y.js): keyboard-safe on a select, and focus comes back
+    // to the control after the reload its change causes.
     Array.prototype.forEach.call(f.querySelectorAll('[data-lv-auto]'), function (el) {
+      if (window.AGA11y && window.AGA11y.autoSubmit) { window.AGA11y.autoSubmit(el, f); return; }
       el.addEventListener('change', function () {
         if (typeof f.requestSubmit === 'function') f.requestSubmit(); else f.submit();
       });

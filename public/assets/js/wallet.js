@@ -216,7 +216,8 @@
     var go = find.querySelector('.wl-find__go');
     if (go) go.hidden = true;
     Array.prototype.forEach.call(find.querySelectorAll('select'), function (sel) {
-      sel.addEventListener('change', function () { if (find.requestSubmit) find.requestSubmit(); else find.submit(); });
+      if (window.AGA11y && window.AGA11y.autoSubmit) window.AGA11y.autoSubmit(sel, find);
+      else sel.addEventListener('change', function () { if (find.requestSubmit) find.requestSubmit(); else find.submit(); });
     });
   }
 

@@ -180,6 +180,10 @@
 .si__go[aria-disabled="true"]{ background:var(--ag-tint); color:var(--ag-mute); cursor:not-allowed }
 
 .si__fine{ margin:0; font-size:var(--ag-fs-13); line-height:1.55; color:var(--ag-soft) }
+/* A link inside the fine print is told apart from the sentence by an underline, not by
+   hue alone (WCAG 1.4.1) — the soft grey and the link colour are too close to carry it. */
+.si__fine a{ color:var(--ag-ink); text-decoration:underline; text-underline-offset:2px }
+.si__fine a:hover{ color:var(--ag-green-deep) }
 .si__alt{ margin:0; display:flex; flex-wrap:wrap; gap:4px 16px; font-size:var(--ag-fs-14-5) }
 .si__alt a,
 .si__link{
@@ -253,4 +257,10 @@
 
 @media (prefers-reduced-motion: reduce){
   .si__go:active{ transform:none }
+}
+
+/* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes
+   under forced colours, so it is redrawn in the system's selection colours (components.css). */
+@media (forced-colors:active){
+  .si__via-o[aria-checked="true"]{ forced-color-adjust:none; background:Highlight; color:HighlightText }
 }

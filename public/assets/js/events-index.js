@@ -116,6 +116,7 @@
 
   // ── Place submits its form ────────────────────────────────────────────────
   Array.prototype.forEach.call(document.querySelectorAll('[data-ei-autosubmit]'), function (s) {
+    if (window.AGA11y && window.AGA11y.autoSubmit) { window.AGA11y.autoSubmit(s, s.form); return; }
     s.addEventListener('change', function () {
       if (s.form && s.form.requestSubmit) s.form.requestSubmit(); else if (s.form) s.form.submit();
     });

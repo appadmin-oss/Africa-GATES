@@ -360,7 +360,7 @@ video.pl-post__media{ width:100% }
   display:flex; align-items:center; gap:10px; height:46px; margin:0; padding:0 16px;
   background:var(--ag-ground); border-radius:var(--ag-r-pill); color:var(--ag-soft);
 }
-.pl-search input{ flex:1; min-width:0; border:0; outline:0; background:transparent; font:inherit; font-size:var(--ag-fs-15); color:var(--ag-ink) }
+.pl-search input{ flex:1; min-width:0; align-self:stretch; border:0; outline:0; background:transparent; font:inherit; font-size:var(--ag-fs-15); color:var(--ag-ink) }
 .pl-search input::placeholder{ color:var(--ag-soft) }
 .pl-search:focus-within{ outline:3px solid var(--ag-green); outline-offset:2px }
 .pl-box{

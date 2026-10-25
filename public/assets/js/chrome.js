@@ -101,7 +101,8 @@
       var go = form.querySelector('.ag-dr__go');
       if (!sel) return;
       if (go) go.hidden = true;
-      sel.addEventListener('change', function () { form.submit(); });
+      if (window.AGA11y && window.AGA11y.autoSubmit) window.AGA11y.autoSubmit(sel, form);
+      else sel.addEventListener('change', function () { form.submit(); });
     });
   }
 

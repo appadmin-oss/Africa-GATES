@@ -609,3 +609,9 @@
   .ag-head__top:hover{ background:var(--ag-ground) }
   .ag-head__signin:hover{ background:var(--ag-tint); color:var(--ag-ink) }
 }
+
+/* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes
+   under forced colours, so it is redrawn in the system's selection colours (components.css). */
+@media (forced-colors:active){
+  .ag-pop__lang[aria-checked="true"]{ forced-color-adjust:none; background:Highlight; color:HighlightText }
+}

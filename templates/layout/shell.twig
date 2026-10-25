@@ -65,6 +65,8 @@
 <!doctype html>
 <html lang="{{ lang() }}" dir="{{ lang_dir() }}" class="ag-shelled"
       data-ag-easy-font="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&amp;display=swap"
+      data-ag-listen-listen="{{ 'Listen to this page'|trans }}" data-ag-listen-pause="{{ 'Pause'|trans }}"
+      data-ag-listen-resume="{{ 'Resume'|trans }}" data-ag-listen-stop="{{ 'Stop'|trans }}"
       data-ag-keep="{{ _consent and _consent.remember ? '1' : '0' }}"
       {% if _member_sync %}data-ag-sync="{{ _member_sync }}"{% endif %}>
 <head>

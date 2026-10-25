@@ -11,6 +11,7 @@
     var sel = f.querySelector('[data-lb-submit]');
     if (!sel) return;
     f.setAttribute('data-js', '');
+    if (window.AGA11y && window.AGA11y.autoSubmit) { window.AGA11y.autoSubmit(sel, f); return; }
     sel.addEventListener('change', function () {
       if (typeof f.requestSubmit === 'function') f.requestSubmit(); else f.submit();
     });

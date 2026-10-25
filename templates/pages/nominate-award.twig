@@ -141,7 +141,7 @@
   <input type="hidden" name="_token" value="{{ csrf_token }}">
   <input type="hidden" name="programme_id" value="{{ programme.id }}">
 
-  <div class="nf__bars" aria-hidden="true">{% for s in _steps %}<span class="nf__bar" data-nf-bar="{{ loop.index }}"></span>{% endfor %}</div>
+  <div class="nf__bars" aria-hidden="true">{% for s in _steps %}<span class="nf__bar" data-nf-bar="{{ loop.index }}" title="{{ 'Step %n% of 5'|trans({'%n%': loop.index}) }}"></span>{% endfor %}</div>
 
   <div class="nf__grid">
     {# ── The rail: the five steps, each with what was chosen (desktop and tablet) ── #}

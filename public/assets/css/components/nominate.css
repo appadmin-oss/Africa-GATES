@@ -416,3 +416,14 @@
 @media (hover:hover){
   .nh-rows__i:hover{ background:var(--ag-ground); color:var(--ag-ink) }
 }
+
+/* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes
+   under forced colours, so it is redrawn in the system's selection colours (components.css). */
+@media (forced-colors:active){
+  .nf-seg{ border:1px solid CanvasText }
+  .nf-seg__o > input:checked + span{ forced-color-adjust:none; background:Highlight; color:HighlightText }
+  .nf-anon__sw{ forced-color-adjust:none; background:Canvas; border:2px solid CanvasText; padding:1px }
+  .nf-anon__sw::after{ background:CanvasText }
+  .nf-anon__in:checked ~ .nf-anon__sw{ background:Highlight; border-color:Highlight }
+  .nf-anon__in:checked ~ .nf-anon__sw::after{ background:HighlightText }
+}

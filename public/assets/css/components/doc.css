@@ -346,3 +346,12 @@
 @media (prefers-reduced-motion:reduce){
   .dp-progress__fill, .dp-switch__track{ transition:none }
 }
+
+/* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes
+   under forced colours, so it is redrawn in the system's selection colours (components.css). */
+@media (forced-colors:active){
+  .dp-switch__track{ forced-color-adjust:none; background:Canvas; border:2px solid CanvasText; padding:1px }
+  .dp-switch__thumb{ background:CanvasText }
+  .dp-switch__input:checked + .dp-switch__track{ background:Highlight; border-color:Highlight }
+  .dp-switch__input:checked + .dp-switch__track .dp-switch__thumb{ background:HighlightText }
+}

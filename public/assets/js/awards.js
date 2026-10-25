@@ -47,7 +47,8 @@
       var go = f.querySelector('[data-aw-nojs]');
       if (go) go.hidden = true;
       var sel = f.querySelector('select');
-      if (sel) sel.addEventListener('change', function () { f.submit(); });
+      if (sel && window.AGA11y && window.AGA11y.autoSubmit) window.AGA11y.autoSubmit(sel, f);
+      else if (sel) sel.addEventListener('change', function () { f.submit(); });
     });
   }
 

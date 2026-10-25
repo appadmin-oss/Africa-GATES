@@ -323,3 +323,11 @@
   .gv-sbtn:hover{ border-color:var(--ag-ink); color:var(--ag-ink) }
   .gv-btn--line:hover{ background:var(--ag-tint); color:var(--ag-ink) }
 }
+
+/* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes
+   under forced colours, so it is redrawn in the system's selection colours (components.css). */
+@media (forced-colors:active){
+  .gv-seg{ border:1px solid CanvasText }
+  .gv-seg__o input:checked + span,
+  .gv-amt input:checked + span{ forced-color-adjust:none; background:Highlight; color:HighlightText }
+}

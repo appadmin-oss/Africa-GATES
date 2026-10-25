@@ -559,3 +559,20 @@ button.ag-list__row{ width:100%; cursor:pointer }
   80% { transform:scale(.98) }
   100%{ transform:scale(1) }
 }
+
+/* ══ Windows high contrast (forced colours) ════════════════════════════════════
+   Forced colours replaces every background, border colour and box-shadow with the
+   reader's own system palette, so a selected state drawn ONLY as a fill, a border tint or
+   a shadow vanishes — every option reads as unselected. These states are redrawn in the
+   system's own selection colours (Highlight / HighlightText), which follow whatever theme
+   the reader chose, and a switch's thumb is drawn in CanvasText so its position shows. */
+@media (forced-colors:active){
+  .ag-switch{ forced-color-adjust:none; background:Canvas; border:2px solid CanvasText; padding:1px }
+  .ag-switch::after{ background:CanvasText }
+  :is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch),
+  .ag-doc :is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch){ background:Highlight; border-color:Highlight }
+  :is(.ag-switch[aria-checked="true"], [role="switch"][aria-checked="true"] > .ag-switch)::after{ background:HighlightText }
+  .ag-switch:is([disabled],[aria-disabled="true"]){ border-color:GrayText }
+  .ag-seg{ border:1px solid CanvasText }
+  .ag-seg__opt[aria-checked="true"]{ forced-color-adjust:none; background:Highlight; color:HighlightText }
+}

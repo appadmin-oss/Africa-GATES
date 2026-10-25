@@ -47,6 +47,7 @@
   function progress() {
     var p = blocks.length ? Math.round(i / blocks.length * 100) : 0;
     if (bar) bar.style.width = p + '%';
+    if (bar && bar.parentNode && bar.parentNode.hasAttribute('data-pp-meter')) bar.parentNode.setAttribute('aria-valuenow', String(p));
     if (pct) pct.textContent = p + '%';
   }
   function speak() {

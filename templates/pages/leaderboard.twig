@@ -46,7 +46,7 @@
     </div>
     <a class="lb-how" href="/integrity">
       <span class="lb-how__t"><b>{{ 'How the index works'|trans }}</b><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>
-      <span class="lb-how__bar" aria-hidden="true"><span style="--w:{{ lb.weights.community }}%"></span><span style="--w:{{ lb.weights.judge }}%"></span></span>
+      <span class="lb-how__bar" aria-hidden="true"><span style="--w:{{ lb.weights.community }}%" title="{{ lb.weights.community }}% {{ 'verified community votes'|trans }}"></span><span style="--w:{{ lb.weights.judge }}%" title="{{ lb.weights.judge }}% {{ 'judge panel'|trans }}"></span></span>
       <span class="lb-how__key"><span><b>{{ lb.weights.community }}%</b> {{ 'verified community votes'|trans }}</span><span><b>{{ lb.weights.judge }}%</b> {{ 'judge panel'|trans }}</span></span>
       <span class="lb-how__note">{{ 'Judges score after voting closes, without seeing the tally.'|trans }}</span>
     </a>
@@ -130,7 +130,7 @@
                     <span class="lb-row__cat">{{ r.cat }}</span>
                     <span class="lb-row__split">
                       {% if r.split %}
-                        <span class="lb-split" aria-hidden="true"><span style="--w:{{ r.split.cw }}%"></span><span style="--w:{{ r.split.jw }}%"></span></span>{{ r.split.community }} · {{ r.split.judge }}
+                        <span class="lb-split" aria-hidden="true"><span style="--w:{{ r.split.cw }}%" title="{{ 'Community'|trans }} {{ r.split.community }}"></span><span style="--w:{{ r.split.jw }}%" title="{{ 'Judges'|trans }} {{ r.split.judge }}"></span></span>{{ r.split.community }} · {{ r.split.judge }}
                       {% elseif r.basis == 'pending' %}{{ 'Awaiting the panel'|trans }}
                       {% elseif r.basis == 'baseline' %}{{ 'Profile strength'|trans }}
                       {% else %}{{ 'Judged'|trans }}{% endif %}

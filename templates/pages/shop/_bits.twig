@@ -182,13 +182,13 @@
       <div class="sp-cart__foot">
         <div class="sp-free" data-sp-free-row hidden>
           <span class="sp-free__t" data-sp-free-text></span>
-          <span class="sp-free__bar" aria-hidden="true"><span data-sp-free-bar></span></span>
+          <span class="sp-free__bar" role="progressbar" aria-label="{{ 'Towards free delivery'|trans }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-sp-free-meter><span data-sp-free-bar></span></span>
         </div>
         <span class="sp-cart__tot"><span>{{ 'Total'|trans }}</span><b data-sp-total></b></span>
         <span class="sp-cart__ngn" data-sp-ngn hidden></span>
         <span class="sp-cart__give">{{ 'Every order funds child leadership programmes.'|trans }}</span>
         <button type="button" class="sp-btn sp-btn--go" data-sp-next>{{ 'Checkout'|trans }}</button>
-        <button type="submit" class="sp-btn sp-btn--go" data-sp-pay hidden{{ ctx.providers is empty ? ' disabled' }}></button>
+        <button type="submit" class="sp-btn sp-btn--go" data-sp-pay hidden{{ ctx.providers is empty ? ' disabled' }}>{{ 'Pay'|trans }}</button>
         <button type="button" class="sp-back" data-sp-back hidden>{{ 'Back to your cart'|trans }}</button>
       </div>
     </form>
