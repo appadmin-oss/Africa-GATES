@@ -272,7 +272,8 @@ final class UserAccountService
         // A changed NAME is recorded: the bank's account name is checked against it before a
         // withdrawal is sent without a person, so editing it to match a stranger's account is
         // a takeover signal like new bank details (WalletRisk::takeover()).
-        $was = (string) (DB::table('gates_users')->where('id', $userId)->value('name') ?? '');
+        $before = DB::table('gates_users')->where('id', $userId)->first();
+        $was = (string) ($before->name ?? '');
         if (trim($was) !== trim($row['name'])) {
             $row += \AfricaGates\Support\OptionalColumn::filter('gates_users',
                 ['name_changed_at' => Carbon::now()->toDateTimeString()], ['name_changed_at']);
@@ -283,6 +284,9 @@ final class UserAccountService
             ['phone_e164' => $phone !== '' ? \AfricaGates\Support\Phone::normalize($phone, 'NG') : null], ['phone_e164']);
         DB::table('gates_users')->where('id', $userId)->update($row);
         if ((int) ($_SESSION['user_id'] ?? 0) === $userId) $_SESSION['user_name'] = $name;
+        // A changed name or phone is told to the member, the text going to the number on
+        // file BEFORE this change (AccountChangeNotice explains why).
+        if ($before) AccountChangeNotice::profile($userId, $before, $row['name'], $phone);
         return ['ok' => true];
     }
 

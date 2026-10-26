@@ -515,9 +515,17 @@ final class ProviderProbe
      * @param  string      $userpwd basic-auth pair, or '' for none
      * @return array{0:int, 1:string} status (0 on a transport failure) and the body
      */
+    /**
+     * How many requests http() has made in this process. What a test asks to know that an
+     * unset provider was answered without going near the network: elapsed time stood in for
+     * that, and it is not evidence — the settings read alone takes a millisecond on MySQL.
+     */
+    public static int $requests = 0;
+
     private static function http(string $method, string $url, array $headers,
                                  ?string $body = null, string $userpwd = ''): array
     {
+        self::$requests++;
         $ch = curl_init();
         $opts = [
             CURLOPT_URL            => $url,

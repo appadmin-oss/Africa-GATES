@@ -92,7 +92,9 @@ final class AiJsonTest extends TestCase
         ]);
         DB::table('gates_jobs')->delete();
         $this->assertSame(1, Triage::backfill(50));
-        $job = (string) DB::table('gates_jobs')->where('type', Triage::JOB_TRIAGE)->value('payload');
-        $this->assertStringContainsString('"nomination_id":' . $retry, $job);
+        // Decoded, never matched as text: MySQL's JSON column stores `{"nomination_id": 2}`
+        // with a space, so a byte comparison held only on SQLite.
+        $job = (array) json_decode((string) DB::table('gates_jobs')->where('type', Triage::JOB_TRIAGE)->value('payload'), true);
+        $this->assertSame($retry, (int) ($job['nomination_id'] ?? 0));
     }
 }

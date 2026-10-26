@@ -325,13 +325,30 @@ final class NomineeVotingNoticeTest extends TestCase
         $v['category'] = str_repeat('Outstanding Contribution to Rural Education ', 4);
         $v['award']    = str_repeat('Continental Teachers Award ', 3) . '11th Edition';
 
+        // Every step drawn (free AND paid voting), and the longest signatory the form takes.
+        DB::table('gates_settings')->insert(['key_name' => 'paid_voting_enabled', 'value' => '1']);
+        $v['steps'] = NomineeVotingNotice::steps();
+        $v['signatory'] = str_repeat('N', 80);
+        $v['signatory_title'] = str_repeat('Secretary, Awards Committee ', 3);
+
         foreach (['A4', 'letter'] as $paper) {
+            // The column's real bottom against the footer: a page count cannot fail here,
+            // because render() only ever draws one page and an overrun lands on it.
+            $m = NomineeVotingLetter::measure($v, $paper);
+            $this->assertLessThanOrEqual($m['limit'], $m['bottom'],
+                sprintf('the letter runs %.1fmm into the footer on %s', $m['bottom'] - $m['limit'], $paper));
             $pdf = NomineeVotingLetter::render($v, $paper);
             $this->assertSame(1, self::pages($pdf), "the letter ran past one page on $paper");
             [$w, $h] = NomineeVotingLetter::PAPER[$paper];
             $this->assertStringContainsString(sprintf('/MediaBox [0 0 %.2F %.2F]', $w * 72 / 25.4, $h * 72 / 25.4), $pdf,
                 "the page is not $paper");
         }
+        // And the measure can fail: a story-length name does not fit, and it says so.
+        $over = $v;
+        $over['name'] = str_repeat('A very long name indeed ', 60);
+        $m = NomineeVotingLetter::measure($over, 'letter');
+        $this->assertGreaterThan($m['limit'], $m['bottom'], 'the check never fires, so it is checking nothing');
+
         $this->assertSame('letter', NomineeVotingLetter::paperFor('US'));
         $this->assertSame('A4', NomineeVotingLetter::paperFor('NG'));
         $this->assertSame('A4', NomineeVotingLetter::paperFor(''));

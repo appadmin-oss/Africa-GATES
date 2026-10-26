@@ -84,13 +84,49 @@ final class NomineeVotingLetter
         $pdf->addPage();
 
         // Measured first, then drawn with whatever spacing fits: the same layout, run twice.
-        $limit = $ph - self::FOOT - self::footHeight() - 4.0;
-        $k = 1.0;
-        while ($k > 0.4 && self::layout($pdf, $v, $pw, $k, false) > $limit) $k -= 0.05;
-        self::layout($pdf, $v, $pw, $k, true);
+        $m = self::fit($pdf, $v, $pw, $ph);
+        if ($m['bottom'] > $m['limit']) {
+            // Drawn anyway (a letter that arrives beats none), but never silently: the
+            // close would run over the pinned footer.
+            error_log(sprintf('[voting-letter] %s overruns the footer on %s by %.1fmm',
+                (string) ($v['reference'] ?? '?'), $paper, $m['bottom'] - $m['limit']));
+        }
+        self::layout($pdf, $v, $pw, $m['k'], true);
         self::foot($pdf, $v, $pw, $ph);
 
         return $pdf->output();
+    }
+
+    /**
+     * Where the column would end on this paper, and where it must end.
+     *
+     * The one-page guarantee, as something a test can ask. render() only ever adds one page,
+     * so counting pages proves nothing: a column that overruns draws over the pinned footer
+     * on page one. This is the measure render() itself uses.
+     *
+     * @param array<string,mixed> $v
+     * @return array{bottom:float, limit:float, k:float}
+     */
+    public static function measure(array $v, string $paper = 'A4'): array
+    {
+        [$pw, $ph] = self::PAPER[$paper] ?? self::PAPER['A4'];
+        $pdf = self::pdf($pw, $ph);
+        $pdf->addPage();
+
+        return self::fit($pdf, $v, $pw, $ph);
+    }
+
+    /** @return array{bottom:float, limit:float, k:float} */
+    private static function fit(Pdf $pdf, array $v, float $pw, float $ph): array
+    {
+        $limit  = $ph - self::FOOT - self::footHeight() - 4.0;
+        $k      = 1.0;
+        $bottom = self::layout($pdf, $v, $pw, $k, false);
+        while ($k > 0.4 && $bottom > $limit) {
+            $k -= 0.05;
+            $bottom = self::layout($pdf, $v, $pw, $k, false);
+        }
+        return ['bottom' => $bottom, 'limit' => $limit, 'k' => $k];
     }
 
     /**

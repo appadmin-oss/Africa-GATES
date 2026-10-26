@@ -295,6 +295,59 @@ class NominationsDeskTest extends TestCase
         $this->assertSame(1, (int) DB::table('gates_nominees')->where('category_id', 1)->count());
     }
 
+    private function decide(string $action, array $body = [], ?\AfricaGates\Services\AwardService $awards = null): Response
+    {
+        return (new NominationsController($this->twig, new AuditService(), null, $awards))->action(
+            (new ServerRequestFactory())->createServerRequest('POST', 'https://x/admin/nominations/10/' . $action)
+                ->withHeader('X-Requested-With', 'fetch')
+                ->withParsedBody($body + ['category_id' => 1, 'desk' => '1']),
+            new Response(), ['id' => 10, 'action' => $action]);
+    }
+
+    /**
+     * One decision per nomination. Several reviewers work the list at once; a second
+     * Approve used to approve again (a second email, a second form link), and Reject
+     * could reject an approved nomination whose nominee stayed on the ballot.
+     */
+    public function test_a_nomination_is_decided_once(): void
+    {
+        $this->assertTrue($this->json($this->decide('approve'))['ok']);
+
+        $again = $this->decide('approve');
+        $this->assertSame(409, $again->getStatusCode());
+        $this->assertStringContainsString('already approved', $this->json($again)['error']);
+        $this->assertSame(1, (int) DB::table('gates_nominees')->where('category_id', 1)->count(), 'no second nominee');
+
+        $reject = $this->decide('reject', ['decision_reason' => 'Changed my mind']);
+        $this->assertSame(409, $reject->getStatusCode());
+        $this->assertSame('approved', DB::table('gates_nominations')->where('id', 10)->value('status'),
+            'an approved nominee is withdrawn, not rejected out from under the ballot');
+    }
+
+    /**
+     * The race itself: another reviewer decides between this request reading the row and
+     * writing it. Simulated by an eligibility check (which runs in that gap) that rejects
+     * the nomination as the other reviewer would. The approval must change nothing.
+     */
+    public function test_the_second_of_two_simultaneous_decisions_changes_nothing(): void
+    {
+        $other = new class extends \AfricaGates\Services\AwardService {
+            public function __construct() {}
+            public function nomineeEligibility(string $nomineeName, int $cycleId): array
+            {
+                DB::table('gates_nominations')->where('id', 10)->update(['status' => 'rejected']);
+                return ['enabled' => false, 'eligible' => true, 'distinct_locations' => 0, 'min' => 0];
+            }
+        };
+        \Illuminate\Database\Capsule\Manager::connection()->listen(static function ($q) { if (!preg_match('~^\s*(select|insert|update|delete)~i', $q->sql)) fwrite(STDERR, "SQL> " . $q->sql . "\n"); });
+        $res = $this->decide('approve', [], $other);
+
+        $this->assertSame(409, $res->getStatusCode());
+        $this->assertStringContainsString('Somebody else decided', $this->json($res)['error']);
+        $this->assertSame('rejected', DB::table('gates_nominations')->where('id', 10)->value('status'));
+        $this->assertSame(0, (int) DB::table('gates_nominees')->where('category_id', 1)->count(), 'the approval rolled back whole');
+    }
+
     public function test_approve_over_fetch_without_category_returns_422(): void
     {
         $req = (new ServerRequestFactory())

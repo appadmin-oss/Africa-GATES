@@ -184,6 +184,38 @@ class CheckoutMailerTest extends TestCase
         $this->assertStringNotContainsString('votes are in', strtolower($m['subject']));
     }
 
+    /**
+     * Every way out of the "votes not added" email must open for somebody with NO account,
+     * because that is who a paid-vote buyer usually is. Its ticket link pointed at
+     * /support/tickets, which sends a guest to a sign-in page: the route to their money back
+     * began with an account they never made. Asked of the real router, signed out, for
+     * every link on this site in the message.
+     */
+    public function test_every_link_in_the_votes_not_added_email_opens_without_an_account(): void
+    {
+        $id = $this->order(['votes_used' => 0]);
+        CheckoutMailer::receipt($id);
+        $html = $this->mail->sent[0]['html'];
+
+        preg_match_all('~href="(https?://[^"]+)"~', $html, $m);
+        $base  = rtrim(\AfricaGates\Support\SiteUrl::base(), '/');
+        $paths = [];
+        foreach (array_unique($m[1]) as $url) {
+            $url = html_entity_decode($url);
+            if (!str_starts_with($url, $base)) continue;   // other hosts: not ours to route
+            $paths[] = (string) (parse_url($url, PHP_URL_PATH) ?: '/');
+        }
+        $this->assertNotEmpty($paths, 'the email links somewhere on this site');
+
+        unset($_SESSION['user_id']);
+        foreach (array_unique($paths) as $path) {
+            $res = \Tests\Support\TestApp::build()->handle(
+                (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', 'https://example.test' . $path));
+            $this->assertStringNotContainsString('/account/login', $res->getHeaderLine('Location'),
+                $path . ' sends a buyer with no account to a sign-in page');
+        }
+    }
+
     public function test_a_confirmed_and_minted_order_never_mentions_a_refund(): void
     {
         CheckoutMailer::receipt($this->order());

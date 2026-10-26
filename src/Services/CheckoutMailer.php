@@ -433,7 +433,9 @@ final class CheckoutMailer
                 // Whether the refund is coming on its own — the same switch the sweep reads.
                 'auto_refund'   => RefundService::autoEnabled() && RefundService::ready(),
                 'assistant_url' => $base . '/support/assistant',
-                'ticket_url'    => $base . '/support/tickets',
+                // /support, not /support/tickets: that page needs an account, and a paid-vote
+                // buyer usually has none — the fallback must not start with a sign-in wall.
+                'ticket_url'    => $base . '/support',
             ],
         ];
     }

@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS gates_merge_log (
   tbl VARCHAR(64) NOT NULL,
   row_pk BIGINT UNSIGNED DEFAULT NULL,
   col VARCHAR(64) DEFAULT NULL,
-  old_val VARCHAR(64) DEFAULT NULL,
+  old_val TEXT DEFAULT NULL,
   snapshot TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_merge_log_merged(merged_id), KEY idx_merge_log_batch(batch)
@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS gates_profile_merge_log (
   tbl VARCHAR(64) NOT NULL,
   row_pk BIGINT UNSIGNED DEFAULT NULL,
   col VARCHAR(64) DEFAULT NULL,
-  old_val VARCHAR(64) DEFAULT NULL,
+  old_val TEXT DEFAULT NULL,
   snapshot TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_pmerge_log_merged(merged_id), KEY idx_pmerge_log_batch(batch)

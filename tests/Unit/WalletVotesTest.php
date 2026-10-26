@@ -146,6 +146,32 @@ final class WalletVotesTest extends TestCase
         $this->assertSame(100000, Ret::wallet(1)['available_kobo']);
     }
 
+    /**
+     * Money a withdrawal would be HELD over must not leave as public votes instead: a stolen
+     * card's contribution accrues a return, the votes it bought are fraud-flagged or the
+     * cardholder asks for a refund, and spending the return on votes would turn the doubt
+     * into a tally nobody can claw back. Same answer as WalletRisk's, by the same function.
+     */
+    public function test_money_in_doubt_cannot_pay_for_votes(): void
+    {
+        $donation = (int) DB::table('gates_donations')->where('payment_ref', 'PV1')->value('id');
+
+        DB::table('gates_votes')->insert(['nominee_id' => 1, 'category_id' => 1, 'voter_email_hash' => 'paidvote:x:1',
+            'vote_type' => 'paid', 'weight' => 10, 'donation_id' => $donation, 'fraud_flag' => 1]);
+        $r = WalletVotes::buy(7, 'page-1', 2, 1);
+        $this->assertFalse($r['ok'], 'fraud-flagged money behind the return');
+        $this->assertStringContainsString('being checked', $r['message']);
+        $this->assertSame(0, (int) DB::table('gates_nominees')->where('id', 2)->value('vote_count'));
+        $this->assertSame(100000, Ret::wallet(1)['available_kobo'], 'nothing was taken');
+
+        DB::table('gates_votes')->where('donation_id', $donation)->update(['fraud_flag' => 0]);
+        DB::table('gates_donations')->where('id', $donation)->update(['refund_requested_at' => Carbon::now()->toDateTimeString()]);
+        $this->assertFalse(WalletVotes::buy(7, 'page-1', 2, 1)['ok'], 'a refund requested on money behind the return');
+
+        DB::table('gates_donations')->where('id', $donation)->update(['refund_requested_at' => null]);
+        $this->assertTrue(WalletVotes::buy(7, 'page-1', 2, 1)['ok'], 'and once nothing is in doubt, it pays');
+    }
+
     public function test_a_wallet_voter_is_one_person_however_many_times_they_spend(): void
     {
         $this->assertTrue(WalletVotes::buy(7, 'page-1', 2, 1)['ok']);

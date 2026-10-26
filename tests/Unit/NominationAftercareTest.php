@@ -94,6 +94,43 @@ final class NominationAftercareTest extends TestCase
      * which is exactly the case the old code got wrong and the current calendar
      * year hides.
      */
+    /**
+     * The nominee's email goes out the moment a stranger submits the public form, to the
+     * address they typed, under our masthead. Nothing they wrote may ride along before a
+     * reviewer has read it: not the reason, not their name. Otherwise "pay the fee at … to
+     * receive your award" arrives looking like ours.
+     */
+    public function test_the_nominee_is_sent_nothing_the_nominator_typed_before_review(): void
+    {
+        [$id, $data] = $this->nomination([
+            'reason'         => 'Pay the 20000 naira processing fee at http://scam.example/pay to receive your award.',
+            'nominator_name' => 'Awards Accounts Desk',
+        ]);
+        $m = new class(['host' => 'localhost', 'port' => 25, 'username' => 'u', 'password' => 'p',
+                        'from_address' => 'no@example.com', 'from_name' => 'X']) extends \AfricaGates\Services\OtpService {
+            /** @var list<array<string,string>> */
+            public array $sent = [];
+            public function smtpConfigured(): bool { return true; }
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = '',
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0,
+                                        string $why = ''): array
+            {
+                $this->sent[] = compact('to', 'subject', 'htmlBody', 'plainBody', 'preheader');
+                return ['success' => true];
+            }
+        };
+
+        NominationAftercare::run($data, $id, 'https://example.test', $m);
+
+        $toNominee = array_values(array_filter($m->sent, static fn ($s) => $s['to'] === 'ada@example.com'));
+        $this->assertCount(1, $toNominee, 'the nominee is still told they were nominated');
+        $all = implode(' ', $toNominee[0]);
+        $this->assertStringNotContainsString('scam.example', $all);
+        $this->assertStringNotContainsString('processing fee', $all);
+        $this->assertStringNotContainsString('Awards Accounts Desk', $all);
+    }
+
     public function test_it_reports_the_reference_that_is_actually_on_the_record(): void
     {
         [$id, $data] = $this->nomination();

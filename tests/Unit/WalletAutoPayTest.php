@@ -232,8 +232,13 @@ final class WalletAutoPayTest extends TestCase
     public function test_fraud_flagged_money_behind_the_balance_is_held(): void
     {
         $this->returnAvailable();
+        // The donation's REAL id, never a literal 1: MySQL does not rewind the counter
+        // between tests, so on the parity run the return's donation is not row 1 and a
+        // flag on row 1 flagged nothing (the test then failed on the only database that
+        // matters, while passing on SQLite).
+        $donation = (int) DB::table('gates_donations')->where('payment_ref', 'PV1')->value('id');
         DB::table('gates_votes')->insert(['nominee_id' => 1, 'category_id' => 1, 'voter_email_hash' => 'paidvote:1:x',
-            'vote_type' => 'paid', 'weight' => 10, 'donation_id' => 1, 'fraud_flag' => 1]);
+            'vote_type' => 'paid', 'weight' => 10, 'donation_id' => $donation, 'fraud_flag' => 1]);
         $this->withdraw();
         $this->assertContains('valid', $this->codes());
         $this->assertSame([], $this->gw->transfers);

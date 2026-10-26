@@ -197,6 +197,29 @@ final class DuplicatesPeopleTest extends TestCase
         $this->assertSame('Ada Obi', DB::table('gates_nominees')->where('id', $a)->value('name'), 'undo left the borrowed name');
     }
 
+    /**
+     * The journal keeps the value a merge overwrote, so it must hold a whole STORY, not 64
+     * characters of one: on MySQL `old_val` was VARCHAR(64), so taking the other entry's
+     * story either refused the merge (strict mode) or cut the original and wrote the cut
+     * text back on undo. Only the parity run can see the width; on SQLite this holds the
+     * round trip. 2027_04_02_merge_log_wide_values.php.
+     */
+    public function test_taking_a_long_story_merges_and_an_undo_restores_every_character(): void
+    {
+        $mine   = str_repeat('Forty years teaching mathematics in Ọ̀yọ́ and Kano. ', 12);
+        $theirs = str_repeat('A different account of the same life. ', 10);
+        $a = $this->nominee($this->catA, 'Ada Obi', ['story' => $mine]);
+        $b = $this->nominee($this->catA, 'Adaeze Obi', ['story' => $theirs]);
+
+        $r = MergeService::mergeNominees($a, [$b], null, false, ['story' => $b]);
+        $this->assertTrue($r['ok'], $r['error'] ?? '');
+        $this->assertSame($theirs, DB::table('gates_nominees')->where('id', $a)->value('story'));
+
+        $this->assertTrue(MergeService::unmerge($b)['ok']);
+        $this->assertSame($mine, DB::table('gates_nominees')->where('id', $a)->value('story'),
+            'the undo must restore the whole original story, not the first 64 characters');
+    }
+
     public function test_a_merged_entrys_public_link_goes_to_the_survivor(): void
     {
         $a = $this->nominee($this->catA, 'Ada Obi');

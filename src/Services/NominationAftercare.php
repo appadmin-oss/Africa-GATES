@@ -339,17 +339,21 @@ final class NominationAftercare
         }
 
         if ($nomEmail !== '' && filter_var($nomEmail, FILTER_VALIDATE_EMAIL)) {
-            $relation = \AfricaGates\Services\NominationRules::relation($data['nominator_relation'] ?? null);
-            $label    = $relation !== null && $relation !== 'other'
-                ? (\AfricaGates\Services\NominationRules::RELATIONS[$relation] ?? '') : '';
-            $reason   = trim(preg_replace('/\s+/u', ' ', \AfricaGates\Services\NominationRules::reasonText($data, $catTitles)) ?? '');
+            // ── NOTHING THE NOMINATOR TYPED, UNTIL A PERSON HAS READ IT ──────────
+            //
+            // This goes out the moment the public form is submitted, to whatever address the
+            // nominator typed, under the Africa GATES masthead and signature. Quoting their
+            // reason (or naming them) here relays a stranger's text through our brand before
+            // anyone has looked at it: "pay the ₦20,000 processing fee at … to receive your
+            // award" would arrive looking like ours, which is exactly the forgery the voting
+            // letter tells nominees to report. Nothing they wrote is sent to the nominee
+            // from here; NominationAftercareTest holds that.
             try {
                 \AfricaGates\Services\Mail\Emails::send($mailer, $nomEmail, 'nominated', [
                     'programme'  => $progOnly,
                     'first_name' => $nomFirst,
-                    'quote'      => mb_strlen($reason) > 220 ? rtrim(mb_substr($reason, 0, 217)) . '…' : $reason,
-                    'quote_by'   => !empty($data['nominator_private']) || $byName === ''
-                        ? '' : $byName . ($label !== '' ? ', ' . mb_strtolower($label) : ''),
+                    'quote'      => '',
+                    'quote_by'   => '',
                     'confirm_url' => '',
                     'watch_url'  => $watchUrl,
                     'help_url'   => $base . '/support',

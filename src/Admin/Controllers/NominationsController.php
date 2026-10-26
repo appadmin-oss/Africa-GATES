@@ -134,6 +134,27 @@ class NominationsController
             $action = $choice;
         }
 
+        // ── ONE DECISION PER NOMINATION ──────────────────────────────────────────
+        //
+        // The review list and the desk are built for several reviewers at once, and
+        // presence only informs. Without this, two reviewers pressing Approve on the same
+        // nomination both approved it — two "approved" emails to the nominator, a second
+        // single-use form link to the nominee — and Reject could reject a nomination that
+        // was already approved while its nominee stayed on the ballot. So a decision that
+        // is already the nomination's status is refused, reject never undoes an approval
+        // (that is a withdrawal, a different act), and the write below is CONDITIONAL on
+        // the status the reviewer saw, so the second of two simultaneous presses changes
+        // nothing and is told so. Bulk approve already refused anything not pending.
+        $seen = (string) $nom->status;
+        $target = ['approve' => 'approved', 'merge' => 'approved', 'reject' => 'rejected', 'pending' => 'pending'][$action] ?? null;
+        if ($target !== null && $seen === $target) {
+            return $fail('This nomination is already ' . $target . '. Somebody may have decided it a moment ago.', 409);
+        }
+        if ($action === 'reject' && $seen === 'approved') {
+            return $fail('This nomination is approved and its nominee is on the ballot. Rejecting it now would not take them off; withdraw the nominee instead.', 409);
+        }
+        $taken = static fn (): \RuntimeException => new \RuntimeException('nomination.decided-elsewhere');
+
         // The desk's optional team note travels with whichever decision it was written
         // beside, and is kept only once that decision has landed.
         $teamNote = trim((string) (((array) $req->getParsedBody())['team_note'] ?? ''));
@@ -189,12 +210,17 @@ class NominationsController
                 // approve or reject regardless. This is the failure the admin console's
                 // migration banner names out loud: "approving/rejecting nominations …
                 // are failing with errors while pages still load".
-                DB::table('gates_nominations')->where('id', $id)->update(
+                $changed = DB::table('gates_nominations')->where('id', $id)->where('status', $seen)->update(
                     OptionalColumn::filter('gates_nominations', [
                         'status'          => $status,
                         'decision_reason' => $reason !== '' ? $reason : null,
                     ], ['decision_reason'])
                 );
+                // Zero rows: the status moved since this request read it — another
+                // reviewer decided first.
+                if ($changed === 0) {
+                    return $fail('Somebody else decided this nomination a moment ago. Nothing was changed and nobody was emailed.', 409);
+                }
                 // Whether the AI's lean matched the human's call. Without this
                 // there is no way to tell if the triage score is helping the
                 // reviewer or merely decorating the page.
@@ -293,8 +319,8 @@ class NominationsController
         // actionable flash, never a raw 500 with a half-approved nomination.
         $nomineeId = 0;
         try {
-            DB::transaction(function () use ($id, $catId, $approveReason, $nom, $mergeInto, &$nomineeId) {
-                DB::table('gates_nominations')->where('id', $id)->update(
+            DB::transaction(function () use ($id, $catId, $approveReason, $nom, $mergeInto, $seen, $taken, &$nomineeId) {
+                $changed = DB::table('gates_nominations')->where('id', $id)->where('status', $seen)->update(
                     // Same rule as the reject path: the approval must land even when the
                     // feedback column does not exist yet. `status` and `category_id` are
                     // the approval; `decision_reason` is a note about it.
@@ -304,6 +330,9 @@ class NominationsController
                         'decision_reason' => $approveReason !== '' ? $approveReason : null,
                     ], ['decision_reason'])
                 );
+                // The status moved since this request read it: another reviewer decided
+                // first. Thrown so the whole approval (nominee row included) rolls back.
+                if ($changed === 0) throw $taken();
 
                 // Auto-attach on approval: if a nominee for this person already
                 // exists in the category, link to it instead of minting a duplicate
@@ -379,6 +408,9 @@ class NominationsController
                 }
             });
         } catch (\Throwable $e) {
+            if ($e->getMessage() === 'nomination.decided-elsewhere') {
+                return $fail('Somebody else decided this nomination a moment ago. Nothing was changed and nobody was emailed.', 409);
+            }
             if ($mergeInto !== null && str_starts_with($e->getMessage(), 'merge:')) {
                 return $fail('The earlier entry is not on the ballot any more, so nothing was merged. Approve or reject this one instead.');
             }

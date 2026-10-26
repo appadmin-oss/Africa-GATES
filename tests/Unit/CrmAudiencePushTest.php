@@ -59,9 +59,18 @@ final class CrmAudiencePushTest extends TestCase
         DB::table('gates_settings')->updateOrInsert(['key_name' => 'crm_intake_secret'], ['value' => $v]);
     }
 
-    private function subscriber(string $email, ?string $confirmed, string $source = 'footer'): void
+    /**
+     * Each seeded row's ref, by a name the test reads. Refs carry ROW IDS, and the ids are
+     * whatever the database hands out: MySQL does not rewind its counters between tests, so
+     * `news:1` and `partner:2` were true on SQLite only and the parity run failed on them.
+     *
+     * @var array<string,string>
+     */
+    private array $ref = [];
+
+    private function subscriber(string $email, ?string $confirmed, string $source = 'footer'): int
     {
-        DB::table('gates_newsletter')->insert(['email_hash' => EmailOptOut::hash($email), 'email' => $email,
+        return (int) DB::table('gates_newsletter')->insertGetId(['email_hash' => EmailOptOut::hash($email), 'email' => $email,
             'source' => $source, 'subscribed_at' => '2026-10-01 09:00:00', 'confirmed_at' => $confirmed]);
     }
 
@@ -75,19 +84,19 @@ final class CrmAudiencePushTest extends TestCase
 
     private function seed(): void
     {
-        $this->subscriber('ada@obi-family.ng', '2026-10-02 09:00:00');
-        $this->subscriber('bola@bola-mail.ng', null);
-        $this->subscriber('stands@chi-mail.ng', null, 'stands:42');
+        $this->ref['ada']    = 'news:' . $this->subscriber('ada@obi-family.ng', '2026-10-02 09:00:00');
+        $this->ref['bola']   = 'news:' . $this->subscriber('bola@bola-mail.ng', null);
+        $this->ref['stands'] = 'stand:' . $this->subscriber('stands@chi-mail.ng', null, 'stands:42');
         $this->subscriber('judge@demo.invalid', '2026-10-02 09:00:00');
-        DB::table('gates_partner_enquiries')->insert(['org_name' => 'Bright Futures', 'contact_name' => 'Dayo', 'contact_email' => 'dayo@bright.ng',
+        $this->ref['partner'] = 'partner:' . DB::table('gates_partner_enquiries')->insertGetId(['org_name' => 'Bright Futures', 'contact_name' => 'Dayo', 'contact_email' => 'dayo@bright.ng',
             'contact_phone' => '0803 000 1111', 'partnership_type' => 'Sponsor', 'message' => 'PRIVATE WORDS', 'status' => 'new', 'created_at' => '2026-10-03 09:00:00']);
         DB::table('gates_support_tickets')->insert(['reference' => 'SUP-1', 'email' => 'eko@eko-mail.ng', 'name' => 'Eko', 'subject' => 'My vote did not count',
             'transcript' => 'TRANSCRIPT TEXT', 'created_at' => '2026-10-04 09:00:00']);
-        DB::table('gates_donations')->insert(['donor_name' => 'Funmi', 'donor_email' => 'funmi@funmi-mail.ng', 'amount_naira' => 20000,
+        $this->ref['gift'] = 'gift:' . DB::table('gates_donations')->insertGetId(['donor_name' => 'Funmi', 'donor_email' => 'funmi@funmi-mail.ng', 'amount_naira' => 20000,
             'status' => 'confirmed', 'confirmed_at' => '2026-10-05 09:00:00', 'created_at' => '2026-10-05 08:59:00']);
-        DB::table('gates_donations')->insert(['donor_name' => 'Gbenga', 'donor_email' => 'gbenga@gb-mail.ng', 'amount_naira' => 1000,
+        $this->ref['votes'] = 'gift:' . DB::table('gates_donations')->insertGetId(['donor_name' => 'Gbenga', 'donor_email' => 'gbenga@gb-mail.ng', 'amount_naira' => 1000,
             'intent_nominee_id' => 7, 'status' => 'confirmed', 'confirmed_at' => '2026-10-05 10:00:00', 'created_at' => '2026-10-05 09:59:00']);
-        DB::table('gates_donations')->insert(['donor_name' => 'Pending', 'donor_email' => 'pending@p-mail.ng', 'amount_naira' => 500,
+        $this->ref['pending'] = 'gift:' . DB::table('gates_donations')->insertGetId(['donor_name' => 'Pending', 'donor_email' => 'pending@p-mail.ng', 'amount_naira' => 500,
             'status' => 'pending', 'created_at' => '2026-10-05 11:00:00']);
     }
 
@@ -119,19 +128,19 @@ final class CrmAudiencePushTest extends TestCase
         $r = CrmAudiencePush::run();
         $this->assertTrue($r['ok']);
         $by = $this->byRef();
-        $ada = 'news:1';
-        $bola = 'news:2';
+        $ada = $this->ref['ada'];
+        $bola = $this->ref['bola'];
 
         $this->assertSame('subscribed', $by[$ada]['status'] ?? null, 'a confirmed subscriber is subscribed');
         $this->assertSame('unconfirmed', $by[$bola]['status'] ?? null, 'an unconfirmed one is never counted as reachable');
-        $this->assertSame('enquiry', $by['stand:3']['kind'] ?? null,
+        $this->assertSame('enquiry', $by[$this->ref['stands']]['kind'] ?? null,
             'a stand-call request is an enquiry about one event, not a subscription');
-        $this->assertSame('Bright Futures · Sponsor', $by['partner:1']['detail'] ?? null);
+        $this->assertSame('Bright Futures · Sponsor', $by[$this->ref['partner']]['detail'] ?? null);
         $this->assertSame('My vote did not count', $by['ticket:SUP-1']['detail'] ?? null);
-        $this->assertSame('Gave ₦20,000', $by['gift:1']['detail'] ?? null);
-        $this->assertSame('customer', $by['gift:2']['kind'] ?? null, 'a vote order is a purchase');
-        $this->assertSame('Bought votes, ₦1,000', $by['gift:2']['detail'] ?? null);
-        $this->assertArrayNotHasKey('gift:3', $by, 'a pending payment is nobody yet');
+        $this->assertSame('Gave ₦20,000', $by[$this->ref['gift']]['detail'] ?? null);
+        $this->assertSame('customer', $by[$this->ref['votes']]['kind'] ?? null, 'a vote order is a purchase');
+        $this->assertSame('Bought votes, ₦1,000', $by[$this->ref['votes']]['detail'] ?? null);
+        $this->assertArrayNotHasKey($this->ref['pending'], $by, 'a pending payment is nobody yet');
 
         foreach ($this->sent as $push) foreach ($push as $row) {
             $this->assertLessThanOrEqual(64, strlen($row['ref']), 'CACENTRE refuses a ref over 64 characters: ' . $row['ref']);
@@ -140,7 +149,7 @@ final class CrmAudiencePushTest extends TestCase
         $this->assertStringNotContainsString('demo.invalid', $all, 'the sandbox never leaves');
         $this->assertStringNotContainsString('PRIVATE WORDS', $all);
         $this->assertStringNotContainsString('TRANSCRIPT TEXT', $all);
-        $this->assertStringNotContainsString('7', (string) json_encode($by['gift:2']), 'nor who the votes were for');
+        $this->assertStringNotContainsString('7', (string) json_encode($by[$this->ref['votes']]), 'nor who the votes were for');
         $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Services/CrmAudiencePush.php');
         $this->assertDoesNotMatchRegularExpression("/table\\('gates_nominee/", $src, 'no nominee table is read');
     }
@@ -164,10 +173,10 @@ final class CrmAudiencePushTest extends TestCase
         CrmAudiencePush::run();
         $this->assertSame([], $this->sent, 'nothing already sent goes again');
 
-        DB::table('gates_partner_enquiries')->insert(['org_name' => 'New Org', 'contact_name' => 'Hadiza', 'contact_email' => 'hadiza@h-mail.ng',
+        $newOrg = 'partner:' . DB::table('gates_partner_enquiries')->insertGetId(['org_name' => 'New Org', 'contact_name' => 'Hadiza', 'contact_email' => 'hadiza@h-mail.ng',
             'status' => 'new', 'created_at' => '2026-10-06 09:00:00']);
         CrmAudiencePush::run();
-        $this->assertSame(['partner:2'], array_column($this->sent[0] ?? [], 'ref'));
+        $this->assertSame([$newOrg], array_column($this->sent[0] ?? [], 'ref'));
     }
 
     public function test_a_stop_a_bounce_and_a_refund_after_the_fact_still_reach_the_crm(): void
@@ -176,7 +185,7 @@ final class CrmAudiencePushTest extends TestCase
         $this->secret();
         CrmAudiencePush::run();
         $this->sent = [];
-        $ada = 'news:1';
+        $ada = $this->ref['ada'];
 
         EmailOptOut::record('ada@obi-family.ng', 'email-link');
         CrmAudiencePush::run();
@@ -188,10 +197,10 @@ final class CrmAudiencePushTest extends TestCase
         $this->assertSame('complained', $this->byRef()[$ada]['status'] ?? null, 'a complaint outranks a preference');
 
         $this->sent = [];
-        DB::table('gates_donations')->where('id', 1)->update(['refunded_at' => '2026-10-09 09:00:00']);
+        DB::table('gates_donations')->where('id', (int) substr($this->ref['gift'], 5))->update(['refunded_at' => '2026-10-09 09:00:00']);
         CrmAudiencePush::run();
-        $this->assertSame('closed', $this->byRef()['gift:1']['status'] ?? null);
-        $this->assertStringContainsString('refunded', $this->byRef()['gift:1']['detail'] ?? '');
+        $this->assertSame('closed', $this->byRef()[$this->ref['gift']]['status'] ?? null);
+        $this->assertStringContainsString('refunded', $this->byRef()[$this->ref['gift']]['detail'] ?? '');
     }
 
     public function test_state_of_is_the_newsletter_rule_read_for_one_row(): void
@@ -221,7 +230,8 @@ final class CrmAudiencePushTest extends TestCase
     {
         $this->seed();
         $this->secret();
-        CrmAudiencePush::$transport = static fn() => ['code' => 200, 'body' => '{"ok":true,"refused":[{"ref":"gift:1","why":"bad-ref"}]}'];
+        $gift = $this->ref['gift'];
+        CrmAudiencePush::$transport = static fn() => ['code' => 200, 'body' => '{"ok":true,"refused":[{"ref":"' . $gift . '","why":"bad-ref"}]}'];
         $r = CrmAudiencePush::run();
         $this->assertTrue($r['ok']);
         $this->assertSame(1, $r['refused']);

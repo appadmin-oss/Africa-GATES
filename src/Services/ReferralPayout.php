@@ -252,6 +252,9 @@ final class ReferralPayout
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not save those details just now.'];
         }
+        // A new destination is told to the member at once, by email and by text: the hold
+        // above only delays a payout, and a delay protects nobody who is never told.
+        if (isset($row['payout_bank_changed_at'])) AccountChangeNotice::payoutBank($userId, $number);
 
         return ['ok' => true, 'message' => 'Saved. Withdrawals will use these details unless you change them.'];
     }

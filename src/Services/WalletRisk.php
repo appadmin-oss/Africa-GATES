@@ -219,6 +219,46 @@ final class WalletRisk
         return false;
     }
 
+    /**
+     * Is any of the money behind this page's community return in doubt?
+     *
+     * The ledger does not trace cleanly to confirmed contributions, or a contribution behind
+     * a share not yet reversed is fraud-flagged or awaiting a refund. ONE answer for every
+     * road money leaves a return by: a withdrawal (validity(), below, holds it for a person)
+     * and votes paid from the wallet (WalletVotes::buy() refuses). Two copies of this is how
+     * a stolen card's return came to be spendable on public votes while the same balance
+     * could not be withdrawn.
+     *
+     * @return array{title:string, detail:string}|null null when nothing is in doubt
+     */
+    public static function returnMoneyInDoubt(int $nid): ?array
+    {
+        if (CommunityReturnService::audit(null, $nid) !== []) {
+            return ['title' => 'Ledger entries need checking',
+                    'detail' => 'Some shares behind this balance do not trace cleanly to a confirmed contribution.'];
+        }
+        $bad = DB::table('gates_community_returns as r')
+            ->join('gates_donations as d', 'd.id', '=', 'r.donation_id')
+            ->where('r.nominee_id', $nid)->where('r.entry_type', 'accrual')
+            ->whereNotExists(static function ($q) {
+                $q->select(DB::raw(1))->from('gates_community_returns as x')
+                  ->whereColumn('x.donation_id', 'r.donation_id')->where('x.entry_type', 'reversal');
+            })
+            ->where(static function ($q) {
+                $q->whereNotNull('d.refund_requested_at')
+                  ->orWhereExists(static function ($v) {
+                      $v->select(DB::raw(1))->from('gates_votes as v')
+                        ->whereColumn('v.donation_id', 'd.id')->where('v.fraud_flag', 1);
+                  });
+            })->count();
+        if ($bad > 0) {
+            return ['title' => 'Flagged contributions',
+                    'detail' => $bad . ' contribution' . ($bad === 1 ? '' : 's') . ' behind this balance '
+                              . ($bad === 1 ? 'is' : 'are') . ' fraud-flagged or awaiting a refund.'];
+        }
+        return null;
+    }
+
     /** @return list<string> */
     private static function tokens(string $name): array
     {
@@ -249,29 +289,8 @@ final class WalletRisk
                 if ($b['withdrawable_kobo'] < (int) $w['amount_kobo']) {
                     return $f('Balance short', 'Since it was requested, a hold or a refund has reduced the balance below this withdrawal.');
                 }
-                if (CommunityReturnService::audit(null, $nid) !== []) {
-                    return $f('Ledger entries need checking', 'Some shares behind this balance do not trace cleanly to a confirmed contribution.');
-                }
-                // Fraud-flagged or refund-requested money behind any share not yet reversed.
-                $bad = DB::table('gates_community_returns as r')
-                    ->join('gates_donations as d', 'd.id', '=', 'r.donation_id')
-                    ->where('r.nominee_id', $nid)->where('r.entry_type', 'accrual')
-                    ->whereNotExists(static function ($q) {
-                        $q->select(DB::raw(1))->from('gates_community_returns as x')
-                          ->whereColumn('x.donation_id', 'r.donation_id')->where('x.entry_type', 'reversal');
-                    })
-                    ->where(static function ($q) {
-                        $q->whereNotNull('d.refund_requested_at')
-                          ->orWhereExists(static function ($v) {
-                              $v->select(DB::raw(1))->from('gates_votes as v')
-                                ->whereColumn('v.donation_id', 'd.id')->where('v.fraud_flag', 1);
-                          });
-                    })->count();
-                if ($bad > 0) {
-                    return $f('Flagged contributions', $bad . ' contribution' . ($bad === 1 ? '' : 's')
-                        . ' behind this balance ' . ($bad === 1 ? 'is' : 'are') . ' fraud-flagged or awaiting a refund.');
-                }
-                return null;
+                $held = self::returnMoneyInDoubt($nid);
+                return $held === null ? null : $f($held['title'], $held['detail']);
             }
             $ids = json_decode((string) ($w['row']->credit_ids ?? '[]'), true);
             $ids = is_array($ids) ? array_map('intval', $ids) : [];

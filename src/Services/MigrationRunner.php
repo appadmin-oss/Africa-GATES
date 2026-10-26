@@ -319,6 +319,17 @@ final class MigrationRunner
     /** Create the migration-tracking ledger if it doesn't exist (driver-aware). */
     private static function ensureLedger(string $driver): void
     {
+        // Asked before it is created, because CREATE is DDL and DDL on MySQL COMMITS any
+        // open transaction. status() runs on every admin page render (the "migrations
+        // pending" banner in config/container.php), so this was a CREATE TABLE on every
+        // admin request — and inside the test harness it silently committed the test's own
+        // transaction, which turned a rolled-back approval into "SAVEPOINT does not exist".
+        // A read costs nothing and creates nothing.
+        try {
+            if (DB::schema()->hasTable('gates_migrations')) return;
+        } catch (\Throwable) {
+            // Cannot ask: fall through and let CREATE ... IF NOT EXISTS answer.
+        }
         if ($driver === 'sqlite') {
             DB::statement('CREATE TABLE IF NOT EXISTS gates_migrations ('
                 . 'id INTEGER PRIMARY KEY AUTOINCREMENT, '

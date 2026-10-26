@@ -106,6 +106,17 @@ final class WalletVotes
                 // The withdrawal path's own lock, on the page whose money this is, so a
                 // withdrawal and a spend can never both read the same naira as unspent.
                 DB::table('gates_nominees')->where('id', $sourceId)->lockForUpdate()->first();
+                // The withdrawal path's checks, too: money a withdrawal would be HELD over
+                // (fraud-flagged, a refund requested, a ledger that does not trace) must not
+                // leave as public votes instead, which cannot be clawed back.
+                if (WalletRisk::returnMoneyInDoubt($sourceId) !== null) {
+                    return ['ok' => false, 'message' => 'Some of the money behind your community return is being checked, '
+                        . 'so it cannot pay for votes yet. Nothing was taken from your wallet.'];
+                }
+                $b = CommunityReturnService::balance($sourceId);
+                if ($b['claim_block'] !== null) {
+                    return ['ok' => false, 'message' => 'Your community return is on hold: ' . (string) $b['claim_block']['reason']];
+                }
                 $have = (int) CommunityReturnService::wallet($sourceId)['available_kobo'];
                 if ($have < $kobo) {
                     return ['ok' => false, 'message' => 'Your community return has ₦' . number_format($have / 100, 2)
