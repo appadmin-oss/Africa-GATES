@@ -130,6 +130,20 @@
 .dk-pair__do form { margin: 0; }
 .dk-hint { margin: 0; font-size: var(--cn-fs-12); color: var(--cn-faint); line-height: 1.45; }
 
+/* The AI triage's reading: advisory, so quieter than the suggestion above it — no fill,
+   a hairline, the band in words and in its family's ink, the number beside it. */
+.dk-ai { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; padding: 12px 14px; border: 1px solid var(--cn-line-faint); border-radius: 12px; }
+.dk-ai__k { font-size: var(--cn-fs-12); color: var(--cn-soft); }
+.dk-ai__row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.dk-ai__band { font-size: var(--cn-fs-14); font-weight: 600; }
+.dk-ai__band--green { color: var(--cn-green-ink); }
+.dk-ai__band--gold { color: var(--cn-gold-ink); }
+.dk-ai__band--red { color: var(--cn-red-ink); }
+.dk-ai__num { font: 400 var(--cn-fs-12-5)/1 var(--cn-mono); color: var(--cn-ink-3); }
+.dk-ai__sum { margin: 0; font-size: var(--cn-fs-13); line-height: 1.5; color: var(--cn-ink-2); }
+.dk-ai__when { font-size: var(--cn-fs-12); color: var(--cn-faint); line-height: 1.45; }
+.dk-ai form { margin: 2px 0 0; }
+
 /* A duplicate, side by side: one row per field, the rows that agree marked, the ones that
    differ marked differently, and the verdict under it in words. */
 .dk-cmp { border: 1px solid var(--cn-line-faint); border-radius: 12px; overflow: hidden; }

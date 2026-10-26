@@ -268,6 +268,7 @@
 .rq-ref { font: 400 var(--cn-fs-12-5)/1.4 var(--cn-mono); color: var(--cn-ink-3); }
 .rq-peek__sec { display: flex; flex-direction: column; gap: 8px; }
 .rq-peek__h { margin: 0; font-size: var(--cn-fs-12); font-weight: 500; color: var(--cn-faint); }
+.rq-peek__num { font: 400 var(--cn-fs-12-5)/1 var(--cn-mono); color: var(--cn-ink-3); }
 .rq-why { display: flex; flex-direction: column; gap: 3px; }
 .rq-why + .rq-why { margin-top: 6px; }
 .rq-why__cat { font-size: var(--cn-fs-12-5); font-weight: 500; color: var(--cn-ink-3); }

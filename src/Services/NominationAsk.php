@@ -148,6 +148,10 @@ final class NominationAsk
         // Back to the queue, and the link is spent: one answer per ask.
         DB::table('gates_nominations')->where('id', (int) $nom->id)->where('status', NS::NEEDS_DETAILS)
             ->update(['status' => NS::PENDING, 'ask_token_hash' => null]);
+        // The AI's reading was of the nomination BEFORE this answer — it is exactly the
+        // reading whose gap the reviewer asked about. Read again, off the request path.
+        try { NominationTriageService::enqueue((int) $nom->id); } catch (\Throwable) {}
+        try { NominationCategoryFit::enqueue((int) $nom->id); } catch (\Throwable) {}
         return $kept;
     }
 }

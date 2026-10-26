@@ -149,6 +149,28 @@
         <span class="dk-sugg__m">{{ n.suggestion.why }}</span>
       </div>
 
+      {% if n.ai %}
+        {# The AI triage: advisory, in words first. Outside the decision form on purpose. #}
+        <div class="dk-ai">
+          <span class="dk-ai__k">AI reading · advisory</span>
+          {% if n.ai.state == 'ok' %}
+            <span class="dk-ai__row"><strong class="dk-ai__band dk-ai__band--{{ n.ai.tone }}">{{ n.ai.band }}</strong><span class="dk-ai__num">{{ n.ai.score }}/100</span></span>
+            {% if n.ai.summary %}<p class="dk-ai__sum">{{ n.ai.summary }}</p>{% endif %}
+            <span class="dk-ai__when">Read {{ n.ai.when }} ago{% if n.ai.stale %} — before the latest evidence arrived{% endif %}. It scores how the case reads, not whether they deserve it.</span>
+          {% elseif n.ai.state == 'waiting' %}
+            <span class="dk-ai__when">Not read yet. It runs in the background, usually within minutes of a nomination arriving.</span>
+          {% else %}
+            <span class="dk-ai__when">{{ n.ai.why }}</span>
+          {% endif %}
+          {% if n.ai.can_run and shell.can_write|default(false) %}
+            <form method="post" action="/admin/nominations/{{ n.id }}/ai-insight">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <button type="submit" class="dk-btn dk-btn--sm">{{ n.ai.state == 'ok' ? (n.ai.stale ? 'Read it again with the new evidence' : 'Read it again') : 'Read it now' }}</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+
       <h3 class="dk-h">Checks</h3>
       <ul class="dk-checks">
         {% for c in n.desk_checks %}

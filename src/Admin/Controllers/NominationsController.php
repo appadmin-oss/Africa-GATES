@@ -771,16 +771,28 @@ HTML;
      */
     public function aiInsight(Request $req, Response $res, array $args): Response
     {
-        $back = $req->getServerParams()['HTTP_REFERER'] ?? ('/admin/nominations/' . (int)($args['id'] ?? 0));
         $id   = (int)($args['id'] ?? 0);
+        // Back to the page the button was on — the desk, the list or the full record — and
+        // only ever to a console path: the referrer is a header, not something to trust.
+        $ref  = (string) ($req->getServerParams()['HTTP_REFERER'] ?? '');
+        $path = (string) (parse_url($ref, PHP_URL_PATH) ?? '');
+        $qs   = (string) (parse_url($ref, PHP_URL_QUERY) ?? '');
+        $back = preg_match('~^/admin/nominations(/|$)~', $path) === 1 && !str_contains($path, '//')
+            ? $path . ($qs !== '' ? '?' . $qs : '') : '/admin/nominations/' . $id;
         if (!DB::table('gates_nominations')->where('id', $id)->exists()) {
             $_SESSION['flash_error'] = 'Nomination not found.';
             return $res->withHeader('Location', $back)->withStatus(302);
         }
         $insight = \AfricaGates\Services\NominationTriageService::generate($id);
-        $_SESSION[$insight ? 'flash_ok' : 'flash_error'] = $insight
-            ? 'AI insight generated.'
-            : 'AI is not configured (add a Groq/Gemini/Anthropic/OpenAI key in Settings) — nothing generated.';
+        // generate() always stores a row — the duplicates are worked out without any AI —
+        // so "a row came back" is not "the AI read it". This used to say "generated" either way.
+        if ($insight !== null && $insight['quality_score'] !== null) {
+            $_SESSION['flash_ok'] = 'Read again. The AI reading is updated.';
+        } elseif (!\AfricaGates\Services\AiGateway::available('nomination.triage')) {
+            $_SESSION['flash_error'] = 'The AI reading is switched off, out of today’s budget or has no provider. See Settings → AI.';
+        } else {
+            $_SESSION['flash_error'] = 'The AI could not read it just now. Nothing else changed; it will be tried again within the hour.';
+        }
         return $res->withHeader('Location', $back)->withStatus(302);
     }
 

@@ -62,6 +62,14 @@
     {% endif %}
   </section>
 
+  {% if peek.ai and peek.ai.state == 'ok' %}
+    <section class="rq-peek__sec">
+      <h3 class="rq-peek__h">AI reading · advisory</h3>
+      <p class="rq-why__p"><strong>{{ peek.ai.band }}</strong> · <span class="rq-peek__num">{{ peek.ai.score }}/100</span>{% if peek.ai.stale %} · read before the latest evidence{% endif %}</p>
+      {% if peek.ai.summary %}<p class="rq-why__p">{{ peek.ai.summary }}</p>{% endif %}
+    </section>
+  {% endif %}
+
   <ul class="rq-checks">
     {% for c in peek.check_list %}
       <li class="rq-check"><span class="rq-check__m rq-check__m--{{ c.ok ? 'ok' : (c.bad|default(false) ? 'bad' : 'warn') }}" aria-hidden="true">{{ c.ok ? '✓' : '!' }}</span><span>{{ c.t }}</span></li>

@@ -720,6 +720,7 @@ final class ReviewQueue
             'reasons'    => $reasons,
             'evidence_list' => $evidence,
             'check_list' => $checks,
+            'ai'         => self::aiReading($id),
             'history'    => self::history($id, $r),
             'can_approve'=> !($e && $e['enabled'] && !$e['eligible']) && (int) ($r['category_id'] ?? 0) > 0,
         ];
@@ -771,6 +772,49 @@ final class ReviewQueue
             $out[$i]['when'] = self::ago($now - $t, $t);
         }
         return $out;
+    }
+
+    /**
+     * The AI triage's reading of a nomination, as the desk and the peek draw it.
+     *
+     * The triage runs for every nomination in the background and was drawn only on the old
+     * full record, so on the screens reviewers decide from it was paid for and read by
+     * nobody. Shown here as ADVISORY, in words first — "reads specific", "reads thin" — with
+     * the number beside it, because the score measures how complete and specific the case
+     * READS, not whether the person deserves anything, and a bare 41 invites the second
+     * reading. A reading older than the latest evidence says so: it is a reading of a
+     * nomination that no longer exists.
+     *
+     * @return array<string,mixed>|null null when there is nothing to say (AI off, never read)
+     */
+    public static function aiReading(int $id): ?array
+    {
+        $available = \AfricaGates\Services\AiGateway::available('nomination.triage');
+        $i = NominationTriageService::insight($id);
+        if (!$i || ($i['quality_score'] === null && trim((string) ($i['summary'] ?? '')) === '')) {
+            return $available ? ['state' => 'waiting', 'can_run' => true] : null;
+        }
+        $at = strtotime((string) ($i['created_at'] ?? '')) ?: time();
+        $when = self::ago(time() - $at, $at);
+        if ($i['quality_score'] === null) {
+            return ['state' => 'unavailable', 'when' => $when, 'can_run' => $available,
+                    'why' => 'The AI could not read this one when it last tried. The checks above do not depend on it.'];
+        }
+        $score = max(0, min(100, (int) $i['quality_score']));
+        [$band, $tone] = match (true) {
+            $score >= 70 => ['Reads specific and backed', 'green'],
+            $score >= 40 => ['Reads general in places', 'gold'],
+            default      => ['Reads thin', 'red'],
+        };
+        $stale = false;
+        try {
+            if (SchemaHas::table('gates_nomination_evidence')) {
+                $latest = (string) (DB::table('gates_nomination_evidence')->where('nomination_id', $id)->max('created_at') ?? '');
+                $stale = $latest !== '' && $latest > (string) $i['created_at'];
+            }
+        } catch (\Throwable) {}
+        return ['state' => 'ok', 'score' => $score, 'band' => $band, 'tone' => $tone, 'when' => $when, 'stale' => $stale,
+                'summary' => trim((string) ($i['summary'] ?? '')), 'can_run' => $available];
     }
 
     /** Save a team note. Returns false on an empty body or a store that is not there yet. */
