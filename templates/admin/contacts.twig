@@ -1,0 +1,111 @@
+{% extends "admin/layout.twig" %}
+{#
+  CONTACTS — AdminConsole v2 (README §10b), 26 Oct 2026.
+
+  Everybody who has voted, given, nominated, held a ticket, bought from the shop, joined
+  or subscribed, one row per person (Admin\Services\Contacts, which holds the rules about
+  who is NOT on it). The v2 list pattern (console/list.css): stats, tabs with counts, a
+  search, the table, a footer count.
+
+  Two departures from the design, both deliberate:
+    · No Import and no Export. An imported list has no record of anybody's consent, and an
+      export is a copy of every address on the platform outside every table the erasure
+      path knows about; both need the owner's decision first.
+    · "Took part in" names a voter's programme, never the nominee they voted for or
+      nominated — a ballot is private and this list is read by people running the awards.
+
+  Search and tabs are GET parameters, not an in-place filter, because a filter over the
+  drawn rows would search fifty people out of tens of thousands.
+#}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/list.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/console/contacts.css') }}">{% endblock %}
+
+{% block topbar_title %}Contacts{% endblock %}
+
+{% set qs_q = q != '' ? '&q=' ~ (q|url_encode) : '' %}
+
+{% block content %}
+<div class="ls">
+  {% if stats.people %}
+    <div class="ct-stats" role="list">
+      <div class="ct-stat" role="listitem">
+        <span class="ct-stat__k">Contacts</span>
+        <span class="ct-stat__row"><span class="ct-stat__v">{{ stats.people|number_format }}</span>{% if stats.new_30d %}<span class="ct-stat__note ct-stat__note--up">+{{ stats.new_30d|number_format }} · 30d</span>{% endif %}</span>
+      </div>
+      <div class="ct-stat" role="listitem">
+        <span class="ct-stat__k">On the newsletter</span>
+        <span class="ct-stat__row"><span class="ct-stat__v">{{ stats.subscribed_pct }}%</span><span class="ct-stat__note">{{ stats.subscribed|number_format }} confirmed</span></span>
+      </div>
+      <div class="ct-stat" role="listitem">
+        <span class="ct-stat__k">With a phone number</span>
+        <span class="ct-stat__row"><span class="ct-stat__v">{{ stats.phones_pct }}%</span><span class="ct-stat__note">{{ stats.phones|number_format }} people</span></span>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="ls-bar">
+    <nav class="ls-tabs" aria-label="Who">
+      {% for k, t in tabs %}
+        <a class="ls-tab" href="/admin/contacts?tab={{ k }}{{ qs_q }}"{% if k == tab %} aria-current="page"{% endif %}>{{ t.label }}<span class="ls-tab__num">{{ t.n|number_format }}</span></a>
+      {% endfor %}
+    </nav>
+    <span class="ls-bar__gap"></span>
+    {% if stats.people %}
+      <form class="ls-search" method="get" action="/admin/contacts" role="search" data-ux="off">
+        <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <input type="search" name="q" value="{{ q }}" placeholder="Search name, email or phone" aria-label="Search contacts" autocomplete="off" enterkeyhint="search">
+      </form>
+    {% endif %}
+  </div>
+
+  {% if rows %}
+    <div class="ls-table" style="--ls-cols: minmax(0, 1.8fr) minmax(0, 1.6fr) 100px minmax(0, 1fr) 128px" role="table" aria-label="Contacts">
+      <div class="ls-row ls-head" role="row">
+        <span role="columnheader">Person</span><span role="columnheader" class="ls-opt">Took part in</span>
+        <span role="columnheader" class="ct-end">Given</span><span role="columnheader" class="ls-opt">Last seen</span>
+        <span role="columnheader">Consent</span>
+      </div>
+      {% for c in rows %}
+        <div class="ls-row ls-item" role="row">
+          <span class="ls-cell ls-cell--primary" role="cell"><strong>{{ c.name }}</strong><span>{{ c.email ?: (c.phone ?: 'No address kept') }}</span></span>
+          <span class="ls-cell ls-opt" role="cell">{{ c.took|join(' · ') }}</span>
+          <span class="ls-cell ct-end" role="cell"><span class="ls-cell__num">{{ c.given ? '₦' ~ c.given|number_format : '—' }}</span></span>
+          <span class="ls-cell ls-opt" role="cell"><span class="ls-cell__time">{{ c.last ? c.last|when('j M Y') : '—' }}</span></span>
+          <span class="ls-cell ls-cell--end" role="cell"><span class="ls-pill ls-pill--{{ consent[c.consent][1] }}">{{ consent[c.consent][0] }}</span></span>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="ct-foot">
+      <p class="ls-foot">{{ from|number_format }}–{{ to|number_format }} of {{ total|number_format }} {{ total == 1 ? 'person' : 'people' }}</p>
+      {% if pages > 1 %}
+        <nav class="ct-pager" aria-label="Pages">
+          {% if page > 1 %}<a class="ct-pager__btn" rel="prev" href="/admin/contacts?tab={{ tab }}{{ qs_q }}&page={{ page - 1 }}">Previous</a>{% endif %}
+          <span class="ct-pager__at">Page {{ page }} of {{ pages }}</span>
+          {% if page < pages %}<a class="ct-pager__btn" rel="next" href="/admin/contacts?tab={{ tab }}{{ qs_q }}&page={{ page + 1 }}">Next</a>{% endif %}
+        </nav>
+      {% endif %}
+    </div>
+  {% elseif q != '' %}
+    <div class="ls-table"><div class="ls-none">Nobody matches “{{ q }}”. <a class="ct-pager__btn" href="/admin/contacts?tab={{ tab }}">Clear search</a></div></div>
+  {% elseif stats.people %}
+    <div class="ls-empty">
+      <span class="ls-empty__ic" aria-hidden="true"><svg focusable="false"><use href="#ic-book"/></svg></span>
+      <span class="ls-empty__t">Nobody here yet</span>
+      <span class="ls-empty__m">People appear in this tab once they have done what it is named for.</span>
+      <a class="cn-pillbtn" href="/admin/contacts">See everyone</a>
+    </div>
+  {% else %}
+    <div class="ls-empty">
+      <span class="ls-empty__ic" aria-hidden="true"><svg focusable="false"><use href="#ic-book"/></svg></span>
+      <span class="ls-empty__t">No contacts yet</span>
+      <span class="ls-empty__m">People are added when they vote, give, nominate or buy a ticket.</span>
+    </div>
+  {% endif %}
+
+  {% if stats.anonymous %}
+    <p class="ct-note">{{ stats.anonymous|number_format }} more {{ stats.anonymous == 1 ? 'voter' : 'voters' }} voted before addresses were matched across the platform, so they are counted here but cannot be listed or joined to anything else they did.</p>
+  {% endif %}
+  <p class="ct-note">Nominees are not listed for being nominated, and nobody's vote is shown. Who may be emailed is the newsletter's own rule: only "Subscribed" people receive a broadcast.</p>
+</div>
+{% endblock %}

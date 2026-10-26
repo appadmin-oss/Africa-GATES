@@ -4063,6 +4063,8 @@ return function(App $app) {
         $a->post('/support/{ref:[A-Za-z0-9\-]+}/status/{to}', \AfricaGates\Admin\Controllers\SupportController::class.':status');
         // The calendar — every stored deadline, event day and draw (AdminConsole v2).
         $a->get('/calendar',        \AfricaGates\Admin\Controllers\CalendarController::class.':index');
+        // Contacts — everybody who took part, one row per person (AdminConsole v2).
+        $a->get('/contacts',        \AfricaGates\Admin\Controllers\ContactsController::class.':index');
         // AI assistant — console copilot (all roles; superadmin unlimited)
         $a->get('/assistant',       \AfricaGates\Admin\Controllers\AssistantController::class.':index');
         $a->post('/assistant/chat', \AfricaGates\Admin\Controllers\AssistantController::class.':chat');

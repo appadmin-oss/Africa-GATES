@@ -162,6 +162,10 @@ final class Permissions
         // The console's calendar (AdminConsole v2): every dated thing, each entry filtered
         // by the page it links to, so the page itself shows a role nothing it cannot open.
         'calendar' => 'overview',
+        // Contacts (AdminConsole v2) totals each person's giving beside their address, which
+        // no `data` page does in one place — so it is held with the money, superadmin and
+        // admin. Widening it is the owner's call (docs/handoff/PHASE-ADMIN.md).
+        'contacts' => 'finance',
         // health — what the platform noticed on its own (Admin\Services\ConsoleAlerts).
         'alerts' => 'health',
     ];

@@ -25,6 +25,7 @@ final class ConsoleSurface
         'templates/admin/layout.twig',
         'templates/admin/dashboard.twig',
         'templates/admin/alerts.twig',
+        'templates/admin/contacts.twig',
         'templates/admin/partials/nav-icons.twig',
         'templates/admin/nominations/queue.twig',
         'templates/admin/nominations/_queue_peek.twig',

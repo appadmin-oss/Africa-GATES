@@ -44,7 +44,7 @@ namespace AfricaGates\Admin\Support;
  * page stays findable (`AdminIaTest`).
  *
  * Groups and labels are v2's. Where v2 names a page that does not exist yet (Inbox,
- * Calendar, Check-in, Contacts) the rail leaves it out until it is routed; the list of
+ * Check-in) the rail leaves it out until it is routed; the list of
  * deviations is in docs/handoff/PHASE-ADMIN.md.
  */
 final class AdminNav
@@ -128,6 +128,8 @@ final class AdminNav
              ]],
         ]],
         ['key' => 'audience', 'label' => 'Audience', 'tip' => 'Who we reach, and what we send them.', 'items' => [
+            ['page' => 'contacts', 'label' => 'Contacts', 'href' => '/admin/contacts', 'icon' => 'book',
+             'sub' => 'Everyone who has voted, given, nominated or bought a ticket.'],
             ['page' => 'campaigns', 'label' => 'Broadcasts', 'href' => '/admin/campaigns', 'icon' => 'mega',
              'sub' => 'Campaigns sent to nominees and the newsletter, to opted-in people only.',
              'children' => [

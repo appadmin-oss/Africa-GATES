@@ -317,3 +317,33 @@ colour, type) keep applying because the HTML is the same HTML.
 - Test: `ConsoleNavTest` (rerun sweep and shell marking each proven to fail). Verified in
   Chromium at 1280 and on an iPhone 13 profile: 24 of 26 rail pages swap, no console errors,
   no CSP violations.
+
+## Step 8 — Contacts (26 Oct 2026)
+
+`/admin/contacts`, in Audience above Broadcasts. Everybody who has voted, given, nominated,
+held a ticket, bought from the shop, joined or subscribed, one row per person, joined on
+`EmailCanon::hash()` — the key a vote now records as `voter_canon_hash` — so one inbox is
+one row however it was typed. Built on `console/list.css` plus `console/contacts.css`.
+Service `Admin\Services\Contacts`, test `ContactsTest` (each rule mutation-proven).
+
+- **Gate: `finance`** (superadmin and admin). It totals each person's giving beside their
+  address, which no `data` page does in one place. **Widening it to `data` is an access
+  change — open question for the owner.**
+- **Consent is the newsletter's own answer** (`NewsletterAudience::stateOf()`), so the page
+  cannot call somebody reachable whom the newsletter's sender would refuse.
+- **Given** is confirmed and not refunded. A phone number more than three people typed is a
+  placeholder and shown for nobody (`VoterPeople::PHONE_CAP`).
+- Voters from before addresses were matched are **counted, not listed**: their vote kept
+  only a fingerprint of the address as typed, so nothing can join them to anything.
+- Not cached: the cache table is plain text, and a cached list would be a second store of
+  every address and phone outside the tables erasure knows about.
+
+### Deviations
+
+| Deviation | Why |
+|---|---|
+| No Import, no Export | An imported list carries no record of consent; an export is a copy of every address outside every table the erasure path knows. Both need the owner's decision. |
+| "Took part in" names a voter's programme, never the nominee they voted for or nominated | A ballot is private, and nominees are not contacts (the CRM push's rule). |
+| "Reachable by email" is "On the newsletter"; "Reachable on WhatsApp" is "With a phone number" | Only a confirmed subscriber receives a broadcast, and nothing records WhatsApp consent. A stat must say what it counts. |
+| Consent words are the newsletter's six states, not "Opted in / Email only / Opted out" | "Email only" has no meaning the data can support; "Bounced" and "Complained" are evidence an operator needs. |
+| Search and tabs are GET parameters, paged 50 at a time | A filter over drawn rows would search one page of tens of thousands. |

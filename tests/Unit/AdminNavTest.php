@@ -91,6 +91,8 @@ final class AdminNavTest extends TestCase
         // New with AdminConsole v2 (20 Oct 2026). Home's own gate: every entry on it is
         // filtered by the page it links to, so the page shows a role nothing it cannot open.
         '/admin/calendar'           => 'overview',
+        // New with AdminConsole v2 (26 Oct 2026). Held with the money: it totals giving per person.
+        '/admin/contacts'           => 'finance',
     ];
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];
@@ -155,12 +157,12 @@ final class AdminNavTest extends TestCase
         foreach (AdminNav::groups() as $g) $got[$g['label']] = array_column($g['items'], 'label');
 
         // AdminConsole v2's rail (README §10b), in its order and words. Its Workspace group
-        // (Inbox, Calendar) and Check-in and Contacts are pages not built yet; each joins
-        // this list the day it is routed.
+        // Inbox and Check-in are pages not built yet; each joins this list the day it is
+        // routed (Calendar sits above the groups; Contacts joined 26 Oct 2026).
         $this->assertSame([
             'Awards'       => ['Programmes', 'Nominations', 'Shortlists', 'Judges', 'Result release'],
             'Engage'       => ['Events', 'Challenges', 'Giving', 'Forms'],
-            'Audience'     => ['Broadcasts'],
+            'Audience'     => ['Contacts', 'Broadcasts'],
             'Money'        => ['Payments', 'Refunds', 'Payouts', 'Finance', 'Shop orders'],
             'Content'      => ['Posts', 'Media', 'Moderation'],
             'Organisation' => ['Team', 'Alerts', 'Handbook', 'Audit log', 'Integrations', 'Settings'],
