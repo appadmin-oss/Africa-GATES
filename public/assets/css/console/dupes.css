@@ -40,6 +40,7 @@
 .dp-preview { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border: 1px solid var(--cn-ink); border-radius: 14px; background: var(--cn-surface); }
 .dp-preview__h { margin: 0; font-size: var(--cn-fs-15); font-weight: 600; }
 .dp-preview__lede { margin: 0; font-size: var(--cn-fs-13-5); line-height: 1.5; color: var(--cn-ink-2); }
+.dp-preview__note { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--cn-panel); color: var(--cn-ink-3); font-size: var(--cn-fs-13); line-height: 1.5; }
 .dp-preview__warn { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--cn-gold-wash-2); color: var(--cn-gold-ink); font-size: var(--cn-fs-13); line-height: 1.5; }
 .dp-moves { margin: 0; padding: 0; list-style: none; border: 1px solid var(--cn-line-faint); border-radius: 10px; overflow: hidden; }
 .dp-move { display: flex; align-items: baseline; gap: 12px; padding: 9px 12px; font-size: var(--cn-fs-13); line-height: 1.45; }

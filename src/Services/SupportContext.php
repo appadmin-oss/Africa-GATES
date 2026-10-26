@@ -681,7 +681,7 @@ final class SupportContext
 
         return [
             'cycles'    => $cycles,
-            'nominees'  => (int) DB::table('gates_nominees')->where('status', 'approved')->count(),
+            'nominees'  => (int) MergeService::notMerged(DB::table('gates_nominees')->where('status', 'approved'))->count(),
             'votes'     => (int) (DB::table('gates_votes')->sum('weight') ?? 0),
             'today'     => date('Y-m-d H:i') . ' ' . date_default_timezone_get(),
         ];

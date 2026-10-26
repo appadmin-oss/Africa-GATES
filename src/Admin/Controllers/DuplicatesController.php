@@ -124,10 +124,12 @@ final class DuplicatesController
         if (!$r['ok']) return $out;
 
         $out['votes_after'] = (int) $r['votes'];
-        // The merge rebuilds the survivor's total from the ballot ledger. A tally imported
-        // without ballot rows (an edition run before this platform held them) has nothing
-        // to rebuild from, so it shrinks — say so BEFORE the merge, in figures.
+        // A tally imported without ballot rows (an edition run before this platform held
+        // them) is carried across by the merge and given back by an undo; say it is part of
+        // the total, so a figure with no ballots behind it is not a surprise later.
         $out['votes_listed'] = (int) $before->sum('vote_count');
+        $out['votes_imported'] = MergeService::importedTally(array_merge($ids, [$keep]));
+        // Anything still missing after the carry would be a fault, not an import: shown.
         $out['votes_lost'] = max(0, $out['votes_listed'] - $out['votes_after']);
         $moves = [];
         foreach ($r['moved'] as $tbl => $n) {

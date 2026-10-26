@@ -238,8 +238,13 @@ final class AnalyticsService
             $hours  = array_fill(0, 24, 0);
             $voters = []; $flagged = 0;
 
-            foreach (DB::table('gates_votes')->where($tsCol, '>=', $from . ' 00:00:00')
-                ->get($cols) as $r) {
+            $rows = DB::table('gates_votes')->where($tsCol, '>=', $from . ' 00:00:00')->get($cols);
+            // "Distinct voters" is PEOPLE, by VoterReach's rule — the CPI's own. A distinct
+            // count of the hash column counted every paid order and every grant as its own
+            // voter, because those services write a random hash per row; one buyer of ten
+            // orders read as ten voters on the screen an operator reads turnout from.
+            $buyers = \AfricaGates\Services\VoterReach::buyerHashes($rows);
+            foreach ($rows as $r) {
                 $ts = strtotime((string) ($r->{$tsCol} ?? ''));
                 if ($ts === false) continue;
                 $d = date('Y-m-d', $ts);
@@ -255,9 +260,8 @@ final class AnalyticsService
                 $n[$type]++;
 
                 $hours[(int) date('G', $ts)]++;
-                $h = (string) ($r->voter_email_hash ?? '');
-                if ($h !== '') $voters[$h] = true;
-                if (!empty($r->fraud_flag ?? null)) $flagged++;
+                if (!empty($r->fraud_flag ?? null)) { $flagged++; }
+                elseif (($person = \AfricaGates\Services\VoterReach::personKey($r, $buyers)) !== null) { $voters[$person] = true; }
             }
 
             $total   = array_sum($n);
@@ -388,8 +392,9 @@ final class AnalyticsService
             $rejected = (int) DB::table('gates_nominations')->where('status', 'rejected')->count();
             $pending  = (int) DB::table('gates_nominations')->where('status', 'pending')->count();
 
+            // A merged-away nominee is a tombstone of a duplicate, not a second person.
             $nominees = self::has('gates_nominees')
-                ? (int) DB::table('gates_nominees')->whereIn('status', ['approved', 'winner', 'runner_up'])->count()
+                ? (int) \AfricaGates\Services\MergeService::notMerged(DB::table('gates_nominees')->whereIn('status', ['approved', 'winner', 'runner_up']))->count()
                 : 0;
 
             // Claiming shipped as a later migration; absent is not zero, it is

@@ -117,7 +117,9 @@
       {% if preview.ok %}
         <p class="dp-preview__lede">Keeping <strong>{{ preview.names[preview.keep_id]|default('#' ~ preview.keep_id) }}</strong>. It goes from <span class="dp-who__num">{{ preview.votes_before|number_format }}</span> to <span class="dp-who__num">{{ preview.votes_after|number_format }}</span> votes. Nothing has changed yet.</p>
         {% if preview.votes_lost > 0 %}
-          <p class="dp-preview__warn" role="note">The entries show <span class="dp-who__num">{{ preview.votes_listed|number_format }}</span> votes between them, but only <span class="dp-who__num">{{ preview.votes_after|number_format }}</span> have a ballot behind them. The other <span class="dp-who__num">{{ preview.votes_lost|number_format }}</span> were imported as a total, and a merge counts ballots — so they would not carry over. Undo puts them back.</p>
+          <p class="dp-preview__warn" role="note">The entries show <span class="dp-who__num">{{ preview.votes_listed|number_format }}</span> votes between them and the merge would leave <span class="dp-who__num">{{ preview.votes_after|number_format }}</span>. The totals do not add up, so do not merge these yet; report it to the help desk.</p>
+        {% elseif preview.votes_imported > 0 %}
+          <p class="dp-preview__note" role="note"><span class="dp-who__num">{{ preview.votes_imported|number_format }}</span> of these votes were imported as a total, with no ballots behind them. They carry over to the survivor, and an undo gives each entry its own back.</p>
         {% endif %}
         <ul class="dp-moves">
           {% for mv in preview.moves %}

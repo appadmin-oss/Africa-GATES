@@ -19,7 +19,8 @@ class StatsService
     public function summary(): array
     {
         $compute = static fn(): array => [
-            'total_profiles' => (int) DB::table('gates_profiles')->where('status', 'approved')->count(),
+            // A profile merged into another is a tombstone of a duplicate, not a second profile.
+            'total_profiles' => (int) ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status', 'approved'))->count(),
             // SUM(weight), NOT COUNT(*).
             //
             // A row in gates_votes is a vote EVENT, not a vote: a paid or bonus pack
