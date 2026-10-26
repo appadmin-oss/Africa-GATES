@@ -1664,7 +1664,7 @@
       </div>
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="nomination_eligibility_enabled" value="1" {% if values.nomination_eligibility_enabled == '1' %}checked{% endif %}> <span><strong>Enforce eligibility threshold</strong> — block approving a nominee until they have enough nominations from different locations.</span></label>
       <div><label for="f-nomination_min_locations">Minimum distinct locations</label><input type="number" name="nomination_min_locations" id="f-nomination_min_locations" min="1" step="1" value="{{ values.nomination_min_locations|default('5') }}"></div>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">"Different locations" = distinct nominator country + state. The eligibility count shows on every nomination; when enforced, approval is blocked below the threshold.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">"Different locations" = distinct nominator country + state, and each nominator counts once — at the place on their first nomination — however many nominations or places they send from one email inbox. The eligibility count shows on every nomination; when enforced, approval is blocked below the threshold.</p>
     </div>
   </div></div>
   {# ── AI governance ─────────────────────────────────────────────────────────

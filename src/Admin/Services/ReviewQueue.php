@@ -40,6 +40,11 @@ use Illuminate\Database\Query\Builder;
  *   · Needs N more places — {@see AwardService::eligibilityMany()}, the same query the
  *     Approve button runs.
  *   · The category flag — {@see NominationCategoryFit::suggestions()}.
+ *   · "N to check" — {@see \AfricaGates\Services\NominationSignals}: the nominee's
+ *     contact is a nominator's own, one person behind several nominations, one device
+ *     behind several nominators, copied words, evidence also sent for somebody else.
+ *     None of them blocks a decision; each keeps a row out of "Ready to approve",
+ *     because a reviewer working that view is approving without opening the row.
  *
  * ══════════════════════════════════════════════════════════════════════════════
  * TWO SHAPES OF TAB, AND WHY
@@ -92,6 +97,7 @@ final class ReviewQueue
         'dup'       => 'Duplicate?',
         'evidence'  => 'No evidence',
         'locations' => 'Not yet eligible',
+        'signal'    => 'Something to check',
     ];
 
     public const PER = 50;
@@ -336,7 +342,8 @@ final class ReviewQueue
                  'n.nominator_name', 'n.status', 'n.created_at', 'n.reference', 'n.reason',
                  'cat.title as category_title', 'pr.title as programme_title', 'c.year as cycle_year'];
         foreach (['nominee_org', 'nominator_relation', 'nominee_photo_path', 'reference_url', 'reference_url_2', 'reference_url_3',
-                  'nominator_email', 'asked_message', 'asked_at', 'merged_into'] as $c) {
+                  'nominator_email', 'nominator_phone', 'nominee_email', 'nominee_phone',
+                  'asked_message', 'asked_at', 'merged_into', 'not_duplicate'] as $c) {
             if (SchemaHas::column('gates_nominations', $c)) $cols[] = 'n.' . $c;
         }
         try {
@@ -397,6 +404,8 @@ final class ReviewQueue
             } catch (\Throwable) {}
         }
 
+        $signals = \AfricaGates\Services\NominationSignals::forIds($ids);
+
         $rel = NominationRules::RELATIONS;
         $now = time();
         foreach ($rows as $i => $r) {
@@ -415,6 +424,9 @@ final class ReviewQueue
             if (empty($ev[$id])) $checks[] = ['key' => 'evidence', 't' => 'No evidence', 'tone' => 'gold'];
             if ($short > 0) $checks[] = ['key' => 'locations', 'tone' => 'gold',
                                          't' => 'Needs ' . $short . ' more place' . ($short === 1 ? '' : 's')];
+            $sig = $signals[$id] ?? [];
+            if ($sig) $checks[] = ['key' => 'signal', 'tone' => 'gold',
+                                   't' => count($sig) === 1 ? $sig[0]['t'] : count($sig) . ' things to check'];
             if (!$checks) $checks[] = ['key' => 'clear', 't' => 'All clear', 'tone' => 'green'];
 
             $at = strtotime((string) $r['created_at']) ?: $now;
@@ -435,6 +447,7 @@ final class ReviewQueue
                 'evidence'  => count($ev[$id] ?? []),
                 'eligibility' => $e,
                 'suggest'   => $sugg[$id] ?? null,
+                'signals'   => $sig,
                 'recv'      => self::ago($now - $at, $at),
                 'recv_at'   => date('D j M Y, H:i', $at),
                 'status_label' => NS::label((string) $r['status']),
@@ -448,8 +461,9 @@ final class ReviewQueue
     {
         $dup = in_array('dup', $r['keys'], true);
         return match ($view) {
-            'ready' => !$dup && $r['evidence'] > 0 && $r['suggest'] === null && !in_array('locations', $r['keys'], true),
-            'check' => $r['evidence'] === 0 || in_array('locations', $r['keys'], true),
+            'ready' => !$dup && $r['evidence'] > 0 && $r['suggest'] === null && !in_array('locations', $r['keys'], true)
+                       && !in_array('signal', $r['keys'], true),
+            'check' => $r['evidence'] === 0 || in_array('locations', $r['keys'], true) || in_array('signal', $r['keys'], true),
             'dup'   => $dup,
             'move'  => $r['suggest'] !== null,
             default => true,
@@ -699,6 +713,7 @@ final class ReviewQueue
                 ? ['ok' => true, 't' => 'Nominated from ' . $e['distinct_locations'] . ' place' . ($e['distinct_locations'] === 1 ? '' : 's') . ' — enough to approve']
                 : ['ok' => false, 't' => 'Nominated from ' . $e['distinct_locations'] . ' of the ' . $e['min'] . ' places needed to approve'];
         }
+        foreach ($r['signals'] as $sg) $checks[] = ['ok' => false, 't' => $sg['t']];
 
         return $r + [
             'categories' => $cats,

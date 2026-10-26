@@ -348,10 +348,11 @@ class AwardService {
         string $path,
         ?string $label = null,
         ?string $mime = null,
-        ?int $bytes = null
+        ?int $bytes = null,
+        ?string $sha256 = null
     ): bool {
         try {
-            DB::table('gates_nomination_evidence')->insert([
+            $row = [
                 'nomination_id' => $nominationId,
                 'kind'          => NominationRules::EVIDENCE_FILE,
                 'path'          => mb_substr($path, 0, 400),
@@ -359,7 +360,14 @@ class AwardService {
                 'mime'          => $mime !== null ? mb_substr($mime, 0, 100) : null,
                 'bytes'         => $bytes,
                 'created_at'    => Carbon::now()->toDateTimeString(),
-            ]);
+            ];
+            // The upload's fingerprint, so one file backing two people's nominations can
+            // be seen (NominationSignals). Optional: the column arrives with a migration.
+            if ($sha256 !== null && preg_match('/^[0-9a-f]{64}$/', $sha256) === 1
+                && \AfricaGates\Support\SchemaHas::column('gates_nomination_evidence', 'sha256')) {
+                $row['sha256'] = $sha256;
+            }
+            DB::table('gates_nomination_evidence')->insert($row);
             return true;
         } catch (\Throwable) {
             return false;
@@ -598,7 +606,16 @@ class AwardService {
      * name) within a cycle. "Different locations" = distinct (country, state) of the
      * nominators. When the rule is disabled, everyone is eligible.
      *
-     * @return array{total:int, distinct_locations:int, min:int, enabled:bool, eligible:bool}
+     * ── ONE NOMINATOR IS ONE PLACE, HOWEVER MANY THEY TYPED (26 Oct 2026) ─────────
+     * The place is what the nominator TYPED, so the rule used to count places per
+     * nomination: one person submitting three nominations and choosing three states made
+     * a nominee "nominated from three places", which is the exact support the rule exists
+     * to require. Each nominator now counts once — the place on their FIRST nomination
+     * for this person — and a nominator is their inbox (Support\EmailCanon), so
+     * "ada.obi@gmail.com" and "adaobi+2@gmail.com" are one. `nominators` reports how many
+     * people that was, and `total` is still every nomination, so a screen can say both.
+     *
+     * @return array{total:int, nominators:int, distinct_locations:int, min:int, enabled:bool, eligible:bool}
      */
     public function nomineeEligibility(string $nomineeName, int $cycleId): array
     {
@@ -633,21 +650,27 @@ class AwardService {
             $key = self::eligibilityKey((string) $nomineeName, (int) $cycleId);
             if (isset($out[$key])) continue;
             if (!$rule['enabled'] && !$measureWhenOff) {
-                $out[$key] = ['total' => 0, 'distinct_locations' => 0, 'min' => $rule['min'], 'enabled' => false, 'eligible' => true];
+                $out[$key] = ['total' => 0, 'nominators' => 0, 'distinct_locations' => 0, 'min' => $rule['min'], 'enabled' => false, 'eligible' => true];
                 continue;
             }
             $name = mb_strtolower(trim((string) $nomineeName));
             $total = 0;
             $locs = [];
+            $people = [];
             $ok = $evaluable;
             try {
                 if ($ok) {
                     $rows = DB::table('gates_nominations')
                         ->where('cycle_id', (int) $cycleId)
                         ->whereRaw('LOWER(TRIM(nominee_name)) = ?', [$name])
-                        ->get(['nominator_country', 'nominator_state']);
+                        ->orderBy('id')
+                        ->get(['id', 'nominator_email', 'nominator_country', 'nominator_state']);
                     $total = count($rows);
                     foreach ($rows as $r) {
+                        // An address that reduces to no inbox is its own nominator.
+                        $who = \AfricaGates\Support\EmailCanon::hash((string) ($r->nominator_email ?? '')) ?? 'row:' . (int) $r->id;
+                        if (isset($people[$who])) continue;
+                        $people[$who] = true;
                         $k = strtoupper(trim((string) ($r->nominator_country ?? ''))) . '|' . mb_strtolower(trim((string) ($r->nominator_state ?? '')));
                         if (trim($k, '|') !== '') $locs[$k] = true;
                     }
@@ -661,6 +684,7 @@ class AwardService {
             $distinct = count($locs);
             $out[$key] = [
                 'total'              => $total,
+                'nominators'         => $ok ? count($people) : $total,
                 'distinct_locations' => $distinct,
                 'min'                => $rule['min'],
                 'enabled'            => $rule['enabled'] && $ok,               // can't enforce without location data

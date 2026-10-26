@@ -576,12 +576,15 @@ class NominationController {
         $stored = [];
         foreach (self::uploadedEvidence($req) as $file) {
             try {
+                // Fingerprinted BEFORE the upload service re-encodes it, or two uploads of
+                // one photograph would never match.
+                $sha = \AfricaGates\Services\NominationSignals::uploadHash($file);
                 $up = (new \AfricaGates\Admin\Services\UploadService())->uploadDocument(
                     $file, 'nominations', (int) ceil(\AfricaGates\Services\NominationRules::MAX_FILE_BYTES / 1048576), null, 'public'
                 );
                 \AfricaGates\Services\AwardService::recordEvidenceFile(
                     (int) $nominationId, (string) $up['path'] ?? (string) $up['url'],
-                    $file->getClientFilename(), $file->getClientMediaType(), $file->getSize()
+                    $file->getClientFilename(), $file->getClientMediaType(), $file->getSize(), $sha
                 );
                 $stored[] = (string) $up['url'];
             } catch (\Throwable $e) {
@@ -679,11 +682,12 @@ class NominationController {
         $stored = [];
         foreach ($files as $file) {
             try {
+                $sha = \AfricaGates\Services\NominationSignals::uploadHash($file);
                 $up = (new \AfricaGates\Admin\Services\UploadService())->uploadDocument(
                     $file, 'nominations', (int) ceil($R::MAX_FILE_BYTES / 1048576), null, 'public'
                 );
                 $stored[] = ['path' => (string) ($up['path'] ?? $up['url']), 'label' => $file->getClientFilename(),
-                             'mime' => $file->getClientMediaType(), 'bytes' => $file->getSize()];
+                             'mime' => $file->getClientMediaType(), 'bytes' => $file->getSize(), 'sha256' => $sha];
             } catch (\Throwable $e) {
                 return $this->answerPage($res, $nom, $token, null, 'That file could not be added: ' . $e->getMessage());
             }

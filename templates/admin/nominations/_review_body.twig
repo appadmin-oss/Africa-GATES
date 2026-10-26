@@ -8,6 +8,25 @@
    posts to the SAME audited endpoints — the flag only changes the JS hooks. #}
 {% set spa = spa|default(false) %}
 
+{% if conflict|default(null) %}
+<div class="ad-flash ad-flash--err" role="alert" style="margin-bottom:14px">{{ conflict }} The decision buttons below will refuse it.</div>
+{% endif %}
+
+{# NominationSignals — the same checks the review desk draws, each with what was compared
+   and its innocent reading. They inform; none of them blocks a decision. #}
+{% if signals|default([]) %}
+<div class="ad-card" style="margin-bottom:14px;padding:14px 16px">
+  <strong style="display:block;font-size:14px;margin-bottom:8px">{{ signals|length }} thing{{ signals|length == 1 ? '' : 's' }} to check</strong>
+  <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px">
+    {% for sg in signals %}
+      <li style="font-size:13px;line-height:1.5"><strong style="color:var(--cn-gold-ink)">{{ sg.t }}.</strong> <span style="color:var(--cn-ink-3)">{{ sg.rule }}</span>
+        {% if sg.with %} <span style="color:var(--cn-ink-3)">See {% for w in sg.with|slice(0, 5) %}<a href="/admin/nominations/{{ w }}">#{{ w }}</a>{{ loop.last ? '' : ', ' }}{% endfor %}{{ sg.with|length > 5 ? ' and ' ~ (sg.with|length - 5) ~ ' more' : '' }}.</span>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 {% if duplicates and (duplicates.same_cycle is not empty or duplicates.live_nominee or duplicates.similar is not empty) %}
 <div class="ad-flash" role="alert" style="display:block;margin-bottom:14px;background:#fdf6e3;border:1px solid #e8d9a8;color:#6b5514;border-radius:12px;padding:12px 16px">
   <strong>⚠ Duplicate signals — check before deciding.</strong>
@@ -60,7 +79,7 @@
           <span style="color:var(--cn-ink-3)">Submitted</span><span style="font-family:'Space Mono',monospace;font-size:13px">{{ nom.created_at|slice(0,16) }}</span>
           {% if eligibility %}
           <span style="color:var(--cn-ink-3)">Eligibility</span>
-          <span><strong>{{ eligibility.distinct_locations }}</strong> distinct location{{ eligibility.distinct_locations == 1 ? '' : 's' }} · {{ eligibility.total }} nomination{{ eligibility.total == 1 ? '' : 's' }}
+          <span><strong>{{ eligibility.distinct_locations }}</strong> distinct location{{ eligibility.distinct_locations == 1 ? '' : 's' }} · {{ eligibility.total }} nomination{{ eligibility.total == 1 ? '' : 's' }}{% if eligibility.nominators is defined and eligibility.nominators < eligibility.total %} from {{ eligibility.nominators }} nominator{{ eligibility.nominators == 1 ? '' : 's' }} — each counts once{% endif %}
             {% if eligibility.enabled %}{% if eligibility.eligible %}<span class="ad-chip ad-chip--green" style="margin-left:6px">Eligible ✓</span>{% else %}<span class="ad-chip ad-chip--gold" style="margin-left:6px">{{ eligibility.distinct_locations }}/{{ eligibility.min }} — not yet eligible</span>{% endif %}{% else %}<span style="color:var(--cn-ink-3);font-size:12px;margin-left:6px">(threshold off)</span>{% endif %}
           </span>
           {% endif %}
@@ -166,6 +185,19 @@
       <button type="submit" class="ad-btn" style="width:100%;justify-content:center" data-confirm="Email the nominee a fresh single-use form link? Any previous link will stop working.">✉ Resend / regenerate nominee form link</button>
     </form>
     {% endif %}
+
+    {# The nominee's OWN contact. The nominator typed the one on the row, often their own;
+       the form link goes here, so it is correctable, and refuses a nominator's inbox. #}
+    <form method="post" action="/admin/nominations/{{ nom.id }}/contact" class="ad-card" style="margin-top:14px;padding:16px">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <h4 style="font-size:13px;font-weight:600;margin:0 0 4px">The nominee’s own contact</h4>
+      <p style="font-size:12.5px;color:var(--cn-ink-3);margin:0 0 10px">The nominator typed these. Their form link goes to this email, so it must be the nominee’s, not the nominator’s.</p>
+      <label for="nomineeEmail" style="font-size:12px;font-weight:600;color:var(--cn-ink-3)">Email</label>
+      <input id="nomineeEmail" type="email" name="nominee_email" value="{{ nom.nominee_email }}" autocomplete="off" style="width:100%;border:1px solid var(--cn-line-card);border-radius:9px;padding:8px 11px;font:inherit;font-size:13px;margin-bottom:8px">
+      <label for="nomineePhone" style="font-size:12px;font-weight:600;color:var(--cn-ink-3)">Phone</label>
+      <input id="nomineePhone" type="tel" name="nominee_phone" value="{{ nom.nominee_phone|default('') }}" inputmode="tel" autocomplete="off" style="width:100%;border:1px solid var(--cn-line-card);border-radius:9px;padding:8px 11px;font:inherit;font-size:13px;margin-bottom:10px">
+      <button type="submit" class="ad-btn" style="width:100%;justify-content:center">Save contact</button>
+    </form>
   </div>
 
 </div>

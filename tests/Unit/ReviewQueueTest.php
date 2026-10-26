@@ -28,6 +28,8 @@ final class ReviewQueueTest extends TestCase
     private int $cycle = 0;
     /** @var array<string,int> */
     private array $cats = [];
+    /** Each nomination is a different person's unless a test says otherwise (NominationSignals). */
+    private int $seq = 0;
 
     protected function setUp(): void
     {
@@ -44,7 +46,7 @@ final class ReviewQueueTest extends TestCase
     {
         $id = (int) DB::table('gates_nominations')->insertGetId($o + [
             'cycle_id' => $this->cycle, 'category_id' => $this->cats['Teacher of the Year'], 'nominee_name' => $name,
-            'country_code' => 'NG', 'nominator_name' => 'Bola Ade', 'nominator_email' => 'bola@example.test',
+            'country_code' => 'NG', 'nominator_name' => 'Bola Ade', 'nominator_email' => 'bola' . (++$this->seq) . '@school.ng',
             'reason' => 'Runs a weekend club and built the school lab.', 'status' => 'pending',
             'created_at' => date('Y-m-d H:i:s'),
         ]);

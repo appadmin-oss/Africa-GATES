@@ -126,6 +126,40 @@ class NominationsController
             return $res->withHeader('Location', $redirect)->withStatus(302);
         };
 
+        // Nobody decides a nomination that carries their own inbox (ReviewConflict). Checked
+        // before anything else, so bulk approve — which runs this same method — is held too.
+        if (in_array($action, \AfricaGates\Admin\Services\ReviewConflict::GUARDED, true)) {
+            $conflict = \AfricaGates\Admin\Services\ReviewConflict::of((int) ($_SESSION['admin_id'] ?? 0), $nom);
+            if ($conflict !== null) return $fail($conflict, 403);
+        }
+
+        // The nominee's own contact, corrected by a reviewer. The address the nominator typed
+        // is where the nominee's form link goes, so it may not be set to an inbox somebody who
+        // nominated them reads — that is the case this edit exists to repair.
+        if ($action === 'contact') {
+            $b = (array) $req->getParsedBody();
+            $email = trim((string) ($b['nominee_email'] ?? ''));
+            $phone = trim((string) ($b['nominee_phone'] ?? ''));
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) return $fail('That email address does not look right.');
+            $e164 = $phone !== '' ? \AfricaGates\Support\Phone::normalize($phone, 'NG') : null;
+            if ($phone !== '' && $e164 === null) return $fail('That phone number does not look right. Start with the country code if it is not a Nigerian number.');
+            $probe = (object) ['nominee_email' => $email, 'cycle_id' => $nom->cycle_id, 'nominee_name' => $nom->nominee_name];
+            if ($email !== '' && \AfricaGates\Services\NominationSignals::contactIsNominators($probe)) {
+                return $fail('That is the address of somebody who nominated them. The nominee’s form link has to reach the nominee.');
+            }
+            $changes = ['nominee_email' => $email !== '' ? mb_substr($email, 0, 190) : null, 'nominee_phone' => $e164];
+            $fields = array_keys(array_filter($changes, static fn ($v, $k): bool => (string) ($nom->{$k} ?? '') !== (string) ($v ?? ''), ARRAY_FILTER_USE_BOTH));
+            if ($fields === []) return $ok('Nothing changed.', '/admin/nominations/' . $id);
+            try {
+                DB::table('gates_nominations')->where('id', $id)->update(OptionalColumn::filter('gates_nominations', $changes, ['nominee_phone']));
+            } catch (\Throwable $e) {
+                return $fail($this->dbErrorFlash($e), 500);
+            }
+            // Which fields moved, never their values: the audit log is read by every role.
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.contact', 'nomination', $id, ['fields' => $fields]);
+            return $ok('Saved the nominee’s own contact.' . ((string) $nom->status === 'approved' ? ' Send the form link again from here.' : ''), '/admin/nominations/' . $id);
+        }
+
         // The desk's one decision form names its choice; it runs exactly the action the
         // three separate buttons on the list run.
         if ($action === 'decide') {
@@ -285,9 +319,12 @@ class NominationsController
             $mergeInto = DB::table('gates_nominations')->where('id', (int) ($b['merge_into'] ?? 0))->first();
             if (!$mergeInto || (int) $mergeInto->id === $id || (int) $mergeInto->cycle_id !== (int) $nom->cycle_id
                 || (string) $mergeInto->status !== 'approved' || (int) ($mergeInto->category_id ?? 0) < 1
-                || \AfricaGates\Services\NominationTriageService::nameKey((string) $mergeInto->nominee_name)
-                   !== \AfricaGates\Services\NominationTriageService::nameKey((string) $nom->nominee_name)) {
-                return $fail('That earlier nomination cannot take a merge. Only an approved entry for the same name in this edition can.');
+                || (\AfricaGates\Services\NominationTriageService::nameKey((string) $mergeInto->nominee_name)
+                    !== \AfricaGates\Services\NominationTriageService::nameKey((string) $nom->nominee_name)
+                    // A near-miss spelling (Muhammed / Mohammed) is the case the desk offers,
+                    // by the same rule that flagged it — a button it drew must be one that works.
+                    && !\AfricaGates\Services\NominationTriageService::similarName((string) $mergeInto->nominee_name, (string) $nom->nominee_name))) {
+                return $fail('That earlier nomination cannot take a merge. Only an approved entry for the same person in this edition can.');
             }
             $catId = (int) $mergeInto->category_id;
         }
@@ -342,8 +379,10 @@ class NominationsController
                 // Unless a reviewer ruled this a different person who shares the name
                 // ("Not a duplicate" on the desk): then joining the existing entry is
                 // exactly the wrong answer, and a nominee of their own is minted.
+                // A merge joins the EARLIER entry's nominee, found by that entry's own name:
+                // on a near-miss spelling this nomination's name matches nobody.
                 $nomineeId = (int) ($nom->not_duplicate ?? 0) === 1 && $mergeInto === null ? 0
-                    : \AfricaGates\Services\MergeSuggestionService::findLiveMatch($catId, (string)$nom->nominee_name);
+                    : \AfricaGates\Services\MergeSuggestionService::findLiveMatch($catId, (string) ($mergeInto->nominee_name ?? $nom->nominee_name));
                 if ($nomineeId < 1 && $mergeInto !== null) {
                     throw new \RuntimeException('merge: the earlier entry has no live nominee to join');
                 }
@@ -485,11 +524,12 @@ HTML;
 
         // Verified nominee → congratulatory email with a single-use gated form link. Not on
         // a merge: the nominee already had theirs when the earlier entry was approved.
-        if ($mergeInto === null) $this->sendNomineeForm($nom, $nomineeId);
+        $form = $mergeInto === null ? $this->sendNomineeForm($nom, $nomineeId) : '';
 
         return $ok(
             $mergeInto !== null ? 'Merged into the earlier entry in "' . $cat->title . '". Both nominators keep credit.'
-                                : 'Nomination approved and added to "' . $cat->title . '".',
+                                : 'Nomination approved and added to "' . $cat->title . '".'
+                                  . ($form === 'withheld' ? ' The nominee’s form link was not sent: their email is a nominator’s own. Add the nominee’s address on the full record and send it from there.' : ''),
             $back ?? ($fromDesk ? '/admin/nominations/desk?after=' . $id : '/admin/nominations?status=approved')
         );
     }
@@ -511,9 +551,12 @@ HTML;
             $_SESSION['flash_error'] = 'Could not locate the created nominee record.';
             return $res->withHeader('Location', '/admin/nominations/' . $id)->withStatus(302);
         }
-        if ($this->sendNomineeForm($nom, $nomineeId)) {
+        $sent = $this->sendNomineeForm($nom, $nomineeId);
+        if ($sent === 'sent') {
             $this->audit->record((int)$_SESSION['admin_id'], 'nomination.regenerate_form', 'nomination', $id);
             $_SESSION['flash_ok'] = 'A fresh single-use acceptance form link was emailed to the nominee (any previous link is now void).';
+        } elseif ($sent === 'withheld') {
+            $_SESSION['flash_error'] = 'Not sent: the nominee’s email is the address of somebody who nominated them, so the link would reach the nominator. Add the nominee’s own address, then send it again.';
         } else {
             $_SESSION['flash_error'] = 'Could not issue or email the acceptance form link — check the nominee has a valid email and that mail is configured, then try again.';
         }
@@ -538,10 +581,17 @@ HTML;
      * the approve flow the return value is ignored — sending is best-effort
      * there and must never break an approval that already committed.
      */
-    private function sendNomineeForm(object $nom, int $nomineeId): bool
+    /**
+     * Issue the nominee's single-use form link and email it.
+     *
+     * @return string 'sent' | 'withheld' (the address is a nominator's own — see
+     *                NominationSignals::contactIsNominators) | 'failed'
+     */
+    private function sendNomineeForm(object $nom, int $nomineeId): string
     {
         $email = strtolower(trim((string)($nom->nominee_email ?? '')));
-        if (!$this->mailer || $nomineeId < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+        if (!$this->mailer || $nomineeId < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return 'failed';
+        if (\AfricaGates\Services\NominationSignals::contactIsNominators($nom)) return 'withheld';
         // Issuing the token, building the link, and sending are ALL best-effort:
         // a missing gates_form_tokens table (stale DB) or a mail failure must
         // never bubble up and 500 an approval that already committed.
@@ -574,10 +624,9 @@ HTML;
                 'page_url'     => !empty($row->programme_slug) ? \AfricaGates\Support\NomineeUrl::ballot($nomineeId) : '',
                 'site_url'     => $base,
             ]);
-            if (!($r['success'] ?? false)) return false;
-            return true;
+            return ($r['success'] ?? false) ? 'sent' : 'failed';
         } catch (\Throwable $e) { /* token issue or mail failure — never break approval */ }
-        return false;
+        return 'failed';
     }
 
     /**
@@ -635,7 +684,7 @@ HTML;
         $keep = array_filter(['scope' => $p['scope'], 'view' => $p['view'] === 'all' ? '' : $p['view']]);
         $qbase = '/admin/nominations/desk?' . ($keep ? http_build_query($keep) . '&' : '');
         $at = array_search($id, $ids, true);
-        $n = $id > 0 ? \AfricaGates\Admin\Services\ReviewDesk::view($id, $this->awards) : null;
+        $n = $id > 0 ? \AfricaGates\Admin\Services\ReviewDesk::view($id, $this->awards, (int) ($_SESSION['admin_id'] ?? 0)) : null;
         $count = count($ids);
         return [
             'queue'      => $queue,
@@ -703,6 +752,9 @@ HTML;
             'categories'  => $cats,
             'eligibility' => $this->awards ? $this->awards->nomineeEligibility((string)$nom->nominee_name, (int)$nom->cycle_id) : null,
             'duplicates'  => \AfricaGates\Services\NominationTriageService::duplicatesFor($nom),
+            // The desk's checks, with the rule behind each, on the full record too.
+            'signals'     => \AfricaGates\Services\NominationSignals::forIds([(int) $nom->id])[(int) $nom->id] ?? [],
+            'conflict'    => \AfricaGates\Admin\Services\ReviewConflict::of((int) ($_SESSION['admin_id'] ?? 0), $nom),
             'insight'     => \AfricaGates\Services\NominationTriageService::insight((int)$nom->id),
             'queue'       => ($nom->status === 'pending') ? \AfricaGates\Services\NominationTriageService::queuePosition((int)$nom->id) : null,
             // Would the call actually run? A configured() probe alone showed the

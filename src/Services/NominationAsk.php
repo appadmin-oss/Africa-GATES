@@ -120,7 +120,7 @@ final class NominationAsk
      * Links are checked here, not only in the form; files arrive already stored.
      *
      * @param list<string> $links
-     * @param list<array{path:string,label:?string,mime:?string,bytes:?int}> $files
+     * @param list<array{path:string,label:?string,mime:?string,bytes:?int,sha256?:?string}> $files
      * @return int how many pieces were kept
      */
     public static function answer(object $nom, array $links, array $files): int
@@ -141,7 +141,7 @@ final class NominationAsk
             }
         }
         foreach ($files as $f) {
-            if (AwardService::recordEvidenceFile((int) $nom->id, $f['path'], $f['label'], $f['mime'], $f['bytes'])) $kept++;
+            if (AwardService::recordEvidenceFile((int) $nom->id, $f['path'], $f['label'], $f['mime'], $f['bytes'], $f['sha256'] ?? null)) $kept++;
         }
         if ($kept === 0) return 0;
 

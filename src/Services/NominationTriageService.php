@@ -52,6 +52,29 @@ class NominationTriageService
     }
 
     /**
+     * Are two names near-miss spellings of one name (Muhammed / Mohammed)? The rule the
+     * duplicate hints use, public so the desk's merge accepts exactly the pairs the desk
+     * offered to merge — a merge refused for a pair the screen called similar would leave
+     * the reviewer with a button that cannot work.
+     */
+    public static function similarName(string $a, string $b): bool
+    {
+        return self::similarKeys(self::nameKey($a), self::nameKey($b));
+    }
+
+    /**
+     * Small edit distance AND high character similarity, so a distance-2 pair of
+     * DIFFERENT names is not flagged; at least six characters, because short names are
+     * too noisy ("Ada Obi" and "Ada Ubi" are two people).
+     */
+    private static function similarKeys(string $a, string $b): bool
+    {
+        if ($a === '' || $b === '' || $a === $b || strlen($a) < 6 || abs(strlen($a) - strlen($b)) > 2) return false;
+        similar_text($a, $b, $pct);
+        return levenshtein($a, $b) <= 2 && $pct >= 80.0;
+    }
+
+    /**
      * Deterministic duplicate hints for a nomination.
      *
      * Three signals:
@@ -138,10 +161,7 @@ class NominationTriageService
                     if (in_array((int) $c->id, $exactIds, true)) continue;
                     $cn = self::norm((string) $c->nominee_name);
                     if ($cn === '' || $cn === $norm || abs(strlen($cn) - strlen($norm)) > 2) continue;
-                    // Small edit distance AND high character similarity, so a
-                    // distance-2 pair of DIFFERENT names isn't flagged as a dup.
-                    similar_text($norm, $cn, $pct);
-                    if (levenshtein($norm, $cn) <= 2 && $pct >= 80.0) {
+                    if (self::similarKeys($norm, $cn)) {
                         $out['similar'][] = ['id' => (int) $c->id, 'name' => (string) $c->nominee_name, 'status' => (string) $c->status];
                         if (count($out['similar']) >= 10) break;
                     }

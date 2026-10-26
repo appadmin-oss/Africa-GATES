@@ -57,15 +57,15 @@ class NominationEligibilityTest extends TestCase
         DB::table('gates_settings')->updateOrInsert(['key_name' => 'nomination_eligibility_enabled'], ['value' => '1']);
         DB::table('gates_settings')->updateOrInsert(['key_name' => 'nomination_min_locations'], ['value' => '3']);
 
-        $this->nom(['nominator_state' => 'Lagos']);
-        $this->nom(['nominator_state' => 'Abuja']);
+        $this->nom(['nominator_state' => 'Lagos', 'nominator_email' => 'a@x.io']);
+        $this->nom(['nominator_state' => 'Abuja', 'nominator_email' => 'b@x.io']);
         $e = $this->svc->nomineeEligibility('Ada Obi', 1);
         $this->assertTrue($e['enabled']);
         $this->assertSame(3, $e['min']);
         $this->assertSame(2, $e['distinct_locations']);
         $this->assertFalse($e['eligible']);                       // 2 < 3
 
-        $this->nom(['nominator_state' => 'Kano']);
+        $this->nom(['nominator_state' => 'Kano', 'nominator_email' => 'c@x.io']);
         $e = $this->svc->nomineeEligibility('Ada Obi', 1);
         $this->assertSame(3, $e['distinct_locations']);
         $this->assertTrue($e['eligible']);                        // 3 >= 3
@@ -73,5 +73,31 @@ class NominationEligibilityTest extends TestCase
         // Same location again doesn't increase the distinct count.
         $this->nom(['nominator_state' => 'Lagos']);
         $this->assertSame(3, $this->svc->nomineeEligibility('Ada Obi', 1)['distinct_locations']);
+    }
+
+    /**
+     * The place is TYPED, so one person choosing three states is not three places. Each
+     * nominator counts once, at the place on their first nomination, and a nominator is
+     * an inbox: Gmail's dots and a "+tag" are the cheapest way round an exact match.
+     */
+    public function test_one_nominator_counts_once_however_many_places_they_type(): void
+    {
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'nomination_eligibility_enabled'], ['value' => '1']);
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'nomination_min_locations'], ['value' => '3']);
+
+        $this->nom(['nominator_state' => 'Lagos', 'nominator_email' => 'ada.obi.fan@gmail.com']);
+        $this->nom(['nominator_state' => 'Abuja', 'nominator_email' => 'adaobifan+2@gmail.com']);
+        $this->nom(['nominator_state' => 'Kano',  'nominator_email' => 'AdaObiFan@googlemail.com']);
+        $e = $this->svc->nomineeEligibility('Ada Obi', 1);
+        $this->assertSame(3, $e['total'], 'every nomination is still counted as a nomination');
+        $this->assertSame(1, $e['nominators']);
+        $this->assertSame(1, $e['distinct_locations'], 'the first place they typed');
+        $this->assertFalse($e['eligible']);
+
+        $this->nom(['nominator_state' => 'Kano',  'nominator_email' => 'second@x.io']);
+        $this->nom(['nominator_state' => 'Enugu', 'nominator_email' => 'third@x.io']);
+        $e = $this->svc->nomineeEligibility('Ada Obi', 1);
+        $this->assertSame([3, 3], [$e['nominators'], $e['distinct_locations']]);
+        $this->assertTrue($e['eligible'], 'three people from three places');
     }
 }
