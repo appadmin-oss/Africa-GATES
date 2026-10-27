@@ -32,7 +32,9 @@ final class VisitTrackingMiddleware implements MiddlewareInterface
 {
     public function process(Request $request, Handler $handler): Response
     {
-        VisitTracker::record($request);
+        $before = (string) ($_SESSION[VisitTracker::SESSION_KEY] ?? '');
+        $key    = VisitTracker::record($request);
+        $fresh  = $key !== '' && $key !== $before ? $key : '';
 
         // The consent notice is drawn by the site layout, which has no Request. Deciding
         // here — from the same request, on the same tick, immediately after the tracker
@@ -40,9 +42,20 @@ final class VisitTrackingMiddleware implements MiddlewareInterface
         // permission it has already counted them without. See CookiePrefs::observe().
         CookiePrefs::observe($request);
 
+        // A path this site does not have arrives as an exception from the router. The other
+        // non-pages (a redirect, a 404 a handler returned) arrive as a status. Either way the
+        // arrival written above is taken back. See VisitTracker::discard().
+        try {
+            $response = $handler->handle($request);
+        } catch (\Slim\Exception\HttpNotFoundException | \Slim\Exception\HttpMethodNotAllowedException $e) {
+            VisitTracker::discard($fresh);
+            throw $e;
+        }
+        if ($fresh !== '' && !VisitTracker::isPageStatus($response->getStatusCode())) VisitTracker::discard($fresh);
+
         // A browser still holding the retired single-switch cookie has its answer carried
         // into `ag_consent` on this response and the old cookie expired — once, and then
         // never again. See CookiePrefs::carryOver().
-        return CookiePrefs::carryOver($request, $handler->handle($request));
+        return CookiePrefs::carryOver($request, $response);
     }
 }

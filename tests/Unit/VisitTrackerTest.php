@@ -47,7 +47,15 @@ final class VisitTrackerTest extends TestCase
 
         // A plain browser unless a test says otherwise. Without one, looksLikeBot() is
         // right to refuse: no agent at all is a script, not a reader.
-        $headers += ['User-Agent' => 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36'];
+        // and the headers every current browser sends with a page navigation (see
+        // isPageNavigation()).
+        $headers += [
+            'User-Agent'     => 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+            'Accept'         => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Sec-Fetch-Mode' => 'navigate',
+            'Sec-Fetch-Dest' => 'document',
+        ];
+        $headers = array_filter($headers, static fn ($v) => $v !== null);
         foreach ($headers as $k => $v) $r = $r->withHeader($k, $v);
 
         return $r;
@@ -454,6 +462,125 @@ final class VisitTrackerTest extends TestCase
 
         $this->assertSame(['/honour/*', '/nominee/incredible-principal-2026'], $paths,
             'the credential goes and the real slug stays');
+    }
+
+    /**
+     * Production's top landing pages were `/feed`, `/events/feed` and
+     * `/wp-json/tribe/events/v1/events`, which are the old WordPress site's addresses,
+     * still polled by feed readers and scanners. Every one was a 404, and every one was
+     * counted, because the row is written before the handler runs.
+     */
+    public function test_a_path_the_site_does_not_have_is_not_an_arrival(): void
+    {
+        $mw = new \AfricaGates\Middleware\VisitTrackingMiddleware();
+
+        $thrown = new class implements \Psr\Http\Server\RequestHandlerInterface {
+            public function handle(Request $r): \Psr\Http\Message\ResponseInterface {
+                throw new \Slim\Exception\HttpNotFoundException($r);
+            }
+        };
+        try {
+            $mw->process($this->get('https://gates.test/wp-json/tribe/events/v1/events'), $thrown);
+            $this->fail('the 404 must still reach the error handler');
+        } catch (\Slim\Exception\HttpNotFoundException) {}
+
+        $this->assertSame(0, (int) DB::table('gates_visits')->count(), 'an unrouted path is nobody reading');
+        $this->assertArrayNotHasKey(VisitTracker::SESSION_KEY, $_SESSION,
+            'and the session is left free to record the page they do reach');
+
+        foreach ([404, 410, 301, 302] as $status) {
+            $_SESSION = [];
+            $mw->process($this->get('https://gates.test/events/feed'), $this->answering($status));
+        }
+        $this->assertSame(0, (int) DB::table('gates_visits')->count(), 'nor a 404 a handler returned, nor a redirect');
+
+        $_SESSION = [];
+        $mw->process($this->get('https://gates.test/events'), $this->answering(200));
+        $this->assertSame(1, (int) DB::table('gates_visits')->count(), 'a page is still an arrival');
+        $this->assertSame('/events', $this->lastVisit()['landing_path']);
+    }
+
+    /** Taking a 404 back must never take back the session's real arrival. */
+    public function test_a_later_404_does_not_undo_the_arrival(): void
+    {
+        $mw = new \AfricaGates\Middleware\VisitTrackingMiddleware();
+        $mw->process($this->get('https://gates.test/discover'), $this->answering(200));
+        $mw->process($this->get('https://gates.test/no-such-page'), $this->answering(404));
+
+        $this->assertSame(1, (int) DB::table('gates_visits')->count());
+        $this->assertSame('/discover', $this->lastVisit()['landing_path']);
+    }
+
+    /**
+     * A script that borrows a browser's User-Agent rarely borrows its fetch headers too. A feed
+     * reader asks for RSS, an API scanner for JSON or anything, and a browser's own background
+     * fetch says `cors`. An old browser with no Sec-Fetch headers but an HTML Accept is a reader.
+     */
+    public function test_only_a_page_navigation_is_an_arrival(): void
+    {
+        $refused = [
+            ['Accept' => 'application/rss+xml, application/xml', 'Sec-Fetch-Mode' => null, 'Sec-Fetch-Dest' => null],
+            ['Accept' => 'application/json', 'Sec-Fetch-Mode' => null, 'Sec-Fetch-Dest' => null],
+            ['Accept' => '*/*', 'Sec-Fetch-Mode' => null, 'Sec-Fetch-Dest' => null],
+            ['Sec-Fetch-Mode' => 'cors', 'Sec-Fetch-Dest' => 'empty'],
+            ['Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'iframe'],
+        ];
+        foreach ($refused as $h) {
+            $_SESSION = [];
+            VisitTracker::record($this->get('https://gates.test/', $h));
+        }
+        $this->assertSame(0, (int) DB::table('gates_visits')->count());
+
+        $_SESSION = [];
+        VisitTracker::record($this->get('https://gates.test/', ['Sec-Fetch-Mode' => null, 'Sec-Fetch-Dest' => null]));
+        $this->assertSame(1, (int) DB::table('gates_visits')->count(), 'an older browser still counts');
+    }
+
+    /** Production recorded an exploit probe's Referer as a source. */
+    public function test_a_forged_referrer_is_not_an_arrival(): void
+    {
+        VisitTracker::record($this->get('https://gates.test/', [
+            'Referer' => '554fcae493e564ee0dc75bdf2ebf94caads|a:2:{s:3:"num";s:72:"0,1 union select 1"}',
+        ]));
+        $this->assertSame(0, (int) DB::table('gates_visits')->count());
+
+        $_SESSION = [];
+        VisitTracker::record($this->get('https://gates.test/', ['Referer' => 'android-app://com.google.android.gm/']));
+        $this->assertSame(1, (int) DB::table('gates_visits')->count(), 'an app referrer is not forged');
+    }
+
+    public function test_arrivals_that_were_never_a_page_are_repaired(): void
+    {
+        $now = Carbon::now()->toDateTimeString();
+        $row = static fn (string $k, string $path, string $src = 'direct') => [
+            'visit_key' => str_repeat($k, 32), 'source' => $src, 'landing_path' => $path,
+            'device' => 'desktop', 'created_at' => $now,
+        ];
+        DB::table('gates_visits')->insert([
+            $row('a', '/feed'), $row('b', '/events/feed'), $row('c', '/wp-json/tribe/events/v1/events'),
+            $row('d', '/wp-login.php'), $row('e', '/', '554fcae493e564ee0dc75bdf2ebf94caads|a:2:{s:3:"num"'),
+            $row('f', '/events'), $row('g', '/'), $row('h', '/vote/x/1', 'gala26 flier'), $row('i', '/discover', 'google'),
+        ]);
+
+        ob_start();
+        try {
+            require dirname(__DIR__, 2) . '/database/migrations/2027_04_08_visit_noise_repair.php';
+        } finally {
+            ob_end_clean();
+        }
+
+        $this->assertSame(['/events', '/', '/vote/x/1', '/discover'],
+            DB::table('gates_visits')->orderBy('id')->pluck('landing_path')->all());
+    }
+
+    private function answering(int $status): \Psr\Http\Server\RequestHandlerInterface
+    {
+        return new class($status) implements \Psr\Http\Server\RequestHandlerInterface {
+            public function __construct(private int $status) {}
+            public function handle(Request $r): \Psr\Http\Message\ResponseInterface {
+                return (new \Slim\Psr7\Factory\ResponseFactory())->createResponse($this->status);
+            }
+        };
     }
 
     /** Recorded on the way in, and pruned by the maintenance run. */

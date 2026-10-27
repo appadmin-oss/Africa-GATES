@@ -43,7 +43,12 @@ final class CookiePrefsTest extends TestCase
     private function req(string $uri = '/', array $cookies = [], array $headers = []): Request
     {
         $r = (new ServerRequestFactory())->createServerRequest('GET', $uri);
-        $headers += ['User-Agent' => 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36'];
+        // A browser's page navigation: the tracker counts nothing else (isPageNavigation()).
+        $headers += [
+            'User-Agent' => 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+            'Accept' => 'text/html,application/xhtml+xml,*/*;q=0.8',
+            'Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document',
+        ];
         foreach ($headers as $k => $v) $r = $r->withHeader($k, $v);
 
         return $r->withCookieParams($cookies);

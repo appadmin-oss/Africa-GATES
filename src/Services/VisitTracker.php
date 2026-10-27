@@ -27,8 +27,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *
  * ── AND WHAT IS NOT RECORDED AT ALL ──────────────────────────────────────────
  *
- * Bots, admin pages, the cron endpoint, assets, and anybody who has asked not to be
- * tracked. The first four are noise that would drown the signal; the last is the point.
+ * Bots, admin pages, the cron endpoint, assets, anything that is not a browser asking for
+ * a page (isPageNavigation()), any answer that is not a page (a 404 or a redirect; see
+ * discard()), and anybody who has asked not to be tracked. All but the last are noise that
+ * would drown the signal; the last is the point.
  * `Do Not Track` and `Sec-GPC` are honoured — not because they are enforceable, but
  * because this table exists to tell an organiser which flier worked, and no answer to
  * that question is worth ignoring somebody who said no. They were also, for a long time,
@@ -98,6 +100,7 @@ final class VisitTracker
             // the answer now includes a choice they can make on /cookies, not only a header
             // two of the three major browsers stopped sending. See CookiePrefs.
             if (!CookiePrefs::allows($request, CookiePrefs::ANALYTICS) || self::looksLikeBot($request)) return '';
+            if (!self::isPageNavigation($request) || self::referrerIsForged($request)) return '';
 
             $q      = $request->getQueryParams();
             $ref    = self::header($request, 'Referer');
@@ -126,6 +129,40 @@ final class VisitTracker
             // visitors came from is a white page where the home page used to be.
             return '';
         }
+    }
+
+    /**
+     * Take back an arrival recorded on the way in, once the response shows it was not a page.
+     *
+     * ── WHY THE ROW IS WRITTEN FIRST AND TAKEN BACK AFTER ────────────────────
+     *
+     * The row has to exist before the handler runs, so a session that converts on its
+     * first request has something to stamp (see the middleware). But the tracker cannot
+     * tell from the request whether the path is a page here, and it counted every one.
+     * This domain used to host a WordPress site, and feed readers, aggregators and
+     * scanners still ask for its old URLs (`/feed`, `/events/feed`,
+     * `/wp-json/tribe/events/v1/events`) thousands of times a week. Each one got a 404 and
+     * was still counted as a visit, so the first thing on the analytics page was a site
+     * that no longer exists. A 404, a 405, a 410 or a redirect is not a page anybody read.
+     * A redirect's destination is counted when the browser follows it, with the same
+     * referrer.
+     *
+     * Only a row written on THIS request is taken back, and never one that already led to
+     * something.
+     */
+    public static function discard(string $key): void
+    {
+        if ($key === '') return;
+        try {
+            DB::table('gates_visits')->where('visit_key', $key)->whereNull('converted_kind')->delete();
+        } catch (\Throwable) {}
+        if (($_SESSION[self::SESSION_KEY] ?? '') === $key) unset($_SESSION[self::SESSION_KEY]);
+    }
+
+    /** Was this response a page a person could read? */
+    public static function isPageStatus(int $status): bool
+    {
+        return $status < 300 || $status >= 500;
     }
 
     /**
@@ -387,6 +424,41 @@ final class VisitTracker
         }
 
         return false;
+    }
+
+    /**
+     * Did a browser ask for this as a page, rather than a script asking for a resource?
+     *
+     * Every current browser says so in `Sec-Fetch-Mode: navigate` and
+     * `Sec-Fetch-Dest: document`. A browser too old to send those still sends an `Accept`
+     * naming `text/html` for a page. A feed reader asks for RSS, an API scanner for JSON or
+     * anything at all (a bare star-slash-star), and a script that fakes a
+     * browser's User-Agent rarely fakes these headers as well. The User-Agent check above
+     * catches the bots that say what they are. This one catches the ones that do not.
+     */
+    private static function isPageNavigation(Request $request): bool
+    {
+        $mode = strtolower(self::header($request, 'Sec-Fetch-Mode'));
+        $dest = strtolower(self::header($request, 'Sec-Fetch-Dest'));
+        if ($mode !== '' || $dest !== '') {
+            return ($mode === '' || $mode === 'navigate') && ($dest === '' || $dest === 'document');
+        }
+
+        return str_contains(strtolower(self::header($request, 'Accept')), 'text/html');
+    }
+
+    /**
+     * A Referer no browser would send. Production recorded one as a SOURCE: a serialised
+     * PHP array that is a known exploit probe against another shop platform's referrer
+     * handling. It does nothing here, but a request carrying it is an attack script, not
+     * a reader, and it put a line of exploit code on the analytics page.
+     */
+    private static function referrerIsForged(Request $request): bool
+    {
+        $ref = self::header($request, 'Referer');
+        if ($ref === '') return false;
+
+        return preg_match('/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/', self::hostOf($ref)) !== 1;
     }
 
     private static function header(Request $request, string $name): string

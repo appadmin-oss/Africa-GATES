@@ -77,7 +77,12 @@ final class CookieConsentRouteTest extends TestCase
         $r = (new ServerRequestFactory())->createServerRequest('GET', 'http://localhost' . $path)
             ->withCookieParams($cookies);
 
-        $headers += ['User-Agent' => 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36'];
+        // A browser's page navigation: the tracker counts nothing else (isPageNavigation()).
+        $headers += [
+            'User-Agent' => 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+            'Accept' => 'text/html,application/xhtml+xml,*/*;q=0.8',
+            'Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document',
+        ];
         foreach ($headers as $k => $v) $r = $r->withHeader($k, $v);
 
         return $this->app()->handle($r);
