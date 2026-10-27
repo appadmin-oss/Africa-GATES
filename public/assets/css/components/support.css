@@ -60,3 +60,7 @@
 .st-filter .hc__chip[aria-pressed="true"]{ border:2px solid var(--ag-ink); font-weight:700 }
 .st-empty a, .st .ag-hint a{ color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px }
 .st-gone{ max-width:640px; gap:var(--ag-sp-14) }
+
+@media (hover:hover){
+  .sp a.sp__mail:hover{ color:var(--ag-green-deep); text-decoration-thickness:2px }
+}

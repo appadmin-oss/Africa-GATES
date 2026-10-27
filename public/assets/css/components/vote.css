@@ -308,3 +308,16 @@
 @media (hover:hover){
   .vh-row:hover{ background:var(--ag-ground) }
 }
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. One language
+   across the site (components.css, "Pointer states"): an outlined control takes a faint fill
+   and a darker hairline, never the 2px ink a selection wears; a text tab darkens its words; a
+   card that is a link lifts and takes its edge; a green link deepens and underlines; a filled
+   green button deepens. */
+@media (hover:hover){
+  .vh-row{ transition:background-color var(--ag-dur-1) var(--ag-ease) }
+  .vp-tab:not([aria-current="page"]):hover{ color:var(--ag-ink); box-shadow:inset 0 -3px 0 var(--ag-line-2) }
+  .vp-cats__a:not([aria-current="true"]):hover{ background:var(--ag-bar) }
+  .vh-card__a:hover,
+  .vp-card__a:hover{ color:var(--ag-green-deep); text-decoration:underline; text-underline-offset:3px }
+}

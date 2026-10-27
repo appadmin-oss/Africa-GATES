@@ -138,12 +138,15 @@
 .ei-search__x span{ width:26px; height:26px; border-radius:50%; background:var(--ag-line); display:flex; align-items:center; justify-content:center }
 .ei-chips{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; margin:0 -16px; padding:0 16px }
 .ei-chips::-webkit-scrollbar{ display:none }
+/* One chip, wherever it is drawn: the base chip's numbers (components.css) — 44px on a phone,
+   40 on desktop, 14.5 regular, bold only when selected — and its hover. */
 .ei-chip{
   flex:none; display:inline-flex; align-items:center; height:44px; padding:0 16px; border-radius:var(--ag-r-pill);
   border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink); font-weight:500; font-size:var(--ag-fs-14-5);
   white-space:nowrap; text-decoration:none;
 }
 .ei-chip[aria-current="true"]{ border:2px solid var(--ag-ink); padding:0 15px; font-weight:700 }
+@media (min-width:1024px){ .ei-chip{ height:40px } }
 .ei-chip--sel{ padding:0 14px; font-family:inherit; font-weight:600; cursor:pointer }
 
 /* ══ SECTIONS ══ */
@@ -276,5 +279,5 @@
   .ei-btn--go:hover,
   .ei-btn--ink:hover{ background:var(--ag-green-deep); color:var(--ag-surface) }
   .ei-btn--line:hover{ background:var(--ag-tint); color:var(--ag-ink) }
-  .ei-chip:hover{ border-color:var(--ag-ink); color:var(--ag-ink) }
+  .ei-chip:not([aria-current="true"]):hover{ background:var(--ag-bar); border-color:var(--ag-mute); color:var(--ag-ink) }
 }

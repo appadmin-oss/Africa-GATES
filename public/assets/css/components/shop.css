@@ -82,7 +82,9 @@
 .sp-chip{ flex:none; display:inline-flex; align-items:center; gap:7px; height:40px; padding:0 var(--ag-sp-14);
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink);
   font-size:var(--ag-fs-14); font-weight:600; white-space:nowrap; cursor:pointer }
-.sp-chip:hover{ color:var(--ag-ink); border-color:var(--ag-ink) }
+/* Under a pointer, the site's chip hover (components.css) — never the ink border that IS the
+   selected state, which made a filter look chosen while somebody was only pointing at it. */
+@media (hover:hover){ .sp-chip:not(.is-on):hover{ background:var(--ag-bar); border-color:var(--ag-mute); color:var(--ag-ink) } }
 .sp-chip.is-on{ border:2px solid var(--ag-ink); padding:0 calc(var(--ag-sp-14) - 1px) }
 .sp-chip__n{ display:inline-grid; place-items:center; min-width:20px; height:20px; padding:0 5px; border-radius:var(--ag-r-pill);
   background:var(--ag-ink); color:var(--ag-surface); font-size:var(--ag-fs-12); font-weight:800 }

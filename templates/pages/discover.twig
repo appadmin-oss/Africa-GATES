@@ -49,7 +49,8 @@
   {%- endfor -%}
 {% endmacro %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/discover.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/discover.css') }}">{% endblock %}
 
 {% block content %}
 <div class="dv" data-dv data-tab="{{ s.tab }}" data-min="{{ min_query }}"
@@ -119,7 +120,9 @@
           <div class="dv-cards">
             {% for e in sec.awards.items %}
               <a class="dv-card" href="{{ e.url }}">
-                <span class="dv-card__img">{% if e.cover %}<img src="{{ e.cover|media_url }}" alt="{{ '%t% cover photo'|trans({'%t%': e.title}) }}" loading="lazy" width="230" height="110">{% endif %}</span>
+                {# The one photo slot (partials/photo.twig): a real cover, or the award's default
+                   graphic — never the flat grey block this used to leave when there was none. #}
+                <span class="dv-card__img">{% include 'partials/photo.twig' with {kind: 'thing', subject: 'award', src: e.cover ? e.cover|media_url : '', name: e.title, alt: e.cover ? '%t% cover photo'|trans({'%t%': e.title}) : ''} only %}</span>
                 <span class="dv-card__b">
                   <span class="dv-card__t">{{ e.title }}</span>
                   <span class="dv-card__l">{{ e.line }}</span>

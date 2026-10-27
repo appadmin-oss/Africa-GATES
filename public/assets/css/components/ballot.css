@@ -176,3 +176,19 @@
   .vb-tier:has(input:checked){ forced-color-adjust:none; background:Highlight; border-color:Highlight; color:HighlightText }
   .vb-tier:has(input:checked) *{ color:HighlightText }
 }
+
+/* Hover — a pointer only, so a tap on a phone does not leave the state stuck. One language
+   across the site (components.css, "Pointer states"): an outlined control takes a faint fill
+   and a darker hairline, never the 2px ink a selection wears; a text tab darkens its words; a
+   card that is a link lifts and takes its edge; a green link deepens and underlines; a filled
+   green button deepens. */
+.vn-other,
+.vb-btn{ transition:background-color var(--ag-dur-1) var(--ag-ease), border-color var(--ag-dur-1) var(--ag-ease), box-shadow var(--ag-dur-1) var(--ag-ease) }
+@media (hover:hover){
+  .vb-btn--go:not(:disabled):hover{ background:var(--ag-green-deep) }
+  .vb-btn--line:hover{ background:var(--ag-bar) }
+  .vb-btn--text:not(:disabled):hover{ color:var(--ag-ink); text-decoration:underline; text-underline-offset:3px }
+  .vn-other:hover{ border-color:var(--ag-line-2); box-shadow:var(--ag-sh-float) }
+  .vn-more:hover,
+  .vb-msg__s:hover{ color:var(--ag-green-deep); text-decoration:underline; text-underline-offset:3px }
+}

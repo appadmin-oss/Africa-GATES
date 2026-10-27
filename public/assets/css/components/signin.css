@@ -264,3 +264,8 @@
 @media (forced-colors:active){
   .si__via-o[aria-checked="true"]{ forced-color-adjust:none; background:Highlight; color:HighlightText }
 }
+
+@media (hover:hover){
+  .si__lang:hover,
+  .si__pill:hover{ background:var(--ag-bar); border-color:var(--ag-mute) }
+}

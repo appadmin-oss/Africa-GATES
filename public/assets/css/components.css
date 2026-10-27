@@ -88,7 +88,7 @@
   background:transparent; color:var(--ag-ink); font-weight:600;
   text-decoration:underline; text-underline-offset:3px;
 }
-.ag-btn--text:is(:hover,.is-hover){ color:var(--ag-ink) }
+.ag-btn--text:is(:hover,.is-hover){ color:var(--ag-ink); text-decoration-thickness:2px }
 
 /* Destructive text — "Sign out" (§6.1 `--ag-error`). A word, not a red slab. */
 .ag-btn--danger{ background:transparent; color:var(--ag-error); font-weight:600 }
@@ -141,8 +141,10 @@
 
 /* ══ Chip ════════════════════════════════════════════════════════════════════
    Outlined, always (§6.1, §18.2). 44px on a phone, 40 on desktop — the desktop
-   pointer floor. No DC gives a chip a hover state: selection IS its state, so a
-   chip draws the same under a pointer as at rest. */
+   pointer floor. No DC gives a chip a hover state, and for a while none was drawn:
+   the owner found the site dead under a pointer beside a console that answers every
+   move (27 Oct 2026). So a chip under a pointer takes a faint fill and a darker
+   hairline — and never the 2px ink outline, which is what SELECTED looks like. */
 
 .ag-chip{
   flex:none;
@@ -153,6 +155,12 @@
   font-size:var(--ag-fs-14-5); font-weight:500;
   white-space:nowrap;                 /* a chip label that wraps is a defect */
   text-decoration:none; cursor:pointer;
+  transition:background-color var(--ag-dur-1) var(--ag-ease), border-color var(--ag-dur-1) var(--ag-ease);
+}
+@media (hover:hover){
+  .ag-chip:is(:hover,.is-hover):not([aria-pressed="true"],[aria-selected="true"],[aria-current="true"],[aria-current="page"],[disabled],[aria-disabled="true"]){
+    background:var(--ag-bar); border-color:var(--ag-mute); color:var(--ag-ink);
+  }
 }
 .ag-chip:is([aria-pressed="true"],[aria-selected="true"],[aria-current="true"],[aria-current="page"]){
   border:2px solid var(--ag-ink);

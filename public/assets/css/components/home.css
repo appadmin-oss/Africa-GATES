@@ -512,3 +512,10 @@
   .hm-topic:hover{ border-color:var(--ag-line-2); box-shadow:var(--ag-sh-pop) }
   .hm-whoc:hover{ box-shadow:var(--ag-sh-pop) }
 }
+
+/* Pointer states (components.css): a green link deepens and underlines; a dot that is not
+   the current slide brightens so it reads as pressable. */
+@media (hover:hover){
+  .hm-more:hover{ color:var(--ag-green-deep); text-decoration:underline; text-underline-offset:3px }
+  .hm-dots__b:not(.is-on):hover span{ background:var(--ag-surface) }
+}

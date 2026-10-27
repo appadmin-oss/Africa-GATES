@@ -100,18 +100,20 @@
 }
 .dv__tabs::-webkit-scrollbar{ display:none }
 
-/* A tab is an outlined pill; selected is a 2px ink border, the same white, 600 always
-   (the DC writes its weight twice and the second, 600, wins). */
+/* A tab is an outlined pill — the site's one chip (components.css): 14.5 regular, bold when
+   selected, a 2px ink border on the same white. The DC's 14/600 made these the only chips on
+   the site that were heavier at rest than another page's were when chosen. */
 .dv-tab{
   flex:none; display:inline-flex; align-items:center;
   height:44px; padding:0 var(--ag-sp-16);
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
   background:var(--ag-surface); color:var(--ag-ink);
-  font-size:var(--ag-fs-14); font-weight:600; white-space:nowrap;
+  font-size:var(--ag-fs-14-5); font-weight:500; white-space:nowrap;
   text-decoration:none;
+  transition:background-color var(--ag-dur-1) var(--ag-ease), border-color var(--ag-dur-1) var(--ag-ease);
 }
-.dv-tab:hover{ color:var(--ag-ink) }
-.dv-tab[aria-selected="true"]{ border:2px solid var(--ag-ink); padding:0 15px }
+.dv-tab[aria-selected="true"]{ border:2px solid var(--ag-ink); padding:0 15px; font-weight:700 }
+@media (min-width:1024px){ .dv-tab{ height:40px } }
 
 .dv__filters{
   display:flex; align-items:center; gap:var(--ag-sp-8);
@@ -470,6 +472,12 @@
 /* Hover — a pointer only, so a tap on a phone does not leave the state stuck. Filled
    green deepens; an outline gains a light tint; a card gains its edge and a lift. */
 @media (hover:hover){
-  .dv-tab:hover,
+  .dv-tab:not([aria-selected="true"]):hover{ background:var(--ag-bar); border-color:var(--ag-mute) }
   .dv__fbtn:hover{ background:var(--ag-tint) }
+}
+
+/* A card that is a link lifts under a pointer (components.css, "Pointer states"). */
+.dv-card{ transition:border-color var(--ag-dur-1) var(--ag-ease), box-shadow var(--ag-dur-1) var(--ag-ease) }
+@media (hover:hover){
+  .dv-card:hover{ border-color:var(--ag-mute); box-shadow:var(--ag-sh-float) }
 }

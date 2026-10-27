@@ -54,12 +54,15 @@
   margin:0 -16px; padding:0 var(--ag-sp-16);
 }
 .hc__aud::-webkit-scrollbar{ display:none }
+/* One chip, wherever it is drawn: the base chip's numbers (components.css) — 44px on a phone,
+   40 on desktop, 14.5 regular, bold only when selected — and its hover. */
 .hc a.hc__chip{
   flex:none; display:inline-flex; align-items:center; height:44px; padding:0 var(--ag-sp-16);
   border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface);
   font-size:var(--ag-fs-14-5); font-weight:500; white-space:nowrap;
 }
-.hc a.hc__chip:hover{ text-decoration:none; border-color:var(--ag-ink) }
+@media (hover:hover){ .hc a.hc__chip:not([aria-current="page"]):hover{ text-decoration:none; background:var(--ag-bar); border-color:var(--ag-mute) } }
+@media (min-width:1024px){ .hc a.hc__chip{ height:40px } }
 .hc a.hc__chip[aria-current="page"]{ border:2px solid var(--ag-ink); padding:0 15px; font-weight:700 }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */

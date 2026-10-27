@@ -427,3 +427,11 @@
   .nf-anon__in:checked ~ .nf-anon__sw{ background:Highlight; border-color:Highlight }
   .nf-anon__in:checked ~ .nf-anon__sw::after{ background:HighlightText }
 }
+
+/* A card that is a link lifts under a pointer (components.css, "Pointer states"). */
+.nh-card,
+.nh-fields__i{ transition:border-color var(--ag-dur-1) var(--ag-ease), box-shadow var(--ag-dur-1) var(--ag-ease), background-color var(--ag-dur-1) var(--ag-ease) }
+@media (hover:hover){
+  a.nh-card:hover{ border-color:var(--ag-mute); box-shadow:var(--ag-sh-float) }
+  a.nh-fields__i:not([aria-current="true"]):hover{ border-color:var(--ag-line-2); background:var(--ag-bar) }
+}

@@ -96,3 +96,7 @@
   .ag-foot__brand{ grid-column:auto }
   .ag-foot__tag{ max-width:280px }
 }
+
+@media (hover:hover){
+  .ag-foot__logo:hover .ag-foot__word b{ text-decoration:underline; text-underline-offset:3px }
+}
