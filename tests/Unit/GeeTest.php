@@ -445,7 +445,13 @@ final class GeeTest extends TestCase
         $this->assertSame(1, substr_count($tuck[1], 'setTimeout('));
         $this->assertDoesNotMatchRegularExpression('/data-state|stepRow|finishWork|step-/', $tuck[1],
             'the launcher\'s timer never touches a step');
-        $this->assertSame(1, substr_count(str_replace([$wait[1], $tuck[1]], '', $js), 'setTimeout('), 'the only other timer is the focus hand-off on open');
+        // And Copy's "Copied" lasts a moment, then the button says Copy again: it touches the
+        // button it is on and nothing else.
+        $this->assertSame(1, preg_match('/function tools\(m, words\) \{(.*?)\n  \}/s', $js, $tools));
+        $this->assertSame(1, substr_count($tools[1], 'setTimeout('));
+        $this->assertMatchesRegularExpression("/setTimeout\(function \(\) \{ copy\.removeAttribute\('data-done'\); copy\.setAttribute\('aria-label', M\('copy'\)\); \}, 1600\)/", $tools[1],
+            'the copy timer only puts the copy button back');
+        $this->assertSame(1, substr_count(str_replace([$wait[1], $tuck[1], $tools[1]], '', $js), 'setTimeout('), 'the only other timer is the focus hand-off on open');
     }
 
     // ══ THE DESK ═════════════════════════════════════════════════════════════

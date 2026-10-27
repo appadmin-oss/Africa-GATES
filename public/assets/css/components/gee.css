@@ -329,6 +329,59 @@
 .gee__checked{ display:flex; align-items:center; gap:6px; margin:2px 2px 0; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
 .gee__checked-i{ flex:none; color:var(--ag-soft) }
 
+/* Lists and `code` inside an answer (gee.js format()). A how-to is steps, and steps read as
+   a list. Code is a reference somebody may copy exactly, so it is the one mono run here. */
+.gee__bubble ul,
+.gee__bubble ol{ margin:6px 0 0; padding-inline-start:20px }
+.gee__bubble p + ul,
+.gee__bubble p + ol{ margin-top:4px }
+.gee__bubble ul + p,
+.gee__bubble ol + p{ margin-top:8px }
+.gee__bubble li + li{ margin-top:3px }
+.gee__bubble code{
+  padding:1px 5px; border-radius:6px;
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-family:var(--ag-font-mono); font-size:var(--ag-fs-13);
+  overflow-wrap:anywhere;
+}
+
+/* 7 · Under an answer: Copy and a thumb each way. Quiet until pointed at; 24px targets on a
+   fine pointer, 44px under a coarse one (WCAG 2.5.8, and the house floor). A pressed thumb
+   is ink, the other one dims, and the line beside it says what happened. */
+.gee__tools{ display:flex; flex-direction:column; gap:6px; margin:-4px 0 2px }
+.gee__tools-row{ display:flex; align-items:center; gap:2px; min-height:28px }
+.gee__tool{
+  display:inline-grid; place-items:center; width:28px; height:28px;
+  padding:0; border:0; border-radius:8px; background:transparent;
+  color:var(--ag-soft); cursor:pointer;
+}
+.gee__tool:hover{ background:var(--ag-ground); color:var(--ag-ink) }
+.gee__tool:focus-visible{ outline:3px solid var(--ag-green); outline-offset:1px }
+.gee__tool[aria-pressed="true"]{ color:var(--ag-ink) }
+.gee__tool:disabled{ cursor:default }
+.gee__tool:disabled:not([aria-pressed="true"]){ opacity:.4 }
+.gee__tool:disabled:hover{ background:transparent }
+.gee__tool[data-done]{ color:var(--ag-green) }
+.gee__tools-said{ margin-inline-start:6px; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.gee__sorry{
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; max-width:85%;
+  padding:10px 12px 10px 14px; border-radius:var(--ag-r-14); background:var(--ag-ground);
+  font-size:var(--ag-fs-14); color:var(--ag-ink);
+}
+.gee__sorry[hidden]{ display:none }
+.gee__sorry-t{ flex:1 1 140px }
+.gee__sorry-b{
+  min-height:36px; padding:0 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-family:inherit; font-size:var(--ag-fs-14); font-weight:600; cursor:pointer;
+}
+.gee__sorry-b:hover{ border-color:var(--ag-ink) }
+.gee__sorry-b:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+@media (pointer: coarse){
+  .gee__tool{ width:44px; height:44px }
+  .gee__sorry-b{ min-height:44px }
+}
+
 /* The live work card (role=status) */
 .gee__work{
   display:flex; flex-direction:column; gap:2px;
@@ -434,13 +487,22 @@
 .gee__hand-b:disabled{ cursor:default }
 
 /* 5 · Help-link chips */
-.gee__links{ display:flex; flex-wrap:wrap; gap:6px }
-.gee__link{
-  display:flex; align-items:center; height:44px; padding:0 12px;
-  border-radius:var(--ag-r-pill); background:var(--ag-ground); color:var(--ag-ink);
-  font-size:var(--ag-fs-13); font-weight:600; text-decoration:none;
+.gee__links{
+  display:flex; flex-direction:column; max-width:85%;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); overflow:hidden;
 }
-.gee__link:hover{ color:var(--ag-ink); background:var(--ag-tint) }
+.gee__links-h{ padding:9px 14px 3px; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.gee__link{
+  display:flex; align-items:center; gap:10px; min-height:44px; padding:6px 12px 6px 14px;
+  color:var(--ag-ink); font-size:var(--ag-fs-14); line-height:1.35; text-decoration:none;
+}
+.gee__link + .gee__link{ border-top:1px solid var(--ag-line) }
+.gee__link-t{ flex:1; min-width:0 }
+.gee__link-go{ flex:none; color:var(--ag-soft) }
+.gee__link:hover{ background:var(--ag-ground) }
+.gee__link:hover .gee__link-t{ text-decoration:underline }
+.gee__link:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
 
 
 /* ══ 6 · The composer · 7 · the footer ═══════════════════════════════════════ */

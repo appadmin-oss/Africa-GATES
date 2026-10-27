@@ -269,6 +269,8 @@ class SettingsController
             // How operators rated the console assistant's answers, 30 days — the one measure
             // of whether it helps that is not the assistant's own opinion of itself.
             'assistant_ratings' => \AfricaGates\Admin\Services\AssistantThreads::ratings(),
+            // And the same question asked of Gee by the public, with the pages it answers worst.
+            'gee_ratings'     => \AfricaGates\Services\GeeRatings::summary(),
             'ai_spend'        => \AfricaGates\Services\AiGateway::spendReport(),
             // WHY the failures in that report happened. The count beside each capability was
             // the end of the trail on a host with no shell: "3 failures", with the provider's

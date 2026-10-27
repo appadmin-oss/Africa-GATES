@@ -109,22 +109,59 @@
     });
   }
 
+  /* Paragraphs, **bold**, `code`, and bullet or numbered lists — the shapes a written
+     answer actually takes. A how-to read as one run of sentences hid its steps; drawn as
+     a list, somebody on a phone can find step three again after switching apps. */
+  var BULLET = /^\s*[-*•]\s+/, NUMBER = /^\s*\d{1,2}[.)]\s+/;
+
   function format(text) {
     return String(text || '').trim().split(/\n{2,}/).map(function (block) {
-      var html = esc(block).replace(/\n/g, '<br>');
-      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      html = html.replace(MD_LINK, function (_m, label, path) { return '<a href="' + path + '">' + label + '</a>'; });
-      html = html.replace(HELP_RE, function (_m, lead, path) {
-        /* A path is not a label. "Read the rest in /help/paid-but-no-votes" is how the
-           written answers end, and HelpCentre::writtenAnswer() words it to read as a
-           sentence once this turns the path into "the Help Centre answer". */
-        return lead + '<a href="' + path + '">' + esc(M('help-link') || path) + '</a>';
-      });
-      html = html.replace(ROUTE_RE, function (_m, lead, path) {
-        return lead + '<a href="' + path + '">' + esc(ROUTES[path] || path) + '</a>';
-      });
-      return '<p>' + html + '</p>';
+      var lines = block.split('\n').filter(function (l) { return l.trim() !== ''; });
+      if (!lines.length) return '';
+      var bul = lines.filter(function (l) { return BULLET.test(l); }).length;
+      var num = lines.filter(function (l) { return NUMBER.test(l); }).length;
+      function items(list, re) {
+        return list.map(function (l) { return '<li>' + inline(l.replace(re, '')) + '</li>'; }).join('');
+      }
+      if (bul === lines.length) return '<ul>' + items(lines, BULLET) + '</ul>';
+      if (num === lines.length) return '<ol>' + items(lines, NUMBER) + '</ol>';
+      // "Three things:" and then its list.
+      if (lines.length > 1 && bul === lines.length - 1 && !BULLET.test(lines[0])) {
+        return '<p>' + inline(lines[0]) + '</p><ul>' + items(lines.slice(1), BULLET) + '</ul>';
+      }
+      if (lines.length > 1 && num === lines.length - 1 && !NUMBER.test(lines[0])) {
+        return '<p>' + inline(lines[0]) + '</p><ol>' + items(lines.slice(1), NUMBER) + '</ol>';
+      }
+      return '<p>' + lines.map(inline).join('<br>') + '</p>';
     }).join('');
+  }
+
+  /* One line. Escaped FIRST; `code` is held aside before anything else runs, so a path or
+     a mark inside backticks is shown as typed and never becomes a link. The holders are
+     private-use characters, which esc() leaves alone and no reply contains. */
+  function inline(line) {
+    var codes = [];
+    var html = esc(line).replace(/`([^`\n]{1,200})`/g, function (_m, c) {
+      codes.push('<code>' + c + '</code>');
+      return '\uE000' + (codes.length - 1) + '\uE001';
+    });
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(MD_LINK, function (_m, label, path) { return '<a href="' + path + '">' + label + '</a>'; });
+    html = html.replace(HELP_RE, function (_m, lead, path) {
+      /* A path is not a label. "Read the rest in /help/paid-but-no-votes" is how the
+         written answers end, and HelpCentre::writtenAnswer() words it to read as a
+         sentence once this turns the path into "the Help Centre answer". */
+      return lead + '<a href="' + path + '">' + esc(M('help-link') || path) + '</a>';
+    });
+    html = html.replace(ROUTE_RE, function (_m, lead, path) {
+      return lead + '<a href="' + path + '">' + esc(ROUTES[path] || path) + '</a>';
+    });
+    return html.replace(/\uE000(\d+)\uE001/g, function (_m, i) { return codes[+i] || ''; });
+  }
+
+  /* The words of an answer without its marks, for Copy. */
+  function plain(text) {
+    return String(text || '').replace(MD_LINK, '$1 ($2)').replace(/\*\*|`/g, '').trim();
   }
 
   function el(tag, cls, text) {
@@ -246,7 +283,8 @@
       case 'bot':    thread.appendChild(bubble(false, m.text, true));
                      if (m.checked && m.checked.length) thread.appendChild(checked(m.checked));
                      if (m.actions && m.actions.length) thread.appendChild(actions(m.actions));
-                     if (m.links && m.links.length) thread.appendChild(links(m.links)); break;
+                     if (m.links && m.links.length) thread.appendChild(links(m.links));
+                     if (m.source !== undefined) thread.appendChild(tools(m, m.text)); break;
       case 'work':   drawWork(m); break;
       case 'yes':    thread.appendChild(bubble(false, m.text)); break;
       case 'hand':   thread.appendChild(handCard(m)); break;
@@ -262,13 +300,19 @@
   }
 
   /* 5 · Help-link chips: the Help Centre answers the server sent with the reply. */
+  /* A quiet list under its own small heading, not a row of bold pills: the pills read as
+     buttons Gee was pressing for the reader, and two of them outweighed the answer above. */
   function links(arts) {
-    var box = el('div', 'gee__links');
+    var box = el('nav', 'gee__links');
+    box.setAttribute('aria-label', M('related'));
+    box.appendChild(el('span', 'gee__links-h', M('related')));
     arts.slice(0, 3).forEach(function (a) {
       if (!a || !a.url || !/^\/help\/[a-z0-9-]+$/.test(String(a.url))) return;
-      var l = el('a', 'gee__link', (a.title || '') + ' ');
+      var l = el('a', 'gee__link');
       l.href = a.url;
-      l.appendChild(el('span', null, '↗')).setAttribute('aria-hidden', 'true');
+      l.appendChild(el('span', 'gee__link-t', String(a.title || '')));
+      var go = svg(['m9 6 6 6-6 6'], 14, '2'); go.setAttribute('class', 'gee__link-go ag-ico-dir');
+      l.appendChild(go);
       box.appendChild(l);
     });
     return box;
@@ -296,6 +340,65 @@
       box.appendChild(l);
     });
     return box;
+  }
+
+  /* 7 · Under an answer: Copy, and a thumb each way. A thumb sends the mode, where the
+     answer came from and this page's path — never the words (GeeRatings, and the privacy
+     note, which says what is typed stays in this tab). "Not helpful" is the moment a
+     person is worth offering, so it offers one, in the same place the thumb was pressed.
+     The choice is kept on the message, so a reload does not ask again. Only an answer
+     the server actually gave carries a source; an error line has nothing to rate. */
+  function tools(m, words) {
+    var box = el('div', 'gee__tools');
+    var row = el('div', 'gee__tools-row');
+    box.appendChild(row);
+    var copy = toolBtn(['M9 9h11v11H9z', 'M5 15H4V4h11v1'], M('copy'));
+    copy.addEventListener('click', function () {
+      var done = function () { copy.setAttribute('data-done', ''); copy.setAttribute('aria-label', M('copied'));
+        setTimeout(function () { copy.removeAttribute('data-done'); copy.setAttribute('aria-label', M('copy')); }, 1600); };
+      try { navigator.clipboard.writeText(plain(words)).then(done, function () {}); } catch (e) {}
+    });
+    row.appendChild(copy);
+    var up = toolBtn(['M7 10v11', 'M7 10l4-7.5a2 2 0 0 1 3.2 2.2L13 10h6.1a2 2 0 0 1 2 2.4l-1.6 6.8A2 2 0 0 1 17.6 21H7', 'M3 10h4v11H3z'], M('rate-up'));
+    var down = toolBtn(['M17 14V3', 'M17 14l-4 7.5a2 2 0 0 1-3.2-2.2L11 14H4.9a2 2 0 0 1-2-2.4l1.6-6.8A2 2 0 0 1 6.4 3H17', 'M21 14h-4V3h4z'], M('rate-down'));
+    [up, down].forEach(function (b) { b.setAttribute('aria-pressed', 'false'); row.appendChild(b); });
+    var said = el('span', 'gee__tools-said');
+    said.setAttribute('role', 'status');
+    row.appendChild(said);
+    /* After "Not helpful": one plain line and one clear way on, under the buttons. */
+    var sorry = el('div', 'gee__sorry');
+    sorry.hidden = true;
+    sorry.appendChild(el('span', 'gee__sorry-t', M('rate-sorry')));
+    var p = el('button', 'gee__sorry-b', M('person'));
+    p.type = 'button';
+    p.addEventListener('click', function () { openHandoff(true); });
+    sorry.appendChild(p);
+    box.appendChild(sorry);
+    function show() {
+      up.setAttribute('aria-pressed', m.rated === 1 ? 'true' : 'false');
+      down.setAttribute('aria-pressed', m.rated === 0 ? 'true' : 'false');
+      up.disabled = down.disabled = m.rated === 0 || m.rated === 1;
+      said.textContent = m.rated === 1 ? M('rated') : '';
+      sorry.hidden = m.rated !== 0;
+    }
+    function rate(v) {
+      if (m.rated === 0 || m.rated === 1) return;
+      m.rated = v; save(); show();
+      post('/api/guide/rate', { mode: state.mode, source: m.source || '', helpful: v === 1, path: PATH }, true)
+        .catch(function () {});
+    }
+    up.addEventListener('click', function () { rate(1); });
+    down.addEventListener('click', function () { rate(0); });
+    show();
+    return box;
+  }
+  function toolBtn(paths, label) {
+    var b = el('button', 'gee__tool');
+    b.type = 'button';
+    b.setAttribute('aria-label', label);
+    b.title = label;
+    b.appendChild(svg(paths, 15, '1.9'));
+    return b;
   }
 
   function scrollDown() { log.scrollTop = log.scrollHeight; }
@@ -410,7 +513,7 @@
       var d = res.d;
       if (d.work) { finishWork(startWork(d.work.reference || state.ref, null), d); return; }
       push({ kind: 'bot', text: d.reply || M('snag'), links: d.articles || [], actions: d.actions || [],
-             checked: d.checked || [] });
+             checked: d.checked || [], source: d.ok === false ? undefined : String(d.source || '') });
       /* A ticket the agent opened INSIDE this reply. The reply carried it and the widget
          used to drop it, so somebody told "I've passed this to the team" saw no card, no
          reference and no "we reply by email" — the hand-off card is how they get those. */
@@ -476,7 +579,8 @@
   function finishWork(card, d) {
     card.remove();
     var w = d && d.work;
-    var entry = { kind: 'work', work: w || null, reply: (d && d.reply) || M('snag'), answered: null };
+    var entry = { kind: 'work', work: w || null, reply: (d && d.reply) || M('snag'), answered: null,
+                  source: d && d.reply ? String(d.source || 'support') : undefined };
     push(entry);
     unread();
   }
@@ -495,6 +599,7 @@
       return;
     }
     thread.appendChild(bubble(false, m.reply, true));
+    if (m.source !== undefined) thread.appendChild(tools(m, m.reply));
   }
 
   function resultCard(w) {

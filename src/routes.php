@@ -3657,6 +3657,8 @@ return function(App $app) {
             $a->post('/support/reply',      SupportController::class.':ticketReply');
             // Gee — the page-aware AI guide
             $a->post('/guide',              GuideController::class.':chat');
+            // A thumb on one of Gee's answers. No words travel — see GeeRatings.
+            $a->post('/guide/rate',         GuideController::class.':rate');
             // Inbound Make.com agent bridge — bearer-authenticated, 404 until configured.
             $a->post('/agent/gee',          GuideController::class.':agent');
             // ── LIVE INTERVIEW CAPTURE (the browser extension) ───────────────
