@@ -15,7 +15,7 @@
 #}
 
 {% set colour_tier = '1' %}
-{% set app_bar = {variant: 'child', title: 'Flier'|trans, sub: f.name, back: f.url} %}
+{% set app_bar = {variant: 'child', title: 'Share kit'|trans, sub: f.name, back: f.url} %}
 
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/vote-pages.css') }}">{% include 'partials/seo-head.twig' %}{% endblock %}
 
@@ -55,6 +55,31 @@
       <p class="vs-fine">{{ 'Votes are only part of the score, so a flier asks for support, not a win.'|trans }}</p>
     </div>
   </div>
+
+  {# The rest of the kit (ShareKit): ready-made messages, the QR code for a printed poster, and
+     the video. Identical for every nominee — built from their name, category, award and link
+     and nothing else (D32) — because the site does not carry every nominee, so this is how
+     every nominee is promoted: by the people who already know them. #}
+  <section class="fl-kit" aria-labelledby="fl-kit-h">
+    <h2 class="fl-kit__h" id="fl-kit-h">{{ 'Send it'|trans }}</h2>
+    <div class="fl-kit__grid">
+      <div class="fl-kit__msg">
+        <label class="fl-copy__k" for="fl-kit-text">{{ 'Message'|trans }}</label>
+        <textarea class="fl-kit__text" id="fl-kit-text" rows="4" readonly data-kit-text>{{ kit.text }}</textarea>
+        <div class="fl-kit__go">
+          <button type="button" class="ag-btn ag-btn--secondary ag-btn--pill" data-kit-copy data-done="{{ 'Copied'|trans }}">{{ 'Copy message'|trans }}</button>
+          {% for l in kit.links %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ l.href }}" target="_blank" rel="noopener noreferrer">{{ l.label }}</a>{% endfor %}
+        </div>
+      </div>
+      {% if kit.qr %}
+      <figure class="fl-kit__qr">
+        <span class="fl-kit__qr-i" role="img" aria-label="{{ 'QR code for %u%'|trans({'%u%': kit.link}) }}">{{ kit.qr|raw }}</span>
+        <figcaption class="vs-fine">{{ 'For posters and print. Scans to the voting page.'|trans }}</figcaption>
+      </figure>
+      {% endif %}
+    </div>
+    <a class="fl-kit__more" href="{{ video_url }}">{{ 'Make a share video'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+  </section>
 </div>
 {% endblock %}
 

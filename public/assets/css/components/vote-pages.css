@@ -79,3 +79,18 @@
 @media (min-width:900px){
   .fl-grid{ grid-template-columns:minmax(0,420px) minmax(0,1fr) }
 }
+
+/* The share kit's second half (ShareKit): the message to send, the ways to send it, and the QR
+   code for print. The QR sits on white with its full quiet zone — the specification, not a
+   margin (Support\Qr). */
+.fl-kit{ display:flex; flex-direction:column; gap:14px; margin-top:28px; padding-top:22px; border-top:1px solid var(--ag-line) }
+.fl-kit__h{ margin:0; font-size:var(--ag-fs-17); font-weight:700 }
+.fl-kit__grid{ display:grid; grid-template-columns:minmax(0,1fr); gap:18px; align-items:start }
+.fl-kit__text{ box-sizing:border-box; width:100%; padding:12px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-16); line-height:1.5; resize:none }
+.fl-kit__go{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
+.fl-kit__qr{ margin:0; display:flex; flex-direction:column; align-items:flex-start; gap:6px }
+.fl-kit__qr-i{ display:block; width:168px; padding:0; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-12) }
+.fl-kit__qr-i svg{ display:block; width:100%; height:auto }
+.fl-kit__more{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
+@media (min-width:600px){ .fl-kit__grid{ grid-template-columns:minmax(0,1fr) 168px } }
+@media (hover:hover){ .fl-kit__more:hover{ color:var(--ag-green-deep); text-decoration:underline; text-underline-offset:3px } }

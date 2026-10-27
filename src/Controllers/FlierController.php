@@ -39,7 +39,15 @@ final class FlierController
         // The card lives beside the flier, one segment up: …/{slug}/flier → …/{slug}/card.png
         $cardAbs = preg_replace('~/flier$~', '', $abs) . '/card.png';
 
+        // The share kit (ShareKit): the same messages and QR code every nominee gets, carrying
+        // the short form of their link — the id segment alone resolves, and it is what fits a
+        // QR code and a person reading it off a poster.
+        $short = (string) preg_replace('~(/vote/[^/]+/\d+)-[^/?#]*~', '$1', (string) $f['url']);
+        $kit   = \AfricaGates\Services\ShareKit::for($f, $short);
+
         return $this->view->render($res, 'pages/vote-flier.twig', [
+            'kit'              => $kit,
+            'video_url'        => preg_replace('~/flier$~', '', $path) . '/video',
             'page_title'       => 'Share a flier for ' . $f['name'] . ' — Africa GATES',
             'meta_description' => 'Download a ready-to-post flier asking your community to vote for '
                 . $f['name'] . ' in ' . $f['category'] . '.',

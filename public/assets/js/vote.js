@@ -375,6 +375,16 @@
     });
     if ($('[data-vmi]')) messages();
     $$('[data-fl-share]').forEach(flierShare);
+    // The share kit's "Copy message": the textarea is selectable as the fallback.
+    $$('[data-kit-copy]').forEach(function (b) {
+      var t = $('[data-kit-text]');
+      if (!t) return;
+      b.addEventListener('click', function () {
+        var was = b.textContent;
+        var shown = function () { b.textContent = b.getAttribute('data-done') || was; setTimeout(function () { b.textContent = was; }, 1600); };
+        try { navigator.clipboard.writeText(t.value).then(shown, function () { t.select(); }); } catch (e) { t.select(); }
+      });
+    });
   }
   /* The flier's native share: the real PNG to the OS share sheet. Both checks are needed —
      iOS Safari has share() without canShare(), Android refuses some types — and a button
