@@ -1,0 +1,26 @@
+{#
+  The assistant's composer, shared by the expanded page and the drawer. Behaviour is
+  console-assistant.js: Enter sends, Shift+Enter is a new line, @ lists the console pages
+  this role can open (a tagged page goes to the assistant as context), ? on an empty box
+  lists the shortcuts. Expects `as_disabled`.
+#}
+<form class="as-box" data-as-form>
+  <div class="as-box__tags" data-as-tags hidden></div>
+  <label class="sr-only" for="asIn{{ as_id|default('') }}">Ask the assistant</label>
+  <textarea class="as-box__in" id="asIn{{ as_id|default('') }}" data-as-in rows="1" maxlength="2000" autocomplete="off"
+            placeholder="{{ as_disabled ? 'No AI provider is answering' : 'Ask anything. Type @ to tag a page or ? for shortcuts' }}"{% if as_disabled %} disabled{% endif %}></textarea>
+  <div class="as-box__bar">
+    <button type="button" class="as-box__chip" data-as-help aria-expanded="false" aria-label="Shortcuts">?</button>
+    <span class="as-box__gap"></span>
+    <button type="submit" class="as-box__send" data-as-send aria-label="Send" disabled><svg aria-hidden="true" focusable="false"><use href="#ic-up"/></svg></button>
+  </div>
+  <div class="as-pop" data-as-pop role="listbox" aria-label="Console pages" hidden></div>
+  <div class="as-pop as-pop--help" data-as-shortcuts hidden>
+    <span class="as-pop__h">Shortcuts</span>
+    <span class="as-pop__row"><kbd>Enter</kbd> send</span>
+    <span class="as-pop__row"><kbd>Shift</kbd><kbd>Enter</kbd> new line</span>
+    <span class="as-pop__row"><kbd>@</kbd> tag a console page</span>
+    <span class="as-pop__row"><kbd>Ctrl</kbd><kbd>J</kbd> open or close the assistant</span>
+    <span class="as-pop__row"><kbd>Esc</kbd> close this list</span>
+  </div>
+</form>

@@ -4068,6 +4068,11 @@ return function(App $app) {
         // AI assistant — console copilot (all roles; superadmin unlimited)
         $a->get('/assistant',       \AfricaGates\Admin\Controllers\AssistantController::class.':index');
         $a->post('/assistant/chat', \AfricaGates\Admin\Controllers\AssistantController::class.':chat');
+        // The assistant's conversations, kept per administrator (Admin\Services\AssistantThreads).
+        $a->get('/assistant/threads/feed', \AfricaGates\Admin\Controllers\AssistantController::class.':threads');
+        $a->get('/assistant/threads/{id:[0-9]+}', \AfricaGates\Admin\Controllers\AssistantController::class.':thread');
+        $a->post('/assistant/threads/{id:[0-9]+}/delete', \AfricaGates\Admin\Controllers\AssistantController::class.':deleteThread');
+        $a->post('/assistant/messages/{id:[0-9]+}/rate', \AfricaGates\Admin\Controllers\AssistantController::class.':rate');
         $a->get('/assistant/scripts', \AfricaGates\Admin\Controllers\AssistantController::class.':scripts');
         $a->post('/assistant/scripts/{key:[a-z_]+}', \AfricaGates\Admin\Controllers\AssistantController::class.':runScript');
 

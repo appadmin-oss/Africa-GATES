@@ -1675,6 +1675,11 @@
       <div class="ad-card__title">AI activity<small>Today's spend per feature, and how often reviewers agreed (30 days)</small></div>
       <span class="ad-chip ad-chip--{{ ai_enabled_flag ? 'green' : 'red' }}">{{ ai_enabled_flag ? 'AI on' : 'AI off' }}</span>
     </div>
+    {% if assistant_ratings.answers %}
+      <p style="margin:0;padding:10px 18px;font-size:13px;color:var(--cn-ink-3);border-bottom:1px solid var(--cn-line-row)">
+        Console assistant, 30 days: {{ assistant_ratings.answers|number_format }} answer{{ assistant_ratings.answers == 1 ? '' : 's' }}{% if assistant_ratings.rated %}, {{ assistant_ratings.rated|number_format }} rated by the person who asked — {{ assistant_ratings.helpful|number_format }} helpful, {{ (assistant_ratings.rated - assistant_ratings.helpful)|number_format }} not{% else %}, none rated yet{% endif %}.
+      </p>
+    {% endif %}
     <div class="ad-table-wrap">
       <table class="ad-table">
         <thead><tr>

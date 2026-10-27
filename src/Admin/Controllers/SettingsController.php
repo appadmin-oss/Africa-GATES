@@ -266,6 +266,9 @@ class SettingsController
             // produce: nothing recorded token usage, and nothing recorded whether
             // a reviewer agreed with a suggestion.
             'ai_enabled_flag' => \AfricaGates\Services\AiGateway::globallyEnabled(),
+            // How operators rated the console assistant's answers, 30 days — the one measure
+            // of whether it helps that is not the assistant's own opinion of itself.
+            'assistant_ratings' => \AfricaGates\Admin\Services\AssistantThreads::ratings(),
             'ai_spend'        => \AfricaGates\Services\AiGateway::spendReport(),
             // WHY the failures in that report happened. The count beside each capability was
             // the end of the trail on a host with no shell: "3 failures", with the provider's

@@ -227,10 +227,8 @@ final class CookieRegistry
              'purpose' => 'For administrators only: whether you chose comfortable or compact rows for a console list.'],
             ['key' => 'ac2.hide', 'category' => self::ESSENTIAL, 'where' => 'local', 'audience' => 'administrators',
              'purpose' => 'For administrators only: which columns of a console list you chose to hide.'],
-            ['key' => 'ag-copilot', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
-             'purpose' => 'For administrators only: the console assistant\'s conversation, so it survives moving between pages in one tab.'],
-            ['key' => 'ag-asst', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
-             'purpose' => 'For administrators only: the same, on the assistant\'s full page.'],
+            ['key' => 'ag-asst-thread', 'category' => self::ESSENTIAL, 'where' => 'session', 'audience' => 'administrators',
+             'purpose' => 'For administrators only: which of your assistant conversations this tab is in, so the drawer and the full page continue it. It holds a number; the conversation itself is kept on our server for 90 days.'],
         ];
     }
 

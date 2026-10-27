@@ -31,17 +31,99 @@ final class AssistantController
         private readonly ?LoggerInterface $log = null,
     ) {}
 
+    /**
+     * The assistant, expanded: conversations on the left, the conversation in the middle,
+     * the evidence beside it (README §10b "Ask", after the design the owner pointed at).
+     * `?t=N` opens one of this person's conversations.
+     */
     public function index(Request $req, Response $res): Response
     {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $t = (int) ($req->getQueryParams()['t'] ?? 0);
         return $this->view->render($res, 'admin/assistant.twig', [
-            'page_title'    => 'AI Assistant — Admin',
+            'page_title'    => 'Assistant — Admin',
             'admin_page'    => 'assistant',
             // Availability, not merely "a key exists" — the switches and today's
             // budget decide too, and the console must not promise what it cannot do.
-            'ai_configured' => \AfricaGates\Services\AiGateway::available('admin.assistant'),
-            'ai_provider'   => AiService::boot()->activeProvider(),
+            'ai_configured' => \AfricaGates\Services\AiGateway::available('admin.assistant')
+                               || \AfricaGates\Services\AiGateway::available(\AfricaGates\Services\Ops\OpsAgent::CAPABILITY),
             'is_superadmin' => (($_SESSION['admin_role'] ?? '') === 'superadmin'),
+            'open_thread'   => \AfricaGates\Admin\Services\AssistantThreads::find($t, $adminId)['id'] ?? 0,
+            'budget'        => self::BUDGET_PER_HOUR,
         ]);
+    }
+
+    /** GET /admin/assistant/threads/feed?q= — this person's conversations, for the side list. */
+    public function threads(Request $req, Response $res): Response
+    {
+        $q = mb_substr((string) ($req->getQueryParams()['q'] ?? ''), 0, 80);
+        return self::json($res, ['ok' => true,
+            'threads' => \AfricaGates\Admin\Services\AssistantThreads::list((int) ($_SESSION['admin_id'] ?? 0), $q)]);
+    }
+
+    /** GET /admin/assistant/threads/{id} — one conversation of theirs, every turn with its evidence. */
+    public function thread(Request $req, Response $res, array $args): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $t = \AfricaGates\Admin\Services\AssistantThreads::find((int) ($args['id'] ?? 0), $adminId);
+        if ($t === null) return self::json($res, ['ok' => false, 'error' => 'That conversation is not here any more.'], 404);
+        return self::json($res, ['ok' => true, 'thread' => $t,
+            'messages' => \AfricaGates\Admin\Services\AssistantThreads::messages($t['id'], $adminId)]);
+    }
+
+    /** POST /admin/assistant/threads/{id}/delete */
+    public function deleteThread(Request $req, Response $res, array $args): Response
+    {
+        $ok = \AfricaGates\Admin\Services\AssistantThreads::delete((int) ($args['id'] ?? 0), (int) ($_SESSION['admin_id'] ?? 0));
+        return self::json($res, $ok ? ['ok' => true] : ['ok' => false, 'error' => 'That conversation is not here any more.'], $ok ? 200 : 404);
+    }
+
+    /** POST /admin/assistant/messages/{id}/rate — helpful (1), not (-1), or neither (0). */
+    public function rate(Request $req, Response $res, array $args): Response
+    {
+        $b = $req->getParsedBody();
+        $v = (int) (is_array($b) ? ($b['value'] ?? 0) : 0);
+        $ok = \AfricaGates\Admin\Services\AssistantThreads::rate((int) ($args['id'] ?? 0), (int) ($_SESSION['admin_id'] ?? 0), $v);
+        return self::json($res, ['ok' => $ok], $ok ? 200 : 404);
+    }
+
+    private static function json(Response $res, array $p, int $code = 200): Response
+    {
+        $res->getBody()->write((string) json_encode($p, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
+    }
+
+    /**
+     * Where the operator is, and the pages they tagged with @, each held to an /admin page
+     * their role may open — a tag is a hint to the model, never a way to read a page the
+     * rail would not show them.
+     *
+     * @return array{page?:string, page_label?:string, tags:list<array{label:string,href:string}>}
+     */
+    private static function context(array $b, string $role): array
+    {
+        $byHref = [];
+        foreach (\AfricaGates\Admin\Support\AdminNav::destinations($role) as $d) $byHref[$d['href']] = $d['label'];
+        $out = ['tags' => []];
+        // A path the browser sent from location.pathname — never a whole address, or any host
+        // would pass by having "/admin/payments" in its path.
+        $page = (string) ($b['page'] ?? '');
+        $path = str_starts_with($page, '/admin') ? (string) (parse_url($page, PHP_URL_PATH) ?? '') : '';
+        if (preg_match('~^/admin(?:/[A-Za-z0-9_\-][A-Za-z0-9._\-]*)*$~', $path) === 1 && $path !== '/admin/assistant'
+            && \AfricaGates\Admin\Support\Permissions::canOpen($role, $path)) {
+            $qs = (string) (parse_url($page, PHP_URL_QUERY) ?? '');
+            $out['page'] = mb_substr($path . ($qs !== '' && preg_match('/^[A-Za-z0-9=&._%\-]{1,200}$/', $qs) === 1 ? '?' . $qs : ''), 0, 300);
+            $label = $byHref[$path] ?? null;
+            if ($label === null) {   // a sub-page: the nearest destination it sits under
+                foreach ($byHref as $h => $l) if (str_starts_with($path, $h . '/') && strlen($h) > strlen((string) ($best ?? ''))) { $best = $h; $label = $l; }
+            }
+            $out['page_label'] = (string) ($label ?? 'a console page');
+        }
+        foreach (array_slice(is_array($b['tags'] ?? null) ? $b['tags'] : [], 0, 5) as $h) {
+            $h = (string) $h;
+            if (isset($byHref[$h])) $out['tags'][] = ['label' => $byHref[$h], 'href' => $h];
+        }
+        return $out;
     }
 
     public function chat(Request $req, Response $res): Response
@@ -64,16 +146,40 @@ final class AssistantController
         if ($message === '' || mb_strlen($message) > 2000) {
             return $json(['ok' => false, 'error' => 'Provide a message (1–2000 characters).'], 422);
         }
-        $history = is_array($b['history'] ?? null) ? array_slice($b['history'], -10) : [];
+        $context = self::context($b, $role);
+
+        // ── THE CONVERSATION IS KEPT, AND IS THE HISTORY ─────────────────────
+        // The server's record, not what the browser sent back: a history the client supplies
+        // is one the client can write, and the turns sent to the model are then whatever it said.
+        $T = \AfricaGates\Admin\Services\AssistantThreads::class;
+        $threadId = (int) ($T::find((int) ($b['thread_id'] ?? 0), $adminId)['id'] ?? 0);
+        $history = $threadId > 0 ? $T::history($threadId, $adminId)
+                 : (is_array($b['history'] ?? null) && !$T::ready() ? array_slice($b['history'], -10) : []);
+        if ($threadId < 1) $threadId = (int) ($T::create($adminId, $message) ?? 0);
+        if ($threadId > 0) $T::append($threadId, 'user', $message, [], [], (string) ($context['page'] ?? ''));
+
+        $done = function (string $reply, array $ran = [], array $runs = [], array $actions = []) use ($json, $T, $threadId, $adminId): Response {
+            $msg = null;
+            if ($threadId > 0 && ($id = $T::append($threadId, 'assistant', $reply, $runs, $actions)) !== null) {
+                foreach ($T::messages($threadId, $adminId) as $m) if ($m['id'] === $id) $msg = $m;
+            }
+            $msg ??= ['id' => 0, 'role' => 'assistant', 'text' => \AfricaGates\Support\ChatMarkdown::plain($reply),
+                      'html' => \AfricaGates\Support\ChatMarkdown::html($reply), 'ran' => [], 'actions' => $actions,
+                      'evidence' => array_map(static fn (array $r): array => $T::shape($r['key'], $r['title'], $r['ok'], $r['ms'], $r['output']), $runs),
+                      'rating' => 0];
+            return $json(['ok' => true, 'thread' => $T::find($threadId, $adminId), 'message' => $msg,
+                          // The shape the drawer read before this change, kept for a page still open on the old script.
+                          'reply' => $reply, 'ran' => $ran, 'actions' => $actions]);
+        };
 
         // ── THE AGENT FIRST: it runs the platform's own checks, then answers ──
         // Far cheaper per question than the snapshot below (a short cached prompt, and only
         // the evidence the question needs), and it can actually find things out.
         try {
             $agent = (new \AfricaGates\Services\Ops\OpsAgent(AiService::boot()))
-                ->answer($message, $history, $role, $adminId ?: null);
+                ->answer($message, $history, $role, $adminId ?: null, $context);
             if ($agent !== null) {
-                return $json(['ok' => true, 'reply' => $agent['reply'], 'ran' => $agent['ran'], 'actions' => $agent['actions']]);
+                return $done($agent['reply'], $agent['ran'], $agent['runs'] ?? [], $agent['actions']);
             }
         } catch (\Throwable $e) {
             $this->log?->warning('[admin-assistant] agent failed; one-shot answer instead', ['err' => $e->getMessage()]);
@@ -106,15 +212,15 @@ final class AssistantController
         if (!$r->ok) {
             $this->log?->error('[admin-assistant] AI unavailable', ['code' => $r->code]);
             return $json(['ok' => false, 'error' => match ($r->code) {
-                'NO_PROVIDER'         => 'No AI provider is configured. A superadmin can add a key (Groq is free) under Settings → AI providers.',
+                'NO_PROVIDER'         => 'No AI provider is configured. A superadmin can add a key (Groq is free) under Settings → AI.',
                 'DISABLED_GLOBAL'     => 'AI is switched off for this platform (Settings → ai_enabled).',
                 'DISABLED_CAPABILITY' => 'The assistant is switched off (Settings → ai_cap_disabled_admin_assistant).',
                 'BUDGET_CALLS',
                 'BUDGET_TOKENS'       => 'The assistant has reached today\'s AI budget. It resets at midnight.',
-                default               => 'The AI provider did not answer. Try again, or check the key under Settings → AI providers.',
+                default               => 'The AI provider did not answer. Try again, or check the key under Settings → AI.',
             }], $r->code === 'NO_PROVIDER' ? 503 : 502);
         }
-        return $json(['ok' => true, 'reply' => $r->value]);
+        return $done((string) $r->value);
     }
 
     // ── Grounding ──────────────────────────────────────────────────────────

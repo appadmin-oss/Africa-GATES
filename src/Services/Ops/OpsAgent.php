@@ -53,7 +53,12 @@ final class OpsAgent
 
     HOW YOU ANSWER
     - Lead with what matters, with the numbers the checks returned. Then where to act.
-    - Plain sentences, under about 180 words unless asked for depth. No tables.
+    - Under about 180 words unless asked for depth. Short paragraphs; a short "- " list when there
+      are several things to do; **bold** for the one figure that matters; `code` for a script key
+      or a setting; a console page as [its name](/admin/...). No tables, no headings: the full
+      result of every check you ran is shown to the operator beside your answer, so summarise it
+      and say what it means rather than copying it out.
+    - When the operator is looking at a page, "this", "here" and "it" mean that page.
     - A `critical` schema warning or a failed proof is more urgent than any queue length: say so.
     TXT;
 
@@ -61,10 +66,13 @@ final class OpsAgent
 
     /**
      * @param list<array{role:string,text?:string,content?:string}> $history
-     * @return array{reply:string, ran:list<string>, actions:list<array{label:string,url:string}>}|null
+     * @param array{page?:string, page_label?:string, tags?:list<array{label:string,href:string}>} $context
+     *        where the operator is, and the console pages they tagged with @ — already checked
+     *        against what their role may open
+     * @return array{reply:string, ran:list<string>, runs:list<array{key:string,title:string,ok:bool,ms:int,output:string}>, actions:list<array{label:string,url:string}>}|null
      *         null when no provider could answer — the caller falls back
      */
-    public function answer(string $message, array $history, string $role, ?int $adminId): ?array
+    public function answer(string $message, array $history, string $role, ?int $adminId, array $context = []): ?array
     {
         if (!$this->ai->configured() || !AiGateway::available(self::CAPABILITY)) return null;
         $cap = AiCapability::find(self::CAPABILITY);
@@ -89,6 +97,13 @@ final class OpsAgent
         $volatile = "The operator's console role is: {$role}.\n"
                   . ($repairList !== [] ? "REPAIRS this role may run from the scripts page:\n" . implode("\n", $repairList)
                                         : 'This role cannot run repairs; an admin or superadmin can.');
+        // Where they are and what they pointed at: what makes "why is this one stuck?" answerable.
+        if (!empty($context['page'])) {
+            $volatile .= "\nThe operator is looking at: " . ($context['page_label'] ?? '') . ' (' . $context['page'] . ').';
+        }
+        foreach (array_slice($context['tags'] ?? [], 0, 5) as $t) {
+            $volatile .= "\nThe operator tagged the page: " . $t['label'] . ' (' . $t['href'] . ').';
+        }
 
         $messages = [['role' => 'system', 'content' => self::RULES], ['role' => 'system', 'content' => $volatile]];
         foreach (array_slice($history, -8) as $h) {
@@ -101,7 +116,7 @@ final class OpsAgent
         }
         $messages[] = ['role' => 'user', 'content' => mb_substr($message, 0, 2000)];
 
-        $ran = []; $actions = []; $reply = null; $done = [];
+        $ran = []; $runs = []; $actions = []; $reply = null; $done = [];
         for ($round = 1; $round <= self::MAX_ROUNDS; $round++) {
             $reply = $this->call($messages, $tools, $cap);
             if ($reply === null || !$reply->hasTools()) break;
@@ -125,6 +140,9 @@ final class OpsAgent
                     $result = ['ok' => $r['ok'], 'output' => $r['output']] + (isset($r['error']) ? ['error' => $r['error']] : []);
                     $done[$name] = $result;
                     $ran[] = $r['title'];
+                    // Kept whole for the evidence panel; the model only ever reads the compact form.
+                    $runs[] = ['key' => $name, 'title' => (string) $r['title'], 'ok' => (bool) $r['ok'], 'ms' => (int) ($r['ms'] ?? 0),
+                               'output' => (string) ($r['output'] ?? ($r['error'] ?? ''))];
                 }
                 $messages[] = ['role' => 'tool', 'tool_call_id' => (string) $c['id'], 'name' => $name,
                                'content' => SupportAgentService::compact($result)];
@@ -134,9 +152,9 @@ final class OpsAgent
 
         $text = $reply !== null ? trim($reply->text) : '';
         if ($text === '') return $ran === [] ? null : ['reply' => 'I ran ' . implode(', ', $ran)
-            . ' but could not write the answer just now. The results are on the scripts page.',
-            'ran' => $ran, 'actions' => [['label' => 'Open the scripts', 'url' => '/admin/assistant/scripts']]];
-        return ['reply' => $text, 'ran' => $ran, 'actions' => array_values($actions)];
+            . ' but could not write the answer just now. Their results are beside this message.',
+            'ran' => $ran, 'runs' => $runs, 'actions' => [['label' => 'Open the scripts', 'url' => '/admin/assistant/scripts']]];
+        return ['reply' => $text, 'ran' => $ran, 'runs' => $runs, 'actions' => array_values($actions)];
     }
 
     private function call(array $messages, array $tools, AiCapability $cap): ?AiReply

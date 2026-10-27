@@ -293,6 +293,10 @@ final class Maintenance
                 // reference and the call would fail on a file that no longer exists.
                 $ran[] = ['aifiles', $this->task('aifiles',
                     fn() => \AfricaGates\Services\GeminiFiles::prune())];
+                // The console assistant's conversations, on their own retention: each answer
+                // keeps the output of the checks it ran, and that can name people.
+                $ran[] = ['assistant', $this->task('assistant',
+                    fn() => \AfricaGates\Admin\Services\AssistantThreads::prune())];
             }
             // ── REMINDERS FOR A CEREMONY'S GUESTS OF HONOUR ──────────────────
             //

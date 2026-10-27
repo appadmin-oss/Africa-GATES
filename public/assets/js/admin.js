@@ -315,14 +315,12 @@
   var drawer = document.getElementById('cnAssist');
   var dScrim = document.querySelector('.cn-drawer-scrim');
   var lastFocus = null;
-  function chat() { return drawer && window.Alpine ? window.Alpine.$data(drawer) : null; }
   function openAssist(q) {
     if (!drawer) { location.href = '/admin/assistant'; return; }
     lastFocus = document.activeElement;
     drawer.hidden = false; if (dScrim) dScrim.hidden = false;
-    var c = chat();
-    if (q && c) { c.draft = q; c.send(); }
-    var inp = document.getElementById('cnAssistIn'); if (inp) inp.focus();
+    // console-assistant.js owns the conversation; this only opens the drawer and hands it a question.
+    if (window.cnAssist) { if (q) window.cnAssist.ask(q); window.cnAssist.focus(); }
   }
   function closeAssist() {
     if (!drawer || drawer.hidden) return;

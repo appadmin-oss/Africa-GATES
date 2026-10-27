@@ -347,3 +347,30 @@ Service `Admin\Services\Contacts`, test `ContactsTest` (each rule mutation-prove
 | "Reachable by email" is "On the newsletter"; "Reachable on WhatsApp" is "With a phone number" | Only a confirmed subscriber receives a broadcast, and nothing records WhatsApp consent. A stat must say what it counts. |
 | Consent words are the newsletter's six states, not "Opted in / Email only / Opted out" | "Email only" has no meaning the data can support; "Bounced" and "Complained" are evidence an operator needs. |
 | Search and tabs are GET parameters, paged 50 at a time | A filter over drawn rows would search one page of tens of thousands. |
+
+## The assistant, after the operations assistant the owner pointed at (26 Oct 2026)
+
+`/admin/assistant` is an expanded three-pane view — conversations, the conversation, the
+evidence — and the ⌘J drawer is the same component, compact, on the same conversation
+(`public/assets/js/console-assistant.js`, `console/assistant.css`). Alpine and `ag-chat.js`
+no longer drive it.
+
+- **Conversations are kept on the server**, per administrator (`Admin\Services\AssistantThreads`,
+  `2027_04_04_assistant_threads.php`): grouped Today / Yesterday / Past week / Past month,
+  searchable by anything said in them, deletable, and pruned 90 days after they last move by
+  the daily maintenance run. The model's history is the server's record, never what the
+  browser sends back. The browser keeps only which conversation the tab is in
+  (`ag-asst-thread`, declared in CookieRegistry).
+- **Every answer shows its evidence**: the checks it ran as expandable steps with timings, a
+  card per result, and the result itself as a table (or figures, or the report text) in the
+  panel beside it. The agent's own output is unchanged; it was being thrown away.
+- **Answers are formatted** by `Support\ChatMarkdown` — escaped first, then bold, code, lists
+  and links to `/admin` pages or `https://` only.
+- **The composer**: `@` tags a console page the role can open, `?` lists the shortcuts; the
+  drawer sends the page under it as context. Both are checked server-side against
+  `Permissions::canOpen()`, so a tag is a hint, never a way round the rail.
+- **Rated**: helpful / not helpful per answer, by the person who asked; the 30-day totals are on
+  Settings → AI. Copy on every answer.
+
+Deviation: the reference's "Ask / mode" control and sliders button are not drawn — there is one
+mode, and a control with nothing behind it is worse than none.

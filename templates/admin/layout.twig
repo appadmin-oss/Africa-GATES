@@ -59,6 +59,7 @@ window.cnPage = (function () {
 <link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/console.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/assistant.css') }}">
 {% block head_styles %}{% endblock %}
   {% include 'partials/csrf-fresh.twig' %}
 </head>
@@ -391,39 +392,29 @@ window.cnPage = (function () {
     </div>
   </form>
 </dialog>
-{# The assistant drawer — the same conversation, endpoint and session key as the old
-   copilot and the assistant's own page. Alpine-driven, which is why ag-chat.js loads
-   before Alpine below. #}
+{# The assistant drawer — console-assistant.js, the same component as the expanded page
+   (/admin/assistant), on the same conversation: the thread the person last spoke in, kept on
+   the server. It sends the page under it as context, so "why is this one stuck?" means this
+   one. Expand opens the conversation full size, with its evidence beside it. #}
+{% set as_suggest = ['What should I do first this morning?', 'Why are payments stuck?', 'Which results are ready to release?', 'Anything suspicious in the nomination queue?'] %}
 {% if shell.assistant %}
 <div class="cn-drawer-scrim" data-ag-do="assist-close" hidden></div>
-<aside class="cn-drawer" id="cnAssist" role="dialog" aria-modal="true" aria-labelledby="cnAssistT" hidden
-       x-data="agChat({storageKey:'ag-copilot',logId:'cnAssistLog',focusId:'cnAssistIn',csrf:'{{ csrf_token }}'})">
+<aside class="cn-drawer as-drawer" id="cnAssist" role="dialog" aria-modal="true" aria-labelledby="cnAssistT" hidden
+       data-as="drawer" data-as-suggest="{{ as_suggest|json_encode }}"
+       data-as-dest="{{ shell.destinations|map(d => {label: d.label, href: d.href, group: d.group})|json_encode }}">
   <div class="cn-drawer__head">
     <div class="cn-drawer__ht">
-      <span class="cn-drawer__t" id="cnAssistT">Assistant</span>
-      <span class="cn-drawer__s">Reads this console as {{ shell.role_label }}</span>
+      <span class="cn-drawer__t" id="cnAssistT" data-as-title>Assistant</span>
+      <span class="cn-drawer__s">Reads this console as {{ shell.role_label }}, and the page you are on</span>
     </div>
-    <a class="cn-drawer__full" href="/admin/assistant">Full page</a>
-    <button type="button" class="cn-roundbtn" data-ag-do="assist-close" aria-label="Close">✕</button>
+    <button type="button" class="as-iconbtn" data-as-new aria-label="New chat" title="New chat"><svg aria-hidden="true" focusable="false"><use href="#ic-plus"/></svg></button>
+    <a class="as-iconbtn" href="/admin/assistant" data-as-expand aria-label="Expand" title="Expand"><svg aria-hidden="true" focusable="false"><use href="#ic-expand"/></svg></a>
+    <button type="button" class="as-iconbtn" data-ag-do="assist-close" aria-label="Close" title="Close"><svg aria-hidden="true" focusable="false"><use href="#ic-x"/></svg></button>
   </div>
-  <div class="cn-drawer__body" id="cnAssistLog" role="log" aria-live="polite">
-    <template x-for="(m, i) in msgs" :key="i">
-      <div class="cn-msg" :class="m.role === 'user' ? 'cn-msg--me' : ''"><span class="sr-only" x-text="m.role === 'user' ? 'You said:' : 'Assistant said:'"></span><span x-text="m.text"></span></div>
-    </template>
-    <div class="cn-msg" x-show="busy" x-cloak>Thinking…</div>
-    <p class="cn-drawer__err" role="alert" x-show="error" x-cloak x-text="error"></p>
-    <div class="cn-suggest" x-show="!msgs.length">
-      {% for q in ['What should I do first this morning?', 'Why are payments stuck?', 'Which results are ready to release?', 'Anything suspicious in the queue?'] %}
-        <button type="button" class="cn-suggest__q" data-ag-do="assist-ask" data-q="{{ q }}">{{ q }}</button>
-      {% endfor %}
-    </div>
+  <div class="as-log as-log--drawer" data-as-log role="log" aria-live="polite" aria-label="Conversation"></div>
+  <div class="as-compose as-compose--drawer">
+    {% include 'admin/partials/assistant-composer.twig' with {as_disabled: false, as_id: 'D'} %}
   </div>
-  <form class="cn-drawer__ask" data-cn-safe @submit.prevent="send()">
-    <label for="cnAssistIn" class="sr-only">Ask the assistant</label>
-    <input id="cnAssistIn" x-model="draft" maxlength="2000" placeholder="Ask about the queue, money, results…" autocomplete="off">
-    <button type="submit" class="cn-send" aria-label="Ask" x-bind:disabled="busy || !draft.trim()">↑</button>
-  </form>
-  <div class="cn-drawer__foot">Answers from live figures. It can't approve, refund or publish; it links you to the page that can.</div>
 </aside>
 {% endif %}
 
@@ -460,9 +451,9 @@ window.cnPage = (function () {
   </form>
 </dialog>
 
-{# Script order is load-bearing: ag-chat BEFORE Alpine (Alpine evaluates x-data on load,
-   and agChat must exist by then); Popper before Tippy; admin.js last. #}
-<script defer src="{{ asset('/assets/js/ag-chat.js') }}" data-nav="shell"></script>
+{# Script order is load-bearing: console-assistant before admin.js (which opens the drawer
+   through window.cnAssist); Popper before Tippy; admin.js last. #}
+<script defer src="{{ asset('/assets/js/console-assistant.js') }}" data-nav="shell"></script>
 <script defer src="{{ asset('/assets/js/vendor/alpine-3.13.5.min.js') }}" data-nav="shell"></script>
 <script defer src="{{ asset('/assets/js/vendor/popper-2.11.8.min.js') }}" data-nav="shell"></script>
 <script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}" data-nav="shell"></script>
