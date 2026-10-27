@@ -72,11 +72,13 @@
               <span class="vh-row__status">{{ p.status }}</span>
             </span>
             {# No count until there is one (LOW-DATA-RULES §3): "0 votes" beside "Be among the
-               first to vote" says the same thing twice, the second time as a verdict. #}
-            <span class="vh-row__count{{ p.open ? '' : ' vh-row__count--off' }}">
-              {% if not p.open or p.votes > 0 %}
-              <b>{{ p.open ? p.votes|number_format : '—' }}</b>
-              <span>{{ p.open ? (p.votes == 1 ? 'vote'|trans : 'votes'|trans) : 'not open'|trans }}</span>
+               first to vote" says the same thing twice, the second time as a verdict. And none
+               for an award that is not open: its status line already says so, and a dash over
+               "not open" said it again as a blank figure. #}
+            <span class="vh-row__count">
+              {% if p.open and p.votes > 0 %}
+              <b>{{ p.votes|number_format }}</b>
+              <span>{{ p.votes == 1 ? 'vote'|trans : 'votes'|trans }}</span>
               {% endif %}
             </span>
             <span class="vh-row__btn{{ p.open ? ' vh-row__btn--go' }}" aria-hidden="true">{{ p.open ? 'Vote'|trans : 'View'|trans }}</span>

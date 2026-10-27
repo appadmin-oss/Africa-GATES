@@ -165,33 +165,60 @@
       if (go) go.disabled = false;
       if (agree) agree.addEventListener('change', function () { if (agree.checked) say(err, ''); });
       var val = function (n) { var el = form.elements[n]; return el ? String(el.value || '').trim() : ''; };
-
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        say(err, '');
-        if (!/\S+\s+\S+/.test(val('name'))) { say(err, form.getAttribute('data-e-name') || 'Enter your full name (first and last).'); return; }
-        if (val('phone').replace(/\D/g, '').length < 7) { say(err, 'Enter a valid phone number.'); return; }
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val('email'))) { say(err, 'Enter a valid email address.'); return; }
-        if (agree && !agree.checked) { say(err, form.getAttribute('data-e-agree') || 'Tick the box to confirm you are voting once and accept the rules.'); agree.focus(); return; }
-        busy(go, true);
-        tsWait().then(function (token) {
-          if (token === null) { busy(go, false); say(err, 'The security check has not finished loading. Give it a moment, then try again.'); return; }
-          return api('/api/otp/request', { email: val('email'), nominee_id: +entry.n, award_id: +pid, turnstile_token: token, accept_terms: agree && agree.checked ? 1 : 0 })
-            .then(function (d) {
-              if (d && d.success) {
-                stepForm.hidden = true; stepOtp.hidden = false;
-                var p = $('[data-sent-words]', stepOtp); if (p) p.textContent = fill(p.getAttribute('data-sent-words'), { email: val('email') });
-                var c = form.elements.otp; if (c) c.focus();
-              } else { say(err, (d && d.message) || 'Could not send the code. Please try again.'); }
-            });
-        }).catch(function () { say(err, 'Network error. Please try again.'); })
-          .then(function () { tsReset(); busy(go, false); });
+      var W = function (k, fallback) { return form.getAttribute('data-e-' + k) || fallback; };
+      /* A refusal names its field: the field is marked invalid and takes the focus, so the
+         reader is put where the fix is instead of being told about it at the foot of a form.
+         The mark comes off as soon as they type. */
+      var marked = null;
+      function unmark() { if (marked) { marked.removeAttribute('aria-invalid'); marked = null; } }
+      function refuse(box, msg, name) {
+        say(box, msg);
+        unmark();
+        var el = name && form.elements[name];
+        if (el && el.focus) { el.setAttribute('aria-invalid', 'true'); marked = el; el.focus(); }
+      }
+      ['name', 'phone', 'email', 'otp'].forEach(function (n) {
+        var el = form.elements[n];
+        if (el) el.addEventListener('input', function () { if (marked === el) { unmark(); say(err, ''); say(errOtp, ''); } });
       });
 
+      /* Resend, after a wait the reader can see. The server allows three codes per address
+         per ten minutes, so the wait is what keeps an impatient double-press from spending
+         the allowance on codes that each cancel the last. */
+      var resend = $('[data-resend]', form), waitTimer = null;
+      function cooldown(secs) {
+        if (!resend) return;
+        clearInterval(waitTimer);
+        var label = resend.getAttribute('data-label') || resend.textContent;
+        resend.setAttribute('data-label', label);
+        resend.disabled = true;
+        var tick = function () {
+          if (secs <= 0) { clearInterval(waitTimer); resend.disabled = false; resend.textContent = label; return; }
+          resend.textContent = fill(resend.getAttribute('data-wait'), { n: secs }); secs--;
+        };
+        tick(); waitTimer = setInterval(tick, 1000);
+      }
+
+      function requestCode(btn, box, after) {
+        var sent = false;
+        busy(btn, true);
+        return tsWait().then(function (token) {
+          if (token === null) { say(box, W('ts', 'The security check has not finished loading. Give it a moment, then try again.')); return; }
+          return api('/api/otp/request', { email: val('email'), nominee_id: +entry.n, award_id: +pid, turnstile_token: token, accept_terms: agree && agree.checked ? 1 : 0 })
+            .then(function (d) {
+              if (d && d.success) { sent = true; after(); }
+              else { say(box, (d && d.message) || 'Could not send the code. Please try again.'); }
+            });
+        }).catch(function () { say(box, W('net', 'Network error. Please try again.')); })
+          // The wait starts once the button has its own words back, or they would overwrite it.
+          .then(function () { tsReset(); busy(btn, false); if (sent) cooldown(30); });
+      }
+
       var confirm = $('[data-confirm]', form);
-      if (confirm) confirm.addEventListener('click', function () {
+      function confirmVote() {
         say(errOtp, '');
-        if (!/^\d{6}$/.test(val('otp'))) { say(errOtp, 'Enter the 6-digit code.'); return; }
+        if (!confirm || confirm.getAttribute('aria-busy') === 'true') return;
+        if (!/^\d{6}$/.test(val('otp'))) { refuse(errOtp, W('code', 'Enter the 6-digit code.'), 'otp'); return; }
         busy(confirm, true);
         api('/api/vote', { email: val('email'), otp: val('otp'), nominee_id: +entry.n, award_id: +pid, name: val('name'), phone: val('phone'),
                            message: val('message'), message_show_name: form.elements.message_show_name && form.elements.message_show_name.checked,
@@ -202,11 +229,58 @@
               // Reload, so the confirmation is drawn by the server from its own record.
               location.href = location.pathname + '#ballot';
               location.reload();
-            } else { busy(confirm, false); say(errOtp, (d && d.message) || 'Could not record your vote.'); }
-          }).catch(function () { busy(confirm, false); say(errOtp, 'Network error. Please try again.'); });
+            } else { busy(confirm, false); refuse(errOtp, (d && d.message) || 'Could not record your vote.', 'otp'); }
+          }).catch(function () { busy(confirm, false); say(errOtp, W('net', 'Network error. Please try again.')); });
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        /* Enter (or Go on a phone keyboard) in the code box submits this same form. It used
+           to run the request path, so a voter who typed their code and pressed Go was sent a
+           NEW code — which cancels the one they had just typed. On the code step a submit
+           is the confirmation. */
+        if (stepOtp && !stepOtp.hidden) { confirmVote(); return; }
+        say(err, '');
+        if (!/\S+\s+\S+/.test(val('name'))) { refuse(err, W('name', 'Enter your full name (first and last).'), 'name'); return; }
+        if (val('phone').replace(/\D/g, '').length < 7) { refuse(err, W('phone', 'Enter a valid phone number.'), 'phone'); return; }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val('email'))) { refuse(err, W('email', 'Enter a valid email address.'), 'email'); return; }
+        if (agree && !agree.checked) { say(err, W('agree', 'Tick the box to confirm you are voting once and accept the rules.')); agree.focus(); return; }
+        requestCode(go, err, function () {
+          stepForm.hidden = true; stepOtp.hidden = false;
+          var p = $('[data-sent-words]', stepOtp); if (p) p.textContent = fill(p.getAttribute('data-sent-words'), { email: val('email') });
+          var c = form.elements.otp; if (c) { c.value = ''; c.focus(); }
+          bar(true);
+        });
+      });
+      function bar(otp) {
+        $$('[data-bar-go]').forEach(function (b) {
+          if (b._label == null) b._label = b.textContent;
+          b.textContent = otp ? b.getAttribute('data-otp') : b._label;
+        });
+      }
+
+      if (confirm) confirm.addEventListener('click', confirmVote);
+      /* Six digits is the whole answer, so it confirms itself — typed, pasted, or filled
+         from the email by the phone. Spaces and dashes a mail client adds are dropped. */
+      var code = form.elements.otp;
+      if (code) code.addEventListener('input', function () {
+        var digits = code.value.replace(/\D/g, '').slice(0, 6);
+        if (digits !== code.value) code.value = digits;
+        if (digits.length === 6) confirmVote();
+      });
+      if (resend) resend.addEventListener('click', function () {
+        say(errOtp, '');
+        requestCode(resend, errOtp, function () {
+          say(errOtp, '');
+          var c = form.elements.otp; if (c) { c.value = ''; c.focus(); }
+          var p = $('[data-sent-words]', stepOtp); if (p) p.textContent = resend.getAttribute('data-sent');
+        });
       });
       var back = $('[data-back]', form);
-      if (back) back.addEventListener('click', function () { stepOtp.hidden = true; stepForm.hidden = false; });
+      if (back) back.addEventListener('click', function () {
+        clearInterval(waitTimer); stepOtp.hidden = true; stepForm.hidden = false; bar(false);
+        var e = form.elements.email; if (e) e.focus();
+      });
     }
 
     // Points.

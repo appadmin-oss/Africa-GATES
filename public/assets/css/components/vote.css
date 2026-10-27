@@ -60,7 +60,6 @@
 .vh-row__count{ display:flex; flex-direction:column; align-items:flex-end; gap:3px; text-align:end }
 .vh-row__count b{ font-weight:700; font-size:var(--ag-fs-15); line-height:1; color:var(--ag-green-deep) }
 .vh-row__count span{ font-size:var(--ag-fs-12); color:var(--ag-soft) }
-.vh-row__count--off b{ color:var(--ag-soft) }
 .vh-row__btn{ display:none }
 .vh-row__chev{ color:var(--ag-chevron) }
 .vh-empty{ display:flex; flex-direction:column; align-items:flex-start; gap:14px; padding:20px 0 }

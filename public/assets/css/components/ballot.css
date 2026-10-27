@@ -145,6 +145,10 @@
 .vb-btn--go:disabled{ background:var(--ag-tint); color:var(--ag-soft); cursor:not-allowed }
 .vb-btn--line{ height:44px; border:1.5px solid var(--ag-ink); background:var(--ag-surface); color:var(--ag-ink) }
 .vb-btn--text{ height:44px; border:0; background:transparent; color:var(--ag-ink-2); font-weight:500; font-size:var(--ag-fs-13-5) }
+.vb-btn--text:disabled{ color:var(--ag-soft); cursor:default; opacity:1 }
+/* Resend and change-address: two quiet ways out of the code screen, side by side. */
+.vb-resend{ display:flex; flex-wrap:wrap; justify-content:center; gap:0 16px; margin:0 }
+.vb-resend .vb-btn--text{ width:auto; padding:0 4px }
 .vb-btn[aria-busy="true"]{ opacity:.7; pointer-events:none }
 .vb-ts{ min-height:65px }
 .vb-done{ display:flex; flex-direction:column; gap:12px }

@@ -185,7 +185,11 @@
               secondary: {label: 'Vote in another category'|trans, href: '/vote/' ~ n.programme_slug}} only %}
         </div>
       {% else %}
-      <form class="vb-free" data-free-form data-e-agree="{{ 'Tick the box to confirm you are voting once and accept the rules.'|trans }}">
+      <form class="vb-free" data-free-form data-e-agree="{{ 'Tick the box to confirm you are voting once and accept the rules.'|trans }}"
+            data-e-name="{{ 'Enter your full name (first and last).'|trans }}" data-e-phone="{{ 'Enter a valid phone number.'|trans }}"
+            data-e-email="{{ 'Enter a valid email address.'|trans }}" data-e-code="{{ 'Enter the 6-digit code.'|trans }}"
+            data-e-net="{{ 'We couldn’t reach Africa GATES. Check your connection and try again — nothing was recorded.'|trans }}"
+            data-e-ts="{{ 'The security check has not finished loading. Give it a moment, then try again.'|trans }}">
         <div data-step="form">
           <p class="vb__p">{{ 'One verified vote per category. We email a 6-digit code to confirm it’s you; your email is hashed for the one-vote check.'|trans }}</p>
           <div class="vb-field">
@@ -216,13 +220,22 @@
           <p class="vb-err" data-err role="alert" hidden></p>
           <button type="submit" class="vb-btn vb-btn--go" data-request data-busy="{{ 'Sending the code…'|trans }}" disabled>{{ 'Vote for %first%'|trans({'%first%': first}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></button>
         </div>
+        {# The code screen states its own rules — how long the code lasts, and that a new one
+           cancels the last — because a voter otherwise learns them as "that code is wrong"
+           about a code that was right. The life is OtpService's constant, never typed here. #}
+        {% set _mins = constant('AfricaGates\\Services\\OtpService::VOTE_CODE_MINUTES') %}
         <div data-step="otp" hidden>
           <p class="vb__p" data-sent-words="{{ 'We emailed a 6-digit code to %email%.'|trans }}"></p>
-          <label class="ag-sr" for="{{ ctx.pre }}vbCode">{{ '6-digit code from your email'|trans }}</label>
-          <input class="vb-input vb-code" id="{{ ctx.pre }}vbCode" name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="······">
+          <label class="vb-label" for="{{ ctx.pre }}vbCode">{{ '6-digit code from your email'|trans }}</label>
+          <input class="vb-input vb-code" id="{{ ctx.pre }}vbCode" name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="······" enterkeyhint="done" aria-describedby="{{ ctx.pre }}vbCodeHint">
+          <p class="vb-hint" id="{{ ctx.pre }}vbCodeHint">{{ 'It lasts %n% minutes. It can take a minute to arrive, so check spam or promotions too.'|trans({'%n%': _mins}) }}</p>
           <p class="vb-err" data-err-otp role="alert" hidden></p>
           <button type="button" class="vb-btn vb-btn--go" data-confirm data-busy="{{ 'Confirming…'|trans }}">{{ 'Confirm vote'|trans }}</button>
-          <button type="button" class="vb-btn vb-btn--text" data-back>{{ 'Use a different email'|trans }}</button>
+          <p class="vb-resend">
+            <button type="button" class="vb-btn vb-btn--text" data-resend data-busy="{{ 'Sending…'|trans }}"
+                    data-wait="{{ 'Send a new code in %n%s'|trans }}" data-sent="{{ 'A new code is on its way. The last one no longer works.'|trans }}" disabled>{{ 'Send a new code'|trans }}</button>
+            <button type="button" class="vb-btn vb-btn--text" data-back>{{ 'Use a different email'|trans }}</button>
+          </p>
         </div>
       </form>
       {% endif %}
@@ -347,7 +360,9 @@
 
     <section class="vn-sec" aria-labelledby="vn-sup">
       <h2 class="vn-sec__t" id="vn-sup">{{ 'Support for %first%'|trans({'%first%': first}) }}</h2>
-      <p class="vn-sec__p">{{ message_count == 1 ? '1 message from verified voters'|trans : '%n% messages from verified voters'|trans({'%n%': message_count|number_format}) }}</p>
+      {# No count until there is one (LOW-DATA-RULES §3): "0 messages" reads as a verdict on
+         the nominee, when it only means nobody has written yet. #}
+      <p class="vn-sec__p">{% if message_count == 0 %}{{ 'No messages yet. Voters can leave one with their vote.'|trans }}{% else %}{{ message_count == 1 ? '1 message from verified voters'|trans : '%n% messages from verified voters'|trans({'%n%': message_count|number_format}) }}{% endif %}</p>
       {% if messages|length %}
         <ul class="vmi-list">{% for msg in messages %}{% include 'partials/vote-message.twig' with {m: msg} only %}{% endfor %}</ul>
         {% if message_count > messages|length %}<a class="vn-more" href="{{ messages_url }}">{{ 'Read all %n% messages'|trans({'%n%': message_count|number_format}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>{% endif %}
@@ -398,7 +413,9 @@
     {% if _placed %}
       <a class="vn-bar__go" href="{{ result_url }}">{{ 'See the result'|trans }}</a>
     {% elseif voting_open %}
-      <a class="vn-bar__go" href="#ballot">{{ 'Vote for %first%'|trans({'%first%': first}) }}</a>
+      {# Says what the ballot is waiting for: on the code screen the next act is the code,
+         and a bar still reading "Vote for …" looked like the vote had not started (vote.js). #}
+      <a class="vn-bar__go" href="#ballot" data-bar-go data-otp="{{ 'Enter your code'|trans }}">{{ 'Vote for %first%'|trans({'%first%': first}) }}</a>
     {% else %}
       <a class="vn-bar__go vn-bar__go--line" href="/vote/{{ n.programme_slug }}">{{ 'Back to the award'|trans }}</a>
     {% endif %}

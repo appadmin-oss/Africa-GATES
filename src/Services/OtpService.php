@@ -588,6 +588,13 @@ class OtpService
     }
 
     /**
+     * How long a vote code lives. Read by the mint, both halves of the email and the ballot's
+     * code screen, so the four cannot disagree: it was typed into three of them, and the
+     * screen a voter types the code into said nothing about it at all.
+     */
+    public const VOTE_CODE_MINUTES = 10;
+
+    /**
      * Generate and email a 6-digit voting OTP.
      * Invalidates any outstanding code for this email+purpose first
      * so there is always at most one live code per user.
@@ -618,7 +625,7 @@ class OtpService
             'award_id'   => $awardId,
             'attempts'   => 0,
             'is_used'    => 0,
-            'expires_at' => Carbon::now()->addMinutes(10)->toDateTimeString(),
+            'expires_at' => Carbon::now()->addMinutes(self::VOTE_CODE_MINUTES)->toDateTimeString(),
             'created_at' => Carbon::now()->toDateTimeString(),
         ]);
 
@@ -669,9 +676,10 @@ class OtpService
 
     private function sendOtpEmail(string $to, string $code): array
     {
+        $mins = self::VOTE_CODE_MINUTES;
         $html = <<<HTML
 <h1 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:26px;color:#10292C;letter-spacing:-.01em">Confirm it's you</h1>
-<p style="margin:13px 0 0;font-size:15px;line-height:1.65;color:#4a5256">Enter this one-time code to verify your email and cast your vote. It expires in <strong style="color:#10292C">10 minutes</strong>.</p>
+<p style="margin:13px 0 0;font-size:15px;line-height:1.65;color:#4a5256">Enter this one-time code to verify your email and cast your vote. It expires in <strong style="color:#10292C">{$mins} minutes</strong>.</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0">
   <tr><td style="background:#f4f7f4;border:1px solid #d6e8d3;border-radius:14px;padding:24px;text-align:center">
     <div style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#92a6a7;margin-bottom:12px">Your verification code</div>
@@ -685,7 +693,7 @@ HTML;
             $to,
             'Africa GATES — your verification code',
             $html,
-            "Africa GATES verification code: $code\n\nExpires in 10 minutes. One vote per email per category.\n\nDidn't request this? Ignore this email.",
+            "Africa GATES verification code: $code\n\nExpires in " . self::VOTE_CODE_MINUTES . " minutes. One vote per email per category.\n\nDidn't request this? Ignore this email.",
             'Security',
             $this->base() . '/assets/img/illustrations/illo-envelope.jpg'
         );
