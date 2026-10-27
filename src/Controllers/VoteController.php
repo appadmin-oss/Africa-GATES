@@ -501,6 +501,26 @@ class VoteController {
         if (isset($_SESSION['vote_cast'][$id])) unset($_SESSION['vote_cast'][$id]);
         $voteConfirmed = $castAt > 0 && (time() - $castAt) < 900;
 
+        // "Bring your people" (VoteRecruit). Arriving through somebody's link keeps their code
+        // for this browser until a vote spends it; having voted here, this browser holds its
+        // own link for this nominee and the count of people it has brought.
+        $via = (string) ($req->getQueryParams()['via'] ?? '');
+        if ($via !== '') \AfricaGates\Services\VoteRecruit::capture($via);
+        $recruit = null;
+        $myCode  = (string) ($_SESSION['vote_recruit'][$id] ?? '');
+        if ($myCode !== '') {
+            $brought = \AfricaGates\Services\VoteRecruit::broughtByCode($myCode);
+            if ($brought !== null) {
+                // The link is the nominee's own short URL plus the code — short enough for the
+                // QR code and for a person to read off a phone — and the share buttons are the
+                // same kit every nominee gets (ShareKit), carrying this voter's link instead.
+                $link = \AfricaGates\Support\SiteUrl::base($req) . '/vote/' . $nom->programme_slug . '/' . (int) $nom->id . '?via=' . rawurlencode($myCode);
+                $kit  = \AfricaGates\Services\ShareKit::for(['name' => (string) $nom->name, 'category' => (string) $nom->category,
+                    'programme' => (string) $nom->programme_title, 'url' => $link], $link);
+                $recruit = ['code' => $myCode, 'brought' => $brought, 'link' => $link, 'links' => array_slice($kit['links'], 0, 3)];
+            }
+        }
+
         // The panel's reviewed evidence, as COUNTS by kind and nothing more. The rows are
         // the judges' dossier (`visible_to_judges`); titles and links can be private, and no
         // column says a row may be published — so the page says what was reviewed, never
@@ -519,6 +539,7 @@ class VoteController {
             'terms'            => \AfricaGates\Services\AwardTerms::current((int) $nom->programme_id),
             'paid_sentence'    => \AfricaGates\Services\PaidVoteCopy::sentence((int) $nom->programme_id, (int) $nom->cycle_id),
             'vote_confirmed'   => $voteConfirmed,
+            'recruit'          => $recruit,
             'evidence'         => $evidence,
             'shortlisted'      => $nomShortlisted,
             'result_url'       => '/results/' . \AfricaGates\Services\PublicResults::slug((int) $nom->category_id, (string) $nom->category),

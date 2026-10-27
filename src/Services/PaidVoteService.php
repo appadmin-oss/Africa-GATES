@@ -686,6 +686,10 @@ class PaidVoteService
                 error_log('[paid-vote] supporter not thanked on order ' . (int) $don->id . ': ' . $e->getMessage());
             }
 
+            // The order came through a "bring your people" link: one more person for it.
+            // Best-effort, like the thanks above; it moves no vote.
+            try { VoteRecruit::creditPaid((int) $don->id); } catch (\Throwable) {}
+
             return ['ok' => true, 'minted' => $qty];
         });
     }

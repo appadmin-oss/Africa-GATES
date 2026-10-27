@@ -2075,7 +2075,8 @@ final class SupportContext
      * arrive constantly, and both have honest answers the assistant could not
      * reach. A total CAN fall: fraudulent votes are removed and a refunded paid
      * vote is taken back along with the money. And a nominee can show more visible
-     * support while ranking lower, because paid votes are excluded from the score.
+     * support while ranking lower, because a paid vote adds to the tally but not to the
+     * count of people (PaidVoteCopy).
      *
      * Both facts defend the integrity system. Without the numbers the model either
      * refused the question or, worse, guessed at a mechanism.
@@ -2110,11 +2111,15 @@ final class SupportContext
             'organic_votes' => $organic,
             'paid_support'  => max(0, $total - $organic),
             'url'      => \AfricaGates\Support\NomineeUrl::ballot((int) $n->id, ''),
+            // What a contributed vote does is read from the rule (PaidVoteCopy), never typed: this
+            // said "only the free ones count towards the score", which is a retired basis's
+            // answer — under the current one a contributed vote counts in the tally share and
+            // never in the supporter share, so more votes can still rank lower.
             'say' => 'Total visible support is ' . number_format($total) . ', of which '
-                   . number_format($organic) . ' are free verified votes. Only the free ones count towards the '
-                   . 'score that decides rank — so a nominee can show more support and still rank lower, and a '
-                   . 'total CAN fall when fraudulent votes are removed or a paid vote is refunded. Both of those '
-                   . 'are the integrity system working. Give them the nominee link so they see it live.',
+                   . number_format($organic) . ' are free verified votes. '
+                   . \AfricaGates\Services\PaidVoteCopy::sentence() . ' So a nominee can show more votes and '
+                   . 'still rank lower, and a total CAN fall when fraudulent votes are removed or a paid vote is '
+                   . 'refunded. Both are the integrity system working. Give them the nominee link so they see it live.',
         ];
     }
 

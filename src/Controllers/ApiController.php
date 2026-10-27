@@ -157,6 +157,14 @@ class ApiController {
         // (Services\Celebration: money and votes celebrate only once the record says so).
         if($termsProgramme>0) \AfricaGates\Services\AwardTerms::accept($termsProgramme,\AfricaGates\Services\AwardTerms::KIND_VOTE,$email,$nId);
         if(isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_cast'][$nId]=time();
+        // "Bring your people" (VoteRecruit): the link this vote arrived through is credited
+        // with one more person, and this voter gets a link of their own for the same nominee.
+        // Both after the vote counted, and neither can touch it.
+        $voterHash=\AfricaGates\Services\VoteService::voterHash($email);
+        $via=\AfricaGates\Services\VoteRecruit::fromSession();
+        if($via!=='') \AfricaGates\Services\VoteRecruit::credit($via,$nId,$voterHash,'vote:'.(int)($r['vote_id']??0));
+        $mine=\AfricaGates\Services\VoteRecruit::forVoter($voterHash,$nId);
+        if($mine&&isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_recruit'][$nId]=$mine['code'];
 
         // Post-vote: record fraud score, events, milestones, cache invalidation
         if($this->fraud && isset($fs)) {

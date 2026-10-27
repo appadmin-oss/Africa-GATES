@@ -77,6 +77,13 @@ final class MoneyClaimSweepTest extends TestCase
             => 'says a paid vote does everything a free one does, when it never adds a person',
         'exactly as much as a free one'
             => 'says a paid vote does everything a free one does, when it never adds a person',
+        // 27 Oct 2026: both shipped to supporters. The thank-you mail every paid supporter
+        // receives, and Gee's answer to "why is X ahead of Y" — the two places somebody is
+        // told what their own money did.
+        'kept out of the score'
+            => 'says a paid vote is not scored, when it counts in the tally share',
+        'only the free ones count'
+            => 'says only free votes are scored, when a paid vote counts in the tally share',
     ];
 
     /** @return list<string> */

@@ -157,6 +157,19 @@ final class SupporterHonours
             ? 'Delivered: your ' . $vs . ' for ' . $n->name
             : 'Your ' . $vs . ' for ' . $n->name . ' ' . ($votes === 1 ? 'is' : 'are') . ' counted';
 
+        // What a contribution does, from the rule that decides it (PaidVoteCopy). This email
+        // used to say contributions were "deliberately kept out of the score that decides the
+        // winner" — true under a basis this platform retired; under the current one they count
+        // in the tally share. A supporter told the wrong thing about their own money is the
+        // one disagreement this platform has already been publicly wrong about.
+        $what = PaidVoteCopy::sentence(isset($n->programme_id) ? (int) $n->programme_id : null, isset($n->cycle_id) ? (int) $n->cycle_id : null);
+
+        // "Bring your people" (VoteRecruit): their own link for this nominee, and the count it
+        // has brought. The moment somebody has just backed a nominee is the moment they are
+        // likeliest to ask a friend to as well.
+        $mine = VoteRecruit::forVoter(VoteService::voterHash($email), $nomineeId);
+        $bring = $mine ? $url . (str_contains($url, '?') ? '&' : '?') . 'via=' . rawurlencode($mine['code']) : '';
+
         // WHAT IT DID, not what it cost. The amount is on their bank statement and
         // on the receipt; repeating it here would make this a second invoice. What
         // they cannot see anywhere else is the standing and the company they are in.
@@ -179,8 +192,13 @@ final class SupporterHonours
                     ? "Your name is on their supporters list."
                     : "You gave anonymously, so your name is not published — the votes count exactly the same.")
               . "</p>"
-              . "<p style=\"font-size:13.5px;color:#5a6d6f;line-height:1.7\">One thing worth knowing, because we would rather you heard it from us: contributions raise a nominee's <em>public tally</em>, and they are deliberately kept out of the score that decides the winner. That is judged on free verified votes and an independent panel. "
-              . "<a href=\"{$base}/integrity#money\" style=\"color:#237b22\">Why we do it that way</a>.</p>"
+              . ($bring !== ''
+                    ? "<p style=\"margin:18px 0 6px;font-weight:700;color:#10292C\">Bring your people</p>"
+                      . "<p style=\"margin:0 0 6px\">Send this link to friends and family. Everyone who votes for {$first} through it is counted as someone you brought.</p>"
+                      . "<p style=\"margin:0 0 14px\"><a href=\"" . $e($bring) . "\" style=\"color:#237b22;word-break:break-all\">" . $e($bring) . "</a></p>"
+                    : '')
+              . "<p style=\"font-size:13.5px;color:#5a6d6f;line-height:1.7\">" . $e($what) . " "
+              . "<a href=\"{$base}/integrity#money\" style=\"color:#237b22\">How it counts</a>.</p>"
               . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$url}\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">See where {$first} stands &rarr;</a></p>";
 
         $plain = "Hi " . (trim((string) ($don->donor_name ?? '')) ?: 'there') . ",\n\n"
@@ -190,9 +208,8 @@ final class SupporterHonours
                . "Category: " . (string) ($n->category ?? '') . "\n"
                . "Their tally now: " . number_format((int) ($n->vote_count ?? 0)) . "\n"
                . "People behind them: " . number_format($people) . "\n\n"
-               . "Contributions raise a nominee's public tally and are deliberately kept out of the score "
-               . "that decides the winner — that is judged on free verified votes and an independent panel. "
-               . "{$base}/integrity#money\n\n{$url}\n\n— Africa GATES";
+               . ($bring !== '' ? "Bring your people — send this link to friends and family:\n{$bring}\n\n" : '')
+               . $what . " {$base}/integrity#money\n\n{$url}\n\n— Africa GATES";
 
         // ── AND THIS ONE IS NOT SUPPRESSED BY THE OPT-OUT LIST ──────────────────
         //
@@ -530,7 +547,7 @@ final class SupporterHonours
                 ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
                 ->where('n.id', $nomineeId)
                 ->select(['n.id', 'n.name', 'n.vote_count', 'n.status',
-                          'c.title as category', 'p.slug as programme_slug'])
+                          'c.title as category', 'p.slug as programme_slug', 'p.id as programme_id', 'cy.id as cycle_id'])
                 ->first();
         } catch (\Throwable) {
             return null;

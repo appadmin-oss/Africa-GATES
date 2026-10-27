@@ -94,6 +94,26 @@
     <a class="ag-btn ag-btn--secondary ag-btn--pill ag-btn--block" href="/vote/{{ n.programme_slug }}">{{ 'Back to the award'|trans }}</a>
   {% else %}
 
+    {# "Bring your people" (VoteRecruit): once this browser has voted here, free or paid, its
+       own link for this nominee and the count of people who came through it — first, because
+       having voted, bringing others is the next useful thing to do. The same for every voter
+       and every nominee (D32); it moves no tally. Passed in through ctx: a macro sees nothing
+       else. #}
+        {% if ctx.recruit %}
+        <section class="vb-bring" aria-labelledby="{{ ctx.pre }}vb-bring-h">
+          <h3 class="vb-bring__h" id="{{ ctx.pre }}vb-bring-h">{{ 'Bring your people'|trans }}</h3>
+          <p class="vb-hint">{{ 'Everyone who votes for %first% through your link counts as yours.'|trans({'%first%': first}) }}</p>
+          <div class="vb-bring__row">
+            <input class="vb-input vb-bring__link" type="text" readonly value="{{ ctx.recruit.link }}" aria-label="{{ 'Your link'|trans }}" data-bring-link>
+            <button type="button" class="vb-btn vb-btn--line vb-bring__copy" data-bring-copy data-done="{{ 'Copied'|trans }}">{{ 'Copy'|trans }}</button>
+          </div>
+          <div class="vb-bring__go">
+            {% for l in ctx.recruit.links %}<a class="vb-bring__a" href="{{ l.href }}" target="_blank" rel="noopener noreferrer">{{ l.label }}</a>{% endfor %}
+          </div>
+          <p class="vb-bring__n">{% if ctx.recruit.brought == 0 %}{{ 'Nobody yet. Send it to three people.'|trans }}{% elseif ctx.recruit.brought == 1 %}{{ 'You’ve brought 1 person.'|trans }}{% else %}{{ 'You’ve brought %n% people.'|trans({'%n%': ctx.recruit.brought|number_format}) }}{% endif %}</p>
+        </section>
+        {% endif %}
+
     {# ── Points ── #}
     {% if ctx.can_redeem %}
       <div class="vb-points" data-redeem data-csrf="{{ csrf_token }}" data-balance="{{ ctx.member_points }}" data-cost="{{ ctx.points_per_vote }}">
@@ -161,7 +181,7 @@
             {# The member's own community return (WalletVotes). It earns no return and does
                not count towards qualifying, which the hint says before anybody chooses it. #}
             {% for w in ctx.wallet %}<label class="vb-prov__o"><input type="radio" name="provider" value="wallet:{{ w.key }}"{% if not ctx.providers and loop.first %} checked{% endif %}> {{ 'Your wallet · %sub% · ₦%n% available'|trans({'%sub%': w.sub, '%n%': (w.available_kobo / 100)|number_format(2)}) }}</label>{% endfor %}
-            {% if ctx.wallet %}<p class="vb-hint">{{ 'Votes paid from your wallet count like any bought vote. They earn no community return and do not count towards qualifying for one.'|trans }}</p>{% endif %}
+            {% if ctx.wallet %}<p class="vb-hint">{{ 'Wallet votes count as bought votes, earn no return and don’t count towards qualifying.'|trans }}</p>{% endif %}
           </fieldset>
         {% else %}<input type="hidden" name="provider" value="{{ ctx.providers[0].id }}">{% endif %}
         {% if ctx.terms %}
@@ -179,7 +199,7 @@
       {% if ctx.confirmed %}
         <div class="vb-done">
           {% include 'partials/celebration.twig' with {kind: 'vote', size: 'inline', first: first,
-              sub: '%first% moved up the race. Share the link so more people can back %first%.'|trans({'%first%': first}),
+              sub: '%first% moved up the race. Share the link to win more support.'|trans({'%first%': first}),
               context: {moment: 'vote_cast', confirmed: true, edition: n.programme_slug ~ '-' ~ n.year, subject: n.id ~ '-' ~ n.category_id},
               primary: {label: 'Share %first%’s voting link'|trans({'%first%': first})},
               secondary: {label: 'Vote in another category'|trans, href: '/vote/' ~ n.programme_slug}} only %}
@@ -188,8 +208,8 @@
       <form class="vb-free" data-free-form data-e-agree="{{ 'Tick the box to confirm you are voting once and accept the rules.'|trans }}"
             data-e-name="{{ 'Enter your full name (first and last).'|trans }}" data-e-phone="{{ 'Enter a valid phone number.'|trans }}"
             data-e-email="{{ 'Enter a valid email address.'|trans }}" data-e-code="{{ 'Enter the 6-digit code.'|trans }}"
-            data-e-net="{{ 'We couldn’t reach Africa GATES. Check your connection and try again — nothing was recorded.'|trans }}"
-            data-e-ts="{{ 'The security check has not finished loading. Give it a moment, then try again.'|trans }}">
+            data-e-net="{{ 'We couldn’t reach Africa GATES. Nothing was recorded. Try again.'|trans }}"
+            data-e-ts="{{ 'The security check is still loading. Try again in a moment.'|trans }}">
         <div data-step="form">
           <p class="vb__p">{{ 'One vote per category, confirmed by a code we email you.'|trans }}</p>
           <div class="vb-field">
@@ -228,7 +248,7 @@
           <p class="vb__p" data-sent-words="{{ 'We emailed a 6-digit code to %email%.'|trans }}"></p>
           <label class="vb-label" for="{{ ctx.pre }}vbCode">{{ '6-digit code from your email'|trans }}</label>
           <input class="vb-input vb-code" id="{{ ctx.pre }}vbCode" name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="······" enterkeyhint="done" aria-describedby="{{ ctx.pre }}vbCodeHint">
-          <p class="vb-hint" id="{{ ctx.pre }}vbCodeHint">{{ 'It lasts %n% minutes. It can take a minute to arrive, so check spam or promotions too.'|trans({'%n%': _mins}) }}</p>
+          <p class="vb-hint" id="{{ ctx.pre }}vbCodeHint">{{ 'It lasts %n% minutes. Not arrived? Check spam or promotions.'|trans({'%n%': _mins}) }}</p>
           <p class="vb-err" data-err-otp role="alert" hidden></p>
           <button type="button" class="vb-btn vb-btn--go" data-confirm data-busy="{{ 'Confirming…'|trans }}">{{ 'Confirm vote'|trans }}</button>
           <p class="vb-resend">
@@ -240,7 +260,7 @@
       </form>
       {% endif %}
     {% elseif not ctx.paid %}
-      <p class="vb__p">{{ 'Voting on this award is by contributed votes only, and contributions are not being taken right now.'|trans }}</p>
+      <p class="vb__p">{{ 'This award takes contributed votes only, and contributions are closed right now.'|trans }}</p>
     {% endif %}
   {% endif %}
   </div>
@@ -251,7 +271,7 @@
 {% set _bctx = {n: n, first: first, open: voting_open, phase: phase, paid_notice: paid_notice, can_redeem: can_redeem,
    member_points: member_points, points_per_vote: points_per_vote, member_logged_in: member_logged_in, points_enabled: points_enabled,
    paid: _paid, paid_sentence: paid_sentence, vote_price: vote_price, max_qty: max_qty, vote_tiers: vote_tiers, tiers: tier_prices,
-   retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed,
+   retry: paid_retry, member: member, providers: pay_providers, wallet: wallet_sources|default([]), msg_max: msg_max, terms: terms, free: _free, confirmed: vote_confirmed, recruit: recruit,
    ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id} %}
 
 {% block content %}
@@ -306,7 +326,7 @@
       {% endif %}
       <section class="vn-sec" aria-labelledby="vn-roll">
         <h2 class="vn-sec__t" id="vn-roll">{{ 'Roll of honour'|trans }}</h2>
-        <p class="vn-sec__p">{{ 'Supporters who asked to be named. Everyone else counted exactly the same and stays private.'|trans }}</p>
+        <p class="vn-sec__p">{{ 'Named at their request. Everyone else counts the same and stays private.'|trans }}</p>
         {% if roll_of_honour|length %}
           <ul class="vn-roll">{% for r in roll_of_honour %}<li class="vn-roll__i"><span class="vn-roll__av" aria-hidden="true">{{ (r.name|default(r)|split(' ')|map(w => w|first)|join|upper)|slice(0, 2) }}</span>{{ r.name|default(r) }}</li>{% endfor %}</ul>
           {% if supporter_count > roll_of_honour|length %}<a class="vn-more" href="{{ supporters_url }}">{{ 'See all %n% named supporters'|trans({'%n%': supporter_count|number_format}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>{% endif %}
@@ -339,11 +359,11 @@
           {% if others|length and not standing.is_leader|default(standing.rank == 1) and standing.gap_ahead %}<span>{{ '%g% votes behind #%r%'|trans({'%g%': standing.gap_ahead|number_format, '%r%': standing.next_rank}) }}</span>{% endif %}
         </span>
         <span class="vn-race__note">
-          {%- if paid_free_disabled %}{{ 'Every vote on this award was contributed; there was no free vote to compare it with.'|trans }} {% endif -%}
-          {{ 'Public votes are one part of the score. The judges decide the rest after voting closes.'|trans }}
+          {%- if paid_free_disabled %}{{ 'Every vote on this award was contributed; there was no free vote.'|trans }} {% endif -%}
+          {{ 'Votes are part of the score; judges decide the rest after voting.'|trans }}
         </span>
         {% if recovered.total|default(0) > 0 %}
-          <p class="vn-recovered" role="note"><b>{{ '%n% of these votes were placed by Africa GATES.'|trans({'%n%': recovered.total|number_format}) }}</b> {{ 'They belong to people whose vote code we failed to deliver, and were added after two people checked each one.'|trans }} <a href="/integrity">{{ 'How vote recovery works'|trans }}</a></p>
+          <p class="vn-recovered" role="note"><b>{{ '%n% of these votes were placed by Africa GATES.'|trans({'%n%': recovered.total|number_format}) }}</b> {{ 'For voters whose code we failed to deliver; two people checked each one.'|trans }} <a href="/integrity">{{ 'How vote recovery works'|trans }}</a></p>
         {% endif %}
       </section>
 
@@ -372,8 +392,8 @@
         <ul class="vn-roll">{% for s in supporters %}<li class="vn-roll__i"><span class="vn-roll__av" aria-hidden="true">{{ (s.name|split(' ')|map(w => w|first)|join|upper)|slice(0, 2) }}</span>{{ s.name }}</li>{% endfor %}</ul>
         {% if supporter_count > supporters|length %}<a class="vn-more" href="{{ supporters_url }}">{{ 'See all named supporters (%more% more)'|trans({'%more%': supporters_more}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>{% endif %}
       {% endif %}
-      <a class="vn-more" href="{{ flier_url }}">{{ 'Make a flier for %first%'|trans({'%first%': first}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
-      <a class="vn-more" href="{{ video_url }}">{{ 'Make a share video for %first%'|trans({'%first%': first}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+      <a class="vn-more" href="{{ flier_url }}">{{ 'Share kit: flier, messages and QR code'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+      <a class="vn-more" href="{{ video_url }}">{{ 'Share video'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
     </section>
 
     {% if evidence|length %}
@@ -384,7 +404,7 @@
           <li class="vn-ev__i"><span class="vn-ev__k">{{ (_ev_words[kind]|default('item'))|trans }}</span><span class="vn-ev__t">{{ count == 1 ? '1 reviewed'|trans : '%n% reviewed'|trans({'%n%': count}) }}</span><span class="vn-ev__ok">{{ 'Reviewed'|trans }}</span></li>
         {% endfor %}
       </ul>
-      <p class="vn-sec__p">{{ 'Checked by the Africa GATES team before the judges read it. What it says stays with the panel.'|trans }}</p>
+      <p class="vn-sec__p">{{ 'Checked by our team before judging. Its contents stay with the panel.'|trans }}</p>
     </section>
     {% endif %}
 

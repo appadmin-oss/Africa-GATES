@@ -283,6 +283,16 @@
       });
     }
 
+    // "Bring your people": copy the voter's own link. The field is selectable as a fallback
+    // when the clipboard is refused, so the link is never out of reach.
+    var bCopy = $('[data-bring-copy]', sec), bLink = $('[data-bring-link]', sec);
+    if (bCopy && bLink) bCopy.addEventListener('click', function () {
+      var shown = function () { var was = bCopy.textContent; bCopy.textContent = bCopy.getAttribute('data-done') || was;
+        setTimeout(function () { bCopy.textContent = was; }, 1600); };
+      try { navigator.clipboard.writeText(bLink.value).then(shown, function () { bLink.select(); }); }
+      catch (e) { bLink.select(); }
+    });
+
     // Points.
     var rd = $('[data-redeem]', sec), rdGo = rd && $('[data-redeem-go]', rd);
     if (rdGo) rdGo.addEventListener('click', function () {

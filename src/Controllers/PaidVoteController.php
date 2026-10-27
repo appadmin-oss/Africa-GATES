@@ -211,6 +211,10 @@ final class PaidVoteController
             return $bail('error');
         }
 
+        // Started from somebody's "bring your people" link: held by reference and credited
+        // when the votes are minted, never now — an abandoned checkout brought nobody.
+        \AfricaGates\Services\VoteRecruit::pend($reference, \AfricaGates\Services\VoteRecruit::fromSession());
+
         // ── THE BUYER'S MESSAGE, HELD IN THE SESSION ─────────────────────────
         //
         // Not written to the database here, and that is the whole design. A message
@@ -424,6 +428,13 @@ final class PaidVoteController
         // votes_used is the mint claim flag: 0 on a confirmed order means the
         // votes were never added. Same signal ops queries for a refund.
         $minted = $don !== null && (int)$don->votes_used > 0;
+        // Their votes landed: this browser now holds their own "bring your people" link for the
+        // nominee (VoteRecruit), shown at the top of the ballot when they go back to it. The
+        // same link reaches them in the thank-you email, for when this is another device.
+        if ($minted && $nominee && trim((string)($don->donor_email ?? '')) !== '') {
+            $mine = \AfricaGates\Services\VoteRecruit::forVoter(\AfricaGates\Services\VoteService::voterHash((string)$don->donor_email), (int)$nominee->id);
+            if ($mine && isset($_SESSION) && is_array($_SESSION)) $_SESSION['vote_recruit'][(int)$nominee->id] = $mine['code'];
+        }
 
         return $this->view->render($res, 'pages/vote-paid-success.twig', [
             'page_title'       => $minted ? 'Votes confirmed — Africa GATES' : 'Payment received — Africa GATES',
