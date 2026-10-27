@@ -78,6 +78,9 @@ class VoteController {
             'gates_page'       => 'awards',
             'front'            => $front,
             'split'            => $this->splitPct(),
+            // The vote hub's one ad (Services\Ads). Picked per request, never cached with the
+            // hub: frequency, pacing and the nominee rule are all decided now.
+            'ad'               => \AfricaGates\Services\Ads\AdDelivery::forRequest('vote_hub', $req),
             'breadcrumbs' => [
                 ['label' => 'Africa GATES', 'url' => '/'],
                 ['label' => 'Vote',         'url' => '/vote'],

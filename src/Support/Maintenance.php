@@ -287,6 +287,10 @@ final class Maintenance
                 // log beside it was added to fix.
                 $ran[] = ['visits', $this->task('visits',
                     fn() => \AfricaGates\Services\VisitTracker::prune())];
+                // An ad's counted-once records: kept only as long as a view could still be
+                // reported for the page it was drawn on (Services\Ads\AdDelivery).
+                $ran[] = ['adevents', $this->task('adevents',
+                    fn() => \AfricaGates\Services\Ads\AdDelivery::prune())];
                 // Expired Gemini file-upload handles. The provider deletes the file itself
                 // after 48 hours; this drops OUR record of it, which is the half that
                 // matters — a stale row would be handed to generateContent as a live

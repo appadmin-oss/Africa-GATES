@@ -1353,8 +1353,8 @@ work items.
   - Services.
   - Stands and spaces.
   - Event tickets.
-  - **Highlights**: a business, product or story that people post themselves for
-    visibility, not for sale.
+  - ~~Highlights~~: retired before it shipped (owner, 27 Oct). There is no free promotion;
+    the only free thing is the ads trial (below).
 
   Each kind, and each market category, has its own **listing form from the dynamic form
   engine**. So "what a listing asks for" is configurable exactly as nomination forms are.
@@ -1369,12 +1369,29 @@ work items.
     generalised.
 - **Orders.** One cart across sellers, split settlement, a platform fee per listing kind
   (a setting, with one reader), **one payment ledger** (D8) and one refund path.
-- **Promotions.**
-  - **Paid placements:** the home band, the discover feed, event pages and a newsletter
-    slot. Each has its own inventory, schedule, budget and frequency cap.
-  - **Bought self-serve** through the ledger, **reviewed before going live**, and **always
-    labelled "Promoted"**.
-  - **Delivery is measured first-party** and honours the cookie choice (`CookiePrefs`).
+- **Promotions are ads, built the way Meta builds them** (owner, 27 Oct; `Services\Ads`).
+  - **Campaign → ad set → ad.** The campaign has the objective (be seen, get visits, sell)
+    and the advertiser's name; the ad set has the placements, countries, window, budget and
+    the rate it was booked at; the ad is one standard format (square image, headline, a line
+    of text, a button, an optional customer offer and code).
+  - **Placements:** the vote page's list of awards (never a ballot, a nominee or a result),
+    Discover, the events list and event pages. Pulse and the newsletter are next.
+  - **A published rate card**, naira per 1,000 views, the same for everybody, set in the
+    console and printed on `/advertise`. An auction can be switched on per placement later.
+  - **Prepaid, no wallet.** Each campaign is one payment; what it does not spend goes back
+    to where it came from. Nothing holds a balance.
+  - **Free trial only:** one per account, 7 days or 1,000 views, whichever comes first,
+    starting when a person approves it. Same review, label and reporting as a paid ad.
+  - **Reviewed before going live**, by a person, with automatic flags beside the ad.
+    **Always labelled "Sponsored"**, with who paid and "Why am I seeing this?".
+  - **A view is counted by the browser**: half the ad on screen for a second, once per
+    drawn ad (single-use token), so a replayed beacon buys nothing. Chosen by page and
+    country only, never by what a visitor did, so the cookie choice changes nothing.
+  - **Nominees may advertise what they do** under four rules: never about the award; any
+    offer open to everyone and never tied to voting; off the vote page while their own award
+    is open; the same price as everyone.
+  - **Not yet:** paid checkout, which needs advertising money to have its own stream in
+    CACENTRE finance before it can be taken (`CfisCatalogue`), and a VAT decision.
   - **Codes:** one promotion-code system replaces today's three (event codes, shop codes,
     `PromoCode`).
 - **Promotions never touch awards' results.** The rule "money buys the tally, never the
@@ -1385,8 +1402,9 @@ work items.
 - **Messaging.** Buyers and sellers message each other through the platform, and contact
   details stay private.
 
-**Order of work.** Highlights come first (no money moves), then sellers and listings on the
-ledger, then promotions. Each step is usable on its own.
+**Order of work.** The ads trial first (no money moves: built 27 Oct), then paid campaigns
+once finance has an advertising stream, then sellers and listings on the ledger. Each step is
+usable on its own.
 
 ---
 

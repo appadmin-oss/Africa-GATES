@@ -75,6 +75,7 @@ class EventsController
             // Which spotlight events are taking stand applications. Outside any cache, and
             // one query for the page — see StandCall::openFor().
             'stand_calls'      => StandCall::openFor(array_column($front['spotlight'], 'id')),
+            'ad'               => \AfricaGates\Services\Ads\AdDelivery::forRequest('events', $req),
         ] + ($front['filtering'] ? ['meta_robots' => 'noindex, follow'] : []));
     }
 
@@ -206,6 +207,8 @@ class EventsController
               . '&location=' . rawurlencode($this->calendarWhere((object) $event))
               . '&details=' . rawurlencode((string) ($event['tagline'] ?? ''));
 
+        $awardsHere = \AfricaGates\Services\EventsFront::awards($id);
+
         return $this->view->render($res, 'pages/events/detail.twig', [
             'page_title'       => $event['title'] . ' — Africa GATES',
             'meta_description' => ($event['tagline'] ?? null)
@@ -252,7 +255,12 @@ class EventsController
             'access_code'      => $code,
             'gateway_ready'    => $this->payments()->enabledProviderIds() !== [],
             'stand_call'       => StandCall::nudge($id, (string) $event['slug'], $isPast),
-            'awards'           => \AfricaGates\Services\EventsFront::awards($id),
+            'awards'           => $awardsHere,
+            // One ad, last in the main column (Services\Ads) — and none while an award this
+            // event belongs to is taking votes: the page then links to a ballot, and no ad
+            // sits beside a choice somebody is making (owner, 27 Oct 2026).
+            'ad'               => empty($awardsHere['voting'])
+                ? \AfricaGates\Services\Ads\AdDelivery::forRequest('events', $req) : null,
             'gcal'             => $gcal,
             'alert_waiting'    => $ev['state'] === 'soon' ? \AfricaGates\Services\EventSaleAlert::waiting($id) : 0,
             'alert_said'       => self::takeAlertSaid(),

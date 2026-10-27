@@ -1061,6 +1061,24 @@
     </div>
   </div></div>
 
+  {# The ads rate card (Services\Ads\AdRateCard): one published price per placement, the same
+     for every advertiser, printed on /advertise. Blank or 0 takes a placement off sale; the
+     free trial still runs there. A running campaign keeps the price it was booked at. #}
+  <div class="ad-card" data-sec="money" data-keys="ads advertising advertise rate card price cpm placements sponsored promotion" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Ad prices<small>Naira per 1,000 views, the same for every advertiser. Shown on <a href="/advertise">/advertise</a>.</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <input type="hidden" name="ads_rates" value="1">
+      <div class="row">
+        {% for k, label in ad_placements %}
+        <div>
+          <label for="f-ads_cpm_{{ k }}">{{ label }} <small>₦ per 1,000 views · blank is not on sale</small></label>
+          <input type="number" name="ads_cpm[{{ k }}]" id="f-ads_cpm_{{ k }}" min="0" max="1000000" step="1" inputmode="numeric" value="{{ ad_rates[k]|default('') }}">
+        </div>
+        {% endfor %}
+      </div>
+      <p class="hint" style="margin:6px 0 0">Ads are reviewed in <a href="/admin/moderation">Moderation</a>.</p>
+    </div>
+  </div></div>
+
   <div class="ad-card" data-state="{{ (cloudinary_on) ? 'on' : 'off' }}" data-sec="media" data-keys="cloudinary image hosting cdn uploads media cloud name api key secret folder photos avatars" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Image hosting<small>{% if cloudinary_on %}Cloudinary is configured — uploads go to <code>{{ cloudinary_cloud }}</code>.{% else %}Not configured — uploads are stored on this server.{% endif %}</small></div><span class="st-pill st-pill--{{ (cloudinary_on) ? 'on' : 'off' }}">{{ (cloudinary_on) ? 'Set up' : 'Needs setup' }}</span></div><div class="ad-card__body">
     <div class="ad-form">
       {# The Media screen used to answer "not configured" with "add CLOUDINARY_URL to

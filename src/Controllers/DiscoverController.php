@@ -61,7 +61,8 @@ final class DiscoverController
             );
         }
 
-        return $this->view->render($res, 'pages/discover.twig', $this->vars($s, $data));
+        return $this->view->render($res, 'pages/discover.twig', $this->vars($s, $data)
+            + ['ad' => \AfricaGates\Services\Ads\AdDelivery::forRequest('discover', $req)]);
     }
 
     /** GET /discover/count — JSON `{ok, count}` for the filter panel's button. */

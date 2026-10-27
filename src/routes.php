@@ -1850,9 +1850,13 @@ return function(App $app) {
         // filter panel's live "Show N results"; it is a literal with no placeholder
         // anywhere above it, so nothing can shadow it (RouteTableIntegrityTest).
         $g->get('/discover',       \AfricaGates\Controllers\DiscoverController::class.':index');
-        // Members' highlights: free listings for a business, product, service or event,
-        // each checked by a person first (Services\Highlights).
-        $g->get('/highlights',     \AfricaGates\Controllers\HighlightsController::class.':index');
+        // Advertising: the rate card, the trial and the rules, public before anybody signs
+        // up (Services\Ads). The two endpoints an ad reports through: a view (ads.js, POST,
+        // the single-use token is the credential and the CSRF header rides along) and a
+        // click, counted once and sent on to the advertiser.
+        $g->get('/advertise',      \AfricaGates\Controllers\AdsController::class.':advertise');
+        $g->post('/ads/seen',      \AfricaGates\Controllers\AdsController::class.':seen');
+        $g->get('/ads/go/{token:[0-9]+\.[a-z_]+\.[0-9]{8}\.[a-f0-9]{12}\.[a-f0-9]{32}}', \AfricaGates\Controllers\AdsController::class.':go');
         $g->get('/discover/count', \AfricaGates\Controllers\DiscoverController::class.':count');
         $g->get('/registry/{slug}',RegistryController::class.':profile');
         // The profile's two writes (Phase 6): the owner's About, and a member's Follow.
@@ -3825,9 +3829,15 @@ return function(App $app) {
         $a->get('/notifications',      AccountController::class.':notifications');
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
-        $a->get('/highlights',         AccountController::class.':highlights');
-        $a->post('/highlights',        AccountController::class.':highlightCreate');
-        $a->post('/highlights/{id:[0-9]+}/withdraw', AccountController::class.':highlightWithdraw');
+        // The Ads Manager (Services\Ads): campaigns, the builder, one campaign, its switch,
+        // and fixing a refused ad. `/ads/new` and `/ads/ad/…` are literals registered before
+        // the `{id}` placeholder they would otherwise be matched by.
+        $a->get('/ads',                     \AfricaGates\Controllers\AdsController::class.':index');
+        $a->post('/ads',                    \AfricaGates\Controllers\AdsController::class.':store');
+        $a->get('/ads/new',                 \AfricaGates\Controllers\AdsController::class.':create');
+        $a->post('/ads/ad/{id:[0-9]+}',     \AfricaGates\Controllers\AdsController::class.':resubmit');
+        $a->get('/ads/{id:[0-9]+}',         \AfricaGates\Controllers\AdsController::class.':show');
+        $a->post('/ads/{id:[0-9]+}/{action:pause|resume|cancel}', \AfricaGates\Controllers\AdsController::class.':status');
         // The wallet: one balance across every pocket (MemberWallet), each movement's receipt,
         // and the three-step withdrawal. The JSON is what an open wallet polls, so money that
         // arrives while it is on screen says so. Every one reads the member from the session.

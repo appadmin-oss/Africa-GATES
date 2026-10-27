@@ -32,21 +32,24 @@
 
    'held' means the classifier was unavailable, not that the text was borderline —
    an unjudged message, which is why it is labelled differently below. #}
-{# Members' highlights: free promotion of a business, product, service or event, public
-   only once approved, live for a fixed time (Services\Highlights). A refusal carries the
-   reason the confirm dialog asks for, and the member sees it. #}
-{% if highlights|default([])|length %}
-<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Highlights<small>{{ highlights|length }} awaiting review · free listings from members</small></div></div><div class="ad-card__body">
-  {% for h in highlights %}
-  <div style="border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
-    <div style="font-size:14px;font-weight:700;color:var(--cn-ink)">{{ h.title }}</div>
-    <div style="font-size:14px;line-height:1.6;color:var(--cn-ink);margin-top:4px">{{ h.body }}</div>
-    <div style="font-size:11px;color:var(--cn-soft);margin:7px 0 9px">
-      {{ h.kind }}{% if h.location %} · {{ h.location }}{% endif %} · member #{{ h.user_id }} · {{ h.created_at }}
-      {% if h.url %} · <span style="overflow-wrap:anywhere">{{ h.url }}</span>{% endif %}
+{# Ads: checked by a person before they run (Services\Ads\AdReview). The flags are the
+   automatic first pass and never decide on their own. A refusal carries the reason the
+   confirm dialog asks for, and the advertiser sees it beside the ad. #}
+{% if ads|default([])|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Ads<small>{{ ads|length }} awaiting review · shown labelled Sponsored once approved</small></div></div><div class="ad-card__body">
+  {% for a in ads %}
+  <div style="display:flex;gap:14px;border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
+    {% if a.image %}<img src="{{ a.image }}" alt="" width="96" height="96" style="flex:none;width:96px;height:96px;object-fit:cover;border-radius:8px">{% endif %}
+    <div style="min-width:0">
+      <div style="font-size:12px;color:var(--cn-soft)">{{ a.advertiser }}{% if a.trial %} · free trial{% endif %} · {{ a.placements|join(', ') }}</div>
+      <div style="font-size:14px;font-weight:700;color:var(--cn-ink);margin-top:2px">{{ a.headline }}</div>
+      <div style="font-size:14px;line-height:1.6;color:var(--cn-ink);margin-top:2px">{{ a.body }}</div>
+      {% if a.offer %}<div style="font-size:13px;color:var(--cn-ink);margin-top:2px">Offer: {{ a.offer }}{% if a.offer_code %} · {{ a.offer_code }}{% endif %}</div>{% endif %}
+      <div style="font-size:12px;color:var(--cn-soft);margin:6px 0 4px">{{ a.cta }} → <span style="overflow-wrap:anywhere">{{ a.url }}</span> · {{ a.created_at }}</div>
+      {% if a.flags %}<div style="font-size:12px;font-weight:700;color:var(--cn-ink);margin:0 0 8px">Check: {{ a.flags|join(' · ') }}</div>{% endif %}
+      <form method="post" action="/admin/moderation/ad/{{ a.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve</button></form>
+      <form method="post" action="/admin/moderation/ad/{{ a.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Refuse this ad? The advertiser sees the reason you give, so make it something they can fix.">Refuse</button></form>
     </div>
-    <form method="post" action="/admin/moderation/highlight/{{ h.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve</button></form>
-    <form method="post" action="/admin/moderation/highlight/{{ h.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Refuse this highlight? The member sees the reason you give, so make it something they can fix.">Refuse</button></form>
   </div>
   {% endfor %}
 </div></div>

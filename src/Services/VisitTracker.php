@@ -99,8 +99,7 @@ final class VisitTracker
             // One resolver for "may we count this person", and it is not this class:
             // the answer now includes a choice they can make on /cookies, not only a header
             // two of the three major browsers stopped sending. See CookiePrefs.
-            if (!CookiePrefs::allows($request, CookiePrefs::ANALYTICS) || self::looksLikeBot($request)) return '';
-            if (!self::isPageNavigation($request) || self::referrerIsForged($request)) return '';
+            if (!CookiePrefs::allows($request, CookiePrefs::ANALYTICS) || !self::isReader($request)) return '';
 
             $q      = $request->getQueryParams();
             $ref    = self::header($request, 'Referer');
@@ -424,6 +423,16 @@ final class VisitTracker
         }
 
         return false;
+    }
+
+    /**
+     * Is this a person's browser opening a page? The one answer, shared with the ads
+     * (Services\Ads\AdDelivery), which bill per view and must not count a bot the arrivals
+     * report would refuse.
+     */
+    public static function isReader(Request $request): bool
+    {
+        return !self::looksLikeBot($request) && self::isPageNavigation($request) && !self::referrerIsForged($request);
     }
 
     /**

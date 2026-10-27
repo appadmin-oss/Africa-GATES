@@ -50,7 +50,7 @@
 {% endmacro %}
 
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
-  <link rel="stylesheet" href="{{ asset('/assets/css/components/discover.css') }}">{% endblock %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/discover.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endblock %}
 
 {% block content %}
 <div class="dv" data-dv data-tab="{{ s.tab }}" data-min="{{ min_query }}"
@@ -141,6 +141,9 @@
           <p class="dv-empty">{{ s.q ? 'No award matches “%q%” here yet.'|trans({'%q%': s.q}) : 'No award is at this stage right now.'|trans }}</p>
         {% endif %}
       </section>
+
+      {# One ad, between the awards and the rest (Services\Ads). Labelled, never in a result. #}
+      {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token} only %}</div>{% endif %}
 
       <div class="dv-body">
         <div class="dv-col">
@@ -292,4 +295,5 @@
   {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/discover.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/discover.js') }}"></script>
+{% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}"></script>{% endif %}{% endblock %}

@@ -65,7 +65,7 @@ final class CookieRegistry
             self::ANALYTICS => ['Analytics',
                 'Counts visits ourselves — where a visit came from and whether it led to a vote, a nomination or a ticket — so whoever shared a link can see if it worked. No IP address is kept and nothing reaches anyone else.'],
             self::MARKETING => ['Marketing',
-                'Advertising, and following you across other sites. Nothing on this site does either: no ads, no pixels, nothing sold.'],
+                'Advertising based on what you do, and following you across other sites. Nothing on this site does either: the ads here are labelled Sponsored and chosen by the page, never by you. No pixels, nothing sold.'],
         ];
 
         $out = [];

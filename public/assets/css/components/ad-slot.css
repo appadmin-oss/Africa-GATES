@@ -1,0 +1,24 @@
+/* ── An ad, as every placement draws it (partials/ad-slot.twig) ─────────────────────────
+   A white card like every other card on the ground, so it is never mistaken for an award
+   and never louder than the page: neutral words, a secondary button, the label first. */
+.ag-ad-slot{ margin-block:16px; max-width:720px }
+.ag-ad{ display:grid; grid-template-columns:1fr; gap:10px; padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16); background:var(--ag-surface) }
+.ag-ad__top{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; min-width:0 }
+.ag-ad__by{ font-size:var(--ag-fs-14); font-weight:700; color:var(--ag-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.ag-ad__tag{ flex:none; font-size:var(--ag-fs-12); color:var(--ag-soft) }
+.ag-ad__media{ display:block; aspect-ratio:1/1; overflow:hidden; border-radius:var(--ag-r-12); background:var(--ag-ground) }
+.ag-ad__media img{ display:block; width:100%; height:100%; object-fit:cover }
+.ag-ad__text{ display:grid; gap:4px; min-width:0 }
+.ag-ad__h{ margin:0; font-size:var(--ag-fs-16); font-weight:700; color:var(--ag-ink); overflow-wrap:anywhere }
+.ag-ad__b{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.45; color:var(--ag-ink-2); overflow-wrap:anywhere }
+.ag-ad__offer{ margin:2px 0 0; font-size:var(--ag-fs-14); font-weight:600; color:var(--ag-ink) }
+.ag-ad__code{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-13-5); font-weight:600 }
+.ag-ad__cta{ justify-self:start; min-height:44px }
+.ag-ad__why{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.ag-ad__why summary{ min-height:24px; cursor:pointer }
+.ag-ad__why p{ margin:6px 0 0 }
+@media (min-width:600px){
+  .ag-ad{ grid-template-columns:160px 1fr; grid-template-areas:"top top" "media text" "media cta" "why why"; column-gap:16px }
+  .ag-ad__top{ grid-area:top } .ag-ad__media{ grid-area:media } .ag-ad__text{ grid-area:text }
+  .ag-ad__cta{ grid-area:cta; align-self:end } .ag-ad__why{ grid-area:why }
+}

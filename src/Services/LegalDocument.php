@@ -323,6 +323,15 @@ final class LegalDocument
              . 'advertising pixel, no third-party tag of any kind: nothing on this site reports '
              . 'your visit to another company. And it stores nothing new on your device &mdash; '
              . 'it uses the session cookie in the table above, which is already there.</p>';
+        // Ads arrived on 27 Oct 2026, and this page and the notice both said "no ads". The
+        // promise that stays true is narrower and is the one stated: not based on you.
+        $h[] = '<p><strong>Ads.</strong> Some pages carry one ad, labelled Sponsored. It is '
+             . 'chosen by the page and your country (as our network provider reports it), never '
+             . 'by anything you did here, and it is the same whether or not you allow Analytics. '
+             . 'So one ad is not shown to you more than '
+             . \AfricaGates\Services\Ads\AdRules::FREQUENCY_CAP . ' times a day, your session counts '
+             . 'how often you have seen it; nothing new is stored on your device. Views and clicks '
+             . 'are counted as totals for the advertiser and say nothing about who you are.</p>';
         $h[] = '<p><strong>What is never kept:</strong> your IP address (only a hash of it, '
              . 're-scrambled with a new secret every day, so the same visitor cannot be followed '
              . 'from one day to the next), the full address of the page that linked here (the '

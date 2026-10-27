@@ -97,7 +97,7 @@
 {% endmacro %}
 {% import _self as m %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/events-index.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/events-index.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">{% endblock %}
 
 {% block content %}
 <div class="ei">
@@ -272,6 +272,9 @@
   </div>
   {% endif %}
 
+  {# One ad, after the events and before hosting (Services\Ads). #}
+  {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token} only %}</div>{% endif %}
+
   {# ══ HOSTING ═════════════════════════════════════════════════════════════════
      Ink, not green: the page's green is ticket CTAs only (§6). There is no self-serve
      event builder, so both doors are the team. #}
@@ -312,4 +315,5 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/events-index.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/events-index.js') }}"></script>
+{% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}"></script>{% endif %}{% endblock %}

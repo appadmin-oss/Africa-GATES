@@ -216,6 +216,10 @@ class SettingsController
             // Both arcs. Nominees and judges are honoured for different things, so the
             // letters are written twice and edited separately.
             'invite_seq_audiences' => \AfricaGates\Services\InviteAudience::all(),
+            // The ads rate card (naira per 1,000 views, per placement). Read and saved through
+            // AdRateCard, the same resolver /advertise and the builder read.
+            'ad_rates'          => \AfricaGates\Services\Ads\AdRateCard::all(),
+            'ad_placements'     => \AfricaGates\Services\Ads\AdRules::PLACEMENTS,
             'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
             'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
             'visits_mode'       => \AfricaGates\Services\CookiePrefs::mode(),
@@ -663,6 +667,16 @@ class SettingsController
                 // The zone is cached per request; this request has already read it.
                 \AfricaGates\Support\DisplayTime::forget();
             }
+        }
+
+        // The ads rate card. Marker-gated like the arrivals block below: a blank price is how
+        // a placement is taken off sale, so anything else that posts here (a test send, a
+        // probe) must not be read as "every price is now blank".
+        if (array_key_exists('ads_rates', $b)) {
+            $rates = (array) ($b['ads_cpm'] ?? []);
+            \AfricaGates\Services\Ads\AdRateCard::save($rates);
+            $this->audit->record($adminId, 'settings.ads_rates', null, null,
+                ['rates' => \AfricaGates\Services\Ads\AdRateCard::all()]);
         }
 
         // Arrival tracking. Marker-gated like the others: an unchecked box posts nothing,

@@ -1,0 +1,59 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /advertise — PLACES, PRICES AND RULES, BEFORE ANYBODY SIGNS UP (Services\Ads)
+
+  The rate card is published, the same for everybody (AdRateCard), and read from the console
+  setting, never typed here. A placement with no rate says so rather than showing a price
+  nobody set. The trial and the rules come from AdRules.
+#}
+{% set colour_tier = '1' %}
+{% set _ph = {vote_hub: 'The list of open awards', discover: 'Between results', events: 'The events list and event pages'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}">{% endblock %}
+
+{% block content %}
+<div class="am">
+  <header class="am-head">
+    <h1 class="am-h1">{{ 'Advertise on Africa GATES'|trans }}</h1>
+    <p class="am-p">{{ 'Put your business, product or event in front of the people here.'|trans }}</p>
+    <a class="ag-btn ag-btn--primary ag-btn--pill" href="/account/ads/new">{{ 'Start your free trial'|trans }}</a>
+    <p class="am-note">{{ 'Free trial: up to %v% views over %d% days. One per account.'|trans({'%v%': trial.views|number_format, '%d%': trial.days}) }}</p>
+  </header>
+
+  <section class="am-box" aria-labelledby="adv-how">
+    <h2 class="am-h2" id="adv-how">{{ 'How it works'|trans }}</h2>
+    <ol class="am-steps">
+      <li>{{ 'Make your ad: an image, a headline, a line of text and a button.'|trans }}</li>
+      <li>{{ 'Choose where it runs, and the countries if you want.'|trans }}</li>
+      <li>{{ 'A person checks it. Then it runs, labelled Sponsored.'|trans }}</li>
+      <li>{{ 'You see its views and clicks every day. A view is counted when people actually see it.'|trans }}</li>
+    </ol>
+  </section>
+
+  <section class="am-box" aria-labelledby="adv-rates">
+    <h2 class="am-h2" id="adv-rates">{{ 'Places and prices'|trans }}</h2>
+    <table class="am-rates">
+      <thead class="ag-sr"><tr><th scope="col">{{ 'Place'|trans }}</th><th scope="col">{{ 'Price per 1,000 views'|trans }}</th></tr></thead>
+      <tbody>
+        {% for k, label in placements %}
+        <tr>
+          <th scope="row">{{ label|trans }} <span class="am-opt">· {{ _ph[k]|default('')|trans }}</span></th>
+          <td>{% if rates[k] %}₦{{ rates[k]|number_format }} {{ 'per 1,000 views'|trans }}{% else %}{{ 'Trial only for now'|trans }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="am-note">{{ 'Everyone pays the same price. You pay for views, not for days.'|trans }}</p>
+  </section>
+
+  <section class="am-box" aria-labelledby="adv-rules">
+    <h2 class="am-h2" id="adv-rules">{{ 'The rules'|trans }}</h2>
+    <ul class="am-rules">
+      <li>{{ 'Ads are about what you do, never about awards, nominees or voting.'|trans }}</li>
+      <li>{{ 'An offer is open to everyone and never depends on voting.'|trans }}</li>
+      <li>{{ 'Ads never appear beside a ballot, a nominee or a result.'|trans }}</li>
+      <li>{{ 'Ads are chosen by the page and country, never by what a visitor did here.'|trans }}</li>
+    </ul>
+  </section>
+</div>
+{% endblock %}

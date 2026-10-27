@@ -53,6 +53,7 @@
 {% block head_styles %}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/events.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/photo.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">
   {% if og_image is defined %}<meta property="og:image" content="{{ og_image }}"><meta property="og:image:alt" content="{{ og_image_alt|default('') }}">
   {%- if og_image_w is defined %}<meta property="og:image:width" content="{{ og_image_w }}"><meta property="og:image:height" content="{{ og_image_h }}"><meta property="og:image:type" content="image/png">{% endif %}{% endif %}
   {# JSON-LD: JSON_HEX_TAG, so a partner-typed `</script>` cannot close the element. #}
@@ -224,6 +225,10 @@
         {% endif %}
       {% endif %}
 
+      {# One ad, under everything the page is for (Services\Ads). The controller picks none
+         while an award here is taking votes. #}
+      {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token} only %}</div>{% endif %}
+
       {% if awards.voting %}
       <a class="ed-vote" href="{{ awards.voting.url }}">
         <span class="ed-vote__dot" aria-hidden="true"></span>
@@ -331,4 +336,5 @@
   <script type="application/json" id="ed-flier-data" nonce="{{ csp_nonce }}">{{ {styles: flier_styles, defaults: flier_style_default, title: event.title, date: event.event_date|slice(0, 10), pct: referral ? referral.pct : 0}|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
   <script defer src="{{ asset('/assets/js/event-detail.js') }}"></script>
   {% if st != 'ended' %}<script defer src="{{ asset('/assets/js/event-flier.js') }}"></script>{% endif %}
+  {% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}"></script>{% endif %}
 {% endblock %}

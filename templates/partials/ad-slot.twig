@@ -1,0 +1,36 @@
+{#
+  One ad, as every placement draws it (Services\Ads\AdDelivery::pick()).
+
+  Call with `ad` (the pick, or null: nothing is drawn) and `csrf_token` (`only` hides the
+  global). The token rides on the card as `data-csrf`, which csrf-fresh.js keeps current. Always labelled "Sponsored", always
+  says who paid, and always answers "why am I seeing this?" truthfully: by the page, and by
+  country only when the advertiser chose countries. Never by anything the reader did here.
+
+  The view is counted by ads.js once half the card has been on screen for a second; the
+  links go through /ads/go/, which counts the click once and re-checks the destination.
+  `rel="sponsored"` because it is a paid link (search engines ask for that), and nothing
+  external opens without noopener.
+#}
+{% if ad %}
+<aside class="ag-ad" data-ad="{{ ad.token }}" data-csrf="{{ csrf_token|default('') }}" aria-label="{{ 'Sponsored'|trans }}">
+  <div class="ag-ad__top">
+    <span class="ag-ad__by">{{ ad.advertiser }}</span>
+    <span class="ag-ad__tag">{{ 'Sponsored'|trans }}</span>
+  </div>
+  {% if ad.image %}
+  <a class="ag-ad__media" href="{{ ad.href }}" rel="sponsored{% if ad.external %} noopener noreferrer{% endif %}" tabindex="-1" aria-hidden="true">
+    <img src="{{ ad.image }}" alt="" loading="lazy" decoding="async" width="600" height="600">
+  </a>
+  {% endif %}
+  <div class="ag-ad__text">
+    <p class="ag-ad__h">{{ ad.headline }}</p>
+    <p class="ag-ad__b">{{ ad.body }}</p>
+    {% if ad.offer %}<p class="ag-ad__offer">{{ ad.offer }}{% if ad.offer_code %} · <span class="ag-ad__code">{{ ad.offer_code }}</span>{% endif %}</p>{% endif %}
+  </div>
+  <a class="ag-btn ag-btn--secondary ag-ad__cta" href="{{ ad.href }}" rel="sponsored{% if ad.external %} noopener noreferrer{% endif %}">{{ ad.cta|trans }}</a>
+  <details class="ag-ad__why">
+    <summary>{{ 'Why am I seeing this?'|trans }}</summary>
+    <p>{{ (ad.by_country ? 'It is shown on this page to people in your country.' : 'It is shown to everyone on this page.')|trans }} {{ 'Nothing you did on this site chose it.'|trans }} <a href="/advertise">{{ 'About ads'|trans }}</a></p>
+  </details>
+</aside>
+{% endif %}
