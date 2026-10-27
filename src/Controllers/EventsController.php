@@ -1452,6 +1452,36 @@ class EventsController
             ->withHeader('Cache-Control', 'public, max-age=300');
     }
 
+    /**
+     * `GET /api/events?scope=upcoming|past&limit=N` — the calendar as JSON, for other sites
+     * (the Afrovanguard site reads it). Public data by definition, so any origin may read it;
+     * cached briefly for the same reason the index is not cached for long.
+     */
+    public function feed(Request $req, Response $res): Response
+    {
+        $q     = $req->getQueryParams();
+        $scope = ($q['scope'] ?? '') === 'past' ? 'past' : 'upcoming';
+        $limit = (int) ($q['limit'] ?? 20) ?: 20;
+        $events = \AfricaGates\Services\EventsFeed::events($scope, $limit, $this->base($req));
+
+        $res->getBody()->write((string) json_encode([
+            'success' => true, 'scope' => $scope, 'count' => count($events),
+            'calendar' => $this->base($req) . '/events.ics', 'events' => $events,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return $res->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withHeader('Cache-Control', 'public, max-age=300')
+            ->withHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    /** `/events.ics` — every upcoming event, one calendar a phone can subscribe to. */
+    public function feedCalendar(Request $req, Response $res): Response
+    {
+        $res->getBody()->write(\AfricaGates\Services\EventsFeed::ics($this->base($req)));
+        return $res->withHeader('Content-Type', \AfricaGates\Support\Ics::MIME)
+            ->withHeader('Content-Disposition', 'inline; filename="africa-gates-events.ics"')
+            ->withHeader('Cache-Control', 'public, max-age=900');
+    }
+
     private function goTo(Response $res, string $path): Response
     {
         return $res->withHeader('Location', $path)->withStatus(302);
