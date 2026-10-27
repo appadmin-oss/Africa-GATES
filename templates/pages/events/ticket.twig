@@ -52,8 +52,8 @@
 {% if reg is null %}
   <div class="tk-lost">
     <h1 class="tk-lost__h">{{ 'This ticket link is not working'|trans }}</h1>
-    <p>{{ 'It may have been mistyped, or belong to a registration that was cancelled. Nothing has gone wrong with any payment you made.'|trans }}</p>
-    <p>{{ 'Write to %email% with the name and email you registered with and a person will find it.'|trans({'%email%': support_email|default('the team')}) }}</p>
+    <p>{{ 'It may be mistyped, or its registration cancelled. Your payment is unaffected.'|trans }}</p>
+    <p>{{ 'Write to %email% with the name and email you registered with.'|trans({'%email%': support_email|default('the team')}) }}</p>
   </div>
 {% else %}
   {% set _priced = (reg.amount_naira|default(0)) > 0 %}
@@ -125,11 +125,11 @@
   </article>
 
   {% if reg.status == 'pending' %}
-    <p class="tk-flag tk-flag--wait">{{ 'We have not seen your payment yet. If your bank has debited you it can take a few minutes to reach us — this page shows your ticket code as soon as it does, so keep the link. Nothing further is needed from you.'|trans }}</p>
+    <p class="tk-flag tk-flag--wait">{{ 'Payment not seen yet. Your ticket code appears here once it arrives.'|trans }}</p>
   {% elseif reg.status == 'cancelled' %}
-    <p class="tk-flag tk-flag--wait">{{ 'This registration was cancelled. If that is a surprise, it is usually a checkout that was never completed — nothing was charged. You are welcome to book again.'|trans }}</p>
+    <p class="tk-flag tk-flag--wait">{{ 'This registration was cancelled, usually an unfinished checkout with nothing charged.'|trans }}</p>
   {% elseif reg.status == 'waitlisted' %}
-    <p class="tk-flag tk-flag--wait">{{ 'You are on the waiting list. If a seat comes free the longest-waiting person is offered it first and you are emailed — the offer appears here too, so keep this link.'|trans }}</p>
+    <p class="tk-flag tk-flag--wait">{{ 'You are on the waiting list. Freed seats go longest-waiting first, by email.'|trans }}</p>
   {% endif %}
 
   {# The 2×2 actions — outside the document, so print drops them without leaving a hole. The
@@ -156,7 +156,7 @@
            data-t-transfer="{{ 'Transfer this ticket to %name%? Your own code will stop working at the door.'|trans }}">
     <summary class="tk-manage__s">{{ 'Manage this ticket'|trans }}<span class="tk-manage__sign" aria-hidden="true"></span></summary>
     <div class="tk-manage__b">
-      <p class="tk-manage__note">{{ 'Changes are confirmed with a code sent to the email this ticket was booked with.'|trans }}</p>
+      <p class="tk-manage__note">{{ 'Changes are confirmed with a code sent to the booking email.'|trans }}</p>
       <button type="button" class="tk-row" data-tk="resend"><b>{{ 'Email me this ticket again'|trans }}</b><span>{{ 'To the address it was booked with'|trans }}</span></button>
       <button type="button" class="tk-row" data-tk="code"><b>{{ 'Send me a code to make a change'|trans }}</b><span>{{ 'Transfer it, change the name, or ask for a refund'|trans }}</span></button>
       <div class="tk-change" id="tkChange" hidden>
@@ -182,9 +182,9 @@
   </details>
   {% endif %}
 
-  <p class="tk-cut">{{ 'Cut along the dotted line. At the door the stub tears off down the dashes — or just show the code on your phone.'|trans }}</p>
-  <p class="tk-foot">{{ 'Keep this link — it is your ticket, and it opens without signing in. Save or print it and it works with no signal at all. Only the ticket holder named above can transfer it.'|trans }}</p>
-  <p class="tk-foot"><b>{{ 'Nothing about attending costs more than the price above.'|trans }}</b> {{ 'If anybody asks you for a further payment to attend, it is not the organiser and it is not us.'|trans }}</p>
+  <p class="tk-cut">{{ 'Cut along the dotted line, or just show the code on your phone.'|trans }}</p>
+  <p class="tk-foot">{{ 'Keep this link: it is your ticket. No sign-in needed, and it works printed.'|trans }}</p>
+  <p class="tk-foot"><b>{{ 'Nothing about attending costs more than the price above.'|trans }}</b> {{ 'Anyone asking for more is neither the organiser nor us.'|trans }}</p>
 {% endif %}
 </div>
 {% endblock %}

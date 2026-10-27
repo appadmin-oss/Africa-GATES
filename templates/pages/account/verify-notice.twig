@@ -22,7 +22,7 @@
       {%- else -%}
         {{ 'We sent you a link. Open it to activate your account.'|trans }}
       {%- endif %}
-      {{ 'It works once and lasts %n% hours — if it is not there, check your junk folder before asking for another.'|trans({'%n%': ttl_hours}) }}
+      {{ 'It works once for %n% hours. Not there? Check your junk folder.'|trans({'%n%': ttl_hours}) }}
     </p>
   </div>
   {{ auth.say(_error, _notice) }}
@@ -36,6 +36,6 @@
     {% endif %}
     <button class="si__go" type="submit">{{ 'Resend the link'|trans }}</button>
   </form>
-  <p class="si__fine">{{ 'Or sign in with a one-time code: it proves the address is yours, so it confirms your email and signs you in at once.'|trans }}</p>
+  <p class="si__fine">{{ 'Or sign in with a one-time code. It confirms your email too.'|trans }}</p>
   <p class="si__alt"><a href="/account/login?via=email">{{ 'Sign in with a code'|trans }}</a></p>
 {% endblock %}

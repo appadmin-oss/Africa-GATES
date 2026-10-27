@@ -46,8 +46,8 @@
       </dl>
       <h2 class="rc__h2" id="rcNext">{{ 'What happens now'|trans }}</h2>
       <ul class="rc__rows">
-        <li class="rc__row"><span class="rc__row-k">{{ 'A receipt is on its way to the email you gave. That one is the record — this page is the copy.'|trans }}</span></li>
-        <li class="rc__row"><span class="rc__row-k">{{ 'The amount joins the confirmed total on the giving page. Nothing is counted there until it has cleared.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'A receipt is on its way by email. That is your record.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'It joins the giving page’s total once it has cleared.'|trans }}</span></li>
         <li class="rc__row"><span class="rc__row-k">{{ 'How the fund is accounted for is published in the Integrity Center.'|trans }}</span></li>
       </ul>
       {% if not _cel %}
@@ -65,7 +65,7 @@
           <p class="rc__verdict-s">{{ 'No charge is confirmed until you receive an emailed receipt.'|trans }}</p></div>
       </div>
       <h1 class="rc__h1" id="rcH">{{ 'We’re confirming your payment'|trans }}</h1>
-      <p class="rc__p">{{ 'If you completed payment, your receipt will arrive by email shortly — gateway confirmations can take a moment. One re-check asks the gateway directly.'|trans }}</p>
+      <p class="rc__p">{{ 'If you paid, your receipt will arrive by email shortly.'|trans }}</p>
       {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Re-check this payment'|trans }}</a>

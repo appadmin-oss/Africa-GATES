@@ -88,7 +88,7 @@
       phone, where there is no rail at all.
     #}
     {% if me.role != 'owner' %}
-      <p class="org-note" role="note">{{ 'You have view-only access, so you cannot upload a document, accept an offer, edit your page or move money.'|trans }}</p>
+      <p class="org-note" role="note">{{ 'You have view-only access: no uploads, offers, page edits or money moves.'|trans }}</p>
     {% endif %}
 
     {% if flash_ok %}<p class="org-flag org-flag--ok" role="status">{{ flash_ok }}</p>{% endif %}

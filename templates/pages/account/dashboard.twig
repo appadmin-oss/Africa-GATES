@@ -49,7 +49,7 @@
     <form class="acc__note" method="post" action="/account/verify/resend">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <input type="hidden" name="email" value="{{ _u.email }}">
-      <p>{{ 'Confirm your email so receipts, tickets and results reach you. The link lasts %n% hours.'|trans({'%n%': verify_ttl_hours}) }}</p>
+      <p>{{ 'Confirm your email so receipts and tickets reach you. The link lasts %n% hours.'|trans({'%n%': verify_ttl_hours}) }}</p>
       <button class="ag-btn ag-btn--secondary ag-btn--pill" type="submit">{{ 'Send the link again'|trans }}</button>
     </form>
   {% endif %}
@@ -224,7 +224,7 @@
         {% if not payout_open and not payout_can %}
           <form method="post" action="/account/bank" class="acc__form" novalidate data-ag-validate>
             <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <p class="acc__p">{{ payout_bank.account_number ? 'The account a withdrawal goes to.'|trans : 'Save the account a withdrawal should go to, so it is ready when you can.'|trans }}</p>
+            <p class="acc__p">{{ payout_bank.account_number ? 'The account a withdrawal goes to.'|trans : 'Save the account withdrawals should go to.'|trans }}</p>
             {{ f.text({id: 'bk-bank', name: 'bank', label: 'Bank'|trans, value: payout_bank.bank, required: true, maxlength: 80, autocomplete: 'off'}, '') }}
             {{ f.text({id: 'bk-name', name: 'account_name', label: 'Account name'|trans, value: payout_bank.account_name, required: true, maxlength: 120, autocomplete: 'name'}, '') }}
             {{ f.text({id: 'bk-num', name: 'account_number', label: 'Account number'|trans, value: payout_bank.account_number, required: true, maxlength: 10, pattern: '[0-9]{10}', inputmode: 'numeric', autocomplete: 'off', hint: 'The 10-digit NUBAN.'|trans}, '') }}
@@ -304,7 +304,7 @@
   {# ── Signing in ────────────────────────────────────────────────────────────── #}
   <section class="acc__sec" id="me-security" aria-labelledby="acc-sec-h">
     <h2 class="acc__h2" id="acc-sec-h">{{ 'Signing in'|trans }}</h2>
-    <p class="acc__p">{{ 'You can always sign in with a code sent to your email or phone.'|trans }}</p>
+    <p class="acc__p">{{ 'You can always sign in with a code by email or phone.'|trans }}</p>
     {% if passkeys_available %}
       {% if passkeys|length %}
         <ul class="ag-list acc__plain">

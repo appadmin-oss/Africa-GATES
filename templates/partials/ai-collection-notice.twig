@@ -13,7 +13,7 @@
 #}
 {% if ai_collection_notice() %}
   <p class="ag-ai-note">
-    {{ '%where% may be sent to a third-party AI service so our reviewers can check it for spam and completeness, and place it in the right category for judging. Contact details are replaced with placeholders first, and a person makes every decision —'|trans({'%where%': where|default('What you write here'|trans)}) }}
+    {{ '%where% may go to a third-party AI service to check spam, completeness and category. Contact details become placeholders first, and a person makes every decision —'|trans({'%where%': where|default('What you write here'|trans)}) }}
     <a href="/privacy#automated-processing">{{ 'see exactly what we send'|trans }}</a>.
   </p>
 {% endif %}

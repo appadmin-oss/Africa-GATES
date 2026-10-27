@@ -35,9 +35,9 @@
       <h1 class="lb-h1" id="lb-h1">{{ 'Cultural Power Index'|trans }}</h1>
       <p class="lb-lede">
         {% if lb.empty %}
-          {{ 'One transparent score for every verified profile: %c%% community votes, %j%% an independent judge panel.'|trans({'%c%': lb.weights.community, '%j%': lb.weights.judge}) }}
+          {{ 'One score per verified profile: %c%% public votes, %j%% independent judges.'|trans({'%c%': lb.weights.community, '%j%': lb.weights.judge}) }}
         {% else %}
-          {{ '%n% verified profiles, ranked by community votes and an independent judge panel. Recomputed every %h% hours.'|trans({'%n%': lb.total|number_format, '%h%': lb.every}) }}
+          {{ '%n% verified profiles, ranked by votes and judges. Recomputed every %h% hours.'|trans({'%n%': lb.total|number_format, '%h%': lb.every}) }}
         {% endif %}
       </p>
       {% if not lb.empty and lb.updated %}
@@ -171,7 +171,7 @@
         </div>
         <div class="lb-card lb-card--note">
           <b class="lb-card__t">{{ 'Only verified profiles rank'|trans }}</b>
-          {{ 'A profile must clear human review before any votes or judge scores attach to it. Profiles on the same score share a place.'|trans }}
+          {{ 'Profiles are human-reviewed before scoring. Equal scores share a place.'|trans }}
         </div>
       </aside>
     </div>

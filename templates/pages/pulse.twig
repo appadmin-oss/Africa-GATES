@@ -155,7 +155,7 @@
           {% if a.unread %}<span class="pl-alert__new">{{ 'New'|trans }}</span>{% endif %}
         </a>
       {% else %}
-        <p class="pl-empty">{{ 'Nothing yet. When people react to, reply to or follow what you post, it shows up here.'|trans }}</p>
+        <p class="pl-empty">{{ 'Nothing yet. Reactions, replies and follows on your posts show here.'|trans }}</p>
       {% endfor %}
     {% elseif view == 'saved' %}
       {% for s in saved %}
@@ -171,7 +171,7 @@
       {% if not items|length %}
         <div class="pl-empty">
           {% if view == 'following' %}
-            <p>{{ 'Nothing from what you follow yet. Follow an award’s channel or a member and their posts collect here.'|trans }}</p>
+            <p>{{ 'Nothing yet. Follow an award’s channel or a member to see posts.'|trans }}</p>
             <a class="pl-go" href="/pulse">{{ 'See everything'|trans }}</a>
           {% else %}
             {# An empty feed with a reason and a next step (app-ux §13), never one bare line. #}

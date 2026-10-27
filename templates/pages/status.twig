@@ -75,7 +75,7 @@
 
     {% if not report_ok %}
       <h1 class="sx__h1" id="st-h1">{{ 'We could not check'|trans }} <em class="sx__em sx__em--unknown">{{ 'just now'|trans }}</em></h1>
-      <p class="sx__note">{{ 'This page reads the platform directly every time you load it, and that read did not come back. Try again in a moment. If the rest of the site is working for you, it is working.'|trans }}</p>
+      <p class="sx__note">{{ 'The live check did not come back. Try again in a moment.'|trans }}</p>
     {% else %}
       <h1 class="sx__h1" id="st-h1">
         {%- if v == 'operational' %}{{ 'Everything we can check is'|trans }} <em class="sx__em sx__em--operational">{{ 'working'|trans }}</em>
@@ -171,7 +171,7 @@
           </ul>
         </div>
       {% endfor %}
-      <p class="sx__key-note">{{ 'Each square is one day, showing the worst thing that happened that day. Dashed means we have no record for that day. Tap or hover a square to see it.'|trans }}</p>
+      <p class="sx__key-note">{{ 'One square per day, showing its worst moment. Dashed means no record.'|trans }}</p>
       {% if history_note|default('') %}<p class="sx__key-note">{{ history_note }}</p>{% endif %}
     </section>
 
@@ -191,7 +191,7 @@
           {% endfor %}
         </ol>
       {% elseif not _live|length %}
-        <p class="sx__p">{{ 'Nothing was recorded as broken or slow in the last %d% days. If something went wrong for you and it isn’t here, we didn’t catch it. Please tell us.'|trans({'%d%': history_days|default(14)}) }}</p>
+        <p class="sx__p">{{ 'Nothing recorded as broken or slow in %d% days. Missed something? Tell us.'|trans({'%d%': history_days|default(14)}) }}</p>
       {% else %}
         <p class="sx__p">{{ 'Nothing else was recorded as broken or slow in this window.'|trans }}</p>
       {% endif %}
@@ -204,9 +204,9 @@
       {% for k in ['operational', 'degraded', 'down', 'unknown'] %}<li>{{ m.mark(k, '') }}{{ status_labels[k]|default(k) }}</li>{% endfor %}
     </ul>
     <div class="sx-scope">
-      <p>{{ 'Every line is measured when you load this page: a real query, a real count, a real recent success rate. Nothing says'|trans }} <b>{{ status_labels.operational|default('Working') }}</b> {{ 'just because a setting exists.'|trans }}</p>
-      <p><b>{{ status_labels.unknown|default('Not checked') }}</b> {{ 'means exactly that. It is not a quiet way of saying fine. Percentages only count checks whose result we know, and they are rounded down, so a period with a real outage never shows 100%.'|trans }}</p>
-      <p>{{ 'This page reports the platform. It can’t see your network, your email provider, your mobile money wallet or your bank.'|trans }}</p>
+      <p>{{ 'Every line is measured live. Nothing says'|trans }} <b>{{ status_labels.operational|default('Working') }}</b> {{ 'just because a setting exists.'|trans }}</p>
+      <p><b>{{ status_labels.unknown|default('Not checked') }}</b> {{ 'means exactly that, not fine. Percentages count known results only, rounded down.'|trans }}</p>
+      <p>{{ 'This page can’t see your network, email, mobile money wallet or bank.'|trans }}</p>
       <p>{{ 'Checking from a script? The same board is at'|trans }} <code>/status.json</code>{{ ', uncached.'|trans }}</p>
     </div>
   </section>
@@ -214,7 +214,7 @@
   <section class="sx-help" aria-labelledby="st-help">
     <div class="sx-help__w">
       <h2 class="sx-help__h" id="st-help">{{ 'Shows as working, but something’s still wrong?'|trans }}</h2>
-      <p class="sx-help__p">{{ 'Gee can check your specific problem, and re-check a payment with the provider if that’s what is stuck.'|trans }}</p>
+      <p class="sx-help__p">{{ 'Gee can check your problem and re-check a stuck payment.'|trans }}</p>
     </div>
     <a class="sx-help__a" href="/help?{{ {gee: 'support', topic: 'payment'}|url_encode }}" data-ag-do="open-gee" data-gee-mode="support">{{ 'Get help'|trans }}</a>
   </section>
@@ -234,7 +234,7 @@
       <h2 class="sx-sub__h" id="st-sub-h">{{ 'Get status updates'|trans }}</h2>
       <a class="sx-sub__x" href="#main" role="button" aria-label="{{ 'Close'|trans }}" data-st-sub-close><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></a>
     </div>
-    <p class="sx-sub__p">{{ 'We’ll email you when a problem our checks measure starts, and when it’s fixed. Nothing else.'|trans }}</p>
+    <p class="sx-sub__p">{{ 'We’ll email you when a problem starts and when it’s fixed. Nothing else.'|trans }}</p>
     {% if subscribe_said|default(null) %}<p class="sx-sub__said" role="status">{{ subscribe_said }}</p>{% endif %}
     <form class="sx-sub__form" method="post" action="/status/subscribe">
       <input type="hidden" name="_token" value="{{ csrf_token }}">

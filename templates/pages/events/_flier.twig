@@ -33,8 +33,8 @@
     <div class="flo__scroll">
       {# 1 · ENTRY #}
       <div data-flo-stage="entry">
-        <p class="flo__p" data-flo-open-copy>{{ 'No ticket needed — put your name on it and share it.'|trans }}{% if referral and referral.pct %} {{ 'Once you register, its code becomes your referral link and earns you %pct%% of every ticket bought through it.'|trans({'%pct%': referral.pct}) }}{% endif %}</p>
-        <p class="flo__p" data-flo-token-copy hidden>{{ 'Your ticket is confirmed, so your flier carries the mark — and its code is your own referral link.'|trans }}</p>
+        <p class="flo__p" data-flo-open-copy>{{ 'No ticket needed — put your name on it and share it.'|trans }}{% if referral and referral.pct %} {{ 'Register and your referral code earns %pct%% of every ticket bought through it.'|trans({'%pct%': referral.pct}) }}{% endif %}</p>
+        <p class="flo__p" data-flo-token-copy hidden>{{ 'Your flier carries the confirmed mark, and its code is your referral link.'|trans }}</p>
 
         <label class="ed-label" for="flName">{{ 'Your name'|trans }}</label>
         <input class="ed-input" id="flName" maxlength="60" autocomplete="name" data-flo-name>
@@ -52,7 +52,7 @@
         <div data-flo-photo-wrap hidden>
           <label class="ed-label" for="flPhoto">{{ 'Your photo'|trans }} <span class="ed-opt">{{ '(optional)'|trans }}</span></label>
           <input class="ed-input" id="flPhoto" type="file" accept="image/*" data-flo-photo>
-          <p class="flo__note">{{ 'We find the face and frame the picture around it, then draw the flier and throw the photo away — it is never saved on our server, and you can move the frame yourself afterwards. Leave it empty and you get the “No photo” design instead.'|trans }}</p>
+          <p class="flo__note">{{ 'We frame it on your face. The photo is never saved on our server.'|trans }}</p>
         </div>
 
         <label class="ed-label" for="flCap">{{ 'Caption'|trans }} <span class="ed-opt">{{ '(optional — goes with the message, not on the image)'|trans }}</span></label>
@@ -64,7 +64,7 @@
 
       {# 4 · REFRAME — reached from the preview, opened where the render put the frame. #}
       <div data-flo-stage="frame" hidden>
-        <p class="flo__p" data-flo-frame-copy data-t-faced="{{ 'We framed this on the face we found. Drag it if you would rather show something else.'|trans }}" data-t-plain="{{ 'Drag the picture to choose what shows.'|trans }}"></p>
+        <p class="flo__p" data-flo-frame-copy data-t-faced="{{ 'Framed on the face we found. Drag to change it.'|trans }}" data-t-plain="{{ 'Drag the picture to choose what shows.'|trans }}"></p>
         <div class="flo__frame" role="group" aria-label="{{ 'Position your photo'|trans }}" data-flo-frame>
           <img alt="" data-flo-frame-img>
           <span class="flo__typeline"><span>{{ 'Your name and the event go here'|trans }}</span></span>
@@ -97,13 +97,13 @@
             <button type="button" class="ed-cta" data-ag-do="flier-save">{{ 'Save the image'|trans }}</button>
             <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-copy" data-t-done="{{ 'Caption copied'|trans }}">{{ 'Copy the caption'|trans }}</button>
           </div>
-          <p class="flo__note">{{ 'This browser cannot hand an image straight to WhatsApp, so it is two steps: save the picture, then attach it and paste the caption.'|trans }}</p>
+          <p class="flo__note">{{ 'Save the picture, then attach it in WhatsApp and paste the caption.'|trans }}</p>
         </div>
         <div class="flo__row">
           <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-frame" data-flo-move hidden>{{ 'Move the photo'|trans }}</button>
           <button type="button" class="ed-cta ed-cta--line" data-ag-do="flier-back">{{ 'Change something'|trans }}</button>
         </div>
-        <p class="flo__note" data-flo-dropped hidden>{{ 'Your connection would not carry the photo, so this is the no-photo design. Everything else on it is yours.'|trans }}</p>
+        <p class="flo__note" data-flo-dropped hidden>{{ 'The photo didn’t upload, so this is the no-photo design.'|trans }}</p>
         <p class="ed-err" role="alert" data-flo-err2></p>
       </div>
 

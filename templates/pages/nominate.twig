@@ -53,7 +53,7 @@
   <div class="nh__top"><h1 class="nh__h1">{{ 'Nominate'|trans }}</h1></div>
 
   {% if share_expired %}
-    <p class="nh__say" role="alert">{{ 'That nomination link has expired or no longer points at an open award. You can still nominate below.'|trans }}</p>
+    <p class="nh__say" role="alert">{{ 'That nomination link is no longer active. You can still nominate below.'|trans }}</p>
   {% endif %}
 
   {% if programmes|length or name %}
@@ -142,7 +142,7 @@
       {% if not programmes|length %}
         <div class="ag-empty nh__empty">
           <p class="ag-empty__t">{{ 'No award is taking nominations right now.'|trans }}</p>
-          <p>{{ 'Each award opens its nominations on its own dates — the list above says when.'|trans }}</p>
+          <p>{{ 'Each award sets its own nomination dates.'|trans }}</p>
           <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/awards">{{ 'See every award'|trans }}</a>
         </div>
       {% endif %}

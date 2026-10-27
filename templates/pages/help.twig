@@ -47,7 +47,7 @@
 <div class="hc" data-help>
   <div class="hc__head">
     <h1 class="hc__h1">{% if q %}{{ 'Results for “%q%”'|trans({'%q%': q}) }}{% else %}{{ 'How can we help?'|trans }}{% endif %}</h1>
-    <p class="hc__lede">{{ 'Written answers for voters, nominees, hosts and everyone else. Gee can look up your own case.'|trans }}</p>
+    <p class="hc__lede">{{ 'Answers for voters, nominees and hosts. Gee can check your case.'|trans }}</p>
   </div>
 
   <div class="hc__bar ag-sticky">
@@ -89,7 +89,7 @@
       {% endif %}
       <div class="hc-gee">
         <b class="hc-gee__h">{{ results|length ? 'Not quite it?'|trans : 'Gee can probably help.'|trans }}</b>
-        <span class="hc-gee__p">{{ 'Gee can look up your own payment, vote or ticket, and hand you to a person if that’s better.'|trans }}</span>
+        <span class="hc-gee__p">{{ 'Gee checks your payment, vote or ticket, or hands you to a person.'|trans }}</span>
         <div class="hc-gee__act">
           {{ h.ask('Ask Gee about this'|trans, q, '') }}
           <a class="hc-btn hc-btn--out" href="/help{{ _for ? '?for=' ~ _for : '' }}">{{ 'Browse every topic'|trans }}</a>

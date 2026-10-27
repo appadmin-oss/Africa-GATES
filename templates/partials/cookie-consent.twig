@@ -102,8 +102,8 @@
       {% if _c.signal %}
         <p class="ag-consent-sheet__signal" data-ag-consent-signal>
           <b>{{ 'Respected your browser’s privacy signal'|trans }}</b>
-          {% if _c.signal == 'gpc' %}{{ 'Your browser sent Global Privacy Control, so everything optional is off. A choice made here does not overrule it.'|trans }}
-          {% else %}{{ 'Your browser sent Do Not Track, so everything optional is off. A choice made here does not overrule it.'|trans }}{% endif %}
+          {% if _c.signal == 'gpc' %}{{ 'Global Privacy Control is on, so everything optional stays off, whatever you choose.'|trans }}
+          {% else %}{{ 'Do Not Track is on, so everything optional stays off, whatever you choose.'|trans }}{% endif %}
         </p>
       {% endif %}
     </div>

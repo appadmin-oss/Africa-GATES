@@ -55,16 +55,16 @@
           <label class="st-file"><span class="ag-label">{{ 'Attach a screenshot or receipt'|trans }}</span><input type="file" name="files[]" multiple accept="{{ attach_accept }}"></label>
           <button class="ag-btn ag-btn--primary st-go" type="submit">{{ 'Send reply'|trans }}</button>
           <p class="st-note" role="status" aria-live="polite" data-st-note></p>
-          <p class="ag-hint">{{ 'Your reply reaches the team by email, and theirs reaches you the same way. Attachments — up to %n% photos or PDFs, %s% each — are stored privately and only ever shown to you and the team.'|trans({'%n%': attach_max, '%s%': attach_limit}) }}</p>
+          <p class="ag-hint">{{ 'Up to %n% photos or PDFs, %s% each, stored privately. Only you and the team see them.'|trans({'%n%': attach_max, '%s%': attach_limit}) }}</p>
         </form>
       </section>
       <aside class="sp__side" aria-label="{{ 'Support ticket status'|trans }}">
         <div class="ha__card">
           <b class="ha__card-h">{{ settled ? 'Settled'|trans : 'Open'|trans }}</b>
           <span class="ha__card-p">
-            {%- if settled %}{{ 'Nothing is waiting on you. If it is not actually settled, reply and it reopens.'|trans }}
+            {%- if settled %}{{ 'Nothing is waiting on you. Reply to reopen it.'|trans }}
             {%- elseif t.severity == 'urgent' %}{{ 'Flagged urgent — a person is handling this one, not the assistant.'|trans }}
-            {%- else %}{{ 'With the team. You will get every reply by email as well as here.'|trans }}{% endif -%}
+            {%- else %}{{ 'With the team. Replies also come by email.'|trans }}{% endif -%}
           </span>
         </div>
         <div class="ha__box">
@@ -84,7 +84,7 @@
     <nav class="ha__crumb" aria-label="{{ 'Breadcrumb'|trans }}"><a href="/help">{{ 'Help Centre'|trans }}</a><span aria-hidden="true">/</span><a href="/support">{{ 'Reach a person'|trans }}</a></nav>
     <div class="hc__head hc__head--start">
       <h1 class="hc__h1">{{ 'Your support tickets'|trans }}</h1>
-      <p class="hc__lede">{{ 'Everything you have raised, and every reply — from the team or from the assistant. Each one reaches you by email as well as appearing here.'|trans }}</p>
+      <p class="hc__lede">{{ 'Everything you have raised, with every reply. Replies also come by email.'|trans }}</p>
     </div>
     {% if not_found %}<p class="st-note st-note--err" role="alert">{{ 'No support ticket %r% on this account.'|trans({'%r%': not_found}) }}</p>{% endif %}
 
@@ -113,7 +113,7 @@
             {% endfor %}
           </ul>
         {% else %}
-          <p class="hc__lede st-empty">{{ 'No support tickets yet — which is the good outcome. If something is wrong,'|trans }} <a href="/help?gee=support">{{ 'Gee can often fix it on the spot'|trans }}</a>.</p>
+          <p class="hc__lede st-empty">{{ 'No support tickets yet. If something is wrong,'|trans }} <a href="/help?gee=support">{{ 'Gee can often fix it on the spot'|trans }}</a>.</p>
         {% endif %}
       </section>
       <aside class="sp__form" aria-labelledby="st-new">
@@ -124,7 +124,7 @@
           <span class="ag-field"><input id="stSubject" name="subject" maxlength="180"></span>
           <label class="ag-label" for="stBody">{{ 'What has gone wrong?'|trans }}</label>
           <span class="ag-field sp__area"><textarea id="stBody" name="body" maxlength="5000" rows="5" required aria-describedby="stBodyHint"></textarea></span>
-          <p class="ag-hint" id="stBodyHint">{{ 'A payment reference is the most useful thing you can include — it is on the payment page, in your bank alert, and in any receipt you did get.'|trans }}</p>
+          <p class="ag-hint" id="stBodyHint">{{ 'Include the payment reference, from your receipt, bank alert or payment page.'|trans }}</p>
           <label class="st-file"><span class="ag-label">{{ 'Attach evidence'|trans }}</span><input type="file" name="files[]" multiple accept="{{ attach_accept }}"></label>
           <button class="ag-btn ag-btn--primary st-go" type="submit">{{ 'Open support ticket'|trans }}</button>
           <p class="st-note" role="status" aria-live="polite" data-st-note></p>

@@ -26,7 +26,7 @@
       <p class="nl__kicker nl__kicker--ok"><span aria-hidden="true">✓</span> {{ 'Done'|trans }}</p>
       <h1 class="nl__h1" id="euH">{{ 'You’ve been unsubscribed'|trans }}</h1>
       <p class="nl__p">{{ 'We won’t send'|trans }} <b class="nl__mail">{{ email }}</b> {{ 'any more announcement emails.'|trans }}</p>
-      <p class="ag-hint">{{ 'This only stops bulk announcements. Anything you specifically asked for still reaches you — a receipt, a one-time sign-in code, or a reply to a support ticket. Your nomination and any votes for you are completely unaffected.'|trans }}</p>
+      <p class="ag-hint">{{ 'Receipts, sign-in codes and support replies still arrive. Your nomination and votes are unaffected.'|trans }}</p>
       <a class="nl__alt" href="{{ site_url }}/support">{{ 'Changed your mind, or need a hand?'|trans }}</a>
     {% elseif valid %}
       <p class="nl__kicker">{{ 'Email preferences'|trans }}</p>
@@ -37,13 +37,13 @@
         <input type="hidden" name="t" value="{{ t }}">
         <button type="submit" class="ag-btn ag-btn--ink nl__go">{{ 'Yes, unsubscribe me'|trans }}</button>
       </form>
-      <p class="ag-hint">{{ 'Receipts, sign-in codes and support replies aren’t affected, and neither is your nomination or any votes for you.'|trans }}</p>
+      <p class="ag-hint">{{ 'Receipts, sign-in codes, support replies, your nomination and votes are unaffected.'|trans }}</p>
       <a class="nl__alt" href="{{ site_url }}/">{{ 'No thanks, take me back'|trans }}</a>
     {% else %}
       <p class="nl__kicker">{{ 'Email preferences'|trans }}</p>
       <h1 class="nl__h1" id="euH">{{ 'This link didn’t work'|trans }}</h1>
-      <p class="nl__p">{{ 'It may have been broken across two lines by your email app, or it belongs to a much older message.'|trans }}</p>
-      <p class="ag-hint">{{ 'Open the most recent email from us and use the Unsubscribe link at the bottom — or write to us and we’ll take you off the list by hand.'|trans }}</p>
+      <p class="nl__p">{{ 'Your email app may have split it, or it is too old.'|trans }}</p>
+      <p class="ag-hint">{{ 'Use the Unsubscribe link in our latest email, or write to us.'|trans }}</p>
       <a class="nl__alt" href="{{ site_url }}/support">{{ 'Contact support'|trans }}</a>
     {% endif %}
   </section>

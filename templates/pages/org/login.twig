@@ -27,7 +27,7 @@
 {% block auth_body %}
   <div class="si__head">
     <h1 class="si__h1">{{ 'Sign in to your organisation'|trans }}</h1>
-    <p class="si__lede">{{ 'For organisations receiving gifts through Africa GATES, and for stand vendors at our events.'|trans }}</p>
+    <p class="si__lede">{{ 'For organisations receiving gifts, and for event stand vendors.'|trans }}</p>
   </div>
   {{ auth.say(error, null) }}
   <form class="si__form-step" method="post" action="/org/login" novalidate data-ag-validate>
@@ -41,7 +41,7 @@
     <button class="si__go" type="submit">{{ 'Sign in'|trans }}</button>
   </form>
   <p class="si__fine">
-    {{ 'Locked out or lost the password? There is no reset link for this sign-in, because it can request payouts — write to'|trans }}
+    {{ 'Locked out? There is no reset link, as this sign-in can request payouts. Write to'|trans }}
     <a href="mailto:{{ support_email }}?subject={{ 'Organisation sign-in'|url_encode }}">{{ support_email }}</a>
     {{ 'from the address on the account and we will restore it with you.'|trans }}
   </p>

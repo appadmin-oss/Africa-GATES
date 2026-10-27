@@ -31,7 +31,7 @@
       {% for m in messages %}{% include 'partials/vote-message.twig' with {m: m} only %}{% endfor %}
     </ul>
   {% else %}
-    <p class="vs-empty">{{ 'No messages yet. Vote and add a sentence about why — it appears here once a moderator has read it.'|trans }}</p>
+    <p class="vs-empty">{{ 'No messages yet. Add one when you vote; a moderator reads it first.'|trans }}</p>
   {% endif %}
 
   {% if pages > 1 %}

@@ -43,7 +43,7 @@
           <p class="rc__verdict-s">{{ 'No charge is confirmed until you receive an emailed receipt.'|trans }}</p></div>
       </div>
       <h1 class="rc__h1" id="rcH">{{ 'We’re confirming your order'|trans }}</h1>
-      <p class="rc__p">{{ 'If you were charged it reconciles automatically and a receipt follows by email. If nothing was charged, nothing was taken.'|trans }}</p>
+      <p class="rc__p">{{ 'If you were charged, it reconciles automatically and we email a receipt.'|trans }}</p>
       {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Re-check this payment'|trans }}</a>

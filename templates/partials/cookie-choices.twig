@@ -27,8 +27,8 @@
   <h2 class="dp-choices__h" id="dp-choices-h">{{ 'Your choices, right now'|trans }}</h2>
   {% if _c.signal %}
     <p class="dp-choices__signal"><b>{{ 'Respected your browser’s privacy signal.'|trans }}</b>
-      {% if _c.signal == 'gpc' %}{{ 'Your browser sent Global Privacy Control, so everything optional is off. A choice made here does not overrule it.'|trans }}
-      {% else %}{{ 'Your browser sent Do Not Track, so everything optional is off. A choice made here does not overrule it.'|trans }}{% endif %}
+      {% if _c.signal == 'gpc' %}{{ 'Your browser sent Global Privacy Control, so optional items stay off.'|trans }}
+      {% else %}{{ 'Your browser sent Do Not Track, so optional items stay off.'|trans }}{% endif %}
     </p>
   {% endif %}
   <form class="dp-choices__form" method="post" action="/cookies/choice">

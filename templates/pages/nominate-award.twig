@@ -103,7 +103,7 @@
   <div class="nh">
     <div class="nf-closed">
       <h1 class="nh__h1">{{ programme.title }}</h1>
-      <p class="nf-closed__p">{{ 'Nominations are open, but this award’s categories have not been published yet. Please come back soon.'|trans }}</p>
+      <p class="nf-closed__p">{{ 'Nominations are open, but the categories are not published yet.'|trans }}</p>
       <div class="nf-closed__go">
         <a class="ag-btn ag-btn--primary ag-btn--pill" href="/awards/{{ programme.slug }}">{{ 'See the award'|trans }}</a>
         <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/nominate">{{ 'Other awards open now'|trans }}</a>
@@ -159,7 +159,7 @@
 
     <div class="nf__main">
       {% if error %}<p class="nf__err" role="alert">{{ error }}</p>{% endif %}
-      {% if share_expired %}<p class="nf__say" role="status">{{ 'That nomination link has expired — the fields below are empty. You can still nominate.'|trans }}</p>{% endif %}
+      {% if share_expired %}<p class="nf__say" role="status">{{ 'That nomination link has expired. You can still nominate below.'|trans }}</p>{% endif %}
       {% if challenge %}<p class="nf__say">{{ 'Counts toward %c% · %n%/%t%'|trans({'%c%': challenge.title|default(''), '%n%': challenge.mine|default(0), '%t%': challenge.target|default(0)}) }}</p>{% endif %}
 
       {# ══ 1 · NOMINEE ══════════════════════════════════════════════════════════ #}
@@ -209,13 +209,13 @@
               {{ f.text({id: 'nominee_email', name: 'nominee_email', label: 'Their email'|trans, type: 'email', value: _nemail, maxlength: 190, autocomplete: 'off', inputmode: 'email', class: 'nf-f'}, '') }}
               {{ f.text({id: 'nominee_phone', name: 'nominee_phone', label: 'Their phone'|trans, type: 'tel', value: _nphone, maxlength: 40, autocomplete: 'off', inputmode: 'tel', class: 'nf-f'}, '') }}
             </div>
-            <p class="ag-hint" id="nf-contact-hint">{{ 'One is enough. We use it only to tell them they were nominated — it is never shown publicly. Include the country code on a phone number.'|trans }}</p>
+            <p class="ag-hint" id="nf-contact-hint">{{ 'One is enough, used only to tell them and never shown. Include the country code.'|trans }}</p>
           </fieldset>
           {# Optional. Re-encoded and size-capped on the server, reviewed by a moderator, and
              only then used as their profile picture. #}
           <label class="nf-up nf-up--photo" for="nominee_photo">
             <span class="nf-up__i" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="3"></rect><circle cx="12" cy="12.5" r="3.5"></circle><path d="M8.5 5 10 3h4l1.5 2"></path></svg></span>
-            <span class="nf-up__b"><b>{{ 'Add their photo'|trans }} <span class="ag-label__opt">{{ 'Optional'|trans }}</span></b><span id="nominee_photo-hint" data-nf-photo-name>{{ 'A clear picture of their face, or the organisation’s logo · JPG, PNG or WebP'|trans }}</span></span>
+            <span class="nf-up__b"><b>{{ 'Add their photo'|trans }} <span class="ag-label__opt">{{ 'Optional'|trans }}</span></b><span id="nominee_photo-hint" data-nf-photo-name>{{ 'Their face or the organisation’s logo · JPG, PNG or WebP'|trans }}</span></span>
             <input class="nf-up__in" id="nominee_photo" type="file" name="nominee_photo" accept="image/jpeg,image/png,image/webp" aria-describedby="nominee_photo-hint" data-nf-photo>
           </label>
         </div>
@@ -250,7 +250,7 @@
             <p class="nf-step__lead">{{ '%award% has one category. Tell us why their work belongs in it.'|trans({'%award%': programme.title}) }}</p>
           {% else %}
             <h2 class="nf-step__h" id="nf-h3">{{ (rules.min_categories == rules.max_categories ? 'Choose %max% categories' : 'Choose %min% or %max% categories')|trans({'%min%': rules.min_categories, '%max%': rules.max_categories}) }}</h2>
-            <p class="nf-step__lead">{{ 'Pick where their work fits best in %award%. Each category needs its own reason.'|trans({'%award%': programme.title}) }}</p>
+            <p class="nf-step__lead">{{ 'Each category in %award% needs its own reason.'|trans({'%award%': programme.title}) }}</p>
           {% endif %}
           <div class="nf-catbar">
             <label class="nf-search"><span class="ag-sr">{{ 'Search categories'|trans }}</span>
@@ -357,7 +357,7 @@
             {{ nfm.region('nominator_state', 'nominator_state', _bycc, _bystate, regions, 'Your state or region'|trans) }}
             {{ f.text({id: 'nominator_lga', name: 'nominator_lga', label: 'Your city, town or LGA'|trans, value: _o.nominator_lga|default(''), maxlength: 100, autocomplete: 'address-level2', optional: true}, '') }}
           </div>
-          <p class="ag-hint">{{ 'Nominations from more than one place carry more weight in review. Only the country is ever shown, never your name with it.'|trans }}</p>
+          <p class="ag-hint">{{ 'Nominations from several places weigh more in review. Only your country is shown.'|trans }}</p>
         </div>
         <fieldset class="nf-rel">
           <legend class="nf-rel__q">{{ 'How do you know them?'|trans }}</legend>

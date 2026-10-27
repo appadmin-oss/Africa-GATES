@@ -41,8 +41,8 @@
     <div class="rs-ov__body">
       <span class="rs-ov__k"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"/></svg>{{ 'Overall winner · %ed%'|trans({'%ed%': e.edition ?: e.year}) }}</span>
       <h2 class="rs-ov__name" id="rs-ov-h">{{ w.name }}</h2>
-      <p class="rs-ov__why">{{ 'The highest Cultural Power Index in this edition: %cpi% of 1,000, with %c% from community support and %j% from the judges. Winner of %cat%.'|trans({'%cpi%': w.cpi, '%c%': w.community_points, '%j%': w.judge_points, '%cat%': w.category}) }}</p>
-      {% if _o.provisional %}<p class="rs-note" role="note">{{ 'Provisional: an award in this edition is still being checked, so the overall order can still change.'|trans }}</p>{% endif %}
+      <p class="rs-ov__why">{{ 'Highest index this edition: %cpi% of 1,000 (%c% community, %j% judges). Winner of %cat%.'|trans({'%cpi%': w.cpi, '%c%': w.community_points, '%j%': w.judge_points, '%cat%': w.category}) }}</p>
+      {% if _o.provisional %}<p class="rs-note" role="note">{{ 'Provisional: an award is still being checked, so the order may change.'|trans }}</p>{% endif %}
       {% if _o.dead_heat %}<p class="rs-note" role="note">{{ 'The top two finished level on the index.'|trans }}</p>{% endif %}
       <ol class="rs-pod">
         {% for p in _o.top4|slice(0, 3) %}
@@ -91,6 +91,6 @@
     </ul>
   </section>
 
-  <p class="rs-method">{{ 'Every result is published with the working behind it, and the standing that was announced is sealed.'|trans }} <a href="/integrity">{{ 'Read the method'|trans }}</a></p>
+  <p class="rs-method">{{ 'Every result shows its working; the announced standing is sealed.'|trans }} <a href="/integrity">{{ 'Read the method'|trans }}</a></p>
 </div>
 {% endblock %}

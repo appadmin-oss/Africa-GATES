@@ -64,7 +64,7 @@
       {% if held %}
         <section class="rs-held" role="note">
           <b>{{ 'This result is being verified.'|trans }}</b>
-          <span>{{ held }}. {{ 'Nothing is published here until every part of the index can be shown: the community half, the judges’ half, and the denominator each was measured against.'|trans }}</span>
+          <span>{{ held }}. {{ 'Nothing is published until every part of the index can be shown.'|trans }}</span>
         </section>
       {% else %}
         <section class="rs-win" aria-labelledby="rs-win-h">
@@ -84,11 +84,11 @@
             <span class="rs-win__pt">{{ 'How %first% won, in plain words'|trans({'%first%': w.name|split(' ')|first}) }}</span>
             <p>
               {%- if r.dead_heat -%}
-                {{ 'The index could not separate the top two: identical scores and identical community support. The award went to the lower nominee id so the decision stays the same every time it is recomputed — an arbitrary rule, named here rather than hidden inside a sort.'|trans }}
+                {{ 'Tied on score and support, so the lower nominee id won: an arbitrary, fixed rule.'|trans }}
               {%- elseif r.tie_broken_by_votes -%}
-                {{ 'The index tied exactly, and votes broke it — the same tally the community half is measured from, so the tiebreak cannot disagree with the half it is breaking.'|trans }}
+                {{ 'The index tied exactly; total votes broke the tie.'|trans }}
               {%- elseif r.runner_up -%}
-                {{ '%w% finished %m% points ahead of %r% on a thousand-point index: %wc% from community support and %wj% from the judges, against %rc% and %rj%.'|trans({'%w%': w.name, '%m%': r.margin, '%r%': r.runner_up.name, '%wc%': w.community_points, '%wj%': w.judge_points, '%rc%': r.runner_up.community_points, '%rj%': r.runner_up.judge_points}) }}
+                {{ '%w% beat %r% by %m% points: %wc% community and %wj% judges, against %rc% and %rj%.'|trans({'%w%': w.name, '%m%': r.margin, '%r%': r.runner_up.name, '%wc%': w.community_points, '%wj%': w.judge_points, '%rc%': r.runner_up.community_points, '%rj%': r.runner_up.judge_points}) }}
               {%- else -%}
                 {{ '%w% was the only nominee in the running.'|trans({'%w%': w.name}) }}
               {%- endif -%}
@@ -145,10 +145,10 @@
             {% endfor %}
           </div>
           <p class="rs-method">
-            {%- if r.paid_only %}{{ 'Every vote in this category was cast with a contribution: free voting was not open on this programme, so there was no other way to take part.'|trans }}
-            {%- elseif r.votes.bought > 0 %}{{ 'Votes cast is every vote a nominee received, free or contributed; organic is the part from a verified person voting free. %b% of the %c% were bought in a pack or awarded against a contribution.'|trans({'%b%': r.votes.bought|number_format, '%c%': r.votes.cast|number_format}) }}
-            {%- else %}{{ 'No vote in this category was bought or awarded — the two figures are the same.'|trans }}{% endif %}
-            {{ 'The judges never see a vote count, a contribution, or who paid for what.'|trans }} <a href="/integrity">{{ 'Read the method'|trans }}</a>
+            {%- if r.paid_only %}{{ 'Free voting was not open here; every vote came with a contribution.'|trans }}
+            {%- elseif r.votes.bought > 0 %}{{ 'Organic means free votes from verified people. %b% of %c% were bought or awarded against a contribution.'|trans({'%b%': r.votes.bought|number_format, '%c%': r.votes.cast|number_format}) }}
+            {%- else %}{{ 'No vote here was bought or awarded.'|trans }}{% endif %}
+            {{ 'Judges never see vote counts or who paid.'|trans }} <a href="/integrity">{{ 'Read the method'|trans }}</a>
           </p>
         </section>
 
@@ -166,22 +166,22 @@
               <div><dt>{{ 'Scale set by'|trans }}</dt><dd>{% if r.scale_set_by %}{{ r.scale_set_by }}{% if r.scale_category and not r.scale_in_category %}, {{ r.scale_category }}{% endif %}{% else %}—{% endif %}</dd></div>
             </dl>
             {% if not r.sealed_at %}
-              <p class="rs-note"><b>{{ 'These numbers are being worked out now, not read back from the announcement.'|trans }}</b> {{ 'This award was released before this platform started sealing a standing at the moment it is announced, so what you see is today’s method applied to the votes and marks on record.'|trans }}</p>
+              <p class="rs-note"><b>{{ 'These numbers are being worked out now, not read back from the announcement.'|trans }}</b> {{ 'This award predates sealing, so today’s method is applied to the record.'|trans }}</p>
             {% endif %}
             {% if r.community_basis == 'ideal' %}
-              <p class="rs-note">{{ 'A nominee’s community half is two counts against one yardstick: the largest vote total anyone in this cycle reached. Seventy per cent of the half is how many verified people backed a nominee, as a share of that; the other thirty per cent is their total votes, as a share of the same figure. One supporter is one supporter however many separate orders they placed. The judges’ half is the mark itself: %j%% × the panel average out of ten, with no floor and no curve.'|trans({'%j%': jpct}) }}</p>
+              <p class="rs-note">{{ 'Community half: seventy per cent backers, thirty per cent votes, each against the cycle’s top vote total; a backer counts once. Judges’ half: %j%% × the panel average out of ten.'|trans({'%j%': jpct}) }}</p>
             {% elseif r.community_basis == 'reach' %}
-              <p class="rs-note">{{ 'A nominee’s community half is two counts: seventy per cent is how many verified people backed them, against the most any nominee in this cycle has; thirty per cent is their total votes, against the largest total in the cycle. The judges’ half is the mark itself: %j%% × the panel average out of ten.'|trans({'%j%': jpct}) }}</p>
+              <p class="rs-note">{{ 'Community half: seventy per cent backers against the cycle’s most backers, thirty per cent votes against its top total. Judges’ half: %j%% × the panel average out of ten.'|trans({'%j%': jpct}) }}</p>
             {% else %}
-              <p class="rs-note">{{ 'A nominee’s community half is their votes as a share of the most-supported nominee in the cycle, so the leader’s share is the full %c%%.'|trans({'%c%': cpct}) }}</p>
+              <p class="rs-note">{{ 'Community half: votes as a share of the cycle’s top tally; the leader gets %c%%.'|trans({'%c%': cpct}) }}</p>
             {% endif %}
             {% if r.community_basis in ['ideal', 'reach'] and r.reach_unmeasured > 0 %}
-              <p class="rs-note"><b>{{ 'One caveat on this award.'|trans }}</b> {{ '%n% nominees here have a vote total carried over from before this platform kept individual ballot records, so their supporters could not be counted and the seventy per cent scored zero for them. Their totals still count. That is a gap in our records, not a finding about their support.'|trans({'%n%': r.reach_unmeasured}) }}</p>
+              <p class="rs-note"><b>{{ 'One caveat on this award.'|trans }}</b> {{ '%n% nominees’ tallies predate our ballot records, so their backer share scored zero; their votes still count. That gap is ours, not theirs.'|trans({'%n%': r.reach_unmeasured}) }}</p>
             {% endif %}
             {% if tally_only %}
-              <p class="rs-note"><b>{{ 'One caveat on this award, and it applies to everybody in the cycle.'|trans }}</b> {{ 'No nominee in this edition has individual ballot records behind their total, so the seventy per cent could not be worked out for anyone: every community half here was worked out from total votes alone. That is a gap in our records rather than a finding about anyone’s support.'|trans }}</p>
+              <p class="rs-note"><b>{{ 'One caveat on this award, and it applies to everybody in the cycle.'|trans }}</b> {{ 'No nominee here has ballot records, so every community half uses total votes alone. That gap is ours, not theirs.'|trans }}</p>
             {% endif %}
-            {% if r.shortlisted is not null %}<p class="rs-note">{{ 'Each category’s published shortlist decides who can win it; the yardstick is every nominee in the edition, shortlisted or not.'|trans }}</p>{% endif %}
+            {% if r.shortlisted is not null %}<p class="rs-note">{{ 'The shortlist decides who can win; the yardstick is every nominee in the edition.'|trans }}</p>{% endif %}
           </details>
         </section>
       {% endif %}
@@ -189,7 +189,7 @@
       <section class="rs-sec" id="replies" aria-labelledby="rs-rep">
         <h2 class="rs-sec__t" id="rs-rep">{{ 'Replies'|trans }}</h2>
         {% if thread %}
-          <p class="rs-sec__p">{{ 'This result is a post in the Pulse. Replies here are replies there — one conversation, one moderation queue.'|trans }}</p>
+          <p class="rs-sec__p">{{ 'Replies here also appear on this result’s Pulse post.'|trans }}</p>
           {% if is_member|default(false) %}
             <form class="rs-reply" method="post" action="/api/v1/community/comment" data-rs-reply data-thread="{{ thread.id }}" data-held="{{ 'Thanks — a moderator will look at this before it appears.'|trans }}" data-you="{{ member_name|default('You'|trans) }}" data-failed="{{ 'That did not send. Your reply is still here — try again.'|trans }}">
               <input type="hidden" name="target_type" value="thread"><input type="hidden" name="target_id" value="{{ thread.id }}">
@@ -199,7 +199,7 @@
               <p class="rs-reply__m" data-rs-msg role="status" hidden></p>
             </form>
           {% else %}
-            <p class="rs-sec__p"><a href="/account/login?next={{ r.url|url_encode }}">{{ 'Sign in'|trans }}</a> {{ 'to reply. Replies are tied to a member account so a result’s public record cannot be brigaded.'|trans }}</p>
+            <p class="rs-sec__p"><a href="/account/login?next={{ r.url|url_encode }}">{{ 'Sign in'|trans }}</a> {{ 'to reply.'|trans }}</p>
           {% endif %}
           <ul class="rs-thread" data-rs-list>
             {% for c in replies %}

@@ -92,7 +92,7 @@
         {%- for i in 1..6 %}<span class="si-code__box"></span>{% endfor -%}
       </div>
     </div>
-    <p class="ag-hint" id="si-otp-hint">{{ 'It works for %n% minutes and %t% tries. Asking for a new one cancels this one.'|trans({'%n%': otp_ttl_minutes, '%t%': max_tries}) }}</p>
+    <p class="ag-hint" id="si-otp-hint">{{ 'It lasts %n% minutes and %t% tries. A new code cancels this one.'|trans({'%n%': otp_ttl_minutes, '%t%': max_tries}) }}</p>
 
     <button class="si__go" type="submit">{{ 'Continue'|trans }}</button>
   </form>

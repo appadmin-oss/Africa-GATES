@@ -37,7 +37,7 @@
     {k: 'You receive'|trans, v: m.naira(q.net_kobo), total: true},
     {k: 'To'|trans, v: q.bank.bank ~ ' · ' ~ q.bank.account_number, ref: true},
     resolved ? {k: 'Account name'|trans, note: 'from your bank'|trans, v: resolved, total: true} : {k: 'Account name'|trans, v: q.bank.account_name},
-    {k: 'Arrives'|trans, v: auto_on ? 'Usually within minutes, once our automatic checks pass. If anything needs a closer look, a person checks it first.'|trans : 'After a person checks it — usually within %d% working days'|trans({'%d%': terms.payout_days})}
+    {k: 'Arrives'|trans, v: auto_on ? 'Usually within minutes, after automatic checks; a person reviews anything flagged.'|trans : 'After a person checks it — usually within %d% working days'|trans({'%d%': terms.payout_days})}
   ] %}
   <div class="wl-rv">
     <a class="wl-rv__scrim" href="/account/wallet/withdraw?pocket={{ pocket.key|url_encode }}" aria-label="{{ 'Change something'|trans }}" tabindex="-1"></a>
@@ -62,12 +62,12 @@
         <input type="hidden" name="account_name" value="{{ q.bank.account_name }}">
         <input type="hidden" name="account_number" value="{{ q.bank.account_number }}">
         <label class="wl-check"><input type="checkbox" name="accept" value="1" required>
-          <span>{{ 'The account is in my own name, and I accept the withdrawal rules and the fee.'|trans }} <a href="/integrity#return">{{ 'Read the rules'|trans }}</a></span></label>
+          <span>{{ 'The account is in my name; I accept the withdrawal rules and fee.'|trans }} <a href="/integrity#return">{{ 'Read the rules'|trans }}</a></span></label>
         <div class="wl-rv__btns">
           <a class="ag-btn ag-btn--secondary wl-btn" href="/account/wallet/withdraw?pocket={{ pocket.key|url_encode }}"><span class="wl-rv__ph">{{ 'Change'|trans }}</span><span class="wl-rv__dk">{{ 'Change something'|trans }}</span></a>
           <button class="ag-btn ag-btn--primary wl-btn" type="submit"><span class="wl-rv__ph">{{ 'Confirm'|trans }}</span><span class="wl-rv__dk">{{ 'Confirm withdrawal'|trans }}</span></button>
         </div>
-        <p class="wl-rv__note">{{ 'Not you? Go back and check the account number. Money goes only to an account in your own name.'|trans }}</p>
+        <p class="wl-rv__note">{{ 'Not you? Check the number. Payouts go only to accounts in your name.'|trans }}</p>
       </div>
     </form>
   </div>

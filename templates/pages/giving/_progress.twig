@@ -35,5 +35,5 @@
   {%- if display_met('gifts_count', _gifts) %}<span class="gv-prog__meta"><span>{{ '%n% gifts'|trans({'%n%': _gifts|number_format}) }}</span></span>{% endif -%}
   {%- if fund_goal and fund_goal.met %}<span class="gv-prog__meta"><span>{{ 'Target reached, and still open'|trans }}</span></span>{% endif -%}
 {%- else -%}
-  <span class="gv-prog__first">{{ 'Be one of the first to give — every donation is receipted and goes straight to the cause.'|trans }}</span>
+  <span class="gv-prog__first">{{ 'Be one of the first to give — receipted, and straight to the cause.'|trans }}</span>
 {%- endif -%}

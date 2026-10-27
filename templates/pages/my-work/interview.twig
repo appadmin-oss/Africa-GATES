@@ -96,7 +96,7 @@
       <h1 class="iv__h1 iv__h1--pane">{{ '%n% — tell the judges about your work'|trans({'%n%': form.nominee}) }}</h1>
       <div class="mw__card">
         <h2 class="mw__h2" id="iv-sent">{{ 'This has been sent.'|trans }}</h2>
-        <p class="mw__p">{{ 'Thank you%n%. It went to the judging panel%d%. You do not need to do anything else; we will email you if the panel has a question.'|trans({'%n%': iv.declared ? ', ' ~ iv.declared : '', '%d%': iv.submitted_at ? ' on ' ~ iv.submitted_at|date('j M Y') : ''}) }}</p>
+        <p class="mw__p">{{ 'Thank you%n%. Sent to the judging panel%d%. We will email if they have questions.'|trans({'%n%': iv.declared ? ', ' ~ iv.declared : '', '%d%': iv.submitted_at ? ' on ' ~ iv.submitted_at|date('j M Y') : ''}) }}</p>
       </div>
     </section>
   {% elseif _stopped %}
@@ -184,7 +184,7 @@
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <button type="submit" class="iv__link">{{ 'Use the form instead'|trans }}</button>
       </form>
-      <noscript><p class="iv__note">{{ 'The conversation needs JavaScript, which is off in this browser. The form asks the same things — press "Use the form" above.'|trans }}</p></noscript>
+      <noscript><p class="iv__note">{{ 'The conversation needs JavaScript. The form above asks the same things.'|trans }}</p></noscript>
     {% endif %}
   </section>
 
@@ -192,7 +192,7 @@
   <section class="iv__pane iv__pane--scroll" id="iv-show" data-iv-pane="show" aria-labelledby="iv-show-h">
     <div class="mw__card">
       <h2 class="mw__h2" id="iv-show-h">{{ 'Show them the work.'|trans }}</h2>
-      <p class="mw__help">{{ 'A document, a photo, a link — anything a judge can open. PDF or an image, up to %mb% MB each and %n% files in all.'|trans({'%mb%': form.max_file_mb, '%n%': form.max_files}) }}</p>
+      <p class="mw__help">{{ 'PDF, image or link, up to %mb% MB each and %n% files in all.'|trans({'%mb%': form.max_file_mb, '%n%': form.max_files}) }}</p>
       <ul class="iv__works" data-iv-works>
         {% for w in form.works %}<li><b>{{ w.title ?: w.file_name ?: 'Untitled'|trans }}</b>{% if w.file_name ?? '' %} · {{ 'file attached'|trans }}{% endif %}{% if w.link ?? '' %} · <a href="{{ w.link }}" rel="noopener nofollow" target="_blank">{{ 'link'|trans }}</a>{% endif %}{% if (w.from ?? '') == 'conversation' %} · {{ 'from the conversation'|trans }}{% endif %}</li>
         {% else %}<li class="mw__help">{{ 'Nothing yet.'|trans }}</li>{% endfor %}

@@ -68,7 +68,7 @@
       </div>
       {# What the balance IS, said where it is read: money this platform owes the member,
          not money they deposited, and nothing here can take money in. #}
-      <p class="wl-card__note">{{ 'Your wallet shows what Africa GATES owes you from your page and referrals. It isn’t a bank account, you can’t add money to it, and it is paid out only to a bank account in your name.'|trans }}</p>
+      <p class="wl-card__note">{{ 'What we owe you from your page and referrals. No top-ups; paid only to your own bank account.'|trans }}</p>
     </section>
 
     <nav class="wl-quick" aria-label="{{ 'Wallet actions'|trans }}">
@@ -101,7 +101,7 @@
       </div>
       {% include 'pages/account/_wallet-days.twig' with {days: days} only %}
       {% if days is empty %}
-        <p class="wl-none">{{ 'No transactions yet. Every naira and every point in or out is listed here, with its receipt.'|trans }}</p>
+        <p class="wl-none">{{ 'No transactions yet.'|trans }}</p>
       {% endif %}
     </section>
   </div>
@@ -154,11 +154,11 @@
         <p class="wl-empty__p">{{ 'Money reaches it two ways.'|trans }}</p>
         <ul class="wl-empty__ways">
           <li><b>{{ 'Invite people.'|trans }}</b> {{ 'Share your link; when people you invite buy tickets, you earn a commission.'|trans }} <a href="/account?tab=referral">{{ 'Get your link'|trans }}</a></li>
-          <li><b>{{ 'Claim your nominee page.'|trans }}</b> {{ 'If you are a nominee, your share of what supporters contribute in your name lands here.'|trans }} <a href="/integrity#return">{{ 'How it works'|trans }}</a></li>
+          <li><b>{{ 'Claim your nominee page.'|trans }}</b> {{ 'Your share of what supporters contribute in your name lands here.'|trans }} <a href="/integrity#return">{{ 'How it works'|trans }}</a></li>
         </ul>
       </div>
     {% endif %}
-    <p class="wl-fee">{{ 'Service fee on withdrawals'|trans }}: {{ fee_text }}. {{ 'It covers the bank transfer and keeps the platform and the project running. Paying for votes from your wallet has no fee.'|trans }} <a href="/integrity#return">{{ 'Rules'|trans }}</a></p>
+    <p class="wl-fee">{{ 'Service fee on withdrawals'|trans }}: {{ fee_text }}. {{ 'It covers transfer and running costs. Wallet-paid votes carry no fee.'|trans }} <a href="/integrity#return">{{ 'Rules'|trans }}</a></p>
   </section>
 </div>
 {% endblock %}

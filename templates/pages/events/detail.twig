@@ -218,7 +218,7 @@
             {% if stand_call.state == 'open' and stand_call.closes_at %}<li>{{ 'Closes %date%'|trans({'%date%': stand_call.closes_at|date('j M')}) }}</li>
             {% elseif stand_call.state == 'soon' and stand_call.opens_at %}<li>{{ 'Opens %date%'|trans({'%date%': stand_call.opens_at|date('j M')}) }}</li>{% endif %}
           </ul>
-          <p class="ed-vend__note">{% if stand_call.state == 'open' %}{{ 'Applying is free and needs no account first. Stands are allocated against published quotas, not sold to whoever pays first.'|trans }}{% else %}{{ 'The terms are published now, so you can decide before it opens.'|trans }}{% endif %}</p>
+          <p class="ed-vend__note">{% if stand_call.state == 'open' %}{{ 'Free to apply, no account needed. Stands are allocated by published quotas.'|trans }}{% else %}{{ 'The terms are published now, so you can decide before it opens.'|trans }}{% endif %}</p>
           <a class="ed-vend__go" href="{{ stand_call.url }}">{{ stand_call.state == 'open' ? 'Apply for a stand'|trans : 'See the terms'|trans }}</a>
         </section>
         {% endif %}
@@ -284,11 +284,11 @@
               <button type="button" class="ed-earn__btn" data-ag-do="copy-ref" data-target="edRefLink" data-done="{{ 'Copied'|trans }}">{{ 'Copy my link'|trans }}</button>
             </div>
             <p class="ed-box__alt">
-              {%- if referral.threshold > 1 %}{{ 'Paid once you have %n% referrals — backdated, so the %n%th makes all of them payable.'|trans({'%n%': referral.threshold}) }}
+              {%- if referral.threshold > 1 %}{{ 'Paid once you reach %n% referrals, backdated to the first.'|trans({'%n%': referral.threshold}) }}
               {%- else %}{{ 'Paid from your first referral.'|trans }}{% endif %}
               <a href="/account?tab=referral#me-referral">{{ 'Your referrals'|trans }}</a></p>
           {% else %}
-            <p class="ed-box__p">{{ 'Tell people about this event and earn %pct%% of every ticket bought through your link.'|trans({'%pct%': referral.pct}) }}</p>
+            <p class="ed-box__p">{{ 'Earn %pct%% of every ticket bought through your link.'|trans({'%pct%': referral.pct}) }}</p>
             <a class="ed-earn__btn" href="/account/login?next=/events/{{ event.slug|url_encode }}">{{ 'Sign in to get your link'|trans }}</a>
             <p class="ed-box__alt">{{ 'Free, and your link works on every event.'|trans }}</p>
           {% endif %}

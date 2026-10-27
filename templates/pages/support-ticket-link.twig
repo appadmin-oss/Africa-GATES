@@ -35,7 +35,7 @@
   {% if thread is null %}
     <section class="sp__form st-gone" aria-labelledby="tl-h">
       <h1 class="hc__h1 st__h1" id="tl-h">{{ 'This link is no longer active'|trans }}</h1>
-      <p class="hc__lede">{{ 'Support links stop working after a while, for your safety. Nothing has gone wrong with your support ticket and nothing has been lost.'|trans }}</p>
+      <p class="hc__lede">{{ 'Support links expire for your safety. Your support ticket is safe.'|trans }}</p>
       <p class="hc__lede"><strong>{{ 'Just reply to the last email we sent you'|trans }}</strong> — {{ 'it reaches the same people and lands on the same conversation.'|trans }}</p>
       <a class="hc-btn hc-btn--out" href="/support">{{ 'Or start a new conversation'|trans }}</a>
     </section>
@@ -51,14 +51,14 @@
       {# Shown by tickets.js: the reply address carries the token, which is never printed into
          the page, so without a script there is nowhere for a plain form to post — the
          email route below is the no-script answer. #}
-      <p class="ag-hint" data-st-noscript>{{ 'To reply, answer the last email we sent you — it lands on this conversation.'|trans }}</p>
+      <p class="ag-hint" data-st-noscript>{{ 'To reply, answer our last email.'|trans }}</p>
       <form class="st-compose" method="post" action="" data-st-form="link" hidden>
         <label class="ag-label" for="tlReply">{{ 'Your reply'|trans }}</label>
         <span class="ag-field sp__area"><textarea id="tlReply" name="body" maxlength="5000" rows="4" required
               placeholder="{{ settled ? 'Still not right? Reply and this reopens.'|trans : 'Tell us anything that would help…'|trans }}"></textarea></span>
         <button class="ag-btn ag-btn--primary st-go" type="submit">{{ 'Send reply'|trans }}</button>
         <p class="st-note" role="status" aria-live="polite" data-st-note></p>
-        <p class="ag-hint">{{ 'You do not need an account. Your reply reaches the team by email, and theirs reaches you the same way.'|trans }}</p>
+        <p class="ag-hint">{{ 'No account needed. Replies travel both ways by email.'|trans }}</p>
       </form>
     </section>
   {% endif %}

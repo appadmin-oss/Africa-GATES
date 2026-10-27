@@ -36,7 +36,7 @@
   {% if ballot_url %}
   <section class="vs-cta-card" aria-labelledby="vm-back">
     <h2 class="vs-h2" id="vm-back">{{ 'Back %n% too'|trans({'%n%': msg.nominee_name}) }}</h2>
-    <p class="vs-p">{{ 'One verified vote per category, and you can leave your own message when you cast it. Community votes are part of the score — the independent judges are the rest.'|trans }} <a href="/philosophy">{{ 'Why voting works this way'|trans }}</a></p>
+    <p class="vs-p">{{ 'One verified vote per category. Votes and independent judges decide the score.'|trans }} <a href="/philosophy">{{ 'Why voting works this way'|trans }}</a></p>
     <a class="ag-btn ag-btn--primary ag-btn--pill" href="{{ ballot_url }}">{{ 'Vote for %n%'|trans({'%n%': msg.nominee_name|split(' ')|first}) }}</a>
   </section>
   {% endif %}
@@ -52,7 +52,7 @@
   </section>
   {% endif %}
 
-  <p class="vs-fine">{{ 'Messages are written by voters, not by Africa GATES, and are checked before they appear.'|trans }} {{ 'See something that should not be here?'|trans }} <a href="/support">{{ 'Report it'|trans }}</a> · <a href="/terms">{{ 'Terms'|trans }}</a> · <a href="/privacy">{{ 'Privacy'|trans }}</a></p>
+  <p class="vs-fine">{{ 'Written by voters, not Africa GATES, and checked before they appear.'|trans }} {{ 'See something that should not be here?'|trans }} <a href="/support">{{ 'Report it'|trans }}</a> · <a href="/terms">{{ 'Terms'|trans }}</a> · <a href="/privacy">{{ 'Privacy'|trans }}</a></p>
 </div>
 {% endblock %}
 

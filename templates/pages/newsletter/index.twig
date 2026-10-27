@@ -24,14 +24,14 @@
   <header class="nl__head">
     <p class="nl__kicker">{{ 'Newsletter'|trans }}</p>
     <h1 class="nl__h1">{{ 'Africa GATES in your inbox'|trans }}</h1>
-    <p class="nl__lede">{{ 'What is open for nominations, when voting closes, results as they are announced, and the events around them. Every line links to the page that states it.'|trans }}</p>
+    <p class="nl__lede">{{ 'Open nominations, voting deadlines, announced results and events.'|trans }}</p>
   </header>
 
   {% if sent %}
     <section class="nl__card" aria-labelledby="nlSent">
       <h2 id="nlSent" class="nl__h2">{{ 'Check your inbox'|trans }}</h2>
-      <p class="nl__p">{{ 'We have sent a confirmation email. Press the button in it and you are on the list. Nothing else is sent to an address until it is confirmed.'|trans }}</p>
-      <p class="ag-hint">{{ 'Not there in a few minutes? Look in spam or promotions, or try again tomorrow — we send one confirmation a day to any address.'|trans }}</p>
+      <p class="nl__p">{{ 'Press the button in our confirmation email. Nothing else is sent until then.'|trans }}</p>
+      <p class="ag-hint">{{ 'Not arrived? Check spam or promotions. One confirmation per address a day.'|trans }}</p>
     </section>
   {% else %}
     <section class="nl__card" aria-labelledby="nlJoin">
@@ -52,8 +52,8 @@
   <section class="nl__sec" aria-labelledby="nlWhen">
     <h2 id="nlWhen" class="nl__h2">{{ 'When it arrives'|trans }}</h2>
     <p class="nl__p">
-      {% if schedule %}{{ schedule }}.{% else %}{{ 'The first issue has not been scheduled yet. Confirm now and it is the first thing you receive.'|trans }}{% endif %}
-      {{ 'An issue goes out only when there is something new to say — a week with nothing open, announced or coming up is a week without an email.'|trans }}
+      {% if schedule %}{{ schedule }}.{% else %}{{ 'The first issue is not scheduled yet.'|trans }}{% endif %}
+      {{ 'We only send an issue when there is something new.'|trans }}
     </p>
     {% if holidays %}
       <p class="nl__p">{{ 'And a greeting on %h%.'|trans({'%h%': holidays|length > 1 ? (holidays|slice(0, -1)|join(', ') ~ ' ' ~ 'and'|trans ~ ' ' ~ holidays|last) : holidays|first}) }}</p>

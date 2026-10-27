@@ -104,17 +104,17 @@
      data-msg-rated="{{ 'Thanks for telling us.'|trans }}"
      data-msg-rate-sorry="{{ 'Sorry that didn’t help.'|trans }}"
      data-msg-person="{{ 'Talk to a person'|trans }}"
-     data-msg-handoff-attached="{{ 'This conversation is attached, so you won’t have to explain again. We’ll email %email%, and you can follow it in %link%.'|trans }}"
-     data-msg-handoff-attached-guest="{{ 'This conversation is attached, so you won’t have to explain again. We’ll email %email%.'|trans }}"
-     data-msg-handoff-no-email="{{ 'This conversation is attached, so you won’t have to explain again. A person will see it, but without an email address they cannot reply.'|trans }}"
+     data-msg-handoff-attached="{{ 'Your conversation is attached. We’ll email %email%; follow it in %link%.'|trans }}"
+     data-msg-handoff-attached-guest="{{ 'Your conversation is attached. We’ll email %email%.'|trans }}"
+     data-msg-handoff-no-email="{{ 'Attached for a person to see. With no email, they cannot reply.'|trans }}"
      data-msg-handoff-link="{{ 'Your support tickets'|trans }}"
      data-msg-handoff-email="{{ 'Your email, so a person can reply'|trans }}"
-     data-msg-handoff-first="{{ 'Of course. Tell me what has gone wrong first, in a line or two, and I’ll pass the whole thing on so you don’t have to explain it twice.'|trans }}"
-     data-msg-handoff-failed="{{ 'I couldn’t reach the team just now. /support has the form, and it goes to the same place.'|trans }}"
-     data-msg-ask-ref="{{ 'Paste the payment reference. It begins with AFG- and is in your payment email or SMS.'|trans }}"
+     data-msg-handoff-first="{{ 'Of course. Tell me briefly what went wrong, and I’ll pass it on.'|trans }}"
+     data-msg-handoff-failed="{{ 'I couldn’t reach the team. The form at /support reaches them too.'|trans }}"
+     data-msg-ask-ref="{{ 'Paste the reference starting AFG-, from your payment email or SMS.'|trans }}"
      data-msg-fix-receipt-ref="{{ 'Resend the receipt for %ref%'|trans }}"
      data-msg-no-server="{{ 'We couldn’t reach Africa GATES. Your message is saved. Try again.'|trans }}"
-     data-msg-snag="{{ 'I hit a snag just now. In the meantime, /help and /support have you covered.'|trans }}"
+     data-msg-snag="{{ 'I hit a snag. Try /help or /support for now.'|trans }}"
      data-msg-working-1="{{ 'On it…'|trans }}"
      data-msg-working-2="{{ 'Still working — this one needs a lookup.'|trans }}"
      data-msg-working-3="{{ 'Taking longer than usual. Your message is safe; keep this open.'|trans }}"
@@ -159,7 +159,7 @@
            dismissal is one fact. #}
         <div class="gee__note" role="note" data-gee-note>
           <svg class="gee__note-i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/></svg>
-          <span class="gee__note-t">{{ 'This chat stays in this tab until you close it, unless you pass it to a person. Never share card numbers or passwords.'|trans }} <a href="/privacy">{{ 'Privacy'|trans }}</a></span>
+          <span class="gee__note-t">{{ 'This chat stays in this tab until you close it or pass it on. Never share card numbers or passwords.'|trans }} <a href="/privacy">{{ 'Privacy'|trans }}</a></span>
           <button type="button" class="gee__note-x" data-gee-note-x aria-label="{{ 'Dismiss privacy notice'|trans }}"><span aria-hidden="true">×</span></button>
         </div>
 
@@ -186,7 +186,7 @@
         <div class="gee__empty gee__only-support" data-gee-empty="support">
           <div class="gee__hello">
             <h2 class="gee__hello-t">{% if _first %}{{ 'Hi %first%. What’s gone wrong?'|trans({'%first%': _first}) }}{% else %}{{ 'What’s gone wrong?'|trans }}{% endif %}</h2>
-            <p class="gee__hello-s">{{ 'I can check payments with the provider, resend receipts, and hand you to a person when that’s better.'|trans }}</p>
+            <p class="gee__hello-s">{{ 'I can check payments, resend receipts or hand you to a person.'|trans }}</p>
           </div>
 
           {% if is_member %}

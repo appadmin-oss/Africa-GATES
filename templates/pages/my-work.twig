@@ -38,7 +38,7 @@
 {% if form is null %}
   <section class="mw__card">
     <h1 class="mw__h1">{{ 'This link is not working'|trans }}</h1>
-    <p class="mw__p">{{ 'It may have been mistyped, or replaced by a newer one. Use the link in your most recent email from us.'|trans }}</p>
+    <p class="mw__p">{{ 'Use the link in our most recent email.'|trans }}</p>
     {% if support_email %}<p class="mw__p">{{ 'Still stuck? Write to'|trans }} <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>{% endif %}
   </section>
 {% else %}
@@ -63,7 +63,7 @@
   {% if form.submitted %}
     <section class="mw__card">
       <h2 class="mw__h2">{{ 'This has gone to the judging panel'|trans }}</h2>
-      <p class="mw__p">{{ 'Thank you. Your answers and works were sent%on%. You do not need to do anything else; we will email you if the panel has a question.'|trans({'%on%': form.submitted_at ? ' on ' ~ form.submitted_at|date('j M Y') : ''}) }}</p>
+      <p class="mw__p">{{ 'Thank you, your work was sent%on%. We’ll email if the panel has questions.'|trans({'%on%': form.submitted_at ? ' on ' ~ form.submitted_at|date('j M Y') : ''}) }}</p>
     </section>
 
   {% elseif not intro_ready %}
@@ -80,7 +80,7 @@
     {% if voice %}
     <section class="mw__card" aria-labelledby="mw-intro" data-mw-intro data-max="{{ intro_max }}">
       <h2 class="mw__h2" id="mw-intro">{{ 'Introduce yourself out loud — optional'|trans }}</h2>
-      <p class="mw__help">{{ 'Up to %s% seconds, in your own voice. The panel only hears it if you say they may.'|trans({'%s%': intro_max}) }}</p>
+      <p class="mw__help">{{ 'Up to %s% seconds. The panel hears it only if you agree.'|trans({'%s%': intro_max}) }}</p>
       {% if intro.has %}
         <audio class="mw__audio" controls preload="none" src="{{ intro.url }}"></audio>
         <p class="mw__p" data-mw-intro-state>{{ intro.consented ? 'The panel may hear this.'|trans : 'Recorded. The panel will not hear it unless you agree.'|trans }}</p>
@@ -130,7 +130,7 @@
 
       <fieldset class="mw__q mw__works" data-mw-step>
         <legend class="mw__qh">{{ 'Your works and evidence'|trans }}</legend>
-        <p class="mw__help">{{ 'Anything a judge can open: a link, a document, a photo, an award, a press piece. Up to %n% items.'|trans({'%n%': form.max_works}) }}</p>
+        <p class="mw__help">{{ 'Links, documents, photos, awards or press. Up to %n% items.'|trans({'%n%': form.max_works}) }}</p>
         {% set _rows = _works|length < form.max_works ? _works|merge([{uid: 'w' ~ (_works|length + 1)}]) : _works %}
         {% for w in _rows %}
           <div class="mw__work">
@@ -152,7 +152,7 @@
 
       <fieldset class="mw__q mw__send" data-mw-step>
         <legend class="mw__qh">{{ 'Send it to the judges'|trans }}</legend>
-        <p class="mw__help">{{ 'Nothing is sent until you press the button. Type your full name to confirm that what you have written is true.'|trans }}</p>
+        <p class="mw__help">{{ 'Nothing is sent until you press send. Your full name confirms it is true.'|trans }}</p>
         <p class="mw__ready" role="status">
           {%- if readiness.ready %}{{ 'Everything the panel needs is here.'|trans }}{% else %}{{ readiness.missing|length == 1 ? 'One question still needs an answer.'|trans : '%n% questions still need an answer.'|trans({'%n%': readiness.missing|length}) }}{% endif %}
           {{ '%w% works listed, %f% files attached.'|trans({'%w%': readiness.works, '%f%': readiness.files}) }}
@@ -169,7 +169,7 @@
 
     <section class="mw__card" aria-labelledby="mw-up">
       <h2 class="mw__h2" id="mw-up">{{ 'Attach a file'|trans }}</h2>
-      <p class="mw__help">{{ 'You do not need to save first. PDF or an image, up to %mb% MB each and %n% files in all. Bigger than that? Put it online and paste the link in a work above.'|trans({'%mb%': form.max_file_mb, '%n%': form.max_files}) }}</p>
+      <p class="mw__help">{{ 'PDF or image, up to %mb% MB each, %n% files in all. Larger? Paste a link instead.'|trans({'%mb%': form.max_file_mb, '%n%': form.max_files}) }}</p>
       <form method="post" action="/my-work/{{ token }}/upload" enctype="multipart/form-data" class="mw__up">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <label class="mw__lbl">{{ 'For which work?'|trans }}

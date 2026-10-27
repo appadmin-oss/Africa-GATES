@@ -79,13 +79,13 @@
         <div class="org-row">
           <label class="org-lab" for="doc-exp">{{ 'Expires on'|trans }}</label>
           <input class="org-in" type="date" id="doc-exp" name="expires_on">
-          <p class="org-hint">{{ 'Leave it blank if it does not expire. We will remind you before it does.'|trans }}</p>
+          <p class="org-hint">{{ 'Leave blank if it never expires. We remind you before it does.'|trans }}</p>
         </div>
         <button class="org-go" type="submit">{{ 'Upload'|trans }}</button>
       </fieldset>
     </form>
   {% elseif not uploads_on %}
-    <p class="org-hint">{{ 'Uploads are not available on this server. Write to us and we will put the document on file for you.'|trans }}</p>
+    <p class="org-hint">{{ 'Uploads are unavailable here. Write to us and we will file it.'|trans }}</p>
   {% endif %}
 
 {# ══ STANDS ═══════════════════════════════════════════════════════════════ #}
@@ -94,7 +94,7 @@
   {% if not applications %}
     <div class="org-empty">
       <h2 class="org-empty__t">{{ 'You have not applied for a stand yet'|trans }}</h2>
-      <p class="org-empty__b">{{ 'Stands are applied for from the event itself, so you can see the pitch, the price and who else is trading.'|trans }}</p>
+      <p class="org-empty__b">{{ 'Apply from an event page, which shows the pitch, price and other traders.'|trans }}</p>
       <a class="org-go" href="/events">{{ 'See what is open'|trans }}</a>
     </div>
   {% else %}
@@ -208,7 +208,7 @@
   {% else %}
     <div class="org-empty">
       <h2 class="org-empty__t">{{ 'No appeal yet'|trans }}</h2>
-      <p class="org-empty__b">{{ 'An appeal is one thing you are raising for, with a target and a closing date. Your page can take gifts without one.'|trans }}</p>
+      <p class="org-empty__b">{{ 'An appeal has a target and closing date. Your page takes gifts without one.'|trans }}</p>
     </div>
   {% endif %}
 
@@ -291,8 +291,8 @@
   #}
   <p class="org-hint">
     {{ payout_mode == 'transfer'
-      ? 'Money is paid out when you request it — nothing moves on its own.'|trans
-      : 'Gifts settle to your account on the provider\'s own schedule. Requesting is for anything still held back.'|trans }}
+      ? 'Money is paid out only when you request it.'|trans
+      : 'Gifts settle on the provider’s schedule. Request anything still held back.'|trans }}
     {% if org.settlement_schedule == 'manual' %}
       {{ 'Your account is set to manual settlement.'|trans }}
     {% endif %}
@@ -301,7 +301,7 @@
   {% if org.account_last4 %}
     <p class="org-hint">{{ 'Paid into the account ending %n%.'|trans({'%n%': org.account_last4}) }}</p>
   {% else %}
-    <p class="org-flag org-flag--todo" role="status">{{ 'We do not have an account to pay into yet. Write to us and we will set it up with you.'|trans }}</p>
+    <p class="org-flag org-flag--todo" role="status">{{ 'No payout account yet. Write to us to set one up.'|trans }}</p>
   {% endif %}
 
   {#
@@ -354,7 +354,7 @@
 {# ══ STAND FEES ═══════════════════════════════════════════════════════════ #}
 {% elseif org_tab == 'fees' %}
 
-  <p class="org-empty__b">{{ 'A stand is invoiced after it is accepted — there is no balance to withdraw on a vendor account, because the money runs the other way.'|trans }}</p>
+  <p class="org-empty__b">{{ 'Stands are invoiced once accepted, so a vendor account has nothing to withdraw.'|trans }}</p>
   {% if applications %}
     <a class="org-go" href="/org?tab=stands">{{ 'See your applications'|trans }}</a>
   {% else %}
@@ -382,7 +382,7 @@
   {% else %}
     <div class="org-empty">
       <h2 class="org-empty__t">{{ 'Nothing listed yet'|trans }}</h2>
-      <p class="org-empty__b">{{ 'What you list appears beside your stand, so a visitor knows what you are bringing before they walk over.'|trans }}</p>
+      <p class="org-empty__b">{{ 'What you list shows beside your stand for visitors.'|trans }}</p>
     </div>
   {% endif %}
 

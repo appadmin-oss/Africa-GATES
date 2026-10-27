@@ -163,9 +163,9 @@
        partner page, including the ones paying a platform share the checkout disclosed in
        naira a screen earlier — the page contradicting its own receipt. #}
     {% if org_fee_bps|default(0) > 0 %}
-    <p class="ob-gates__b">{{ 'Your gift settles straight into %o%’s own account, less the %f%% Africa GATES share shown at the checkout. Africa GATES is a project of Afrovanguard, a registered non-profit.'|trans({'%o%': org.name, '%f%': (org_fee_bps / 100)|number_format(2)}) }}</p>
+    <p class="ob-gates__b">{{ 'Your gift settles straight to %o%, less the %f%% Africa GATES share shown at checkout. Africa GATES is a project of Afrovanguard, a registered non-profit.'|trans({'%o%': org.name, '%f%': (org_fee_bps / 100)|number_format(2)}) }}</p>
     {% else %}
-    <p class="ob-gates__b">{{ '%o% keeps every naira of your gift — this platform takes no cut, charges them nothing, and settles straight into their own account. Africa GATES is a project of Afrovanguard, a registered non-profit, and it runs on optional support rather than on a fee.'|trans({'%o%': org.name}) }}</p>
+    <p class="ob-gates__b">{{ '%o% keeps every naira; we take no cut and it settles straight to them. Africa GATES is a project of Afrovanguard, a registered non-profit, funded by optional support.'|trans({'%o%': org.name}) }}</p>
     {% endif %}
     <p class="ob-gates__l"><a href="/philosophy">{{ 'What Africa GATES is'|trans }}</a><span aria-hidden="true"> · </span><a href="/giving">{{ 'Support the awards programme'|trans }}</a></p>
   </section>

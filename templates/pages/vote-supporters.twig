@@ -27,7 +27,7 @@
   </header>
 
   {% if backer_count > total %}
-    <p class="vs-p">{{ '%n% people back %name% in all. The rest chose not to be named, and they are counted just the same.'|trans({'%n%': backer_count|number_format, '%name%': nom.name}) }}</p>
+    <p class="vs-p">{{ '%n% people back %name%. The rest chose privacy and count the same.'|trans({'%n%': backer_count|number_format, '%name%': nom.name}) }}</p>
   {% endif %}
 
   {% if supporters|length %}
@@ -37,7 +37,7 @@
       {% endfor %}
     </ol>
   {% else %}
-    <p class="vs-empty">{{ 'Nobody has asked to be named yet. Vote, tick “show my name”, and you will be first.'|trans }}</p>
+    <p class="vs-empty">{{ 'Nobody has asked to be named yet. Vote and tick “show my name”.'|trans }}</p>
   {% endif %}
 
   {% if pages > 1 %}
@@ -49,6 +49,6 @@
   {% endif %}
 
   <a class="ag-btn ag-btn--primary ag-btn--pill vs-cta" href="{{ ballot_url }}">{{ 'Vote for %n%'|trans({'%n%': nom.name|split(' ')|first}) }}</a>
-  <p class="vs-fine"><a href="/privacy#supporters">{{ 'How we handle voter names'|trans }}</a>{% if capped %} · {{ 'This page lists the most recent contributions; on a very large rally the oldest may not be shown.'|trans }}{% endif %}</p>
+  <p class="vs-fine"><a href="/privacy#supporters">{{ 'How we handle voter names'|trans }}</a>{% if capped %} · {{ 'Only the most recent contributions are listed.'|trans }}{% endif %}</p>
 </div>
 {% endblock %}

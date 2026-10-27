@@ -63,9 +63,9 @@
       <h2 class="rc__h2" id="rcNext">{{ 'What happens next'|trans }}</h2>
       <p class="rc__p">
         {%- if sla_hours|default(0) > 0 -%}
-          {{ 'Our panel reviews every nomination before a profile joins the cycle, usually within %h% hours — and we email you the moment it is live.'|trans({'%h%': sla_hours}) }}
+          {{ 'We review every nomination, usually within %h% hours, and email you when it’s live.'|trans({'%h%': sla_hours}) }}
         {%- else -%}
-          {{ 'Our panel reviews every nomination before a profile joins the cycle — and we email you the moment it is live.'|trans }}
+          {{ 'We review every nomination and email you when it’s live.'|trans }}
         {%- endif -%}
       </p>
       {% if _ref %}
@@ -91,7 +91,7 @@
       #}
       <section class="rc__card" id="rc-share" aria-labelledby="rcShare">
         <h2 class="rc__h2" id="rcShare">{{ 'Rally more nominations for %who%'|trans({'%who%': _nom ?: 'them'|trans}) }}</h2>
-        <p class="rc__p">{{ 'Nominations from more people and places strengthen a case. Share a link that fills in what you knew — whoever opens it can change every detail before submitting in their own name.'|trans }}</p>
+        <p class="rc__p">{{ 'More voices strengthen a case. The link prefills what you knew; others edit and submit as themselves.'|trans }}</p>
         <label class="ag-label" for="rcShareUrl">{{ 'Your share link'|trans }}</label>
         <div class="rc__share-row">
           <input id="rcShareUrl" class="ag-field" type="text" readonly value="{{ share_url }}">
@@ -104,7 +104,7 @@
     <section class="rc__card" aria-labelledby="rcH">
       <p class="rc__kicker">{{ 'Nominations'|trans }}</p>
       <h1 class="rc__h1" id="rcH">{{ 'Your nomination was received'|trans }}</h1>
-      <p class="rc__p">{{ 'This page shows once, straight after you send a nomination. Its reference and the review update are in the email we sent you, and anything you nominated while signed in is in your account.'|trans }}</p>
+      <p class="rc__p">{{ 'Your reference is in our email, and in your account if you were signed in.'|trans }}</p>
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/nominate">{{ 'Nominate someone'|trans }}</a>
         <a class="ag-btn ag-btn--secondary" href="/account">{{ 'Open my account'|trans }}</a>

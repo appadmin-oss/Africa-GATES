@@ -23,7 +23,7 @@
 <div class="fl">
   <header class="fl-head">
     <h1 class="vs-h1">{{ 'A flier for %n%'|trans({'%n%': f.name}) }}</h1>
-    <p class="vs-p">{{ 'Ready to post to WhatsApp, Instagram or a group chat. It carries %n%’s real standing, so it gives people a reason to vote today.'|trans({'%n%': f.name}) }}</p>
+    <p class="vs-p">{{ 'Ready for WhatsApp, Instagram or a group chat, with %n%’s real standing.'|trans({'%n%': f.name}) }}</p>
   </header>
   <div class="fl-grid">
     <figure class="fl-fig">
@@ -41,7 +41,7 @@
       <div class="fl-copy">
         <p class="fl-copy__k">{{ 'The line on the flier'|trans }}</p>
         <p class="fl-copy__t">{{ f.rally }}</p>
-        {% if f.ai %}<p class="vs-fine">{{ 'Drafted with AI from the category and current standing. Read it before you share it.'|trans }}</p>{% endif %}
+        {% if f.ai %}<p class="vs-fine">{{ 'Drafted with AI from the current standing. Check it before sharing.'|trans }}</p>{% endif %}
       </div>
       <div class="fl-acts">
         <a class="ag-btn ag-btn--primary ag-btn--pill" href="{{ png_url }}" download="{{ file_name }}">{{ 'Download image (PNG)'|trans }}</a>
@@ -52,7 +52,7 @@
         <a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ f.url }}">{{ 'Back to the ballot'|trans }}</a>
       </div>
       <p class="fl-status" data-fl-status role="status" aria-live="polite"></p>
-      <p class="vs-fine">{{ 'Public votes are one part of the score. Independent judges are the rest, so a flier is a call for support — not a claim to have won.'|trans }}</p>
+      <p class="vs-fine">{{ 'Votes are only part of the score, so a flier asks for support, not a win.'|trans }}</p>
     </div>
   </div>
 </div>

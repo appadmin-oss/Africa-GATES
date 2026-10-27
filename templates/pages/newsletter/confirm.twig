@@ -31,11 +31,11 @@
         <input type="hidden" name="t" value="{{ t }}">
         <button type="submit" class="ag-btn ag-btn--primary nl__go">{{ 'Yes, send it to me'|trans }}</button>
       </form>
-      <p class="ag-hint">{{ 'Did not ask for this? Close the page. Nothing is sent to an address that has not been confirmed.'|trans }}</p>
+      <p class="ag-hint">{{ 'Did not ask? Close the page. Nothing goes to unconfirmed addresses.'|trans }}</p>
     {% else %}
       <p class="nl__kicker">{{ 'Newsletter'|trans }}</p>
       <h1 class="nl__h1" id="nlC">{{ 'This link did not work'|trans }}</h1>
-      <p class="nl__p">{{ 'It may have been broken across two lines by your email app. Copy the whole link from the email into your browser, or ask for a new one.'|trans }}</p>
+      <p class="nl__p">{{ 'Your email app may have split it. Copy the whole link or request another.'|trans }}</p>
       <a class="ag-btn ag-btn--secondary" href="/newsletter">{{ 'Sign up again'|trans }}</a>
     {% endif %}
   </section>

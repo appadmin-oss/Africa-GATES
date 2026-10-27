@@ -97,7 +97,7 @@
   {% elseif not hall.shown %}
     <div class="rs-empty"><p>{{ 'Nobody here matches that.'|trans }}</p><a class="ag-btn ag-btn--secondary ag-btn--pill" href="{{ base }}">{{ 'Show everyone'|trans }}</a></div>
   {% endif %}
-  {% if hall.held %}<p class="rs-method">{{ 'Some awards are being checked before their results are published, and are not listed yet.'|trans }}</p>{% endif %}
+  {% if hall.held %}<p class="rs-method">{{ 'Some awards are still being checked and are not listed yet.'|trans }}</p>{% endif %}
   {% if hall.truncated %}<p class="rs-method">{{ 'Showing the most recent editions.'|trans }}</p>{% endif %}
   <p class="rs-method"><a href="/integrity">{{ 'How results are decided and checked'|trans }}</a></p>
 </div>

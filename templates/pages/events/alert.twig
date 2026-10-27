@@ -18,7 +18,7 @@
 <div class="ev-alert">
   {% if not alert %}
     <h1 class="ev-alert__h">{{ 'This link is not working'|trans }}</h1>
-    <p class="ev-alert__p">{{ 'It may have been mistyped or copied only in part. You can ask again from the event’s page.'|trans }}</p>
+    <p class="ev-alert__p">{{ 'It may be incomplete. Ask again from the event’s page.'|trans }}</p>
     <a class="ev-btn ev-btn--line" href="/events">{{ 'See upcoming events'|trans }}</a>
   {% elseif alert.action == 'stop' %}
     {% if done or alert.stopped %}
@@ -35,10 +35,10 @@
   {% else %}
     {% if done or alert.confirmed %}
       <h1 class="ev-alert__h">{{ 'You’re on the list'|trans }}</h1>
-      <p class="ev-alert__p">{{ 'We will email you once, on the day tickets for %t% go on sale.'|trans({'%t%': alert_event.title|default('this event')}) }}</p>
+      <p class="ev-alert__p">{{ 'We’ll email you once, when tickets for %t% go on sale.'|trans({'%t%': alert_event.title|default('this event')}) }}</p>
     {% else %}
       <h1 class="ev-alert__h">{{ 'Confirm your ticket alert'|trans }}</h1>
-      <p class="ev-alert__p">{{ 'Press the button and we will email you once, on the day tickets for %t% go on sale.'|trans({'%t%': alert_event.title|default('this event')}) }}</p>
+      <p class="ev-alert__p">{{ 'We’ll email you once, when tickets for %t% go on sale.'|trans({'%t%': alert_event.title|default('this event')}) }}</p>
       <form method="post" action="/events/alerts/{{ alert.token }}/confirm">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <button type="submit" class="ev-btn ev-btn--go">{{ 'Yes, email me'|trans }}</button>

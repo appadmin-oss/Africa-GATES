@@ -40,7 +40,7 @@
   <div class="cm-col cm-col--pad">
     <header class="cm-hero">
       <h1 class="cm-h1">{{ 'Stand beside the people this continent recognises'|trans }}</h1>
-      <p class="cm-lede">{{ 'Partner with Africa GATES to support transparent, independently judged awards — and reach the people and organisations being recognised in them.'|trans }}</p>
+      <p class="cm-lede">{{ 'Support transparent, independently judged awards and reach the people they recognise.'|trans }}</p>
       <div class="cm-form__go">
         <a class="ag-btn ag-btn--primary ag-btn--pill" href="#enquiry">{{ 'Start the conversation'|trans }}</a>
         <a class="ag-btn ag-btn--secondary ag-btn--pill" href="#how">{{ 'How it works'|trans }}</a>
@@ -63,25 +63,25 @@
     <section aria-labelledby="cm-why-h" class="cm-sec">
       <h2 class="cm-bar__h" id="cm-why-h">{{ 'Why partner with us'|trans }}</h2>
       <ul class="cm-cards cm-cards--3">
-        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'A real audience'|trans }}</h3><p class="cm-opp__p">{{ 'The people and organisations being recognised across the continent, and the members who back them — accounts confirmed by email or phone, not bought followers.'|trans }}</p></li>
-        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'Association with excellence'|trans }}</h3><p class="cm-opp__p">{{ 'Stand beside an honour whose method is published and whose results are sealed when they are announced.'|trans }}</p></li>
-        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'Reporting you can use'|trans }}</h3><p class="cm-opp__p">{{ 'What your partnership reached, reported through the cycle in a form you can take to your board.'|trans }}</p></li>
+        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'A real audience'|trans }}</h3><p class="cm-opp__p">{{ 'Recognised people, organisations and their backers. Verified accounts, not bought followers.'|trans }}</p></li>
+        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'Association with excellence'|trans }}</h3><p class="cm-opp__p">{{ 'An honour with a published method and results sealed on announcement.'|trans }}</p></li>
+        <li class="ag-card cm-why"><h3 class="cm-opp__t">{{ 'Reporting you can use'|trans }}</h3><p class="cm-opp__p">{{ 'What your partnership reached, reported through the cycle for your board.'|trans }}</p></li>
       </ul>
     </section>
 
     <section aria-labelledby="cm-how-h" class="cm-sec" id="how">
       <h2 class="cm-bar__h" id="cm-how-h">{{ 'How partnership works'|trans }}</h2>
       <ol class="cm-steps">
-        <li><b>{{ 'Introduction'|trans }}</b><span>{{ 'Tell us your goals with the form below; a member of the partnerships team replies.'|trans }}</span></li>
+        <li><b>{{ 'Introduction'|trans }}</b><span>{{ 'Tell us your goals below; our partnerships team replies.'|trans }}</span></li>
         <li><b>{{ 'A proposal for you'|trans }}</b><span>{{ 'We shape a package around your objectives, audience and budget.'|trans }}</span></li>
-        <li><b>{{ 'Agreement'|trans }}</b><span>{{ 'We agree the scope, how you are recognised and what you will report on.'|trans }}</span></li>
+        <li><b>{{ 'Agreement'|trans }}</b><span>{{ 'We agree the scope, your recognition and the reporting.'|trans }}</span></li>
         <li><b>{{ 'Launch'|trans }}</b><span>{{ 'Your partnership goes live across the cycle, with reporting throughout.'|trans }}</span></li>
       </ol>
     </section>
 
     <section aria-labelledby="cm-tier-h" class="cm-sec">
       <h2 class="cm-bar__h" id="cm-tier-h">{{ 'Ways to partner'|trans }}</h2>
-      <p class="cm-box__p">{{ 'Every partnership is shaped around your goals, so pricing is tailored to the scope.'|trans }}</p>
+      <p class="cm-box__p">{{ 'Pricing is tailored to each partnership’s scope.'|trans }}</p>
       <ul class="cm-cards cm-cards--3">
         {% for t in _tiers %}
           <li class="ag-card cm-tier{{ loop.index == 2 ? ' cm-tier--feat' }}">
@@ -95,7 +95,7 @@
 
     <section class="ag-card cm-enq" id="enquiry" aria-labelledby="cm-enq-h">
       <h2 class="cm-bar__h" id="cm-enq-h">{{ 'Let’s build something lasting'|trans }}</h2>
-      <p class="cm-box__p">{{ 'Tell us about your organisation and a member of the partnerships team will reply with a proposal.'|trans }}</p>
+      <p class="cm-box__p">{{ 'Tell us about your organisation and we will reply with a proposal.'|trans }}</p>
       {% if error|default('') %}<p class="cm-say cm-say--error" role="alert" tabindex="-1">{{ error }}</p>{% endif %}
       <form class="cm-form" method="post" action="/partner">
         <input type="hidden" name="_token" value="{{ csrf_token }}">

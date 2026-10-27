@@ -28,7 +28,7 @@
     {% if not sub %}
       <p class="rc__kicker">{{ 'Monthly gift'|trans }}</p>
       <h1 class="rc__h1" id="rcH">{{ 'This link is not valid'|trans }}</h1>
-      <p class="rc__p">{{ 'Use the link in your most recent receipt email. If you cannot find it, write to us and we will stop the gift by hand.'|trans }}</p>
+      <p class="rc__p">{{ 'Use your latest receipt’s link, or ask us to stop it.'|trans }}</p>
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/support">{{ 'Contact us'|trans }}</a>
         <a class="ag-btn ag-btn--secondary" href="/giving">{{ 'Back to giving'|trans }}</a>
@@ -55,7 +55,7 @@
 
       {% if not _stopped %}
         <h2 class="rc__h2">{{ 'Stop this gift'|trans }}</h2>
-        <p class="rc__p">{{ 'Stopping takes effect straight away and you will not be charged again. Everything you have already given stays with the programmes.'|trans }}</p>
+        <p class="rc__p">{{ 'Stops at once and you will not be charged again. Past gifts are kept.'|trans }}</p>
         <form method="post" action="{{ stop_url }}" class="rc__do">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <button type="submit" class="ag-btn ag-btn--secondary">{{ 'Stop my monthly gift'|trans }}</button>

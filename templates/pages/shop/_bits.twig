@@ -108,7 +108,7 @@
 
     {% if ctx.providers is empty %}
       {# No gateway can take money right now. Said before anybody fills a form in. #}
-      <p class="sp-cart__soon" role="status">{{ 'Online checkout is being set up. To order now, write to us and we’ll arrange payment and delivery.'|trans }}</p>
+      <p class="sp-cart__soon" role="status">{{ 'Online checkout is being set up. Write to us to order.'|trans }}</p>
     {% endif %}
 
     <form class="sp-cart__form" method="post" action="/shop/checkout" data-sp-checkout novalidate data-ag-validate data-favicon-busy>
@@ -214,5 +214,5 @@
     </div>
     <button type="button" class="sp-keep" data-sp-added-close>{{ 'Keep shopping'|trans }}</button>
   </div>
-  <noscript><p class="sp-noscript">{{ 'The cart needs JavaScript. To order without it, write to us and we’ll arrange payment and delivery.'|trans }}</p></noscript>
+  <noscript><p class="sp-noscript">{{ 'The cart needs JavaScript. Write to us to order without it.'|trans }}</p></noscript>
 {% endmacro %}

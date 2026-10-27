@@ -61,7 +61,7 @@
       </p>
     {% endif %}
     {% if live.asked > 0 and live.sources < live.asked %}
-      <p class="dv-warn">{{ 'Some activity sources are unavailable on this deployment (%n% of %m% responded), so this timeline may be incomplete.'|trans({'%n%': live.sources, '%m%': live.asked}) }}</p>
+      <p class="dv-warn">{{ 'Some activity sources are unavailable on this deployment (%n% of %m% responded).'|trans({'%n%': live.sources, '%m%': live.asked}) }}</p>
     {% endif %}
   </div>
 
@@ -98,7 +98,7 @@
     {% else %}
       <li class="dv-list__empty">
         {%- if live.unsourced -%}
-          {{ 'Nothing on this platform is recorded as a recognition yet, so there is nothing to list under this kind.'|trans }}
+          {{ 'No recognitions are recorded yet.'|trans }}
         {%- elseif s.q -%}
           {{ 'Nothing matches “%q%” yet. Try a nominee’s name, an award category or a country.'|trans({'%q%': s.q}) }}
         {%- else -%}
@@ -114,7 +114,7 @@
          the reader lands where the new rows begin, not back at the top. #}
       <a class="dv-older" href="{{ discover_url(s, {page: live.page + 1}) }}#dv-r{{ _n + 1 }}" data-dv-older-go>{{ 'Show older updates'|trans }}</a>
     {% elseif _full and live.deepest %}
-      <p class="dv-live__end">{{ 'That is as far back as this list goes. Search for a name, an award or a place to find something older.'|trans }}</p>
+      <p class="dv-live__end">{{ 'End of the list. Search to find anything older.'|trans }}</p>
     {% endif %}
   </div>
 </section>

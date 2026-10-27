@@ -75,7 +75,7 @@
   <section class="aw-notify" id="aw-notify" aria-labelledby="aw-notify-t">
     <div class="aw-notify__head">
       <h2 class="aw-notify__t" id="aw-notify-t">{{ 'Be first to know'|trans }}</h2>
-      <p class="aw-notify__p">{{ 'We’ll email you once, on the day nominations open. Nothing is sent until you confirm the link we send.'|trans }}</p>
+      <p class="aw-notify__p">{{ 'We’ll email you once, when nominations open, after you confirm our link.'|trans }}</p>
     </div>
     {% if alert_said %}<p class="aw-notify__said" role="status">{{ alert_said }}</p>{% endif %}
     <form class="aw-notify__form" method="post" action="/awards/{{ a.slug }}/notify" novalidate data-ag-validate>
@@ -108,7 +108,7 @@
 
   <section class="aw-prep" aria-labelledby="aw-prep">
     <h2 class="aw-prep__t" id="aw-prep">{{ 'Thinking of nominating someone?'|trans }}</h2>
-    <p class="aw-prep__p">{{ 'Start gathering evidence now: links, photos, press or letters. You’ll need a reason of at least %n% characters for each category.'|trans({'%n%': constant('AfricaGates\\Services\\NominationRules::MIN_REASON')}) }}</p>
+    <p class="aw-prep__p">{{ 'Gather evidence now. Each category needs a reason of at least %n% characters.'|trans({'%n%': constant('AfricaGates\\Services\\NominationRules::MIN_REASON')}) }}</p>
     <a class="aw-prep__a" href="/nominate">{{ 'How nominating works'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
   </section>
 
@@ -160,11 +160,11 @@
       <p>{{ (a.nom_rules.min == a.nom_rules.max
             ? (a.nom_rules.max == 1 ? 'Anyone can nominate. Each nomination names the category with a reason of at least %reason% characters.' : 'Anyone can nominate. Each nomination names %max% categories, with a reason of at least %reason% characters for each.')
             : 'Anyone can nominate. Each nomination names between %min% and %max% categories, with a reason of at least %reason% characters for each.')|trans({'%min%': a.nom_rules.min, '%max%': a.nom_rules.max, '%reason%': a.nom_rules.reason}) }}
-         {{ 'Evidence such as links, recordings or press is optional, up to %ev% items, and helps the judges. Nominations are checked before anything is published.'|trans({'%ev%': a.nom_rules.ev}) }}</p>
+         {{ 'Evidence is optional, up to %ev% items. Nominations are checked before publishing.'|trans({'%ev%': a.nom_rules.ev}) }}</p>
       {% if _d.nominations_note %}{% for para in _d.nominations_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'How the winner is decided'|trans }}</h2>
-      <p>{{ 'Verified community support counts for %c% of the final score and the judges’ marks for %j%. After voting closes, the panel scores the nominees in each category; a nominee needs complete scorecards from at least %q% judges to be eligible to win. The weights are set before voting opens.'|trans({'%c%': a.weights.community ~ '%', '%j%': a.weights.judge ~ '%', '%q%': a.quorum}) }}</p>
+      <p>{{ 'Verified community support counts %c% and judges’ marks %j%, fixed before voting. A winner needs complete scorecards from at least %q% judges.'|trans({'%c%': a.weights.community ~ '%', '%j%': a.weights.judge ~ '%', '%q%': a.quorum}) }}</p>
       {% if _d.judging_note %}{% for para in _d.judging_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'Voting'|trans }}</h2>
@@ -172,7 +172,7 @@
       {% if _d.voting_note %}{% for para in _d.voting_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'After the results'|trans }}</h2>
-      <p>{{ 'The full standing behind every result is published with the working, and the standing that was announced is sealed: a later change to the rules cannot change a published result.'|trans }} <a href="/integrity">{{ 'How results are checked'|trans }}</a></p>
+      <p>{{ 'Every result is published with its working and sealed; later rule changes cannot alter it.'|trans }} <a href="/integrity">{{ 'How results are checked'|trans }}</a></p>
       {% if _d.after_note %}{% for para in _d.after_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     {% if _d.faq %}
@@ -200,7 +200,7 @@
       </ol>
     </section>
     {% endif %}
-    <p class="aw-terms__foot">{{ 'Voting or nominating in this award asks you to accept the version in force, and records which one you accepted. Integrity concerns go to the'|trans }} <a href="/integrity">{{ 'Integrity Center'|trans }}</a>.</p>
+    <p class="aw-terms__foot">{{ 'Voting or nominating accepts the version in force; we record which. Integrity concerns go to the'|trans }} <a href="/integrity">{{ 'Integrity Center'|trans }}</a>.</p>
   </article>
 
   {% else %}

@@ -39,7 +39,7 @@
 <div class="pp{{ editing ? ' is-editing' }}" data-pp data-name="{{ _name }}"
      data-t-listen="{{ 'Listen'|trans }}" data-t-pause="{{ 'Pause'|trans }}" data-t-resume="{{ 'Resume'|trans }}">
   {% if editing %}
-    <div class="pp-editbar" role="status">{{ 'You’re editing your profile. Your name, country and reviewed evidence are locked, because they’re part of your verified record.'|trans }}</div>
+    <div class="pp-editbar" role="status">{{ 'You’re editing your profile. Name, country and reviewed evidence are locked.'|trans }}</div>
   {% endif %}
 
   <div class="pp-grid">
@@ -119,7 +119,7 @@
             <a class="pp-link" href="/support">{{ 'Changed your name or country? Request re-verification'|trans }}</a>
           </form>
         {% else %}
-          <p class="pp-about" data-pp-read>{{ p.bio ?: (_owner ? 'Nothing here yet. Edit your profile to say who you are and what you do.'|trans : 'No introduction yet.'|trans) }}</p>
+          <p class="pp-about" data-pp-read>{{ p.bio ?: (_owner ? 'Nothing here yet. Edit your profile to introduce yourself.'|trans : 'No introduction yet.'|trans) }}</p>
         {% endif %}
       </section>
 
@@ -136,7 +136,7 @@
             {% endfor %}
           </ul>
         {% else %}
-          <p class="pp-empty">{{ _owner ? 'Recognition appears here when a verified issuer gives it — the platform issues one when an award you were in is announced.'|trans : 'No recognition from a verified issuer yet.'|trans }}</p>
+          <p class="pp-empty">{{ _owner ? 'Recognition from a verified issuer, or from an announced award, appears here.'|trans : 'No recognition from a verified issuer yet.'|trans }}</p>
         {% endif %}
         {% if pg.recognition.withdrawn %}
           <ul class="pp-list pp-list--gone" aria-label="{{ 'Withdrawn recognition'|trans }}">
@@ -194,9 +194,9 @@
           {% if pg.cpi.basis == 'judged' %}
             <p class="pp-cpi__how">{{ 'Scored from verified community votes (%c%%) and an independent judge panel (%j%%).'|trans({'%c%': pg.cpi.weights.community, '%j%': pg.cpi.weights.judge}) }}</p>
           {% elseif pg.cpi.basis == 'pending' %}
-            <p class="pp-cpi__how">{{ 'Nominated, and no panel has finished judging yet. Until one does, this is profile strength: verification, completeness and reach.'|trans }}</p>
+            <p class="pp-cpi__how">{{ 'Nominated, and no panel has finished judging yet. This is profile strength.'|trans }}</p>
           {% else %}
-            <p class="pp-cpi__how">{{ 'Not yet nominated, so no jury has scored this profile. This is profile strength: verification, completeness and reach.'|trans }}</p>
+            <p class="pp-cpi__how">{{ 'Not yet nominated, so no jury has scored this profile. This is profile strength.'|trans }}</p>
           {% endif %}
           <a class="pp-link" href="/leaderboard">{{ 'See the leaderboard'|trans }}</a>
         </section>

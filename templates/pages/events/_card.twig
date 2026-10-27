@@ -35,7 +35,7 @@
 {% elseif st == 'soldout' %}
   <span class="ed-card__k ed-card__k--stop">{{ 'Fully booked'|trans }}</span>
   <h2 class="ed-card__h">{{ 'This event is full'|trans }}</h2>
-  <p class="ed-card__p">{% if capacity %}{{ 'All %n% places have been reserved.'|trans({'%n%': capacity|number_format}) }}{% else %}{{ 'Every ticket has been reserved.'|trans }}{% endif %} {{ 'Places that come back are not held for anybody, so it is worth checking again.'|trans }}</p>
+  <p class="ed-card__p">{% if capacity %}{{ 'All %n% places have been reserved.'|trans({'%n%': capacity|number_format}) }}{% else %}{{ 'Every ticket has been reserved.'|trans }}{% endif %} {{ 'Returned places are not held, so check again.'|trans }}</p>
   {% if ev.livestream %}<a class="ed-cta" href="{{ ev.livestream }}" target="_blank" rel="noopener">{{ 'Watch the livestream'|trans }}</a>{% endif %}
   <a class="ed-cta ed-cta--line" href="/newsletter">{{ 'Hear about the next one'|trans }}</a>
 
@@ -53,7 +53,7 @@
     <label class="ed-label" for="edNotify">{{ 'Email me when tickets go on sale'|trans }}</label>
     <input class="ed-input" id="edNotify" type="email" name="email" required autocomplete="email" inputmode="email"
            value="{{ member ? member.email : '' }}" aria-describedby="edNotifyHint">
-    <p class="ed-hint" id="edNotifyHint">{{ 'We send a link to confirm first, then one email on the day. Nothing else.'|trans }}</p>
+    <p class="ed-hint" id="edNotifyHint">{{ 'A confirmation link, then one email on the day. Nothing else.'|trans }}</p>
     <button type="submit" class="ed-cta">{{ 'Notify me'|trans }}</button>
     {% if alert_said %}<p class="ed-said" role="status">{{ alert_said|trans }}</p>{% endif %}
     {% if alert_waiting > 1 %}<p class="ed-card__note">{{ '%n% people are waiting for tickets.'|trans({'%n%': alert_waiting|number_format}) }}</p>{% endif %}
@@ -90,7 +90,7 @@
         {{ 'Giving directly is separate — the appeal is on this page.'|trans }}</p>
     {% endif %}
     {% if st == 'waitlist' %}
-      <p class="ed-card__p ed-card__p--sm">{{ 'Seats come back — a failed payment, an expired hold, a cancellation. Join and you are emailed the moment one does; you will have %h% hours to take it.'|trans({'%h%': waitlist_hours}) }}</p>
+      <p class="ed-card__p ed-card__p--sm">{{ 'We email you when a seat frees up. Take it within %h% hours.'|trans({'%h%': waitlist_hours}) }}</p>
     {% endif %}
 
     {% if tiers|length %}
@@ -143,7 +143,7 @@
     </div>
 
     {% if paid_tiers and not gateway_ready %}
-      <p class="ed-warn" data-ed-nogate>{{ 'Card payment is not available on this site right now, so paid tickets cannot be bought here. Contact the organiser and they can register you.'|trans }}</p>
+      <p class="ed-warn" data-ed-nogate>{{ 'Paid tickets are unavailable here now. The organiser can register you.'|trans }}</p>
     {% endif %}
 
     <div class="ed-field">

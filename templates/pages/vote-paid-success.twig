@@ -53,7 +53,7 @@
         <p class="rc__kicker">{{ 'Votes confirmed'|trans }}</p>
         <h1 class="rc__h1" id="rcH">{{ _title }}</h1>
       {% endif %}
-      <p class="rc__p">{{ 'Your payment of ₦%amt% was verified and the votes are in the public tally. Paid votes raise the tally — the independent jury score, %pct%% of the index, is never affected by them.'|trans({'%amt%': amount_naira|number_format, '%pct%': judge_pct|default(55)}) }}</p>
+      <p class="rc__p">{{ 'Your ₦%amt% was verified and the votes are tallied. Paid votes never affect the jury score (%pct%%).'|trans({'%amt%': amount_naira|number_format, '%pct%': judge_pct|default(55)}) }}</p>
       <dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>
       <h2 class="rc__h2" id="rcNext">{{ 'What happens next'|trans }}</h2>
       <ul class="rc__rows">
@@ -81,14 +81,14 @@
     <section class="rc__card" aria-labelledby="rcMsg" data-rc-msg data-ref="{{ reference }}" data-max="{{ msg_max|default(400) }}" data-open="{{ 'Open your message'|trans }}"{% if msg_posted|default(false) %} data-sent{% endif %} hidden>
       <h2 class="rc__h2" id="rcMsg">{{ 'Say something about %who%'|trans({'%who%': _who ?: 'them'|trans}) }}</h2>
       <div data-rc-msg-form{% if msg_posted|default(false) %} hidden{% endif %}>
-        <p class="rc__p">{{ 'Optional, and it appears on their page once checked. Other supporters read these. No links or phone numbers, please.'|trans }}</p>
+        <p class="rc__p">{{ 'Optional. Shown on their page once checked. No links or phone numbers.'|trans }}</p>
         <label class="ag-label" for="rcMsgBody">{{ 'Your message'|trans }}</label>
         <textarea class="ag-field" id="rcMsgBody" rows="4" maxlength="{{ msg_max|default(400) }}" data-rc-msg-body></textarea>
         <p class="ag-hint"><span data-rc-msg-n>0</span>/{{ msg_max|default(400) }}</p>
         <p class="ag-err" role="alert" data-rc-msg-err hidden></p>
         <button type="button" class="ag-btn ag-btn--ink" data-rc-msg-go data-busy="{{ 'Posting…'|trans }}" data-short="{{ 'Write a few words first.'|trans }}">{{ 'Post my message'|trans }}</button>
       </div>
-      <p class="rc__p" role="status" data-rc-msg-done{% if not msg_posted|default(false) %} hidden{% endif %}>{{ msg_posted|default(false) ? 'Thank you — the message you wrote on the ballot was saved with this order.'|trans : '' }}</p>
+      <p class="rc__p" role="status" data-rc-msg-done{% if not msg_posted|default(false) %} hidden{% endif %}>{{ msg_posted|default(false) ? 'Thank you — your ballot message was saved with this order.'|trans : '' }}</p>
     </section>
 
     <section class="rc__card" aria-labelledby="rcRally">
@@ -107,11 +107,11 @@
           <p class="rc__verdict-s">{{ 'Nothing was added to the public tally — the standings are unchanged.'|trans }}</p></div>
       </div>
       <h1 class="rc__h1" id="rcH">{{ 'Voting closed before this payment confirmed'|trans }}</h1>
-      <p class="rc__p">{{ 'Your payment of ₦%amt% went through, but voting for %who% had already closed by the time it reached us — so no votes were added. We will not count votes in a closed category, which means this order is refundable.'|trans({'%amt%': amount_naira|number_format, '%who%': _who ?: 'this nominee'|trans}) }}</p>
+      <p class="rc__p">{{ 'Your ₦%amt% went through after voting for %who% closed, so no votes were added. This order is refundable.'|trans({'%amt%': amount_naira|number_format, '%who%': _who ?: 'this nominee'|trans}) }}</p>
       {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
       <ul class="rc__rows">
-        <li class="rc__row"><span class="rc__row-k">{{ 'Quote the reference above and we will refund the full amount. A person decides every refund; the assistant opens the ticket with the reference attached.'|trans }}</span></li>
-        <li class="rc__row"><span class="rc__row-k">{{ 'If the category reopens before then, we can deliver the votes instead — your choice.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'Quote the reference above for a full refund. A person decides every refund.'|trans }}</span></li>
+        <li class="rc__row"><span class="rc__row-k">{{ 'If the category reopens first, we can deliver the votes instead.'|trans }}</span></li>
       </ul>
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Arrange the refund'|trans }}</a>
@@ -126,7 +126,7 @@
           <p class="rc__verdict-s">{{ 'Payments are verified with the gateway before any vote counts.'|trans }}</p></div>
       </div>
       <h1 class="rc__h1" id="rcH">{{ 'We could not confirm that payment yet'|trans }}</h1>
-      <p class="rc__p">{{ 'If you completed the payment, the confirmation can take a moment to land. If you were charged and see no votes within a few minutes, the re-check asks the gateway directly and adds them if the money arrived.'|trans }}</p>
+      <p class="rc__p">{{ 'Confirmation can lag. Charged but no votes after a few minutes? Re-check below.'|trans }}</p>
       {% if reference %}<dl class="rc__ref"><dt>{{ 'Reference'|trans }}</dt><dd>{{ reference }}</dd></dl>{% endif %}
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/support/assistant?topic=payment{{ reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '' }}">{{ 'Re-check this payment'|trans }}</a>

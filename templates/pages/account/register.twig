@@ -59,7 +59,7 @@
     {{ f.summary(_errs) }}
     {{ f.text({name: 'name', label: 'Your name'|trans, value: _old.name|default(''), required: true,
                autocomplete: 'name', placeholder: 'As people know you'|trans, pattern: name_pattern,
-               maxlength: 160, hint: 'Your first and last name — it is what a ballot and a receipt print.'|trans, autofocus: true},
+               maxlength: 160, hint: 'First and last name, as printed on ballots and receipts.'|trans, autofocus: true},
              _errs.name|default('')) }}
     {{ f.text({name: 'headline', label: 'What you do'|trans, value: _old.headline|default(''),
                maxlength: 120, placeholder: 'e.g. Teacher, nurse, founder'|trans, autocomplete: 'organization-title'},
@@ -70,7 +70,7 @@
     {% if join.via == 'phone' %}
       {{ f.text({name: 'email', label: 'Your email'|trans, type: 'email', value: _old.email|default(''), required: true,
                  autocomplete: 'email', inputmode: 'email', placeholder: 'you@example.com',
-                 hint: 'Where your vote receipts and tickets go. We send a link to confirm it; disposable inboxes are not accepted.'|trans},
+                 hint: 'For receipts and tickets. We’ll send a confirmation link; no disposable inboxes.'|trans},
                _errs.email|default('')) }}
     {% endif %}
     <button class="si__go" type="submit">{{ 'Continue'|trans }}</button>
@@ -80,16 +80,16 @@
   {# ══ AN ORGANISATION APPLYING TO RECEIVE GIFTS ════════════════════════════ #}
   <div class="si__head">
     <h1 class="si__h1">{{ 'Register your organisation'|trans }}</h1>
-    <p class="si__lede">{{ 'Raise through Giving, with gifts settled into your own registered account. Before you start, have these to hand:'|trans }}</p>
+    <p class="si__lede">{{ 'Gifts settle into your own registered account. You’ll need:'|trans }}</p>
   </div>
   <ul class="si__needs">
-    <li>{{ 'Your CAC registration number — only an incorporated body may collect charitable gifts in Nigeria.'|trans }}</li>
-    <li>{{ 'Your SCUML number if you have it. You can apply without it, but you cannot be approved until it is on file.'|trans }}</li>
-    <li>{{ 'A bank account in your registered name, which we check with your bank before any gift reaches it.'|trans }}</li>
+    <li>{{ 'Your CAC number — only incorporated bodies may collect charitable gifts in Nigeria.'|trans }}</li>
+    <li>{{ 'Your SCUML number, if you have it. Needed for approval, not to apply.'|trans }}</li>
+    <li>{{ 'A bank account in your registered name; we verify it before gifts arrive.'|trans }}</li>
   </ul>
   {{ auth.say(_error, _notice) }}
   {% if org_signed_in %}
-    <p class="si__say" role="status">{{ 'You are already signed in to an organisation. Continue from its dashboard — a second application would sit beside the first with nothing to say which is real.'|trans }}</p>
+    <p class="si__say" role="status">{{ 'You’re already signed in to an organisation. Continue from its dashboard.'|trans }}</p>
     <a class="si__go" href="/org">{{ 'Go to your dashboard'|trans }}</a>
   {% else %}
     <form class="si__form-step" method="post" action="/account/register" novalidate data-ag-validate>
@@ -120,12 +120,12 @@
   {# ══ THE CHOOSER ═══════════════════════════════════════════════════════════ #}
   <div class="si__head">
     <h1 class="si__h1">{{ 'Join Africa GATES'|trans }}</h1>
-    <p class="si__lede">{{ 'Choose what you are joining as. You can do most things here without an account at all.'|trans }}</p>
+    <p class="si__lede">{{ 'Most things here need no account at all.'|trans }}</p>
   </div>
   {{ auth.say(_error, _notice) }}
   <nav class="ag-list si__list" aria-label="{{ 'Kinds of account'|trans }}">
     {% for o in [
-      {href: '/account/login', t: 'As a person'|trans, s: 'Nominate, vote, give and keep your recognitions — sign in with a code, no password.'|trans},
+      {href: '/account/login', t: 'As a person'|trans, s: 'Nominate, vote, give and keep recognitions. Sign in with a code.'|trans},
       {href: '/account/register?as=organisation', t: 'As an organisation'|trans, s: 'Receive gifts through a Giving page. Needs a CAC registration.'|trans},
       {href: '/events', t: 'As a stand vendor'|trans, s: 'Apply for a stand at an event — from the event’s own page.'|trans},
       {href: '/partner', t: 'As a sponsor or partner'|trans, s: 'Back an award or an edition. Tell us what you have in mind.'|trans},

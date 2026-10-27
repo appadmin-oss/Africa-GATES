@@ -41,7 +41,7 @@
           <button type="submit" class="ag-btn ag-btn--primary">{{ 'Send it to the reviewer'|trans }}</button>
         </div>
       </form>
-      <p class="rc__fine">{{ 'It goes back to the reviewer as soon as you send it. This link works until %date%.'|trans({'%date%': closes_on}) }}</p>
+      <p class="rc__fine">{{ 'It goes straight to the reviewer. This link works until %date%.'|trans({'%date%': closes_on}) }}</p>
     </section>
   {% elseif state == 'done' %}
     <section class="rc__card" aria-labelledby="naH">
@@ -56,7 +56,7 @@
     <section class="rc__card" aria-labelledby="naH">
       <p class="rc__kicker">{{ 'Your nomination'|trans }}</p>
       <h1 class="rc__h1" id="naH">{{ 'This link no longer works'|trans }}</h1>
-      <p class="rc__p">{{ 'It may have been used already, or be past its date. If a reviewer still needs something, tell us through the help desk and we will sort it out.'|trans }}</p>
+      <p class="rc__p">{{ 'It may be used or expired. The help desk can sort it out.'|trans }}</p>
       <div class="rc__do">
         <a class="ag-btn ag-btn--primary" href="/support">{{ 'Open the help desk'|trans }}</a>
       </div>

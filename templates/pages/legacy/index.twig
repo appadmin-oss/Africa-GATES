@@ -34,7 +34,7 @@
     <div class="lv-hero__main">
       <span class="lv-kicker">{{ 'Legacy Vault'|trans }}</span>
       <h1 class="lv-h1" id="lv-h1">{{ 'Every edition, archived.'|trans }}</h1>
-      <p class="lv-lede">{{ 'Recognition is a record, not a moment. Each edition becomes part of the permanent vault: searchable, dated and forever credited.'|trans }}</p>
+      <p class="lv-lede">{{ 'Each edition stays here for good: searchable, dated and credited.'|trans }}</p>
     </div>
     <dl class="lv-stats">
       <div><dd>{{ vault.metrics.editions|number_format }}</dd><dt>{{ vault.metrics.countries == 1 ? 'editions held in 1 country'|trans : 'editions held across %n% countries'|trans({'%n%': vault.metrics.countries}) }}</dt></div>
@@ -68,7 +68,7 @@
       </form>
       <a class="lv-note" href="/integrity">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/></svg>
-        <span>{{ 'Every announced result is sealed at the moment it is announced, and the seal is never rewritten.'|trans }} <u>{{ 'How sealing works'|trans }}</u></span>
+        <span>{{ 'Every result is sealed when announced, and never rewritten.'|trans }} <u>{{ 'How sealing works'|trans }}</u></span>
       </a>
     </aside>
 

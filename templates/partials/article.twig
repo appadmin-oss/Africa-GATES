@@ -286,9 +286,9 @@
   </div>
   <p class="dp-cite__note">{{ d.cite.note }}</p>
   {% if d.cite.md is defined and d.cite.md %}
-    <p class="dp-cite__note">{{ 'Also as Markdown:'|trans }} <a href="{{ d.cite.md }}" download="{{ d.cite.stem }}.md">{{ d.cite.stem }}.md</a>. {{ 'The page carries citation metadata, so Zotero and Mendeley can import the reference from the address.'|trans }}</p>
+    <p class="dp-cite__note">{{ 'Also as Markdown:'|trans }} <a href="{{ d.cite.md }}" download="{{ d.cite.stem }}.md">{{ d.cite.stem }}.md</a>. {{ 'Zotero and Mendeley can import the reference from this page.'|trans }}</p>
   {% else %}
-    <p class="dp-cite__note">{{ 'The page carries citation metadata, so Zotero and Mendeley can import the reference from the address.'|trans }}</p>
+    <p class="dp-cite__note">{{ 'Zotero and Mendeley can import the reference from this page.'|trans }}</p>
   {% endif %}
   <p class="dp-cite__say" role="status" aria-live="polite" data-doc-say
      data-copied="{{ 'Citation copied.'|trans }}" data-linked="{{ 'Link copied.'|trans }}"

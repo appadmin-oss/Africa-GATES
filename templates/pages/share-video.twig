@@ -17,7 +17,7 @@
 <div class="sv">
   <div class="sv__head">
     <h1 class="sv__h1">{{ 'Share video'|trans }}</h1>
-    <p class="sv__lead">{{ 'A short vertical video for a status, a story or a reel. It plays here first; save it, then post it anywhere.'|trans }}</p>
+    <p class="sv__lead">{{ 'A short vertical video for a status, story or reel.'|trans }}</p>
   </div>
 
   <div class="sv__stage">
@@ -32,7 +32,7 @@
   </div>
   <p class="sv__status" data-sv-status role="status" aria-live="polite"></p>
   <a class="sv__dl" data-sv-dl hidden></a>
-  <p class="sv__note">{{ 'Saving records the video as it plays, so it takes about 19 seconds. Keep this tab open until it finishes.'|trans }}</p>
+  <p class="sv__note">{{ 'Saving takes about 19 seconds. Keep this tab open until it finishes.'|trans }}</p>
   <p class="sv__back"><a href="{{ story.url }}">{{ 'Back to %t%'|trans({'%t%': story.title}) }}</a></p>
 </div>
 {% endblock %}

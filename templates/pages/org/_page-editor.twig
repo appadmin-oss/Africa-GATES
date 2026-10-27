@@ -41,7 +41,7 @@
 #}
 
 {% if not can_edit %}
-  <p class="org-empty__b">{{ 'Only an account owner can edit this page. Ask whoever owns the account to make the change.'|trans }}</p>
+  <p class="org-empty__b">{{ 'Only an account owner can edit this page.'|trans }}</p>
 {% endif %}
 
 <form class="org-ed" method="post" action="/org/brand" enctype="multipart/form-data">
@@ -66,7 +66,7 @@
         Said here rather than only on rejection: this colour paints the donate button and
         every link, so a pale one leaves a donor unable to see them.
       #}
-      <p class="org-hint">{{ 'This paints your donate button and every link on the page, so it has to be readable on white. A pale colour will be refused, with the reason.'|trans }}</p>
+      <p class="org-hint">{{ 'Colours your donate button and links. It must be readable on white.'|trans }}</p>
     </div>
 
     <div class="org-row">
@@ -78,7 +78,7 @@
         <input class="org-file" type="file" id="brand-logo" name="logo"
                accept="image/png,image/jpeg,image/webp"{% if not can_edit %} disabled{% endif %}>
       {% else %}
-        <p class="org-hint">{{ 'Uploads are not available on this server, so the logo cannot be changed from here.'|trans }}</p>
+        <p class="org-hint">{{ 'Uploads are unavailable here, so the logo cannot be changed.'|trans }}</p>
       {% endif %}
     </div>
   </fieldset>
@@ -101,7 +101,7 @@
       <textarea class="org-in org-in--tall" id="brand-story" name="story" rows="8"
                 maxlength="{{ brand_max_story }}"
                 {% if not can_edit %}disabled{% endif %}>{{ brand.story }}</textarea>
-      <p class="org-hint">{{ 'Leave a blank line between paragraphs. Switch the story block on below for it to appear.'|trans }}</p>
+      <p class="org-hint">{{ 'Separate paragraphs with a blank line. Switch the story block on below.'|trans }}</p>
     </div>
 
     <div class="org-row">
@@ -139,7 +139,7 @@
   {# ── LINKS ───────────────────────────────────────────────────────────── #}
   <fieldset class="org-fs">
     <legend class="org-fs__l">{{ 'Links'|trans }}</legend>
-    <p class="org-hint">{{ 'Your annual report, your press, your socials. Up to %n%. Every link needs a few words saying what it is — a donor will not press a bare web address.'|trans({'%n%': brand_max_links}) }}</p>
+    <p class="org-hint">{{ 'Up to %n%. Give every link a few words saying what it is.'|trans({'%n%': brand_max_links}) }}</p>
 
     {% set lrows = brand.links|default([]) %}
     {% for i in 0..(lrows|length + 1) %}
@@ -162,7 +162,7 @@
   <fieldset class="org-fs">
     <legend class="org-fs__l">{{ 'Video'|trans }}</legend>
     <p class="org-hint">
-      {{ 'Paste the address from %p%. Up to %n%. Nothing is fetched from them until a visitor presses play, and the button names the provider first — so your page does not hand a visitor\'s address to anybody before they have asked for the video.'|trans({
+      {{ 'Paste the address from %p%. Up to %n%. Nothing loads until a visitor presses play.'|trans({
         '%p%': brand_video_names|join(' ' ~ 'or'|trans ~ ' '),
         '%n%': brand_max_videos}) }}
     </p>
@@ -192,7 +192,7 @@
   {% for name, spec in brand_blocks %}
     <fieldset class="org-fs">
       <legend class="org-fs__l">{{ brand_sections[name]|default(name)|trans }}</legend>
-      <p class="org-hint">{{ 'Up to %n% rows. Both parts are needed — a row with one half filled in is left out.'|trans({'%n%': spec.max}) }}</p>
+      <p class="org-hint">{{ 'Up to %n% rows. A row missing either part is left out.'|trans({'%n%': spec.max}) }}</p>
 
       {% set rows = brand.blocks[name]|default([]) %}
       {% for i in 0..(rows|length < spec.max ? rows|length + 1 : spec.max - 1) %}

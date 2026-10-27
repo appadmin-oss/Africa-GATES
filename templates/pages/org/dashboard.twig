@@ -68,12 +68,12 @@
   {% if org.status == 'suspended' %}
     <div class="org-state org-state--stop" role="alert">
       <h2 class="org-state__t">{{ 'This organisation is suspended'|trans }}</h2>
-      <p class="org-state__b">{{ org.suspended_reason|default('No money can move while it is. Write to us from the address on the account and we will go through it with you.'|trans) }}</p>
+      <p class="org-state__b">{{ org.suspended_reason|default('No money can move. Write to us from the account’s address.'|trans) }}</p>
     </div>
   {% elseif org.status == 'rejected' %}
     <div class="org-state org-state--stop" role="alert">
       <h2 class="org-state__t">{{ 'This application was not accepted'|trans }}</h2>
-      <p class="org-state__b">{{ org.vetting_note|default('Write to us if you think that is wrong — the decision can be looked at again.'|trans) }}</p>
+      <p class="org-state__b">{{ org.vetting_note|default('Think this is wrong? Write to us for a review.'|trans) }}</p>
     </div>
   {% elseif n_missing > 0 %}
     <div class="org-state org-state--todo" role="status">
@@ -84,7 +84,7 @@
   {% elseif org.status != 'approved' %}
     <div class="org-state org-state--wait" role="status">
       <h2 class="org-state__t">{{ 'Everything is on file. We are reviewing it.'|trans }}</h2>
-      <p class="org-state__b">{{ 'There is nothing for you to do. We will write to you at the address on the account.'|trans }}</p>
+      <p class="org-state__b">{{ 'Nothing to do. We will write to the account’s address.'|trans }}</p>
     </div>
   {% elseif n_offers > 0 %}
     <div class="org-state org-state--todo" role="status">
@@ -152,7 +152,7 @@
     {% else %}
       <div class="org-empty">
         <h2 class="org-empty__t">{{ 'Nothing has arrived yet'|trans }}</h2>
-        <p class="org-empty__b">{{ 'When your first gift clears it appears here, with what reached you after fees. In the meantime the thing worth doing is your page — it is what a donor actually sees.'|trans }}</p>
+        <p class="org-empty__b">{{ 'Cleared gifts appear here, after fees. Meanwhile, set up your page.'|trans }}</p>
         <a class="org-go" href="/org?tab=page">{{ 'Set up your page'|trans }}</a>
       </div>
     {% endif %}

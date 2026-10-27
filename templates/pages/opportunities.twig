@@ -27,7 +27,7 @@
 <div class="cm cm--narrow">
   <div class="cm-col cm-col--pad">
     <h1 class="cm-h1">{{ 'Grants, fellowships and mentor circles'|trans }}</h1>
-    <p class="cm-lede">{{ 'Open calls for African talent, listed by the organisations running them. Each one is applied for on its own site.'|trans }}</p>
+    <p class="cm-lede">{{ 'Open calls for African talent. Apply on each organiser’s own site.'|trans }}</p>
 
     <h2 class="cm-bar__h cm-sec-h">{{ 'Open now'|trans }}</h2>
     {% if opportunities|length %}
@@ -51,14 +51,14 @@
       </ul>
     {% else %}
       <div class="ag-empty cm-empty ag-card">
-        <p class="ag-empty__t">{{ 'Nothing is open right now. New calls are listed here as partners bring them.'|trans }}</p>
+        <p class="ag-empty__t">{{ 'Nothing is open right now.'|trans }}</p>
         <a class="ag-btn ag-btn--secondary ag-btn--pill" href="/account/register">{{ 'Join to hear first'|trans }}</a>
       </div>
     {% endif %}
 
     <section class="ag-card cm-bring" aria-labelledby="cm-bring-h">
       <h2 class="cm-bar__h" id="cm-bring-h">{{ 'Bring an opportunity to the registry'|trans }}</h2>
-      <p class="cm-box__p">{{ 'Running a grant, fellowship or mentor circle for African talent? List it here and it reaches the people the registry recognises.'|trans }}</p>
+      <p class="cm-box__p">{{ 'Running a grant, fellowship or mentor circle? List it here.'|trans }}</p>
       <div class="cm-form__go">
         <a class="ag-btn ag-btn--primary ag-btn--pill" href="/partner">{{ 'Partner with us'|trans }}</a>
         {% if support_email|default('') %}<a class="ag-btn ag-btn--secondary ag-btn--pill" href="mailto:{{ support_email }}?subject={{ 'An opportunity to list'|trans|url_encode }}">{{ 'Email us'|trans }}</a>{% endif %}
