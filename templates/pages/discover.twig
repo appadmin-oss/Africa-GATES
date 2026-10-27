@@ -219,12 +219,17 @@
   </div>
 
   {# The find band's two claims (inventory: _partials.md, find-band). Generated, never
-     typed — a sentence naming what a box searches goes stale the day a source is added. #}
+     typed — a sentence naming what a box searches goes stale the day a source is added.
+     Only the promise is drawn (owner, 27 Oct 2026: descriptions too long everywhere); the
+     coverage sentence that is its evidence stays the field's own description, so a screen
+     reader still hears exactly what the box searches when it takes focus (FindBandTest). #}
   <p class="dv__note" id="dvNote">
+    <span class="dv__promise">{{ 'Nothing unannounced is searchable.'|trans }}</span>
+    <span class="ag-sr">
     {%- set _covers = search_covers() -%}
     {{ 'Searches'|trans }}
     {%- for noun in _covers %}{{ ' ' }}{{ noun|trans }}{% if not loop.last %},{% else %}, {{ 'and everything else published here.'|trans }}{% endif %}{% endfor %}
-    <span class="dv__promise">{{ 'Nothing unannounced is searchable.'|trans }}</span>
+    </span>
   </p>
 </div>
 {% endblock %}

@@ -146,7 +146,7 @@
              browser cannot fill a saved name in and opt somebody into a public list. #}
           <label class="vb-label" for="{{ ctx.pre }}pvName">{{ 'Your name'|trans }} <span class="vb-label__o">{{ '(optional)'|trans }}</span></label>
           <input class="vb-input" id="{{ ctx.pre }}pvName" name="name" type="text" autocomplete="off" placeholder="{{ 'e.g. Amara Okonkwo'|trans }}" value="{{ ctx.retry.name|default('') }}">
-          <p class="vb-hint">{{ 'Shown on %first%’s public supporters list and on your receipt. Leave it blank to give anonymously.'|trans({'%first%': first}) }}</p>
+          <p class="vb-hint">{{ 'Shown on %first%’s supporters list. Leave blank to stay anonymous.'|trans({'%first%': first}) }}</p>
         </div>
         <div class="vb-field">
           <label class="vb-label" for="{{ ctx.pre }}pvMsg">{{ 'Say something about %first%'|trans({'%first%': first}) }} <span class="vb-label__o">{{ '(optional)'|trans }}</span></label>
@@ -171,7 +171,7 @@
         <p class="vb-hint">{{ 'Paid already and the votes never arrived?'|trans }} <a href="/vote/verify">{{ 'Check a payment instead of paying again'|trans }}</a>.</p>
       </form>
     </div>
-    {% if _free %}<p class="vb-or"><span>{{ 'or vote free'|trans }}</span></p>{% endif %}
+    {% if ctx.free %}<p class="vb-or"><span>{{ 'or vote free'|trans }}</span></p>{% endif %}
     {% endif %}
 
     {# ── The free vote ── #}
@@ -191,13 +191,13 @@
             data-e-net="{{ 'We couldn’t reach Africa GATES. Check your connection and try again — nothing was recorded.'|trans }}"
             data-e-ts="{{ 'The security check has not finished loading. Give it a moment, then try again.'|trans }}">
         <div data-step="form">
-          <p class="vb__p">{{ 'One verified vote per category. We email a 6-digit code to confirm it’s you; your email is hashed for the one-vote check.'|trans }}</p>
+          <p class="vb__p">{{ 'One vote per category, confirmed by a code we email you.'|trans }}</p>
           <div class="vb-field">
             <label class="vb-label" for="{{ ctx.pre }}vbName">{{ 'Full name'|trans }}</label>
             <input class="vb-input" id="{{ ctx.pre }}vbName" name="name" type="text" required autocomplete="name" placeholder="{{ 'Your full name'|trans }}" aria-describedby="{{ ctx.pre }}vbNameHint" value="{{ ctx.member ? ctx.member.name : '' }}">
             {# The rule the server applies (ApiController: two words), stated where it stays
                on screen; a placeholder vanishes the moment somebody starts typing. #}
-            <p class="vb-hint" id="{{ ctx.pre }}vbNameHint">{{ 'At least a first and a last name. It is shown only if you ask us to.'|trans }}</p>
+            <p class="vb-hint" id="{{ ctx.pre }}vbNameHint">{{ 'First and last name. Never shown unless you ask.'|trans }}</p>
           </div>
           <div class="vb-field">
             <label class="vb-label" for="{{ ctx.pre }}vbPhone">{{ 'Phone number'|trans }}</label>

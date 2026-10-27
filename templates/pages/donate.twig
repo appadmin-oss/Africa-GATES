@@ -338,7 +338,7 @@
       <section class="gv-sec gv-share" aria-labelledby="gv-share">
         <h2 class="gv-h2" id="gv-share">{{ 'Sharing helps more than you think'|trans }}</h2>
         <div class="gv-share__card">
-          <p class="gv-hint">{{ 'Most gifts here arrive because somebody sent the link to somebody else. It costs nothing, and it is the most useful thing you can do if you cannot give today.'|trans }}</p>
+          <p class="gv-hint">{{ 'Can’t give today? Sharing the link helps most.'|trans }}</p>
           <div class="gv-share__btns">
             <button type="button" class="gv-sbtn" data-ag-share data-ag-copied="{{ 'Link copied'|trans }}">{{ 'Copy link'|trans }}</button>
             <a class="gv-sbtn" href="https://wa.me/?text={{ (_title ~ ' ' ~ _share_url)|url_encode }}" target="_blank" rel="noopener">WhatsApp</a>
@@ -429,7 +429,7 @@
     <div class="gv-orgs__in">
       <div class="gv-orgs__t">
         <h2 class="gv-h2" id="gv-orgs">{{ 'Raise donations on a page of your own'|trans }}</h2>
-        <p>{{ 'Supporters donate on a page in your name and the money settles directly into your own account — Africa GATES never holds it, because the split happens at the payment gateway.'|trans }}</p>
+        <p>{{ 'Gifts settle straight into your own account. Africa GATES never holds the money.'|trans }}</p>
         <a class="gv-btn gv-btn--line gv-btn--inline" href="/account/register?as=organisation">{{ 'Apply to raise donations'|trans }}</a>
         <p class="gv-hint">{{ 'CAC and SCUML registration are both required, and the settlement account must be in your organisation’s own registered name.'|trans }}</p>
       </div>
@@ -439,7 +439,7 @@
           <div><dt>{{ org_totals.gifts == 1 ? 'raised for them, in 1 donation'|trans : 'raised for them, across %n% donations'|trans({'%n%': org_totals.gifts|number_format}) }}</dt><dd>{{ m.ngn(org_totals.raised) }}</dd></div>
         </dl>
       {% else %}
-        <p class="gv-orgs__new">{{ 'The scheme is open and nobody has applied yet. Once there are applications we publish the number who applied and the number approved — both, not just the ones who got through.'|trans }}</p>
+        <p class="gv-orgs__new">{{ 'No applications yet. We publish how many apply and how many are approved.'|trans }}</p>
       {% endif %}
     </div>
   </section>

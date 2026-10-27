@@ -48,12 +48,12 @@
   <nav class="ha__crumb" aria-label="{{ 'Breadcrumb'|trans }}"><a href="/help">{{ 'Help Centre'|trans }}</a></nav>
   <div class="hc__head hc__head--start">
     <h1 class="hc__h1">{{ 'Reach a person'|trans }}</h1>
-    <p class="hc__lede">{{ 'For anything that needs judgement rather than a lookup. If it is a payment that has not landed, a missing code or a receipt, Gee’s help desk can usually fix it on the spot without waiting for anyone.'|trans }}</p>
+    <p class="hc__lede">{{ 'For anything that needs a person. Payments, codes and receipts are faster with Gee’s help desk.'|trans }}</p>
   </div>
 
   <section class="hc-gee sp__desk" aria-labelledby="sp-desk">
     <b class="hc-gee__h" id="sp-desk">{{ 'Fastest: the Gee help desk'|trans }}</b>
-    <span class="hc-gee__p">{{ 'It re-checks a payment with the provider, resends receipts and codes, and passes you to a person with the whole conversation when that is better.'|trans }}</span>
+    <span class="hc-gee__p">{{ 'Re-checks payments, resends receipts and codes, and hands you to a person when needed.'|trans }}</span>
     <div class="hc-gee__act"><a class="hc-btn hc-btn--gee" href="/help?gee=support">{{ 'Open the help desk'|trans }}</a></div>
   </section>
 
@@ -68,7 +68,7 @@
   <div class="sp__grid">
     <section class="sp__form" id="appeal" aria-labelledby="sp-appeal">
       <h2 class="hc__h2" id="sp-appeal">{{ 'Submit an appeal'|trans }}</h2>
-      <p class="sp__sub">{{ 'This fills in an email for you to send from your own address — nothing is submitted from this page. A nominee name, a reference or a link is worth three paragraphs of description.'|trans }}</p>
+      <p class="sp__sub">{{ 'Opens an email from your own address. A name, reference or link helps most.'|trans }}</p>
       <form class="sp__compose" action="mailto:{{ _appeals }}" method="get" enctype="text/plain" data-sp-compose data-to="{{ _appeals }}"
             data-subject="{{ 'GATES appeal — %r%'|trans }}" data-l-reason="{{ 'Reason'|trans }}" data-l-name="{{ 'Name'|trans }}" data-l-ref="{{ 'Profile / reference'|trans }}">
         <fieldset class="sp__reasons">
@@ -85,7 +85,7 @@
         <div><label class="ag-label" for="sp-ref">{{ 'Profile, nominee or reference (optional)'|trans }}</label><span class="ag-field"><input id="sp-ref" name="ref" autocomplete="off"></span></div>
         <div><label class="ag-label" for="sp-detail">{{ 'What happened?'|trans }}</label><span class="ag-field sp__area"><textarea id="sp-detail" name="body" rows="5" required></textarea></span></div>
         <button class="ag-btn ag-btn--secondary sp__go" type="submit">{{ 'Open this in my email app'|trans }}</button>
-        <p class="ag-hint">{{ 'Goes to'|trans }} <a href="mailto:{{ _appeals }}">{{ _appeals }}</a> — {{ 'write to it directly if you would rather, or if the button does nothing. Appeals are confidential and handled under our'|trans }} <a href="/integrity">{{ 'integrity policy'|trans }}</a>.</p>
+        <p class="ag-hint">{{ 'Goes to'|trans }} <a href="mailto:{{ _appeals }}">{{ _appeals }}</a> — {{ 'confidential, under our'|trans }} <a href="/integrity">{{ 'integrity policy'|trans }}</a>.</p>
       </form>
     </section>
 

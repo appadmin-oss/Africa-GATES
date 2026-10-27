@@ -33,11 +33,13 @@ final class PaidVoteCopy
         $basis = CpiService::basis((new RuleEngine())->effective($programmeId, $cycleId)['community_basis'] ?? null);
 
         if (!in_array($basis, [CpiService::BASIS_IDEAL, CpiService::BASIS_REACH], true)) {
-            return Translator::t('Under this award’s rules the tally is the whole community half, so a contributed vote adds to it at full weight. The split between free and contributed votes is published with the result.');
+            return Translator::t('Under this award’s rules a contributed vote counts in full toward the community half.');
         }
 
         $people = (int) round(CpiService::REACH_PEOPLE_SHARE * 100);
-        return Translator::t('A contributed vote adds to the tally, which is %tally%% of the community half. It does not add to the number of people backing a nominee, which is the other %people%%: that counts each person once, however much they give.', [
+        // Short on purpose (owner, 27 Oct 2026: "remove all unnecessary descriptions"): the two
+        // facts a buyer needs, the shares read from the rule, and the long form one link away.
+        return Translator::t('Adds to the tally (%tally%% of the community half), not to the supporter count (%people%%), which counts each person once.', [
             '%tally%'  => (string) (100 - $people),
             '%people%' => (string) $people,
         ]);

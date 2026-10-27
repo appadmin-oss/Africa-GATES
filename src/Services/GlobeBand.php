@@ -205,17 +205,12 @@ final class GlobeBand
         // nominees whose profiles name no country used to be told "no award is open for
         // entries yet" on the homepage, under a stats row counting the open awards
         // (design review, 12 Oct 2026). Each now says what is actually missing.
+        // One line each (owner, 27 Oct 2026: unnecessary descriptions went site-wide).
         $note = $n === 0
             ? (self::anyLiveNominee()
-                ? 'Each marker is a nation with a nominee standing in a live award. None of the '
-                  . 'nominees standing now has a country on their profile yet, so the map is '
-                  . 'empty — it fills as their countries are added.'
-                : 'Each marker is a nation with a nominee standing in a live award. No award is '
-                  . 'open for entries yet, so the map is empty — it fills as nominations are '
-                  . 'approved.')
-            : 'Each marker is a nation with a nominee standing in a live award. Open one for '
-              . 'that nation\'s nominees and the votes cast for them — the same figures the '
-              . 'award pages carry.';
+                ? 'None of the nominees standing now has a country on their profile yet, so the map is empty.'
+                : 'No award is open for entries yet, so the map is empty.')
+            : 'Each marker is a nation with a nominee in a live award. Open one to see them.';
 
         // Said out loud rather than left to be noticed. A nation live on the platform and
         // missing from this map is a fault in the map, and the map is the only place it

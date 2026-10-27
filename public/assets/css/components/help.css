@@ -113,7 +113,6 @@
 .hc a.hc-top__a:hover{ text-decoration:none; border-color:var(--ag-line-2) }
 .hc-top__w{ display:flex; flex-direction:column; gap:3px }
 .hc-top__t{ font-weight:600; font-size:var(--ag-fs-15-5); line-height:1.35 }
-.hc-top__s{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .hc-tile{
   width:44px; height:44px; border-radius:var(--ag-r-14); background:var(--ag-tint); color:var(--ag-ink);
   display:flex; align-items:center; justify-content:center;

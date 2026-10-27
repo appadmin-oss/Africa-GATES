@@ -173,6 +173,60 @@ final class TwigBlockScopeTest extends TestCase
             . "URL on every vote page.\n\n  " . implode("\n  ", $problems));
     }
 
+    /**
+     * The same trap one construct over: a macro sees ONLY its arguments, its own `set`s and the
+     * globals — never the template's variables — and a name it cannot see renders as null with
+     * no error, exactly as a cross-block read does.
+     *
+     * Shipped on the ballot: `{% if _free %}` inside the `ballot()` macro read a template-scope
+     * `set`, so the "or vote free" divider never drew, and the paid and free halves of the
+     * ballot ran together as one long form with nothing saying they were two ways to vote.
+     *
+     * @return list<string>
+     */
+    private function macroProblems(string $src, string $label): array
+    {
+        $out = [];
+        preg_match_all('~\{%-?\s*macro\s+(\w+)\s*\(([^)]*)\)\s*-?%\}(.*?)\{%-?\s*endmacro\b[^%]*%\}~s', $src, $mm, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        if ($mm === []) return [];
+        // Names set at template scope: every `set` outside every macro body.
+        $outside = $src;
+        foreach ($mm as $m) $outside = str_replace($m[0][0], '', $outside);
+        preg_match_all('~\{%-?\s*set\s+(\w+)\s*=~', $outside, $tm);
+        $template = array_unique($tm[1]);
+        foreach ($mm as $m) {
+            $args = array_map(static fn ($a) => trim(explode('=', $a)[0]), explode(',', $m[2][0]));
+            $body = $m[3][0];
+            preg_match_all('~\{%-?\s*(?:set|for)\s+(\w+)(?:\s*,\s*(\w+))?~', $body, $own);
+            $mine = array_merge($args, $own[1], array_filter($own[2]));
+            foreach ($template as $name) {
+                if (in_array($name, $mine, true)) continue;
+                if (preg_match('~\{[\{%][^\}]*?(?<![\w.])' . preg_quote($name, '~') . '(?![\w])~s', $body)) {
+                    $out[] = sprintf('%s: macro %s() reads `%s`, a template variable it cannot see — pass it in', $label, $m[1][0], $name);
+                }
+            }
+        }
+        return $out;
+    }
+
+    public function test_no_macro_reads_a_template_variable(): void
+    {
+        $problems = [];
+        foreach ($this->templates() as $file) {
+            $label = str_replace(dirname(__DIR__, 2) . '/', '', $file);
+            $problems = array_merge($problems, $this->macroProblems($this->stripComments((string) file_get_contents($file)), $label));
+        }
+        $this->assertSame([], $problems, "A macro cannot see the template's variables.\n  " . implode("\n  ", $problems));
+    }
+
+    public function test_the_macro_scan_catches_the_ballot_fault(): void
+    {
+        $broken = "{% set _free = true %}\n{% macro ballot(ctx) %}{% set n = ctx.n %}{% if _free %}<p>or</p>{% endif %}{{ n }}{% endmacro %}";
+        $this->assertSame(['t: macro ballot() reads `_free`, a template variable it cannot see — pass it in'], $this->macroProblems($broken, 't'));
+        $fixed = "{% set _free = true %}\n{% macro ballot(ctx) %}{% if ctx.free %}<p>or</p>{% endif %}{% endmacro %}";
+        $this->assertSame([], $this->macroProblems($fixed, 't'));
+    }
+
     /** The scanner must be looking at something, or it passes by doing nothing. */
     public function test_the_scan_actually_reads_the_templates(): void
     {
