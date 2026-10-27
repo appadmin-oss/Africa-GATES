@@ -50,6 +50,9 @@ class ModerationController
         // was unavailable is not borderline, it is UNJUDGED, and it must not sit
         // invisible waiting for a decision nobody knows is owed.
         $voteMessages = \AfricaGates\Services\VoteMessageService::queue(100);
+        // Members' highlights (free promotion of a business, product, service or event):
+        // nothing a member types is public until a person here approves it.
+        $highlights = \AfricaGates\Services\Highlights::queue();
 
         return $this->view->render($res, 'admin/moderation/index.twig', [
             'page_title'  => 'Moderation Queue — Admin',
@@ -57,8 +60,9 @@ class ModerationController
             'comments'    => $comments,
             'threads'     => $threads,
             'vote_messages' => $voteMessages,
+            'highlights'  => $highlights,
             'recent_log'  => $recentLog,
-            'pending'     => count($comments) + count($threads) + count($voteMessages),
+            'pending'     => count($comments) + count($threads) + count($voteMessages) + count($highlights),
             // Flash banners render from the Twig globals via the layout — passing
             // them here would shadow the (already-consumed) global with null.
         ]);
@@ -69,8 +73,28 @@ class ModerationController
         $type     = (string)($args['type'] ?? '');
         $id       = (int)($args['id'] ?? 0);
         $decision = (string)($args['decision'] ?? '');
-        if (!in_array($type, ['comment', 'thread', 'vote_message'], true) || !in_array($decision, ['approve', 'remove', 'recheck'], true) || $id < 1) {
+        if (!in_array($type, ['comment', 'thread', 'vote_message', 'highlight'], true) || !in_array($decision, ['approve', 'remove', 'recheck'], true) || $id < 1) {
             $_SESSION['flash_error'] = 'Invalid moderation action.';
+            return $res->withHeader('Location', '/admin/moderation')->withStatus(302);
+        }
+
+        // ── HIGHLIGHTS: DECIDED THROUGH THEIR OWN SERVICE ────────────────────
+        //
+        // Approve starts the listing's fixed life; remove refuses it with the reason the
+        // confirm dialog required (agConfirm posts it as `_reason`), which the member sees
+        // on their own highlights page so they can fix it and send it again.
+        if ($type === 'highlight') {
+            $adminId = (int)($_SESSION['admin_id'] ?? 0);
+            if ($decision === 'recheck') {
+                $_SESSION['flash_error'] = 'Highlights are decided by a person.';
+                return $res->withHeader('Location', '/admin/moderation')->withStatus(302);
+            }
+            $reason = trim((string)(((array)$req->getParsedBody())['_reason'] ?? ''));
+            $r = \AfricaGates\Services\Highlights::decide($id, $adminId, $decision === 'approve', $reason);
+            $this->audit->record($adminId, 'moderation.' . $decision, 'highlight', $id);
+            $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+                ? ($decision === 'approve' ? 'Highlight approved. It is live for ' . \AfricaGates\Services\Highlights::LIVE_DAYS . ' days.' : 'Highlight refused. The member can see why.')
+                : ($r['message'] ?? 'Could not update that highlight.');
             return $res->withHeader('Location', '/admin/moderation')->withStatus(302);
         }
 

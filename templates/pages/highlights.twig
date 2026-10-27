@@ -1,0 +1,49 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /highlights — MEMBERS' HIGHLIGHTS (Services\Highlights)
+
+  Free listings from members, each checked by a person before it appears and gone by itself
+  after its fixed life. Labelled as a member's highlight, never "Promoted": that word belongs to
+  paid placement, and a free listing wearing it would be a claim about money that is false.
+  Outside links open in a new tab with no referrer; the link is re-checked on the way out.
+#}
+{% set colour_tier = '1' %}
+{% set _kinds = [{k: '', l: 'All'}, {k: 'business', l: 'Businesses'}, {k: 'product', l: 'Products'}, {k: 'service', l: 'Services'}, {k: 'event', l: 'Events'}] %}
+{% set _one = {business: 'Business', product: 'Product', service: 'Service', event: 'Event'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/highlights.css') }}">{% endblock %}
+
+{% block content %}
+<div class="hl">
+  <header class="hl-head">
+    <h1 class="hl-h1">{{ 'Highlights'|trans }}</h1>
+    <p class="hl-p">{{ 'From members. Free, and checked by a person first.'|trans }} <a href="/account/highlights">{{ 'Add yours'|trans }}</a></p>
+  </header>
+
+  <nav class="hl-filters" aria-label="{{ 'Filter highlights'|trans }}">
+    {% for c in _kinds %}
+      <a class="ag-chip" href="/highlights{{ c.k ? '?kind=' ~ c.k }}"{% if kind == c.k %} aria-current="page"{% endif %}>{{ c.l|trans }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if items %}
+  <ul class="hl-list">
+    {% for h in items %}
+    <li class="hl-card">
+      <span class="hl-card__k">{{ _one[h.kind]|default(h.kind)|trans }}{% if h.location %} · {{ h.location }}{% endif %}</span>
+      <h2 class="hl-card__t">{{ h.title }}</h2>
+      <p class="hl-card__b">{{ h.body }}</p>
+      {% if h.url %}
+        <a class="hl-card__a" href="{{ h.url }}"{% if h.external %} target="_blank" rel="noopener noreferrer nofollow ugc"{% endif %}>{{ h.external ? 'Visit'|trans : 'Open'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="hl-empty">
+    <p class="hl-p">{{ kind ? 'Nothing here in this group yet.'|trans : 'No highlights yet.'|trans }}</p>
+    <a class="ag-btn ag-btn--primary ag-btn--pill" href="/account/highlights">{{ 'Add yours'|trans }}</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

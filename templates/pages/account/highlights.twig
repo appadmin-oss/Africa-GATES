@@ -1,0 +1,83 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /account/highlights — A MEMBER'S OWN HIGHLIGHTS (Services\Highlights)
+
+  Free promotion for a business, product, service or event: posted here, reviewed by a person,
+  shown on /highlights for a fixed time, then gone by itself. Every rule the form enforces is
+  stated where it stays on screen and read from the service's constants, never typed: the
+  lengths, how many at once, how long one stays up.
+#}
+{% set colour_tier = '1' %}
+{% set _words = {pending: 'Waiting for review', live: 'Live', rejected: 'Not approved', withdrawn: 'Taken down', ended: 'Ended'} %}
+{% set _kinds = {business: 'A business', product: 'A product', service: 'A service', event: 'An event'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/highlights.css') }}">{% endblock %}
+
+{% block content %}
+<div class="hl">
+  <header class="hl-head">
+    <h1 class="hl-h1">{{ 'Your highlights'|trans }}</h1>
+    <p class="hl-p">{{ 'Free. Checked by a person, then shown on Highlights for %d% days.'|trans({'%d%': rules.days}) }} <a href="/highlights">{{ 'See Highlights'|trans }}</a></p>
+  </header>
+
+  {% if mine %}
+  <ul class="hl-mine">
+    {% for h in mine %}
+    <li class="hl-mine__i">
+      <span class="hl-mine__t">{{ h.title }}</span>
+      <span class="hl-mine__s hl-mine__s--{{ h.state }}">{{ _words[h.state]|default(h.state)|trans }}{% if h.state == 'live' and h.until %} · {{ 'until %d%'|trans({'%d%': h.until|date('j M')}) }}{% endif %}</span>
+      {% if h.state == 'rejected' and h.reason %}<span class="hl-mine__r">{{ h.reason }}</span>{% endif %}
+      {% if h.state in ['pending', 'live'] %}
+      <form method="post" action="/account/highlights/{{ h.id }}/withdraw" class="hl-mine__f">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button type="submit" class="ag-btn ag-btn--text">{{ 'Take down'|trans }}</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if can_add %}
+  <form class="hl-form" id="hl-form" method="post" action="/account/highlights" novalidate data-ag-validate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <h2 class="hl-h2">{{ 'Add a highlight'|trans }}</h2>
+    {% if summary %}<p class="hl-err" role="alert">{{ summary }}</p>{% endif %}
+
+    <fieldset class="hl-kinds">
+      <legend class="ag-label">{{ 'What is it?'|trans }}</legend>
+      {% for k, label in _kinds %}
+      <label class="ag-chip hl-kind"><input type="radio" name="kind" value="{{ k }}"{% if old.kind|default('business') == k %} checked{% endif %}> {{ label|trans }}</label>
+      {% endfor %}
+      {% if errors.kind %}<p class="hl-err" role="alert">{{ errors.kind|trans }}</p>{% endif %}
+    </fieldset>
+
+    <div class="hl-field">
+      <label class="ag-label" for="hl-title">{{ 'Title'|trans }}</label>
+      <input class="hl-input" id="hl-title" name="title" type="text" required maxlength="{{ rules.title }}" value="{{ old.title|default('') }}"{% if errors.title %} aria-invalid="true" aria-describedby="hl-title-e"{% endif %}>
+      {% if errors.title %}<p class="hl-err" id="hl-title-e" role="alert">{{ errors.title|trans }}</p>{% endif %}
+    </div>
+    <div class="hl-field">
+      <label class="ag-label" for="hl-body">{{ 'Description'|trans }}</label>
+      <textarea class="hl-input hl-input--area" id="hl-body" name="body" rows="4" required minlength="{{ rules.body_min }}" maxlength="{{ rules.body }}" aria-describedby="hl-body-h{% if errors.body %} hl-body-e{% endif %}"{% if errors.body %} aria-invalid="true"{% endif %}>{{ old.body|default('') }}</textarea>
+      <p class="ag-hint" id="hl-body-h">{{ '%a% to %b% characters.'|trans({'%a%': rules.body_min, '%b%': rules.body}) }}</p>
+      {% if errors.body %}<p class="hl-err" id="hl-body-e" role="alert">{{ errors.body|trans }}</p>{% endif %}
+    </div>
+    <div class="hl-field">
+      <label class="ag-label" for="hl-url">{{ 'Link'|trans }} <span class="hl-opt">{{ '(optional)'|trans }}</span></label>
+      <input class="hl-input" id="hl-url" name="url" type="url" inputmode="url" placeholder="https://" value="{{ old.url|default('') }}"{% if errors.url %} aria-invalid="true" aria-describedby="hl-url-e"{% endif %}>
+      {% if errors.url %}<p class="hl-err" id="hl-url-e" role="alert">{{ errors.url|trans }}</p>{% endif %}
+    </div>
+    <div class="hl-field">
+      <label class="ag-label" for="hl-loc">{{ 'Where'|trans }} <span class="hl-opt">{{ '(optional)'|trans }}</span></label>
+      <input class="hl-input" id="hl-loc" name="location" type="text" maxlength="60" placeholder="{{ 'e.g. Yaba, Lagos'|trans }}" value="{{ old.location|default('') }}"{% if errors.location %} aria-invalid="true"{% endif %}>
+      {% if errors.location %}<p class="hl-err" role="alert">{{ errors.location|trans }}</p>{% endif %}
+    </div>
+    <p class="ag-hint">{{ 'Up to %n% waiting or live at once. Nominees and ballots cannot be highlighted.'|trans({'%n%': rules.max}) }}</p>
+    <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Send for review'|trans }}</button>
+  </form>
+  {% else %}
+  <p class="hl-p">{{ 'You have %n% waiting or live, the most at once. Take one down to add another.'|trans({'%n%': rules.max}) }}</p>
+  {% endif %}
+</div>
+{% endblock %}

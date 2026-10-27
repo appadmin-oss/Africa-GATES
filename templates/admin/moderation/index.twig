@@ -32,6 +32,26 @@
 
    'held' means the classifier was unavailable, not that the text was borderline —
    an unjudged message, which is why it is labelled differently below. #}
+{# Members' highlights: free promotion of a business, product, service or event, public
+   only once approved, live for a fixed time (Services\Highlights). A refusal carries the
+   reason the confirm dialog asks for, and the member sees it. #}
+{% if highlights|default([])|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Highlights<small>{{ highlights|length }} awaiting review · free listings from members</small></div></div><div class="ad-card__body">
+  {% for h in highlights %}
+  <div style="border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="font-size:14px;font-weight:700;color:var(--cn-ink)">{{ h.title }}</div>
+    <div style="font-size:14px;line-height:1.6;color:var(--cn-ink);margin-top:4px">{{ h.body }}</div>
+    <div style="font-size:11px;color:var(--cn-soft);margin:7px 0 9px">
+      {{ h.kind }}{% if h.location %} · {{ h.location }}{% endif %} · member #{{ h.user_id }} · {{ h.created_at }}
+      {% if h.url %} · <span style="overflow-wrap:anywhere">{{ h.url }}</span>{% endif %}
+    </div>
+    <form method="post" action="/admin/moderation/highlight/{{ h.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve</button></form>
+    <form method="post" action="/admin/moderation/highlight/{{ h.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Refuse this highlight? The member sees the reason you give, so make it something they can fix.">Refuse</button></form>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
 {% if vote_messages|default([])|length %}
 <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Messages of support<small>{{ vote_messages|length }} awaiting review · shown on a nominee's page once approved</small></div></div><div class="ad-card__body">
   {% for m in vote_messages %}

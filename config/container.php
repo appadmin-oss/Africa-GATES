@@ -826,6 +826,7 @@ return [
     \AfricaGates\Admin\Controllers\InvitesController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\InvitesController($c->get(Twig::class)),
     \AfricaGates\Controllers\EmailPrefsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\EmailPrefsController($c->get(Twig::class)),
     \AfricaGates\Controllers\DiscoverController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\DiscoverController($c->get(Twig::class)),
+    \AfricaGates\Controllers\HighlightsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\HighlightsController($c->get(Twig::class)),
     // Support assistant. The agent gets AiService (Groq + Gemini, whichever the
     // admin configured) and the ticket service; the ticket service gets the
     // mailer so an escalation can actually reach somebody.

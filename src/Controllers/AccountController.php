@@ -1566,6 +1566,68 @@ class AccountController
         return $res->withHeader('Location', !empty($b['first']) ? $this->nextTarget() : '/account')->withStatus(303);
     }
 
+    /**
+     * GET /account/highlights — a member's own highlights (Services\Highlights): free promotion
+     * for their business, product, service or event, each with where it is up to, and the form
+     * to add one. A refusal shows the reviewer's reason, so it can be fixed and sent again.
+     */
+    public function highlights(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login?next=' . rawurlencode('/account/highlights'))->withStatus(302);
+        $form = \AfricaGates\Support\FormErrors::take('highlight');
+        $now  = date('Y-m-d H:i:s');
+        $mine = array_map(static function ($r) use ($now): array {
+            $state = (string) $r->status;
+            if ($state === 'live' && (string) $r->live_until <= $now) $state = 'ended';
+            return ['id' => (int) $r->id, 'title' => (string) $r->title, 'kind' => (string) $r->kind, 'state' => $state,
+                    'reason' => (string) ($r->reject_reason ?? ''), 'until' => (string) ($r->live_until ?? '')];
+        }, \AfricaGates\Services\Highlights::mine((int) $user->id));
+
+        return $this->view->render($res, 'pages/account/highlights.twig', [
+            'app_bar'    => ['variant' => 'child', 'title' => 'Highlights', 'back' => '/account', 'share' => false],
+            'page_title' => 'Your highlights — Africa GATES', 'gates_page' => 'account',
+            'mine'       => $mine,
+            'can_add'    => \AfricaGates\Services\Highlights::openCount((int) $user->id) < \AfricaGates\Services\Highlights::MAX_OPEN,
+            'rules'      => ['days' => \AfricaGates\Services\Highlights::LIVE_DAYS, 'max' => \AfricaGates\Services\Highlights::MAX_OPEN,
+                             'title' => \AfricaGates\Services\Highlights::TITLE_MAX, 'body' => \AfricaGates\Services\Highlights::BODY_MAX,
+                             'body_min' => \AfricaGates\Services\Highlights::BODY_MIN],
+            'errors'     => $form['errors'] ?? [],
+            'old'        => $form['old'] ?? [],
+            'summary'    => $form['summary'] ?? '',
+        ]);
+    }
+
+    /** POST /account/highlights — a new highlight, pending review. */
+    public function highlightCreate(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        $b = (array) $req->getParsedBody();
+        if ($this->rateLimit && !$this->rateLimit->check('hl:' . (int) $user->id, 'highlight_submit', 10, 86400)) {
+            \AfricaGates\Support\FormErrors::for('highlight')->summary('That is a lot of highlights for one day. Try again tomorrow.')->keep($b)->flash();
+            return $res->withHeader('Location', '/account/highlights')->withStatus(303);
+        }
+        $r = \AfricaGates\Services\Highlights::submit((int) $user->id, $b);
+        if (!$r['ok']) {
+            $f = \AfricaGates\Support\FormErrors::for('highlight')->keep($b);
+            foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
+            $f->flash();
+            return $res->withHeader('Location', '/account/highlights#hl-form')->withStatus(303);
+        }
+        $_SESSION['flash_ok'] = 'Sent for review. We will show it once a person has checked it.';
+        return $res->withHeader('Location', '/account/highlights')->withStatus(303);
+    }
+
+    /** POST /account/highlights/{id}/withdraw — the member takes their own listing down. */
+    public function highlightWithdraw(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        if (\AfricaGates\Services\Highlights::withdraw((int) ($args['id'] ?? 0), (int) $user->id)) $_SESSION['flash_ok'] = 'Taken down.';
+        return $res->withHeader('Location', '/account/highlights')->withStatus(303);
+    }
+
     /** GET /account/notifications — what happened to your things (AlertService, derived). */
     public function notifications(Request $req, Response $res): Response
     {

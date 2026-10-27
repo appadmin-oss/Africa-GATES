@@ -1850,6 +1850,9 @@ return function(App $app) {
         // filter panel's live "Show N results"; it is a literal with no placeholder
         // anywhere above it, so nothing can shadow it (RouteTableIntegrityTest).
         $g->get('/discover',       \AfricaGates\Controllers\DiscoverController::class.':index');
+        // Members' highlights: free listings for a business, product, service or event,
+        // each checked by a person first (Services\Highlights).
+        $g->get('/highlights',     \AfricaGates\Controllers\HighlightsController::class.':index');
         $g->get('/discover/count', \AfricaGates\Controllers\DiscoverController::class.':count');
         $g->get('/registry/{slug}',RegistryController::class.':profile');
         // The profile's two writes (Phase 6): the owner's About, and a member's Follow.
@@ -3822,6 +3825,9 @@ return function(App $app) {
         $a->get('/notifications',      AccountController::class.':notifications');
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
+        $a->get('/highlights',         AccountController::class.':highlights');
+        $a->post('/highlights',        AccountController::class.':highlightCreate');
+        $a->post('/highlights/{id:[0-9]+}/withdraw', AccountController::class.':highlightWithdraw');
         // The wallet: one balance across every pocket (MemberWallet), each movement's receipt,
         // and the three-step withdrawal. The JSON is what an open wallet polls, so money that
         // arrives while it is on screen says so. Every one reads the member from the session.
