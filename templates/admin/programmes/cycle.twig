@@ -74,17 +74,25 @@
       </div>
       {% endif %}
 
-      {% if voting_letter|default(null) %}
+      {% if cycle %}
       {# The formal letter each verified nominee receives once this edition is on the public
          vote (Services\NomineeVotingNotice). Counted here so nobody has to chase whether it
-         went out: verified, sent, waiting for the next tick, and unreachable. #}
-      {% set _vl = voting_letter %}
+         went out: verified, sent, waiting for the next tick, and unreachable.
+         The card is drawn for every edition, with or without its counts: it is the only way
+         to the letter's editor, and it used to vanish whole when the status could not be
+         read (votingLetterStatus() logs and returns null), taking the editor with it. #}
+      {% set _vl = voting_letter|default(null) %}
       <div class="ad-card" style="margin-bottom:14px">
         <div class="ad-card__head">
           <div class="ad-card__title">Nominee voting letter<small>Sent automatically to verified nominees while voting is open</small></div>
-          <span class="ad-chip ad-chip--{{ not _vl.on ? 'grey' : (_vl.voting ? 'green' : 'gold') }}">{{ not _vl.on ? 'Off' : (_vl.voting ? 'Sending' : 'Waits for voting') }}</span>
+          {% if _vl %}<span class="ad-chip ad-chip--{{ not _vl.on ? 'grey' : (_vl.voting ? 'green' : 'gold') }}">{{ not _vl.on ? 'Off' : (_vl.voting ? 'Sending' : 'Waits for voting') }}</span>{% endif %}
         </div>
         <div class="ad-card__body">
+          {% if not _vl %}
+          <p style="margin:0;font-size:14px;color:var(--cn-ink)">
+            Whether letters have gone out could not be read just now; the reason is in the server's error log under [voting-letter]. The letter itself can still be written and previewed.
+          </p>
+          {% else %}
           <p style="margin:0;font-size:14px;color:var(--cn-ink)">
             Verified nominees: <strong>{{ _vl.verified }}</strong> ·
             Letters sent: <strong>{{ _vl.sent }}</strong>{% if _vl.voting and _vl.on %} ·
@@ -96,6 +104,7 @@
             {{ _vl.unreachable }} verified {{ _vl.unreachable == 1 ? 'nominee has' : 'nominees have' }} no
             address we can be sure is theirs, so no letter is sent to them.
           </p>
+          {% endif %}
           {% endif %}
           <p style="margin:8px 0 0;font-size:13px">
             <a href="/admin/programmes/{{ programme.id }}/cycle/letter?cycle={{ cycle.id }}"><strong>Write or change the letter</strong></a>

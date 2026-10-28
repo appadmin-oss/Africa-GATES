@@ -28,6 +28,7 @@
              rail — that is what keeps the rail scannable, and a page nothing links to is
              a page nobody finds without knowing its URL. #}
           <a class="ad-btn ad-btn--sm" href="/admin/programmes/{{ r.id }}/sponsors">Sponsors</a>
+          {% if r.cycle %}<a class="ad-btn ad-btn--sm" href="/admin/programmes/{{ r.id }}/cycle/letter?cycle={{ r.cycle.id }}">Voting letter</a>{% endif %}
           <a class="ad-btn ad-btn--sm ad-btn--primary" href="/admin/programmes/{{ r.id }}/cycle">Manage Cycle</a>
         </td>
       </tr>
