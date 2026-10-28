@@ -98,7 +98,7 @@
 
     {# One ad, under the list and never inside it: this is the only vote page an ad may be on
        (owner, 27 Oct 2026), and a ballot, a nominee and a result never carry one. #}
-    {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token} only %}</div>{% endif %}
+    {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token, back: request_path|default('/')} only %}</div>{% endif %}
   </div>
 
   <aside class="vh-rail" aria-label="{{ 'Your ballot'|trans }}">

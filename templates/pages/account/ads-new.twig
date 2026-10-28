@@ -1,20 +1,31 @@
 {% extends 'layout/shell.twig' %}
 {#
-  /account/ads/new — A NEW CAMPAIGN, IN META'S THREE STEPS (Services\Ads)
+  /account/ads/new — A NEW CAMPAIGN (Services\Ads)
 
-  Campaign (what you want), ad set (where and who), ad (what people see), on one page so
-  nothing is lost between steps on a slow connection. Every limit is stated where it stays
-  on screen and read from AdRules through `rules`, never typed here. The estimate is made of
-  the placements' own history (AdDelivery::estimate()) and says so when there is none.
+  Meta's Ads Manager flow on one page: campaign (what you want and who it is from), placement
+  (where), ad (what people see), with the live preview beside the form on a wide screen and
+  under it on a phone, the way every ad builder shows it. The preview is the real card
+  (partials/ad-slot.twig, preview mode), so what you build is what runs. Every limit is
+  stated where it stays on screen, read from AdRules through `rules`, and counted as you
+  type (ads-builder.js); with no script the form still posts and the server says the same.
+
+  No location choice: there is none in the beta (owner, 28 Oct 2026).
 #}
 {% set colour_tier = '1' %}
-{% set _ph = {vote_hub: 'The list of open awards. Never beside a ballot.', discover: 'Between results.', events: 'The events list and event pages.'} %}
+{% set _ph = {vote_hub: 'The list of awards people vote in. Never beside a ballot.', discover: 'Between results.', events: 'The events list and event pages.'} %}
+{% set _pv = {
+  advertiser: old.advertiser|default('') ?: 'Your business'|trans, initials: '?', logo: null,
+  body: old.body|default('') ?: 'Your text goes here: what you offer and why someone should care.'|trans,
+  image: null, headline: old.headline|default('') ?: 'Your headline'|trans, domain: 'yourwebsite.com',
+  offer: old.offer|default(''), offer_code: old.offer_code|default(''), cta: rules.ctas[old.cta|default('learn_more')]|default('Learn more'), url: '#', external: false
+} %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endblock %}
 
 {% block content %}
 <div class="am">
   <header class="am-head">
+    <span class="am-beta">{{ 'Beta'|trans }}</span>
     <h1 class="am-h1">{{ 'New campaign'|trans }}</h1>
     {% if trial_left %}
     <p class="am-p">{{ 'Free trial: up to %v% views over %d% days, from when it is approved.'|trans({'%v%': rules.views|number_format, '%d%': rules.days}) }}</p>
@@ -22,110 +33,126 @@
   </header>
 
   {% if not trial_left %}
-  <p class="am-p">{{ 'Your free trial is used. Paid campaigns open soon.'|trans }} <a href="/account/ads">{{ 'Back to your ads'|trans }}</a></p>
+  <p class="am-p">{{ 'Your free trial is used. Paid campaigns open soon.'|trans }} <a class="am-link" href="/account/ads">{{ 'Back to your ads'|trans }}</a></p>
   {% else %}
-  <form class="am-form" id="ad-form" method="post" action="/account/ads" enctype="multipart/form-data" novalidate data-ag-validate>
+  <form class="am-build" id="ad-form" method="post" action="/account/ads" enctype="multipart/form-data" novalidate data-ag-validate data-ad-builder>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
-    {% if summary %}<p class="am-err" role="alert">{{ summary|trans }}</p>{% endif %}
+    <div class="am-build__form">
+      {% if summary %}<p class="am-err" role="alert">{{ summary|trans }}</p>{% endif %}
 
-    <fieldset class="am-step">
-      <legend><span class="am-step__k">{{ 'Step 1'|trans }}</span>{{ 'Campaign'|trans }}</legend>
-      <fieldset class="am-chips">
-        <legend class="ag-label">{{ 'What do you want?'|trans }}</legend>
-        {% for k, label in rules.objectives %}
-        <label class="ag-chip am-chip"><input type="radio" name="objective" value="{{ k }}"{% if old.objective|default('awareness') == k %} checked{% endif %}> {{ label|trans }}</label>
-        {% endfor %}
+      <fieldset class="am-step">
+        <legend><span class="am-step__k">{{ '1 of 3'|trans }}</span>{{ 'Campaign'|trans }}</legend>
+        <fieldset class="am-chips">
+          <legend class="ag-label">{{ 'What do you want?'|trans }}</legend>
+          {% for k, label in rules.objectives %}
+          <label class="ag-chip am-chip"><input type="radio" name="objective" value="{{ k }}"{% if old.objective|default('awareness') == k %} checked{% endif %}> {{ label|trans }}</label>
+          {% endfor %}
+        </fieldset>
+        {% if errors.objective %}<p class="am-err" role="alert">{{ errors.objective|trans }}</p>{% endif %}
+        <div class="am-field">
+          <label class="ag-label" for="ad-adv">{{ 'Business name'|trans }} <span class="am-count" data-count-for="ad-adv"></span></label>
+          <input class="am-input" id="ad-adv" name="advertiser" type="text" required maxlength="{{ rules.name }}" autocomplete="organization" value="{{ old.advertiser|default('') }}" data-pv-in="by" aria-describedby="ad-adv-h{% if errors.advertiser %} ad-adv-e{% endif %}"{% if errors.advertiser %} aria-invalid="true"{% endif %}>
+          <p class="ag-hint" id="ad-adv-h">{{ 'Shown on every ad, so use the real one.'|trans }}</p>
+          {% if errors.advertiser %}<p class="am-err" id="ad-adv-e" role="alert">{{ errors.advertiser|trans }}</p>{% endif %}
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="ad-logo">{{ 'Logo'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+          <input class="am-input am-input--file" id="ad-logo" name="logo" type="file" accept="image/jpeg,image/png,image/webp" data-pv-file="logo" aria-describedby="ad-logo-h">
+          <p class="ag-hint" id="ad-logo-h">{{ 'Square, at least 200px. Without one, your initials are shown.'|trans }}</p>
+          {% if errors.logo %}<p class="am-err" role="alert">{{ errors.logo|trans }}</p>{% endif %}
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="ad-name">{{ 'Campaign name'|trans }} <span class="am-opt">{{ '(optional, only you see it)'|trans }}</span></label>
+          <input class="am-input" id="ad-name" name="name" type="text" maxlength="80" value="{{ old.name|default('') }}">
+        </div>
       </fieldset>
-      {% if errors.objective %}<p class="am-err" role="alert">{{ errors.objective|trans }}</p>{% endif %}
-      <div class="am-field">
-        <label class="ag-label" for="ad-adv">{{ 'Business name'|trans }}</label>
-        <input class="am-input" id="ad-adv" name="advertiser" type="text" required maxlength="{{ rules.name }}" autocomplete="organization" value="{{ old.advertiser|default('') }}" aria-describedby="ad-adv-h{% if errors.advertiser %} ad-adv-e{% endif %}"{% if errors.advertiser %} aria-invalid="true"{% endif %}>
-        <p class="ag-hint" id="ad-adv-h">{{ 'Shown on the ad as who it is from.'|trans }}</p>
-        {% if errors.advertiser %}<p class="am-err" id="ad-adv-e" role="alert">{{ errors.advertiser|trans }}</p>{% endif %}
-      </div>
-      <div class="am-field">
-        <label class="ag-label" for="ad-name">{{ 'Campaign name'|trans }} <span class="am-opt">{{ '(optional, only you see it)'|trans }}</span></label>
-        <input class="am-input" id="ad-name" name="name" type="text" maxlength="80" value="{{ old.name|default('') }}">
-      </div>
-    </fieldset>
 
-    <fieldset class="am-step">
-      <legend><span class="am-step__k">{{ 'Step 2'|trans }}</span>{{ 'Where and who'|trans }}</legend>
-      <fieldset class="am-chips">
-        <legend class="ag-label">{{ 'Places'|trans }}</legend>
+      <fieldset class="am-step">
+        <legend><span class="am-step__k">{{ '2 of 3'|trans }}</span>{{ 'Where it runs'|trans }}</legend>
         {% set _picked = old.placements|default(rules.placements|keys) %}
-        {% for k, label in rules.placements %}
-        <label class="am-check"><input type="checkbox" name="placements[]" value="{{ k }}"{% if k in _picked %} checked{% endif %}> <span><b>{{ label|trans }}</b> · {{ _ph[k]|default('')|trans }}</span></label>
-        {% endfor %}
-      </fieldset>
-      {% if errors.placements %}<p class="am-err" role="alert">{{ errors.placements|trans }}</p>{% endif %}
-      {% if nominee_open %}<p class="am-note">{{ 'Your award is open, so your ads stay off the vote page until it closes.'|trans }}</p>{% endif %}
-
-      <details class="am-countries"{% if old.countries|default([]) %} open{% endif %}>
-        <summary>{{ 'Countries'|trans }}&nbsp;<span class="am-opt">{{ '(everywhere, unless you choose some)'|trans }}</span></summary>
-        <div class="am-countries__grid">
-          {% for code, name in rules.countries %}
-          <label class="am-check"><input type="checkbox" name="countries[]" value="{{ code }}"{% if code in old.countries|default([]) %} checked{% endif %}> {{ name|trans }}</label>
+        <div class="am-checks">
+          {% for k, label in rules.placements %}
+          <label class="am-check"><input type="checkbox" name="placements[]" value="{{ k }}"{% if k in _picked %} checked{% endif %}> <span><b>{{ label|trans }}</b><span class="am-check__s">{{ _ph[k]|default('')|trans }}</span></span></label>
           {% endfor %}
         </div>
-      </details>
+        {% if errors.placements %}<p class="am-err" role="alert">{{ errors.placements|trans }}</p>{% endif %}
+        {% if nominee_open %}<p class="am-note">{{ 'Your award is open, so your ads stay off the vote page until it closes.'|trans }}</p>{% endif %}
+        <p class="am-est">
+          {% if estimate %}{{ 'These places drew about %n% views a day over the last %d% days. Your ad shares them with other ads.'|trans({'%n%': estimate.daily|number_format, '%d%': estimate.days}) }}
+          {% else %}{{ 'Not enough history yet to estimate views. The trial ends after %d% days whatever it reaches.'|trans({'%d%': rules.days}) }}{% endif %}
+        </p>
+      </fieldset>
 
-      <p class="am-est">
-        {% if estimate %}
-        {{ 'These places drew about %n% views a day over the last %d% days. Your ad shares them with other ads.'|trans({'%n%': estimate.daily|number_format, '%d%': estimate.days}) }}
-        {% else %}
-        {{ 'Not enough history yet to estimate views. The trial ends after %d% days whatever it reaches.'|trans({'%d%': rules.days}) }}
-        {% endif %}
-      </p>
-    </fieldset>
+      <fieldset class="am-step">
+        <legend><span class="am-step__k">{{ '3 of 3'|trans }}</span>{{ 'Your ad'|trans }}</legend>
+        <div class="am-field">
+          <label class="ag-label" for="ad-img">{{ 'Image'|trans }}</label>
+          <input class="am-input am-input--file" id="ad-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required data-pv-file="image" aria-describedby="ad-img-h{% if errors.image %} ad-img-e{% endif %}"{% if errors.image %} aria-invalid="true"{% endif %}>
+          <p class="ag-hint" id="ad-img-h">{{ 'Square, 1080 × 1080 is best, at least %n%px. Little or no text on the image works best.'|trans({'%n%': rules.image}) }}</p>
+          {% if errors.image %}<p class="am-err" id="ad-img-e" role="alert">{{ errors.image|trans }}</p>{% endif %}
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="ad-b">{{ 'Text'|trans }} <span class="am-count" data-count-for="ad-b"></span></label>
+          <textarea class="am-input am-input--area" id="ad-b" name="body" rows="3" required minlength="{{ rules.body_min }}" maxlength="{{ rules.body }}" data-pv-in="body" aria-describedby="ad-b-h{% if errors.body %} ad-b-e{% endif %}"{% if errors.body %} aria-invalid="true"{% endif %}>{{ old.body|default('') }}</textarea>
+          <p class="ag-hint" id="ad-b-h">{{ 'Shown above the image. Say what you offer and why it matters.'|trans }}</p>
+          {% if errors.body %}<p class="am-err" id="ad-b-e" role="alert">{{ errors.body|trans }}</p>{% endif %}
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="ad-h">{{ 'Headline'|trans }} <span class="am-count" data-count-for="ad-h"></span></label>
+          <input class="am-input" id="ad-h" name="headline" type="text" required maxlength="{{ rules.headline }}" value="{{ old.headline|default('') }}" data-pv-in="headline" aria-describedby="ad-h-h{% if errors.headline %} ad-h-e{% endif %}"{% if errors.headline %} aria-invalid="true"{% endif %}>
+          <p class="ag-hint" id="ad-h-h">{{ 'Under the image, beside the button. Short works best.'|trans }}</p>
+          {% if errors.headline %}<p class="am-err" id="ad-h-e" role="alert">{{ errors.headline|trans }}</p>{% endif %}
+        </div>
+        <div class="am-row2">
+          <div class="am-field">
+            <label class="ag-label" for="ad-url">{{ 'Link'|trans }}</label>
+            <input class="am-input" id="ad-url" name="url" type="url" inputmode="url" required placeholder="https://" value="{{ old.url|default('') }}" data-pv-in="domain"{% if errors.url %} aria-invalid="true" aria-describedby="ad-url-e"{% endif %}>
+            {% if errors.url %}<p class="am-err" id="ad-url-e" role="alert">{{ errors.url|trans }}</p>{% endif %}
+          </div>
+          <div class="am-field">
+            <label class="ag-label" for="ad-cta">{{ 'Button'|trans }}</label>
+            <select class="am-input" id="ad-cta" name="cta" data-pv-in="cta">
+              {% for k, label in rules.ctas %}<option value="{{ k }}"{% if old.cta|default('learn_more') == k %} selected{% endif %}>{{ label|trans }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="am-row2">
+          <div class="am-field">
+            <label class="ag-label" for="ad-offer">{{ 'Offer'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+            <input class="am-input" id="ad-offer" name="offer" type="text" maxlength="{{ rules.offer }}" placeholder="{{ 'e.g. 15% off this week'|trans }}" value="{{ old.offer|default('') }}" data-pv-in="offer" aria-describedby="ad-offer-h{% if errors.offer %} ad-offer-e{% endif %}"{% if errors.offer %} aria-invalid="true"{% endif %}>
+            <p class="ag-hint" id="ad-offer-h">{{ 'Open to everyone, never tied to voting.'|trans }}</p>
+            {% if errors.offer %}<p class="am-err" id="ad-offer-e" role="alert">{{ errors.offer|trans }}</p>{% endif %}
+          </div>
+          <div class="am-field">
+            <label class="ag-label" for="ad-code">{{ 'Offer code'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
+            <input class="am-input" id="ad-code" name="offer_code" type="text" maxlength="{{ rules.code }}" autocapitalize="characters" value="{{ old.offer_code|default('') }}" data-pv-in="code"{% if errors.offer_code %} aria-invalid="true" aria-describedby="ad-code-e"{% endif %}>
+            {% if errors.offer_code %}<p class="am-err" id="ad-code-e" role="alert">{{ errors.offer_code|trans }}</p>{% endif %}
+          </div>
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="ad-arcon">{{ 'ARCON approval number'|trans }} <span class="am-opt">{{ '(if you have one)'|trans }}</span></label>
+          <input class="am-input" id="ad-arcon" name="arcon_ref" type="text" maxlength="40" autocapitalize="characters" value="{{ old.arcon_ref|default('') }}" aria-describedby="ad-arcon-h{% if errors.arcon_ref %} ad-arcon-e{% endif %}"{% if errors.arcon_ref %} aria-invalid="true"{% endif %}>
+          <p class="ag-hint" id="ad-arcon-h">{{ 'Adverts in Nigeria need approval from ARCON, the advertising regulator. Getting it is your responsibility.'|trans }}</p>
+          {% if errors.arcon_ref %}<p class="am-err" id="ad-arcon-e" role="alert">{{ errors.arcon_ref|trans }}</p>{% endif %}
+        </div>
+      </fieldset>
 
-    <fieldset class="am-step">
-      <legend><span class="am-step__k">{{ 'Step 3'|trans }}</span>{{ 'Your ad'|trans }}</legend>
-      <div class="am-field">
-        <label class="ag-label" for="ad-img">{{ 'Image'|trans }}</label>
-        <input class="am-input am-input--file" id="ad-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required aria-describedby="ad-img-h{% if errors.image %} ad-img-e{% endif %}"{% if errors.image %} aria-invalid="true"{% endif %}>
-        <p class="ag-hint" id="ad-img-h">{{ 'Square works best. At least %n%px on each side.'|trans({'%n%': rules.image}) }}</p>
-        {% if errors.image %}<p class="am-err" id="ad-img-e" role="alert">{{ errors.image|trans }}</p>{% endif %}
+      <div class="am-submit">
+        <label class="am-check am-check--agree"><input type="checkbox" name="standards" value="1" required{% if old.standards|default(false) %} checked{% endif %}{% if errors.standards %} aria-invalid="true" aria-describedby="ad-std-e"{% endif %}> <span>{{ 'My ad follows the'|trans }} <a class="am-link" href="/legal/advertising" target="_blank" rel="noopener">{{ 'Advertising Policy'|trans }}</a>{{ ', and its claims are true.'|trans }}</span></label>
+        {% if errors.standards %}<p class="am-err" id="ad-std-e" role="alert">{{ errors.standards|trans }}</p>{% endif %}
+        <p class="am-note">{{ 'A person checks every ad before it runs. Ads are labelled Sponsored.'|trans }}</p>
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Send for review'|trans }}</button>
       </div>
-      <div class="am-field">
-        <label class="ag-label" for="ad-h">{{ 'Headline'|trans }}</label>
-        <input class="am-input" id="ad-h" name="headline" type="text" required maxlength="{{ rules.headline }}" value="{{ old.headline|default('') }}" aria-describedby="ad-h-h{% if errors.headline %} ad-h-e{% endif %}"{% if errors.headline %} aria-invalid="true"{% endif %}>
-        <p class="ag-hint" id="ad-h-h">{{ 'Up to %n% characters.'|trans({'%n%': rules.headline}) }}</p>
-        {% if errors.headline %}<p class="am-err" id="ad-h-e" role="alert">{{ errors.headline|trans }}</p>{% endif %}
-      </div>
-      <div class="am-field">
-        <label class="ag-label" for="ad-b">{{ 'Text'|trans }}</label>
-        <textarea class="am-input am-input--area" id="ad-b" name="body" rows="3" required minlength="{{ rules.body_min }}" maxlength="{{ rules.body }}" aria-describedby="ad-b-h{% if errors.body %} ad-b-e{% endif %}"{% if errors.body %} aria-invalid="true"{% endif %}>{{ old.body|default('') }}</textarea>
-        <p class="ag-hint" id="ad-b-h">{{ '%a% to %b% characters.'|trans({'%a%': rules.body_min, '%b%': rules.body}) }}</p>
-        {% if errors.body %}<p class="am-err" id="ad-b-e" role="alert">{{ errors.body|trans }}</p>{% endif %}
-      </div>
-      <div class="am-field">
-        <label class="ag-label" for="ad-cta">{{ 'Button'|trans }}</label>
-        <select class="am-input" id="ad-cta" name="cta">
-          {% for k, label in rules.ctas %}<option value="{{ k }}"{% if old.cta|default('learn_more') == k %} selected{% endif %}>{{ label|trans }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="am-field">
-        <label class="ag-label" for="ad-url">{{ 'Link'|trans }}</label>
-        <input class="am-input" id="ad-url" name="url" type="url" inputmode="url" required placeholder="https://" value="{{ old.url|default('') }}"{% if errors.url %} aria-invalid="true" aria-describedby="ad-url-e"{% endif %}>
-        {% if errors.url %}<p class="am-err" id="ad-url-e" role="alert">{{ errors.url|trans }}</p>{% endif %}
-      </div>
-      <div class="am-field">
-        <label class="ag-label" for="ad-offer">{{ 'Offer'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
-        <input class="am-input" id="ad-offer" name="offer" type="text" maxlength="{{ rules.offer }}" placeholder="{{ 'e.g. 15% off this week'|trans }}" value="{{ old.offer|default('') }}" aria-describedby="ad-offer-h{% if errors.offer %} ad-offer-e{% endif %}"{% if errors.offer %} aria-invalid="true"{% endif %}>
-        <p class="ag-hint" id="ad-offer-h">{{ 'Open to everyone. Never tied to voting.'|trans }}</p>
-        {% if errors.offer %}<p class="am-err" id="ad-offer-e" role="alert">{{ errors.offer|trans }}</p>{% endif %}
-      </div>
-      <div class="am-field">
-        <label class="ag-label" for="ad-code">{{ 'Offer code'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
-        <input class="am-input" id="ad-code" name="offer_code" type="text" maxlength="{{ rules.code }}" autocapitalize="characters" value="{{ old.offer_code|default('') }}"{% if errors.offer_code %} aria-invalid="true" aria-describedby="ad-code-e"{% endif %}>
-        {% if errors.offer_code %}<p class="am-err" id="ad-code-e" role="alert">{{ errors.offer_code|trans }}</p>{% endif %}
-      </div>
-    </fieldset>
+    </div>
 
-    <p class="am-note">{{ 'A person checks every ad before it runs. Ads are labelled Sponsored and cannot be about awards, nominees or voting.'|trans }}</p>
-    <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Start free trial'|trans }}</button>
+    <aside class="am-build__pv" aria-label="{{ 'Preview'|trans }}">
+      <p class="am-pv__h">{{ 'Preview'|trans }}</p>
+      <div data-ad-preview>{% include 'partials/ad-slot.twig' with {ad: _pv, preview: true, media_box: true} only %}</div>
+      <p class="am-note">{{ 'How your ad looks on the page. The real one is labelled the same way.'|trans }}</p>
+    </aside>
   </form>
   {% endif %}
 </div>
 {% endblock %}
+
+{% block foot_scripts %}{% if trial_left %}<script defer src="{{ asset('/assets/js/ads-builder.js') }}"></script>{% endif %}{% endblock %}

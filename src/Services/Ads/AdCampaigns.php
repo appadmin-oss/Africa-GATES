@@ -61,7 +61,7 @@ final class AdCampaigns
      * @param array<string,mixed> $in
      * @return array{ok:bool, id?:int, errors?:array<string,string>}
      */
-    public static function createTrial(int $userId, array $in, ?string $imagePath): array
+    public static function createTrial(int $userId, array $in, ?string $imagePath, ?string $logoPath = null): array
     {
         if (!self::ready() || $userId < 1) return ['ok' => false, 'errors' => ['form' => 'Ads are not available right now.']];
         if (self::trialUsed($userId)) return ['ok' => false, 'errors' => ['form' => 'You have used your free trial.']];
@@ -69,20 +69,24 @@ final class AdCampaigns
         $v = self::validate($in);
         $errors = $v['errors'];
         if ($imagePath === null || $imagePath === '') $errors['image'] ??= 'Add a square image.';
+        // Meta and Google both make an advertiser accept the standards before an ad is sent;
+        // so does this. The confirmation is stored, not just ticked.
+        if (empty($in['standards'])) $errors['standards'] = 'Confirm your ad meets the ad standards.';
         if ($errors !== []) return ['ok' => false, 'errors' => $errors];
 
         $now = date('Y-m-d H:i:s');
         try {
-            $id = (int) DB::connection()->transaction(static function () use ($userId, $v, $imagePath, $now): int {
+            $id = (int) DB::connection()->transaction(static function () use ($userId, $v, $imagePath, $logoPath, $now): int {
                 $cid = (int) DB::table('gates_ad_campaigns')->insertGetId($v['campaign'] + [
                     'user_id' => $userId, 'trial' => 1, 'status' => self::ST_SUBMITTED,
+                    'logo_path' => $logoPath ?: null, 'standards_at' => $now,
                     'submitted_at' => $now, 'created_at' => $now, 'updated_at' => $now,
                 ]);
                 // The trial's window starts when a person approves it, not when it is sent:
                 // seven days spent waiting in a queue would be seven days of nothing.
                 $sid = (int) DB::table('gates_ad_sets')->insertGetId([
                     'campaign_id' => $cid, 'placements' => implode(',', $v['placements']),
-                    'countries' => implode(',', $v['countries']), 'budget_kobo' => 0, 'rates' => '{}',
+                    'budget_kobo' => 0, 'rates' => '{}',
                     'view_cap' => AdRules::TRIAL_VIEWS, 'created_at' => $now, 'updated_at' => $now,
                 ]);
                 DB::table('gates_ads')->insert($v['ad'] + [
@@ -100,7 +104,7 @@ final class AdCampaigns
 
     /**
      * @param array<string,mixed> $in
-     * @return array{campaign:array<string,mixed>, placements:list<string>, countries:list<string>, ad:array<string,mixed>, errors:array<string,string>}
+     * @return array{campaign:array<string,mixed>, placements:list<string>, ad:array<string,mixed>, errors:array<string,string>}
      */
     public static function validate(array $in): array
     {
@@ -114,12 +118,11 @@ final class AdCampaigns
         if ($name === '') $name = $advertiser;
         $placements = AdRules::cleanPlacements($in['placements'] ?? []);
         if ($placements === []) $e['placements'] = 'Choose at least one place.';
-        $countries = AdRules::cleanCountries($in['countries'] ?? []);
 
         $c = AdRules::creative($in);
         return [
             'campaign'   => ['name' => mb_substr($name, 0, 80), 'advertiser' => $advertiser, 'objective' => $objective],
-            'placements' => $placements, 'countries' => $countries,
+            'placements' => $placements,
             'ad'         => $c['row'], 'errors' => $e + $c['errors'],
         ];
     }
@@ -201,6 +204,10 @@ final class AdCampaigns
         $out['ads'] = array_map(static fn ($a) => [
             'id' => (int) $a->id, 'headline' => (string) $a->headline, 'body' => (string) $a->body,
             'cta' => AdRules::CTAS[(string) $a->cta] ?? 'Learn more', 'cta_key' => (string) $a->cta, 'url' => (string) $a->url,
+            'domain' => AdRules::displayDomain((string) $a->url),
+            'advertiser' => (string) $c->advertiser, 'logo' => $c->logo_path ? (string) $c->logo_path : null,
+            'initials' => mb_strtoupper(implode('', array_slice(\AfricaGates\Support\AvatarMark::letters((string) $c->advertiser), 0, 2))) ?: '?',
+            'external' => !str_starts_with((string) $a->url, '/'),
             'image' => $a->image_path ? (string) $a->image_path : null,
             'offer' => $a->offer ? (string) $a->offer : null, 'offer_code' => $a->offer_code ? (string) $a->offer_code : null,
             'review' => (string) $a->review, 'reason' => (string) ($a->review_reason ?? ''),
@@ -238,7 +245,7 @@ final class AdCampaigns
             'cpc_kobo' => $clicks > 0 && $t['spent_kobo'] > 0 ? intdiv((int) $t['spent_kobo'], $clicks) : null,
             'starts_at' => $set->starts_at ?? null, 'ends_at' => $set->ends_at ?? null,
             'placements' => $set ? array_values(array_filter(explode(',', (string) $set->placements))) : [],
-            'countries' => $set ? array_values(array_filter(explode(',', (string) $set->countries))) : [],
+            'logo' => $c->logo_path ? (string) $c->logo_path : null,
             'by_placement' => $t['by_placement'],
             '_set' => $set,
         ];
@@ -293,6 +300,55 @@ final class AdCampaigns
         }
         if ((int) $set->budget_kobo > 0) $spent = min($spent, (int) $set->budget_kobo);
         return ['views' => $views, 'clicks' => $clicks, 'spent_kobo' => $spent, 'by_placement' => $by];
+    }
+
+    /**
+     * The public library: every approved ad on a campaign that is running now, newest first,
+     * with who placed it and since when. Only what the ad itself already shows the public:
+     * no spend, no figures, nothing about who saw it.
+     *
+     * @param ?int $fromAdId narrow to that ad's advertiser (by account, so a business name
+     *                       spelled two ways is still one advertiser)
+     * @return array{advertiser:?string, ads:list<array<string,mixed>>}
+     */
+    public static function library(?int $fromAdId = null): array
+    {
+        if (!self::ready()) return ['advertiser' => null, 'ads' => []];
+        $now = date('Y-m-d H:i:s');
+        try {
+            $q = DB::table('gates_ads as a')->join('gates_ad_sets as s', 's.id', '=', 'a.ad_set_id')
+                ->join('gates_ad_campaigns as c', 'c.id', '=', 's.campaign_id')
+                ->where('a.review', 'approved')->where('c.status', self::ST_SUBMITTED)
+                ->where(static fn ($w) => $w->where('c.trial', 1)->orWhereNotNull('c.paid_at'))
+                ->whereNotNull('s.starts_at')->where('s.starts_at', '<=', $now)
+                ->where(static fn ($w) => $w->whereNull('s.ends_at')->orWhere('s.ends_at', '>=', $now))
+                ->orderByDesc('s.starts_at')->orderByDesc('a.id')->limit(100)
+                ->select('a.*', 'c.advertiser', 'c.logo_path', 'c.user_id', 's.starts_at', 's.placements');
+            $name = null;
+            if ($fromAdId !== null) {
+                $owner = DB::table('gates_ads as a')->join('gates_ad_sets as s', 's.id', '=', 'a.ad_set_id')
+                    ->join('gates_ad_campaigns as c', 'c.id', '=', 's.campaign_id')
+                    ->where('a.id', $fromAdId)->select('c.user_id', 'c.advertiser')->first();
+                if (!$owner) return ['advertiser' => null, 'ads' => []];
+                $q->where('c.user_id', (int) $owner->user_id);
+                $name = (string) $owner->advertiser;
+            }
+            $rows = $q->get()->all();
+        } catch (\Throwable) {
+            return ['advertiser' => null, 'ads' => []];
+        }
+        return ['advertiser' => $name, 'ads' => array_map(static fn ($r) => [
+            'id' => (int) $r->id, 'advertiser' => (string) $r->advertiser,
+            'initials' => mb_strtoupper(implode('', array_slice(\AfricaGates\Support\AvatarMark::letters((string) $r->advertiser), 0, 2))) ?: '?',
+            'logo' => $r->logo_path ? (string) $r->logo_path : null,
+            'body' => (string) $r->body, 'headline' => (string) $r->headline,
+            'image' => $r->image_path ? (string) $r->image_path : null,
+            'offer' => $r->offer ? (string) $r->offer : null, 'offer_code' => $r->offer_code ? (string) $r->offer_code : null,
+            'cta' => AdRules::CTAS[(string) $r->cta] ?? 'Learn more', 'url' => (string) (AdRules::safeUrl((string) $r->url) ?? '#'),
+            'domain' => AdRules::displayDomain((string) $r->url), 'external' => !str_starts_with((string) $r->url, '/'),
+            'since' => (string) $r->starts_at,
+            'placements' => array_values(array_filter(explode(',', (string) $r->placements))),
+        ], $rows)];
     }
 
     /** @param list<int> $adIds @return array<int,array{views:int,clicks:int}> */

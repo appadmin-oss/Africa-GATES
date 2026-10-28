@@ -19,8 +19,7 @@
     <h1 class="am-h1">{{ c.name }}</h1>
     <p class="am-p"><span class="am-state am-state--{{ c.delivery }}">{{ c.delivery_label|trans }}</span>{% if c.delivery_note %} · {{ c.delivery_note|trans }}{% endif %}</p>
     <p class="am-note">{{ c.objective_label|trans }}{% if c.trial %} · {{ 'Free trial'|trans }}{% endif %}
-      · {% for p in c.placements %}{{ rules.placements[p]|default(p)|trans }}{% if not loop.last %}, {% endif %}{% endfor %}
-      · {% if c.countries %}{% for k in c.countries %}{{ countries[k]|default(k)|trans }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}{{ 'Everywhere'|trans }}{% endif %}</p>
+      · {% for p in c.placements %}{{ rules.placements[p]|default(p)|trans }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
   </header>
 
   <dl class="am-figs">
@@ -52,16 +51,7 @@
     {% for a in c.ads %}
     <div class="am-ad" id="ad-{{ a.id }}">
       <p class="am-ad__r"><span class="am-state am-state--{{ a.review == 'approved' ? 'active' : (a.review == 'rejected' ? 'not_approved' : 'in_review') }}">{{ _review[a.review]|default(a.review)|trans }}</span> · {{ a.views|number_format }} {{ 'views'|trans }} · {{ a.clicks|number_format }} {{ 'clicks'|trans }}</p>
-      <div class="ag-ad">
-        <div class="ag-ad__top"><span class="ag-ad__by">{{ c.advertiser }}</span><span class="ag-ad__tag">{{ 'Sponsored'|trans }}</span></div>
-        {% if a.image %}<div class="ag-ad__media"><img src="{{ a.image }}" alt="" loading="lazy" width="600" height="600"></div>{% endif %}
-        <div class="ag-ad__text">
-          <p class="ag-ad__h">{{ a.headline }}</p>
-          <p class="ag-ad__b">{{ a.body }}</p>
-          {% if a.offer %}<p class="ag-ad__offer">{{ a.offer }}{% if a.offer_code %} · <span class="ag-ad__code">{{ a.offer_code }}</span>{% endif %}</p>{% endif %}
-        </div>
-        <span class="ag-btn ag-btn--secondary ag-ad__cta">{{ a.cta|trans }}</span>
-      </div>
+      {% include 'partials/ad-slot.twig' with {ad: a, preview: true} only %}
       {% if a.review == 'rejected' %}
       {% set _o = fixing == a.id ? old : a %}
       <p class="am-err">{{ a.reason }}</p>

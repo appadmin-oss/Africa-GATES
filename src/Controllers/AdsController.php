@@ -40,6 +40,32 @@ final class AdsController
             'meta_description' => 'Put your business, product or event in front of the people on Africa GATES.',
             'placements' => AdRules::PLACEMENTS, 'rates' => AdRateCard::all(),
             'trial' => ['days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS],
+            // A drawn example, in the real card, so an advertiser sees the format before
+            // signing up. Labelled an example; it links nowhere.
+            'sample' => [
+                'advertiser' => 'Mama Put Kitchen', 'initials' => 'MP', 'logo' => null,
+                'body' => 'Party trays of jollof, fried rice and small chops, delivered across Lagos the same day.',
+                'image' => null, 'headline' => 'Jollof by the tray', 'domain' => 'mamaput.ng',
+                'offer' => '10% off this week', 'offer_code' => 'TRAY10', 'cta' => 'Shop now', 'url' => '#', 'external' => false,
+            ],
+        ]);
+    }
+
+    /**
+     * GET /advertise/library — every ad running now, who is behind it and since when. Meta's
+     * Ad Library and Google's Ads Transparency Center are the model: anybody can see what is
+     * being advertised here, without signing in. `?from=<ad id>` narrows it to that ad's
+     * advertiser (the card's "More ads from" link).
+     */
+    public function library(Request $req, Response $res): Response
+    {
+        $from = (int) ($req->getQueryParams()['from'] ?? 0);
+        $lib = AdCampaigns::library($from > 0 ? $from : null);
+        return $this->view->render($res, 'pages/advertise-library.twig', [
+            'page_title' => 'Ad library — Africa GATES',
+            'meta_description' => 'Every ad running on Africa GATES, who placed it and since when.',
+            'meta_robots' => 'noindex, follow',
+            'lib' => $lib, 'placements' => AdRules::PLACEMENTS,
         ]);
     }
 
@@ -97,7 +123,8 @@ final class AdsController
         }
 
         $image = $this->image($req, $f);
-        $r = AdCampaigns::createTrial((int) $user->id, $b, $image);
+        $logo  = $this->image($req, $f, 'logo', 200);
+        $r = AdCampaigns::createTrial((int) $user->id, $b, $image, $logo);
         if (!$r['ok']) {
             foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
             $f->flash();
@@ -120,7 +147,7 @@ final class AdsController
         return $this->view->render($res, 'pages/account/ads-campaign.twig', [
             'app_bar' => ['variant' => 'child', 'title' => $c['name'], 'back' => '/account/ads', 'share' => false],
             'page_title' => $c['name'] . ' — Ads — Africa GATES', 'gates_page' => 'account',
-            'c' => $c, 'rules' => self::rules(), 'countries' => AdRules::countries(),
+            'c' => $c, 'rules' => self::rules(),
             'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'fixing' => (int) ($form['old']['ad_id'] ?? 0),
         ]);
     }
@@ -153,7 +180,7 @@ final class AdsController
 
         $b = (array) $req->getParsedBody();
         $f = FormErrors::for('ad_fix')->keep($b + ['ad_id' => $adId]);
-        $image = $this->image($req, $f, false);
+        $image = $this->image($req, $f);
         $r = AdCampaigns::resubmitAd($adId, (int) $user->id, $b, $image);
         if (!$r['ok']) {
             foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
@@ -181,6 +208,39 @@ final class AdsController
             ->withHeader('X-Robots-Tag', 'noindex')->withStatus(302);
     }
 
+    /** POST /ads/hide — "Hide ad", from the card's menu. */
+    public function hide(Request $req, Response $res): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $ok = AdDelivery::hide((string) ($b['t'] ?? ''));
+        return $this->answer($req, $res, $b, $ok, 'Ad hidden. You will not see it again.');
+    }
+
+    /** POST /ads/report — "Report ad": a reason, once per network, for a person to read. */
+    public function report(Request $req, Response $res): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $net = \AfricaGates\Support\ClientIp::fingerprint(\AfricaGates\Support\ClientIp::from($req), 'ad-report|' . date('Y-m-d'));
+        if ($this->rateLimit && !$this->rateLimit->check('adrep:' . $net, 'ad_report', 20, 86400)) {
+            return $this->answer($req, $res, $b, false, '');
+        }
+        $ok = AdDelivery::report((string) ($b['t'] ?? ''), (string) ($b['reason'] ?? ''), $net);
+        return $this->answer($req, $res, $b, $ok, 'Thanks. A person will look at this ad.');
+    }
+
+    /** JSON for ads.js; with no script, back to the page the form was on, with the sentence. */
+    private function answer(Request $req, Response $res, array $b, bool $ok, string $message): Response
+    {
+        if (str_contains($req->getHeaderLine('Accept'), 'application/json')) {
+            $res->getBody()->write((string) json_encode(['ok' => $ok, 'message' => \AfricaGates\Support\Translator::t($message)]));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus($ok ? 200 : 422);
+        }
+        $back = (string) ($b['back'] ?? '/');
+        if (preg_match('{^/(?!/)[A-Za-z0-9/_.~%?=&+#-]*$}', $back) !== 1) $back = '/';
+        if ($ok) $_SESSION['flash_ok'] = $message;
+        return $res->withHeader('Location', $back)->withStatus(303);
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
 
     /** @return array<string,mixed> every limit the forms state, read from AdRules */
@@ -192,20 +252,20 @@ final class AdsController
             'image' => AdRules::IMAGE_MIN, 'days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS,
             'freq' => AdRules::FREQUENCY_CAP,
             'placements' => AdRules::PLACEMENTS, 'objectives' => AdRules::OBJECTIVES, 'ctas' => AdRules::CTAS,
-            'countries' => AdRules::countries(),
+            'standards' => AdRules::STANDARDS,
         ];
     }
 
-    /** The uploaded image, stored, or null with the reason added to the form. */
-    private function image(Request $req, FormErrors $f, bool $required = true): ?string
+    /** An uploaded image (`image`, or the `logo`), stored, or null with the reason added to the form. */
+    private function image(Request $req, FormErrors $f, string $field = 'image', int $min = AdRules::IMAGE_MIN): ?string
     {
-        $file = $req->getUploadedFiles()['image'] ?? null;
+        $file = $req->getUploadedFiles()[$field] ?? null;
         if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) return null;
         try {
-            $r = ($this->uploads ?? new UploadService())->uploadImage($file, 'ads', 1200, 82, null, 'ad', null, AdRules::IMAGE_MIN);
+            $r = ($this->uploads ?? new UploadService())->uploadImage($file, 'ads', $field === 'logo' ? 400 : 1200, 82, null, 'ad', null, $min);
             return (string) ($r['path'] ?? $r['url'] ?? '') ?: null;
         } catch (\Throwable $e) {
-            $f->add('image', sprintf('Use a JPEG, PNG or WebP at least %dpx on each side.', AdRules::IMAGE_MIN));
+            $f->add($field, sprintf('Use a JPEG, PNG or WebP at least %dpx on each side.', $min));
             return null;
         }
     }

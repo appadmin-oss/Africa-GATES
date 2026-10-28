@@ -12,28 +12,38 @@
 {% block content %}
 <div class="am">
   <header class="am-head">
-    <h1 class="am-h1">{{ 'Ads'|trans }}</h1>
+    <span class="am-beta">{{ 'Beta'|trans }}</span>
+    <h1 class="am-h1">{{ 'Ads Manager'|trans }}</h1>
     {% if trial_left %}
     <p class="am-p">{{ 'Your free trial: up to %v% views over %d% days.'|trans({'%v%': rules.views|number_format, '%d%': rules.days}) }}</p>
     <a class="ag-btn ag-btn--primary ag-btn--pill" href="/account/ads/new">{{ 'Create campaign'|trans }}</a>
     {% else %}
     <p class="am-p">{{ 'Your free trial is used. Paid campaigns open soon.'|trans }}</p>
     {% endif %}
-    <p class="am-note"><a class="am-link" href="/advertise">{{ 'Places and prices'|trans }}</a></p>
+    <p class="am-note"><a class="am-link" href="/advertise">{{ 'Places and prices'|trans }}</a> · <a class="am-link" href="/legal/advertising">{{ 'Advertising Policy'|trans }}</a> · <a class="am-link" href="/advertise/library">{{ 'Ad library'|trans }}</a></p>
   </header>
 
   {% if campaigns %}
+  {% set _v = campaigns|reduce((t, c) => t + c.views, 0) %}
+  {% set _c = campaigns|reduce((t, c) => t + c.clicks, 0) %}
+  <dl class="am-figs" aria-label="{{ 'All campaigns'|trans }}">
+    <div class="am-fig"><dt>{{ 'Campaigns'|trans }}</dt><dd>{{ campaigns|length }}</dd></div>
+    <div class="am-fig"><dt>{{ 'Views'|trans }}</dt><dd>{{ _v|number_format }}</dd></div>
+    <div class="am-fig"><dt>{{ 'Clicks'|trans }}</dt><dd>{{ _c|number_format }}</dd></div>
+    <div class="am-fig"><dt>{{ 'Click rate'|trans }}</dt><dd>{{ _v > 0 ? (100 * _c / _v)|round(1) ~ '%' : '–' }}</dd></div>
+  </dl>
+  <div class="am-thead" aria-hidden="true"><span>{{ 'Campaign'|trans }}</span><span>{{ 'Status'|trans }}</span><span>{{ 'Views'|trans }}</span><span>{{ 'Clicks'|trans }}</span><span>{{ 'Click rate'|trans }}</span><span>{{ 'Spent'|trans }}</span></div>
   <ul class="am-list">
     {% for c in campaigns %}
     <li class="am-row">
       <a class="am-row__a" href="/account/ads/{{ c.id }}">
         <span class="am-row__n">{{ c.name }}{% if c.trial %} <span class="am-row__s">· {{ 'Free trial'|trans }}</span>{% endif %}</span>
-        <span class="am-state am-state--{{ c.delivery }}">{{ c.delivery_label|trans }}</span>
+        <span class="am-state am-state--{{ c.delivery }}"><i aria-hidden="true"></i>{{ c.delivery_label|trans }}</span>
         <span class="am-row__m">
-          <span><b>{{ c.views|number_format }}</b> {{ 'views'|trans }}</span>
-          <span><b>{{ c.clicks|number_format }}</b> {{ 'clicks'|trans }}</span>
-          <span><b>{{ c.ctr is null ? '–' : c.ctr ~ '%' }}</b> {{ 'click rate'|trans }}</span>
-          <span><b>{{ c.trial ? 'Free'|trans : c.spent_label }}</b> {{ 'spent'|trans }}</span>
+          <span><b>{{ c.views|number_format }}</b> <span class="am-row__u">{{ 'views'|trans }}</span></span>
+          <span><b>{{ c.clicks|number_format }}</b> <span class="am-row__u">{{ 'clicks'|trans }}</span></span>
+          <span><b>{{ c.ctr is null ? '–' : c.ctr ~ '%' }}</b> <span class="am-row__u">{{ 'click rate'|trans }}</span></span>
+          <span><b>{{ c.trial ? 'Free'|trans : c.spent_label }}</b> <span class="am-row__u">{{ 'spent'|trans }}</span></span>
         </span>
       </a>
     </li>

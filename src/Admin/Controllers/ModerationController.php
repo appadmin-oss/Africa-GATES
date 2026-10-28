@@ -53,6 +53,8 @@ class ModerationController
         // Ads: every one is checked by a person before it runs (Services\Ads\AdReview), with
         // the automatic flags beside it. They never decide on their own.
         $ads = \AfricaGates\Services\Ads\AdReview::queue();
+        // Running ads readers reported. A report never takes an ad down by itself.
+        $adsReported = \AfricaGates\Services\Ads\AdReview::reported();
 
         return $this->view->render($res, 'admin/moderation/index.twig', [
             'page_title'  => 'Moderation Queue — Admin',
@@ -61,8 +63,9 @@ class ModerationController
             'threads'     => $threads,
             'vote_messages' => $voteMessages,
             'ads'         => $ads,
+            'ads_reported' => $adsReported,
             'recent_log'  => $recentLog,
-            'pending'     => count($comments) + count($threads) + count($voteMessages) + count($ads),
+            'pending'     => count($comments) + count($threads) + count($voteMessages) + count($ads) + count($adsReported),
             // Flash banners render from the Twig globals via the layout — passing
             // them here would shadow the (already-consumed) global with null.
         ]);
@@ -91,6 +94,10 @@ class ModerationController
             }
             $reason = trim((string)(((array)$req->getParsedBody())['_reason'] ?? ''));
             $r = \AfricaGates\Services\Ads\AdReview::decide($id, $adminId, $decision === 'approve', $reason);
+            // A running ad that was reported is taken down through the same Refuse button.
+            if (!$r['ok'] && $decision === 'remove' && $reason !== '') {
+                $r = \AfricaGates\Services\Ads\AdReview::takeDown($id, $adminId, $reason);
+            }
             $this->audit->record($adminId, 'moderation.' . $decision, 'ad', $id);
             $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
                 ? ($decision === 'approve' ? 'Ad approved. It can run now.' : 'Ad refused. The advertiser can see why.')

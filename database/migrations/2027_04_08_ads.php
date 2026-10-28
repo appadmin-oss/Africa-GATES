@@ -3,19 +3,22 @@
  * Ads: paid promotion of goods, services and events, built the way Meta builds it
  * (owner, 27 Oct 2026). Three levels, so a campaign can grow without a schema change:
  *
- *   gates_ad_campaigns   the OBJECTIVE and who is paying: whose (`user_id`), the name shown
- *                        on every ad (`advertiser`), whether it is the free trial, and the
+ *   gates_ad_campaigns   the OBJECTIVE and who is paying: whose (`user_id`), the name and
+ *                        logo shown on every ad (`advertiser`, `logo_path`), when they
+ *                        confirmed the ad standards, whether it is the free trial, and the
  *                        advertiser's own switch (`status`: draft, submitted, paused,
  *                        cancelled). Whether it is delivering is DERIVED (Ads\AdCampaigns::
  *                        delivery()), never stored: a stored "active" is true the day it is
  *                        written and wrong the day the budget runs out.
- *   gates_ad_sets        WHERE, WHO, WHEN and HOW MUCH: placements, countries, the window,
+ *   gates_ad_sets        WHERE, WHEN and HOW MUCH: placements, the window,
  *                        the budget in kobo, the rate card as it stood when the set was
  *                        made (`rates`, so a price change never re-prices a running
  *                        campaign), and a view cap (the trial's 1,000).
  *   gates_ads            the CREATIVE: image, headline, text, button, link, an optional
- *                        customer offer, and its review (pending, approved, rejected, with
- *                        the reason the advertiser is shown).
+ *                        customer offer, the ARCON approval number where the advertiser has
+ *                        one (pre-exposure vetting, ARCON Act 2022 s.34), and its review
+ *                        (pending, approved, rejected, with the reason the advertiser is
+ *                        shown).
  *   gates_ad_stats       views and clicks per ad, per placement, per day. Spend is derived
  *                        from views and the set's rates, never stored beside them.
  *   gates_ad_events      one row per counted view or click, keyed by the token it was minted
@@ -23,6 +26,12 @@
  *                        no person: a token, a kind and a time. Pruned after a few days.
  *   gates_ad_inventory   how many times each placement was drawn for a reader, per day: the
  *                        only honest basis for the builder's estimate of what a budget buys.
+ *   gates_ad_reports     a reader's report of an ad (a reason from AdRules::REPORT_REASONS),
+ *                        shown to the reviewer beside the running ad. A daily-salted hash of
+ *                        the network, only so one machine cannot file a hundred.
+ *
+ * No location targeting in the beta (owner, 28 Oct 2026): an ad set has no countries, and
+ * every ad is shown to everyone who opens its page.
  *
  * Money: none of these tables holds a balance (the owner's rule: no wallet). A paid
  * campaign is one payment, and what it does not spend goes back to where it came from.
@@ -51,6 +60,8 @@ $tables = [
         user_id $big NOT NULL,
         name {$v(80)} NOT NULL,
         advertiser {$v(60)} NOT NULL,
+        logo_path {$v(400)} NULL,
+        standards_at $ts NULL,
         objective {$v(16)} NOT NULL DEFAULT 'awareness',
         trial $int NOT NULL DEFAULT 0,
         status {$v(16)} NOT NULL DEFAULT 'draft',
@@ -66,7 +77,6 @@ $tables = [
     'gates_ad_sets' => "$id,
         campaign_id $big NOT NULL,
         placements {$v(120)} NOT NULL,
-        countries {$v(400)} NOT NULL DEFAULT '',
         starts_at $ts NULL,
         ends_at $ts NULL,
         budget_kobo $big NOT NULL DEFAULT 0,
@@ -83,6 +93,7 @@ $tables = [
         image_path {$v(400)} NULL,
         offer {$v(80)} NULL,
         offer_code {$v(32)} NULL,
+        arcon_ref {$v(40)} NULL,
         review {$v(16)} NOT NULL DEFAULT 'pending',
         review_reason {$v(300)} NULL,
         review_flags {$v(400)} NULL,
@@ -99,6 +110,11 @@ $tables = [
     'gates_ad_events' => "$id,
         token {$v(64)} NOT NULL,
         kind {$v(8)} NOT NULL,
+        created_at $now",
+    'gates_ad_reports' => "$id,
+        ad_id $big NOT NULL,
+        reason {$v(20)} NOT NULL,
+        net_hash {$v(64)} NULL,
         created_at $now",
     'gates_ad_inventory' => "$id,
         placement {$v(20)} NOT NULL,
@@ -122,6 +138,7 @@ $indexes = [
     ['gates_ad_events', 'uq_adev_token', ['token', 'kind'], true],
     ['gates_ad_events', 'idx_adev_time', ['created_at'], false],
     ['gates_ad_inventory', 'uq_adinv_day', ['placement', 'day'], true],
+    ['gates_ad_reports', 'uq_adrep_net', ['ad_id', 'net_hash'], true],
 ];
 foreach ($indexes as [$t, $n, $c, $u]) {
     if ($schema->hasTable($t)) echo '  ' . SchemaIndex::ensure($t, $n, $c, $u) . "\n";

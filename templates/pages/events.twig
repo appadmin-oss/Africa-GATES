@@ -273,7 +273,7 @@
   {% endif %}
 
   {# One ad, after the events and before hosting (Services\Ads). #}
-  {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token} only %}</div>{% endif %}
+  {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token, back: request_path|default('/')} only %}</div>{% endif %}
 
   {# ══ HOSTING ═════════════════════════════════════════════════════════════════
      Ink, not green: the page's green is ticket CTAs only (§6). There is no self-serve

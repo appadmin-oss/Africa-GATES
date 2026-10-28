@@ -46,9 +46,28 @@
       <div style="font-size:14px;line-height:1.6;color:var(--cn-ink);margin-top:2px">{{ a.body }}</div>
       {% if a.offer %}<div style="font-size:13px;color:var(--cn-ink);margin-top:2px">Offer: {{ a.offer }}{% if a.offer_code %} · {{ a.offer_code }}{% endif %}</div>{% endif %}
       <div style="font-size:12px;color:var(--cn-soft);margin:6px 0 4px">{{ a.cta }} → <span style="overflow-wrap:anywhere">{{ a.url }}</span> · {{ a.created_at }}</div>
+      <div style="font-size:12px;color:var(--cn-soft);margin:0 0 4px">ARCON approval: {{ a.arcon_ref ?: 'none given' }}</div>
       {% if a.flags %}<div style="font-size:12px;font-weight:700;color:var(--cn-ink);margin:0 0 8px">Check: {{ a.flags|join(' · ') }}</div>{% endif %}
       <form method="post" action="/admin/moderation/ad/{{ a.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve</button></form>
       <form method="post" action="/admin/moderation/ad/{{ a.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Refuse this ad? The advertiser sees the reason you give, so make it something they can fix.">Refuse</button></form>
+    </div>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{# Running ads that readers reported, most reports first. Taking one down needs the reason
+   the advertiser will see; a report alone never takes an ad down. #}
+{% if ads_reported|default([])|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Reported ads<small>{{ ads_reported|length }} running ad(s) with reports from readers</small></div></div><div class="ad-card__body">
+  {% for a in ads_reported %}
+  <div style="display:flex;gap:14px;border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
+    {% if a.image %}<img src="{{ a.image }}" alt="" width="72" height="72" style="flex:none;width:72px;height:72px;object-fit:cover;border-radius:8px">{% endif %}
+    <div style="min-width:0">
+      <div style="font-size:12px;color:var(--cn-soft)">{{ a.advertiser }} · {{ a.reports }} report(s)</div>
+      <div style="font-size:14px;font-weight:700;color:var(--cn-ink);margin-top:2px">{{ a.headline }}</div>
+      <div style="font-size:13px;color:var(--cn-ink);margin:2px 0 6px">{% for why, n in a.reasons %}{{ why }} ({{ n }}){% if not loop.last %} · {% endif %}{% endfor %}</div>
+      <form method="post" action="/admin/moderation/ad/{{ a.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Take this ad down? It stops at once. The advertiser sees the reason you give and can fix it.">Take down</button></form>
     </div>
   </div>
   {% endfor %}

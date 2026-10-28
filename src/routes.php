@@ -1855,7 +1855,10 @@ return function(App $app) {
         // the single-use token is the credential and the CSRF header rides along) and a
         // click, counted once and sent on to the advertiser.
         $g->get('/advertise',      \AfricaGates\Controllers\AdsController::class.':advertise');
+        $g->get('/advertise/library', \AfricaGates\Controllers\AdsController::class.':library');
         $g->post('/ads/seen',      \AfricaGates\Controllers\AdsController::class.':seen');
+        $g->post('/ads/hide',      \AfricaGates\Controllers\AdsController::class.':hide');
+        $g->post('/ads/report',    \AfricaGates\Controllers\AdsController::class.':report');
         $g->get('/ads/go/{token:[0-9]+\.[a-z_]+\.[0-9]{8}\.[a-f0-9]{12}\.[a-f0-9]{32}}', \AfricaGates\Controllers\AdsController::class.':go');
         $g->get('/discover/count', \AfricaGates\Controllers\DiscoverController::class.':count');
         $g->get('/registry/{slug}',RegistryController::class.':profile');
@@ -2615,7 +2618,11 @@ return function(App $app) {
             if (!$doc) return $res->withStatus(404);
 
             $L     = \AfricaGates\Services\LegalDocument::class;
-            $url   = \AfricaGates\Support\SiteUrl::base($req) . '/' . $slug;
+            // One answer to "where does this document live" (LegalService::path()): the
+            // canonical URL, the citation and both downloads all read it, so a document under
+            // /legal/{slug} no longer cites itself at an address that 404s.
+            $path  = \AfricaGates\Services\LegalService::path($slug);
+            $url   = \AfricaGates\Support\SiteUrl::base($req) . $path;
             $today = date('Y-m-d');
             $eff   = $L::effectiveDate($doc);
 
@@ -2640,8 +2647,8 @@ return function(App $app) {
                 'doc_url'=>$url,
                 'doc_citations'=>$L::citations($doc, $url, $today),
                 'doc_file_stem'=>$L::fileStem($doc),
-                'doc_txt_url'=>'/'.$slug.'/download/txt',
-                'doc_md_url'=>'/'.$slug.'/download/md',
+                'doc_txt_url'=>$path.'/download/txt',
+                'doc_md_url'=>$path.'/download/md',
             ]);
         };
 
@@ -2658,7 +2665,7 @@ return function(App $app) {
             if (!$doc) return $res->withStatus(404);
 
             $L    = \AfricaGates\Services\LegalDocument::class;
-            $url  = \AfricaGates\Support\SiteUrl::base($req) . '/' . $slug;
+            $url  = \AfricaGates\Support\SiteUrl::base($req) . \AfricaGates\Services\LegalService::path($slug);
             $body = $fmt === 'md' ? $L::markdown($doc, $url) : $L::plainText($doc, $url);
 
             $res->getBody()->write($body);
@@ -2669,6 +2676,17 @@ return function(App $app) {
                 ->withHeader('Cache-Control', 'public, max-age=3600');
         };
 
+        // The legal directory: every document, grouped by who it is for, each with the one
+        // question it answers (LegalService::directory()). Before it there was no page that
+        // listed them, so a reader had to know a document's name to find it.
+        $g->get('/legal', function($req,$res) use ($tv){
+            return $tv($req)->render($res, 'pages/legal-index.twig', [
+                'page_title' => 'Legal — Africa GATES',
+                'meta_description' => 'Every Africa GATES policy in one place: terms, privacy, cookies, refunds, advertising and trading terms.',
+                'gates_page' => 'legal',
+                'groups' => \AfricaGates\Services\LegalService::directory(),
+            ]);
+        });
         $g->get('/privacy', fn($req,$res)=>$legalRender($req,$res,'privacy'));
         $g->get('/terms',   fn($req,$res)=>$legalRender($req,$res,'terms'));
         // Downloads. Declared BEFORE the {slug} routes below, because Slim's default

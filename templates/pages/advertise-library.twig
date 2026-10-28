@@ -1,0 +1,35 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /advertise/library — EVERY AD RUNNING NOW (AdCampaigns::library())
+
+  Meta's Ad Library and Google's Ads Transparency Center are the model: anybody, signed in or
+  not, can see what is being advertised here, who placed it and since when. Only what the ad
+  itself already shows the public: never spend, figures or who saw it. Drawn in preview mode,
+  so looking at the library counts no views and spends nobody's budget.
+#}
+{% set colour_tier = '1' %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endblock %}
+
+{% block content %}
+<div class="am">
+  <header class="am-head">
+    <h1 class="am-h1">{{ lib.advertiser ? 'Ads from %a%'|trans({'%a%': lib.advertiser}) : 'Ad library'|trans }}</h1>
+    <p class="am-p">{{ 'Every ad running on Africa GATES now, who placed it and since when.'|trans }}</p>
+    {% if lib.advertiser %}<p class="am-note"><a class="am-link" href="/advertise/library">{{ 'All ads'|trans }}</a></p>{% endif %}
+  </header>
+
+  {% if lib.ads %}
+  <ul class="am-lib">
+    {% for a in lib.ads %}
+    <li class="am-lib__i">
+      {% include 'partials/ad-slot.twig' with {ad: a, preview: true} only %}
+      <p class="am-note">{{ 'Running since %d%'|trans({'%d%': a.since|date('j M Y')}) }} · {% for p in a.placements %}{{ placements[p]|default(p)|trans }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="am-p">{{ 'No ads are running right now.'|trans }} <a class="am-link" href="/advertise">{{ 'Advertise'|trans }}</a></p>
+  {% endif %}
+</div>
+{% endblock %}

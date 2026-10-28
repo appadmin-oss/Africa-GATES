@@ -227,7 +227,7 @@
 
       {# One ad, under everything the page is for (Services\Ads). The controller picks none
          while an award here is taking votes. #}
-      {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token} only %}</div>{% endif %}
+      {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token, back: request_path|default('/')} only %}</div>{% endif %}
 
       {% if awards.voting %}
       <a class="ed-vote" href="{{ awards.voting.url }}">

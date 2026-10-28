@@ -61,7 +61,35 @@ final class LegalDocument
         if (($doc['slug'] ?? '') === 'cookies') {
             $html .= self::cookiesHtml();
         }
+        if (($doc['slug'] ?? '') === 'advertising') {
+            $html .= self::advertisingHtml();
+        }
         return $html;
+    }
+
+    /**
+     * What an ad may not be, and the figures, generated from Services\Ads\AdRules: the same
+     * list the builder makes an advertiser confirm and a reviewer refuses against, so the
+     * published policy cannot drift from the rule that is running.
+     */
+    public static function advertisingHtml(): string
+    {
+        $R = \AfricaGates\Services\Ads\AdRules::class;
+        $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $h = ['<h2>What an ad may not be</h2>', '<table><thead><tr><th>Not allowed</th><th>What that means</th></tr></thead><tbody>'];
+        foreach ($R::STANDARDS as [$name, $what]) {
+            $h[] = '<tr><td><strong>' . $e($name) . '</strong></td><td>' . $e($what) . '</td></tr>';
+        }
+        $h[] = '</tbody></table>';
+        $places = implode(', ', array_map($e, array_values($R::PLACEMENTS)));
+        $h[] = '<h2>The figures</h2><ul>'
+             . '<li>Places ads may appear: ' . $places . '.</li>'
+             . '<li>The free trial: one per account, up to ' . number_format($R::TRIAL_VIEWS) . ' views over '
+             . $R::TRIAL_DAYS . ' days, from when it is approved.</li>'
+             . '<li>One person sees the same ad at most ' . $R::FREQUENCY_CAP . ' times a day.</li>'
+             . '<li>A campaign can be booked for up to ' . $R::MAX_DAYS . ' days.</li>'
+             . '</ul><p>This section is generated from the rules the site runs, so it is always current.</p>';
+        return implode("\n", $h);
     }
 
     /**
@@ -326,12 +354,13 @@ final class LegalDocument
         // Ads arrived on 27 Oct 2026, and this page and the notice both said "no ads". The
         // promise that stays true is narrower and is the one stated: not based on you.
         $h[] = '<p><strong>Ads.</strong> Some pages carry one ad, labelled Sponsored. It is '
-             . 'chosen by the page and your country (as our network provider reports it), never '
-             . 'by anything you did here, and it is the same whether or not you allow Analytics. '
+             . 'chosen by the page alone, never by anything you did here, and it is the same '
+             . 'whether or not you allow Analytics. '
              . 'So one ad is not shown to you more than '
              . \AfricaGates\Services\Ads\AdRules::FREQUENCY_CAP . ' times a day, your session counts '
              . 'how often you have seen it; nothing new is stored on your device. Views and clicks '
-             . 'are counted as totals for the advertiser and say nothing about who you are.</p>';
+             . 'are counted as totals for the advertiser and say nothing about who you are. If you '
+             . 'hide or report an ad, your session remembers it so you are not shown it again.</p>';
         $h[] = '<p><strong>What is never kept:</strong> your IP address (only a hash of it, '
              . 're-scrambled with a new secret every day, so the same visitor cannot be followed '
              . 'from one day to the next), the full address of the page that linked here (the '

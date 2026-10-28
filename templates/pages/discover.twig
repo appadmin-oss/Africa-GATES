@@ -143,7 +143,7 @@
       </section>
 
       {# One ad, between the awards and the rest (Services\Ads). Labelled, never in a result. #}
-      {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token} only %}</div>{% endif %}
+      {% if ad|default(null) %}<div class="ag-ad-slot">{% include 'partials/ad-slot.twig' with {ad: ad, csrf_token: csrf_token, back: request_path|default('/')} only %}</div>{% endif %}
 
       <div class="dv-body">
         <div class="dv-col">

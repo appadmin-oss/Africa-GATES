@@ -1,24 +1,63 @@
-/* ── An ad, as every placement draws it (partials/ad-slot.twig) ─────────────────────────
-   A white card like every other card on the ground, so it is never mistaken for an award
-   and never louder than the page: neutral words, a secondary button, the label first. */
-.ag-ad-slot{ margin-block:16px; max-width:720px }
-.ag-ad{ display:grid; grid-template-columns:1fr; gap:10px; padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16); background:var(--ag-surface) }
-.ag-ad__top{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; min-width:0 }
-.ag-ad__by{ font-size:var(--ag-fs-14); font-weight:700; color:var(--ag-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.ag-ad__tag{ flex:none; font-size:var(--ag-fs-12); color:var(--ag-soft) }
-.ag-ad__media{ display:block; aspect-ratio:1/1; overflow:hidden; border-radius:var(--ag-r-12); background:var(--ag-ground) }
+/* ── One ad, as every placement draws it (partials/ad-slot.twig) ─────────────────────────
+   Meta's feed-ad anatomy, in this site's materials: who it is from and "Sponsored" at the
+   top left (where the FTC asks a label to be, and where the eye lands first), the
+   advertiser's text, a square image edge to edge, then a link bar with the domain, the
+   headline and the button. A white card like every card on the ground, neutral throughout:
+   an ad is never louder than the page it is on, and is never mistaken for an award.
+   500px at most, the width of a feed post, so an image is never a billboard on desktop. */
+.ag-ad-slot{ margin-block:16px }
+.ag-ad{ position:relative; max-width:500px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16); background:var(--ag-surface); overflow:visible }
+
+.ag-ad__head{ display:flex; align-items:center; gap:10px; padding:12px 6px 10px 14px; min-width:0 }
+.ag-ad__logo{ flex:none; display:grid; place-items:center; width:40px; height:40px; overflow:hidden; border:1px solid var(--ag-line); border-radius:var(--ag-r-10); background:var(--ag-bar); font-size:var(--ag-fs-14); font-weight:700; color:var(--ag-ink) }
+.ag-ad__logo img{ display:block; width:100%; height:100%; object-fit:cover }
+.ag-ad__who{ display:flex; flex-direction:column; min-width:0; flex:1 }
+.ag-ad__by{ font-size:var(--ag-fs-15); font-weight:700; line-height:1.3; color:var(--ag-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.ag-ad__tag{ font-size:var(--ag-fs-13); line-height:1.3; color:var(--ag-soft) }
+
+/* The ⋯ menu: a <details>, so it opens with no script. */
+.ag-ad__menu{ position:relative; flex:none }
+.ag-ad__more{ display:grid; place-items:center; width:44px; height:44px; border-radius:var(--ag-r-pill); color:var(--ag-soft); cursor:pointer; list-style:none }
+.ag-ad__more::-webkit-details-marker{ display:none }
+.ag-ad__more:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+.ag-ad__pop{ position:absolute; z-index:5; top:46px; inset-inline-end:4px; width:min(300px, calc(100vw - 48px)); padding:6px; border:1px solid var(--ag-line); border-radius:var(--ag-r-14); background:var(--ag-surface); box-shadow:var(--ag-sh-menu) }
+.ag-ad__pop form{ margin:0 }
+.ag-ad__item{ display:flex; align-items:center; width:100%; min-height:44px; padding:0 12px; border:0; border-radius:var(--ag-r-10); background:none; font:inherit; font-size:var(--ag-fs-14-5); color:var(--ag-ink); text-align:start; text-decoration:none; cursor:pointer; list-style:none }
+.ag-ad__item::-webkit-details-marker{ display:none }
+.ag-ad__item:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+.ag-ad__rep{ display:grid; gap:8px; padding:4px 12px 10px }
+.ag-ad__rep fieldset{ margin:0; padding:0; border:0 }
+.ag-ad__lg{ padding:0; margin:0 0 4px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
+.ag-ad__opt{ display:flex; align-items:center; gap:10px; min-height:40px; font-size:var(--ag-fs-14-5) }
+.ag-ad__opt input{ width:18px; height:18px; accent-color:var(--ag-green) }
+.ag-ad__send{ justify-self:start; min-height:44px }
+.ag-ad__why{ margin:4px 0; padding:10px 12px; border-top:1px solid var(--ag-line-3); border-bottom:1px solid var(--ag-line-3); font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-ink-2) }
+.ag-ad__why b{ display:block; color:var(--ag-ink) }
+
+/* The advertiser's words, then the image, edge to edge. */
+.ag-ad__text{ margin:0; padding:0 14px 12px; font-size:var(--ag-fs-15); line-height:1.45; color:var(--ag-ink); overflow-wrap:anywhere;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
+.ag-ad__media{ display:block; aspect-ratio:1/1; overflow:hidden; background:var(--ag-ground); border-block:1px solid var(--ag-line-3) }
 .ag-ad__media img{ display:block; width:100%; height:100%; object-fit:cover }
-.ag-ad__text{ display:grid; gap:4px; min-width:0 }
-.ag-ad__h{ margin:0; font-size:var(--ag-fs-16); font-weight:700; color:var(--ag-ink); overflow-wrap:anywhere }
-.ag-ad__b{ margin:0; font-size:var(--ag-fs-14-5); line-height:1.45; color:var(--ag-ink-2); overflow-wrap:anywhere }
-.ag-ad__offer{ margin:2px 0 0; font-size:var(--ag-fs-14); font-weight:600; color:var(--ag-ink) }
-.ag-ad__code{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-13-5); font-weight:600 }
-.ag-ad__cta{ justify-self:start; min-height:44px }
-.ag-ad__why{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
-.ag-ad__why summary{ min-height:24px; cursor:pointer }
-.ag-ad__why p{ margin:6px 0 0 }
-@media (min-width:600px){
-  .ag-ad{ grid-template-columns:160px 1fr; grid-template-areas:"top top" "media text" "media cta" "why why"; column-gap:16px }
-  .ag-ad__top{ grid-area:top } .ag-ad__media{ grid-area:media } .ag-ad__text{ grid-area:text }
-  .ag-ad__cta{ grid-area:cta; align-self:end } .ag-ad__why{ grid-area:why }
+.ag-ad__ph{ display:grid; place-items:center; height:100%; font-size:var(--ag-fs-14); color:var(--ag-soft) }
+
+/* The link bar: the whole bar is the link, the button is its label. */
+.ag-ad__foot{ display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; padding:12px 14px; border-radius:0 0 var(--ag-r-16) var(--ag-r-16); background:var(--ag-bar); color:inherit; text-decoration:none }
+.ag-ad__foot:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-ad__meta{ display:flex; flex-direction:column; gap:2px; min-width:0 }
+.ag-ad__dom{ font-size:var(--ag-fs-12-5); color:var(--ag-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.ag-ad__h{ font-size:var(--ag-fs-15-5); font-weight:700; line-height:1.3; color:var(--ag-ink); overflow-wrap:anywhere;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden }
+.ag-ad__offer{ font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
+.ag-ad__code{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-ink) }
+.ag-ad__cta{ min-height:44px; white-space:nowrap; pointer-events:none }
+
+/* After "Hide" or "Report": the card folds to one line. */
+.ag-ad--done{ display:flex; align-items:center; gap:10px; padding:14px; font-size:var(--ag-fs-14-5); color:var(--ag-ink-2) }
+
+@media (hover:hover){
+  .ag-ad__more:hover{ background:var(--ag-bar); color:var(--ag-ink) }
+  .ag-ad__item:hover{ background:var(--ag-bar) }
+  .ag-ad__foot:hover{ background:var(--ag-ground) }
+  .ag-ad__foot:hover .ag-ad__cta{ border-color:var(--ag-mute) }
 }

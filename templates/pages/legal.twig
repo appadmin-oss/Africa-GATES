@@ -4,6 +4,7 @@
 {#
   ══════════════════════════════════════════════════════════════════════════════
   LEGAL — /privacy · /terms · /cookies · /refunds · /vendor-terms · /legal/{slug}
+  (the directory of all of them is /legal, pages/legal-index.twig)
   Phase 9 · design/DocPage.dc.html (doc = terms · privacy · cookies) · §8.20
   ══════════════════════════════════════════════════════════════════════════════
 
@@ -29,12 +30,12 @@
 {% set colour_tier = '0' %}
 {% set cur = legal_doc %}
 {% set _is_cookies = cur.slug == 'cookies' %}
-{% set app_bar = {variant: 'child', title: cur.title, sub: 'Legal'|trans, back: '/'} %}
+{% set app_bar = {variant: 'child', title: cur.title, sub: 'Legal'|trans, back: '/legal'} %}
 
 {# Hoisted: the head, the content and the sheets block all read it. #}
-{% set _sibs = [] %}
+{% set _sibs = [{label: 'All legal documents'|trans, href: '/legal', current: false}] %}
 {% for t in legal_tabs %}
-  {% set _sibs = _sibs|merge([{label: t.title, href: '/' ~ t.slug, current: t.slug == cur.slug}]) %}
+  {% set _sibs = _sibs|merge([{label: t.title, href: t.url|default('/' ~ t.slug), current: t.slug == cur.slug}]) %}
 {% endfor %}
 {% set _sibs = _sibs|merge([
   {label: 'How a winner is decided'|trans, href: '/integrity', current: false},

@@ -23,7 +23,7 @@ use Tests\TestCase;
  *     is kept off the vote page and nowhere else;
  *   · a view is counted once per drawn ad, so a replayed beacon buys nothing, and a forged
  *     token counts nothing;
- *   · delivery stops at the trial's views and respects the frequency cap and the countries;
+ *   · delivery stops at the trial's views and respects the frequency cap; there is no location targeting in the beta;
  *   · spend is views × the BOOKED rate, never past the budget;
  *   · only the four approved pages may draw an ad. A ballot, a nominee and a result never.
  */
@@ -49,6 +49,7 @@ final class AdsTest extends TestCase
             'placements' => ['discover', 'vote_hub', 'events'],
             'headline' => 'Jollof by the tray', 'body' => 'Party trays delivered across Lagos, same day.',
             'cta' => 'shop_now', 'url' => 'https://mamaput.example.ng/trays', 'offer' => '10% off this week', 'offer_code' => 'TRAY10',
+            'standards' => '1',
         ];
     }
 
@@ -161,21 +162,93 @@ final class AdsTest extends TestCase
         $this->assertSame('/', AdDelivery::click($ad['token'], true));
     }
 
-    public function test_delivery_stops_at_the_trial_views_and_keeps_to_the_cap_and_countries(): void
+    public function test_delivery_stops_at_the_trial_views_and_keeps_to_the_frequency_cap(): void
     {
-        $t = $this->liveTrial($this->user(), ['countries' => ['GH']]);
-        $this->assertNull(AdDelivery::pick('discover', ['reader' => true, 'country' => 'NG']), 'aimed at Ghana');
-        $this->assertNull(AdDelivery::pick('discover', ['reader' => true]), 'and an unknown country is not Ghana');
-
+        $t = $this->liveTrial($this->user());
         for ($i = 0; $i < AdRules::FREQUENCY_CAP; $i++) {
-            $this->assertNotNull(AdDelivery::pick('discover', ['reader' => true, 'country' => 'GH']), 'shown ' . ($i + 1));
+            $this->assertNotNull(AdDelivery::pick('discover', ['reader' => true]), 'shown ' . ($i + 1));
         }
-        $this->assertNull(AdDelivery::pick('discover', ['reader' => true, 'country' => 'GH']), 'then the frequency cap');
+        $this->assertNull(AdDelivery::pick('discover', ['reader' => true]), 'then the frequency cap');
 
         $_SESSION = [];
         DB::table('gates_ad_stats')->insert(['ad_id' => $t['ad'], 'placement' => 'discover', 'day' => date('Y-m-d', time() - 86400), 'views' => AdRules::TRIAL_VIEWS, 'clicks' => 0]);
-        $this->assertNull(AdDelivery::pick('discover', ['reader' => true, 'country' => 'GH']), 'the trial ends at its views');
+        $this->assertNull(AdDelivery::pick('discover', ['reader' => true]), 'the trial ends at its views');
         $this->assertSame('completed', AdCampaigns::detail($t['campaign'], (int) DB::table('gates_ad_campaigns')->value('user_id'))['delivery']);
+    }
+
+    /** No location targeting in the beta (owner, 28 Oct 2026): nothing to choose, nothing filtered. */
+    public function test_there_is_no_location_targeting_in_the_beta(): void
+    {
+        $this->assertFalse(DB::schema()->hasColumn('gates_ad_sets', 'countries'));
+        $uid = $this->user();
+        $html = ChromeRender::html('/account/ads/new', ['user_id' => $uid, 'member_id' => $uid, 'account_id' => $uid]);
+        $this->assertStringNotContainsString('countries[]', $html);
+    }
+
+    public function test_the_advertiser_must_confirm_the_policy(): void
+    {
+        $r = AdCampaigns::createTrial($this->user(), $this->good(['standards' => '']), '/uploads/ads/x.jpg');
+        $this->assertFalse($r['ok']);
+        $this->assertArrayHasKey('standards', $r['errors']);
+    }
+
+    /** Hide stops the campaign for this reader; a report is once per network and a person decides. */
+    public function test_a_reader_can_hide_or_report_and_a_person_can_take_it_down(): void
+    {
+        $t = $this->liveTrial($this->user());
+        $ad = AdDelivery::pick('discover', ['reader' => true]);
+        $this->assertTrue(AdDelivery::hide($ad['token']));
+        $this->assertNull(AdDelivery::pick('discover', ['reader' => true]), 'hidden for this reader');
+        $_SESSION = [];
+        $ad = AdDelivery::pick('discover', ['reader' => true]);
+        $this->assertNotNull($ad, 'and only for them');
+
+        $this->assertFalse(AdDelivery::report($ad['token'], 'not-a-reason', 'net1'));
+        $this->assertTrue(AdDelivery::report($ad['token'], 'misleading', 'net1'));
+        AdDelivery::report($ad['token'], 'misleading', 'net1');
+        AdDelivery::report($ad['token'], 'offensive', 'net2');
+        $rep = AdReview::reported();
+        $this->assertCount(1, $rep);
+        $this->assertSame(2, $rep[0]['reports'], 'one report per network');
+
+        $_SESSION = [];
+        $this->assertNotNull(AdDelivery::pick('discover', ['reader' => true]), 'a report alone never takes an ad down');
+        $this->assertFalse(AdReview::takeDown($t['ad'], 1, '')['ok'], 'a takedown needs a reason');
+        $this->assertTrue(AdReview::takeDown($t['ad'], 1, 'The prices are not real.')['ok']);
+        $this->assertNull(AdDelivery::pick('discover', ['reader' => true]));
+        $this->assertSame('not_approved', AdCampaigns::detail($t['campaign'], (int) DB::table('gates_ad_campaigns')->value('user_id'))['delivery']);
+    }
+
+    public function test_the_library_lists_running_ads_without_counting_them(): void
+    {
+        $this->liveTrial($this->user());
+        $html = ChromeRender::html('/advertise/library');
+        $this->assertStringContainsString('Mama Put Kitchen', $html);
+        $this->assertStringContainsString('Running since', $html);
+        $this->assertStringNotContainsString('data-ad="', $html, 'looking at the library is not a view');
+        $this->assertSame(0, (int) DB::table('gates_ad_inventory')->sum('slots'));
+    }
+
+    /** The legal directory, and the policy in it, generated from the same rules the site runs. */
+    public function test_the_legal_directory_lists_every_policy_and_the_advertising_policy_reads_the_rules(): void
+    {
+        $dir = ChromeRender::html('/legal');
+        $listed = 0;
+        foreach (\AfricaGates\Services\LegalService::directory() as $g) {
+            foreach ($g['docs'] as $d) { $this->assertStringContainsString(htmlspecialchars($d['title'], ENT_QUOTES | ENT_HTML5), $dir); $listed++; }
+        }
+        $this->assertGreaterThanOrEqual(6, $listed, 'every published document, each by its stored title');
+        $this->assertStringContainsString('Advertising Policy', $dir);
+        $this->assertStringContainsString('href="/legal/advertising"', $dir);
+        $this->assertStringContainsString('href="/privacy"', $dir, 'a document with its own address is linked there');
+
+        $doc = ChromeRender::html('/legal/advertising');
+        $this->assertStringContainsString('ARCON', $doc);
+        foreach (AdRules::STANDARDS as [$name]) $this->assertStringContainsString(htmlspecialchars($name, ENT_QUOTES | ENT_HTML5), $doc);
+        $this->assertStringContainsString(number_format(AdRules::TRIAL_VIEWS) . ' views over ' . AdRules::TRIAL_DAYS . ' days', $doc, 'the figures are generated');
+        $this->assertStringContainsString('/legal/advertising/download/txt', $doc, 'downloads at the address the document lives at');
+        $this->assertSame(200, ChromeRender::page('/legal/advertising/download/txt')->getStatusCode());
+        $this->assertStringContainsString('href="/legal"', ChromeRender::html('/'), 'the directory is in the footer');
     }
 
     public function test_paused_and_cancelled_campaigns_are_not_shown(): void
@@ -206,7 +279,7 @@ final class AdsTest extends TestCase
         $uid = $this->user();
         $cid = (int) DB::table('gates_ad_campaigns')->insertGetId(['user_id' => $uid, 'name' => 'Paid', 'advertiser' => 'X', 'objective' => 'awareness',
             'trial' => 0, 'status' => 'submitted', 'paid_at' => date('Y-m-d H:i:s'), 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
-        $sid = (int) DB::table('gates_ad_sets')->insertGetId(['campaign_id' => $cid, 'placements' => 'discover', 'countries' => '',
+        $sid = (int) DB::table('gates_ad_sets')->insertGetId(['campaign_id' => $cid, 'placements' => 'discover',
             'budget_kobo' => 100000, 'rates' => json_encode(AdRateCard::snapshot(['discover'])),
             'starts_at' => date('Y-m-d H:i:s', time() - 3600), 'ends_at' => date('Y-m-d H:i:s', time() + 86400 * 5),
             'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
@@ -230,7 +303,15 @@ final class AdsTest extends TestCase
         foreach ($it as $f) {
             if (!$f->isFile() || !str_ends_with($f->getFilename(), '.twig')) continue;
             $rel = substr($f->getPathname(), strlen($root) + 1);
-            if (str_contains(ChromeRender::source('templates/' . $rel), "partials/ad-slot.twig")) $found[] = $rel;
+            // A LIVE slot: an include of the card that is not a preview. Previews (the
+            // advertiser's own pages, the library, /advertise) count nothing and are drawn
+            // on pages about ads, not beside a choice.
+            $src = ChromeRender::source('templates/' . $rel);
+            if (preg_match_all("~include 'partials/ad-slot\.twig' with \{([^}]*)\}~", $src, $m)) {
+                foreach ($m[1] as $args) {
+                    if (!str_contains($args, 'preview: true')) { $found[] = $rel; break; }
+                }
+            }
         }
         sort($found);
         sort($allowed);
@@ -247,12 +328,16 @@ final class AdsTest extends TestCase
         $this->assertStringContainsString('class="ag-ad"', $html);
         $this->assertStringContainsString('Sponsored', $html);
         $this->assertStringContainsString('Mama Put Kitchen', $html, 'who paid is on the ad');
+        $this->assertStringContainsString('mamaput.example.ng', $html, 'and where a tap goes');
+        $this->assertStringContainsString('action="/ads/report"', $html, 'every ad can be reported');
+        $this->assertStringContainsString('action="/ads/hide"', $html);
         $this->assertStringContainsString('rel="sponsored', $html);
         $this->assertStringContainsString('/assets/js/ads.js', $html);
 
         $mgr = ChromeRender::html('/account/ads', ['user_id' => $uid, 'member_id' => $uid, 'account_id' => $uid]);
         $this->assertStringContainsString('Mama Put Kitchen', $mgr);
         $this->assertStringContainsString('Active', $mgr);
+        $this->assertStringContainsString('Ads Manager', $mgr);
         $this->assertStringContainsString('Your free trial is used', $mgr);
     }
 
@@ -261,7 +346,8 @@ final class AdsTest extends TestCase
         DB::table('gates_settings')->updateOrInsert(['key_name' => 'ads_cpm_discover'], ['value' => '1500']);
         $html = ChromeRender::html('/advertise');
         $this->assertStringContainsString('₦1,500', $html);
-        $this->assertStringContainsString('Trial only for now', $html, 'a placement with no price says so');
+        $this->assertStringContainsString('Free trial only for now', $html, 'a placement with no price says so');
+        $this->assertStringContainsString('href="/legal/advertising"', $html);
         $this->assertStringContainsString(number_format(AdRules::TRIAL_VIEWS), $html);
         $this->assertStringContainsString('href="/advertise"', ChromeRender::html('/'), 'reachable from the footer');
 
@@ -270,7 +356,10 @@ final class AdsTest extends TestCase
         $this->assertStringContainsString('action="/account/ads"', $b);
         $this->assertStringContainsString('enctype="multipart/form-data"', $b);
         $this->assertStringContainsString('maxlength="' . AdRules::BODY_MAX . '"', $b, 'the limit is the constant');
-        $this->assertStringContainsString('Start free trial', $b);
+        $this->assertStringContainsString('Send for review', $b);
+        $this->assertStringContainsString('name="standards"', $b, 'the policy is confirmed before sending');
+        $this->assertStringContainsString('name="arcon_ref"', $b);
+        $this->assertStringContainsString('data-ad-preview', $b, 'with a live preview');
     }
 
     /**

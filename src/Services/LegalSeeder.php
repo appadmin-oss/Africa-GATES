@@ -127,7 +127,95 @@ final class LegalSeeder
             // failure as a rejection with no reason.
             'vendor-terms' => ['title' => 'Vendor Trading Terms', 'sort' => 5,
                                'body' => self::vendorTerms()],
+            // ── ADS NEED A POLICY BEFORE THEY NEED A PRICE ───────────────────
+            //
+            // Ads arrived on 27 Oct 2026 (Services\Ads), and every platform that sells them
+            // publishes what an ad may be before it sells one. The standards and the figures
+            // are generated (LegalDocument::advertisingHtml(), from AdRules) so the policy
+            // cannot describe a different rule from the one the builder and the reviewer use.
+            'advertising' => ['title' => 'Advertising Policy', 'sort' => 6, 'body' => self::advertising()],
         ];
+    }
+
+    /**
+     * The advertising policy. Plain sentences; what an ad may not be, and every number, is
+     * generated beneath it from AdRules (LegalDocument::advertisingHtml()).
+     *
+     * The law it names is what research found on 28 Oct 2026: ARCON Act 2022 (pre-exposure
+     * vetting of adverts, online included) and the FCCPA 2018 (no misleading marketing).
+     */
+    private static function advertising(): string
+    {
+        return <<<'HTML'
+<p>Ads help pay for Africa GATES. This policy says who may advertise, what an ad may be, and
+   how ads are checked, shown and paid for. Ads are in beta, so some of this will change; the
+   date at the top says when it last did.</p>
+
+<h2>Who may advertise</h2>
+<p>Anyone with an Africa GATES account, for a real business, product, service or event that
+   is theirs or that they are allowed to promote. The business name you give is shown on
+   every ad, so it must be the real one.</p>
+
+<h2>Nominees</h2>
+<p>Nominees are never promoted on this site, free or paid. A nominee may still advertise
+   what they do, under four rules:</p>
+<ul>
+  <li>The ad is about their business, never their nomination, their award or a vote.</li>
+  <li>Any offer is open to everyone and never depends on voting.</li>
+  <li>While their own award is open for voting, their ads do not appear on the vote page.</li>
+  <li>They pay the same prices as everyone else.</li>
+</ul>
+
+<h2>The law</h2>
+<p><strong>ARCON approval.</strong> In Nigeria, an advert must be approved by the Advertising
+   Regulatory Council of Nigeria (ARCON) before it is published, online as well as offline
+   (ARCON Act 2022). Getting that approval is the advertiser's responsibility. Add your
+   approval number when you create an ad. We may refuse or remove an ad that needs approval
+   and does not have it.</p>
+<p><strong>Honest claims.</strong> Nigeria's consumer protection law (Federal Competition and
+   Consumer Protection Act 2018) forbids misleading claims about a product, its price or what
+   it does. Your ad must be true, and the page it links to must match it.</p>
+<p><strong>Elsewhere.</strong> If your ad reaches people in another country, that country's
+   rules apply too.</p>
+
+<h2>Review</h2>
+<p>A person checks every ad before it runs, and again whenever it is changed. If we refuse
+   an ad we say why, and you can fix it and send it again. Approval does not mean an ad is
+   lawful: that stays the advertiser's responsibility.</p>
+
+<h2>How ads are shown</h2>
+<ul>
+  <li>Every ad is labelled Sponsored and names who paid for it.</li>
+  <li>Ads never appear beside a ballot, a nominee or a result.</li>
+  <li>Ads are chosen by the page, never by what a visitor did here. During the beta there is
+      no targeting by location either.</li>
+  <li>A view is counted only when at least half the ad has been on screen for one second,
+      and each showing can be counted once. Bots are not counted.</li>
+  <li>Every running ad is listed in the public ad library, with who placed it and since
+      when.</li>
+</ul>
+
+<h2>Prices and refunds</h2>
+<ul>
+  <li>Prices are published on the Advertise page, per 1,000 views, and are the same for
+      everyone.</li>
+  <li>A campaign is paid for in full before it runs. We hold no balance and no credit for
+      you.</li>
+  <li>You pay only for views delivered. Money a campaign does not spend goes back to the card
+      or account it came from, including when we remove an ad that breaks this policy.</li>
+</ul>
+
+<h2>Reports and removal</h2>
+<p>Anyone can report an ad from its menu. A person reads every report; a report alone never
+   takes an ad down. We may remove an ad at any time if it breaks this policy, and stop an
+   account from advertising if it does so again.</p>
+
+<h2>Your information</h2>
+<p>We keep what you give us to run your ads: your account, your business name, your ad and
+   its images, and its daily views and clicks. Ads use nothing about the people who see
+   them: no profile and no tracking across sites. The Cookies policy says what the site
+   itself stores.</p>
+HTML;
     }
 
     /**
