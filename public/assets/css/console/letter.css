@@ -12,7 +12,7 @@
 
 .le { container-type: inline-size; display: flex; flex-direction: column; gap: 18px; }
 
-.le-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.le-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .le-h1 { margin: 0; font-size: var(--cn-fs-17); font-weight: 600; letter-spacing: -0.01em; color: var(--cn-ink); }
 .le-bar__s { margin: 4px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: var(--cn-fs-13); color: var(--cn-soft); }
 .le-bar__a { display: flex; align-items: center; gap: 8px; }
@@ -34,11 +34,16 @@
   .le-side { position: sticky; top: 12px; }
 }
 
-/* The guide: one quiet line of three steps, not three cards. */
-.le-steps-how { counter-reset: le; display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0 0 18px; padding: 0; list-style: none; font-size: var(--cn-fs-13); color: var(--cn-soft); }
-.le-steps-how li { counter-increment: le; display: inline-flex; align-items: baseline; gap: 8px; }
-.le-steps-how li::before { content: counter(le); display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--cn-hover); color: var(--cn-ink-2); font-size: var(--cn-fs-11); font-weight: 600; }
-.le-steps-how b { color: var(--cn-ink); font-weight: 600; }
+/* The guide: three short steps side by side in one quiet strip, each a title and a line. */
+.le-steps-how {
+  counter-reset: le; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px 24px; margin: 0 0 22px; padding: 14px 18px;
+  list-style: none; background: var(--cn-panel); border: 1px solid var(--cn-line-faint); border-radius: var(--cn-r-12);
+  font-size: var(--cn-fs-13); line-height: 1.5; color: var(--cn-soft);
+}
+@container (min-width: 760px) { .le-steps-how { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.le-steps-how li { counter-increment: le; display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: 10px; }
+.le-steps-how li::before { content: counter(le); grid-row: span 2; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--cn-surface); box-shadow: inset 0 0 0 1px var(--cn-line); color: var(--cn-ink); font-size: var(--cn-fs-11-5); font-weight: 600; }
+.le-steps-how b { display: block; color: var(--cn-ink); font-weight: 600; }
 
 /* ── the sheet: a clean document page ──────────────────────────────────────── */
 .le-desk { display: flex; flex-direction: column; align-items: center; gap: 10px; }
@@ -63,16 +68,16 @@
    and a faint wash appears only under the pointer so it is findable. */
 .le-ed { outline: none; caret-color: var(--cn-green); border-radius: 6px; margin: 0 -10px; padding: 2px 10px; transition: background var(--cn-dur-toggle) ease; }
 @media (hover: hover) { .le-ed:hover:not(:focus) { background: color-mix(in srgb, var(--cn-hover) 60%, transparent); } }
-.le-ed:focus-visible { box-shadow: inset 2px 0 0 var(--cn-green); border-radius: 0 6px 6px 0; }
+.le-ed:focus-visible { box-shadow: inset 2px 0 0 var(--cn-line-strong); border-radius: 0 6px 6px 0; }
 .le-ed--h { font-size: var(--cn-fs-30); line-height: 1.18; font-weight: 650; letter-spacing: -0.025em; margin-bottom: 2px; }
 .le-ed--b p { margin: 0 0 14px; }
 .le-ed[data-empty="1"]::before { content: attr(data-placeholder); color: var(--cn-faint); }
 .le-rule { width: 28px; height: 2px; margin: 14px 0 26px; background: var(--cn-gold); border-radius: 2px; }
 
 .le-f {
-  display: inline-flex; align-items: center; padding: 0 6px; margin: 0 1px; border-radius: 5px;
-  background: var(--cn-hover); color: var(--cn-ink-2); box-shadow: inset 0 0 0 1px var(--cn-line);
-  font-size: var(--cn-fs-14); font-weight: 500; line-height: 1.6; white-space: nowrap; cursor: default; user-select: all;
+  display: inline-flex; align-items: center; padding: 0 5px; margin: 0 1px; border-radius: 4px;
+  background: var(--cn-hover); color: var(--cn-ink-2);
+  font-size: var(--cn-fs-15); font-weight: 500; line-height: 1.5; white-space: nowrap; cursor: default; user-select: all;
 }
 .le-f--bad { background: var(--cn-red-wash); color: var(--cn-red-ink); box-shadow: inset 0 0 0 1px var(--cn-red-edge); }
 
