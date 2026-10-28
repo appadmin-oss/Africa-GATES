@@ -30,7 +30,7 @@
     <p class="wl-sent__n">₦{{ (_net / 100)|number_format(2) }}</p>
     <p><span class="wl-pill wl-pill--{{ t.status }}">{{ t.status_label|trans }}</span></p>
     <p class="wl-sent__p">{{ t.status == 'processing'
-      ? 'It passed our checks and has been sent. Most banks credit it within minutes; we’ll tell you here and by email the moment it lands.'|trans
+      ? 'It passed our checks and has been sent. Most banks credit it within minutes. We’ll tell you here and by email when it lands.'|trans
       : (t.status == 'paid' ? 'Your bank has it.'|trans : 'A person will check this one before it is paid. We’ll tell you here and by email the moment it moves.'|trans) }}</p>
     <div class="wl-sent__acts">
       <a class="ag-btn ag-btn--secondary wl-btn" href="/account/wallet/tx/{{ t.key }}">{{ 'View receipt'|trans }}</a>

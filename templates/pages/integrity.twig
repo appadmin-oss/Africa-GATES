@@ -67,7 +67,7 @@
             : '₦%m% raised of ₦%t%'|trans({'%m%': (e.measured_kobo / 100)|number_format, '%t%': (e.target_kobo / 100)|number_format})))|e]]) %}
   {% endfor %}
   {% set _ret_editions = [
-    {p: 'Some editions use a different rule. It is chosen before the edition opens and does not change once anything is earned under it. Two-stage: a smaller share from the start, locked until the edition’s contributions reach a published target and a person confirms it; then the full share. Flat: one share on every contribution. Tiered: the share rises as more is raised. A refunded or fraudulent contribution earns nothing.'|trans|e},
+    {p: 'Some editions set their own rule before they open, and it never changes once anything is earned. Two-stage: a smaller share, held until contributions reach a published target and a person confirms it, then the full share. Flat: one share on everything. Tiered: the share rises as more is raised. Refunded or fraudulent money earns nothing.'|trans|e},
     {table: {caption: 'Editions with their own return rule'|trans, head: ['Edition'|trans, 'Rule'|trans, 'When it is released'|trans], rows: _rows}}
   ] %}
 {% endif %}
@@ -78,20 +78,20 @@
     {table: {caption: 'Asking for the money'|trans, head: ['Term'|trans, 'Setting'|trans, 'What it means'|trans],
       rows: [
         ['Smallest withdrawal'|trans, '₦' ~ (_t.min_kobo / 100)|number_format, 'Below this, the balance waits until there is more.'|trans|e],
-        ['Service fee'|trans, _t.fee_text|e, 'Taken from each withdrawal and shown before you confirm. It covers the bank transfer and keeps the platform and the project running. It is a fee, not a donation.'|trans|e],
+        ['Service fee'|trans, _t.fee_text|e, 'Taken from each withdrawal and shown before you confirm. It pays for the transfer and running costs. It is a fee, not a donation.'|trans|e],
         ['Paid within'|trans, '%n% working days'|trans({'%n%': _t.payout_days}), _t.automatic
-            ? 'At the latest. Most requests are sent within minutes. One that needs a closer look waits for a person.'|trans|e
+            ? 'At the latest. Most are sent within minutes; any that need a closer look wait for a person.'|trans|e
             : 'After a person has reviewed the request.'|trans|e],
         ['Appeals'|trans, '%n% days'|trans({'%n%': _t.appeal_days}), 'To appeal a refusal or a hold, reply to the email that told you.'|trans|e],
         ['Unclaimed balances'|trans, '%n% days'|trans({'%n%': _t.unclaimed_days}), 'Claim your money within this time. Nothing is taken away automatically: a person decides, and it is recorded.'|trans|e],
         ['Tax'|trans, '—', _t.tax_note|e]
       ]}},
     {p: _t.automatic
-      ? 'Money goes by bank transfer to an account in the nominee’s own name. Before it is sent we check that the money is released, the person asking owns the page, the bank confirms the name on the account, and every naira came from a real contribution. If all of that passes, it is sent automatically. Anything unusual — a recent password or bank change, a shared account, a large amount — is checked by a person first.'|trans|e
-      : 'Money goes by bank transfer to an account in the nominee’s own name, after a person has checked that the money is released, the person asking owns the page, the account is theirs, and every naira came from a real contribution.'|trans|e}
+      ? 'Paid by bank transfer to an account in the nominee’s own name. First we check the money is released, the person asking owns the page, the bank confirms the name and every naira came from a real contribution. Then it is sent automatically. Anything unusual, like a recent password or bank change, a shared account or a large amount, is checked by a person first.'|trans|e
+      : 'Paid by bank transfer to an account in the nominee’s own name. First a person checks the money is released, the person asking owns the page, the account is theirs and every naira came from a real contribution.'|trans|e}
   ] %}
 {% else %}
-  {% set _ret_terms = [{p: 'Withdrawals open once their terms are published here: the smallest amount, the fee, how long it takes, appeals, unclaimed money and tax.'|trans|e}] %}
+  {% set _ret_terms = [{p: 'Withdrawals open once their terms are published here: the minimum, the fee, timing, appeals, unclaimed money and tax.'|trans|e}] %}
 {% endif %}
 
 {% set _toc = [
@@ -113,7 +113,7 @@
   eyebrow: 'Integrity Centre · Methodology'|trans,
   title: doc_title,
   subtitle: doc_subtitle ~ ', ' ~ 'version %v%'|trans({'%v%': doc_version}),
-  standfirst: 'This is how a winner is decided: what counts, what doesn’t, who checks it, and what happens when we get something wrong. Every figure on this page comes straight from the live settings.'|trans,
+  standfirst: 'How a winner is decided: what counts, what doesn’t, who checks it, and what we do when we get it wrong. Every figure here comes from the live settings.'|trans,
   byline: [doc_author, 'Version %v%'|trans({'%v%': doc_version}), 'Updated %d%'|trans({'%d%': doc_updated|date('j M Y')})],
   listen: true,
   download: null,
@@ -141,7 +141,7 @@
   cite: {
     word: 'document'|trans,
     citations: doc_citations,
-    note: 'Cite the version you read. The figures follow the live settings, so a reference without a date may not match what you saw. The version changes when the method changes, not when a figure does.'|trans,
+    note: 'Cite the version you read, with its date: the figures follow the live settings and can change. The version changes only when the method does.'|trans,
     action: 'share', url: doc_url
   },
   contact: 'integrity@afrovanguard.org.ng',
@@ -150,7 +150,7 @@
 
 {# ── Every section, as DocPage blocks. Built at template scope so `content` reads it. ── #}
 {% set _score_rule = rule_is_default|default(true)
-  ? 'Every vote counts, free or bought, compared with the biggest total in the edition. %pp%% of this part counts separate verified people; the rest counts votes.'|trans({'%pp%': pp})
+  ? 'Every vote counts, free or bought, measured against the edition’s biggest total. %pp%% of this part counts separate verified people; the rest counts votes.'|trans({'%pp%': pp})
   : 'Counted under an earlier rule, kept so an announced result can be checked. The help article below shows the sums.'|trans %}
 
 {% set _sections = [
@@ -167,13 +167,13 @@
         ['Judge panel'|trans, j ~ '%', 'The judges’ average mark out of ten, on four equal criteria. Only complete scorecards count, and judges never see the votes.'|trans]
       ],
       foot: '%c%% community + %j%% judges = the score. Each edition sets its own split, and this page shows the current one.'|trans({'%c%': c, '%j%': j})}},
-    {p: '<strong>' ~ ('Why %c%/%j%?'|trans({'%c%': c, '%j%': j})|e) ~ '</strong> ' ~ ('Popularity alone shouldn’t decide a winner. A well-funded campaign can buy a lot of votes, and being popular online isn’t the same as making a difference. Giving the judges the larger share keeps merit, not marketing, in charge.'|trans|e)},
+    {p: '<strong>' ~ ('Why %c%/%j%?'|trans({'%c%': c, '%j%': j})|e) ~ '</strong> ' ~ ('Popularity alone shouldn’t decide a winner. Money can buy votes, and being popular online isn’t the same as making a difference. The judges’ larger share keeps merit, not marketing, in charge.'|trans|e)},
     {refs: [{href: '/help/how-cpi-works', label: 'How the CPI is calculated'|trans},
             {href: '/help/why-a-small-category-is-not-a-disadvantage', label: 'How a small category is scored'|trans}]}
   ]},
   {id: 'eligible', blocks: [
     {p: 'Leading the public vote makes a nominee the front-runner. It doesn’t, by itself, make them eligible to win.'|trans|e},
-    {p: '<strong>' ~ ('Complete judge scorecards, minimum %n%.'|trans({'%n%': q})|e) ~ '</strong> ' ~ ('At least %n% judges must score a nominee on every criterion. A half-finished scorecard counts as nothing, not as a zero. If nobody in a category reaches this, the award isn’t given.'|trans({'%n%': q})|e)},
+    {p: '<strong>' ~ ('Complete judge scorecards, minimum %n%.'|trans({'%n%': q})|e) ~ '</strong> ' ~ ('At least %n% judges must score a nominee on every criterion. A half-finished scorecard counts as nothing, not a zero. If no one in a category gets there, the award isn’t given.'|trans({'%n%': q})|e)},
     {h3: 'Three rules before anything is counted'|trans|e},
     {list: [
       '<strong>' ~ ('Judges step aside.'|trans|e) ~ '</strong> ' ~ ('A judge with any link to a nominee doesn’t score them, and a judge’s own votes in a category they judge are not counted.'|trans|e),
@@ -196,7 +196,7 @@
     {refs: [{href: '/help/what-the-judges-actually-score', label: 'What the judges actually score you on'|trans}]}
   ]},
   {id: 'money', blocks: [
-    {p: ('Supporters can contribute in a nominee’s name, and each contribution adds votes. That helps the community part of the score (%c%%). It does nothing for the judges’ part (%j%%), and it isn’t secret: bought votes are shown as bought.'|trans({'%c%': c, '%j%': j})|e)},
+    {p: ('Supporters can pay in a nominee’s name to add votes. That helps the community part of the score (%c%%), not the judges’ part (%j%%). It isn’t secret: bought votes are shown as bought.'|trans({'%c%': c, '%j%': j})|e)},
     {cols: [
       {mark: 'yes', h: 'What a contribution does'|trans|e, items: [
         'Adds votes to the nominee and to the community part of their score.'|trans|e,
@@ -213,14 +213,14 @@
       ]}
     ]},
     {p: rule_is_default|default(true)
-      ? '<strong>' ~ ('Put plainly:'|trans|e) ~ '</strong> ' ~ ('buying votes does help a nominee. In the community part, one verified supporter is worth about %r% votes, in every edition. What money can’t do is turn one person into many (one person counts once, however many times they pay), reach the judges’ part, or stay hidden.'|trans({'%r%': supporter_votes|default('2.33')})|e)
+      ? '<strong>' ~ ('Put plainly:'|trans|e) ~ '</strong> ' ~ ('buying votes does help a nominee. In the community part, one verified supporter is worth about %r% votes, in every edition. Money can’t turn one person into many (each counts once, however often they pay), reach the judges’ part, or stay hidden.'|trans({'%r%': supporter_votes|default('2.33')})|e)
       : '<strong>' ~ ('Put plainly:'|trans|e) ~ '</strong> ' ~ ('buying votes does help a nominee. What money can’t do is turn one person into many, reach the judges’ part, or stay hidden.'|trans|e)},
     {refs: [{href: '/help/what-paid-votes-do', label: 'What paid votes actually do'|trans},
             {href: '/help/how-free-voting-works', label: 'How free voting works'|trans},
             {href: '/help/why-is-voting-paid', label: 'Why is voting paid?'|trans}]}
   ]},
   {id: 'return', blocks: (return_off_reason|default('') == 'no_paid_voting'
-      ? [{note: {title: 'Not running on this site'|trans|e, body: ['The return is a share of what supporters contribute. Voting here is free, so nothing is raised in anyone’s name and nothing is earned. The rules below would apply if contributions were turned on.'|trans|e]}}]
+      ? [{note: {title: 'Not running on this site'|trans|e, body: ['The return is a share of what supporters contribute. Voting here is free, so nothing is earned. The rules below apply only if contributions are turned on.'|trans|e]}}]
       : (return_off_reason|default('') == 'rate_zero'
         ? [{note: {title: 'Currently set to nothing'|trans|e, body: ['The share is set to 0%, so new contributions earn nothing for a nominee. Money already earned is kept.'|trans|e]}}]
         : [])
@@ -232,12 +232,12 @@
         ['No single pocket'|trans, return_cap_pct|default(10) ~ '%', 'One supporter counts for at most %v% of those votes, so it takes at least %n% different people.'|trans({'%v%': return_cap_votes|default(25)|number_format, '%n%': return_people|default(10)})|e],
         ['The share'|trans, return_pct|default('50') ~ '%', 'That share of each later contribution is kept for the nominee. Earlier contributions don’t count.'|trans|e]
       ]}},
-    {p: 'Every entry stays on the record. A refund takes its share back, and that is recorded too. Nothing can be paid out until the edition’s results are announced. A nominee can also spend an available return on votes for anyone: those votes earn no return and don’t count towards qualifying for one.'|trans|e}
+    {p: 'Every entry stays on the record, and so does a refund, which takes its share back. Nothing is paid out before the edition’s results are announced. A nominee can spend an available return on votes for anyone; those votes earn no return and don’t count towards qualifying.'|trans|e}
   ])|merge(_ret_editions)|merge(_ret_terms)|merge([
     {refs: [{href: '/help/the-community-return', label: 'The community return, in full'|trans}]}
   ])},
   {id: 'honest', blocks: [
-    {p: 'Every free vote needs a one-time code sent to a working email address, and every attempt is given a risk score from 0 to 100 before it is counted.'|trans|e},
+    {p: 'Every free vote needs a one-time code sent to a working email address. Each attempt gets a risk score from 0 to 100 before it counts.'|trans|e},
     {table: {caption: 'Risk bands, and what each one does'|trans, head: ['Band'|trans, 'Score'|trans, 'What happens'|trans],
       rows: [
         ['Clear'|trans, '0–' ~ fraud_monitor|default(30), 'Approved as it is cast.'|trans],
@@ -260,13 +260,13 @@
       '<strong>' ~ ('If they can’t be delivered, the money goes back.'|trans|e) ~ '</strong> ' ~ ('We don’t keep money for votes we didn’t deliver.'|trans|e),
       '<strong>' ~ ('Tell Gee your reference.'|trans|e) ~ '</strong> ' ~ ('Every order has a reference starting AFG-. Gee checks it again with the payment provider and adds the votes if the money arrived.'|trans|e)
     ]},
-    {note: {title: '', body: ['The same goes for our own mistakes. If our records show a voting code never reached the voter, that vote can be restored after voting closes. One person proposes it, a different person approves it, the number is limited, and it is shown on the nominee’s page.'|trans|e]}},
+    {note: {title: '', body: ['The same goes for our own mistakes. If our records show a voting code never arrived, that vote can be restored after voting closes. One person proposes it, another approves it, the number is limited, and it is shown on the nominee’s page.'|trans|e]}},
     {refs: [{href: '/help/paid-but-no-votes', label: 'I paid but my votes haven’t appeared'|trans},
             {href: '/help/refund-when-votes-cannot-count', label: 'When do you refund?'|trans},
             {href: '/help/votes-we-could-not-deliver', label: 'Votes that never reached you'|trans}]}
   ]},
   {id: 'sealed', blocks: [
-    {p: 'Every time results are worked out they are locked: each record carries a fingerprint of itself and of the one before it. Changing an old result breaks every record after it.'|trans|e},
+    {p: 'Results are locked each time they are worked out. Each record carries a fingerprint of itself and the one before, so changing an old result breaks every record after it.'|trans|e},
     {steps: [
       'The chain is re-verified automatically every day.'|trans|e,
       'A break is reported to a person, with where it happened.'|trans|e,
@@ -292,7 +292,7 @@
             {href: '/help/when-does-voting-close', label: 'When does voting close?'|trans}]}
   ]},
   {id: 'disputes', blocks: [
-    {p: 'If you think a result is wrong, tell us. Every count is logged, so it can be redone and shown to you. An appeal goes to someone who wasn’t part of the first decision.'|trans|e},
+    {p: 'Think a result is wrong? Tell us. Every count is logged, so we can redo it and show you. An appeal goes to someone who wasn’t part of the first decision.'|trans|e},
     {p: ('Raise it at %m% or through %s%. We will:'|trans|e)|replace({'%m%': '<a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>', '%s%': '<a href="/support">' ~ ('Support and appeals'|trans|e) ~ '</a>'})},
     {steps: [
       'We acknowledge within %h% hours.'|trans({'%h%': review_sla_hours})|e,
@@ -301,7 +301,7 @@
       'If it changed a final result, we publish a summary.'|trans|e
     ]},
     {h3: 'What we store when you vote'|trans|e},
-    {p: ('A scrambled form of your email and internet address, a fingerprint of your device, and who you voted for and when. Never your readable email next to a vote, and we never sell voter data. Full details: %p% · %t%.'|trans|e)|replace({'%p%': '<a href="/privacy">' ~ ('Privacy policy'|trans|e) ~ '</a>', '%t%': '<a href="/terms">' ~ ('Terms'|trans|e) ~ '</a>'})},
+    {p: ('A scrambled form of your email and internet address, a device fingerprint, and who you voted for and when. Never your readable email beside a vote, and we never sell voter data. Full details: %p% · %t%.'|trans|e)|replace({'%p%': '<a href="/privacy">' ~ ('Privacy policy'|trans|e) ~ '</a>', '%t%': '<a href="/terms">' ~ ('Terms'|trans|e) ~ '</a>'})},
     {refs: [{href: '/help/dispute-a-result', label: 'I think a count or a ranking is wrong'|trans},
             {href: '/help/report-a-profile', label: 'How do I report a nominee or profile?'|trans},
             {href: '/help/what-data-do-you-keep', label: 'What data do you keep about me?'|trans}]},

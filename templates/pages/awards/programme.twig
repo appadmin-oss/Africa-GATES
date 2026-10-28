@@ -159,12 +159,12 @@
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'How nominations work'|trans }}</h2>
       <p>{{ (a.nom_rules.min == a.nom_rules.max
             ? (a.nom_rules.max == 1 ? 'Anyone can nominate. Each nomination names the category with a reason of at least %reason% characters.' : 'Anyone can nominate. Each nomination names %max% categories, with a reason of at least %reason% characters for each.')
-            : 'Anyone can nominate. Each nomination names between %min% and %max% categories, with a reason of at least %reason% characters for each.')|trans({'%min%': a.nom_rules.min, '%max%': a.nom_rules.max, '%reason%': a.nom_rules.reason}) }}
+            : 'Anyone can nominate. Each nomination names %min% to %max% categories, with a reason of at least %reason% characters for each.')|trans({'%min%': a.nom_rules.min, '%max%': a.nom_rules.max, '%reason%': a.nom_rules.reason}) }}
          {{ 'Evidence is optional, up to %ev% items. Nominations are checked before publishing.'|trans({'%ev%': a.nom_rules.ev}) }}</p>
       {% if _d.nominations_note %}{% for para in _d.nominations_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'How the winner is decided'|trans }}</h2>
-      <p>{{ 'Verified community support counts %c% and judges’ marks %j%, fixed before voting. A winner needs complete scorecards from at least %q% judges.'|trans({'%c%': a.weights.community ~ '%', '%j%': a.weights.judge ~ '%', '%q%': a.quorum}) }}</p>
+      <p>{{ 'Verified community support counts %c% and judges’ marks %j%, set before voting. A winner needs full scorecards from at least %q% judges.'|trans({'%c%': a.weights.community ~ '%', '%j%': a.weights.judge ~ '%', '%q%': a.quorum}) }}</p>
       {% if _d.judging_note %}{% for para in _d.judging_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'Voting'|trans }}</h2>

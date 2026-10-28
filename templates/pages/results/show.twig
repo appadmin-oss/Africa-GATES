@@ -169,14 +169,14 @@
               <p class="rs-note"><b>{{ 'These numbers are being worked out now, not read back from the announcement.'|trans }}</b> {{ 'This award predates sealing, so today’s method is applied to the record.'|trans }}</p>
             {% endif %}
             {% if r.community_basis == 'ideal' %}
-              <p class="rs-note">{{ 'Community half: seventy per cent backers, thirty per cent votes, each against the cycle’s top vote total; a backer counts once. Judges’ half: %j%% × the panel average out of ten.'|trans({'%j%': jpct}) }}</p>
+              <p class="rs-note">{{ 'Community half: 70% backers and 30% votes, both against the cycle’s top vote total; each backer counts once. Judges’ half: %j%% × the panel average out of ten.'|trans({'%j%': jpct}) }}</p>
             {% elseif r.community_basis == 'reach' %}
-              <p class="rs-note">{{ 'Community half: seventy per cent backers against the cycle’s most backers, thirty per cent votes against its top total. Judges’ half: %j%% × the panel average out of ten.'|trans({'%j%': jpct}) }}</p>
+              <p class="rs-note">{{ 'Community half: 70% backers against the cycle’s most backers, 30% votes against its top total. Judges’ half: %j%% × the panel average out of ten.'|trans({'%j%': jpct}) }}</p>
             {% else %}
               <p class="rs-note">{{ 'Community half: votes as a share of the cycle’s top tally; the leader gets %c%%.'|trans({'%c%': cpct}) }}</p>
             {% endif %}
             {% if r.community_basis in ['ideal', 'reach'] and r.reach_unmeasured > 0 %}
-              <p class="rs-note"><b>{{ 'One caveat on this award.'|trans }}</b> {{ '%n% nominees’ tallies predate our ballot records, so their backer share scored zero; their votes still count. That gap is ours, not theirs.'|trans({'%n%': r.reach_unmeasured}) }}</p>
+              <p class="rs-note"><b>{{ 'One caveat on this award.'|trans }}</b> {{ '%n% nominees’ tallies are older than our ballot records, so their backers scored zero; their votes still count. The gap is ours, not theirs.'|trans({'%n%': r.reach_unmeasured}) }}</p>
             {% endif %}
             {% if tally_only %}
               <p class="rs-note"><b>{{ 'One caveat on this award, and it applies to everybody in the cycle.'|trans }}</b> {{ 'No nominee here has ballot records, so every community half uses total votes alone. That gap is ours, not theirs.'|trans }}</p>

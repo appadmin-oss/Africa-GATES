@@ -29,11 +29,11 @@
 {% if code == 404 %}
   {% set _m = 'The page you’re looking for has moved or never existed. Everything else is still here.'|trans %}
 {% elseif code == 403 %}
-  {% set _m = 'You may need to be signed in, or to hold permissions this page needs. Signing in with the right account usually fixes it.'|trans %}
+  {% set _m = 'You may need to sign in, or to have permission for this page. Signing in with the right account usually fixes it.'|trans %}
 {% elseif code == 503 %}
   {% set _m = 'Part of the site is paused while we finish some work. Nothing of yours is lost — try again shortly.'|trans %}
 {% elseif _five %}
-  {% set _m = 'This one is ours, not anything you did — your votes, entries and payments are unaffected. Try again in a moment; if it happens twice, tell us the reference below and we can see exactly what failed.'|trans %}
+  {% set _m = 'This is our fault, not yours. Your votes, entries and payments are safe. Try again soon; if it happens twice, send us the reference below.'|trans %}
 {% else %}
   {% set _m = 'That didn’t work as expected. Let’s get you back on track.'|trans %}
 {% endif %}
