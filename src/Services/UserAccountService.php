@@ -224,6 +224,8 @@ final class UserAccountService
 
     public function logout(): void
     {
+        // Roles opened from this account (Account\Roles) close with it.
+        \AfricaGates\Services\Account\Roles::signOutOpened();
         unset($_SESSION['user_id'], $_SESSION['user_name'], $_SESSION['user_email']);
     }
 

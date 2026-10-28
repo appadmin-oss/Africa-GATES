@@ -40,6 +40,8 @@ final class ConsoleSurface
         // The event lead console and the staff Requests page (review slice L1).
         'templates/admin/lead.twig',
         'templates/admin/requests.twig',
+        // One account, many roles (/account/roles), on the same shell.
+        'templates/account/roles.twig',
     ];
 
     /** @return array<string,string> rel => absolute */

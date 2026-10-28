@@ -545,6 +545,30 @@ This is the largest data change in the plan, so it comes last (D6). Everything b
 works through a single **Actor** in the kernel that already answers "who is this, and as
 what" across all five of today's sign-ins.
 
+**First step, shipped 28 Oct 2026 (owner: "one account that can manage different roles, not
+separate disjointed accounts").** The person is the Africa GATES account (`gates_users`).
+`/account/roles` lists everything it can be — Member, Volunteer (from the volunteer record and
+its live `vol.*` grants, or an offer to apply), and any staff, organisation or judging account
+added to it — and opens each from there (`Services\Account\Roles`, `AccountRolesController`).
+
+- **A role is added only on proof**: the person is signed in to the account AND to the role on
+  its own page in the same browser, and confirms. Never by matching an email.
+  `gates_account_links` holds the link; one role account belongs to one person, and removing a
+  role stamps `revoked_at` rather than deleting the row.
+- **Opening a staff, organisation or judging role needs a fresh emailed six-digit code**
+  (10 minutes to use, five guesses through `OtpAttempt::claim`, then 30 minutes confirmed for
+  that account only) — not a second password. Opening writes exactly the role's own session
+  keys after `Session::rotate()`, as its sign-in page does, and the console's audit log
+  records the staff sign-in with `method: account`.
+- **Signing out of the account closes every role opened from it**, and nothing signed in
+  separately.
+- **The old sign-in pages stay** (separate trust domains, `AccountJoinTest`): the public
+  login page still links to none of them. They are how a role is first added, and they keep
+  working for anybody who has not added theirs yet.
+
+Not yet: sign-in methods (passkeys) belonging to the person rather than the role, and the
+data change that merges the role tables (D6).
+
 ### 7.2 Access: scoped, time-boxed, least privilege
 
 - **A grant is a role at a scope**, for example "door steward at the Lagos gala",

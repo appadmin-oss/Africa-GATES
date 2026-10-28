@@ -3847,6 +3847,11 @@ return function(App $app) {
         $a->get('/notifications',      AccountController::class.':notifications');
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
+        // One account, many roles (owner, 28 Oct 2026; plan §7.1): what this account can be,
+        // linking a staff, organisation or judge sign-in to it, and opening each, after a
+        // fresh emailed code for the ones that can change what others rely on.
+        $a->get('/roles',              \AfricaGates\Controllers\AccountRolesController::class.':index');
+        $a->post('/roles',             \AfricaGates\Controllers\AccountRolesController::class.':act');
         // The Ads Manager (Services\Ads): campaigns, the builder, one campaign, its switch,
         // and fixing a refused ad. `/ads/new` and `/ads/ad/…` are literals registered before
         // the `{id}` placeholder they would otherwise be matched by.
