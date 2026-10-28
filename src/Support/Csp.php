@@ -85,7 +85,21 @@ final class Csp
         . 'https://code.jquery.com '
         . 'https://challenges.cloudflare.com '
         . 'https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net '
-        . 'https://tpc.googlesyndication.com';
+        . 'https://tpc.googlesyndication.com '
+        . self::GA_SCRIPT_HOSTS;
+
+    /**
+     * Google Analytics 4 (Services\GoogleAnalytics), Google's own published policy for it:
+     * the tag from googletagmanager, the hits to google-analytics and analytics.google.
+     *
+     * In the policy whether or not the operator has switched it on, because the static
+     * copy in public/.htaccess is the one a browser receives on this host and cannot ask a
+     * setting. That widens connect-src, the exfiltration path, by Google's measurement hosts
+     * only; nothing on this site posts to them but gtag.js, and gtag.js is loaded only after
+     * an explicit yes to Analytics.
+     */
+    public const GA_SCRIPT_HOSTS  = 'https://www.googletagmanager.com';
+    public const GA_CONNECT_HOSTS = 'https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com';
 
     public const STYLE_HOSTS = 'https://unpkg.com https://fonts.googleapis.com';
 
@@ -108,7 +122,7 @@ final class Csp
      * fetch target from our own code.
      */
     public const CONNECT_HOSTS = 'https://challenges.cloudflare.com ' . self::PAY_HOSTS
-        . ' https://unpkg.com';
+        . ' https://unpkg.com ' . self::GA_CONNECT_HOSTS;
 
     /**
      * `cdn.plyr.io` stays HERE and only here.

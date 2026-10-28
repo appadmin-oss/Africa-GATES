@@ -74,7 +74,13 @@ final class CookieRegistry
             // not owed a judge's or a door steward's key as if it were theirs. /cookies
             // lists those too, under their audience.
             $names = array_map(static fn (array $e): string => $e['name'], self::inCategory($key, true));
-            if ($key === self::ANALYTICS) {
+            if ($key === self::ANALYTICS && \AfricaGates\Services\GoogleAnalytics::enabled()) {
+                // Switched on by the operator (Settings → Arrivals): said here, in the
+                // sheet a visitor answers, before they answer it.
+                $desc = str_replace(' No IP address is kept and nothing reaches anyone else.', ' We keep no IP address.', $desc)
+                      . ' If you say yes, Google Analytics also measures visits for us: it sets two cookies, and Google receives your IP address and which pages you open.';
+                $who = 'Africa GATES and Google Analytics · ' . implode(', ', $names);
+            } elseif ($key === self::ANALYTICS) {
                 $who = 'Africa GATES only · stores nothing on your device';
             } elseif ($names === []) {
                 $who = 'Not used on this site';
@@ -113,7 +119,7 @@ final class CookieRegistry
      */
     public static function cookies(): array
     {
-        return [
+        return array_merge([
             [
                 'name'     => self::sessionName(),
                 'category' => self::ESSENTIAL,
@@ -144,6 +150,29 @@ final class CookieRegistry
                             . ' if you allow Preferences; otherwise until you close your browser',
                 'set_by'   => 'server',
             ],
+        ], self::googleAnalytics());
+    }
+
+    /**
+     * Google's two cookies, declared only while the operator has Google Analytics on, so the
+     * policy never lists a cookie nothing sets, nor leaves out one something does. Two
+     * years is GA4's default life, which ga.js does not change.
+     *
+     * @return list<array{name:string,category:string,purpose:string,lifetime:string,set_by:string}>
+     */
+    private static function googleAnalytics(): array
+    {
+        $id = \AfricaGates\Services\GoogleAnalytics::measurementId();
+        if ($id === null) return [];
+        return [
+            ['name' => '_ga', 'category' => self::ANALYTICS,
+             'purpose' => 'Google Analytics: a random number that tells one browser from another, so '
+                        . 'Google can count visitors. Set only after you say yes to Analytics, and '
+                        . 'deleted when you say no.',
+             'lifetime' => '2 years', 'set_by' => 'Google Analytics'],
+            ['name' => '_ga_' . substr($id, 2), 'category' => self::ANALYTICS,
+             'purpose' => 'Google Analytics: keeps the current visit together. Set and deleted with _ga.',
+             'lifetime' => '2 years', 'set_by' => 'Google Analytics'],
         ];
     }
 

@@ -1016,10 +1016,10 @@
         vote, a nomination or a ticket.
       </p>
       <p class="hint" style="margin:0 0 10px">
-        <strong>What is never stored:</strong> no IP address (a daily-salted hash only, so the
-        same reader is unlinkable across days), no full referrer URL — the host only, because a
-        path carries search terms — no landing query string, since links here carry passes and
-        sign-in tokens, and no browser string. <code>Do Not Track</code> and
+        <strong>What is never stored:</strong> no IP address or browser string (a hash of them
+        with a random secret replaced daily, so the same reader is unlinkable across days), no
+        full referrer URL — the host only, because a path carries search terms — and no landing
+        query string, since links here carry passes and sign-in tokens. <code>Do Not Track</code> and
         <code>Sec-GPC</code> are honoured, and bots and link previewers are not counted.
       </p>
 
@@ -1053,6 +1053,20 @@
           <strong>Ask first</strong> counts nobody until they allow Analytics — expect the
           arrivals report to show a fraction of the traffic, because many people answer
           "Essential" or leave the notice unanswered.
+        </small>
+      </div>
+      {# Google Analytics 4, beside our own counting (Services\GoogleAnalytics). #}
+      <div style="margin-top:14px"><label for="f-ga_measurement_id">Google Analytics <small>measurement ID — leave blank to keep it off</small></label>
+        <input type="text" name="ga_measurement_id" id="f-ga_measurement_id" value="{{ ga_id|default('') }}"
+               placeholder="G-ABC123XYZ" pattern="[Gg]-[A-Za-z0-9]{4,16}" autocomplete="off" spellcheck="false">
+        <small class="hint" style="display:block;margin-top:6px">
+          In Google Analytics: Admin → Data streams → your web stream → Measurement ID.
+          It loads only for visitors who say <strong>yes</strong> to Analytics in the cookie
+          notice (never on the default, never past Global Privacy Control or Do Not Track,
+          never for you while signed in here), and it is sent the same redacted page our own
+          counting keeps, never a pass or a sign-in link. The cookie policy names Google and its
+          two cookies while this is on. Our own counting carries on either way: only it can see
+          which visits led to a vote, a nomination or a ticket.
         </small>
       </div>
       <p class="hint" style="margin:6px 0 0">Older rows are dropped by the maintenance run. A recorder with no pruner is a table that grows for the life of the deployment.</p>

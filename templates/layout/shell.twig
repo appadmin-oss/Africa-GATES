@@ -157,6 +157,12 @@
   <script defer src="{{ asset('/assets/js/header.js') }}"></script>
   <script defer src="{{ asset('/assets/js/search.js') }}"></script>
   <script defer src="{{ asset('/assets/js/consent.js') }}"></script>
+  {# Google Analytics, only when the operator switched it on and this visitor said yes to
+     Analytics (CookiePrefs::state() via GoogleAnalytics::forRequest(): one decision). #}
+  {% if _consent and _consent.ga %}
+  <script defer src="{{ asset('/assets/js/ga.js') }}" data-ga-id="{{ _consent.ga.id }}" data-ga-path="{{ _consent.ga.path }}"></script>
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ _consent.ga.id|url_encode }}"></script>
+  {% endif %}
   {% if not _gee_off %}<script defer src="{{ asset('/assets/js/gee.js') }}"></script>{% endif %}
   {# The shared validator: a form here that says `novalidate data-ag-validate` has
      turned the browser's own messages off on the promise this replaces them. #}

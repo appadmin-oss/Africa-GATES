@@ -224,6 +224,7 @@ class SettingsController
             'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
             'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
             'visits_mode'       => \AfricaGates\Services\CookiePrefs::mode(),
+            'ga_id'             => \AfricaGates\Services\GoogleAnalytics::measurementId(),
             'invite_seq_tokens'  => \AfricaGates\Services\InviteSequence::TOKENS,
             'invite_seq_values_default'  => \AfricaGates\Services\InviteSequence::values(),
             'invite_seq_outcome_default' => \AfricaGates\Services\InviteSequence::DEFAULT_OUTCOME,
@@ -699,6 +700,19 @@ class SettingsController
             // unrecognised value reads as `exempt` when CookiePrefs loads it, so a typo
             // here would silently switch consent OFF — which is the one direction this
             // setting must never move by accident.
+            // Google Analytics 4: a measurement ID switches it on, a blank switches it off. A
+            // value that is not one is refused rather than saved, because a malformed ID would
+            // load Google's tag for nothing and still put Google in the cookie policy.
+            if (array_key_exists(\AfricaGates\Services\GoogleAnalytics::SETTING, $b)) {
+                $raw = trim((string) $b[\AfricaGates\Services\GoogleAnalytics::SETTING]);
+                $ga  = \AfricaGates\Services\GoogleAnalytics::clean($raw);
+                if ($raw === '' || $ga !== null) {
+                    $this->settings->set(\AfricaGates\Services\GoogleAnalytics::SETTING, $ga ?? '', $adminId);
+                } else {
+                    $_SESSION['flash_error'] = 'Google Analytics not changed: a measurement ID looks like G-ABC123XYZ.';
+                }
+            }
+
             $mode = strtolower(trim((string) ($b['visits_consent_mode'] ?? '')));
             $this->settings->set(\AfricaGates\Services\CookiePrefs::MODE_KEY,
                 $mode === \AfricaGates\Services\CookiePrefs::MODE_CONSENT

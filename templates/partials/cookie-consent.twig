@@ -57,6 +57,7 @@
           {% if _counting and not _exempt %}{{ 'With your OK we also remember your settings on this device and count visits ourselves.'|trans }}
           {% else %}{{ 'With your OK we also remember your settings on this device.'|trans }}{% endif %}
           {% if _counting and _exempt %}{{ 'We count visits ourselves unless you say no.'|trans }}{% endif %}
+          {% if _c.google %}{{ 'If you allow Analytics, Google Analytics also measures visits for us.'|trans }}{% endif %}
           {{ 'Ads here are never based on you, and nothing is sold.'|trans }}
           <a class="ag-consent__more" href="/cookies">{{ 'Details'|trans }}</a>
         </p>

@@ -361,10 +361,28 @@ final class LegalDocument
              . 'page you landed on, how many pages you opened, roughly what kind of device it was, '
              . 'whether you had visited before, and whether the visit led to a vote, a nomination or '
              . 'a ticket.</p>';
-        $h[] = '<p><strong>It is ours alone.</strong> There is no Google Analytics here, no '
-             . 'advertising pixel, no third-party tag of any kind: nothing on this site reports '
-             . 'your visit to another company. And it stores nothing new on your device &mdash; '
-             . 'it uses the session cookie in the table above, which is already there.</p>';
+        $h[] = '<p><strong>It is ours alone.</strong> It stores nothing new on your device &mdash; '
+             . 'it uses the session cookie in the table above, which is already there &mdash; and '
+             . 'it reports your visit to nobody.</p>';
+        // Generated from the setting, both ways: this sentence once said "There is no Google
+        // Analytics here" in bold, and the day an operator turned it on that would have been
+        // the /cookies fault again (CLAUDE.md, "A legal page that states a fact").
+        if (GoogleAnalytics::enabled()) {
+            $h[] = '<p><strong>Google Analytics.</strong> We also use Google Analytics to measure '
+                 . 'visits, but <strong>only if you say yes to Analytics</strong>: never by default, '
+                 . 'never when your browser sends Global Privacy Control or Do Not Track. With your '
+                 . 'yes, Google sets the two cookies in the table above and receives your IP address, '
+                 . 'your browser&rsquo;s description and the pages you open. We send it the page '
+                 . 'address with passes and sign-in links removed, and the linking site&rsquo;s name '
+                 . 'only. Google signals and ad personalisation are switched off, so it is not used '
+                 . 'for advertising. Google processes this under its own '
+                 . '<a href="https://policies.google.com/privacy" rel="noopener noreferrer">privacy '
+                 . 'policy</a>. Saying no later deletes the cookies and stops it.</p>';
+        } else {
+            $h[] = '<p><strong>No third parties.</strong> There is no Google Analytics here, no '
+                 . 'advertising pixel and no third-party tag of any kind: nothing on this site '
+                 . 'reports your visit to another company.</p>';
+        }
         // Ads arrived on 27 Oct 2026, and this page and the notice both said "no ads". The
         // promise that stays true is narrower and is the one stated: not based on you.
         $h[] = '<p><strong>Ads.</strong> Some pages carry one ad, labelled Sponsored. It is '
