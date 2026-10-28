@@ -9,12 +9,17 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /**
  * Who arrived, where from, and whether it led to anything.
  *
- * ── ONE ROW PER ARRIVAL ──────────────────────────────────────────────────────
+ * ── ONE ROW PER VISIT ────────────────────────────────────────────────────────
  *
- * Written once, on the first request of a browsing session, and updated once if that
- * session goes on to do something. Everything else about what happened here is already
- * counted off the domain tables by {@see \AfricaGates\Admin\Services\AnalyticsService},
- * and counting it twice is how two reports come to disagree.
+ * A visit is what GA4, Adobe and Plausible all call one: it starts on a page view and ends
+ * after {@see IDLE_SECONDS} without another. Each later page view in it adds one to
+ * `pages` ({@see touch()}), and the visit is stamped once if it leads to something.
+ *
+ * It used to be one row per PHP SESSION, and the session cookie lives a week
+ * (Support\SessionStore). Somebody who came back every evening was one arrival, every
+ * source after the first was invisible, and a vote on day six was credited to the link
+ * that brought them on day one. Everything else about what happened here is counted off
+ * the domain tables by {@see \AfricaGates\Admin\Services\AnalyticsService}.
  *
  * ── WHAT COUNTS AS A SOURCE ──────────────────────────────────────────────────
  *
@@ -28,8 +33,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * ── AND WHAT IS NOT RECORDED AT ALL ──────────────────────────────────────────
  *
  * Bots, admin pages, the cron endpoint, assets, anything that is not a browser asking for
- * a page (isPageNavigation()), any answer that is not a page (a 404 or a redirect; see
- * discard()), and anybody who has asked not to be tracked. All but the last are noise that
+ * a page (isPageNavigation()), a page fetched in advance (isSpeculative()), a request with
+ * no Accept-Language (a script), staff signed in to the console, any answer that is not a
+ * page (a 404 or a redirect; see discard()), and anybody who has asked not to be tracked. All but the last are noise that
  * would drown the signal; the last is the point.
  * `Do Not Track` and `Sec-GPC` are honoured — not because they are enforceable, but
  * because this table exists to tell an organiser which flier worked, and no answer to
@@ -41,6 +47,18 @@ final class VisitTracker
 {
     /** The session key holding this visit's row key. Not the session id — see the migration. */
     public const SESSION_KEY = '_ag_visit';
+
+    /** The time this browser's visit was last active (unix seconds). */
+    public const SESSION_AT = '_ag_visit_at';
+
+    /** How many visits this browser has started, so a later one is known to be a return. */
+    public const SESSION_N = '_ag_visit_n';
+
+    /**
+     * A visit ends after this long without a page view: the industry default (GA4, Adobe
+     * and Plausible all use 30 minutes), so our figures compare with theirs.
+     */
+    public const IDLE_SECONDS = 1800;
 
     /** Retention. Long enough to compare a campaign against the one before it. */
     public const KEEP_DAYS = 180;
@@ -85,12 +103,6 @@ final class VisitTracker
             if (!self::enabled()) return '';
             if (strtoupper($request->getMethod()) !== 'GET') return '';
 
-            // Already counted. One row per session — a reader who opens nine pages is one
-            // arrival, and counting nine would make every source look nine times better
-            // than the one that sent a single visitor who bought a ticket.
-            $existing = (string) ($_SESSION[self::SESSION_KEY] ?? '');
-            if ($existing !== '') return $existing;
-
             $path = '/' . ltrim($request->getUri()->getPath(), '/');
             foreach (self::IGNORE as $prefix) {
                 if (str_starts_with($path, $prefix)) return '';
@@ -100,6 +112,19 @@ final class VisitTracker
             // the answer now includes a choice they can make on /cookies, not only a header
             // two of the three major browsers stopped sending. See CookiePrefs.
             if (!CookiePrefs::allows($request, CookiePrefs::ANALYTICS) || !self::isReader($request)) return '';
+
+            // Our own staff reading the public site are not its audience. On a small site the
+            // team checking a page after every change is a real share of the traffic, and it
+            // lands on exactly the pages being worked on, which is the worst place to inflate.
+            if (self::isStaff()) return '';
+
+            // Still inside a visit: this page belongs to it, and the middleware counts it
+            // once the response shows it was a page (touch()). A reader who opens nine pages
+            // is one visit of nine pages, never nine visits.
+            $existing = (string) ($_SESSION[self::SESSION_KEY] ?? '');
+            $lastAt   = (int) ($_SESSION[self::SESSION_AT] ?? 0);
+            if ($existing !== '' && Carbon::now()->getTimestamp() - $lastAt < self::IDLE_SECONDS) return $existing;
+            $before = (int) ($_SESSION[self::SESSION_N] ?? 0);
 
             $q      = $request->getQueryParams();
             $ref    = self::header($request, 'Referer');
@@ -118,9 +143,11 @@ final class VisitTracker
                 'country'       => self::country($request),
                 'ip_hash'       => self::ipHash($request),
                 'created_at'    => Carbon::now()->toDateTimeString(),
-            ]);
+            ] + self::sessionColumns($request, $before > 0 || $existing !== ''));
 
             $_SESSION[self::SESSION_KEY] = $key;
+            $_SESSION[self::SESSION_AT]  = Carbon::now()->getTimestamp();
+            $_SESSION[self::SESSION_N]   = $before + 1;
 
             return $key;
         } catch (\Throwable) {
@@ -155,7 +182,50 @@ final class VisitTracker
         try {
             DB::table('gates_visits')->where('visit_key', $key)->whereNull('converted_kind')->delete();
         } catch (\Throwable) {}
-        if (($_SESSION[self::SESSION_KEY] ?? '') === $key) unset($_SESSION[self::SESSION_KEY]);
+        if (($_SESSION[self::SESSION_KEY] ?? '') === $key) {
+            unset($_SESSION[self::SESSION_KEY], $_SESSION[self::SESSION_AT]);
+            // A 404 first is not a visit, so the next real one is not a "return" either.
+            $n = (int) ($_SESSION[self::SESSION_N] ?? 0) - 1;
+            if ($n > 0) $_SESSION[self::SESSION_N] = $n; else unset($_SESSION[self::SESSION_N]);
+        }
+    }
+
+    /**
+     * A further page view in the visit already open: one more page, and the visit's clock
+     * restarts. Called by the middleware only after the response is a page, so a 404 a
+     * reader stumbles on mid-visit is not counted as a page they read.
+     */
+    public static function touch(string $key): void
+    {
+        if ($key === '') return;
+        $_SESSION[self::SESSION_AT] = Carbon::now()->getTimestamp();
+        try {
+            DB::table('gates_visits')->where('visit_key', $key)
+                ->increment('pages', 1, ['last_seen_at' => Carbon::now()->toDateTimeString()]);
+        } catch (\Throwable) {}
+    }
+
+    /**
+     * The columns added with visits (2027_04_10_visit_sessions.php), only where the table
+     * has them, so a deploy that has not run the migration yet still records arrivals.
+     *
+     * @return array<string,mixed>
+     */
+    private static function sessionColumns(Request $request, bool $returning): array
+    {
+        if (!\AfricaGates\Support\SchemaHas::column('gates_visits', 'pages')) return [];
+        return [
+            'pages'        => 1,
+            'last_seen_at' => Carbon::now()->toDateTimeString(),
+            'is_return'    => $returning ? 1 : 0,
+            'visitor_hash' => self::visitorHash($request),
+        ];
+    }
+
+    /** Is somebody signed in to the admin console on this browser? */
+    private static function isStaff(): bool
+    {
+        return !empty($_SESSION['admin_id']);
     }
 
     /** Was this response a page a person could read? */
@@ -185,7 +255,8 @@ final class VisitTracker
                 ->update([
                     'converted_kind' => self::trim(trim($kind), 40),
                     'converted_at'   => Carbon::now()->toDateTimeString(),
-                ]) > 0;
+                ] + (\AfricaGates\Support\SchemaHas::column('gates_visits', 'last_seen_at')
+                    ? ['last_seen_at' => Carbon::now()->toDateTimeString()] : [])) > 0;
         } catch (\Throwable) {
             return false;
         }
@@ -387,23 +458,71 @@ final class VisitTracker
     }
 
     /**
-     * A daily-salted hash, so the same reader is one arrival today and unlinkable across days.
+     * A daily-salted hash of the NETWORK, so one machine refreshing a campaign link a
+     * thousand times is visible, and nobody is linkable across days.
      *
-     * The column exists to spot a single machine refreshing a campaign link a thousand
-     * times. A stable hash would make it a permanent pseudonymous identifier for every
-     * visitor to the site, which is a different thing entirely and not one this table
-     * needs to be.
+     * The salt was the date, which is not a salt: every IPv4 address is four billion
+     * guesses away, a few minutes on a laptop, so anybody holding the table could recover
+     * every address in it. It is now random, kept for one day and then overwritten
+     * ({@see salt()}), which is what Plausible does: once the day's salt is gone, not even
+     * we can recover who a hash was.
      */
     private static function ipHash(Request $request): ?string
     {
-        $ip = trim(self::header($request, 'CF-Connecting-IP'))
+        $ip = self::ip($request);
+        return $ip === '' ? null : hash_hmac('sha256', $ip, self::salt());
+    }
+
+    /**
+     * A daily-salted hash of the network AND the browser: one per person per day, as near as
+     * a site with no cookie for it can tell. The network alone undercounts badly here,
+     * because Nigerian mobile networks put thousands of phones behind one address (carrier
+     * NAT); the browser string splits them apart without identifying anybody.
+     */
+    private static function visitorHash(Request $request): ?string
+    {
+        $ip = self::ip($request);
+        return $ip === '' ? null : hash_hmac('sha256', $ip . '|' . self::header($request, 'User-Agent'), self::salt());
+    }
+
+    private static function ip(Request $request): string
+    {
+        return trim(trim(self::header($request, 'CF-Connecting-IP'))
             ?: trim(explode(',', self::header($request, 'X-Forwarded-For'))[0])
-            ?: (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '');
+            ?: (string) ($request->getServerParams()['REMOTE_ADDR'] ?? ''));
+    }
 
-        $ip = trim($ip);
-        if ($ip === '') return null;
+    /** @var array{0:string,1:string}|null today's salt, memoised per process */
+    private static ?array $salt = null;
 
-        return hash('sha256', $ip . '|' . Carbon::now()->toDateString());
+    /**
+     * Today's random salt, made on the first visit of the day and replaced the next day, so
+     * yesterday's is gone for good. If it cannot be stored, a process-local one is used,
+     * which only costs a visitor being counted twice: never a hash anybody can reverse.
+     */
+    public static function salt(): string
+    {
+        $day = Carbon::now()->toDateString();
+        if (self::$salt !== null && self::$salt[0] === $day) return self::$salt[1];
+        $fresh = bin2hex(random_bytes(32));
+        try {
+            $row = (string) (DB::table('gates_settings')->where('key_name', 'visits_salt')->value('value') ?? '');
+            [$d, $v] = array_pad(explode(':', $row, 2), 2, '');
+            if ($d === $day && strlen($v) === 64) {
+                self::$salt = [$day, $v];
+                return $v;
+            }
+            DB::table('gates_settings')->updateOrInsert(['key_name' => 'visits_salt'],
+                ['value' => $day . ':' . $fresh, 'updated_at' => Carbon::now()->toDateTimeString()]);
+        } catch (\Throwable) {}
+        self::$salt = [$day, $fresh];
+        return $fresh;
+    }
+
+    /** For tests: forget the memoised salt. */
+    public static function forgetSalt(): void
+    {
+        self::$salt = null;
     }
 
     private static function looksLikeBot(Request $request): bool
@@ -413,7 +532,16 @@ final class VisitTracker
 
         foreach (['bot', 'crawler', 'spider', 'slurp', 'curl', 'wget', 'python-requests',
                   'headlesschrome', 'phantomjs', 'preview', 'monitor', 'uptime',
-                  'facebookexternalhit', 'whatsapp'] as $needle) {
+                  'facebookexternalhit', 'whatsapp',
+                  // Scripts and HTTP libraries that name themselves, and the audit tools a
+                  // developer points at a page (each a "visit" from a data centre).
+                  'python-urllib', 'aiohttp', 'httpx', 'axios', 'node-fetch', 'undici',
+                  'go-http-client', 'okhttp', 'java/', 'apache-httpclient', 'libwww',
+                  'guzzlehttp', 'scrapy', 'httpclient', 'lighthouse', 'pagespeed',
+                  'gtmetrix', 'pingdom', 'statuscake', 'site24x7', 'chrome-lighthouse',
+                  'feedfetcher', 'feedly', 'inoreader', 'newsblur', 'embedly',
+                  'chatgpt-user', 'perplexity', 'claude-web', 'cohere-ai', 'meta-externalagent',
+                  'puppeteer', 'playwright', 'selenium', 'electron/'] as $needle) {
             // NOTE: 'whatsapp' here is WhatsApp's LINK PREVIEW fetcher, which requests
             // every URL pasted into a chat. Counting those as arrivals would make any
             // link shared in a busy group look like a hundred visitors before one person
@@ -432,7 +560,35 @@ final class VisitTracker
      */
     public static function isReader(Request $request): bool
     {
-        return !self::looksLikeBot($request) && self::isPageNavigation($request) && !self::referrerIsForged($request);
+        return !self::looksLikeBot($request) && self::isPageNavigation($request)
+            && !self::isSpeculative($request) && self::hasLanguage($request)
+            && !self::referrerIsForged($request);
+    }
+
+    /**
+     * A page the browser fetched in case it is wanted: a prefetch, a prerender, a link
+     * preview. Chrome's speculation rules and `<link rel=prefetch>` send `Sec-Purpose:
+     * prefetch` (older Chrome `Purpose`, older Firefox `X-Moz`, Safari's previews
+     * `X-Purpose`). Nobody has looked at it yet, and most are never looked at. If the
+     * reader then opens it, the visit is counted on the page after.
+     */
+    private static function isSpeculative(Request $request): bool
+    {
+        foreach (['Sec-Purpose', 'Purpose', 'X-Moz', 'X-Purpose'] as $h) {
+            $v = strtolower(self::header($request, $h));
+            if ($v !== '' && (str_contains($v, 'prefetch') || str_contains($v, 'prerender') || str_contains($v, 'preview'))) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Every browser sends `Accept-Language` with a page request; most scripts that copy a
+     * browser's User-Agent and Accept do not bother with it. Cheap, and it catches the
+     * scrapers that the two checks above let through.
+     */
+    private static function hasLanguage(Request $request): bool
+    {
+        return self::header($request, 'Accept-Language') !== '';
     }
 
     /**

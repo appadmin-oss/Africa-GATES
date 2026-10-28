@@ -39,6 +39,7 @@ final class VisitTrackerTest extends TestCase
         parent::setUp();
         $_SESSION = [];
         DB::table('gates_settings')->where('key_name', 'like', 'visits_%')->delete();
+        VisitTracker::forgetSalt();
     }
 
     private function get(string $uri, array $headers = []): Request
@@ -53,6 +54,7 @@ final class VisitTrackerTest extends TestCase
             'User-Agent'     => 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36',
             'Accept'         => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Sec-Fetch-Mode' => 'navigate',
+            'Accept-Language' => 'en-GB,en;q=0.9',
             'Sec-Fetch-Dest' => 'document',
         ];
         $headers = array_filter($headers, static fn ($v) => $v !== null);
@@ -593,5 +595,87 @@ final class VisitTrackerTest extends TestCase
             'a tracker nothing calls records nothing');
         $this->assertStringContainsString('VisitTracker::prune()', $maint,
             'and a recorder with no pruner grows for the life of the deployment');
+    }
+
+
+    // ══ A VISIT, AS EVERY ANALYTICS TOOL COUNTS ONE (owner, 28 Oct 2026) ═════
+
+    /**
+     * A visit ends after 30 minutes without a page view (GA4, Adobe and Plausible all use
+     * 30). It used to be one row per PHP session, which lives a week, so somebody who came
+     * back every evening was one arrival and every source after the first was invisible.
+     */
+    public function test_a_visit_ends_after_thirty_idle_minutes_and_the_next_is_a_return(): void
+    {
+        $mw = new \AfricaGates\Middleware\VisitTrackingMiddleware();
+        $mw->process($this->get('https://gates.test/awards?utm_source=flier'), $this->answering(200));
+        $mw->process($this->get('https://gates.test/vote'), $this->answering(200));
+        $mw->process($this->get('https://gates.test/nope'), $this->answering(404));
+        $first = $this->lastVisit();
+        $this->assertSame(2, (int) $first['pages'], 'a second page counts; a 404 is not a page read');
+        $this->assertSame(0, (int) $first['is_return']);
+
+        Carbon::setTestNow(Carbon::now()->addMinutes(29));
+        $mw->process($this->get('https://gates.test/events'), $this->answering(200));
+        $this->assertSame(1, (int) DB::table('gates_visits')->count(), 'still the same visit at 29 minutes');
+        $this->assertSame(3, (int) $this->lastVisit()['pages']);
+
+        Carbon::setTestNow(Carbon::now()->addMinutes(31));
+        $mw->process($this->get('https://gates.test/', ['Referer' => 'https://l.facebook.com/']), $this->answering(200));
+        Carbon::setTestNow();
+        $this->assertSame(2, (int) DB::table('gates_visits')->count(), 'thirty idle minutes ends a visit');
+        $second = $this->lastVisit();
+        $this->assertSame('facebook', $second['source'], 'and the new visit has its own source');
+        $this->assertSame(1, (int) $second['is_return'], 'from a browser that has been here before');
+        $this->assertSame('flier', DB::table('gates_visits')->orderBy('id')->value('source'), 'the first keeps its own');
+    }
+
+    /** A page fetched in case it is wanted has not been looked at by anybody. */
+    public function test_prefetches_scripts_without_a_language_and_staff_are_not_counted(): void
+    {
+        foreach ([['Sec-Purpose' => 'prefetch'], ['Sec-Purpose' => 'prefetch;prerender'], ['Purpose' => 'prefetch'],
+                  ['X-Moz' => 'prefetch'], ['X-Purpose' => 'preview'], ['Accept-Language' => null],
+                  ['User-Agent' => 'python-urllib/3.11'], ['User-Agent' => 'Mozilla/5.0 Chrome-Lighthouse'],
+                  ['User-Agent' => 'axios/1.6.0'], ['User-Agent' => 'Go-http-client/2.0']] as $h) {
+            $_SESSION = [];
+            VisitTracker::record($this->get('https://gates.test/', $h));
+            $this->assertSame(0, (int) DB::table('gates_visits')->count(), json_encode($h));
+        }
+
+        $_SESSION = ['admin_id' => 7];
+        VisitTracker::record($this->get('https://gates.test/awards'));
+        $this->assertSame(0, (int) DB::table('gates_visits')->count(), 'staff checking their own pages are not the audience');
+
+        $_SESSION = [];
+        VisitTracker::record($this->get('https://gates.test/'));
+        $this->assertSame(1, (int) DB::table('gates_visits')->count(), 'a plain browser still is');
+    }
+
+    /**
+     * The address hash was sha256(ip|date): four billion guesses recover any IPv4 address,
+     * so the table held every visitor's address to anybody who cared to look. The salt is
+     * random now and replaced daily. And people are told apart by browser as well as
+     * network, because a mobile carrier puts thousands of phones behind one address.
+     */
+    public function test_the_hashes_cannot_be_reversed_and_tell_two_phones_on_one_network_apart(): void
+    {
+        $ip = '102.89.34.7';
+        VisitTracker::record($this->get('https://gates.test/', ['CF-Connecting-IP' => $ip]));
+        $a = $this->lastVisit();
+        $this->assertNotSame(hash('sha256', $ip . '|' . Carbon::now()->toDateString()), $a['ip_hash'], 'not guessable from the date');
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', (string) $a['visitor_hash']);
+
+        $_SESSION = [];
+        VisitTracker::record($this->get('https://gates.test/', ['CF-Connecting-IP' => $ip,
+            'User-Agent' => 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36']));
+        $b = $this->lastVisit();
+        $this->assertSame($a['ip_hash'], $b['ip_hash'], 'one network');
+        $this->assertNotSame($a['visitor_hash'], $b['visitor_hash'], 'two people');
+
+        $salt = VisitTracker::salt();
+        Carbon::setTestNow(Carbon::now()->addDay());
+        $this->assertNotSame($salt, VisitTracker::salt(), 'and yesterday\'s salt is gone');
+        $this->assertStringNotContainsString($salt, (string) DB::table('gates_settings')->where('key_name', 'visits_salt')->value('value'));
+        Carbon::setTestNow();
     }
 }

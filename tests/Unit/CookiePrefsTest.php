@@ -47,7 +47,7 @@ final class CookiePrefsTest extends TestCase
         $headers += [
             'User-Agent' => 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36',
             'Accept' => 'text/html,application/xhtml+xml,*/*;q=0.8',
-            'Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document',
+            'Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document', 'Accept-Language' => 'en-GB,en;q=0.9',
         ];
         foreach ($headers as $k => $v) $r = $r->withHeader($k, $v);
 

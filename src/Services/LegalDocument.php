@@ -355,10 +355,12 @@ final class LegalDocument
         }
 
         $h[] = '<p>We keep <strong>one row for each visit</strong> &mdash; not one per page you '
-             . 'open &mdash; so that whoever shared a link can find out whether it worked. It '
+             . 'open &mdash; so that whoever shared a link can find out whether it worked. A visit '
+             . 'ends after ' . intdiv(VisitTracker::IDLE_SECONDS, 60) . ' minutes without a new page. It '
              . 'records where you came from (a campaign tag, or the site that linked here), the '
-             . 'page you landed on, roughly what kind of device it was, and whether the visit '
-             . 'led to a vote, a nomination or a ticket.</p>';
+             . 'page you landed on, how many pages you opened, roughly what kind of device it was, '
+             . 'whether you had visited before, and whether the visit led to a vote, a nomination or '
+             . 'a ticket.</p>';
         $h[] = '<p><strong>It is ours alone.</strong> There is no Google Analytics here, no '
              . 'advertising pixel, no third-party tag of any kind: nothing on this site reports '
              . 'your visit to another company. And it stores nothing new on your device &mdash; '
@@ -373,13 +375,16 @@ final class LegalDocument
              . 'how often you have seen it; nothing new is stored on your device. Views and clicks '
              . 'are counted as totals for the advertiser and say nothing about who you are. If you '
              . 'hide or report an ad, your session remembers it so you are not shown it again.</p>';
-        $h[] = '<p><strong>What is never kept:</strong> your IP address (only a hash of it, '
-             . 're-scrambled with a new secret every day, so the same visitor cannot be followed '
-             . 'from one day to the next), the full address of the page that linked here (the '
-             . 'site name only, because a full address carries search terms), the query string of '
-             . 'the page you landed on (links here carry passes and sign-in tokens), and your '
-             . 'browser&rsquo;s identification string. Your country is recorded only when the '
-             . 'network in front of us has already worked it out; we never look it up.</p>';
+        // The secret really is one now (VisitTracker::salt()): random, replaced daily. It was
+        // the date until 28 Oct 2026, which this sentence promised it was not.
+        $h[] = '<p><strong>What is never kept:</strong> your IP address and your '
+             . 'browser&rsquo;s identification string (only a scrambled code made from them with '
+             . 'a random secret that is replaced every day and then thrown away, so the same '
+             . 'visitor cannot be followed from one day to the next, not even by us), the full '
+             . 'address of the page that linked here (the site name only, because a full address '
+             . 'carries search terms), and the query string of the page you landed on (links here '
+             . 'carry passes and sign-in tokens). Your country is recorded only when the network in '
+             . 'front of us has already worked it out; we never look it up.</p>';
         $h[] = '<p>Arrivals are deleted after ' . (int) VisitTracker::keepDays() . ' days.</p>';
 
         if (CookiePrefs::mode() === CookiePrefs::MODE_CONSENT) {

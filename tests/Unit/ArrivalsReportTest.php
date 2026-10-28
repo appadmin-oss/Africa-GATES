@@ -113,7 +113,7 @@ final class ArrivalsReportTest extends TestCase
         $this->assertSame('NG', $r['countries'][0]['country'], 'country had no reader');
         $this->assertSame(1, $r['sources'][0]['networks'], 'ip_hash had no reader');
         $this->assertSame('vote', $r['kinds'][0]['kind']);
-        $this->assertSame(100, $r['same_visit_pct'], 'converted_at had no reader');
+        $this->assertSame(0, $r['minutes_to_act'], 'converted_at had no reader: it acted at once');
     }
 
     // ══ THE HOST BEHIND A FOLDED SOURCE ═════════════════════════════════════
@@ -206,7 +206,7 @@ final class ArrivalsReportTest extends TestCase
 
         $this->assertSame(1, $r['converted_series'][2]['value'], 'four days ago');
         $this->assertSame(0, $r['converted_series'][6]['value'], 'not today, when it converted');
-        $this->assertSame(0, $r['same_visit_pct'], 'and it was not the same visit');
+        $this->assertSame(4 * 24 * 60, $r['minutes_to_act'], 'and it took four days');
     }
 
     public function test_the_previous_window_is_compared_against(): void
@@ -234,7 +234,7 @@ final class ArrivalsReportTest extends TestCase
     // ══ THE READINGS THAT MUST NOT COLLAPSE ═════════════════════════════════
 
     /**
-     * "Nobody converted" and "everybody came back later" are opposite readings.
+     * "Nobody converted" and "everybody acted at once" are opposite readings.
      *
      * Both render as 0% unless one of them is null, and an operator seeing 0% would
      * conclude the link works and the page does not — the exact reverse of the truth.
@@ -243,7 +243,7 @@ final class ArrivalsReportTest extends TestCase
     {
         $this->visit();
 
-        $this->assertNull(AnalyticsService::arrivals(30)['same_visit_pct']);
+        $this->assertNull(AnalyticsService::arrivals(30)['minutes_to_act']);
     }
 
     /**
@@ -305,5 +305,53 @@ final class ArrivalsReportTest extends TestCase
         }
         $this->assertSame(0, $r['total']);
         $this->assertNull($r['same_visit_pct']);
+    }
+
+
+    /**
+     * What a visit did: people (one per day per visitor hash), pages per visit, the share
+     * that went further than the landing page (GA4's engaged visit, minus the timing a
+     * server cannot see), returns, and a typical length that one tab left open overnight
+     * cannot become.
+     */
+    public function test_the_report_says_how_far_visits_went_and_how_many_people_made_them(): void
+    {
+        $t = Carbon::now()->subHours(3);
+        $this->visit(['pages' => 1, 'visitor_hash' => str_repeat('a', 64), 'created_at' => $t->toDateTimeString()]);
+        $this->visit(['pages' => 3, 'visitor_hash' => str_repeat('a', 64), 'is_return' => 1,
+                      'created_at' => $t->toDateTimeString(), 'last_seen_at' => $t->copy()->addMinutes(4)->toDateTimeString()]);
+        $this->visit(['pages' => 2, 'visitor_hash' => str_repeat('b', 64),
+                      'created_at' => $t->toDateTimeString(), 'last_seen_at' => $t->copy()->addMinutes(6)->toDateTimeString()]);
+        $this->visit(['pages' => 9, 'visitor_hash' => str_repeat('c', 64),
+                      'created_at' => $t->toDateTimeString(), 'last_seen_at' => $t->copy()->addHours(2)->toDateTimeString()]);
+        $this->visit(['pages' => 1, 'converted_kind' => 'vote', 'converted_at' => $t->toDateTimeString(), 'created_at' => $t->toDateTimeString()]);
+
+        $r = AnalyticsService::arrivals(7);
+        $this->assertSame(5, $r['total']);
+        $this->assertSame(4, $r['visitors'], 'a hashed twice in a day is one person; no hash is its own');
+        $this->assertSame(16, $r['pages']);
+        $this->assertSame(3.2, $r['pages_per_visit']);
+        $this->assertSame(80, $r['engaged_pct'], 'a second page, or doing something');
+        $this->assertSame(20, $r['returning_pct']);
+        $this->assertSame(6, $r['median_minutes'], 'the middle, not an average the overnight tab would own');
+        $this->assertTrue($r['measured']);
+        $this->assertSame(80, $r['sources'][0]['engaged']);
+    }
+
+
+    /** The screen draws the new figures, and states the idle limit from the tracker. */
+    public function test_the_analytics_screen_shows_what_visits_did(): void
+    {
+        $admin = (int) DB::table('gates_admins')->insertGetId(['name' => 'Ada', 'email' => 'ada@example.test',
+            'password_hash' => 'x', 'role' => 'superadmin', 'created_at' => Carbon::now()->toDateTimeString()]);
+        $this->visit(['pages' => 3, 'visitor_hash' => str_repeat('a', 64),
+                      'last_seen_at' => Carbon::now()->addMinutes(5)->toDateTimeString()]);
+        $html = (string) \Tests\Support\ChromeRender::page('/admin/analytics', [
+            'admin_id' => $admin, 'admin_name' => 'Ada', 'admin_role' => 'superadmin', 'admin_email' => 'ada@example.test',
+        ])->getBody();
+        $this->assertStringContainsString('Went further', $html);
+        $this->assertStringContainsString('Time to act', $html);
+        $this->assertStringContainsString('3 pages a visit', $html);
+        $this->assertMatchesRegularExpression('/ends after\s+' . intdiv(\AfricaGates\Services\VisitTracker::IDLE_SECONDS, 60) . ' minutes/', $html);
     }
 }

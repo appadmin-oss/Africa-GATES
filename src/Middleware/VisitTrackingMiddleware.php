@@ -53,6 +53,10 @@ final class VisitTrackingMiddleware implements MiddlewareInterface
         }
         if ($fresh !== '' && !VisitTracker::isPageStatus($response->getStatusCode())) VisitTracker::discard($fresh);
 
+        // A further page in a visit already open counts once the answer shows it was a page:
+        // pages per visit, and the visit's 30-minute clock restarts. See VisitTracker::touch().
+        if ($key !== '' && $key === $before && VisitTracker::isPageStatus($response->getStatusCode())) VisitTracker::touch($key);
+
         // A browser still holding the retired single-switch cookie has its answer carried
         // into `ag_consent` on this response and the old cookie expired — once, and then
         // never again. See CookiePrefs::carryOver().

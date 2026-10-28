@@ -18,6 +18,15 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+
+  // An image that does not arrive folds away rather than leaving a square box with a
+  // broken-image icon, the largest thing on a phone screen. The link bar still says
+  // everything the image did.
+  Array.prototype.forEach.call(document.querySelectorAll('.ag-ad__media img'), function (img) {
+    function gone() { var m = img.closest('.ag-ad__media'); if (m) m.hidden = true; }
+    if (img.complete && img.naturalWidth === 0) gone(); else img.addEventListener('error', gone);
+  });
+
   var cards = document.querySelectorAll('[data-ad]');
   if (!cards.length || !window.fetch) return;
 

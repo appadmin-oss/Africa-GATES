@@ -58,6 +58,8 @@ final class AnalyticsController
             // that is not counted off a domain table — nothing else here can say what
             // happened BEFORE somebody arrived.
             'arrivals'   => AnalyticsService::arrivals($days, 12),
+            // The visit's idle limit, as the page explains it: read from the tracker, not typed.
+            'arrivals_idle_minutes' => intdiv(\AfricaGates\Services\VisitTracker::IDLE_SECONDS, 60),
             'audience'   => AnalyticsService::audience($days),
             'voting'     => AnalyticsService::voting($days),
             'retention'  => AnalyticsService::retention(8),

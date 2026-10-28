@@ -146,15 +146,18 @@
       Turn it on in <a href="/admin/settings#f-visits_enabled">Settings &rarr; Arrivals</a>.</p>
   {% else %}
     <p class="an-sec__note">
-      One row per visit, not per page view — a reader who opens nine pages is one arrival.
-      The column worth reading is the last one: four hundred arrivals that do nothing is a
-      worse Tuesday than thirty that vote. <strong>Direct</strong> is honest rather than
-      embarrassing — every app that strips the referrer on the way out lands there.
+      A visit is counted the way Google Analytics counts one: it ends after
+      {{ arrivals_idle_minutes }} minutes without a page view, so somebody who comes back
+      tomorrow is a second visit. Staff signed in to this console, bots, link previews and
+      pages a browser fetched in advance are not counted. The column worth reading is the
+      last one: four hundred visits that do nothing is a worse Tuesday than thirty that vote.
+      <strong>Direct</strong> is honest rather than embarrassing — every app that strips the
+      referrer on the way out lands there.
     </p>
 
     <div class="an-grid">
       <div class="an-card">
-        <div class="an-card__k">Arrivals</div>
+        <div class="an-card__k">Visits</div>
         <div class="an-card__n">{{ arrivals.total|number_format }}</div>
         <div class="an-card__s">
           {% if arrivals.growth_pct is null %}
@@ -176,16 +179,32 @@
         {{ ch.spark(arrivals.converted_series, '#F3B416') }}
       </div>
       <div class="an-card">
-        <div class="an-card__k">Without leaving</div>
+        <div class="an-card__k">People</div>
+        <div class="an-card__n">{{ arrivals.visitors|number_format }}</div>
+        <div class="an-card__s">
+          {% if arrivals.returning_pct is null %}one per visit until visits are measured{% else %}{{ arrivals.returning_pct }}% of visits were a return{% endif %}
+        </div>
+      </div>
+      <div class="an-card">
+        <div class="an-card__k">Went further</div>
         <div class="an-card__n">
-          {% if arrivals.same_visit_pct is null %}&mdash;{% else %}{{ arrivals.same_visit_pct }}%{% endif %}
+          {% if arrivals.engaged_pct is null %}&mdash;{% else %}{{ arrivals.engaged_pct }}%{% endif %}
         </div>
         <div class="an-card__s">
-          {% if arrivals.same_visit_pct is null %}
-            nobody has converted yet
+          {% if arrivals.engaged_pct is null %}
+            not measured on this database yet
           {% else %}
-            acted on the first visit — the rest came back
+            opened a second page or did something · {{ arrivals.pages_per_visit }} pages a visit{% if arrivals.median_minutes is not null %} · typically {{ arrivals.median_minutes }} min{% endif %}
           {% endif %}
+        </div>
+      </div>
+      <div class="an-card">
+        <div class="an-card__k">Time to act</div>
+        <div class="an-card__n">
+          {% if arrivals.minutes_to_act is null %}&mdash;{% else %}{{ arrivals.minutes_to_act }} min{% endif %}
+        </div>
+        <div class="an-card__s">
+          {% if arrivals.minutes_to_act is null %}nobody has done anything yet{% else %}typical time from arriving to doing something{% endif %}
         </div>
       </div>
       {% for k in arrivals.kinds|slice(0, 1) %}
@@ -202,13 +221,14 @@
         <div>
           <h3 style="font-size:13px;margin:0 0 8px">By source</h3>
           <table class="an-tbl">
-            <thead><tr><th>Source</th><th class="n">Arrivals</th><th class="n">Networks</th><th class="n">Did something</th></tr></thead>
+            <thead><tr><th>Source</th><th class="n">Visits</th><th class="n">Networks</th><th class="n">Went further</th><th class="n">Did something</th></tr></thead>
             <tbody>
             {% for r in arrivals.sources %}
               <tr>
                 <td>{{ r.source }}</td>
                 <td class="n">{{ r.visits|number_format }}</td>
                 <td class="n">{{ r.networks|default(0)|number_format }}</td>
+                <td class="n">{{ arrivals.measured ? r.engaged|default(0) ~ '%' : '—' }}</td>
                 <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td>
               </tr>
             {% endfor %}

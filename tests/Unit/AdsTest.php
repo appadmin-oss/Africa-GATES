@@ -326,7 +326,7 @@ final class AdsTest extends TestCase
         $uid = $this->user();
         $this->liveTrial($uid);
         $html = (string) ChromeRender::page('/vote', [], [], 'GET', null, [
-            'User-Agent' => 'Mozilla/5.0 Chrome/120', 'Accept' => 'text/html', 'Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document',
+            'User-Agent' => 'Mozilla/5.0 Chrome/120', 'Accept' => 'text/html', 'Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document', 'Accept-Language' => 'en-GB',
         ])->getBody();
         $this->assertStringContainsString('class="ag-ad"', $html);
         $this->assertStringContainsString('Sponsored', $html);
@@ -421,7 +421,7 @@ final class AdsTest extends TestCase
      */
     public function test_an_empty_slot_advertises_advertising_and_says_whose_notice_it_is(): void
     {
-        $nav = ['User-Agent' => 'Mozilla/5.0 Chrome/120', 'Accept' => 'text/html', 'Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document'];
+        $nav = ['User-Agent' => 'Mozilla/5.0 Chrome/120', 'Accept' => 'text/html', 'Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document', 'Accept-Language' => 'en-GB'];
         $html = (string) ChromeRender::page('/vote', [], [], 'GET', null, $nav)->getBody();
         $this->assertStringContainsString('class="ag-ad"', $html, 'nothing is booked, so the slot is ours');
         $this->assertStringContainsString('From Africa GATES', $html);

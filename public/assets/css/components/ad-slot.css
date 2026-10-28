@@ -39,6 +39,7 @@
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
 .ag-ad__media{ display:block; aspect-ratio:1/1; overflow:hidden; background:var(--ag-ground); border-block:1px solid var(--ag-line-3) }
 .ag-ad__media img{ display:block; width:100%; height:100%; object-fit:cover }
+.ag-ad__media[hidden]{ display:none }
 .ag-ad__ph{ display:grid; place-items:center; height:100%; font-size:var(--ag-fs-14); color:var(--ag-soft) }
 
 /* The link bar: the whole bar is the link, the button is its label. */

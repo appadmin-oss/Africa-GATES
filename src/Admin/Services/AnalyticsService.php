@@ -612,8 +612,9 @@ final class AnalyticsService
      *   prev_total:int, growth_pct:?int,
      *   series:list<array{label:string,value:int}>,
      *   converted_series:list<array{label:string,value:int}>,
-     *   same_visit_pct:?int,
-     *   sources:list<array{source:string,visits:int,converted:int,rate:int,networks:int}>,
+     *   visitors:int, pages:int, pages_per_visit:?float, engaged:int, engaged_pct:?int,
+     *   returning_pct:?int, median_minutes:?int, measured:bool, minutes_to_act:?int,
+     *   sources:list<array{source:string,visits:int,converted:int,rate:int,networks:int,engaged:int}>,
      *   campaigns:list<array{campaign:string,visits:int,converted:int,rate:int}>,
      *   landings:list<array{path:string,visits:int,converted:int,rate:int}>,
      *   sections:list<array{section:string,visits:int,converted:int,rate:int}>,
@@ -628,7 +629,9 @@ final class AnalyticsService
     {
         $empty = ['total' => 0, 'converted' => 0, 'rate' => 0, 'tracking' => false,
                   'prev_total' => 0, 'growth_pct' => null, 'series' => [], 'converted_series' => [],
-                  'same_visit_pct' => null, 'sources' => [], 'campaigns' => [], 'landings' => [],
+                  'visitors' => 0, 'pages' => 0, 'pages_per_visit' => null, 'engaged' => 0,
+                  'engaged_pct' => null, 'returning_pct' => null, 'median_minutes' => null,
+                  'measured' => false, 'minutes_to_act' => null, 'sources' => [], 'campaigns' => [], 'landings' => [],
                   'sections' => [], 'mediums' => [], 'hosts' => [], 'devices' => [],
                   'countries' => [], 'kinds' => []];
 
@@ -651,7 +654,18 @@ final class AnalyticsService
             $byDayConv  = [];
             $total      = 0;
             $converted  = 0;
-            $sameVisit  = 0;
+            // ── WHAT A VISIT DID (2027_04_10_visit_sessions.php) ─────────────────
+            //
+            // Visits now end after 30 minutes idle (VisitTracker::IDLE_SECONDS), count their
+            // pages, and carry a daily visitor hash. Rows from before that have none of it,
+            // so they read as one page, one person each: what most of them were.
+            $measured   = \AfricaGates\Support\SchemaHas::column('gates_visits', 'pages');
+            $pagesAll   = 0;
+            $engaged    = 0;
+            $returning  = 0;
+            $people     = [];
+            $lengths    = [];
+            $toAct      = [];
 
             // The whole window seeded to zero, so a quiet Wednesday is a trough in the
             // sparkline rather than a day the line skips over. A series with holes in it
@@ -667,11 +681,27 @@ final class AnalyticsService
             // month of arrivals here is thousands of rows, not the millions that would
             // make the round trips the cheaper option.
             foreach (DB::table('gates_visits')->where('created_at', '>=', $from . ' 00:00:00')
-                        ->get(['source', 'medium', 'campaign', 'landing_path', 'referrer_host',
+                        ->get(array_merge(['source', 'medium', 'campaign', 'landing_path', 'referrer_host',
                                'device', 'country', 'ip_hash', 'converted_kind', 'converted_at',
-                               'created_at']) as $r) {
+                               'created_at'], $measured ? ['pages', 'last_seen_at', 'is_return', 'visitor_hash'] : [])) as $r) {
                 $total++;
                 $did = trim((string) ($r->converted_kind ?? '')) !== '';
+                $pg  = max(1, (int) ($r->pages ?? 1));
+                $pagesAll += $pg;
+                // Engaged as GA4 counts it, minus the one part a server cannot see: a
+                // second page, or doing something. A single page read for five minutes is
+                // not engaged here, because without a script on the page nobody can time it.
+                $eng = $pg >= 2 || $did;
+                if ($eng) $engaged++;
+                if ((int) ($r->is_return ?? 0) === 1) $returning++;
+                $vh = trim((string) ($r->visitor_hash ?? ''));
+                // One person per day per hash; a row with no hash is its own person.
+                $people[$vh !== '' ? substr((string) $r->created_at, 0, 10) . '|' . $vh : 'row' . $total] = true;
+                $seen = trim((string) ($r->last_seen_at ?? ''));
+                if ($pg >= 2 && $seen !== '') {
+                    $len = strtotime($seen) - strtotime((string) $r->created_at);
+                    if ($len >= 0) $lengths[] = $len;
+                }
 
                 $day = substr((string) $r->created_at, 0, 10);
                 if (isset($byDay[$day])) $byDay[$day]++;
@@ -686,16 +716,19 @@ final class AnalyticsService
                     // day would credit Tuesday's flier to Thursday.
                     if (isset($byDayConv[$day])) $byDayConv[$day]++;
 
-                    // Same visit, or came back later? `converted_at` is the only thing that
-                    // can tell the difference, and it is the difference between a link that
-                    // works and a link that starts a conversation.
+                    // How long from arriving to doing it. `converted_at` is the only column
+                    // that can say, and "most vote within two minutes" and "most come back
+                    // the next day" call for different links.
                     $at = trim((string) ($r->converted_at ?? ''));
-                    if ($at !== '' && substr($at, 0, 10) === $day) $sameVisit++;
+                    if ($at !== '') $toAct[] = max(0, strtotime($at) - strtotime((string) $r->created_at));
                 }
 
                 $src = trim((string) ($r->source ?? '')) !== '' ? (string) $r->source : 'direct';
                 $bySource[$src]['v'] = ($bySource[$src]['v'] ?? 0) + 1;
                 $bySource[$src]['c'] = ($bySource[$src]['c'] ?? 0) + ($did ? 1 : 0);
+                // Engaged per source is the column that tells traffic from people: a source
+                // whose visits never open a second page is usually a script, not a campaign.
+                $bySource[$src]['e'] = ($bySource[$src]['e'] ?? 0) + ($eng ? 1 : 0);
                 $hash = trim((string) ($r->ip_hash ?? ''));
                 if ($hash !== '') $bySource[$src]['n'][$hash] = true;
 
@@ -770,7 +803,8 @@ final class AnalyticsService
                         'visits'    => (int) $n['v'],
                         'converted' => (int) $n['c'],
                         'rate'      => $rate((int) $n['c'], (int) $n['v']),
-                    ] + (isset($n['n']) ? ['networks' => count($n['n'])] : []);
+                    ] + (isset($n['n']) ? ['networks' => count($n['n'])] : [])
+                      + (isset($n['e']) ? ['engaged' => $rate((int) $n['e'], (int) $n['v'])] : []);
                 }
                 usort($out, static fn (array $a, array $b): int => $b['visits'] <=> $a['visits']);
 
@@ -803,10 +837,23 @@ final class AnalyticsService
                 'prev_total' => $prev,
                 'growth_pct' => $prev > 0 ? (int) round(($total - $prev) * 100 / $prev) : null,
                 'series' => $series, 'converted_series' => $convSeries,
-                // Of the people who did something, how many did it without leaving. Null
-                // rather than 0 when nobody converted at all — a 0% that means "no data"
-                // and a 0% that means "everybody came back later" are opposite readings.
-                'same_visit_pct' => $converted > 0 ? $rate($sameVisit, $converted) : null,
+                // People, not visits: distinct per day by the salted visitor hash, so one
+                // person on five days is five, as Plausible counts. A floor on reach.
+                'visitors' => count($people),
+                'pages' => $pagesAll,
+                'pages_per_visit' => $total > 0 && $measured ? round($pagesAll / $total, 1) : null,
+                'engaged' => $engaged,
+                // Null when the columns are not there yet: a 0% engaged that means "not
+                // measured" and one that means "everybody left" are opposite readings.
+                'engaged_pct' => $total > 0 && $measured ? $rate($engaged, $total) : null,
+                'returning_pct' => $total > 0 && $measured ? $rate($returning, $total) : null,
+                // The middle of the visits that saw more than one page. Never an average:
+                // one tab left open overnight would be the whole figure.
+                'median_minutes' => $lengths !== [] ? (int) round(self::median($lengths) / 60) : null,
+                'measured' => $measured,
+                // Null rather than 0 when nobody converted: "no data" and "at once" are
+                // opposite readings.
+                'minutes_to_act' => $toAct !== [] ? (int) round(self::median($toAct) / 60) : null,
                 // Whether the recorder is even on. A page of zeroes reads as "nobody came";
                 // this is what lets the screen say "nothing is being recorded" instead.
                 'tracking' => \AfricaGates\Services\VisitTracker::enabled(),
@@ -835,6 +882,14 @@ final class AnalyticsService
      * The home page keeps its own name rather than collapsing to '/', because "/" in a
      * list of paths reads as a missing value.
      */
+    /** @param list<int> $xs */
+    private static function median(array $xs): float
+    {
+        sort($xs);
+        $n = count($xs);
+        return $n % 2 ? (float) $xs[intdiv($n, 2)] : ($xs[$n / 2 - 1] + $xs[$n / 2]) / 2;
+    }
+
     public static function section(string $path): string
     {
         $path = '/' . trim($path, '/');
