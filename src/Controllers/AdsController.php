@@ -254,6 +254,7 @@ final class AdsController
             'image' => AdRules::IMAGE_MIN, 'days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS,
             'freq' => AdRules::FREQUENCY_CAP,
             'placements' => AdRules::PLACEMENTS, 'objectives' => AdRules::OBJECTIVES, 'ctas' => AdRules::CTAS,
+            'categories' => AdRules::CATEGORIES, 'approvals' => AdRules::APPROVALS, 'beta' => AdRules::inBeta(),
             'standards' => AdRules::STANDARDS,
         ];
     }

@@ -35,7 +35,7 @@
   {% if not trial_left %}
   <p class="am-p">{{ 'Your free trial is used. Paid campaigns open soon.'|trans }} <a class="am-link" href="/account/ads">{{ 'Back to your ads'|trans }}</a></p>
   {% else %}
-  <form class="am-build" id="ad-form" method="post" action="/account/ads" enctype="multipart/form-data" novalidate data-ag-validate data-ad-builder>
+  <form class="am-build" id="ad-form" method="post" action="/account/ads" enctype="multipart/form-data" novalidate data-ag-validate data-ad-builder data-note-need="{{ (rules.beta ? '(needed for this kind of ad after the beta)' : '(needed for this kind of ad)')|trans }}" data-note-optional="{{ '(if you have one)'|trans }}">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <div class="am-build__form">
       {% if summary %}<p class="am-err" role="alert">{{ summary|trans }}</p>{% endif %}
@@ -55,6 +55,13 @@
           <p class="ag-hint" id="ad-adv-h">{{ 'Shown on every ad, so use the real one.'|trans }}</p>
           {% if errors.advertiser %}<p class="am-err" id="ad-adv-e" role="alert">{{ errors.advertiser|trans }}</p>{% endif %}
         </div>
+        <fieldset class="am-field am-cats">
+          <legend class="ag-label">{{ 'What is your ad for?'|trans }}</legend>
+          {% for k, c in rules.categories %}
+          <label class="am-check"><input type="radio" name="category" value="{{ k }}" data-needs="{{ c[2]|join(' ') }}"{% if old.category|default('general') == k %} checked{% endif %}> <span><b>{{ c[0]|trans }}</b><span class="am-check__s">{{ c[1]|trans }}{% if c[2] %} · {{ (rules.beta ? 'Approvals asked for' : 'Approvals needed')|trans }}{% endif %}</span></span></label>
+          {% endfor %}
+          {% if errors.category %}<p class="am-err" role="alert">{{ errors.category|trans }}</p>{% endif %}
+        </fieldset>
         <div class="am-field">
           <label class="ag-label" for="ad-logo">{{ 'Logo'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
           <input class="am-input am-input--file" id="ad-logo" name="logo" type="file" accept="image/jpeg,image/png,image/webp" data-pv-file="logo" aria-describedby="ad-logo-h">
@@ -129,12 +136,20 @@
             {% if errors.offer_code %}<p class="am-err" id="ad-code-e" role="alert">{{ errors.offer_code|trans }}</p>{% endif %}
           </div>
         </div>
-        <div class="am-field">
-          <label class="ag-label" for="ad-arcon">{{ 'ARCON approval number'|trans }} <span class="am-opt">{{ '(if you have one)'|trans }}</span></label>
-          <input class="am-input" id="ad-arcon" name="arcon_ref" type="text" maxlength="40" autocapitalize="characters" value="{{ old.arcon_ref|default('') }}" aria-describedby="ad-arcon-h{% if errors.arcon_ref %} ad-arcon-e{% endif %}"{% if errors.arcon_ref %} aria-invalid="true"{% endif %}>
-          <p class="ag-hint" id="ad-arcon-h">{{ 'Adverts in Nigeria need approval from ARCON, the advertising regulator. Getting it is your responsibility.'|trans }}</p>
-          {% if errors.arcon_ref %}<p class="am-err" id="ad-arcon-e" role="alert">{{ errors.arcon_ref|trans }}</p>{% endif %}
-        </div>
+        <fieldset class="am-field am-approvals">
+          <legend class="ag-label">{{ 'Approvals'|trans }}</legend>
+          <p class="ag-hint">{{ rules.beta
+            ? 'Adverts in Nigeria need ARCON approval, and some kinds need more. Add what you have. During the beta nothing here is required.'|trans
+            : 'Adverts in Nigeria need ARCON approval, and some kinds need more. Getting them is your responsibility.'|trans }}</p>
+          {% for k, a in rules.approvals %}
+          <div class="am-field" data-approval="{{ k }}">
+            <label class="ag-label" for="ad-{{ k }}">{{ a[0]|trans }} <span class="am-opt" data-approval-note>{{ k == 'arcon' ? '(if you have one)'|trans : '' }}</span></label>
+            <input class="am-input" id="ad-{{ k }}" name="{{ k }}_ref" type="text" maxlength="{{ k == 'licence' ? 60 : 40 }}" autocapitalize="characters" value="{{ attribute(old, k ~ '_ref')|default('') }}" aria-describedby="ad-{{ k }}-h{% if attribute(errors, k ~ '_ref') is defined %} ad-{{ k }}-e{% endif %}"{% if attribute(errors, k ~ '_ref') is defined %} aria-invalid="true"{% endif %}>
+            <p class="ag-hint" id="ad-{{ k }}-h">{{ a[1]|trans }}</p>
+            {% if attribute(errors, k ~ '_ref') is defined %}<p class="am-err" id="ad-{{ k }}-e" role="alert">{{ attribute(errors, k ~ '_ref')|trans }}</p>{% endif %}
+          </div>
+          {% endfor %}
+        </fieldset>
       </fieldset>
 
       <div class="am-submit">

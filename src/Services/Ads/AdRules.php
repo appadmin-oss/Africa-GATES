@@ -93,6 +93,68 @@ final class AdRules
         'rights'     => ['Other people\'s rights', 'Only images, names and logos you have the right to use.'],
     ];
 
+    /**
+     * What an ad is for, and the approvals that kind of ad must carry.
+     *
+     * The owner's rule (28 Oct 2026): everyday small-business ads stay cheap, so the ARCON
+     * number is optional for them; the kinds regulators actually enforce must carry their
+     * approvals. Research the same day: NAFDAC approves food, drug and cosmetic adverts
+     * before they run, social media included (its 2019 advertisement regulations), as well
+     * as ARCON; money services are licensed by their regulators. Political ads, alcohol,
+     * tobacco and gambling are not accepted at all (STANDARDS).
+     *
+     * `needs` is enforced only once ads leave beta (inBeta()). During the beta it is asked
+     * for, shown to the reviewer, and flagged when missing.
+     *
+     * @var array<string, array{0:string, 1:string, 2:list<string>}> key => [label, what it covers, needs]
+     */
+    public const CATEGORIES = [
+        'general'   => ['Everyday business', 'Shops, services, crafts, restaurants, salons, repairs.', []],
+        'events'    => ['Events and entertainment', 'Shows, concerts, parties, screenings, tours.', []],
+        'education' => ['Education and training', 'Schools, courses, tutoring, workshops.', []],
+        'food'      => ['Packaged food and drink', 'Food or drinks sold packaged or labelled.', ['arcon', 'nafdac']],
+        'health'    => ['Health, medicine and beauty', 'Medicines, supplements, cosmetics, clinics.', ['arcon', 'nafdac']],
+        'finance'   => ['Money services', 'Banking, loans, insurance, savings, investments.', ['arcon', 'licence']],
+    ];
+
+    /** What each approval is called, and where it comes from. */
+    public const APPROVALS = [
+        'arcon'   => ['ARCON approval number', 'From the Advertising Regulatory Council of Nigeria.'],
+        'nafdac'  => ['NAFDAC number', 'The product\'s NAFDAC registration or advert approval number.'],
+        'licence' => ['Licence number', 'Your licence from the regulator that licenses your service (for example CBN, SEC or NAICOM).'],
+    ];
+
+    /**
+     * Are ads still in beta? Set in the console (Settings, Ad prices). While they are, the
+     * approvals a category needs are asked for and flagged, never enforced; the day the
+     * beta ends, a missing approval refuses the ad. Default: beta.
+     */
+    public static function inBeta(): bool
+    {
+        try {
+            $v = trim((string) (DB::table('gates_settings')->where('key_name', 'ads_beta')->value('value') ?? ''));
+        } catch (\Throwable) {
+            return true;
+        }
+        return $v !== '0';
+    }
+
+    /**
+     * The approvals an ad of this category is missing.
+     *
+     * @param array<string,mixed> $in the submitted fields (arcon_ref, nafdac_ref, licence_ref)
+     * @return list<string> keys of APPROVALS
+     */
+    public static function missingApprovals(string $category, array $in): array
+    {
+        $needs = self::CATEGORIES[$category][2] ?? [];
+        $out = [];
+        foreach ($needs as $k) {
+            if (trim((string) ($in[$k . '_ref'] ?? '')) === '') $out[] = $k;
+        }
+        return $out;
+    }
+
     /** Why a reader reports an ad, in the order the menu offers them. */
     public const REPORT_REASONS = [
         'misleading' => 'Misleading or a scam',
@@ -131,6 +193,7 @@ final class AdRules
         $offer    = self::line((string) ($in['offer'] ?? ''));
         $code     = strtoupper(preg_replace('/\s+/', '', (string) ($in['offer_code'] ?? '')) ?? '');
         $arcon    = strtoupper(trim((string) ($in['arcon_ref'] ?? '')));
+        $nafdac   = strtoupper(trim((string) ($in['nafdac_ref'] ?? '')));
 
         $hl = mb_strlen($headline);
         if ($hl < 3 || $hl > self::HEADLINE_MAX) $e['headline'] = sprintf('A headline of 3 to %d characters.', self::HEADLINE_MAX);
@@ -147,11 +210,13 @@ final class AdRules
         if ($code !== '' && preg_match('/^[A-Z0-9-]{3,' . self::CODE_MAX . '}$/', $code) !== 1) $e['offer_code'] = 'A code of letters and numbers.';
         if ($code !== '' && $offer === '') $e['offer'] = 'Say what the code gives.';
         if ($arcon !== '' && preg_match('{^[A-Z0-9/ .-]{3,40}$}', $arcon) !== 1) $e['arcon_ref'] = 'Letters, numbers and / or - only.';
+        if ($nafdac !== '' && preg_match('{^[A-Z0-9/ .-]{3,40}$}', $nafdac) !== 1) $e['nafdac_ref'] = 'Letters, numbers and / or - only.';
 
         return ['row' => [
             'headline' => $headline, 'body' => $body, 'cta' => $cta, 'url' => (string) $safe,
             'offer' => $offer !== '' ? $offer : null, 'offer_code' => $code !== '' ? $code : null,
             'arcon_ref' => $arcon !== '' ? $arcon : null,
+            'nafdac_ref' => $nafdac !== '' ? $nafdac : null,
         ], 'errors' => $e];
     }
 
@@ -169,6 +234,10 @@ final class AdRules
         if (self::mentionsVoting($text)) $f[] = 'Mentions voting or an award';
         if (self::nomineeIds($userId) !== []) $f[] = 'Advertiser is a nominee';
         if (empty($ad['arcon_ref'])) $f[] = 'No ARCON approval number given';
+        $cat = (string) ($ad['_category'] ?? 'general');
+        foreach (self::missingApprovals($cat, $ad) as $k) {
+            if ($k !== 'arcon') $f[] = 'No ' . self::APPROVALS[$k][0] . ' (' . (self::CATEGORIES[$cat][0] ?? $cat) . ')';
+        }
         $url = (string) ($ad['url'] ?? '');
         if ($url !== '' && !str_starts_with($url, '/')) $f[] = 'Links to ' . (string) (parse_url($url, PHP_URL_HOST) ?? 'another site');
         return $f;

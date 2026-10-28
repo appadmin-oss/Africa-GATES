@@ -176,10 +176,44 @@ final class AdDelivery
     public static function forRequest(string $placement, \Psr\Http\Message\ServerRequestInterface $req): ?array
     {
         try {
-            return self::pick($placement, ['reader' => \AfricaGates\Services\VisitTracker::isReader($req)]);
+            $reader = \AfricaGates\Services\VisitTracker::isReader($req);
+            return self::pick($placement, ['reader' => $reader]) ?? ($reader ? self::house() : null);
         } catch (\Throwable) {
             return null; // an ad must never be the reason a page does not draw
         }
+    }
+
+    private const SESSION_HOUSE = '_ag_ad_house';
+
+    /**
+     * When nothing is booked, a slot advertises advertising: the way every publisher fills
+     * unsold space ("advertise with us"), and the cheapest way there is to reach the people
+     * who could become advertisers, because they are already here. Owner, 28 Oct 2026:
+     * people need to know they can create ads, reached at a low rate.
+     *
+     * Honest about what it is: labelled "From Africa GATES", never "Sponsored", because
+     * nobody paid for it; never counted as a view; no menu, since there is nothing to report
+     * about our own notice. Once a day per reader, so an empty week does not turn every page
+     * into the same notice. Its figures are read from AdRules.
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function house(): ?array
+    {
+        if (!isset($_SESSION) || !is_array($_SESSION)) return null;
+        $day = date('Y-m-d');
+        if (($_SESSION[self::SESSION_HOUSE] ?? '') === $day) return null;
+        $_SESSION[self::SESSION_HOUSE] = $day;
+        return [
+            'house' => true, 'id' => 0, 'advertiser' => 'Africa GATES', 'initials' => 'AG',
+            'logo' => '/assets/img/logo-mark.png', 'image' => null,
+            'body' => \AfricaGates\Support\Translator::t('Reach the people who come here to celebrate, vote and attend. Your first campaign is free: up to %v% views over %d% days.', [
+                '%v%' => number_format(AdRules::TRIAL_VIEWS), '%d%' => (string) AdRules::TRIAL_DAYS,
+            ]),
+            'headline' => \AfricaGates\Support\Translator::t('Advertise your business here'),
+            'domain' => AdRules::displayDomain('/advertise'), 'offer' => null, 'offer_code' => null,
+            'cta' => 'Start free trial', 'url' => '/advertise', 'href' => '/advertise', 'external' => false,
+        ];
     }
 
     /**

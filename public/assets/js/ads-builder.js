@@ -71,6 +71,22 @@
     r.readAsDataURL(f);
   }
 
+  // What the ad is for decides which approvals it needs (AdRules::CATEGORIES). ARCON is
+  // always shown; NAFDAC and a licence only for the kinds that need them. With no script
+  // every field shows, and the server decides.
+  var notes = { need: form.getAttribute('data-note-need') || '', optional: form.getAttribute('data-note-optional') || '' };
+  function approvals() {
+    var picked = form.querySelector('input[name="category"]:checked');
+    var needs = picked ? (picked.getAttribute('data-needs') || '').split(' ').filter(Boolean) : [];
+    form.querySelectorAll('[data-approval]').forEach(function (box) {
+      var k = box.getAttribute('data-approval');
+      var needed = needs.indexOf(k) !== -1;
+      box.hidden = k !== 'arcon' && !needed;
+      var n = box.querySelector('[data-approval-note]');
+      if (n) n.textContent = needed ? notes.need : (k === 'arcon' ? notes.optional : '');
+    });
+  }
+
   form.addEventListener('input', function (e) {
     var t = e.target;
     if (t.hasAttribute && t.hasAttribute('maxlength')) count(t);
@@ -78,8 +94,10 @@
   });
   form.addEventListener('change', function (e) {
     if (e.target.hasAttribute && e.target.hasAttribute('data-pv-file')) showFile(e.target);
+    if (e.target.name === 'category') approvals();
     render();
   });
+  approvals();
   form.querySelectorAll('[maxlength]').forEach(count);
   render();
 })();

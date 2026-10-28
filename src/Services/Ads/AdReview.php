@@ -27,7 +27,7 @@ final class AdReview
                 ->join('gates_ad_campaigns as c', 'c.id', '=', 's.campaign_id')
                 ->where('a.review', 'pending')->where('c.status', '!=', AdCampaigns::ST_CANCELLED)
                 ->orderBy('a.id')->limit(200)
-                ->select('a.*', 'c.advertiser', 'c.trial', 'c.user_id', 's.placements')->get()->all();
+                ->select('a.*', 'c.advertiser', 'c.trial', 'c.user_id', 'c.category', 'c.licence_ref', 's.placements')->get()->all();
         } catch (\Throwable) {
             return [];
         }
@@ -37,6 +37,9 @@ final class AdReview
             'cta' => AdRules::CTAS[(string) $r->cta] ?? '', 'image' => $r->image_path ? (string) $r->image_path : null,
             'offer' => $r->offer ? (string) $r->offer : null, 'offer_code' => $r->offer_code ? (string) $r->offer_code : null,
             'arcon_ref' => $r->arcon_ref ? (string) $r->arcon_ref : null,
+            'nafdac_ref' => $r->nafdac_ref ? (string) $r->nafdac_ref : null,
+            'licence_ref' => $r->licence_ref ? (string) $r->licence_ref : null,
+            'category' => AdRules::CATEGORIES[(string) ($r->category ?? 'general')][0] ?? 'Everyday business',
             'flags' => array_values(array_filter(explode(' · ', (string) ($r->review_flags ?? '')))),
             'placements' => array_map(static fn ($p) => AdRules::PLACEMENTS[$p] ?? $p, array_filter(explode(',', (string) $r->placements))),
             'created_at' => (string) $r->created_at,

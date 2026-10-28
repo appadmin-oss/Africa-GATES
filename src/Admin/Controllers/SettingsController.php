@@ -220,6 +220,7 @@ class SettingsController
             // AdRateCard, the same resolver /advertise and the builder read.
             'ad_rates'          => \AfricaGates\Services\Ads\AdRateCard::all(),
             'ad_placements'     => \AfricaGates\Services\Ads\AdRules::PLACEMENTS,
+            'ad_beta'           => \AfricaGates\Services\Ads\AdRules::inBeta(),
             'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
             'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
             'visits_mode'       => \AfricaGates\Services\CookiePrefs::mode(),
@@ -675,8 +676,11 @@ class SettingsController
         if (array_key_exists('ads_rates', $b)) {
             $rates = (array) ($b['ads_cpm'] ?? []);
             \AfricaGates\Services\Ads\AdRateCard::save($rates);
+            // The checkbox posts nothing when unticked, which is why this sits behind the
+            // card's own marker: unticked means the beta is over.
+            $this->settings->set('ads_beta', !empty($b['ads_beta']) ? '1' : '0', $adminId);
             $this->audit->record($adminId, 'settings.ads_rates', null, null,
-                ['rates' => \AfricaGates\Services\Ads\AdRateCard::all()]);
+                ['rates' => \AfricaGates\Services\Ads\AdRateCard::all(), 'beta' => !empty($b['ads_beta'])]);
         }
 
         // Arrival tracking. Marker-gated like the others: an unchecked box posts nothing,

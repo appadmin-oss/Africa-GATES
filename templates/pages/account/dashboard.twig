@@ -184,6 +184,17 @@
         <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
       </a>
       {% endif %}
+
+      {# A member who sells something is likeliest to find out they can advertise here, from
+         the page they already open. Only while their free trial is unused; the figures are
+         AdRules' (owner, 28 Oct 2026: "people need to know they can create ads"). #}
+      {% if ad_trial %}
+      <a class="acx-card acx-tix" href="/account/ads/new">
+        <span class="acx-ico acx-ico--green" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1ZM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></span>
+        <span class="acx-tix__t"><b>{{ 'Promote your business here'|trans }}</b><span>{{ 'Your first campaign is free: up to %v% views over %d% days.'|trans({'%v%': ad_trial.views|number_format, '%d%': ad_trial.days}) }}</span></span>
+        <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+      </a>
+      {% endif %}
     </div>
   </div>
 

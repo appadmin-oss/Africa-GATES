@@ -122,6 +122,8 @@
   line-height:1.6; color:var(--ag-ink-2); text-wrap:pretty; max-width:56ch;
 }
 
+.org-ads{ margin-top:var(--ag-sp-16); }
+
 /* ── actions ────────────────────────────────────────────────────── */
 .org-go{
   display:inline-flex; align-items:center; justify-content:center;

@@ -158,6 +158,14 @@
     {% endif %}
   {% endif %}
 
+  {% if ad_trial %}
+    <div class="org-empty org-ads">
+      <h2 class="org-empty__t">{{ 'Advertise on Africa GATES'|trans }}</h2>
+      <p class="org-empty__b">{{ 'Put your work in front of the people who come here to vote, give and attend. Your first campaign is free: up to %v% views over %d% days.'|trans({'%v%': ad_trial.views|number_format, '%d%': ad_trial.days}) }}</p>
+      <a class="org-go" href="/advertise">{{ 'How advertising works'|trans }}</a>
+    </div>
+  {% endif %}
+
 {#  ══════════════════════════════════════════════════════════════════════════
     YOUR PAGE — the brand editor
     ══════════════════════════════════════════════════════════════════════════ #}

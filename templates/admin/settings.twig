@@ -1067,6 +1067,12 @@
   <div class="ad-card" data-sec="money" data-keys="ads advertising advertise rate card price cpm placements sponsored promotion" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Ad prices<small>Naira per 1,000 views, the same for every advertiser. Shown on <a href="/advertise">/advertise</a>.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <input type="hidden" name="ads_rates" value="1">
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;margin-bottom:10px">
+        <input type="checkbox" name="ads_beta" value="1"{% if ad_beta %} checked{% endif %} style="margin-top:3px">
+        <span>Ads are in beta
+          <small style="display:block;font-weight:400">While ticked, the approvals a kind of ad needs (NAFDAC for food and health, a licence for money services, ARCON for both) are asked for and flagged to the reviewer. Untick when the beta ends: from then a missing approval refuses the ad.</small>
+        </span>
+      </label>
       <div class="row">
         {% for k, label in ad_placements %}
         <div>

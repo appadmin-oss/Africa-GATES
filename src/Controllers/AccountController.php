@@ -1468,6 +1468,9 @@ class AccountController
             'passkeys'       => \AfricaGates\Services\Passkeys::listFor((int) $user->id),
             'verify_ttl_hours' => UserAccountService::VERIFY_TTL_HOURS,
             'name_pattern'   => UserAccountService::NAME_PATTERN,
+            // The overview's invitation to advertise: only while the free trial is unused.
+            'ad_trial'       => $tab === 'overview' && !\AfricaGates\Services\Ads\AdCampaigns::trialUsed((int) $user->id)
+                ? ['views' => \AfricaGates\Services\Ads\AdRules::TRIAL_VIEWS, 'days' => \AfricaGates\Services\Ads\AdRules::TRIAL_DAYS] : null,
             // Whether a password is set, never the hash: the form asks for the current one
             // only when there is one to ask for.
             'has_password'   => !empty($user->password_hash),

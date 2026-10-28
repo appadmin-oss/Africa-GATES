@@ -25,7 +25,10 @@ use Tests\TestCase;
  *     token counts nothing;
  *   · delivery stops at the trial's views and respects the frequency cap; there is no location targeting in the beta;
  *   · spend is views × the BOOKED rate, never past the budget;
- *   · only the four approved pages may draw an ad. A ballot, a nominee and a result never.
+ *   · only the four approved pages may draw an ad. A ballot, a nominee and a result never;
+ *   · a regulated kind of ad (food, health, money) is flagged in the beta and refused after it
+ *     without its approvals, and the policy states which, from the same table;
+ *   · an empty slot advertises advertising, honestly: never "Sponsored", never counted.
  */
 final class AdsTest extends TestCase
 {
@@ -45,7 +48,7 @@ final class AdsTest extends TestCase
     private function good(array $over = []): array
     {
         return $over + [
-            'objective' => 'traffic', 'advertiser' => 'Mama Put Kitchen', 'name' => '',
+            'objective' => 'traffic', 'advertiser' => 'Mama Put Kitchen', 'name' => '', 'category' => 'general',
             'placements' => ['discover', 'vote_hub', 'events'],
             'headline' => 'Jollof by the tray', 'body' => 'Party trays delivered across Lagos, same day.',
             'cta' => 'shop_now', 'url' => 'https://mamaput.example.ng/trays', 'offer' => '10% off this week', 'offer_code' => 'TRAY10',
@@ -373,5 +376,93 @@ final class AdsTest extends TestCase
         $this->assertStringNotContainsStringIgnoringCase('no ads', ChromeRender::html('/'));
         $this->assertStringNotContainsStringIgnoringCase('no ads', ChromeRender::html('/cookies'));
         $this->assertStringContainsString('Sponsored', ChromeRender::html('/cookies'), 'and the policy says what does run');
+    }
+
+    /**
+     * Owner, 28 Oct 2026: approvals are asked for by KIND of ad, and enforced only once the
+     * beta ends. In the beta a missing one is a flag the reviewer sees; after it, a refusal
+     * the advertiser can fix. An everyday business never needs one.
+     */
+    public function test_regulated_kinds_of_ad_are_flagged_in_the_beta_and_refused_after_it(): void
+    {
+        $this->assertTrue(AdRules::inBeta(), 'beta is the default');
+        $food = $this->good(['category' => 'food', 'url' => '/events']);
+        $this->assertSame([], AdCampaigns::validate($food)['errors'], 'in the beta it is not refused');
+        $uid = $this->user();
+        $r = AdCampaigns::createTrial($uid, $food, '/uploads/ads/x.jpg');
+        $this->assertTrue($r['ok']);
+        $flags = (string) DB::table('gates_ads')->value('review_flags');
+        $this->assertStringContainsString('No NAFDAC number', $flags, 'but the reviewer is told');
+        $this->assertSame('food', DB::table('gates_ad_campaigns')->where('id', $r['id'])->value('category'));
+
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'ads_beta'], ['value' => '0']);
+        $this->assertFalse(AdRules::inBeta());
+        $e = AdCampaigns::validate($food)['errors'];
+        $this->assertArrayHasKey('nafdac_ref', $e, 'after the beta it is refused');
+        $this->assertArrayHasKey('arcon_ref', $e);
+        $this->assertArrayHasKey('licence_ref', AdCampaigns::validate($this->good(['category' => 'finance']))['errors']);
+        $this->assertSame([], AdCampaigns::validate($this->good(['category' => 'food', 'url' => '/events',
+            'arcon_ref' => 'ARCON/2026/123', 'nafdac_ref' => 'A1-2345']))['errors'], 'with them it passes');
+        $this->assertSame([], AdCampaigns::validate($this->good())['errors'], 'an everyday business needs none');
+        $this->assertArrayHasKey('category', AdCampaigns::validate($this->good(['category' => 'weapons']))['errors']);
+
+        // The policy is generated from the same table, so it cannot list a different rule.
+        $policy = \AfricaGates\Services\LegalDocument::advertisingHtml();
+        foreach (AdRules::CATEGORIES as [$label, , $needs]) {
+            if ($needs !== []) $this->assertStringContainsString(htmlspecialchars($label, ENT_QUOTES), $policy);
+        }
+        $this->assertStringContainsString(htmlspecialchars(AdRules::APPROVALS['nafdac'][0], ENT_QUOTES), $policy);
+    }
+
+    /**
+     * Owner, 28 Oct 2026: "we'd need promotions for the ads so people know they can create
+     * ads". An unsold slot says so, as every publisher's does, and is honest about it: our
+     * own notice, never "Sponsored", nothing to count or report, once a day per reader.
+     */
+    public function test_an_empty_slot_advertises_advertising_and_says_whose_notice_it_is(): void
+    {
+        $nav = ['User-Agent' => 'Mozilla/5.0 Chrome/120', 'Accept' => 'text/html', 'Sec-Fetch-Mode' => 'navigate', 'Sec-Fetch-Dest' => 'document'];
+        $html = (string) ChromeRender::page('/vote', [], [], 'GET', null, $nav)->getBody();
+        $this->assertStringContainsString('class="ag-ad"', $html, 'nothing is booked, so the slot is ours');
+        $this->assertStringContainsString('From Africa GATES', $html);
+        $this->assertStringContainsString('href="/advertise"', $html);
+        $this->assertStringContainsString(number_format(AdRules::TRIAL_VIEWS), $html, 'the trial figures are the rule');
+        if (preg_match('{<article class="ag-ad".*?</article>}s', $html, $m) === 1) {
+            $this->assertStringNotContainsString('Sponsored', $m[0], 'nobody paid for it');
+            $this->assertStringNotContainsString('data-ad=', $m[0], 'it is never counted');
+            $this->assertStringNotContainsString('/ads/report', $m[0]);
+            $this->assertStringNotContainsString('rel="sponsored', $m[0]);
+        } else {
+            $this->fail('no ad card drawn');
+        }
+
+        $_SESSION = [];
+        $this->assertNotNull(AdDelivery::house());
+        $this->assertNull(AdDelivery::house(), 'once a day per reader');
+
+        // A bot is shown nothing at all; a real booking always wins the slot.
+        $_SESSION = [];
+        $bot = (string) ChromeRender::page('/vote', [], [], 'GET', null, ['User-Agent' => 'Googlebot/2.1', 'Accept' => 'text/html'])->getBody();
+        $this->assertStringNotContainsString('class="ag-ad"', $bot);
+        $_SESSION = [];
+        $this->liveTrial($this->user());
+        $paid = (string) ChromeRender::page('/vote', [], [], 'GET', null, $nav)->getBody();
+        $this->assertStringContainsString('Mama Put Kitchen', $paid);
+        $this->assertStringNotContainsString('From Africa GATES', $paid);
+    }
+
+    /** The invitation reaches the people likeliest to advertise, where they already look. */
+    public function test_the_account_and_the_organisation_console_offer_the_trial_until_it_is_used(): void
+    {
+        $uid = $this->user();
+        $sess = ['user_id' => $uid, 'member_id' => $uid, 'account_id' => $uid];
+        $acc = ChromeRender::html('/account', $sess);
+        $this->assertStringContainsString('Promote your business here', $acc);
+        $this->assertStringContainsString('href="/account/ads/new"', $acc);
+        $this->liveTrial($uid);
+        $this->assertStringNotContainsString('Promote your business here', ChromeRender::html('/account', $sess), 'not once it is used');
+
+        $a = \AfricaGates\Services\HelpCentre::bySlug('how-to-advertise');
+        $this->assertNotNull($a, 'Gee and the help centre can answer "can I advertise?"');
     }
 }

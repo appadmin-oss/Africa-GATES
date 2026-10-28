@@ -1400,6 +1400,41 @@ final class HelpCentre
                          . 'can see the money and run the appeals without being able to move it.'],
             ],
         ],
+        [
+            // Owner, 28 Oct 2026: people need to know they can advertise here. Gee answers
+            // "can I advertise?" from this article, so the figures are placeholders read
+            // from AdRules, never typed.
+            'slug' => 'how-to-advertise',
+            'audience' => ['organisation', 'supporter', 'nominee'],
+            'cat'  => 'organisations',
+            'title' => 'How to advertise your business on Africa GATES',
+            'summary' => 'Make an ad from your account. Your first campaign is free; a person reviews every ad.',
+            'keywords' => ['advertise', 'advert', 'ads', 'promote my business', 'sponsored',
+                           'promotion', 'marketing', 'free trial', 'boost', 'reach customers'],
+            'body' => [
+                ['p' => 'Anyone with a member account can advertise a business, a service, an event or '
+                      . 'a cause. Your <strong>first campaign is free</strong>: up to {ad_trial_views} '
+                      . 'views over {ad_trial_days} days, starting the day it is approved.'],
+                ['steps' => [
+                    'Sign in, or <a href="/account/register">register</a>. An organisation advertises '
+                        . 'from a member account too; the organisation console is for money and documents.',
+                    'Open <a href="/account/ads">Ads</a> in your account and choose '
+                        . '<strong>Create campaign</strong>.',
+                    'Write the ad and watch the preview: who it is from, your text, a square image, '
+                        . 'a headline and a button. You can add an offer for our readers.',
+                    'Send it for review. A person checks it against the '
+                        . '<a href="/legal/advertising">Advertising Policy</a>, and you are told the '
+                        . 'reason if it is not approved, so you can fix it and send it again.',
+                ]],
+                ['p' => 'Ads appear on the vote hub, Discover and the events pages, labelled '
+                      . '<strong>Sponsored</strong>. Everyone on a page sees the same ads: nothing is '
+                      . 'chosen from what a reader did, and nobody\'s data is sold.'],
+                ['note' => 'Some kinds of ad need an approval from a regulator, such as NAFDAC for food '
+                         . 'and health products. The Advertising Policy lists them. Paid prices are on '
+                         . '<a href="/advertise">the advertising page</a>.'],
+            ],
+            'related' => ['your-organisation-console'],
+        ],
 
         // ── PRIVACY ──────────────────────────────────────────────────────────
         [
@@ -1855,6 +1890,8 @@ final class HelpCentre
             // around, and a number in prose outlives the rule it describes — which is why
             // HelpCentreTest refuses a naira figure written into an article at all.
             '{min_payout}' => number_format(\AfricaGates\Services\OrgPayout::MIN_NAIRA),
+            '{ad_trial_views}' => number_format(\AfricaGates\Services\Ads\AdRules::TRIAL_VIEWS),
+            '{ad_trial_days}'  => (string) \AfricaGates\Services\Ads\AdRules::TRIAL_DAYS,
 
             '{price}'   => $price,
             '{max_qty}' => $maxQty,

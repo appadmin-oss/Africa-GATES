@@ -91,7 +91,7 @@ final class AdCampaigns
                 ]);
                 DB::table('gates_ads')->insert($v['ad'] + [
                     'ad_set_id' => $sid, 'image_path' => $imagePath, 'review' => 'pending',
-                    'review_flags' => implode(' · ', AdRules::flags($v['ad'], $userId)) ?: null,
+                    'review_flags' => implode(' · ', AdRules::flags($v['ad'] + ['_category' => $v['campaign']['category'], 'licence_ref' => $v['campaign']['licence_ref']], $userId)) ?: null,
                     'created_at' => $now, 'updated_at' => $now,
                 ]);
                 return $cid;
@@ -118,10 +118,23 @@ final class AdCampaigns
         if ($name === '') $name = $advertiser;
         $placements = AdRules::cleanPlacements($in['placements'] ?? []);
         if ($placements === []) $e['placements'] = 'Choose at least one place.';
+        $category = (string) ($in['category'] ?? 'general');
+        if (!isset(AdRules::CATEGORIES[$category])) $e['category'] = 'Choose what your ad is for.';
+        $licence = strtoupper(trim((string) ($in['licence_ref'] ?? '')));
+        if ($licence !== '' && preg_match('{^[A-Z0-9/ .-]{3,60}$}', $licence) !== 1) $e['licence_ref'] = 'Letters, numbers and / or - only.';
+        // The approvals this kind of ad must carry: enforced once ads leave beta, asked for
+        // and flagged until then (AdRules::CATEGORIES, owner 28 Oct 2026).
+        if (!AdRules::inBeta() && isset(AdRules::CATEGORIES[$category])) {
+            foreach (AdRules::missingApprovals($category, $in) as $k) {
+                $e[$k . '_ref'] = sprintf('%s is needed for this kind of ad.', AdRules::APPROVALS[$k][0]);
+            }
+        }
 
         $c = AdRules::creative($in);
         return [
-            'campaign'   => ['name' => mb_substr($name, 0, 80), 'advertiser' => $advertiser, 'objective' => $objective],
+            'campaign'   => ['name' => mb_substr($name, 0, 80), 'advertiser' => $advertiser, 'objective' => $objective,
+                             'category' => isset(AdRules::CATEGORIES[$category]) ? $category : 'general',
+                             'licence_ref' => $licence !== '' ? $licence : null],
             'placements' => $placements,
             'ad'         => $c['row'], 'errors' => $e + $c['errors'],
         ];
@@ -158,10 +171,18 @@ final class AdCampaigns
         $ad = self::ownAd($adId, $userId);
         if ($ad === null || (string) $ad->review !== 'rejected') return ['ok' => false, 'errors' => ['form' => 'That ad cannot be changed.']];
         $c = AdRules::creative($in);
+        $camp = DB::table('gates_ad_campaigns as c')->join('gates_ad_sets as s', 's.campaign_id', '=', 'c.id')
+            ->where('s.id', $ad->ad_set_id)->select('c.category', 'c.licence_ref')->first();
+        $category = (string) ($camp->category ?? 'general');
+        if (!AdRules::inBeta()) {
+            foreach (AdRules::missingApprovals($category, $in + ['licence_ref' => $camp->licence_ref ?? '']) as $k) {
+                $c['errors'][$k . '_ref'] = sprintf('%s is needed for this kind of ad.', AdRules::APPROVALS[$k][0]);
+            }
+        }
         if ($c['errors'] !== []) return ['ok' => false, 'errors' => $c['errors']];
         DB::table('gates_ads')->where('id', $adId)->where('review', 'rejected')->update($c['row'] + [
             'image_path' => $imagePath ?: $ad->image_path, 'review' => 'pending', 'review_reason' => null,
-            'review_flags' => implode(' · ', AdRules::flags($c['row'], $userId)) ?: null,
+            'review_flags' => implode(' · ', AdRules::flags($c['row'] + ['_category' => $category, 'licence_ref' => $camp->licence_ref ?? null], $userId)) ?: null,
             'reviewed_by' => null, 'reviewed_at' => null, 'updated_at' => date('Y-m-d H:i:s'),
         ]);
         return ['ok' => true];
@@ -234,6 +255,8 @@ final class AdCampaigns
             'id' => (int) $c->id, 'name' => (string) $c->name, 'advertiser' => (string) $c->advertiser,
             'objective' => (string) $c->objective, 'objective_label' => AdRules::OBJECTIVES[(string) $c->objective] ?? '',
             'trial' => (int) $c->trial === 1, 'status' => (string) $c->status,
+            'category' => (string) ($c->category ?? 'general'),
+            'category_label' => AdRules::CATEGORIES[(string) ($c->category ?? 'general')][0] ?? '',
             'delivery' => $delivery['key'], 'delivery_label' => self::DELIVERY[$delivery['key']], 'delivery_note' => $delivery['note'],
             'views' => $views, 'clicks' => $clicks,
             'ctr' => $views > 0 ? round(100 * $clicks / $views, 1) : null,

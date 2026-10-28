@@ -81,6 +81,18 @@ final class LegalDocument
             $h[] = '<tr><td><strong>' . $e($name) . '</strong></td><td>' . $e($what) . '</td></tr>';
         }
         $h[] = '</tbody></table>';
+        $beta = $R::inBeta();
+        $names = static fn (array $keys): string => implode(' and ', array_map(static fn ($k) => $R::APPROVALS[$k][0], $keys));
+        $h[] = '<h2>Approvals by kind of ad</h2>';
+        $h[] = '<p>' . ($beta
+            ? 'Ads are in beta. Until the beta ends these approvals are asked for and checked by the reviewer, but an ad without them is not refused for that reason alone. Once the beta ends, they are required.'
+            : 'These approvals are required. An ad of these kinds without them is refused.') . '</p>';
+        $h[] = '<table><thead><tr><th>Kind of ad</th><th>Covers</th><th>What it must carry</th></tr></thead><tbody>';
+        foreach ($R::CATEGORIES as [$label, $covers, $needs]) {
+            $h[] = '<tr><td><strong>' . $e($label) . '</strong></td><td>' . $e($covers) . '</td><td>'
+                 . ($needs === [] ? 'ARCON approval where the law requires it' : $e($names($needs))) . '</td></tr>';
+        }
+        $h[] = '</tbody></table>';
         $places = implode(', ', array_map($e, array_values($R::PLACEMENTS)));
         $h[] = '<h2>The figures</h2><ul>'
              . '<li>Places ads may appear: ' . $places . '.</li>'

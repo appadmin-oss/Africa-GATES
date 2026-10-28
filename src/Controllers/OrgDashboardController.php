@@ -307,6 +307,10 @@ final class OrgDashboardController
             // the gate the template actually asks is the derived one, and passing both
             // invites a section testing the raw fact and disagreeing with the rail.
             'show_money'=> !$isVendor || $hasMoney,
+            // An approved organisation is told it can advertise here, from the console it
+            // already opens; the figures are AdRules'. Never to one still under review.
+            'ad_trial'  => $tab === 'overview' && (string) ($org->status ?? '') === 'approved'
+                ? ['views' => \AfricaGates\Services\Ads\AdRules::TRIAL_VIEWS, 'days' => \AfricaGates\Services\Ads\AdRules::TRIAL_DAYS] : null,
             // DERIVED, both of them. A console that prints "Verified organisation" beside a
             // suspended account is worse than one that prints nothing, and the first panel
             // below it exists to explain the suspension.
