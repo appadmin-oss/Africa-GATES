@@ -15,6 +15,8 @@
 #}
 {% import 'shell/sections.twig' as S %}
 {% set sh = shell %}
+{% set act = sh.act|default('/volunteer/act') %}
+{% set home = sh.home|default('/volunteer') %}
 {% set phoneTabs = [] %}
 {% for g in sh.nav %}{% for i in g.items %}{% if phoneTabs|length < 4 and not i.drill %}{% set phoneTabs = phoneTabs|merge([i]) %}{% endif %}{% endfor %}{% endfor %}
 <!DOCTYPE html>
@@ -36,7 +38,7 @@
 <a class="sh7-skip" href="#sh7Main">Skip to the page</a>
 <div class="sh7-root">
 
-  <aside class="sh7-rail" aria-label="{{ sh.scope == 'root' ? 'My volunteering' : (sh.instance.name|default('Profile and access')) }}">
+  <aside class="sh7-rail" aria-label="{{ sh.scope == 'root' ? sh.railLabel|default('My volunteering') : (sh.instance.name|default('Profile and access')) }}">
     {% if sh.scope == 'root' %}
       <div class="sh7-brand">
         <span class="sh7-brand__tile" aria-hidden="true">AG</span>
@@ -68,14 +70,14 @@
       {% endfor %}
     </nav>
     <div class="sh7-foot">
-      <a class="sh7-item" href="/account" title="Your account">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span></a>
+      <a class="sh7-item" href="{{ sh.foot.href|default('/account') }}" title="{{ sh.foot.label|default('Your account') }}">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span></a>
     </div>
   </aside>
 
   <div class="sh7-frame">
     <header class="sh7-bar">
       {% if sh.scope != 'root' or sh.back is defined %}
-        <a class="sh7-appback" href="{{ sh.back.href|default('/volunteer') }}" aria-label="{{ sh.back.label|default('Back') }}">{{ S.icon('back') }}</a>
+        <a class="sh7-appback" href="{{ sh.back.href|default(home) }}" aria-label="{{ sh.back.label|default('Back') }}">{{ S.icon('back') }}</a>
       {% endif %}
       <nav class="sh7-crumbs" aria-label="You are here"><ol>
         {% for c in sh.crumbs %}
@@ -83,7 +85,7 @@
         {% endfor %}
       </ol></nav>
       <span class="sh7-apptitle">{{ sh.title }}</span>
-      <a class="sh7-bell" href="/volunteer" aria-label="Updates">{{ S.icon('bell') }}</a>
+      <a class="sh7-bell" href="{{ home }}" aria-label="Updates">{{ S.icon('bell') }}</a>
     </header>
 
     {% if sh.tabs %}
@@ -96,7 +98,7 @@
 
     <main id="sh7Main" class="sh7-main" tabindex="-1">
       <div class="sh7-page{{ sh.side is defined and sh.side ? ' has-side' }}">
-        {% if sh.paused %}<p class="sh7-note sh7-note--warn">You’re on a break until {{ sh.paused }}. Nobody invites you until then. <a href="/volunteer/me/leave">Come back now</a></p>{% endif %}
+        {% if sh.paused|default(false) %}<p class="sh7-note sh7-note--warn">You’re on a break until {{ sh.paused }}. Nobody invites you until then. <a href="/volunteer/me/leave">Come back now</a></p>{% endif %}
         {% if not sh.noHead|default(false) %}
           <div class="sh7-head">
             <div class="sh7-head__words">
@@ -104,12 +106,12 @@
               <h1 class="sh7-head__title">{{ sh.title }}</h1>
               {% if sh.purpose %}<p class="sh7-head__purpose">{{ sh.purpose }}</p>{% endif %}
             </div>
-            {% if sh.acts is defined and sh.acts %}<div class="sh7-head__acts">{% for a in sh.acts %}{{ S.action(a, sh.here) }}{% endfor %}</div>{% endif %}
+            {% if sh.acts is defined and sh.acts %}<div class="sh7-head__acts">{% for a in sh.acts %}{{ S.action(a, sh.here, false, act) }}{% endfor %}</div>{% endif %}
           </div>
         {% endif %}
         <div class="sh7-cols">
-          <div class="sh7-col">{% for sec in sh.secs %}{{ S.section(sec, sh.here) }}{% endfor %}</div>
-          {% if sh.side is defined and sh.side %}<aside class="sh7-side" aria-label="Also useful">{% for sec in sh.side %}{{ S.section(sec, sh.here) }}{% endfor %}</aside>{% endif %}
+          <div class="sh7-col">{% for sec in sh.secs %}{{ S.section(sec, sh.here, act) }}{% endfor %}</div>
+          {% if sh.side is defined and sh.side %}<aside class="sh7-side" aria-label="Also useful">{% for sec in sh.side %}{{ S.section(sec, sh.here, act) }}{% endfor %}</aside>{% endif %}
         </div>
       </div>
     </main>

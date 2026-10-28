@@ -134,7 +134,42 @@ not produce.
 Every figure is read from the record; an empty list is one sentence. Tests:
 `VolunteerWorkspaceTest`, `VolunteersAdminTest` (and K1–K3's `VolunteersTest`).
 
+### L1 shipped (28 Oct 2026): the event lead console
+
+- **The event plan** (`database/migrations/2027_04_13_event_plan.php`, `Services\EventPlan\Plan`):
+  work (owner, due, hours, "the night waits on it"), risks (likelihood × impact, the level
+  COMPUTED), budget lines (estimate, committed, paid), and on `gates_site_events` a
+  `series_key` (G8) and a `budget_minor`. Readiness is done ÷ all work; an event with no work
+  shows days only (G7). Only a live `event.lead` grant writes a plan.
+- **Spend (G9).** A lead approves a line up to `lead_spend_limit_naira` (default ₦200,000, a
+  setting with one reader). Above it the line becomes a `spend` request to finance; deciding the
+  request moves the line (`Plan::syncRequest`). Nothing moves money.
+- **The lead root** at `/admin/lead` (`Admin\Controllers\LeadController`,
+  `Services\EventPlan\LeadPages`), on the v7 shell: Overview (blocking a night, your events with
+  readiness, budget and tickets, this week, next deadlines, your requests), Inbox (yours by
+  name, plus work nobody has), Requests (Open · Decided, the composer, the detail as `?r=`),
+  Your events, Deadlines, Risks, Approvals, Analytics (against the last edition in the series,
+  on the same day out; "Nothing to compare yet" for a first edition) and People (load against
+  `lead_week_hours`, default 40, with Rebalance; volunteer shift fill). Each event opens its own
+  pages: Overview (with its budget and series), Work, Risks, Budget, People.
+- **Who leads.** An administrator (superadmin or admin) gives an event to a lead on Your
+  events; the grant ends the day after the event unless an earlier date is given. Only roles
+  that can write may lead. Every lead write is audited once as `lead.<verb>`.
+- **Requests get a decider's screen** at `/admin/requests` (Team › Requests), held with the
+  money (`finance`: superadmin, admin). Before it, a request routed to finance or "an
+  administrator" — a lead's spend, a volunteer's swap with no lead — waited for ever.
+- **Access, for the owner to confirm:** `/admin/lead` is mapped to `overview` (every role may
+  open it; it shows only the viewer's own grants), `/admin/requests` to `finance`.
+- The shell is now configured per home (`act`, `home`, `foot`, `railLabel`), so the lead
+  console and the volunteer workspace share every partial (handoff §0.5).
+
+Tests: `LeadConsoleTest` (14). Removing the lead check and removing the spend limit each fail it.
+
 ### Not yet (next slices)
+
+- **L2, the event scope proper**: run of show, decisions, sponsors, the night, devices and
+  Event settings (team and access). The lead's event pages are the plan only. The "Remind"
+  on a finance request is not built (nothing would send it), so it is not drawn.
 
 - **V2 award scopes**: Check nominations (the masked review desk, G5) and the voter drive
   (G6). The award place shows Overview, Tasks and Your access until then.
@@ -143,6 +178,5 @@ Every figure is read from the record; an empty list is one sentence. Tests:
 - **Door scans as hours** (G1): a volunteer's own pass at the gate stamping
   `gates_vol_signups.check_in_at` / `check_out_at`. Staff "Came / Didn't come" is the source
   until then.
-- **L1 the event lead root** (`/admin/lead`), on the event plan tables.
 - Decisions still open: D11, D12, D36 (the defaults in `Volunteer\Rules` are the review's
   recommendations), D37, D38, and who besides superadmin opens `/admin/volunteers`.

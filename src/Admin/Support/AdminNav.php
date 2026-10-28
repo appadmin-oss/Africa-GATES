@@ -113,6 +113,8 @@ final class AdminNav
              'children' => [
                  ['page' => 'stand_presets', 'label' => 'Stand presets',       'href' => '/admin/stand-presets'],
                  ['page' => 'registrations', 'label' => 'Event registrations', 'href' => '/admin/registrations'],
+                 // The event lead console (§5): only the events the viewer leads.
+                 ['page' => 'lead', 'label' => 'Events you lead', 'href' => '/admin/lead'],
              ]],
             ['page' => 'challenges', 'label' => 'Challenges', 'href' => '/admin/challenges', 'icon' => 'bolt',
              'sub' => 'Paid challenges and where each one stands.'],
@@ -184,6 +186,8 @@ final class AdminNav
              'children' => [
                  // People › Volunteers in the v7 handoff (§4.1): applications, roles, shifts, hours.
                  ['page' => 'volunteers', 'label' => 'Volunteers', 'href' => '/admin/volunteers'],
+                 // Requests from event leads and volunteers (§2.6), decided by finance or an admin.
+                 ['page' => 'requests', 'label' => 'Requests', 'href' => '/admin/requests'],
              ]],
             ['page' => 'alerts', 'label' => 'Alerts', 'href' => '/admin/alerts', 'icon' => 'bell',
              'sub' => 'Everything the platform noticed on its own, most severe first. Each one says what to do next.'],

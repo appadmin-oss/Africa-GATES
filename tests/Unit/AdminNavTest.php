@@ -97,6 +97,11 @@ final class AdminNavTest extends TestCase
         // superadmin only — like Payouts and Community return: it holds applicants' dates of
         // birth and referees' phones, and who else coordinates volunteers is the owner's call.
         '/admin/volunteers'         => null,
+        // New with the event lead console (28 Oct 2026, consoles v7 §5). Open to every role on
+        // purpose: what it shows is the viewer's own event.lead grants, and with none it says so.
+        '/admin/lead'               => 'overview',
+        // Deciding requests (§2.6) is held with the money: only superadmin and admin decide.
+        '/admin/requests'           => 'finance',
     ];
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];
@@ -318,7 +323,7 @@ final class AdminNavTest extends TestCase
     public function test_the_also_here_strip_is_the_item_and_its_children_and_never_one_link(): void
     {
         $strip = AdminNav::related('superadmin', '/admin/events');
-        $this->assertSame(['events', 'stand_presets', 'registrations'], array_column($strip, 'page'));
+        $this->assertSame(['events', 'stand_presets', 'registrations', 'lead'], array_column($strip, 'page'));
         $this->assertTrue($strip[0]['on']);
         $this->assertSame([], AdminNav::related('superadmin', '/admin/challenges'), 'a lone page drew a strip');
         // A moderator on Interviews: the questionnaires are theirs.

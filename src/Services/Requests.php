@@ -198,7 +198,10 @@ final class Requests
         if ($r->decider_kind === 'member' || $r->decider_kind === 'admin') {
             return self::memberName((string) $r->decider_kind, (int) $r->decider_id) ?: 'your lead';
         }
-        return $r->decider_role === 'finance' ? 'finance' : 'the volunteer team';
+        if ($r->decider_role === 'finance') return 'finance';
+        // A lead's request (access, a big send, a venue change) goes to the platform's admins;
+        // only a volunteer's goes to "the volunteer team".
+        return $r->from_kind === 'admin' ? 'an administrator' : 'the volunteer team';
     }
 
     /**

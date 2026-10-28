@@ -4775,6 +4775,22 @@ return function(App $app) {
         // Permissions, so the guard holds it to superadmin until the owner decides who else.
         $a->get('/volunteers',  \AfricaGates\Admin\Controllers\VolunteersController::class.':index');
         $a->post('/volunteers', \AfricaGates\Admin\Controllers\VolunteersController::class.':act');
+        // The event lead console (consoles v7 §5; review slice L1). Every role may open it; what it
+        // shows is the viewer's own event.lead grants. Each page is its own literal route (no
+        // optional segments), so the route table and the admin render sweep can name every one;
+        // a request opens as ?r= on Requests, the way a drawer would.
+        $a->get('/lead', \AfricaGates\Admin\Controllers\LeadController::class.':root');
+        foreach (['inbox', 'requests', 'yours', 'deadlines', 'risks', 'approvals', 'analytics', 'people'] as $leadPage) {
+            $a->get('/lead/' . $leadPage, \AfricaGates\Admin\Controllers\LeadController::class.':root')->setArgument('page', $leadPage);
+        }
+        $a->get('/lead/event/{id:[0-9]+}', \AfricaGates\Admin\Controllers\LeadController::class.':event');
+        foreach (['work', 'risks', 'money', 'people'] as $leadPage) {
+            $a->get('/lead/event/{id:[0-9]+}/' . $leadPage, \AfricaGates\Admin\Controllers\LeadController::class.':event')->setArgument('page', $leadPage);
+        }
+        $a->post('/lead/act', \AfricaGates\Admin\Controllers\LeadController::class.':act');
+        // Where staff decide what leads and volunteers asked for (§2.6). Mapped to `finance`.
+        $a->get('/requests',  \AfricaGates\Admin\Controllers\RequestsController::class.':index');
+        $a->post('/requests', \AfricaGates\Admin\Controllers\RequestsController::class.':act');
         $a->get('/alerts', \AfricaGates\Admin\Controllers\AlertsController::class.':index');
         // "Assign to me" — the alert's owner and its timeline (AdminConsole v2).
         $a->post('/alerts/{key:[a-z_]+}/assign', \AfricaGates\Admin\Controllers\AlertsController::class.':assign');

@@ -25,13 +25,16 @@
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   back: 'M15 6l-6 6 6 6',
   chev: 'M9 6l6 6-6 6',
+  inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13l3.5 7v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z',
+  card: 'M3 6h18v12H3zM3 10h18M7 15h4',
+  chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
   user: 'M20 21a8 8 0 1 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'
 } %}<svg class="sh7-ico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="{{ P[name]|default(P.list) }}"/></svg>{% endmacro %}
 
 {# A row's or a header's action: a link, or a one-button form that posts. #}
-{% macro action(a, here, quiet) %}
+{% macro action(a, here, quiet, act) %}
   {% if a.post is defined %}
-    <form class="sh7-inline" method="post" action="/volunteer/act">
+    <form class="sh7-inline" method="post" action="{{ act ?: '/volunteer/act' }}">
       <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
       {% for k, v in a.post %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
       <button class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ a.danger|default(false) ? ' sh7-btn--danger' }}{{ quiet ? ' sh7-btn--sm' }}" type="submit"{% if a.confirm is defined %} data-sh7-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}</button>
@@ -72,8 +75,9 @@
   {% endif %}
 {% endmacro %}
 
-{% macro section(s, here) %}
+{% macro section(s, here, act) %}
 {% import _self as M %}
+{% set act = act ?: '/volunteer/act' %}
 <section class="sh7-sec sh7-sec--{{ s.k }}{{ s.box|default(false) ? ' is-boxed' }}">
   {% if s.h is defined and s.h and s.k != 'hero' %}<h2 class="sh7-sec__h">{{ s.h }}</h2>{% endif %}
 
@@ -88,7 +92,7 @@
             {% if r.sub %}<span class="sh7-row__sub">{{ r.sub }}</span>{% endif %}
             {% if r.pct is defined %}{{ M.bar(r.pct, r.barT|default('')) }}{% endif %}
             {% if r.inline is defined and r.inline %}
-              <form class="sh7-rowform" method="post" action="/volunteer/act">
+              <form class="sh7-rowform" method="post" action="{{ act }}">
                 <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
                 <input type="hidden" name="do" value="{{ r.inline.do }}"><input type="hidden" name="hour" value="{{ r.inline.hour }}">
                 <label class="sh7-sr" for="p{{ r.inline.hour }}">{{ r.inline.label }}</label>
@@ -97,7 +101,7 @@
               </form>
             {% endif %}
             {% if r.decide is defined and r.decide %}
-              <form class="sh7-rowform" method="post" action="/volunteer/act">
+              <form class="sh7-rowform" method="post" action="{{ act }}">
                 <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
                 <input type="hidden" name="do" value="hours_confirm"><input type="hidden" name="hour" value="{{ r.decide.hour }}">
                 <label class="sh7-sr" for="r{{ r.decide.hour }}">Reason, if you decline</label>
@@ -106,8 +110,20 @@
                 <button class="sh7-btn sh7-btn--sm" type="submit" name="verdict" value="no">Decline</button>
               </form>
             {% endif %}
+            {% if r.form is defined and r.form %}
+              <form class="sh7-rowform" method="post" action="{{ act }}">
+                <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}"><input type="hidden" name="do" value="{{ r.form.do }}">
+                {% for k, v in r.form.hidden|default({}) %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+                {% for f in r.form.fields %}{% set fid = 'rf' ~ r.form.id ~ f.name %}
+                  <label class="sh7-sr" for="{{ fid }}">{{ f.label }}</label>
+                  {% if f.type|default('text') == 'select' %}<select class="sh7-input" id="{{ fid }}" name="{{ f.name }}">{% for k, l in f.options %}<option value="{{ k }}"{{ (f.value|default('')) == k ? ' selected' }}>{{ l }}</option>{% endfor %}</select>
+                  {% else %}<input class="sh7-input" id="{{ fid }}" type="{{ f.type|default('text') }}" name="{{ f.name }}" value="{{ f.value|default('') }}" placeholder="{{ f.placeholder|default(f.label) }}"{{ f.required|default(false) ? ' required' }}>{% endif %}
+                {% endfor %}
+                <button class="sh7-btn sh7-btn--sm" type="submit">{{ r.form.submit }}</button>
+              </form>
+            {% endif %}
             {% if r.pause is defined and r.pause %}
-              <form class="sh7-rowform" method="post" action="/volunteer/act">
+              <form class="sh7-rowform" method="post" action="{{ act }}">
                 <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}"><input type="hidden" name="do" value="pause">
                 {% for w in [2, 4, 8] %}<button class="sh7-btn sh7-btn--sm" type="submit" name="weeks" value="{{ w }}">{{ w }} weeks</button>{% endfor %}
               </form>
@@ -115,18 +131,19 @@
           </span>
           {% if r.meta is defined and r.meta %}<span class="sh7-row__time">{{ r.meta }}</span>{% endif %}
           {{ M.chip(r.chip|default(null)) }}
-          {% if r.cta is defined and r.cta %}<span class="sh7-row__cta">{{ M.action(r.cta, here, true) }}</span>{% endif %}
+          {% if r.cta is defined and r.cta %}<span class="sh7-row__cta">{{ M.action(r.cta, here, true, act) }}</span>{% endif %}
           {% if r.href is defined and r.href and not (r.cta is defined and r.cta) %}<span class="sh7-row__chev" aria-hidden="true">{{ M.icon('chev') }}</span>{% endif %}
         </li>
       {% endfor %}
     </ul>
+    {% if s.link is defined and s.link %}<p class="sh7-sec__more"><a href="{{ s.link.href }}">{{ s.link.label }}</a></p>{% endif %}
 
   {% elseif s.k == 'cards' %}
     <div class="sh7-cards">
       {% for c in s.items %}
         <a class="sh7-card" href="{{ c.href }}">
           <span class="sh7-card__top"><span class="sh7-tile sh7-tile--{{ c.tone|default('mute') }}" aria-hidden="true">{{ c.ini }}</span>
-            <span class="sh7-card__words"><span class="sh7-card__t">{{ c.t }}</span><span class="sh7-card__meta">{{ c.meta }}</span></span></span>
+            <span class="sh7-card__words"><span class="sh7-card__t">{{ c.t }}</span><span class="sh7-card__meta">{{ c.meta }}</span></span>{{ M.chip(c.chip|default(null)) }}</span>
           {% if c.sub %}<span class="sh7-card__sub">{{ c.sub }}</span>{% endif %}
           {% if c.pct is defined %}{{ M.bar(c.pct, c.barT|default('')) }}{% endif %}
         </a>
@@ -152,7 +169,7 @@
     </ol>
 
   {% elseif s.k == 'note' %}
-    <p class="sh7-note sh7-note--{{ s.tone|default('mute') }}">{{ s.text }}{% if s.cta is defined %} {{ M.action(s.cta, here, true) }}{% endif %}</p>
+    <p class="sh7-note sh7-note--{{ s.tone|default('mute') }}">{{ s.text }}{% if s.cta is defined %} {{ M.action(s.cta, here, true, act) }}{% endif %}</p>
 
   {% elseif s.k == 'hero' %}
     <div class="sh7-hero">
@@ -165,7 +182,7 @@
         </div>
       </div>
       {% if s.facts %}<dl class="sh7-facts">{% for f in s.facts %}<div><dt>{{ f[0] }}</dt><dd>{{ f[1] }}</dd></div>{% endfor %}</dl>{% endif %}
-      {% if s.acts %}<div class="sh7-hero__acts">{% for a in s.acts %}{{ M.action(a, here) }}{% endfor %}</div>{% endif %}
+      {% if s.acts %}<div class="sh7-hero__acts">{% for a in s.acts %}{{ M.action(a, here, false, act) }}{% endfor %}</div>{% endif %}
     </div>
 
   {% elseif s.k == 'agenda' %}
@@ -217,7 +234,7 @@
 
   {% elseif s.k == 'form' %}
     {% if s.chips is defined %}<p class="sh7-typechips">{% for c in s.chips %}<a class="sh7-chip sh7-chip--{{ c.current ? 'ok' : 'mute' }}" href="{{ c.href }}"{% if c.current %} aria-current="true"{% endif %}>{{ c.label }}</a>{% endfor %}</p>{% endif %}
-    <form class="sh7-form" method="post" action="/volunteer/act">
+    <form class="sh7-form" method="post" action="{{ act }}">
       <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}"><input type="hidden" name="do" value="{{ s.do }}">
       {% for k, v in s.hidden|default({}) %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
       {% for g in s.groups %}
@@ -234,7 +251,7 @@
     <div class="sh7-article">{% for p in s.paras %}<p>{{ p }}</p>{% endfor %}</div>
 
   {% elseif s.k == 'decide' %}
-    <form class="sh7-form sh7-decide" method="post" action="/volunteer/act">
+    <form class="sh7-form sh7-decide" method="post" action="{{ act }}">
       <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
       <input type="hidden" name="do" value="request_act"><input type="hidden" name="request" value="{{ s.request }}">
       <label class="sh7-field" for="rqNote"><span class="sh7-field__label">Note for the log</span><textarea class="sh7-input" id="rqNote" name="note" rows="3"></textarea></label>

@@ -37,6 +37,9 @@ final class ConsoleSurface
         'templates/shell/sections.twig',
         'templates/volunteer/page.twig',
         'templates/volunteer/apply.twig',
+        // The event lead console and the staff Requests page (review slice L1).
+        'templates/admin/lead.twig',
+        'templates/admin/requests.twig',
     ];
 
     /** @return array<string,string> rel => absolute */
