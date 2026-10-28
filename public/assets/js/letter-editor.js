@@ -5,12 +5,12 @@
    Turns the page's two plain fields into the letter itself, typed on the sheet:
 
    · Fields are chips. "{" opens a picker at the cursor (type to filter, arrows, Enter);
-     the rail's chips insert where the cursor last was. A {word} the letter does not know
+     "Add a detail" inserts where the cursor last was. A {word} the letter does not know
      is drawn red, and the server refuses to publish it.
    · Autosave: 1.2s after the last keystroke the draft is saved (never published), and
      the answer says whether the letter still fits one page at A4 and at US Letter —
      measured by the server with the PDF's own layout, so the meter cannot disagree with
-     the paper. The PDF beside it reloads after each save.
+     the paper. The status pill at the foot of the page shows it.
    · ⌘/Ctrl+S saves now; ⌘/Ctrl+Enter publishes. Paste arrives as plain text, a blank line
      in it becoming a new paragraph. Enter in the headline moves to the letter.
    · Leaving with an unsaved change asks first.
@@ -108,13 +108,13 @@
     var b = srcB.value;
     var words = b.replace(/\{[a-z_]+\}/g, 'x').split(/\s+/).filter(Boolean).length;
     var mins = Math.max(1, Math.round(words / 200));
-    if (countEl) countEl.textContent = words + ' words · about ' + mins + ' min to read · ' + b.length + ' of ' + maxB + ' characters';
+    if (countEl) countEl.textContent = words + ' words · ' + mins + ' min read' + (b.length > maxB * 0.85 ? ' · ' + b.length + ' of ' + maxB + ' characters' : '');
     var notes = [];
     if (srcH.value.length > maxH) notes.push('The title is a little long: remove ' + (srcH.value.length - maxH) + ' letters.');
     if (b.length > maxB) notes.push('The letter is too long for one page: remove about ' + Math.ceil((b.length - maxB) / 6) + ' words.');
     var unknown = (srcH.value + ' ' + b).match(/\{([a-z_]+)\}/g) || [];
-    unknown.forEach(function (t) { var k = t.slice(1, -1); if (!byKey[k]) notes.push(t + ' is not a detail we can fill in. Use one of the tags on the right instead.'); });
-    if (!/\{(first_name|name)\}/.test(srcH.value + b)) notes.push('Tip: letters feel warmer with the person’s name. Click “First name” to add it.');
+    unknown.forEach(function (t) { var k = t.slice(1, -1); if (!byKey[k]) notes.push(t + ' is not a detail we can fill in. Use “Add a detail” instead.'); });
+    if (!/\{(first_name|name)\}/.test(srcH.value + b)) notes.push('Tip: letters feel warmer with the person’s name. Add it from “Add a detail”.');
     if (!/\{closes\}/.test(b)) notes.push('Tip: say when voting closes (“Voting closes”), so supporters know how long they have.');
     checks(notes);
   }
@@ -130,7 +130,7 @@
       if (!el) return;
       var ok = f[paper].fits;
       el.className = 'le-fit le-fit--' + (ok ? 'ok' : 'over');
-      el.querySelector('b').textContent = ok ? 'Yes, it fits' : 'Too long: shorten it a little';
+      el.querySelector('b').textContent = ok ? 'yes' : 'too long';
     });
   }
   function state(kind, text, saved) {
@@ -154,22 +154,22 @@
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j.ok, j: j }; }); })
       .then(function (res) {
         busy = false;
-        if (!res.ok) { state('error', 'Not saved', 'We could not save just now. Your words are still here; keep typing and we will try again.'); return; }
+        if (!res.ok) { state('error', 'Not saved', 'Your words are still here. Keep typing and we will try again.'); return; }
         dirty = false;
         var t = new Date();
-        state('draft', 'Not in use yet', 'Saved at ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '. Nominees get it once you press “Use this letter”.');
+        state('draft', 'Not in use yet', 'Saved ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         fit(res.j.fit);
         if (res.j.checks && res.j.checks.length) checks(res.j.checks);
         clearTimeout(pdfTimer);
         pdfTimer = setTimeout(function () { if (pdf) pdf.src = pdfSrc + '&t=' + Date.now(); }, 600);
         if (again) { again = false; save(); }
       })
-      .catch(function () { busy = false; state('error', 'No connection', 'Not saved: the internet dropped. It saves as soon as you type again.'); });
+      .catch(function () { busy = false; state('error', 'No connection', 'It saves as soon as you type again.'); });
   }
   function changed() {
     sync();
     dirty = true;
-    state('draft', 'Not in use yet', 'Saving your changes…');
+    state('draft', 'Not in use yet', 'Saving…');
     clearTimeout(timer);
     timer = setTimeout(save, 1200);
   }
@@ -202,7 +202,7 @@
   edH.addEventListener('paste', onPaste);
   edB.addEventListener('paste', onPaste);
 
-  // Remember where the cursor was, so a rail chip lands there and not at the top.
+  // Remember where the cursor was, so a detail lands there and not at the top.
   window.cnPage.on(document, 'selectionchange', function () {
     var s = window.getSelection();
     if (s && s.rangeCount && (edH.contains(s.anchorNode) || edB.contains(s.anchorNode))) lastRange = s.getRangeAt(0).cloneRange();
@@ -215,7 +215,11 @@
     r.selectNodeContents(edB.lastChild || edB); r.collapse(false);
     s.removeAllRanges(); s.addRange(r);
   }
+  function closeMenus(except) {
+    root.querySelectorAll('details.le-menu[open]').forEach(function (d) { if (d !== except) d.open = false; });
+  }
   function insertField(k) {
+    closeMenus();
     placeCaret();
     insertHtml(chip(k) + ' ');
     changed();
@@ -266,12 +270,22 @@
     return false;
   }
   function closePop() { if (pop) { pop.remove(); pop = null; } }
-  window.cnPage.on(document, 'mousedown', function (e) { if (pop && !pop.contains(e.target)) closePop(); });
+  window.cnPage.on(document, 'mousedown', function (e) {
+    if (pop && !pop.contains(e.target)) closePop();
+    // The bar's menus are <details>: one open at a time, and a click elsewhere closes them.
+    var d = e.target.closest ? e.target.closest('details.le-menu') : null;
+    closeMenus(d);
+  });
+  // Keep the caret where it was when "Add a detail" is pressed: a mousedown on its options
+  // would otherwise move focus off the page before the click inserts.
+  root.querySelectorAll('[data-le-insert]').forEach(function (b) {
+    b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+  });
 
   // ── publish, and leaving ─────────────────────────────────────────────────
   function publish() {
     sync();
-    var b = form.querySelector('button[value="publish"]');
+    var b = root.querySelector('.le-publish');
     dirty = false;
     if (b && form.requestSubmit) form.requestSubmit(b); else if (b) b.click();
   }
