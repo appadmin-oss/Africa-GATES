@@ -69,6 +69,7 @@ final class AlertService
             $this->follows($email),
             $this->milestones($email),
             $this->wallet($userId),
+            $this->ads($userId),
         );
 
         // Newest first BEFORE grouping, so each group keeps its most recent
@@ -159,6 +160,7 @@ final class AlertService
             'follow'    => $lead . ' started following you',
             'milestone' => $g['label'],
             'wallet'    => $g['label'],
+            'ad'        => $g['label'],
             default     => $lead,
         };
     }
@@ -349,6 +351,50 @@ final class AlertService
      *
      * @return list<array<string,mixed>>
      */
+    /**
+     * What happened to this member's ads: each review decision, from the stamp the reviewer
+     * left (Ads\AdReview), and a free trial that has finished. Derived, like every source
+     * here, so the email (Ads\AdNotice) and this list cannot tell two different stories.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function ads(int $userId): array
+    {
+        if (!\AfricaGates\Services\Ads\AdCampaigns::ready()) return [];
+        try {
+            $rows = DB::table('gates_ads as a')
+                ->join('gates_ad_sets as s', 's.id', '=', 'a.ad_set_id')
+                ->join('gates_ad_campaigns as c', 'c.id', '=', 's.campaign_id')
+                ->where('c.user_id', $userId)->whereNotNull('a.reviewed_at')
+                ->whereIn('a.review', ['approved', 'rejected'])
+                ->orderByDesc('a.reviewed_at')->limit(self::PER_SOURCE)
+                ->get(['a.id', 'a.headline', 'a.review', 'a.reviewed_at', 'c.id as cid'])->all();
+            $trial = DB::table('gates_ad_campaigns')->where('user_id', $userId)->where('trial', 1)->first();
+        } catch (\Throwable $e) {
+            error_log('[alerts] ads unavailable: ' . $e->getMessage());
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $ok = (string) $r->review === 'approved';
+            $out[] = ['kind' => 'ad', 'subject_id' => 'r:' . (int) $r->id . ':' . (string) $r->reviewed_at, 'actor' => '',
+                      'label' => ($ok ? 'Your ad was approved: ' : 'Your ad needs a change: ') . (string) $r->headline,
+                      'at' => (string) $r->reviewed_at,
+                      'href' => '/account/ads/' . (int) $r->cid . ($ok ? '' : '#ad-' . (int) $r->id)];
+        }
+        if ($trial) {
+            $sum = \AfricaGates\Services\Ads\AdCampaigns::summary($trial);
+            if ($sum['delivery'] === 'completed') {
+                $set = $sum['_set'];
+                $at = $set && $set->ends_at && (string) $set->ends_at < date('Y-m-d H:i:s') ? (string) $set->ends_at : (string) ($trial->updated_at ?? $trial->created_at);
+                $out[] = ['kind' => 'ad', 'subject_id' => 't:' . (int) $trial->id, 'actor' => '',
+                          'label' => 'Your free ad trial has finished: ' . number_format($sum['views']) . ' views, ' . number_format($sum['clicks']) . ' clicks',
+                          'at' => $at, 'href' => '/account/ads/' . (int) $trial->id];
+            }
+        }
+        return $out;
+    }
+
     private function wallet(int $userId): array
     {
         try {

@@ -11,7 +11,8 @@
 
   No location choice: there is none in the beta (owner, 28 Oct 2026).
 #}
-{% set colour_tier = '1' %}
+{# Tier 2, transactional: it asks for something (a campaign, a fix, a review). #}
+{% set colour_tier = '2' %}
 {% set _ph = {vote_hub: 'The list of awards people vote in. Never beside a ballot.', discover: 'Between results.', events: 'The events list and event pages.'} %}
 {% set _pv = {
   advertiser: old.advertiser|default('') ?: 'Your business'|trans, initials: '?', logo: null,

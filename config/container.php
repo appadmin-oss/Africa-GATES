@@ -956,7 +956,7 @@ return [
     AdminDashboardController::class    => fn(ContainerInterface $c)=>new AdminDashboardController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),
     AdminProfilesController::class     => fn(ContainerInterface $c)=>new AdminProfilesController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminNominationsController::class  => fn(ContainerInterface $c)=>new AdminNominationsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class), $c->get(AwardService::class)),
-    AdminModerationController::class   => fn(ContainerInterface $c)=>new AdminModerationController($c->get(Twig::class), $c->get(AuditService::class)),
+    AdminModerationController::class   => fn(ContainerInterface $c)=>new AdminModerationController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),
     AdminProgrammesController::class   => fn(ContainerInterface $c)=>new AdminProgrammesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),
     AdminNomineesController::class     => fn(ContainerInterface $c)=>new AdminNomineesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
     AdminLegacyController::class       => fn(ContainerInterface $c)=>new AdminLegacyController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),

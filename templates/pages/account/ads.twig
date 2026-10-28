@@ -5,7 +5,8 @@
   Meta's campaigns table, cut to what an advertiser here acts on: the state (derived, never
   stored), views, clicks, click rate, spend. The trial's size is read from AdRules.
 #}
-{% set colour_tier = '1' %}
+{# Tier 2, transactional: it asks for something (a campaign, a fix, a review). #}
+{% set colour_tier = '2' %}
 
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}">{% endblock %}
 
@@ -37,7 +38,7 @@
     {% for c in campaigns %}
     <li class="am-row">
       <a class="am-row__a" href="/account/ads/{{ c.id }}">
-        <span class="am-row__n">{{ c.name }}{% if c.trial %} <span class="am-row__s">· {{ 'Free trial'|trans }}</span>{% endif %}</span>
+        <span class="am-row__n">{{ c.name }}{% if c.trial %} <span class="am-row__s">· {{ 'Free trial'|trans }}{% if c.delivery == 'active' and c.ends_at %} · {{ 'ends %d%'|trans({'%d%': c.ends_at|date('j M')}) }}{% endif %}</span>{% endif %}</span>
         <span class="am-state am-state--{{ c.delivery }}"><i aria-hidden="true"></i>{{ c.delivery_label|trans }}</span>
         <span class="am-row__m">
           <span><b>{{ c.views|number_format }}</b> <span class="am-row__u">{{ 'views'|trans }}</span></span>
@@ -49,8 +50,17 @@
     </li>
     {% endfor %}
   </ul>
-  {% else %}
-  <p class="am-p">{{ 'No campaigns yet.'|trans }}</p>
+  {% elseif trial_left %}
+  {# No campaigns: how it works, in the three steps it actually takes, instead of a line
+     announcing an empty table. The figures are AdRules'. #}
+  <section class="am-box" aria-labelledby="am-how-h">
+    <h2 class="am-h2" id="am-how-h">{{ 'How it works'|trans }}</h2>
+    <ol class="am-how">
+      <li><b>{{ 'Make your ad'|trans }}</b> {{ 'Your text, a square image, a headline and a button, with a live preview.'|trans }}</li>
+      <li><b>{{ 'A person reviews it'|trans }}</b> {{ 'Against the Advertising Policy. If it needs a change, you are told why.'|trans }}</li>
+      <li><b>{{ 'It runs'|trans }}</b> {{ 'Free for up to %v% views over %d% days, and you see every view and click here.'|trans({'%v%': rules.views|number_format, '%d%': rules.days}) }}</li>
+    </ol>
+  </section>
   {% endif %}
 </div>
 {% endblock %}

@@ -160,16 +160,26 @@ final class AdCampaigns
     }
 
     /**
-     * Fix a refused ad and send it again. Only the advertiser's own, only while it is not
-     * running: an approved ad that changes is a different ad nobody has checked.
+     * Edit an ad (or fix a refused one) and send it for review again. Only the advertiser's
+     * own, only while its campaign can still run: an approved ad that changes is a different
+     * ad nobody has checked, so it goes back to pending and stops showing until approved.
      *
      * @param array<string,mixed> $in
      * @return array{ok:bool, errors?:array<string,string>}
      */
     public static function resubmitAd(int $adId, int $userId, array $in, ?string $imagePath): array
     {
+        // Any ad may be edited while its campaign can still run, not only a refused one
+        // (Meta's rule, owner 28 Oct 2026: "improve the campaign features"). An edit is a new
+        // ad as far as review is concerned, so it goes back to a person and stops showing
+        // until approved: an approved ad edited into a ballot link must not keep running.
         $ad = self::ownAd($adId, $userId);
-        if ($ad === null || (string) $ad->review !== 'rejected') return ['ok' => false, 'errors' => ['form' => 'That ad cannot be changed.']];
+        if ($ad === null) return ['ok' => false, 'errors' => ['form' => 'That ad cannot be changed.']];
+        $camp0 = DB::table('gates_ad_campaigns as c')->join('gates_ad_sets as s', 's.campaign_id', '=', 'c.id')
+            ->where('s.id', $ad->ad_set_id)->select('c.*')->first();
+        if (!$camp0 || !self::editable(self::summary($camp0)['delivery'])) {
+            return ['ok' => false, 'errors' => ['form' => 'A campaign that has ended cannot be changed.']];
+        }
         $c = AdRules::creative($in);
         $camp = DB::table('gates_ad_campaigns as c')->join('gates_ad_sets as s', 's.campaign_id', '=', 'c.id')
             ->where('s.id', $ad->ad_set_id)->select('c.category', 'c.licence_ref')->first();
@@ -180,12 +190,18 @@ final class AdCampaigns
             }
         }
         if ($c['errors'] !== []) return ['ok' => false, 'errors' => $c['errors']];
-        DB::table('gates_ads')->where('id', $adId)->where('review', 'rejected')->update($c['row'] + [
+        DB::table('gates_ads')->where('id', $adId)->update($c['row'] + [
             'image_path' => $imagePath ?: $ad->image_path, 'review' => 'pending', 'review_reason' => null,
             'review_flags' => implode(' · ', AdRules::flags($c['row'] + ['_category' => $category, 'licence_ref' => $camp->licence_ref ?? null], $userId)) ?: null,
             'reviewed_by' => null, 'reviewed_at' => null, 'updated_at' => date('Y-m-d H:i:s'),
         ]);
         return ['ok' => true];
+    }
+
+    /** May an ad in a campaign in this delivery state still be edited? */
+    public static function editable(string $delivery): bool
+    {
+        return !in_array($delivery, ['completed', 'cancelled'], true);
     }
 
     public static function ownAd(int $adId, int $userId): ?object
@@ -232,9 +248,22 @@ final class AdCampaigns
             'image' => $a->image_path ? (string) $a->image_path : null,
             'offer' => $a->offer ? (string) $a->offer : null, 'offer_code' => $a->offer_code ? (string) $a->offer_code : null,
             'review' => (string) $a->review, 'reason' => (string) ($a->review_reason ?? ''),
+            'arcon_ref' => (string) ($a->arcon_ref ?? ''), 'nafdac_ref' => (string) ($a->nafdac_ref ?? ''),
             'views' => $byAd[(int) $a->id]['views'] ?? 0, 'clicks' => $byAd[(int) $a->id]['clicks'] ?? 0,
         ], $ads);
         $out['days'] = self::daily(array_map(static fn ($a) => (int) $a->id, $ads), 14);
+        $out['days_max'] = max(1, ...array_map(static fn ($d) => (int) $d['views'], $out['days']));
+        $out['editable'] = self::editable($out['delivery']);
+        // The approvals this kind of ad needs, so an edit carries them (and keeps what was given).
+        $out['needs'] = AdRules::CATEGORIES[$out['category']][2] ?? [];
+        // Per place, with its own click rate: where the ad works is the one decision the
+        // advertiser can act on next time.
+        $out['places'] = [];
+        foreach ($out['by_placement'] as $p => $n) {
+            $out['places'][] = ['key' => (string) $p, 'views' => (int) $n['views'], 'clicks' => (int) $n['clicks'],
+                                'ctr' => $n['views'] > 0 ? round(100 * $n['clicks'] / $n['views'], 1) : null];
+        }
+        $out['benchmark'] = $set ? self::benchmark((int) $set->id) : null;
         return $out;
     }
 
@@ -384,6 +413,56 @@ final class AdCampaigns
             $out[(int) $r->ad_id] = ['views' => (int) $r->v, 'clicks' => (int) $r->c];
         }
         return $out;
+    }
+
+    /** Other campaigns needed before an average is shown: fewer would describe one competitor. */
+    public const BENCH_PEERS = 5;
+    /** And views each of them must have had, or a handful of lucky clicks is the average. */
+    public const BENCH_VIEWS = 100;
+
+    /**
+     * The click rate of every OTHER campaign on the platform over the last 30 days, or null.
+     *
+     * The comparison an advertiser cannot make for themselves ("is 0.8% good?"), from real
+     * rows. Null until at least BENCH_PEERS other campaigns have BENCH_VIEWS views each, so
+     * it can never be one rival's figure wearing a disguise; and nothing about who.
+     */
+    public static function benchmark(int $exceptSetId): ?float
+    {
+        if (!SchemaHas::table('gates_ad_stats')) return null;
+        try {
+            $rows = DB::table('gates_ad_stats as st')->join('gates_ads as a', 'a.id', '=', 'st.ad_id')
+                ->where('a.ad_set_id', '!=', $exceptSetId)->where('st.day', '>=', date('Y-m-d', time() - 29 * 86400))
+                ->groupBy('a.ad_set_id')->selectRaw('a.ad_set_id, SUM(st.views) as v, SUM(st.clicks) as c')->get()->all();
+        } catch (\Throwable) {
+            return null;
+        }
+        $rows = array_values(array_filter($rows, static fn ($r) => (int) $r->v >= self::BENCH_VIEWS));
+        if (count($rows) < self::BENCH_PEERS) return null;
+        $v = array_sum(array_map(static fn ($r) => (int) $r->v, $rows));
+        $c = array_sum(array_map(static fn ($r) => (int) $r->c, $rows));
+        return $v > 0 ? round(100 * $c / $v, 1) : null;
+    }
+
+    /**
+     * Every day and place a campaign was shown, for the advertiser's own spreadsheet.
+     *
+     * @return list<array{day:string, placement:string, views:int, clicks:int}>|null null when not theirs
+     */
+    public static function exportRows(int $id, int $userId): ?array
+    {
+        if (!self::ready()) return null;
+        $c = DB::table('gates_ad_campaigns')->where('id', $id)->where('user_id', $userId)->first();
+        if (!$c) return null;
+        if (!SchemaHas::table('gates_ad_stats')) return [];
+        $set = DB::table('gates_ad_sets')->where('campaign_id', $id)->orderBy('id')->first();
+        if (!$set) return [];
+        return array_map(static fn ($r) => ['day' => (string) $r->day, 'placement' => (string) $r->placement,
+                                            'views' => (int) $r->v, 'clicks' => (int) $r->c],
+            DB::table('gates_ad_stats as st')->join('gates_ads as a', 'a.id', '=', 'st.ad_id')
+                ->where('a.ad_set_id', $set->id)->groupBy('st.day', 'st.placement')
+                ->orderBy('st.day')->orderBy('st.placement')
+                ->selectRaw('st.day as day, st.placement as placement, SUM(st.views) as v, SUM(st.clicks) as c')->get()->all());
     }
 
     /**

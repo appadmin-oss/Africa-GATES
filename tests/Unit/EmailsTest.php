@@ -65,6 +65,9 @@ final class EmailsTest extends TestCase
             'winner'   => ['first_name' => 'Ngozi', 'kind' => 'winner', 'award' => 'Teaching Award', 'category' => 'Primary',
                           'edition' => '5th Edition', 'result_url' => 'https://x.test/results/12-primary'],
             'final'    => \AfricaGates\Services\EmailCampaign::sampleVars(),
+            'ad-review' => ['first_name' => 'Kemi', 'decision' => 'refused', 'campaign' => 'Mama Put Kitchen',
+                          'headline' => 'Jollof by the tray', 'reason' => 'The link goes to a ballot.', 'ends_on' => '',
+                          'manage_url' => 'https://x.test/account/ads/3#ad-4', 'policy_url' => 'https://x.test/legal/advertising'],
             default   => self::fail("no sample for $key — add one when the key is added"),
         };
     }

@@ -465,4 +465,118 @@ final class AdsTest extends TestCase
         $a = \AfricaGates\Services\HelpCentre::bySlug('how-to-advertise');
         $this->assertNotNull($a, 'Gee and the help centre can answer "can I advertise?"');
     }
+
+
+    // ══ THE ADS MANAGER, OWNER 28 OCT 2026: "IMPROVE THE CAMPAIGN FEATURES" ══════════
+
+    private function mailer(): \AfricaGates\Services\OtpService
+    {
+        return new class extends \AfricaGates\Services\OtpService {
+            public array $sent = [];
+            public function __construct() { parent::__construct(['username' => 'u', 'password' => 'p']); }
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
+            {
+                $this->sent[] = compact('to', 'subject', 'plainBody', 'unsubscribeUrl');
+                return ['success' => true];
+            }
+        };
+    }
+
+    /**
+     * A decision used to reach nobody: the state changed in the Ads Manager and the advertiser
+     * found out only by opening it. Both answers are mailed and appear in their notifications,
+     * and the refusal carries its reason and the way to fix it.
+     */
+    public function test_the_advertiser_is_told_what_the_reviewer_decided(): void
+    {
+        $uid = $this->user();
+        $t = $this->liveTrial($uid);
+        $m = $this->mailer();
+        $this->assertTrue(\AfricaGates\Services\Ads\AdNotice::decided($t['ad'], 'approved', $m));
+        $this->assertStringContainsString('approved', $m->sent[0]['subject']);
+        $this->assertStringContainsString('/account/ads/' . $t['campaign'], $m->sent[0]['plainBody']);
+        $this->assertSame('', $m->sent[0]['unsubscribeUrl'], 'a decision about your own ad is not an announcement');
+
+        AdReview::takeDown($t['ad'], 1, 'The link goes to a ballot.');
+        $this->assertTrue(\AfricaGates\Services\Ads\AdNotice::decided($t['ad'], 'taken_down', $m));
+        $this->assertStringContainsString('The link goes to a ballot.', $m->sent[1]['plainBody'], 'with the reason');
+        $this->assertStringContainsString('#ad-' . $t['ad'], $m->sent[1]['plainBody'], 'and the way to fix it');
+        $this->assertFalse(\AfricaGates\Services\Ads\AdNotice::decided($t['ad'], 'approved', null), 'no mailer, no throw');
+
+        $email = (string) DB::table('gates_users')->where('id', $uid)->value('email');
+        $alerts = array_column((new \AfricaGates\Services\AlertService())->forMember($uid, $email), 'text');
+        $this->assertContains('Your ad needs a change: Jollof by the tray', $alerts, 'and in their notifications');
+    }
+
+    /** Any ad can be edited while it can run; the edit goes back to a person and stops showing. */
+    public function test_an_approved_ad_can_be_edited_and_goes_back_to_review(): void
+    {
+        $uid = $this->user();
+        $t = $this->liveTrial($uid, ['arcon_ref' => 'ARCON/26/1']);
+        $this->assertNotNull(AdDelivery::pick('discover', ['reader' => true]));
+        $_SESSION = [];
+
+        $r = AdCampaigns::resubmitAd($t['ad'], $uid, $this->good(['headline' => 'Trays for every party', 'arcon_ref' => 'ARCON/26/1']), null);
+        $this->assertTrue($r['ok'], json_encode($r));
+        $ad = DB::table('gates_ads')->where('id', $t['ad'])->first();
+        $this->assertSame('pending', $ad->review);
+        $this->assertSame('Trays for every party', $ad->headline);
+        $this->assertSame('ARCON/26/1', $ad->arcon_ref, 'the approval number given is kept');
+        $this->assertSame('/uploads/ads/x.jpg', $ad->image_path, 'no new image keeps the old one');
+        $this->assertNull(AdDelivery::pick('discover', ['reader' => true]), 'and it stops showing until approved');
+
+        $this->assertFalse(AdCampaigns::resubmitAd($t['ad'], $this->user('Someone Else'), $this->good(), null)['ok'], 'only its owner');
+        $this->assertTrue(AdCampaigns::setStatus($t['campaign'], $uid, AdCampaigns::ST_CANCELLED));
+        $this->assertFalse(AdCampaigns::resubmitAd($t['ad'], $uid, $this->good(), null)['ok'], 'not once the campaign has ended');
+
+        $html = ChromeRender::html('/account/ads/' . $t['campaign'], ['user_id' => $uid, 'member_id' => $uid, 'account_id' => $uid]);
+        $this->assertStringNotContainsString('Edit ad', $html, 'an ended campaign offers no edit');
+    }
+
+    /** The comparison an advertiser cannot make alone, and never one rival's figure in disguise. */
+    public function test_the_benchmark_waits_for_enough_other_campaigns_and_names_nobody(): void
+    {
+        $mine = $this->liveTrial($this->user());
+        $add = function (int $views, int $clicks): void {
+            $uid = $this->user('Peer ' . bin2hex(random_bytes(2)));
+            $c = AdCampaigns::createTrial($uid, $this->good(), '/uploads/ads/x.jpg');
+            $set = (int) DB::table('gates_ad_sets')->where('campaign_id', $c['id'])->value('id');
+            $ad = (int) DB::table('gates_ads')->where('ad_set_id', $set)->value('id');
+            DB::table('gates_ad_stats')->insert(['ad_id' => $ad, 'placement' => 'discover', 'day' => date('Y-m-d'), 'views' => $views, 'clicks' => $clicks]);
+        };
+        for ($i = 0; $i < AdCampaigns::BENCH_PEERS - 1; $i++) $add(200, 4);
+        $add(50, 50); // too few views to count
+        $this->assertNull(AdCampaigns::benchmark($mine['set']), 'four real peers is not enough');
+        $add(200, 4);
+        $this->assertSame(2.0, AdCampaigns::benchmark($mine['set']));
+
+        $uid = (int) DB::table('gates_ad_campaigns')->where('id', $mine['campaign'])->value('user_id');
+        $html = ChromeRender::html('/account/ads/' . $mine['campaign'], ['user_id' => $uid, 'member_id' => $uid, 'account_id' => $uid]);
+        $this->assertStringContainsString('Average click rate on Africa GATES in the last 30 days: 2%', $html);
+        $this->assertStringContainsString('Edit ad', $html);
+    }
+
+    /** The results as a spreadsheet: the owner's only, totals only. */
+    public function test_the_results_download_as_a_spreadsheet_for_their_owner_only(): void
+    {
+        $uid = $this->user();
+        $t = $this->liveTrial($uid);
+        DB::table('gates_ad_stats')->insert(['ad_id' => $t['ad'], 'placement' => 'vote_hub', 'day' => date('Y-m-d'), 'views' => 400, 'clicks' => 8]);
+        $sess = ['user_id' => $uid, 'member_id' => $uid, 'account_id' => $uid];
+
+        $res = ChromeRender::page('/account/ads/' . $t['campaign'] . '/results.csv', $sess);
+        $this->assertStringStartsWith('text/csv', $res->getHeaderLine('Content-Type'));
+        $csv = (string) $res->getBody();
+        $this->assertStringContainsString('day,place,views,clicks,click_rate_pct', $csv);
+        $this->assertMatchesRegularExpression('/^' . date('Y-m-d') . ',"?Vote page"?,400,8,2$/m', $csv);
+
+        $other = $this->user('Someone Else');
+        $this->assertSame(302, ChromeRender::page('/account/ads/' . $t['campaign'] . '/results.csv',
+            ['user_id' => $other, 'member_id' => $other, 'account_id' => $other])->getStatusCode(), 'never another advertiser\'s');
+
+        $html = ChromeRender::html('/account/ads/' . $t['campaign'], $sess);
+        $this->assertStringContainsString('By place', $html);
+        $this->assertStringContainsString('class="am-bar"', $html);
+        $this->assertStringContainsString('results.csv', $html);
+    }
 }

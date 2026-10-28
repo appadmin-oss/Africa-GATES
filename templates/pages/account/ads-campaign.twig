@@ -5,10 +5,18 @@
   Its state with the reason, its figures, the last fourteen days, each ad as people see it
   with its review, and the advertiser's switch. A refused ad shows the reviewer's reason and
   a form to fix it, prefilled, because a refusal nobody can act on is a dead end.
+
+  Since 28 Oct 2026 (owner: "improve the campaign features"), as Meta's Ads Manager does:
+  any ad can be edited while the campaign can run (it goes back to review and stops showing
+  until approved, said beside the button); the days are drawn as bars over the same table;
+  each place has its own click rate; the platform's average click rate stands beside theirs
+  once enough other campaigns exist to make it nobody's figure (AdCampaigns::benchmark());
+  and the results download as a spreadsheet.
   Cancelling is behind a <details> rather than a script confirm: it cannot be undone, and
   it must work with no JavaScript.
 #}
-{% set colour_tier = '1' %}
+{# Tier 2, transactional: it asks for something (a campaign, a fix, a review). #}
+{% set colour_tier = '2' %}
 {% set _review = {pending: 'In review', approved: 'Approved', rejected: 'Not approved'} %}
 
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endblock %}
@@ -29,20 +37,38 @@
     <div class="am-fig"><dt>{{ c.trial ? 'Ends'|trans : 'Spent'|trans }}</dt><dd>{% if c.trial %}{{ c.ends_at ? c.ends_at|date('j M') : '–' }}{% else %}{{ c.spent_label }}{% if c.budget_label %} <span class="am-opt">/ {{ c.budget_label }}</span>{% endif %}{% endif %}</dd></div>
   </dl>
 
+  {% if c.benchmark is not null %}
+  <p class="am-note am-bench">{{ 'Average click rate on Africa GATES in the last 30 days: %r%%.'|trans({'%r%': c.benchmark}) }}{% if c.ctr is not null %} {{ c.ctr >= c.benchmark ? 'Yours is at or above it.'|trans : 'An offer or a clearer image usually helps.'|trans }}{% endif %}</p>
+  {% endif %}
+
   <section class="am-box" aria-labelledby="am-days-h">
-    <h2 class="am-h2" id="am-days-h">{{ 'Last 14 days'|trans }}</h2>
+    <div class="am-box__head">
+      <h2 class="am-h2" id="am-days-h">{{ 'Last 14 days'|trans }}</h2>
+      {% if c.views > 0 %}<a class="am-link" href="/account/ads/{{ c.id }}/results.csv" download>{{ 'Download results'|trans }}</a>{% endif %}
+    </div>
     <table class="am-days">
       <thead><tr><th scope="col">{{ 'Day'|trans }}</th><th scope="col">{{ 'Views'|trans }}</th><th scope="col">{{ 'Clicks'|trans }}</th></tr></thead>
       <tbody>
         {% for d in c.days|reverse %}
-        <tr><td>{{ d.day|date('D j M') }}</td><td>{{ d.views|number_format }}</td><td>{{ d.clicks|number_format }}</td></tr>
+        <tr><td>{{ d.day|date('D j M') }}</td><td><span class="am-bar" aria-hidden="true"><span style="width:{{ (d.views / c.days_max * 100)|round }}%"></span></span>{{ d.views|number_format }}</td><td>{{ d.clicks|number_format }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
-    {% if c.by_placement %}
-    <p class="am-note">{% for p, n in c.by_placement %}{{ rules.placements[p]|default(p)|trans }}: {{ n.views|number_format }} {{ 'views'|trans }}, {{ n.clicks|number_format }} {{ 'clicks'|trans }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
-    {% endif %}
   </section>
+
+  {% if c.places|length %}
+  <section class="am-box" aria-labelledby="am-places-h">
+    <h2 class="am-h2" id="am-places-h">{{ 'By place'|trans }}</h2>
+    <table class="am-days">
+      <thead><tr><th scope="col">{{ 'Place'|trans }}</th><th scope="col">{{ 'Views'|trans }}</th><th scope="col">{{ 'Clicks'|trans }}</th><th scope="col">{{ 'Click rate'|trans }}</th></tr></thead>
+      <tbody>
+        {% for p in c.places %}
+        <tr><td>{{ rules.placements[p.key]|default(p.key)|trans }}</td><td>{{ p.views|number_format }}</td><td>{{ p.clicks|number_format }}</td><td>{{ p.ctr is null ? '–' : p.ctr ~ '%' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
 
   <section aria-labelledby="am-ads-h" class="am-head">
     <h2 class="am-h2" id="am-ads-h">{{ 'Ads'|trans }}</h2>
@@ -52,12 +78,13 @@
     <div class="am-ad" id="ad-{{ a.id }}">
       <p class="am-ad__r"><span class="am-state am-state--{{ a.review == 'approved' ? 'active' : (a.review == 'rejected' ? 'not_approved' : 'in_review') }}">{{ _review[a.review]|default(a.review)|trans }}</span> · {{ a.views|number_format }} {{ 'views'|trans }} · {{ a.clicks|number_format }} {{ 'clicks'|trans }}</p>
       {% include 'partials/ad-slot.twig' with {ad: a, preview: true} only %}
-      {% if a.review == 'rejected' %}
+      {% if a.review == 'rejected' %}<p class="am-err">{{ a.reason }}</p>{% endif %}
+      {% if c.editable %}
       {% set _o = fixing == a.id ? old : a %}
-      <p class="am-err">{{ a.reason }}</p>
+      <details class="am-edit"{% if a.review == 'rejected' or fixing == a.id %} open{% endif %}>
+      <summary class="am-edit__s">{{ a.review == 'rejected' ? 'Fix and send again'|trans : 'Edit ad'|trans }}</summary>
       <form class="am-step" method="post" action="/account/ads/ad/{{ a.id }}" enctype="multipart/form-data" novalidate data-ag-validate>
         <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <p class="am-h2">{{ 'Fix and send again'|trans }}</p>
         <div class="am-field">
           <label class="ag-label" for="fx-h-{{ a.id }}">{{ 'Headline'|trans }}</label>
           <input class="am-input" id="fx-h-{{ a.id }}" name="headline" type="text" required maxlength="{{ rules.headline }}" value="{{ _o.headline|default('') }}"{% if fixing == a.id and errors.headline %} aria-invalid="true"{% endif %}>
@@ -93,8 +120,19 @@
           <input class="am-input am-input--file" id="fx-i-{{ a.id }}" name="image" type="file" accept="image/jpeg,image/png,image/webp">
           {% if fixing == a.id and errors.image %}<p class="am-err" role="alert">{{ errors.image|trans }}</p>{% endif %}
         </div>
-        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Send for review'|trans }}</button>
+        {# The approvals this kind of ad carries, prefilled, so an edit neither loses one that
+           was given nor is refused for one it was never asked for (AdRules::CATEGORIES). #}
+        {% for k in ['arcon']|merge(c.needs|filter(n => n != 'arcon' and n != 'licence')) %}
+        <div class="am-field">
+          <label class="ag-label" for="fx-{{ k }}-{{ a.id }}">{{ rules.approvals[k][0]|trans }}{% if k not in c.needs %} <span class="am-opt">{{ '(optional)'|trans }}</span>{% endif %}</label>
+          <input class="am-input" id="fx-{{ k }}-{{ a.id }}" name="{{ k }}_ref" type="text" maxlength="40" value="{{ attribute(_o, k ~ '_ref')|default('') }}"{% if fixing == a.id and attribute(errors, k ~ '_ref')|default(false) %} aria-invalid="true"{% endif %}>
+          {% if fixing == a.id and attribute(errors, k ~ '_ref')|default(false) %}<p class="am-err" role="alert">{{ attribute(errors, k ~ '_ref')|trans }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        <p class="am-note">{{ 'Saving sends the ad back for review. It does not show until a person approves it again.'|trans }}</p>
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Save and send for review'|trans }}</button>
       </form>
+      </details>
       {% endif %}
     </div>
     {% endfor %}

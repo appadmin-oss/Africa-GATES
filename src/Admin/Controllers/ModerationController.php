@@ -22,6 +22,9 @@ class ModerationController
     public function __construct(
         private readonly Twig $view,
         private readonly AuditService $audit,
+        // Tells an advertiser what was decided about their ad (Ads\AdNotice). Optional, so a
+        // test or a host with no mail still moderates; the decision never waits on a send.
+        private readonly ?\AfricaGates\Services\OtpService $mailer = null,
     ) {}
 
     public function index(Request $req, Response $res): Response
@@ -94,10 +97,13 @@ class ModerationController
             }
             $reason = trim((string)(((array)$req->getParsedBody())['_reason'] ?? ''));
             $r = \AfricaGates\Services\Ads\AdReview::decide($id, $adminId, $decision === 'approve', $reason);
+            $told = $decision === 'approve' ? 'approved' : 'refused';
             // A running ad that was reported is taken down through the same Refuse button.
             if (!$r['ok'] && $decision === 'remove' && $reason !== '') {
                 $r = \AfricaGates\Services\Ads\AdReview::takeDown($id, $adminId, $reason);
+                $told = 'taken_down';
             }
+            if ($r['ok']) \AfricaGates\Services\Ads\AdNotice::decided($id, $told, $this->mailer);
             $this->audit->record($adminId, 'moderation.' . $decision, 'ad', $id);
             $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
                 ? ($decision === 'approve' ? 'Ad approved. It can run now.' : 'Ad refused. The advertiser can see why.')

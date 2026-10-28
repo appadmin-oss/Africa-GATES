@@ -8,7 +8,8 @@
   what an advertiser is shown here is exactly what will run. The rate card is read from the
   console setting (AdRateCard); a place with no price says so rather than show one nobody set.
 #}
-{% set colour_tier = '1' %}
+{# Tier 2, transactional: it asks for something (a campaign, a fix, a review). #}
+{% set colour_tier = '2' %}
 {% set _ph = {vote_hub: 'The list of awards people vote in', discover: 'Between results, where people look for things', events: 'The events list and every event page'} %}
 
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endblock %}

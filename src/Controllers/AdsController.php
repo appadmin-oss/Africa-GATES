@@ -154,6 +154,30 @@ final class AdsController
         ]);
     }
 
+    /**
+     * GET /account/ads/{id}/results.csv — every day and place the campaign was shown. Only
+     * its owner's, and only totals: nothing in it says who saw an ad, because nothing does.
+     */
+    public function export(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $this->toLogin($res, '/account/ads');
+        $id = (int) ($args['id'] ?? 0);
+        $rows = AdCampaigns::exportRows($id, (int) $user->id);
+        if ($rows === null) return $res->withHeader('Location', '/account/ads')->withStatus(302);
+        $fh = fopen('php://temp', 'r+');
+        \AfricaGates\Support\Csv::put($fh, ['day', 'place', 'views', 'clicks', 'click_rate_pct'], ',', '"', '');
+        foreach ($rows as $r) {
+            \AfricaGates\Support\Csv::put($fh, [$r['day'], AdRules::PLACEMENTS[$r['placement']] ?? $r['placement'], $r['views'], $r['clicks'],
+                $r['views'] > 0 ? round(100 * $r['clicks'] / $r['views'], 2) : ''], ',', '"', '');
+        }
+        rewind($fh);
+        $res->getBody()->write((string) stream_get_contents($fh));
+        return $res->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="ad-campaign-' . $id . '-results.csv"')
+            ->withHeader('Cache-Control', 'private, no-store');
+    }
+
     /** POST /account/ads/{id}/{pause|resume|cancel} — the advertiser's own switch. */
     public function status(Request $req, Response $res, array $args): Response
     {
@@ -170,7 +194,7 @@ final class AdsController
         return $res->withHeader('Location', '/account/ads/' . $id)->withStatus(303);
     }
 
-    /** POST /account/ads/ad/{id} — a refused ad, fixed and sent again. */
+    /** POST /account/ads/ad/{id} — an ad edited (or a refused one fixed) and sent for review again. */
     public function resubmit(Request $req, Response $res, array $args): Response
     {
         $user = $this->accounts->current();
@@ -189,7 +213,7 @@ final class AdsController
             $f->flash();
             return $res->withHeader('Location', '/account/ads/' . $campaignId . '#ad-' . $adId)->withStatus(303);
         }
-        $_SESSION['flash_ok'] = 'Sent for review again.';
+        $_SESSION['flash_ok'] = 'Saved and sent for review. It shows again once a person approves it.';
         return $res->withHeader('Location', '/account/ads/' . $campaignId)->withStatus(303);
     }
 
