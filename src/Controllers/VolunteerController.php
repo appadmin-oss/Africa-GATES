@@ -12,6 +12,8 @@ use AfricaGates\Services\Volunteer\Tasks;
 use AfricaGates\Services\Volunteer\Team;
 use AfricaGates\Services\Volunteer\Training;
 use AfricaGates\Services\Volunteer\Volunteers;
+use AfricaGates\Services\Shell\Find;
+use AfricaGates\Services\Shell\Updates;
 use AfricaGates\Services\Volunteer\Workspace;
 use AfricaGates\Services\Volunteer\WorkspacePages;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -50,6 +52,13 @@ final class VolunteerController
         $tab = (string) ($args['tab'] ?? array_key_first($tabs) ?? '');
         if ($tabs && !isset($tabs[$tab])) throw new HttpNotFoundException($req);
 
+        // Find without script, or Enter on nothing chosen: the results, on Today.
+        $q = trim((string) ($req->getQueryParams()['q'] ?? ''));
+        if ($page === 'home' && $q !== '') {
+            return $this->render($res, $user, $v, $role, Find::page(Workspace::findItems($v, $role), $q) + [
+                'scope' => 'root', 'nav' => Workspace::rootNav($v, $role, '', Workspace::counts($v, $role)), 'tabs' => [],
+                'crumbs' => [['label' => 'My volunteering', 'href' => '/volunteer'], ['label' => 'Find']], 'findQ' => $q]);
+        }
         $content = WorkspacePages::root($v, $role, $page, $tab, $req->getQueryParams());
         $counts = Workspace::counts($v, $role);
         $tabCounts = match ($page) {
@@ -123,6 +132,7 @@ final class VolunteerController
         return $this->render($res, $user, $v, $role, [
             'scope' => $kind, 'nav' => Workspace::scopeNav($kind, (int) $p['id'], $page),
             'instance' => ['name' => $p['name'], 'sub' => implode(', ', $p['roles']), 'ini' => Workspace::initials($p['name']), 'tone' => $kind === 'event' ? 'ok' : 'info'],
+            'siblings' => Workspace::siblings($v, $kind, (int) $p['id'], $page),
             'back' => ['label' => 'Back to my volunteering', 'href' => '/volunteer'],
             'crumbs' => [['label' => 'My volunteering', 'href' => '/volunteer'], ['label' => $p['name'], 'href' => $p['href']], ['label' => $valid[$page][0]]],
             'kicker' => $page === $first ? '' : $p['name'], 'purposeKey' => $kind . '.' . $page,
@@ -296,6 +306,10 @@ final class VolunteerController
     private function render(Response $res, object $user, object $v, string $role, array $ctx): Response
     {
         $ctx['purpose'] = ($ctx['purpose'] ?? '') !== '' ? $ctx['purpose'] : (Workspace::PURPOSE[$ctx['purposeKey'] ?? ''] ?? '');
+        // Find (§2.4) on every workspace page. There is no Ask here: the assistant is the
+        // console's, and a volunteer is never an admin actor (§0.4).
+        $ctx['find'] = ['action' => '/volunteer', 'q' => (string) ($ctx['findQ'] ?? ''), 'items' => Workspace::findItems($v, $role)];
+        $ctx['bell'] ??= Updates::forVolunteer($v);
         return $this->view->render($res, 'volunteer/page.twig', [
             'page_title' => ($ctx['title'] ?? 'Volunteering') . ' — Africa GATES volunteers',
             'shell' => $ctx + ['brand' => Volunteers::roleLabel($v), 'me' => ['name' => Volunteers::name($v), 'ini' => Workspace::initials(Volunteers::name($v))],

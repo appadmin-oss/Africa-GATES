@@ -203,6 +203,18 @@ final class Requests
         return ['ok' => true, 'emailed' => $emailed];
     }
 
+    /**
+     * Record that an approved request was carried out (a big send went out), in its history.
+     * Only on an approved request, and only by the person who asked: it changes no status.
+     */
+    public static function recordSent(int $id, string $actorKind, int $actorId, string $actorName, string $note): bool
+    {
+        $r = self::find($id);
+        if (!$r || $r->status !== 'approved' || $r->from_kind !== $actorKind || (int) $r->from_id !== $actorId) return false;
+        self::log($id, $actorKind, $actorId, $actorName, 'sent', mb_substr($note, 0, 2000));
+        return true;
+    }
+
     /** Where a decider is reached: the named person, or every active admin holding the role. @return list<string> */
     private static function deciderEmails(object $r): array
     {

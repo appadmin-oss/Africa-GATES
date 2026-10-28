@@ -222,6 +222,73 @@ final class Workspace
         return $groups;
     }
 
+    /**
+     * Everything Find can go to for this person (§2.4): the pages their role's rail carries and
+     * those pages' tabs, each place they help and its pages, Profile and access, their coming
+     * shifts, open requests and training to do, and the things they can start. Built from the
+     * same reads as the rail, so Find never offers a page the workspace would refuse.
+     *
+     * @return list<array{t:string, sub:string, href:string, kind:string}>
+     */
+    public static function findItems(object $v, string $role): array
+    {
+        $out = [];
+        foreach (self::rootNav($v, $role, '', []) as $g) {
+            foreach ($g['items'] as $i) {
+                if (str_starts_with((string) $i['key'], '@')) continue;   // places are listed below, with their pages
+                $out[] = ['t' => (string) $i['label'], 'sub' => 'My volunteering', 'href' => (string) $i['href'], 'kind' => 'Page'];
+                foreach (self::TABS[$i['key']] ?? [] as $tk => $tl) {
+                    if ($tk === array_key_first(self::TABS[$i['key']])) continue;
+                    $out[] = ['t' => $tl, 'sub' => (string) $i['label'], 'href' => $i['href'] . '/' . $tk, 'kind' => 'Page'];
+                }
+            }
+        }
+        if ($role !== 'applicant') {
+            foreach (self::places($v) as $p) {
+                $out[] = ['t' => $p['name'], 'sub' => $p['roles'] ? implode(', ', $p['roles']) : 'Where you help', 'href' => $p['href'], 'kind' => 'Place'];
+                foreach (self::SCOPE_PAGES[$p['kind']] as $gi => [, $pages]) {
+                    foreach ($pages as $k => [$l]) {
+                        if ($gi === 0) continue;   // the first page is the place itself, listed above
+                        $out[] = ['t' => $l, 'sub' => $p['name'], 'href' => $p['href'] . '/' . $k, 'kind' => 'Page'];
+                    }
+                }
+            }
+            foreach (Shifts::mine($v) as $s) {
+                $out[] = ['t' => (string) $s->title, 'sub' => self::day((string) $s->starts_at) . ' · ' . $s->scope_name, 'href' => '/volunteer/shifts/' . $s->id, 'kind' => 'Shift'];
+            }
+            foreach (Requests::from('member', (int) $v->user_id, 'open') as $r) {
+                $out[] = ['t' => (string) $r->title, 'sub' => Requests::STATUSES[$r->status] ?? '', 'href' => '/volunteer/requests/' . $r->id, 'kind' => 'Request'];
+            }
+            $out[] = ['t' => 'Log hours', 'sub' => 'Hours', 'href' => '/volunteer/hours/log', 'kind' => 'Do'];
+            $out[] = ['t' => 'Make a request', 'sub' => 'Requests', 'href' => '/volunteer/requests?new=swap', 'kind' => 'Do'];
+        }
+        foreach (Training::next($v) as $m) {
+            $out[] = ['t' => (string) $m->title, 'sub' => 'Training', 'href' => '/volunteer/training/take/' . $m->slug, 'kind' => 'Training'];
+        }
+        foreach (self::ME as $k => [$l]) $out[] = ['t' => $l, 'sub' => 'Profile and access', 'href' => '/volunteer/me/' . $k, 'kind' => 'Page'];
+        return $out;
+    }
+
+    /**
+     * The switcher (§1): the person's other places, each opened on the same page when that
+     * kind of place has it, and on its first page when it does not.
+     *
+     * @return list<array{name:string, sub:string, ini:string, href:string, current:bool}>
+     */
+    public static function siblings(object $v, string $kind, int $id, string $page): array
+    {
+        $out = [];
+        foreach (self::places($v) as $p) {
+            $pages = [];
+            foreach (self::SCOPE_PAGES[$p['kind']] as [, $ps]) $pages += $ps;
+            $first = array_key_first(self::SCOPE_PAGES[$p['kind']][0][1]);
+            $keep = isset($pages[$page]) && $page !== $first;
+            $out[] = ['name' => $p['name'], 'sub' => $p['kind'] === 'event' ? 'Event' : 'Award', 'ini' => self::initials($p['name']),
+                      'href' => $p['href'] . ($keep ? '/' . $page : ''), 'current' => $p['kind'] === $kind && $p['id'] === $id];
+        }
+        return $out;
+    }
+
     /** The tab bar for a page. @return list<array{key:string,label:string,href:string,current:bool}> */
     public static function tabs(string $base, array $tabs, string $current, array $counts = []): array
     {

@@ -7,9 +7,11 @@ use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Services\EventPlan\EventPages;
 use AfricaGates\Services\EventPlan\LeadPages;
+use AfricaGates\Services\EventPlan\Outreach;
 use AfricaGates\Services\EventPlan\Plan;
 use AfricaGates\Services\EventPlan\Scope;
 use AfricaGates\Services\EventScanPass;
+use AfricaGates\Services\Shell\Updates;
 use AfricaGates\Services\Grants;
 use AfricaGates\Services\Requests;
 use AfricaGates\Services\Volunteer\Shifts;
@@ -165,6 +167,10 @@ final class LeadController
             'check_done' => [Scope::checkDone($int('check'), true, $me['id']), 'Checked.', 'event', 0],
             'check_undo' => [Scope::checkDone($int('check'), false, $me['id']), 'Reopened.', 'event', 0],
             'table_save' => [Scope::saveTable($int('event'), $b, $me['id']), 'Seating saved.', 'event', $int('event')],
+            'letters_send' => [Outreach::sendLetters($int('event'), $me['id']), '', 'event', $int('event')],
+            'message_send' => [Outreach::sendMessage($int('request'), (string) ($b['audience'] ?? ''), (string) ($b['subject'] ?? ''), (string) ($b['body'] ?? ''), $me['id'], $me['name']), '', 'event', 0],
+            'seat' => [Scope::seat($int('table'), (string) ($b['kind'] ?? '') === 'invite' ? 'invite' : 'ticket', $int('ref'), $me['id']), 'Seated.', 'event', 0],
+            'seat_free' => [Scope::unseat($int('seat'), $me['id']), 'Seat freed.', 'event', 0],
             'shift_add' => [$this->postShift($me, $b), 'Posted. Volunteers it suits see it in their workspace.', 'event', $int('event')],
             'door_issue' => [$this->issueDoor($me, $b), 'Scanning link made.', 'event', $int('event')],
             'door_revoke' => [$this->revokeDoor($me, $b), 'Turned off. It stops working now.', 'event', $int('event')],
@@ -188,6 +194,11 @@ final class LeadController
         if ($do === 'line_ask' && isset($r['request'])) $back = LeadPages::BASE . '/requests?r=' . $r['request'];
         if ($do === 'request' && isset($r['id'])) $back = LeadPages::BASE . '/requests?r=' . $r['id'];
         if ($do === 'door_issue' && isset($r['link'])) $_SESSION['lead_door_link'] = $r['link'];
+        if (in_array($do, ['letters_send', 'message_send'], true)) {
+            // Who is left, not only how many went, so a partly-sent batch reads as queued.
+            $msg = $r['sent'] . ' sent' . ($r['failed'] ? ', ' . $r['failed'] . ' could not be sent' : '') . '. '
+                 . ($r['left'] > 0 ? $r['left'] . ' still to go: press again.' : 'That is everybody.');
+        }
         if ($do === 'request_remind') {
             $msg = ($r['emailed'] ?? 0) > 0 ? 'Reminded. ' . $r['emailed'] . (($r['emailed'] ?? 0) === 1 ? ' person was' : ' people were') . ' emailed.'
                                             : 'Reminder recorded, but no email could be sent. It is still at the top of their Waiting on you.';
@@ -285,6 +296,7 @@ final class LeadController
         $events = Plan::ready() ? Plan::leadEvents($me['id']) : [];
         $here = ($ctx['scope'] ?? '') === 'event' ? Plan::event((int) ($ctx['eventId'] ?? 0)) : null;
         $ctx['find'] = ['action' => LeadPages::BASE, 'q' => (string) ($ctx['findQ'] ?? ''), 'items' => LeadPages::findItems($me, $events)];
+        $ctx['bell'] = Updates::forLead($me, $events);
         $ctx['ask'] = ['href' => '/admin/assistant', 'post' => '/admin/assistant/chat', 'scope' => $here ? (string) $here->title : 'your events',
                        'starters' => LeadPages::starters($here)];
         return $this->view->render($res, 'admin/lead.twig', [

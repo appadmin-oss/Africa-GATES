@@ -287,7 +287,7 @@ final class LeadPages
         foreach (Requests::history($id) as $e) {
             $who = $e->actor_kind === 'admin' && (int) $e->actor_id === $me['id'] ? 'You' : (string) ($e->actor_name ?? 'Someone');
             $verb = ['asked' => 'asked', 'approve' => 'approved', 'ask_info' => 'asked for information', 'decline' => 'declined', 'add_info' => 'added information',
-                     'withdraw' => 'withdrew it', 'undo' => 'undid the last step', 'remind' => 'sent a reminder'][$e->action] ?? $e->action;
+                     'withdraw' => 'withdrew it', 'undo' => 'undid the last step', 'remind' => 'sent a reminder', 'sent' => 'sent it'][$e->action] ?? $e->action;
             $log[] = ['time' => date('j M', (int) strtotime((string) $e->created_at)), 't' => $who . ' ' . $verb, 'd' => (string) ($e->note ?? ''), 'st' => 'done'];
         }
         if ($log) $secs[] = ['k' => 'agenda', 'h' => 'Activity', 'items' => $log];
@@ -591,16 +591,7 @@ final class LeadPages
     /** The search page: what Find shows, for a browser with no script or for Enter on nothing. */
     public static function search(array $me, array $events, string $q): array
     {
-        $words = array_values(array_filter(preg_split('/\s+/', mb_strtolower(trim($q))) ?: []));
-        $hits = array_values(array_filter(self::findItems($me, $events), static function ($i) use ($words) {
-            $hay = mb_strtolower($i['t'] . ' ' . $i['sub'] . ' ' . $i['kind']);
-            foreach ($words as $w) if (!str_contains($hay, $w)) return false;
-            return $words !== [];
-        }));
-        $rows = array_map(static fn ($i) => ['t' => $i['t'], 'sub' => $i['sub'], 'meta' => $i['kind'], 'href' => $i['href']], array_slice($hits, 0, 50));
-        return ['title' => 'Find', 'purpose' => $hits ? count($hits) . (count($hits) === 1 ? ' match' : ' matches') . ' for “' . trim($q) . '”.' : '',
-                'secs' => [$rows ? ['k' => 'rows', 'items' => $rows]
-                                 : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing matches “' . trim($q) . '”. Try a page’s name, an event, or a word from a piece of work.']]];
+        return \AfricaGates\Services\Shell\Find::page(self::findItems($me, $events), $q);
     }
 
     /** What Ask offers to start with, for where the lead is. @return list<string> */

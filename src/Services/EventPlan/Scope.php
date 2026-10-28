@@ -217,11 +217,107 @@ final class Scope
         if ($label === '') return ['ok' => false, 'error' => 'Name the table.'];
         if ($seats < 1 || $seats > 500) return ['ok' => false, 'error' => 'A table seats between 1 and 500.'];
         $guests = self::guestList((string) ($in['guests'] ?? ($row->guests ?? '')));
-        if (count($guests) > $seats) return ['ok' => false, 'error' => 'That is ' . (count($guests) - $seats) . ' more than the ' . $seats . ' seats at ' . $label . '.'];
+        // Typed names and people seated by record share the table's seats.
+        $linked = $row && SchemaHas::table('gates_event_seats') ? (int) DB::table('gates_event_seats')->where('table_id', $id)->count() : 0;
+        if (count($guests) + $linked > $seats) return ['ok' => false, 'error' => 'That is ' . (count($guests) + $linked - $seats) . ' more than the ' . $seats . ' seats at ' . $label . '.'];
         $data = ['label' => mb_substr($label, 0, 190), 'seats' => $seats, 'guests' => $guests ? implode("\n", $guests) : null];
         if ($row) DB::table('gates_event_tables')->where('id', $id)->update($data);
         else $id = (int) DB::table('gates_event_tables')->insertGetId($data + ['event_id' => $eventId, 'created_at' => date('Y-m-d H:i:s')]);
         return ['ok' => true, 'id' => $id, 'event' => $eventId];
+    }
+
+    /** Seats a table holds right now: typed names plus people seated by record. */
+    public static function seated(object $table): int
+    {
+        $n = count(self::guestList((string) $table->guests));
+        if (SchemaHas::table('gates_event_seats')) $n += (int) DB::table('gates_event_seats')->where('table_id', $table->id)->count();
+        return $n;
+    }
+
+    /**
+     * Seat a guest of honour or a ticket holder at a table, by their record. Seating somebody
+     * already seated MOVES them; a full table is refused.
+     *
+     * @param 'invite'|'ticket' $kind
+     */
+    public static function seat(int $tableId, string $kind, int $refId, int $adminId): array
+    {
+        if (!SchemaHas::table('gates_event_seats')) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
+        $t = DB::table('gates_event_tables')->where('id', $tableId)->first();
+        if (!$t) return ['ok' => false, 'error' => 'Pick a table.'];
+        $eventId = (int) $t->event_id;
+        if (!Plan::isLead($adminId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can change its seating.'];
+        $person = self::person($eventId, $kind, $refId);
+        if ($person === null) return ['ok' => false, 'error' => 'That guest is not on this event’s list.'];
+        $current = DB::table('gates_event_seats')->where('event_id', $eventId)->where('kind', $kind)->where('ref_id', $refId)->first();
+        if ($current && (int) $current->table_id === $tableId) return ['ok' => true, 'event' => $eventId, 'name' => $person];
+        if (self::seated($t) >= (int) $t->seats) return ['ok' => false, 'error' => $t->label . ' is full: all ' . $t->seats . ' seats are taken.'];
+        if ($current) DB::table('gates_event_seats')->where('id', $current->id)->update(['table_id' => $tableId, 'seated_by' => $adminId]);
+        else DB::table('gates_event_seats')->insert(['event_id' => $eventId, 'table_id' => $tableId, 'kind' => $kind, 'ref_id' => $refId, 'seated_by' => $adminId, 'created_at' => date('Y-m-d H:i:s')]);
+        return ['ok' => true, 'event' => $eventId, 'name' => $person];
+    }
+
+    public static function unseat(int $seatId, int $adminId): array
+    {
+        $s = SchemaHas::table('gates_event_seats') ? DB::table('gates_event_seats')->where('id', $seatId)->first() : null;
+        if (!$s) return ['ok' => false, 'error' => 'That seat is already free.'];
+        if (!Plan::isLead($adminId, (int) $s->event_id)) return ['ok' => false, 'error' => 'Only a lead of this event can change its seating.'];
+        DB::table('gates_event_seats')->where('id', $seatId)->delete();
+        return ['ok' => true, 'event' => (int) $s->event_id];
+    }
+
+    /**
+     * Who sits at each table by record, with their names and what they are.
+     *
+     * @return array<int, list<array{id:int, name:string, kind:string}>> by table id
+     */
+    public static function seatsByTable(int $eventId): array
+    {
+        if (!SchemaHas::table('gates_event_seats')) return [];
+        $out = [];
+        foreach (DB::table('gates_event_seats')->where('event_id', $eventId)->orderBy('id')->get() as $s) {
+            $out[(int) $s->table_id][] = ['id' => (int) $s->id, 'name' => self::person($eventId, (string) $s->kind, (int) $s->ref_id) ?? 'A guest no longer on the list', 'kind' => (string) $s->kind];
+        }
+        return $out;
+    }
+
+    /**
+     * Guests with no seat yet: guests of honour whose letter went, then confirmed ticket holders.
+     *
+     * @return array{total:int, list:list<array{kind:string, id:int, name:string, sub:string}>}
+     */
+    public static function unseated(int $eventId, int $limit = 60): array
+    {
+        $taken = [];
+        if (SchemaHas::table('gates_event_seats')) {
+            foreach (DB::table('gates_event_seats')->where('event_id', $eventId)->get(['kind', 'ref_id']) as $s) $taken[$s->kind . ':' . $s->ref_id] = true;
+        }
+        $all = [];
+        foreach (self::invites($eventId) as $i) {
+            if ($i->sent_at === null || isset($taken['invite:' . $i->id])) continue;
+            $all[] = ['kind' => 'invite', 'id' => (int) $i->id, 'name' => (string) $i->name, 'sub' => $i->audience === 'judge' ? 'Judge' : 'Nominee'];
+        }
+        try {
+            foreach (DB::table('gates_event_registrations')->where('event_id', $eventId)->where('status', 'confirmed')->orderBy('name')->get(['id', 'name', 'tier', 'quantity']) as $r) {
+                if (isset($taken['ticket:' . $r->id])) continue;
+                $all[] = ['kind' => 'ticket', 'id' => (int) $r->id, 'name' => (string) $r->name,
+                          'sub' => trim((string) ($r->tier ?? '') . ((int) ($r->quantity ?? 1) > 1 ? ' · ' . $r->quantity . ' places' : '')) ?: 'Ticket'];
+            }
+        } catch (\Throwable) {
+            // No registrations table is nobody holding a ticket.
+        }
+        return ['total' => count($all), 'list' => array_slice($all, 0, $limit)];
+    }
+
+    /** A guest's name if they are on THIS event's list, else null. */
+    private static function person(int $eventId, string $kind, int $refId): ?string
+    {
+        try {
+            if ($kind === 'invite') return DB::table('gates_event_invites')->where('id', $refId)->where('event_id', $eventId)->value('name') ?: null;
+            if ($kind === 'ticket') return DB::table('gates_event_registrations')->where('id', $refId)->where('event_id', $eventId)->where('status', 'confirmed')->value('name') ?: null;
+        } catch (\Throwable) {
+        }
+        return null;
     }
 
     /** @return list<string> one guest per line or comma, blanks dropped */

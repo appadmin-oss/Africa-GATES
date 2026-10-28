@@ -395,28 +395,48 @@ final class EventPages
     {
         $id = (int) $e->id;
         $tables = Scope::tables($id);
+        $byTable = Scope::seatsByTable($id);
         $seats = array_sum(array_map(static fn ($t) => (int) $t->seats, $tables));
-        $placed = array_sum(array_map(static fn ($t) => count(Scope::guestList((string) $t->guests)), $tables));
+        $placed = array_sum(array_map(static fn ($t) => Scope::seated($t), $tables));
+        $wait = Scope::unseated($id);
         $secs = [];
         if ($tables) {
             $secs[] = ['k' => 'stats', 'items' => [['l' => 'Tables', 'v' => (string) count($tables), 's' => ''], ['l' => 'Seats', 'v' => (string) $seats, 's' => ''],
-                                                   ['l' => 'Guests placed', 'v' => (string) $placed, 's' => $seats > 0 ? ($seats - $placed) . ' seats free' : '']]];
-            $secs[] = ['k' => 'rows', 'items' => array_map(static function ($t) {
-                $g = Scope::guestList((string) $t->guests);
-                return ['t' => (string) $t->label, 'sub' => $g ? implode(', ', $g) : 'Nobody placed yet', 'pct' => (int) round(count($g) * 100 / max(1, (int) $t->seats)),
-                        'barT' => count($g) . ' of ' . $t->seats,
-                        'form' => ['id' => 't' . $t->id, 'do' => 'table_save', 'hidden' => ['table' => $t->id], 'submit' => 'Save',
-                                   'fields' => [['name' => 'guests', 'label' => 'Guests, separated by commas', 'value' => implode(', ', $g)]]]];
-            }, $tables)];
+                                                   ['l' => 'Seated', 'v' => (string) $placed, 's' => $seats > 0 ? ($seats - $placed) . ' seats free' : ''],
+                                                   ['l' => 'Not seated yet', 'v' => (string) $wait['total'], 's' => 'guests of honour and ticket holders']]];
+            foreach ($tables as $t) {
+                $items = [];
+                foreach ($byTable[(int) $t->id] ?? [] as $p) {
+                    $items[] = ['t' => $p['name'], 'chip' => [$p['kind'] === 'invite' ? 'Guest of honour' : 'Ticket', $p['kind'] === 'invite' ? 'info' : 'mute'],
+                                'cta' => ['label' => 'Free seat', 'post' => ['do' => 'seat_free', 'seat' => $p['id']]]];
+                }
+                $typed = Scope::guestList((string) $t->guests);
+                $items[] = ['t' => $typed ? implode(', ', $typed) : 'No typed names', 'sub' => 'Typed names, for guests with no ticket or invitation',
+                            'form' => ['id' => 't' . $t->id, 'do' => 'table_save', 'hidden' => ['table' => $t->id], 'submit' => 'Save',
+                                       'fields' => [['name' => 'guests', 'label' => 'Typed names, separated by commas', 'value' => implode(', ', $typed)]]]];
+                $n = Scope::seated($t);
+                $secs[] = ['k' => 'rows', 'h' => $t->label . ' · ' . $n . ' of ' . $t->seats, 'items' => $items, 'box' => $n >= (int) $t->seats];
+            }
+            if ($wait['list']) {
+                $opts = [];
+                foreach ($tables as $t) $opts[(string) $t->id] = $t->label . ' (' . max(0, (int) $t->seats - Scope::seated($t)) . ' free)';
+                $secs[] = ['k' => 'rows', 'h' => 'Not seated yet', 'items' => array_map(static fn ($g) => ['t' => $g['name'], 'sub' => $g['sub'],
+                    'form' => ['id' => $g['kind'][0] . $g['id'], 'do' => 'seat', 'hidden' => ['kind' => $g['kind'], 'ref' => $g['id']], 'submit' => 'Seat',
+                               'fields' => [['name' => 'table', 'label' => 'Table for ' . $g['name'], 'type' => 'select', 'options' => $opts]]]], $wait['list'])];
+                if ($wait['total'] > count($wait['list'])) {
+                    $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Showing ' . count($wait['list']) . ' of ' . $wait['total'] . '; seat these and the rest follow.'];
+                }
+            }
         } else {
-            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'No seating plan yet. Add the tables, then put guests at them.'];
+            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => $wait['total']
+                ? $wait['total'] . ' guests of honour and ticket holders have no seat yet. Add the tables first, then seat them.'
+                : 'No seating plan yet. Add the tables; guests of honour and ticket holders show here to be seated.'];
         }
         $secs[] = ['k' => 'form', 'h' => 'Add a table', 'do' => 'table_save', 'hidden' => ['event' => $id], 'submit' => 'Add it', 'groups' => [
-            ['label' => 'The table', 'help' => 'More guests than seats is refused, and says by how many.',
+            ['label' => 'The table', 'help' => 'A full table refuses the next guest and says so.',
              'fields' => [['name' => 'label', 'label' => 'Table', 'type' => 'text', 'required' => true, 'placeholder' => 'Table 1, finalists'],
-                          ['name' => 'seats', 'label' => 'Seats', 'type' => 'number', 'min' => 1, 'max' => 500, 'value' => '10'],
-                          ['name' => 'guests', 'label' => 'Guests, separated by commas', 'type' => 'text']]],
-        ]];
+                          ['name' => 'seats', 'label' => 'Seats', 'type' => 'number', 'min' => 1, 'max' => 500, 'value' => '10']]]],
+        ];
         return ['title' => 'People', 'secs' => $secs];
     }
 
@@ -464,26 +484,47 @@ final class EventPages
 
     private static function letters(object $e): array
     {
-        $rows = Scope::invites((int) $e->id);
+        $id = (int) $e->id;
+        $rows = Scope::invites($id);
         $sent = count(array_filter($rows, static fn ($r) => $r->sent_at !== null));
-        $secs = [$rows
-            ? ['k' => 'rows', 'h' => 'Invitation letters', 'items' => [
-                ['t' => $sent . ' of ' . count($rows) . ' sent', 'sub' => 'Each guest of honour’s letter carries their own reference and door pass.',
-                 'pct' => (int) round($sent * 100 / max(1, count($rows))), 'barT' => $sent . ' of ' . count($rows)]]]
-            : ['k' => 'note', 'tone' => 'mute', 'text' => 'No invitation letters for this event yet.']];
-        $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Staff send the letters from Events › Invitations, so every guest of honour gets one letter, once. This shows what went.'];
+        $secs = [];
+        if ($rows) {
+            $secs[] = ['k' => 'rows', 'h' => 'Invitation letters', 'items' => [
+                ['t' => $sent . ' of ' . count($rows) . ' sent', 'sub' => 'Each guest of honour’s letter carries their own reference and door pass. One letter each, ever.',
+                 'pct' => (int) round($sent * 100 / max(1, count($rows))), 'barT' => $sent . ' of ' . count($rows),
+                 'cta' => $sent < count($rows) ? ['label' => 'Send the next letters', 'post' => ['do' => 'letters_send', 'event' => $id], 'primary' => true,
+                                                  'confirm' => 'Send the next batch of invitation letters now?'] : null]]];
+            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Letters go out a batch at a time through the same mailer staff use, nominees and judges in turn, so a press never sends anybody a second letter.'];
+        } else {
+            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'No guests of honour are on this event’s list yet. Staff build it from an award’s shortlist in Events › Invitations; the letters can then be sent from here.'];
+        }
         return ['title' => 'Relationships', 'secs' => $secs];
     }
 
     private static function messages(object $e): array
     {
-        $rows = array_values(array_filter(self::eventRequests((int) $e->id), static fn ($r) => $r->type === 'message'));
+        $id = (int) $e->id;
         $tone = ['waiting' => 'warn', 'needs_info' => 'info', 'approved' => 'ok', 'declined' => 'bad', 'withdrawn' => 'mute'];
-        return ['title' => 'Relationships', 'acts' => [['label' => 'Ask to send a message', 'href' => LeadPages::BASE . '/requests?new=message&event=' . $e->id, 'primary' => true]],
-            'secs' => [$rows
-                ? ['k' => 'rows', 'h' => 'Big sends', 'items' => array_map(static fn ($r) => ['t' => (string) $r->title, 'sub' => (string) ($r->needed_by ? 'Send on ' . $r->needed_by : ''),
-                    'chip' => [Requests::STATUSES[$r->status] ?? $r->status, $tone[$r->status] ?? 'mute']], $rows)]
-                : ['k' => 'note', 'tone' => 'mute', 'text' => 'No messages to a big audience yet. A send to many people is a request, so an administrator checks it before it goes.']]];
+        $secs = [];
+        foreach (Outreach::approvedMessages($id) as $r) {
+            $t = $r->tally;
+            $secs[] = ['k' => 'form', 'h' => 'Approved: ' . $r->title, 'do' => 'message_send', 'hidden' => ['request' => $r->id], 'submit' => 'Send the next batch',
+                       'route' => ($t['sent'] || $t['failed'] ? $t['sent'] . ' sent so far' . ($t['failed'] ? ', ' . $t['failed'] . ' failed' : '') . '. ' : '')
+                                  . 'Each person gets it once, however many times this is pressed; ' . Outreach::BATCH . ' go per press.',
+                       'groups' => [
+                           ['label' => 'Who it goes to', 'fields' => [['name' => 'audience', 'label' => 'Audience', 'type' => 'select', 'options' => Outreach::AUDIENCES]]],
+                           ['label' => 'The message', 'help' => 'Approved as: ' . $r->title . ($r->needed_by ? ' (send on ' . $r->needed_by . ')' : '') . '.',
+                            'fields' => [['name' => 'subject', 'label' => 'Subject', 'type' => 'text', 'required' => true, 'value' => (string) $r->title],
+                                         ['name' => 'body', 'label' => 'Message', 'type' => 'textarea', 'required' => true]]],
+                       ]];
+        }
+        $others = array_values(array_filter(self::eventRequests($id), static fn ($r) => $r->type === 'message' && $r->status !== 'approved'));
+        if ($others) {
+            $secs[] = ['k' => 'rows', 'h' => 'Asked for', 'items' => array_map(static fn ($r) => ['t' => (string) $r->title, 'sub' => (string) ($r->needed_by ? 'Send on ' . $r->needed_by : ''),
+                'chip' => [Requests::STATUSES[$r->status] ?? $r->status, $tone[$r->status] ?? 'mute']], $others)];
+        }
+        if (!$secs) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'No big sends yet. Ask first: an administrator checks a message to many people, and once approved you send it from here.'];
+        return ['title' => 'Relationships', 'acts' => [['label' => 'Ask to send a message', 'href' => LeadPages::BASE . '/requests?new=message&event=' . $id, 'primary' => true]], 'secs' => $secs];
     }
 
     // ── Money ───────────────────────────────────────────────────────────────────────────
@@ -714,7 +755,8 @@ final class EventPages
                   'event_settings' => 'changed the settings', 'decision_add' => 'recorded a decision', 'decision_reverse' => 'reversed a decision',
                   'cue_add' => 'added a cue', 'cue_done' => 'ran a cue', 'cue_undo' => 'took a cue back', 'cue_remove' => 'removed a cue',
                   'sponsor_add' => 'added a sponsor', 'sponsor_stage' => 'moved a sponsor', 'check_add' => 'added a safety check', 'check_done' => 'signed off a check',
-                  'check_undo' => 'reopened a check', 'table_save' => 'changed the seating', 'shift_add' => 'posted a shift', 'door_issue' => 'made a scanning link',
+                  'check_undo' => 'reopened a check', 'table_save' => 'changed the seating', 'seat' => 'seated a guest', 'seat_free' => 'freed a seat',
+                  'letters_send' => 'sent invitation letters', 'message_send' => 'sent a message', 'shift_add' => 'posted a shift', 'door_issue' => 'made a scanning link',
                   'door_revoke' => 'turned off a scanning link', 'request' => 'made a request', 'lead_grant' => 'gave the event a lead'];
         $rows = [];
         foreach (Scope::audit((int) $e->id) as $a) {

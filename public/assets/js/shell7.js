@@ -21,13 +21,17 @@
       setTimeout(function () { toast.remove(); }, 400);
     }, 5200);
   }
+  // A click outside an open Updates panel or switcher closes it, as a menu does.
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('.sh7-bellbox[open], .sh7-switch[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+  });
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-sh7-confirm]');
     if (b && !window.confirm(b.getAttribute('data-sh7-confirm'))) e.preventDefault();
   });
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    var open = document.querySelector('.sh7-more[open]');
+    var open = document.querySelector('.sh7-more[open], .sh7-bellbox[open], .sh7-switch[open]');
     if (open) { open.removeAttribute('open'); var s = open.querySelector('summary'); if (s) s.focus(); }
   });
   // ── Find ─────────────────────────────────────────────────────────────────────────
