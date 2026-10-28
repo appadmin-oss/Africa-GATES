@@ -4784,7 +4784,9 @@ return function(App $app) {
             $a->get('/lead/' . $leadPage, \AfricaGates\Admin\Controllers\LeadController::class.':root')->setArgument('page', $leadPage);
         }
         $a->get('/lead/event/{id:[0-9]+}', \AfricaGates\Admin\Controllers\LeadController::class.':event');
-        foreach (['work', 'risks', 'money', 'people'] as $leadPage) {
+        // The event scope's pages (nav-admin.json scope `event`), then the first build's two
+        // addresses, which the controller forwards to the page and tab that replaced them.
+        foreach (['plan', 'award', 'people', 'crm', 'money', 'night', 'growth', 'reports', 'requests', 'settings', 'work', 'risks'] as $leadPage) {
             $a->get('/lead/event/{id:[0-9]+}/' . $leadPage, \AfricaGates\Admin\Controllers\LeadController::class.':event')->setArgument('page', $leadPage);
         }
         $a->post('/lead/act', \AfricaGates\Admin\Controllers\LeadController::class.':act');

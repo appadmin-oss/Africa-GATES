@@ -5,11 +5,17 @@ namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Support\Permissions;
+use AfricaGates\Services\EventPlan\EventPages;
 use AfricaGates\Services\EventPlan\LeadPages;
 use AfricaGates\Services\EventPlan\Plan;
+use AfricaGates\Services\EventPlan\Scope;
+use AfricaGates\Services\EventScanPass;
 use AfricaGates\Services\Grants;
 use AfricaGates\Services\Requests;
+use AfricaGates\Services\Volunteer\Shifts;
 use AfricaGates\Services\Volunteer\Workspace;
+use AfricaGates\Support\DisplayTime;
+use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -49,6 +55,13 @@ final class LeadController
         $events = Plan::ready() ? Plan::leadEvents($me['id']) : [];
         // A request opens on Requests itself (?r=), the way the handoff's drawer would.
         if ($page === 'requests' && isset($req->getQueryParams()['r'])) return $this->request($req, $res, ['id' => (int) $req->getQueryParams()['r']]);
+        // Find without script, or Enter on nothing chosen: the results, on the console's front door.
+        $q = trim((string) ($req->getQueryParams()['q'] ?? ''));
+        if ($page === 'overview' && $q !== '') {
+            $c = LeadPages::search($me, $events, mb_substr($q, 0, 100));
+            return $this->render($res, $me, $c + ['scope' => 'root', 'nav' => LeadPages::rootNav('', LeadPages::counts($me, $events)), 'tabs' => [],
+                'crumbs' => [['label' => 'Event lead', 'href' => LeadPages::BASE], ['label' => 'Find']], 'findQ' => $q]);
+        }
         $c = Plan::ready() ? LeadPages::root($me, $events, $page, $tab, $req->getQueryParams())
                            : ['title' => LeadPages::ROOT[$page][0], 'secs' => [['k' => 'note', 'tone' => 'warn', 'text' => 'The database needs its latest update before the lead console can open. Run the pending migrations from Settings.']]];
         return $this->render($res, $me, $c + [
@@ -73,26 +86,46 @@ final class LeadController
         ]);
     }
 
-    /** GET /admin/lead/event/{id}[/{page}] — one event the admin leads. */
+    /** GET /admin/lead/event/{id}[/{page}] — one event the admin leads, with ?tab= for its views. */
     public function event(Request $req, Response $res, array $args): Response
     {
         $me = $this->me();
         $id = (int) $args['id'];
         $e = Plan::ready() ? Plan::event($id) : null;
         if (!$e || !Plan::isLead($me['id'], $id)) throw new HttpNotFoundException($req);   // not theirs: it does not exist here
-        $page = (string) ($args['page'] ?? 'overview');
+        $page = (string) ($args['page'] ?? 'today');
+        // A page of the first build is forwarded to the page and tab that replaced it.
+        if (isset(EventPages::ALIASES[$page])) {
+            [$to, $tab] = EventPages::ALIASES[$page];
+            $q = $req->getQueryParams();
+            unset($q['tab']);
+            $url = EventPages::url($id, $to, $tab);
+            if ($q) $url .= (str_contains($url, '?') ? '&' : '?') . http_build_query($q);
+            return $res->withHeader('Location', $url)->withStatus(301);
+        }
         $valid = [];
-        foreach (LeadPages::EVENT as [, $pages]) $valid += $pages;
+        foreach (EventPages::NAV as [, $pages]) $valid += $pages;
         if (!isset($valid[$page])) throw new HttpNotFoundException($req);
-        $c = LeadPages::event($me, $e, $page, $req->getQueryParams());
+        $tabs = EventPages::TABS[$page] ?? [];
+        $tab = (string) ($req->getQueryParams()['tab'] ?? array_key_first($tabs) ?? '');
+        if ($tabs && !isset($tabs[$tab])) $tab = (string) array_key_first($tabs);
+        $c = EventPages::page($me, $e, $page, $tab, $req->getQueryParams());
+        // A scanning link exists in readable form only now, once (only its hash is stored).
+        if (($link = $this->take('lead_door_link')) && $page === 'settings') {
+            array_unshift($c['secs'], ['k' => 'note', 'tone' => 'info', 'text' => 'Copy this link now; it is not shown again: ' . $link]);
+        }
+        $label = $valid[$page][0];
         return $this->render($res, $me, $c + [
-            'scope' => 'event', 'nav' => LeadPages::eventNav($id, $page, LeadPages::eventCounts($id)),
+            'scope' => 'event', 'eventId' => $id, 'nav' => EventPages::nav($id, $page, EventPages::counts($me, $id)),
+            'tabs' => $tabs ? EventPages::tabs($id, $page, $tab) : [],
             'instance' => ['name' => (string) $e->title, 'sub' => Workspace::day((string) $e->event_date) . ' · Event lead', 'ini' => Workspace::initials((string) $e->title), 'tone' => 'ok'],
+            'siblings' => EventPages::siblings(Plan::leadEvents($me['id']), $id, $page, $tab),
             'back' => ['label' => 'Overview', 'href' => LeadPages::BASE],
-            'crumbs' => [['label' => 'Event lead', 'href' => LeadPages::BASE], ['label' => (string) $e->title, 'href' => LeadPages::eventUrl($id)]]
-                + ($page === 'overview' ? [] : [2 => ['label' => $c['title']]]),
-            'kicker' => $page === 'overview' ? '' : (string) $e->title,
-            'purpose' => LeadPages::PURPOSE['e.' . $page] ?? '',
+            'crumbs' => [['label' => 'Event lead', 'href' => LeadPages::BASE], ['label' => (string) $e->title, 'href' => EventPages::url($id)]]
+                + ($page === 'today' ? [] : [2 => ['label' => $label]]),
+            'kicker' => $page === 'today' ? '' : (string) $e->title,
+            'title' => $page === 'today' ? (string) $e->title : $label,
+            'purpose' => EventPages::PURPOSE[$page] ?? '',
         ]);
     }
 
@@ -120,16 +153,45 @@ final class LeadController
             'event_settings' => [Plan::setEventSettings($int('event'), trim((string) ($b['budget'] ?? '')), (string) ($b['series'] ?? ''), $me['id']), 'Saved.', 'event', $int('event')],
             'request' => [$this->newRequest($me, $b), 'Sent. It shows in Requests with who decides.', 'request', 0],
             'request_act' => [$this->requestAct($me, $b), 'Done.', 'request', $int('request')],
+            'decision_add' => [Scope::decide($int('event'), (string) ($b['title'] ?? ''), (string) ($b['why'] ?? ''), $me['id']), 'Recorded.', 'event', $int('event')],
+            'decision_reverse' => [Scope::reverse($int('decision'), (string) ($b['why'] ?? ''), $me['id']), 'Reversed. Both stay on the record.', 'event', 0],
+            'cue_add' => [Scope::addCue($int('event'), $b, $me['id']), 'Added to the running order.', 'event', $int('event')],
+            'cue_done' => [Scope::cueDone($int('cue'), true, $me['id']), 'Done. The next cue is now.', 'event', 0],
+            'cue_undo' => [Scope::cueDone($int('cue'), false, $me['id']), 'Taken back.', 'event', 0],
+            'cue_remove' => [Scope::removeCue($int('cue'), $me['id']), 'Removed.', 'event', 0],
+            'sponsor_add' => [Scope::addSponsor($int('event'), $b, $me['id']), 'Sponsor added.', 'event', $int('event')],
+            'sponsor_stage' => [Scope::setStage($int('sponsor'), (string) ($b['stage'] ?? ''), $me['id']), 'Moved.', 'event', 0],
+            'check_add' => [Scope::addCheck($int('event'), (string) ($b['title'] ?? ''), (string) ($b['owner'] ?? ''), $me['id']), 'Check added.', 'event', $int('event')],
+            'check_done' => [Scope::checkDone($int('check'), true, $me['id']), 'Checked.', 'event', 0],
+            'check_undo' => [Scope::checkDone($int('check'), false, $me['id']), 'Reopened.', 'event', 0],
+            'table_save' => [Scope::saveTable($int('event'), $b, $me['id']), 'Seating saved.', 'event', $int('event')],
+            'shift_add' => [$this->postShift($me, $b), 'Posted. Volunteers it suits see it in their workspace.', 'event', $int('event')],
+            'door_issue' => [$this->issueDoor($me, $b), 'Scanning link made.', 'event', $int('event')],
+            'door_revoke' => [$this->revokeDoor($me, $b), 'Turned off. It stops working now.', 'event', $int('event')],
+            'request_remind' => [$this->remind($me, $int('request')), 'Reminded.', 'request', $int('request')],
             'lead_grant' => [$this->grantLead($me, $b), 'They lead it now. It shows in their console on their next page.', 'event', $int('event')],
             'lead_revoke' => [$this->revokeLead($me, $int('grant')), 'Ended. The event leaves their console on their next page.', 'grant', $int('grant')],
             default => [['ok' => false, 'error' => 'That isn’t something this page can do.'], '', '', 0],
         };
         if (!$r['ok']) return $this->back($res, $back, false, (string) ($r['error'] ?? 'That didn’t work.'));
-        $target = (int) ($r['id'] ?? $target);
-        $this->audit->record($me['id'], 'lead.' . $do, $type, $target ?: null,
-            array_intersect_key($b, array_flip(['event', 'status', 'owner', 'title', 'likelihood', 'impact', 'estimate', 'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until'])));
+        // A change to an event is recorded AGAINST THE EVENT, so its Reports › Audit can list
+        // it; the row it touched travels in the meta.
+        $meta = array_intersect_key($b, array_flip(['status', 'owner', 'title', 'name', 'label', 'stage', 'likelihood', 'impact', 'estimate', 'vendor',
+                                                    'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until', 'why']));
+        if ($type === 'event') {
+            $target = (int) ($r['event'] ?? $target);
+            foreach (['id', 'work', 'risk', 'line', 'decision', 'cue', 'sponsor', 'check', 'table', 'pass'] as $k) if (!empty($r[$k] ?? $b[$k] ?? null) && $k !== 'event') $meta[$k] = (int) ($r[$k] ?? $b[$k]);
+        } else {
+            $target = (int) ($r['id'] ?? $target);
+        }
+        $this->audit->record($me['id'], 'lead.' . $do, $type, $target ?: null, $meta);
         if ($do === 'line_ask' && isset($r['request'])) $back = LeadPages::BASE . '/requests?r=' . $r['request'];
         if ($do === 'request' && isset($r['id'])) $back = LeadPages::BASE . '/requests?r=' . $r['id'];
+        if ($do === 'door_issue' && isset($r['link'])) $_SESSION['lead_door_link'] = $r['link'];
+        if ($do === 'request_remind') {
+            $msg = ($r['emailed'] ?? 0) > 0 ? 'Reminded. ' . $r['emailed'] . (($r['emailed'] ?? 0) === 1 ? ' person was' : ' people were') . ' emailed.'
+                                            : 'Reminder recorded, but no email could be sent. It is still at the top of their Waiting on you.';
+        }
         return $this->back($res, $back, true, $do === 'request_act' ? 'Done. ' . (Requests::STATUSES[$r['status'] ?? ''] ?? '') . '.' : $msg);
     }
 
@@ -149,6 +211,41 @@ final class LeadController
         $r = Requests::act($id, (string) ($b['action'] ?? ''), 'admin', $me['id'], $me['name'], (string) ($b['note'] ?? ''), $me['role']);
         if ($r['ok']) Plan::syncRequest($id);   // a withdrawn spend request puts its line back to "not approved yet"
         return $r;
+    }
+
+    /** A shift at the lead's own event, posted through the volunteer domain's one creator. */
+    private function postShift(array $me, array $b): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can post its shifts.'];
+        $r = Shifts::create(['title' => $b['title'] ?? '', 'scope_kind' => 'event', 'scope_id' => $event, 'starts_at' => DisplayTime::toStored($b['starts_at'] ?? null) ?? '',
+            'ends_at' => DisplayTime::toStored($b['ends_at'] ?? null) ?? '', 'slots' => $b['slots'] ?? 1, 'location' => $b['location'] ?? '',
+            'capability' => $b['capability'] ?? '', 'lead_name' => $me['name']], $me['id']);
+        return $r['ok'] ? $r + ['event' => $event] : ['ok' => false, 'error' => implode(' ', $r['errors'] ?? ['That shift could not be posted.'])];
+    }
+
+    /** A scanning link for one door of the lead's event (EventScanPass: hashed, windowed, ends by itself). */
+    private function issueDoor(array $me, array $b): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can make its scanning links.'];
+        $token = EventScanPass::issue($event, (string) (DisplayTime::toStored($b['closes_at'] ?? null) ?? ''), (string) (DisplayTime::toStored($b['opens_at'] ?? null) ?? ''),
+            trim((string) ($b['label'] ?? '')), $me['id']);
+        if ($token === null) return ['ok' => false, 'error' => 'That link could not be made. Check that it closes after it opens.'];
+        return ['ok' => true, 'event' => $event, 'link' => SiteUrl::base() . '/door/' . $token];
+    }
+
+    private function revokeDoor(array $me, array $b): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can turn its scanning links off.'];
+        return EventScanPass::revoke((int) ($b['pass'] ?? 0), $event) ? ['ok' => true, 'event' => $event, 'pass' => (int) ($b['pass'] ?? 0)]
+                                                                     : ['ok' => false, 'error' => 'That link was already off.'];
+    }
+
+    private function remind(array $me, int $id): array
+    {
+        return Requests::remind($id, 'admin', $me['id'], $me['name']);
     }
 
     /** Platform administrators give an event to a lead; the grant ends with the event. */
@@ -183,6 +280,13 @@ final class LeadController
 
     private function render(Response $res, array $me, array $ctx): Response
     {
+        // Find and Ask, on every lead page (§2.4). Ask is the console's own assistant, which an
+        // admin of any role may already open at /admin/assistant; this puts it beside the page.
+        $events = Plan::ready() ? Plan::leadEvents($me['id']) : [];
+        $here = ($ctx['scope'] ?? '') === 'event' ? Plan::event((int) ($ctx['eventId'] ?? 0)) : null;
+        $ctx['find'] = ['action' => LeadPages::BASE, 'q' => (string) ($ctx['findQ'] ?? ''), 'items' => LeadPages::findItems($me, $events)];
+        $ctx['ask'] = ['href' => '/admin/assistant', 'post' => '/admin/assistant/chat', 'scope' => $here ? (string) $here->title : 'your events',
+                       'starters' => LeadPages::starters($here)];
         return $this->view->render($res, 'admin/lead.twig', [
             'page_title' => ($ctx['title'] ?? 'Event lead') . ' — Event lead',
             'shell' => $ctx + ['brand' => 'Event lead', 'railLabel' => 'Event lead', 'act' => LeadPages::BASE . '/act', 'home' => LeadPages::BASE,

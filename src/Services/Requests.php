@@ -154,6 +154,66 @@ final class Requests
         return true;
     }
 
+    /** Hours between two reminders about one request (and between asking and the first). */
+    public const REMIND_HOURS = 24;
+
+    /**
+     * The requester nudges whoever decides (v7 §5: "Remind Sade"). It is an event of its own in
+     * the history, and an email to the decider — by name, or to everyone who holds the role.
+     *
+     *   · ONLY THE REQUESTER, ONLY WHILE IT WAITS, AND ONCE A DAY: counted from the last time
+     *     they asked or reminded, so a reminder is never sent a minute after the request.
+     *   · THE ANSWER SAYS WHETHER ANY MAIL LEFT. A reminder logged while email is down is still
+     *     on the record and in the decider's Waiting on you; the requester is told it was not
+     *     emailed rather than assuming it was.
+     *
+     * @param ?callable(string $to, string $subject, string $html, string $plain): bool $send for tests
+     * @return array{ok:bool, error?:string, emailed?:int, next?:string}
+     */
+    public static function remind(int $id, string $actorKind, int $actorId, string $actorName, ?callable $send = null): array
+    {
+        $r = self::find($id);
+        if (!$r) return ['ok' => false, 'error' => 'That request is not there.'];
+        if ($r->from_kind !== $actorKind || (int) $r->from_id !== $actorId) return ['ok' => false, 'error' => 'Only the person who asked can send a reminder.'];
+        if ($r->status !== 'waiting') return ['ok' => false, 'error' => $r->status === 'needs_info' ? 'They asked you for information first. Add it, and the request goes back to them.' : 'This request has already been decided.'];
+        $last = DB::table('gates_request_events')->where('request_id', $id)->whereIn('action', ['asked', 'add_info', 'remind'])->max('created_at');
+        $next = $last ? (int) strtotime((string) $last) + self::REMIND_HOURS * 3600 : 0;
+        if ($next > time()) return ['ok' => false, 'error' => 'You can remind them from ' . date('D j M, H:i', $next) . ', a day after you last asked.', 'next' => date('Y-m-d H:i:s', $next)];
+        self::log($id, $actorKind, $actorId, $actorName, 'remind', null);
+        DB::table('gates_requests')->where('id', $id)->update(['updated_at' => date('Y-m-d H:i:s')]);
+
+        $send ??= static function (string $to, string $subject, string $html, string $plain): bool {
+            try {
+                $res = \AfricaGates\Services\OtpService::boot()->sendBranded($to, $subject, $html, $plain, 'request');
+                // Written to the log instead of sent (a host with no mail road) is not "emailed".
+                return ($res['success'] ?? false) === true && ($res['fallback'] ?? '') !== 'log';
+            } catch (\Throwable) {
+                return false;
+            }
+        };
+        $link = \AfricaGates\Support\SiteUrl::base() . '/admin/requests';
+        $subject = 'Reminder: ' . $r->title;
+        $plain = $actorName . ' is waiting for your decision on "' . $r->title . '"'
+            . ($r->amount_minor !== null ? ' (₦' . number_format((int) $r->amount_minor / 100) . ')' : '') . ".\n\nWhy: " . $r->why . "\n\nDecide it here: " . $link;
+        $html = '<p>' . htmlspecialchars($actorName) . ' is waiting for your decision on <strong>' . htmlspecialchars((string) $r->title) . '</strong>'
+            . ($r->amount_minor !== null ? ' (₦' . number_format((int) $r->amount_minor / 100) . ')' : '') . '.</p><p>' . nl2br(htmlspecialchars((string) $r->why))
+            . '</p><p><a href="' . htmlspecialchars($link) . '">Decide it in the console</a></p>';
+        $emailed = 0;
+        foreach (self::deciderEmails($r) as $to) if ($send($to, $subject, $html, $plain)) $emailed++;
+        return ['ok' => true, 'emailed' => $emailed];
+    }
+
+    /** Where a decider is reached: the named person, or every active admin holding the role. @return list<string> */
+    private static function deciderEmails(object $r): array
+    {
+        if ($r->decider_kind === 'member' || $r->decider_kind === 'admin') {
+            $e = DB::table($r->decider_kind === 'admin' ? 'gates_admins' : 'gates_users')->where('id', $r->decider_id)->value('email');
+            return $e ? [(string) $e] : [];
+        }
+        $roles = $r->decider_role === 'finance' ? (Permissions::MATRIX['finance'] ?? ['superadmin']) : ['superadmin', 'admin'];
+        return array_values(array_unique(array_map('strval', DB::table('gates_admins')->where('is_active', 1)->whereIn('role', $roles)->pluck('email')->all())));
+    }
+
     /** May this person decide this request? */
     public static function canDecide(object $r, string $actorKind, int $actorId, ?string $adminRole = null): bool
     {

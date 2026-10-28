@@ -165,11 +165,41 @@ Every figure is read from the record; an empty list is one sentence. Tests:
 
 Tests: `LeadConsoleTest` (14). Removing the lead check and removing the spend limit each fail it.
 
+### L2 shipped (28 Oct 2026): the event scope, Find, Ask, the switcher, Remind
+
+- **The event scope, to `nav-admin.json`** (`Services\EventPlan\EventPages`, `Scope`;
+  `database/migrations/2027_04_14_event_scope.php`): Today; Plan (Work · Timeline · Risks ·
+  Decisions) and Award (read-only, from `gates_event_programmes`); People (Team · Volunteers,
+  where a lead posts a shift · Nominees · Seating · Invitations); Relationships (Sponsors ·
+  Contacts · Letters · Messages); Money (Budget · Approvals · Vendors · Income); The night (Run
+  of show · Door · Safety); Growth; Reports (Status · Post-event · Audit); Requests; Event
+  settings (General · Members · Limits · Devices). New records: decisions (reversed with a
+  reason, never edited), the run of show (a bare time is on the night; a cue that ran stays),
+  sponsors with their contact, safety checks, seating (seats are a refusal) and a vendor on
+  each budget line. The door's figures come from `EventArrivals`, its scanning links from
+  `EventScanPass` (shown once). Every lead change is audited against the EVENT, so Reports ›
+  Audit can list it. The first build's `/work` and `/risks` answer 301 to Plan.
+- **Remind finance** (`Requests::remind`): only the asker, only while it waits, once a day
+  from the last ask; it is an event in the history and an email to the decider (by name, or
+  every active admin holding the role), and the answer says whether any mail left.
+- **Find** (⌘K): the bar's search matches as you type from a list the page carries (pages and
+  tabs of every event the lead holds, open work, their requests, things to start); Enter on
+  nothing, or no script, is a results page at `/admin/lead?q=`. **Ask** (⌘J): the console's
+  own assistant (`/admin/assistant/chat`) in a side panel with starters for where the lead is;
+  without script it is a link. **The switcher**: the identity block lists the lead's other
+  events and keeps the page and tab.
+
+Tests: `LeadEventScopeTest` (11). Removing the reminder's once-a-day rule, the seats refusal
+and the decision's single reversal each fail it.
+
 ### Not yet (next slices)
 
-- **L2, the event scope proper**: run of show, decisions, sponsors, the night, devices and
-  Event settings (team and access). The lead's event pages are the plan only. The "Remind"
-  on a finance request is not built (nothing would send it), so it is not drawn.
+- **The volunteer workspace's switcher and Find**, and the bell's grouped Updates (§2.4), on
+  either home.
+- **Seating from the guest list**: a table's guests are typed names, not linked to
+  invitations or tickets.
+- **Letters and big sends from the lead's side**: they stay with staff (Events ›
+  Invitations, and a `message` request); the tabs show what went.
 
 - **V2 award scopes**: Check nominations (the masked review desk, G5) and the voter drive
   (G6). The award place shows Overview, Tasks and Your access until then.

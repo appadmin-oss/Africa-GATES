@@ -295,7 +295,7 @@ final class LeadConsoleTest extends TestCase
             $this->assertDoesNotMatchRegularExpression('~sh7-badge[^>]*>0<~', $html, $p);
         }
         $this->assertStringContainsString('Over capacity', $this->page('root', ['page' => 'people']), '50h against a 40h week');
-        foreach (['overview', 'work', 'risks', 'money', 'people'] as $p) $this->assertStringContainsString('Alimosho ceremony', $this->page('event', ['id' => $ev, 'page' => $p]), $p);
-        $this->assertStringContainsString('/admin/lead/act', $this->page('event', ['id' => $ev, 'page' => 'work']), 'the shell posts to the lead console, not the volunteer workspace');
+        foreach (['today', 'plan', 'money', 'people'] as $p) $this->assertStringContainsString('Alimosho ceremony', $this->page('event', ['id' => $ev, 'page' => $p]), $p);
+        $this->assertStringContainsString('/admin/lead/act', $this->page('event', ['id' => $ev, 'page' => 'plan']), 'the shell posts to the lead console, not the volunteer workspace');
     }
 }

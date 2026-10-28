@@ -176,7 +176,7 @@ final class Plan
             'blocks_night' => $blocks ? 1 : 0, 'blocks_note' => $blocks ? (mb_substr(trim((string) ($in['blocks_note'] ?? '')), 0, 255) ?: null) : null,
             'created_by' => $adminId, 'created_at' => $now, 'updated_at' => $now,
         ]);
-        return ['ok' => true, 'id' => $id];
+        return ['ok' => true, 'id' => $id, 'event' => $eventId];
     }
 
     /** Move a piece of work: todo, doing or done. @return array{ok:bool, error?:string, event?:int} */
@@ -274,7 +274,7 @@ final class Plan
             'owner_kind' => $kind, 'owner_id' => $oid, 'plan' => mb_substr(trim((string) ($in['plan'] ?? '')), 0, 255) ?: null,
             'status' => 'open', 'created_by' => $adminId, 'created_at' => date('Y-m-d H:i:s'),
         ]);
-        return ['ok' => true, 'id' => $id];
+        return ['ok' => true, 'id' => $id, 'event' => $eventId];
     }
 
     public static function closeRisk(int $riskId, int $adminId): array
@@ -318,11 +318,12 @@ final class Plan
         if ($title === '') return ['ok' => false, 'error' => 'Say what the money is for.'];
         if ($amount === null || $amount <= 0) return ['ok' => false, 'error' => 'Give the estimate in naira.'];
         $now = date('Y-m-d H:i:s');
-        $id = (int) DB::table('gates_event_budget')->insertGetId([
-            'event_id' => $eventId, 'title' => mb_substr($title, 0, 255), 'estimate_minor' => $amount, 'status' => 'proposed',
-            'proposed_kind' => 'admin', 'proposed_id' => $adminId, 'created_at' => $now, 'updated_at' => $now,
-        ]);
-        return ['ok' => true, 'id' => $id];
+        $row = ['event_id' => $eventId, 'title' => mb_substr($title, 0, 255), 'estimate_minor' => $amount, 'status' => 'proposed',
+                'proposed_kind' => 'admin', 'proposed_id' => $adminId, 'created_at' => $now, 'updated_at' => $now];
+        // Who is paid, for Money › Vendors; the column arrives with 2027_04_14_event_scope.
+        if (SchemaHas::column('gates_event_budget', 'vendor')) $row['vendor'] = mb_substr(trim((string) ($in['vendor'] ?? '')), 0, 190) ?: null;
+        $id = (int) DB::table('gates_event_budget')->insertGetId($row);
+        return ['ok' => true, 'id' => $id, 'event' => $eventId];
     }
 
     /** Approve a line at or under the lead's limit. Above it the answer is askLine(). */

@@ -45,7 +45,7 @@
       </dl>
       {% if r.history|length > 1 %}
         <ol class="vl-help">
-          {% for e in r.history %}<li>{{ e.at|date('j M') }} · {{ e.who }} {{ {'asked': 'asked', 'approve': 'approved', 'ask_info': 'asked for information', 'decline': 'declined', 'add_info': 'added information', 'withdraw': 'withdrew it', 'undo': 'undid the last step'}[e.action] ?? e.action }}{% if e.note %}: “{{ e.note }}”{% endif %}</li>{% endfor %}
+          {% for e in r.history %}<li>{{ e.at|date('j M') }} · {{ e.who }} {{ {'asked': 'asked', 'approve': 'approved', 'ask_info': 'asked for information', 'decline': 'declined', 'add_info': 'added information', 'withdraw': 'withdrew it', 'undo': 'undid the last step', 'remind': 'sent a reminder'}[e.action] ?? e.action }}{% if e.note %}: “{{ e.note }}”{% endif %}</li>{% endfor %}
         </ol>
       {% endif %}
       {% if r.can_decide %}

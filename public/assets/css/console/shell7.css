@@ -266,6 +266,8 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 
 /* ── Tablet: an icon rail ─────────────────────────────────────────────────────── */
 @container shell (max-width: 1023px) {
+  .sh7-find__kbd { display: none; }
+  .sh7-switch__mark, .sh7-switch__sub { display: none; }
   .sh7-rail { width: 64px; padding: 10px 8px; }
   .sh7-label, .sh7-brand__words, .sh7-ident__words, .sh7-group__label, .sh7-item__drill { display: none; }
   .sh7-item, .sh7-back, .sh7-brand, .sh7-ident { justify-content: center; padding: 0; }
@@ -314,6 +316,47 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
   .sh7-sheet .sh7-item { height: 48px; }
   .sh7-sheet .sh7-label { display: block; }
   .sh7-toast { bottom: 80px; }
+  .sh7-askbtn { height: 40px; }
+}
+
+/* ── Find, Ask and the switcher (§2.4) ──────────────────────────────────────────── */
+.sh7-find { position: relative; flex: 0 1 300px; display: flex; align-items: center; }
+.sh7-find__q { width: 100%; height: 36px; padding-right: 44px; }
+.sh7-find__kbd { position: absolute; right: 10px; font-family: var(--cn-mono); font-size: var(--cn-fs-12); color: var(--cn-faint); pointer-events: none; }
+.sh7-find__list { position: absolute; top: 42px; right: 0; width: min(420px, 90vw); z-index: 35; padding: 6px; background: var(--cn-surface);
+  border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); box-shadow: var(--cn-sh-menu); display: flex; flex-direction: column; gap: 2px; }
+.sh7-find__list[hidden] { display: none; }
+.sh7-find__hit { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--cn-r-8); color: var(--cn-ink) !important; }
+.sh7-find__hit.is-on, .sh7-find__hit:hover { background: var(--cn-hover); }
+.sh7-find__words { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sh7-find__t { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh7-find__sub { font-size: var(--cn-fs-12); color: var(--cn-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh7-find__kind { flex: none; font-size: var(--cn-fs-12); color: var(--cn-faint); }
+.sh7-find__none { margin: 0; padding: 10px; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
+.sh7-askbtn { flex: none; }
+.sh7-ask { margin: 0 0 0 auto; height: 100dvh; max-height: 100dvh; width: min(420px, 100vw); box-sizing: border-box; padding: 18px; border: 0;
+  background: var(--cn-surface); box-shadow: var(--cn-sh-drawer); display: none; flex-direction: column; gap: 12px; color: var(--cn-ink); }
+.sh7-ask[open] { display: flex; }
+.sh7-ask::backdrop { background: var(--cn-scrim-drawer); }
+.sh7-ask__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sh7-ask__log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; font-size: var(--cn-fs-14); line-height: 1.55; }
+.sh7-ask__lede, .sh7-ask__note { margin: 0; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
+.sh7-ask__starters { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.sh7-ask__q { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: var(--cn-r-12); background: var(--cn-ground); }
+.sh7-ask__a { padding: 2px 0; }
+.sh7-ask__a p { margin: 0 0 8px; }
+.sh7-ask__form { display: flex; flex-direction: column; gap: 8px; }
+.sh7-switch > summary { list-style: none; cursor: pointer; border-radius: var(--cn-r-10); }
+.sh7-switch > summary::-webkit-details-marker { display: none; }
+.sh7-switch > summary:hover { background: var(--cn-hover); }
+.sh7-switch__mark { margin-left: auto; color: var(--cn-faint); }
+.sh7-switch__list { list-style: none; margin: 0 0 8px; padding: 6px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); background: var(--cn-surface); }
+.sh7-switch__sub { color: var(--cn-ink-3); font-weight: 400; }
+@container shell (max-width: 599px) {
+  /* Declared after the general rules above, so the phone's sizes win: Find takes the bar's
+     free width and a 44px target (handoff rule 7, SKILL §14). */
+  .sh7-find { flex: 1 1 auto; }
+  .sh7-find .sh7-find__q { height: 44px; }
 }
 
 /* ── The application page (no shell: an applicant has nothing to navigate yet) ──── */

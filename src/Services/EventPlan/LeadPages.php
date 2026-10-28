@@ -35,14 +35,6 @@ final class LeadPages
     private const GROUPS = [[null, ['overview', 'inbox', 'requests', 'yours']], ['Across your events', ['deadlines', 'risks', 'approvals', 'analytics']], ['Team', ['people']]];
     public const TABS = ['requests' => ['open' => 'Open', 'decided' => 'Decided']];
 
-    /** An event's own pages (the lead's event scope). */
-    public const EVENT = [
-        [null, ['overview' => ['Overview', 'home']]],
-        ['Plan', ['work' => ['Work', 'list'], 'risks' => ['Risks', 'flag']]],
-        ['Money', ['money' => ['Budget', 'card']]],
-        ['Team', ['people' => ['People', 'users']]],
-    ];
-
     public const PURPOSE = [
         'overview'  => '',
         'inbox'     => 'Work given to you by name, and work nobody has yet. Soonest first.',
@@ -53,11 +45,6 @@ final class LeadPages
         'approvals' => 'Spend waiting for a decision, and who makes it.',
         'analytics' => 'Each event against its last edition, on the same day before the night.',
         'people'    => 'Who is carrying the work this week, and how the volunteer shifts are filling.',
-        'e.overview' => '',
-        'e.work'    => 'Everything that must be done before the night, who has it, and when it’s due.',
-        'e.risks'   => 'What could go wrong here, and the plan for each.',
-        'e.money'   => 'What this event will spend. You approve up to your limit; finance decides above it.',
-        'e.people'  => 'The team on this event, their week, and the volunteer shifts.',
     ];
 
     // ── shell pieces ────────────────────────────────────────────────────────────────────
@@ -88,20 +75,6 @@ final class LeadPages
         return $out;
     }
 
-    public static function eventNav(int $eventId, string $current, array $counts): array
-    {
-        $groups = [];
-        foreach (self::EVENT as [$label, $pages]) {
-            $items = [];
-            foreach ($pages as $k => [$l, $icon]) {
-                $items[] = ['key' => $k, 'label' => $l, 'icon' => $icon, 'href' => self::eventUrl($eventId, $k), 'current' => $k === $current,
-                            'drill' => false, 'count' => $counts[$k] ?? null];
-            }
-            $groups[] = ['label' => $label, 'items' => $items];
-        }
-        return $groups;
-    }
-
     /**
      * The rail's counts, never 0 (§8): Inbox, Risks (red when any is high), Approvals, and
      * Requests that need something from the lead.
@@ -119,18 +92,6 @@ final class LeadPages
         $add('risks', count($risks), array_filter($risks, static fn ($r) => $r->level === 'high') ? 'bad' : 'warn');
         $add('approvals', count(array_filter(Plan::lines($ids), static fn ($l) => $l->status === 'proposed')), 'warn');
         $add('requests', count(array_filter(Requests::from('admin', $me['id'], 'open'), static fn ($r) => $r->status === 'needs_info')), 'warn');
-        return $c;
-    }
-
-    public static function eventCounts(int $eventId): array
-    {
-        $c = [];
-        $late = count(array_filter(Plan::work([$eventId], true), static fn ($w) => Plan::isLate($w)));
-        if ($late > 0) $c['work'] = ['n' => $late, 'tone' => 'bad'];
-        $high = count(array_filter(Plan::risks([$eventId]), static fn ($r) => $r->level === 'high'));
-        if ($high > 0) $c['risks'] = ['n' => $high, 'tone' => 'bad'];
-        $waiting = count(array_filter(Plan::lines([$eventId]), static fn ($l) => $l->status === 'proposed'));
-        if ($waiting > 0) $c['money'] = ['n' => $waiting, 'tone' => 'warn'];
         return $c;
     }
 
@@ -292,7 +253,7 @@ final class LeadPages
                 'submit' => 'Send request', 'route' => $route, 'groups' => [['label' => (string) ($t['label'] ?? ''), 'fields' => $fields]]];
     }
 
-    private static function requestTable(array $rows, string $empty, string $foot): array
+    public static function requestTable(array $rows, string $empty, string $foot): array
     {
         $tone = ['waiting' => 'warn', 'needs_info' => 'info', 'approved' => 'ok', 'declined' => 'bad', 'withdrawn' => 'mute'];
         $out = [];
@@ -326,12 +287,16 @@ final class LeadPages
         foreach (Requests::history($id) as $e) {
             $who = $e->actor_kind === 'admin' && (int) $e->actor_id === $me['id'] ? 'You' : (string) ($e->actor_name ?? 'Someone');
             $verb = ['asked' => 'asked', 'approve' => 'approved', 'ask_info' => 'asked for information', 'decline' => 'declined', 'add_info' => 'added information',
-                     'withdraw' => 'withdrew it', 'undo' => 'undid the last step'][$e->action] ?? $e->action;
+                     'withdraw' => 'withdrew it', 'undo' => 'undid the last step', 'remind' => 'sent a reminder'][$e->action] ?? $e->action;
             $log[] = ['time' => date('j M', (int) strtotime((string) $e->created_at)), 't' => $who . ' ' . $verb, 'd' => (string) ($e->note ?? ''), 'st' => 'done'];
         }
         if ($log) $secs[] = ['k' => 'agenda', 'h' => 'Activity', 'items' => $log];
         if (in_array($r->status, Requests::OPEN, true)) {
             $opts = $r->status === 'needs_info' ? [['add_info', 'Add info', true], ['withdraw', 'Withdraw', false]] : [['withdraw', 'Withdraw', false]];
+            if ($r->status === 'waiting') {
+                $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Waiting on ' . Requests::deciderLabel($r) . '. You can remind them once a day; they are emailed and it shows in the history.',
+                           'cta' => ['label' => 'Remind ' . Requests::deciderLabel($r), 'post' => ['do' => 'request_remind', 'request' => $id]]];
+            }
             $secs[] = ['k' => 'decide', 'request' => $id, 'opts' => $opts, 'note' => $r->status === 'needs_info' ? 'Write what they asked for, then send it back.' : ''];
         } else {
             $secs[] = ['k' => 'note', 'text' => 'This request is decided, so it can’t be changed. Ask again with a new request if something has moved.', 'tone' => 'mute'];
@@ -410,7 +375,7 @@ final class LeadPages
      *
      * @return list<array{group:string, at:?string, row:array}>
      */
-    private static function deadlineItems(array $events, bool $withUndated = false): array
+    public static function deadlineItems(array $events, bool $withUndated = false): array
     {
         $byId = self::byId($events);
         $now = time();
@@ -451,7 +416,7 @@ final class LeadPages
     }
 
     /** @param array<int,object> $byId */
-    private static function riskSections(array $risks, array $byId, bool $withEvent): array
+    public static function riskSections(array $risks, array $byId, bool $withEvent): array
     {
         $secs = [];
         foreach (['high' => 'High', 'medium' => 'Medium', 'low' => 'Low'] as $lvl => $h) {
@@ -472,7 +437,7 @@ final class LeadPages
     }
 
     /** @param array<string,string> $events @param array<string,string> $owners */
-    private static function riskForm(array $events, array $owners, ?int $eventId = null): array
+    public static function riskForm(array $events, array $owners, ?int $eventId = null): array
     {
         $where = $eventId ? [] : [['name' => 'event', 'label' => 'Event', 'type' => 'select', 'options' => $events, 'required' => true]];
         return ['k' => 'form', 'h' => 'Add a risk', 'do' => 'risk_add', 'submit' => 'Add the risk', 'hidden' => $eventId ? ['event' => $eventId] : [],
@@ -499,7 +464,10 @@ final class LeadPages
             $r = Requests::find((int) $l->request_id);
             $finance[] = ['t' => (string) $l->title, 'sub' => $byId[(int) $l->event_id]->title . ' · ' . Plan::naira((int) $l->estimate_minor) . ($r ? ' · asked ' . self::ago((string) $r->created_at) : ''),
                           'chip' => [$r && $r->status === 'needs_info' ? 'Needs info' : 'With finance', $r && $r->status === 'needs_info' ? 'info' : 'warn'],
-                          'href' => self::BASE . '/requests?r=' . $l->request_id];
+                          'href' => self::BASE . '/requests?r=' . $l->request_id,
+                          // Remind finance (§5): only the person who asked, and only while it waits.
+                          'cta' => $r && $r->status === 'waiting' && $r->from_kind === 'admin' && (int) $r->from_id === $me['id']
+                              ? ['label' => 'Remind finance', 'post' => ['do' => 'request_remind', 'request' => $r->id]] : null];
         }
         if ($finance) $secs[] = ['k' => 'rows', 'h' => 'Waiting on finance', 'items' => $finance];
         $under = $over = [];
@@ -520,7 +488,7 @@ final class LeadPages
         return ['title' => 'Approvals', 'acts' => [['label' => 'Ask to spend', 'href' => self::BASE . '/requests?new=spend', 'primary' => true]], 'secs' => $secs];
     }
 
-    private static function analytics(array $events): array
+    public static function analytics(array $events): array
     {
         $secs = [];
         $now = date('Y-m-d H:i:s');
@@ -579,191 +547,82 @@ final class LeadPages
         return ['title' => 'People', 'secs' => $secs];
     }
 
-    // ── an event's own pages ─────────────────────────────────────────────────────────────
+    // ── Find (§2.4) ─────────────────────────────────────────────────────────────────
 
-    public static function event(array $me, object $e, string $page, array $q): array
+    /**
+     * Everything Find can go to, for this lead: their pages, their events and every page and
+     * tab of each, open work, their open requests, and the things they can start. The page
+     * carries it as data so Find matches as somebody types; the same list answers the search
+     * page when there is no script.
+     *
+     * @return list<array{t:string, sub:string, href:string, kind:string}>
+     */
+    public static function findItems(array $me, array $events): array
     {
-        $id = (int) $e->id;
-        $team = Plan::team($id);
-        $owners = ['' => 'Nobody yet'];
-        foreach ($team as $p) $owners[$p['key']] = $p['name'] !== '' ? $p['name'] : $p['role'];
-        return match ($page) {
-            'work' => self::eventWork($e, $owners, (string) ($q['owner'] ?? '')),
-            'risks' => self::eventRisks($e, $owners),
-            'money' => self::eventMoney($e, (int) ($q['ask'] ?? 0)),
-            'people' => self::eventPeople($e, $team),
-            default => self::eventOverview($e),
-        };
-    }
-
-    private static function eventOverview(object $e): array
-    {
-        $id = (int) $e->id;
-        $r = Plan::readiness($id);
-        $blockers = Plan::blockers([$id]);
-        $risks = Plan::risks([$id]);
-        $fill = Plan::shiftFill($id);
-        $chips = [[self::daysShort((string) $e->event_date), strtotime((string) $e->event_date) - time() < 14 * 86400 ? 'warn' : 'mute']];
-        if ($blockers) $chips[] = [count($blockers) === 1 ? '1 blocker' : count($blockers) . ' blockers', 'bad'];
-        $facts = [
-            ['Ready', $r ? $r['pct'] . '% · ' . $r['done'] . ' of ' . $r['all'] . ' done' : 'No plan yet'],
-            ['Budget', Plan::budgetWords($e) ?? 'No spend planned'],
-            ['Tickets', self::ticketWords($e) ?? 'None sold yet'],
-            ['Open risks', $risks ? (string) count($risks) : 'None'],
-        ];
-        if ($fill) $facts[] = ['Volunteers', $fill['filled'] . ' of ' . $fill['slots'] . ' shifts filled'];
-        $secs = [['k' => 'hero', 'ini' => Workspace::initials((string) $e->title), 'tone' => 'ok', 'chips' => $chips, 't' => (string) $e->title,
-                  'sub' => trim(implode(', ', array_filter([(string) ($e->venue ?? ''), (string) ($e->location ?? '')]))) . ' · ' . date('D j M, H:i', (int) strtotime((string) $e->event_date)),
-                  'facts' => $facts, 'acts' => [['label' => 'Add work', 'href' => self::eventUrl($id, 'work'), 'primary' => true], ['label' => 'Add a risk', 'href' => self::eventUrl($id, 'risks')]]]];
-        if ($blockers) $secs[] = ['k' => 'rows', 'h' => 'Blocking the night', 'box' => true, 'items' => array_map(fn ($w) => self::blockerRow($w, [$e]), $blockers)];
-        $secs[] = ['k' => 'form', 'h' => 'Event settings', 'do' => 'event_settings', 'hidden' => ['event' => $id], 'submit' => 'Save', 'groups' => [
-            ['label' => 'Budget', 'help' => 'What the event may spend. The forecast is compared with it.',
-             'fields' => [['name' => 'budget', 'label' => 'Budget (₦)', 'type' => 'text', 'value' => isset($e->budget_minor) && $e->budget_minor !== null ? (string) intdiv((int) $e->budget_minor, 100) : '',
-                           'placeholder' => '6,000,000']]],
-            ['label' => 'Series', 'help' => 'The name its editions share, so Analytics can compare this one with the last.',
-             'fields' => [['name' => 'series', 'label' => 'Series', 'type' => 'text', 'value' => (string) ($e->series_key ?? ''), 'placeholder' => 'alimosho-ceremony']]],
-        ]];
-        return ['title' => (string) $e->title, 'noHead' => true, 'secs' => $secs];
-    }
-
-    /** @param array<string,string> $owners */
-    private static function eventWork(object $e, array $owners, string $ownerFilter): array
-    {
-        $id = (int) $e->id;
-        $all = Plan::work([$id]);
-        if ($ownerFilter !== '') $all = array_values(array_filter($all, static fn ($w) => ($w->owner_kind . ':' . $w->owner_id) === $ownerFilter));
-        $lanes = ['late' => [], 'todo' => [], 'doing' => [], 'done' => []];
-        foreach ($all as $w) $lanes[Plan::isLate($w) ? 'late' : $w->status][] = $w;
-        $secs = [];
-        if ($ownerFilter !== '') {
-            $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Showing ' . (Plan::name(...self::split($ownerFilter)) ?: 'one person') . '’s work. Give some of it to somebody else to lighten their week.',
-                       'cta' => ['label' => 'Show everybody’s', 'href' => self::eventUrl($id, 'work')]];
-        }
-        $next = ['todo' => ['Start', 'doing'], 'doing' => ['Done', 'done'], 'done' => ['Reopen', 'todo']];
-        foreach (['late' => 'Late', 'todo' => 'Not started', 'doing' => 'In progress', 'done' => 'Done'] as $lane => $h) {
-            $items = [];
-            foreach (array_slice($lanes[$lane], 0, $lane === 'done' ? 20 : 200) as $w) {
-                $owner = Plan::name($w->owner_kind, $w->owner_id !== null ? (int) $w->owner_id : null);
-                [$label, $to] = $next[$w->status];
-                $items[] = ['t' => (string) $w->title, 'dot' => $lane === 'late' ? 'bad' : null,
-                            'sub' => implode(' · ', array_filter([$owner !== '' ? $owner : 'Nobody yet', $w->due_at ? 'due ' . Workspace::day((string) $w->due_at) : 'no date',
-                                     $w->est_hours ? self::hours((float) $w->est_hours) : '', (int) $w->blocks_night === 1 ? ($w->blocks_note ? $w->blocks_note . ' waits on it' : 'the night waits on it') : ''])),
-                            'chip' => $lane === 'late' ? ['Late', 'bad'] : null,
-                            'cta' => ['label' => $label, 'post' => ['do' => 'work_status', 'work' => $w->id, 'status' => $to], 'primary' => $to === 'done'],
-                            'form' => $lane !== 'done' && count($owners) > 1 ? ['id' => $w->id, 'do' => 'work_owner', 'hidden' => ['work' => $w->id], 'submit' => 'Give it',
-                                'fields' => [['name' => 'owner', 'label' => 'Owner', 'type' => 'select', 'options' => $owners, 'value' => $w->owner_kind ? $w->owner_kind . ':' . $w->owner_id : '']]] : null];
+        $out = [];
+        foreach (self::ROOT as $k => [$label]) $out[] = ['t' => $label, 'sub' => 'Event lead', 'href' => self::BASE . ($k === 'overview' ? '' : '/' . $k), 'kind' => 'Page'];
+        foreach ($events as $e) {
+            $id = (int) $e->id;
+            $title = (string) $e->title;
+            $out[] = ['t' => $title, 'sub' => Workspace::day((string) $e->event_date), 'href' => EventPages::url($id), 'kind' => 'Event'];
+            foreach (EventPages::NAV as [, $pages]) {
+                foreach ($pages as $k => [$label]) {
+                    if ($k !== 'today') $out[] = ['t' => $label, 'sub' => $title, 'href' => EventPages::url($id, $k), 'kind' => 'Page'];
+                    foreach (EventPages::TABS[$k] ?? [] as $tk => $tl) {
+                        if ($tl !== $label) $out[] = ['t' => $tl, 'sub' => $label . ' · ' . $title, 'href' => EventPages::url($id, $k, $tk), 'kind' => 'Page'];
+                    }
+                }
             }
-            if ($items) $secs[] = ['k' => 'rows', 'h' => $h, 'items' => $items, 'box' => $lane === 'late'];
+            $out[] = ['t' => 'Add work to ' . $title, 'sub' => 'Plan', 'href' => EventPages::url($id, 'plan'), 'kind' => 'Do'];
+            $out[] = ['t' => 'Add a risk to ' . $title, 'sub' => 'Plan › Risks', 'href' => EventPages::url($id, 'plan', 'risks'), 'kind' => 'Do'];
+            $out[] = ['t' => 'Add a cue to ' . $title, 'sub' => 'The night › Run of show', 'href' => EventPages::url($id, 'night'), 'kind' => 'Do'];
         }
-        if (!$all) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing is planned for this event yet. Add the first piece of work below; readiness is counted from it.'];
-        $secs[] = ['k' => 'form', 'h' => 'Add work', 'do' => 'work_add', 'hidden' => ['event' => $id], 'submit' => 'Add it', 'groups' => [
-            ['label' => 'What', 'fields' => [['name' => 'title', 'label' => 'What has to be done', 'type' => 'text', 'required' => true, 'placeholder' => 'Venue floor plan'],
-                                              ['name' => 'detail', 'label' => 'Details', 'type' => 'textarea']]],
-            ['label' => 'Who and when', 'help' => count($owners) > 1 ? 'Work with nobody on it goes to the leads’ inboxes.' : 'Only you are on this event so far. Work with nobody on it goes to your inbox.',
-             'fields' => [['name' => 'owner', 'label' => 'Owner', 'type' => 'select', 'options' => $owners],
-                          ['name' => 'due_at', 'label' => 'Due', 'type' => 'date'],
-                          ['name' => 'est_hours', 'label' => 'Hours it should take', 'type' => 'number', 'min' => 0, 'max' => 500, 'step' => '0.5']]],
-            ['label' => 'Does the night wait on it?', 'help' => 'Late work the night waits on shows as blocking, at the top of every overview.',
-             'fields' => [['name' => 'blocks_night', 'label' => 'The night waits on this', 'type' => 'switch'],
-                          ['name' => 'blocks_note', 'label' => 'What waits on it', 'type' => 'text', 'placeholder' => 'the safety permit']]],
-        ]];
-        return ['title' => 'Work', 'secs' => $secs];
+        $byId = self::byId($events);
+        foreach (array_slice(Plan::work(self::ids($events), true), 0, 200) as $w) {
+            $out[] = ['t' => (string) $w->title, 'sub' => (string) ($byId[(int) $w->event_id]->title ?? ''), 'href' => EventPages::url((int) $w->event_id, 'plan'), 'kind' => 'Work'];
+        }
+        foreach (Requests::from('admin', $me['id'], 'open') as $r) {
+            $out[] = ['t' => (string) $r->title, 'sub' => Requests::STATUSES[$r->status] ?? '', 'href' => self::BASE . '/requests?r=' . $r->id, 'kind' => 'Request'];
+        }
+        if ($events) $out[] = ['t' => 'Make a request', 'sub' => 'Requests', 'href' => self::BASE . '/requests?new=spend', 'kind' => 'Do'];
+        return $out;
     }
 
-    /** @param array<string,string> $owners */
-    private static function eventRisks(object $e, array $owners): array
+    /** The search page: what Find shows, for a browser with no script or for Enter on nothing. */
+    public static function search(array $me, array $events, string $q): array
     {
-        $secs = self::riskSections(Plan::risks([(int) $e->id]), [(int) $e->id => $e], false);
-        if (!$secs) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'No open risks here. Add one when something could stop the night.'];
-        $secs[] = self::riskForm([], $owners, (int) $e->id);
-        return ['title' => 'Risks', 'secs' => $secs];
+        $words = array_values(array_filter(preg_split('/\s+/', mb_strtolower(trim($q))) ?: []));
+        $hits = array_values(array_filter(self::findItems($me, $events), static function ($i) use ($words) {
+            $hay = mb_strtolower($i['t'] . ' ' . $i['sub'] . ' ' . $i['kind']);
+            foreach ($words as $w) if (!str_contains($hay, $w)) return false;
+            return $words !== [];
+        }));
+        $rows = array_map(static fn ($i) => ['t' => $i['t'], 'sub' => $i['sub'], 'meta' => $i['kind'], 'href' => $i['href']], array_slice($hits, 0, 50));
+        return ['title' => 'Find', 'purpose' => $hits ? count($hits) . (count($hits) === 1 ? ' match' : ' matches') . ' for “' . trim($q) . '”.' : '',
+                'secs' => [$rows ? ['k' => 'rows', 'items' => $rows]
+                                 : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing matches “' . trim($q) . '”. Try a page’s name, an event, or a word from a piece of work.']]];
     }
 
-    private static function eventMoney(object $e, int $ask): array
+    /** What Ask offers to start with, for where the lead is. @return list<string> */
+    public static function starters(?object $event): array
     {
-        $id = (int) $e->id;
-        $limit = Plan::limitMinor();
-        $lines = Plan::lines([$id]);
-        $secs = [];
-        $live = array_filter($lines, static fn ($l) => $l->status !== 'declined');
-        if ($live) {
-            $sum = static fn (string $col) => array_sum(array_map(static fn ($l) => (int) $l->{$col}, $live));
-            $stats = [];
-            if (isset($e->budget_minor) && $e->budget_minor) $stats[] = ['l' => 'Budget', 'v' => Plan::naira((int) $e->budget_minor), 's' => ''];
-            $stats[] = ['l' => 'Forecast', 'v' => Plan::naira((int) Plan::forecastMinor($id)), 's' => (string) (Plan::budgetWords($e) ?? '')];
-            if ($sum('committed_minor') > 0) $stats[] = ['l' => 'Committed', 'v' => Plan::naira($sum('committed_minor')), 's' => ''];
-            if ($sum('paid_minor') > 0) $stats[] = ['l' => 'Paid', 'v' => Plan::naira($sum('paid_minor')), 's' => ''];
-            $secs[] = ['k' => 'stats', 'items' => $stats];
+        if ($event) {
+            $t = (string) $event->title;
+            return ['What is blocking ' . $t . '?', 'What is late on ' . $t . '?', 'How are ticket sales going for ' . $t . '?'];
         }
-        $line = $ask > 0 ? current(array_filter($lines, static fn ($l) => (int) $l->id === $ask && in_array($l->status, ['proposed', 'declined'], true))) : false;
-        if ($line) {
-            $secs[] = ['k' => 'form', 'h' => 'Ask finance: ' . $line->title, 'do' => 'line_ask', 'hidden' => ['line' => $line->id], 'submit' => 'Send request',
-                       'route' => 'Goes to finance, ' . ((Requests::type('spend', 'lead')['usually'] ?? 'usually decided within a day')) . '. Where: ' . $e->title . '.',
-                       'groups' => [['label' => Plan::naira((int) $line->estimate_minor), 'help' => 'Over your limit of ' . Plan::naira($limit) . ', so finance decides.',
-                                     'fields' => [['name' => 'why', 'label' => 'Why, and what happens if it waits', 'type' => 'textarea', 'required' => true],
-                                                  ['name' => 'by', 'label' => 'Needed by', 'type' => 'text', 'placeholder' => 'Fri 30 Oct']]]]];
-        }
-        $items = [];
-        $tone = ['proposed' => 'warn', 'approved' => 'ok', 'requested' => 'info', 'declined' => 'bad'];
-        foreach ($lines as $l) {
-            $figs = ['estimate ' . Plan::naira((int) $l->estimate_minor)];
-            if ((int) $l->committed_minor > 0) $figs[] = 'committed ' . Plan::naira((int) $l->committed_minor);
-            if ((int) $l->paid_minor > 0) $figs[] = 'paid ' . Plan::naira((int) $l->paid_minor);
-            $row = ['t' => (string) $l->title, 'sub' => implode(' · ', $figs), 'chip' => [Plan::LINE_STATUSES[$l->status] ?? $l->status, $tone[$l->status] ?? 'mute']];
-            if ($l->status === 'proposed' && (int) $l->estimate_minor <= $limit) {
-                $row['cta'] = ['label' => 'Approve', 'post' => ['do' => 'line_approve', 'line' => $l->id], 'primary' => true];
-            } elseif (in_array($l->status, ['proposed', 'declined'], true)) {
-                $row['cta'] = ['label' => 'Ask finance', 'href' => self::eventUrl($id, 'money') . '?ask=' . $l->id];
-            } elseif ($l->status === 'requested' && $l->request_id) {
-                $row['cta'] = ['label' => 'Open request', 'href' => self::BASE . '/requests?r=' . $l->request_id];
-            } elseif ($l->status === 'approved') {
-                $row['form'] = ['id' => $l->id, 'do' => 'line_spend', 'hidden' => ['line' => $l->id], 'submit' => 'Record', 'fields' => [
-                    ['name' => 'committed', 'label' => 'Committed (₦)', 'value' => (int) $l->committed_minor > 0 ? (string) intdiv((int) $l->committed_minor, 100) : ''],
-                    ['name' => 'paid', 'label' => 'Paid (₦)', 'value' => (int) $l->paid_minor > 0 ? (string) intdiv((int) $l->paid_minor, 100) : '']]];
-            }
-            $items[] = $row;
-        }
-        $secs[] = $items ? ['k' => 'rows', 'h' => 'Budget lines', 'items' => $items]
-                         : ['k' => 'note', 'tone' => 'mute', 'text' => 'No spend is planned for this event yet.'];
-        $secs[] = ['k' => 'form', 'h' => 'Add a budget line', 'do' => 'line_add', 'hidden' => ['event' => $id], 'submit' => 'Add the line', 'groups' => [
-            ['label' => 'What and how much', 'help' => 'It is added unapproved. You approve up to ' . Plan::naira($limit) . '; above that you ask finance.',
-             'fields' => [['name' => 'title', 'label' => 'What the money is for', 'type' => 'text', 'required' => true, 'placeholder' => 'Volunteer transport'],
-                          ['name' => 'estimate', 'label' => 'Estimate (₦)', 'type' => 'text', 'required' => true, 'placeholder' => '45,000']]],
-        ]];
-        $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing here pays anybody. Payments still go through the gateway; this is the plan and the record of what was agreed.'];
-        return ['title' => 'Budget', 'secs' => $secs];
-    }
-
-    private static function eventPeople(object $e, array $team): array
-    {
-        $id = (int) $e->id;
-        $cap = Plan::rule('lead_week_hours');
-        $load = [];
-        foreach (Plan::load([$id]) as $p) $load[$p['key']] = $p;
-        $rows = [];
-        foreach ($team as $p) {
-            $h = $load[$p['key']]['hours'] ?? 0.0;
-            $row = ['t' => $p['name'] !== '' ? $p['name'] : 'Someone', 'ini' => Workspace::initials($p['name']), 'sub' => $p['role'] . ($h > 0 ? ' · ' . self::hours($h) . ' due this week here' : '')];
-            if ($h > 0 && $cap > 0) $row += ['pct' => (int) min(100, round($h * 100 / $cap)), 'barT' => self::hours($h) . ' of ' . $cap . 'h'];
-            if ($h > $cap && $cap > 0) $row += ['chip' => ['Over capacity', 'bad'], 'cta' => ['label' => 'Rebalance', 'href' => self::eventUrl($id, 'work') . '?owner=' . $p['key']]];
-            $rows[] = $row;
-        }
-        $secs = [['k' => 'rows', 'h' => 'The team', 'items' => $rows]];
-        $f = Plan::shiftFill($id);
-        $secs[] = $f
-            ? ['k' => 'rows', 'h' => 'Volunteer shifts', 'items' => [['t' => $f['filled'] . ' of ' . $f['slots'] . ' shifts filled', 'sub' => 'First shift ' . Workspace::day($f['first']),
-                'pct' => $f['slots'] > 0 ? (int) round($f['filled'] * 100 / $f['slots']) : 0, 'barT' => $f['filled'] . ' of ' . $f['slots']]]]
-            : ['k' => 'note', 'tone' => 'mute', 'text' => 'No volunteer shifts are posted for this event yet. Staff post them in Team › Volunteers.'];
-        $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'The team is everybody holding a role on this event. Access for somebody new is a request.',
-                   'cta' => ['label' => 'Ask for access', 'href' => self::BASE . '/requests?new=access&event=' . $id]];
-        return ['title' => 'People', 'secs' => $secs];
+        return ['What needs me today?', 'Which of my events is least ready?', 'What is waiting on finance?'];
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────────────────
 
+    /** An event page's address, by the names the root pages use. */
     public static function eventUrl(int $id, string $page = 'overview'): string
     {
-        return self::BASE . '/event/' . $id . ($page === 'overview' ? '' : '/' . $page);
+        [$p, $t] = match ($page) {
+            'overview' => ['today', ''], 'work' => ['plan', ''], 'risks' => ['plan', 'risks'], 'people' => ['people', 'volunteers'],
+            default => [$page, ''],
+        };
+        return EventPages::url($id, $p, $t);
     }
 
     /** @param list<object> $events @return list<int> */
@@ -773,14 +632,14 @@ final class LeadPages
     }
 
     /** @return array<int,object> */
-    private static function byId(array $events): array
+    public static function byId(array $events): array
     {
         $o = [];
         foreach ($events as $e) $o[(int) $e->id] = $e;
         return $o;
     }
 
-    private static function blockerRow(object $w, array $events): array
+    public static function blockerRow(object $w, array $events): array
     {
         $e = self::byId($events)[(int) $w->event_id];
         $owner = Plan::name($w->owner_kind, $w->owner_id !== null ? (int) $w->owner_id : null);
@@ -790,7 +649,7 @@ final class LeadPages
                 'dot' => 'bad', 'chip' => ['Blocking', 'bad'], 'cta' => ['label' => 'Open', 'href' => self::eventUrl((int) $e->id, 'work')]];
     }
 
-    private static function dueChip(object $w): ?array
+    public static function dueChip(object $w): ?array
     {
         if ($w->due_at === null) return null;
         if (Plan::isLate($w)) return ['Late', 'bad'];
@@ -799,19 +658,19 @@ final class LeadPages
     }
 
     /** "in 10 days" / "tomorrow" / "tonight" / "past". */
-    private static function daysWords(string $at): string
+    public static function daysWords(string $at): string
     {
         $d = (int) floor((strtotime(date('Y-m-d', (int) strtotime($at))) - strtotime(date('Y-m-d'))) / 86400);
         return match (true) { $d < 0 => 'over', $d === 0 => 'today', $d === 1 => 'tomorrow', default => 'in ' . $d . ' days' };
     }
 
-    private static function daysShort(string $at): string
+    public static function daysShort(string $at): string
     {
         $d = (int) floor((strtotime(date('Y-m-d', (int) strtotime($at))) - strtotime(date('Y-m-d'))) / 86400);
         return match (true) { $d < 0 => 'Over', $d === 0 => 'Today', $d === 1 => 'Tomorrow', default => $d . ' days' };
     }
 
-    private static function ticketWords(object $e): ?string
+    public static function ticketWords(object $e): ?string
     {
         $sold = EventTicketService::soldForEvent((int) $e->id);
         if ($sold <= 0) return null;
@@ -820,7 +679,7 @@ final class LeadPages
     }
 
     /** A change against the last edition, as a chip. More spend is a warning, not a win. */
-    private static function change(int $then, int $now, bool $spend): ?array
+    public static function change(int $then, int $now, bool $spend): ?array
     {
         if ($then <= 0) return null;
         $pct = (int) round(($now - $then) * 100 / $then);
@@ -828,19 +687,19 @@ final class LeadPages
         return [($pct > 0 ? '+' : ($pct < 0 ? '−' : '')) . abs($pct) . '%', $tone];
     }
 
-    private static function hours(float $h): string
+    public static function hours(float $h): string
     {
         return rtrim(rtrim(number_format($h, 1), '0'), '.') . 'h';
     }
 
-    private static function ago(string $at): string
+    public static function ago(string $at): string
     {
         $s = time() - (int) strtotime($at);
         return match (true) { $s < 3600 => 'just now', $s < 86400 => intdiv($s, 3600) . 'h ago', $s < 172800 => 'yesterday', default => date('j M', (int) strtotime($at)) };
     }
 
     /** "admin:3" → ['admin', 3] */
-    private static function split(string $key): array
+    public static function split(string $key): array
     {
         [$k, $id] = array_pad(explode(':', $key, 2), 2, '0');
         return [$k, (int) $id];
