@@ -391,7 +391,7 @@
   <ul class="gv-trust" role="list">
     {% for t in [
       ['Simple', 'Give in under a minute with mobile money, card, bank or USSD.', 'M13 2 3 14h9l-1 8 10-12h-9l1-8z'],
-      ['Seen through', 'Every gift is receipted, and how the fund is accounted for is published in the Integrity Center.', 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
+      ['Seen through', 'Every gift is receipted, and how the fund is accounted for is published in the Integrity Centre.', 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
       ['Protected', 'Verified organisers only. If something goes wrong, we refund you.', 'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z']
     ] %}
       {% if _give or t[0] != 'Simple' %}<li class="gv-trust__i"><span class="gv-trust__ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t[2] }}"/></svg></span><span><b>{{ t[0]|trans }}</b><span>{{ t[1]|trans }}</span></span></li>{% endif %}

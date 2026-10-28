@@ -31,6 +31,9 @@ final class AccountRail
         'challenges' => ['Challenges', '/account?tab=challenges',  'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4', 'gold'],
         'purchases'  => ['Purchases',  '/account?tab=purchases',   'M5.5 8h13l-1 12h-11zM9 8V7a3 3 0 0 1 6 0v1', 'info'],
         'activity'   => ['Activity',   '/account/notifications',   'M3 12h4l3-7 4 14 3-7h4', 'green'],
+        // The Ads Manager (Services\Ads). It was reachable from its own pages only, so an
+        // advertiser who left it had no way back.
+        'ads'        => ['Ads',        '/account/ads',             'M3 10v4h3l6 5V5L6 10zM16 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12', 'info'],
         'saved'      => ['Saved',      '/account?tab=saved',       'M6 3h12v18l-6-4-6 4z', 'gold'],
         'security'   => ['Security',   '/account?tab=security',    'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z', 'ink'],
         'settings'   => ['Settings',   '/account?tab=settings',    'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v3M12 19v3M2 12h3M19 12h3', 'ink'],
@@ -51,7 +54,7 @@ final class AccountRail
      */
     public const GROUPS = [
         ''            => ['overview'],
-        'Money'       => ['wallet', 'referral', 'purchases'],
+        'Money'       => ['wallet', 'referral', 'purchases', 'ads'],
         'Taking part' => ['challenges', 'activity', 'saved'],
         'You'         => ['security', 'settings'],
     ];

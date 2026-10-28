@@ -2345,7 +2345,7 @@ return function(App $app) {
         $g->get('/m/{token:[A-Za-z0-9_-]{16,32}}', VoteMessageController::class.':permalink');
         $g->get('/partner',       PartnerController::class.':form');
         $g->post('/partner',      PartnerController::class.':submit');
-        $g->get('/partner/success',fn($req,$res)=>$tv($req)->render($res,'pages/partner-success.twig',['page_title'=>'Thank You — Africa GATES','meta_description'=>'Thank you for your interest in partnering with Africa GATES. Our team will be in touch to explore how we can champion African excellence together.','gates_page'=>'partner']));
+        $g->get('/partner/success',fn($req,$res)=>$tv($req)->render($res,'pages/partner-success.twig',['page_title'=>'Thank you — Africa GATES','meta_description'=>'Thank you for your interest in partnering with Africa GATES. Our team will be in touch to explore how we can champion African excellence together.','gates_page'=>'partner']));
 
         // ── Shop (storefront + gateway checkout; static routes before {slug}) ──
         $g->get('/shop',           ShopController::class.':index');

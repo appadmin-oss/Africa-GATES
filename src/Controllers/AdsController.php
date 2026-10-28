@@ -36,6 +36,7 @@ final class AdsController
     public function advertise(Request $req, Response $res): Response
     {
         return $this->view->render($res, 'pages/advertise.twig', [
+            'app_bar' => ['variant' => 'child', 'title' => 'Advertise', 'back' => '/', 'share' => false],
             'page_title' => 'Advertise — Africa GATES',
             'meta_description' => 'Put your business, product or event in front of the people on Africa GATES.',
             'placements' => AdRules::PLACEMENTS, 'rates' => AdRateCard::all(),
@@ -62,6 +63,7 @@ final class AdsController
         $from = (int) ($req->getQueryParams()['from'] ?? 0);
         $lib = AdCampaigns::library($from > 0 ? $from : null);
         return $this->view->render($res, 'pages/advertise-library.twig', [
+            'app_bar' => ['variant' => 'child', 'title' => 'Ad library', 'back' => '/advertise', 'share' => false],
             'page_title' => 'Ad library — Africa GATES',
             'meta_description' => 'Every ad running on Africa GATES, who placed it and since when.',
             'meta_robots' => 'noindex, follow',

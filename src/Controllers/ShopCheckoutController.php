@@ -472,7 +472,7 @@ final class ShopCheckoutController
             ? DB::table('gates_orders')->where('reference', $reference)->where('status', 'paid')->first()
             : null;
         return $this->view->render($res, 'pages/shop/success.twig', [
-            'page_title'       => 'Order Confirmed — Africa GATES',
+            'page_title'       => 'Order confirmed — Africa GATES',
             'meta_description' => 'Thank you — your Africa GATES shop order is confirmed.',
             'gates_page'       => 'shop',
             'confirmed'        => $order !== null,

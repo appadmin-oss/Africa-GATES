@@ -43,7 +43,7 @@ class JudgesController
             }));
         }
         return $this->view->render($res, 'pages/judges.twig', [
-            'page_title'       => 'Meet the Judges — Africa GATES',
+            'page_title'       => 'Meet the judges — Africa GATES',
             'meta_description' => 'Meet the independent panel evaluating Africa GATES nominees — distinguished experts scoring documented impact, not popularity, behind the Cultural Power Index.',
             'gates_page'       => 'judges',
             'judges'           => $roster,

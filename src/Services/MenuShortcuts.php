@@ -108,7 +108,7 @@ final class MenuShortcuts
                             'd' => 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4'],
         'help'          => ['href' => '/help', 'label' => 'Help Centre', 'tone' => 'set', 'who' => self::ALL,
                             'd' => 'M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14'],
-        'integrity'     => ['href' => '/integrity', 'label' => 'Integrity Center', 'tone' => 'set', 'who' => self::ALL,
+        'integrity'     => ['href' => '/integrity', 'label' => 'Integrity Centre', 'tone' => 'set', 'who' => self::ALL,
                             'd' => 'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z'],
         'status'        => ['href' => '/status', 'label' => 'Status', 'tone' => 'set', 'who' => self::ALL,
                             'd' => 'M3 12h4l3-7 4 14 3-7h4'],
