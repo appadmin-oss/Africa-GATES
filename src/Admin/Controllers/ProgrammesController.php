@@ -267,13 +267,104 @@ class ProgrammesController
 
         $cycle->programme_title = $programme->title;
         $cycle->programme_slug  = $programme->slug;
-        // ?paper=letter shows the US Letter copy; the page must hold at both sizes.
+        // ?paper=letter shows the US Letter copy; the page must hold at both sizes. ?draft=1
+        // previews the words open in the editor rather than the published ones.
+        $words = null;
+        if (!empty($req->getQueryParams()['draft'])) {
+            $e = \AfricaGates\Services\CycleLetter::editing((int) $cycle->id);
+            $words = ['headline' => $e['headline'], 'body' => $e['body']];
+        }
         $res->getBody()->write(\AfricaGates\Services\NomineeVotingNotice::previewPdf($cycle,
-            (string) ($req->getQueryParams()['paper'] ?? '')));
+            (string) ($req->getQueryParams()['paper'] ?? ''), $words));
 
         return $res->withHeader('Content-Type', 'application/pdf')
                    ->withHeader('Content-Disposition', 'inline; filename="voting-letter-preview.pdf"')
                    ->withHeader('Cache-Control', 'no-store');
+    }
+
+    /** The programme and one of its cycles, from the route and ?cycle=, or null. */
+    private function letterCycle(Request $req, array $args): ?object
+    {
+        $programme = DB::table('gates_award_programmes')->where('id', (int) $args['id'])->first();
+        $cid = (int) ($req->getQueryParams()['cycle'] ?? ((array) $req->getParsedBody())['cycle'] ?? 0);
+        $cycle = $programme ? DB::table('gates_award_cycles')->where('id', $cid)
+            ->where('programme_id', (int) $programme->id)->first() : null;
+        if (!$cycle) return null;
+        $cycle->programme_title = $programme->title;
+        $cycle->programme_slug  = $programme->slug;
+        return $cycle;
+    }
+
+    /**
+     * GET /admin/programmes/{id}/cycle/letter?cycle= — the voting letter's editor (owner, 28
+     * Oct 2026: "editable and viewable per cycle with an ultramodern editor"). The page is
+     * the letter: the words are typed onto the sheet, with the facts the code owns drawn
+     * around them, a live PDF beside it, whether it still fits one page, and every version.
+     */
+    public function letterEditor(Request $req, Response $res, array $args): Response
+    {
+        $cycle = $this->letterCycle($req, $args);
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $L = \AfricaGates\Services\CycleLetter::class;
+        $e = $L::editing((int) $cycle->id);
+        $v = \AfricaGates\Services\NomineeVotingNotice::previewView($cycle, ['headline' => $e['headline'], 'body' => $e['body']]);
+        return $this->view->render($res, 'admin/programmes/letter.twig', [
+            'page_title' => 'Voting letter · ' . (string) $cycle->programme_title . ' — Admin',
+            'admin_page' => 'programmes',
+            'cycle'      => $cycle,
+            'words'      => $e,
+            'current'    => $L::current((int) $cycle->id),
+            'history'    => $L::history((int) $cycle->id),
+            'fields'     => $L::FIELDS,
+            'locked'     => $L::LOCKED,
+            'limits'     => ['headline' => $L::MAX_HEADLINE, 'body' => $L::MAX_BODY],
+            'sample'     => $v,
+            'fit'        => \AfricaGates\Services\NomineeVotingNotice::fit($cycle, ['headline' => $e['headline'], 'body' => $e['body']]),
+            'ready'      => $L::ready(),
+            'default'    => ['headline' => $L::DEFAULT_HEADLINE, 'body' => $L::DEFAULT_BODY],
+        ]);
+    }
+
+    /**
+     * POST /admin/programmes/{id}/cycle/letter — autosave (action=draft), publish, restore a
+     * version, or reset to the shipped words. JSON for the editor's script; a plain form post
+     * (no script) is sent back to the editor with a flash.
+     */
+    public function letterSave(Request $req, Response $res, array $args): Response
+    {
+        $cycle = $this->letterCycle($req, $args);
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $L = \AfricaGates\Services\CycleLetter::class;
+        $b = (array) $req->getParsedBody();
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $action = (string) ($b['action'] ?? 'draft');
+        $head = (string) ($b['headline'] ?? '');
+        $body = (string) ($b['body'] ?? '');
+        $r = match ($action) {
+            'publish' => $L::publish((int) $cycle->id, $head, $body, $adminId),
+            'restore' => ['ok' => $L::restore((int) $cycle->id, (int) ($b['version'] ?? 0), $adminId), 'errors' => []],
+            'reset'   => (function () use ($L, $cycle, $adminId) { $L::resetDraft((int) $cycle->id, $adminId); return ['ok' => true, 'errors' => []]; })(),
+            default   => $L::saveDraft((int) $cycle->id, $head, $body, $adminId),
+        };
+        if ($action !== 'draft') {
+            $this->audit->record($adminId, 'voting_letter.' . $action, 'cycle', (int) $cycle->id, ['ok' => $r['ok']]);
+        }
+        $e = $L::editing((int) $cycle->id);
+        $out = $r + [
+            'state' => $e['draft'] ? 'draft' : 'published',
+            'words' => ['headline' => $e['headline'], 'body' => $e['body']],
+            'fit'   => \AfricaGates\Services\NomineeVotingNotice::fit($cycle, ['headline' => $e['headline'], 'body' => $e['body']]),
+            'checks'=> $L::clean($e['headline'], $e['body'])['errors'],
+        ];
+        $back = '/admin/programmes/' . (int) $args['id'] . '/cycle/letter?cycle=' . (int) $cycle->id;
+        if ($req->getHeaderLine('X-Requested-With') !== 'fetch') {
+            $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+                ? match ($action) { 'publish' => 'Published. Every letter from now on carries these words.', 'restore' => 'That version is back in the draft.', 'reset' => 'The shipped words are back in the draft.', default => 'Draft saved.' }
+                : implode(' ', $r['errors'] ?? ['Not saved.']);
+            return $res->withHeader('Location', $back)->withStatus(303);
+        }
+        $res->getBody()->write((string) json_encode($out));
+        return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store');
     }
 
     /** @return array<string,mixed>|null null when the counts cannot be read, never a 500 */

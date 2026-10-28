@@ -16,6 +16,8 @@
   from Accent::mail().
 #}
 
+{# The edition's own headline (Services\CycleLetter), the same line the letter sets large. #}
+<p style="margin:0 0 14px;font-family:'Playfair Display',Georgia,serif;font-size:24px;line-height:1.25;font-weight:700;color:{{ c.ink }}">{{ headline_text|default('') }}</p>
 <p style="margin:0 0 6px;font-family:'Playfair Display',Georgia,serif;font-size:21px;line-height:1.3;color:{{ c.ink }}">Dear {{ name }},</p>
 
 {% for para in body %}

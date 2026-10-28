@@ -314,7 +314,18 @@ final class NomineeVotingNotice
             'how'             => self::howVotingWorks((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'steps'           => self::steps((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'paper'           => NomineeVotingLetter::paperFor((string) ($nominee->country_code ?? '')),
-        ];
+        ] + self::words((int) $cycle->id);
+    }
+
+    /**
+     * The edition's headline and paragraphs (CycleLetter): published words, or the default.
+     *
+     * @return array{headline:string, letter_body:string}
+     */
+    public static function words(int $cycleId): array
+    {
+        $w = CycleLetter::current($cycleId);
+        return ['headline' => $w['headline'], 'letter_body' => $w['body']];
     }
 
     /**
@@ -448,6 +459,7 @@ final class NomineeVotingNotice
 
         return $twig->render('emails/nominee-voting.twig', $v + [
             'body' => NomineeVotingLetter::body($v),
+            'headline_text' => CycleLetter::fill((string) ($v['headline'] ?? CycleLetter::DEFAULT_HEADLINE), $v),
             'c'    => \AfricaGates\Support\Accent::mail(),
         ]);
     }
@@ -527,13 +539,48 @@ final class NomineeVotingNotice
      * The letter an operator previews: the cycle's first nominee, or a specimen when it has
      * none, so the screen can always show what will go out.
      */
-    public static function previewPdf(object $cycle, string $paper = ''): string
+    public static function previewPdf(object $cycle, string $paper = '', ?array $words = null): string
+    {
+        $v = self::previewView($cycle, $words);
+
+        return NomineeVotingLetter::render($v, isset(NomineeVotingLetter::PAPER[$paper]) ? $paper : (string) $v['paper']);
+    }
+
+    /**
+     * The view the preview and the editor's fit meter use: the cycle's first nominee (or a
+     * specimen), with the words being edited in place of the published ones when given.
+     *
+     * @param array{headline:string, body:string}|null $words
+     * @return array<string,mixed>
+     */
+    public static function previewView(object $cycle, ?array $words = null): array
     {
         $cfg = self::settings((int) $cycle->programme_id, (int) $cycle->id);
         $n   = self::nominees((int) $cycle->id)[0]
             ?? (object) ['id' => 0, 'name' => 'Specimen Nominee', 'category_title' => 'Specimen Category'];
         $v   = self::view($n, $cycle, $cfg, SiteUrl::base());
+        if ($words !== null) {
+            $v['headline'] = $words['headline'];
+            $v['letter_body'] = $words['body'];
+        }
+        return $v;
+    }
 
-        return NomineeVotingLetter::render($v, isset(NomineeVotingLetter::PAPER[$paper]) ? $paper : (string) $v['paper']);
+    /**
+     * Whether these words fit one page at both sizes, measured the way render() lays out the
+     * letter (NomineeVotingLetter::measure()), against this edition's real first nominee.
+     *
+     * @param array{headline:string, body:string} $words
+     * @return array<string, array{fits:bool, spare_mm:float}>
+     */
+    public static function fit(object $cycle, array $words): array
+    {
+        $v = self::previewView($cycle, $words);
+        $out = [];
+        foreach (array_keys(NomineeVotingLetter::PAPER) as $paper) {
+            $m = NomineeVotingLetter::measure($v, $paper);
+            $out[$paper] = ['fits' => $m['bottom'] <= $m['limit'], 'spare_mm' => round($m['limit'] - $m['bottom'], 1)];
+        }
+        return $out;
     }
 }

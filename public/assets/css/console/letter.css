@@ -1,0 +1,140 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE VOTING LETTER EDITOR — admin/programmes/letter.twig · letter-editor.js
+   Linked by letter.twig only.
+
+   The sheet is the letter at reading size: a white page on the console's ground, the gold
+   band and green hairline across its top as the PDF prints them, the editable parts in the
+   ink and the fixed parts in a soft grey so it is obvious, without a legend, what can be
+   typed and what is the platform's. Beside it, a rail of tools that stays in view.
+   Widths are measured on the editor itself (container queries), so the rail opening or the
+   Ask pane docking moves the breakpoint the way it should. Colour only from var(--cn-*).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.le { container-type: inline-size; display: flex; flex-direction: column; gap: 18px; }
+
+.le-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.le-h1 { margin: 0; font-size: var(--cn-fs-17); font-weight: 600; letter-spacing: -0.01em; color: var(--cn-ink); }
+.le-bar__s { margin: 4px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: var(--cn-fs-13); color: var(--cn-soft); }
+.le-bar__a { display: flex; align-items: center; gap: 8px; }
+.le-keys { font-size: var(--cn-fs-12); color: var(--cn-faint); margin-inline-end: 6px; }
+.le kbd {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
+  border: 1px solid var(--cn-line); border-radius: 5px; font: 500 var(--cn-fs-11)/1 var(--cn-mono); color: var(--cn-soft);
+}
+.le-state { display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px; border-radius: var(--cn-r-pill); font-size: var(--cn-fs-12); font-weight: 500; }
+.le-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.le-state--live { background: var(--cn-green-wash); color: var(--cn-green-ink); }
+.le-state--draft { background: var(--cn-gold-wash); color: var(--cn-gold-ink); }
+.le-state--saving { background: var(--cn-hover); color: var(--cn-soft); }
+.le-state--error { background: var(--cn-red-wash); color: var(--cn-red-ink); }
+
+.le-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
+@container (min-width: 1000px) {
+  .le-grid { grid-template-columns: minmax(0, 1fr) 340px; }
+  .le-side { position: sticky; top: 12px; }
+}
+
+/* The guide: one quiet line of three steps, not three cards. */
+.le-steps-how { counter-reset: le; display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0 0 18px; padding: 0; list-style: none; font-size: var(--cn-fs-13); color: var(--cn-soft); }
+.le-steps-how li { counter-increment: le; display: inline-flex; align-items: baseline; gap: 8px; }
+.le-steps-how li::before { content: counter(le); display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--cn-hover); color: var(--cn-ink-2); font-size: var(--cn-fs-11); font-weight: 600; }
+.le-steps-how b { color: var(--cn-ink); font-weight: 600; }
+
+/* ── the sheet: a clean document page ──────────────────────────────────────── */
+.le-desk { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.le-sheet {
+  position: relative; width: 100%; max-width: 760px; padding: 56px 64px 48px; background: var(--cn-surface);
+  border: 1px solid var(--cn-line-soft); border-radius: var(--cn-r-12); overflow: hidden;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--cn-ink) 4%, transparent), 0 24px 60px -24px color-mix(in srgb, var(--cn-ink) 14%, transparent);
+  font-family: var(--cn-font); font-size: var(--cn-fs-16); line-height: 1.7; color: var(--cn-ink);
+}
+.le-band { position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--cn-green) 0 86%, var(--cn-gold) 86% 100%); }
+.le-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 0 0 36px; }
+.le-mark { font-size: var(--cn-fs-15); font-weight: 600; letter-spacing: -0.01em; color: var(--cn-ink); }
+.le-mark b { font-weight: 600; color: var(--cn-green-ink); }
+.le-meta { font-size: var(--cn-fs-12); line-height: 1.5; color: var(--cn-faint); text-align: end; }
+.le-ref { font-family: var(--cn-mono); }
+.le-fixed { color: var(--cn-faint); }
+.le-addr { margin: 0 0 28px; font-size: var(--cn-fs-14); line-height: 1.6; }
+.le-addr b, .le-sign b { color: var(--cn-soft); font-weight: 600; }
+.le-dear { margin: 0 0 12px; }
+
+/* What can be typed shows no box at all, as in a document: the caret is the affordance,
+   and a faint wash appears only under the pointer so it is findable. */
+.le-ed { outline: none; caret-color: var(--cn-green); border-radius: 6px; margin: 0 -10px; padding: 2px 10px; transition: background var(--cn-dur-toggle) ease; }
+@media (hover: hover) { .le-ed:hover:not(:focus) { background: color-mix(in srgb, var(--cn-hover) 60%, transparent); } }
+.le-ed:focus-visible { box-shadow: inset 2px 0 0 var(--cn-green); border-radius: 0 6px 6px 0; }
+.le-ed--h { font-size: var(--cn-fs-30); line-height: 1.18; font-weight: 650; letter-spacing: -0.025em; margin-bottom: 2px; }
+.le-ed--b p { margin: 0 0 14px; }
+.le-ed[data-empty="1"]::before { content: attr(data-placeholder); color: var(--cn-faint); }
+.le-rule { width: 28px; height: 2px; margin: 14px 0 26px; background: var(--cn-gold); border-radius: 2px; }
+
+.le-f {
+  display: inline-flex; align-items: center; padding: 0 6px; margin: 0 1px; border-radius: 5px;
+  background: var(--cn-hover); color: var(--cn-ink-2); box-shadow: inset 0 0 0 1px var(--cn-line);
+  font-size: var(--cn-fs-14); font-weight: 500; line-height: 1.6; white-space: nowrap; cursor: default; user-select: all;
+}
+.le-f--bad { background: var(--cn-red-wash); color: var(--cn-red-ink); box-shadow: inset 0 0 0 1px var(--cn-red-edge); }
+
+.le-lock { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0 22px; padding-top: 14px; border-top: 1px solid var(--cn-line-faint); font-size: var(--cn-fs-14); }
+.le-lock svg { flex: none; margin-top: 5px; }
+.le-steps { margin: 0 0 22px; font-size: var(--cn-fs-14); }
+.le-steps b { display: block; margin-bottom: 2px; font-size: var(--cn-fs-12-5); font-weight: 600; color: var(--cn-soft); }
+.le-steps ol { margin: 4px 0 0; padding-inline-start: 18px; }
+.le-qr { display: flex; align-items: center; gap: 16px; margin: 0 0 26px; padding: 14px 16px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); font-size: var(--cn-fs-14); }
+.le-qr b { color: var(--cn-ink-2); font-weight: 600; }
+.le-qr__code { flex: none; width: 56px; height: 56px; border-radius: 6px; background: repeating-conic-gradient(var(--cn-ink-2) 0 25%, var(--cn-surface) 0 50%) 0 0 / 8px 8px; opacity: 0.4; }
+.le-qr__u { color: var(--cn-green-ink); word-break: break-all; }
+.le-sign { margin: 0; font-size: var(--cn-fs-15); }
+.le-hint { margin: 0; max-width: 760px; font-size: var(--cn-fs-12-5); color: var(--cn-faint); }
+
+/* No script: the plain fields are the editor. With script they are mirrors, kept for the post. */
+.le-src-l { display: block; margin: 8px 0 4px; font-size: var(--cn-fs-13); font-weight: 600; color: var(--cn-ink-2); }
+.le-src { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--cn-line); border-radius: 8px; font: inherit; color: var(--cn-ink); background: var(--cn-surface); }
+.le-src--h { font-weight: 650; font-size: var(--cn-fs-22); }
+.le-src--b { min-height: 260px; resize: vertical; }
+.le[data-le-on] .le-src, .le[data-le-on] .le-src-l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ── the rail: sections on hairlines, no boxes ─────────────────────────────── */
+.le-side { display: flex; flex-direction: column; }
+.le-side .le-card { padding: 16px 0; background: none; border: 0; border-top: 1px solid var(--cn-line-soft); border-radius: 0; }
+.le-side .le-card:first-child { border-top: 0; padding-top: 0; }
+.le-card { padding: 16px 18px; background: var(--cn-surface); border: 1px solid var(--cn-line-soft); border-radius: var(--cn-r-12); }
+.le-card__h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.le-h2 { margin: 0 0 8px; font-size: var(--cn-fs-13); font-weight: 600; color: var(--cn-ink); }
+.le-p { margin: 0 0 10px; font-size: var(--cn-fs-13); line-height: 1.5; color: var(--cn-soft); }
+.le-link { font-size: var(--cn-fs-13); color: var(--cn-ink-2); font-weight: 500; }
+.le-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.le-chip {
+  min-height: 30px; padding: 0 10px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-pill);
+  background: var(--cn-surface); color: var(--cn-ink-2); font: 500 var(--cn-fs-12-5)/1 var(--cn-font); cursor: pointer;
+}
+@media (hover: hover) { .le-chip:hover { background: var(--cn-hover); border-color: var(--cn-line-strong); } }
+.le-fits { display: grid; gap: 2px; margin-bottom: 8px; }
+.le-fit { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: var(--cn-fs-13); color: var(--cn-ink-2); }
+.le-fit b { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.le-fit b::before { content: ""; width: 7px; height: 7px; border-radius: 50%; }
+.le-fit--ok b { color: var(--cn-green-ink); } .le-fit--ok b::before { background: var(--cn-green); }
+.le-fit--over b { color: var(--cn-red-ink); } .le-fit--over b::before { background: var(--cn-red); }
+.le-checks { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: var(--cn-fs-12-5); color: var(--cn-red-ink); }
+.le-checks .le-tip { color: var(--cn-soft); }
+.le-pdf { width: 100%; height: 420px; border: 1px solid var(--cn-line-soft); border-radius: var(--cn-r-12); background: var(--cn-panel); }
+
+.le-history .le-vers { margin: 0; padding: 0; list-style: none; display: grid; }
+.le-ver { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--cn-line-row); }
+.le-ver__t { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--cn-fs-13-5); }
+.le-ver__t span { font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
+.le-reset { margin-top: 12px; }
+
+/* The detail picker that "{" opens at the caret. */
+.le-pop {
+  position: fixed; z-index: var(--cn-z-menu); min-width: 220px; padding: 6px; background: var(--cn-surface);
+  border: 1px solid var(--cn-line); border-radius: var(--cn-r-12);
+  box-shadow: 0 16px 40px -12px color-mix(in srgb, var(--cn-ink) 22%, transparent);
+}
+.le-pop button { display: flex; width: 100%; justify-content: space-between; gap: 12px; min-height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: none; font: 500 var(--cn-fs-13)/1 var(--cn-font); color: var(--cn-ink); cursor: pointer; text-align: start; }
+.le-pop button span { color: var(--cn-faint); }
+.le-pop button[aria-selected="true"] { background: var(--cn-hover); }
+
+@container (max-width: 640px) { .le-sheet { padding: 36px 24px 28px; } .le-ed--h { font-size: var(--cn-fs-24); } }
+@media (prefers-reduced-motion: reduce) { .le-ed { transition: none; } }

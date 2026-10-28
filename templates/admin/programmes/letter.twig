@@ -1,0 +1,163 @@
+{% extends "admin/layout.twig" %}
+{#
+  THE VOTING LETTER, WRITTEN PER EDITION — Services\CycleLetter (owner, 28 Oct 2026: "editable
+  and viewable per cycle with an ultramodern editor like Claude doc. Smart UX features").
+
+  The page IS the letter. The words an operator owns (the headline and the paragraphs) are
+  typed straight onto the sheet; everything the code owns is drawn around them exactly where
+  it prints and cannot be typed over: the address block, "Dear …", the no-payment notice
+  (plan D34: never editable), the steps read from the voting rules, the QR panel and the
+  signature. Fields ({first_name}, {closes} …) are chips, inserted from the rail or by typing
+  "{", and filled per nominee.
+
+  It works with no script: the sheet's two editable parts are mirrored into a plain input
+  and textarea inside a real form, so Save draft and Publish post as ordinary buttons. With
+  script (letter-editor.js) the sheet autosaves as you type, re-measures the one-page fit
+  at A4 and US Letter from the server's own layout, and refreshes the PDF beside it.
+
+  Publishing adds a VERSION; every letter sent from then on reads it, and History restores
+  any earlier one into the draft. Nothing here changes a letter already sent.
+#}
+{% block topbar_title %}Voting letter{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/programmes/{{ cycle.programme_id }}/cycle?cycle={{ cycle.id }}">← Edition</a>{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/letter.css') }}">{% endblock %}
+
+{% block content %}
+{% set _base = '/admin/programmes/' ~ cycle.programme_id ~ '/cycle/letter?cycle=' ~ cycle.id %}
+{% set _pdf = '/admin/programmes/' ~ cycle.programme_id ~ '/cycle/voting-letter?cycle=' ~ cycle.id ~ '&draft=1' %}
+<div class="le" data-le data-le-save="{{ _base }}" data-le-pdf-src="{{ _pdf }}"
+     data-le-max-h="{{ limits.headline }}" data-le-max-b="{{ limits.body }}"
+     data-le-fields="{{ fields|map((f, k) => {k: k, label: f[0], sample: f[1]})|json_encode }}"
+     data-le-sample="{{ sample|filter((v, k) => k in fields|keys)|json_encode }}">
+
+  {% if not ready %}
+  <p class="cn-note" role="status">The database needs its latest update before the letter can be saved. Run the migrations from Settings → System.</p>
+  {% endif %}
+
+  <form class="le-form" id="le-form" method="post" action="{{ _base }}">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="cycle" value="{{ cycle.id }}">
+
+    <header class="le-bar">
+      <div class="le-bar__t">
+        <h1 class="le-h1">{{ cycle.programme_title }} {{ cycle.edition_label|default(cycle.year) }}</h1>
+        <p class="le-bar__s">
+          <span class="le-state le-state--{{ words.draft ? 'draft' : 'live' }}" data-le-state>{{ words.draft ? 'Not in use yet' : 'In use' }}</span>
+          <span data-le-saved>{% if words.draft and words.saved_at %}Your changes are saved, but nominees still get the letter in use. Press “Use this letter” when you are happy.{% elseif current.published_at %}Nominees get this letter. Last changed {{ current.published_at|date('j M Y, H:i') }}.{% else %}Nominees get this standard letter until you change it.{% endif %}</span>
+        </p>
+      </div>
+      <div class="le-bar__a">
+        <button class="ad-btn" type="submit" name="action" value="draft">Save for later</button>
+        <button class="ad-btn ad-btn--primary le-publish" type="submit" name="action" value="publish">Use this letter</button>
+      </div>
+    </header>
+
+    {# Three plain steps, for whoever opens this for the first time. #}
+    <ol class="le-steps-how" aria-label="How to change the letter">
+      <li><b>Write on the page.</b> Click the big title or the letter and type, as you would in a document.</li>
+      <li><b>Add their details.</b> Click a tag on the right, such as First name, and it is filled in for each nominee.</li>
+      <li><b>Press “Use this letter”.</b> Your changes save by themselves; nominees only get them once you press it.</li>
+    </ol>
+
+    <div class="le-grid">
+      {# ── THE SHEET ───────────────────────────────────────────────────────── #}
+      <div class="le-desk">
+        <article class="le-sheet" aria-label="The letter, as each nominee receives it">
+          <div class="le-band" aria-hidden="true"></div>
+          <div class="le-top">
+            <span class="le-mark">Africa <b>GATES</b></span>
+            <span class="le-meta">{{ sample.date }}<br><span class="le-ref">Ref {{ sample.reference }}</span></span>
+          </div>
+
+          <div class="le-fixed le-addr" title="Filled in for each nominee">
+            <b>{{ sample.name }}</b><br>{{ sample.category }}<br>{{ sample.award }}
+          </div>
+
+          <label class="le-src-l" for="le-h">Title</label>
+          <input class="le-src le-src--h" id="le-h" name="headline" type="text" maxlength="{{ limits.headline }}" value="{{ words.headline }}" data-le-src="headline">
+          <div class="le-ed le-ed--h" data-le-ed="headline" hidden></div>
+          <div class="le-rule" aria-hidden="true"></div>
+
+          <p class="le-fixed le-dear">Dear {{ sample.name }},</p>
+
+          <label class="le-src-l" for="le-b">Letter <small>(leave an empty line between paragraphs; to add a detail, type its name in curly brackets, for example {first_name})</small></label>
+          <textarea class="le-src le-src--b" id="le-b" name="body" rows="12" maxlength="{{ limits.body + 400 }}" data-le-src="body">{{ words.body }}</textarea>
+          <div class="le-ed le-ed--b" data-le-ed="body" hidden></div>
+
+          <div class="le-fixed le-lock" title="This sentence protects nominees from scams, so it is on every letter">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+            <span>{{ locked }}</span>
+          </div>
+
+          {% if sample.steps|default([])|length %}
+          <div class="le-fixed le-steps" title="Read from this edition's voting rules">
+            <b>How voting works</b>
+            <ol>{% for s in sample.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+          </div>
+          {% endif %}
+
+          <div class="le-fixed le-qr">
+            <span class="le-qr__code" aria-hidden="true"></span>
+            <span><b>Invite your community to vote: scan, or visit</b><br><span class="le-qr__u">{{ sample.vote_url|replace({'https://': '', 'http://': ''}) }}</span></span>
+          </div>
+
+          <p class="le-fixed le-sign">Yours sincerely,<br><br><b>{{ sample.signatory|default('') }}</b><br>{{ sample.signatory_title ? sample.signatory_title ~ ', ' : '' }}Africa GATES</p>
+        </article>
+        <p class="le-hint">You can change the black writing. The grey parts are filled in for each nominee or come from this award's rules, so they are always correct. The sentence with the padlock protects nominees from scams and is on every letter.</p>
+      </div>
+
+      {# ── THE RAIL ────────────────────────────────────────────────────────── #}
+      <aside class="le-side" aria-label="Letter tools">
+        <section class="le-card">
+          <h2 class="le-h2">Details we fill in for you</h2>
+          <p class="le-p">Click one to add it where you are typing. Each nominee sees their own: “First name” becomes Ngozi for Ngozi.</p>
+          <div class="le-chips">
+            {% for k, f in fields %}<button type="button" class="le-chip" data-le-insert="{{ k }}" title="{{ f[1] }}">{{ f[0] }}</button>{% endfor %}
+          </div>
+        </section>
+
+        <section class="le-card" aria-live="polite">
+          <h2 class="le-h2">Fits on one printed page?</h2>
+          <div class="le-fits" data-le-fit>
+            {% for paper, f in fit %}
+            <div class="le-fit le-fit--{{ f.fits ? 'ok' : 'over' }}" data-le-paper="{{ paper }}">
+              <span>{{ paper == 'A4' ? 'A4' : 'US Letter' }}</span>
+              <b>{{ f.fits ? f.spare_mm ~ ' mm to spare' : (0 - f.spare_mm) ~ ' mm too long' }}</b>
+            </div>
+            {% endfor %}
+          </div>
+          <p class="le-p" data-le-count></p>
+          <ul class="le-checks" data-le-checks></ul>
+        </section>
+
+        <section class="le-card">
+          <div class="le-card__h"><h2 class="le-h2">See the printed letter</h2><a class="le-link" href="{{ _pdf }}" target="_blank" rel="noopener">Open full size</a></div>
+          <iframe class="le-pdf" data-le-pdf title="The letter as a PDF" src="{{ _pdf }}" loading="lazy"></iframe>
+        </section>
+      </aside>
+    </div>
+  </form>
+
+  {# Outside the letter's form: a <form> inside a <form> is silently dropped (CLAUDE.md). #}
+  <section class="le-card le-history" aria-labelledby="le-hist-h">
+    <h2 class="le-h2" id="le-hist-h">Letters you used before</h2>
+    <p class="le-p">Every time you press “Use this letter” it is kept here, so you can go back.</p>
+    {% if history|length %}
+    <ol class="le-vers">
+      {% for h in history %}
+      <li class="le-ver">
+        <span class="le-ver__t"><b>{{ h.headline }}</b><span>{{ h.at|date('j M Y, H:i') }}{% if h.by %} · by {{ h.by }}{% endif %}{% if loop.first %} · in use now{% endif %}</span></span>
+        {% if not loop.first %}
+        <form method="post" action="{{ _base }}"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle" value="{{ cycle.id }}"><input type="hidden" name="version" value="{{ h.id }}"><button class="ad-btn" type="submit" name="action" value="restore">Bring this one back</button></form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="le-p">You have not changed the letter for this award yet, so nominees get the standard one.</p>
+    {% endif %}
+    <form method="post" action="{{ _base }}" class="le-reset"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle" value="{{ cycle.id }}"><button class="ad-btn" type="submit" name="action" value="reset">Start again from the standard letter</button></form>
+  </section>
+</div>
+{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/letter-editor.js') }}" data-nav="rerun"></script>{% endblock %}

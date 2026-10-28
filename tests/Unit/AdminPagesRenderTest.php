@@ -33,7 +33,7 @@ use Tests\TestCase;
 final class AdminPagesRenderTest extends TestCase
 {
     /** Pages keyed on something the sandbox does not mint. May only fall. */
-    private const UNREACHED_CEILING = 50;
+    private const UNREACHED_CEILING = 45;
 
     public function test_every_admin_page_renders_for_a_superadmin(): void
     {
@@ -98,6 +98,8 @@ final class AdminPagesRenderTest extends TestCase
     private function rowsFor(string $segment, string $column): array
     {
         if ($segment === 'profiles') return DB::table('gates_nominees')->orderBy('id')->limit(3)->pluck('id')->all();
+        // An award programme's table carries its prefix; its edition pages hang off the id.
+        if ($segment === 'programmes') return DB::table('gates_award_programmes')->orderBy('id')->limit(3)->pluck('id')->all();
         $base = str_replace('-', '_', $segment);
         foreach (['gates_' . $base, 'gates_' . rtrim($base, 's'), 'gates_' . $base . 's'] as $t) {
             try {

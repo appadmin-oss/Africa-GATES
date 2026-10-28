@@ -156,6 +156,14 @@ final class NomineeVotingLetter
             return $pdf->paragraph($s, $tx, $base, $width, $alias, $pt, $lh, $rgb, $max) - $base + $top;
         };
 
+        // ── the top edge (28 Oct 2026, owner: "grand means sleek and modern") ───
+        // One thin line across the top of the sheet, green with a gold end: the only
+        // flourish, printed edge to edge.
+        if ($draw) {
+            $pdf->rect(0, 0, $pw * 0.86, 1.2, self::rgb('green-deep'));
+            $pdf->rect($pw * 0.86, 0, $pw * 0.14, 1.2, self::rgb('gold'));
+        }
+
         // ── header: the mark at 15mm, the date and reference bottom-right ────
         $y = self::TOP;
         $logoH = 15.0;
@@ -181,8 +189,13 @@ final class NomineeVotingLetter
 
         // ── the headline ─────────────────────────────────────────────────────
         $y += $gap(8.0);
-        $y = $put('You are on the public ballot', $x, $y, $w, 'serifb', 16.0, 16 * self::PT * 1.25, $ink, 2);
-        $y += $gap(4.0);
+        // The edition's own headline (CycleLetter), with {fields} filled.
+        $head = CycleLetter::fill((string) ($v['headline'] ?? CycleLetter::DEFAULT_HEADLINE), $v);
+        $y = $put($head, $x, $y, $w, 'sanss', 18.0, 18 * self::PT * 1.15, $ink, 3);
+        // A short, fine gold rule under it.
+        $y += $gap(2.2);
+        if ($draw) $pdf->rect($x, $y, 10.0, 0.6, self::rgb('gold'));
+        $y += 0.6 + $gap(3.6);
 
         // ── the letter ───────────────────────────────────────────────────────
         foreach (array_merge(['Dear ' . $v['name'] . ','], self::body($v)) as $para) {
@@ -206,6 +219,8 @@ final class NomineeVotingLetter
         $url = (string) preg_replace('~^https?://~', '', (string) $v['vote_url']);
         $tx = $x + $qr + 7.0;
         if ($draw) {
+            // The invitation, set apart by a hairline frame rather than a fill.
+            $pdf->frame($x - 3.0, $y - 3.0, $w + 6.0, $qr + 6.0, self::rgb('line-2'), 0.5 * self::PT);
             $m = Qr::encodeBytes((string) $v['vote_url']);
             if ($m !== null) {
                 // Four modules of quiet zone, inside the frame: the specification.
@@ -213,7 +228,7 @@ final class NomineeVotingLetter
                 $pdf->frame($x, $y, $qr, $qr, self::rgb('line-2'), 0.5 * self::PT);
             }
             $mid = $y + $qr / 2;
-            $pdf->text('Scan to vote, or visit', $tx, $mid - 1.0, 'sanss', 12.0, $ink);
+            $pdf->text('Invite your community to vote: scan, or visit', $tx, $mid - 1.0, 'sanss', 12.0, $ink);
             // An address has no spaces to wrap at: set smaller until it fits, never cut —
             // and never below the 12pt floor unless the address could not otherwise be read.
             $size = 12.0;
@@ -287,24 +302,15 @@ final class NomineeVotingLetter
     /**
      * The paragraphs, shared with the email so the two cannot disagree.
      *
+     * The edition's own words since 28 Oct 2026 (CycleLetter, edited in the console), with
+     * the no-payment notice added by CycleLetter::render() whatever the words say.
+     *
      * @param array<string,mixed> $v
      * @return list<string>
      */
     public static function body(array $v): array
     {
-        return [
-            'On behalf of the organising committee, we are pleased to tell you that your nomination for '
-                . $v['category'] . ' has been verified and admitted to the public vote. Voting is open from '
-                . $v['opens'] . ' to ' . $v['closes'] . '.',
-
-            'The outcome combines an independent judging panel with public support, under the rules '
-                . 'published at ' . $v['rules_url'] . '. Please share your voting page freely.',
-
-            'Africa GATES never asks a nominee to pay to be nominated, to stay on the ballot or to '
-                . 'receive an award. If anyone asks, it is not us. Please report it.',
-
-            'Congratulations on this recognition.',
-        ];
+        return CycleLetter::render((string) ($v['letter_body'] ?? CycleLetter::DEFAULT_BODY), $v);
     }
 
     /** The filename a nominee wants to see in their downloads folder. */
