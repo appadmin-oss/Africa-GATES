@@ -3,7 +3,8 @@
   SITE HEADER — tablet and desktop · REFERENCE §7.1 · design/SiteHeader.dc.html
   ══════════════════════════════════════════════════════════════════════════════
 
-  A 64px bar: the logo, TWO panel triggers (Participate, Explore), a toolbar pill
+  A 64px bar: the logo, TWO panel triggers (Awards, Explore) and two plain links (Help,
+  Advertise), a toolbar pill
   (Search | Aa | language) and the account control. Hidden below 600px, where the phone
   has the app bar and the tab bar (chrome.css). Mounted by `layout/shell.twig`, never by
   a page, and it mounts no phone sheet (SiteHeaderTest).
@@ -14,14 +15,15 @@
   beside every page's own call to action and wins. Signed out is an outlined ink pill;
   signed in is the ink avatar.
 
-  ── THE TWO LISTS ARE THE HANDOFF'S, EXACTLY ───────────────────────────────
+  ── THE TWO LISTS ARE THE OWNER'S (28 OCT 2026) ────────────────────────────
 
-  §7.1's six and six — and Explore is Discover, Pulse, Events, Legacy Vault, Blog,
-  Status. The previous header carried a seventh, Results; the owner removed it on
-  3 Oct 2026, and the guards that held it there were rewritten to the new rule. The DC
-  draws Leaderboard and Shop where the phase file says Blog and Status; the phase file
-  outranks the DC (REFERENCE §0). Status is not in the DC's list, so its line is the
-  status page's own words from the DC's search data ("Is everything working?").
+  §7.1's six and six left eight public pages in no menu (Results, Hall of fame,
+  Leaderboard, Shop, Community, Challenges, Opportunities, Help), so on a phone Results was
+  reachable only from the footer. The owner chose two menus, regrouped: Awards (everything
+  about taking part and the outcome) and Explore (everything to browse). The phone Menu and
+  the footer carry the same two groups, and SiteHeaderTest requires all three to agree, so
+  a page added to one and not the others fails. Status and Register left the header: Status
+  is under Help in the Menu and in the footer, and the Sign in pill leads to Register.
 
   Every tile's colour is a pair of Accent tokens named by a TONE class (chrome.css),
   never one of the DC's hexes: `#eef7ee`, `#a47306`, `#e9efef`, `#2b373d`, `#f0f2f2` and
@@ -42,22 +44,34 @@
 #}
 {% set _ini = member_name ? (member_name|split(' ')|filter(w => w != '')|map(w => w|first)|join|upper|slice(0, 2)) : 'AG' %}
 {% set _megas = [
-  {k:'participate', label:'Participate', items:[
-    {href:'/nominate',         label:'Nominate',           sub:'Put someone forward in under 90 seconds', tone:'grow',   d:'M12 5v14M5 12h14'},
-    {href:'/vote',             label:'Vote',               sub:'One verified voter, one vote per category', tone:'act',  d:'M4 12.5 9 17.5 20 6.5'},
-    {href:'/awards',           label:'Awards',             sub:'Every award, edition and category',       tone:'honour', d:'M5 16 3 6l5 4 4-6 4 6 5-4-2 10z'},
-    {href:'/giving',           label:'Giving',             sub:'Back the programmes behind the awards',   tone:'give',   d:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z'},
-    {href:'/account/register', label:'Register a profile', sub:'Join the continental registry, free',     tone:'honour', d:'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0'},
-    {href:'/integrity',        label:'Integrity Centre',   sub:'How voting, judging and audits work',     tone:'plain',  d:'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z'}
+  {k:'awards', label:'Awards', items:[
+    {href:'/nominate',    label:'Nominate',         sub:'Put someone forward in under 90 seconds', tone:'grow',   d:'M12 5v14M5 12h14'},
+    {href:'/vote',        label:'Vote',             sub:'One verified voter, one vote per category', tone:'act',  d:'M4 12.5 9 17.5 20 6.5'},
+    {href:'/awards',      label:'Awards',           sub:'Every award, edition and category',       tone:'honour', d:'M5 16 3 6l5 4 4-6 4 6 5-4-2 10z'},
+    {href:'/results',     label:'Results',          sub:'Where every award stands',                tone:'honour', d:'M3 3v18h18M7 15l4-4 3 3 5-6'},
+    {href:'/winners',     label:'Hall of fame',     sub:'Every winner, every edition',             tone:'honour', d:'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4'},
+    {href:'/leaderboard', label:'Leaderboard',      sub:'The Cultural Power Index, live',          tone:'act',    d:'M6 20V10M12 20V4M18 20v-6'},
+    {href:'/challenges',  label:'Challenges',       sub:'Take part and be recognised',             tone:'grow',   d:'M4 21V4h11l-1.5 4L15 12H4'},
+    {href:'/integrity',   label:'Integrity Centre', sub:'How voting, judging and audits work',     tone:'plain',  d:'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z'}
   ]},
   {k:'explore', label:'Explore', items:[
-    {href:'/discover', label:'Discover',     sub:'People, organisations and awards',     tone:'plain',  d:'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6'},
-    {href:'/pulse',    label:'Pulse',        sub:'Posts and live moments',               tone:'give',   d:'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM10 8.5l5 3.5-5 3.5z'},
-    {href:'/events',   label:'Events',       sub:'Ceremonies, livestreams and sessions', tone:'act',    d:'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4'},
-    {href:'/legacy',   label:'Legacy Vault', sub:'Every edition, permanently archived',  tone:'honour', d:'M4 8h16v12H4zM2 4h20v4H2z'},
-    {href:'/blog',     label:'Blog',         sub:'Stories and methodology notes',        tone:'plain',  d:'M4 5h16M4 10h16M4 15h10'},
-    {href:'/status',   label:'Status',       sub:'Is everything working?',               tone:'plain',  d:'M3 12h4l3-7 4 14 3-7h4'}
+    {href:'/discover',      label:'Discover',      sub:'People, organisations and awards',       tone:'plain',  d:'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6'},
+    {href:'/pulse',         label:'Pulse',         sub:'Posts and live moments',                 tone:'give',   d:'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM10 8.5l5 3.5-5 3.5z'},
+    {href:'/events',        label:'Events',        sub:'Ceremonies, livestreams and sessions',   tone:'act',    d:'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4'},
+    {href:'/community',     label:'Community',     sub:'Conversations about the awards',         tone:'plain',  d:'M4 5h16v10H8l-4 4z'},
+    {href:'/blog',          label:'Blog',          sub:'Stories and methodology notes',          tone:'plain',  d:'M4 5h16M4 10h16M4 15h10'},
+    {href:'/legacy',        label:'Legacy Vault',  sub:'Every edition, permanently archived',    tone:'honour', d:'M4 8h16v12H4zM2 4h20v4H2z'},
+    {href:'/opportunities', label:'Opportunities', sub:'Grants, fellowships and mentor circles', tone:'grow',   d:'M12 3v18M5 10l7-7 7 7'},
+    {href:'/shop',          label:'Shop',          sub:'Official Africa GATES goods',            tone:'act',    d:'M6 7h12l-1 13H7zM9 7a3 3 0 0 1 6 0'},
+    {href:'/giving',        label:'Give',          sub:'Back the programmes behind the awards',  tone:'give',   d:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z'}
   ]}
+] %}
+{# Beside the two panels, two plain links: the owner's choice of 28 Oct 2026 ("Two menus":
+   Awards and Explore, with Help and Advertise as links). Not panels, so the bar keeps its
+   two triggers (skill §2: at most two). #}
+{% set _links = [
+  {href:'/help',      label:'Help'},
+  {href:'/advertise', label:'Advertise'}
 ] %}
 <div class="ag-head" data-ag-head>
   <header class="ag-head__bar">
@@ -71,6 +85,9 @@
         <button type="button" class="ag-head__top" id="ag-mega-{{ m.k }}-trigger"
                 data-ag-mega-trigger="{{ m.k }}" aria-haspopup="true" aria-expanded="false"
                 aria-controls="ag-mega-{{ m.k }}">{{ m.label|trans }}<svg class="ag-head__chev" width="11" height="11" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"></path></svg></button>
+      {% endfor %}
+      {% for l in _links %}
+        <a class="ag-head__top ag-head__link" href="{{ l.href }}">{{ l.label|trans }}</a>
       {% endfor %}
     </nav>
 

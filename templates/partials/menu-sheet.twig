@@ -25,17 +25,17 @@
   most-used tile is always a destination this visitor could have scrolled to, and a
   signed-in member is not offered "Register a profile", which would send them to /account.
 
-  The four squares are the visitor's most used (`personal`) or the Participate four until
-  there is enough history. A Participate default pushed out of the squares heads Explore,
-  so nothing becomes unreachable for not having been used. A member's are ranked on the
+  The four squares are the visitor's most used (`personal`) or the default four until
+  there is enough history. A default pushed out of the squares heads its own group
+  (Awards or Explore), so nothing becomes unreachable for not having been used. A member's are ranked on the
   server; a guest's in the browser, from the `<template>` below and the numbers in
   `data-ag-menu-params` — only when Preferences allows keeping anything.
 
   ── WHAT IS THE PHASE FILE'S AND WHAT IS THE DC'S ───────────────────────────
 
-  The Explore list is §7.4's — Discover, Pulse, Giving, Shop, Legacy Vault, Blog, Register.
-  The DC draws Leaderboard where the phase file says Blog; the phase file outranks the DC
-  (REFERENCE §0). Every size, gap and radius is the DC's. The points figure is DM Sans with
+  The Awards and Explore lists are the header's two panels (owner, 28 Oct 2026: "Two
+  menus"), from MenuShortcuts::AWARDS and ::EXPLORE; Help carries the header's two plain
+  links (Help, Advertise) and Status. Register is the join card's, not a row. Every size, gap and radius is the DC's. The points figure is DM Sans with
   tabular figures, not the DC's mono (owner, GAPS Q5); the wordmark line is `--ag-soft`, not
   the DC's `--ag-mute`, which is never a word.
 
@@ -135,13 +135,15 @@
         {% for q in _m.tiles %}{{ ui.tile(q) }}{% endfor %}
       </nav>
 
-      <section class="ag-menu__sec" aria-labelledby="ag-menu-h-explore">
-        <h3 class="ag-menu__h" id="ag-menu-h-explore">{{ 'Explore'|trans }}</h3>
-        <div class="ag-list ag-menu__list" data-ag-menu-explore>
-          {% for i in _m.displaced %}{{ ui.row(i) }}{% endfor %}
-          {% for i in _m.explore %}{{ ui.row(i) }}{% endfor %}
+      {# The header's two panels, as lists (owner, 28 Oct 2026). #}
+      {% for g in [{k: 'awards', label: 'Awards', rows: _m.awards}, {k: 'explore', label: 'Explore', rows: _m.explore}] %}
+      <section class="ag-menu__sec" aria-labelledby="ag-menu-h-{{ g.k }}">
+        <h3 class="ag-menu__h" id="ag-menu-h-{{ g.k }}">{{ g.label|trans }}</h3>
+        <div class="ag-list ag-menu__list" data-ag-menu-group="{{ g.k }}">
+          {% for i in g.rows %}{{ ui.row(i) }}{% endfor %}
         </div>
       </section>
+      {% endfor %}
 
       <section class="ag-menu__sec" aria-labelledby="ag-menu-h-settings">
         <h3 class="ag-menu__h" id="ag-menu-h-settings">{{ 'Settings'|trans }}</h3>

@@ -520,8 +520,8 @@
       if (who !== 'guest' || !keep || !p) return;
       var tpl = sheet.querySelector('[data-ag-menu-tpl]');
       var nav = sheet.querySelector('[data-ag-menu-tiles]');
-      var explore = sheet.querySelector('[data-ag-menu-explore]');
-      if (!tpl || !nav || !explore || !tpl.content) return;
+      var lists = all('[data-ag-menu-group]', sheet);
+      if (!tpl || !nav || !lists.length || !tpl.content) return;
       var r = Rank.rank(readGuest(), now(), p);
       if (!r.personal) return;
 
@@ -534,12 +534,19 @@
       });
       nav.setAttribute('aria-label', nav.getAttribute('data-label-personal') || nav.getAttribute('aria-label'));
 
-      all('[data-ag-dest]', explore).forEach(function (row) {
-        if (p.defaults.indexOf(row.getAttribute('data-ag-dest')) >= 0) row.parentNode.removeChild(row);
+      // A default pushed out of the squares heads its own group, as the server draws it.
+      lists.forEach(function (list) {
+        all('[data-ag-dest]', list).forEach(function (row) {
+          if (p.defaults.indexOf(row.getAttribute('data-ag-dest')) >= 0) row.parentNode.removeChild(row);
+        });
       });
       Rank.displaced(r.keys, p).reverse().forEach(function (k) {
         var row = src[k] && src[k].querySelector('.ag-list__row');
-        if (row) explore.insertBefore(row.cloneNode(true), explore.firstChild);
+        var list = lists.filter(function (l) {
+          var g = (p.groups || {})[l.getAttribute('data-ag-menu-group')] || [];
+          return g.indexOf(k) >= 0;
+        })[0];
+        if (row && list) list.insertBefore(row.cloneNode(true), list.firstChild);
       });
     }
 

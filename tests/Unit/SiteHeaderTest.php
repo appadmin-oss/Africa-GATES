@@ -51,30 +51,54 @@ final class SiteHeaderTest extends TestCase
         // §18.5 rejects a bar carrying half a dozen section links. Counted from the DATA
         // LIST, because the trigger is declared once inside a loop that renders it twice.
         preg_match_all("/\\{k:'(\\w+)', label:'([^']+)'/", $this->code(), $m);
-        $this->assertSame(['Participate', 'Explore'], $m[2],
+        $this->assertSame(['Awards', 'Explore'], $m[2],
             'the header has grown, lost or renamed a top-level panel');
+        // And beside them two plain links, not panels (owner, 28 Oct 2026).
+        $this->assertMatchesRegularExpression("~_links = \\[\\s*\\{href:'/help'[^\\]]*\\{href:'/advertise'~s", $this->code());
     }
 
-    public function test_each_panel_is_the_handoffs_six_exactly(): void
+    /**
+     * THE OWNER'S TWO MENUS, AND ONE LIST FOR ALL THREE SURFACES (28 Oct 2026).
+     *
+     * §7.1's six and six left eight public pages in no menu, and the header, the phone Menu
+     * and the footer grouped pages three different ways. The owner chose two menus: Awards and
+     * Explore. MenuShortcuts::AWARDS and ::EXPLORE are the lists, and this holds the header
+     * panels, the footer's first two columns and the phone Menu's two groups to them, so a page
+     * added to one surface and not the others fails here.
+     */
+    public function test_the_header_the_menu_and_the_footer_list_the_same_two_groups(): void
     {
-        // §7.1, and the owner's decision of 3 Oct 2026: Explore is the handoff's six, and
-        // Results is NOT in it. The previous header carried Results as a seventh so a
-        // decided award stayed reachable by browsing (PublicResultsTest); the owner removed
-        // it, and the reachability of /results is now the search index's and the rebuilt
-        // footer's to owe (inventory/_partials.md, layout/footer.twig).
-        $this->assertSame([
-            'participate' => ['/nominate', '/vote', '/awards', '/giving', '/account/register', '/integrity'],
-            'explore'     => ['/discover', '/pulse', '/events', '/legacy', '/blog', '/status'],
-        ], $this->panels());
-        $this->assertStringNotContainsString("href:'/results'", $this->code(),
-            'Results is back in the header — the owner removed it (3 Oct 2026)');
+        $href = static fn (array $keys): array => array_map(
+            static fn (string $k): string => \AfricaGates\Services\MenuShortcuts::DESTINATIONS[$k]['href'], $keys);
+        $awards  = $href(\AfricaGates\Services\MenuShortcuts::AWARDS);
+        $explore = $href(\AfricaGates\Services\MenuShortcuts::EXPLORE);
+
+        $this->assertSame(['awards' => $awards, 'explore' => $explore], $this->panels(), 'the header');
+
+        $foot = ChromeRender::source('templates/partials/site-footer.twig');
+        $cols = [];
+        foreach (['h1', 'h2'] as $h) {
+            preg_match('~aria-labelledby="ag-foot-' . $h . '">(.*?)</nav>~s', $foot, $c);
+            preg_match_all('~href="([^"]+)"~', $c[1] ?? '', $hr);
+            $cols[] = $hr[1];
+        }
+        $this->assertSame([$awards, $explore], $cols, 'the footer\'s Awards and Explore columns');
+
+        // The phone Menu, drawn: every page of both groups is a tile or a row in its group.
+        $menu = (string) ChromeRender::page('/', [], [])->getBody();
+        foreach (['awards' => \AfricaGates\Services\MenuShortcuts::AWARDS, 'explore' => \AfricaGates\Services\MenuShortcuts::EXPLORE] as $g => $keys) {
+            preg_match('~data-ag-menu-group="' . $g . '">(.*?)</div>~s', $menu, $list);
+            preg_match('~data-ag-menu-tiles[^>]*>(.*?)</nav>~s', $menu, $tiles);
+            preg_match_all('~data-ag-dest="([a-z]+)"~', ($list[1] ?? '') . ($tiles[1] ?? ''), $d);
+            foreach ($keys as $k) $this->assertContains($k, $d[1], "the phone Menu has no $k under $g");
+        }
     }
 
     public function test_every_destination_in_the_panels_is_a_real_page(): void
     {
         // Read from the Twig data list, which is the form a literal-href sweep cannot see.
         $hrefs = array_merge(...array_values($this->panels()));
-        $this->assertCount(12, $hrefs, 'the panels lost items');
+        $this->assertCount(count(\AfricaGates\Services\MenuShortcuts::AWARDS) + count(\AfricaGates\Services\MenuShortcuts::EXPLORE), $hrefs, 'the panels lost items');
 
         $routes = (string) file_get_contents(dirname(__DIR__, 2) . '/src/routes.php');
         $missing = [];

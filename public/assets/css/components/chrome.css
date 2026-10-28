@@ -597,6 +597,12 @@
    values, and at 600px the signed-out bar measured 679px wide — the Sign in pill cut off
    by the shell. Below 720 the wordmark's words step aside (the mark and its accessible
    name stay) and the bar takes the phone gutter. A deviation, listed in PHASE-2.md. */
+/* The two plain links (Help, Advertise) beside the panels. Below 760px the bar has no room
+   for both, so Advertise steps out; the footer carries it on every page. */
+.ag-head__link{ text-decoration:none }
+@media (min-width:600px) and (max-width:759px){
+  .ag-head__link + .ag-head__link{ display:none }
+}
 @media (min-width:600px) and (max-width:719px){
   .ag-logo__word{ display:none }
   .ag-logo{ margin-inline-end:8px }

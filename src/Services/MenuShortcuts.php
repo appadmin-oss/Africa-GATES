@@ -65,10 +65,17 @@ final class MenuShortcuts
     /** The Participate four, in their own order: the tiles until there is history. */
     public const DEFAULTS = ['nominate', 'vote', 'awards', 'events'];
 
-    /** REFERENCE §7.4's Explore list, in order (Blog, not the DC's Leaderboard). */
-    public const EXPLORE = ['discover', 'pulse', 'giving', 'shop', 'legacy', 'blog', 'register'];
+    /**
+     * The two groups, in order: the owner's choice of 28 Oct 2026 ("Two menus"). The header's
+     * Awards and Explore panels and the footer's two columns list exactly these pages, and
+     * SiteHeaderTest holds all three to it. The previous lists (§7.4's Explore of seven) left
+     * Results, Hall of fame, Leaderboard, Community, Challenges and Opportunities in no menu.
+     */
+    public const AWARDS  = ['nominate', 'vote', 'awards', 'results', 'winners', 'leaderboard', 'challenges', 'integrity'];
+    public const EXPLORE = ['discover', 'pulse', 'events', 'community', 'blog', 'legacy', 'opportunities', 'shop', 'giving'];
 
-    public const HELP = ['help', 'integrity', 'status'];
+    /** The header's two plain links live here on a phone, with Status. */
+    public const HELP = ['help', 'advertise', 'status'];
 
     public const ALL = 'all';
     public const MEMBER = 'member';
@@ -94,7 +101,7 @@ final class MenuShortcuts
                             'd' => 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6'],
         'pulse'         => ['href' => '/pulse', 'label' => 'Pulse', 'tone' => 'give', 'who' => self::ALL,
                             'd' => 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM10 8.5l5 3.5-5 3.5z'],
-        'giving'        => ['href' => '/giving', 'label' => 'Giving', 'tone' => 'give', 'who' => self::ALL,
+        'giving'        => ['href' => '/giving', 'label' => 'Give', 'tone' => 'give', 'who' => self::ALL,
                             'd' => 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z'],
         'shop'          => ['href' => '/shop', 'label' => 'Shop', 'tone' => 'act', 'who' => self::ALL,
                             'd' => 'M6 7h12l-1 13H7zM9 7a3 3 0 0 1 6 0'],
@@ -102,6 +109,20 @@ final class MenuShortcuts
                             'd' => 'M4 8h16v12H4zM2 4h20v4H2z'],
         'blog'          => ['href' => '/blog', 'label' => 'Blog', 'tone' => 'plain', 'who' => self::ALL,
                             'd' => 'M4 5h16M4 10h16M4 15h10'],
+        'results'       => ['href' => '/results', 'label' => 'Results', 'tone' => 'honour', 'who' => self::ALL,
+                            'd' => 'M3 3v18h18M7 15l4-4 3 3 5-6'],
+        'winners'       => ['href' => '/winners', 'label' => 'Hall of fame', 'tone' => 'honour', 'who' => self::ALL,
+                            'd' => 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4'],
+        'leaderboard'   => ['href' => '/leaderboard', 'label' => 'Leaderboard', 'tone' => 'act', 'who' => self::ALL,
+                            'd' => 'M6 20V10M12 20V4M18 20v-6'],
+        'challenges'    => ['href' => '/challenges', 'label' => 'Challenges', 'tone' => 'grow', 'who' => self::ALL,
+                            'd' => 'M4 21V4h11l-1.5 4L15 12H4'],
+        'community'     => ['href' => '/community', 'label' => 'Community', 'tone' => 'plain', 'who' => self::ALL,
+                            'd' => 'M4 5h16v10H8l-4 4z'],
+        'opportunities' => ['href' => '/opportunities', 'label' => 'Opportunities', 'tone' => 'grow', 'who' => self::ALL,
+                            'd' => 'M12 3v18M5 10l7-7 7 7'],
+        'advertise'     => ['href' => '/advertise', 'label' => 'Advertise', 'tone' => 'set', 'who' => self::ALL,
+                            'd' => 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1ZM15.5 8.5a5 5 0 0 1 0 7'],
         'register'      => ['href' => '/account/register', 'label' => 'Register a profile', 'tone' => 'honour', 'who' => self::GUEST,
                             'd' => 'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0'],
         'notifications' => ['href' => '/account/notifications', 'label' => 'Notifications', 'tone' => 'set', 'who' => self::MEMBER,
@@ -216,8 +237,8 @@ final class MenuShortcuts
     }
 
     /**
-     * The Participate defaults that are not among the tiles — listed at the head of Explore so
-     * that nothing becomes unreachable from the Menu for not having been used.
+     * The default tiles that are not among the tiles now — listed at the head of their own
+     * group (Awards or Explore), so nothing becomes unreachable for not having been used.
      *
      * @param list<string> $tiles
      * @return list<string>
@@ -241,6 +262,8 @@ final class MenuShortcuts
             'warmup'   => self::WARMUP,
             'slots'    => self::SLOTS,
             'defaults' => self::DEFAULTS,
+            // Which group a displaced default returns to: the script needs the same answer.
+            'groups'   => ['awards' => self::AWARDS, 'explore' => self::EXPLORE],
             // Only what this visitor may open, in catalogue order (the last tie-break).
             'order'    => array_values(array_filter(array_keys(self::DESTINATIONS),
                 static fn (string $k): bool => self::opens($k, $member))),
@@ -303,11 +326,18 @@ final class MenuShortcuts
             return $out;
         };
 
+        // A group's list leaves out the default tiles (they are the squares above it), and a
+        // default the visitor's own shortcuts pushed out of the squares heads its own group.
+        $gone  = self::displaced($ranked['keys'], $member);
+        $group = static fn (array $keys): array => $pick(array_merge(
+            array_values(array_intersect($gone, $keys)),
+            array_values(array_diff($keys, self::DEFAULTS))));
+
         return [
             'tiles'     => $pick($ranked['keys']),
             'personal'  => $ranked['personal'],
-            'displaced' => $pick(self::displaced($ranked['keys'], $member)),
-            'explore'   => $pick(self::EXPLORE),
+            'awards'    => $group(self::AWARDS),
+            'explore'   => $group(self::EXPLORE),
             'settings'  => $pick(['notifications']),
             'help'      => $pick(self::HELP),
             // A guest's tiles are ranked in the browser: every destination they may open, as

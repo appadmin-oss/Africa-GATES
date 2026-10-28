@@ -72,7 +72,13 @@ final class MenuSheetTest extends TestCase
     /** @return list<string> */
     private function explore(string $menu): array
     {
-        $ex = substr($menu, (int) strpos($menu, 'id="ag-menu-h-explore"'));
+        return $this->group($menu, 'explore');
+    }
+
+    /** @return list<string> the rows of one group (awards, explore), in order */
+    private function group(string $menu, string $g): array
+    {
+        $ex = substr($menu, (int) strpos($menu, 'id="ag-menu-h-' . $g . '"'));
         $ex = substr($ex, 0, (int) strpos($ex, '</section>'));
         preg_match_all('~<a class="ag-list__row" href="[^"]+" data-ag-dest="([a-z]+)"~', $ex, $m);
         return $m[1];
@@ -85,12 +91,14 @@ final class MenuSheetTest extends TestCase
 
     // ══ What it says (Phase 2's rules, carried) ═══════════════════════════════
 
-    public function test_the_explore_list_is_the_phase_files_seven_and_a_member_is_not_offered_register(): void
+    public function test_the_two_groups_are_the_headers_and_a_member_is_not_offered_register(): void
     {
-        $this->assertSame(['discover', 'pulse', 'giving', 'shop', 'legacy', 'blog', 'register'], $this->explore($this->drawn()));
+        // The header's two panels (owner, 28 Oct 2026), less the four default squares above.
+        $rest = static fn (array $g): array => array_values(array_diff($g, MenuShortcuts::DEFAULTS));
+        $this->assertSame($rest(MenuShortcuts::EXPLORE), $this->explore($this->drawn()));
+        $this->assertSame($rest(MenuShortcuts::AWARDS), $this->group($this->drawn(), 'awards'));
         // /account/register sends a signed-in member to /account: a row that goes somewhere
-        // other than where it says. Asked of the router below; here, that it is not drawn.
-        $this->assertSame(['discover', 'pulse', 'giving', 'shop', 'legacy', 'blog'], $this->explore($this->drawn(self::MEMBER)));
+        // other than where it says. Register is the guest's join card, never a row.
         $this->assertStringNotContainsString('/account/register', $this->menu(self::MEMBER));
     }
 
@@ -159,8 +167,9 @@ final class MenuSheetTest extends TestCase
         $this->assertSame(['shop', 'status', 'blog', 'vote'], $this->tiles($m));
         $this->assertStringContainsString('aria-label="Most used"', $m);
         // Nominate, Awards and Events appear nowhere else in the Menu: pushed out of the
-        // squares, they head Explore, in the Participate order.
-        $this->assertSame(['nominate', 'awards', 'events', 'discover', 'pulse', 'giving', 'shop', 'legacy', 'blog'], $this->explore($m));
+        // squares, each heads its own group, in the default order.
+        $this->assertSame(['nominate', 'awards', 'results', 'winners', 'leaderboard', 'challenges', 'integrity'], $this->group($m, 'awards'));
+        $this->assertSame(['events', 'discover', 'pulse', 'community', 'blog', 'legacy', 'opportunities', 'shop', 'giving'], $this->explore($m));
 
         // And nothing the member may open has left the Menu.
         preg_match_all('~data-ag-dest="([a-z]+)"~', $m, $all);

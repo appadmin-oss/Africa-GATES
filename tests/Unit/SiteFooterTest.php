@@ -148,6 +148,6 @@ final class SiteFooterTest extends TestCase
     {
         $css = ChromeRender::code('public/assets/css/components/footer.css');
         $this->assertDoesNotMatchRegularExpression('~text-transform\s*:\s*uppercase~i', $css);
-        $this->assertStringContainsString('>Participate<', $this->footer());
+        $this->assertStringContainsString('>Awards<', $this->footer());
     }
 }
