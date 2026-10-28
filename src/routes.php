@@ -3880,6 +3880,24 @@ return function(App $app) {
         $a->get('[/]',            AccountController::class.':dashboard');
     })->add(new UserAuthMiddleware());
 
+    // ═══ VOLUNTEERS (consoles v7 handoff §6; docs/architecture/CONSOLES-V7-REVIEW.md, V1) ═══
+    // A member area behind the member session: a volunteer is a member actor and never an admin
+    // one (§0.4). Literals are registered before the placeholders they would match.
+    $app->group('/volunteer', function (RouteCollectorProxy $v) {
+        $c = \AfricaGates\Controllers\VolunteerController::class;
+        $v->get('/apply',                         $c . ':applyForm');
+        $v->post('/apply',                        $c . ':apply');
+        $v->post('/act',                          $c . ':act');
+        $v->get('/me/export.json',                $c . ':export');
+        $v->get('/me[/{page:[a-z]+}]',            $c . ':me');
+        $v->get('/training/take/{slug:[a-z0-9-]+}', $c . ':module');
+        $v->get('/shifts/{id:[0-9]+}',            $c . ':shift');
+        $v->get('/requests/{id:[0-9]+}',          $c . ':request');
+        $v->get('/{kind:cycle|event}/{id:[0-9]+}[/{page:[a-z]+}]', $c . ':place');
+        $v->get('/{page:shifts|tasks|hours|training|record|team|requests}[/{tab:[a-z]+}]', $c . ':root');
+        $v->get('[/]',                            $c . ':root');
+    })->add(new UserAuthMiddleware());
+
     // ═══ ADMIN ═══════════════════════════════════════════════════════
     $app->group('/admin', function (RouteCollectorProxy $a) {
         // Unauthenticated
@@ -4753,6 +4771,10 @@ return function(App $app) {
         // Derived on read from the platform's own records (Admin\Services\ConsoleAlerts):
         // an email outage, a stalled schedule, chargebacks on a clock, schema behind the
         // code. The top bar's alert pill and Home's "needs a person" read the same list.
+        // The staff side of the volunteer workspace (consoles v7 §6; review slice V1). Unmapped in
+        // Permissions, so the guard holds it to superadmin until the owner decides who else.
+        $a->get('/volunteers',  \AfricaGates\Admin\Controllers\VolunteersController::class.':index');
+        $a->post('/volunteers', \AfricaGates\Admin\Controllers\VolunteersController::class.':act');
         $a->get('/alerts', \AfricaGates\Admin\Controllers\AlertsController::class.':index');
         // "Assign to me" — the alert's owner and its timeline (AdminConsole v2).
         $a->post('/alerts/{key:[a-z_]+}/assign', \AfricaGates\Admin\Controllers\AlertsController::class.':assign');

@@ -40,6 +40,9 @@ final class ConsolePaletteTest extends TestCase
         'gold' => '#c8961e', 'gold-ink' => '#8a5d0b', 'gold-icon' => '#b07a12', 'gold-wash' => '#fbf4e4', 'gold-wash-2' => '#fdfaf2', 'gold-edge' => '#efdcae',
         'red' => '#c4321f', 'red-ink' => '#a3271a', 'red-wash' => '#fdeeeb', 'red-wash-2' => '#fdf6f4', 'red-edge' => '#f3c9c1',
         'slate' => '#5b7a80', 'slate-wash' => '#eaf0f1',
+        // v7 consoles handoff (README §2.1), value for value.
+        'ok-wash' => '#effaf0', 'bad-ink' => '#a52a19', 'info' => '#1f5f8b', 'info-wash' => '#e6f0f4',
+        'card-edge' => '#e8e5dd', 'table-head' => '#fafbf8', 'chart-2' => '#9fd09e', 'chart-4' => '#d9a441',
         'scrim' => 'rgba(16,41,44,.32)', 'scrim-palette' => 'rgba(16,41,44,.28)', 'scrim-drawer' => 'rgba(16,41,44,.18)',
         'on-ink-fill' => 'rgba(255,255,255,.14)',
     ];

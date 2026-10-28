@@ -1,0 +1,23 @@
+/* /admin/volunteers — the staff side of the volunteer workspace, in the console's own measures.
+   Console cards carry no padding of their own (console.css); each page pads its content, as here.
+   Colour and type come from the console tokens (ColourLiteralTest, ConsoleTypeTest). */
+.vl-sec { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
+.vl-sec > .cn-table { margin: 0 -20px; width: calc(100% + 40px); }
+.vl-h { margin: 0; font-size: var(--cn-fs-15); font-weight: 600; color: var(--cn-ink); }
+.vl-help { margin: 0; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
+.vl-ok { margin: 0 0 14px; padding: 12px 16px; border-radius: var(--cn-r-16); background: var(--cn-green-wash); color: var(--cn-green-ink); font-size: var(--cn-fs-13-5); }
+.vl-acts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding-top: 4px; }
+.vl-acts form, .vl-inline, .vl-grant { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 2px 0; }
+.vl-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; align-items: end; }
+.vl-form label { display: flex; flex-direction: column; gap: 6px; font-size: var(--cn-fs-13); font-weight: 500; color: var(--cn-ink-2); }
+.vl-form label.vl-check { flex-direction: row; align-items: center; gap: 8px; height: 36px; font-weight: 400; }
+.vl-form p { margin: 0; }
+.vl-in, .vl-form input:not([type=checkbox]), .vl-form select, .vl-form textarea, .vl-inline input, .vl-grant select, .vl-grant input {
+  height: 36px; padding: 0 12px; border: 1px solid var(--cn-line); border-radius: var(--cn-r-8); font: var(--cn-fs-13-5) var(--cn-font);
+  color: var(--cn-ink); background: var(--cn-surface); box-sizing: border-box; min-width: 0; }
+.vl-form textarea { height: auto; padding: 8px 12px; line-height: 1.5; }
+.vl-in:focus-visible, .vl-form :is(input, select, textarea):focus-visible, .vl-inline input:focus-visible, .vl-grant :is(select, input):focus-visible { outline: 2px solid var(--cn-green); outline-offset: 1px; }
+.vl-wide { grid-column: 1 / -1; }
+.vl-form fieldset { border: 1px solid var(--cn-line-row); border-radius: var(--cn-r-12); padding: 12px 14px; display: grid; gap: 10px; margin: 0; }
+.vl-form legend { font-size: var(--cn-fs-13); font-weight: 600; padding: 0 4px; }
+.vl-person { display: inline-flex; gap: 6px; align-items: center; margin-right: 10px; }

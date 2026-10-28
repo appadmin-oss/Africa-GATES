@@ -111,6 +111,7 @@ final class PublicSurface
                 $rel = ltrim(str_replace($root, '', $abs), '/');
                 if (str_contains($rel, '/vendor/')) continue;
                 if (str_starts_with($rel, ConsoleSurface::CSS_DIR)) continue;   // the admin console's own surface
+                if (in_array($rel, ConsoleSurface::REBUILT, true)) continue;      // console templates outside admin/: the v7 shell
                 if (in_array($rel, self::HELD_CSS, true)) continue;
                 if (in_array($rel, self::HELD_TEMPLATES, true)) continue;
                 foreach (self::HELD_TEMPLATE_DIRS as $held) {

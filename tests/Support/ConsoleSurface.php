@@ -32,6 +32,11 @@ final class ConsoleSurface
         'templates/admin/nominations/queue.twig',
         'templates/admin/nominations/_queue_peek.twig',
         'templates/admin/nominations/_queue_filter.twig',
+        // The v7 shell and the volunteer workspace (consoles v7 handoff; review slices K4, V1).
+        'templates/shell/layout.twig',
+        'templates/shell/sections.twig',
+        'templates/volunteer/page.twig',
+        'templates/volunteer/apply.twig',
     ];
 
     /** @return array<string,string> rel => absolute */

@@ -180,7 +180,11 @@ final class AdminNav
         ]],
         ['key' => 'organisation', 'label' => 'Organisation', 'tip' => 'People, roles, health and keys.', 'items' => [
             ['page' => 'admins', 'label' => 'Team', 'href' => '/admin/admins', 'icon' => 'team',
-             'sub' => 'Who can sign in to this console and what each role reaches.'],
+             'sub' => 'Who can sign in to this console and what each role reaches.',
+             'children' => [
+                 // People › Volunteers in the v7 handoff (§4.1): applications, roles, shifts, hours.
+                 ['page' => 'volunteers', 'label' => 'Volunteers', 'href' => '/admin/volunteers'],
+             ]],
             ['page' => 'alerts', 'label' => 'Alerts', 'href' => '/admin/alerts', 'icon' => 'bell',
              'sub' => 'Everything the platform noticed on its own, most severe first. Each one says what to do next.'],
             ['page' => 'handbook', 'label' => 'Handbook', 'href' => '/admin/handbook', 'icon' => 'hb',

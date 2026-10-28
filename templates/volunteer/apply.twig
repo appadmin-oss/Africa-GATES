@@ -1,0 +1,70 @@
+{#
+  /volunteer/apply — becoming a volunteer (handoff §6.1 role "applicant"; Volunteers::apply).
+
+  The rules are stated where they are enforced (CLAUDE.md "a rule stated only in a placeholder
+  is stated to nobody"): the minimum age and the guardian line come from Volunteer\Rules, the
+  same reader `apply()` uses, never typed here. A refusal comes back with every field kept.
+#}
+{% set old = old|default({}) %}
+{% set picked = old.interests|default([]) %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title }}</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
+<link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/shell7.css') }}">
+{% include 'partials/csrf-fresh.twig' %}
+</head>
+<body class="sh7">
+<main class="sh7-apply" id="sh7Main">
+  <p class="sh7-brand"><span class="sh7-brand__tile" aria-hidden="true">AG</span><span class="sh7-brand__words"><span class="sh7-brand__name">Africa GATES</span><span class="sh7-brand__sub">Volunteers</span></span></p>
+  <h1 class="sh7-head__title">Volunteer with Africa GATES</h1>
+  <p class="sh7-head__purpose">Help on the night of an award, bring people to vote, check nominations or digitise a programme’s history. Nothing is expected of you until you pick something.</p>
+  {% if was and was.status == 'declined' %}<p class="sh7-note sh7-note--warn">Your last application wasn’t taken forward: “{{ was.decline_reason }}”. You can apply again.</p>{% endif %}
+  {% if was and was.status == 'left' %}<p class="sh7-note sh7-note--mute">Welcome back. Your verified record is still yours; apply again to take new shifts.</p>{% endif %}
+  {% if errors %}<div class="sh7-note sh7-note--bad" role="alert"><p>Please fix these:</p><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+
+  <form class="sh7-form" method="post" action="/volunteer/apply">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="sh7-form__block">
+      <div class="sh7-form__label"><p class="sh7-form__name">About you</p><p class="sh7-form__help">Leads see the name you give here. Your date of birth is kept only to check the age rule.</p></div>
+      <div class="sh7-form__fields">
+        <label class="sh7-field" for="a_name"><span class="sh7-field__label">Name to show (optional)</span><input class="sh7-input" id="a_name" name="display_name" value="{{ old.display_name|default('') }}" placeholder="{{ user.name }}"></label>
+        <label class="sh7-field" for="a_dob"><span class="sh7-field__label">Date of birth</span><input class="sh7-input" id="a_dob" type="date" name="dob" value="{{ old.dob|default('') }}" required></label>
+        <p class="sh7-form__help">Volunteers are {{ min_age }} or older. Under {{ guardian_under }}, a parent or guardian agrees first.</p>
+        <label class="sh7-choice"><input type="checkbox" name="guardian" value="1"> I’m under {{ guardian_under }} and a parent or guardian has agreed</label>
+        <label class="sh7-field" for="a_area"><span class="sh7-field__label">Where you are</span><input class="sh7-input" id="a_area" name="area" value="{{ old.area|default('') }}" placeholder="e.g. Ikotun, Alimosho" required></label>
+        <label class="sh7-field" for="a_lang"><span class="sh7-field__label">Languages (optional)</span><input class="sh7-input" id="a_lang" name="languages" value="{{ old.languages|default('') }}"></label>
+      </div>
+    </div>
+    <div class="sh7-form__block">
+      <div class="sh7-form__label"><p class="sh7-form__name">What you’d like to help with</p><p class="sh7-form__help">Pick any. You can change your mind later.</p></div>
+      <fieldset class="sh7-form__fields sh7-field--choice"><legend class="sh7-sr">What you’d like to help with</legend>
+        {% for k, l in interests %}<label class="sh7-choice"><input type="checkbox" name="interests[]" value="{{ k }}"{{ k in picked ? ' checked' }}> {{ l }}</label>{% endfor %}
+      </fieldset>
+    </div>
+    <div class="sh7-form__block">
+      <div class="sh7-form__label"><p class="sh7-form__name">Someone who can vouch for you</p><p class="sh7-form__help">A teacher, an employer, a faith or community leader. Not a relative. We ask them once.</p></div>
+      <div class="sh7-form__fields">
+        <label class="sh7-field" for="a_rn"><span class="sh7-field__label">Their name</span><input class="sh7-input" id="a_rn" name="ref_name" value="{{ old.ref_name|default('') }}" required></label>
+        <label class="sh7-field" for="a_rc"><span class="sh7-field__label">Their phone or email</span><input class="sh7-input" id="a_rc" name="ref_contact" value="{{ old.ref_contact|default('') }}" required></label>
+        <label class="sh7-field" for="a_rr"><span class="sh7-field__label">How they know you (optional)</span><input class="sh7-input" id="a_rr" name="ref_relation" value="{{ old.ref_relation|default('') }}"></label>
+      </div>
+    </div>
+    <div class="sh7-form__block">
+      <div class="sh7-form__label"><p class="sh7-form__name">Code of conduct</p></div>
+      <div class="sh7-form__fields sh7-article">
+        <p>You help people take part; you never ask anyone to vote for a named nominee. You never take money or a phone from anyone. You keep what you see about nominees, voters and guests to yourself. You wear your pass and follow your lead on the night.</p>
+        <label class="sh7-choice"><input type="checkbox" name="conduct" value="1" required> I’ve read the code of conduct and I accept it</label>
+      </div>
+    </div>
+    <p class="sh7-form__submit"><button class="sh7-btn sh7-btn--primary" type="submit">Send my application</button> <a class="sh7-btn" href="/account">Not now</a></p>
+  </form>
+</main>
+</body>
+</html>

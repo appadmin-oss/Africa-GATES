@@ -348,6 +348,18 @@ final class Accent
         'red-edge'     => ['value' => '#f3c9c1', 'use' => 'a red pill\'s border'],
         'slate'        => ['value' => '#5b7a80', 'use' => 'the Content hub, informational words'],
         'slate-wash'   => ['value' => '#eaf0f1', 'use' => 'a Content tile\'s field'],
+        // ── v7 (consoles handoff, 28 Oct 2026, README §2.1): the tones the volunteer
+        // workspace and the event lead console draw. Added under the handoff's own meanings,
+        // never by re-valuing the v2 names above, which the v2 pages still read
+        // (CONSOLES-V7-REVIEW C6).
+        'ok-wash'      => ['value' => '#effaf0', 'use' => 'v7: an ok chip, a done step\'s numeral'],
+        'bad-ink'      => ['value' => '#a52a19', 'use' => 'v7: words in a bad chip, a clash'],
+        'info'         => ['value' => '#1f5f8b', 'use' => 'v7: info words and dots, the third chart series'],
+        'info-wash'    => ['value' => '#e6f0f4', 'use' => 'v7: an info chip, an award tile'],
+        'card-edge'    => ['value' => '#e8e5dd', 'use' => 'v7: the edge of a card, a chart, a table'],
+        'table-head'   => ['value' => '#fafbf8', 'use' => 'v7: a table head, a row hover, a table footer note'],
+        'chart-2'      => ['value' => '#9fd09e', 'use' => 'v7: the second chart series'],
+        'chart-4'      => ['value' => '#d9a441', 'use' => 'v7: the fourth chart series'],
         'scrim'        => ['value' => 'rgba(16,41,44,.32)', 'use' => 'behind the confirm dialog'],
         'scrim-palette'=> ['value' => 'rgba(16,41,44,.28)', 'use' => 'behind the command palette'],
         'scrim-drawer' => ['value' => 'rgba(16,41,44,.18)', 'use' => 'behind a drawer or the Ask pane'],
@@ -385,11 +397,13 @@ final class Accent
         'faint'     => ['surface', 'panel', 'ground'],
         'faint-2'   => ['surface', 'ground'],
         'green'     => ['surface', 'panel', 'green-wash'],
-        'green-ink' => ['surface', 'green-wash'],
+        'green-ink' => ['surface', 'green-wash', 'ok-wash'],
         'gold-ink'  => ['surface', 'gold-wash', 'gold-wash-2'],
         'red'       => ['surface', 'red-wash'],
         'red-ink'   => ['surface', 'red-wash', 'red-wash-2'],
         'slate'     => ['surface', 'slate-wash'],
+        'info'      => ['surface', 'info-wash', 'table-head'],
+        'bad-ink'   => ['surface', 'red-wash'],
         'surface'   => ['ink', 'ink-deep', 'green', 'red'],
     ];
 

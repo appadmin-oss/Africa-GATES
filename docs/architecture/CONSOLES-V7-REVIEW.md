@@ -102,3 +102,47 @@ not produce.
 | D11 | What is a centre? (open since the plan) | Needed only for "distance" in Fits you. Until it is answered, a volunteer's place is their state, and Fits you ranks without distance. |
 | D12 | ID check and minimum age for volunteers. (open since the plan) | As the plan: an ID check for any role that sees personal data, handles money or works a door; minimum 16, with a guardian's consent under 18. The applicant flow asks for date of birth from day one either way. |
 | D38 | Who writes the training modules? | Staff, in the console, as short pages with a three-question check. The first module (Safety 2026, which the door role needs) is written before door shifts open to volunteers. |
+
+---
+
+## 6. Progress
+
+### V1 shipped (28 Oct 2026), on K1–K3
+
+- **The v7 shell** (`templates/shell/`, `public/assets/css/console/shell7.css`, `public/assets/js/shell7.js`):
+  rail, scope rail with Back and the identity block, crumbs, tabs, the phone app bar and a
+  bottom tab bar of four pages plus More. Layout measures its container (§2.2), not the
+  window. The section kinds are one macro each (`templates/shell/sections.twig`): rows,
+  cards, stats, steps, note, hero, agenda, chart, table, form, article. Colour is the
+  console set of `Support\Accent`, with the v7 tones added under new names (C6); type is the
+  console ladder plus 28 for the v7 h1.
+- **The volunteer workspace** at `/volunteer` (`Controllers\VolunteerController`,
+  `Services\Volunteer\Workspace`, `WorkspacePages`, `Team`): the four roles' rails (§6.1);
+  Today for applicant, new and active/lead; Shifts (Mine, Fits you, All open, Past) and the
+  shift record; Tasks; Hours with the 8-week chart and Log hours; Training and the module
+  check; My record (levels, badges from the record, letters); My team for leads (roster,
+  hours to confirm, team requests, gaps with named fits); Requests with the composer and the
+  detail page; Profile and access (profile, availability, notifications, access, privacy
+  with a JSON copy, take a break or leave); and the event and award-edition places built from
+  grants and shifts (Today/Overview, shifts, tasks, briefing, who's on, your access).
+- **The staff side** at `/admin/volunteers` (`Admin\Controllers\VolunteersController`),
+  under Team in the rail: applications and referees, roles with an end date, shifts (post,
+  mark who came), tasks (post, accept with hours), training modules, and hours no lead has
+  answered. Unmapped in `Permissions`, so superadmin only until the owner says otherwise.
+- `/volunteer/apply` is linked from the member's account page.
+
+Every figure is read from the record; an empty list is one sentence. Tests:
+`VolunteerWorkspaceTest`, `VolunteersAdminTest` (and K1–K3's `VolunteersTest`).
+
+### Not yet (next slices)
+
+- **V2 award scopes**: Check nominations (the masked review desk, G5) and the voter drive
+  (G6). The award place shows Overview, Tasks and Your access until then.
+- **Shell behaviours**: Find (⌘K), Ask (⌘J), the switcher, the bell's grouped Updates, the
+  drawer, remembered page per scope, smart group collapse. The bell links to Today for now.
+- **Door scans as hours** (G1): a volunteer's own pass at the gate stamping
+  `gates_vol_signups.check_in_at` / `check_out_at`. Staff "Came / Didn't come" is the source
+  until then.
+- **L1 the event lead root** (`/admin/lead`), on the event plan tables.
+- Decisions still open: D11, D12, D36 (the defaults in `Volunteer\Rules` are the review's
+  recommendations), D37, D38, and who besides superadmin opens `/admin/volunteers`.

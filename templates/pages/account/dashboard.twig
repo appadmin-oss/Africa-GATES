@@ -359,6 +359,12 @@
       <span class="ag-list__value acc__val">{{ interests|length ? interests|map(k => _labels[k]|default(k)|trans)|join(', ') : 'Not chosen'|trans }}</span>
       <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
     </a>
+    {# The volunteer workspace (/volunteer, consoles v7 §6). The application is the way in; a
+       member who already volunteers is sent on to their workspace from it. #}
+    <a class="ag-list__row" href="/volunteer/apply">
+      <span class="ag-list__label">{{ 'Volunteering'|trans }}</span>
+      <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+    </a>
     <a class="ag-list__row" href="/account/display">
       <span class="ag-list__label">{{ 'Display & reading'|trans }}</span>
       <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>

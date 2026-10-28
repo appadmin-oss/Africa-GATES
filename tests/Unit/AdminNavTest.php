@@ -93,6 +93,10 @@ final class AdminNavTest extends TestCase
         '/admin/calendar'           => 'overview',
         // New with AdminConsole v2 (26 Oct 2026). Held with the money: it totals giving per person.
         '/admin/contacts'           => 'finance',
+        // New with the volunteer workspace (28 Oct 2026, consoles v7 §6). Left UNMAPPED —
+        // superadmin only — like Payouts and Community return: it holds applicants' dates of
+        // birth and referees' phones, and who else coordinates volunteers is the owner's call.
+        '/admin/volunteers'         => null,
     ];
 
     private const ROLES = ['superadmin', 'admin', 'editor', 'moderator', 'viewer'];

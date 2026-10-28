@@ -1,0 +1,232 @@
+{% extends "admin/layout.twig" %}
+{#
+  VOLUNTEERS — the staff side of the volunteer workspace (consoles v7 §4.1 People › Volunteers;
+  CONSOLES-V7-REVIEW slice V1). What staff do here is what fills a volunteer's pages: approve
+  an application, give a role that ENDS, post a shift or a task, mark who came, accept work,
+  write training, answer hours nobody's lead has. Every control is a form that posts; every
+  write is audited by the controller.
+#}
+{% import 'admin/partials/kit.twig' as kit %}
+{% block topbar_sub %}Applications, roles that end on their own, shifts, tasks, training and hours: what fills each volunteer’s workspace.{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/volunteers.css') }}">{% endblock %}
+
+{% block content %}
+<div class="cn-toolbar">
+  <div class="cn-fchips" role="group" aria-label="Volunteers">
+    {% for k, l in tabs %}
+      <a class="cn-fchip{{ tab == k ? ' is-on' }}" href="/admin/volunteers?tab={{ k }}"{% if tab == k %} aria-current="page"{% endif %}>
+        <span class="cn-fchip__k">{{ l }}</span>{% if counts[k] is defined and counts[k] > 0 %}<span class="cn-fchip__v">{{ counts[k] }}</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% if flash_ok %}<p class="vl-ok" role="status">{{ flash_ok }}</p>{% endif %}
+{% if flash_error %}<div class="cn-error" role="alert"><span class="cn-error__t">That didn’t go through</span><span class="cn-error__m">{{ flash_error }}</span></div>{% endif %}
+
+{% if not ready %}
+  <div class="cn-card vl-sec">{{ kit.empty('The volunteer tables are not here yet', 'Apply the latest database update (2027_04_12_volunteers_grants_requests) and come back.', 'users') }}</div>
+
+{% elseif tab == 'applications' %}
+  {% if rows is empty %}
+    <div class="cn-card vl-sec">{{ kit.empty('No applications waiting', 'A member applies from Volunteering on their account page.', 'users') }}</div>
+  {% else %}
+    {% for v in rows %}
+      <section class="cn-card vl-sec" aria-label="{{ v.display_name ?: v.user_name }}">
+        <h2 class="vl-h">{{ v.display_name ?: v.user_name }}</h2>
+        <dl class="cn-facts">
+          <div><dt>Applied</dt><dd>{{ v.applied_at|date('j M Y') }}</dd></div>
+          <div><dt>Age</dt><dd>{{ v.age ?? '—' }}{% if v.guardian_consent_at %} · a guardian agreed{% endif %}</dd></div>
+          <div><dt>Where</dt><dd>{{ v.area }}</dd></div>
+          <div><dt>Would like to</dt><dd>{{ v.wants|join(', ') }}</dd></div>
+        </dl>
+        {% if v.motivation %}<p>{{ v.motivation }}</p>{% endif %}
+        <table class="cn-table">
+          <thead><tr><th scope="col">Referee</th><th scope="col">Reached at</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+            {% for r in v.refs %}
+              <tr><td>{{ r.name }}{% if r.relation %} · {{ r.relation }}{% endif %}</td><td>{{ r.contact }}</td><td>{{ r.status == 'replied' ? 'Replied' : 'Asked ' ~ r.asked_at|date('j M') }}</td>
+                <td>{% if r.status == 'asked' %}
+                  <form method="post" action="/admin/volunteers"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="applications">
+                    <input type="hidden" name="do" value="ref_replied"><input type="hidden" name="ref" value="{{ r.id }}">
+                    <label class="sr-only" for="rn{{ r.id }}">What they said</label><input class="vl-in" id="rn{{ r.id }}" name="note" placeholder="What they said (optional)">
+                    <button class="cn-btn cn-btn--sm" type="submit">They replied</button></form>
+                {% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="vl-acts">
+          <form method="post" action="/admin/volunteers"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="applications">
+            <input type="hidden" name="do" value="approve"><input type="hidden" name="id" value="{{ v.id }}"><button class="cn-btn cn-btn--primary" type="submit">Approve</button></form>
+          <form method="post" action="/admin/volunteers"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="applications">
+            <input type="hidden" name="do" value="decline"><input type="hidden" name="id" value="{{ v.id }}">
+            <label class="sr-only" for="dr{{ v.id }}">Why not</label><input class="vl-in" id="dr{{ v.id }}" name="reason" placeholder="Why not — they see this" required>
+            <button class="cn-btn" type="submit">Decline</button></form>
+        </div>
+      </section>
+    {% endfor %}
+  {% endif %}
+
+{% elseif tab == 'roster' %}
+  {% if rows is empty %}
+    <div class="cn-card vl-sec">{{ kit.empty('No volunteers yet', 'Approved applicants appear here.', 'users') }}</div>
+  {% else %}
+    <div class="cn-card vl-sec">
+      <table class="cn-table">
+        <thead><tr><th scope="col">Volunteer</th><th scope="col">Level</th><th scope="col">Verified hours</th><th scope="col">Roles held</th><th scope="col">Give a role</th></tr></thead>
+        <tbody>
+          {% for v in rows %}
+            <tr>
+              <td>{{ v.name }}{% if v.status == 'paused' %} · on a break{% endif %}</td>
+              <td>{{ v.lv.level }}</td>
+              <td>{{ v.lv.hours }}</td>
+              <td>{% for g in v.grants %}
+                <form method="post" action="/admin/volunteers" class="vl-grant"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="roster">
+                  <input type="hidden" name="do" value="revoke"><input type="hidden" name="grant" value="{{ g.id }}">
+                  {{ caps[g.capability]|default(g.capability) }} · {{ g.where }} · until {{ g.expires_at|date('j M') }} <button class="cn-btn cn-btn--sm" type="submit">End now</button></form>
+              {% else %}None{% endfor %}</td>
+              <td>
+                <form method="post" action="/admin/volunteers" class="vl-grant"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="roster">
+                  <input type="hidden" name="do" value="grant"><input type="hidden" name="id" value="{{ v.id }}">
+                  <label class="sr-only" for="gc{{ v.id }}">Role</label><select id="gc{{ v.id }}" name="capability">{% for k, l in caps %}{% if k starts with 'vol.' %}<option value="{{ k }}">{{ l }}</option>{% endif %}{% endfor %}</select>
+                  <label class="sr-only" for="gp{{ v.id }}">Where</label><select id="gp{{ v.id }}" name="place" required>{% for p in places %}<option value="{{ p.kind }}:{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
+                  <label class="sr-only" for="ge{{ v.id }}">Ends</label><input id="ge{{ v.id }}" type="date" name="expires_at" required min="{{ 'now'|date('Y-m-d') }}">
+                  <button class="cn-btn cn-btn--sm" type="submit">Give</button></form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="vl-help">Every role ends on its date with nothing scheduled; the volunteer’s page drops it on their next visit.</p>
+    </div>
+  {% endif %}
+
+{% elseif tab == 'shifts' %}
+  <section class="cn-card vl-sec" aria-labelledby="vlShiftH">
+    <h2 class="vl-h" id="vlShiftH">Post a shift</h2>
+    <form method="post" action="/admin/volunteers" class="vl-form"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="shifts"><input type="hidden" name="do" value="shift">
+      <label>Name <input name="title" required placeholder="Door, Gate B"></label>
+      <label>For <select name="scope" required>{% for p in places %}<option value="{{ p.kind }}:{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+      <label>Starts <input type="datetime-local" step="1" name="starts_at" required></label>
+      <label>Ends <input type="datetime-local" step="1" name="ends_at" required></label>
+      <label>People <input type="number" name="slots" min="1" max="500" value="4" required></label>
+      <label>Where <input name="location" placeholder="Alimosho Civic Centre"></label>
+      <label>Role it brings <select name="capability"><option value="">None</option>{% for k, l in caps %}{% if k starts with 'vol.' %}<option value="{{ k }}">{{ l }}</option>{% endif %}{% endfor %}</select></label>
+      <label>Training it needs <select name="module_key"><option value="">None</option>{% for k, l in modules %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label>Bring <input name="bring" placeholder="Your pass, a black top"></label>
+      <label>Lead on the night <input name="lead_name"></label>
+      <label class="vl-wide">Briefing <textarea name="brief" rows="3"></textarea></label>
+      <label class="vl-check"><input type="checkbox" name="from_home" value="1"> From home</label>
+      <p><button class="cn-btn cn-btn--primary" type="submit">Post the shift</button></p>
+    </form>
+  </section>
+  {% for set in [{h: 'Coming up', rows: upcoming, past: false}, {h: 'Past: mark who came', rows: past, past: true}] %}
+    <section class="cn-card vl-sec" aria-label="{{ set.h }}">
+      <h2 class="vl-h">{{ set.h }}</h2>
+      {% if set.rows is empty %}{{ kit.empty('Nothing here', set.past ? 'Shifts that have ended show here until everybody on them is marked.' : 'Post a shift above.', 'cal') }}{% else %}
+      <table class="cn-table">
+        <thead><tr><th scope="col">Shift</th><th scope="col">When</th><th scope="col">People</th></tr></thead>
+        <tbody>
+          {% for s in set.rows %}
+            <tr><td>{{ s.title }} · {{ s.where }}</td><td>{{ s.starts_at|date('D j M, H:i') }}–{{ s.ends_at|date('H:i') }}</td>
+              <td>{% for p in s.people %}
+                <span class="vl-person">{{ p.display_name ?: p.name }}
+                {% if set.past and p.status == 'on' %}
+                  <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="shifts">
+                    <input type="hidden" name="do" value="mark"><input type="hidden" name="signup" value="{{ p.id }}">
+                    <button class="cn-btn cn-btn--sm" type="submit" name="kept" value="1">Came</button><button class="cn-btn cn-btn--sm" type="submit" name="kept" value="0">Didn’t come</button></form>
+                {% elseif p.status != 'on' %} · {{ p.status == 'kept' ? 'came' : 'didn’t come' }}{% endif %}</span>
+              {% else %}Nobody yet{% endfor %} · {{ s.people|filter(p => p.status == 'on')|length }} of {{ s.slots }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>{% endif %}
+    </section>
+  {% endfor %}
+
+{% elseif tab == 'tasks' %}
+  <section class="cn-card vl-sec" aria-labelledby="vlTaskH">
+    <h2 class="vl-h" id="vlTaskH">Post a task</h2>
+    <form method="post" action="/admin/volunteers" class="vl-form"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks"><input type="hidden" name="do" value="task">
+      <label>Name <input name="title" required placeholder="Digitise the 1st Edition booklet"></label>
+      <label>How it’s checked <select name="checked_by">{% for k, l in checked %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label>For <select name="scope"><option value="">Anywhere</option>{% for p in places %}<option value="{{ p.kind }}:{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+      <label>About how long (minutes) <input type="number" name="est_minutes" min="0"></label>
+      <label>Target (how many) <input type="number" name="target" min="0"></label>
+      <label>Due <input type="datetime-local" step="1" name="due_at"></label>
+      <label>Training it needs <select name="module_key"><option value="">None</option>{% for k, l in modules %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label class="vl-wide">What to do <textarea name="body" rows="3"></textarea></label>
+      <label class="vl-check"><input type="checkbox" name="from_home" value="1" checked> From home</label>
+      <p><button class="cn-btn cn-btn--primary" type="submit">Post the task</button></p>
+    </form>
+  </section>
+  <section class="cn-card vl-sec" aria-label="Open tasks">
+    <h2 class="vl-h">Open tasks</h2>
+    {% if rows is empty %}{{ kit.empty('No open tasks', 'Post one above.', 'list') }}{% else %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">Task</th><th scope="col">Who has it</th></tr></thead>
+      <tbody>
+        {% for t in rows %}
+          <tr><td>{{ t.title }}<br><span class="cn-code--soft">{{ checked[t.checked_by]|default('') }}</span></td>
+            <td>{% for k in t.takes %}
+              <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+                <input type="hidden" name="do" value="accept"><input type="hidden" name="take" value="{{ k.id }}">
+                {{ k.display_name ?: k.name }}{% if t.target %} · {{ k.progress }} of {{ t.target }}{% endif %}
+                <label class="sr-only" for="th{{ k.id }}">Hours it earned</label><input id="th{{ k.id }}" type="number" name="hours" min="0" step="0.25" placeholder="Hours" required>
+                <label class="sr-only" for="ta{{ k.id }}">Accepted</label><input id="ta{{ k.id }}" type="number" name="accepted" min="0" placeholder="Accepted">
+                <button class="cn-btn cn-btn--sm" type="submit">Accept</button></form>
+            {% else %}Nobody yet{% endfor %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>{% endif %}
+  </section>
+
+{% elseif tab == 'training' %}
+  <section class="cn-card vl-sec" aria-labelledby="vlModH">
+    <h2 class="vl-h" id="vlModH">Write or update a module</h2>
+    <p class="vl-help">Short pages with a three-question check. A module with the same short code is updated in place.</p>
+    <form method="post" action="/admin/volunteers" class="vl-form"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="training"><input type="hidden" name="do" value="module">
+      <label>Title <input name="title" required placeholder="Door steward"></label>
+      <label>Short code <input name="slug" required placeholder="door-steward"></label>
+      <label>Minutes <input type="number" name="minutes" min="1" max="120" value="10"></label>
+      <label>Pass lasts (days, blank for ever) <input type="number" name="valid_days" min="0"></label>
+      <label>Unlocks <select name="unlocks"><option value="">Nothing</option>{% for k, l in caps %}{% if k starts with 'vol.' %}<option value="{{ k }}">{{ l }}</option>{% endif %}{% endfor %}</select></label>
+      <label class="vl-wide">The page <textarea name="body" rows="6" placeholder="Paragraphs, separated by a blank line."></textarea></label>
+      {% for i in 0..2 %}
+        <fieldset class="vl-wide"><legend>Question {{ i + 1 }}</legend>
+          <label>Question <input name="q[{{ i }}]"></label>
+          <label>Answers, one per line <textarea name="opts[{{ i }}]" rows="3"></textarea></label>
+          <label>The right answer is number <input type="number" name="answer[{{ i }}]" min="1" max="6" value="1"></label>
+        </fieldset>
+      {% endfor %}
+      <p><button class="cn-btn cn-btn--primary" type="submit">Save the module</button></p>
+    </form>
+  </section>
+  <section class="cn-card vl-sec" aria-label="Modules">
+    <h2 class="vl-h">Modules</h2>
+    {% if rows is empty %}{{ kit.empty('No training yet', 'Door and desk shifts need a module before volunteers can take them.', 'book') }}{% else %}
+    <table class="cn-table"><thead><tr><th scope="col">Module</th><th scope="col">Minutes</th><th scope="col">Lasts</th><th scope="col">Unlocks</th></tr></thead>
+      <tbody>{% for m in rows %}<tr><td>{{ m.title }} <span class="cn-code--soft">{{ m.slug }}</span></td><td>{{ m.minutes }}</td><td>{{ m.valid_days ? m.valid_days ~ ' days' : 'For ever' }}</td><td>{{ caps[m.unlocks]|default(m.unlocks ?: '—') }}</td></tr>{% endfor %}</tbody>
+    </table>{% endif %}
+  </section>
+
+{% elseif tab == 'hours' %}
+  <section class="cn-card vl-sec" aria-label="Hours to confirm">
+    <p class="vl-help">Hours logged by hand that no team lead has answered. Confirm only what somebody saw or there is proof of; a decline needs a reason, and the volunteer sees it.</p>
+    {% if rows is empty %}{{ kit.empty('Nothing to confirm', 'Hand-logged hours wait here until a lead or staff answers them.', 'clock') }}{% else %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">Volunteer</th><th scope="col">What</th><th scope="col">Hours</th><th scope="col">Answer</th></tr></thead>
+      <tbody>
+        {% for h in rows %}
+          <tr><td>{{ h.display_name ?: h.user_name }}</td>
+            <td>{{ h.what }} · {{ h.worked_on|date('j M') }}{% if h.witness %} · seen by {{ h.witness }}{% endif %}{% if h.proof %} · <a href="{{ h.proof }}" rel="noopener noreferrer" target="_blank">proof</a>{% endif %}</td>
+            <td>{{ h.hours }}</td>
+            <td><form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="hours">
+              <input type="hidden" name="do" value="hours"><input type="hidden" name="hour" value="{{ h.id }}">
+              <label class="sr-only" for="hr{{ h.id }}">Reason, if you decline</label><input id="hr{{ h.id }}" name="reason" placeholder="Reason, if you decline">
+              <button class="cn-btn cn-btn--sm cn-btn--primary" type="submit" name="verdict" value="yes">Confirm</button>
+              <button class="cn-btn cn-btn--sm" type="submit" name="verdict" value="no">Decline</button></form></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>{% endif %}
+  </section>
+{% endif %}
+{% endblock %}
