@@ -126,6 +126,12 @@
 .dk-file__ic svg { width: 14px; height: 14px; }
 .dk-file__l { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dk-nofiles { padding: 14px 16px; border: 1px dashed var(--cn-line-dash); border-radius: 10px; font-size: var(--cn-fs-13-5); color: var(--cn-ink-3); }
+/* A nomination combined into this one: who sent it, from where, and their words. */
+.dk-pair { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--cn-line-row); border-radius: var(--cn-r-12); }
+.dk-pair__t { margin: 0; font-size: var(--cn-fs-13); color: var(--cn-ink-2); }
+.dk-pair__t b { font-weight: 600; color: var(--cn-ink); }
+.dk-pair__s { margin: 0; font-size: var(--cn-fs-13); line-height: 1.5; color: var(--cn-soft); }
+.dk-ref { font-family: var(--cn-mono); font-size: var(--cn-fs-12); color: var(--cn-faint); }
 .dk-pair__do { display: flex; gap: 8px; flex-wrap: wrap; }
 .dk-pair__do form { margin: 0; }
 .dk-hint { margin: 0; font-size: var(--cn-fs-12); color: var(--cn-faint); line-height: 1.45; }

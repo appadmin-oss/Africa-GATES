@@ -78,7 +78,7 @@ final class ReviewDesk
         }
         $checks[] = $dup
             ? ['ok' => false, 'bad' => true, 't' => 'Looks like an earlier nomination',
-               'rule' => 'Two entries for one person split their support. Merge a repeat into the earlier entry; if they are different people, say so and the flag goes.']
+               'rule' => 'Two entries for one person split their support. Combine a repeat with the earlier entry (or merge it, once that one is approved); if they are different people, say so and the flag goes.']
             : ['ok' => true, 't' => 'No duplicate found',
                'rule' => 'Checked against every nomination in this edition under the same name, spelled the way the desk compares names.'];
         $checks[] = $n['evidence'] > 0
@@ -106,7 +106,17 @@ final class ReviewDesk
         $nominator = (string) ($n['by'] ?? '');
         $first = DoorWelcome::firstName($nominator) ?: $nominator;
 
+        // What was combined into this one: each repeat's nominator, place and reason, so the
+        // reviewer decides with all of the support in front of them.
+        $support = array_map(static fn (object $o): array => [
+            'id' => (int) $o->id, 'by' => (string) ($o->nominator_name ?? ''), 'reason' => trim((string) ($o->reason ?? '')),
+            'place' => trim(implode(', ', array_filter([trim((string) ($o->nominator_location ?? '')), strtoupper(trim((string) ($o->nominator_country ?? '')))]))),
+            'ref' => trim((string) ($o->reference ?? '')) ?: 'N-' . $o->id,
+        ], array_values(array_filter(\AfricaGates\Services\NominationCombine::supporters($id),
+            static fn (object $o): bool => in_array((string) $o->status, \AfricaGates\Services\NominationCombine::OPEN, true))));
+
         return $n + [
+            'supporters'  => $support,
             'earlier'     => $earlier,
             'similar'     => $similar !== [] && $earlier !== null,
             'compare'     => $earlier ? self::compare($n, $earlier) : null,
@@ -156,8 +166,11 @@ final class ReviewDesk
             'nominee_email'   => (string) ($o->nominee_email ?? ''),
             'nominee_phone'   => (string) ($o->nominee_phone ?? ''),
             'place'     => trim(implode(', ', array_filter([trim((string) ($o->nominee_state ?? '')), strtoupper(trim((string) ($o->country_code ?? '')))]))),
-            // A merge joins an entry that is on the ballot; anything else is decided first.
+            // A merge joins an entry that is on the ballot.
             'mergeable' => (string) $o->status === 'approved' && (int) ($o->category_id ?? 0) > 0,
+            // One still waiting for review is COMBINED instead, so a repeat is resolved before
+            // either copy is decided (NominationCombine) — never "decide that one first".
+            'combinable' => in_array((string) $o->status, \AfricaGates\Services\NominationCombine::OPEN, true),
             // The other entry is usually the older one, but not always (a reseeded or
             // imported row); the pane says "Earlier" only when it is.
             'older'     => (string) $o->created_at <= (string) ($n['created_at'] ?? ''),
@@ -182,7 +195,7 @@ final class ReviewDesk
                         ? 'Same name as an earlier, approved nomination. Merge it if it is the same person; both nominators keep credit.'
                         : ($earlier && $earlier['status'] === 'rejected'
                             ? 'Same name as an earlier nomination that was not taken forward. Mark this a different person, or decide it on its own.'
-                            : 'Same name as an earlier nomination that is not approved yet. Decide that one first, or mark this a different person.')];
+                            : 'Same name as an earlier nomination that is still waiting. Combine them if it is the same person — you then decide once, with both nominators\' support — or mark this a different person.')];
         }
         if ((int) $n['evidence'] === 0) {
             return ['tone' => 'gold', 'title' => 'Ask for more', 'pick' => 'ask', 'why' => 'There is no supporting file or link.'];

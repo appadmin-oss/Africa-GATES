@@ -168,6 +168,11 @@ final class Maintenance
             // become true second, and a nominee who verifies on day nine is told on day nine.
             // Claimed before it is sent, so overlapping ticks cannot double a letter.
             $ran[] = ['votingletters', $this->task('votingletters', fn() => $this->sendVotingLetters())];
+            // Repeat nominations for one person, combined into the earliest while both wait for
+            // review, where the record plainly says they are one (NominationCombine). Every
+            // tick, so a repeat never sits in the queue as a red "Duplicate?" for a reviewer to
+            // trip over; the submission path combines most of them on arrival already.
+            $ran[] = ['combine',       $this->task('combine',       fn() => \AfricaGates\Services\NominationCombine::sweep())];
             // Stand offers nobody accepted in time. On every tick rather than daily, because
             // the place an expired offer is holding was promised to a waiting list that was
             // told it would move — and a list that only moves at 06:00 is a list that does
@@ -381,6 +386,7 @@ final class Maintenance
                 'payouts'   => $ran[] = ['payouts', $this->task('payouts', fn() => $this->sweepPartnerPayouts())],
                 'walletpay' => $ran[] = ['walletpay', $this->task('walletpay', fn() => $this->sweepWalletPayouts())],
                 'votingletters' => $ran[] = ['votingletters', $this->task('votingletters', fn() => $this->sendVotingLetters())],
+                'combine'       => $ran[] = ['combine',       $this->task('combine',       fn() => \AfricaGates\Services\NominationCombine::sweep())],
                 'standoffers' => $ran[] = ['standoffers', $this->task('standoffers', fn() => $this->expireStandOffers())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'qdisqualify' => $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())],

@@ -559,6 +559,12 @@ class AwardService {
         \AfricaGates\Services\ChallengeService::attachNomination(
             (int) $id, (int) ($_SESSION['user_id'] ?? 0), (int) $cycle->id);
 
+        // A repeat for somebody already waiting in review is folded into the earlier entry
+        // the moment it arrives, when the record plainly says they are one person — so the
+        // reviewer meets one nomination with its support, not a red "Duplicate?" on each
+        // copy. Never throws; a conflict is left for a person. NominationCombine.
+        \AfricaGates\Services\NominationCombine::autoCombine((int) $id);
+
         // What this visitor's arrival led to. Stamped once per session, first-wins, and
         // silent outside a web request — see VisitTracker::convert().
         \AfricaGates\Services\VisitTracker::convert('nomination');

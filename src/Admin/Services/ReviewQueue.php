@@ -306,6 +306,8 @@ final class ReviewQueue
             $id = (int) substr($p['scope'], 1);
             $p['scope'][0] === 'p' ? $q->where('c.programme_id', $id) : $q->where('n.cycle_id', $id);
         }
+        // A repeat combined into an earlier entry is reviewed AS that entry, not beside it.
+        \AfricaGates\Services\NominationCombine::excludeCombined($q, 'n');
         return $q;
     }
 
@@ -375,9 +377,13 @@ final class ReviewQueue
         $ruledApart = [];
         try {
             $ruled = SchemaHas::column('gates_nominations', 'not_duplicate');
+            $merged = SchemaHas::column('gates_nominations', 'merged_into');
             foreach (DB::table('gates_nominations')->whereIn('cycle_id', $cycles)
-                         ->get(array_merge(['id', 'cycle_id', 'nominee_name'], $ruled ? ['not_duplicate'] : [])) as $o) {
+                         ->get(array_merge(['id', 'cycle_id', 'nominee_name', 'status'], $ruled ? ['not_duplicate'] : [], $merged ? ['merged_into'] : [])) as $o) {
                 if ($ruled && (int) ($o->not_duplicate ?? 0) === 1) { $ruledApart[(int) $o->id] = true; continue; }
+                // A repeat already combined into an earlier entry is resolved: it is that
+                // entry's support, not a second copy to flag on it.
+                if ($merged && !empty($o->merged_into) && in_array((string) $o->status, \AfricaGates\Services\NominationCombine::OPEN, true)) continue;
                 $byKey[(int) $o->cycle_id . '|' . NominationTriageService::nameKey((string) $o->nominee_name)][] = (int) $o->id;
             }
         } catch (\Throwable) {}
@@ -405,6 +411,7 @@ final class ReviewQueue
         }
 
         $signals = \AfricaGates\Services\NominationSignals::forIds($ids);
+        $combined = \AfricaGates\Services\NominationCombine::counts($ids);
 
         $rel = NominationRules::RELATIONS;
         $now = time();
@@ -444,6 +451,7 @@ final class ReviewQueue
                 'checks'    => $checks,
                 'keys'      => array_column($checks, 'key'),
                 'dup_of'    => $others,
+                'combined'  => (int) ($combined[$id] ?? 0),
                 'evidence'  => count($ev[$id] ?? []),
                 'eligibility' => $e,
                 'suggest'   => $sugg[$id] ?? null,

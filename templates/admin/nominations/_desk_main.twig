@@ -123,12 +123,41 @@
               <input type="hidden" name="back" value="{{ back }}">
               <button type="submit" class="dk-btn">{{ dup ? 'Not a duplicate' : 'Different people' }}</button>
             </form>
-            {% if not n.earlier.mergeable and n.earlier.status == 'pending' %}
-              <a class="dk-btn" href="/admin/nominations/desk?item={{ n.earlier.id }}">Decide the {{ n.earlier.older ? 'earlier' : 'other' }} one first</a>
+            {% if n.earlier.combinable %}
+              <form method="post" action="/admin/nominations/{{ n.id }}/combine" data-dk-form="combine">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="desk" value="1">
+                <input type="hidden" name="back" value="{{ back }}">
+                <input type="hidden" name="merge_into" value="{{ n.earlier.id }}">
+                <button type="submit" class="dk-btn dk-btn--ink">Same person: combine</button>
+              </form>
             {% endif %}
           </div>
-          <p class="dk-hint">{{ n.earlier.mergeable ? 'Merging approves this one into the ' ~ (n.earlier.older ? 'earlier' : 'other') ~ ' entry under its name: one nominee, and both nominators keep credit.' : 'The ' ~ (n.earlier.older ? 'earlier' : 'other') ~ ' one is not approved, so there is nothing to merge into yet.' }}</p>
+          <p class="dk-hint">{{ n.earlier.mergeable ? 'Merging approves this one into the ' ~ (n.earlier.older ? 'earlier' : 'other') ~ ' entry under its name: one nominee, and both nominators keep credit.' : (n.earlier.combinable ? 'Combining folds this one into the ' ~ (n.earlier.older ? 'earlier' : 'other') ~ ' entry: you decide them once, with both nominators’ reasons and places, and this one follows. It can be separated again.' : 'The ' ~ (n.earlier.older ? 'earlier' : 'other') ~ ' one was not taken forward. Decide this one on its own, or mark it a different person.') }}</p>
         {% endif %}
+      </div>
+    {% endif %}
+
+    {% if n.supporters|default([])|length %}
+      <div class="dk-sec">
+        <h3 class="dk-h">Also nominated by {{ n.supporters|length }} more {{ n.supporters|length == 1 ? 'person' : 'people' }}</h3>
+        <p class="dk-hint">Combined into this nomination: same person, so you decide once and they follow. Their reasons and places count here.</p>
+        {% for s in n.supporters %}
+          <div class="dk-pair">
+            <p class="dk-pair__t"><b>{{ s.by }}</b>{% if s.place %} · {{ s.place }}{% endif %} · <span class="dk-ref">{{ s.ref }}</span></p>
+            {% if s.reason %}<p class="dk-pair__s">{{ s.reason|length > 280 ? s.reason|slice(0, 280) ~ '…' : s.reason }}</p>{% endif %}
+            {% if can_decide %}
+              <div class="dk-pair__do">
+                <form method="post" action="/admin/nominations/{{ s.id }}/separate" data-dk-form="separate">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="desk" value="1">
+                  <input type="hidden" name="back" value="{{ back }}">
+                  <button type="submit" class="dk-btn">Separate: a different person</button>
+                </form>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
       </div>
     {% endif %}
 

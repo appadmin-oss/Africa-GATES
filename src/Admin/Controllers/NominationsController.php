@@ -219,6 +219,29 @@ class NominationsController
             return $ok('Marked as a different person.', $back ?? ($fromDesk ? '/admin/nominations/desk?item=' . $id : '/admin/nominations/' . $id));
         }
 
+        // Same person: combine — fold this nomination into the other one for the same person
+        // while both still wait for review, so the reviewer decides once (NominationCombine).
+        // A MERGE into an entry that is not approved yet is the same act, so it lands here
+        // too rather than being refused with "nothing to merge into yet".
+        $intoId = (int) (((array) $req->getParsedBody())['merge_into'] ?? 0);
+        $into = $intoId > 0 ? DB::table('gates_nominations')->where('id', $intoId)->first() : null;
+        if ($action === 'combine' || ($action === 'merge' && $into && in_array((string) $into->status, \AfricaGates\Services\NominationCombine::OPEN, true))) {
+            $r = \AfricaGates\Services\NominationCombine::combine($id, $intoId, (int) ($_SESSION['admin_id'] ?? 0));
+            if (!$r['ok']) return $fail($r['error'] ?? 'Those two could not be combined.');
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.combine', 'nomination', $id, ['into' => $intoId]);
+            return $ok('Combined. You decide them once, on the earlier nomination; this one follows.',
+                $back ?? ($fromDesk ? '/admin/nominations/desk?item=' . $intoId : '/admin/nominations/' . $intoId));
+        }
+        // Separate — undo a combine: a different person after all, back in the queue alone.
+        if ($action === 'separate') {
+            if (!\AfricaGates\Services\NominationCombine::separate($id, (int) ($_SESSION['admin_id'] ?? 0))) {
+                return $fail('This nomination is not combined with another one.');
+            }
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.separate', 'nomination', $id);
+            return $ok('Separated. It is back in the queue on its own, marked a different person.',
+                $back ?? ($fromDesk ? '/admin/nominations/desk?item=' . $id : '/admin/nominations/' . $id));
+        }
+
         // Reject / pending — no category needed
         if ($action === 'reject' || $action === 'pending') {
             $status = ['reject' => 'rejected', 'pending' => 'pending'][$action];
@@ -255,6 +278,8 @@ class NominationsController
                 if ($changed === 0) {
                     return $fail('Somebody else decided this nomination a moment ago. Nothing was changed and nobody was emailed.', 409);
                 }
+                // The repeats combined into it are the same nomination: they take its decision.
+                if ($action === 'reject') \AfricaGates\Services\NominationCombine::follow($id, 'rejected', null, $reason !== '' ? $reason : null);
                 // Whether the AI's lean matched the human's call. Without this
                 // there is no way to tell if the triage score is helping the
                 // reviewer or merely decorating the page.
@@ -370,6 +395,9 @@ class NominationsController
                 // The status moved since this request read it: another reviewer decided
                 // first. Thrown so the whole approval (nominee row included) rolls back.
                 if ($changed === 0) throw $taken();
+                // Repeats combined into this one are approved with it, inside the same
+                // transaction: they are its support, and they join the same ballot entry.
+                \AfricaGates\Services\NominationCombine::follow($id, 'approved', $catId);
 
                 // Auto-attach on approval: if a nominee for this person already
                 // exists in the category, link to it instead of minting a duplicate

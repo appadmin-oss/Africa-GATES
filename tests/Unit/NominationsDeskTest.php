@@ -244,18 +244,29 @@ class NominationsDeskTest extends TestCase
         $this->assertSame(1, (int) DB::table('gates_nominees')->where('category_id', 1)->count(), 'a merge must not mint a second nominee');
     }
 
-    public function test_merge_into_an_entry_that_is_not_approved_is_refused(): void
+    public function test_merge_into_an_entry_still_waiting_combines_and_into_a_rejected_one_is_refused(): void
     {
+        // Owner, 28 Oct 2026: a duplicate is resolved BEFORE review. A merge into an entry that
+        // is still waiting used to be refused ("nothing to merge into yet"), which left a
+        // reviewer deciding one copy blind; it now COMBINES them (NominationCombine): nothing is
+        // approved, this one leaves the queue, and it follows the earlier one's decision.
         DB::table('gates_nominations')->insert(['id' => 9, 'cycle_id' => 1, 'category_id' => 1, 'nominee_name' => 'Ada Obi',
             'country_code' => 'NG', 'nominator_name' => 'Eko', 'nominator_email' => 'eko@x.io', 'reason' => 'r',
             'status' => 'pending', 'created_at' => '2026-06-01 10:00:00']);
-        $res = $this->controller()->action(
+        $post = fn (): \Psr\Http\Message\ResponseInterface => $this->controller()->action(
             (new ServerRequestFactory())->createServerRequest('POST', 'https://x/admin/nominations/10/merge')
                 ->withHeader('X-Requested-With', 'fetch')->withParsedBody(['merge_into' => '9', 'desk' => '1']),
             new Response(), ['id' => 10, 'action' => 'merge']);
+        $res = $post();
+        $this->assertSame(200, $res->getStatusCode(), (string) $res->getBody());
+        $this->assertSame(9, (int) DB::table('gates_nominations')->where('id', 10)->value('merged_into'));
+        $this->assertSame('pending', DB::table('gates_nominations')->where('id', 10)->value('status'), 'combined, not approved');
+
+        // Into an entry that was NOT taken forward, it is still refused by the rule.
+        DB::table('gates_nominations')->where('id', 10)->update(['merged_into' => null]);
+        DB::table('gates_nominations')->where('id', 9)->update(['status' => 'rejected']);
+        $res = $post();
         $this->assertSame(422, $res->getStatusCode());
-        // Refused by the rule, before anything is written — not by the later safety net
-        // that finds no nominee to join.
         $this->assertStringContainsString('Only an approved entry', (string) $this->json($res)['error']);
         $this->assertSame('pending', DB::table('gates_nominations')->where('id', 10)->value('status'));
     }
