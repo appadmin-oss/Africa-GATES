@@ -8,6 +8,7 @@ use AfricaGates\Services\Ads\AdCampaigns;
 use AfricaGates\Services\Ads\AdDelivery;
 use AfricaGates\Services\Ads\AdRateCard;
 use AfricaGates\Services\Ads\AdRules;
+use AfricaGates\Support\SiteUrl;
 use AfricaGates\Services\RateLimitService;
 use AfricaGates\Services\UserAccountService;
 use AfricaGates\Services\VisitTracker;
@@ -35,6 +36,7 @@ final class AdsController
     /** GET /advertise — what an ad is, where it runs and what it costs, before anybody signs up. */
     public function advertise(Request $req, Response $res): Response
     {
+        $host = (string) (parse_url(SiteUrl::base($req), PHP_URL_HOST) ?: 'africagates.org');
         return $this->view->render($res, 'pages/advertise.twig', [
             'app_bar' => ['variant' => 'child', 'title' => 'Advertise', 'back' => '/', 'share' => false],
             'page_title' => 'Advertise — Africa GATES',
@@ -42,12 +44,15 @@ final class AdsController
             'placements' => AdRules::PLACEMENTS, 'rates' => AdRateCard::all(),
             'trial' => ['days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS],
             // A drawn example, in the real card, so an advertiser sees the format before
-            // signing up. Labelled an example; it links nowhere.
+            // signing up. Labelled an example; it links nowhere. It is OUR OWN ad, drawn from
+            // our own assets (owner, 28 Oct 2026: "use Africa GATES assets for this"): an
+            // invented business on the page that sells ads reads as an advertiser we have,
+            // and every claim in it is a feature that exists (tickets, invites, door check-in).
             'sample' => [
-                'advertiser' => 'Mama Put Kitchen', 'initials' => 'MP', 'logo' => null,
-                'body' => 'Party trays of jollof, fried rice and small chops, delivered across Lagos the same day.',
-                'image' => null, 'headline' => 'Jollof by the tray', 'domain' => 'mamaput.ng',
-                'offer' => '10% off this week', 'offer_code' => 'TRAY10', 'cta' => 'Shop now', 'url' => '#', 'external' => false,
+                'advertiser' => 'Africa GATES Events', 'initials' => 'AG', 'logo' => '/assets/img/logo-mark.svg',
+                'body' => 'Tickets, invitations and door check-in for your next award night, all in one place.',
+                'image' => '/assets/img/honour/community-leader-960.webp', 'headline' => 'Host your award night',
+                'domain' => $host, 'offer' => '', 'offer_code' => '', 'cta' => 'Learn more', 'url' => '#', 'external' => false,
             ],
         ]);
     }
