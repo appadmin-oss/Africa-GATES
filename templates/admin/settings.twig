@@ -2110,15 +2110,16 @@
      CRM holds one list of everybody the estate knows. Settable here because there is no SSH
      on production; the secret is write-only, like every credential on this page. #}
   <div class="ad-card" data-sec="ops"
-       data-keys="cacentre crm audience contacts subscribers newsletter donors enquiries secret push sync"
+       data-keys="cacentre crm audience contacts subscribers newsletter donors enquiries volunteers secret push sync"
        x-show="show($el)"><div class="ad-card__head">
     <div class="ad-card__title">CACENTRE CRM
       <small>{% if crm_secret_set %}Sending every tick{% if crm_last %} — last: {{ crm_last }}{% endif %}{% else %}Off until a secret is set{% endif %}</small></div>
   </div><div class="ad-card__body">
     <input type="hidden" name="crm_settings" value="1">
     <p>Newsletter subscribers (and every stop, bounce and complaint), partner enquiries, support
-      tickets and confirmed gifts and vote orders are sent to the CACENTRE console’s Audience,
-      signed. Nominees, who anybody voted for, and message text are never sent.</p>
+      tickets, confirmed gifts and vote orders, and adult volunteers (applying, active, on a break
+      or stepped back) are sent to the CACENTRE console’s Audience, signed. Nominees, anybody
+      under 18, who anybody voted for, and message text are never sent.</p>
     <div class="ad-form">
       <div>
         <label for="f-crm_intake_url">CACENTRE address</label>

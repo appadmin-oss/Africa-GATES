@@ -852,7 +852,8 @@ final class WorkspacePages
             'access' => self::accessAll($v),
             'privacy' => [['k' => 'rows', 'h' => 'Your data', 'items' => [
                 ['t' => 'Download a copy', 'sub' => 'Profile, hours, shifts, tasks and training', 'cta' => ['label' => 'Download', 'href' => '/volunteer/me/export.json']],
-                ['t' => 'Date of birth', 'sub' => 'Kept to check the minimum age. Nobody else sees it.']]]],
+                ['t' => 'Date of birth', 'sub' => 'Kept to check the minimum age. Nobody else sees it.'],
+                ['t' => 'Afrovanguard’s contact list', 'sub' => 'Your name, email and whether you’re applying, active, on a break or have stepped back. Nothing else, and nothing at all if you’re under 18.']]]],
             'leave' => [['k' => 'rows', 'h' => 'Options', 'items' => array_values(array_filter([
                 $v->status === 'paused' ? ['t' => 'You’re on a break until ' . Workspace::day($v->paused_until), 'sub' => 'Come back whenever you like.', 'cta' => ['label' => 'Come back now', 'post' => ['do' => 'resume']]]
                                         : ['t' => 'Take a break', 'sub' => 'Pause invites for 2, 4 or 8 weeks. Your shifts stay until you drop them.', 'pause' => true],

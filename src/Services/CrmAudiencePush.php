@@ -12,7 +12,8 @@ use Illuminate\Database\Capsule\Manager as DB;
  *
  * CACENTRE keeps one list of everybody the estate knows. This is this platform's half:
  * newsletter subscribers and what became of them, the bulk-mail opt-outs, bounces and
- * complaints, partner enquiries, support tickets and every confirmed gift or vote order —
+ * complaints, partner enquiries, support tickets, every confirmed gift or vote order, and
+ * adult volunteers as they move from applying to active or leaving —
  * sent to CACENTRE's /api/crm-intake.php in the v1 envelope (HMAC-SHA256 over the payload
  * segment), signed with this platform's own secret.
  *
@@ -206,8 +207,39 @@ final class CrmAudiencePush
             }
         }
 
+        // Volunteers, by when their record last changed: one row per person, kept as they move
+        // from applying to active, a break, or leaving, so CACENTRE updates one contact rather
+        // than gathering a twin at every step. Name, address and phone, and where they are in
+        // the process. Never their date of birth, referee, emergency contact, availability or
+        // hours. And nobody under 18 at all: the same reason nominees never leave.
+        if ($room() > 0 && \AfricaGates\Support\SchemaHas::table('gates_volunteers')) {
+            $at = (string) ($state['volunteers.at'] ?? self::EPOCH);
+            $aid = (int) ($state['volunteers.id'] ?? 0);
+            $adult = date('Y-m-d', strtotime('-18 years'));
+            foreach (DB::table('gates_volunteers as v')->join('gates_users as u', 'u.id', '=', 'v.user_id')
+                         ->whereNotNull('v.updated_at')
+                         ->where(fn($w) => $w->where('v.updated_at', '>', $at)->orWhere(fn($o) => $o->where('v.updated_at', $at)->where('v.id', '>', $aid)))
+                         ->orderBy('v.updated_at')->orderBy('v.id')->limit($room())
+                         ->get(['v.id', 'v.status', 'v.dob', 'v.display_name', 'v.updated_at', 'v.applied_at', 'u.name', 'u.email']) as $r) {
+                $next['volunteers.at'] = (string) $r->updated_at;
+                $next['volunteers.id'] = (string) $r->id;
+                if ($r->dob === null || (string) $r->dob > $adult) continue;
+                $add(['kind' => 'volunteer', 'ref' => 'vol:' . $r->id, 'email' => (string) $r->email,
+                      'name' => trim((string) ($r->display_name ?: $r->name)), 'list' => 'Africa GATES volunteers',
+                      'status' => in_array((string) $r->status, ['left', 'declined'], true) ? 'closed' : 'active',
+                      'detail' => self::VOLUNTEER_STAGE[(string) $r->status] ?? 'Volunteer',
+                      'at' => self::at($r->applied_at ?? $r->updated_at)]);
+            }
+        }
+
         return ['rows' => $rows, 'state' => $next];
     }
+
+    /** Where a volunteer is, in the words the CRM shows beside them. */
+    private const VOLUNTEER_STAGE = [
+        'applicant' => 'Applied to volunteer', 'active' => 'Active volunteer', 'paused' => 'On a break',
+        'left' => 'Stepped back', 'declined' => 'Application not taken forward',
+    ];
 
     // ══ sending ══════════════════════════════════════════════════════════════
 

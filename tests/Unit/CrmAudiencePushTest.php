@@ -249,4 +249,41 @@ final class CrmAudiencePushTest extends TestCase
         $this->secret();
         $this->assertTrue(CrmAudiencePush::ready());
     }
+
+    /**
+     * Volunteers reach CACENTRE as ONE contact each, updated as they move from applying to
+     * active to stepping back — and an under-18 volunteer never leaves at all, nor does anything
+     * sensitive from the application (date of birth, referee, emergency contact).
+     */
+    public function test_adult_volunteers_reach_the_crm_as_one_row_that_follows_them_and_minors_never_do(): void
+    {
+        $this->secret();
+        $mk = function (string $name, string $dob): int {
+            $uid = (int) DB::table('gates_users')->insertGetId(['name' => $name, 'email' => strtolower(strtok($name, ' ')) . '@vol-mail.ng',
+                'password_hash' => 'x', 'status' => 'active', 'created_at' => '2026-10-01 09:00:00']);
+            return (int) DB::table('gates_volunteers')->insertGetId(['user_id' => $uid, 'status' => 'applicant', 'dob' => $dob,
+                'emergency_contact' => 'Mama 0803 999 9999', 'applied_at' => '2026-10-05 09:00:00', 'created_at' => '2026-10-05 09:00:00', 'updated_at' => '2026-10-05 09:00:00']);
+        };
+        $adult = $mk('Chika Nwosu', '1999-05-01');
+        $minor = $mk('Tobi Ade', date('Y-m-d', strtotime('-16 years')));
+        DB::table('gates_vol_references')->insert(['volunteer_id' => $adult, 'name' => 'Mrs Adeyemi', 'contact' => '0803 000 0000', 'status' => 'asked', 'asked_at' => '2026-10-05 09:00:00']);
+
+        CrmAudiencePush::run();
+        $rows = $this->byRef();
+        $this->assertSame('volunteer', $rows['vol:' . $adult]['kind']);
+        $this->assertSame('Applied to volunteer', $rows['vol:' . $adult]['detail']);
+        $this->assertArrayNotHasKey('vol:' . $minor, $rows, 'nobody under 18 leaves this platform');
+        $flat = (string) json_encode($this->sent);
+        foreach (['1999-05-01', 'Mama', 'Adeyemi', '0803 000 0000'] as $private) $this->assertStringNotContainsString($private, $flat);
+
+        // Approved, then stepping back: the same ref each time, so CACENTRE updates one contact.
+        DB::table('gates_volunteers')->where('id', $adult)->update(['status' => 'active', 'updated_at' => '2026-10-06 09:00:00']);
+        CrmAudiencePush::run();
+        $this->assertSame('Active volunteer', $this->byRef()['vol:' . $adult]['detail']);
+        DB::table('gates_volunteers')->where('id', $adult)->update(['status' => 'left', 'updated_at' => '2026-10-07 09:00:00']);
+        CrmAudiencePush::run();
+        $this->assertSame('closed', $this->byRef()['vol:' . $adult]['status']);
+        $n = $this->sent ? count(array_filter(array_merge(...$this->sent), static fn ($r) => $r['ref'] === 'vol:' . $adult)) : 0;
+        $this->assertSame(3, $n, 'sent once per change, never again for nothing');
+    }
 }
