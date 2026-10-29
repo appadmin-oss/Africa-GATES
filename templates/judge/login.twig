@@ -53,6 +53,7 @@
           </div>
           <button class="ag-auth__cta" type="submit">Send code →</button>
         </form>
+        {% include 'partials/account-door.twig' with {door_kind: 'judge', door_next: '/judge/ballot', door_p: 'ag-auth__alt', door_btn: 'ag-auth__cta'} %}
       {% else %}
         <h1 class="ag-auth__h">Check your email</h1>
         <p class="ag-auth__sub">Enter the 6-digit code we just sent. It expires in 15 minutes.</p>

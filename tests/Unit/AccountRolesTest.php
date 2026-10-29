@@ -3,18 +3,30 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Middleware\AccountReconfirmMiddleware;
 use AfricaGates\Services\Account\Roles;
+use AfricaGates\Services\OrgAuth;
 use AfricaGates\Services\UserAccountService;
 use AfricaGates\Services\Volunteer\Volunteers;
 use Illuminate\Database\Capsule\Manager as DB;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response;
 use Tests\TestCase;
 
 /**
- * ONE ACCOUNT, EVERY ROLE (owner, 28 Oct 2026; plan §7.1). The promises a person relies on:
- * a role is added only by somebody who has just signed in to it; a role account belongs to one
- * person; opening a staff, organisation or judging role needs a fresh emailed code, whose
- * guesses are capped; opening writes exactly that role's session; signing out of the account
- * closes what it opened and nothing else; volunteer is a role of the account, or an offer.
+ * ONE ACCOUNT, SWITCHED FROM THE ACCOUNT MENU (owner, 28–29 Oct 2026; no roles page).
+ * The promises a person relies on:
+ *   · a staff or judging sign-in joins on the account's VERIFIED address, an organisation only
+ *     on its own password; somebody else's is never offered; one role account, one person;
+ *   · switching asks nothing when the session holds the proof the role's own door accepts, and
+ *     an emailed code when it does not (a phone code proves a phone);
+ *   · a sign-in lands where the account last worked, and a console page asked for opens it;
+ *   · a console opened from the account asks again before a write in Finance or
+ *     Configuration, and an organisation's payout needs the organisation's password;
+ *   · signing out of the account closes what it opened, and nothing else.
  */
 final class AccountRolesTest extends TestCase
 {
@@ -23,180 +35,244 @@ final class AccountRolesTest extends TestCase
     protected function tearDown(): void
     {
         foreach (['user_id', 'user_name', 'user_email', 'admin_id', 'admin_name', 'admin_role', 'admin_email', 'org_user_id', 'org_id',
-                  'judge_id', 'judge_name', 'judge_email', 'acct_opened', 'acct_stepup_at', 'acct_stepup_user'] as $k) unset($_SESSION[$k]);
+                  'judge_id', 'judge_name', 'judge_email', 'acct_opened', 'acct_proof', 'acct_confirmed_at', 'acct_confirmed_user',
+                  'acct_org_proven_at', 'acct_org_proven_user', 'acct_confirm_note', 'acct_confirm_error'] as $k) unset($_SESSION[$k]);
         parent::tearDown();
     }
 
-    private function member(string $name): object
+    private function member(string $email, int $verified = 1, string $proof = 'password'): object
     {
-        $id = (int) DB::table('gates_users')->insertGetId(['name' => $name, 'email' => strtolower(str_replace(' ', '.', $name)) . '.' . bin2hex(random_bytes(3)) . '@example.test',
-            'password_hash' => 'x', 'status' => 'active', 'created_at' => date('Y-m-d H:i:s')]);
+        $id = (int) DB::table('gates_users')->insertGetId(['name' => 'Ade Bello', 'email' => $email, 'password_hash' => 'x', 'status' => 'active',
+            'email_verified' => $verified, 'created_at' => date('Y-m-d H:i:s')]);
+        foreach (['acct_opened', 'acct_proof', 'acct_confirmed_at', 'acct_confirmed_user', 'admin_id', 'org_user_id', 'judge_id'] as $k) unset($_SESSION[$k]);
         $_SESSION['user_id'] = $id;
+        Roles::proved($proof);
         return DB::table('gates_users')->where('id', $id)->first();
     }
 
-    private function admin(string $name, int $active = 1): int
+    private function admin(string $email, int $active = 1): int
     {
-        return (int) DB::table('gates_admins')->insertGetId(['email' => strtolower(str_replace(' ', '.', $name)) . bin2hex(random_bytes(2)) . '@example.test',
-            'name' => $name, 'role' => 'editor', 'is_active' => $active, 'password_hash' => 'x', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+        return (int) DB::table('gates_admins')->insertGetId(['email' => $email, 'name' => 'Ade Staff', 'role' => 'editor', 'is_active' => $active,
+            'password_hash' => 'x', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
     }
 
-    private function judge(string $name): int
+    private function orgUser(string $email, string $password): int
     {
-        return (int) DB::table('gates_judges')->insertGetId(['name' => $name, 'is_active' => 1, 'email' => 'j' . bin2hex(random_bytes(3)) . '@example.test']);
+        $org = (int) DB::table('gates_partner_orgs')->insertGetId(['slug' => 'owo-' . bin2hex(random_bytes(3)), 'name' => 'Owo Reading Trust', 'status' => 'approved',
+            'contact_name' => 'Ade', 'contact_email' => $email, 'kind' => 'partner', 'entity_type' => 'organisation']);
+        return (int) DB::table('gates_org_users')->insertGetId(['org_id' => $org, 'email' => $email, 'name' => 'Ade Treasurer',
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT), 'role' => 'owner', 'is_active' => 1]);
     }
 
-    /** Send the code into $this->sent instead of the mail, and hand it back. */
     private function code(object $user): string
     {
-        $r = Roles::sendCode($user, function (string $to, string $c): bool { $this->sent[] = [$to, $c]; return true; });
-        $this->assertTrue($r['ok']);
+        $this->assertTrue(Roles::sendCode($user, function (string $to, string $c): bool { $this->sent[] = [$to, $c]; return true; })['ok']);
         return end($this->sent)[1];
     }
 
-    private function linkAdmin(object $user, int $adminId): void
+    private function joinAdmin(object $user, int $admin): void
     {
-        $_SESSION['admin_id'] = $adminId;
-        $this->assertTrue(Roles::link((int) $user->id, 'admin')['ok']);
-        unset($_SESSION['admin_id']);
+        $this->assertTrue(Roles::join($user, 'admin', $admin)['ok']);
     }
 
-    public function test_a_role_is_added_only_by_somebody_signed_in_to_it_and_belongs_to_one_person(): void
+    private function post(string $path): ServerRequestInterface
     {
-        $ade = $this->member('Ade Bello');
-        $staff = $this->admin('Ade Staff');
-        // Not signed in to the console in this browser: nothing to add, whatever the email says.
-        $this->assertFalse(Roles::link((int) $ade->id, 'admin')['ok']);
-        $this->assertSame([], Roles::linkable((int) $ade->id));
+        return (new ServerRequestFactory())->createServerRequest('POST', $path)->withHeader('Referer', 'https://x.test' . $path);
+    }
 
-        $_SESSION['admin_id'] = $staff;
-        $this->assertSame('admin', Roles::linkable((int) $ade->id)[0]['kind']);
-        $this->assertTrue(Roles::link((int) $ade->id, 'admin')['ok']);
+    private function through(AccountReconfirmMiddleware $mw, ServerRequestInterface $req): ResponseInterface
+    {
+        return $mw($req, new class implements RequestHandlerInterface {
+            public function handle(ServerRequestInterface $request): ResponseInterface { return (new Response())->withStatus(200); }
+        });
+    }
+
+    // ── joining ─────────────────────────────────────────────────────────────────────
+
+    public function test_a_staff_sign_in_is_found_on_the_verified_address_and_joined_once(): void
+    {
+        $staff = $this->admin('ade@example.test');
+        $unverified = $this->member('ade@example.test', 0);
+        $this->assertSame([], Roles::found($unverified), 'an address nobody has proved finds nothing');
+        DB::table('gates_users')->where('id', $unverified->id)->delete();
+
+        $ade = $this->member('ade@example.test');
+        $f = Roles::found($ade);
+        $this->assertCount(1, $f);
+        $this->assertSame(['admin', $staff, 'email'], [$f[0]['kind'], $f[0]['id'], $f[0]['how']]);
+        $this->joinAdmin($ade, $staff);
         $this->assertSame((int) $ade->id, Roles::ownerOf('admin', $staff));
-        $this->assertTrue(Roles::link((int) $ade->id, 'admin')['already'] ?? false, 'pressing twice is not a second link');
-
-        // Somebody else signed in to the same console account cannot take it.
-        $bisi = $this->member('Bisi Okon');
+        $this->assertSame([], Roles::found($ade), 'joined, so no longer offered');
         $_SESSION['admin_id'] = $staff;
-        $r = Roles::link((int) $bisi->id, 'admin');
-        $this->assertFalse($r['ok']);
-        $this->assertTrue(Roles::linkable((int) $bisi->id)[0]['taken']);
-        $this->assertSame(1, DB::table('gates_account_links')->where('kind', 'admin')->where('account_id', $staff)->whereNull('revoked_at')->count());
+        $this->assertSame([], Roles::found($ade), 'nor offered again while signed in to it here');
+        unset($_SESSION['admin_id']);
+        $this->assertSame('verified_email', DB::table('gates_account_links')->where('account_id', $staff)->value('via'));
 
-        // A link for a different person's session is refused: the account must be the one signed in.
-        $this->assertFalse(Roles::link((int) $ade->id, 'admin')['ok']);
+        // Another person cannot join it, and is not even told it exists.
+        $other = $this->member('someone@example.test');
+        $this->assertSame([], Roles::found($other));
+        $this->assertFalse(Roles::join($other, 'admin', $staff)['ok']);
     }
 
-    public function test_opening_a_guarded_role_needs_a_fresh_code_and_writes_that_roles_session(): void
+    public function test_an_organisation_joins_only_on_its_own_password(): void
     {
-        $ade = $this->member('Ade Bello');
-        $staff = $this->admin('Ade Staff');
-        $this->linkAdmin($ade, $staff);
+        $orgUser = $this->orgUser('ade@example.test', 'Owo-trust-pass-9');
+        $ade = $this->member('ade@example.test');
+        $f = Roles::found($ade);
+        $this->assertSame(['org', 'password'], [$f[0]['kind'], $f[0]['how']], 'an email alone never moves a charity’s money');
+        $auth = new OrgAuth();
+        $this->assertFalse(Roles::join($ade, 'org', $orgUser, '', $auth)['ok']);
+        $this->assertFalse(Roles::join($ade, 'org', $orgUser, 'wrong-password', $auth)['ok']);
+        $this->assertNull(Roles::ownerOf('org', $orgUser));
+        $this->assertTrue(Roles::join($ade, 'org', $orgUser, 'Owo-trust-pass-9', $auth)['ok']);
+        $this->assertSame((int) $ade->id, Roles::ownerOf('org', $orgUser));
+    }
 
-        $r = Roles::open($ade, 'admin');
-        $this->assertTrue($r['stepup'] ?? false, 'no code yet, so no console');
+    // ── switching ───────────────────────────────────────────────────────────────────
+
+    public function test_switching_asks_nothing_on_a_proof_the_consoles_own_door_accepts(): void
+    {
+        foreach (['password', 'passkey', 'email'] as $proof) {
+            $ade = $this->member("ade.{$proof}@example.test", 1, $proof);
+            $staff = $this->admin("ade.{$proof}@example.test");
+            $this->joinAdmin($ade, $staff);
+            $r = Roles::open($ade, 'admin');
+            $this->assertTrue($r['ok'], $proof);
+            $this->assertSame('/admin', $r['to']);
+            $this->assertSame($staff, $_SESSION['admin_id']);
+            $this->assertSame((int) $ade->id, $_SESSION['user_id'], 'the account stays signed in');
+        }
+    }
+
+    public function test_a_phone_code_sign_in_is_asked_for_an_emailed_code_before_the_console(): void
+    {
+        $ade = $this->member('ade@example.test', 1, 'phone');
+        $staff = $this->admin('ade@example.test');
+        $this->joinAdmin($ade, $staff);
+        $this->assertTrue(Roles::open($ade, 'admin')['confirm'] ?? false);
         $this->assertArrayNotHasKey('admin_id', $_SESSION);
-
         $code = $this->code($ade);
-        $this->assertSame(strtolower((string) $ade->email), $this->sent[0][0], 'the code goes to the account’s own address');
+        $this->assertSame('ade@example.test', $this->sent[0][0]);
         $this->assertTrue(Roles::verifyCode($ade, $code)['ok']);
         $this->assertFalse(Roles::verifyCode($ade, $code)['ok'], 'a code works once');
-
-        $r = Roles::open($ade, 'admin');
-        $this->assertTrue($r['ok']);
-        $this->assertSame('/admin', $r['to']);
+        $this->assertTrue(Roles::open($ade, 'admin')['ok']);
         $this->assertSame($staff, $_SESSION['admin_id']);
-        $this->assertSame('editor', $_SESSION['admin_role']);
-        $this->assertSame((int) $ade->id, $_SESSION['user_id'], 'the account stays signed in');
-
-        // A role the account does not hold cannot be opened, confirmed or not.
-        $this->assertFalse(Roles::open($ade, 'judge')['ok']);
-        $this->assertArrayNotHasKey('judge_id', $_SESSION);
     }
 
-    public function test_the_confirmation_belongs_to_the_account_that_earned_it_and_expires(): void
+    public function test_guesses_are_capped(): void
     {
-        $ade = $this->member('Ade Bello');
-        $this->assertTrue(Roles::verifyCode($ade, $this->code($ade))['ok']);
-        $this->assertTrue(Roles::steppedUp());
-        $_SESSION['acct_stepup_at'] = time() - Roles::STEPUP_MINUTES * 60 - 1;
-        $this->assertFalse(Roles::steppedUp(), 'thirty minutes, then a new code');
-        $_SESSION['acct_stepup_at'] = time();
-        $this->member('Bisi Okon'); // another account signed in on this browser
-        $this->assertFalse(Roles::steppedUp(), 'Ade’s code does not open Bisi’s roles');
-    }
-
-    public function test_guesses_are_capped_and_a_new_code_cancels_the_last(): void
-    {
-        $ade = $this->member('Ade Bello');
-        $first = $this->code($ade);
-        $second = $this->code($ade);
-        if ($first !== $second) $this->assertFalse(Roles::verifyCode($ade, $first)['ok'], 'the earlier code is cancelled');
-
+        $ade = $this->member('ade@example.test');
         $code = $this->code($ade);
         $wrong = str_pad((string) (((int) $code + 1) % 1000000), 6, '0', STR_PAD_LEFT);
         for ($i = 0; $i < Roles::MAX_ATTEMPTS; $i++) $this->assertFalse(Roles::verifyCode($ade, $wrong)['ok']);
         $this->assertFalse(Roles::verifyCode($ade, $code)['ok'], 'after five wrong guesses the right code is dead too');
-        $this->assertFalse(Roles::steppedUp());
+        $this->assertFalse(Roles::confirmed());
     }
 
-    public function test_a_switched_off_role_cannot_be_opened(): void
+    public function test_a_switched_off_or_removed_sign_in_cannot_be_opened(): void
     {
-        $ade = $this->member('Ade Bello');
-        $staff = $this->admin('Ade Staff');
-        $this->linkAdmin($ade, $staff);
+        $ade = $this->member('ade@example.test');
+        $staff = $this->admin('ade@example.test');
+        $this->joinAdmin($ade, $staff);
         DB::table('gates_admins')->where('id', $staff)->update(['is_active' => 0]);
-        $this->assertTrue(Roles::verifyCode($ade, $this->code($ade))['ok']);
+        $this->assertFalse(Roles::open($ade, 'admin')['ok']);
+        $this->assertFalse(array_values(array_filter(Roles::menu($ade), static fn ($m) => $m['kind'] === 'admin'))[0]['live']);
+        DB::table('gates_admins')->where('id', $staff)->update(['is_active' => 1]);
+        $link = (int) DB::table('gates_account_links')->where('user_id', $ade->id)->value('id');
+        $this->assertTrue(Roles::unlink((int) $ade->id, $link)['ok']);
+        $this->assertNotNull(DB::table('gates_account_links')->where('id', $link)->value('revoked_at'), 'the record stays');
         $this->assertFalse(Roles::open($ade, 'admin')['ok']);
         $this->assertArrayNotHasKey('admin_id', $_SESSION);
-        $row = array_values(array_filter(Roles::of($ade), static fn ($r) => $r['kind'] === 'admin'))[0];
-        $this->assertFalse($row['live']);
+    }
+
+    // ── landing ─────────────────────────────────────────────────────────────────────
+
+    public function test_a_sign_in_lands_where_the_account_last_worked(): void
+    {
+        $ade = $this->member('ade@example.test');
+        $staff = $this->admin('ade@example.test');
+        $this->joinAdmin($ade, $staff);
+        $this->assertSame('/account', Roles::landing($ade, null), 'nowhere yet: the account');
+        Roles::open($ade, 'admin');
+        $this->assertSame('admin', Roles::lastPlace((int) $ade->id));
+
+        unset($_SESSION['admin_id'], $_SESSION['acct_opened']);
+        $this->assertSame('/admin', Roles::landing($ade, null));
+        $this->assertSame($staff, $_SESSION['admin_id'] ?? null, 'and the console is open when they get there');
+
+        unset($_SESSION['admin_id'], $_SESSION['acct_opened']);
+        $this->assertSame('/admin/dashboard', Roles::landing($ade, '/admin/dashboard'), 'the staff page’s own sign-in link comes back in');
+        $this->assertSame($staff, $_SESSION['admin_id'] ?? null);
+    }
+
+    // ── confirming again ────────────────────────────────────────────────────────────
+
+    public function test_a_console_opened_from_the_account_asks_again_before_money_or_settings(): void
+    {
+        $ade = $this->member('ade@example.test');
+        $staff = $this->admin('ade@example.test');
+        $this->joinAdmin($ade, $staff);
+        Roles::open($ade, 'admin');
+        $mw = new AccountReconfirmMiddleware('console');
+
+        $this->assertSame(200, $this->through($mw, $this->post('/admin/content'))->getStatusCode(), 'ordinary work asks nothing');
+        $this->assertSame(200, $this->through($mw, (new ServerRequestFactory())->createServerRequest('GET', '/admin/finance'))->getStatusCode(), 'reading money asks nothing');
+        foreach (['/admin/finance', '/admin/refunds', '/admin/settings', '/admin/admins'] as $p) {
+            $r = $this->through($mw, $this->post($p));
+            $this->assertSame(303, $r->getStatusCode(), $p);
+            $this->assertStringStartsWith('/account/confirm?for=console', $r->getHeaderLine('Location'));
+        }
+        $this->assertTrue(Roles::verifyCode($ade, $this->code($ade))['ok']);
+        $this->assertSame(200, $this->through($mw, $this->post('/admin/finance'))->getStatusCode(), 'confirmed, it goes through');
+
+        // A console signed in on its own page gave that door's proof, and is not asked.
+        unset($_SESSION['acct_opened'], $_SESSION['acct_confirmed_at']);
+        $this->assertSame(200, $this->through($mw, $this->post('/admin/finance'))->getStatusCode());
+    }
+
+    public function test_an_organisation_opened_from_the_account_needs_its_password_for_a_payout(): void
+    {
+        $orgUser = $this->orgUser('ade@example.test', 'Owo-trust-pass-9');
+        $ade = $this->member('ade@example.test', 1, 'email');
+        $auth = new OrgAuth();
+        $this->assertTrue(Roles::join($ade, 'org', $orgUser, 'Owo-trust-pass-9', $auth)['ok']);
+        $this->assertTrue(Roles::open($ade, 'org')['ok'], 'reading the dashboard asks nothing');
+        $mw = new AccountReconfirmMiddleware('org');
+        $r = $this->through($mw, $this->post('/org/payout'));
+        $this->assertSame(303, $r->getStatusCode());
+        $this->assertStringStartsWith('/account/confirm?for=org', $r->getHeaderLine('Location'));
+        // An emailed code is not the organisation's proof.
+        $this->assertTrue(Roles::verifyCode($ade, $this->code($ade))['ok']);
+        $this->assertSame(303, $this->through($mw, $this->post('/org/payout'))->getStatusCode());
+        $this->assertFalse(Roles::proveOrg($auth, 'wrong')['ok']);
+        $this->assertTrue(Roles::proveOrg($auth, 'Owo-trust-pass-9')['ok']);
+        $this->assertSame(200, $this->through($mw, $this->post('/org/payout'))->getStatusCode());
+    }
+
+    // ── the menu and signing out ────────────────────────────────────────────────────
+
+    public function test_the_menu_is_what_the_account_is(): void
+    {
+        $ade = $this->member('ade@example.test');
+        $this->assertSame(['member'], array_column(Roles::menu($ade), 'kind'), 'only a member: nothing to switch to');
+        $r = Volunteers::apply((int) $ade->id, ['area' => 'Ikotun', 'dob' => '1999-05-01', 'interests' => ['door'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1']);
+        Volunteers::approve((int) $r['id'], 1);
+        $this->joinAdmin($ade, $this->admin('ade@example.test'));
+        $this->assertSame(['member', 'volunteer', 'admin'], array_column(Roles::menu($ade), 'kind'));
+        $this->assertSame('/volunteer', Roles::open($ade, 'volunteer')['to']);
+        $this->assertSame('volunteer', Roles::lastPlace((int) $ade->id));
     }
 
     public function test_signing_out_closes_what_the_account_opened_and_nothing_else(): void
     {
-        $ade = $this->member('Ade Bello');
-        $staff = $this->admin('Ade Staff');
-        $this->linkAdmin($ade, $staff);
-        $judge = $this->judge('Ade Judge');
-        $this->assertTrue(Roles::verifyCode($ade, $this->code($ade))['ok']);
+        $ade = $this->member('ade@example.test');
+        $this->joinAdmin($ade, $this->admin('ade@example.test'));
+        $judge = (int) DB::table('gates_judges')->insertGetId(['name' => 'Ade Judge', 'is_active' => 1, 'email' => 'judge.' . bin2hex(random_bytes(3)) . '@example.test']);
         $this->assertTrue(Roles::open($ade, 'admin')['ok']);
-        // A judge session signed in on its own page, for its own reasons, in the same browser.
-        $_SESSION['judge_id'] = $judge;
-
+        $_SESSION['judge_id'] = $judge; // signed in on the panel's own page, for its own reasons
         (new UserAccountService())->logout();
-        $this->assertArrayNotHasKey('admin_id', $_SESSION, 'the console opened from the account closes with it');
-        $this->assertSame($judge, $_SESSION['judge_id'] ?? null, 'a separately signed-in role is left alone');
-        $this->assertFalse(Roles::steppedUp());
-    }
-
-    public function test_volunteer_is_a_role_of_the_account_or_an_offer_to_apply(): void
-    {
-        $ade = $this->member('Ade Bello');
-        $row = array_values(array_filter(Roles::of($ade), static fn ($r) => $r['kind'] === 'volunteer'))[0];
-        $this->assertTrue($row['offer'] ?? false);
-        $this->assertSame('/volunteer/apply', $row['href']);
-
-        $r = Volunteers::apply((int) $ade->id, ['area' => 'Ikotun', 'dob' => '1999-05-01', 'interests' => ['door'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1']);
-        Volunteers::approve((int) $r['id'], 1);
-        $row = array_values(array_filter(Roles::of($ade), static fn ($r) => $r['kind'] === 'volunteer'))[0];
-        $this->assertTrue($row['live']);
-        $this->assertFalse($row['guarded'], 'volunteering needs no second sign-in and no code');
-        $this->assertSame('/volunteer', $row['href']);
-    }
-
-    public function test_removing_a_role_stamps_the_link_and_keeps_the_record(): void
-    {
-        $ade = $this->member('Ade Bello');
-        $staff = $this->admin('Ade Staff');
-        $this->linkAdmin($ade, $staff);
-        $link = (int) DB::table('gates_account_links')->where('user_id', $ade->id)->value('id');
-        $bisi = $this->member('Bisi Okon');
-        $this->assertFalse(Roles::unlink((int) $bisi->id, $link)['ok'], 'only the account holding it may remove it');
-        $this->assertTrue(Roles::unlink((int) $ade->id, $link)['ok']);
-        $row = DB::table('gates_account_links')->where('id', $link)->first();
-        $this->assertNotNull($row->revoked_at);
-        $this->assertNull(Roles::ownerOf('admin', $staff));
-        $this->assertFalse(Roles::open($ade, 'admin')['ok']);
+        $this->assertArrayNotHasKey('admin_id', $_SESSION);
+        $this->assertSame($judge, $_SESSION['judge_id'] ?? null);
+        $this->assertArrayNotHasKey('acct_proof', $_SESSION);
     }
 }

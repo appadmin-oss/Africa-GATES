@@ -40,6 +40,7 @@
            {% if error %}aria-invalid="true"{% endif %} data-ag-error-group="org-signin"{% if old_email %} autofocus{% endif %}>
     <button class="si__go" type="submit">{{ 'Sign in'|trans }}</button>
   </form>
+  {% include 'partials/account-door.twig' with {door_kind: 'org', door_next: '/org', door_p: 'si__alt', door_btn: 'si__go'} %}
   <p class="si__fine">
     {{ 'Locked out? There is no reset link, as this sign-in can request payouts. Write to'|trans }}
     <a href="mailto:{{ support_email }}?subject={{ 'Organisation sign-in'|url_encode }}">{{ support_email }}</a>

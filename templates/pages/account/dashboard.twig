@@ -55,6 +55,27 @@
   {% endif %}
 
 
+  {# ONE ACCOUNT, MANY ROLES (owner, 29 Oct 2026): a staff, judging or organisation sign-in
+     found for this account, offered once each on the proof its own door accepts — staff and
+     judging on this verified address, an organisation on its own password (Account\Roles). #}
+  {% set _found = account_found() %}
+  {% for fd in _found %}
+    <form class="acc__note" method="post" action="/account/join">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="kind" value="{{ fd.kind }}"><input type="hidden" name="id" value="{{ fd.id }}">
+      {% if fd.how == 'password' %}
+        <p>{{ '%n% has an organisation sign-in under your email. Enter the organisation’s password once to add it to your account, then switch to it from the menu.'|trans({'%n%': fd.name}) }}</p>
+        <label class="ag-sr" for="acc-found-{{ fd.id }}">{{ 'Organisation password'|trans }}</label>
+        <input class="ag-input" id="acc-found-{{ fd.id }}" type="password" name="password" autocomplete="off" required placeholder="{{ 'Organisation password'|trans }}">
+      {% elseif fd.how == 'session' %}
+        <p>{{ 'You are also signed in to %k% as %n% in this browser. If it is yours, add it, and switch to it from the menu from now on.'|trans({'%k%': fd.kind == 'admin' ? 'the staff console'|trans : (fd.kind == 'judge' ? 'judging'|trans : 'an organisation'|trans), '%n%': fd.name}) }}</p>
+      {% else %}
+        <p>{{ 'There is a %k% sign-in under your email (%n%). Add it to your account, and switch to it from the menu instead of signing in twice.'|trans({'%k%': fd.kind == 'admin' ? 'staff console'|trans : 'judging'|trans, '%n%': fd.name}) }}</p>
+      {% endif %}
+      <button class="ag-btn ag-btn--secondary ag-btn--pill" type="submit">{{ 'Add to my account'|trans }}</button>
+    </form>
+  {% endfor %}
+
   {# The wallet's headline: available naira, with points beside it in their own unit —
      the overview's one balance card, for every member (MemberWallet::summary()). #}
   {% set _wready = wallet.pockets|filter(p => p.can) %}
@@ -333,6 +354,27 @@
       <button class="ag-btn ag-btn--secondary ag-btn--pill" type="button" data-passkey-add data-csrf="{{ csrf_token }}" hidden>{{ 'Add a passkey on this device'|trans }}</button>
       <p class="acc__p" data-passkey-note role="status"></p>
     {% endif %}
+    {# Sign-ins joined to this account (Account\Roles::menu): what the menu switches to, and
+       the one place to take one off. Its own sign-in page keeps working after. #}
+    {% set _acct = account_switch() %}
+    {% set _joined = (_acct|default([]))|filter(m => m.link is defined) %}
+    <h3 class="acc__h3" id="signins">{{ 'Sign-ins on this account'|trans }}</h3>
+    {% if _joined|length %}
+      <ul class="ag-list acc__plain">
+        {% for m in _joined %}
+          <li class="ag-list__row">
+            <span class="ag-list__b"><span class="ag-list__label">{{ m.label|trans }}</span><span class="ag-list__sub">{{ m.sub }}</span></span>
+            <form method="post" action="/account/unjoin">
+              <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="link" value="{{ m.link }}">
+              <button class="ag-btn ag-btn--danger" type="submit">{{ 'Remove'|trans }}</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+      <p class="acc__p">{{ 'Switch between them from your name in the menu. Money and settings in the staff console ask for an emailed code; an organisation payout asks for the organisation’s password.'|trans }}</p>
+    {% else %}
+      <p class="acc__p">{{ 'Staff, judging and organisation sign-ins under your email appear here to add, so one sign-in opens them all.'|trans }}</p>
+    {% endif %}
     <form method="post" action="/account/logout" class="acc__out">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <button class="ag-btn ag-btn--danger" type="submit">{{ 'Sign out'|trans }}</button>
@@ -357,12 +399,6 @@
     <a class="ag-list__row" href="/account/interests">
       <span class="ag-list__label">{{ 'What you care about'|trans }}</span>
       <span class="ag-list__value acc__val">{{ interests|length ? interests|map(k => _labels[k]|default(k)|trans)|join(', ') : 'Not chosen'|trans }}</span>
-      <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
-    </a>
-    {# One account, every role (/account/roles): member, volunteer, and any staff, organisation
-       or judging role added to this account — each opened from there. #}
-    <a class="ag-list__row" href="/account/roles">
-      <span class="ag-list__label">{{ 'Your roles'|trans }}</span>
       <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
     </a>
     {# The volunteer workspace (/volunteer, consoles v7 §6). The application is the way in; a

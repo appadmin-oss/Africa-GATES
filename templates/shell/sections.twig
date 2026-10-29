@@ -48,6 +48,32 @@
   {% endif %}
 {% endmacro %}
 
+{#
+  The account menu's "Switch to" list (Account\Roles::menu via `account_switch()`): one POST per
+  role, because switching starts that role's session — never a link a prefetch can follow.
+  `current` is the kind this surface is; it is marked, not offered.
+#}
+{% macro acctSwitch(items, current) %}
+  {% import _self as M %}
+  <ul class="sh7-acct__list">
+    {% for m in items %}
+      <li>
+        {% if m.kind == current %}
+          <span class="sh7-item is-on" aria-current="true"><span class="sh7-tile sh7-tile--sm" aria-hidden="true">{{ m.ini }}</span><span class="sh7-label">{{ m.label }}<span class="sh7-switch__sub"> · {{ m.sub }}</span></span></span>
+        {% elseif m.live %}
+          <form method="post" action="/account/switch">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="kind" value="{{ m.kind }}">
+            <button class="sh7-item sh7-acct__go" type="submit"><span class="sh7-tile sh7-tile--sm" aria-hidden="true">{{ m.ini }}</span><span class="sh7-label">{{ m.label }}<span class="sh7-switch__sub"> · {{ m.sub }}</span></span></button>
+          </form>
+        {% else %}
+          <span class="sh7-item sh7-acct__off"><span class="sh7-label">{{ m.label }}<span class="sh7-switch__sub"> · {{ m.sub }}</span></span></span>
+        {% endif %}
+      </li>
+    {% endfor %}
+    <li><a class="sh7-item" href="/account/logout">{{ M.icon('back') }}<span class="sh7-label">Sign out</span></a></li>
+  </ul>
+{% endmacro %}
+
 {% macro chip(c) %}{% if c %}<span class="sh7-chip sh7-chip--{{ c[1]|default('mute') }}">{{ c[0] }}</span>{% endif %}{% endmacro %}
 
 {% macro bar(pct, label) %}<span class="sh7-meter"><span class="sh7-meter__track"><span class="sh7-meter__fill" style="width:{{ min(100, max(0, pct)) }}%"></span></span>{% if label %}<span class="sh7-meter__label">{{ label }}</span>{% endif %}</span>{% endmacro %}

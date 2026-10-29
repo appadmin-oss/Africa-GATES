@@ -545,28 +545,37 @@ This is the largest data change in the plan, so it comes last (D6). Everything b
 works through a single **Actor** in the kernel that already answers "who is this, and as
 what" across all five of today's sign-ins.
 
-**First step, shipped 28 Oct 2026 (owner: "one account that can manage different roles, not
-separate disjointed accounts").** The person is the Africa GATES account (`gates_users`).
-`/account/roles` lists everything it can be — Member, Volunteer (from the volunteer record and
-its live `vol.*` grants, or an offer to apply), and any staff, organisation or judging account
-added to it — and opens each from there (`Services\Account\Roles`, `AccountRolesController`).
+**Shipped 28–29 Oct 2026 (owner: "one account that can manage different roles, not separate
+disjointed accounts"; then "there's no roles page").** The person is the Africa GATES account
+(`gates_users`). There is no roles page: the account menu — the name at the foot of the
+console rail, the volunteer and lead shell, and the site menu — lists **Switch to**: My
+account, My volunteering, and each staff, judging or organisation sign-in joined to the
+account. The pattern is Airbnb's mode switch, Shopify's store list and GitHub's context
+switcher (`Services\Account\Roles`, `AccountSwitchController`).
 
-- **A role is added only on proof**: the person is signed in to the account AND to the role on
-  its own page in the same browser, and confirms. Never by matching an email.
-  `gates_account_links` holds the link; one role account belongs to one person, and removing a
-  role stamps `revoked_at` rather than deleting the row.
-- **Opening a staff, organisation or judging role needs a fresh emailed six-digit code**
-  (10 minutes to use, five guesses through `OtpAttempt::claim`, then 30 minutes confirmed for
-  that account only) — not a second password. Opening writes exactly the role's own session
-  keys after `Session::rotate()`, as its sign-in page does, and the console's audit log
-  records the staff sign-in with `method: account`.
-- **Signing out of the account closes every role opened from it**, and nothing signed in
-  separately.
-- **The old sign-in pages stay** (separate trust domains, `AccountJoinTest`): the public
-  login page still links to none of them. They are how a role is first added, and they keep
-  working for anybody who has not added theirs yet.
+- **A sign-in joins on the proof its own door accepts, once, recorded** (`gates_account_links`).
+  Staff and judging sign in by email (the magic link, the panel code), so an account whose
+  address is VERIFIED and equal to theirs is offered "Add to my account" on its page. An
+  organisation's door is its own password and never an email, so it joins only on that
+  password, through `OrgAuth::attempt()` and its lock. One role account, one person. What
+  §3.4 calls a fault is records joined by email at read time; this is one confirmed link.
+- **Switching asks nothing when the session holds the proof that door accepts**: a member
+  signed in by password, passkey or emailed code/link. A code texted to a phone proves a
+  phone, which no console door accepts, so that session is sent an email code first.
+- **Money and configuration ask again** (GitHub's "sudo mode"): a console opened from the
+  account needs an emailed code before a write in Finance or Configuration
+  (`AccountReconfirmMiddleware`), and an organisation's payout needs the organisation's own
+  password. 30 minutes, this account only. A session signed in on the role's own page is
+  not asked: it gave that door's proof.
+- **A sign-in lands where the account last worked** (`gates_users.last_place`); a console
+  page asked for opens it on the way. **Signing out of the account closes what it opened.**
+- **One front door.** The staff, judging and organisation sign-in pages still work and now
+  point to the account ("Sign in with it", or "Continue with your Africa GATES account").
+  The public sign-in still links to none of them: the direction is from the console out.
 
-Not yet: sign-in methods (passkeys) belonging to the person rather than the role, and the
+Not yet: sign-in methods (passkeys) belonging to the person rather than the role; a
+second factor on the account itself for anybody holding a staff sign-in; and the data
+change that merges the role tables (D6).
 data change that merges the role tables (D6).
 
 ### 7.2 Access: scoped, time-boxed, least privilege

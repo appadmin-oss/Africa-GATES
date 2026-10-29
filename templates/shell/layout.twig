@@ -17,6 +17,9 @@
 {% set sh = shell %}
 {% set act = sh.act|default('/volunteer/act') %}
 {% set home = sh.home|default('/volunteer') %}
+{# The account menu's list, and which part of the account this surface is. #}
+{% set acct = account_switch() %}
+{% set acctHere = sh.acctHere|default(act starts with '/volunteer' ? 'volunteer' : 'admin') %}
 {% set phoneTabs = [] %}
 {% for g in sh.nav %}{% for i in g.items %}{% if phoneTabs|length < 4 and not i.drill %}{% set phoneTabs = phoneTabs|merge([i]) %}{% endif %}{% endfor %}{% endfor %}
 <!DOCTYPE html>
@@ -86,7 +89,15 @@
       {% endfor %}
     </nav>
     <div class="sh7-foot">
-      <a class="sh7-item" href="{{ sh.foot.href|default('/account') }}" title="{{ sh.foot.label|default('Your account') }}">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span></a>
+      {% if acct %}
+        {# The account menu (owner, 29 Oct 2026): one account, switched from here — no roles page. #}
+        <details class="sh7-acct">
+          <summary class="sh7-item" title="{{ sh.me.name }}. Switch to another part of your account">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span><span class="sh7-switch__mark" aria-hidden="true">⇅</span></summary>
+          <div class="sh7-acct__pop"><p class="sh7-acct__h">Switch to</p>{{ S.acctSwitch(acct, acctHere) }}</div>
+        </details>
+      {% else %}
+        <a class="sh7-item" href="{{ sh.foot.href|default('/account') }}" title="{{ sh.foot.label|default('Your account') }}">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span></a>
+      {% endif %}
     </div>
   </aside>
 
@@ -172,6 +183,7 @@
         {% for g in sh.nav %}{% for i in g.items %}
           <a class="sh7-item" href="{{ i.href }}">{{ S.icon(i.icon) }}<span class="sh7-label">{{ i.label }}</span>{% if i.count %}<span class="sh7-badge sh7-badge--{{ i.count.tone }}">{{ i.count.n }}</span>{% endif %}</a>
         {% endfor %}{% endfor %}
+        {% if acct %}<p class="sh7-acct__h">Switch to</p>{{ S.acctSwitch(acct, acctHere) }}{% endif %}
       </div>
     </details>
   </nav>

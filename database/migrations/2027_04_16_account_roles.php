@@ -7,11 +7,12 @@
  *                         account (gates_users) of the person who holds it. A person signs in
  *                         once, as themselves, and opens each role from there.
  *
- * A link is made only on PROOF, never on a matching email: the person is signed in to both at
- * once in the same browser and confirms, so they have just shown they hold both credentials.
- * One role account belongs to one person: a second live link to the same staff, organisation
- * or judge account is refused in code (Account\Roles::link). Unlinking stamps `revoked_at`;
- * the row stays, so "who could open the console as Ade in March" stays answerable.
+ * A link is made only on the PROOF the role's own door accepts, confirmed once and recorded in
+ * `via`: both signed in in one browser (`both_signed_in`), a staff or judging address equal to
+ * the account's VERIFIED one (`verified_email` — those doors sign in by email), or an
+ * organisation's own password (`org_password` — its door never accepts an email). One role
+ * account belongs to one person (Account\Roles::join). Unlinking stamps `revoked_at`; the
+ * row stays, so "who could open the console as Ade in March" stays answerable.
  *
  * Statuses are VARCHAR, never ENUM. Idempotent. NEVER exit/die here.
  */

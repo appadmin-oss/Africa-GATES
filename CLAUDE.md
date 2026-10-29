@@ -715,6 +715,24 @@ The tell was the COUNT, which went 6579 → 6574 after adding five tests, and a 
 reading `M` where `??` was expected. Read the test total after a run that adds tests, and
 make it add up.
 
+### One account, and a role opens on the proof its own door accepts
+
+Since 29 Oct 2026 a person signs in once, to their Africa GATES account, and switches to
+volunteering, the staff console, judging or an organisation from **Switch to** in the account
+menu — there is deliberately no roles page (`Services\Account\Roles`, plan §7.1). The rule
+that makes it safe is one sentence: **a role is joined, and opened, only on the proof its own
+door would ask for.** Staff and judging sign in by email, so a VERIFIED equal address joins
+them and a session proved by password, passkey or email opens them; a session proved by a
+code texted to a phone is sent an email code first. An organisation's door is its password
+and never an email (a reset link must never become a payout), so it joins on that password,
+and a payout from an account-opened organisation asks for it again. A console opened from the
+account asks for an emailed code before any write in Finance or Configuration
+(`AccountReconfirmMiddleware`, keyed on `Permissions::sectionForPath`, so moving a page
+between sections moves its confirmation). Switching starts a session, so it is a POST,
+never a link, and a GET never opens a console. The staff, judging and organisation sign-in
+pages link OUT to the account; the public sign-in still links to none of them.
+`AccountRolesTest`, nine mutations each failing it.
+
 ### A link that signs you in is a sign-in, and there were three answers to one question
 
 `findByEmail()` has always required `status = 'active'`, so `attemptLogin()` never finds a

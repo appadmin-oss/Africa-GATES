@@ -179,6 +179,20 @@ window.cnPage = (function () {
             {% if shell.email %}<span class="cn-menu__meta">{{ shell.email }}</span>{% endif %}
             <span class="cn-menu__meta">{{ shell.role_label }} · {{ shell.role_blurb }}</span>
           </div>
+          {# One account, many roles (owner, 29 Oct 2026): the rest of this person's account,
+             one POST each — switching starts that role's session. Absent unless a member
+             account is signed in here and holds more than itself (account_switch()). #}
+          {% set acct = account_switch() %}
+          {% if acct %}
+            <p class="cn-menu__h">Switch to</p>
+            {% for m in acct %}{% if m.kind != 'admin' and m.live %}
+              <form method="post" action="/account/switch" class="cn-menu__form" data-cn-safe>
+                <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="kind" value="{{ m.kind }}">
+                <button type="submit" class="cn-menu__i" role="menuitem">{{ m.label }}<span class="cn-menu__meta"> · {{ m.sub }}</span></button>
+              </form>
+            {% endif %}{% endfor %}
+            <hr class="cn-menu__sep">
+          {% endif %}
           {% if shell.handbook %}<a class="cn-menu__i" role="menuitem" href="/admin/handbook">Handbook</a>{% endif %}
           {% if shell.assistant %}<a class="cn-menu__i" role="menuitem" href="/admin/assistant">Assistant, full page</a>{% endif %}
           <button type="button" class="cn-menu__i" role="menuitem" data-ag-do="feedback-open" aria-haspopup="dialog" aria-controls="cnFeedback">Send feedback</button>

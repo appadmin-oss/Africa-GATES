@@ -75,7 +75,9 @@ final class PublicIaTest extends TestCase
         '~/(callback|redirect)$~',       // a payment gateway calls these
         '~/success$~',                   // reached by completing the thing
         '~^/pay/~',                      // gateway return paths
-        '~^/account/(verify|reset|forgot|logout)~',
+        // `confirm` is the step a POST sends somebody to before money or a console
+        // (Account\Roles): reached only by being asked, like verify and reset beside it.
+        '~^/account/(verify|reset|forgot|logout|confirm)~',
         '~^/vote/verify~',
         '~^/(signin|register)$~',        // the member sign-in is linked as /account/login
         // A SIGN-IN FOR A SEPARATE TRUST DOMAIN. `/org` is the destination and is linked;

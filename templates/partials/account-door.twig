@@ -1,0 +1,21 @@
+{#
+  THE ONE FRONT DOOR, FROM A ROLE'S OWN SIGN-IN PAGE (owner, 29 Oct 2026; Account\Roles).
+
+  The staff, judging and organisation sign-in pages keep working, and point to the Africa GATES
+  account, which opens all of them. The direction matters: the PUBLIC sign-in still links to
+  none of these pages (a shared public door is what makes a console a target); these pages
+  link out to it. A member already signed in here who holds this role is offered a POST to
+  switch — never a link, because switching starts a session.
+
+  Takes: door_kind (admin|judge|org), door_next (where the role lands), door_p, door_btn (classes).
+#}
+{% set _acct = account_switch() %}
+{% set _mine = _acct ? (_acct|filter(m => m.kind == door_kind and m.live)|length > 0) : false %}
+{% if _mine %}
+  <form method="post" action="/account/switch">
+    <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="kind" value="{{ door_kind }}">
+    <button class="{{ door_btn }}" type="submit">{{ 'Continue with your Africa GATES account'|trans }}</button>
+  </form>
+{% else %}
+  <p class="{{ door_p }}">{{ 'Have an Africa GATES account?'|trans }} <a href="/account/login?next={{ door_next|url_encode }}">{{ 'Sign in with it'|trans }}</a>{{ ' — a sign-in under the same email is added to it once, then one sign-in opens both.'|trans }}</p>
+{% endif %}

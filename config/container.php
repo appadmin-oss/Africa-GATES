@@ -280,6 +280,41 @@ return [
             'challenge_style',
             [\AfricaGates\Support\Accent::class, 'challengeStyle']
         ));
+        // The account menu's "Switch to" list (Account\Roles::menu): what the signed-in
+        // member's account is — itself, volunteering, and each staff, organisation or judging
+        // sign-in joined to it. A FUNCTION, read only by the menus that draw it, so the four
+        // hundred routes that draw no account menu ask nothing. Null when nobody is signed in
+        // to an account, or when the account is only a member (a one-item list is no switch).
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'account_switch',
+            static function (): ?array {
+                $uid = (int) ($_SESSION['user_id'] ?? 0);
+                if ($uid < 1) return null;
+                try {
+                    $u = \Illuminate\Database\Capsule\Manager::table('gates_users')->where('id', $uid)->first();
+                    $m = $u ? \AfricaGates\Services\Account\Roles::menu($u) : [];
+                } catch (\Throwable) {
+                    return null;
+                }
+                foreach ($m as &$i) $i['ini'] = \AfricaGates\Services\Volunteer\Workspace::initials($i['label']);
+                return count($m) > 1 ? $m : null;
+            }
+        ));
+        // Staff, judging or organisation sign-ins found for the signed-in account and not yet
+        // joined to it (Account\Roles::found) — the account page offers each once, on its proof.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'account_found',
+            static function (): array {
+                $uid = (int) ($_SESSION['user_id'] ?? 0);
+                if ($uid < 1) return [];
+                try {
+                    $u = \Illuminate\Database\Capsule\Manager::table('gates_users')->where('id', $uid)->first();
+                    return $u ? \AfricaGates\Services\Account\Roles::found($u) : [];
+                } catch (\Throwable) {
+                    return [];
+                }
+            }
+        ));
         // The help surface's audiences, for the masthead's scope line. A FUNCTION and
         // not a global: it is read by one partial on six surfaces, and a global is a
         // variable every one of four hundred routes carries in order to serve those six.
@@ -774,7 +809,7 @@ return [
     JudgesController::class       => fn(ContainerInterface $c)=>new JudgesController($c->get(Twig::class), $c->get(JudgeService::class)),
     UserAccountService::class     => fn()=>new UserAccountService(),
     \AfricaGates\Controllers\VolunteerController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\VolunteerController($c->get(Twig::class), $c->get(UserAccountService::class)),
-    \AfricaGates\Controllers\AccountRolesController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\AccountRolesController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(AuditService::class)),
+    \AfricaGates\Controllers\AccountSwitchController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\AccountSwitchController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(AuditService::class), $c->get(RateLimitService::class)),
     AccountController::class      => fn(ContainerInterface $c)=>new AccountController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(CommunityService::class)),
     LeaderboardController::class => fn(ContainerInterface $c)=>new LeaderboardController($c->get(Twig::class)),
     ResultsController::class     => fn(ContainerInterface $c)=>new ResultsController($c->get(Twig::class), $c->get(CommunityService::class)),

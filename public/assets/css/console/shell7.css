@@ -378,3 +378,16 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 .sh7-apply { max-width: 820px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 18px; background: var(--cn-surface); min-height: 100dvh; box-sizing: border-box; }
 
 @media (prefers-reduced-motion: reduce) { .sh7 * { transition: none !important; animation: none !important; } }
+
+/* ── The account menu: "Switch to" (one account, many roles; no roles page) ──────── */
+.sh7-acct { position: relative; }
+.sh7-acct > summary { list-style: none; cursor: pointer; }
+.sh7-acct > summary::-webkit-details-marker { display: none; }
+.sh7-acct__pop { position: absolute; left: 0; bottom: calc(100% + 6px); width: 280px; padding: 6px; z-index: 30;
+  background: var(--cn-surface); border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); box-shadow: var(--cn-sh-menu); }
+.sh7-acct__h { margin: 6px 8px 4px; font-size: var(--cn-fs-12); font-weight: 600; color: var(--cn-ink-3); }
+.sh7-acct__list { list-style: none; margin: 0; padding: 0; }
+.sh7-acct__list form { margin: 0; }
+.sh7-acct__go { width: 100%; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.sh7-acct__list .sh7-label { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh7-acct__off { color: var(--cn-ink-3); }

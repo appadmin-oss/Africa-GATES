@@ -104,12 +104,17 @@ class AccountController
         return $raw;
     }
 
-    /** Consume the stored post-login destination, defaulting to the dashboard. */
-    private function nextTarget(): string
+    /**
+     * Consume the stored post-login destination. With none, the sign-in lands where this
+     * account last worked (Account\Roles::landing) — never on a page asking which role; and a
+     * destination inside a console the account holds opens that console on the way.
+     */
+    private function nextTarget(bool $open = true): string
     {
         $t = $this->safeNext($_SESSION['login_next'] ?? null);
         unset($_SESSION['login_next']);
-        return $t ?? '/account';
+        $u = $open ? $this->accounts->current() : null;
+        return $u ? \AfricaGates\Services\Account\Roles::landing($u, $t) : ($t ?? '/account');
     }
 
     /**
@@ -360,6 +365,7 @@ class AccountController
         ]);
         if ($user) {
             $this->accounts->startSession($user, $this->ip($req));
+            \AfricaGates\Services\Account\Roles::proved($byPhone ? 'phone' : 'email');
             if ($byPhone) {
                 $sent = $this->sendVerification($req, (int) $user->id, $email, (string) $user->name);
                 $_SESSION['flash_notice'] = $sent
@@ -455,6 +461,7 @@ class AccountController
             $user = $this->accounts->verifyEmailToken($token);
             if ($user) {
                 $this->accounts->startSession($user, $this->ip($req));
+                \AfricaGates\Services\Account\Roles::proved('email');
                 $_SESSION['flash_ok'] = 'Your email is verified — welcome to Africa GATES.';
                 \AfricaGates\Services\WebhookService::dispatch('member.verified', [
                     'member_id'  => (int) $user->id,
@@ -700,6 +707,7 @@ class AccountController
         // Signed in straight away. Making somebody who has just proved they own the inbox
         // AND chosen a password type it again is a step that protects nothing.
         $this->accounts->startSession($user, $this->ip($req));
+        \AfricaGates\Services\Account\Roles::proved('email');
         $_SESSION['flash_ok'] = 'Your password is set. You are signed in.';
         return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }
@@ -852,13 +860,16 @@ class AccountController
         if (!$this->accounts->isVerified($user)) $this->accounts->markVerified((int) $user->id);
 
         $this->accounts->startSession($user, $ip);
+        \AfricaGates\Services\Account\Roles::proved('passkey');
         return $this->json($res, ['ok' => true, 'next' => $this->nextTarget()]);
     }
 
     // ── Login (password) ────────────────────────────────────────────────────
     public function loginForm(Request $req, Response $res): Response
     {
-        if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
+        // Already signed in: go where asked, but a GET never opens a console — that is the
+        // account menu's POST (/account/switch), or the console's own "Continue as" button.
+        if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', $this->nextTarget(false))->withStatus(302);
         // Remember where the visitor was headed (e.g. a gate redirected them here)
         // so every sign-in path — password, code, or email verify — can return them.
         $next = $this->safeNext($req->getQueryParams()['next'] ?? null);
@@ -980,6 +991,7 @@ class AccountController
             return $res->withHeader('Location', '/account/verify')->withStatus(302);
         }
         $this->accounts->startSession($user, $ip);
+        \AfricaGates\Services\Account\Roles::proved('password');
         return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }
 
@@ -1295,6 +1307,8 @@ class AccountController
         }
         unset($_SESSION['user_login_email'], $_SESSION['user_login_phone'], $_SESSION['user_login_via'], $_SESSION['user_login_country']);
         $this->accounts->startSession($user, $this->ip($req));
+        // How it was proved decides which consoles open without asking again (Account\Roles).
+        \AfricaGates\Services\Account\Roles::proved($via === 'phone' ? 'phone' : 'email');
         // A code proves the inbox or the phone and nothing more, so an automatic withdrawal
         // to an account this member has never been paid at waits for a person after one
         // (WalletRisk::takeover()).

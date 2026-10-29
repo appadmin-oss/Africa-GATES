@@ -2454,7 +2454,9 @@ return function(App $app) {
         $g->post('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':login');
         $g->post('/org/logout', \AfricaGates\Controllers\OrgDashboardController::class.':logout');
         $g->get ('/org',        \AfricaGates\Controllers\OrgDashboardController::class.':dashboard');
-        $g->post('/org/payout', \AfricaGates\Controllers\OrgDashboardController::class.':requestPayout');
+        // Opened from a member's account, a payout needs the organisation's own password first.
+        $g->post('/org/payout', \AfricaGates\Controllers\OrgDashboardController::class.':requestPayout')
+            ->add(new \AfricaGates\Middleware\AccountReconfirmMiddleware('org'));
         // Appeals. The id is in the path and is checked against the SESSION's organisation in
         // the controller — a path id is a claim, not an authorisation.
         $g->post('/org/appeal',                    \AfricaGates\Controllers\OrgDashboardController::class.':saveCampaign');
@@ -3847,11 +3849,14 @@ return function(App $app) {
         $a->get('/notifications',      AccountController::class.':notifications');
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
-        // One account, many roles (owner, 28 Oct 2026; plan §7.1): what this account can be,
-        // linking a staff, organisation or judge sign-in to it, and opening each, after a
-        // fresh emailed code for the ones that can change what others rely on.
-        $a->get('/roles',              \AfricaGates\Controllers\AccountRolesController::class.':index');
-        $a->post('/roles',             \AfricaGates\Controllers\AccountRolesController::class.':act');
+        // One account, many roles (owner, 28–29 Oct 2026; plan §7.1). No roles page: the
+        // account menu posts a switch, a found sign-in is joined from the account page, and a
+        // console opened from the account confirms again before money or configuration.
+        $a->post('/switch',            \AfricaGates\Controllers\AccountSwitchController::class.':switch');
+        $a->post('/join',              \AfricaGates\Controllers\AccountSwitchController::class.':join');
+        $a->post('/unjoin',            \AfricaGates\Controllers\AccountSwitchController::class.':unjoin');
+        $a->get('/confirm',            \AfricaGates\Controllers\AccountSwitchController::class.':confirmPage');
+        $a->post('/confirm',           \AfricaGates\Controllers\AccountSwitchController::class.':confirm');
         // The Ads Manager (Services\Ads): campaigns, the builder, one campaign, its switch,
         // and fixing a refused ad. `/ads/new` and `/ads/ad/…` are literals registered before
         // the `{id}` placeholder they would otherwise be matched by.
@@ -4929,7 +4934,10 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/delete', AdminWebhooksController::class.':delete');
             $s->post('/{id:[0-9]+}/test',   AdminWebhooksController::class.':test');
         })->add(new RoleMiddleware('superadmin'));
-    // Auth runs first (outermost), then the per-section RBAC guard.
-    })->add(new SectionGuardMiddleware())
+    // Auth runs first (outermost), then the per-section RBAC guard, then — for a console
+    // opened from the member's account — a fresh code before a write in Finance or
+    // Configuration (AccountReconfirmMiddleware).
+    })->add(new \AfricaGates\Middleware\AccountReconfirmMiddleware('console'))
+      ->add(new SectionGuardMiddleware())
       ->add(new AdminAuthMiddleware($app->getContainer()->get(\AfricaGates\Admin\Services\AuthService::class)));
 };

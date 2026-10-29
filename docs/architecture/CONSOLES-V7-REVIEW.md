@@ -211,9 +211,8 @@ and the decision's single reversal each fail it.
 - Decisions still open: D11, D12, D36 (the defaults in `Volunteer\Rules` are the review's
   recommendations), D37, D38, and who besides superadmin opens `/admin/volunteers`.
 
-**28 Oct 2026 — one account, every role.** `/account/roles` (linked from the account page as
-"Your roles") is a root page on the same shell: Member, Volunteer (live, or an offer to apply)
-and any staff, organisation or judging role added to the account, each opened from there. A
-role is added only while signed in to both in one browser; opening a guarded role needs an
-emailed code, not a second password; signing out of the account closes what it opened. The
+**28–29 Oct 2026 — one account, switched from the account menu.** No roles page (the first cut
+had one; the owner rejected it). The name at the foot of the rail opens **Switch to** on the
+volunteer and lead shell, the staff console's account menu and the site menu; staff, judging
+and organisation sign-ins under the account's email are offered once on the account page. The
 rules and their reasons are in AUDIT-AND-PLAN §7.1; `AccountRolesTest` holds them.

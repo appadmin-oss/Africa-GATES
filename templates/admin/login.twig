@@ -58,6 +58,7 @@
 
       <div class="ag-auth__hr"></div>
       <p class="ag-auth__alt">Forgot your password? <a href="/admin/magic">Sign in with a magic link →</a></p>
+      {% include 'partials/account-door.twig' with {door_kind: 'admin', door_next: next|default('/admin/dashboard'), door_p: 'ag-auth__alt', door_btn: 'ag-auth__cta'} %}
     </div>
   </div>
 </div>

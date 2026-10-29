@@ -1146,3 +1146,8 @@ tr.ad-out > td { opacity: .62; }
 @media (prefers-reduced-motion: reduce) {
   .cn-progress[data-on], .cn-progress[data-on][data-done] { transition: none; transform: scaleX(1); }
 }
+
+/* The account menu's "Switch to" (one account, many roles): a heading, POST rows, a rule. */
+.cn-menu__h { margin: 4px 10px 2px; font-size: var(--cn-fs-12); font-weight: 600; color: var(--cn-soft); }
+.cn-menu__form { margin: 0; }
+.cn-menu__sep { border: 0; border-top: 1px solid var(--cn-line-row); margin: 4px 0; }

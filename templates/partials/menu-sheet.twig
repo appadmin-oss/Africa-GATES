@@ -121,6 +121,28 @@
             <span class="ag-menu__pts"><b class="ag-num">{{ _pts|number_format }}</b><span>{{ 'points'|trans }}</span></span>
           {% endif %}
         </a>
+        {# Switch to (owner, 29 Oct 2026): the rest of this account — volunteering, the staff
+           console, judging, an organisation. One POST each: switching starts that role's
+           session, so it is never a link a prefetch could follow. #}
+        {% set _acct = account_switch() %}
+        {% if _acct %}
+          <section class="ag-menu__sec" aria-labelledby="ag-menu-h-switch">
+            <h3 class="ag-menu__h" id="ag-menu-h-switch">{{ 'Switch to'|trans }}</h3>
+            <div class="ag-list ag-menu__list">
+              {% for m in _acct|filter(m => m.kind != 'member' and m.live) %}
+                <form method="post" action="/account/switch" class="ag-menu__switch">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="kind" value="{{ m.kind }}">
+                  <button type="submit" class="ag-list__row">
+                    <span class="ag-menu__av" aria-hidden="true">{{ m.ini }}</span>
+                    <span class="ag-list__label">{{ m.label|trans }}</span>
+                    <span class="ag-list__value">{{ m.sub }}</span>
+                    {{ _chev }}
+                  </button>
+                </form>
+              {% endfor %}
+            </div>
+          </section>
+        {% endif %}
       {% else %}
         <div class="ag-menu__join">
           <b class="ag-menu__join-t">{{ 'Join Africa GATES'|trans }}</b>
