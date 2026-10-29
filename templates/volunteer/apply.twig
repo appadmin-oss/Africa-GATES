@@ -1,73 +1,196 @@
 {#
-  /volunteer/apply — becoming a volunteer (handoff §6.1 role "applicant"; Volunteers::apply).
+  /volunteer/apply — becoming a volunteer (Volunteers::apply). Rebuilt 29 Oct 2026 (owner: "not
+  modern at all; we need all essential info").
 
-  The rules are stated where they are enforced (CLAUDE.md "a rule stated only in a placeholder
-  is stated to nobody"): the minimum age and the guardian line come from Volunteer\Rules, the
-  same reader `apply()` uses, never typed here. A refusal comes back with every field kept.
+  Six short steps: about you, where and when, how you'll help, safety, someone who vouches, and
+  agree and send. With script one step shows at a time (vol-apply.js); without it every step is
+  on the page in order and the last one sends, so nothing depends on script.
+
+  Every rule is stated where it is enforced: the age lines come from Volunteer\Rules, the same
+  reader apply() uses, and every list (states, skills, availability) is the service's own
+  constant, so the form cannot offer a value the server refuses. A refusal comes back with
+  every field kept and the errors listed at the top, each linked to its step.
 #}
 {% set old = old|default({}) %}
 {% set picked = old.interests|default([]) %}
+{% set skilled = old.skills|default([]) %}
+{% set steps = [
+  {id: 'you', t: 'About you'},
+  {id: 'where', t: 'Where and when'},
+  {id: 'help', t: 'How you’ll help'},
+  {id: 'safe', t: 'Safety'},
+  {id: 'vouch', t: 'Someone who vouches'},
+  {id: 'send', t: 'Agree and send'},
+] %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ page_title }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ errors ? 'Not sent: please check your answers · ' }}{{ page_title }}</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
 <link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/shell7.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/apply.css') }}">
 {% include 'partials/csrf-fresh.twig' %}
 </head>
-<body class="sh7">
-<main class="sh7-apply" id="sh7Main">
-  <p class="sh7-brand"><span class="sh7-brand__tile" aria-hidden="true">AG</span><span class="sh7-brand__words"><span class="sh7-brand__name">Africa GATES</span><span class="sh7-brand__sub">Volunteers</span></span></p>
-  <h1 class="sh7-head__title">Volunteer with Africa GATES</h1>
-  <p class="sh7-head__purpose">Help on the night of an award, bring people to vote, check nominations or digitise a programme’s history. Nothing is expected of you until you pick something.</p>
-  {% if was and was.status == 'declined' %}<p class="sh7-note sh7-note--warn">Your last application wasn’t taken forward: “{{ was.decline_reason }}”. You can apply again.</p>{% endif %}
-  {% if was and was.status == 'left' %}<p class="sh7-note sh7-note--mute">Welcome back. Your verified record is still yours; apply again to take new shifts.</p>{% endif %}
-  {% if errors %}<div class="sh7-note sh7-note--bad" role="alert"><p>Please fix these:</p><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<body class="ap">
+<div class="ap-wrap">
+  <header class="ap-top">
+    <p class="sh7-brand"><span class="sh7-brand__tile" aria-hidden="true">AG</span><span class="sh7-brand__words"><span class="sh7-brand__name">Africa GATES</span><span class="sh7-brand__sub">Volunteers</span></span></p>
+    <a class="ap-exit" href="/account">Not now</a>
+  </header>
 
-  <form class="sh7-form" method="post" action="/volunteer/apply">
-    <input type="hidden" name="_token" value="{{ csrf_token }}">
-    <div class="sh7-form__block">
-      <div class="sh7-form__label"><p class="sh7-form__name">About you</p><p class="sh7-form__help">Leads see the name you give here. Your date of birth is kept only to check the age rule.</p></div>
-      <div class="sh7-form__fields">
-        <label class="sh7-field" for="a_name"><span class="sh7-field__label">Name to show (optional)</span><input class="sh7-input" id="a_name" name="display_name" value="{{ old.display_name|default('') }}" placeholder="{{ user.name }}"></label>
-        <label class="sh7-field" for="a_dob"><span class="sh7-field__label">Date of birth</span><input class="sh7-input" id="a_dob" type="date" name="dob" value="{{ old.dob|default('') }}" required></label>
-        <p class="sh7-form__help">Volunteers are {{ min_age }} or older. Under {{ guardian_under }}, a parent or guardian agrees first.</p>
-        <label class="sh7-choice"><input type="checkbox" name="guardian" value="1"> I’m under {{ guardian_under }} and a parent or guardian has agreed</label>
-        <label class="sh7-field" for="a_area"><span class="sh7-field__label">Where you are</span><input class="sh7-input" id="a_area" name="area" value="{{ old.area|default('') }}" placeholder="e.g. Ikotun, Alimosho" required></label>
-        <label class="sh7-field" for="a_lang"><span class="sh7-field__label">Languages (optional)</span><input class="sh7-input" id="a_lang" name="languages" value="{{ old.languages|default('') }}"></label>
+  <main id="apMain">
+    <section class="ap-hero" aria-labelledby="apTitle">
+      <h1 id="apTitle">Volunteer with Africa GATES</h1>
+      <p class="ap-lede">Help on an award night, bring people to vote, check nominations or tell a programme’s story. About five minutes to apply.</p>
+      {% if was and was.status == 'declined' %}<p class="sh7-note sh7-note--warn">Your last application wasn’t taken forward: “{{ was.decline_reason }}”. You can apply again.</p>{% endif %}
+      {% if was and was.status == 'left' %}<p class="sh7-note sh7-note--mute">Welcome back. Your record is still yours. Apply again to help again.</p>{% endif %}
+      <ol class="ap-next" aria-label="What happens next">
+        <li><b>1. You apply</b>Your details stay private to the volunteer team.</li>
+        <li><b>2. We check</b>We contact the person who vouches for you.</li>
+        <li><b>3. You start</b>Pick tasks and short training that suit you.</li>
+      </ol>
+    </section>
+
+    {% if errors %}
+      <div class="ap-errors" role="alert" tabindex="-1" id="apErrors">
+        <h2>Not sent yet. Please check {{ errors|length == 1 ? 'this' : 'these' }}:</h2>
+        <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
       </div>
-    </div>
-    <div class="sh7-form__block">
-      <div class="sh7-form__label"><p class="sh7-form__name">What you’d like to help with</p><p class="sh7-form__help">Pick any. You can change your mind later.</p></div>
-      <fieldset class="sh7-form__fields sh7-field--choice"><legend class="sh7-sr">What you’d like to help with</legend>
-        {% for k, l in interests %}<label class="sh7-choice"><input type="checkbox" name="interests[]" value="{{ k }}"{{ k in picked ? ' checked' }}> {{ l }}</label>{% endfor %}
-      </fieldset>
-    </div>
-    <div class="sh7-form__block">
-      <div class="sh7-form__label"><p class="sh7-form__name">Someone who can vouch for you</p><p class="sh7-form__help">A teacher, an employer, a faith or community leader. Not a relative. We ask them once.</p></div>
-      <div class="sh7-form__fields">
-        <label class="sh7-field" for="a_rn"><span class="sh7-field__label">Their name</span><input class="sh7-input" id="a_rn" name="ref_name" value="{{ old.ref_name|default('') }}" required></label>
-        <label class="sh7-field" for="a_rc"><span class="sh7-field__label">Their phone or email</span><input class="sh7-input" id="a_rc" name="ref_contact" value="{{ old.ref_contact|default('') }}" required></label>
-        <label class="sh7-field" for="a_rr"><span class="sh7-field__label">How they know you (optional)</span><input class="sh7-input" id="a_rr" name="ref_relation" value="{{ old.ref_relation|default('') }}"></label>
-      </div>
-    </div>
-    <div class="sh7-form__block">
-      <div class="sh7-form__label"><p class="sh7-form__name">Code of conduct</p></div>
-      <div class="sh7-form__fields sh7-article">
-        <p>You help people take part; you never ask anyone to vote for a named nominee. You never take money or a phone from anyone. You keep what you see about nominees, voters and guests to yourself. You wear your pass and follow your lead on the night.</p>
-        <label class="sh7-choice"><input type="checkbox" name="conduct" value="1" required> I’ve read the code of conduct and I accept it</label>
-      </div>
-    </div>
-    {# Said before they send, not after: CrmAudiencePush shares these three things with
-       Afrovanguard's one contact list (CACENTRE), and nothing else from this form. #}
-    <p class="sh7-form__help">Your name, email and where your application stands are shared with Afrovanguard’s contact list, so the wider team knows you. Your date of birth, referee and availability are not. Under 18? Nothing is shared.</p>
-    <p class="sh7-form__submit"><button class="sh7-btn sh7-btn--primary" type="submit">Send my application</button> <a class="sh7-btn" href="/account">Not now</a></p>
-  </form>
-</main>
+    {% endif %}
+
+    <nav aria-label="Steps"><ol class="ap-steps">
+      {% for s in steps %}<li><a href="#ap-{{ s.id }}" data-ap-tab="{{ loop.index0 }}"{% if loop.first %} aria-current="step"{% endif %}><span>{{ s.t }}</span></a></li>{% endfor %}
+    </ol></nav>
+    <p class="ap-sr" id="apLive" role="status" aria-live="polite"></p>
+
+    <form method="post" action="/volunteer/apply" novalidate data-ap-form>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      {# ── 1. About you ───────────────────────────────────────────────────────── #}
+      <section class="ap-step" id="ap-you" aria-labelledby="ap-you-h">
+        <h2 class="ap-step__h" id="ap-you-h" tabindex="-1"><span class="ap-step__n">Step 1 of 6</span>About you</h2>
+        <p class="ap-step__why">Leads see your name and phone. Your date of birth is kept only to check the age rule.</p>
+        <div class="ap-grid">
+          <label class="ap-f" for="a_name"><span class="ap-f__l">Name to show <span class="ap-opt">(optional)</span></span>
+            <input class="ap-in" id="a_name" name="display_name" value="{{ old.display_name|default('') }}" placeholder="{{ user.name }}" autocomplete="nickname"></label>
+          <label class="ap-f" for="a_phone"><span class="ap-f__l">Phone</span>
+            <input class="ap-in" id="a_phone" type="tel" name="phone" value="{{ old.phone|default('') }}" required autocomplete="tel" inputmode="tel" aria-describedby="a_phone_h">
+            <span class="ap-f__h" id="a_phone_h">Your lead calls or messages you on this, on WhatsApp too.</span></label>
+          <label class="ap-f" for="a_dob"><span class="ap-f__l">Date of birth</span>
+            <input class="ap-in" id="a_dob" type="date" name="dob" value="{{ old.dob|default('') }}" required autocomplete="bday" aria-describedby="a_dob_h" data-ap-dob data-guardian-under="{{ guardian_under }}">
+            <span class="ap-f__h" id="a_dob_h">Volunteers are {{ min_age }} or older. Under {{ guardian_under }}, a parent or guardian agrees first.</span></label>
+          <fieldset class="ap-f"><legend class="ap-f__l">Gender <span class="ap-opt">(optional)</span></legend>
+            <div class="ap-chips">{% for k, l in genders %}<label class="ap-chip"><input type="radio" name="gender" value="{{ k }}"{{ old.gender|default('') == k ? ' checked' }}> {{ l }}</label>{% endfor %}</div></fieldset>
+          <label class="ap-check ap-wide" data-ap-guardian><input type="checkbox" name="guardian" value="1"{{ old.guardian|default('') ? ' checked' }}> I’m under {{ guardian_under }} and a parent or guardian has agreed</label>
+          <fieldset class="ap-f ap-wide"><legend class="ap-f__l">What you do <span class="ap-opt">(optional)</span></legend>
+            <div class="ap-chips">{% for k, l in occupations %}<label class="ap-chip"><input type="radio" name="occupation" value="{{ k }}"{{ old.occupation|default('') == k ? ' checked' }}> {{ l }}</label>{% endfor %}</div></fieldset>
+        </div>
+        <div class="ap-nav"><span></span><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: where and when</button></div>
+      </section>
+
+      {# ── 2. Where and when ──────────────────────────────────────────────────── #}
+      <section class="ap-step" id="ap-where" aria-labelledby="ap-where-h">
+        <h2 class="ap-step__h" id="ap-where-h" tabindex="-1"><span class="ap-step__n">Step 2 of 6</span>Where and when</h2>
+        <p class="ap-step__why">So we offer you work near you, at times you can make. You can change these any time.</p>
+        <div class="ap-grid">
+          <label class="ap-f" for="a_state"><span class="ap-f__l">State</span>
+            <select class="ap-in" id="a_state" name="state" required autocomplete="address-level1">
+              <option value="">Choose…</option>
+              {% for s in states %}<option{{ old.state|default('') == s ? ' selected' }}>{{ s }}</option>{% endfor %}
+            </select></label>
+          <label class="ap-f" for="a_area"><span class="ap-f__l">Town or area</span>
+            <input class="ap-in" id="a_area" name="area" value="{{ old.area|default('') }}" placeholder="Ikotun, Alimosho" required autocomplete="address-level2"></label>
+          <fieldset class="ap-f ap-wide"><legend class="ap-f__l">Weekdays</legend>
+            <div class="ap-chips">{% for k, l in weekdays %}<label class="ap-chip"><input type="radio" name="weekdays" value="{{ k }}"{{ old.weekdays|default('evenings') == k ? ' checked' }}> {{ l }}</label>{% endfor %}</div></fieldset>
+          <fieldset class="ap-f ap-wide"><legend class="ap-f__l">Weekends</legend>
+            <div class="ap-chips">{% for k, l in weekends %}<label class="ap-chip"><input type="radio" name="weekends" value="{{ k }}"{{ old.weekends|default('sat') == k ? ' checked' }}> {{ l }}</label>{% endfor %}</div></fieldset>
+          <label class="ap-f" for="a_hours"><span class="ap-f__l">Hours a week, at most</span>
+            <input class="ap-in" id="a_hours" type="number" name="max_hours_week" min="1" max="40" inputmode="numeric" value="{{ old.max_hours_week|default('8') }}"></label>
+          <label class="ap-f" for="a_km"><span class="ap-f__l">How far you’ll travel, in km</span>
+            <input class="ap-in" id="a_km" type="number" name="travel_km" min="0" max="100" inputmode="numeric" value="{{ old.travel_km|default('10') }}"></label>
+          <label class="ap-check ap-wide"><input type="checkbox" name="from_home" value="1"{{ (old.from_home is defined ? old.from_home : '1') ? ' checked' }}> I can also help from home, on my phone or computer</label>
+        </div>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: how you’ll help</button></div>
+      </section>
+
+      {# ── 3. How you'll help ─────────────────────────────────────────────────── #}
+      <section class="ap-step" id="ap-help" aria-labelledby="ap-help-h">
+        <h2 class="ap-step__h" id="ap-help-h" tabindex="-1"><span class="ap-step__n">Step 3 of 6</span>How you’ll help</h2>
+        <fieldset class="ap-f"><legend class="ap-f__l">What you’d like to do</legend>
+          <p class="ap-f__h">Pick any. You can change your mind later.</p>
+          <div class="ap-cards">{% for k, l in interests %}<label class="ap-chip"><input type="checkbox" name="interests[]" value="{{ k }}"{{ k in picked ? ' checked' }}> {{ l }}</label>{% endfor %}</div></fieldset>
+        <fieldset class="ap-f"><legend class="ap-f__l">Skills you bring <span class="ap-opt">(optional)</span></legend>
+          <div class="ap-chips">{% for k, l in skills %}<label class="ap-chip"><input type="checkbox" name="skills[]" value="{{ k }}"{{ k in skilled ? ' checked' }}> {{ l }}</label>{% endfor %}</div></fieldset>
+        <div class="ap-grid">
+          <label class="ap-f" for="a_lang"><span class="ap-f__l">Languages you speak <span class="ap-opt">(optional)</span></span>
+            <input class="ap-in" id="a_lang" name="languages" value="{{ old.languages|default('') }}" placeholder="English, Yoruba"></label>
+          <label class="ap-f" for="a_tee"><span class="ap-f__l">T-shirt size <span class="ap-opt">(optional)</span></span>
+            <select class="ap-in" id="a_tee" name="tshirt"><option value="">Choose…</option>{% for t in tshirts %}<option{{ old.tshirt|default('') == t ? ' selected' }}>{{ t }}</option>{% endfor %}</select></label>
+          <label class="ap-f ap-wide" for="a_exp"><span class="ap-f__l">Volunteering you’ve done before <span class="ap-opt">(optional)</span></span>
+            <textarea class="ap-in" id="a_exp" name="experience" maxlength="500" rows="3">{{ old.experience|default('') }}</textarea></label>
+          <label class="ap-f ap-wide" for="a_why"><span class="ap-f__l">Why you’d like to volunteer <span class="ap-opt">(optional)</span></span>
+            <textarea class="ap-in" id="a_why" name="motivation" maxlength="2000" rows="3">{{ old.motivation|default('') }}</textarea></label>
+        </div>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: safety</button></div>
+      </section>
+
+      {# ── 4. Safety ──────────────────────────────────────────────────────────── #}
+      <section class="ap-step" id="ap-safe" aria-labelledby="ap-safe-h">
+        <h2 class="ap-step__h" id="ap-safe-h" tabindex="-1"><span class="ap-step__n">Step 4 of 6</span>Safety</h2>
+        <p class="ap-step__why">Only your lead on the night sees these, and only if they need to.</p>
+        <div class="ap-grid">
+          <label class="ap-f" for="a_en"><span class="ap-f__l">Emergency contact’s name</span>
+            <input class="ap-in" id="a_en" name="emergency_name" value="{{ old.emergency_name|default('') }}" required autocomplete="off"></label>
+          <label class="ap-f" for="a_ep"><span class="ap-f__l">Their phone</span>
+            <input class="ap-in" id="a_ep" type="tel" name="emergency_phone" value="{{ old.emergency_phone|default('') }}" required autocomplete="off" inputmode="tel"></label>
+          <label class="ap-f ap-wide" for="a_acc"><span class="ap-f__l">Anything we should arrange so you can take part? <span class="ap-opt">(optional)</span></span>
+            <input class="ap-in" id="a_acc" name="access_needs" value="{{ old.access_needs|default('') }}" placeholder="Step-free access, a seat, a screen reader…" aria-describedby="a_acc_h">
+            <span class="ap-f__h" id="a_acc_h">It’s used to plan your work, never to turn you down.</span></label>
+        </div>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: someone who vouches</button></div>
+      </section>
+
+      {# ── 5. Someone who vouches ─────────────────────────────────────────────── #}
+      <section class="ap-step" id="ap-vouch" aria-labelledby="ap-vouch-h">
+        <h2 class="ap-step__h" id="ap-vouch-h" tabindex="-1"><span class="ap-step__n">Step 5 of 6</span>Someone who vouches for you</h2>
+        <p class="ap-step__why">A teacher, an employer, a faith or community leader. Not a relative. We contact them once.</p>
+        <div class="ap-grid">
+          <label class="ap-f" for="a_rn"><span class="ap-f__l">Their name</span>
+            <input class="ap-in" id="a_rn" name="ref_name" value="{{ old.ref_name|default('') }}" required autocomplete="off"></label>
+          <label class="ap-f" for="a_rc"><span class="ap-f__l">Their phone or email</span>
+            <input class="ap-in" id="a_rc" name="ref_contact" value="{{ old.ref_contact|default('') }}" required autocomplete="off"></label>
+          <label class="ap-f ap-wide" for="a_rr"><span class="ap-f__l">How they know you <span class="ap-opt">(optional)</span></span>
+            <input class="ap-in" id="a_rr" name="ref_relation" value="{{ old.ref_relation|default('') }}" placeholder="My teacher at Ikotun High School"></label>
+        </div>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: agree and send</button></div>
+      </section>
+
+      {# ── 6. Agree and send ──────────────────────────────────────────────────── #}
+      <section class="ap-step" id="ap-send" aria-labelledby="ap-send-h">
+        <h2 class="ap-step__h" id="ap-send-h" tabindex="-1"><span class="ap-step__n">Step 6 of 6</span>Agree and send</h2>
+        <fieldset class="ap-f"><legend class="ap-f__l">How did you hear about us? <span class="ap-opt">(optional)</span></legend>
+          <div class="ap-chips">{% for k, l in heard %}<label class="ap-chip"><input type="radio" name="heard_from" value="{{ k }}"{{ old.heard_from|default('') == k ? ' checked' }}> {{ l }}</label>{% endfor %}</div></fieldset>
+        <div class="ap-f"><p class="ap-f__l">Our code of conduct</p>
+          <ul class="ap-code">
+            <li>You help people take part, and never ask anyone to vote for a named nominee.</li>
+            <li>You never take money or a phone from anyone.</li>
+            <li>You keep what you see about nominees, voters and guests to yourself.</li>
+            <li>You wear your pass and follow your lead on the night.</li>
+          </ul></div>
+        <label class="ap-check"><input type="checkbox" name="conduct" value="1" required> I’ve read the code of conduct and I accept it</label>
+        {# Said before they send: CrmAudiencePush shares these three things with Afrovanguard's one
+           contact list (CACENTRE), and nothing else from this form. #}
+        <p class="ap-share">Your name, email and where your application stands are shared with Afrovanguard’s contact list, so the wider team knows you. Your phone, date of birth, emergency contact and referee are not. Under 18? Nothing is shared.</p>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="submit">Send my application</button></div>
+      </section>
+    </form>
+  </main>
+</div>
+<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/vol-apply.js') }}" defer></script>
 </body>
 </html>

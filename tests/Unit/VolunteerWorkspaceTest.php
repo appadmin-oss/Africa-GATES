@@ -55,7 +55,7 @@ final class VolunteerWorkspaceTest extends TestCase
 
     private function applied(int $uid): int
     {
-        $r = Volunteers::apply($uid, ['area' => 'Ikotun, Alimosho', 'dob' => '1999-05-01', 'interests' => ['drive', 'door'],
+        $r = Volunteers::apply($uid, ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikotun, Alimosho', 'dob' => '1999-05-01', 'interests' => ['drive', 'door'],
             'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1']);
         $this->assertTrue($r['ok'], implode(' ', $r['errors']));
         return (int) $r['id'];

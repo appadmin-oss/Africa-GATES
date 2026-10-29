@@ -36,10 +36,21 @@
         <dl class="cn-facts">
           <div><dt>Applied</dt><dd>{{ v.applied_at|date('j M Y') }}</dd></div>
           <div><dt>Age</dt><dd>{{ v.age ?? '—' }}{% if v.guardian_consent_at %} · a guardian agreed{% endif %}</dd></div>
-          <div><dt>Where</dt><dd>{{ v.area }}</dd></div>
+          {% if v.phone %}<div><dt>Phone</dt><dd>{{ v.phone }}</dd></div>{% endif %}
+          <div><dt>Where</dt><dd>{{ v.area }}{% if v.state %}, {{ v.state }}{% endif %}</dd></div>
+          <div><dt>When</dt><dd>{{ v.when }}{% if v.from_home %} · also from home{% endif %}</dd></div>
           <div><dt>Would like to</dt><dd>{{ v.wants|join(', ') }}</dd></div>
+          {% if v.brings %}<div><dt>Skills</dt><dd>{{ v.brings|join(', ') }}</dd></div>{% endif %}
+          {% if v.languages %}<div><dt>Languages</dt><dd>{{ v.languages }}</dd></div>{% endif %}
+          {% if v.occupation_label %}<div><dt>Does</dt><dd>{{ v.occupation_label }}</dd></div>{% endif %}
+          {% if v.gender_label %}<div><dt>Gender</dt><dd>{{ v.gender_label }}</dd></div>{% endif %}
+          {% if v.emergency_contact %}<div><dt>Emergency contact</dt><dd>{{ v.emergency_contact }}</dd></div>{% endif %}
+          {% if v.access_needs %}<div><dt>To arrange</dt><dd>{{ v.access_needs }}</dd></div>{% endif %}
+          {% if v.tshirt %}<div><dt>T-shirt</dt><dd>{{ v.tshirt }}</dd></div>{% endif %}
+          {% if v.heard_label %}<div><dt>Heard from</dt><dd>{{ v.heard_label }}</dd></div>{% endif %}
         </dl>
         {% if v.motivation %}<p>{{ v.motivation }}</p>{% endif %}
+        {% if v.experience %}<p class="vl-help">Before: {{ v.experience }}</p>{% endif %}
         <table class="cn-table">
           <thead><tr><th scope="col">Referee</th><th scope="col">Reached at</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
           <tbody>

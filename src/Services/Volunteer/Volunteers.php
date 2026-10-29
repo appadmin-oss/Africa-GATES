@@ -34,6 +34,19 @@ final class Volunteers
         'digital' => 'Digitising, translating, writing',
     ];
 
+    /** Nigeria's 36 states and the FCT: where a volunteer is decides which shifts are near. */
+    public const STATES = ['Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo',
+        'Ekiti', 'Enugu', 'FCT Abuja', 'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger',
+        'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara', 'Outside Nigeria'];
+    public const GENDERS = ['female' => 'Female', 'male' => 'Male', 'none' => 'Prefer not to say'];
+    public const OCCUPATIONS = ['student' => 'Student', 'employed' => 'Working', 'self' => 'Self-employed', 'seeking' => 'Looking for work', 'retired' => 'Retired', 'other' => 'Something else'];
+    public const SKILLS = ['first_aid' => 'First aid', 'photo' => 'Photography or video', 'social' => 'Social media', 'writing' => 'Writing', 'design' => 'Design',
+        'data' => 'Data entry', 'translate' => 'Translating', 'driving' => 'Driving', 'events' => 'Events and hosting', 'tech' => 'Tech support', 'teaching' => 'Teaching'];
+    public const WEEKDAYS = ['none' => 'Not on weekdays', 'evenings' => 'Evenings', 'any' => 'Any time'];
+    public const WEEKENDS = ['none' => 'Not at weekends', 'sat' => 'Saturdays', 'sun' => 'Sundays', 'both' => 'Both days'];
+    public const HEARD = ['friend' => 'A friend', 'school' => 'School or campus', 'social' => 'Social media', 'event' => 'At an event', 'faith' => 'Church or mosque', 'other' => 'Somewhere else'];
+    public const TSHIRTS = ['S', 'M', 'L', 'XL', 'XXL'];
+
     public static function ready(): bool
     {
         return SchemaHas::table('gates_volunteers');
@@ -95,12 +108,21 @@ final class Volunteers
     {
         if (!self::ready()) return ['ok' => false, 'errors' => ['The database needs its latest update first.']];
         $e = [];
-        $area = trim((string) ($f['area'] ?? ''));
+        $t = static fn (string $k, int $n = 190): string => mb_substr(trim((string) preg_replace('/\s+/u', ' ', (string) ($f[$k] ?? ''))), 0, $n);
+        $digits = static fn (string $v): string => (string) preg_replace('/\D+/', '', $v);
+        $pick = static fn (string $k, array $from): ?string => isset($from[(string) ($f[$k] ?? '')]) ? (string) $f[$k] : null;
+        $area = $t('area');
+        $state = in_array((string) ($f['state'] ?? ''), self::STATES, true) ? (string) $f['state'] : '';
         $dob = trim((string) ($f['dob'] ?? ''));
-        $refName = trim((string) ($f['ref_name'] ?? ''));
-        $refContact = trim((string) ($f['ref_contact'] ?? ''));
+        $phone = $t('phone', 32);
+        $refName = $t('ref_name');
+        $refContact = $t('ref_contact');
+        $emName = $t('emergency_name', 120);
+        $emPhone = $t('emergency_phone', 32);
         $interests = array_values(array_intersect(array_keys(self::INTERESTS), (array) ($f['interests'] ?? [])));
-        if ($area === '') $e[] = 'Say where you are, so we can suggest shifts near you.';
+        $skills = array_values(array_intersect(array_keys(self::SKILLS), (array) ($f['skills'] ?? [])));
+
+        // About you
         $age = null;
         if ($dob === '' || strtotime($dob) === false) {
             $e[] = 'Add your date of birth.';
@@ -111,21 +133,38 @@ final class Volunteers
                 $e[] = sprintf('Under %d, a parent or guardian needs to agree. Tick the box once they have.', Rules::get('vol_guardian_under'));
             }
         }
+        if (strlen($digits($phone)) < 7 || strlen($digits($phone)) > 15) $e[] = 'Add a phone number your lead can reach you on.';
+        // Where
+        if ($state === '') $e[] = 'Pick your state.';
+        if ($area === '') $e[] = 'Say your town or area, so we can suggest shifts near you.';
+        // What
         if ($interests === []) $e[] = 'Pick at least one thing you would like to help with.';
+        // Safety
+        if ($emName === '' || strlen($digits($emPhone)) < 7) $e[] = 'Add someone we can call in an emergency, and their phone.';
         if ($refName === '' || $refContact === '') $e[] = 'Name one person who can vouch for you, and how to reach them.';
+        if ($digits($emPhone) !== '' && $digits($emPhone) === $digits($phone)) $e[] = 'Your emergency contact needs a different phone from yours.';
         if (empty($f['conduct'])) $e[] = 'Read and accept the code of conduct.';
         if ($e !== []) return ['ok' => false, 'errors' => $e];
 
         $now = date('Y-m-d H:i:s');
         $row = [
-            'display_name' => mb_substr(trim((string) ($f['display_name'] ?? '')), 0, 190) ?: null,
-            'area' => mb_substr($area, 0, 190), 'state' => mb_substr(trim((string) ($f['state'] ?? '')), 0, 64) ?: null,
-            'languages' => mb_substr(trim((string) ($f['languages'] ?? '')), 0, 255) ?: null,
-            'interests' => implode(',', $interests), 'motivation' => mb_substr(trim((string) ($f['motivation'] ?? '')), 0, 2000) ?: null,
+            'display_name' => $t('display_name') ?: null,
+            'area' => $area, 'state' => $state,
+            'languages' => $t('languages', 255) ?: null,
+            'interests' => implode(',', $interests), 'motivation' => $t('motivation', 2000) ?: null,
             'dob' => date('Y-m-d', (int) strtotime($dob)),
             'guardian_consent_at' => ($age !== null && $age < Rules::get('vol_guardian_under')) ? $now : null,
+            'weekdays' => $pick('weekdays', self::WEEKDAYS) ?? 'evenings', 'weekends' => $pick('weekends', self::WEEKENDS) ?? 'sat',
+            'max_hours_week' => max(1, min(40, (int) ($f['max_hours_week'] ?? 8) ?: 8)), 'travel_km' => max(0, min(100, (int) ($f['travel_km'] ?? 10))),
+            'from_home' => empty($f['from_home']) ? 0 : 1,
+            'emergency_contact' => mb_substr($emName . ', ' . $emPhone, 0, 255),
             'conduct_version' => self::CONDUCT_VERSION, 'conduct_accepted_at' => $now, 'updated_at' => $now,
         ];
+        // The rebuilt application's own columns (2027_04_23_vol_application), only where they exist.
+        $extra = ['phone' => $phone, 'gender' => $pick('gender', self::GENDERS), 'occupation' => $pick('occupation', self::OCCUPATIONS),
+                  'skills' => implode(',', $skills) ?: null, 'experience' => $t('experience', 500) ?: null, 'heard_from' => $pick('heard_from', self::HEARD),
+                  'access_needs' => $t('access_needs', 255) ?: null, 'tshirt' => in_array((string) ($f['tshirt'] ?? ''), self::TSHIRTS, true) ? (string) $f['tshirt'] : null];
+        foreach ($extra as $col => $val) if (SchemaHas::column('gates_volunteers', $col)) $row[$col] = $val;
         $have = self::of($userId);
         if ($have && !in_array($have->status, ['applicant', 'declined', 'left'], true)) {
             return ['ok' => false, 'errors' => ['You are already a volunteer.']];
@@ -137,8 +176,8 @@ final class Volunteers
             $id = (int) DB::table('gates_volunteers')->insertGetId($row + ['user_id' => $userId, 'status' => 'applicant', 'applied_at' => $now, 'created_at' => $now]);
         }
         DB::table('gates_vol_references')->where('volunteer_id', $id)->where('status', 'asked')->update(['status' => 'replaced']);
-        DB::table('gates_vol_references')->insert(['volunteer_id' => $id, 'name' => mb_substr($refName, 0, 190), 'contact' => mb_substr($refContact, 0, 190),
-            'relation' => mb_substr(trim((string) ($f['ref_relation'] ?? '')), 0, 64) ?: null, 'status' => 'asked', 'asked_at' => $now]);
+        DB::table('gates_vol_references')->insert(['volunteer_id' => $id, 'name' => $refName, 'contact' => $refContact,
+            'relation' => $t('ref_relation', 64) ?: null, 'status' => 'asked', 'asked_at' => $now]);
         return ['ok' => true, 'errors' => [], 'id' => $id];
     }
 

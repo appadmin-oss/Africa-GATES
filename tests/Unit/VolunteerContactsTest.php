@@ -58,7 +58,7 @@ final class VolunteerContactsTest extends TestCase
     {
         $uid = (int) DB::table('gates_users')->insertGetId(['name' => $name, 'email' => strtolower(strtok($name, ' ')) . bin2hex(random_bytes(2)) . '@vol-mail.ng',
             'password_hash' => 'x', 'status' => 'active', 'created_at' => date('Y-m-d H:i:s')]);
-        $r = Volunteers::apply($uid, ['area' => 'Ikotun', 'dob' => $dob, 'interests' => ['drive'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1', 'guardian' => '1']);
+        $r = Volunteers::apply($uid, ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikotun', 'dob' => $dob, 'interests' => ['drive'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1', 'guardian' => '1']);
         $this->assertTrue($r['ok'], implode(' ', $r['errors'] ?? []));
         Volunteers::approve((int) $r['id'], 1);
         foreach ($caps as $c) Grants::grant('member', $uid, $c, 'cycle', $this->cycle, date('Y-m-d', strtotime('+20 days')), 1);

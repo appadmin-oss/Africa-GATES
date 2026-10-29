@@ -105,6 +105,12 @@ final class VolunteersController
             $v->refs = Volunteers::references((int) $v->id);
             $v->age = $v->dob ? (int) floor((time() - (int) strtotime((string) $v->dob)) / (365.25 * 86400)) : null;
             $v->wants = array_map(static fn ($k) => Volunteers::INTERESTS[$k] ?? $k, array_filter(explode(',', (string) $v->interests)));
+            // The rebuilt application's answers (2027_04_23_vol_application), in the words the form used.
+            $v->brings = array_map(static fn ($k) => Volunteers::SKILLS[$k] ?? $k, array_filter(explode(',', (string) ($v->skills ?? ''))));
+            $v->when = (Volunteers::WEEKDAYS[$v->weekdays] ?? '') . ' · ' . (Volunteers::WEEKENDS[$v->weekends] ?? '') . ' · up to ' . (int) $v->max_hours_week . 'h a week';
+            $v->gender_label = Volunteers::GENDERS[$v->gender ?? ''] ?? null;
+            $v->occupation_label = Volunteers::OCCUPATIONS[$v->occupation ?? ''] ?? null;
+            $v->heard_label = Volunteers::HEARD[$v->heard_from ?? ''] ?? null;
             $rows[] = $v;
         }
         return $rows;

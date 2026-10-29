@@ -48,7 +48,7 @@ final class VolunteerWorkspaceGapsTest extends TestCase
     {
         $uid = (int) DB::table('gates_users')->insertGetId(['name' => $name, 'email' => strtolower(str_replace(' ', '.', $name)) . '.' . bin2hex(random_bytes(3)) . '@example.test',
             'password_hash' => 'x', 'status' => 'active', 'created_at' => date('Y-m-d H:i:s')]);
-        $r = Volunteers::apply($uid, ['area' => 'Ikotun', 'dob' => '1999-05-01', 'interests' => ['door'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1']);
+        $r = Volunteers::apply($uid, ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikotun', 'dob' => '1999-05-01', 'interests' => ['door'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1']);
         Volunteers::approve((int) $r['id'], 1);
         return Volunteers::of($uid);
     }

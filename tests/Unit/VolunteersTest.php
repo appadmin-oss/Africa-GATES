@@ -46,7 +46,7 @@ final class VolunteersTest extends TestCase
     private function approved(?int $uid = null): object
     {
         $uid ??= $this->member();
-        $r = Volunteers::apply($uid, ['area' => 'Ikotun, Alimosho', 'dob' => '1999-05-01', 'interests' => ['drive', 'door'],
+        $r = Volunteers::apply($uid, ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikotun, Alimosho', 'dob' => '1999-05-01', 'interests' => ['drive', 'door'],
             'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1']);
         $this->assertTrue($r['ok'], implode(' ', $r['errors']));
         Volunteers::approve($r['id'], 1);
@@ -121,10 +121,10 @@ final class VolunteersTest extends TestCase
     public function test_applying_checks_age_and_training_gates_a_shift(): void
     {
         $u = $this->member();
-        $young = Volunteers::apply($u, ['area' => 'Ikeja', 'dob' => date('Y-m-d', strtotime('-15 years')), 'interests' => ['drive'], 'ref_name' => 'A', 'ref_contact' => 'b', 'conduct' => 1]);
+        $young = Volunteers::apply($u, ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikeja', 'dob' => date('Y-m-d', strtotime('-15 years')), 'interests' => ['drive'], 'ref_name' => 'A', 'ref_contact' => 'b', 'conduct' => 1]);
         $this->assertFalse($young['ok']);
         $this->assertStringContainsString('16 or older', implode(' ', $young['errors']), 'the age is read from the setting');
-        $teen = ['area' => 'Ikeja', 'dob' => date('Y-m-d', strtotime('-17 years')), 'interests' => ['drive'], 'ref_name' => 'A', 'ref_contact' => 'b', 'conduct' => 1];
+        $teen = ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikeja', 'dob' => date('Y-m-d', strtotime('-17 years')), 'interests' => ['drive'], 'ref_name' => 'A', 'ref_contact' => 'b', 'conduct' => 1];
         $this->assertFalse(Volunteers::apply($u, $teen)['ok'], 'under 18 needs a guardian');
         $this->assertTrue(Volunteers::apply($u, $teen + ['guardian' => 1])['ok']);
 

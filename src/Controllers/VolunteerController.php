@@ -273,7 +273,9 @@ final class VolunteerController
         unset($_SESSION['vol_apply_old']);
         return $this->view->render($res, 'volunteer/apply.twig', [
             'page_title' => 'Volunteer with Africa GATES', 'user' => $user, 'old' => $old, 'was' => $v,
-            'interests' => Volunteers::INTERESTS, 'errors' => $this->take('vol_errors') ?? [],
+            'interests' => Volunteers::INTERESTS, 'skills' => Volunteers::SKILLS, 'states' => Volunteers::STATES, 'genders' => Volunteers::GENDERS,
+            'occupations' => Volunteers::OCCUPATIONS, 'weekdays' => Volunteers::WEEKDAYS, 'weekends' => Volunteers::WEEKENDS, 'heard' => Volunteers::HEARD,
+            'tshirts' => Volunteers::TSHIRTS, 'errors' => $this->take('vol_errors') ?? [],
             'min_age' => \AfricaGates\Services\Volunteer\Rules::get('vol_min_age'), 'guardian_under' => \AfricaGates\Services\Volunteer\Rules::get('vol_guardian_under'),
         ]);
     }
@@ -287,7 +289,9 @@ final class VolunteerController
         $r = Volunteers::apply((int) $user->id, $b);
         if (!$r['ok']) {
             $_SESSION['vol_errors'] = $r['errors'];
-            $_SESSION['vol_apply_old'] = array_intersect_key($b, array_flip(['display_name', 'area', 'state', 'languages', 'motivation', 'dob', 'ref_name', 'ref_contact', 'ref_relation', 'interests']));
+            $b['from_home'] ??= '0';   // an unticked box sends nothing; kept as a no
+            $_SESSION['vol_apply_old'] = array_intersect_key($b, array_flip(['display_name', 'phone', 'dob', 'gender', 'guardian', 'occupation', 'state', 'area', 'weekdays', 'weekends', 'max_hours_week', 'travel_km', 'from_home',
+                'interests', 'skills', 'languages', 'tshirt', 'experience', 'motivation', 'emergency_name', 'emergency_phone', 'access_needs', 'ref_name', 'ref_contact', 'ref_relation', 'heard_from']));
             return $this->to($res, '/volunteer/apply');
         }
         $_SESSION['vol_toast'] = 'Thank you. Your application is in; we’ve asked your referee.';

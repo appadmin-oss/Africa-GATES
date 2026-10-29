@@ -231,7 +231,7 @@ final class AccountRolesTest extends TestCase
     {
         $ade = $this->member('ade@example.test');
         $this->assertSame(['member'], array_column(Roles::menu($ade), 'kind'), 'only a member: nothing to switch to');
-        $r = Volunteers::apply((int) $ade->id, ['area' => 'Ikotun', 'dob' => '1999-05-01', 'interests' => ['door'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1']);
+        $r = Volunteers::apply((int) $ade->id, ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikotun', 'dob' => '1999-05-01', 'interests' => ['door'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1']);
         Volunteers::approve((int) $r['id'], 1);
         $this->admin('ade@example.test');
         $this->assertSame(['member', 'volunteer', 'admin'], array_column(Roles::menu($ade), 'kind'));
