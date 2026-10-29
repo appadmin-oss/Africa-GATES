@@ -547,11 +547,12 @@ what" across all five of today's sign-ins.
 
 **Shipped 28–29 Oct 2026 (owner: "one account that can manage different roles, not separate
 disjointed accounts"; then "there's no roles page").** The person is the Africa GATES account
-(`gates_users`). There is no roles page: the account menu — the name at the foot of the
-console rail, the volunteer and lead shell, and the site menu — lists **Switch to**: My
-account, My volunteering, and each staff, judging or organisation sign-in joined to the
-account. The pattern is Airbnb's mode switch, Shopify's store list and GitHub's context
-switcher (`Services\Account\Roles`, `AccountSwitchController`).
+(`gates_users`). There is no roles page: the top of the rail — in the staff console and
+the volunteer and lead shell — is a **product switcher** after ElevenLabs: it names the part
+of the account you are in, and opens a list of the others (My account, My volunteering, and
+each staff, judging or organisation sign-in joined to the account), one row each with an
+icon, a line of what it is and a tick on the current one. The account menu at the foot stays
+personal; on a phone the list sits in More; the site menu carries it as **Switch to** (`Services\Account\Roles`, `AccountSwitchController`).
 
 - **A sign-in joins on the proof its own door accepts, once, recorded** (`gates_account_links`).
   Staff and judging sign in by email (the magic link, the panel code), so an account whose

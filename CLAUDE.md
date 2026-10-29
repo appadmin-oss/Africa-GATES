@@ -718,8 +718,10 @@ make it add up.
 ### One account, and a role opens on the proof its own door accepts
 
 Since 29 Oct 2026 a person signs in once, to their Africa GATES account, and switches to
-volunteering, the staff console, judging or an organisation from **Switch to** in the account
-menu — there is deliberately no roles page (`Services\Account\Roles`, plan §7.1). The rule
+volunteering, the staff console, judging or an organisation from the **product switcher** at
+the top of the rail (ElevenLabs' shape: the current part named at the top, one row each with an
+icon, a line of what it is and a tick; the account menu at the foot stays personal) — there is
+deliberately no roles page (`Services\Account\Roles`, plan §7.1). The rule
 that makes it safe is one sentence: **a role is joined, and opened, only on the proof its own
 door would ask for.** Staff and judging sign in by email, so a VERIFIED equal address joins
 them and a session proved by password, passkey or email opens them; a session proved by a

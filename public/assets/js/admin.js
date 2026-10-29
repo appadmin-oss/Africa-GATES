@@ -207,6 +207,18 @@
     document.addEventListener('click', function (e) { if (!e.target.closest('.cn-acct')) closeAcct(); });
   }
 
+  // ── THE PRODUCT SWITCHER (a <details>): a click outside or Escape closes it, and Escape
+  // hands focus back to the button that opened it.
+  document.addEventListener('click', function (e) {
+    var p = document.querySelector('.cn-prod[open]');
+    if (p && !p.contains(e.target)) p.open = false;
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var p = document.querySelector('.cn-prod[open]');
+    if (p) { p.open = false; p.querySelector('summary').focus(); }
+  });
+
   // ── PIN / UNPIN WITHOUT A RELOAD, AND UNDO ───────────────────────────────────
   document.addEventListener('submit', function (e) {
     var f = e.target;

@@ -1147,7 +1147,35 @@ tr.ad-out > td { opacity: .62; }
   .cn-progress[data-on], .cn-progress[data-on][data-done] { transition: none; transform: scaleX(1); }
 }
 
-/* The account menu's "Switch to" (one account, many roles): a heading, POST rows, a rule. */
-.cn-menu__h { margin: 4px 10px 2px; font-size: var(--cn-fs-12); font-weight: 600; color: var(--cn-soft); }
+/* ── THE PRODUCT SWITCHER (after ElevenLabs): the top of the rail names the part of the
+   account you are in and opens the others — icon, name, one line, a tick on the current
+   one. Same rail row as the brand it replaces, so nothing below it moves. */
+.cn-side__top { display: flex; align-items: center; gap: 4px; }
+.cn-side__top > :first-child { flex: 1; min-width: 0; }
+.cn-prod { position: relative; }
+.cn-prod > summary { list-style: none; cursor: pointer; }
+.cn-prod > summary::-webkit-details-marker { display: none; }
+.cn-prod__btn:hover, .cn-prod[open] > .cn-prod__btn { background: var(--cn-panel); }
+.cn-prod__btn:focus-visible { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+.cn-prod__chev { flex: none; width: 14px; height: 14px; color: var(--cn-soft); }
+.cn-prod__menu { top: calc(100% + 4px); left: 0; width: 300px; gap: 2px; }
+.cn-prod__i {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: var(--cn-r-8);
+  background: transparent; color: var(--cn-ink); text-align: start; cursor: pointer; font: inherit;
+}
+.cn-prod__i:hover, .cn-prod__i:focus-visible { background: var(--cn-panel); }
+.cn-prod__i.is-on { cursor: default; }
+.cn-prod__ic { flex: none; width: 32px; height: 32px; border-radius: var(--cn-r-8); display: grid; place-items: center;
+  background: var(--cn-panel); color: var(--cn-ink); }
+.cn-prod__ic svg { width: 16px; height: 16px; }
+.cn-prod__i.is-on .cn-prod__ic { background: var(--cn-green); color: var(--cn-surface); }
+.cn-prod__t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.cn-prod__n { font-size: var(--cn-fs-13-5); font-weight: 600; }
+.cn-prod__s { font-size: var(--cn-fs-12); color: var(--cn-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cn-prod__tick { flex: none; width: 16px; height: 16px; color: var(--cn-green); }
 .cn-menu__form { margin: 0; }
-.cn-menu__sep { border: 0; border-top: 1px solid var(--cn-line-row); margin: 4px 0; }
+
+/* The icon rail (600–1023, or closed): the switcher keeps its mark and loses the chevron,
+   exactly as the brand it replaced lost its words. The menu still opens at full width. */
+@media (min-width: 600px) and (max-width: 1023px) { .cn-prod__chev { display: none; } }
+body[data-side="closed"] .cn-prod__chev { display: none; }

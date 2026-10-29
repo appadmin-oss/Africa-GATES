@@ -125,4 +125,16 @@
       if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J')) { e.preventDefault(); if (dlg.open) shut(); else open(); }
     });
   }
+
+  // The product switcher (a <details>): a click outside or Escape closes it; Escape returns
+  // focus to the button that opened it.
+  document.addEventListener('click', function (e) {
+    var p = document.querySelector('.sh7-prod[open]');
+    if (p && !p.contains(e.target)) p.open = false;
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var p = document.querySelector('.sh7-prod[open]');
+    if (p) { p.open = false; p.querySelector('summary').focus(); }
+  });
 })();

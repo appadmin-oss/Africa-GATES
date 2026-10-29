@@ -55,22 +55,20 @@
 #}
 {% macro acctSwitch(items, current) %}
   {% import _self as M %}
-  <ul class="sh7-acct__list">
+  {% set ic = {member: 'user', volunteer: 'users', admin: 'shield', judge: 'trophy', org: 'flag'} %}
+  <ul class="sh7-prod__list">
     {% for m in items %}
       <li>
         {% if m.kind == current %}
-          <span class="sh7-item is-on" aria-current="true"><span class="sh7-tile sh7-tile--sm" aria-hidden="true">{{ m.ini }}</span><span class="sh7-label">{{ m.label }}<span class="sh7-switch__sub"> · {{ m.sub }}</span></span></span>
+          <span class="sh7-prod__i is-on" role="menuitem" aria-current="true"><span class="sh7-prod__ic" aria-hidden="true">{{ M.icon(ic[m.kind]) }}</span><span class="sh7-prod__t"><span class="sh7-prod__n">{{ m.label }}</span><span class="sh7-prod__s">{{ m.sub }}</span></span><span class="sh7-prod__tick" aria-hidden="true">✓</span></span>
         {% elseif m.live %}
           <form method="post" action="/account/switch">
             <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="kind" value="{{ m.kind }}">
-            <button class="sh7-item sh7-acct__go" type="submit"><span class="sh7-tile sh7-tile--sm" aria-hidden="true">{{ m.ini }}</span><span class="sh7-label">{{ m.label }}<span class="sh7-switch__sub"> · {{ m.sub }}</span></span></button>
+            <button class="sh7-prod__i" type="submit" role="menuitem"><span class="sh7-prod__ic" aria-hidden="true">{{ M.icon(ic[m.kind]) }}</span><span class="sh7-prod__t"><span class="sh7-prod__n">{{ m.label }}</span><span class="sh7-prod__s">{{ m.sub }}</span></span></button>
           </form>
-        {% else %}
-          <span class="sh7-item sh7-acct__off"><span class="sh7-label">{{ m.label }}<span class="sh7-switch__sub"> · {{ m.sub }}</span></span></span>
         {% endif %}
       </li>
     {% endfor %}
-    <li><a class="sh7-item" href="/account/logout">{{ M.icon('back') }}<span class="sh7-label">Sign out</span></a></li>
   </ul>
 {% endmacro %}
 

@@ -212,7 +212,8 @@ and the decision's single reversal each fail it.
   recommendations), D37, D38, and who besides superadmin opens `/admin/volunteers`.
 
 **28–29 Oct 2026 — one account, switched from the account menu.** No roles page (the first cut
-had one; the owner rejected it). The name at the foot of the rail opens **Switch to** on the
-volunteer and lead shell, the staff console's account menu and the site menu; staff, judging
+had one; the owner rejected it). The top of the rail is a product switcher (after ElevenLabs;
+the owner rejected a list inside the account menu too) on the volunteer and lead shell and the
+staff console, in More on a phone, and **Switch to** in the site menu; staff, judging
 and organisation sign-ins under the account's email are offered once on the account page. The
 rules and their reasons are in AUDIT-AND-PLAN §7.1; `AccountRolesTest` holds them.

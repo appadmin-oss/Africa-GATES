@@ -20,6 +20,7 @@
 {# The account menu's list, and which part of the account this surface is. #}
 {% set acct = account_switch() %}
 {% set acctHere = sh.acctHere|default(act starts with '/volunteer' ? 'volunteer' : 'admin') %}
+{% set acctLabel = acct ? (acct|filter(m => m.kind == acctHere)|first).label|default('Africa GATES') : 'Africa GATES' %}
 {% set phoneTabs = [] %}
 {% for g in sh.nav %}{% for i in g.items %}{% if phoneTabs|length < 4 and not i.drill %}{% set phoneTabs = phoneTabs|merge([i]) %}{% endif %}{% endfor %}{% endfor %}
 <!DOCTYPE html>
@@ -43,10 +44,23 @@
 
   <aside class="sh7-rail" aria-label="{{ sh.scope == 'root' ? sh.railLabel|default('My volunteering') : (sh.instance.name|default('Profile and access')) }}">
     {% if sh.scope == 'root' %}
-      <div class="sh7-brand">
-        <span class="sh7-brand__tile" aria-hidden="true">AG</span>
-        <span class="sh7-brand__words"><span class="sh7-brand__name">Africa GATES</span><span class="sh7-brand__sub">{{ sh.brand }}</span></span>
-      </div>
+      {% if acct %}
+        {# The product switcher (after ElevenLabs): the top of the rail names the part of the
+           account you are in and opens the others. The foot stays personal. #}
+        <details class="sh7-prod">
+          <summary class="sh7-brand sh7-prod__btn" aria-label="{{ acctLabel }}. Switch to another part of your account">
+            <span class="sh7-brand__tile" aria-hidden="true">AG</span>
+            <span class="sh7-brand__words"><span class="sh7-brand__name">{{ acctLabel }}</span><span class="sh7-brand__sub">{{ sh.brand }}</span></span>
+            <span class="sh7-prod__chev" aria-hidden="true">{{ S.icon('chev') }}</span>
+          </summary>
+          <div class="sh7-prod__menu" role="menu" aria-label="Your account">{{ S.acctSwitch(acct, acctHere) }}</div>
+        </details>
+      {% else %}
+        <div class="sh7-brand">
+          <span class="sh7-brand__tile" aria-hidden="true">AG</span>
+          <span class="sh7-brand__words"><span class="sh7-brand__name">Africa GATES</span><span class="sh7-brand__sub">{{ sh.brand }}</span></span>
+        </div>
+      {% endif %}
     {% else %}
       <a class="sh7-back" href="{{ sh.back.href }}" title="{{ sh.back.label }}">{{ S.icon('back') }}<span class="sh7-label">{{ sh.back.label }}</span></a>
       {% if sh.instance is defined and sh.instance %}
@@ -89,15 +103,7 @@
       {% endfor %}
     </nav>
     <div class="sh7-foot">
-      {% if acct %}
-        {# The account menu (owner, 29 Oct 2026): one account, switched from here — no roles page. #}
-        <details class="sh7-acct">
-          <summary class="sh7-item" title="{{ sh.me.name }}. Switch to another part of your account">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span><span class="sh7-switch__mark" aria-hidden="true">⇅</span></summary>
-          <div class="sh7-acct__pop"><p class="sh7-acct__h">Switch to</p>{{ S.acctSwitch(acct, acctHere) }}</div>
-        </details>
-      {% else %}
-        <a class="sh7-item" href="{{ sh.foot.href|default('/account') }}" title="{{ sh.foot.label|default('Your account') }}">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span></a>
-      {% endif %}
+      <a class="sh7-item" href="{{ sh.foot.href|default('/account') }}" title="{{ sh.foot.label|default('Your account') }}">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span></a>
     </div>
   </aside>
 
@@ -183,7 +189,7 @@
         {% for g in sh.nav %}{% for i in g.items %}
           <a class="sh7-item" href="{{ i.href }}">{{ S.icon(i.icon) }}<span class="sh7-label">{{ i.label }}</span>{% if i.count %}<span class="sh7-badge sh7-badge--{{ i.count.tone }}">{{ i.count.n }}</span>{% endif %}</a>
         {% endfor %}{% endfor %}
-        {% if acct %}<p class="sh7-acct__h">Switch to</p>{{ S.acctSwitch(acct, acctHere) }}{% endif %}
+        {% if acct %}<p class="sh7-bellpanel__h">Switch to</p>{{ S.acctSwitch(acct, acctHere) }}{% endif %}
       </div>
     </details>
   </nav>
