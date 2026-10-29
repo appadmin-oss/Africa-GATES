@@ -5,8 +5,10 @@ namespace AfricaGates\Controllers;
 
 use AfricaGates\Services\Requests;
 use AfricaGates\Services\UserAccountService;
+use AfricaGates\Services\Volunteer\Contacts;
 use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Services\Volunteer\Level;
+use AfricaGates\Services\Volunteer\Meetings;
 use AfricaGates\Services\Volunteer\NominationChecks;
 use AfricaGates\Services\Volunteer\Shifts;
 use AfricaGates\Services\Volunteer\Tasks;
@@ -37,7 +39,7 @@ use Slim\Views\Twig;
  */
 final class VolunteerController
 {
-    public function __construct(private readonly Twig $view, private readonly UserAccountService $accounts) {}
+    public function __construct(private readonly Twig $view, private readonly UserAccountService $accounts, private readonly ?\AfricaGates\Services\OtpService $mailer = null) {}
 
     /** GET /volunteer[/{page}[/{tab}]] */
     public function root(Request $req, Response $res, array $args): Response
@@ -60,7 +62,7 @@ final class VolunteerController
                 'scope' => 'root', 'nav' => Workspace::rootNav($v, $role, '', Workspace::counts($v, $role)), 'tabs' => [],
                 'crumbs' => [['label' => 'My volunteering', 'href' => '/volunteer'], ['label' => 'Find']], 'findQ' => $q]);
         }
-        $content = WorkspacePages::root($v, $role, $page, $tab, $req->getQueryParams());
+        $content = WorkspacePages::root($v, $role, $page, $tab, $req->getQueryParams() + ['_old' => (array) ($this->take('vol_old') ?? [])]);
         $counts = Workspace::counts($v, $role);
         $tabCounts = match ($page) {
             'shifts' => ['mine' => $counts['shifts']['n'] ?? 0], 'tasks' => ['mine' => $counts['tasks']['n'] ?? 0],
@@ -89,11 +91,9 @@ final class VolunteerController
         [$user, $v] = $this->who();
         if (!$user) return $this->to($res, '/account/login?next=/volunteer/shifts');
         if (!$v) return $this->to($res, '/volunteer/apply');
-        $esc = static fn (string $t): string => str_replace(["\\", ';', ',', "\r\n", "\n"], ['\\\\', '\\;', '\\,', '\\n', '\\n'], $t);
-        $utc = static fn (string $at): string => (new \DateTimeImmutable($at))->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+        [$esc, $utc] = [self::icsText(...), self::icsTime(...)];
         $host = (string) (parse_url(\AfricaGates\Support\SiteUrl::base($req), PHP_URL_HOST) ?: 'africagates');
-        $lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Africa GATES//Volunteer shifts//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-                  'X-WR-CALNAME:' . $esc('My volunteer shifts')];
+        $lines = [];
         foreach (Shifts::mine($v) as $s) {
             $desc = trim(($s->bring ? 'Bring: ' . $s->bring . "\n" : '') . ($s->lead_name ? 'Your lead: ' . $s->lead_name . "\n" : '') . (string) ($s->brief ?? ''));
             array_push($lines, 'BEGIN:VEVENT', 'UID:vol-shift-' . (int) $s->id . '@' . $host, 'DTSTAMP:' . $utc('now'),
@@ -102,17 +102,46 @@ final class VolunteerController
                 'LOCATION:' . $esc($s->from_home ? 'From home' : (string) ($s->location ?? '')),
                 'DESCRIPTION:' . $esc($desc), 'URL:' . \AfricaGates\Support\SiteUrl::base($req) . '/volunteer/shifts/' . (int) $s->id, 'END:VEVENT');
         }
-        $lines[] = 'END:VCALENDAR';
-        // Lines over 75 octets are folded, as RFC 5545 requires.
-        $out = '';
-        foreach ($lines as $l) {
-            while (strlen($l) > 75) { $cut = 75; while ($cut > 1 && (ord($l[$cut]) & 0xC0) === 0x80) $cut--; $out .= substr($l, 0, $cut) . "\r\n "; $l = substr($l, $cut); }
-            $out .= $l . "\r\n";
-        }
+        $out = self::calendar('My volunteer shifts', $lines);
         $res->getBody()->write($out);
         return $res->withHeader('Content-Type', 'text/calendar; charset=utf-8')
                    ->withHeader('Content-Disposition', 'attachment; filename="my-volunteer-shifts.ics"')
                    ->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    /** GET /volunteer/meetings/{id}.ics — one meeting, repeats included, for the person's own calendar app. */
+    public function meetingIcs(Request $req, Response $res, array $args): Response
+    {
+        [$user, $v] = $this->who();
+        if (!$user) return $this->to($res, '/account/login?next=/volunteer/meetings');
+        $m = $v ? Meetings::get($v, (int) $args['id']) : null;
+        if (!$m || $m->status !== 'scheduled') throw new HttpNotFoundException($req);
+        $host = (string) (parse_url(\AfricaGates\Support\SiteUrl::base($req), PHP_URL_HOST) ?: 'africagates');
+        $url = \AfricaGates\Support\SiteUrl::base($req) . '/volunteer/meetings/' . (int) $m->id;
+        $lines = ['BEGIN:VEVENT', 'UID:vol-meeting-' . (int) $m->id . '@' . $host, 'DTSTAMP:' . self::icsTime('now'),
+            'DTSTART:' . self::icsTime((string) $m->starts_at), 'DTEND:' . self::icsTime(date('Y-m-d H:i:s', (int) strtotime((string) $m->starts_at) + (int) $m->minutes * 60))];
+        // Repeats as the calendar's own rule, so one download holds every meeting in the series.
+        if ($m->repeats !== 'once') $lines[] = 'RRULE:FREQ=' . ($m->repeats === 'monthly' ? 'MONTHLY' : 'WEEKLY') . ($m->repeats === 'fortnightly' ? ';INTERVAL=2' : '') . ';COUNT=' . (int) $m->times;
+        array_push($lines, 'SUMMARY:' . self::icsText((string) $m->title),
+            'LOCATION:' . self::icsText($m->mode === 'place' ? (string) $m->location : (string) ($m->meet_url ?? 'Online')),
+            'DESCRIPTION:' . self::icsText(trim((string) ($m->agenda ?? '') . "\n\n" . $url)), 'URL:' . $url, 'END:VEVENT');
+        $res->getBody()->write(self::calendar('Volunteer meeting', $lines));
+        return $res->withHeader('Content-Type', 'text/calendar; charset=utf-8')
+                   ->withHeader('Content-Disposition', 'attachment; filename="meeting-' . (int) $m->id . '.ics"')
+                   ->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    /** GET /volunteer/meetings/{id} — a meeting, for the organiser and the people invited only. */
+    public function meeting(Request $req, Response $res, array $args): Response
+    {
+        [$user, $v] = $this->who();
+        if (!$user) return $this->to($res, '/account/login?next=/volunteer/meetings');
+        if (!$v || $this->role($v) === 'applicant') return $this->to($res, '/volunteer');
+        $c = WorkspacePages::meeting($v, (int) $args['id']);
+        if (!$c) throw new HttpNotFoundException($req);
+        $role = $this->role($v);
+        return $this->render($res, $user, $v, $role, ['scope' => 'root', 'nav' => Workspace::rootNav($v, $role, 'meetings', Workspace::counts($v, $role)),
+            'crumbs' => [['label' => 'Meetings', 'href' => '/volunteer/meetings'], ['label' => $c['title']]], 'back' => ['label' => 'Meetings', 'href' => '/volunteer/meetings']] + $c);
     }
 
     /** GET /volunteer/shifts/{id} — a shift as a record page. */
@@ -269,6 +298,12 @@ final class VolunteerController
             'wait' => $active ? (($w = Shifts::wait($v, (int) ($b['shift'] ?? 0)))['ok']
                 ? $ok(!empty($w['place']) ? 'You’re on the waitlist, ' . WorkspacePages::ordinal((int) $w['place']) . ' in line. We email you if a place opens.' : 'A place was free, so you’re on it.')
                 : $no((string) $w['error'])) : $no('Shifts open once you’re approved.'),
+            'contact' => $active ? (($k = Contacts::log($v, $b))['ok'] ? $ok('Logged. The team follows up.') : $no((string) $k['error'])) : $no('Contacts open once you’re approved.'),
+            'forget_contact' => Contacts::forget($v, (int) ($b['contact'] ?? 0)) ? $ok('Marked. The team won’t contact them.') : $no('That contact isn’t yours.'),
+            'meet' => $active ? (($k = Meetings::schedule($v, $b, $this->mailer))['ok'] ? $ok('Scheduled. ' . ($k['invited'] === 1 ? 'One person is' : $k['invited'] . ' people are') . ' invited by email.') : $no((string) $k['error'])) : $no('Meetings open once you’re approved.'),
+            'meet_answer' => Meetings::answer($v, (int) ($b['meeting'] ?? 0), (string) ($b['answer'] ?? '')) ? $ok(($b['answer'] ?? '') === 'yes' ? 'Thanks. They know you’re going.' : 'Thanks. They know you can’t come.') : $no('That meeting can’t be answered now.'),
+            'meet_notes' => ($k = Meetings::notes($v, (int) ($b['meeting'] ?? 0), (string) ($b['notes'] ?? '')))['ok'] ? $ok('Notes saved. Everybody invited can read them.') : $no((string) $k['error']),
+            'meet_cancel' => Meetings::cancel($v, (int) ($b['meeting'] ?? 0), $this->mailer) ? $ok('Called off. Everybody invited is told.') : $no('Only the organiser can call it off, before it starts.'),
             'unwait' => Shifts::unwait($v, (int) ($b['shift'] ?? 0)) ? $ok('You’ve left the waitlist.') : $no('You’re not on that waitlist.'),
             'drop' => Shifts::drop($v, (int) ($b['shift'] ?? 0)) ? $ok('Dropped. The shift goes back to the team.') : $no('That shift is not yours to drop.'),
             'accept' => Shifts::acceptChange($v, (int) ($b['shift'] ?? 0)) ? $ok('Thanks. The new time is noted.') : $no('That shift is not yours.'),
@@ -297,6 +332,16 @@ final class VolunteerController
         $_SESSION[$r['ok'] ? 'vol_toast' : 'vol_error'] = $r['msg'];
         if (($b['do'] ?? '') === 'request' && $r['ok']) $back = '/volunteer/requests';
         if (($b['do'] ?? '') === 'leave' && $r['ok']) $back = '/volunteer/me/leave';
+        if (($b['do'] ?? '') === 'contact' && $r['ok']) $back = '/volunteer/contacts';
+        if (($b['do'] ?? '') === 'meet' && $r['ok']) $back = '/volunteer/meetings/' . (int) ($k['id'] ?? 0);
+        if (($b['do'] ?? '') === 'meet' && !$r['ok']) {
+            $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['title', 'date', 'time', 'minutes', 'repeats', 'times', 'mode', 'link', 'location', 'people', 'agenda']));
+        }
+        // A refused contact comes back with what was typed, so nothing is typed twice. The two
+        // confirmations are not kept: they are asked afresh.
+        if (($b['do'] ?? '') === 'contact' && !$r['ok']) {
+            $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['name', 'phone', 'email', 'interest', 'place', 'place_text', 'note']));
+        }
         // A sent check opens the next one waiting (a HubSpot-style queue), so a checker works
         // through them without returning to the list each time; the list when none is left.
         if (($b['do'] ?? '') === 'nomcheck' && $r['ok']) {
@@ -309,6 +354,31 @@ final class VolunteerController
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────────────
+
+    /** RFC 5545 text: backslash, semicolon, comma and newlines escaped. */
+    private static function icsText(string $t): string
+    {
+        return str_replace(["\\", ';', ',', "\r\n", "\n"], ['\\\\', '\\;', '\\,', '\\n', '\\n'], $t);
+    }
+
+    /** A time in UTC, which every calendar reader converts to the person's own zone. */
+    private static function icsTime(string $at): string
+    {
+        return (new \DateTimeImmutable($at))->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+    }
+
+    /** A calendar around some events, lines over 75 octets folded as RFC 5545 requires. */
+    private static function calendar(string $name, array $events): string
+    {
+        $lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Africa GATES//Volunteering//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+                  'X-WR-CALNAME:' . self::icsText($name), ...$events, 'END:VCALENDAR'];
+        $out = '';
+        foreach ($lines as $l) {
+            while (strlen($l) > 75) { $cut = 75; while ($cut > 1 && (ord($l[$cut]) & 0xC0) === 0x80) $cut--; $out .= substr($l, 0, $cut) . "\r\n "; $l = substr($l, $cut); }
+            $out .= $l . "\r\n";
+        }
+        return $out;
+    }
 
     private function train(object $v, array $b): array
     {

@@ -18,6 +18,8 @@
   ticket: 'M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4zM14 7v10',
   noms: 'M9 12l2 2 4-4M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z',
   vote: 'M4 12h16v8H4z M8 12V4h8v8 M10 8l1.5 1.5L14 7',
+  video: 'M15 10l5-3v10l-5-3M3 7h12v10H3z',
+  contact: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6',
   shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
   lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',
   flag: 'M5 21V4h11l-1.5 4L16 12H5',
@@ -51,7 +53,7 @@
       <button class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ a.danger|default(false) ? ' sh7-btn--danger' }}{{ quiet ? ' sh7-btn--sm' }}" type="submit"{% if a.confirm is defined %} data-sh7-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}{% if _ctx %}<span class="sh7-sr">, {{ _ctx }}</span>{% endif %}</button>
     </form>
   {% else %}
-    <a class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ quiet ? ' sh7-btn--sm' }}" href="{{ a.href }}">{{ a.label }}{% if _ctx %}<span class="sh7-sr">, {{ _ctx }}</span>{% endif %}</a>
+    <a class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ quiet ? ' sh7-btn--sm' }}" href="{{ a.href }}"{% if a.ext|default(false) %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ a.label }}{% if _ctx %}<span class="sh7-sr">, {{ _ctx }}</span>{% endif %}{% if a.ext|default(false) %}<span class="sh7-sr"> (opens in a new tab)</span>{% endif %}</a>
   {% endif %}
 {% endmacro %}
 
@@ -87,12 +89,18 @@
   {% set id = 'f_' ~ f.name|replace({'[': '_', ']': ''}) %}
   {% if f.type == 'radio' %}
     <fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label">{{ f.label }}</legend>
-      {% for k, l in f.options %}<label class="sh7-choice"><input type="radio" name="{{ f.name }}" value="{{ k }}"{{ f.required|default(false) ? ' required' }}> {{ l }}</label>{% endfor %}
+      {% for k, l in f.options %}<label class="sh7-choice"><input type="radio" name="{{ f.name }}" value="{{ k }}"{{ (f.value|default('')) == k ? ' checked' }}{{ f.required|default(false) ? ' required' }}> {{ l }}</label>{% endfor %}
+    </fieldset>
+  {% elseif f.type == 'checks' %}
+    <fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label">{{ f.label }}</legend>
+      {% for k, l in f.options %}<label class="sh7-choice sh7-choice--check"><input type="checkbox" name="{{ f.name }}[]" value="{{ k }}"{{ k in f.value|default([]) ? ' checked' }}> {{ l }}</label>{% else %}<p class="sh7-field__help">{{ f.empty|default('Nobody to choose yet.') }}</p>{% endfor %}
     </fieldset>
   {% elseif f.type == 'segmented' %}
     <fieldset class="sh7-field"><legend class="sh7-field__label sh7-sr">{{ f.label }}</legend>
       <span class="sh7-seg">{% for k, l in f.options %}<label class="sh7-seg__opt"><input type="radio" name="{{ f.name }}" value="{{ k }}"{{ (f.value|default('')) == k ? ' checked' }}><span>{{ l }}</span></label>{% endfor %}</span>
     </fieldset>
+  {% elseif f.type == 'check' %}
+    <label class="sh7-choice sh7-choice--check" for="{{ id }}"><input type="checkbox" id="{{ id }}" name="{{ f.name }}" value="1"{{ f.value|default('') == '1' ? ' checked' }}{{ f.required|default(false) ? ' required' }}> {{ f.label }}</label>
   {% elseif f.type == 'switch' %}
     <label class="sh7-switch"><input type="checkbox" name="{{ f.name }}" value="1"{{ f.value|default('0') == '1' ? ' checked' }}><span class="sh7-switch__track" aria-hidden="true"></span><span>{{ f.label }}</span></label>
   {% elseif f.type == 'select' %}
@@ -100,12 +108,13 @@
       <select class="sh7-input" id="{{ id }}" name="{{ f.name }}"{{ f.required|default(false) ? ' required' }}>{% for k, l in f.options %}<option value="{{ k }}"{{ (f.value|default('')) == k ? ' selected' }}>{{ l }}</option>{% endfor %}</select></label>
   {% elseif f.type == 'textarea' %}
     <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>
-      <textarea class="sh7-input" id="{{ id }}" name="{{ f.name }}" rows="4"{{ f.required|default(false) ? ' required' }}>{{ f.value|default('') }}</textarea></label>
+      <textarea class="sh7-input" id="{{ id }}" name="{{ f.name }}" rows="4"{{ f.required|default(false) ? ' required' }}{% if f.autocomplete is defined %} autocomplete="{{ f.autocomplete }}"{% endif %}>{{ f.value|default('') }}</textarea></label>
   {% else %}
     <label class="sh7-field" for="{{ id }}"><span class="sh7-field__label">{{ f.label }}</span>
       <input class="sh7-input" id="{{ id }}" type="{{ f.type }}" name="{{ f.name }}" value="{{ f.value|default('') }}"
         {%- if f.placeholder is defined %} placeholder="{{ f.placeholder }}"{% endif %}
         {%- if f.min is defined %} min="{{ f.min }}"{% endif %}{% if f.max is defined %} max="{{ f.max }}"{% endif %}{% if f.step is defined %} step="{{ f.step }}"{% endif %}
+        {%- if f.autocomplete is defined %} autocomplete="{{ f.autocomplete }}"{% endif %}{% if f.inputmode is defined %} inputmode="{{ f.inputmode }}"{% endif %}
         {{- f.required|default(false) ? ' required' }}></label>
   {% endif %}
 {% endmacro %}
@@ -205,7 +214,7 @@
     </ol>
 
   {% elseif s.k == 'note' %}
-    <p class="sh7-note sh7-note--{{ s.tone|default('mute') }}">{{ s.text }}{% if s.cta is defined %} {{ M.action(s.cta, here, true, act) }}{% endif %}</p>
+    <p class="sh7-note sh7-note--{{ s.tone|default('mute') }}{{ s.pre|default(false) ? ' sh7-note--pre' }}">{{ s.text }}{% if s.cta is defined %} {{ M.action(s.cta, here, true, act) }}{% endif %}</p>
 
   {% elseif s.k == 'hero' %}
     <div class="sh7-hero">

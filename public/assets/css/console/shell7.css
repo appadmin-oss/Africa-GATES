@@ -122,6 +122,8 @@
 .sh7-row__words { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .sh7-row__t { font-weight: 500; color: var(--cn-ink) !important; }
 a.sh7-row__t:hover { text-decoration: underline; }
+/* A row's title is a link a thumb has to hit: padded to the 24px floor (WCAG 2.5.8) without moving the line. */
+a.sh7-row__t { display: inline-block; padding-block: 4px; margin-block: -4px; }
 .sh7-row__sub { font-size: var(--cn-fs-13); color: var(--cn-ink-3); line-height: 1.45; }
 .sh7-row__time { font-family: var(--cn-mono); font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
 .sh7-row__chev { color: var(--cn-faint-2); display: flex; }
@@ -165,6 +167,7 @@ a.sh7-row__t:hover { text-decoration: underline; }
 .sh7-note { margin: 0; padding: 12px 14px; border-radius: var(--cn-r-12); font-size: var(--cn-fs-13-5); line-height: 1.5; background: var(--cn-ground); color: var(--cn-ink-2); }
 .sh7-note--ok { background: var(--cn-ok-wash); color: var(--cn-ink); }
 .sh7-note--info { background: var(--cn-info-wash); color: var(--cn-ink); }
+.sh7-note--pre { white-space: pre-line; }
 .sh7-note--warn { background: var(--cn-gold-wash); color: var(--cn-ink); }
 .sh7-note--bad { background: var(--cn-red-wash); color: var(--cn-ink); }
 .sh7-note ul { margin: 6px 0 0; padding-left: 18px; }
@@ -237,7 +240,9 @@ a.sh7-row__t:hover { text-decoration: underline; }
 .sh7-input { height: 40px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--cn-line); border-radius: var(--cn-r-10);
   background: var(--cn-surface); color: var(--cn-ink); font: var(--cn-fs-14) var(--cn-font); width: 100%; max-width: 520px; }
 textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
-.sh7-choice { display: flex; gap: 8px; align-items: flex-start; font-size: var(--cn-fs-14); line-height: 1.4; }
+.sh7-choice { display: flex; gap: 10px; align-items: flex-start; font-size: var(--cn-fs-14); line-height: 1.4; min-height: 24px; cursor: pointer; }
+/* The browser's 13px box is under the 24px target floor; the label carries the rest, the box is drawn big enough to see. */
+.sh7-choice input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--cn-green); }
 .sh7-field--choice { gap: 8px; }
 .sh7-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: var(--cn-r-10); background: var(--cn-ground); }
 .sh7-seg__opt input { position: absolute; opacity: 0; }
@@ -314,6 +319,8 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
     color: var(--cn-ink-3) !important; font-size: var(--cn-fs-11-5); list-style: none; cursor: pointer; }
   .sh7-phonetab::-webkit-details-marker { display: none; }
   .sh7-phonetab.is-on { color: var(--cn-ink) !important; font-weight: 600; }
+  /* One line under each icon, so a long page name never makes one tab taller than its row. */
+  .sh7-phonetab > span { max-width: 100%; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sh7-more { flex: 1; display: flex; }
   .sh7-more > summary { width: 100%; }
   .sh7-sheet { position: fixed; left: 0; right: 0; bottom: 64px; max-height: 70dvh; overflow-y: auto; padding: 12px 12px 16px; background: var(--cn-surface);
@@ -322,6 +329,16 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
   .sh7-sheet .sh7-label { display: block; }
   .sh7-toast { bottom: 80px; }
   .sh7-askbtn { height: 40px; }
+}
+
+/* ── A narrow phone: a record's title gets the whole width, its buttons a whole row each ── */
+@container shell (max-width: 419px) {
+  .sh7-hero { padding: 18px; }
+  .sh7-hero__top { flex-direction: column; gap: 12px; }
+  .sh7-hero__acts { flex-direction: column; align-items: stretch; }
+  .sh7-hero__acts .sh7-inline { display: block; }
+  .sh7-hero__acts .sh7-inline, .sh7-hero__acts .sh7-btn { width: 100%; }
+  .sh7-hero__acts .sh7-btn { justify-content: center; }
 }
 
 /* ── Find, Ask and the switcher (§2.4) ──────────────────────────────────────────── */

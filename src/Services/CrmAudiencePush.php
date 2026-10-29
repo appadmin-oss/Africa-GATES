@@ -13,7 +13,8 @@ use Illuminate\Database\Capsule\Manager as DB;
  * CACENTRE keeps one list of everybody the estate knows. This is this platform's half:
  * newsletter subscribers and what became of them, the bulk-mail opt-outs, bounces and
  * complaints, partner enquiries, support tickets, every confirmed gift or vote order, and
- * adult volunteers as they move from applying to active or leaving —
+ * adult volunteers as they move from applying to active or leaving, and the people volunteers
+ * met and logged with their agreement —
  * sent to CACENTRE's /api/crm-intake.php in the v1 envelope (HMAC-SHA256 over the payload
  * segment), signed with this platform's own secret.
  *
@@ -216,8 +217,11 @@ final class CrmAudiencePush
             $at = (string) ($state['volunteers.at'] ?? self::EPOCH);
             $aid = (int) ($state['volunteers.id'] ?? 0);
             $adult = date('Y-m-d', strtotime('-18 years'));
+            // Never into the current second: a change made later in the same second would carry
+            // the same stamp as the cursor and sit behind it for ever. It goes next tick instead.
+            $settled = date('Y-m-d H:i:s');
             foreach (DB::table('gates_volunteers as v')->join('gates_users as u', 'u.id', '=', 'v.user_id')
-                         ->whereNotNull('v.updated_at')
+                         ->whereNotNull('v.updated_at')->where('v.updated_at', '<', $settled)
                          ->where(fn($w) => $w->where('v.updated_at', '>', $at)->orWhere(fn($o) => $o->where('v.updated_at', $at)->where('v.id', '>', $aid)))
                          ->orderBy('v.updated_at')->orderBy('v.id')->limit($room())
                          ->get(['v.id', 'v.status', 'v.dob', 'v.display_name', 'v.updated_at', 'v.applied_at', 'u.name', 'u.email']) as $r) {
@@ -229,6 +233,34 @@ final class CrmAudiencePush
                       'status' => in_array((string) $r->status, ['left', 'declined'], true) ? 'closed' : 'active',
                       'detail' => self::VOLUNTEER_STAGE[(string) $r->status] ?? 'Volunteer',
                       'at' => self::at($r->applied_at ?? $r->updated_at)]);
+            }
+        }
+
+        // People volunteers met and logged with their agreement (Volunteer\Contacts), by when the
+        // row last changed — so "they asked not to be contacted" reaches the CRM as a stop on
+        // the same row. What they are interested in and who met them where; never the
+        // volunteer's note. A volunteer under 18 is not named.
+        if ($room() > 0 && \AfricaGates\Support\SchemaHas::table('gates_vol_contacts')) {
+            $at = (string) ($state['contacts.at'] ?? self::EPOCH);
+            $cid = (int) ($state['contacts.id'] ?? 0);
+            $adult = date('Y-m-d', strtotime('-18 years'));
+            $settled = date('Y-m-d H:i:s');   // never into the current second; see volunteers above
+            foreach (DB::table('gates_vol_contacts as c')->join('gates_volunteers as v', 'v.id', '=', 'c.volunteer_id')->join('gates_users as u', 'u.id', '=', 'v.user_id')
+                         ->where('c.updated_at', '<', $settled)
+                         ->where(fn($w) => $w->where('c.updated_at', '>', $at)->orWhere(fn($o) => $o->where('c.updated_at', $at)->where('c.id', '>', $cid)))
+                         ->orderBy('c.updated_at')->orderBy('c.id')->limit($room())
+                         ->get(['c.*', 'v.dob', 'v.display_name', 'u.name as vol_name']) as $r) {
+                $next['contacts.at'] = (string) $r->updated_at;
+                $next['contacts.id'] = (string) $r->id;
+                $by = $r->dob !== null && (string) $r->dob <= $adult ? trim((string) ($r->display_name ?: $r->vol_name)) : '';
+                $where = \AfricaGates\Services\Volunteer\Contacts::where($r);
+                $add(['kind' => 'enquiry', 'ref' => 'met:' . $r->id, 'email' => (string) ($r->email ?? ''), 'phone' => (string) ($r->phone ?? ''),
+                      'name' => (string) $r->name, 'list' => 'Met by Africa GATES volunteers',
+                      'status' => $r->forgotten_at ? 'unsubscribed' : 'active',
+                      'detail' => trim((\AfricaGates\Services\Volunteer\Contacts::INTERESTS[(string) $r->interest] ?? 'Something else')
+                          . ' · met by ' . ($by !== '' ? $by : 'an Africa GATES volunteer') . ($where !== '' ? ' at ' . $where : '')
+                          . ($r->forgotten_at ? ' · asked not to be contacted' : '')),
+                      'at' => self::at($r->created_at)]);
             }
         }
 

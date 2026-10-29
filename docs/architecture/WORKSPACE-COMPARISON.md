@@ -79,12 +79,28 @@ Each is one rule, held by a test, and draws nothing the database did not record.
    each person's booked hours this week against the limit they set in Availability. Over the
    limit is said in words, never only in colour. It is the person's own number, never a quota.
 
+6. **Meetings** (owner, 29 Oct 2026; ported from the Afrovanguard site's `lib/Meetings.php`).
+   `Volunteer\Meetings`, at `/volunteer/meetings`. A volunteer who has done some work and is
+   18 or over schedules a meeting with up to twelve people they already volunteer with (a
+   shift or a grant at one of their own places, never a directory of strangers). Online takes
+   a Google Meet link where the calendar integration is set up, or a pasted link to a known
+   meeting service, checked by host; in person takes a place. It can repeat weekly, every two
+   weeks or monthly (the 31st falls on a short month's last day). Each person is emailed once,
+   answers "going" or "can't come", gets a reminder the day before each meeting, and can add
+   the series to their calendar (.ics with a repeat rule). The organiser writes notes
+   afterwards; calling it off tells everybody who hadn't said no. Only the people in a
+   meeting can see it. A child is invited only by a team lead and never organises.
+   Not ported: transcripts and the AI notetaker, which need their own consent rules.
+
 ## 4. No broadcast (owner, 29 Oct 2026)
 
 Every tool above lets a user message a group: Asana's project messages, HubSpot's sequences,
 Zoho's feeds, Rosterfy's push to a roster. **The workspace does not, by the owner's decision.**
-Every message it sends goes to one person about their own shift, place or training, and is
-sent by the platform, never by a volunteer or a lead. `Volunteer\Reminders` says so in its
+Every message it sends goes to one person about their own shift, place, training or a meeting
+they are in, and is sent by the platform. A meeting invitation is the nearest thing to a
+volunteer writing to several people, so it is capped at twelve people the organiser already
+volunteers with, carries no text the organiser typed beyond the title and agenda, and links
+to the meeting page rather than carrying the call link. `Volunteer\Reminders` says so in its
 docblock; a feature that lets a person write once to many is out of scope here.
 
 ## 5. Accessibility, for blind users first (owner, 29 Oct 2026)

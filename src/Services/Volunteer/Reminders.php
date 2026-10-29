@@ -15,6 +15,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  *   shift     the day before a shift: what, when, where, what to bring, who leads it
  *   place     a place opened from a waitlist and they were moved on
  *   training  a passed module lapses within a week, naming the coming shifts that need it
+ *   meeting   the day before each meeting in a series (Meetings::due)
  *
  * ── ONE PERSON, ABOUT THEIR OWN WORK ─────────────────────────────────────────
  *
@@ -114,6 +115,9 @@ final class Reminders
                        $r->title . ', ' . Workspace::day((string) $r->starts_at) . ', ' . Workspace::span((string) $r->starts_at, (string) $r->ends_at) . '.',
                        'If you can no longer make it, drop it so the next person can have it.'], '/volunteer/shifts/' . (int) $r->id];
         }
+
+        // A meeting tomorrow, to the organiser and everybody who hasn't said no.
+        array_push($out, ...Meetings::due(self::SHIFT_HOURS));
 
         // Training that lapses within a week, unless a newer pass replaced it.
         $until = date('Y-m-d H:i:s', time() + self::TRAINING_DAYS * 86400);

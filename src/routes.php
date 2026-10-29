@@ -3917,9 +3917,11 @@ return function(App $app) {
         $v->get('/training/take/{slug:[a-z0-9-]+}', $c . ':module');
         $v->get('/shifts.ics',                    $c . ':ics');
         $v->get('/shifts/{id:[0-9]+}',            $c . ':shift');
+        $v->get('/meetings/{id:[0-9]+}.ics',      $c . ':meetingIcs');
+        $v->get('/meetings/{id:[0-9]+}',          $c . ':meeting');
         $v->get('/requests/{id:[0-9]+}',          $c . ':request');
         $v->get('/{kind:cycle|event}/{id:[0-9]+}[/{page:[a-z]+}[/{tab:[a-z]+}]]', $c . ':place');
-        $v->get('/{page:shifts|tasks|hours|training|record|team|requests}[/{tab:[a-z]+}]', $c . ':root');
+        $v->get('/{page:shifts|tasks|contacts|meetings|hours|training|record|team|requests}[/{tab:[a-z]+}]', $c . ':root');
         $v->get('[/]',                            $c . ':root');
     })->add(new UserAuthMiddleware());
 

@@ -29,6 +29,8 @@ final class Workspace
         'home'     => ['Today', 'home'],
         'shifts'   => ['Shifts', 'cal'],
         'tasks'    => ['Tasks', 'list'],
+        'contacts' => ['Contacts', 'contact'],
+        'meetings' => ['Meetings', 'video'],
         'hours'    => ['Hours', 'clock'],
         'training' => ['Training', 'book'],
         'record'   => ['My record', 'star'],
@@ -38,9 +40,9 @@ final class Workspace
 
     /** Which root pages each role's rail carries, grouped in the handoff's order. */
     private const RAIL = [
-        'active'    => [[null, ['home', 'shifts', 'tasks', 'hours']], ['@where', []], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
-        'lead'      => [[null, ['home', 'shifts', 'tasks', 'hours']], ['@where', []], ['Your team', ['team']], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
-        'new'       => [[null, ['home', 'shifts', 'tasks', 'training']], ['You', ['requests', '@me']]],
+        'active'    => [[null, ['home', 'shifts', 'tasks', 'contacts', 'meetings', 'hours']], ['@where', []], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
+        'lead'      => [[null, ['home', 'shifts', 'tasks', 'contacts', 'meetings', 'hours']], ['@where', []], ['Your team', ['team']], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
+        'new'       => [[null, ['home', 'shifts', 'tasks', 'contacts', 'meetings', 'training']], ['You', ['requests', '@me']]],
         'applicant' => [[null, ['home', 'training']], ['You', ['@me']]],
     ];
 
@@ -53,6 +55,8 @@ final class Workspace
         'record'   => ['overview' => 'Overview', 'badges' => 'Badges', 'refs' => 'Reference letters'],
         'team'     => ['roster' => 'Roster', 'approvals' => 'To confirm', 'requests' => 'Requests', 'gaps' => 'Gaps'],
         'requests' => ['open' => 'Open', 'decided' => 'Decided'],
+        'contacts' => ['mine' => 'Mine', 'log' => 'Log a contact'],
+        'meetings' => ['coming' => 'Coming up', 'new' => 'Schedule', 'past' => 'Past'],
     ];
 
     /** Profile and access (the settings scope, which has no siblings and no identity block). */
@@ -73,6 +77,8 @@ final class Workspace
         'root.hours'     => 'Most hours log themselves from scans and accepted work. Log by hand only for work nobody saw.',
         'root.training'  => 'Short modules. Each one unlocks roles.',
         'root.record'    => 'Your verified record. It’s yours to keep and to use for references.',
+        'root.contacts'  => 'People you meet who want to hear from Africa GATES. Log them with their agreement, and the team follows up.',
+        'root.meetings'  => 'Meet the people you volunteer with, online or in person. Only the people invited see a meeting.',
         'root.team'      => 'The people you lead: their shifts, hours to confirm and gaps to fill.',
         'root.requests'  => 'Ask for a swap, time off, an hours correction, a role or a travel refund. Each request says who decides and how long it usually takes.',
         'cycle.overview' => 'How this award is doing, where it is, and your part in it.',
@@ -189,6 +195,7 @@ final class Workspace
         $add('hours', (int) DB::table('gates_vol_hours')->where('volunteer_id', $v->id)->where('status', 'review')->count());
         $add('training', count(array_filter(Training::next($v), static fn ($m) => $m->tone === 'warn')), 'warn');
         $add('requests', count(array_filter(Requests::from('member', (int) $v->user_id, 'open'), static fn ($r) => $r->status === 'needs_info')), 'warn');
+        $add('meetings', count(array_filter(Meetings::mine($v), static fn ($m) => $m->answer === 'invited')), 'warn');
         if ($role === 'lead') $add('team', count(Team::waitingHours($v)), 'warn');
         foreach ($mine as $s) {
             $k = '@' . $s->scope_kind . ':' . $s->scope_id;
@@ -300,6 +307,9 @@ final class Workspace
             }
             foreach (Shifts::mine($v) as $s) {
                 $out[] = ['t' => (string) $s->title, 'sub' => self::day((string) $s->starts_at) . ' · ' . $s->scope_name, 'href' => '/volunteer/shifts/' . $s->id, 'kind' => 'Shift'];
+            }
+            foreach (Meetings::mine($v) as $m) {
+                $out[] = ['t' => (string) $m->title, 'sub' => self::day((string) $m->next) . ' · Meeting', 'href' => '/volunteer/meetings/' . $m->id, 'kind' => 'Meeting'];
             }
             foreach (Requests::from('member', (int) $v->user_id, 'open') as $r) {
                 $out[] = ['t' => (string) $r->title, 'sub' => Requests::STATUSES[$r->status] ?? '', 'href' => '/volunteer/requests/' . $r->id, 'kind' => 'Request'];

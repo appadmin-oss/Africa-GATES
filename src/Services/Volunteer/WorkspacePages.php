@@ -30,6 +30,8 @@ final class WorkspacePages
             'home'     => self::home($v, $role, $q),
             'shifts'   => self::shifts($v, $tab),
             'tasks'    => self::tasks($v, $tab),
+            'contacts' => self::contacts($v, $tab, (array) ($q['_old'] ?? [])),
+            'meetings' => self::meetings($v, $tab, (array) ($q['_old'] ?? [])),
             'hours'    => self::hours($v, $tab),
             'training' => self::training($v, $tab),
             'record'   => self::record($v, $tab),
@@ -196,6 +198,136 @@ final class WorkspacePages
     {
         $s = in_array($n % 100, [11, 12, 13], true) ? 'th' : (['th', 'st', 'nd', 'rd'][$n % 10] ?? 'th');
         return $n . $s;
+    }
+
+    // ── Contacts ──────────────────────────────────────────────────────────────────────────
+
+    /** People this volunteer met and logged (Volunteer\Contacts), and the form to log one. */
+    private static function contacts(object $v, string $tab, array $old = []): array
+    {
+        if ($tab === 'log') {
+            $o = static fn (string $k): string => mb_substr((string) ($old[$k] ?? ''), 0, 300);
+            $places = ['' => 'Choose…'];
+            foreach (Workspace::places($v) as $p) $places[$p['kind'] . ':' . $p['id']] = $p['name'];
+            $places['else'] = 'Somewhere else';
+            return ['title' => 'Log a contact', 'secs' => [['k' => 'form', 'do' => 'contact', 'submit' => 'Log this contact',
+                'route' => 'The team follows up. You don’t need to contact them yourself.',
+                'groups' => [
+                    ['label' => 'Who', 'fields' => [['name' => 'name', 'label' => 'Their name', 'type' => 'text', 'required' => true, 'autocomplete' => 'off', 'value' => $o('name')]]],
+                    ['label' => 'How to reach them', 'help' => 'A phone number or an email. One is enough.', 'fields' => [
+                        ['name' => 'phone', 'label' => 'Phone', 'type' => 'tel', 'autocomplete' => 'off', 'inputmode' => 'tel', 'value' => $o('phone')],
+                        ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'autocomplete' => 'off', 'value' => $o('email')]]],
+                    ['label' => 'What they’re interested in', 'fields' => [['name' => 'interest', 'label' => 'Interested in', 'type' => 'radio', 'required' => true, 'options' => Contacts::INTERESTS, 'value' => $o('interest')]]],
+                    ['label' => 'Where you met', 'fields' => [['name' => 'place', 'label' => 'Where', 'type' => 'select', 'options' => $places, 'value' => $o('place')],
+                                                            ['name' => 'place_text', 'label' => 'If somewhere else, where', 'type' => 'text', 'autocomplete' => 'off', 'value' => $o('place_text')]]],
+                    ['label' => 'A note for the team', 'help' => 'Optional. It stays with Africa GATES.', 'fields' => [['name' => 'note', 'label' => 'Note', 'type' => 'textarea', 'value' => $o('note')]]],
+                    ['label' => 'Before you log them', 'help' => 'Ask them both. If either is no, don’t log them.', 'fields' => [
+                        ['name' => 'consent', 'label' => 'They agreed to be contacted by Africa GATES about this', 'type' => 'check', 'required' => true],
+                        ['name' => 'adult', 'label' => 'They are 18 or older', 'type' => 'check', 'required' => true]]],
+                ]]]];
+        }
+        $rows = [];
+        foreach (Contacts::mine($v) as $c) {
+            $reach = trim(implode(' · ', array_filter([(string) $c->phone, (string) $c->email])));
+            $rows[] = ['t' => (string) $c->name, 'sub' => $c->interest_label . ($c->where !== '' ? ' · met at ' . $c->where : '') . ' · ' . Workspace::day((string) $c->created_at) . ($reach !== '' ? ' · ' . $reach : ''),
+                       'chip' => $c->forgotten_at ? ['Asked not to be contacted', 'mute'] : null,
+                       'cta' => $c->forgotten_at ? null : ['label' => 'They asked not to be contacted', 'post' => ['do' => 'forget_contact', 'contact' => $c->id],
+                                                           'confirm' => 'Mark ' . $c->name . ' as not to be contacted? The team is told.']];
+        }
+        return ['title' => 'Contacts', 'secs' => [
+            $rows ? ['k' => 'rows', 'h' => 'People you’ve logged', 'items' => $rows]
+                  : ['k' => 'note', 'text' => 'Nobody logged yet. When you meet someone who wants to hear from Africa GATES, log them with their agreement.', 'tone' => 'mute',
+                     'cta' => ['label' => 'Log a contact', 'href' => '/volunteer/contacts/log']],
+            ['k' => 'note', 'text' => 'Only you and the Africa GATES team see these. Nobody under 18 is logged.', 'tone' => 'mute']]];
+    }
+
+    // ── Meetings ──────────────────────────────────────────────────────────────────────────
+
+    /** Meetings this person organised or was invited to (Volunteer\Meetings), and the form to schedule one. */
+    private static function meetings(object $v, string $tab, array $old = []): array
+    {
+        if ($tab === 'new') {
+            if (!Meetings::canOrganise($v)) {
+                return ['title' => 'Schedule a meeting', 'secs' => [['k' => 'note', 'tone' => 'mute',
+                    'text' => Meetings::adult($v) ? 'You can schedule meetings once you’ve done a shift or logged hours. Until then, you can join meetings you’re invited to.'
+                                                  : 'Your team lead sets up meetings for volunteers under 18. You can join meetings you’re invited to.']]];
+            }
+            $o = static fn (string $k, string $d = ''): string => mb_substr((string) ($old[$k] ?? $d), 0, 2000);
+            $people = [];
+            foreach (Meetings::people($v) as $id => $p) $people[$id] = $p['name'] . ' · ' . $p['where'];
+            return ['title' => 'Schedule a meeting', 'secs' => [['k' => 'form', 'do' => 'meet', 'submit' => 'Schedule and invite',
+                'route' => 'Each person gets an email with the details, and a reminder the day before.',
+                'groups' => [
+                    ['label' => 'What', 'fields' => [['name' => 'title', 'label' => 'Title', 'type' => 'text', 'required' => true, 'autocomplete' => 'off', 'value' => $o('title')]]],
+                    ['label' => 'When', 'fields' => [
+                        ['name' => 'date', 'label' => 'Date', 'type' => 'date', 'required' => true, 'min' => date('Y-m-d'), 'value' => $o('date')],
+                        ['name' => 'time', 'label' => 'Start time', 'type' => 'time', 'required' => true, 'value' => $o('time')],
+                        ['name' => 'minutes', 'label' => 'How long', 'type' => 'select', 'options' => Meetings::LENGTHS, 'value' => $o('minutes', '30')],
+                        ['name' => 'repeats', 'label' => 'Repeats', 'type' => 'select', 'options' => Meetings::REPEATS, 'value' => $o('repeats', 'once')],
+                        ['name' => 'times', 'label' => 'If it repeats, how many times in all', 'type' => 'number', 'min' => 2, 'max' => 12, 'inputmode' => 'numeric', 'value' => $o('times', '4')]]],
+                    ['label' => 'Where', 'fields' => [
+                        ['name' => 'mode', 'label' => 'Where', 'type' => 'radio', 'required' => true, 'options' => ['online' => 'Online', 'place' => 'In person'], 'value' => $o('mode', 'online')],
+                        ['name' => 'link', 'label' => 'Meeting link, if you have one', 'type' => 'url', 'autocomplete' => 'off', 'placeholder' => 'https://meet.google.com/…', 'value' => $o('link')],
+                        ['name' => 'location', 'label' => 'If in person, where', 'type' => 'text', 'autocomplete' => 'off', 'value' => $o('location')]],
+                     'help' => 'Online with no link: we make a Google Meet link where it’s set up.'],
+                    ['label' => 'Who', 'help' => 'People you volunteer with. Up to ' . Meetings::MAX_PEOPLE . '.', 'fields' => [
+                        ['name' => 'people', 'label' => 'Invite', 'type' => 'checks', 'options' => $people, 'value' => array_map('intval', (array) ($old['people'] ?? [])),
+                         'empty' => 'Nobody yet. People you share a shift or a place with show here.']]],
+                    ['label' => 'Agenda', 'help' => 'Optional. What you’ll talk about.', 'fields' => [['name' => 'agenda', 'label' => 'Agenda', 'type' => 'textarea', 'value' => $o('agenda')]]],
+                ]]]];
+        }
+        $rows = [];
+        foreach (Meetings::mine($v, $tab === 'past') as $m) {
+            $at = (string) ($m->next ?? $m->starts_at);
+            $chip = match (true) {
+                $m->status === 'cancelled' => ['Called off', 'mute'],
+                $m->mine => ['You organised it', 'info'],
+                $m->answer === 'yes' => ['Going', 'ok'],
+                $m->answer === 'no' => ['Not going', 'mute'],
+                default => ['Can you come?', 'warn'],
+            };
+            $rows[] = ['t' => (string) $m->title, 'href' => '/volunteer/meetings/' . $m->id, 'chip' => $tab === 'past' && $m->status !== 'cancelled' ? null : $chip,
+                       'sub' => Workspace::day($at) . ' · ' . date('H:i', (int) strtotime($at)) . ' · ' . ($m->mode === 'place' ? (string) $m->location : 'Online')
+                              . ($m->repeats !== 'once' ? ' · ' . mb_strtolower(Meetings::REPEATS[$m->repeats]) : '') . ($m->going ? ' · ' . $m->going . ' going' : '')];
+        }
+        $secs = [$rows ? ['k' => 'rows', 'h' => $tab === 'past' ? 'Past' : 'Coming up', 'items' => $rows]
+                       : ['k' => 'note', 'tone' => 'mute', 'text' => $tab === 'past' ? 'Meetings you’ve had show here.' : 'No meetings coming up.',
+                          'cta' => $tab === 'past' || !Meetings::canOrganise($v) ? null : ['label' => 'Schedule a meeting', 'href' => '/volunteer/meetings/new']]];
+        return ['title' => 'Meetings', 'secs' => $secs];
+    }
+
+    /** One meeting, as a record page; null for anybody not invited. */
+    public static function meeting(object $v, int $id): ?array
+    {
+        $m = Meetings::get($v, $id);
+        if (!$m) return null;
+        $at = (string) ($m->next ?? $m->starts_at);
+        $live = $m->status === 'scheduled' && !$m->past;
+        $acts = [];
+        if ($live && $m->mode === 'online' && $m->meet_url && $m->answer !== 'no') $acts[] = ['label' => 'Join the meeting', 'href' => (string) $m->meet_url, 'primary' => true, 'ext' => true];
+        if ($live && !$m->mine) {
+            if ($m->answer !== 'yes') $acts[] = ['label' => 'I’m going', 'post' => ['do' => 'meet_answer', 'meeting' => $id, 'answer' => 'yes'], 'primary' => !$acts];
+            if ($m->answer !== 'no') $acts[] = ['label' => 'I can’t come', 'post' => ['do' => 'meet_answer', 'meeting' => $id, 'answer' => 'no']];
+        }
+        if ($live) $acts[] = ['label' => 'Add to my calendar', 'href' => '/volunteer/meetings/' . $id . '.ics'];
+        if ($live && $m->mine) $acts[] = ['label' => 'Call it off', 'post' => ['do' => 'meet_cancel', 'meeting' => $id], 'confirm' => 'Call off ' . $m->title . '? Everybody invited is told.'];
+        $facts = array_values(array_filter([
+            ['When', Workspace::day($at) . ' · ' . Workspace::span($at, date('Y-m-d H:i:s', (int) strtotime($at) + (int) $m->minutes * 60))],
+            $m->repeats !== 'once' ? ['Repeats', Meetings::REPEATS[$m->repeats] . ', ' . $m->times . ' times'] : null,
+            ['Where', $m->mode === 'place' ? (string) $m->location : 'Online'], ['Organiser', $m->mine ? 'You' : (string) $m->organiser]]));
+        $chips = array_values(array_filter([$m->status === 'cancelled' ? ['Called off', 'mute'] : ($m->past ? ['Over', 'mute'] : [Workspace::until($at), 'info']),
+            $m->answer === 'yes' ? ['Going', 'ok'] : ($m->answer === 'no' ? ['Not going', 'mute'] : ($m->answer === 'invited' && $live ? ['Can you come?', 'warn'] : null))]));
+        $secs = [['k' => 'hero', 'ini' => date('j', (int) strtotime($at)), 'tone' => $live ? 'info' : 'mute', 't' => (string) $m->title, 'sub' => 'Meeting', 'chips' => $chips, 'facts' => $facts, 'acts' => $acts]];
+        if ($m->agenda) $secs[] = ['k' => 'note', 'h' => 'Agenda', 'text' => (string) $m->agenda, 'tone' => 'mute', 'pre' => true];
+        $words = ['yes' => 'Going', 'no' => 'Not going', 'invited' => 'Not answered yet'];
+        $secs[] = ['k' => 'rows', 'h' => 'Who’s invited', 'items' => array_map(static fn ($p) => ['t' => $p->name . ($p->me ? ' (you)' : ''), 'sub' => $words[$p->answer] ?? ''], $m->people)];
+        if ($m->mine && strtotime((string) $m->starts_at) <= time()) {
+            $secs[] = ['k' => 'form', 'do' => 'meet_notes', 'submit' => 'Save notes', 'hidden' => ['meeting' => $id], 'route' => 'Everybody invited can read them here.',
+                       'groups' => [['label' => 'Notes', 'help' => 'What was decided, and who does what next.', 'fields' => [['name' => 'notes', 'label' => 'Notes', 'type' => 'textarea', 'value' => (string) ($m->notes ?? '')]]]]];
+        } elseif ($m->notes) {
+            $secs[] = ['k' => 'note', 'h' => 'Notes', 'text' => (string) $m->notes, 'tone' => 'mute', 'pre' => true];
+        }
+        return ['title' => (string) $m->title, 'kicker' => 'Meeting', 'noHead' => true, 'secs' => $secs];
     }
 
     // ── Shifts ────────────────────────────────────────────────────────────────────────────
