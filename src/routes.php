@@ -3915,6 +3915,7 @@ return function(App $app) {
         $v->get('/me/export.json',                $c . ':export');
         $v->get('/me[/{page:[a-z]+}]',            $c . ':me');
         $v->get('/training/take/{slug:[a-z0-9-]+}', $c . ':module');
+        $v->get('/shifts.ics',                    $c . ':ics');
         $v->get('/shifts/{id:[0-9]+}',            $c . ':shift');
         $v->get('/requests/{id:[0-9]+}',          $c . ':request');
         $v->get('/{kind:cycle|event}/{id:[0-9]+}[/{page:[a-z]+}[/{tab:[a-z]+}]]', $c . ':place');

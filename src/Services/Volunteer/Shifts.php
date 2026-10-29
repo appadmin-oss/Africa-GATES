@@ -110,13 +110,13 @@ final class Shifts
         $have = DB::table('gates_vol_signups')->where('shift_id', $shiftId)->where('volunteer_id', $v->id)->first();
         if ($have && $have->status === 'on') return ['ok' => true];
         $filled = (int) DB::table('gates_vol_signups')->where('shift_id', $shiftId)->where('status', 'on')->count();
-        if ($filled >= (int) $s->slots) return ['ok' => false, 'error' => 'That shift has just filled.'];
+        if ($filled >= (int) $s->slots) return ['ok' => false, 'error' => 'That shift is full. You can join the waitlist.', 'full' => true];
         foreach (self::mine($v) as $m) {
             if (self::overlaps($m, $s)) return ['ok' => false, 'error' => 'That clashes with ' . $m->title . '. Drop one first.'];
         }
         $now = date('Y-m-d H:i:s');
         if ($have) {
-            DB::table('gates_vol_signups')->where('id', $have->id)->update(['status' => 'on', 'joined_at' => $now, 'dropped_at' => null, 'change_seen_at' => $now]);
+            DB::table('gates_vol_signups')->where('id', $have->id)->update(['status' => 'on', 'joined_at' => $now, 'dropped_at' => null, 'change_seen_at' => $now, 'promoted_at' => null]);
         } else {
             DB::table('gates_vol_signups')->insert(['shift_id' => $shiftId, 'volunteer_id' => $v->id, 'status' => 'on', 'joined_at' => $now, 'change_seen_at' => $now]);
         }
@@ -135,6 +135,8 @@ final class Shifts
             ->update(['status' => 'dropped', 'dropped_at' => date('Y-m-d H:i:s')]);
         if ($n === 0) return false;
         $s = DB::table('gates_vol_shifts')->where('id', $shiftId)->first();
+        // The place goes to whoever has waited longest and can still take it.
+        self::promote($shiftId);
         if ($s && $s->capability && $s->scope_kind === 'event') {
             $still = DB::table('gates_vol_signups as x')->join('gates_vol_shifts as h', 'h.id', '=', 'x.shift_id')
                 ->where('x.volunteer_id', $v->id)->where('x.status', 'on')->where('h.scope_kind', 'event')
@@ -146,6 +148,93 @@ final class Shifts
             }
         }
         return true;
+    }
+
+    /**
+     * Join the waitlist for a full shift (docs/architecture/WORKSPACE-COMPARISON.md §3). The
+     * same questions as joining are asked now — training, a start in the future — so nobody
+     * waits for a place they could never take; a clash is asked again when a place opens,
+     * because the person's other shifts may have moved by then.
+     *
+     * @return array{ok:bool, error?:string, place?:int}
+     */
+    public static function wait(object $v, int $shiftId): array
+    {
+        if (!in_array(Volunteers::role($v), ['new', 'active', 'lead'], true)) return ['ok' => false, 'error' => 'Shifts open once your application is approved.'];
+        $s = DB::table('gates_vol_shifts')->where('id', $shiftId)->first();
+        if (!$s || $s->status !== 'open') return ['ok' => false, 'error' => 'That shift is not open.'];
+        if (strtotime((string) $s->starts_at) <= time()) return ['ok' => false, 'error' => 'That shift has already started.'];
+        if ($s->module_key && !Training::holds((int) $v->id, (string) $s->module_key)) return ['ok' => false, 'error' => 'This shift needs training first.'];
+        $have = DB::table('gates_vol_signups')->where('shift_id', $shiftId)->where('volunteer_id', $v->id)->first();
+        if ($have && in_array($have->status, ['on', 'waiting'], true)) return ['ok' => true, 'place' => self::placeInLine($v, $shiftId)];
+        $filled = (int) DB::table('gates_vol_signups')->where('shift_id', $shiftId)->where('status', 'on')->count();
+        if ($filled < (int) $s->slots) return self::join($v, $shiftId);   // a place opened meanwhile: take it
+        $now = date('Y-m-d H:i:s');
+        if ($have) DB::table('gates_vol_signups')->where('id', $have->id)->update(['status' => 'waiting', 'joined_at' => $now, 'dropped_at' => null, 'promoted_at' => null]);
+        else DB::table('gates_vol_signups')->insert(['shift_id' => $shiftId, 'volunteer_id' => $v->id, 'status' => 'waiting', 'joined_at' => $now]);
+        return ['ok' => true, 'place' => self::placeInLine($v, $shiftId)];
+    }
+
+    /** Step out of a waitlist. Not a drop: it never counts against anybody's reliability. */
+    public static function unwait(object $v, int $shiftId): bool
+    {
+        return DB::table('gates_vol_signups')->where('shift_id', $shiftId)->where('volunteer_id', $v->id)->where('status', 'waiting')
+            ->update(['status' => 'withdrawn']) > 0;
+    }
+
+    /** Where this person stands in a shift's line, 1 = next. Null when not waiting. */
+    public static function placeInLine(object $v, int $shiftId): ?int
+    {
+        $mine = DB::table('gates_vol_signups')->where('shift_id', $shiftId)->where('volunteer_id', $v->id)->where('status', 'waiting')->first();
+        if (!$mine) return null;
+        return 1 + (int) DB::table('gates_vol_signups')->where('shift_id', $shiftId)->where('status', 'waiting')
+            ->where(static fn ($w) => $w->where('joined_at', '<', $mine->joined_at)
+                ->orWhere(static fn ($o) => $o->where('joined_at', $mine->joined_at)->where('id', '<', $mine->id)))->count();
+    }
+
+    /** @return list<object> the shifts this person is waiting for, with ->place */
+    public static function waiting(object $v): array
+    {
+        $rows = DB::table('gates_vol_shifts as h')->join('gates_vol_signups as s', 's.shift_id', '=', 'h.id')
+            ->where('s.volunteer_id', $v->id)->where('s.status', 'waiting')->where('h.status', 'open')
+            ->where('h.starts_at', '>', date('Y-m-d H:i:s'))->orderBy('h.starts_at')->get(['h.*'])->all();
+        foreach ($rows as $r) { $r->place = self::placeInLine($v, (int) $r->id); $r->scope_name = self::scopeName((string) $r->scope_kind, (int) $r->scope_id); }
+        return $rows;
+    }
+
+    /**
+     * Fill free places from the line, oldest first. Anybody who can no longer take the shift
+     * — on a break, gone, training lapsed, or now booked on a shift that overlaps it — is
+     * passed over and keeps their place in line, so a lapse that is fixed tomorrow is not a
+     * lost turn. Nobody is moved onto a shift that has started.
+     *
+     * @return list<int> the signup ids moved on
+     */
+    public static function promote(int $shiftId): array
+    {
+        $s = DB::table('gates_vol_shifts')->where('id', $shiftId)->first();
+        if (!$s || $s->status !== 'open' || strtotime((string) $s->starts_at) <= time()) return [];
+        $moved = [];
+        foreach (DB::table('gates_vol_signups')->where('shift_id', $shiftId)->where('status', 'waiting')->orderBy('joined_at')->orderBy('id')->get() as $w) {
+            $filled = (int) DB::table('gates_vol_signups')->where('shift_id', $shiftId)->where('status', 'on')->count();
+            if ($filled >= (int) $s->slots) break;
+            $v = DB::table('gates_volunteers')->where('id', $w->volunteer_id)->first();
+            if (!$v || !in_array(Volunteers::role($v), ['new', 'active', 'lead'], true) || $v->status === 'paused') continue;
+            if ($s->module_key && !Training::holds((int) $v->id, (string) $s->module_key)) continue;
+            $clash = false;
+            foreach (self::mine($v) as $m) if (self::overlaps($m, $s)) { $clash = true; break; }
+            if ($clash) continue;
+            $now = date('Y-m-d H:i:s');
+            // Guarded on the row still waiting, so two drops at once cannot promote one person twice.
+            if (DB::table('gates_vol_signups')->where('id', $w->id)->where('status', 'waiting')
+                    ->update(['status' => 'on', 'promoted_at' => $now, 'change_seen_at' => $now]) !== 1) continue;
+            if ($s->capability && $s->scope_kind === 'event' && !Grants::allows('member', (int) $v->user_id, (string) $s->capability, 'event', (int) $s->scope_id)) {
+                Grants::grant('member', (int) $v->user_id, (string) $s->capability, 'event', (int) $s->scope_id,
+                    date('Y-m-d 23:59:59', strtotime((string) $s->ends_at . ' +1 day')), null, 'From shift ' . $s->id);
+            }
+            $moved[] = (int) $w->id;
+        }
+        return $moved;
     }
 
     public static function acceptChange(object $v, int $shiftId): bool

@@ -56,6 +56,7 @@ final class Team
             $v->hours = $lv['hours'];
             $mine = Shifts::mine($v);
             $v->next = $mine[0] ?? null;
+            $v->week = self::bookedThisWeek($v);
             $out[] = $v;
         }
         usort($out, static fn ($a, $b) => strcmp((string) $a->name, (string) $b->name));
@@ -63,6 +64,24 @@ final class Team
     }
 
     /** Hours the team logged by hand, waiting for the lead. @return list<object> */
+    /**
+     * Hours a person is booked for this week, Monday to Sunday, from their shifts that are on
+     * or already kept — set beside the limit they chose in Availability (Asana's Workload,
+     * Zoho's utilisation). It is their own number, never a quota anybody else set.
+     */
+    public static function bookedThisWeek(object $v): float
+    {
+        $from = date('Y-m-d 00:00:00', strtotime('monday this week'));
+        $to = date('Y-m-d 00:00:00', strtotime('monday next week'));
+        $h = 0.0;
+        foreach (DB::table('gates_vol_signups as s')->join('gates_vol_shifts as h', 'h.id', '=', 's.shift_id')
+                     ->where('s.volunteer_id', $v->id)->whereIn('s.status', ['on', 'kept'])->where('h.status', '!=', 'cancelled')
+                     ->where('h.starts_at', '>=', $from)->where('h.starts_at', '<', $to)->get(['h.starts_at', 'h.ends_at']) as $r) {
+            $h += max(0, ((int) strtotime((string) $r->ends_at) - (int) strtotime((string) $r->starts_at)) / 3600);
+        }
+        return round($h, 1);
+    }
+
     public static function waitingHours(object $lead): array
     {
         $ids = self::memberIds($lead);

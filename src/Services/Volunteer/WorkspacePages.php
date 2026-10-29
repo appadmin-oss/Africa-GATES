@@ -191,6 +191,13 @@ final class WorkspacePages
         return ['title' => 'Today', 'purpose' => 'Two steps to your first shift. Most people finish in a day.', 'secs' => $secs];
     }
 
+    /** 1 → "1st", 2 → "2nd", 11 → "11th". */
+    public static function ordinal(int $n): string
+    {
+        $s = in_array($n % 100, [11, 12, 13], true) ? 'th' : (['th', 'st', 'nd', 'rd'][$n % 10] ?? 'th');
+        return $n . $s;
+    }
+
     // ── Shifts ────────────────────────────────────────────────────────────────────────────
 
     private static function shifts(object $v, string $tab): array
@@ -209,6 +216,15 @@ final class WorkspacePages
             }
             $secs[] = $rows ? ['k' => 'rows', 'h' => 'Coming up', 'items' => $rows]
                             : ['k' => 'note', 'text' => 'You have no shifts booked.', 'tone' => 'mute', 'cta' => ['label' => 'See shifts that fit', 'href' => '/volunteer/shifts/fits']];
+            $wait = [];
+            foreach (Shifts::waiting($v) as $w) {
+                $wait[] = ['t' => (string) $w->title, 'sub' => Workspace::day($w->starts_at) . ' · ' . Workspace::span($w->starts_at, $w->ends_at) . ' · ' . $w->scope_name,
+                           'chip' => ['Waitlist: ' . self::ordinal((int) $w->place) . ' in line', 'warn'], 'href' => '/volunteer/shifts/' . $w->id,
+                           'cta' => ['label' => 'Leave the waitlist', 'post' => ['do' => 'unwait', 'shift' => $w->id]]];
+            }
+            if ($wait) $secs[] = ['k' => 'rows', 'h' => 'Waiting for a place', 'items' => $wait];
+            if ($rows) $secs[] = ['k' => 'note', 'text' => 'Put your shifts in your own calendar app. Download it again if a time changes.', 'tone' => 'mute',
+                                  'cta' => ['label' => 'Add to my calendar', 'href' => '/volunteer/shifts.ics']];
             $secs[] = ['k' => 'note', 'text' => sprintf('Dropping a shift more than %d hours before is fine. Inside %d hours, tell your lead so they can fill it.',
                        Rules::get('vol_late_drop_hours'), Rules::get('vol_late_drop_hours')), 'tone' => 'mute'];
         } elseif ($tab === 'fits') {
@@ -225,10 +241,11 @@ final class WorkspacePages
         } elseif ($tab === 'all') {
             $rows = [];
             foreach (Shifts::open($v) as $s) {
-                if ((int) $s->filled >= (int) $s->slots) continue;
+                $left = (int) $s->slots - (int) $s->filled;
                 $rows[] = ['t' => $s->title . ', ' . $s->scope_name, 'sub' => Workspace::day($s->starts_at) . ' · ' . $s->filled . ' of ' . $s->slots . ' filled',
-                           'pct' => (int) round($s->filled * 100 / max(1, (int) $s->slots)), 'barT' => ((int) $s->slots - (int) $s->filled) . ' ' . (((int) $s->slots - (int) $s->filled) === 1 ? 'spot' : 'spots'),
-                           'href' => '/volunteer/shifts/' . $s->id];
+                           'pct' => (int) round(min($s->filled, $s->slots) * 100 / max(1, (int) $s->slots)),
+                           'barT' => $left > 0 ? $left . ' ' . ($left === 1 ? 'spot' : 'spots') . ' left' : 'Full',
+                           'chip' => $left > 0 ? null : ['Full · waitlist open', 'mute'], 'href' => '/volunteer/shifts/' . $s->id];
             }
             $secs[] = $rows ? ['k' => 'rows', 'h' => 'Open', 'items' => $rows] : ['k' => 'note', 'text' => 'No shifts are open right now.', 'tone' => 'mute'];
         } else {
@@ -257,16 +274,23 @@ final class WorkspacePages
         if ($on) {
             $acts[] = ['label' => 'Drop this shift', 'post' => ['do' => 'drop', 'shift' => $id], 'confirm' => 'Drop ' . $s->title . '?'];
             $acts[] = ['label' => 'Ask for a swap', 'href' => '/volunteer/requests?new=swap&title=' . rawurlencode((string) $s->title)];
-        } elseif (strtotime((string) $s->starts_at) > time() && $filled < (int) $s->slots) {
-            $acts[] = $trained ? ['label' => 'Join', 'post' => ['do' => 'join', 'shift' => $id], 'primary' => true]
-                               : ['label' => 'Train first', 'href' => '/volunteer/training/take/' . $s->module_key, 'primary' => true];
+        } elseif ($mine && $mine->status === 'waiting') {
+            $acts[] = ['label' => 'Leave the waitlist', 'post' => ['do' => 'unwait', 'shift' => $id]];
+        } elseif (strtotime((string) $s->starts_at) > time()) {
+            $full = $filled >= (int) $s->slots;
+            $acts[] = !$trained ? ['label' => 'Train first', 'href' => '/volunteer/training/take/' . $s->module_key, 'primary' => true]
+                    : ($full ? ['label' => 'Join the waitlist', 'post' => ['do' => 'wait', 'shift' => $id], 'primary' => true]
+                             : ['label' => 'Join', 'post' => ['do' => 'join', 'shift' => $id], 'primary' => true]);
         }
+        $place = $mine && $mine->status === 'waiting' ? Shifts::placeInLine($v, $id) : null;
         $facts = array_values(array_filter([['When', Workspace::day($s->starts_at) . ' · ' . Workspace::span($s->starts_at, $s->ends_at)],
             ['Where', $s->from_home ? 'From home' : ((string) $s->location ?: $scope)], ['Filled', $filled . ' of ' . $s->slots],
             ['Training', $s->module_key ? (Training::titles()[$s->module_key] ?? $s->module_key) : 'None needed'],
             $s->bring ? ['Bring', (string) $s->bring] : null, $s->lead_name ? ['Lead', (string) $s->lead_name] : null]));
         $secs = [['k' => 'hero', 'ini' => date('j', (int) strtotime((string) $s->starts_at)), 'tone' => $on ? 'ok' : 'info', 't' => (string) $s->title, 'sub' => $scope,
-                  'chips' => array_values(array_filter([[Workspace::until($s->starts_at), 'info'], $on ? ['You’re on it', 'ok'] : null])), 'facts' => $facts, 'acts' => $acts]];
+                  'chips' => array_values(array_filter([[Workspace::until($s->starts_at), 'info'], $on ? ['You’re on it', 'ok'] : null,
+                                                        $place ? ['Waitlist: ' . self::ordinal($place) . ' in line', 'warn'] : null])), 'facts' => $facts, 'acts' => $acts]];
+        if ($place) $secs[] = ['k' => 'note', 'text' => 'If a place opens and you can still take it, you’re moved on and we email you. Nothing to do until then.', 'tone' => 'info'];
         if ($s->brief) $secs[] = ['k' => 'note', 'text' => (string) $s->brief, 'tone' => 'mute'];
         $secs[] = ['k' => 'rows', 'h' => 'Hours', 'items' => [['t' => 'Logged from your check-in and check-out scans', 'sub' => 'No scan? Staff mark who came, from the shift’s own times.']]];
         return ['title' => (string) $s->title, 'kicker' => $scope, 'noHead' => true, 'secs' => $secs];
@@ -447,10 +471,16 @@ final class WorkspacePages
         if ($tab === 'roster') {
             $rows = [];
             foreach (Team::roster($v) as $m) {
-                $rows[] = ['t' => (string) $m->name, 'sub' => 'Level ' . $m->level . ' · ' . ($m->next ? 'next: ' . Workspace::day($m->next->starts_at) . ', ' . $m->next->title : 'no shift booked'),
+                $limit = (int) ($m->max_hours_week ?: Rules::get('vol_week_hours_default'));
+                $over = $m->week > $limit;
+                $rows[] = ['t' => (string) $m->name, 'sub' => 'Level ' . $m->level . ' · ' . ($m->next ? 'next: ' . Workspace::day($m->next->starts_at) . ', ' . $m->next->title : 'no shift booked')
+                               . ' · ' . Level::h((float) $m->week) . ' of their ' . $limit . ' hours booked this week',
+                           'pct' => (int) min(100, round($m->week * 100 / max(1, $limit))),
+                           'chip' => $over ? ['Over their limit', 'warn'] : null,
                            'ini' => Workspace::initials((string) $m->name), 'meta' => Level::h((float) $m->hours)];
             }
             $secs[] = $rows ? ['k' => 'rows', 'h' => 'Your team', 'items' => $rows] : ['k' => 'note', 'text' => 'Your team is everybody on a shift where you lead. Nobody is booked yet.', 'tone' => 'mute'];
+            if ($rows) $secs[] = ['k' => 'note', 'text' => 'Each limit is the one the person set in Availability. Ask before booking somebody past it.', 'tone' => 'mute'];
         } elseif ($tab === 'approvals') {
             $rows = [];
             foreach (Team::waitingHours($v) as $h) {
@@ -810,11 +840,15 @@ final class WorkspacePages
                 ['label' => 'How far you’ll travel', 'fields' => [['name' => 'travel_km', 'label' => 'Kilometres', 'type' => 'number', 'min' => '0', 'max' => '500', 'value' => (string) ($v->travel_km ?? '')]]],
                 ['label' => 'From home', 'fields' => [['name' => 'from_home', 'label' => 'I can take work from home', 'type' => 'switch', 'value' => (string) (int) $v->from_home]]]]],
                 ['k' => 'note', 'text' => 'Shift suggestions and your lead’s invites use this.', 'tone' => 'mute']],
-            'notifications' => [['k' => 'rows', 'h' => 'Always on', 'items' => [['t' => 'Changes to my shifts', 'sub' => 'A moved time or a cancelled shift', 'chip' => ['Always on', 'mute']]]],
+            'notifications' => [['k' => 'rows', 'h' => 'Always on, by email', 'items' => [
+                    ['t' => 'Changes to my shifts', 'sub' => 'A moved time or a cancelled shift', 'chip' => ['Always on', 'mute']],
+                    ['t' => 'A reminder the day before each shift', 'sub' => 'What, when, where, what to bring and who leads it', 'chip' => ['Always on', 'mute']],
+                    ['t' => 'A place opening on a waitlist', 'sub' => 'When you’re moved on to a shift you were waiting for', 'chip' => ['Always on', 'mute']],
+                    ['t' => 'Training about to run out', 'sub' => 'A week before, naming the shifts that need it', 'chip' => ['Always on', 'mute']]]],
                 ['k' => 'form', 'do' => 'save_notifications', 'submit' => 'Save changes', 'groups' => [
                 ['label' => 'Shifts that fit me', 'fields' => [['name' => 'notify_fit', 'label' => 'Shifts that fit me', 'type' => 'segmented', 'value' => (string) ($v->notify_fit ?: 'weekly'), 'options' => ['never' => 'Never', 'weekly' => 'Weekly', 'posted' => 'When posted']]]],
                 ['label' => 'Award news', 'fields' => [['name' => 'notify_news', 'label' => 'Tell me about the awards I help on', 'type' => 'switch', 'value' => (string) (int) $v->notify_news]]],
-                ['label' => 'How we reach you', 'fields' => [['name' => 'channel', 'label' => 'Channel', 'type' => 'segmented', 'value' => (string) ($v->channel ?: 'email'), 'options' => ['email' => 'Email', 'whatsapp' => 'WhatsApp', 'sms' => 'SMS']]]]]]],
+                ['label' => 'How we reach you', 'help' => 'Reminders go by email for now. Your choice here is kept for when other channels open.', 'fields' => [['name' => 'channel', 'label' => 'Channel', 'type' => 'segmented', 'value' => (string) ($v->channel ?: 'email'), 'options' => ['email' => 'Email', 'whatsapp' => 'WhatsApp', 'sms' => 'SMS']]]]]]],
             'access' => self::accessAll($v),
             'privacy' => [['k' => 'rows', 'h' => 'Your data', 'items' => [
                 ['t' => 'Download a copy', 'sub' => 'Profile, hours, shifts, tasks and training', 'cta' => ['label' => 'Download', 'href' => '/volunteer/me/export.json']],

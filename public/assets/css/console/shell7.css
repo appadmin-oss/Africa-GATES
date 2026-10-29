@@ -15,7 +15,7 @@
 .sh7 a:hover { color: var(--cn-green-ink); }
 .sh7 :focus-visible { outline: 2px solid var(--cn-green); outline-offset: 2px; }
 .sh7 * { scrollbar-width: thin; scrollbar-color: var(--cn-scroll) transparent; }
-.sh7-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sh7-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .sh7-skip { position: absolute; left: -999px; top: 8px; z-index: 50; background: var(--cn-surface); padding: 8px 12px; border-radius: var(--cn-r-8); }
 .sh7-skip:focus { left: 8px; }
 
@@ -35,7 +35,7 @@
 .sh7-ident__name { font-weight: 600; font-size: var(--cn-fs-13-5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh7-nav { flex: 1; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 14px; }
 .sh7-nav::-webkit-scrollbar { display: none; }
-.sh7-group__label { margin: 0 0 4px; padding: 0 10px; font-size: var(--cn-fs-12); color: var(--cn-faint); font-weight: 500; }
+.sh7-group__label { margin: 0 0 4px; padding: 0 10px; font-size: var(--cn-fs-12); color: var(--cn-ink-3); font-weight: 500; }
 .sh7-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .sh7-item { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: var(--cn-r-8); color: var(--cn-ink-2) !important; font-size: var(--cn-fs-13-5); }
 .sh7-item:hover { background: var(--cn-hover); color: var(--cn-ink) !important; }
@@ -58,7 +58,7 @@
 .sh7-crumbs { flex: 1; min-width: 0; }
 .sh7-crumbs ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; align-items: center; font-size: var(--cn-fs-13-5); overflow: hidden; white-space: nowrap; }
 .sh7-crumbs li + li::before { content: '/'; color: var(--cn-ghost); margin-right: 6px; }
-.sh7-crumbs a { color: var(--cn-faint); }
+.sh7-crumbs a { color: var(--cn-soft); }
 .sh7-crumbs [aria-current] { color: var(--cn-ink); font-weight: 500; }
 .sh7-bell { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--cn-line); border-radius: var(--cn-r-10); color: var(--cn-ink-2) !important; }
 .sh7-tabs { flex: none; display: flex; gap: 24px; height: 44px; padding: 0 32px; border-bottom: 1px solid var(--cn-line-row); overflow-x: auto; }
@@ -78,7 +78,7 @@
 /* ── The page header (§2.3) ───────────────────────────────────────────────────── */
 .sh7-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .sh7-head__words { flex: 1; min-width: 0; }
-.sh7-head__kicker { margin: 0 0 4px; font-size: var(--cn-fs-13); color: var(--cn-faint); }
+.sh7-head__kicker { margin: 0 0 4px; font-size: var(--cn-fs-13); color: var(--cn-soft); }
 .sh7-head__title { margin: 0; font-size: var(--cn-fs-28); font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
 .sh7-head__purpose { margin: 6px 0 0; color: var(--cn-ink-3); font-size: var(--cn-fs-14); line-height: 1.5; max-width: 70ch; }
 .sh7-head__acts { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -123,7 +123,7 @@
 .sh7-row__t { font-weight: 500; color: var(--cn-ink) !important; }
 a.sh7-row__t:hover { text-decoration: underline; }
 .sh7-row__sub { font-size: var(--cn-fs-13); color: var(--cn-ink-3); line-height: 1.45; }
-.sh7-row__time { font-family: var(--cn-mono); font-size: var(--cn-fs-12-5); color: var(--cn-faint); }
+.sh7-row__time { font-family: var(--cn-mono); font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
 .sh7-row__chev { color: var(--cn-faint-2); display: flex; }
 .sh7-rowform { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
 .sh7-rowform .sh7-input { flex: 1 1 200px; height: 32px; }
@@ -185,7 +185,7 @@ a.sh7-row__t:hover { text-decoration: underline; }
 .sh7-ag { display: grid; grid-template-columns: 56px 12px minmax(0, 1fr); gap: 10px; padding-bottom: 14px; position: relative; }
 .sh7-ag::before { content: ''; position: absolute; left: 71px; top: 14px; bottom: 0; width: 2px; background: var(--cn-line); }
 .sh7-ag:last-child::before { display: none; }
-.sh7-ag__time { font-family: var(--cn-mono); font-size: var(--cn-fs-12-5); color: var(--cn-faint); text-align: right; padding-top: 1px; }
+.sh7-ag__time { font-family: var(--cn-mono); font-size: var(--cn-fs-12-5); color: var(--cn-soft); text-align: right; padding-top: 1px; }
 .sh7-ag__dot { width: 12px; height: 12px; margin-top: 3px; border-radius: 50%; border: 2px solid var(--cn-ghost); background: var(--cn-surface); box-sizing: border-box; z-index: 1; }
 .sh7-ag--done .sh7-ag__dot { background: var(--cn-green); border-color: var(--cn-green); }
 .sh7-ag--now .sh7-ag__dot { border-color: var(--cn-red); }
@@ -207,7 +207,7 @@ a.sh7-row__t:hover { text-decoration: underline; }
 .sh7-bars__seg--2 { background: var(--cn-chart-2); }
 .sh7-bars__seg--3 { background: var(--cn-info); }
 .sh7-bars__seg--4 { background: var(--cn-chart-4); }
-.sh7-bars__time { height: 16px; font-family: var(--cn-mono); font-size: var(--cn-fs-11-5); color: var(--cn-faint); text-align: center; white-space: nowrap; }
+.sh7-bars__time { height: 16px; font-family: var(--cn-mono); font-size: var(--cn-fs-11-5); color: var(--cn-soft); text-align: center; white-space: nowrap; }
 .sh7-legend { list-style: none; margin: 0; padding: 0; display: flex; gap: 16px; flex-wrap: wrap; font-size: var(--cn-fs-12-5); color: var(--cn-ink-3); }
 .sh7-legend li { display: flex; gap: 6px; align-items: center; }
 .sh7-legend__sw { width: 10px; height: 10px; border-radius: 3px; }
@@ -260,6 +260,11 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 /* ── The toast, the phone bars ────────────────────────────────────────────────── */
 .sh7-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 40; max-width: min(520px, calc(100vw - 32px));
   padding: 12px 16px; border-radius: var(--cn-r-12); background: var(--cn-ink-deep); color: var(--cn-surface); box-shadow: var(--cn-sh-toast); font-size: var(--cn-fs-13-5); }
+.sh7-toast { display: flex; align-items: center; gap: 12px; }
+.sh7-toast__t { flex: 1; min-width: 0; }
+.sh7-toast__x { flex: none; width: 32px; height: 32px; margin: -6px -8px -6px 0; border: 0; border-radius: var(--cn-r-8); background: transparent;
+  color: inherit; font: inherit; font-size: var(--cn-fs-16); line-height: 1; cursor: pointer; }
+.sh7-toast__x:focus-visible { outline: 2px solid var(--cn-surface); outline-offset: 2px; }
 .sh7-toast--bad { background: var(--cn-bad-ink); }
 .sh7-toast.is-gone { opacity: 0; transition: opacity var(--cn-dur-modal); }
 .sh7-phonetabs { display: none; }
@@ -322,7 +327,7 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 /* ── Find, Ask and the switcher (§2.4) ──────────────────────────────────────────── */
 .sh7-find { position: relative; flex: 0 1 300px; display: flex; align-items: center; }
 .sh7-find__q { width: 100%; height: 36px; padding-right: 44px; }
-.sh7-find__kbd { position: absolute; right: 10px; font-family: var(--cn-mono); font-size: var(--cn-fs-12); color: var(--cn-faint); pointer-events: none; }
+.sh7-find__kbd { position: absolute; right: 10px; font-family: var(--cn-mono); font-size: var(--cn-fs-12); color: var(--cn-soft); pointer-events: none; }
 .sh7-find__list { position: absolute; top: 42px; right: 0; width: min(420px, 90vw); z-index: 35; padding: 6px; background: var(--cn-surface);
   border: 1px solid var(--cn-line); border-radius: var(--cn-r-12); box-shadow: var(--cn-sh-menu); display: flex; flex-direction: column; gap: 2px; }
 .sh7-find__list[hidden] { display: none; }
@@ -331,7 +336,7 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 .sh7-find__words { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sh7-find__t { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh7-find__sub { font-size: var(--cn-fs-12); color: var(--cn-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sh7-find__kind { flex: none; font-size: var(--cn-fs-12); color: var(--cn-faint); }
+.sh7-find__kind { flex: none; font-size: var(--cn-fs-12); color: var(--cn-soft); }
 .sh7-find__none { margin: 0; padding: 10px; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
 .sh7-askbtn { flex: none; }
 .sh7-ask { margin: 0 0 0 auto; height: 100dvh; max-height: 100dvh; width: min(420px, 100vw); box-sizing: border-box; padding: 18px; border: 0;
@@ -378,6 +383,17 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 .sh7-apply { max-width: 820px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 18px; background: var(--cn-surface); min-height: 100dvh; box-sizing: border-box; }
 
 @media (prefers-reduced-motion: reduce) { .sh7 * { transition: none !important; animation: none !important; } }
+
+/* Somebody who asked their system for more contrast gets it: the quiet greys become ink, and
+   every hairline holds. Forced colours (Windows high contrast) keep a chip, a badge and the
+   current page visible by their outline, since the system replaces their fills. */
+@media (prefers-contrast: more) {
+  .sh7 { --cn-soft: var(--cn-ink-2); --cn-faint: var(--cn-ink-3); --cn-faint-2: var(--cn-ink-3); --cn-line: var(--cn-ink-3); }
+}
+@media (forced-colors: active) {
+  .sh7-badge, .sh7-chip, .sh7-btn, .sh7-toast { border: 1px solid CanvasText; }
+  .sh7-item[aria-current], .sh7-tab[aria-current] { outline: 2px solid Highlight; outline-offset: -2px; }
+}
 
 /* ── The product switcher (after ElevenLabs): the rail's top names the part of the account
    you are in and opens the others — icon, name, one line, a tick on the current one. ──── */

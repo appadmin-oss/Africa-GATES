@@ -10,16 +10,29 @@
    token is refreshed under an open page (csrf-fresh), and a copy would go stale. */
 (function () {
   'use strict';
+  // What just happened, said aloud. A live region filled before the reader is listening is
+  // often not announced, so the message is repeated into the empty regions a moment after
+  // load: an error into the alert region, a confirmation into the polite one.
+  var live = document.getElementById('sh7Live'), alertR = document.getElementById('sh7Alert');
+  var say = function (text, urgent) { var r = urgent ? alertR : live; if (!r) return; r.textContent = ''; setTimeout(function () { r.textContent = text; }, 60); };
   var toast = document.querySelector('[data-sh7-toast]');
   if (toast) {
-    var held = false;
-    toast.addEventListener('mouseenter', function () { held = true; });
-    toast.addEventListener('mouseleave', function () { held = false; });
-    setTimeout(function hide() {
-      if (held) { setTimeout(hide, 1500); return; }
-      toast.classList.add('is-gone');
-      setTimeout(function () { toast.remove(); }, 400);
-    }, 5200);
+    var stay = toast.hasAttribute('data-sh7-stay');
+    var words = (toast.querySelector('.sh7-toast__t') || toast).textContent.trim();
+    setTimeout(function () { say(words, stay); }, 500);
+    var gone = function () { toast.classList.add('is-gone'); setTimeout(function () { toast.remove(); }, 400); };
+    var x = toast.querySelector('[data-sh7-toast-x]');
+    if (x) x.addEventListener('click', gone);
+    // An error stays until dismissed. A confirmation leaves after a while, but never while a
+    // pointer rests on it or focus is inside it (WCAG 2.2.1: enough time).
+    if (!stay) {
+      var held = false;
+      toast.addEventListener('mouseenter', function () { held = true; });
+      toast.addEventListener('mouseleave', function () { held = false; });
+      toast.addEventListener('focusin', function () { held = true; });
+      toast.addEventListener('focusout', function () { held = false; });
+      setTimeout(function hide() { if (held) { setTimeout(hide, 1500); return; } gone(); }, 8000);
+    }
   }
   // A click outside an open Updates panel or switcher closes it, as a menu does.
   document.addEventListener('click', function (e) {
@@ -65,6 +78,9 @@
         p.textContent = 'Nothing here matches. Press Enter to search everything.'; list.appendChild(p);
       }
       list.hidden = false; q.setAttribute('aria-expanded', 'true'); active = -1; q.removeAttribute('aria-activedescendant');
+      // How many matched, said once the typing pauses: a listbox that appears is silent.
+      clearTimeout(q._sayT);
+      q._sayT = setTimeout(function () { say(found.length ? found.length + (found.length === 1 ? ' match. Arrow down to choose.' : ' matches. Arrow down to choose.') : 'No matches. Press Enter to search everything.'); }, 700);
     };
     var move = function (d) {
       var h = hits(); if (!h.length) return;

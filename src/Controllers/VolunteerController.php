@@ -75,6 +75,46 @@ final class VolunteerController
         ] + $content);
     }
 
+    /**
+     * GET /volunteer/shifts.ics — the person's own coming shifts, for their own calendar app.
+     *
+     * A download, not a subscription: a calendar app fetching this URL holds no sign-in, so it
+     * would be sent to the login page. A moved time means downloading it again, and the page
+     * says so. It carries their shifts only: no other
+     * volunteer's name, and no lead's phone. Times are written in UTC, which every reader
+     * converts to the person's own zone.
+     */
+    public function ics(Request $req, Response $res): Response
+    {
+        [$user, $v] = $this->who();
+        if (!$user) return $this->to($res, '/account/login?next=/volunteer/shifts');
+        if (!$v) return $this->to($res, '/volunteer/apply');
+        $esc = static fn (string $t): string => str_replace(["\\", ';', ',', "\r\n", "\n"], ['\\\\', '\\;', '\\,', '\\n', '\\n'], $t);
+        $utc = static fn (string $at): string => (new \DateTimeImmutable($at))->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+        $host = (string) (parse_url(\AfricaGates\Support\SiteUrl::base($req), PHP_URL_HOST) ?: 'africagates');
+        $lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Africa GATES//Volunteer shifts//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+                  'X-WR-CALNAME:' . $esc('My volunteer shifts')];
+        foreach (Shifts::mine($v) as $s) {
+            $desc = trim(($s->bring ? 'Bring: ' . $s->bring . "\n" : '') . ($s->lead_name ? 'Your lead: ' . $s->lead_name . "\n" : '') . (string) ($s->brief ?? ''));
+            array_push($lines, 'BEGIN:VEVENT', 'UID:vol-shift-' . (int) $s->id . '@' . $host, 'DTSTAMP:' . $utc('now'),
+                'DTSTART:' . $utc((string) $s->starts_at), 'DTEND:' . $utc((string) $s->ends_at),
+                'SUMMARY:' . $esc((string) $s->title . ($s->scope_name ? ', ' . $s->scope_name : '')),
+                'LOCATION:' . $esc($s->from_home ? 'From home' : (string) ($s->location ?? '')),
+                'DESCRIPTION:' . $esc($desc), 'URL:' . \AfricaGates\Support\SiteUrl::base($req) . '/volunteer/shifts/' . (int) $s->id, 'END:VEVENT');
+        }
+        $lines[] = 'END:VCALENDAR';
+        // Lines over 75 octets are folded, as RFC 5545 requires.
+        $out = '';
+        foreach ($lines as $l) {
+            while (strlen($l) > 75) { $cut = 75; while ($cut > 1 && (ord($l[$cut]) & 0xC0) === 0x80) $cut--; $out .= substr($l, 0, $cut) . "\r\n "; $l = substr($l, $cut); }
+            $out .= $l . "\r\n";
+        }
+        $res->getBody()->write($out);
+        return $res->withHeader('Content-Type', 'text/calendar; charset=utf-8')
+                   ->withHeader('Content-Disposition', 'attachment; filename="my-volunteer-shifts.ics"')
+                   ->withHeader('Cache-Control', 'private, no-store');
+    }
+
     /** GET /volunteer/shifts/{id} — a shift as a record page. */
     public function shift(Request $req, Response $res, array $args): Response
     {
@@ -226,6 +266,10 @@ final class VolunteerController
 
         $r = match ((string) ($b['do'] ?? '')) {
             'join' => $active ? (($j = Shifts::join($v, (int) ($b['shift'] ?? 0)))['ok'] ? $ok('You’re on it. It’s in Shifts › Mine.') : $no((string) $j['error'])) : $no('Shifts open once you’re approved.'),
+            'wait' => $active ? (($w = Shifts::wait($v, (int) ($b['shift'] ?? 0)))['ok']
+                ? $ok(!empty($w['place']) ? 'You’re on the waitlist, ' . WorkspacePages::ordinal((int) $w['place']) . ' in line. We email you if a place opens.' : 'A place was free, so you’re on it.')
+                : $no((string) $w['error'])) : $no('Shifts open once you’re approved.'),
+            'unwait' => Shifts::unwait($v, (int) ($b['shift'] ?? 0)) ? $ok('You’ve left the waitlist.') : $no('You’re not on that waitlist.'),
             'drop' => Shifts::drop($v, (int) ($b['shift'] ?? 0)) ? $ok('Dropped. The shift goes back to the team.') : $no('That shift is not yours to drop.'),
             'accept' => Shifts::acceptChange($v, (int) ($b['shift'] ?? 0)) ? $ok('Thanks. The new time is noted.') : $no('That shift is not yours.'),
             'take' => $active ? (($t = Tasks::take($v, (int) ($b['task'] ?? 0)))['ok'] ? $ok('It’s yours. It’s in Tasks › Mine.') : $no((string) $t['error'])) : $no('Tasks open once you’re approved.'),
@@ -253,8 +297,14 @@ final class VolunteerController
         $_SESSION[$r['ok'] ? 'vol_toast' : 'vol_error'] = $r['msg'];
         if (($b['do'] ?? '') === 'request' && $r['ok']) $back = '/volunteer/requests';
         if (($b['do'] ?? '') === 'leave' && $r['ok']) $back = '/volunteer/me/leave';
-        // A sent check goes on to the next one: back to the list, not the page just finished.
-        if (($b['do'] ?? '') === 'nomcheck' && $r['ok']) $back = (string) preg_replace('~\?.*$~', '', $back);
+        // A sent check opens the next one waiting (a HubSpot-style queue), so a checker works
+        // through them without returning to the list each time; the list when none is left.
+        if (($b['do'] ?? '') === 'nomcheck' && $r['ok']) {
+            $back = (string) preg_replace('~\?.*$~', '', $back);
+            $next = NominationChecks::queue($v, (int) ($b['cycle'] ?? 0))[0] ?? null;
+            if ($next) { $back .= '?n=' . $next['id']; $_SESSION['vol_toast'] = 'Sent. A moderator sees it with your name. Next: ' . $next['ref'] . '.'; }
+            else $_SESSION['vol_toast'] = 'Sent. A moderator sees it with your name. That was the last one waiting.';
+        }
         return $this->to($res, $back);
     }
 

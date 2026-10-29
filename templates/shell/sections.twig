@@ -37,15 +37,21 @@
 } %}<svg class="sh7-ico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="{{ P[name]|default(P.list) }}"/></svg>{% endmacro %}
 
 {# A row's or a header's action: a link, or a one-button form that posts. #}
-{% macro action(a, here, quiet, act) %}
+{#
+  A button or link. `ctx` is the thing it acts on, read to a screen reader after the label and
+  hidden on screen, so a list is "Check, N-12 · Halima Bello" and never "Check, Check, Check"
+  (WCAG 2.4.4, link purpose in context; 2.5.3, the visible label starts the accessible name).
+#}
+{% macro action(a, here, quiet, act, ctx) %}
+  {% set _ctx = ctx|default('') %}
   {% if a.post is defined %}
     <form class="sh7-inline" method="post" action="{{ act ?: '/volunteer/act' }}">
       <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ here }}">
       {% for k, v in a.post %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
-      <button class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ a.danger|default(false) ? ' sh7-btn--danger' }}{{ quiet ? ' sh7-btn--sm' }}" type="submit"{% if a.confirm is defined %} data-sh7-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}</button>
+      <button class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ a.danger|default(false) ? ' sh7-btn--danger' }}{{ quiet ? ' sh7-btn--sm' }}" type="submit"{% if a.confirm is defined %} data-sh7-confirm="{{ a.confirm }}"{% endif %}>{{ a.label }}{% if _ctx %}<span class="sh7-sr">, {{ _ctx }}</span>{% endif %}</button>
     </form>
   {% else %}
-    <a class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ quiet ? ' sh7-btn--sm' }}" href="{{ a.href }}">{{ a.label }}</a>
+    <a class="sh7-btn{{ a.primary|default(false) ? ' sh7-btn--primary' }}{{ quiet ? ' sh7-btn--sm' }}" href="{{ a.href }}">{{ a.label }}{% if _ctx %}<span class="sh7-sr">, {{ _ctx }}</span>{% endif %}</a>
   {% endif %}
 {% endmacro %}
 
@@ -114,7 +120,8 @@
     <ul class="sh7-rows">
       {% for r in s.items %}
         <li class="sh7-row{{ r.href is defined and r.href ? ' is-link' }}">
-          {% if r.dot is defined and r.dot %}<span class="sh7-dot sh7-dot--{{ r.dot }}" aria-hidden="true"></span>{% endif %}
+          {# A dot is never the only signal (WCAG 1.4.1): a reader hears the word it stands for. #}
+          {% if r.dot is defined and r.dot %}<span class="sh7-dot sh7-dot--{{ r.dot }}" aria-hidden="true"></span><span class="sh7-sr">{{ {ok: 'Fine', warn: 'Check', bad: 'Problem', info: 'Note'}[r.dot]|default('') }}: </span>{% endif %}
           {% if r.ini is defined and r.ini %}<span class="sh7-tile sh7-tile--sm" aria-hidden="true">{{ r.ini }}</span>{% endif %}
           <span class="sh7-row__words">
             {% if r.href is defined and r.href %}<a class="sh7-row__t" href="{{ r.href }}">{{ r.t }}</a>{% else %}<span class="sh7-row__t">{{ r.t }}</span>{% endif %}
@@ -160,7 +167,7 @@
           </span>
           {% if r.meta is defined and r.meta %}<span class="sh7-row__time">{{ r.meta }}</span>{% endif %}
           {{ M.chip(r.chip|default(null)) }}
-          {% if r.cta is defined and r.cta %}<span class="sh7-row__cta">{{ M.action(r.cta, here, true, act) }}</span>{% endif %}
+          {% if r.cta is defined and r.cta %}<span class="sh7-row__cta">{{ M.action(r.cta, here, true, act, r.t) }}</span>{% endif %}
           {% if r.href is defined and r.href and not (r.cta is defined and r.cta) %}<span class="sh7-row__chev" aria-hidden="true">{{ M.icon('chev') }}</span>{% endif %}
         </li>
       {% endfor %}
