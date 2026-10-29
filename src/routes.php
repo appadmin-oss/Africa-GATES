@@ -3917,6 +3917,7 @@ return function(App $app) {
         $v->get('/training/take/{slug:[a-z0-9-]+}', $c . ':module');
         $v->get('/shifts.ics',                    $c . ':ics');
         $v->get('/shifts/{id:[0-9]+}',            $c . ':shift');
+        $v->get('/contacts/{id:[0-9]+}',          $c . ':contact');
         $v->get('/meetings/{id:[0-9]+}.ics',      $c . ':meetingIcs');
         $v->get('/meetings/{id:[0-9]+}',          $c . ':meeting');
         $v->get('/requests/{id:[0-9]+}',          $c . ':request');

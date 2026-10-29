@@ -277,6 +277,14 @@
       {% if s.foot %}<p class="sh7-table__foot">{{ s.foot }}</p>{% endif %}
     </div>
 
+  {% elseif s.k == 'form' and s.get is defined %}
+    {# A search over the page's own list: GET, so the address holds it and Back returns to it. #}
+    <form class="sh7-filter" method="get" action="{{ s.get }}" role="search"{% if s.label is defined %} aria-label="{{ s.label }}"{% endif %}>
+      {% for f in s.fields %}{{ M.field(f) }}{% endfor %}
+      <button class="sh7-btn" type="submit">{{ s.submit }}</button>
+      {% if s.clear is defined and s.clear %}<a class="sh7-btn" href="{{ s.get }}">Clear</a>{% endif %}
+    </form>
+
   {% elseif s.k == 'form' %}
     {% if s.chips is defined %}<p class="sh7-typechips">{% for c in s.chips %}<a class="sh7-chip sh7-chip--{{ c.current ? 'ok' : 'mute' }}" href="{{ c.href }}"{% if c.current %} aria-current="true"{% endif %}>{{ c.label }}</a>{% endfor %}</p>{% endif %}
     <form class="sh7-form" method="post" action="{{ act }}">

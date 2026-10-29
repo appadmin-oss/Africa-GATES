@@ -30,7 +30,7 @@ final class WorkspacePages
             'home'     => self::home($v, $role, $q),
             'shifts'   => self::shifts($v, $tab),
             'tasks'    => self::tasks($v, $tab),
-            'contacts' => self::contacts($v, $tab, (array) ($q['_old'] ?? [])),
+            'contacts' => self::contacts($v, $tab, (array) ($q['_old'] ?? []), $q),
             'meetings' => self::meetings($v, $tab, (array) ($q['_old'] ?? [])),
             'hours'    => self::hours($v, $tab),
             'training' => self::training($v, $tab),
@@ -203,42 +203,96 @@ final class WorkspacePages
     // ── Contacts ──────────────────────────────────────────────────────────────────────────
 
     /** People this volunteer met and logged (Volunteer\Contacts), and the form to log one. */
-    private static function contacts(object $v, string $tab, array $old = []): array
+    private static function contacts(object $v, string $tab, array $old = [], array $q = []): array
     {
         if ($tab === 'log') {
-            $o = static fn (string $k): string => mb_substr((string) ($old[$k] ?? ''), 0, 300);
-            $places = ['' => 'Choose…'];
-            foreach (Workspace::places($v) as $p) $places[$p['kind'] . ':' . $p['id']] = $p['name'];
-            $places['else'] = 'Somewhere else';
             return ['title' => 'Log a contact', 'secs' => [['k' => 'form', 'do' => 'contact', 'submit' => 'Log this contact',
                 'route' => 'The team follows up. You don’t need to contact them yourself.',
-                'groups' => [
-                    ['label' => 'Who', 'fields' => [['name' => 'name', 'label' => 'Their name', 'type' => 'text', 'required' => true, 'autocomplete' => 'off', 'value' => $o('name')]]],
-                    ['label' => 'How to reach them', 'help' => 'A phone number or an email. One is enough.', 'fields' => [
-                        ['name' => 'phone', 'label' => 'Phone', 'type' => 'tel', 'autocomplete' => 'off', 'inputmode' => 'tel', 'value' => $o('phone')],
-                        ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'autocomplete' => 'off', 'value' => $o('email')]]],
-                    ['label' => 'What they’re interested in', 'fields' => [['name' => 'interest', 'label' => 'Interested in', 'type' => 'radio', 'required' => true, 'options' => Contacts::INTERESTS, 'value' => $o('interest')]]],
-                    ['label' => 'Where you met', 'fields' => [['name' => 'place', 'label' => 'Where', 'type' => 'select', 'options' => $places, 'value' => $o('place')],
-                                                            ['name' => 'place_text', 'label' => 'If somewhere else, where', 'type' => 'text', 'autocomplete' => 'off', 'value' => $o('place_text')]]],
-                    ['label' => 'A note for the team', 'help' => 'Optional. It stays with Africa GATES.', 'fields' => [['name' => 'note', 'label' => 'Note', 'type' => 'textarea', 'value' => $o('note')]]],
+                'groups' => [...self::contactGroups($v, $old),
                     ['label' => 'Before you log them', 'help' => 'Ask them both. If either is no, don’t log them.', 'fields' => [
                         ['name' => 'consent', 'label' => 'They agreed to be contacted by Africa GATES about this', 'type' => 'check', 'required' => true],
                         ['name' => 'adult', 'label' => 'They are 18 or older', 'type' => 'check', 'required' => true]]],
                 ]]]];
         }
+        $find = mb_substr(trim((string) ($q['q'] ?? '')), 0, 80);
+        $interest = isset(Contacts::INTERESTS[(string) ($q['interest'] ?? '')]) ? (string) $q['interest'] : '';
+        $sum = Contacts::summary($v);
+        $crm = \AfricaGates\Services\CrmAudiencePush::ready();
         $rows = [];
-        foreach (Contacts::mine($v) as $c) {
+        foreach (Contacts::mine($v, $find, $interest) as $c) {
             $reach = trim(implode(' · ', array_filter([(string) $c->phone, (string) $c->email])));
-            $rows[] = ['t' => (string) $c->name, 'sub' => $c->interest_label . ($c->where !== '' ? ' · met at ' . $c->where : '') . ' · ' . Workspace::day((string) $c->created_at) . ($reach !== '' ? ' · ' . $reach : ''),
-                       'chip' => $c->forgotten_at ? ['Asked not to be contacted', 'mute'] : null,
-                       'cta' => $c->forgotten_at ? null : ['label' => 'They asked not to be contacted', 'post' => ['do' => 'forget_contact', 'contact' => $c->id],
-                                                           'confirm' => 'Mark ' . $c->name . ' as not to be contacted? The team is told.']];
+            $rows[] = ['t' => (string) $c->name, 'href' => '/volunteer/contacts/' . $c->id,
+                       'sub' => $c->interest_label . ($c->where !== '' ? ' · met at ' . $c->where : '') . ' · ' . Workspace::day((string) $c->created_at) . ($reach !== '' ? ' · ' . $reach : ''),
+                       'chip' => self::contactChip($c, $crm)];
         }
-        return ['title' => 'Contacts', 'secs' => [
-            $rows ? ['k' => 'rows', 'h' => 'People you’ve logged', 'items' => $rows]
-                  : ['k' => 'note', 'text' => 'Nobody logged yet. When you meet someone who wants to hear from Africa GATES, log them with their agreement.', 'tone' => 'mute',
-                     'cta' => ['label' => 'Log a contact', 'href' => '/volunteer/contacts/log']],
-            ['k' => 'note', 'text' => 'Only you and the Africa GATES team see these. Nobody under 18 is logged.', 'tone' => 'mute']]];
+        $secs = [];
+        if ($sum['total'] > 0) {
+            $secs[] = ['k' => 'stats', 'items' => array_values(array_filter([['l' => 'Logged', 'v' => (string) $sum['total']], ['l' => 'This month', 'v' => (string) $sum['month']],
+                $crm ? ['l' => 'Waiting to reach the team', 'v' => (string) $sum['waiting'], 's' => $sum['waiting'] ? 'Sent within the hour' : 'All sent'] : null]))];
+            $secs[] = ['k' => 'form', 'get' => '/volunteer/contacts', 'label' => 'Find a contact', 'submit' => 'Find', 'clear' => $find !== '' || $interest !== '', 'fields' => [
+                ['name' => 'q', 'label' => 'Name, phone or email', 'type' => 'search', 'autocomplete' => 'off', 'value' => $find],
+                ['name' => 'interest', 'label' => 'Interested in', 'type' => 'select', 'options' => ['' => 'Anything'] + Contacts::INTERESTS, 'value' => $interest]]];
+        }
+        $secs[] = $rows ? ['k' => 'rows', 'h' => $find !== '' || $interest !== '' ? count($rows) . ' found' : 'People you’ve logged', 'items' => $rows]
+            : ($sum['total'] > 0 ? ['k' => 'note', 'text' => 'Nobody matches. Try part of a name or the last digits of a phone number.', 'tone' => 'mute']
+                                 : ['k' => 'note', 'text' => 'Nobody logged yet. When you meet someone who wants to hear from Africa GATES, log them with their agreement.', 'tone' => 'mute',
+                                    'cta' => ['label' => 'Log a contact', 'href' => '/volunteer/contacts/log']]);
+        $secs[] = ['k' => 'note', 'text' => 'Only you and the Africa GATES team see these. Nobody under 18 is logged.', 'tone' => 'mute'];
+        return ['title' => 'Contacts', 'secs' => $secs];
+    }
+
+    /** One contact, as a record page with its history; null if it is not this volunteer's. */
+    public static function contact(object $v, int $id, array $old = []): ?array
+    {
+        $c = Contacts::get($v, $id);
+        if (!$c) return null;
+        $crm = \AfricaGates\Services\CrmAudiencePush::ready();
+        $acts = $c->forgotten_at ? [] : [['label' => 'They asked not to be contacted', 'post' => ['do' => 'forget_contact', 'contact' => $id],
+                                          'confirm' => 'Mark ' . $c->name . ' as not to be contacted? The team is told.']];
+        $facts = array_values(array_filter([['Interested in', $c->interest_label], $c->phone ? ['Phone', (string) $c->phone] : null, $c->email ? ['Email', (string) $c->email] : null,
+            ['Met', ($c->where !== '' ? $c->where . ', ' : '') . Workspace::day((string) $c->created_at)]]));
+        $secs = [['k' => 'hero', 'ini' => Workspace::initials((string) $c->name), 'tone' => $c->forgotten_at ? 'mute' : 'info', 't' => (string) $c->name, 'sub' => 'Contact',
+                  'chips' => array_values(array_filter([self::contactChip($c, $crm)])), 'facts' => $facts, 'acts' => $acts]];
+        if ($c->note) $secs[] = ['k' => 'note', 'h' => 'Your note', 'text' => (string) $c->note . "\n\nIt stays with Africa GATES; the CRM doesn’t get it.", 'tone' => 'mute', 'pre' => true];
+        $history = [['t' => 'Logged, with their agreement', 'sub' => Workspace::day((string) $c->consent_at) . ' · ' . date('H:i', (int) strtotime((string) $c->consent_at))]];
+        if ($c->updated_at !== $c->created_at && !$c->forgotten_at) $history[] = ['t' => 'Details corrected', 'sub' => Workspace::day((string) $c->updated_at) . ' · ' . date('H:i', (int) strtotime((string) $c->updated_at))];
+        if ($crm) $history[] = ['t' => $c->sent ? 'With the team' : 'Waiting to reach the team', 'sub' => $c->sent ? 'In the CRM, for follow-up.' : 'Sent within the hour.'];
+        if ($c->forgotten_at) $history[] = ['t' => 'Asked not to be contacted', 'sub' => Workspace::day((string) $c->forgotten_at) . ($crm ? ' · the team is told' : '')];
+        $secs[] = ['k' => 'rows', 'h' => 'History', 'items' => $history];
+        if (!$c->forgotten_at) {
+            $values = $old ?: ['name' => $c->name, 'phone' => $c->phone, 'email' => $c->email, 'interest' => $c->interest,
+                               'place' => $c->scope_kind ? $c->scope_kind . ':' . $c->scope_id : ($c->place_text ? 'else' : ''), 'place_text' => $c->place_text, 'note' => $c->note];
+            $secs[] = ['k' => 'form', 'h' => 'Correct their details', 'do' => 'contact_edit', 'hidden' => ['contact' => $id], 'submit' => 'Save changes',
+                       'route' => 'The team gets the correction on the same record.', 'groups' => self::contactGroups($v, $values)];
+        }
+        return ['title' => (string) $c->name, 'kicker' => 'Contact', 'noHead' => true, 'secs' => $secs];
+    }
+
+    /** Where a contact stands, in words: stopped, with the team, or on its way. */
+    private static function contactChip(object $c, bool $crm): ?array
+    {
+        if ($c->forgotten_at) return ['Asked not to be contacted', 'mute'];
+        if (!$crm) return null;
+        return $c->sent ? ['With the team', 'ok'] : ['Waiting to send', 'warn'];
+    }
+
+    /** The fields of a contact, for logging one and for correcting one. */
+    private static function contactGroups(object $v, array $old): array
+    {
+        $o = static fn (string $k): string => mb_substr((string) ($old[$k] ?? ''), 0, 300);
+        $places = ['' => 'Choose…'];
+        foreach (Workspace::places($v) as $p) $places[$p['kind'] . ':' . $p['id']] = $p['name'];
+        $places['else'] = 'Somewhere else';
+        return [
+            ['label' => 'Who', 'fields' => [['name' => 'name', 'label' => 'Their name', 'type' => 'text', 'required' => true, 'autocomplete' => 'off', 'value' => $o('name')]]],
+            ['label' => 'How to reach them', 'help' => 'A phone number or an email. One is enough.', 'fields' => [
+                ['name' => 'phone', 'label' => 'Phone', 'type' => 'tel', 'autocomplete' => 'off', 'inputmode' => 'tel', 'value' => $o('phone')],
+                ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'autocomplete' => 'off', 'value' => $o('email')]]],
+            ['label' => 'What they’re interested in', 'fields' => [['name' => 'interest', 'label' => 'Interested in', 'type' => 'radio', 'required' => true, 'options' => Contacts::INTERESTS, 'value' => $o('interest')]]],
+            ['label' => 'Where you met', 'fields' => [['name' => 'place', 'label' => 'Where', 'type' => 'select', 'options' => $places, 'value' => $o('place')],
+                                                    ['name' => 'place_text', 'label' => 'If somewhere else, where', 'type' => 'text', 'autocomplete' => 'off', 'value' => $o('place_text')]]],
+            ['label' => 'A note for the team', 'help' => 'Optional. It stays with Africa GATES.', 'fields' => [['name' => 'note', 'label' => 'Note', 'type' => 'textarea', 'value' => $o('note')]]],
+        ];
     }
 
     // ── Meetings ──────────────────────────────────────────────────────────────────────────

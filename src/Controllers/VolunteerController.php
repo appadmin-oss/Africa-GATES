@@ -109,6 +109,19 @@ final class VolunteerController
                    ->withHeader('Cache-Control', 'private, no-store');
     }
 
+    /** GET /volunteer/contacts/{id} — one contact this volunteer logged, its history and a correction form. */
+    public function contact(Request $req, Response $res, array $args): Response
+    {
+        [$user, $v] = $this->who();
+        if (!$user) return $this->to($res, '/account/login?next=/volunteer/contacts');
+        if (!$v || $this->role($v) === 'applicant') return $this->to($res, '/volunteer');
+        $c = WorkspacePages::contact($v, (int) $args['id'], (array) ($this->take('vol_old') ?? []));
+        if (!$c) throw new HttpNotFoundException($req);   // another volunteer's, or none: the same answer
+        $role = $this->role($v);
+        return $this->render($res, $user, $v, $role, ['scope' => 'root', 'nav' => Workspace::rootNav($v, $role, 'contacts', Workspace::counts($v, $role)),
+            'crumbs' => [['label' => 'Contacts', 'href' => '/volunteer/contacts'], ['label' => $c['title']]], 'back' => ['label' => 'Contacts', 'href' => '/volunteer/contacts']] + $c);
+    }
+
     /** GET /volunteer/meetings/{id}.ics — one meeting, repeats included, for the person's own calendar app. */
     public function meetingIcs(Request $req, Response $res, array $args): Response
     {
@@ -299,6 +312,7 @@ final class VolunteerController
                 ? $ok(!empty($w['place']) ? 'You’re on the waitlist, ' . WorkspacePages::ordinal((int) $w['place']) . ' in line. We email you if a place opens.' : 'A place was free, so you’re on it.')
                 : $no((string) $w['error'])) : $no('Shifts open once you’re approved.'),
             'contact' => $active ? (($k = Contacts::log($v, $b))['ok'] ? $ok('Logged. The team follows up.') : $no((string) $k['error'])) : $no('Contacts open once you’re approved.'),
+            'contact_edit' => ($k = Contacts::edit($v, (int) ($b['contact'] ?? 0), $b))['ok'] ? $ok('Saved. The team gets the correction.') : $no((string) $k['error']),
             'forget_contact' => Contacts::forget($v, (int) ($b['contact'] ?? 0)) ? $ok('Marked. The team won’t contact them.') : $no('That contact isn’t yours.'),
             'meet' => $active ? (($k = Meetings::schedule($v, $b, $this->mailer))['ok'] ? $ok('Scheduled. ' . ($k['invited'] === 1 ? 'One person is' : $k['invited'] . ' people are') . ' invited by email.') : $no((string) $k['error'])) : $no('Meetings open once you’re approved.'),
             'meet_answer' => Meetings::answer($v, (int) ($b['meeting'] ?? 0), (string) ($b['answer'] ?? '')) ? $ok(($b['answer'] ?? '') === 'yes' ? 'Thanks. They know you’re going.' : 'Thanks. They know you can’t come.') : $no('That meeting can’t be answered now.'),
@@ -339,7 +353,7 @@ final class VolunteerController
         }
         // A refused contact comes back with what was typed, so nothing is typed twice. The two
         // confirmations are not kept: they are asked afresh.
-        if (($b['do'] ?? '') === 'contact' && !$r['ok']) {
+        if (in_array($b['do'] ?? '', ['contact', 'contact_edit'], true) && !$r['ok']) {
             $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['name', 'phone', 'email', 'interest', 'place', 'place_text', 'note']));
         }
         // A sent check opens the next one waiting (a HubSpot-style queue), so a checker works

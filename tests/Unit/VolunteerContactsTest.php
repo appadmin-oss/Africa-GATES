@@ -145,4 +145,51 @@ final class VolunteerContactsTest extends TestCase
         CrmAudiencePush::run();
         $this->assertSame('unsubscribed', $this->rows()['met:' . $id]['status'], 'the stop reaches the same CRM row');
     }
+
+    public function test_a_correction_is_held_to_the_same_rules_and_reaches_the_same_crm_row(): void
+    {
+        $v = $this->vol('Chika Nwosu', '1999-05-01', ['vol.voter_drive']);
+        $other = $this->vol('Bola Ade', '1998-01-01', ['vol.voter_drive']);
+        $id = Contacts::log($v, $this->ok())['id'];
+        Contacts::log($v, $this->ok(['name' => 'Kemi Obi', 'phone' => '0807 765 4321']));
+
+        $this->assertFalse(Contacts::edit($other, $id, $this->ok(['name' => 'Hijacked']))['ok'], 'only the volunteer who logged it');
+        $this->assertFalse(Contacts::edit($v, $id, $this->ok(['phone' => '0807-765-4321']))['ok'], 'a correction cannot make it a duplicate');
+        $this->assertFalse(Contacts::edit($v, $id, $this->ok(['phone' => '', 'email' => '']))['ok'], 'and still needs a way to reach them');
+        $this->assertFalse(Contacts::edit($v, $id, $this->ok(['place' => 'cycle:999999']))['ok'], 'and only the volunteer’s own places');
+        $this->assertTrue(Contacts::edit($v, $id, $this->ok(['name' => 'Funmilayo Bello', 'phone' => '0803 123 4567']))['ok'], 'its own number is not a duplicate of itself');
+
+        DB::table('gates_vol_contacts')->update(['updated_at' => date('Y-m-d H:i:s', time() - 60)]);
+        CrmAudiencePush::run();
+        $this->assertSame('Funmilayo Bello', $this->rows()['met:' . $id]['name']);
+        $this->assertTrue(Contacts::get($v, $id)->sent, 'sent, once the push has passed it');
+        Contacts::edit($v, $id, $this->ok(['name' => 'Funmilayo A. Bello']));
+        $this->assertFalse(Contacts::get($v, $id)->sent, 'a correction waits for the next push, and says so');
+
+        Contacts::forget($v, $id);
+        $this->assertFalse(Contacts::edit($v, $id, $this->ok(['name' => 'Back again']))['ok'], 'the stop is not edited away');
+    }
+
+    public function test_mine_finds_by_name_digits_or_interest_and_never_anothers(): void
+    {
+        $v = $this->vol('Chika Nwosu', '1999-05-01', ['vol.voter_drive']);
+        $other = $this->vol('Bola Ade', '1998-01-01', ['vol.voter_drive']);
+        Contacts::log($v, $this->ok());
+        Contacts::log($v, $this->ok(['name' => 'Kemi Obi', 'phone' => '', 'email' => 'kemi_100%@mail.ng', 'interest' => 'vote']));
+        Contacts::log($other, $this->ok(['name' => 'Funmi Other', 'phone' => '0809 111 2222']));
+        $names = static fn (array $r) => array_map(static fn ($c) => $c->name, $r);
+        $this->assertSame(['Funmi Bello'], $names(Contacts::mine($v, 'funmi')));
+        $this->assertSame(['Funmi Bello'], $names(Contacts::mine($v, '123-4567')), 'digits match however they are typed');
+        $this->assertSame(['Kemi Obi'], $names(Contacts::mine($v, '', 'vote')));
+        $this->assertSame(['Kemi Obi'], $names(Contacts::mine($v, '100%')), 'a % in the search is a character, not a wildcard');
+        $this->assertSame([], $names(Contacts::mine($v, 'i_o')), 'and so is an underscore (“Kemi Obi” would match it as a wildcard)');
+
+        $_SESSION['user_id'] = $v->user_id;
+        $page = (string) $this->ctrl()->contact((new ServerRequestFactory())->createServerRequest('GET', '/x'), new Response(), ['id' => (string) Contacts::mine($v, 'funmi')[0]->id])->getBody();
+        $this->assertStringContainsString('Logged, with their agreement', $page);
+        $this->assertStringContainsString('Runs a bakery', $page, 'the volunteer sees their own note');
+        $this->assertStringContainsString('the CRM doesn’t get it', $page);
+        $this->expectException(\Slim\Exception\HttpNotFoundException::class);
+        $this->ctrl()->contact((new ServerRequestFactory())->createServerRequest('GET', '/x'), new Response(), ['id' => (string) Contacts::mine($other)[0]->id]);
+    }
 }

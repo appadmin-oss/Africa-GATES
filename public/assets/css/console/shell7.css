@@ -168,6 +168,9 @@ a.sh7-row__t { display: inline-block; padding-block: 4px; margin-block: -4px; }
 .sh7-note--ok { background: var(--cn-ok-wash); color: var(--cn-ink); }
 .sh7-note--info { background: var(--cn-info-wash); color: var(--cn-ink); }
 .sh7-note--pre { white-space: pre-line; }
+.sh7-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.sh7-filter .sh7-field { flex: 1 1 200px; min-width: 0; }
+.sh7-filter .sh7-input { max-width: none; }
 .sh7-note--warn { background: var(--cn-gold-wash); color: var(--cn-ink); }
 .sh7-note--bad { background: var(--cn-red-wash); color: var(--cn-ink); }
 .sh7-note ul { margin: 6px 0 0; padding-left: 18px; }

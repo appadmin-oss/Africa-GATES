@@ -308,6 +308,9 @@ final class Workspace
             foreach (Shifts::mine($v) as $s) {
                 $out[] = ['t' => (string) $s->title, 'sub' => self::day((string) $s->starts_at) . ' · ' . $s->scope_name, 'href' => '/volunteer/shifts/' . $s->id, 'kind' => 'Shift'];
             }
+            foreach (array_slice(Contacts::mine($v), 0, 100) as $c) {
+                $out[] = ['t' => (string) $c->name, 'sub' => $c->interest_label . ' · Contact', 'href' => '/volunteer/contacts/' . $c->id, 'kind' => 'Contact'];
+            }
             foreach (Meetings::mine($v) as $m) {
                 $out[] = ['t' => (string) $m->title, 'sub' => self::day((string) $m->next) . ' · Meeting', 'href' => '/volunteer/meetings/' . $m->id, 'kind' => 'Meeting'];
             }

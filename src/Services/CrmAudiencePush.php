@@ -349,6 +349,17 @@ final class CrmAudiencePush
     }
 
     /** @return array<string,string> */
+    /**
+     * Has this volunteer contact gone to the CRM in its present form? True once the contacts
+     * cursor is at or past the row's last change, so an edit reads as "not sent" until it is.
+     */
+    public static function contactSent(string $updatedAt, int $id, ?array $state = null): bool
+    {
+        $state ??= self::state();
+        $at = (string) ($state['contacts.at'] ?? self::EPOCH);
+        return $updatedAt < $at || ($updatedAt === $at && $id <= (int) ($state['contacts.id'] ?? 0));
+    }
+
     public static function state(): array
     {
         try {
