@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services\Volunteer;
 
 use AfricaGates\Services\CrmAudiencePush;
+use AfricaGates\Support\Like;
 use AfricaGates\Support\SchemaHas;
 use Illuminate\Database\Capsule\Manager as DB;
 
@@ -143,13 +144,12 @@ final class Contacts
         if (!self::ready()) return [];
         $q = trim($q);
         $digits = (string) preg_replace('/\D+/', '', $q);
-        // `!` escapes LIKE's wildcards: SQLite has no default escape and MySQL's is a backslash.
-        $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($q)) . '%';
+        $like = Like::contains(mb_strtolower($q));
         $rows = DB::table('gates_vol_contacts')->where('volunteer_id', $v->id)
             ->when(isset(self::INTERESTS[$interest]), static fn ($w) => $w->where('interest', $interest))
             ->when($q !== '', static fn ($w) => $w->where(static function ($o) use ($like, $digits) {
-                $o->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$like])->orWhereRaw("LOWER(COALESCE(email, '')) LIKE ? ESCAPE '!'", [$like]);
-                if (strlen($digits) >= 3) $o->orWhere('phone', 'like', '%' . $digits . '%');
+                $o->whereRaw(Like::clause('LOWER(name)'), [$like])->orWhereRaw(Like::clause("LOWER(COALESCE(email, ''))"), [$like]);
+                if (strlen($digits) >= 3) $o->orWhereRaw(Like::clause('phone'), [Like::contains($digits)]);
             }))
             ->orderByDesc('id')->limit(200)->get()->all();
         $state = CrmAudiencePush::state();
