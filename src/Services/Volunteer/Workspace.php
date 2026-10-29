@@ -194,7 +194,7 @@ final class Workspace
         $add('tasks', count(Tasks::mine($v)));
         $add('hours', (int) DB::table('gates_vol_hours')->where('volunteer_id', $v->id)->where('status', 'review')->count());
         $add('training', count(array_filter(Training::next($v), static fn ($m) => $m->tone === 'warn')), 'warn');
-        $add('requests', count(array_filter(Requests::from('member', (int) $v->user_id, 'open'), static fn ($r) => $r->status === 'needs_info')), 'warn');
+        $add('requests', count(array_filter(Requests::from('member', (int) $v->user_id, 'open', 'volunteer'), static fn ($r) => $r->status === 'needs_info')), 'warn');
         $add('meetings', count(array_filter(Meetings::mine($v), static fn ($m) => $m->answer === 'invited')), 'warn');
         if ($role === 'lead') $add('team', count(Team::waitingHours($v)), 'warn');
         foreach ($mine as $s) {
@@ -314,7 +314,7 @@ final class Workspace
             foreach (Meetings::mine($v) as $m) {
                 $out[] = ['t' => (string) $m->title, 'sub' => self::day((string) $m->next) . ' · Meeting', 'href' => '/volunteer/meetings/' . $m->id, 'kind' => 'Meeting'];
             }
-            foreach (Requests::from('member', (int) $v->user_id, 'open') as $r) {
+            foreach (Requests::from('member', (int) $v->user_id, 'open', 'volunteer') as $r) {
                 $out[] = ['t' => (string) $r->title, 'sub' => Requests::STATUSES[$r->status] ?? '', 'href' => '/volunteer/requests/' . $r->id, 'kind' => 'Request'];
             }
             $out[] = ['t' => 'Log hours', 'sub' => 'Hours', 'href' => '/volunteer/hours/log', 'kind' => 'Do'];

@@ -309,6 +309,16 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
   .sh7-head__title { font-size: var(--cn-fs-24); }
   .sh7-hero__t { font-size: var(--cn-fs-22); }
   .sh7-row { min-height: 60px; }
+  /* The words keep the line beside their dot or tile; a row's chip and button take the next
+     line instead of pushing the title under its own dot (a 260px basis cannot sit beside an
+     8px dot on a 288px row, so the dot was left alone on a line). */
+  .sh7-row__words { flex: 1 1 calc(100% - 56px); }
+  .sh7-row > .sh7-dot { align-self: flex-start; margin-top: 8px; }
+  .sh7-row > .sh7-tile { align-self: flex-start; }
+  /* A picker and its button stay one control: the select gives up width, never its line. */
+  .sh7-rowform { flex-wrap: nowrap; }
+  .sh7-rowform .sh7-input, .sh7-rowform select.sh7-input { flex: 1 1 auto; min-width: 0; max-width: none; height: 44px; }
+  .sh7-rowform .sh7-btn { flex: none; }
   .sh7-btn { height: 44px; }
   .sh7-btn--sm { height: 40px; }
   .sh7-input { height: 48px; font-size: var(--cn-fs-16); }

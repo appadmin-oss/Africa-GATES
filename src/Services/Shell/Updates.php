@@ -53,7 +53,7 @@ final class Updates
                                                              'href' => EventPages::url((int) $e->id, 'people', 'volunteers')];
         }
         $you = [];
-        foreach (Requests::from('admin', $me['id'], 'open') as $r) {
+        foreach (Requests::from(Plan::ACTOR, $me['id'], 'open', 'lead') as $r) {
             if ($r->status === 'needs_info') $you[] = ['t' => Requests::deciderLabel($r) . ' asked about “' . $r->title . '”', 'sub' => 'Add the information and it goes back to them',
                                                        'href' => LeadPages::BASE . '/requests?r=' . $r->id];
         }
@@ -64,7 +64,7 @@ final class Updates
             }
         }
         $others = [];
-        foreach (Requests::from('admin', $me['id'], 'open') as $r) {
+        foreach (Requests::from(Plan::ACTOR, $me['id'], 'open', 'lead') as $r) {
             if ($r->status === 'waiting') $others[] = ['t' => (string) $r->title, 'sub' => 'With ' . Requests::deciderLabel($r) . ' since ' . date('j M', (int) strtotime((string) $r->created_at)),
                                                        'href' => LeadPages::BASE . '/requests?r=' . $r->id];
         }
@@ -75,7 +75,7 @@ final class Updates
     public static function forVolunteer(object $v): array
     {
         $you = [];
-        foreach (Requests::from('member', (int) $v->user_id, 'open') as $r) {
+        foreach (Requests::from('member', (int) $v->user_id, 'open', 'volunteer') as $r) {
             if ($r->status === 'needs_info') $you[] = ['t' => Requests::deciderLabel($r) . ' asked about “' . $r->title . '”', 'sub' => 'Add the information and it goes back to them',
                                                        'href' => '/volunteer/requests/' . $r->id];
         }

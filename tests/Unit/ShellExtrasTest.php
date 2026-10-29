@@ -56,15 +56,16 @@ final class ShellExtrasTest extends TestCase
         return Volunteers::of($uid);
     }
 
+    /** An event lead: a member account (Plan::ACTOR), never a staff admin. */
     private function admin(string $name): int
     {
-        return (int) DB::table('gates_admins')->insertGetId(['email' => strtolower(str_replace(' ', '.', $name)) . bin2hex(random_bytes(2)) . '@example.test',
-            'name' => $name, 'role' => 'editor', 'is_active' => 1, 'password_hash' => 'x', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+        return (int) DB::table('gates_users')->insertGetId(['email' => strtolower(str_replace(' ', '.', $name)) . bin2hex(random_bytes(2)) . '@example.test',
+            'name' => $name, 'password_hash' => 'x', 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
     }
 
     private function lead(int $event, int $admin): void
     {
-        Grants::grant('admin', $admin, 'event.lead', 'event', $event, date('Y-m-d', strtotime('+40 days')), 1);
+        Grants::grant('member', $admin, 'event.lead', 'event', $event, date('Y-m-d', strtotime('+40 days')), 1);
     }
 
     // ── the volunteer workspace's Find and switcher ──────────────────────────────────────
@@ -117,7 +118,7 @@ final class ShellExtrasTest extends TestCase
         $events = Plan::leadEvents($lead);
         $this->assertSame(['n' => 0, 'groups' => []], Updates::forLead(['id' => $lead], $events), 'nothing to say draws nothing');
         Plan::addWork($ev, ['title' => 'Venue floor plan', 'due_at' => date('Y-m-d', strtotime('-3 days')), 'blocks_night' => '1', 'blocks_note' => 'the permit'], $lead);
-        Requests::create('lead', 'spend', 'admin', $lead, 'Tunde Akin', ['title' => 'MC fee', 'why' => 'Holds the date'], 'event', $ev);
+        Requests::create('lead', 'spend', 'member', $lead, 'Tunde Akin', ['title' => 'MC fee', 'why' => 'Holds the date'], 'event', $ev);
         $u = Updates::forLead(['id' => $lead], $events);
         $this->assertSame('May affect the night', $u['groups'][0]['h']);
         $this->assertSame('Venue floor plan is late', $u['groups'][0]['items'][0]['t']);
@@ -171,7 +172,7 @@ final class ShellExtrasTest extends TestCase
         $this->lead($ev, $lead);
         foreach (['ada', 'bayo', 'ada'] as $n) DB::table('gates_event_registrations')->insert(['event_id' => $ev, 'name' => $n, 'email' => $n . '@example.org',
             'status' => 'confirmed', 'quantity' => 1, 'created_at' => date('Y-m-d H:i:s')]);
-        $r = Requests::create('lead', 'message', 'admin', $lead, 'Tunde Akin', ['title' => 'Venue reminder to ticket holders', 'why' => 'Gate B is closed'], 'event', $ev);
+        $r = Requests::create('lead', 'message', 'member', $lead, 'Tunde Akin', ['title' => 'Venue reminder to ticket holders', 'why' => 'Gate B is closed'], 'event', $ev);
         $sent = [];
         $send = function (string $to) use (&$sent): bool { $sent[] = $to; return true; };
         $this->assertStringContainsString('approved first', Outreach::sendMessage($r['id'], 'tickets', 'Gate B', 'Use Gate A', $lead, 'Tunde Akin', $send)['error']);

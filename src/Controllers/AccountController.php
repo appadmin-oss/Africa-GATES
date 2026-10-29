@@ -1440,6 +1440,8 @@ class AccountController
             'user'           => array_diff_key((array) $user, ['password_hash' => 1, 'last_login_ip' => 1]),
             'interests'      => \AfricaGates\Services\MemberInterests::of((int) $user->id),
             'interest_options' => \AfricaGates\Services\MemberInterests::options(),
+            // Events this member leads (a member role since 29 Oct 2026): the way into /lead.
+            'events_led'     => \AfricaGates\Services\EventPlan\Plan::ready() ? count(\AfricaGates\Services\EventPlan\Plan::leadEvents((int) $user->id)) : 0,
             'unread'         => count(array_filter($alerts, static fn ($x) => $x['unread'])),
             'points'         => $bal,
             'points_enabled' => PointsService::enabled(),

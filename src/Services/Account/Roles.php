@@ -52,7 +52,7 @@ final class Roles
     public const PROOFS = ['password', 'passkey', 'email', 'phone'];
     /** The proofs each role's own door accepts. Organisation entry is free; its money is not. */
     private const DOOR = ['admin' => ['password', 'passkey', 'email'], 'judge' => ['password', 'passkey', 'email'], 'org' => self::PROOFS];
-    private const HOME = ['member' => '/account', 'volunteer' => '/volunteer', 'admin' => '/admin', 'org' => '/org', 'judge' => '/judge/ballot'];
+    private const HOME = ['member' => '/account', 'volunteer' => '/volunteer', 'lead' => '/lead', 'admin' => '/admin', 'org' => '/org', 'judge' => '/judge/ballot'];
 
     /**
      * The staff, judging and organisation roles this account holds: rows whose address is the
@@ -119,10 +119,14 @@ final class Roles
             $out[] = ['kind' => 'volunteer', 'label' => 'My volunteering', 'live' => true,
                       'sub' => Volunteers::roleLabel($v) . ($places ? ' · ' . count($places) . (count($places) === 1 ? ' place' : ' places') : '')];
         }
+        // Leading an event is the account's own, like volunteering: a grant to this member,
+        // not a staff role (Plan::ACTOR), so organisers' leads never need the admin console.
+        $led = self::ledEvents($uid);
+        if ($led > 0) $out[] = ['kind' => 'lead', 'label' => 'Events I lead', 'live' => true, 'sub' => $led . ($led === 1 ? ' event' : ' events')];
         foreach (self::held($user) as $kind => $row) {
             $active = (int) ($row->is_active ?? 1) === 1;
             $sub = match ($kind) {
-                'admin' => (Permissions::ROLES[$row->role]['label'] ?? ucfirst((string) $row->role)) . self::leadDetail((int) $row->id),
+                'admin' => Permissions::ROLES[$row->role]['label'] ?? ucfirst((string) $row->role),
                 'org' => self::orgName((int) $row->org_id),
                 default => 'Your panels and scorecards',
             };
@@ -154,8 +158,9 @@ final class Roles
     public static function open(object $user, string $kind): array
     {
         $uid = (int) $user->id;
-        if ($kind === 'member' || $kind === 'volunteer') {
+        if ($kind === 'member' || $kind === 'volunteer' || $kind === 'lead') {
             if ($kind === 'volunteer' && !(Volunteers::ready() && Volunteers::of($uid))) return ['ok' => false, 'error' => 'You are not a volunteer yet. Apply from your account.'];
+            if ($kind === 'lead' && self::ledEvents($uid) === 0) return ['ok' => false, 'error' => 'You don’t lead an event. The organiser gives it to your email address.'];
             self::remember($uid, $kind);
             return ['ok' => true, 'to' => self::HOME[$kind]];
         }
@@ -413,10 +418,10 @@ final class Roles
         }
     }
 
-    /** " · leads 2 events" when the staff account holds event lead grants. */
-    private static function leadDetail(int $adminId): string
+    /** How many events this member leads now (live `event.lead` grants). */
+    private static function ledEvents(int $userId): int
     {
-        $n = count(array_filter(Grants::forActor('admin', $adminId, 'event.lead'), static fn ($g) => $g->capability === 'event.lead'));
-        return $n > 0 ? ' · leads ' . $n . ($n === 1 ? ' event' : ' events') : '';
+        if ($userId <= 0 || !Grants::ready()) return 0;
+        return count(array_filter(Grants::forActor('member', $userId, 'event.lead'), static fn ($g) => $g->capability === 'event.lead'));
     }
 }

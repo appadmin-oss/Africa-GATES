@@ -1,0 +1,46 @@
+{% extends "admin/layout.twig" %}
+{#
+  EVENT LEADS — who runs this event, given by staff to a member's email (owner, 29 Oct 2026).
+  A lead is not staff: they open "Events I lead" from their own Africa GATES account at /lead,
+  never this console. Linked from the event's own page; the role ends with the event.
+#}
+{% import 'admin/partials/kit.twig' as kit %}
+{% block topbar_sub %}Who leads {{ event.title }}. They run it from their own account, not this console.{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/volunteers.css') }}">{% endblock %}
+
+{% block content %}
+{% if flash_ok %}<p class="vl-ok" role="status">{{ flash_ok }}</p>{% endif %}
+{% if flash_error %}<div class="cn-error" role="alert"><span class="cn-error__t">That didn’t go through</span><span class="cn-error__m">{{ flash_error }}</span></div>{% endif %}
+
+<section class="cn-card vl-sec" aria-labelledby="lh">
+  <h2 class="vl-h" id="lh">Leads</h2>
+  {% if leads is empty %}
+    {{ kit.empty('Nobody leads this event yet', 'Give it to somebody below. They see it under Events I lead when they sign in.', 'users') }}
+  {% else %}
+    <ul class="vl-list">
+      {% for l in leads %}
+        <li class="vl-li">
+          <span class="vl-li__t">{{ l.name }}</span>
+          <span class="vl-help">{{ l.email }} · until {{ l.until }}</span>
+          <form method="post" action="/admin/events/{{ event.id }}/leads" data-confirm="End {{ l.name }}’s access to this event now? They can no longer see or change its plan, budget or guests.">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="end"><input type="hidden" name="grant" value="{{ l.id }}">
+            <button class="cn-btn" type="submit">End<span class="sr-only">, {{ l.name }}</span></button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+
+<section class="cn-card vl-sec" aria-labelledby="gh">
+  <h2 class="vl-h" id="gh">Give this event to a lead</h2>
+  <p class="vl-help">Use the email their Africa GATES account signed up with. It can be anybody: your staff, or the organiser’s own people.</p>
+  <form class="vl-form" method="post" action="/admin/events/{{ event.id }}/leads">
+    <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="give">
+    <label for="le">Their email<input id="le" type="email" name="email" required autocomplete="off"></label>
+    <label for="lu">Access ends<input id="lu" type="date" name="until"></label>
+    <p class="vl-acts vl-wide"><button class="cn-btn cn-btn--primary" type="submit">Make them a lead</button></p>
+  </form>
+  <p class="vl-help">Leave the date empty and it ends the day after the event.</p>
+</section>
+{% endblock %}

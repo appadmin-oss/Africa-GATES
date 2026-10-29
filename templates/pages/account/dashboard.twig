@@ -377,6 +377,15 @@
       <span class="ag-list__label">{{ 'Volunteering'|trans }}</span>
       <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
     </a>
+    {# The event lead console (/lead). Shown only to somebody who leads an event: the role is
+       given by the organiser, so there is nothing to apply for and no row to show otherwise. #}
+    {% if events_led %}
+    <a class="ag-list__row" href="/lead">
+      <span class="ag-list__label">{{ 'Events I lead'|trans }}</span>
+      <span class="ag-list__value acc__val">{{ events_led }}</span>
+      <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+    </a>
+    {% endif %}
     <a class="ag-list__row" href="/account/display">
       <span class="ag-list__label">{{ 'Display & reading'|trans }}</span>
       <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>

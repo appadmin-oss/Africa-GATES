@@ -64,7 +64,7 @@
 #}
 {% macro acctSwitch(items, current) %}
   {% import _self as M %}
-  {% set ic = {member: 'user', volunteer: 'users', admin: 'shield', judge: 'trophy', org: 'flag'} %}
+  {% set ic = {member: 'user', volunteer: 'users', lead: 'ticket', admin: 'shield', judge: 'trophy', org: 'flag'} %}
   <ul class="sh7-prod__list">
     {% for m in items %}
       <li>

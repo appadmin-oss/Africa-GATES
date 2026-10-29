@@ -31,9 +31,9 @@ final class Outreach
     public const AUDIENCES = ['tickets' => 'Ticket holders', 'guests' => 'Guests of honour', 'both' => 'Ticket holders and guests of honour'];
 
     /** Send the next batch of invitation letters for the lead's event. @return array{ok:bool, error?:string, sent?:int, failed?:int, left?:int, event?:int} */
-    public static function sendLetters(int $eventId, int $adminId, ?OtpService $mailer = null): array
+    public static function sendLetters(int $eventId, int $leadId, ?OtpService $mailer = null): array
     {
-        if (!Plan::isLead($adminId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can send its letters.'];
+        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can send its letters.'];
         $event = Plan::event($eventId);
         if (!$event) return ['ok' => false, 'error' => 'That event is not there.'];
         $mailer ??= OtpService::boot();
@@ -65,12 +65,12 @@ final class Outreach
      * @param ?callable(string $to, string $subject, string $html, string $plain): bool $send for tests
      * @return array{ok:bool, error?:string, sent?:int, failed?:int, left?:int, event?:int}
      */
-    public static function sendMessage(int $requestId, string $audience, string $subject, string $body, int $adminId, string $adminName, ?callable $send = null): array
+    public static function sendMessage(int $requestId, string $audience, string $subject, string $body, int $leadId, string $leadName, ?callable $send = null): array
     {
         $r = Requests::find($requestId);
         if (!$r || $r->type !== 'message' || $r->scope_kind !== 'event') return ['ok' => false, 'error' => 'That is not a message request for an event.'];
         $eventId = (int) $r->scope_id;
-        if (!Plan::isLead($adminId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can send its messages.'];
+        if (!Plan::isLead($leadId, $eventId)) return ['ok' => false, 'error' => 'Only a lead of this event can send its messages.'];
         if ($r->status !== 'approved') return ['ok' => false, 'error' => 'A big send needs its request approved first.'];
         if (!isset(self::AUDIENCES[$audience])) return ['ok' => false, 'error' => 'Pick who it goes to.'];
         $subject = trim($subject);
@@ -98,7 +98,7 @@ final class Outreach
         }
         $done = BroadcastLog::handled($campaign);
         $left = count(array_filter($all, static fn ($e) => !isset($done[\AfricaGates\Services\EmailOptOut::hash($e)])));
-        Requests::recordSent($requestId, 'admin', $adminId, $adminName, $sent . ' sent' . ($failed ? ', ' . $failed . ' failed' : '') . ' to ' . strtolower(self::AUDIENCES[$audience]) . ': ' . $subject);
+        Requests::recordSent($requestId, Plan::ACTOR, $leadId, $leadName, $sent . ' sent' . ($failed ? ', ' . $failed . ' failed' : '') . ' to ' . strtolower(self::AUDIENCES[$audience]) . ': ' . $subject);
         return ['ok' => true, 'sent' => $sent, 'failed' => $failed, 'left' => $left, 'event' => $eventId];
     }
 

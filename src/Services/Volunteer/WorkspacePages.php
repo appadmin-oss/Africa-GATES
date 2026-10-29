@@ -81,7 +81,7 @@ final class WorkspacePages
             $needs[] = ['t' => $m->title . ' ' . lcfirst($bits[0]), 'sub' => (int) $m->minutes . ' minutes' . (isset($bits[1]) ? ' · ' . $bits[1] : ''),
                         'dot' => 'warn', 'chip' => ['Due', 'warn'], 'cta' => ['label' => 'Retake', 'href' => '/volunteer/training/take/' . $m->slug]];
         }
-        foreach (Requests::from('member', (int) $v->user_id, 'open') as $r) if ($r->status === 'needs_info') {
+        foreach (Requests::from('member', (int) $v->user_id, 'open', 'volunteer') as $r) if ($r->status === 'needs_info') {
             $ask = DB::table('gates_request_events')->where('request_id', $r->id)->where('action', 'ask_info')->orderByDesc('id')->value('note');
             $needs[] = ['t' => Requests::deciderLabel($r) . ' asked about your request', 'sub' => $ask ? '“' . $ask . '”' : (string) $r->title,
                         'dot' => 'info', 'cta' => ['label' => 'Reply', 'href' => '/volunteer/requests/' . $r->id]];
@@ -697,7 +697,7 @@ final class WorkspacePages
         $secs = [];
         $new = (string) ($q['new'] ?? '');
         if ($new !== '' || $tab === 'new') $secs[] = self::composer($v, $new, (string) ($q['title'] ?? ''));
-        $rows = Requests::from('member', (int) $v->user_id, $tab === 'decided' ? 'decided' : 'open');
+        $rows = Requests::from('member', (int) $v->user_id, $tab === 'decided' ? 'decided' : 'open', 'volunteer');
         $secs[] = self::requestTable($rows, $tab === 'decided' ? 'Nothing decided yet.' : 'You have no open requests.',
                                      'A request that needs information from you shows on Today too.');
         return ['title' => 'Requests', 'acts' => $new === '' ? [['label' => 'New request', 'href' => '/volunteer/requests?new=swap', 'primary' => true]] : [], 'secs' => $secs];

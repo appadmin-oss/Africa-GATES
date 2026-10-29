@@ -79,14 +79,15 @@ final class RequestsController
     /** One request as the page draws it: facts, history and whether this viewer decides it. */
     private function present(object $r, int $adminId, string $role): array
     {
-        $audience = $r->from_kind === 'admin' ? 'lead' : 'volunteer';
+        // Both consoles' people are member accounts now, so the request's TYPE says which asked.
+        $audience = Requests::type((string) $r->type, 'lead') !== null ? 'lead' : 'volunteer';
         $type = Requests::type((string) $r->type, $audience);
         $from = (string) (DB::table($r->from_kind === 'admin' ? 'gates_admins' : 'gates_users')->where('id', $r->from_id)->value('name') ?? 'Someone');
         $where = $r->scope_kind ? Shifts::scopeName((string) $r->scope_kind, (int) $r->scope_id) : '';
         $line = $r->type === 'spend' && Plan::ready() ? DB::table('gates_event_budget')->where('request_id', $r->id)->first() : null;
         return [
             'id' => (int) $r->id, 'title' => (string) $r->title, 'status' => (string) $r->status, 'status_label' => Requests::STATUSES[$r->status] ?? $r->status,
-            'type' => (string) ($type['label'] ?? $r->type), 'from' => $from . ($r->from_kind === 'admin' ? ' · event lead' : ' · volunteer'),
+            'type' => (string) ($type['label'] ?? $r->type), 'from' => $from . ($audience === 'lead' ? ' · event lead' : ' · volunteer'),
             'where' => $where, 'amount' => $r->amount_minor !== null ? Plan::naira((int) $r->amount_minor) : (string) ($r->amount_text ?? ''),
             'needed_by' => (string) ($r->needed_by ?? ''), 'why' => (string) $r->why, 'decides' => Requests::deciderLabel($r),
             'consequence' => $line ? 'The line “' . $line->title . '” is approved in ' . ($where !== '' ? $where : 'the event') . '’s budget, and counts in its forecast.' : '',

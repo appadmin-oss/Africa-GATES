@@ -1147,6 +1147,52 @@ class EventsController
         return $res->withHeader('Location', $back)->withStatus(302);
     }
 
+    /**
+     * GET /admin/events/{id}/leads — who leads this event. A lead is a MEMBER account found by
+     * email (EventPlan\Leads), so an organisation's own people can run its event from /lead
+     * without being given this console.
+     */
+    public function leads(Request $req, Response $res, array $args): Response
+    {
+        $event = DB::table('gates_site_events')->where('id', (int) ($args['id'] ?? 0))->first();
+        if (!$event) {
+            $_SESSION['flash_error'] = 'That event could not be found.';
+            return $res->withHeader('Location', '/admin/events')->withStatus(302);
+        }
+        $ok = $_SESSION['flash_ok'] ?? null; $err = $_SESSION['flash_error'] ?? null;
+        unset($_SESSION['flash_ok'], $_SESSION['flash_error']);
+        return $this->view->render($res, 'admin/events/leads.twig', [
+            'admin_page' => 'events', 'topbar_title' => 'Event leads', 'event' => $event,
+            'leads' => \AfricaGates\Services\EventPlan\Leads::of((int) $event->id), 'flash_ok' => $ok, 'flash_error' => $err,
+        ]);
+    }
+
+    /** POST /admin/events/{id}/leads — give the event to a member by email, or end a lead's access. */
+    public function leadsAct(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $b = (array) $req->getParsedBody();
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        if (($b['do'] ?? '') === 'end') {
+            $grant = (int) ($b['grant'] ?? 0);
+            if (\AfricaGates\Services\EventPlan\Leads::end($grant, $id, $adminId)) {
+                $_SESSION['flash_ok'] = 'Ended. The event leaves their list on their next page.';
+                $this->audit->record($adminId, 'event.lead.end', 'event', $id, ['grant' => $grant]);
+            } else {
+                $_SESSION['flash_error'] = 'That access had already ended.';
+            }
+        } else {
+            $r = \AfricaGates\Services\EventPlan\Leads::give($id, (string) ($b['email'] ?? ''), (string) ($b['until'] ?? ''), $adminId);
+            if ($r['ok']) {
+                $_SESSION['flash_ok'] = 'Done. They see it under Events I lead when they sign in.';
+                $this->audit->record($adminId, 'event.lead.give', 'event', $id, ['grant' => (int) ($r['id'] ?? 0)]);
+            } else {
+                $_SESSION['flash_error'] = (string) $r['error'];
+            }
+        }
+        return $res->withHeader('Location', '/admin/events/' . $id . '/leads')->withStatus(303);
+    }
+
     /** POST /admin/events/{id}/door/revoke — turn one off immediately. */
     public function revokeDoorPass(Request $req, Response $res, array $args): Response
     {

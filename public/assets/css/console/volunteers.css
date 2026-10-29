@@ -21,3 +21,9 @@
 .vl-form fieldset { border: 1px solid var(--cn-line-row); border-radius: var(--cn-r-12); padding: 12px 14px; display: grid; gap: 10px; margin: 0; }
 .vl-form legend { font-size: var(--cn-fs-13); font-weight: 600; padding: 0 4px; }
 .vl-person { display: inline-flex; gap: 6px; align-items: center; margin-right: 10px; }
+/* A short list of people with one action each (an event's leads). */
+.vl-list { list-style: none; margin: 0; padding: 0; }
+.vl-li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 0; border-top: 1px solid var(--cn-line); }
+.vl-li:first-child { border-top: 0; }
+.vl-li__t { font-weight: 600; color: var(--cn-ink); }
+.vl-li form { margin-left: auto; }

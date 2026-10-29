@@ -272,21 +272,29 @@ final class Requests
         }
         if ($r->decider_role === 'finance') return 'finance';
         // A lead's request (access, a big send, a venue change) goes to the platform's admins;
-        // only a volunteer's goes to "the volunteer team".
-        return $r->from_kind === 'admin' ? 'an administrator' : 'the volunteer team';
+        // only a volunteer's goes to "the volunteer team". Both are member accounts, so the
+        // TYPE says which console asked.
+        return self::type((string) $r->type, 'lead') !== null ? 'an administrator' : 'the volunteer team';
     }
 
     /**
      * A person's requests, newest first.
      *
+     * `$audience` keeps one console's requests apart from the other's: an event lead and a
+     * volunteer are both member accounts, often the same person, and a lead's spend request
+     * does not belong in their volunteer workspace any more than a shift swap belongs in the
+     * lead console.
+     *
      * @param 'open'|'decided' $which
+     * @param ?'lead'|'volunteer' $audience
      * @return list<object>
      */
-    public static function from(string $kind, int $id, string $which = 'open'): array
+    public static function from(string $kind, int $id, string $which = 'open', ?string $audience = null): array
     {
         if (!self::ready()) return [];
         $q = DB::table('gates_requests')->where('from_kind', $kind)->where('from_id', $id);
         $which === 'open' ? $q->whereIn('status', self::OPEN) : $q->whereNotIn('status', self::OPEN);
+        if ($audience !== null) $q->whereIn('type', array_column(self::types($audience), 'key') ?: ['']);
         return $q->orderByDesc('id')->limit(100)->get()->all();
     }
 

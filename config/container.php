@@ -793,6 +793,7 @@ return [
     ShopController::class         => fn(ContainerInterface $c)=>new ShopController($c->get(Twig::class), $c->get(PaymentService::class), $c->get(CurrencyService::class)),
     JudgesController::class       => fn(ContainerInterface $c)=>new JudgesController($c->get(Twig::class), $c->get(JudgeService::class)),
     UserAccountService::class     => fn()=>new UserAccountService(),
+    \AfricaGates\Controllers\LeadController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\LeadController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(\AfricaGates\Admin\Services\AuditService::class)),
     \AfricaGates\Controllers\VolunteerController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\VolunteerController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(OtpService::class)),
     \AfricaGates\Controllers\AccountSwitchController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\AccountSwitchController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(RateLimitService::class)),
     AccountController::class      => fn(ContainerInterface $c)=>new AccountController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(CommunityService::class)),

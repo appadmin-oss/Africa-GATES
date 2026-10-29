@@ -113,8 +113,6 @@ final class AdminNav
              'children' => [
                  ['page' => 'stand_presets', 'label' => 'Stand presets',       'href' => '/admin/stand-presets'],
                  ['page' => 'registrations', 'label' => 'Event registrations', 'href' => '/admin/registrations'],
-                 // The event lead console (§5): only the events the viewer leads.
-                 ['page' => 'lead', 'label' => 'Events you lead', 'href' => '/admin/lead'],
              ]],
             ['page' => 'challenges', 'label' => 'Challenges', 'href' => '/admin/challenges', 'icon' => 'bolt',
              'sub' => 'Paid challenges and where each one stands.'],

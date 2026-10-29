@@ -104,7 +104,7 @@ final class EventPages
         if ($waiting > 0) $c['money'] = ['n' => $waiting, 'tone' => 'warn'];
         $open = count(array_filter(Scope::checks($eventId), static fn ($x) => $x->done_at === null));
         if ($open > 0) $c['night'] = ['n' => $open, 'tone' => 'warn'];
-        $info = count(array_filter(self::eventRequests($eventId), static fn ($r) => $r->status === 'needs_info' && $r->from_kind === 'admin' && (int) $r->from_id === $me['id']));
+        $info = count(array_filter(self::eventRequests($eventId), static fn ($r) => $r->status === 'needs_info' && $r->from_kind === Plan::ACTOR && (int) $r->from_id === $me['id']));
         if ($info > 0) $c['requests'] = ['n' => $info, 'tone' => 'warn'];
         return $c;
     }
@@ -689,7 +689,7 @@ final class EventPages
         if ($checks) {
             $secs[] = ['k' => 'rows', 'h' => $done . ' of ' . count($checks) . ' checked', 'items' => array_map(static fn ($c) => ['t' => (string) $c->title,
                 'sub' => implode(' · ', array_filter([Plan::name($c->owner_kind, $c->owner_id !== null ? (int) $c->owner_id : null),
-                         $c->done_at ? 'checked ' . Workspace::day((string) $c->done_at) . ' by ' . Plan::name('admin', (int) $c->done_by) : ''])),
+                         $c->done_at ? 'checked ' . Workspace::day((string) $c->done_at) . ' by ' . Plan::name(Plan::ACTOR, (int) $c->done_by) : ''])),
                 'chip' => $c->done_at ? ['Checked', 'ok'] : ['Open', 'warn'],
                 'cta' => $c->done_at ? ['label' => 'Undo', 'post' => ['do' => 'check_undo', 'check' => $c->id]]
                                      : ['label' => 'Checked', 'post' => ['do' => 'check_done', 'check' => $c->id], 'primary' => true]], $checks)];
@@ -763,7 +763,7 @@ final class EventPages
             $verb = substr((string) $a->action, 5);
             $meta = json_decode((string) ($a->meta ?? ''), true) ?: [];
             $detail = trim((string) ($meta['title'] ?? $meta['name'] ?? $meta['label'] ?? ''));
-            $rows[] = ['t' => ($a->name ?: 'Someone') . ' ' . ($words[$verb] ?? $verb), 'sub' => $detail, 'meta' => date('j M, H:i', (int) strtotime((string) $a->created_at))];
+            $rows[] = ['t' => ((string) ($meta['lead'] ?? '') ?: ($a->name ?: 'Someone')) . ' ' . ($words[$verb] ?? $verb), 'sub' => $detail, 'meta' => date('j M, H:i', (int) strtotime((string) $a->created_at))];
         }
         return ['title' => 'Reports', 'secs' => [$rows ? ['k' => 'rows', 'h' => 'Who did what', 'items' => $rows]
             : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing has been changed here yet. Every change a lead makes is recorded, once, with who and when.']]];
@@ -784,8 +784,8 @@ final class EventPages
         $tone = ['waiting' => 'warn', 'needs_info' => 'info', 'approved' => 'ok', 'declined' => 'bad', 'withdrawn' => 'mute'];
         $out = [];
         foreach ($rows as $r) {
-            $mine = $r->from_kind === 'admin' && (int) $r->from_id === $me['id'];
-            $t = Requests::type((string) $r->type, $r->from_kind === 'admin' ? 'lead' : 'volunteer');
+            $mine = $r->from_kind === Plan::ACTOR && (int) $r->from_id === $me['id'];
+            $t = Requests::type((string) $r->type, $r->from_kind === Plan::ACTOR ? 'lead' : 'volunteer');
             $out[] = ['href' => $mine ? LeadPages::BASE . '/requests?r=' . $r->id : null, 'cells' => [
                 ['t' => (string) $r->title, 'sub' => (string) ($t['label'] ?? $r->type) . ($r->amount_minor !== null ? ' · ' . Plan::naira((int) $r->amount_minor) : '')],
                 ['t' => $mine ? 'You' : (Plan::name((string) $r->from_kind, (int) $r->from_id) ?: 'Someone')], ['t' => Requests::deciderLabel($r)],

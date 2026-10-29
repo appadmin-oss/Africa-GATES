@@ -168,11 +168,6 @@ final class Permissions
         'contacts' => 'finance',
         // health — what the platform noticed on its own (Admin\Services\ConsoleAlerts).
         'alerts' => 'health',
-        // The event lead console (consoles v7 §5). A NEW page, and `overview` on purpose: the page
-        // is a console of the viewer's own `event.lead` grants (Services\Grants), so a role with
-        // no grant opens it and is told it leads nothing. Every write is re-checked against the
-        // grant on the row it touches. Who may LEAD is given per event, by an administrator.
-        'lead' => 'overview',
         // Deciding requests (v7 §2.6): finance decides spend, an administrator decides the rest,
         // so the page is held with the money — superadmin and admin, the only roles that decide.
         'requests' => 'finance',

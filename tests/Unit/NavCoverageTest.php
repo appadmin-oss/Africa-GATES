@@ -26,8 +26,6 @@ use Tests\TestCase;
  *   · an export or a download is a file, not a page;
  *   · sign-in and sign-out are the door, not a room;
  *   · a handler that never calls `render()` answers JSON, an image or a redirect;
- *   · a page of the event lead console is in THAT console's rail (consoles v7 §5: one shell,
- *     three homes), so it is checked against LeadPages' rail instead — never simply skipped.
  */
 final class NavCoverageTest extends TestCase
 {
@@ -41,8 +39,6 @@ final class NavCoverageTest extends TestCase
         (require dirname(__DIR__, 2) . '/src/routes.php')($app);
 
         $named = array_flip(array_values(AdminNav::hrefs()));
-        $leadRail = [];
-        foreach (\AfricaGates\Services\EventPlan\LeadPages::rootNav('overview', []) as $g) foreach ($g['items'] as $i) $leadRail[$i['href']] = true;
         $out = [];
         foreach ($app->getRouteCollector()->getRoutes() as $r) {
             if (!in_array('GET', $r->getMethods(), true)) continue;
@@ -53,7 +49,6 @@ final class NavCoverageTest extends TestCase
             if (preg_match('~(export|\.csv|\.zip|\.json|\.png|\.pdf)~', $p)) continue; // a file
             if (preg_match('~^/admin/(login|logout|magic)(/|$)~', $p)) continue;    // the door
             if (!$this->renders($r->getCallable())) continue;                       // not a page
-            if (str_starts_with($p, '/admin/lead/') && isset($leadRail[$p])) continue; // in the lead console's own rail
             if (!isset($named[$p])) $out[] = $p;
         }
         sort($out);

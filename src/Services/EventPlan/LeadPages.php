@@ -24,7 +24,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 final class LeadPages
 {
-    public const BASE = '/admin/lead';
+    public const BASE = '/lead';
 
     /** Root pages: rail label and icon, in the handoff's order and groups. */
     public const ROOT = [
@@ -91,14 +91,14 @@ final class LeadPages
         $risks = Plan::risks($ids);
         $add('risks', count($risks), array_filter($risks, static fn ($r) => $r->level === 'high') ? 'bad' : 'warn');
         $add('approvals', count(array_filter(Plan::lines($ids), static fn ($l) => $l->status === 'proposed')), 'warn');
-        $add('requests', count(array_filter(Requests::from('admin', $me['id'], 'open'), static fn ($r) => $r->status === 'needs_info')), 'warn');
+        $add('requests', count(array_filter(Requests::from(Plan::ACTOR, $me['id'], 'open', 'lead'), static fn ($r) => $r->status === 'needs_info')), 'warn');
         return $c;
     }
 
     // ── root pages ──────────────────────────────────────────────────────────────────────
 
     /**
-     * @param array{id:int, name:string, role:string} $me
+     * @param array{id:int, name:string} $me (a member account: Plan::ACTOR)
      * @param list<object> $events the lead's events, from Plan::leadEvents()
      */
     public static function root(array $me, array $events, string $page, string $tab, array $q): array
@@ -120,10 +120,7 @@ final class LeadPages
 
     private static function noEvents(array $me, string $page): array
     {
-        $platform = in_array($me['role'], ['superadmin', 'admin'], true);
-        $note = ['k' => 'note', 'tone' => 'mute', 'text' => 'You don’t lead an event yet. When an administrator makes you the lead on one, it shows here, with its work, risks and budget.'
-            . ($platform ? ' You can give an event to a lead from Your events.' : '')];
-        if ($platform) $note['cta'] = ['label' => 'Your events', 'href' => self::BASE . '/yours'];
+        $note = ['k' => 'note', 'tone' => 'mute', 'text' => 'You don’t lead an event yet. When the organiser makes you the lead on one, it shows here, with its work, risks and budget.'];
         return ['title' => self::ROOT[$page][0] ?? 'Overview', 'secs' => [$note]];
     }
 
@@ -188,7 +185,7 @@ final class LeadPages
                        'link' => ['label' => 'All deadlines', 'href' => self::BASE . '/deadlines']];
         }
         $side = [];
-        $mine = Requests::from('admin', $me['id'], 'open');
+        $mine = Requests::from(Plan::ACTOR, $me['id'], 'open', 'lead');
         if ($mine) {
             $side[] = ['k' => 'rows', 'h' => 'Your requests', 'items' => array_map(static fn ($r) => ['t' => (string) $r->title,
                 'sub' => $r->amount_minor !== null ? Plan::naira((int) $r->amount_minor) : (string) (Requests::type((string) $r->type, 'lead')['label'] ?? ''),
@@ -210,7 +207,7 @@ final class LeadPages
                        'cta' => ['label' => 'Done', 'post' => ['do' => 'work_status', 'work' => $w->id, 'status' => 'done']]];
         }
         return ['title' => 'Inbox', 'secs' => [$rows
-            ? ['k' => 'rows', 'h' => 'Assigned to you', 'items' => $rows]
+            ? ['k' => 'rows', 'h' => 'Yours, and nobody’s yet', 'items' => $rows]
             : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing is waiting here for you. When work is given to you by name it shows here, soonest first.']]];
     }
 
@@ -218,7 +215,7 @@ final class LeadPages
     private static function inboxRows(array $me, array $ids): array
     {
         return array_values(array_filter(Plan::work($ids, true), static fn ($w) => !$w->owner_kind
-            || ($w->owner_kind === 'admin' && (int) $w->owner_id === $me['id'])));
+            || ($w->owner_kind === Plan::ACTOR && (int) $w->owner_id === $me['id'])));
     }
 
     private static function requests(array $me, array $events, string $tab, array $q): array
@@ -226,7 +223,7 @@ final class LeadPages
         $secs = [];
         $new = (string) ($q['new'] ?? '');
         if ($new !== '') $secs[] = self::composer($events, $new, (string) ($q['title'] ?? ''), (int) ($q['event'] ?? 0));
-        $rows = Requests::from('admin', $me['id'], $tab === 'decided' ? 'decided' : 'open');
+        $rows = Requests::from(Plan::ACTOR, $me['id'], $tab === 'decided' ? 'decided' : 'open', 'lead');
         $secs[] = self::requestTable($rows, $tab === 'decided' ? 'Nothing decided yet.' : 'You have no open requests.',
             'Anything over your ' . Plan::naira(Plan::limitMinor()) . ' limit, access for your team, big sends and venue changes go through here.');
         return ['title' => 'Requests', 'acts' => $new === '' && $events ? [['label' => 'New request', 'href' => self::BASE . '/requests?new=spend', 'primary' => true]] : [], 'secs' => $secs];
@@ -272,7 +269,7 @@ final class LeadPages
     public static function request(array $me, int $id): ?array
     {
         $r = Requests::find($id);
-        if (!$r || $r->from_kind !== 'admin' || (int) $r->from_id !== $me['id']) return null;   // a lead sees their own requests here
+        if (!$r || $r->from_kind !== Plan::ACTOR || (int) $r->from_id !== $me['id']) return null;   // a lead sees their own requests here
         $t = Requests::type((string) $r->type, 'lead');
         $where = $r->scope_kind === 'event' ? (string) (Plan::event((int) $r->scope_id)->title ?? '') : '';
         $facts = array_values(array_filter([['Type', (string) ($t['label'] ?? $r->type)], ['From', 'You'], $where !== '' ? ['Where', $where] : null,
@@ -285,7 +282,7 @@ final class LeadPages
                   'chips' => [[Requests::STATUSES[$r->status] ?? $r->status, $tone[$r->status] ?? 'mute']], 'facts' => $facts, 'acts' => []]];
         $log = [];
         foreach (Requests::history($id) as $e) {
-            $who = $e->actor_kind === 'admin' && (int) $e->actor_id === $me['id'] ? 'You' : (string) ($e->actor_name ?? 'Someone');
+            $who = $e->actor_kind === Plan::ACTOR && (int) $e->actor_id === $me['id'] ? 'You' : (string) ($e->actor_name ?? 'Someone');
             $verb = ['asked' => 'asked', 'approve' => 'approved', 'ask_info' => 'asked for information', 'decline' => 'declined', 'add_info' => 'added information',
                      'withdraw' => 'withdrew it', 'undo' => 'undid the last step', 'remind' => 'sent a reminder', 'sent' => 'sent it'][$e->action] ?? $e->action;
             $log[] = ['time' => date('j M', (int) strtotime((string) $e->created_at)), 't' => $who . ' ' . $verb, 'd' => (string) ($e->note ?? ''), 'st' => 'done'];
@@ -309,7 +306,7 @@ final class LeadPages
         $rows = [];
         foreach ($events as $e) {
             $until = '';
-            foreach (Grants::forActor('admin', $me['id'], 'event.lead') as $g) {
+            foreach (Grants::forActor(Plan::ACTOR, $me['id'], 'event.lead') as $g) {
                 if ($g->scope_kind === 'event' && (int) $g->scope_id === (int) $e->id) { $until = Workspace::day((string) $g->expires_at); break; }
             }
             $rows[] = ['t' => (string) $e->title, 'sub' => Workspace::day((string) $e->event_date) . ' · Event lead' . ($until !== '' ? ' · your access ends ' . $until : ''),
@@ -317,46 +314,9 @@ final class LeadPages
         }
         $secs = [$rows ? ['k' => 'rows', 'box' => true, 'items' => $rows]
                        : ['k' => 'note', 'tone' => 'mute', 'text' => 'You don’t lead an event yet.']];
-        if (in_array($me['role'], ['superadmin', 'admin'], true)) $secs = array_merge($secs, self::leadAdmin());
         return ['title' => 'Your events', 'secs' => $secs];
     }
 
-    /**
-     * For platform administrators: who leads which event, and the form to give one. A lead's
-     * access ends the day after their event unless an earlier date is given (§5: the grant ends
-     * with the event).
-     */
-    private static function leadAdmin(): array
-    {
-        $events = DB::table('gates_site_events')->where('event_date', '>=', date('Y-m-d 00:00:00'))->orderBy('event_date')->limit(100)->get(['id', 'title', 'event_date'])->all();
-        $admins = DB::table('gates_admins')->where('is_active', 1)->whereIn('role', ['superadmin', 'admin', 'editor', 'moderator'])->orderBy('name')->get(['id', 'name', 'role'])->all();
-        $current = [];
-        if (Grants::ready()) {
-            $now = date('Y-m-d H:i:s');
-            foreach (DB::table('gates_grants')->where('capability', 'event.lead')->where('scope_kind', 'event')->where('actor_kind', 'admin')
-                ->whereNull('revoked_at')->where('expires_at', '>', $now)->orderBy('expires_at')->limit(200)->get()->all() as $g) {
-                $e = Plan::event((int) $g->scope_id);
-                $current[] = ['t' => Plan::name('admin', (int) $g->actor_id), 'sub' => ($e->title ?? 'An event') . ' · until ' . Workspace::day((string) $g->expires_at),
-                              'cta' => ['label' => 'End', 'post' => ['do' => 'lead_revoke', 'grant' => $g->id], 'confirm' => 'End this lead’s access now?']];
-            }
-        }
-        $out = [];
-        if ($current) $out[] = ['k' => 'rows', 'h' => 'Leads on events', 'items' => $current];
-        if ($events && $admins) {
-            $ev = [];
-            foreach ($events as $e) $ev[(string) $e->id] = $e->title . ' · ' . Workspace::day((string) $e->event_date);
-            $ad = [];
-            foreach ($admins as $a) $ad[(string) $a->id] = (string) $a->name;
-            $out[] = ['k' => 'form', 'h' => 'Give someone an event to lead', 'do' => 'lead_grant', 'submit' => 'Make them the lead', 'groups' => [
-                ['label' => 'Who and where', 'help' => 'Only staff who can make changes are listed: a viewer could open the console but not run an event.',
-                 'fields' => [['name' => 'admin', 'label' => 'Lead', 'type' => 'select', 'options' => $ad, 'required' => true],
-                              ['name' => 'event', 'label' => 'Event', 'type' => 'select', 'options' => $ev, 'required' => true]]],
-                ['label' => 'Until', 'help' => 'Leave empty and it ends the day after the event.',
-                 'fields' => [['name' => 'until', 'label' => 'Access ends', 'type' => 'date']]],
-            ]];
-        }
-        return $out;
-    }
 
     private static function deadlines(array $events): array
     {
@@ -411,7 +371,7 @@ final class LeadPages
         if (!$secs) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'No open risks at your events. Add one when something could stop a night.'];
         $ev = [];
         foreach ($events as $e) $ev[(string) $e->id] = (string) $e->title;
-        $secs[] = self::riskForm($ev, ['' => 'Nobody yet', 'admin:' . $me['id'] => 'Me']);
+        $secs[] = self::riskForm($ev, ['' => 'Nobody yet', Plan::ACTOR . ':' . $me['id'] => 'Me']);
         return ['title' => 'Risks', 'secs' => $secs];
     }
 
@@ -466,7 +426,7 @@ final class LeadPages
                           'chip' => [$r && $r->status === 'needs_info' ? 'Needs info' : 'With finance', $r && $r->status === 'needs_info' ? 'info' : 'warn'],
                           'href' => self::BASE . '/requests?r=' . $l->request_id,
                           // Remind finance (§5): only the person who asked, and only while it waits.
-                          'cta' => $r && $r->status === 'waiting' && $r->from_kind === 'admin' && (int) $r->from_id === $me['id']
+                          'cta' => $r && $r->status === 'waiting' && $r->from_kind === Plan::ACTOR && (int) $r->from_id === $me['id']
                               ? ['label' => 'Remind finance', 'post' => ['do' => 'request_remind', 'request' => $r->id]] : null];
         }
         if ($finance) $secs[] = ['k' => 'rows', 'h' => 'Waiting on finance', 'items' => $finance];
@@ -581,7 +541,7 @@ final class LeadPages
         foreach (array_slice(Plan::work(self::ids($events), true), 0, 200) as $w) {
             $out[] = ['t' => (string) $w->title, 'sub' => (string) ($byId[(int) $w->event_id]->title ?? ''), 'href' => EventPages::url((int) $w->event_id, 'plan'), 'kind' => 'Work'];
         }
-        foreach (Requests::from('admin', $me['id'], 'open') as $r) {
+        foreach (Requests::from(Plan::ACTOR, $me['id'], 'open', 'lead') as $r) {
             $out[] = ['t' => (string) $r->title, 'sub' => Requests::STATUSES[$r->status] ?? '', 'href' => self::BASE . '/requests?r=' . $r->id, 'kind' => 'Request'];
         }
         if ($events) $out[] = ['t' => 'Make a request', 'sub' => 'Requests', 'href' => self::BASE . '/requests?new=spend', 'kind' => 'Do'];
@@ -689,7 +649,7 @@ final class LeadPages
         return match (true) { $s < 3600 => 'just now', $s < 86400 => intdiv($s, 3600) . 'h ago', $s < 172800 => 'yesterday', default => date('j M', (int) strtotime($at)) };
     }
 
-    /** "admin:3" → ['admin', 3] */
+    /** "member:3" → ['member', 3] */
     public static function split(string $key): array
     {
         [$k, $id] = array_pad(explode(':', $key, 2), 2, '0');

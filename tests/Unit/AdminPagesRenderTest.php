@@ -33,7 +33,7 @@ use Tests\TestCase;
 final class AdminPagesRenderTest extends TestCase
 {
     /** Pages keyed on something the sandbox does not mint. May only fall. */
-    private const UNREACHED_CEILING = 45;
+    private const UNREACHED_CEILING = 38;
 
     public function test_every_admin_page_renders_for_a_superadmin(): void
     {
@@ -54,12 +54,10 @@ final class AdminPagesRenderTest extends TestCase
         $app->addErrorMiddleware(false, false, false);
 
         DemoSeeder::seed($id);
-        // An event the render admin leads, so the lead console's event pages render with a
-        // plan in them rather than answering 404 to somebody who leads nothing.
-        $ev = (int) DB::table('gates_site_events')->insertGetId(['slug' => 'render-night', 'title' => 'Render night', 'status' => 'published',
-                                                                'event_date' => date('Y-m-d 18:00:00', strtotime('+10 days')), 'created_at' => date('Y-m-d H:i:s')]);
-        \AfricaGates\Services\Grants::grant('admin', $id, 'event.lead', 'event', $ev, date('Y-m-d', strtotime('+20 days')), $id);
-        \AfricaGates\Services\EventPlan\Plan::addWork($ev, ['title' => 'Floor plan', 'due_at' => date('Y-m-d', strtotime('-2 days')), 'blocks_night' => '1'], $id);
+        // A site event, so the event pages under /admin/events/{id} have one to draw. (The lead
+        // console is not here any more: a lead is a member account at /lead.)
+        DB::table('gates_site_events')->insertGetId(['slug' => 'render-night', 'title' => 'Render night', 'status' => 'published',
+                                                     'event_date' => date('Y-m-d 18:00:00', strtotime('+10 days')), 'created_at' => date('Y-m-d H:i:s')]);
         // A same-named second nominee, so the duplicate tooling has something to show.
         $n = DB::table('gates_nominees')->orderBy('id')->first();
         if ($n) DB::table('gates_nominees')->insert(['category_id' => $n->category_id, 'name' => $n->name, 'status' => 'approved']);
@@ -106,8 +104,8 @@ final class AdminPagesRenderTest extends TestCase
         if ($segment === 'profiles') return DB::table('gates_nominees')->orderBy('id')->limit(3)->pluck('id')->all();
         // An award programme's table carries its prefix; its edition pages hang off the id.
         if ($segment === 'programmes') return DB::table('gates_award_programmes')->orderBy('id')->limit(3)->pluck('id')->all();
-        // The lead console's event pages hang off a site event (the public calendar's table).
-        if ($segment === 'event') return DB::table('gates_site_events')->orderBy('id')->limit(3)->pluck('id')->all();
+        // A site event's pages (the public calendar's table): /admin/events/{id}/… hangs off it.
+        if ($segment === 'event' || $segment === 'events') return DB::table('gates_site_events')->orderBy('id')->limit(3)->pluck('id')->all();
         $base = str_replace('-', '_', $segment);
         foreach (['gates_' . $base, 'gates_' . rtrim($base, 's'), 'gates_' . $base . 's'] as $t) {
             try {

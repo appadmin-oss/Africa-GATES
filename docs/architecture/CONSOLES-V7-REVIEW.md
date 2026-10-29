@@ -155,6 +155,16 @@ Every figure is read from the record; an empty list is one sentence. Tests:
 - **Who leads.** An administrator (superadmin or admin) gives an event to a lead on Your
   events; the grant ends the day after the event unless an earlier date is given. Only roles
   that can write may lead. Every lead write is audited once as `lead.<verb>`.
+- **Moved out of the admin console (owner, 29 Oct 2026).** A lead is now a MEMBER account
+  (`Plan::ACTOR = 'member'`) at `/lead` (`Controllers\LeadController`, behind the account
+  sign-in, "Events I lead" in the switcher and on the account page), because an organisation
+  adopting the platform brings leads who are not our staff. Staff give and end the role by
+  email at `/admin/events/{id}/leads` (`EventPlan\Leads`: a verified address, ending the day
+  after the event). `/admin/lead/...` forwards to `/lead/...` with a 301.
+  `2027_04_22_event_leads_are_members.php` moves each staff lead grant, and their work and lead
+  requests, to the member account with the same verified email. A lead write is audited with
+  the lead's name in the meta, since the audit log's admin column is for staff. A lead has no
+  Ask: the assistant is the staff console's. The two paragraphs above describe the first build.
 - **Requests get a decider's screen** at `/admin/requests` (Team › Requests), held with the
   money (`finance`: superadmin, admin). Before it, a request routed to finance or "an
   administrator" — a lead's spend, a volunteer's swap with no lead — waited for ever.

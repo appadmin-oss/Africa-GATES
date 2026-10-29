@@ -3926,6 +3926,31 @@ return function(App $app) {
         $v->get('[/]',                            $c . ':root');
     })->add(new UserAuthMiddleware());
 
+    // ═══ EVENT LEADS (consoles v7 §5) ═══
+    // A member area behind the account sign-in, like /volunteer: a lead is a member account
+    // holding an `event.lead` grant, never a staff admin (owner, 29 Oct 2026 — organisations
+    // adopting the platform bring leads who are not our staff). /admin/lead forwards here.
+    // Each page is its own literal route, so the route table can name every one; a request
+    // opens as ?r= on Requests and a view as ?tab=.
+    $app->group('/lead', function (RouteCollectorProxy $l) {
+        $c = \AfricaGates\Controllers\LeadController::class;
+        $l->post('/act', $c . ':act');
+        foreach (['inbox', 'requests', 'yours', 'deadlines', 'risks', 'approvals', 'analytics', 'people'] as $leadPage) {
+            $l->get('/' . $leadPage, $c . ':root')->setArgument('page', $leadPage);
+        }
+        $l->get('/event/{id:[0-9]+}', $c . ':event');
+        foreach (['plan', 'award', 'people', 'crm', 'money', 'night', 'growth', 'reports', 'requests', 'settings', 'work', 'risks'] as $leadPage) {
+            $l->get('/event/{id:[0-9]+}/' . $leadPage, $c . ':event')->setArgument('page', $leadPage);
+        }
+        $l->get('', $c . ':root');
+    })->add(new UserAuthMiddleware());
+    // Its old addresses under /admin forward here, permanently, query and all. Outside the admin
+    // group on purpose: the admin gate would bounce a lead who is not staff before the forward.
+    $app->get('/admin/lead[/{rest:.*}]', function ($req, $res, array $args) {
+        $q = $req->getUri()->getQuery();
+        return $res->withHeader('Location', '/lead' . (($args['rest'] ?? '') !== '' ? '/' . $args['rest'] : '') . ($q !== '' ? '?' . $q : ''))->withStatus(301);
+    });
+
     // ═══ ADMIN ═══════════════════════════════════════════════════════
     $app->group('/admin', function (RouteCollectorProxy $a) {
         // Unauthenticated
@@ -4417,6 +4442,8 @@ return function(App $app) {
         // Door passes: minted and revoked on the event's own tickets screen, because a door
         // belongs to an event and the person who needs one is already on that page an hour
         // before the gates open. See EventScanPass.
+        $a->get('/events/{id:[0-9]+}/leads',        AdminEventsController::class.':leads');
+        $a->post('/events/{id:[0-9]+}/leads',       AdminEventsController::class.':leadsAct');
         $a->post('/events/{id:[0-9]+}/door',        AdminEventsController::class.':issueDoorPass');
         $a->post('/events/{id:[0-9]+}/door/revoke', AdminEventsController::class.':revokeDoorPass');
         // Refunds that did not land. On the tickets screen and not on finance, because a
@@ -4804,21 +4831,6 @@ return function(App $app) {
         // Permissions, so the guard holds it to superadmin until the owner decides who else.
         $a->get('/volunteers',  \AfricaGates\Admin\Controllers\VolunteersController::class.':index');
         $a->post('/volunteers', \AfricaGates\Admin\Controllers\VolunteersController::class.':act');
-        // The event lead console (consoles v7 §5; review slice L1). Every role may open it; what it
-        // shows is the viewer's own event.lead grants. Each page is its own literal route (no
-        // optional segments), so the route table and the admin render sweep can name every one;
-        // a request opens as ?r= on Requests, the way a drawer would.
-        $a->get('/lead', \AfricaGates\Admin\Controllers\LeadController::class.':root');
-        foreach (['inbox', 'requests', 'yours', 'deadlines', 'risks', 'approvals', 'analytics', 'people'] as $leadPage) {
-            $a->get('/lead/' . $leadPage, \AfricaGates\Admin\Controllers\LeadController::class.':root')->setArgument('page', $leadPage);
-        }
-        $a->get('/lead/event/{id:[0-9]+}', \AfricaGates\Admin\Controllers\LeadController::class.':event');
-        // The event scope's pages (nav-admin.json scope `event`), then the first build's two
-        // addresses, which the controller forwards to the page and tab that replaced them.
-        foreach (['plan', 'award', 'people', 'crm', 'money', 'night', 'growth', 'reports', 'requests', 'settings', 'work', 'risks'] as $leadPage) {
-            $a->get('/lead/event/{id:[0-9]+}/' . $leadPage, \AfricaGates\Admin\Controllers\LeadController::class.':event')->setArgument('page', $leadPage);
-        }
-        $a->post('/lead/act', \AfricaGates\Admin\Controllers\LeadController::class.':act');
         // Where staff decide what leads and volunteers asked for (§2.6). Mapped to `finance`.
         $a->get('/requests',  \AfricaGates\Admin\Controllers\RequestsController::class.':index');
         $a->post('/requests', \AfricaGates\Admin\Controllers\RequestsController::class.':act');

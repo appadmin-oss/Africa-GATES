@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use AfricaGates\Admin\Controllers\LeadController;
+use AfricaGates\Controllers\LeadController;
 use AfricaGates\Services\EventPlan\EventPages;
 use AfricaGates\Services\EventPlan\LeadPages;
 use AfricaGates\Services\EventPlan\Plan;
@@ -35,16 +35,17 @@ final class LeadEventScopeTest extends TestCase
     {
         parent::setUp();
         Plan::resetRules();
-        $this->lead = $this->admin('Tunde Akin', 'editor');
-        $this->other = $this->admin('Femi Ade', 'editor');
-        $this->as($this->lead, 'Tunde Akin', 'editor');
+        // A lead is a member account (Plan::ACTOR), signed in through the one account sign-in.
+        $this->lead = $this->member('Tunde Akin');
+        $this->other = $this->member('Femi Ade');
+        $this->as($this->lead);
         $this->ev = $this->event('Alimosho ceremony');
         $this->grant($this->ev, $this->lead);
     }
 
     protected function tearDown(): void
     {
-        unset($_SESSION['admin_id'], $_SESSION['admin_name'], $_SESSION['admin_role'], $_SESSION['lead_toast'], $_SESSION['lead_error'], $_SESSION['lead_door_link']);
+        unset($_SESSION['user_id'], $_SESSION['admin_id'], $_SESSION['admin_name'], $_SESSION['admin_role'], $_SESSION['lead_toast'], $_SESSION['lead_error'], $_SESSION['lead_door_link']);
         parent::tearDown();
     }
 
@@ -54,11 +55,15 @@ final class LeadEventScopeTest extends TestCase
             'name' => $name, 'role' => $role, 'is_active' => 1, 'password_hash' => 'x', 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
     }
 
-    private function as(int $id, string $name, string $role): void
+    private function member(string $name): int
     {
-        $_SESSION['admin_id'] = $id;
-        $_SESSION['admin_name'] = $name;
-        $_SESSION['admin_role'] = $role;
+        return (int) DB::table('gates_users')->insertGetId(['name' => $name, 'email' => strtolower(str_replace(' ', '.', $name)) . '.' . bin2hex(random_bytes(3)) . '@example.test',
+            'password_hash' => 'x', 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
+    }
+
+    private function as(int $id): void
+    {
+        $_SESSION['user_id'] = $id;
     }
 
     private function event(string $title, string $when = '+10 days'): int
@@ -67,9 +72,9 @@ final class LeadEventScopeTest extends TestCase
             'event_date' => date('Y-m-d 18:00:00', strtotime($when)), 'venue' => 'Alimosho Civic Centre', 'status' => 'published', 'created_at' => date('Y-m-d H:i:s')]);
     }
 
-    private function grant(int $event, int $admin): void
+    private function grant(int $event, int $lead): void
     {
-        $this->assertTrue(Grants::grant('admin', $admin, 'event.lead', 'event', $event, date('Y-m-d', strtotime('+40 days')), 1)['ok']);
+        $this->assertTrue(Grants::grant('member', $lead, 'event.lead', 'event', $event, date('Y-m-d', strtotime('+40 days')), 1)['ok']);
     }
 
     private function ctrl(): LeadController
@@ -83,14 +88,14 @@ final class LeadEventScopeTest extends TestCase
     private function get(string $page = 'today', array $query = [], ?int $ev = null, string $method = 'event'): array
     {
         $args = $method === 'event' ? ['id' => $ev ?? $this->ev, 'page' => $page] : ($page === 'overview' ? [] : ['page' => $page]);
-        $res = $this->ctrl()->{$method}((new ServerRequestFactory())->createServerRequest('GET', '/admin/lead')->withQueryParams($query), new Response(), $args);
+        $res = $this->ctrl()->{$method}((new ServerRequestFactory())->createServerRequest('GET', '/lead')->withQueryParams($query), new Response(), $args);
         return [$res->getStatusCode(), $res->getHeaderLine('Location'), (string) $res->getBody()];
     }
 
     private function post(array $body): string
     {
         unset($_SESSION['lead_toast'], $_SESSION['lead_error']);
-        $this->ctrl()->act((new ServerRequestFactory())->createServerRequest('POST', '/admin/lead/act')->withParsedBody($body + ['back' => '/admin/lead']), new Response());
+        $this->ctrl()->act((new ServerRequestFactory())->createServerRequest('POST', '/lead/act')->withParsedBody($body + ['back' => '/lead']), new Response());
         return (string) ($_SESSION['lead_error'] ?? $_SESSION['lead_toast'] ?? '');
     }
 
@@ -111,10 +116,10 @@ final class LeadEventScopeTest extends TestCase
 
     public function test_the_first_builds_addresses_forward_to_the_page_and_tab_that_replaced_them(): void
     {
-        [$code, $to] = $this->get('work', ['owner' => 'admin:' . $this->lead]);
-        $this->assertSame([301, '/admin/lead/event/' . $this->ev . '/plan?owner=admin%3A' . $this->lead], [$code, $to]);
+        [$code, $to] = $this->get('work', ['owner' => 'member:' . $this->lead]);
+        $this->assertSame([301, '/lead/event/' . $this->ev . '/plan?owner=member%3A' . $this->lead], [$code, $to]);
         [$code, $to] = $this->get('risks');
-        $this->assertSame([301, '/admin/lead/event/' . $this->ev . '/plan?tab=risks'], [$code, $to]);
+        $this->assertSame([301, '/lead/event/' . $this->ev . '/plan?tab=risks'], [$code, $to]);
     }
 
     public function test_a_decision_is_reversed_with_a_reason_and_both_stay_on_the_record(): void
@@ -166,19 +171,19 @@ final class LeadEventScopeTest extends TestCase
     public function test_a_reminder_is_the_askers_once_a_day_and_says_who_was_emailed(): void
     {
         $finance = $this->admin('Sade Bello', 'admin');
-        $r = Requests::create('lead', 'spend', 'admin', $this->lead, 'Tunde Akin', ['title' => 'MC fee', 'amount' => '450000', 'why' => 'Holds the date'], 'event', $this->ev);
+        $r = Requests::create('lead', 'spend', 'member', $this->lead, 'Tunde Akin', ['title' => 'MC fee', 'amount' => '450000', 'why' => 'Holds the date'], 'event', $this->ev);
         $sent = [];
         $send = function (string $to, string $subject) use (&$sent): bool { $sent[] = [$to, $subject]; return true; };
-        $this->assertStringContainsString('a day after you last asked', Requests::remind($r['id'], 'admin', $this->lead, 'Tunde Akin', $send)['error']);
+        $this->assertStringContainsString('a day after you last asked', Requests::remind($r['id'], 'member', $this->lead, 'Tunde Akin', $send)['error']);
         DB::table('gates_request_events')->where('request_id', $r['id'])->update(['created_at' => date('Y-m-d H:i:s', time() - 25 * 3600)]);
-        $this->assertStringContainsString('Only the person who asked', Requests::remind($r['id'], 'admin', $this->other, 'Femi Ade', $send)['error']);
-        $ok = Requests::remind($r['id'], 'admin', $this->lead, 'Tunde Akin', $send);
+        $this->assertStringContainsString('Only the person who asked', Requests::remind($r['id'], 'member', $this->other, 'Femi Ade', $send)['error']);
+        $ok = Requests::remind($r['id'], 'member', $this->lead, 'Tunde Akin', $send);
         $this->assertTrue($ok['ok']);
         $emails = DB::table('gates_admins')->whereIn('id', [$finance])->pluck('email')->all();
         $this->assertContains($emails[0], array_column($sent, 0), 'finance is emailed');
         $this->assertSame('Reminder: MC fee', $sent[0][1]);
         $this->assertSame('remind', DB::table('gates_request_events')->where('request_id', $r['id'])->orderByDesc('id')->value('action'));
-        $this->assertFalse(Requests::remind($r['id'], 'admin', $this->lead, 'Tunde Akin', $send)['ok'], 'not twice in a day');
+        $this->assertFalse(Requests::remind($r['id'], 'member', $this->lead, 'Tunde Akin', $send)['ok'], 'not twice in a day');
         // Through the console, a reminder whose mail could not leave says so.
         DB::table('gates_request_events')->where('request_id', $r['id'])->update(['created_at' => date('Y-m-d H:i:s', time() - 25 * 3600)]);
         $msg = $this->post(['do' => 'request_remind', 'request' => $r['id']]);
@@ -233,7 +238,7 @@ final class LeadEventScopeTest extends TestCase
         $this->post(['do' => 'work_add', 'event' => $this->ev, 'title' => 'Book the photographer']);
         DB::table('gates_event_work')->insert(['event_id' => $theirs, 'title' => 'Secret gala work', 'status' => 'todo', 'created_at' => date('Y-m-d H:i:s')]);
 
-        $items = LeadPages::findItems(['id' => $this->lead, 'name' => 'Tunde Akin', 'role' => 'editor'], Plan::leadEvents($this->lead));
+        $items = LeadPages::findItems(['id' => $this->lead, 'name' => 'Tunde Akin'], Plan::leadEvents($this->lead));
         $titles = array_column($items, 't');
         $this->assertContains('Book the photographer', $titles);
         $this->assertContains('Run of show', $titles);
@@ -243,12 +248,12 @@ final class LeadEventScopeTest extends TestCase
         [, , $html] = $this->get('overview', ['q' => 'photographer'], null, 'root');
         $this->assertStringContainsString('Book the photographer', $html, 'Find without script is a results page');
         $this->assertStringContainsString('id="sh7FindData"', $html);
-        $this->assertStringContainsString('data-sh7-ask', $html);
+        $this->assertStringNotContainsString('data-sh7-ask', $html, 'no Ask: the assistant is the staff console’s, and a lead is not staff');
 
         [, , $html] = $this->get('night', ['tab' => 'show']);
         $this->assertStringContainsString('sh7-switch', $html, 'two events: the identity block switches');
-        $this->assertStringContainsString('/admin/lead/event/' . $mine2 . '/night', $html, 'switching keeps the page');
+        $this->assertStringContainsString('/lead/event/' . $mine2 . '/night', $html, 'switching keeps the page');
         $this->assertStringNotContainsString('Abuja Teachers Gala', $html);
-        $this->assertStringContainsString('Ask about Alimosho ceremony', $html);
+        $this->assertStringNotContainsString('Ask about', $html);
     }
 }
