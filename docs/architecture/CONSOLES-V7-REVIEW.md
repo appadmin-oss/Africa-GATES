@@ -211,9 +211,9 @@ and the decision's single reversal each fail it.
 - Decisions still open: D11, D12, D36 (the defaults in `Volunteer\Rules` are the review's
   recommendations), D37, D38, and who besides superadmin opens `/admin/volunteers`.
 
-**28–29 Oct 2026 — one account, switched from the account menu.** No roles page (the first cut
-had one; the owner rejected it). The top of the rail is a product switcher (after ElevenLabs;
-the owner rejected a list inside the account menu too) on the volunteer and lead shell and the
-staff console, in More on a phone, and **Switch to** in the site menu; staff, judging
-and organisation sign-ins under the account's email are offered once on the account page. The
-rules and their reasons are in AUDIT-AND-PLAN §7.1; `AccountRolesTest` holds them.
+**29 Oct 2026 — one login, roles given.** A staff, judging or organisation role is given by
+staff to an email address, and the account that has verified it holds it; nothing is joined.
+`/admin/login`, `/judge/login` and `/org/login` forward to `/account/login`, and each console
+opens on the way in from the account. The top of the rail is a product switcher (after
+ElevenLabs) on the volunteer and lead shell and the staff console, in More on a phone. Rules
+and reasons: AUDIT-AND-PLAN §7.1; `AccountRolesTest` holds them.

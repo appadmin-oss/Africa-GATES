@@ -45,6 +45,13 @@ class JudgeAuthMiddleware
         foreach ($this->exempt as $p) {
             if ($path === $p) return $handler->handle($req);
         }
+        // One login: judging is a role given to an email address, opened here from the signed-in
+        // account that holds it (Account\Roles::derive), never from a panel sign-in page.
+        $d = \AfricaGates\Services\Account\Roles::derive('judge', $path);
+        if (($d['state'] === 'confirm' || $d['state'] === 'refused') && !self::wantsJson($req, $path)) {
+            if ($d['state'] === 'refused') $_SESSION['flash_error'] = $d['error'];
+            return (new Psr7Response(302))->withHeader('Location', (string) $d['to']);
+        }
         if (empty($_SESSION['judge_id'])) {
             // The ballot posts SCORES via fetch(); treat those as JSON so an
             // expired session returns a real 401 (the JS then redirects to login)
@@ -56,9 +63,7 @@ class JudgeAuthMiddleware
                 $res->getBody()->write(json_encode(['success' => false, 'message' => 'Login required.']));
                 return $res->withHeader('Content-Type', 'application/json');
             }
-            $next = '?next=' . urlencode($path);
-            $res = new Psr7Response(302);
-            return $res->withHeader('Location', '/judge/login' . $next);
+            return (new Psr7Response(302))->withHeader('Location', (string) ($d['to'] ?? '/account/login?next=' . urlencode($path)));
         }
 
         try {
@@ -81,7 +86,7 @@ class JudgeAuthMiddleware
                 return $res->withHeader('Content-Type', 'application/json');
             }
             $_SESSION['flash_error'] = $msg;
-            return (new Psr7Response(302))->withHeader('Location', '/judge/login');
+            return (new Psr7Response(302))->withHeader('Location', '/account');
         }
 
         return $handler->handle($req);

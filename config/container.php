@@ -300,21 +300,6 @@ return [
                 return count($m) > 1 ? $m : null;
             }
         ));
-        // Staff, judging or organisation sign-ins found for the signed-in account and not yet
-        // joined to it (Account\Roles::found) — the account page offers each once, on its proof.
-        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
-            'account_found',
-            static function (): array {
-                $uid = (int) ($_SESSION['user_id'] ?? 0);
-                if ($uid < 1) return [];
-                try {
-                    $u = \Illuminate\Database\Capsule\Manager::table('gates_users')->where('id', $uid)->first();
-                    return $u ? \AfricaGates\Services\Account\Roles::found($u) : [];
-                } catch (\Throwable) {
-                    return [];
-                }
-            }
-        ));
         // The help surface's audiences, for the masthead's scope line. A FUNCTION and
         // not a global: it is read by one partial on six surfaces, and a global is a
         // variable every one of four hundred routes carries in order to serve those six.
@@ -797,7 +782,7 @@ return [
     UploadService::class    => fn()=>new UploadService(),
     \AfricaGates\Admin\Controllers\PartnerOrgsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\PartnerOrgsController($c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\AuditService::class), $c->get(PaymentService::class), $c->get(UploadService::class)),
     AdminValidator::class   => fn()=>new AdminValidator(),
-    AuthService::class      => fn(ContainerInterface $c)=>new AuthService($c->get(LogService::class), $c->get(AuditService::class), $c->get(RateLimitService::class)),
+    AuthService::class      => fn(ContainerInterface $c)=>new AuthService($c->get(AuditService::class)),
 
     // Public controllers
     HomeController::class        => fn(ContainerInterface $c)=>new HomeController($c->get(Twig::class), $c->get(CacheService::class)),
@@ -809,7 +794,7 @@ return [
     JudgesController::class       => fn(ContainerInterface $c)=>new JudgesController($c->get(Twig::class), $c->get(JudgeService::class)),
     UserAccountService::class     => fn()=>new UserAccountService(),
     \AfricaGates\Controllers\VolunteerController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\VolunteerController($c->get(Twig::class), $c->get(UserAccountService::class)),
-    \AfricaGates\Controllers\AccountSwitchController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\AccountSwitchController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(AuditService::class), $c->get(RateLimitService::class)),
+    \AfricaGates\Controllers\AccountSwitchController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\AccountSwitchController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(RateLimitService::class)),
     AccountController::class      => fn(ContainerInterface $c)=>new AccountController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(CommunityService::class)),
     LeaderboardController::class => fn(ContainerInterface $c)=>new LeaderboardController($c->get(Twig::class)),
     ResultsController::class     => fn(ContainerInterface $c)=>new ResultsController($c->get(Twig::class), $c->get(CommunityService::class)),
@@ -983,11 +968,11 @@ return [
     PulseController::class        => fn(ContainerInterface $c)=>new PulseController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(CommunityService::class), $c->get(RateLimitService::class), $c->get(OtpService::class), new \AfricaGates\Services\PulseFeedService(), new \AfricaGates\Services\PulseMediaService($c->get(UploadService::class), new \AfricaGates\Services\R2Service(null, $c->get(\Psr\Log\LoggerInterface::class)), new \AfricaGates\Services\MediaModerationService())),
     VoteController::class        => fn(ContainerInterface $c)=>new VoteController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(PaymentService::class)),
     CommunityController::class   => fn(ContainerInterface $c)=>new CommunityController($c->get(Twig::class), $c->get(CommunityService::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
-    JudgeAuthController::class   => fn(ContainerInterface $c)=>new JudgeAuthController($c->get(Twig::class), $c->get(JudgeService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
+    JudgeAuthController::class   => fn(ContainerInterface $c)=>new JudgeAuthController($c->get(UserAccountService::class)),
     JudgeBallotController::class => fn(ContainerInterface $c)=>new JudgeBallotController($c->get(Twig::class), $c->get(JudgeService::class)),
 
     // Admin controllers
-    AdminAuthController::class         => fn(ContainerInterface $c)=>new AdminAuthController($c->get(Twig::class), $c->get(AuthService::class), $c->get(LogService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
+    AdminAuthController::class         => fn(ContainerInterface $c)=>new AdminAuthController($c->get(AuthService::class), $c->get(UserAccountService::class)),
     // The mailer is here for ONE thing: emailing a stalled schedule. A run that has
     // stopped cannot report its own stall, so the alert has to leave from a page load.
     AdminDashboardController::class    => fn(ContainerInterface $c)=>new AdminDashboardController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),

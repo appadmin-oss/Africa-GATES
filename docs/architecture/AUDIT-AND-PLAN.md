@@ -545,39 +545,28 @@ This is the largest data change in the plan, so it comes last (D6). Everything b
 works through a single **Actor** in the kernel that already answers "who is this, and as
 what" across all five of today's sign-ins.
 
-**Shipped 28–29 Oct 2026 (owner: "one account that can manage different roles, not separate
-disjointed accounts"; then "there's no roles page").** The person is the Africa GATES account
-(`gates_users`). There is no roles page: the top of the rail — in the staff console and
-the volunteer and lead shell — is a **product switcher** after ElevenLabs: it names the part
-of the account you are in, and opens a list of the others (My account, My volunteering, and
-each staff, judging or organisation sign-in joined to the account), one row each with an
-icon, a line of what it is and a tick on the current one. The account menu at the foot stays
-personal; on a phone the list sits in More; the site menu carries it as **Switch to** (`Services\Account\Roles`, `AccountSwitchController`).
+**Shipped 29 Oct 2026 (owner: "one account that can manage different roles"; then "roles
+given, not joined", with the separate sign-in pages retired).** The person is the Africa GATES
+account (`gates_users`) and `/account/login` is the only sign-in. A staff, judging or
+organisation role is GIVEN by staff to an email address — the one typed when the admin, judge
+or organisation user was created — and held by the account that has verified that address
+(`Services\Account\Roles`). There is no roles page and nothing to join or link.
 
-- **A sign-in joins on the proof its own door accepts, once, recorded** (`gates_account_links`).
-  Staff and judging sign in by email (the magic link, the panel code), so an account whose
-  address is VERIFIED and equal to theirs is offered "Add to my account" on its page. An
-  organisation's door is its own password and never an email, so it joins only on that
-  password, through `OrgAuth::attempt()` and its lock. One role account, one person. What
-  §3.4 calls a fault is records joined by email at read time; this is one confirmed link.
-- **Switching asks nothing when the session holds the proof that door accepts**: a member
-  signed in by password, passkey or emailed code/link. A code texted to a phone proves a
-  phone, which no console door accepts, so that session is sent an email code first.
-- **Money and configuration ask again** (GitHub's "sudo mode"): a console opened from the
-  account needs an emailed code before a write in Finance or Configuration
-  (`AccountReconfirmMiddleware`), and an organisation's payout needs the organisation's own
-  password. 30 minutes, this account only. A session signed in on the role's own page is
-  not asked: it gave that door's proof.
-- **A sign-in lands where the account last worked** (`gates_users.last_place`); a console
-  page asked for opens it on the way. **Signing out of the account closes what it opened.**
-- **One front door.** The staff, judging and organisation sign-in pages still work and now
-  point to the account ("Sign in with it", or "Continue with your Africa GATES account").
-  The public sign-in still links to none of them: the direction is from the console out.
+- **Held is read from the role's own row on every request**, so switching a role off, or giving
+  it to another address, takes effect on the next page, not at the next sign-out.
+- **The console, panel and organisation open on the way in** from the account that holds them
+  (`Roles::derive` in each gate). A session proved only by a phone code gets an email code first.
+- **Money and configuration ask again**: an emailed code before a console write in Finance or
+  Configuration, and the organisation's own password before a payout.
+- **The old pages are forwarding addresses**: `/admin/login`, `/admin/magic`, `/judge/login`,
+  `/org/login`. Signing out anywhere signs the person out. `/__setup/admin` leaves the
+  superadmin's account able to sign in by password.
+- **A sign-in lands where the account last worked** (`gates_users.last_place`). The product
+  switcher at the top of the rail moves between parts of the account (after ElevenLabs).
 
-Not yet: sign-in methods (passkeys) belonging to the person rather than the role; a
-second factor on the account itself for anybody holding a staff sign-in; and the data
-change that merges the role tables (D6).
-data change that merges the role tables (D6).
+Not yet: passkeys and sign-in methods belonging to the person (they already do — the member
+account's), a second factor for accounts holding staff roles, and the data change that merges
+the role tables (D6).
 
 ### 7.2 Access: scoped, time-boxed, least privilege
 

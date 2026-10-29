@@ -23,10 +23,9 @@ namespace Tests\Support;
  *    monospace only for what is copied or counted. Its templates are `templates/admin/`
  *    and its sheets are `public/assets/css/console/`.
  *  - THE JUDGE CONSOLE is still held: `templates/judge/` and the stylesheets only it
- *    links — `judge.css`, `main.css` and `aurora.css` (the judge layout's), and
- *    `components/auth.css`, whose only remaining readers are `admin/login.twig`,
- *    `admin/magic.twig` and `judge/login.twig` — the member sign-in it once also served
- *    was destroyed with the old pages; and `a11y.css`, linked by `judge/layout.twig` alone
+ *    links — `judge.css`, `main.css` and `aurora.css` (the judge layout's) — the console
+ *    and panel sign-in pages that also linked `components/auth.css` were retired with it on
+ *    29 Oct 2026 (one login); and `a11y.css`, linked by `judge/layout.twig` alone
  *    since the admin console carries its own corrections (GAPS §7.3 lists it as held). Its
  *    16px input floor is in px, which the rem rule (TypeScaleTest) refuses on a public
  *    screen; the public input floor is shell.css's, in rem;
@@ -77,7 +76,6 @@ final class PublicSurface
         'public/assets/css/judge.css',
         'public/assets/css/main.css',
         'public/assets/css/aurora.css',
-        'public/assets/css/components/auth.css',
         'public/assets/css/a11y.css',
         self::DOOR_CSS,
     ];

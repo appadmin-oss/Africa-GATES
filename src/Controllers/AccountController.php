@@ -440,7 +440,7 @@ class AccountController
         $user = $r['user'];
         if (!$user) {
             return $this->backToOrgForm($res, $b,
-                'The account was created but could not be signed in. Try signing in at /org/login.');
+                'The account was created but could not be signed in. Try signing in at /account/login.');
         }
         (new \AfricaGates\Services\OrgAuth($this->rateLimit))->signIn($user);
 
@@ -869,7 +869,12 @@ class AccountController
     {
         // Already signed in: go where asked, but a GET never opens a console — that is the
         // account menu's POST (/account/switch), or the console's own "Continue as" button.
-        if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', $this->nextTarget(false))->withStatus(302);
+        if (!empty($_SESSION['user_id'])) {
+            // An old console, panel or organisation sign-in link forwards here with `next`; the
+            // page they were going to is where they go, and its own gate opens the role.
+            $asked = $this->safeNext($req->getQueryParams()['next'] ?? null);
+            return $res->withHeader('Location', $asked ?? $this->nextTarget(false))->withStatus(302);
+        }
         // Remember where the visitor was headed (e.g. a gate redirected them here)
         // so every sign-in path — password, code, or email verify — can return them.
         $next = $this->safeNext($req->getQueryParams()['next'] ?? null);

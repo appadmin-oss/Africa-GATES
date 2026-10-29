@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\Account\Roles;
 use AfricaGates\Services\OrgAuth;
 use AfricaGates\Services\RateLimitService;
@@ -13,21 +12,18 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 
 /**
- * ONE ACCOUNT, SWITCHED FROM THE ACCOUNT MENU (owner, 29 Oct 2026: "there's no roles page").
+ * ONE ACCOUNT, ONE LOGIN, ROLES GIVEN (owner, 29 Oct 2026).
  *
- * The four things the account menu and the account page post here, each a thin call into
- * Account\Roles where the rules live: switch to a role, join a sign-in found for this account,
- * take one off, and confirm it's you before a console opened from the account changes money
- * or configuration. Every write answers 303 with a sentence; nothing here is reachable by GET
- * except the confirm screen, which only draws.
- *
- * Opening the staff console from the account is written to the audit log as that console's
- * sign-in ("login", method "account"), so its record of who came in, and how, stays complete.
+ * The two things posted here, each a thin call into Account\Roles where the rules live: the
+ * switcher's choice (which also records where a later sign-in lands), and confirming it's you
+ * before a console opened from the account changes money or configuration — or, for an
+ * organisation's payout, its own password. Nothing is joined or linked: a role is given to an
+ * email address by staff. Every write answers 303 with a sentence; the confirm screen is the
+ * only GET, and it only draws.
  */
 final class AccountSwitchController
 {
-    public function __construct(private readonly Twig $view, private readonly UserAccountService $accounts,
-                                private readonly AuditService $audit, private readonly RateLimitService $rateLimit) {}
+    public function __construct(private readonly Twig $view, private readonly UserAccountService $accounts, private readonly RateLimitService $rateLimit) {}
 
     /** POST /account/switch — kind = member | volunteer | admin | org | judge */
     public function switch(Request $req, Response $res): Response
@@ -48,38 +44,7 @@ final class AccountSwitchController
             return $this->to($res, '/account/confirm?for=' . $kind);
         }
         if (!$r['ok']) return $this->back($res, $back, (string) $r['error']);
-        if ($kind === 'admin' && empty($r['already'])) {
-            $this->audit->record((int) $r['account'], 'login', 'admin', (int) $r['account'], ['method' => 'account', 'user' => (int) $user->id]);
-        }
         return $this->to($res, (string) $r['to']);
-    }
-
-    /** POST /account/join — a sign-in found for this account, on its proof. */
-    public function join(Request $req, Response $res): Response
-    {
-        $user = $this->accounts->current();
-        if (!$user) return $this->to($res, '/account/login');
-        $b = (array) $req->getParsedBody();
-        $kind = (string) ($b['kind'] ?? '');
-        $r = Roles::join($user, $kind, (int) ($b['id'] ?? 0), (string) ($b['password'] ?? ''), new OrgAuth($this->rateLimit), $this->ip($req));
-        if ($r['ok']) {
-            // A staff sign-in joined is that staff account's act, and the console's log says so.
-            $this->audit->record($kind === 'admin' ? (int) ($b['id'] ?? 0) : null, 'account.role_joined', 'user', (int) $user->id, ['kind' => $kind, 'account' => (int) ($b['id'] ?? 0)]);
-            $_SESSION['flash_ok'] = 'Added. Switch to it from your name at the top of the menu, wherever you are.';
-        } else {
-            $_SESSION['flash_error'] = (string) $r['error'];
-        }
-        return $this->to($res, '/account?tab=security#signins');
-    }
-
-    /** POST /account/unjoin — take a sign-in off the account; its own page still works. */
-    public function unjoin(Request $req, Response $res): Response
-    {
-        $user = $this->accounts->current();
-        if (!$user) return $this->to($res, '/account/login');
-        $r = Roles::unlink((int) $user->id, (int) (((array) $req->getParsedBody())['link'] ?? 0));
-        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok'] ? 'Removed from your account. Its own sign-in page still works.' : (string) $r['error'];
-        return $this->to($res, '/account?tab=security#signins');
     }
 
     /** GET /account/confirm?for=admin|judge|console|org[&next=] — draws only; sends nothing. */
@@ -135,7 +100,6 @@ final class AccountSwitchController
                 if ($for === 'admin' || $for === 'judge') {
                     $o = Roles::open($user, $for);
                     if (!$o['ok']) return $this->back($res, '/account', (string) ($o['error'] ?? 'That sign-in could not be opened.'));
-                    if ($for === 'admin' && empty($o['already'])) $this->audit->record((int) $o['account'], 'login', 'admin', (int) $o['account'], ['method' => 'account', 'user' => (int) $user->id]);
                     return $this->to($res, $next ?? (string) $o['to']);
                 }
                 $_SESSION['flash_notice'] = 'Confirmed for ' . Roles::CONFIRM_MINUTES . ' minutes. Press the button again to go ahead.';

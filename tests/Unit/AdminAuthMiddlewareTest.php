@@ -6,7 +6,6 @@ namespace Tests\Unit;
 use AfricaGates\Admin\Middleware\AdminAuthMiddleware;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Services\AuthService;
-use AfricaGates\Admin\Services\LogService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Res;
 use Psr\Http\Message\ServerRequestInterface as Req;
@@ -54,7 +53,7 @@ final class AdminAuthMiddlewareTest extends TestCase
     private function mw(): AdminAuthMiddleware
     {
         return new AdminAuthMiddleware(
-            new AuthService(new LogService(sys_get_temp_dir()), new AuditService())
+            new AuthService(new AuditService())
         );
     }
 
@@ -93,11 +92,12 @@ final class AdminAuthMiddlewareTest extends TestCase
 
     // ══ the original contract ════════════════════════════════════════════════
 
-    public function test_unauthenticated_redirects_to_login(): void
+    public function test_unauthenticated_goes_to_the_one_sign_in_and_comes_back(): void
     {
+        // One login (owner, 29 Oct 2026): no console sign-in page; the account's, carrying the page.
         $res = $this->mw()($this->req('GET', '/admin/profiles'), $this->handler());
         $this->assertSame(302, $res->getStatusCode());
-        $this->assertStringStartsWith('/admin/login', $res->getHeaderLine('Location'));
+        $this->assertSame('/account/login?next=' . rawurlencode('/admin/profiles'), $res->getHeaderLine('Location'));
     }
 
     public function test_authenticated_admin_write_allowed(): void
@@ -199,7 +199,7 @@ final class AdminAuthMiddlewareTest extends TestCase
         $res = $this->mw()($this->req('GET', '/admin/profiles'), $this->handler());
 
         $this->assertSame(302, $res->getStatusCode());
-        $this->assertSame('/admin/login', $res->getHeaderLine('Location'));
+        $this->assertSame('/account', $res->getHeaderLine('Location'));
         // And the session is actually gone, not merely bounced once.
         $this->assertArrayNotHasKey('admin_id', $_SESSION);
     }
@@ -211,7 +211,7 @@ final class AdminAuthMiddlewareTest extends TestCase
 
         $res = $this->mw()($this->req('GET', '/admin/profiles'), $this->handler());
         $this->assertSame(302, $res->getStatusCode());
-        $this->assertSame('/admin/login', $res->getHeaderLine('Location'));
+        $this->assertSame('/account', $res->getHeaderLine('Location'));
     }
 
     public function test_a_deactivated_account_gets_401_on_the_admin_api(): void

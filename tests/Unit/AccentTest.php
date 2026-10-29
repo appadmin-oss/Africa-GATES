@@ -143,8 +143,8 @@ final class AccentTest extends TestCase
         // a second time.
         $root = dirname(__DIR__, 2) . '/templates/';
         // layout/gates.twig left this list when it was destroyed (docs/handoff/DESTROYED.md).
-        foreach (['layout/shell.twig', 'admin/login.twig',
-                  'admin/magic.twig', 'judge/login.twig'] as $file) {
+        // The console and panel sign-in screens were retired on 29 Oct 2026 (one login).
+        foreach (['layout/shell.twig'] as $file) {
             $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($root . $file));
             $at   = strpos($body, '{{ ag_accents()|raw }}');
             $this->assertNotFalse($at, "$file never emits the palette");

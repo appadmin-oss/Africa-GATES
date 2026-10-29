@@ -13,7 +13,8 @@ use Slim\Psr7\Response as Psr7Response;
 
 /**
  * Enforces an authenticated admin session for protected /admin routes.
- * If unauthenticated and the path is HTML, redirects to /admin/login.
+ * If unauthenticated and the path is HTML, opens the console from the signed-in account that
+ * holds it (Account\Roles::derive), or sends the person to the one sign-in, /account/login.
  * If unauthenticated and the path is JSON (admin API), returns 401 JSON.
  *
  * ── THE SESSION IS NOT THE ACCOUNT ───────────────────────────────────────────
@@ -71,6 +72,17 @@ class AdminAuthMiddleware
         foreach ($this->exempt as $p) {
             if ($path === $p) return $handler->handle($req);
         }
+        // ── ONE LOGIN (owner, 29 Oct 2026) ──────────────────────────────────
+        //
+        // There is no console sign-in page any more. The console is a role GIVEN to an email
+        // address, and the signed-in Africa GATES account holding that address opens it here,
+        // on the way in (Account\Roles::derive) — or is sent for an emailed code first, or told
+        // plainly that this account has no staff access, rather than shown a login it cannot use.
+        $d = \AfricaGates\Services\Account\Roles::derive('admin', $path . ($req->getUri()->getQuery() !== '' ? '?' . $req->getUri()->getQuery() : ''));
+        if ($d['state'] === 'confirm' || $d['state'] === 'refused') {
+            if ($d['state'] === 'refused') $_SESSION['flash_error'] = $d['error'];
+            return (new Psr7Response(302))->withHeader('Location', (string) $d['to']);
+        }
         if (!isset($_SESSION['admin_id']) || empty($_SESSION['admin_id'])) {
             $isJson = str_contains($req->getHeaderLine('Accept'), 'application/json')
                    || str_starts_with($path, '/admin/api/');
@@ -79,9 +91,7 @@ class AdminAuthMiddleware
                 $res->getBody()->write(json_encode(['success' => false, 'message' => 'Login required.']));
                 return $res->withHeader('Content-Type', 'application/json');
             }
-            $next = '?next=' . urlencode($path);
-            $res = new Psr7Response(302);
-            return $res->withHeader('Location', '/admin/login' . $next);
+            return (new Psr7Response(302))->withHeader('Location', (string) ($d['to'] ?? '/account/login?next=' . urlencode($path)));
         }
         // ── RE-READ THE ACCOUNT, NOT THE COPY OF IT ─────────────────────────
         //
@@ -109,8 +119,8 @@ class AdminAuthMiddleware
                     'message' => 'This account is no longer active. Please sign in again.']));
                 return $res->withHeader('Content-Type', 'application/json');
             }
-            $_SESSION['flash_error'] = 'This account is no longer active. Please sign in again.';
-            return (new Psr7Response(302))->withHeader('Location', '/admin/login');
+            $_SESSION['flash_error'] = 'Your staff access has been switched off. Ask an administrator if this is unexpected.';
+            return (new Psr7Response(302))->withHeader('Location', '/account');
         }
 
         // The live role, written back so the guards below — and every screen that

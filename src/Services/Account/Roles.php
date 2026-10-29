@@ -12,34 +12,34 @@ use AfricaGates\Support\Session;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
- * ONE ACCOUNT, MANY ROLES (owner, 28–29 Oct 2026; plan §7.1 "one person, many memberships").
+ * ONE ACCOUNT, ONE LOGIN, ROLES GIVEN (owner, 28–29 Oct 2026; plan §7.1 "one person, many
+ * memberships"; then "roles given, not joined", and the separate sign-in pages retired).
  *
- * A person's Africa GATES account (gates_users) is who they are. Staff, organisation and judge
- * accounts are ROLES that account holds (gates_account_links). There is NO roles page: the
- * person switches from the account menu wherever they are, as on Airbnb, Shopify and GitHub,
- * and a sign-in lands where they last worked. The rules, each held by AccountRolesTest:
+ * A person's Africa GATES account (gates_users) is who they are, and /account/login is the only
+ * way in. A staff, judging or organisation role is GIVEN by staff to an email address — the
+ * address typed when the admin, the judge or the organisation user was created — and whoever
+ * signs in with that address, VERIFIED, holds it. Nobody joins, links or adds anything: staff
+ * give by address, take away by switching the role off or changing its address, and the account
+ * page shows what the account holds. That is how a workspace invitation behaves elsewhere. The
+ * rules, each held by AccountRolesTest:
  *
- *   · A ROLE JOINS THE ACCOUNT ON THE PROOF ITS OWN DOOR ACCEPTS, CONFIRMED ONCE, AND RECORDED.
- *     Staff and judging sign in by email (the console's magic link, the panel's code), so an
- *     account whose address is VERIFIED and equal to the role's is that proof. An
- *     organisation's door is its own password and nothing else — a reset link in an inbox
- *     must never become a payout (OrgAuth) — so an organisation joins on that password, tried
- *     through OrgAuth::attempt with its throttle and lock. Being signed in to both in one
- *     browser is proof too. What the plan calls a fault (§3.4) is records joined by email AT
- *     READ TIME, silently; this is one confirmed link, kept, and removable.
- *   · ONE ROLE ACCOUNT, ONE PERSON.
- *   · SWITCHING IS FREE WHEN THIS SESSION HOLDS THE PROOF THE ROLE'S DOOR WOULD ASK FOR. A
- *     member who signed in with a password, a passkey or an emailed code/link may move into
- *     the console or the panel without being asked again; one who signed in with a code TEXTED
- *     to a phone has proved a phone, which neither door accepts, and is sent an email code once.
- *   · MONEY AND CONFIGURATION ASK AGAIN. A console opened from the account must confirm by an
- *     emailed code before a write in Finance or Configuration (AccountReconfirmMiddleware);
- *     an organisation opened from the account must give the organisation's password before a
- *     payout. Fresh for CONFIRM_MINUTES, for this account only. GitHub's "sudo mode" shape.
- *   · ENTERING A ROLE USES THAT ROLE'S OWN SESSION START (rotate the id, write its keys), so
- *     every guard downstream sees what its own sign-in would have produced, and the role's own
- *     rules (an inactive admin, a locked organisation user) still decide.
- *   · SIGNING OUT OF THE ACCOUNT CLOSES WHAT IT OPENED, and nothing signed in separately.
+ *   · HELD IS READ FROM THE ROLE'S OWN ROW, every time (held()). No join table to drift: a role
+ *     switched off, or moved to another address, is gone from the next request. The address
+ *     must be verified on the account, and a member cannot change their account's address, so
+ *     holding it is proving it — the same proof the console's magic link and the panel's code
+ *     always asked for.
+ *   · OPENING A ROLE IS DERIVED, NOT AN ACT. A console page reached by a signed-in account that
+ *     holds it starts that role's session on the way in (derive(), called by the console, panel
+ *     and organisation gates), using the role's own session start (rotate the id, write its
+ *     keys) so every guard downstream sees exactly what its old sign-in produced.
+ *   · BUT ONLY ON A PROOF THAT ROLE'S OLD DOOR ACCEPTED. A session proved by password, passkey
+ *     or an emailed code or link opens staff and judging; one proved by a code TEXTED to a
+ *     phone has proved a phone, which neither ever accepted, and is sent an email code once.
+ *   · MONEY AND CONFIGURATION ASK AGAIN. A console opened from the account confirms by an
+ *     emailed code before a write in Finance or Configuration (AccountReconfirmMiddleware); an
+ *     organisation's payout needs the organisation's own password — an email is never enough
+ *     to move a charity's money (OrgAuth). Fresh for CONFIRM_MINUTES, for this account only.
+ *   · SIGNING OUT OF THE ACCOUNT CLOSES EVERY ROLE IT OPENED.
  */
 final class Roles
 {
@@ -54,92 +54,49 @@ final class Roles
     private const DOOR = ['admin' => ['password', 'passkey', 'email'], 'judge' => ['password', 'passkey', 'email'], 'org' => self::PROOFS];
     private const HOME = ['member' => '/account', 'volunteer' => '/volunteer', 'admin' => '/admin', 'org' => '/org', 'judge' => '/judge/ballot'];
 
-    public static function ready(): bool
-    {
-        return SchemaHas::table('gates_account_links');
-    }
-
-    // ── links ───────────────────────────────────────────────────────────────────────────
-
-    /** @return list<object> the account's live links */
-    public static function links(int $userId): array
-    {
-        if (!self::ready() || $userId <= 0) return [];
-        return DB::table('gates_account_links')->where('user_id', $userId)->whereNull('revoked_at')->orderBy('id')->get()->all();
-    }
-
-    /** The account a role account is linked to, if any. */
-    public static function ownerOf(string $kind, int $accountId): ?int
-    {
-        if (!self::ready()) return null;
-        $u = DB::table('gates_account_links')->where('kind', $kind)->where('account_id', $accountId)->whereNull('revoked_at')->value('user_id');
-        return $u ? (int) $u : null;
-    }
-
     /**
-     * Role accounts this person could join to their account now, and how each would be proved:
-     * 'session' (signed in to it in this browser), 'email' (staff or judging, on the account's
-     * verified address) or 'password' (an organisation, on its own password).
+     * The staff, judging and organisation roles this account holds: rows whose address is the
+     * account's own VERIFIED address. At most one of each kind (each table's email is unique).
      *
-     * @return list<array{kind:string, id:int, name:string, how:string, taken:bool}>
+     * @return array<string, object> kind => the role's row, live or switched off
      */
-    public static function found(object $user): array
+    public static function held(object $user, ?string $only = null): array
     {
-        $uid = (int) $user->id;
-        $out = [];
-        $add = static function (string $kind, int $id, string $how) use (&$out, $uid): void {
-            if (isset($out[$kind . ':' . $id])) return;
-            $owner = self::ownerOf($kind, $id);
-            if ($owner === $uid) return;
-            $out[$kind . ':' . $id] = ['kind' => $kind, 'id' => $id, 'name' => self::roleName($kind, $id), 'how' => $how, 'taken' => $owner !== null];
-        };
-        foreach (self::sessionRoles() as $kind => $id) $add($kind, $id, 'session');
         $email = strtolower(trim((string) ($user->email ?? '')));
-        if ($email !== '' && (int) ($user->email_verified ?? 0) === 1) {
-            foreach (['admin' => 'gates_admins', 'judge' => 'gates_judges', 'org' => 'gates_org_users'] as $kind => $t) {
-                try {
-                    $ids = DB::table($t)->whereRaw('LOWER(email) = ?', [$email])->where('is_active', 1)->pluck('id')->all();
-                } catch (\Throwable) {
-                    $ids = [];
-                }
-                foreach ($ids as $id) $add($kind, (int) $id, $kind === 'org' ? 'password' : 'email');
+        if ($email === '' || (int) ($user->email_verified ?? 0) !== 1) return [];
+        $out = [];
+        foreach (['admin' => 'gates_admins', 'judge' => 'gates_judges', 'org' => 'gates_org_users'] as $kind => $t) {
+            if ($only !== null && $only !== $kind) continue;
+            try {
+                $row = DB::table($t)->whereRaw('LOWER(email) = ?', [$email])->orderBy('id')->first();
+            } catch (\Throwable) {
+                $row = null;
             }
+            if ($row) $out[$kind] = $row;
         }
-        // Somebody else's role is not news to this person unless they are signed in to it here.
-        return array_values(array_filter($out, static fn ($f) => !$f['taken'] || $f['how'] === 'session'));
+        return $out;
     }
 
     /**
-     * Join a found role to the account, on its proof. An organisation needs its password
-     * (through $orgAuth, so its throttle and lock apply to this door exactly as to its own).
+     * Tell somebody a role has been given to their address, and how to use it: sign in with
+     * that address. Best-effort — a mail outage must not stop staff creating a judge — and the
+     * message carries no link that signs anybody in.
      */
-    public static function join(object $user, string $kind, int $id, string $password = '', ?OrgAuth $orgAuth = null, string $ip = ''): array
+    public static function tellGiven(string $kind, string $email, string $givenBy = ''): bool
     {
-        if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
-        $uid = (int) $user->id;
-        if ($uid <= 0 || (int) ($_SESSION['user_id'] ?? 0) !== $uid) return ['ok' => false, 'error' => 'Sign in to your account first.'];
-        $f = null;
-        foreach (self::found($user) as $c) if ($c['kind'] === $kind && $c['id'] === $id) $f = $c;
-        if ($f === null) return ['ok' => false, 'error' => 'That sign-in is not one this account can add.'];
-        if ($f['taken']) return ['ok' => false, 'error' => 'That ' . strtolower(self::KINDS[$kind]) . ' sign-in is already part of another person’s account.'];
-        if ($kind === 'admin' && self::liveLinkOfKind($uid, 'admin') !== null) return ['ok' => false, 'error' => 'Your account already holds a staff sign-in. Remove it first.'];
-        if ($f['how'] === 'password') {
-            $row = self::roleRow('org', $id);
-            $ok = $row && $orgAuth && $password !== '' && ($u = $orgAuth->attempt((string) $row->email, $password, $ip)) && (int) $u->id === $id;
-            if (!$ok) return ['ok' => false, 'error' => 'That password did not open the organisation sign-in. After five tries it locks for a few minutes.'];
+        if (!isset(self::KINDS[$kind]) || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+        $what = ['admin' => 'the Africa GATES staff console', 'judge' => 'judging on Africa GATES', 'org' => 'your organisation’s dashboard on Africa GATES'][$kind];
+        $url = rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/') . '/account/login';
+        try {
+            $r = \AfricaGates\Services\OtpService::boot()->sendBranded($email, 'You now have ' . strtolower(self::KINDS[$kind]) . ' on Africa GATES',
+                '<p>' . ($givenBy !== '' ? htmlspecialchars($givenBy, ENT_QUOTES) . ' has given you ' : 'You have been given ') . htmlspecialchars($what, ENT_QUOTES) . '.</p>'
+                . '<p>Sign in to Africa GATES with this email address — <a href="' . htmlspecialchars($url, ENT_QUOTES) . '">' . htmlspecialchars($url, ENT_QUOTES) . '</a> — '
+                . 'and choose it from the switcher at the top of the menu. If you have no account yet, signing in with this address makes one.</p>',
+                'Sign in to Africa GATES with this email address: ' . $url, 'security');
+            return ($r['success'] ?? false) === true;
+        } catch (\Throwable) {
+            return false;
         }
-        $lid = (int) DB::table('gates_account_links')->insertGetId([
-            'user_id' => $uid, 'kind' => $kind, 'account_id' => $id, 'via' => ['session' => 'both_signed_in', 'email' => 'verified_email', 'password' => 'org_password'][$f['how']],
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
-        return ['ok' => true, 'id' => $lid];
-    }
-
-    public static function unlink(int $userId, int $linkId): array
-    {
-        $n = self::ready() ? DB::table('gates_account_links')->where('id', $linkId)->where('user_id', $userId)->whereNull('revoked_at')
-            ->update(['revoked_at' => date('Y-m-d H:i:s'), 'revoked_by_kind' => 'member', 'revoked_by' => $userId]) : 0;
-        return $n > 0 ? ['ok' => true] : ['ok' => false, 'error' => 'That sign-in is not on your account.'];
     }
 
     // ── what the account menu offers ────────────────────────────────────────────────────
@@ -149,7 +106,7 @@ final class Roles
      * that decide it (links, grants, the volunteer record), never from a stored list of roles.
      * Volunteering is a role of the account itself: no link, no second proof.
      *
-     * @return list<array{kind:string, label:string, sub:string, live:bool, link?:int}>
+     * @return list<array{kind:string, label:string, sub:string, live:bool}>
      */
     public static function menu(object $user): array
     {
@@ -162,16 +119,14 @@ final class Roles
             $out[] = ['kind' => 'volunteer', 'label' => 'My volunteering', 'live' => true,
                       'sub' => Volunteers::roleLabel($v) . ($places ? ' · ' . count($places) . (count($places) === 1 ? ' place' : ' places') : '')];
         }
-        foreach (self::links($uid) as $l) {
-            $row = self::roleRow((string) $l->kind, (int) $l->account_id);
-            $active = $row && (int) ($row->is_active ?? 1) === 1;
-            $sub = match ((string) $l->kind) {
-                'admin' => $row ? (Permissions::ROLES[$row->role]['label'] ?? ucfirst((string) $row->role)) . self::leadDetail((int) $l->account_id) : '',
-                'org' => $row ? self::orgName((int) $row->org_id) : '',
+        foreach (self::held($user) as $kind => $row) {
+            $active = (int) ($row->is_active ?? 1) === 1;
+            $sub = match ($kind) {
+                'admin' => (Permissions::ROLES[$row->role]['label'] ?? ucfirst((string) $row->role)) . self::leadDetail((int) $row->id),
+                'org' => self::orgName((int) $row->org_id),
                 default => 'Your panels and scorecards',
             };
-            $out[] = ['kind' => (string) $l->kind, 'label' => self::KINDS[$l->kind] ?? (string) $l->kind, 'sub' => $active ? $sub : 'Switched off by an administrator',
-                      'live' => $active, 'link' => (int) $l->id];
+            $out[] = ['kind' => $kind, 'label' => self::KINDS[$kind], 'sub' => $active ? $sub : 'Switched off by an administrator', 'live' => $active];
         }
         return $out;
     }
@@ -205,10 +160,9 @@ final class Roles
             return ['ok' => true, 'to' => self::HOME[$kind]];
         }
         if (!isset(self::KINDS[$kind])) return ['ok' => false, 'error' => 'That is not something this account can open.'];
-        $link = self::liveLinkOfKind($uid, $kind);
-        if (!$link) return ['ok' => false, 'error' => 'Your account does not hold that sign-in.'];
-        $row = self::roleRow($kind, (int) $link->account_id);
-        if (!$row || (int) ($row->is_active ?? 1) !== 1) return ['ok' => false, 'error' => 'That sign-in has been switched off. Ask an administrator.'];
+        $row = self::held($user, $kind)[$kind] ?? null;
+        if (!$row) return ['ok' => false, 'none' => true, 'error' => 'Your account does not have ' . strtolower(self::KINDS[$kind]) . '. Ask whoever runs it to give it to your email address.'];
+        if ((int) ($row->is_active ?? 1) !== 1) return ['ok' => false, 'error' => 'Your ' . strtolower(self::KINDS[$kind]) . ' access has been switched off. Ask an administrator.'];
         if ($kind === 'org' && !empty($row->locked_until) && strtotime((string) $row->locked_until) > time()) {
             return ['ok' => false, 'error' => 'That organisation sign-in is locked for a few minutes after too many tries.'];
         }
@@ -241,6 +195,8 @@ final class Roles
         }
         $_SESSION['acct_opened'] = array_values(array_unique(array_merge((array) ($_SESSION['acct_opened'] ?? []), [$kind])));
         self::remember($uid, $kind);
+        // The console's own record of who came in, and how — whichever page opened it.
+        if ($kind === 'admin') (new \AfricaGates\Admin\Services\AuditService())->record((int) $row->id, 'login', 'admin', (int) $row->id, ['method' => 'account', 'user' => $uid]);
         return ['ok' => true, 'to' => self::HOME[$kind], 'account' => (int) $row->id];
     }
 
@@ -252,17 +208,10 @@ final class Roles
     public static function landing(object $user, ?string $next): string
     {
         if ($next !== null) {
-            $path = (string) (parse_url($next, PHP_URL_PATH) ?? '');
-            $kind = str_starts_with($path, '/admin') ? 'admin' : (str_starts_with($path, '/judge') ? 'judge' : (preg_match('~^/org(/|$)~', $path) ? 'org' : null));
+            $kind = self::kindOf($next);
             if ($kind !== null && !isset(self::sessionRoles()[$kind])) {
-                if (self::liveLinkOfKind((int) $user->id, $kind)) {
-                    $r = self::open($user, $kind);
-                    if (!empty($r['confirm'])) return '/account/confirm?for=' . $kind . '&next=' . rawurlencode($next);
-                } elseif (array_filter(self::found($user), static fn ($f) => $f['kind'] === $kind && !$f['taken'])) {
-                    // Came from that role's sign-in page and it is not joined yet: the account
-                    // page is where it is offered, rather than bouncing back to the old door.
-                    return '/account';
-                }
+                $r = self::open($user, $kind);
+                if (!empty($r['confirm'])) return '/account/confirm?for=' . $kind . '&next=' . rawurlencode($next);
             }
             return $next;
         }
@@ -270,6 +219,43 @@ final class Roles
         if ($last === 'member') return '/account';
         $r = self::open($user, $last);
         return $r['ok'] ? (string) $r['to'] : '/account';
+    }
+
+    /**
+     * A console, panel or organisation page reached without its session: open it from the
+     * signed-in account if the account holds it. The gates call this before bouncing anybody.
+     *
+     * @return array{state:string, to?:string, error?:string} state: open | confirm | refused | anonymous
+     */
+    public static function derive(string $kind, string $next = ''): array
+    {
+        $uid = (int) ($_SESSION['user_id'] ?? 0);
+        $user = $uid > 0 ? DB::table('gates_users')->where('id', $uid)->first() : null;
+        $sid = self::sessionRoles()[$kind] ?? 0;
+        // A session this account did not open (one signed in before the one login shipped)
+        // is left to its own gate and expires on its own.
+        if ($sid > 0 && !in_array($kind, (array) ($_SESSION['acct_opened'] ?? []), true)) return ['state' => 'open'];
+        if ($sid > 0) {
+            // Opened from the account: still the account's? A role moved to another address
+            // since leaves with the next request, not at the next sign-out.
+            $row = $user ? (self::held($user, $kind)[$kind] ?? null) : null;
+            if ($row && (int) $row->id === $sid) return ['state' => 'open'];
+            self::close($kind);
+        }
+        if (!$user) return ['state' => 'anonymous', 'to' => '/account/login?next=' . rawurlencode($next !== '' ? $next : self::HOME[$kind])];
+        $r = self::open($user, $kind);
+        if ($r['ok']) return ['state' => 'open'];
+        if (!empty($r['confirm'])) {
+            return ['state' => 'confirm', 'to' => '/account/confirm?for=' . $kind . '&next=' . rawurlencode($next !== '' ? $next : self::HOME[$kind])];
+        }
+        return ['state' => 'refused', 'to' => '/account', 'error' => (string) ($r['error'] ?? '')];
+    }
+
+    /** Which role a path belongs to, or null for the member's own pages. */
+    public static function kindOf(string $path): ?string
+    {
+        $p = (string) (parse_url($path, PHP_URL_PATH) ?? '');
+        return str_starts_with($p, '/admin') ? 'admin' : (str_starts_with($p, '/judge') ? 'judge' : (preg_match('~^/org(/|$)~', $p) ? 'org' : null));
     }
 
     // ── confirming again ────────────────────────────────────────────────────────────────
@@ -369,11 +355,18 @@ final class Roles
      */
     public static function signOutOpened(): void
     {
-        $keys = ['admin' => ['admin_id', 'admin_name', 'admin_role', 'admin_email'], 'org' => ['org_user_id', 'org_id'],
-                 'judge' => ['judge_id', 'judge_name', 'judge_email']];
-        foreach ((array) ($_SESSION['acct_opened'] ?? []) as $kind) foreach ($keys[$kind] ?? [] as $k) unset($_SESSION[$k]);
+        foreach (array_keys(self::KINDS) as $kind) self::close($kind);
         unset($_SESSION['acct_opened'], $_SESSION['acct_proof'], $_SESSION['acct_confirmed_at'], $_SESSION['acct_confirmed_user'],
               $_SESSION['acct_org_proven_at'], $_SESSION['acct_org_proven_user']);
+    }
+
+    /** End one role's session in this browser, leaving the account and the others. */
+    public static function close(string $kind): void
+    {
+        $keys = ['admin' => ['admin_id', 'admin_name', 'admin_role', 'admin_email'], 'org' => ['org_user_id', 'org_id'],
+                 'judge' => ['judge_id', 'judge_name', 'judge_email']];
+        foreach ($keys[$kind] ?? [] as $k) unset($_SESSION[$k]);
+        $_SESSION['acct_opened'] = array_values(array_diff((array) ($_SESSION['acct_opened'] ?? []), [$kind]));
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────────────────
@@ -388,16 +381,6 @@ final class Roles
         return $out;
     }
 
-    public static function roleName(string $kind, int $id): string
-    {
-        $r = self::roleRow($kind, $id);
-        if (!$r) return '';
-        return match ($kind) {
-            'org' => self::orgName((int) $r->org_id),
-            default => (string) ($r->name ?? ''),
-        };
-    }
-
     public static function lastPlace(int $userId): ?string
     {
         if (!SchemaHas::column('gates_users', 'last_place')) return null;
@@ -408,12 +391,6 @@ final class Roles
     private static function remember(int $userId, string $kind): void
     {
         if ($userId > 0 && SchemaHas::column('gates_users', 'last_place')) DB::table('gates_users')->where('id', $userId)->update(['last_place' => $kind]);
-    }
-
-    private static function liveLinkOfKind(int $userId, string $kind): ?object
-    {
-        if (!self::ready()) return null;
-        return DB::table('gates_account_links')->where('user_id', $userId)->where('kind', $kind)->whereNull('revoked_at')->orderByDesc('id')->first() ?: null;
     }
 
     private static function roleRow(string $kind, int $id): ?object

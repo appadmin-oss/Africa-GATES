@@ -1717,6 +1717,18 @@ return function(App $app) {
                     $now = date('Y-m-d H:i:s');
                     $ip  = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
                     $tbl = \Illuminate\Database\Capsule\Manager::table('gates_admins');
+                    // ONE LOGIN (owner, 29 Oct 2026): the console opens from the Africa GATES
+                    // account holding this address, and there is no console sign-in. So the
+                    // recovery also leaves that ACCOUNT able to sign in with this password,
+                    // verified — on a fresh install mail may not work yet, and an emailed code
+                    // would be the only other way in.
+                    $giveAccount = static function (string $email, string $name, string $pass) use ($now): void {
+                        $users = \Illuminate\Database\Capsule\Manager::table('gates_users');
+                        $u = (clone $users)->whereRaw('LOWER(email) = ?', [$email])->first();
+                        $row = ['password_hash' => password_hash($pass, PASSWORD_DEFAULT), 'email_verified' => 1, 'status' => 'active'];
+                        if ($u) (clone $users)->where('id', $u->id)->update($row);
+                        else (clone $users)->insert($row + ['name' => $name, 'email' => $email, 'created_at' => $now]);
+                    };
                     $existing = (clone $tbl)->where('email', $email)->first();
                     if ($existing) {
                         // RESET is limited to genuine recovery: NO superadmin can sign in
@@ -1734,8 +1746,8 @@ return function(App $app) {
                         $activeSupers = (int) (clone $tbl)->where('role', 'superadmin')->where('is_active', 1)->count();
                         if ($activeSupers > 0) {
                             error_log("[setup] REFUSED password reset for {$email} from {$ip} — {$activeSupers} active superadmin(s) exist");
-                            $msg = 'A superadmin account is active, so reset here is disabled. A locked account unlocks '
-                                 . 'by itself; otherwise use the admin magic-link at /admin/magic, ask a superadmin to '
+                            $msg = 'A superadmin account is active, so reset here is disabled. Sign in at /account/login '
+                                 . 'with that superadmin’s email (a code is emailed to it), ask a superadmin to '
                                  . 'act from the console (Admins), or delete SETUP_TOKEN and run `php bin/console admin:create`.';
                         } elseif ((string) ($existing->role ?? '') !== 'superadmin') {
                             // Recovery means getting a superadmin back. Re-arming some other
@@ -1748,6 +1760,7 @@ return function(App $app) {
                                 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
                                 'is_active' => 1, 'failed_attempts' => 0, 'locked_until' => null, 'updated_at' => $now,
                             ]);
+                            $giveAccount($email, (string) ($existing->name ?? $name), $pass);
                             error_log("[setup] superadmin recovery: password reset + unlock for {$email} from {$ip}");
                             $ok = true; $msg = "Password reset and account unlocked for {$email} (role unchanged).";
                         }
@@ -1766,6 +1779,7 @@ return function(App $app) {
                                 'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
                                 'is_active' => 1, 'failed_attempts' => 0, 'created_at' => $now, 'updated_at' => $now,
                             ]);
+                            $giveAccount($email, $name, $pass);
                             error_log("[setup] created first superadmin {$email} from {$ip}");
                             $ok = true; $msg = "Created superadmin {$email}.";
                         }
@@ -1777,7 +1791,7 @@ return function(App $app) {
         }
         $action = '/__setup/admin?token=' . rawurlencode($tok);
         $banner = $msg !== '' ? '<p class="' . ($ok ? 'ok' : 'err') . '">' . $e($msg) . '</p>' : '';
-        $next   = $ok ? '<p class="ok">Now sign in at <a href="/admin/login">/admin/login</a> — then DELETE the SETUP_TOKEN line from your .env.</p>' : '';
+        $next   = $ok ? '<p class="ok">Now sign in at <a href="/account/login?with=password&amp;next=%2Fadmin">/account/login</a> with this email and password — the console opens from your account. Then DELETE the SETUP_TOKEN line from your .env.</p>' : '';
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Africa GATES — admin setup</title>'
             . '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;background:#10292C;margin:0;padding:40px 16px}'
             . '.card{max-width:440px;margin:0 auto;background:#fff;border-radius:16px;padding:28px 26px;box-shadow:0 20px 50px -20px rgba(0,0,0,.55)}'
@@ -2450,8 +2464,9 @@ return function(App $app) {
         // (PartnerController::form) and registering a second route on it makes FastRoute
         // refuse the whole route table, which takes every page on the site down rather than
         // just this one.
-        $g->get ('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':loginPage');
-        $g->post('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':login');
+        // Forwarding addresses only: an organisation opens from the one account sign-in.
+        $g->get ('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':toAccount');
+        $g->post('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':toAccount');
         $g->post('/org/logout', \AfricaGates\Controllers\OrgDashboardController::class.':logout');
         $g->get ('/org',        \AfricaGates\Controllers\OrgDashboardController::class.':dashboard');
         // Opened from a member's account, a payout needs the organisation's own password first.
@@ -3732,9 +3747,10 @@ return function(App $app) {
 
     // ═══ JUDGES ═══════════════════════════════════════════════════════
     $app->group('/judge', function (RouteCollectorProxy $j) {
-        $j->get('/login',              JudgeAuthController::class.':loginForm');
-        $j->post('/login/request',     JudgeAuthController::class.':loginRequest');
-        $j->post('/login/verify',      JudgeAuthController::class.':loginVerify');
+        // Forwarding addresses only: the panel opens from the one account sign-in.
+        $j->get('/login',              JudgeAuthController::class.':toAccount');
+        $j->post('/login/request',     JudgeAuthController::class.':toAccount');
+        $j->post('/login/verify',      JudgeAuthController::class.':toAccount');
         $j->get('/logout',             JudgeAuthController::class.':logout');
         $j->post('/logout',            JudgeAuthController::class.':logout');
 
@@ -3849,12 +3865,10 @@ return function(App $app) {
         $a->get('/notifications',      AccountController::class.':notifications');
         $a->post('/notifications/read', AccountController::class.':notificationsRead');
         $a->get('/points',             AccountController::class.':points');
-        // One account, many roles (owner, 28–29 Oct 2026; plan §7.1). No roles page: the
-        // account menu posts a switch, a found sign-in is joined from the account page, and a
-        // console opened from the account confirms again before money or configuration.
+        // One account, one login, roles given (owner, 29 Oct 2026; plan §7.1). No roles page
+        // and nothing to join: the switcher posts here, and a console opened from the account
+        // confirms again before money or configuration.
         $a->post('/switch',            \AfricaGates\Controllers\AccountSwitchController::class.':switch');
-        $a->post('/join',              \AfricaGates\Controllers\AccountSwitchController::class.':join');
-        $a->post('/unjoin',            \AfricaGates\Controllers\AccountSwitchController::class.':unjoin');
         $a->get('/confirm',            \AfricaGates\Controllers\AccountSwitchController::class.':confirmPage');
         $a->post('/confirm',           \AfricaGates\Controllers\AccountSwitchController::class.':confirm');
         // The Ads Manager (Services\Ads): campaigns, the builder, one campaign, its switch,
@@ -3911,11 +3925,12 @@ return function(App $app) {
     // ═══ ADMIN ═══════════════════════════════════════════════════════
     $app->group('/admin', function (RouteCollectorProxy $a) {
         // Unauthenticated
-        $a->get('/login',           AdminAuthController::class.':loginForm');
-        $a->post('/login/submit',   AdminAuthController::class.':loginSubmit');
-        $a->get('/magic',           AdminAuthController::class.':magicForm');
-        $a->post('/magic/request',  AdminAuthController::class.':magicRequest');
-        $a->get('/magic/consume',   AdminAuthController::class.':magicConsume');
+        // Forwarding addresses only: the console opens from the one account sign-in.
+        $a->get('/login',           AdminAuthController::class.':toAccount');
+        $a->post('/login/submit',   AdminAuthController::class.':toAccount');
+        $a->get('/magic',           AdminAuthController::class.':toAccount');
+        $a->post('/magic/request',  AdminAuthController::class.':toAccount');
+        $a->get('/magic/consume',   AdminAuthController::class.':toAccount');
         $a->get('/logout',          AdminAuthController::class.':logout');
         $a->post('/logout',         AdminAuthController::class.':logout');
 

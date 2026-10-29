@@ -637,8 +637,12 @@ does not. A limit that locks out real people fails in the direction nobody repor
 
 ### Two sign-ins, each strong where the other was weak
 
-`/account/login` and `/org/login` are separate trust domains on separate routes, and that
-separation is deliberate — `account/login.twig` refuses to offer organisation sign-in for
+(Historical since 29 Oct 2026: `/org/login` is retired and forwards to the one sign-in — see
+"One login" below. The organisation's password survives as what a payout asks for, so the
+throttle-and-lock reasoning here still governs it.)
+
+`/account/login` and `/org/login` were separate trust domains on separate routes, and that
+separation was deliberate — `account/login.twig` refused to offer organisation sign-in for
 exactly that reason. What was not deliberate is the two arriving at different answers to
 the same questions, with nothing anywhere comparing them.
 
@@ -715,25 +719,27 @@ The tell was the COUNT, which went 6579 → 6574 after adding five tests, and a 
 reading `M` where `??` was expected. Read the test total after a run that adds tests, and
 make it add up.
 
-### One account, and a role opens on the proof its own door accepts
+### One login, and a role is given to an address
 
-Since 29 Oct 2026 a person signs in once, to their Africa GATES account, and switches to
-volunteering, the staff console, judging or an organisation from the **product switcher** at
-the top of the rail (ElevenLabs' shape: the current part named at the top, one row each with an
-icon, a line of what it is and a tick; the account menu at the foot stays personal) — there is
-deliberately no roles page (`Services\Account\Roles`, plan §7.1). The rule
-that makes it safe is one sentence: **a role is joined, and opened, only on the proof its own
-door would ask for.** Staff and judging sign in by email, so a VERIFIED equal address joins
-them and a session proved by password, passkey or email opens them; a session proved by a
-code texted to a phone is sent an email code first. An organisation's door is its password
-and never an email (a reset link must never become a payout), so it joins on that password,
-and a payout from an account-opened organisation asks for it again. A console opened from the
-account asks for an emailed code before any write in Finance or Configuration
-(`AccountReconfirmMiddleware`, keyed on `Permissions::sectionForPath`, so moving a page
-between sections moves its confirmation). Switching starts a session, so it is a POST,
-never a link, and a GET never opens a console. The staff, judging and organisation sign-in
-pages link OUT to the account; the public sign-in still links to none of them.
-`AccountRolesTest`, nine mutations each failing it.
+Since 29 Oct 2026 there is ONE sign-in, `/account/login`. A staff, judging or organisation role
+is **given by staff to an email address** — the address typed when the admin, judge or
+organisation user was created — and the Africa GATES account that has **verified** that address
+holds it (`Services\Account\Roles::held`, read from the role's own row on every request, so a
+role switched off or given to another address is gone on the next one). Nobody joins, links
+or adds anything; there is no roles page. A member cannot change their account's address, so
+holding it is proving it — the proof the console's magic link and the panel's code always
+asked for. The console, the panel and the organisation open **on the way in** from the account
+(`Roles::derive`, called by `AdminAuthMiddleware`, `JudgeAuthMiddleware` and `OrgAuth::user`),
+through each role's own session start. A session proved only by a code texted to a phone is
+sent an email code first. Money and configuration ask again: an emailed code before a console
+write in Finance or Configuration (`AccountReconfirmMiddleware`, keyed on
+`Permissions::sectionForPath`), and an organisation's payout asks for **the organisation's own
+password** — not retired, because an email must never move a charity's money. `/admin/login`,
+`/admin/magic`, `/judge/login` and `/org/login` are forwarding addresses only (bookmarks, old
+mail, every bounce written before), and signing out of any of them signs the person out.
+`/__setup/admin` also leaves the superadmin's account able to sign in with its password,
+because on a fresh install mail may not work yet. The product switcher at the top of the rail
+moves between them (ElevenLabs' shape). `AccountRolesTest`, seven mutations each failing it.
 
 ### A link that signs you in is a sign-in, and there were three answers to one question
 
