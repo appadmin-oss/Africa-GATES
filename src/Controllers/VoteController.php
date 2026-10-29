@@ -102,6 +102,10 @@ class VoteController {
         }
         $p = $this->awards->getProgrammeBySlug($seg);
         if (!$p) return $res->withHeader('Location', '/vote')->withStatus(302);
+        // A volunteer's voter-drive link (Volunteer\VoterDrive): kept for this browser until a
+        // counted vote spends it. It opens the ballot and names no nominee.
+        $drive = (string) ($req->getQueryParams()['drive'] ?? '');
+        if ($drive !== '') \AfricaGates\Services\Volunteer\VoterDrive::capture($drive);
 
         $year = (int) ($p['cycle']['year'] ?? date('Y'));
         $noms = $this->awards->getNominees((int) $p['id'], 0, $year);
@@ -509,6 +513,8 @@ class VoteController {
         // own link for this nominee and the count of people it has brought.
         $via = (string) ($req->getQueryParams()['via'] ?? '');
         if ($via !== '') \AfricaGates\Services\VoteRecruit::capture($via);
+        $drive = (string) ($req->getQueryParams()['drive'] ?? '');
+        if ($drive !== '') \AfricaGates\Services\Volunteer\VoterDrive::capture($drive);
         $recruit = null;
         $myCode  = (string) ($_SESSION['vote_recruit'][$id] ?? '');
         if ($myCode !== '') {

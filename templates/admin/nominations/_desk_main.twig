@@ -216,6 +216,26 @@
         {% endfor %}
       </ul>
 
+      {# Volunteers' checks (Volunteer\NominationChecks): recommendations with a name, never a
+         decision. Read beside the desk's own checks; the decision below is still yours. #}
+      {% if n.vol_checks|default([]) is not empty %}
+        <h3 class="dk-h">Volunteer checks · recommendations</h3>
+        <ul class="dk-checks">
+          {% for c in n.vol_checks %}
+            <li class="dk-check">
+              <details>
+                <summary>
+                  <span class="rq-check__m rq-check__m--{{ c.flag ? 'warn' : 'ok' }}" aria-hidden="true">{{ c.flag ? '!' : '✓' }}</span>
+                  <span class="dk-check__t">{{ c.said }} · {{ c.by }}</span>
+                  <span class="dk-check__rule">{{ c.when }}</span>
+                </summary>
+                <p class="dk-check__why">{{ c.note ?: 'No note.' }}</p>
+              </details>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
       {% if can_decide %}
         <form id="dkDecide{{ n.id }}" class="dk-form" method="post" action="/admin/nominations/{{ n.id }}/decide" data-dk-form="decide">
           <input type="hidden" name="_token" value="{{ csrf_token }}">

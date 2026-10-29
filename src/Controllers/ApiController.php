@@ -163,6 +163,9 @@ class ApiController {
         $voterHash=\AfricaGates\Services\VoteService::voterHash($email);
         $via=\AfricaGates\Services\VoteRecruit::fromSession();
         if($via!=='') \AfricaGates\Services\VoteRecruit::credit($via,$nId,$voterHash,'vote:'.(int)($r['vote_id']??0));
+        // And a volunteer's voter drive, the same way: one person, once, after the vote counted.
+        $drive=\AfricaGates\Services\Volunteer\VoterDrive::fromSession();
+        if($drive!=='') \AfricaGates\Services\Volunteer\VoterDrive::credit($drive,$nId,$voterHash);
         $mine=\AfricaGates\Services\VoteRecruit::forVoter($voterHash,$nId);
         if($mine&&isset($_SESSION)&&is_array($_SESSION)) $_SESSION['vote_recruit'][$nId]=$mine['code'];
 

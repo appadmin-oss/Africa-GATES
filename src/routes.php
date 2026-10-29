@@ -3917,7 +3917,7 @@ return function(App $app) {
         $v->get('/training/take/{slug:[a-z0-9-]+}', $c . ':module');
         $v->get('/shifts/{id:[0-9]+}',            $c . ':shift');
         $v->get('/requests/{id:[0-9]+}',          $c . ':request');
-        $v->get('/{kind:cycle|event}/{id:[0-9]+}[/{page:[a-z]+}]', $c . ':place');
+        $v->get('/{kind:cycle|event}/{id:[0-9]+}[/{page:[a-z]+}[/{tab:[a-z]+}]]', $c . ':place');
         $v->get('/{page:shifts|tasks|hours|training|record|team|requests}[/{tab:[a-z]+}]', $c . ':root');
         $v->get('[/]',                            $c . ':root');
     })->add(new UserAuthMiddleware());

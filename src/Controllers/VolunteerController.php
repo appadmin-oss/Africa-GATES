@@ -7,6 +7,7 @@ use AfricaGates\Services\Requests;
 use AfricaGates\Services\UserAccountService;
 use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Services\Volunteer\Level;
+use AfricaGates\Services\Volunteer\NominationChecks;
 use AfricaGates\Services\Volunteer\Shifts;
 use AfricaGates\Services\Volunteer\Tasks;
 use AfricaGates\Services\Volunteer\Team;
@@ -113,7 +114,7 @@ final class VolunteerController
             'crumbs' => [['label' => 'Training', 'href' => '/volunteer/training'], ['label' => $c['title']]], 'back' => ['label' => 'Training', 'href' => '/volunteer/training']] + $c);
     }
 
-    /** GET /volunteer/{kind:cycle|event}/{id}[/{page}] — a place this person helps. */
+    /** GET /volunteer/{kind:cycle|event}/{id}[/{page}[/{tab}]] — a place this person helps. */
     public function place(Request $req, Response $res, array $args): Response
     {
         [$user, $v] = $this->who();
@@ -124,17 +125,26 @@ final class VolunteerController
         if (!$p) throw new HttpNotFoundException($req);   // no grant and no shift here: not theirs to see
         $first = array_key_first(Workspace::SCOPE_PAGES[$kind][0][1]);
         $page = (string) ($args['page'] ?? $first);
-        $valid = [];
-        foreach (Workspace::SCOPE_PAGES[$kind] as [, $pages]) $valid += $pages;
+        // The pages this place has for THIS person: an award's work comes from their grants,
+        // so a page their grants do not carry is not there to open.
+        $valid = Workspace::scopePageList($kind, $p['caps']);
         if (!isset($valid[$page])) throw new HttpNotFoundException($req);
-        $c = WorkspacePages::place($v, $p, $page, '');
+        $tabs = Workspace::SCOPE_TABS[$page] ?? [];
+        $tab = (string) ($args['tab'] ?? array_key_first($tabs) ?? '');
+        if ($tabs ? !isset($tabs[$tab]) : isset($args['tab'])) throw new HttpNotFoundException($req);
+        $c = WorkspacePages::place($v, $p, $page, $tab, $req->getQueryParams());
         $role = $this->role($v);
+        $toCheck = $kind === 'cycle' && in_array(NominationChecks::CAPABILITY, $p['caps'], true) ? count(NominationChecks::queue($v, (int) $p['id'])) : 0;
+        $base = $p['href'] . '/' . $page;
         return $this->render($res, $user, $v, $role, [
-            'scope' => $kind, 'nav' => Workspace::scopeNav($kind, (int) $p['id'], $page),
+            'scope' => $kind, 'nav' => Workspace::scopeNav($kind, (int) $p['id'], $page, $p['caps'], $toCheck ? ['queue' => ['n' => $toCheck, 'tone' => 'warn']] : []),
+            'tabs' => $tabs ? Workspace::tabs($base, $tabs, $tab, ['check' => $toCheck]) : [],
             'instance' => ['name' => $p['name'], 'sub' => implode(', ', $p['roles']), 'ini' => Workspace::initials($p['name']), 'tone' => $kind === 'event' ? 'ok' : 'info'],
             'siblings' => Workspace::siblings($v, $kind, (int) $p['id'], $page),
             'back' => ['label' => 'Back to my volunteering', 'href' => '/volunteer'],
-            'crumbs' => [['label' => 'My volunteering', 'href' => '/volunteer'], ['label' => $p['name'], 'href' => $p['href']], ['label' => $valid[$page][0]]],
+            'crumbs' => array_values(array_filter([['label' => 'My volunteering', 'href' => '/volunteer'], ['label' => $p['name'], 'href' => $p['href']],
+                        $page === $first ? null : ($tabs ? ['label' => $valid[$page][0], 'href' => $base] : ['label' => $valid[$page][0]]),
+                        $tabs && $tab !== array_key_first($tabs) ? ['label' => $tabs[$tab]] : null])),
             'kicker' => $page === $first ? '' : $p['name'], 'purposeKey' => $kind . '.' . $page,
         ] + $c);
     }
@@ -228,6 +238,9 @@ final class VolunteerController
             'request' => ($q = Requests::create('volunteer', (string) ($b['type'] ?? ''), 'member', (int) $user->id, $name, $b, ...$this->placeOf($v, (string) ($b['place'] ?? ''))))['ok']
                 ? $ok('Sent to ' . $q['decider'] . '.') : $no((string) $q['error']),
             'request_act' => $this->requestAct($v, $user, $b),
+            'nomcheck' => ($k = NominationChecks::check($v, (int) ($b['cycle'] ?? 0), (int) ($b['nomination'] ?? 0),
+                    ($b['check'] ?? '') === 'complete' ? 'complete' : (str_starts_with((string) ($b['check'] ?? ''), 'flag_') ? 'flag' : ''),
+                    substr((string) ($b['check'] ?? ''), 5), (string) ($b['note'] ?? '')))['ok'] ? $ok('Sent. A moderator sees it with your name.') : $no((string) $k['error']),
             'hours_confirm' => $this->confirmHours($v, $b, $name),
             'save_profile' => $this->saved(Volunteers::save($v, 'profile', $b)),
             'save_availability' => $this->saved(Volunteers::save($v, 'availability', $b)),
@@ -240,6 +253,8 @@ final class VolunteerController
         $_SESSION[$r['ok'] ? 'vol_toast' : 'vol_error'] = $r['msg'];
         if (($b['do'] ?? '') === 'request' && $r['ok']) $back = '/volunteer/requests';
         if (($b['do'] ?? '') === 'leave' && $r['ok']) $back = '/volunteer/me/leave';
+        // A sent check goes on to the next one: back to the list, not the page just finished.
+        if (($b['do'] ?? '') === 'nomcheck' && $r['ok']) $back = (string) preg_replace('~\?.*$~', '', $back);
         return $this->to($res, $back);
     }
 

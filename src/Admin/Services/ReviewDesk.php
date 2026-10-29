@@ -128,6 +128,7 @@ final class ReviewDesk
             'can_ask'     => filter_var((string) ($n['nominator_email'] ?? ''), FILTER_VALIDATE_EMAIL) !== false && NominationAsk::available(),
             'ask_prefill' => self::askPrefill($first, (string) $n['name'], (int) $n['evidence']),
             'reject_reasons' => self::REASONS,
+            'vol_checks'  => \AfricaGates\Services\Volunteer\NominationChecks::forNomination($id),
         ];
     }
 

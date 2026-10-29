@@ -192,22 +192,39 @@ Tests: `LeadConsoleTest` (14). Removing the lead check and removing the spend li
 Tests: `LeadEventScopeTest` (11). Removing the reminder's once-a-day rule, the seats refusal
 and the decision's single reversal each fail it.
 
+### V2 shipped (29 Oct 2026): the volunteer's award places (G5, G6)
+
+- **The award's menu is built from the person's grants** (§6.2): Check nominations with a
+  `vol.nomination_check` grant, Voter drive with `vol.voter_drive`, then Tasks, Role guide and
+  Your access. A page the grants do not carry is a 404, not a hidden link.
+- **Check nominations** (To check, Done, Agreement): the review queue's `pending` entries for
+  that edition, one at a time, MASKED ON THE SERVER — `Volunteer\NominationChecks::view()`
+  copies an allowlist out of `ReviewQueue::peek()`, so no nominator name, email, phone or
+  relation is ever sent, and an uploaded file is listed by label only. A check is "Looks
+  complete" or a flag with one of four reasons ("Something else" needs a note). It is a
+  RECOMMENDATION with the volunteer's name: it moves no status, it is made once and never
+  edited, and the moderator reads it on the desk under the desk's own checks. Agreement counts
+  only nominations a moderator has decided; with none, no percentage is drawn.
+- **Voter drive** (Your link, Where to go): one link per volunteer per edition
+  (`gates_vol_drive_links`). It opens the award's ballot and names no nominee — "you bring
+  voters, not votes". A person counts once (`gates_vol_drive_credits`, the ledger's voter hash),
+  only after their vote is counted, only on that award, and never the volunteer themselves.
+  Paid votes are not credited. "Where to go" lists the award's open shifts. Voters verify by an
+  emailed code here, so the page says "verified", not the DC's "phone".
+- `VolunteerAwardPlacesTest` (5). Six mutations each fail it: a nominator's name in the view,
+  no grant check, no note for "Something else", a vote on another award counting, the owner
+  counting, and an undecided nomination counting towards agreement.
+
 ### Not yet (next slices)
 
-- **The volunteer workspace's switcher and Find**, and the bell's grouped Updates (§2.4), on
-  either home.
-- **Seating from the guest list**: a table's guests are typed names, not linked to
-  invitations or tickets.
-- **Letters and big sends from the lead's side**: they stay with staff (Events ›
-  Invitations, and a `message` request); the tabs show what went.
-
-- **V2 award scopes**: Check nominations (the masked review desk, G5) and the voter drive
-  (G6). The award place shows Overview, Tasks and Your access until then.
-- **Shell behaviours**: Find (⌘K), Ask (⌘J), the switcher, the bell's grouped Updates, the
-  drawer, remembered page per scope, smart group collapse. The bell links to Today for now.
 - **Door scans as hours** (G1): a volunteer's own pass at the gate stamping
   `gates_vol_signups.check_in_at` / `check_out_at`. Staff "Came / Didn't come" is the source
   until then.
+- **Shell behaviours** still to build: the drawer, remembered page per scope, smart group
+  collapse.
+- **Event Role guide**: the event place has no Role guide page yet.
+- **Points for the drive**: the DC shows "2 per verified". No points are paid for it until
+  the owner decides they should be.
 - Decisions still open: D11, D12, D36 (the defaults in `Volunteer\Rules` are the review's
   recommendations), D37, D38, and who besides superadmin opens `/admin/volunteers`.
 

@@ -564,10 +564,13 @@ final class WorkspacePages
 
     // ── A place: an award edition or an event ─────────────────────────────────────────────
 
-    public static function place(object $v, array $p, string $page, string $tab): array
+    public static function place(object $v, array $p, string $page, string $tab, array $q = []): array
     {
         $kind = $p['kind'];
         $id = $p['id'];
+        if ($kind === 'cycle' && $page === 'queue') return self::queue($v, $p, $tab, (int) ($q['n'] ?? 0));
+        if ($kind === 'cycle' && $page === 'drive') return self::drive($v, $p, $tab);
+        if ($page === 'guide') return ['title' => 'Role guide', 'secs' => self::guide($p['caps'])];
         $shifts = array_values(array_filter(Shifts::mine($v), static fn ($s) => $s->scope_kind === $kind && (int) $s->scope_id === $id));
         $tasks = DB::table('gates_vol_tasks')->where('scope_kind', $kind)->where('scope_id', $id)->where('status', 'open')->orderBy('due_at')->get()->all();
         $taskRows = static function () use ($tasks, $v): array {
@@ -601,7 +604,22 @@ final class WorkspacePages
             $mineHere = (int) DB::table('gates_vol_task_takes as k')->join('gates_vol_tasks as t', 't.id', '=', 'k.task_id')->where('k.volunteer_id', $v->id)
                 ->where('t.scope_kind', 'cycle')->where('t.scope_id', $id)->whereIn('k.status', ['taken', 'done'])->count();
             if ($mineHere) $part[] = ['l' => 'Your tasks', 'v' => (string) $mineHere];
-            $secs[] = $part ? ['k' => 'stats', 'h' => 'Your part', 'items' => $part] : ['k' => 'note', 'text' => 'Your part here starts with a task or a shift.', 'tone' => 'mute'];
+            if (in_array(NominationChecks::CAPABILITY, $p['caps'], true)) {
+                $n = (int) DB::table('gates_vol_nom_checks')->where('volunteer_id', $v->id)->where('cycle_id', $id)->count();
+                if ($n) $part[] = ['l' => 'Nominations checked', 'v' => (string) $n];
+                $ag = NominationChecks::agreement($v, $id);
+                if ($ag) $part[] = ['l' => 'Agreement', 'v' => $ag['pct'] . '%', 's' => 'Of ' . $ag['decided'] . ' a moderator has decided'];
+            }
+            if (in_array(VoterDrive::CAPABILITY, $p['caps'], true) && ($l = VoterDrive::link($v, $id)) && $l['people'] > 0) {
+                $part[] = ['l' => 'People who voted through your link', 'v' => (string) $l['people']];
+            }
+            $start = in_array(NominationChecks::CAPABILITY, $p['caps'], true) ? 'Your part starts with your first check.'
+                   : (in_array(VoterDrive::CAPABILITY, $p['caps'], true) ? 'Your part starts when someone votes through your link.' : 'Your part here starts with a task or a shift.');
+            $secs[] = $part ? ['k' => 'stats', 'h' => 'Your part', 'items' => $part] : ['k' => 'note', 'text' => $start, 'tone' => 'mute'];
+            $acts = [];
+            if (in_array(NominationChecks::CAPABILITY, $p['caps'], true)) $acts[] = ['label' => 'Check nominations', 'href' => $p['href'] . '/queue'];
+            if (in_array(VoterDrive::CAPABILITY, $p['caps'], true)) $acts[] = ['label' => 'Get your link', 'href' => $p['href'] . '/drive'];
+            if ($acts) array_unshift($secs, ['k' => 'note', 'text' => 'You help here with ' . mb_strtolower(implode(' and ', $p['roles'])) . '.', 'tone' => 'info', 'cta' => $acts[0]]);
             return ['title' => $p['name'], 'purpose' => self::PURPOSE_FOR($kind, $page), 'secs' => $secs, 'side' => self::access($v, $kind, $id, true)];
         }
 
@@ -652,6 +670,101 @@ final class WorkspacePages
         $secs = [$hero];
         if ($clash) $secs[] = ['k' => 'rows', 'h' => 'For you', 'items' => [['t' => 'Your shifts clash', 'sub' => 'Keep one; the other goes back to the team.', 'dot' => 'bad', 'cta' => ['label' => 'Sort it', 'href' => '/volunteer/shifts']]]];
         return ['title' => $p['name'], 'noHead' => true, 'secs' => $secs, 'side' => self::access($v, $kind, $id, true)];
+    }
+
+    /**
+     * Check nominations (§6.2, G5): To check, one nomination at a time, Done and Agreement.
+     * Everything drawn comes from NominationChecks, which is masked on the server.
+     */
+    private static function queue(object $v, array $p, string $tab, int $nid): array
+    {
+        $id = (int) $p['id'];
+        if ($tab === 'done') {
+            $rows = [];
+            foreach (NominationChecks::done($v, $id) as $r) {
+                $rows[] = ['t' => $r['ref'] . ' · ' . $r['name'], 'sub' => 'You: ' . mb_strtolower($r['mine']) . ' · moderator: ' . mb_strtolower($r['theirs']),
+                           'chip' => match ($r['outcome']) { 'agreed' => ['Agreed', 'ok'], 'differed' => ['Differed', 'warn'], default => null }];
+            }
+            return ['title' => 'Check nominations', 'secs' => [$rows ? ['k' => 'rows', 'h' => 'Your checks', 'items' => $rows]
+                : ['k' => 'note', 'text' => 'Nothing is waiting here for ' . $p['name'] . '. When something arrives it shows here, oldest first.', 'tone' => 'mute']]];
+        }
+        if ($tab === 'agree') {
+            $ag = NominationChecks::agreement($v, $id);
+            $secs = $ag ? [['k' => 'stats', 'items' => [['l' => 'Agreement', 'v' => $ag['pct'] . '%', 'pct' => $ag['pct']],
+                                                        ['l' => 'Decided', 'v' => (string) $ag['decided']], ['l' => 'Differed', 'v' => (string) $ag['differed']]]]]
+                        : [['k' => 'note', 'text' => 'Agreement shows once a moderator has decided a nomination you checked.', 'tone' => 'mute']];
+            $secs[] = ['k' => 'note', 'text' => 'Agreed means the moderator approved one you said looks complete, or asked for more or turned down one you flagged. It never counts against your hours.', 'tone' => 'mute'];
+            return ['title' => 'Agreement', 'secs' => $secs];
+        }
+        // To check: one nomination when one is chosen, otherwise the list.
+        if ($nid > 0) {
+            $n = NominationChecks::view($v, $id, $nid);
+            if ($n === null || $n['checked']) {
+                return ['title' => 'Check nominations', 'secs' => [['k' => 'note', 'text' => $n ? 'You’ve checked this one. It’s under Done.' : 'That nomination isn’t waiting for a check any more.', 'tone' => 'mute', 'cta' => ['label' => 'Back to the list', 'href' => $p['href'] . '/queue']]]];
+            }
+            $secs = [['k' => 'hero', 'ini' => Workspace::initials($n['name']), 'tone' => 'info', 't' => $n['name'],
+                      'sub' => trim($n['category'] . ($n['place'] !== '' ? ' · ' . $n['place'] : '') . ' · Submitted ' . $n['when'] . ' · nominator details are hidden', ' ·'),
+                      'chips' => [[$n['ref'], 'mute']], 'facts' => [], 'acts' => []]];
+            foreach ($n['reasons'] as $r) $secs[] = ['k' => 'article', 'h' => $r['title'] !== '' ? 'Why, for ' . $r['title'] : 'Why', 'paras' => preg_split('/\R{2,}/', $r['reason']) ?: [$r['reason']]];
+            $ev = array_map(static fn (array $e): array => ['t' => $e['label'], 'sub' => $e['kind'] === 'File' ? 'A file. A moderator opens it.' : 'Link', 'href' => $e['href']], $n['evidence']);
+            $secs[] = $ev ? ['k' => 'rows', 'h' => 'Evidence', 'items' => $ev] : ['k' => 'note', 'text' => 'No evidence was sent with this nomination.', 'tone' => 'warn'];
+            if ($n['checks']) $secs[] = ['k' => 'rows', 'h' => 'What the desk found', 'items' => array_map(static fn (array $c): array => ['t' => $c['t'], 'sub' => '', 'dot' => $c['ok'] ? 'ok' : 'warn'], $n['checks'])];
+            $secs[] = ['k' => 'form', 'do' => 'nomcheck', 'submit' => 'Send my check', 'hidden' => ['cycle' => $id, 'nomination' => $n['id']],
+                       'route' => 'A moderator decides. Your check goes with your name.',
+                       'groups' => [['label' => 'Your check', 'help' => 'Check it against the rules, not your view of the nominee.', 'fields' => [
+                           ['name' => 'check', 'label' => 'Pick one', 'type' => 'radio', 'required' => true,
+                            'options' => ['complete' => 'Looks complete'] + array_combine(array_map(static fn ($k) => 'flag_' . $k, array_keys(NominationChecks::REASONS)), array_values(NominationChecks::REASONS))]]],
+                                    ['label' => 'Note for the moderator', 'help' => 'Needed for “Something else”.', 'fields' => [['name' => 'note', 'label' => 'Note', 'type' => 'textarea']]]]];
+            return ['title' => $n['name'], 'noHead' => true, 'secs' => $secs];
+        }
+        $rows = array_map(static fn (array $n): array => ['t' => $n['ref'] . ' · ' . $n['name'], 'sub' => trim($n['category'] . ' · ' . $n['when'], ' ·'),
+                                                         'href' => $p['href'] . '/queue?n=' . $n['id'], 'cta' => ['label' => 'Check', 'href' => $p['href'] . '/queue?n=' . $n['id']]],
+                          NominationChecks::queue($v, $id));
+        return ['title' => 'Check nominations', 'secs' => [
+            $rows ? ['k' => 'rows', 'h' => 'Oldest first', 'items' => $rows]
+                  : ['k' => 'note', 'text' => 'Nothing is waiting here for ' . $p['name'] . '. When something arrives it shows here, oldest first.', 'tone' => 'mute'],
+            ['k' => 'note', 'text' => 'You see the reason and the evidence. Nominator details stay hidden. You recommend; a moderator decides.', 'tone' => 'mute']]];
+    }
+
+    /** Voter drive (§6.2, G6): Your link and Where to go. */
+    private static function drive(object $v, array $p, string $tab): array
+    {
+        $id = (int) $p['id'];
+        if ($tab === 'spots') {
+            $rows = [];
+            foreach (VoterDrive::spots($id) as $s) {
+                $rows[] = ['t' => (string) ($s->location ?: $s->title), 'sub' => Workspace::day((string) $s->starts_at) . ' · ' . Workspace::span((string) $s->starts_at, (string) $s->ends_at),
+                           'href' => '/volunteer/shifts/' . $s->id];
+            }
+            return ['title' => 'Where to go', 'secs' => [$rows ? ['k' => 'rows', 'h' => 'Where people sign up', 'items' => $rows]
+                : ['k' => 'note', 'text' => 'No drive shifts are open on this award yet. Your link works anywhere.', 'tone' => 'mute']]];
+        }
+        $l = VoterDrive::link($v, $id);
+        if (!$l) return ['title' => 'Voter drive', 'secs' => [['k' => 'note', 'text' => 'Your link isn’t ready. Try again in a moment.', 'tone' => 'warn']]];
+        $url = rtrim(\AfricaGates\Support\SiteUrl::base(null), '/') . $l['path'];
+        $secs = [];
+        if ($l['people'] > 0) $secs[] = ['k' => 'stats', 'items' => [['l' => 'People who voted through your link', 'v' => (string) $l['people'], 's' => 'Counted once each, after their vote is verified']]];
+        $secs[] = ['k' => 'rows', 'h' => 'Your link', 'items' => [['t' => $url, 'sub' => 'It opens this award’s ballot. It names no nominee.', 'href' => $l['path']]]];
+        $secs[] = ['k' => 'note', 'text' => 'A person counts once their vote is verified. You never see who they voted for.', 'tone' => 'mute'];
+        return ['title' => 'Voter drive', 'secs' => $secs];
+    }
+
+    /** The rules for a person's roles here (the DC's role guide). */
+    private static function guide(array $caps): array
+    {
+        $rules = [];
+        if (in_array(NominationChecks::CAPABILITY, $caps, true)) {
+            $rules[] = ['t' => 'Check against the rules, not your view of the nominee', 'sub' => ''];
+            $rules[] = ['t' => 'Flag a possible duplicate; never merge', 'sub' => 'A moderator compares the two and decides.'];
+            $rules[] = ['t' => 'Don’t contact nominators or nominees', 'sub' => 'Their details stay hidden from you on purpose.'];
+        }
+        if (in_array(VoterDrive::CAPABILITY, $caps, true)) {
+            $rules[] = ['t' => 'Never ask for a vote for a named nominee', 'sub' => 'You bring voters, not votes.'];
+            $rules[] = ['t' => 'Never take money or phones', 'sub' => 'People verify on their own phone.'];
+            $rules[] = ['t' => 'Wear the bib and show your pass', 'sub' => ''];
+        }
+        return $rules ? [['k' => 'rows', 'h' => 'Rules for your role', 'items' => $rules]]
+                      : [['k' => 'note', 'text' => 'Your role here is your shifts. Their briefing has what you need.', 'tone' => 'mute']];
     }
 
     /** Your access (§6.2): you can see · stays hidden · ends. */

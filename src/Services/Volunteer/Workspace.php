@@ -92,12 +92,49 @@ final class Workspace
         'me.leave'         => 'Pause or step back. Your record stays yours.',
     ];
 
-    /** Scope pages: cycle (an award edition) and event (handoff §6.2). */
+    /**
+     * Scope pages: an event, and the parts of an award edition every grant there has
+     * (handoff §6.2). The award's own work is added by {@see scopePages()} from the person's
+     * grants: "The menu is built from the grant's capabilities, not the scope type."
+     */
     public const SCOPE_PAGES = [
-        'cycle' => [[null, ['overview' => ['Overview', 'home']]], ['Your work', ['tasks' => ['Tasks', 'list']]], ['Know', ['access' => ['Your access', 'shield']]]],
+        'cycle' => [[null, ['overview' => ['Overview', 'home']]], ['Your work', ['tasks' => ['Tasks', 'list']]],
+                    ['Know', ['guide' => ['Role guide', 'book'], 'access' => ['Your access', 'shield']]]],
         'event' => [[null, ['today' => ['Today', 'home']]], ['Your work', ['shifts' => ['Your shifts', 'cal'], 'tasks' => ['Tasks', 'list']]],
                     ['The night', ['brief' => ['Briefing', 'doc'], 'team' => ['Who’s on', 'users']]], ['Know', ['access' => ['Your access', 'shield']]]],
     ];
+
+    /** Award work each grant adds, in the order the rail shows it (nav-volunteer.json). */
+    public const CYCLE_WORK = [
+        'vol.nomination_check' => ['queue' => ['Check nominations', 'noms']],
+        'vol.voter_drive'      => ['drive' => ['Voter drive', 'vote']],
+    ];
+
+    /** Tabs on a place's pages (nav-volunteer.json). */
+    public const SCOPE_TABS = [
+        'queue' => ['check' => 'To check', 'done' => 'Done', 'agree' => 'Agreement'],
+        'drive' => ['link' => 'Your link', 'spots' => 'Where to go'],
+    ];
+
+    /** A place's rail groups, with the award work its grants carry. */
+    public static function scopePages(string $kind, array $caps = []): array
+    {
+        $groups = self::SCOPE_PAGES[$kind];
+        if ($kind === 'cycle') {
+            $work = [];
+            foreach (self::CYCLE_WORK as $cap => $pages) if (in_array($cap, $caps, true)) $work += $pages;
+            $groups[1][1] = $work + $groups[1][1];
+        }
+        return $groups;
+    }
+
+    /** Every page a place has, key => [label, icon]. */
+    public static function scopePageList(string $kind, array $caps = []): array
+    {
+        $all = [];
+        foreach (self::scopePages($kind, $caps) as [, $pages]) $all += $pages;
+        return $all;
+    }
 
     /**
      * The places this person helps: one per live volunteer grant at a cycle or an event, plus
@@ -112,8 +149,9 @@ final class Workspace
             if (!in_array($g->scope_kind, ['cycle', 'event'], true) || !$g->scope_id) continue;
             $k = $g->scope_kind . ':' . $g->scope_id;
             $out[$k] ??= ['kind' => (string) $g->scope_kind, 'id' => (int) $g->scope_id,
-                          'name' => Shifts::scopeName((string) $g->scope_kind, (int) $g->scope_id), 'roles' => [], 'ends' => (string) $g->expires_at,
+                          'name' => Shifts::scopeName((string) $g->scope_kind, (int) $g->scope_id), 'roles' => [], 'caps' => [], 'ends' => (string) $g->expires_at,
                           'href' => '/volunteer/' . $g->scope_kind . '/' . $g->scope_id];
+            if (!in_array((string) $g->capability, $out[$k]['caps'], true)) $out[$k]['caps'][] = (string) $g->capability;
             $label = Grants::CAPABILITIES[$g->capability] ?? (string) $g->capability;
             if (!in_array($label, $out[$k]['roles'], true)) $out[$k]['roles'][] = $label;
             if ((string) $g->expires_at > (string) $out[$k]['ends']) $out[$k]['ends'] = (string) $g->expires_at;
@@ -121,7 +159,7 @@ final class Workspace
         foreach (Shifts::mine($v) as $s) {
             $k = $s->scope_kind . ':' . $s->scope_id;
             $out[$k] ??= ['kind' => (string) $s->scope_kind, 'id' => (int) $s->scope_id, 'name' => (string) $s->scope_name,
-                          'roles' => [], 'ends' => null, 'href' => '/volunteer/' . $s->scope_kind . '/' . $s->scope_id];
+                          'roles' => [], 'caps' => [], 'ends' => null, 'href' => '/volunteer/' . $s->scope_kind . '/' . $s->scope_id];
         }
         $out = array_values($out);
         usort($out, static fn ($a, $b) => strcmp((string) ($a['ends'] ?? '9999'), (string) ($b['ends'] ?? '9999')));
@@ -159,6 +197,13 @@ final class Workspace
         foreach (Shifts::clashes($v) as [$a]) {
             $k = '@' . $a->scope_kind . ':' . $a->scope_id;
             $c[$k] = ['n' => ($c[$k]['n'] ?? 0) + 1, 'tone' => 'bad'];
+        }
+        // Nominations waiting for this person's check, on the award they check for.
+        foreach (self::places($v) as $p) {
+            if ($p['kind'] !== 'cycle' || !in_array(NominationChecks::CAPABILITY, $p['caps'], true)) continue;
+            $k = '@cycle:' . $p['id'];
+            $n = count(NominationChecks::queue($v, (int) $p['id']));
+            if ($n > 0 && !isset($c[$k])) $c[$k] = ['n' => $n, 'tone' => 'warn'];
         }
         return $c;
     }
@@ -199,7 +244,7 @@ final class Workspace
     }
 
     /** The rail inside a scope (cycle, event) or inside Profile and access. */
-    public static function scopeNav(string $kind, int $id, string $current): array
+    public static function scopeNav(string $kind, int $id, string $current, array $caps = [], array $counts = []): array
     {
         if ($kind === 'me') {
             $groups = [];
@@ -211,11 +256,11 @@ final class Workspace
             return array_values($groups);
         }
         $groups = [];
-        foreach (self::SCOPE_PAGES[$kind] as [$label, $pages]) {
+        foreach (self::scopePages($kind, $caps) as [$label, $pages]) {
             $items = [];
             foreach ($pages as $k => [$l, $icon]) {
                 $items[] = ['key' => $k, 'label' => $l, 'icon' => $icon, 'href' => '/volunteer/' . $kind . '/' . $id . ($k === array_key_first(self::SCOPE_PAGES[$kind][0][1]) ? '' : '/' . $k),
-                            'current' => $k === $current, 'drill' => false, 'count' => null];
+                            'current' => $k === $current, 'drill' => false, 'count' => $counts[$k] ?? null];
             }
             $groups[] = ['label' => $label, 'items' => $items];
         }
@@ -246,7 +291,7 @@ final class Workspace
         if ($role !== 'applicant') {
             foreach (self::places($v) as $p) {
                 $out[] = ['t' => $p['name'], 'sub' => $p['roles'] ? implode(', ', $p['roles']) : 'Where you help', 'href' => $p['href'], 'kind' => 'Place'];
-                foreach (self::SCOPE_PAGES[$p['kind']] as $gi => [, $pages]) {
+                foreach (self::scopePages($p['kind'], $p['caps']) as $gi => [, $pages]) {
                     foreach ($pages as $k => [$l]) {
                         if ($gi === 0) continue;   // the first page is the place itself, listed above
                         $out[] = ['t' => $l, 'sub' => $p['name'], 'href' => $p['href'] . '/' . $k, 'kind' => 'Page'];
@@ -279,8 +324,7 @@ final class Workspace
     {
         $out = [];
         foreach (self::places($v) as $p) {
-            $pages = [];
-            foreach (self::SCOPE_PAGES[$p['kind']] as [, $ps]) $pages += $ps;
+            $pages = self::scopePageList($p['kind'], $p['caps']);
             $first = array_key_first(self::SCOPE_PAGES[$p['kind']][0][1]);
             $keep = isset($pages[$page]) && $page !== $first;
             $out[] = ['name' => $p['name'], 'sub' => $p['kind'] === 'event' ? 'Event' : 'Award', 'ini' => self::initials($p['name']),
