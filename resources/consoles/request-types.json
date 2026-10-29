@@ -185,28 +185,6 @@
  ],
  "volunteer": [
   {
-   "key": "swap",
-   "label": "Swap a shift",
-   "usually": "usually within a day",
-   "fields": [
-    {
-     "key": "title",
-     "label": "Which shift, for which",
-     "placeholder": "Hall ushers Sat 7 Nov → Door, Gate A",
-     "multiline": false,
-     "required": true
-    },
-    {
-     "key": "why",
-     "label": "Why",
-     "placeholder": "",
-     "multiline": true,
-     "required": true
-    }
-   ],
-   "route": "lead"
-  },
-  {
    "key": "off",
    "label": "Time off",
    "usually": "usually within a day",

@@ -100,17 +100,6 @@ final class VoterDrive
         }
     }
 
-    /** Open drive shifts on this award — "Where to go". */
-    public static function spots(int $cycleId): array
-    {
-        try {
-            return DB::table('gates_vol_shifts')->where('scope_kind', 'cycle')->where('scope_id', $cycleId)->where('status', 'open')
-                ->where('ends_at', '>', date('Y-m-d H:i:s'))->orderBy('starts_at')->limit(50)->get()->all();
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
     private static function mint(): string
     {
         $s = '';

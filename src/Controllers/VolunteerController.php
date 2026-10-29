@@ -10,7 +10,6 @@ use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Services\Volunteer\Level;
 use AfricaGates\Services\Volunteer\Meetings;
 use AfricaGates\Services\Volunteer\NominationChecks;
-use AfricaGates\Services\Volunteer\Shifts;
 use AfricaGates\Services\Volunteer\Tasks;
 use AfricaGates\Services\Volunteer\Team;
 use AfricaGates\Services\Volunteer\Training;
@@ -34,7 +33,7 @@ use Slim\Views\Twig;
  *
  * Every change is a form that POSTs to /volunteer/act with an `do` verb, then redirects back
  * with a sentence (303, so a refresh never repeats it). Each verb checks the person may do it
- * on the record itself — the service refuses a shift that is full, a task that needs training,
+ * on the record itself — the service refuses a task that needs training,
  * a request that is not theirs — so a crafted post is answered exactly like a button.
  */
 final class VolunteerController
@@ -65,7 +64,7 @@ final class VolunteerController
         $content = WorkspacePages::root($v, $role, $page, $tab, $req->getQueryParams() + ['_old' => (array) ($this->take('vol_old') ?? [])]);
         $counts = Workspace::counts($v, $role);
         $tabCounts = match ($page) {
-            'shifts' => ['mine' => $counts['shifts']['n'] ?? 0], 'tasks' => ['mine' => $counts['tasks']['n'] ?? 0],
+            'tasks' => ['mine' => $counts['tasks']['n'] ?? 0],
             'hours' => ['review' => $counts['hours']['n'] ?? 0], 'training' => ['next' => $counts['training']['n'] ?? 0],
             'team' => ['approvals' => $counts['team']['n'] ?? 0], default => [],
         };
@@ -75,38 +74,6 @@ final class VolunteerController
             'crumbs' => [['label' => 'My volunteering', 'href' => '/volunteer'], ['label' => $content['title']]],
             'purposeKey' => 'root.' . $page,
         ] + $content);
-    }
-
-    /**
-     * GET /volunteer/shifts.ics — the person's own coming shifts, for their own calendar app.
-     *
-     * A download, not a subscription: a calendar app fetching this URL holds no sign-in, so it
-     * would be sent to the login page. A moved time means downloading it again, and the page
-     * says so. It carries their shifts only: no other
-     * volunteer's name, and no lead's phone. Times are written in UTC, which every reader
-     * converts to the person's own zone.
-     */
-    public function ics(Request $req, Response $res): Response
-    {
-        [$user, $v] = $this->who();
-        if (!$user) return $this->to($res, '/account/login?next=/volunteer/shifts');
-        if (!$v) return $this->to($res, '/volunteer/apply');
-        [$esc, $utc] = [self::icsText(...), self::icsTime(...)];
-        $host = (string) (parse_url(\AfricaGates\Support\SiteUrl::base($req), PHP_URL_HOST) ?: 'africagates');
-        $lines = [];
-        foreach (Shifts::mine($v) as $s) {
-            $desc = trim(($s->bring ? 'Bring: ' . $s->bring . "\n" : '') . ($s->lead_name ? 'Your lead: ' . $s->lead_name . "\n" : '') . (string) ($s->brief ?? ''));
-            array_push($lines, 'BEGIN:VEVENT', 'UID:vol-shift-' . (int) $s->id . '@' . $host, 'DTSTAMP:' . $utc('now'),
-                'DTSTART:' . $utc((string) $s->starts_at), 'DTEND:' . $utc((string) $s->ends_at),
-                'SUMMARY:' . $esc((string) $s->title . ($s->scope_name ? ', ' . $s->scope_name : '')),
-                'LOCATION:' . $esc($s->from_home ? 'From home' : (string) ($s->location ?? '')),
-                'DESCRIPTION:' . $esc($desc), 'URL:' . \AfricaGates\Support\SiteUrl::base($req) . '/volunteer/shifts/' . (int) $s->id, 'END:VEVENT');
-        }
-        $out = self::calendar('My volunteer shifts', $lines);
-        $res->getBody()->write($out);
-        return $res->withHeader('Content-Type', 'text/calendar; charset=utf-8')
-                   ->withHeader('Content-Disposition', 'attachment; filename="my-volunteer-shifts.ics"')
-                   ->withHeader('Cache-Control', 'private, no-store');
     }
 
     /** GET /volunteer/contacts/{id} — one contact this volunteer logged, its history and a correction form. */
@@ -157,19 +124,6 @@ final class VolunteerController
             'crumbs' => [['label' => 'Meetings', 'href' => '/volunteer/meetings'], ['label' => $c['title']]], 'back' => ['label' => 'Meetings', 'href' => '/volunteer/meetings']] + $c);
     }
 
-    /** GET /volunteer/shifts/{id} — a shift as a record page. */
-    public function shift(Request $req, Response $res, array $args): Response
-    {
-        [$user, $v] = $this->who();
-        if (!$user) return $this->to($res, '/account/login?next=/volunteer');
-        if (!$v || $this->role($v) === 'applicant') return $this->to($res, '/volunteer');
-        $c = WorkspacePages::shift($v, (int) $args['id']);
-        if (!$c) throw new HttpNotFoundException($req);
-        $role = $this->role($v);
-        return $this->render($res, $user, $v, $role, ['scope' => 'root', 'nav' => Workspace::rootNav($v, $role, 'shifts', Workspace::counts($v, $role)),
-            'crumbs' => [['label' => 'Shifts', 'href' => '/volunteer/shifts'], ['label' => $c['title']]], 'back' => ['label' => 'Shifts', 'href' => '/volunteer/shifts']] + $c);
-    }
-
     /** GET /volunteer/requests/{id} — one request, with what this person may do to it. */
     public function request(Request $req, Response $res, array $args): Response
     {
@@ -204,7 +158,7 @@ final class VolunteerController
         if (!$v || $this->role($v) === 'applicant') return $this->to($res, '/volunteer');
         $kind = (string) $args['kind'];
         $p = Workspace::place($v, $kind, (int) $args['id']);
-        if (!$p) throw new HttpNotFoundException($req);   // no grant and no shift here: not theirs to see
+        if (!$p) throw new HttpNotFoundException($req);   // no grant here: not theirs to see
         $first = array_key_first(Workspace::SCOPE_PAGES[$kind][0][1]);
         $page = (string) ($args['page'] ?? $first);
         // The pages this place has for THIS person: an award's work comes from their grants,
@@ -253,8 +207,6 @@ final class VolunteerController
         if (!$user || !$v) return $this->to($res, '/volunteer');
         $data = ['volunteer' => (array) $v, 'level' => Level::of($v),
                  'hours' => array_map(static fn ($r) => (array) $r, DB::table('gates_vol_hours')->where('volunteer_id', $v->id)->orderBy('worked_on')->get()->all()),
-                 'shifts' => array_map(static fn ($r) => (array) $r, DB::table('gates_vol_signups as s')->join('gates_vol_shifts as h', 'h.id', '=', 's.shift_id')
-                     ->where('s.volunteer_id', $v->id)->get(['h.title', 'h.starts_at', 'h.ends_at', 's.status', 's.joined_at'])->all()),
                  'tasks' => array_map(static fn ($r) => (array) $r, Tasks::mine($v, 'done')),
                  'training' => array_map(static fn ($r) => ['title' => $r->title, 'passed_at' => $r->passed_at, 'expires_at' => $r->expires_at], Training::passed($v))];
         unset($data['volunteer']['tip_dismissed_at']);
@@ -311,10 +263,6 @@ final class VolunteerController
         $active = in_array($this->role($v), ['new', 'active', 'lead'], true) || $v->status === 'paused';
 
         $r = match ((string) ($b['do'] ?? '')) {
-            'join' => $active ? (($j = Shifts::join($v, (int) ($b['shift'] ?? 0)))['ok'] ? $ok('You’re on it. It’s in Shifts › Mine.') : $no((string) $j['error'])) : $no('Shifts open once you’re approved.'),
-            'wait' => $active ? (($w = Shifts::wait($v, (int) ($b['shift'] ?? 0)))['ok']
-                ? $ok(!empty($w['place']) ? 'You’re on the waitlist, ' . WorkspacePages::ordinal((int) $w['place']) . ' in line. We email you if a place opens.' : 'A place was free, so you’re on it.')
-                : $no((string) $w['error'])) : $no('Shifts open once you’re approved.'),
             'contact' => $active ? (($k = Contacts::log($v, $b))['ok'] ? $ok('Logged. The team follows up.') : $no((string) $k['error'])) : $no('Contacts open once you’re approved.'),
             'contact_edit' => ($k = Contacts::edit($v, (int) ($b['contact'] ?? 0), $b))['ok'] ? $ok('Saved. The team gets the correction.') : $no((string) $k['error']),
             'forget_contact' => Contacts::forget($v, (int) ($b['contact'] ?? 0)) ? $ok('Marked. The team won’t contact them.') : $no('That contact isn’t yours.'),
@@ -322,9 +270,6 @@ final class VolunteerController
             'meet_answer' => Meetings::answer($v, (int) ($b['meeting'] ?? 0), (string) ($b['answer'] ?? '')) ? $ok(($b['answer'] ?? '') === 'yes' ? 'Thanks. They know you’re going.' : 'Thanks. They know you can’t come.') : $no('That meeting can’t be answered now.'),
             'meet_notes' => ($k = Meetings::notes($v, (int) ($b['meeting'] ?? 0), (string) ($b['notes'] ?? '')))['ok'] ? $ok('Notes saved. Everybody invited can read them.') : $no((string) $k['error']),
             'meet_cancel' => Meetings::cancel($v, (int) ($b['meeting'] ?? 0), $this->mailer) ? $ok('Called off. Everybody invited is told.') : $no('Only the organiser can call it off, before it starts.'),
-            'unwait' => Shifts::unwait($v, (int) ($b['shift'] ?? 0)) ? $ok('You’ve left the waitlist.') : $no('You’re not on that waitlist.'),
-            'drop' => Shifts::drop($v, (int) ($b['shift'] ?? 0)) ? $ok('Dropped. The shift goes back to the team.') : $no('That shift is not yours to drop.'),
-            'accept' => Shifts::acceptChange($v, (int) ($b['shift'] ?? 0)) ? $ok('Thanks. The new time is noted.') : $no('That shift is not yours.'),
             'take' => $active ? (($t = Tasks::take($v, (int) ($b['task'] ?? 0)))['ok'] ? $ok('It’s yours. It’s in Tasks › Mine.') : $no((string) $t['error'])) : $no('Tasks open once you’re approved.'),
             'droptask' => Tasks::drop($v, (int) ($b['task'] ?? 0)) ? $ok('Dropped.') : $no('That task is not yours to drop.'),
             'log' => ($l = Hours::log($v, (string) ($b['date'] ?? ''), (string) ($b['what'] ?? ''), (float) ($b['hours'] ?? 0), (string) ($b['witness'] ?? ''), (string) ($b['proof'] ?? '')))['ok']

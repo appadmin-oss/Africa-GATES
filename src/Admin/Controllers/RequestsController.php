@@ -7,7 +7,7 @@ use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Services\EventPlan\Plan;
 use AfricaGates\Services\Requests;
-use AfricaGates\Services\Volunteer\Shifts;
+use AfricaGates\Services\Volunteer\Workspace;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -83,7 +83,7 @@ final class RequestsController
         $audience = Requests::type((string) $r->type, 'lead') !== null ? 'lead' : 'volunteer';
         $type = Requests::type((string) $r->type, $audience);
         $from = (string) (DB::table($r->from_kind === 'admin' ? 'gates_admins' : 'gates_users')->where('id', $r->from_id)->value('name') ?? 'Someone');
-        $where = $r->scope_kind ? Shifts::scopeName((string) $r->scope_kind, (int) $r->scope_id) : '';
+        $where = $r->scope_kind ? Workspace::scopeName((string) $r->scope_kind, (int) $r->scope_id) : '';
         $line = $r->type === 'spend' && Plan::ready() ? DB::table('gates_event_budget')->where('request_id', $r->id)->first() : null;
         return [
             'id' => (int) $r->id, 'title' => (string) $r->title, 'status' => (string) $r->status, 'status_label' => Requests::STATUSES[$r->status] ?? $r->status,

@@ -6,8 +6,7 @@ namespace Tests\Unit;
 use AfricaGates\Controllers\VolunteerController;
 use AfricaGates\Services\Volunteer\Reminders;
 use AfricaGates\Services\Volunteer\Rules;
-use AfricaGates\Services\Volunteer\Shifts;
-use AfricaGates\Services\Volunteer\Team;
+use AfricaGates\Services\Volunteer\Meetings;
 use AfricaGates\Services\Volunteer\Training;
 use AfricaGates\Services\Volunteer\Volunteers;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -20,10 +19,9 @@ use Tests\TestCase;
  * (docs/architecture/WORKSPACE-COMPARISON.md §3), and the screen-reader rules the workspace
  * is held to.
  *
- * What these try to break: a waitlist that promotes somebody on a break or out of turn, or
- * that counts leaving it as a late drop; a reminder sent twice, or sent to somebody on a
- * break; a calendar file that carries another volunteer's name; and a page whose counts,
- * buttons or outcome a screen reader cannot hear.
+ * What these try to break: a reminder sent twice, or sent to somebody on a break; and a page
+ * whose counts, buttons or outcome a screen reader cannot hear. (The waitlist, the shift
+ * calendar and booked hours left with shifts, owner 29 Oct 2026.)
  */
 final class VolunteerWorkspaceGapsTest extends TestCase
 {
@@ -53,20 +51,6 @@ final class VolunteerWorkspaceGapsTest extends TestCase
         return Volunteers::of($uid);
     }
 
-    private function shift(int $slots, string $start = '+3 days', array $o = []): int
-    {
-        $r = Shifts::create($o + ['title' => 'Door, Gate B', 'scope_kind' => 'event', 'scope_id' => $this->event,
-            'starts_at' => date('Y-m-d H:00:00', strtotime($start)), 'ends_at' => date('Y-m-d H:00:00', strtotime($start . ' +4 hours')),
-            'slots' => $slots, 'location' => 'Civic Centre, Alimosho', 'bring' => 'Water; a pen', 'lead_name' => 'Femi'], 1);
-        $this->assertTrue($r['ok']);
-        return (int) $r['id'];
-    }
-
-    private function signupStatus(object $v, int $shift): ?string
-    {
-        return DB::table('gates_vol_signups')->where('shift_id', $shift)->where('volunteer_id', $v->id)->value('status');
-    }
-
     private function ctrl(): VolunteerController
     {
         $b = new \DI\ContainerBuilder();
@@ -74,44 +58,12 @@ final class VolunteerWorkspaceGapsTest extends TestCase
         return $b->build()->get(VolunteerController::class);
     }
 
-    public function test_a_full_shift_keeps_a_line_and_a_drop_moves_on_the_first_who_can_take_it(): void
-    {
-        $s = $this->shift(1);
-        [$on, $first, $second] = [$this->vol('Ada One'), $this->vol('Bola Two'), $this->vol('Chi Three')];
-        $this->assertTrue(Shifts::join($on, $s)['ok']);
-        $full = Shifts::join($first, $s);
-        $this->assertFalse($full['ok']);
-        $this->assertTrue($full['full'] ?? false, 'a full shift says the waitlist is open, not just "filled"');
-        $this->assertSame(1, Shifts::wait($first, $s)['place']);
-        $this->assertSame(2, Shifts::wait($second, $s)['place']);
-
-        // The first in line goes on a break: passed over, and keeps their place.
-        DB::table('gates_volunteers')->where('id', $first->id)->update(['status' => 'paused', 'paused_until' => date('Y-m-d H:i:s', strtotime('+2 weeks'))]);
-        $this->assertTrue(Shifts::drop($on, $s));
-        $this->assertSame('waiting', $this->signupStatus($first, $s), 'somebody on a break is not moved onto a shift');
-        $this->assertSame('on', $this->signupStatus($second, $s));
-        $this->assertNotNull(DB::table('gates_vol_signups')->where('shift_id', $s)->where('volunteer_id', $second->id)->value('promoted_at'));
-        $this->assertSame(1, Shifts::placeInLine($first, $s), 'and they are still first in line');
-    }
-
-    public function test_leaving_a_waitlist_is_not_a_late_drop(): void
-    {
-        $s = $this->shift(1, '+20 hours');
-        [$on, $w] = [$this->vol('Ada One'), $this->vol('Bola Two')];
-        Shifts::join($on, $s);
-        Shifts::wait($w, $s);
-        $this->assertTrue(Shifts::unwait($w, $s));
-        $this->assertSame('withdrawn', $this->signupStatus($w, $s));
-        $this->assertSame(0, DB::table('gates_vol_signups')->where('volunteer_id', $w->id)->where('status', 'dropped')->count(),
-            'reliability reads dropped rows; leaving a line is not one');
-    }
-
     public function test_reminders_go_once_to_the_person_and_never_to_somebody_on_a_break(): void
     {
-        $s = $this->shift(3, '+20 hours');
         [$a, $b] = [$this->vol('Ada One'), $this->vol('Bola Two')];
-        Shifts::join($a, $s);
-        Shifts::join($b, $s);
+        $m = (int) DB::table('gates_vol_modules')->insertGetId(['slug' => 'door', 'title' => 'Door steward', 'minutes' => 10, 'pass_mark' => 1, 'status' => 'live', 'created_at' => date('Y-m-d H:i:s')]);
+        foreach ([$a, $b] as $v) DB::table('gates_vol_passes')->insert(['module_id' => $m, 'volunteer_id' => $v->id, 'score' => 3, 'passed_at' => date('Y-m-d H:i:s', strtotime('-360 days')),
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+3 days'))]);
         DB::table('gates_volunteers')->where('id', $b->id)->update(['status' => 'paused', 'paused_until' => date('Y-m-d H:i:s', strtotime('+2 weeks'))]);
 
         $mail = [];
@@ -120,9 +72,8 @@ final class VolunteerWorkspaceGapsTest extends TestCase
         $this->assertSame(0, Reminders::sweep(null, $send, 'https://example.test'), 'a second tick sends nothing: the claim came first');
         $this->assertCount(1, $mail);
         $this->assertSame((string) DB::table('gates_users')->where('id', $a->user_id)->value('email'), $mail[0][0]);
-        $this->assertStringContainsString('Bring: Water; a pen.', $mail[0][2]);
-        $this->assertStringContainsString('Your lead: Femi.', $mail[0][2]);
-        $this->assertStringContainsString('https://example.test/volunteer/shifts/' . $s, $mail[0][2]);
+        $this->assertStringContainsString('Your Door steward training runs out on', $mail[0][2]);
+        $this->assertStringContainsString('https://example.test/volunteer/training/take/door', $mail[0][2]);
     }
 
     public function test_a_lapsing_pass_is_reminded_unless_a_newer_one_replaced_it(): void
@@ -138,52 +89,33 @@ final class VolunteerWorkspaceGapsTest extends TestCase
         $this->assertNotContains('vol-train', $keys(), 'renewed: nothing to remind');
     }
 
-    public function test_the_calendar_file_holds_only_the_persons_own_shifts(): void
-    {
-        $s = $this->shift(3, '+3 days', ['brief' => 'Gate B, by the car park, opens at six']);
-        [$a, $b] = [$this->vol('Ada One'), $this->vol('Bola Two')];
-        Shifts::join($a, $s);
-        Shifts::join($b, $s);
-        $_SESSION['user_id'] = $a->user_id;
-        $res = $this->ctrl()->ics((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/shifts.ics'), new Response());
-        $ics = (string) $res->getBody();
-        $this->assertStringStartsWith('text/calendar', $res->getHeaderLine('Content-Type'));
-        $this->assertStringContainsString('UID:vol-shift-' . $s . '@', $ics);
-        $this->assertMatchesRegularExpression('/DTSTART:\d{8}T\d{6}Z/', $ics, 'times in UTC');
-        $this->assertStringContainsString('Gate B\, by the car park\, opens at six', str_replace("\r\n ", '', $ics), 'commas escaped (RFC 5545)');
-        $this->assertStringNotContainsString('Bola', $ics, 'no other volunteer is named');
-        foreach (explode("\r\n", $ics) as $line) $this->assertLessThanOrEqual(75, strlen($line), 'lines folded at 75 octets');
-    }
-
-    public function test_a_leads_team_shows_booked_hours_against_each_persons_own_limit(): void
-    {
-        $v = $this->vol('Ada One');
-        DB::table('gates_volunteers')->where('id', $v->id)->update(['max_hours_week' => 3]);
-        $s = $this->shift(2, 'monday this week 10:00');
-        DB::table('gates_vol_signups')->insert(['shift_id' => $s, 'volunteer_id' => $v->id, 'status' => 'kept', 'joined_at' => date('Y-m-d H:i:s')]);
-        $this->assertSame(4.0, Team::bookedThisWeek(Volunteers::of((int) $v->user_id)));
-    }
-
     public function test_a_screen_reader_hears_the_outcome_the_counts_and_what_each_button_is_for(): void
     {
-        $s = $this->shift(1);
         [$a, $b] = [$this->vol('Ada One'), $this->vol('Bola Two')];
-        Shifts::join($a, $s);
-        $_SESSION['user_id'] = $b->user_id;
-        $_SESSION['vol_toast'] = 'You’re on the waitlist, 1st in line.';
-        $html = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/shifts/all'), new Response(), ['page' => 'shifts', 'tab' => 'all'])->getBody();
+        DB::table('gates_vol_hours')->insert(['volunteer_id' => $a->id, 'source' => 'manual', 'worked_on' => date('Y-m-d', strtotime('-2 days')), 'what' => 'Flyers',
+            'hours' => 2, 'status' => 'verified', 'created_at' => date('Y-m-d H:i:s')]);
+        DB::table('gates_volunteers')->where('id', $a->id)->update(['dob' => '1990-01-01']);
+        DB::table('gates_volunteers')->where('id', $b->id)->update(['dob' => '1990-01-01']);
+        foreach ([$a, $b] as $v) \AfricaGates\Services\Grants::grant('member', (int) $v->user_id, 'vol.door', 'event', $this->event, date('Y-m-d', strtotime('+20 days')), 1);
+        Meetings::$makeLink = null;
+        $r = Meetings::schedule(Volunteers::byId((int) $a->id), ['title' => 'Door briefing', 'date' => date('Y-m-d', strtotime('+3 days')), 'time' => '18:00', 'minutes' => '30',
+            'repeats' => 'once', 'mode' => 'place', 'location' => 'Civic Centre', 'people' => [(string) $b->id]], null, static fn () => true);
+        $this->assertTrue($r['ok'], $r['error'] ?? '');
 
-        $this->assertMatchesRegularExpression('~<title>You’re on the waitlist, 1st in line\. · ~u', $html, 'the outcome is first in the title, which is read on load');
+        $_SESSION['user_id'] = $b->user_id;
+        $_SESSION['vol_toast'] = 'Thanks. They know you’re going.';
+        $html = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/meetings'), new Response(), ['page' => 'meetings'])->getBody();
+        $this->assertMatchesRegularExpression('~<title>Thanks\. They know you’re going\. · ~u', $html, 'the outcome is first in the title, which is read on load');
         $this->assertStringContainsString('id="sh7Live" role="status"', $html, 'an empty polite region, filled after load');
         $this->assertStringContainsString('id="sh7Alert" role="alert"', $html);
-        $this->assertStringContainsString('Full · waitlist open', $html, 'a full shift says so in words');
+        $this->assertStringContainsString('<span class="sh7-sr">, 1 waiting</span>', $html, 'a count carries hidden words');
         $this->assertDoesNotMatchRegularExpression('~<span[^>]*class="sh7-badge[^"]*"[^>]*aria-label=~', $html, 'aria-label on a span is not read; counts carry hidden words');
 
-        Shifts::wait($b, $s);
-        $_SESSION['vol_error'] = 'That shift has already started.';
-        $html = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/shifts'), new Response(), ['page' => 'shifts'])->getBody();
-        $this->assertStringContainsString('<title>Not done: That shift has already started. · ', $html);
+        \AfricaGates\Services\Volunteer\Contacts::log(Volunteers::byId((int) $b->id), ['name' => 'Funmi Bello', 'phone' => '0803 123 4567', 'interest' => 'vote', 'consent' => '1', 'adult' => '1']);
+        $_SESSION['vol_error'] = 'That meeting can’t be answered now.';
+        $html = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/contacts'), new Response(), ['page' => 'contacts'])->getBody();
+        $this->assertStringContainsString('<title>Not done: That meeting can’t be answered now. · ', $html);
         $this->assertStringContainsString('data-sh7-stay', $html, 'an error stays until dismissed');
-        $this->assertStringContainsString('Leave the waitlist<span class="sh7-sr">, Door, Gate B</span>', $html, 'a button names what it acts on');
+        $this->assertMatchesRegularExpression('~href="/volunteer/contacts/\d+">Funmi Bello</a>~', $html, 'a row names its record in its link');
     }
 }

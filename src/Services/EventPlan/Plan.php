@@ -475,22 +475,6 @@ final class Plan
         return $out;
     }
 
-    /** Volunteer shifts at an event: slots and how many are taken. @return array{filled:int, slots:int, first:?string}|null */
-    public static function shiftFill(int $eventId): ?array
-    {
-        if (!SchemaHas::table('gates_vol_shifts')) return null;
-        $shifts = DB::table('gates_vol_shifts')->where('scope_kind', 'event')->where('scope_id', $eventId)->where('status', 'open')->get(['id', 'slots', 'starts_at'])->all();
-        if ($shifts === []) return null;
-        $slots = 0;
-        $first = null;
-        foreach ($shifts as $s) {
-            $slots += (int) $s->slots;
-            if ($first === null || (string) $s->starts_at < $first) $first = (string) $s->starts_at;
-        }
-        $filled = (int) DB::table('gates_vol_signups')->whereIn('shift_id', array_map(static fn ($s) => (int) $s->id, $shifts))
-            ->whereIn('status', ['on', 'kept'])->count();
-        return ['filled' => min($filled, $slots), 'slots' => $slots, 'first' => $first];
-    }
 
     // ── analytics ────────────────────────────────────────────────────────────────────────
 

@@ -8,7 +8,7 @@ use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Services\Grants;
 use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Services\Volunteer\Level;
-use AfricaGates\Services\Volunteer\Shifts;
+use AfricaGates\Services\Volunteer\Workspace;
 use AfricaGates\Services\Volunteer\Tasks;
 use AfricaGates\Services\Volunteer\Training;
 use AfricaGates\Services\Volunteer\Volunteers;
@@ -22,7 +22,7 @@ use Slim\Views\Twig;
  * staff side that feeds it, so nothing is empty").
  *
  * Applications to approve or decline, roles to give (every one with an end date — Grants
- * refuses one without), shifts to post and mark, tasks to post and accept, training to write,
+ * refuses one without), tasks to post and accept, training to write,
  * and hours logged by hand that no team lead has answered.
  *
  * ACCESS IS THE GUARD'S, NOT THIS FILE'S. `/admin/volunteers` is not mapped in
@@ -33,7 +33,7 @@ use Slim\Views\Twig;
  */
 final class VolunteersController
 {
-    public const TABS = ['applications' => 'Applications', 'roster' => 'Roster', 'shifts' => 'Shifts', 'tasks' => 'Tasks',
+    public const TABS = ['applications' => 'Applications', 'roster' => 'Roster', 'tasks' => 'Tasks',
                          'training' => 'Training', 'hours' => 'Hours to confirm'];
 
     public function __construct(private readonly Twig $view, private readonly AuditService $audit) {}
@@ -50,8 +50,6 @@ final class VolunteersController
         $data = $ready ? match ($tab) {
             'applications' => ['rows' => $this->applications()],
             'roster' => ['rows' => $this->roster(), 'caps' => Grants::CAPABILITIES, 'places' => $this->places()],
-            'shifts' => ['upcoming' => $this->shifts(true), 'past' => $this->shifts(false), 'places' => $this->places(),
-                         'caps' => Grants::CAPABILITIES, 'modules' => Training::titles()],
             'tasks' => ['rows' => $this->tasks(), 'checked' => Tasks::CHECKED_BY, 'places' => $this->places(), 'modules' => Training::titles()],
             'training' => ['rows' => DB::table('gates_vol_modules')->orderBy('title')->get()->all(), 'caps' => Grants::CAPABILITIES],
             'hours' => ['rows' => Hours::waiting()],
@@ -77,14 +75,11 @@ final class VolunteersController
         // The form numbers answers from 1, as people count; the module stores them from 0.
         if ($do === 'module') foreach ((array) ($b['answer'] ?? []) as $i => $a) $b['answer'][$i] = max(0, (int) $a - 1);
         [$ok, $msg, $target] = match ($do) {
-            'approve' => [Volunteers::approve((int) ($b['id'] ?? 0), $adminId), 'Approved. They can take shifts now.', (int) ($b['id'] ?? 0)],
+            'approve' => [Volunteers::approve((int) ($b['id'] ?? 0), $adminId), 'Approved. Their workspace opens now.', (int) ($b['id'] ?? 0)],
             'decline' => [Volunteers::decline((int) ($b['id'] ?? 0), $adminId, (string) ($b['reason'] ?? '')), 'Declined. They see the reason.', (int) ($b['id'] ?? 0)],
             'ref_replied' => [Volunteers::refereeReplied((int) ($b['ref'] ?? 0), (string) ($b['note'] ?? '')), 'Marked as replied.', (int) ($b['ref'] ?? 0)],
             'grant' => $this->grant($b, $adminId),
             'revoke' => [Grants::revoke((int) ($b['grant'] ?? 0), $adminId), 'Ended. It leaves their workspace on their next page.', (int) ($b['grant'] ?? 0)],
-            'shift' => $this->created(Shifts::create($b, $adminId), 'Posted. It shows in Fits you for everybody it suits.'),
-            'mark' => [Shifts::mark((int) ($b['signup'] ?? 0), ($b['kept'] ?? '') === '1', $adminName), ($b['kept'] ?? '') === '1' ? 'Kept: the hours are on their record.' : 'Marked missed.', (int) ($b['signup'] ?? 0)],
-            'retime' => $this->retimed(Shifts::retime((int) ($b['shift'] ?? 0), (string) ($b['starts_at'] ?? ''), (string) ($b['ends_at'] ?? '')), (int) ($b['shift'] ?? 0)),
             'task' => $this->created(Tasks::create($b, $adminId), 'Posted to the task library.'),
             'accept' => [Tasks::accept((int) ($b['take'] ?? 0), (float) ($b['hours'] ?? 0), (int) ($b['accepted'] ?? 0), $adminName), 'Accepted: the hours are on their record.', (int) ($b['take'] ?? 0)],
             'module' => $this->created(Training::save($b), 'Saved. Volunteers see it in Training.'),
@@ -124,13 +119,13 @@ final class VolunteersController
             $v->name = trim((string) $v->display_name) ?: (string) $v->user_name;
             $v->lv = Level::of($v);
             $v->grants = Grants::forActor('member', (int) $v->user_id, 'vol.');
-            foreach ($v->grants as $g) $g->where = Shifts::scopeName((string) $g->scope_kind, (int) $g->scope_id);
+            foreach ($v->grants as $g) $g->where = Workspace::scopeName((string) $g->scope_kind, (int) $g->scope_id);
             $rows[] = $v;
         }
         return $rows;
     }
 
-    /** Events and award editions a role or a shift can be for, newest first. @return list<array{kind:string,id:int,name:string}> */
+    /** Events and award editions a role or a task can be for, newest first. @return list<array{kind:string,id:int,name:string}> */
     private function places(): array
     {
         $out = [];
@@ -142,19 +137,6 @@ final class VolunteersController
             $out[] = ['kind' => 'cycle', 'id' => (int) $c->id, 'name' => $c->title . ' · ' . ($c->edition_label ?: $c->year)];
         }
         return $out;
-    }
-
-    private function shifts(bool $upcoming): array
-    {
-        $q = DB::table('gates_vol_shifts')->where('status', 'open');
-        $upcoming ? $q->where('ends_at', '>=', date('Y-m-d H:i:s'))->orderBy('starts_at') : $q->where('ends_at', '<', date('Y-m-d H:i:s'))->orderByDesc('starts_at');
-        $rows = $q->limit(100)->get()->all();
-        foreach ($rows as $s) {
-            $s->where = Shifts::scopeName((string) $s->scope_kind, (int) $s->scope_id);
-            $s->people = DB::table('gates_vol_signups as g')->join('gates_volunteers as v', 'v.id', '=', 'g.volunteer_id')->join('gates_users as u', 'u.id', '=', 'v.user_id')
-                ->where('g.shift_id', $s->id)->whereIn('g.status', ['on', 'kept', 'missed'])->get(['g.id', 'g.status', 'v.display_name', 'u.name'])->all();
-        }
-        return $rows;
     }
 
     private function tasks(): array
@@ -187,11 +169,6 @@ final class VolunteersController
     private function created(array $r, string $msg): array
     {
         return [$r['ok'], $r['ok'] ? $msg : implode(' ', $r['errors'] ?? ['That could not be saved.']), (int) ($r['id'] ?? 0)];
-    }
-
-    private function retimed(array $r, int $id): array
-    {
-        return [$r['ok'], $r['ok'] ? 'Moved. Everybody on it sees “Time changed” until they accept.' : (string) $r['error'], $id];
     }
 
     private function back(Response $res, string $tab, bool $ok, string $msg): Response

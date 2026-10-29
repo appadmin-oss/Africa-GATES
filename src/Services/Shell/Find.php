@@ -36,6 +36,6 @@ final class Find
         $rows = array_map(static fn ($i) => ['t' => $i['t'], 'sub' => $i['sub'], 'meta' => $i['kind'], 'href' => $i['href']], array_slice($hits, 0, 50));
         return ['title' => 'Find', 'purpose' => $hits ? count($hits) . (count($hits) === 1 ? ' match' : ' matches') . ' for “' . $q . '”.' : '',
                 'secs' => [$rows ? ['k' => 'rows', 'items' => $rows]
-                                 : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing matches “' . $q . '”. Try a page’s name, a place, or a word from a shift or a task.']]];
+                                 : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nothing matches “' . $q . '”. Try a page’s name, a place, or a word from a task or a meeting.']]];
     }
 }

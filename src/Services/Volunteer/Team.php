@@ -11,8 +11,8 @@ use Illuminate\Database\Capsule\Manager as DB;
  *
  * A lead's team is not a list somebody keeps. It is everybody who volunteers WHERE the lead
  * leads: a `vol.team_lead` grant at an event or an award edition makes its holder the lead of
- * whoever holds a shift or a volunteer grant at that same place. So the team changes when the
- * shifts do, and a lead whose grant has ended leads nobody — with nothing to tidy up.
+ * whoever holds a volunteer grant at that same place. So the team changes when the roles do,
+ * and a lead whose grant has ended leads nobody — with nothing to tidy up.
  */
 final class Team
 {
@@ -31,9 +31,6 @@ final class Team
     {
         $ids = [];
         foreach (self::scopes($lead) as [$kind, $id]) {
-            foreach (DB::table('gates_vol_signups as s')->join('gates_vol_shifts as h', 'h.id', '=', 's.shift_id')
-                         ->where('h.scope_kind', $kind)->where('h.scope_id', $id)->whereIn('s.status', ['on', 'kept'])
-                         ->pluck('s.volunteer_id') as $vid) $ids[(int) $vid] = true;
             foreach (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
                          ->where('g.actor_kind', 'member')->where('g.scope_kind', $kind)->where('g.scope_id', $id)
                          ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))
@@ -43,7 +40,7 @@ final class Team
         return array_keys($ids);
     }
 
-    /** @return list<object> the team, each with ->name, ->level, ->hours, ->next (their next shift or null) */
+    /** @return list<object> the team, each with ->name, ->level, ->hours and ->tasks (open tasks they have taken) */
     public static function roster(object $lead): array
     {
         $ids = self::memberIds($lead);
@@ -54,9 +51,7 @@ final class Team
             $lv = Level::of($v);
             $v->level = $lv['level'];
             $v->hours = $lv['hours'];
-            $mine = Shifts::mine($v);
-            $v->next = $mine[0] ?? null;
-            $v->week = self::bookedThisWeek($v);
+            $v->tasks = count(Tasks::mine($v));
             $out[] = $v;
         }
         usort($out, static fn ($a, $b) => strcmp((string) $a->name, (string) $b->name));
@@ -64,58 +59,10 @@ final class Team
     }
 
     /** Hours the team logged by hand, waiting for the lead. @return list<object> */
-    /**
-     * Hours a person is booked for this week, Monday to Sunday, from their shifts that are on
-     * or already kept — set beside the limit they chose in Availability (Asana's Workload,
-     * Zoho's utilisation). It is their own number, never a quota anybody else set.
-     */
-    public static function bookedThisWeek(object $v): float
-    {
-        $from = date('Y-m-d 00:00:00', strtotime('monday this week'));
-        $to = date('Y-m-d 00:00:00', strtotime('monday next week'));
-        $h = 0.0;
-        foreach (DB::table('gates_vol_signups as s')->join('gates_vol_shifts as h', 'h.id', '=', 's.shift_id')
-                     ->where('s.volunteer_id', $v->id)->whereIn('s.status', ['on', 'kept'])->where('h.status', '!=', 'cancelled')
-                     ->where('h.starts_at', '>=', $from)->where('h.starts_at', '<', $to)->get(['h.starts_at', 'h.ends_at']) as $r) {
-            $h += max(0, ((int) strtotime((string) $r->ends_at) - (int) strtotime((string) $r->starts_at)) / 3600);
-        }
-        return round($h, 1);
-    }
-
     public static function waitingHours(object $lead): array
     {
         $ids = self::memberIds($lead);
         return $ids === [] ? [] : Hours::waiting($ids);
-    }
-
-    /**
-     * Shifts where the lead leads that are not full, soonest first, each with up to two best
-     * fits from the team: free at that time and holding the training it needs.
-     *
-     * @return list<object> each with ->filled, ->short, ->fits (list of names)
-     */
-    public static function gaps(object $lead): array
-    {
-        $out = [];
-        $team = self::roster($lead);
-        foreach (self::scopes($lead) as [$kind, $id]) {
-            foreach (DB::table('gates_vol_shifts')->where('scope_kind', $kind)->where('scope_id', $id)->where('status', 'open')
-                         ->where('starts_at', '>', date('Y-m-d H:i:s'))->orderBy('starts_at')->get() as $s) {
-                $s->filled = (int) DB::table('gates_vol_signups')->where('shift_id', $s->id)->where('status', 'on')->count();
-                $s->short = (int) $s->slots - $s->filled;
-                if ($s->short <= 0) continue;
-                $s->fits = [];
-                foreach ($team as $m) {
-                    if (count($s->fits) >= 2) break;
-                    if ($s->module_key && !Training::holds((int) $m->id, (string) $s->module_key)) continue;
-                    $busy = false;
-                    foreach (Shifts::mine($m) as $x) if ((int) $x->id === (int) $s->id || Shifts::overlaps($x, $s)) { $busy = true; break; }
-                    if (!$busy) $s->fits[] = Volunteers::firstName($m) . ' ' . mb_substr((string) preg_replace('/^\S+\s*/', '', $m->name), 0, 1) . '.';
-                }
-                $out[] = $s;
-            }
-        }
-        return $out;
     }
 
     /** May this lead confirm this volunteer's hours? Only their own team's. */

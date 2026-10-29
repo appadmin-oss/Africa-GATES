@@ -13,7 +13,6 @@ use AfricaGates\Services\EventScanPass;
 use AfricaGates\Services\Shell\Updates;
 use AfricaGates\Services\UserAccountService;
 use AfricaGates\Services\Requests;
-use AfricaGates\Services\Volunteer\Shifts;
 use AfricaGates\Services\Volunteer\Workspace;
 use AfricaGates\Support\DisplayTime;
 use AfricaGates\Support\SiteUrl;
@@ -177,7 +176,6 @@ final class LeadController
             'message_send' => [Outreach::sendMessage($int('request'), (string) ($b['audience'] ?? ''), (string) ($b['subject'] ?? ''), (string) ($b['body'] ?? ''), $me['id'], $me['name']), '', 'event', 0],
             'seat' => [Scope::seat($int('table'), (string) ($b['kind'] ?? '') === 'invite' ? 'invite' : 'ticket', $int('ref'), $me['id']), 'Seated.', 'event', 0],
             'seat_free' => [Scope::unseat($int('seat'), $me['id']), 'Seat freed.', 'event', 0],
-            'shift_add' => [$this->postShift($me, $b), 'Posted. Volunteers it suits see it in their workspace.', 'event', $int('event')],
             'door_issue' => [$this->issueDoor($me, $b), 'Scanning link made.', 'event', $int('event')],
             'door_revoke' => [$this->revokeDoor($me, $b), 'Turned off. It stops working now.', 'event', $int('event')],
             'request_remind' => [$this->remind($me, $int('request')), 'Reminded.', 'request', $int('request')],
@@ -226,17 +224,6 @@ final class LeadController
         $r = Requests::act($id, (string) ($b['action'] ?? ''), Plan::ACTOR, $me['id'], $me['name'], (string) ($b['note'] ?? ''));
         if ($r['ok']) Plan::syncRequest($id);   // a withdrawn spend request puts its line back to "not approved yet"
         return $r;
-    }
-
-    /** A shift at the lead's own event, posted through the volunteer domain's one creator. */
-    private function postShift(array $me, array $b): array
-    {
-        $event = (int) ($b['event'] ?? 0);
-        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can post its shifts.'];
-        $r = Shifts::create(['title' => $b['title'] ?? '', 'scope_kind' => 'event', 'scope_id' => $event, 'starts_at' => DisplayTime::toStored($b['starts_at'] ?? null) ?? '',
-            'ends_at' => DisplayTime::toStored($b['ends_at'] ?? null) ?? '', 'slots' => $b['slots'] ?? 1, 'location' => $b['location'] ?? '',
-            'capability' => $b['capability'] ?? '', 'lead_name' => $me['name']], 0);   // created_by is a staff id; a lead is not staff
-        return $r['ok'] ? $r + ['event' => $event] : ['ok' => false, 'error' => implode(' ', $r['errors'] ?? ['That shift could not be posted.'])];
     }
 
     /** A scanning link for one door of the lead's event (EventScanPass: hashed, windowed, ends by itself). */

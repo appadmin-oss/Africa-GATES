@@ -3915,14 +3915,12 @@ return function(App $app) {
         $v->get('/me/export.json',                $c . ':export');
         $v->get('/me[/{page:[a-z]+}]',            $c . ':me');
         $v->get('/training/take/{slug:[a-z0-9-]+}', $c . ':module');
-        $v->get('/shifts.ics',                    $c . ':ics');
-        $v->get('/shifts/{id:[0-9]+}',            $c . ':shift');
         $v->get('/contacts/{id:[0-9]+}',          $c . ':contact');
         $v->get('/meetings/{id:[0-9]+}.ics',      $c . ':meetingIcs');
         $v->get('/meetings/{id:[0-9]+}',          $c . ':meeting');
         $v->get('/requests/{id:[0-9]+}',          $c . ':request');
         $v->get('/{kind:cycle|event}/{id:[0-9]+}[/{page:[a-z]+}[/{tab:[a-z]+}]]', $c . ':place');
-        $v->get('/{page:shifts|tasks|contacts|meetings|hours|training|record|team|requests}[/{tab:[a-z]+}]', $c . ':root');
+        $v->get('/{page:tasks|contacts|meetings|hours|training|record|team|requests}[/{tab:[a-z]+}]', $c . ':root');
         $v->get('[/]',                            $c . ':root');
     })->add(new UserAuthMiddleware());
 

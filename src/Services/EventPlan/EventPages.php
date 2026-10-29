@@ -8,6 +8,7 @@ use AfricaGates\Services\EventScanPass;
 use AfricaGates\Services\EventTicketService;
 use AfricaGates\Services\Grants;
 use AfricaGates\Services\Requests;
+use AfricaGates\Services\Volunteer\Volunteers;
 use AfricaGates\Services\Volunteer\Workspace;
 use Illuminate\Database\Capsule\Manager as DB;
 
@@ -18,7 +19,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  * Requests and Event settings.
  *
  * Every section is read from a row: Plan and Scope for what the lead writes, and what the
- * platform already holds for the rest — the shifts, the guests of honour, the door's headcount
+ * platform already holds for the rest — the volunteers, the guests of honour, the door's headcount
  * (EventArrivals), its scanning links (EventScanPass), the tickets. Where something has no
  * source, the tab says so in one sentence and offers the one action that starts it (§8);
  * nothing is drawn as a zero that was never measured.
@@ -160,7 +161,6 @@ final class EventPages
         $r = Plan::readiness($id);
         $blockers = Plan::blockers([$id]);
         $risks = Plan::risks([$id]);
-        $fill = Plan::shiftFill($id);
         $chips = [[LeadPages::daysShort((string) $e->event_date), strtotime((string) $e->event_date) - time() < 14 * 86400 ? 'warn' : 'mute']];
         if ($blockers) $chips[] = [count($blockers) === 1 ? '1 blocker' : count($blockers) . ' blockers', 'bad'];
         $facts = [
@@ -169,7 +169,7 @@ final class EventPages
             ['Tickets', LeadPages::ticketWords($e) ?? 'None sold yet'],
             ['Open risks', $risks ? (string) count($risks) : 'None'],
         ];
-        if ($fill) $facts[] = ['Volunteers', $fill['filled'] . ' of ' . $fill['slots'] . ' shifts filled'];
+        if ($n = count(self::volunteersAt($id))) $facts[] = ['Volunteers', $n . ' with a role'];
         $secs = [['k' => 'hero', 'ini' => Workspace::initials((string) $e->title), 'tone' => 'ok', 'chips' => $chips, 't' => (string) $e->title,
                   'sub' => self::where($e) . ' · ' . date('D j M, H:i', (int) strtotime((string) $e->event_date)),
                   'facts' => $facts, 'acts' => [['label' => 'Add work', 'href' => self::url($id, 'plan'), 'primary' => true], ['label' => 'Run of show', 'href' => self::url($id, 'night')]]]];
@@ -336,36 +336,33 @@ final class EventPages
              'cta' => ['label' => 'Ask for access', 'href' => LeadPages::BASE . '/requests?new=access&event=' . $id]]]];
     }
 
+    /**
+     * The volunteers who hold a role at this event, from live grants (no shifts: owner, 29 Oct
+     * 2026). A role is given by the volunteer team in the staff console and ends by itself.
+     *
+     * @return list<object> each with ->name and ->role
+     */
+    public static function volunteersAt(int $eventId): array
+    {
+        if (!Grants::ready()) return [];
+        $out = [];
+        foreach (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
+                     ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $eventId)->where('g.capability', 'like', 'vol.%')
+                     ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))->get(['v.*', 'g.capability']) as $v) {
+            $out[(int) $v->id] ??= (object) ['name' => Volunteers::name($v), 'role' => Grants::CAPABILITIES[$v->capability] ?? 'Volunteer'];
+        }
+        return array_values($out);
+    }
+
     private static function volunteers(object $e): array
     {
-        $id = (int) $e->id;
-        $secs = [];
-        $shifts = DB::table('gates_vol_shifts')->where('scope_kind', 'event')->where('scope_id', $id)->where('status', 'open')->orderBy('starts_at')->get()->all();
-        $items = [];
-        foreach ($shifts as $s) {
-            $names = DB::table('gates_vol_signups as x')->join('gates_volunteers as v', 'v.id', '=', 'x.volunteer_id')->join('gates_users as u', 'u.id', '=', 'v.user_id')
-                ->where('x.shift_id', $s->id)->whereIn('x.status', ['on', 'kept'])->orderBy('x.id')->get(['v.display_name', 'u.name'])->all();
-            $n = count($names);
-            $items[] = ['t' => (string) $s->title, 'sub' => Workspace::day((string) $s->starts_at) . ', ' . Workspace::span((string) $s->starts_at, (string) $s->ends_at)
-                        . ($s->location ? ' · ' . $s->location : '') . ($n ? ' · ' . implode(', ', array_map(static fn ($x) => (string) ($x->display_name ?: $x->name), $names)) : ''),
-                        'pct' => (int) round(min($n, (int) $s->slots) * 100 / max(1, (int) $s->slots)), 'barT' => min($n, (int) $s->slots) . ' of ' . $s->slots,
-                        'chip' => $n >= (int) $s->slots ? ['Full', 'ok'] : [((int) $s->slots - $n) . ' to fill', 'warn']];
-        }
-        $secs[] = $items ? ['k' => 'rows', 'h' => 'Shifts', 'items' => $items]
-                         : ['k' => 'note', 'tone' => 'mute', 'text' => 'No volunteer shifts are posted for this event yet. Post the first below; volunteers whose training and time fit see it in their workspace.'];
-        $caps = ['' => 'No role at the door'];
-        foreach (Grants::CAPABILITIES as $k => $l) if (str_starts_with($k, 'vol.') && $k !== 'vol.team_lead') $caps[$k] = $l;
-        $day = date('Y-m-d', (int) strtotime((string) $e->event_date));
-        $secs[] = ['k' => 'form', 'h' => 'Post a shift', 'do' => 'shift_add', 'hidden' => ['event' => $id], 'submit' => 'Post it', 'groups' => [
-            ['label' => 'What and where', 'fields' => [['name' => 'title', 'label' => 'Shift', 'type' => 'text', 'required' => true, 'placeholder' => 'Door, Gate B'],
-                                                         ['name' => 'location', 'label' => 'Where', 'type' => 'text', 'placeholder' => (string) ($e->venue ?? '')]]],
-            ['label' => 'When', 'fields' => [['name' => 'starts_at', 'label' => 'Starts', 'type' => 'datetime-local', 'step' => '1', 'required' => true, 'value' => $day . 'T15:00:00'],
-                                              ['name' => 'ends_at', 'label' => 'Ends', 'type' => 'datetime-local', 'step' => '1', 'required' => true, 'value' => $day . 'T21:00:00']]],
-            ['label' => 'How many, and what it gives', 'help' => 'The role is given to each volunteer on the shift, and ends the day after it.',
-             'fields' => [['name' => 'slots', 'label' => 'Volunteers needed', 'type' => 'number', 'min' => 1, 'max' => 500, 'value' => '4'],
-                          ['name' => 'capability', 'label' => 'Role on the night', 'type' => 'select', 'options' => $caps]]],
+        $items = array_map(static fn ($p) => ['t' => $p->name, 'sub' => $p->role, 'ini' => Workspace::initials($p->name)], self::volunteersAt((int) $e->id));
+        return ['title' => 'People', 'secs' => [
+            $items ? ['k' => 'rows', 'h' => 'Volunteers with a role here', 'items' => $items]
+                   : ['k' => 'note', 'tone' => 'mute', 'text' => 'No volunteer holds a role at this event yet.'],
+            ['k' => 'note', 'tone' => 'mute', 'text' => 'Roles are given by the volunteer team and end by themselves after the event. Ask for somebody with a request.',
+             'cta' => ['label' => 'Ask for volunteers', 'href' => self::url((int) $e->id, 'requests')]],
         ]];
-        return ['title' => 'People', 'secs' => $secs];
     }
 
     /** Guests of honour: nominees only, or everybody invited. */
@@ -756,7 +753,7 @@ final class EventPages
                   'cue_add' => 'added a cue', 'cue_done' => 'ran a cue', 'cue_undo' => 'took a cue back', 'cue_remove' => 'removed a cue',
                   'sponsor_add' => 'added a sponsor', 'sponsor_stage' => 'moved a sponsor', 'check_add' => 'added a safety check', 'check_done' => 'signed off a check',
                   'check_undo' => 'reopened a check', 'table_save' => 'changed the seating', 'seat' => 'seated a guest', 'seat_free' => 'freed a seat',
-                  'letters_send' => 'sent invitation letters', 'message_send' => 'sent a message', 'shift_add' => 'posted a shift', 'door_issue' => 'made a scanning link',
+                  'letters_send' => 'sent invitation letters', 'message_send' => 'sent a message', 'door_issue' => 'made a scanning link',
                   'door_revoke' => 'turned off a scanning link', 'request' => 'made a request', 'lead_grant' => 'gave the event a lead'];
         $rows = [];
         foreach (Scope::audit((int) $e->id) as $a) {
@@ -796,7 +793,7 @@ final class EventPages
         unset($o);
         return ['title' => 'Requests', 'acts' => [['label' => 'New request', 'href' => LeadPages::BASE . '/requests?new=spend&event=' . $e->id, 'primary' => true]],
             'secs' => [['k' => 'table', 'cols' => [['l' => 'Request'], ['l' => 'From'], ['l' => 'Decides', 't0' => true], ['l' => 'Status']], 'rows' => $out,
-                        'empty' => 'No requests about this event yet.', 'foot' => 'Requests from the event’s volunteers about their shifts show here too.']]];
+                        'empty' => 'No requests about this event yet.', 'foot' => 'Requests from the event’s volunteers show here too.']]];
     }
 
     private static function general(object $e): array
@@ -833,7 +830,7 @@ final class EventPages
         }
         return ['title' => 'Event settings', 'secs' => [
             $rows ? ['k' => 'rows', 'h' => 'Who has access', 'items' => $rows] : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nobody else has access to this event.'],
-            ['k' => 'note', 'tone' => 'mute', 'text' => 'Every role here ends by itself, with the event or the shift. Somebody new is a request to an administrator.',
+            ['k' => 'note', 'tone' => 'mute', 'text' => 'Every role here ends by itself, with the event. Somebody new is a request to an administrator.',
              'cta' => ['label' => 'Ask for access', 'href' => LeadPages::BASE . '/requests?new=access&event=' . $id]],
         ]];
     }

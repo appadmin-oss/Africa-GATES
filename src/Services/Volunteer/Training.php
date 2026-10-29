@@ -67,7 +67,7 @@ final class Training
     public static function next(object $v): array
     {
         $out = [];
-        $openShifts = DB::table('gates_vol_shifts')->where('status', 'open')->where('starts_at', '>', date('Y-m-d H:i:s'))
+        $openTasks = DB::table('gates_vol_tasks')->where('status', 'open')
             ->whereNotNull('module_key')->groupBy('module_key')->selectRaw('module_key, COUNT(*) as n')->pluck('n', 'module_key')->all();
         $passes = [];
         foreach (self::passed($v) as $p) $passes[$p->slug] ??= $p;
@@ -80,11 +80,11 @@ final class Training
                 $m->tone = 'warn';
                 $m->reason = $days > 0 ? 'Expires in ' . $days . ' ' . ($days === 1 ? 'day' : 'days') : 'Expired';
                 if ($m->unlocks) $m->reason .= ' · keeps ' . self::capWords((string) $m->unlocks);
-            } elseif (isset($openShifts[$m->slug])) {
-                $n = (int) $openShifts[$m->slug];
-                $m->label = 'Unlocks shifts';
+            } elseif (isset($openTasks[$m->slug])) {
+                $n = (int) $openTasks[$m->slug];
+                $m->label = 'Unlocks tasks';
                 $m->tone = 'ok';
-                $m->reason = 'Unlocks ' . $n . ' open ' . ($n === 1 ? 'shift' : 'shifts');
+                $m->reason = 'Unlocks ' . $n . ' open ' . ($n === 1 ? 'task' : 'tasks');
             } elseif ($m->slug === Rules::LEAD_MODULE) {
                 $m->label = 'Level 3';
                 $m->tone = 'info';

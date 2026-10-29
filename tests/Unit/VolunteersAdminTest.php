@@ -73,15 +73,15 @@ final class VolunteersAdminTest extends TestCase
         $this->assertSame(1, DB::table('gates_audit_log')->where('action', 'volunteers.grant')->count(), 'one audit entry per write');
     }
 
-    public function test_a_shift_posted_with_a_place_lands_on_that_place(): void
+    public function test_a_task_posted_with_a_place_lands_on_that_place(): void
     {
         $ev = (int) DB::table('gates_site_events')->insertGetId(['slug' => 'c-' . bin2hex(random_bytes(3)), 'title' => 'Alimosho ceremony',
             'event_date' => date('Y-m-d', strtotime('+10 days')), 'status' => 'published', 'created_at' => date('Y-m-d H:i:s')]);
-        $msg = $this->post(['do' => 'shift', 'tab' => 'shifts', 'title' => 'Door, Gate B', 'scope' => 'event:' . $ev,
-            'starts_at' => date('Y-m-d\T15:30', strtotime('+10 days')), 'ends_at' => date('Y-m-d\T21:00', strtotime('+10 days')), 'slots' => '4']);
+        $msg = $this->post(['do' => 'task', 'tab' => 'tasks', 'title' => 'Door rota', 'scope' => 'event:' . $ev, 'checked_by' => 'lead']);
         $this->assertStringContainsString('Posted', $msg);
-        $s = DB::table('gates_vol_shifts')->where('title', 'Door, Gate B')->first();
-        $this->assertSame(['event', $ev], [(string) $s->scope_kind, (int) $s->scope_id]);
+        $t = DB::table('gates_vol_tasks')->where('title', 'Door rota')->first();
+        $this->assertSame(['event', $ev], [(string) $t->scope_kind, (int) $t->scope_id]);
+        $this->assertStringContainsString('isn’t something', $this->post(['do' => 'shift', 'tab' => 'tasks', 'title' => 'X']), 'shifts are gone');
     }
 
     public function test_a_training_answer_numbered_from_one_on_the_form_is_the_answer_stored(): void

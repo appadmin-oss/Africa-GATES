@@ -7,7 +7,7 @@ use AfricaGates\Services\EventPlan\LeadPages;
 use AfricaGates\Services\EventPlan\Plan;
 use AfricaGates\Services\EventPlan\Scope;
 use AfricaGates\Services\Requests;
-use AfricaGates\Services\Volunteer\Shifts;
+use AfricaGates\Services\Volunteer\Meetings;
 use AfricaGates\Services\Volunteer\Training;
 use AfricaGates\Services\Volunteer\Workspace;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -17,7 +17,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  * affect the night (red), then Waiting on others. There is no production pill").
  *
  * Every update is DERIVED from a record on each request — a late blocker, a request asking for
- * information, a shift whose time moved — never a stored notification. So nothing has to be
+ * information, a meeting to answer — never a stored notification. So nothing has to be
  * marked read to stop being true, and nothing lingers after the thing it describes is fixed:
  * the update goes when its cause does. The count on the bell is the count of things that need
  * the person (the first groups), never of what merely waits on somebody else, and it is never
@@ -48,9 +48,6 @@ final class Updates
             $open = count(array_filter(Scope::checks((int) $e->id), static fn ($c) => $c->done_at === null));
             if ($open > 0) $night[] = ['t' => $open . ($open === 1 ? ' safety check' : ' safety checks') . ' not signed off', 'sub' => (string) $e->title,
                                        'href' => EventPages::url((int) $e->id, 'night', 'safety')];
-            $f = Plan::shiftFill((int) $e->id);
-            if ($f && $f['filled'] < $f['slots']) $night[] = ['t' => ($f['slots'] - $f['filled']) . ' volunteer places to fill', 'sub' => (string) $e->title,
-                                                             'href' => EventPages::url((int) $e->id, 'people', 'volunteers')];
         }
         $you = [];
         foreach (Requests::from(Plan::ACTOR, $me['id'], 'open', 'lead') as $r) {
@@ -80,14 +77,11 @@ final class Updates
                                                        'href' => '/volunteer/requests/' . $r->id];
         }
         $soon = [];
-        foreach (Shifts::mine($v) as $s) {
-            if ($s->time_changed_at && (!$s->change_seen_at || (string) $s->change_seen_at < (string) $s->time_changed_at)) {
-                $you[] = ['t' => 'The time of ' . $s->title . ' changed', 'sub' => Workspace::day((string) $s->starts_at) . ', ' . Workspace::span((string) $s->starts_at, (string) $s->ends_at),
-                          'href' => '/volunteer/shifts/' . $s->id];
-            }
-            $h = (strtotime((string) $s->starts_at) - time()) / 3600;
-            if ($h >= 0 && $h <= 48) $soon[] = ['t' => (string) $s->title, 'sub' => Workspace::until((string) $s->starts_at) . ', ' . Workspace::span((string) $s->starts_at, (string) $s->ends_at) . ' · ' . $s->scope_name,
-                                                'href' => '/volunteer/shifts/' . $s->id];
+        foreach (Meetings::mine($v) as $m) {
+            if ($m->answer === 'invited') $you[] = ['t' => $m->organiser_name . ' invited you to ' . $m->title, 'sub' => 'Say whether you can come', 'href' => '/volunteer/meetings/' . $m->id];
+            $h = $m->next ? (strtotime((string) $m->next) - time()) / 3600 : -1;
+            if ($h >= 0 && $h <= 48 && $m->answer !== 'no') $soon[] = ['t' => (string) $m->title, 'sub' => Workspace::until((string) $m->next) . ', ' . date('H:i', (int) strtotime((string) $m->next)),
+                                                                        'href' => '/volunteer/meetings/' . $m->id];
         }
         foreach (Training::passed($v) as $p) {
             if (!$p->expires_at) continue;

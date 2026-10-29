@@ -16,12 +16,9 @@ final class Rules
 {
     public const DEFAULTS = [
         'vol_level2_hours'       => 10,   // verified hours to reach Level 2
-        'vol_level2_shifts'      => 3,    // shifts kept to reach Level 2
         'vol_level3_hours'       => 50,   // verified hours to reach Level 3
-        'vol_level3_reliability' => 90,   // per cent of shifts kept, for Level 3
         'vol_min_age'            => 16,   // youngest applicant accepted
         'vol_guardian_under'     => 18,   // a guardian's consent below this age
-        'vol_late_drop_hours'    => 48,   // a drop inside this counts against reliability
         'vol_week_hours_default' => 12,   // the weekly guide before a person sets their own
     ];
 

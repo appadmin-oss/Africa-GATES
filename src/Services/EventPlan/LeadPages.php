@@ -44,7 +44,7 @@ final class LeadPages
         'risks'     => 'What could stop a night, how likely it is, and who is watching it.',
         'approvals' => 'Spend waiting for a decision, and who makes it.',
         'analytics' => 'Each event against its last edition, on the same day before the night.',
-        'people'    => 'Who is carrying the work this week, and how the volunteer shifts are filling.',
+        'people'    => 'Who is carrying the work this week, and the volunteers at each event.',
     ];
 
     // ── shell pieces ────────────────────────────────────────────────────────────────────
@@ -497,11 +497,9 @@ final class LeadPages
                        : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nobody has work due this week. Give work an owner and its hours, and their week shows here.']];
         $vol = [];
         foreach ($events as $e) {
-            $f = Plan::shiftFill((int) $e->id);
-            if (!$f) continue;
-            $vol[] = ['t' => (string) $e->title, 'sub' => $f['filled'] . ' of ' . $f['slots'] . ' shifts filled · first ' . Workspace::day($f['first']),
-                      'pct' => $f['slots'] > 0 ? (int) round($f['filled'] * 100 / $f['slots']) : 0, 'barT' => $f['filled'] . ' of ' . $f['slots'],
-                      'href' => self::eventUrl((int) $e->id, 'people')];
+            $n = count(EventPages::volunteersAt((int) $e->id));
+            if ($n === 0) continue;
+            $vol[] = ['t' => (string) $e->title, 'sub' => $n . ($n === 1 ? ' volunteer' : ' volunteers') . ' with a role', 'href' => self::eventUrl((int) $e->id, 'people') . '?tab=volunteers'];
         }
         if ($vol) $secs[] = ['k' => 'rows', 'h' => 'Volunteers', 'items' => $vol];
         return ['title' => 'People', 'secs' => $secs];

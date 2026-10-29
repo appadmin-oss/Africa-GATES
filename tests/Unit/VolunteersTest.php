@@ -8,7 +8,7 @@ use AfricaGates\Services\Requests;
 use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Services\Volunteer\Level;
 use AfricaGates\Services\Volunteer\Rules;
-use AfricaGates\Services\Volunteer\Shifts;
+use AfricaGates\Services\Volunteer\Tasks;
 use AfricaGates\Services\Volunteer\Training;
 use AfricaGates\Services\Volunteer\Volunteers;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -22,10 +22,9 @@ use Tests\TestCase;
  *   · every grant ends, expiry is read rather than swept, and a parent covers its children;
  *   · a request's decline and "ask for info" need a note, only the decider decides, and a
  *     decided request cannot be decided again;
- *   · applying checks the age rule, a shift that needs training refuses until it is passed,
- *     a clash is refused, and joining an event shift grants its role until the day after;
- *   · hours from a kept shift are verified at once, hours by hand wait for a person, a decline
- *     needs a reason, and a confirmed hour is never answered twice;
+ *   · applying checks the age rule, and a task that needs training refuses until it is passed;
+ *   · hours from accepted work are verified at once, hours by hand wait for a person, a
+ *     decline needs a reason, and a confirmed hour is never answered twice;
  *   · the level is computed from the record and the settings, never stored.
  */
 final class VolunteersTest extends TestCase
@@ -59,12 +58,12 @@ final class VolunteersTest extends TestCase
             'event_date' => date('Y-m-d', strtotime('+10 days')), 'status' => 'published', 'created_at' => date('Y-m-d H:i:s')]);
     }
 
-    private function shift(int $event, string $start, string $end, array $o = []): int
+    /** A task taken and accepted at the given hours: verified work, as staff accept it. */
+    private function accepted(object $v, float $hours, array $o = []): void
     {
-        $r = Shifts::create($o + ['title' => 'Door, Gate B', 'scope_kind' => 'event', 'scope_id' => $event, 'starts_at' => $start,
-            'ends_at' => $end, 'slots' => 4, 'location' => 'Alimosho Civic Centre'], 1);
-        $this->assertTrue($r['ok'], implode(' ', $r['errors'] ?? []));
-        return $r['id'];
+        $t = Tasks::create($o + ['title' => 'Digitise a booklet', 'checked_by' => 'lead'], 1);
+        $this->assertTrue(Tasks::take($v, (int) $t['id'])['ok']);
+        $this->assertTrue(Tasks::accept((int) DB::table('gates_vol_task_takes')->where('task_id', $t['id'])->value('id'), $hours, 1, 'Kemi Bello'));
     }
 
     public function test_every_grant_ends_expiry_is_read_and_a_parent_covers_its_children(): void
@@ -96,8 +95,8 @@ final class VolunteersTest extends TestCase
         $ev = $this->event();
         Grants::grant('member', $lead, 'vol.team_lead', 'event', $ev, date('Y-m-d', strtotime('+30 days')));
 
-        $this->assertFalse(Requests::create('volunteer', 'swap', 'member', $vol, 'Bayo', ['title' => 'Swap Sat'], 'event', $ev)['ok'], 'why is required');
-        $r = Requests::create('volunteer', 'swap', 'member', $vol, 'Bayo', ['title' => 'Swap Sat 31 Oct for Wed 4 Nov', 'why' => 'Family event'], 'event', $ev);
+        $this->assertFalse(Requests::create('volunteer', 'off', 'member', $vol, 'Bayo', ['title' => 'Away Sat'], 'event', $ev)['ok'], 'why is required');
+        $r = Requests::create('volunteer', 'off', 'member', $vol, 'Bayo', ['title' => 'Away Sat 31 Oct', 'why' => 'Family event'], 'event', $ev);
         $this->assertTrue($r['ok']);
         $this->assertSame('your lead, Kemi Bello', $r['decider'], 'routed to the lead who holds the grant, never a typed name');
 
@@ -105,8 +104,8 @@ final class VolunteersTest extends TestCase
         $no = Requests::act($r['id'], 'decline', 'member', $lead, 'Kemi', '');
         $this->assertFalse($no['ok']);
         $this->assertStringContainsString('Say why', $no['error']);
-        $this->assertTrue(Requests::act($r['id'], 'ask_info', 'member', $lead, 'Kemi', 'Which shift can you take instead?')['ok']);
-        $this->assertTrue(Requests::act($r['id'], 'add_info', 'member', $vol, 'Bayo', 'Wed 4 Nov at Egbeda')['ok']);
+        $this->assertTrue(Requests::act($r['id'], 'ask_info', 'member', $lead, 'Kemi', 'When are you back?')['ok']);
+        $this->assertTrue(Requests::act($r['id'], 'add_info', 'member', $vol, 'Bayo', 'Back on Mon 2 Nov')['ok']);
         $this->assertTrue(Requests::act($r['id'], 'approve', 'member', $lead, 'Kemi')['ok']);
         $this->assertFalse(Requests::act($r['id'], 'decline', 'member', $lead, 'Kemi', 'changed my mind')['ok'], 'decided is read-only');
         $this->assertTrue(Requests::undo($r['id'], 'member', $lead, 'Kemi'), 'undo, within its seconds');
@@ -118,7 +117,7 @@ final class VolunteersTest extends TestCase
         $this->assertTrue(Requests::act($s['id'], 'approve', 'admin', 1, 'Admin', '', 'admin')['ok']);
     }
 
-    public function test_applying_checks_age_and_training_gates_a_shift(): void
+    public function test_applying_checks_age_and_training_gates_a_task(): void
     {
         $u = $this->member();
         $young = Volunteers::apply($u, ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikeja', 'dob' => date('Y-m-d', strtotime('-15 years')), 'interests' => ['drive'], 'ref_name' => 'A', 'ref_contact' => 'b', 'conduct' => 1]);
@@ -132,35 +131,19 @@ final class VolunteersTest extends TestCase
         $this->assertSame('new', Volunteers::role($v), 'approved with nothing verified yet');
         DB::table('gates_vol_modules')->insert(['slug' => 'door', 'title' => 'Door steward', 'minutes' => 15, 'questions' => json_encode([['q' => 'A red pass goes to?', 'options' => ['The queue', 'The gate lead'], 'answer' => '1']]),
             'pass_mark' => 1, 'unlocks' => 'vol.door', 'status' => 'live', 'created_at' => date('Y-m-d H:i:s')]);
-        $ev = $this->event();
-        $sh = $this->shift($ev, '+5 days 15:30', '+5 days 21:00', ['module_key' => 'door', 'capability' => 'vol.door']);
-        $r = Shifts::join($v, $sh);
-        $this->assertFalse($r['ok']);
-        $this->assertSame('door', $r['train'] ?? null, 'the refusal names the training, so the screen can say Train first');
+        $t = Tasks::create(['title' => 'Door rota for the ceremony', 'checked_by' => 'lead', 'module_key' => 'door'], 1);
+        $this->assertStringContainsString('training', Tasks::take($v, (int) $t['id'])['error'] ?? '', 'a task that needs training refuses until it is passed');
         $this->assertFalse(Training::take($v, 'door', [0 => '0'])['passed'], 'a wrong answer does not pass');
         $this->assertTrue(Training::take($v, 'door', [0 => '1'])['passed']);
-        $this->assertTrue(Shifts::join($v, $sh)['ok']);
-        $this->assertTrue(Grants::allows('member', (int) $v->user_id, 'vol.door', 'event', $ev), 'joining grants the shift\'s role at the event');
-
-        $other = $this->shift($ev, '+5 days 17:00', '+5 days 22:00', ['title' => 'Hall ushers']);
-        $c = Shifts::join($v, $other);
-        $this->assertFalse($c['ok']);
-        $this->assertStringContainsString('clashes with Door, Gate B', $c['error']);
-
-        Shifts::drop($v, $sh);
-        $this->assertFalse(Grants::allows('member', (int) $v->user_id, 'vol.door', 'event', $ev), 'dropping the last shift ends the role');
+        $this->assertTrue(Tasks::take($v, (int) $t['id'])['ok']);
     }
 
     public function test_hours_are_verified_from_evidence_and_wait_for_a_person_by_hand(): void
     {
         $v = $this->approved();
-        $ev = $this->event();
-        $sh = $this->shift($ev, '+3 days 10:00', '+3 days 14:00', ['title' => 'Voter drive, Ikotun']);
-        $this->assertTrue(Shifts::join($v, $sh)['ok']);
-        $signup = (int) DB::table('gates_vol_signups')->where('shift_id', $sh)->value('id');
-        $this->assertTrue(Shifts::mark($signup, true, 'Kemi Bello'));
-        $this->assertFalse(Shifts::mark($signup, true, 'Kemi Bello'), 'answered once');
-        $this->assertSame(4.0, Hours::summary($v)['verified'], 'a kept shift is verified hours at once, from its own times');
+        $this->accepted($v, 4.0);
+        $this->assertFalse(Tasks::accept((int) DB::table('gates_vol_task_takes')->value('id'), 4.0, 1, 'Kemi Bello'), 'accepted once');
+        $this->assertSame(4.0, Hours::summary($v)['verified'], 'accepted work is verified hours at once');
         $this->assertSame('active', Volunteers::role(Volunteers::byId((int) $v->id)));
 
         $this->assertFalse(Hours::log($v, date('Y-m-d', strtotime('+1 day')), 'Carried chairs', 2)['ok'], 'not in the future');
@@ -178,16 +161,10 @@ final class VolunteersTest extends TestCase
     {
         $v = $this->approved();
         $this->assertSame(1, Level::of($v)['level']);
-        $ev = $this->event();
-        foreach ([1, 2, 3] as $i) {
-            $sh = $this->shift($ev, '+' . (10 + $i) . ' days 09:00', '+' . (10 + $i) . ' days 13:00', ['title' => 'Drive ' . $i]);
-            Shifts::join($v, $sh);
-            Shifts::mark((int) DB::table('gates_vol_signups')->where('shift_id', $sh)->value('id'), true, 'Lead');
-        }
+        foreach ([1, 2, 3] as $i) $this->accepted($v, 4.0, ['title' => 'Drive ' . $i]);
         $l = Level::of($v);
         $this->assertSame(12.0, $l['hours']);
-        $this->assertSame(2, $l['level'], '10 hours and 3 shifts kept, by default');
-        $this->assertSame(100, $l['reliability']);
+        $this->assertSame(2, $l['level'], '10 verified hours, by default');
         $this->assertContains('Team lead training', $l['next']['needs']);
 
         DB::table('gates_settings')->insert(['key_name' => 'vol_level2_hours', 'value' => '20']);

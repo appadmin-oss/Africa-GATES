@@ -7,7 +7,7 @@ use AfricaGates\Controllers\VolunteerController;
 use AfricaGates\Services\Grants;
 use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Services\Volunteer\Rules;
-use AfricaGates\Services\Volunteer\Shifts;
+use AfricaGates\Services\Volunteer\Tasks;
 use AfricaGates\Services\Volunteer\Training;
 use AfricaGates\Services\Volunteer\Volunteers;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -19,9 +19,9 @@ use Tests\TestCase;
 /**
  * THE VOLUNTEER WORKSPACE, DRIVEN THROUGH ITS CONTROLLER (consoles v7 §6; review slice V1).
  *
- * The review's exit test for V1, as far as this slice reaches: a person applies, is approved,
- * takes a shift and holds the grant it brings, staff mark the shift kept, and the verified
- * hours and the level move — with no figure on any screen the database did not produce. Each
+ * The review's exit test for V1, without shifts (owner, 29 Oct 2026): a person applies, is
+ * approved, holds a role at an event, takes a task, staff accept it, and the verified hours and
+ * the level move — with no figure on any screen the database did not produce. Each
  * case renders the real page and reads the HTML, because the promise is about what a person
  * SEES, not what a service returns.
  */
@@ -67,11 +67,16 @@ final class VolunteerWorkspaceTest extends TestCase
             'event_date' => date('Y-m-d', strtotime('+10 days')), 'status' => 'published', 'created_at' => date('Y-m-d H:i:s')]);
     }
 
-    private function shift(int $event, string $start, string $end, array $o = []): int
+    /** A volunteer role at an event, as the volunteer team gives it. */
+    private function role(int $uid, int $event, string $cap = 'vol.door'): void
     {
-        $r = Shifts::create($o + ['title' => 'Door, Gate B', 'scope_kind' => 'event', 'scope_id' => $event, 'starts_at' => $start,
-            'ends_at' => $end, 'slots' => 4, 'location' => 'Alimosho Civic Centre', 'capability' => 'vol.door'], 1);
-        $this->assertTrue($r['ok'], implode(' ', $r['errors'] ?? []));
+        $this->assertTrue(Grants::grant('member', $uid, $cap, 'event', $event, date('Y-m-d', strtotime('+20 days')), 1)['ok']);
+    }
+
+    private function task(array $o = []): int
+    {
+        $r = Tasks::create($o + ['title' => 'Digitise the 1st Edition booklet', 'checked_by' => 'lead', 'from_home' => '1', 'est_minutes' => '30'], 1);
+        $this->assertTrue($r['ok']);
         return (int) $r['id'];
     }
 
@@ -110,57 +115,52 @@ final class VolunteerWorkspaceTest extends TestCase
         $this->assertSame(200, $st);
         $this->assertStringContainsString('Reference from Mrs Adeyemi', $html, 'the step it waits on names the referee');
         $this->assertStringContainsString('Applicant', $html, 'the brand line is the role');
-        $this->assertStringNotContainsString('href="/volunteer/shifts"', $html, 'an applicant has no Shifts page on the rail');
+        $this->assertStringNotContainsString('href="/volunteer/tasks"', $html, 'an applicant has no Tasks page on the rail');
         $this->expectException(HttpNotFoundException::class);
-        $this->get('root', ['page' => 'shifts']);
+        $this->get('root', ['page' => 'tasks']);
     }
 
-    public function test_a_new_volunteer_is_offered_good_first_shifts_and_nothing_is_drawn_as_zero(): void
+    public function test_a_new_volunteer_is_offered_good_first_tasks_and_nothing_is_drawn_as_zero(): void
     {
         $uid = $this->member();
         $_SESSION['user_id'] = $uid;
         Volunteers::approve($this->applied($uid), 1);
-        $ev = $this->event();
-        $this->shift($ev, date('Y-m-d 10:00:00', strtotime('next saturday')), date('Y-m-d 14:00:00', strtotime('next saturday')), ['title' => 'Voter drive, Ikotun Market']);
+        $this->task(['title' => 'Voter drive flyers, Ikotun Market']);
         [, , $html] = $this->get('root');
         $this->assertStringContainsString('Getting started', $html);
-        $this->assertStringContainsString('Voter drive, Ikotun Market', $html, 'a real open shift is offered');
+        $this->assertStringContainsString('Voter drive flyers, Ikotun Market', $html, 'a real open task is offered');
         $this->assertStringContainsString('Nothing is expected of you until you pick something', $html);
         $this->assertDoesNotMatchRegularExpression('~class="sh7-badge[^"]*"[^>]*>0<~', $html, 'no 0 badge anywhere (§8)');
+        $this->assertStringNotContainsString('shift', strtolower($html), 'volunteering has no shifts');
     }
 
-    public function test_the_v1_exit_path_join_a_shift_hold_its_grant_keep_it_and_watch_the_hours_and_level_move(): void
+    public function test_the_v1_exit_path_hold_a_role_take_a_task_and_watch_the_hours_and_level_move(): void
     {
         $uid = $this->member();
         $_SESSION['user_id'] = $uid;
         $vid = $this->applied($uid);
         Volunteers::approve($vid, 1);
         $ev = $this->event();
-        $sid = $this->shift($ev, date('Y-m-d 15:30:00', strtotime('+3 days')), date('Y-m-d 21:00:00', strtotime('+3 days')));
-
-        [$st, $loc, $ok] = $this->post(['do' => 'join', 'shift' => $sid, 'back' => '/volunteer/shifts/fits']);
-        $this->assertSame([303, '/volunteer/shifts/fits'], [$st, $loc]);
-        $this->assertStringContainsString('You’re on it', (string) $ok);
-        $this->assertTrue(Grants::allows('member', $uid, 'vol.door', 'event', $ev), 'joining an event shift grants its role there');
-
-        [, , $html] = $this->get('root', ['page' => 'shifts']);
-        $this->assertStringContainsString('Door, Gate B', $html);
-        $this->assertStringContainsString('Confirmed', $html);
+        $this->role($uid, $ev);
         [, , $place] = $this->get('place', ['kind' => 'event', 'id' => (string) $ev]);
         $this->assertStringContainsString('Alimosho ceremony', $place, 'the event is a place they help');
         $this->assertStringContainsString('Door steward ends', $place, 'Your access says when it ends');
 
-        // Staff mark it kept: verified hours from the shift's own times, and the record moves.
-        $signup = (int) DB::table('gates_vol_signups')->where('shift_id', $sid)->value('id');
-        DB::table('gates_vol_shifts')->where('id', $sid)->update(['starts_at' => date('Y-m-d 15:30:00', strtotime('-1 day')), 'ends_at' => date('Y-m-d 21:00:00', strtotime('-1 day'))]);
-        Shifts::mark($signup, true, 'Kemi Bello');
+        $tid = $this->task();
+        [$st, $loc, $ok] = $this->post(['do' => 'take', 'task' => $tid, 'back' => '/volunteer/tasks/library']);
+        $this->assertSame([303, '/volunteer/tasks/library'], [$st, $loc]);
+        $this->assertStringContainsString('It’s yours', (string) $ok);
+        // Staff accept it: the hours are verified at once, and the record moves.
+        $take = (int) DB::table('gates_vol_task_takes')->where('task_id', $tid)->value('id');
+        $this->assertTrue(Tasks::accept($take, 5.5, 1, 'Kemi Bello'));
         [, , $hours] = $this->get('root', ['page' => 'hours']);
-        $this->assertStringContainsString('5.5h', $hours, 'five and a half verified hours, from the shift itself');
+        $this->assertStringContainsString('5.5h', $hours, 'five and a half verified hours, from the accepted task');
         [, , $record] = $this->get('root', ['page' => 'record', 'tab' => 'badges']);
-        $this->assertStringContainsString('First shift', $record, 'a badge earned from the record');
+        $this->assertStringContainsString('First task accepted', $record, 'a badge earned from the record');
+        $this->assertSame('active', Volunteers::role(Volunteers::byId($vid)), 'verified hours make an active volunteer');
     }
 
-    public function test_a_volunteer_cannot_reach_a_place_they_have_no_grant_or_shift_at(): void
+    public function test_a_volunteer_cannot_reach_a_place_they_have_no_role_at(): void
     {
         $uid = $this->member();
         $_SESSION['user_id'] = $uid;
@@ -172,12 +172,11 @@ final class VolunteerWorkspaceTest extends TestCase
     public function test_hours_logged_by_hand_wait_for_a_lead_and_only_their_own_teams_lead_can_answer(): void
     {
         $ev = $this->event();
-        $sid = $this->shift($ev, date('Y-m-d 10:00:00', strtotime('+5 days')), date('Y-m-d 14:00:00', strtotime('+5 days')));
         $a = $this->member('Bayo Adewale');
         $va = Volunteers::byId($this->applied($a));
         Volunteers::approve((int) $va->id, 1);
         $va = Volunteers::byId((int) $va->id);
-        $this->assertTrue(Shifts::join($va, $sid)['ok']);
+        $this->role($a, $ev);
 
         $_SESSION['user_id'] = $a;
         [, , $ok, $err] = $this->post(['do' => 'log', 'date' => date('Y-m-d', strtotime('-1 day')), 'what' => 'Carried chairs to the hall', 'hours' => '2', 'back' => '/volunteer/hours/log']);
@@ -245,15 +244,12 @@ final class VolunteerWorkspaceTest extends TestCase
     public function test_the_pages_never_send_a_phone_number_or_an_email_to_a_volunteer(): void
     {
         $ev = $this->event();
-        $sid = $this->shift($ev, date('Y-m-d 10:00:00', strtotime('+5 days')), date('Y-m-d 14:00:00', strtotime('+5 days')));
         $a = $this->member('Bayo Adewale');
-        $va = Volunteers::byId($this->applied($a));
-        Volunteers::approve((int) $va->id, 1);
-        Shifts::join(Volunteers::byId((int) $va->id), $sid);
+        Volunteers::approve($this->applied($a), 1);
+        $this->role($a, $ev);
         $b = $this->member('Hauwa Musa');
-        $vb = Volunteers::byId($this->applied($b));
-        Volunteers::approve((int) $vb->id, 1);
-        Shifts::join(Volunteers::byId((int) $vb->id), $sid);
+        Volunteers::approve($this->applied($b), 1);
+        $this->role($b, $ev, 'vol.usher');
         $emailA = (string) DB::table('gates_users')->where('id', $a)->value('email');
         $_SESSION['user_id'] = $b;
         [, , $html] = $this->get('place', ['kind' => 'event', 'id' => (string) $ev, 'page' => 'team']);
@@ -262,22 +258,20 @@ final class VolunteerWorkspaceTest extends TestCase
         $this->assertStringNotContainsString('0803 000 0000', $html, 'never a referee’s or a member’s phone');
     }
 
-    public function test_a_swap_goes_to_the_lead_where_the_shift_is_and_that_lead_can_decide_it(): void
+    public function test_time_off_goes_to_the_lead_where_they_help_and_that_lead_can_decide_it(): void
     {
         $ev = $this->event();
-        $sid = $this->shift($ev, date('Y-m-d 10:00:00', strtotime('+5 days')), date('Y-m-d 14:00:00', strtotime('+5 days')));
         $a = $this->member('Bayo Adewale');
-        $va = Volunteers::byId($this->applied($a));
-        Volunteers::approve((int) $va->id, 1);
-        Shifts::join(Volunteers::byId((int) $va->id), $sid);
+        Volunteers::approve($this->applied($a), 1);
+        $this->role($a, $ev);
         $lead = $this->member('Kemi Bello');
         Volunteers::approve($this->applied($lead), 1);
         Grants::grant('member', $lead, 'vol.team_lead', 'event', $ev, date('Y-m-d', strtotime('+30 days')));
 
         $_SESSION['user_id'] = $a;
-        [, , $form] = $this->get('root', ['page' => 'requests'], ['new' => 'swap']);
-        $this->assertStringContainsString('value="event:' . $ev . '"', $form, 'the composer offers the place the shift is at');
-        [, , $ok, $err] = $this->post(['do' => 'request', 'type' => 'swap', 'title' => 'Door, Gate B for Hall ushers', 'why' => 'A clash', 'place' => 'event:' . $ev]);
+        [, , $form] = $this->get('root', ['page' => 'requests'], ['new' => 'off']);
+        $this->assertStringContainsString('value="event:' . $ev . '"', $form, 'the composer offers the place they help at');
+        [, , $ok, $err] = $this->post(['do' => 'request', 'type' => 'off', 'title' => 'Away the week of the ceremony', 'why' => 'Exams', 'place' => 'event:' . $ev]);
         $this->assertNull($err, (string) $err);
         $this->assertStringContainsString('your lead', (string) $ok);
         $rid = (int) DB::table('gates_requests')->where('from_id', $a)->value('id');
@@ -285,12 +279,12 @@ final class VolunteerWorkspaceTest extends TestCase
 
         // A place the asker has never helped at is not theirs to route to: it goes to the team.
         unset($_SESSION['vol_toast']);
-        $this->post(['do' => 'request', 'type' => 'swap', 'title' => 'Somewhere else', 'why' => 'x', 'place' => 'event:' . $this->event()]);
+        $this->post(['do' => 'request', 'type' => 'off', 'title' => 'Somewhere else', 'why' => 'x', 'place' => 'event:' . $this->event()]);
         $this->assertSame('role', (string) DB::table('gates_requests')->where('title', 'Somewhere else')->value('decider_kind'));
 
         $_SESSION['user_id'] = $lead;
         [, , $team] = $this->get('root', ['page' => 'team', 'tab' => 'requests']);
-        $this->assertStringContainsString('Door, Gate B for Hall ushers', $team);
+        $this->assertStringContainsString('Away the week of the ceremony', $team);
         unset($_SESSION['vol_error']);
         $this->post(['do' => 'request_act', 'request' => $rid, 'action' => 'decline', 'note' => '']);
         $this->assertStringContainsString('Say why', (string) $_SESSION['vol_error'], 'declining needs a note');

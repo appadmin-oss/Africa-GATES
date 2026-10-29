@@ -27,7 +27,6 @@ final class Workspace
     /** Root pages, their rail label and icon (handoff §6.1, `nav-volunteer.json`). */
     public const ROOT = [
         'home'     => ['Today', 'home'],
-        'shifts'   => ['Shifts', 'cal'],
         'tasks'    => ['Tasks', 'list'],
         'contacts' => ['Contacts', 'contact'],
         'meetings' => ['Meetings', 'video'],
@@ -40,20 +39,19 @@ final class Workspace
 
     /** Which root pages each role's rail carries, grouped in the handoff's order. */
     private const RAIL = [
-        'active'    => [[null, ['home', 'shifts', 'tasks', 'contacts', 'meetings', 'hours']], ['@where', []], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
-        'lead'      => [[null, ['home', 'shifts', 'tasks', 'contacts', 'meetings', 'hours']], ['@where', []], ['Your team', ['team']], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
-        'new'       => [[null, ['home', 'shifts', 'tasks', 'contacts', 'meetings', 'training']], ['You', ['requests', '@me']]],
+        'active'    => [[null, ['home', 'tasks', 'contacts', 'meetings', 'hours']], ['@where', []], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
+        'lead'      => [[null, ['home', 'tasks', 'contacts', 'meetings', 'hours']], ['@where', []], ['Your team', ['team']], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
+        'new'       => [[null, ['home', 'tasks', 'contacts', 'meetings', 'training']], ['You', ['requests', '@me']]],
         'applicant' => [[null, ['home', 'training']], ['You', ['@me']]],
     ];
 
     /** Tabs per root page (handoff TABS); the first is the default. */
     public const TABS = [
-        'shifts'   => ['mine' => 'Mine', 'fits' => 'Fits you', 'all' => 'All open', 'past' => 'Past'],
         'tasks'    => ['mine' => 'Mine', 'library' => 'Library', 'done' => 'Done'],
         'hours'    => ['summary' => 'Summary', 'review' => 'In review', 'log' => 'Log hours'],
         'training' => ['next' => 'Next for you', 'passed' => 'Passed'],
         'record'   => ['overview' => 'Overview', 'badges' => 'Badges', 'refs' => 'Reference letters'],
-        'team'     => ['roster' => 'Roster', 'approvals' => 'To confirm', 'requests' => 'Requests', 'gaps' => 'Gaps'],
+        'team'     => ['roster' => 'Roster', 'approvals' => 'To confirm', 'requests' => 'Requests'],
         'requests' => ['open' => 'Open', 'decided' => 'Decided'],
         'contacts' => ['mine' => 'Mine', 'log' => 'Log a contact'],
         'meetings' => ['coming' => 'Coming up', 'new' => 'Schedule', 'past' => 'Past'],
@@ -72,26 +70,24 @@ final class Workspace
     /** Purpose lines, verbatim from the handoff's PURP table. */
     public const PURPOSE = [
         'root.home'      => 'What’s next for you, and how the awards you help on are doing.',
-        'root.shifts'    => 'Shifts you’re on, and ones that fit your training, time and place.',
         'root.tasks'     => 'Work you can do from anywhere. Each task says how it’s checked.',
         'root.hours'     => 'Most hours log themselves from scans and accepted work. Log by hand only for work nobody saw.',
         'root.training'  => 'Short modules. Each one unlocks roles.',
         'root.record'    => 'Your verified record. It’s yours to keep and to use for references.',
         'root.contacts'  => 'People you meet who want to hear from Africa GATES. Log them with their agreement, and the team follows up.',
         'root.meetings'  => 'Meet the people you volunteer with, online or in person. Only the people invited see a meeting.',
-        'root.team'      => 'The people you lead: their shifts, hours to confirm and gaps to fill.',
+        'root.team'      => 'The people you lead: their work and the hours to confirm.',
         'root.requests'  => 'Ask for a swap, time off, an hours correction, a role or a travel refund. Each request says who decides and how long it usually takes.',
         'cycle.overview' => 'How this award is doing, where it is, and your part in it.',
         'cycle.tasks'    => 'Tasks on this award.',
         'cycle.access'   => 'What you can see here, what stays hidden, and when it ends.',
         'event.today'    => 'The night, how ready it is, and your part in it.',
-        'event.shifts'   => 'Your shifts at this event.',
         'event.tasks'    => 'Tasks before the night.',
         'event.brief'    => 'What you need on the night.',
         'event.team'     => 'Who’s on with you, and your lead.',
         'event.access'   => 'What you can see here, and when it ends.',
         'me.profile'       => 'How you appear to leads and the people you help.',
-        'me.availability'  => 'When and where you can help. Shift suggestions use this.',
+        'me.availability'  => 'When and where you can help. Your lead sees this when planning.',
         'me.notifications' => 'What we tell you, and how.',
         'me.access'        => 'Every role you hold, what it lets you see, and when it ends.',
         'me.privacy'       => 'What we keep about you, and how to get a copy.',
@@ -106,7 +102,7 @@ final class Workspace
     public const SCOPE_PAGES = [
         'cycle' => [[null, ['overview' => ['Overview', 'home']]], ['Your work', ['tasks' => ['Tasks', 'list']]],
                     ['Know', ['guide' => ['Role guide', 'book'], 'access' => ['Your access', 'shield']]]],
-        'event' => [[null, ['today' => ['Today', 'home']]], ['Your work', ['shifts' => ['Your shifts', 'cal'], 'tasks' => ['Tasks', 'list']]],
+        'event' => [[null, ['today' => ['Today', 'home']]], ['Your work', ['tasks' => ['Tasks', 'list']]],
                     ['The night', ['brief' => ['Briefing', 'doc'], 'team' => ['Who’s on', 'users']]], ['Know', ['access' => ['Your access', 'shield']]]],
     ];
 
@@ -119,7 +115,6 @@ final class Workspace
     /** Tabs on a place's pages (nav-volunteer.json). */
     public const SCOPE_TABS = [
         'queue' => ['check' => 'To check', 'done' => 'Done', 'agree' => 'Agreement'],
-        'drive' => ['link' => 'Your link', 'spots' => 'Where to go'],
     ];
 
     /** A place's rail groups, with the award work its grants carry. */
@@ -143,8 +138,8 @@ final class Workspace
     }
 
     /**
-     * The places this person helps: one per live volunteer grant at a cycle or an event, plus
-     * any event or award they hold a shift at. Soonest-ending first.
+     * The places this person helps: one per live volunteer grant at a cycle or an event.
+     * Soonest-ending first.
      *
      * @return list<array{kind:string, id:int, name:string, roles:list<string>, ends:?string, href:string}>
      */
@@ -155,17 +150,12 @@ final class Workspace
             if (!in_array($g->scope_kind, ['cycle', 'event'], true) || !$g->scope_id) continue;
             $k = $g->scope_kind . ':' . $g->scope_id;
             $out[$k] ??= ['kind' => (string) $g->scope_kind, 'id' => (int) $g->scope_id,
-                          'name' => Shifts::scopeName((string) $g->scope_kind, (int) $g->scope_id), 'roles' => [], 'caps' => [], 'ends' => (string) $g->expires_at,
+                          'name' => Workspace::scopeName((string) $g->scope_kind, (int) $g->scope_id), 'roles' => [], 'caps' => [], 'ends' => (string) $g->expires_at,
                           'href' => '/volunteer/' . $g->scope_kind . '/' . $g->scope_id];
             if (!in_array((string) $g->capability, $out[$k]['caps'], true)) $out[$k]['caps'][] = (string) $g->capability;
             $label = Grants::CAPABILITIES[$g->capability] ?? (string) $g->capability;
             if (!in_array($label, $out[$k]['roles'], true)) $out[$k]['roles'][] = $label;
             if ((string) $g->expires_at > (string) $out[$k]['ends']) $out[$k]['ends'] = (string) $g->expires_at;
-        }
-        foreach (Shifts::mine($v) as $s) {
-            $k = $s->scope_kind . ':' . $s->scope_id;
-            $out[$k] ??= ['kind' => (string) $s->scope_kind, 'id' => (int) $s->scope_id, 'name' => (string) $s->scope_name,
-                          'roles' => [], 'caps' => [], 'ends' => null, 'href' => '/volunteer/' . $s->scope_kind . '/' . $s->scope_id];
         }
         $out = array_values($out);
         usort($out, static fn ($a, $b) => strcmp((string) ($a['ends'] ?? '9999'), (string) ($b['ends'] ?? '9999')));
@@ -189,22 +179,12 @@ final class Workspace
         $c = [];
         $add = static function (string $k, int $n, string $tone = 'mute') use (&$c): void { if ($n > 0) $c[$k] = ['n' => $n, 'tone' => $tone]; };
         if ($role === 'applicant') return [];
-        $mine = Shifts::mine($v);
-        $add('shifts', count(array_filter($mine, static fn ($s) => $s->time_changed)) + count(Shifts::clashes($v)), 'bad');
         $add('tasks', count(Tasks::mine($v)));
         $add('hours', (int) DB::table('gates_vol_hours')->where('volunteer_id', $v->id)->where('status', 'review')->count());
         $add('training', count(array_filter(Training::next($v), static fn ($m) => $m->tone === 'warn')), 'warn');
         $add('requests', count(array_filter(Requests::from('member', (int) $v->user_id, 'open', 'volunteer'), static fn ($r) => $r->status === 'needs_info')), 'warn');
         $add('meetings', count(array_filter(Meetings::mine($v), static fn ($m) => $m->answer === 'invited')), 'warn');
         if ($role === 'lead') $add('team', count(Team::waitingHours($v)), 'warn');
-        foreach ($mine as $s) {
-            $k = '@' . $s->scope_kind . ':' . $s->scope_id;
-            if ($s->time_changed) $add($k, ($c[$k]['n'] ?? 0) + 1, 'bad');
-        }
-        foreach (Shifts::clashes($v) as [$a]) {
-            $k = '@' . $a->scope_kind . ':' . $a->scope_id;
-            $c[$k] = ['n' => ($c[$k]['n'] ?? 0) + 1, 'tone' => 'bad'];
-        }
         // Nominations waiting for this person's check, on the award they check for.
         foreach (self::places($v) as $p) {
             if ($p['kind'] !== 'cycle' || !in_array(NominationChecks::CAPABILITY, $p['caps'], true)) continue;
@@ -276,8 +256,8 @@ final class Workspace
 
     /**
      * Everything Find can go to for this person (§2.4): the pages their role's rail carries and
-     * those pages' tabs, each place they help and its pages, Profile and access, their coming
-     * shifts, open requests and training to do, and the things they can start. Built from the
+     * those pages' tabs, each place they help and its pages, Profile and access, their meetings,
+     * contacts, open requests and training to do, and the things they can start. Built from the
      * same reads as the rail, so Find never offers a page the workspace would refuse.
      *
      * @return list<array{t:string, sub:string, href:string, kind:string}>
@@ -305,9 +285,6 @@ final class Workspace
                     }
                 }
             }
-            foreach (Shifts::mine($v) as $s) {
-                $out[] = ['t' => (string) $s->title, 'sub' => self::day((string) $s->starts_at) . ' · ' . $s->scope_name, 'href' => '/volunteer/shifts/' . $s->id, 'kind' => 'Shift'];
-            }
             foreach (array_slice(Contacts::mine($v), 0, 100) as $c) {
                 $out[] = ['t' => (string) $c->name, 'sub' => $c->interest_label . ' · Contact', 'href' => '/volunteer/contacts/' . $c->id, 'kind' => 'Contact'];
             }
@@ -318,7 +295,7 @@ final class Workspace
                 $out[] = ['t' => (string) $r->title, 'sub' => Requests::STATUSES[$r->status] ?? '', 'href' => '/volunteer/requests/' . $r->id, 'kind' => 'Request'];
             }
             $out[] = ['t' => 'Log hours', 'sub' => 'Hours', 'href' => '/volunteer/hours/log', 'kind' => 'Do'];
-            $out[] = ['t' => 'Make a request', 'sub' => 'Requests', 'href' => '/volunteer/requests?new=swap', 'kind' => 'Do'];
+            $out[] = ['t' => 'Make a request', 'sub' => 'Requests', 'href' => '/volunteer/requests?new=off', 'kind' => 'Do'];
         }
         foreach (Training::next($v) as $m) {
             $out[] = ['t' => (string) $m->title, 'sub' => 'Training', 'href' => '/volunteer/training/take/' . $m->slug, 'kind' => 'Training'];
@@ -365,6 +342,18 @@ final class Workspace
         $out = '';
         foreach (array_slice($w, 0, 2) as $x) $out .= mb_strtoupper(mb_substr($x, 0, 1));
         return $out !== '' ? $out : 'AG';
+    }
+
+    /** A place in words: an event's title, or an award edition as "Programme · 2026". */
+    public static function scopeName(string $kind, int $id): string
+    {
+        if ($kind === 'event') return (string) (DB::table('gates_site_events')->where('id', $id)->value('title') ?? 'Event');
+        if ($kind === 'cycle') {
+            $c = DB::table('gates_award_cycles as c')->leftJoin('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
+                ->where('c.id', $id)->first(['p.title', 'c.edition_label', 'c.year']);
+            if ($c) return trim((string) $c->title . ' · ' . ((string) ($c->edition_label ?: $c->year)));
+        }
+        return 'Africa GATES';
     }
 
     /** "Sat 31 Oct", "10:00 to 14:00" — the handoff's date words. */

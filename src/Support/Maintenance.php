@@ -190,10 +190,9 @@ final class Maintenance
             // ticket alerts beside it, and each row is CLAIMED before it is sent (AwardAlert).
             $ran[] = ['award-alerts', $this->task('award-alerts',
                 fn() => \AfricaGates\Services\AwardAlert::sweep($this->mailer()))];
-            // Volunteers' reminders (Volunteer\Reminders): the day before a shift, a place
-            // opened from a waitlist, training about to lapse. Every tick, because "a place
-            // opened" should arrive within one tick of the drop that opened it; each message is
-            // claimed before it is sent, so overlapping ticks never send one twice.
+            // Volunteers' reminders (Volunteer\Reminders): the day before a meeting, training
+            // about to lapse. Every tick; each message is claimed before it is sent, so
+            // overlapping ticks never send one twice.
             $ran[] = ['vol-reminders', $this->task('vol-reminders',
                 fn() => \AfricaGates\Services\Volunteer\Reminders::sweep($this->mailer()))];
             // "Get status updates" (Phase 9): a problem the status record measured starting or

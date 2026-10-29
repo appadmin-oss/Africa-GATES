@@ -54,6 +54,17 @@ access end by default, and none masks a record on the server by role as a rule. 
 
 ---
 
+## Shifts removed (owner, 29 Oct 2026)
+
+The owner asked for shifts to be removed from volunteering completely. There is no Shifts page,
+no joining, no waitlist, no shift calendar file, no shift reminders, no clash or fill counts, and
+nothing in the lead console posts shifts. A volunteer's role at an event or an award is a grant
+the volunteer team gives (`/admin/volunteers`), which ends by itself; work is tasks; the level is
+verified hours (and the lead module for Level 3). The `gates_vol_shifts` and `gates_vol_signups`
+tables are left in place, unread, because hours already verified point at them (`source =
+signup`); nothing writes them. Items 2, 3 and 5 below, and the shift half of item 1, describe
+what existed before this.
+
 ## 3. What was built (29 Oct 2026)
 
 Each is one rule, held by a test, and draws nothing the database did not record.

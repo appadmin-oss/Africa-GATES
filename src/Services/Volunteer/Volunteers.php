@@ -14,7 +14,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  * The workspace has four faces, and `role()` is the one place that says which a person sees:
  *
  *   applicant  applied, not yet approved: Application, Training, Profile and access
- *   new        approved, nothing verified yet: Today, Shifts, Tasks, Training
+ *   new        approved, nothing verified yet: Today, Tasks, Contacts, Meetings, Training
  *   active     approved, with a verified record: the full root
  *   lead       active and holding a live `vol.team_lead` grant: + My team
  *
@@ -34,7 +34,7 @@ final class Volunteers
         'digital' => 'Digitising, translating, writing',
     ];
 
-    /** Nigeria's 36 states and the FCT: where a volunteer is decides which shifts are near. */
+    /** Nigeria's 36 states and the FCT: where a volunteer is decides which work is near. */
     public const STATES = ['Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno', 'Cross River', 'Delta', 'Ebonyi', 'Edo',
         'Ekiti', 'Enugu', 'FCT Abuja', 'Gombe', 'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos', 'Nasarawa', 'Niger',
         'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto', 'Taraba', 'Yobe', 'Zamfara', 'Outside Nigeria'];
@@ -83,9 +83,8 @@ final class Volunteers
         $st = (string) $v->status;
         if ($st !== 'active') return $st;
         if (Grants::forActor('member', (int) $v->user_id, 'vol.team_lead') !== []) return 'lead';
-        $kept = DB::table('gates_vol_signups')->where('volunteer_id', $v->id)->where('status', 'kept')->exists();
         $hours = DB::table('gates_vol_hours')->where('volunteer_id', $v->id)->where('status', 'verified')->where('hours', '>', 0)->exists();
-        return ($kept || $hours) ? 'active' : 'new';
+        return $hours ? 'active' : 'new';
     }
 
     /** "Volunteer · Level 2", "Team lead · Level 3", "Applicant" (handoff §6.1). */
@@ -136,7 +135,7 @@ final class Volunteers
         if (strlen($digits($phone)) < 7 || strlen($digits($phone)) > 15) $e[] = 'Add a phone number your lead can reach you on.';
         // Where
         if ($state === '') $e[] = 'Pick your state.';
-        if ($area === '') $e[] = 'Say your town or area, so we can suggest shifts near you.';
+        if ($area === '') $e[] = 'Say your town or area, so we can offer you work near you.';
         // What
         if ($interests === []) $e[] = 'Pick at least one thing you would like to help with.';
         // Safety

@@ -17,7 +17,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  *
  * ── WHO MEETS WHOM ───────────────────────────────────────────────────────────
  *
- * An invitee is somebody the organiser already volunteers WITH: a shift or a volunteer grant
+ * An invitee is somebody the organiser already volunteers WITH: a volunteer grant
  * at one of the organiser's own places (Workspace::places). Not a directory of every
  * volunteer — that would be a way to reach strangers. At most MAX_PEOPLE, and each invitation
  * is a message to one person about a meeting they are in, so this is not a broadcast (the
@@ -77,9 +77,7 @@ final class Meetings
         $lead = Volunteers::role($v) === 'lead';
         $out = [];
         foreach (Workspace::places($v) as $p) {
-            $ids = DB::table('gates_vol_signups as s')->join('gates_vol_shifts as h', 'h.id', '=', 's.shift_id')
-                ->where('h.scope_kind', $p['kind'])->where('h.scope_id', $p['id'])->whereIn('s.status', ['on', 'kept'])->pluck('s.volunteer_id')->all();
-            $ids = array_merge($ids, DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
+            $ids = (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
                 ->where('g.actor_kind', 'member')->where('g.scope_kind', $p['kind'])->where('g.scope_id', $p['id'])->where('g.capability', 'like', 'vol.%')
                 ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))->pluck('v.id')->all());
             $ids = array_diff(array_unique(array_map('intval', $ids)), [(int) $v->id], array_keys($out));
@@ -102,7 +100,7 @@ final class Meetings
     public static function schedule(object $v, array $f, ?OtpService $mailer = null, ?callable $send = null): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'Meetings are not set up yet.'];
-        if (!self::canOrganise($v)) return ['ok' => false, 'error' => self::adult($v) ? 'Meetings open once you’ve done a shift or logged hours.' : 'A team lead sets up meetings for volunteers under 18.'];
+        if (!self::canOrganise($v)) return ['ok' => false, 'error' => self::adult($v) ? 'Meetings open once you have verified hours.' : 'A team lead sets up meetings for volunteers under 18.'];
         $title = trim((string) preg_replace('/\s+/u', ' ', (string) ($f['title'] ?? '')));
         if ($title === '' || mb_strlen($title) > 160) return ['ok' => false, 'error' => 'Give it a short title.'];
         $at = strtotime(trim((string) ($f['date'] ?? '')) . ' ' . trim((string) ($f['time'] ?? '')));
@@ -207,6 +205,7 @@ final class Meetings
             $done = $m->past || $m->status === 'cancelled';
             if ($done !== $past) continue;
             $m->mine = (int) $m->organiser_id === (int) $v->id;
+            $m->organiser_name = ($o = Volunteers::byId((int) $m->organiser_id)) ? Volunteers::name($o) : 'A volunteer';
             $m->answer = $m->mine ? null : (string) DB::table('gates_vol_meeting_people')->where('meeting_id', $m->id)->where('volunteer_id', $v->id)->value('answer');
             $m->going = (int) DB::table('gates_vol_meeting_people')->where('meeting_id', $m->id)->where('answer', 'yes')->count();
             $out[] = $m;

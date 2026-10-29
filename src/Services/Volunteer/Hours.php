@@ -8,7 +8,8 @@ use Illuminate\Database\Capsule\Manager as DB;
  * Every hour a volunteer gives, with where it came from (plan §7.3; handoff §6.3 "Hours").
  *
  *   scan     check-in and check-out at the venue: observed, needs nobody's approval
- *   signup   a shift a member of staff marked attended: witnessed
+ *   signup   a shift a member of staff marked attended: witnessed (rows from before shifts were
+ *            removed on 29 Oct 2026; kept and shown, never written again)
  *   task     accepted task work: witnessed by whoever checked it
  *   manual   logged by the person for work nobody saw: IN REVIEW until a lead confirms it
  *
@@ -16,7 +17,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  *   · a confirmed hour is never edited — `confirm()` only moves a row out of `review`, and a
  *     correction is a request (Requests type `hours`);
  *   · one piece of evidence is one row — automatic rows carry `ref_kind`/`ref_id`, and writing the
- *     same shift twice updates nothing.
+ *     same task twice updates nothing.
  */
 final class Hours
 {
@@ -69,31 +70,6 @@ final class Hours
         return $n > 0 ? ['ok' => true] : ['ok' => false, 'error' => 'Those hours have already been answered.'];
     }
 
-    /** Hours from a shift that was kept, from its scans or, failing those, its times. Idempotent. */
-    public static function fromSignup(object $signup, object $shift, string $source, string $byName): void
-    {
-        if (DB::table('gates_vol_hours')->where('ref_kind', 'signup')->where('ref_id', $signup->id)->exists()) return;
-        $in = $signup->check_in_at ? strtotime((string) $signup->check_in_at) : strtotime((string) $shift->starts_at);
-        $out = $signup->check_out_at ? strtotime((string) $signup->check_out_at) : strtotime((string) $shift->ends_at);
-        $h = max(0.0, round((($out - $in) / 3600) * 4) / 4);
-        DB::table('gates_vol_hours')->insert([
-            'volunteer_id' => $signup->volunteer_id, 'source' => $source, 'ref_kind' => 'signup', 'ref_id' => $signup->id,
-            'worked_on' => date('Y-m-d', (int) strtotime((string) $shift->starts_at)), 'what' => mb_substr((string) $shift->title, 0, 255),
-            'hours' => $h, 'status' => 'verified', 'confirmed_name' => mb_substr($byName, 0, 190) ?: null,
-            'confirmed_at' => date('Y-m-d H:i:s'), 'created_at' => date('Y-m-d H:i:s'),
-        ]);
-    }
-
-    /** A missed shift is on the record too, at nothing, so the person sees why it does not count. */
-    public static function missed(object $signup, object $shift): void
-    {
-        if (DB::table('gates_vol_hours')->where('ref_kind', 'signup')->where('ref_id', $signup->id)->exists()) return;
-        DB::table('gates_vol_hours')->insert([
-            'volunteer_id' => $signup->volunteer_id, 'source' => 'signup', 'ref_kind' => 'signup', 'ref_id' => $signup->id,
-            'worked_on' => date('Y-m-d', (int) strtotime((string) $shift->starts_at)), 'what' => mb_substr((string) $shift->title, 0, 255),
-            'hours' => 0, 'status' => 'missed', 'created_at' => date('Y-m-d H:i:s'),
-        ]);
-    }
 
     /** Hours from accepted task work. Idempotent per take. */
     public static function fromTask(object $take, object $task, float $hours, string $byName): void

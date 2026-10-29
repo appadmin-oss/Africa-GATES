@@ -182,7 +182,7 @@ final class AdminNav
             ['page' => 'admins', 'label' => 'Team', 'href' => '/admin/admins', 'icon' => 'team',
              'sub' => 'Who can sign in to this console and what each role reaches.',
              'children' => [
-                 // People › Volunteers in the v7 handoff (§4.1): applications, roles, shifts, hours.
+                 // People › Volunteers in the v7 handoff (§4.1): applications, roles, tasks, hours.
                  ['page' => 'volunteers', 'label' => 'Volunteers', 'href' => '/admin/volunteers'],
                  // Requests from event leads and volunteers (§2.6), decided by finance or an admin.
                  ['page' => 'requests', 'label' => 'Requests', 'href' => '/admin/requests'],

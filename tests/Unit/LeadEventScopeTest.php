@@ -207,14 +207,21 @@ final class LeadEventScopeTest extends TestCase
         $this->assertStringContainsString('Turned off', $this->post(['do' => 'door_revoke', 'event' => $this->ev, 'pass' => $pass]));
     }
 
-    public function test_a_lead_posts_a_shift_at_their_own_event_only(): void
+    public function test_the_volunteers_tab_lists_the_roles_at_this_event_and_shifts_are_gone(): void
     {
-        $day = date('Y-m-d', strtotime('+10 days'));
-        $this->assertStringContainsString('Posted', $this->post(['do' => 'shift_add', 'event' => $this->ev, 'title' => 'Door, Gate B', 'starts_at' => $day . 'T15:00:00', 'ends_at' => $day . 'T21:00:00', 'slots' => '4', 'capability' => 'vol.door']));
-        $s = DB::table('gates_vol_shifts')->first();
-        $this->assertSame(['event', $this->ev, 'vol.door'], [(string) $s->scope_kind, (int) $s->scope_id, (string) $s->capability]);
+        $vol = $this->member('Chika Nwosu');
+        DB::table('gates_volunteers')->insert(['user_id' => $vol, 'status' => 'active', 'display_name' => 'Chika N.', 'created_at' => date('Y-m-d H:i:s')]);
+        Grants::grant('member', $vol, 'vol.door', 'event', $this->ev, date('Y-m-d', strtotime('+20 days')), 1);
         $theirs = $this->event('Lagos Education Honours Night');
-        $this->assertStringContainsString('Only a lead', $this->post(['do' => 'shift_add', 'event' => $theirs, 'title' => 'X', 'starts_at' => $day . 'T15:00:00', 'ends_at' => $day . 'T21:00:00']));
+        $elsewhere = $this->member('Ada Obi');
+        DB::table('gates_volunteers')->insert(['user_id' => $elsewhere, 'status' => 'active', 'created_at' => date('Y-m-d H:i:s')]);
+        Grants::grant('member', $elsewhere, 'vol.usher', 'event', $theirs, date('Y-m-d', strtotime('+20 days')), 1);
+        [, , $html] = $this->get('people', ['tab' => 'volunteers']);
+        $this->assertStringContainsString('Chika N.', $html);
+        $this->assertStringContainsString('Door steward', $html, 'the role, in words');
+        $this->assertStringNotContainsString('Ada Obi', $html, 'only this event’s volunteers');
+        $this->assertStringNotContainsString('shift', strtolower($html), 'no shifts anywhere');
+        $this->assertStringContainsString('isn’t something', $this->post(['do' => 'shift_add', 'event' => $this->ev, 'title' => 'Door, Gate B']), 'the old verb is gone');
     }
 
     public function test_every_change_is_audited_against_the_event_and_listed_on_its_audit_tab(): void

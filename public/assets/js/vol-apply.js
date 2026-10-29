@@ -55,6 +55,12 @@
   if (dob) { dob.addEventListener('change', guardian); guardian(); }
 
   form.addEventListener('click', function (e) {
+    /* The send button: checked here, on the click, because the browser's own check runs
+       before `submit` and cannot focus a field inside a hidden step. */
+    if (e.target.closest('button[type="submit"]')) {
+      for (var i = 0; i < steps.length; i++) if (!valid(steps[i])) { e.preventDefault(); show(i, false); valid(steps[i]); return; }
+      return;
+    }
     var b = e.target.closest('[data-ap-next], [data-ap-back]');
     if (!b) return;
     if (b.hasAttribute('data-ap-back')) return show(at - 1, true);
@@ -68,10 +74,6 @@
       show(n, true);
     });
   });
-  form.addEventListener('submit', function (e) {
-    for (var i = 0; i < steps.length; i++) if (!valid(steps[i])) { e.preventDefault(); show(i, false); valid(steps[i]); return; }
-  });
-
   root.classList.add('is-stepped');
   // A refused application opens on the errors, which name what to fix; otherwise on step one.
   var errs = document.getElementById('apErrors');

@@ -187,7 +187,7 @@ final class Contacts
     /** Where they met, in words. */
     public static function where(object $r): string
     {
-        if ($r->scope_kind && $r->scope_id) return Shifts::scopeName((string) $r->scope_kind, (int) $r->scope_id);
+        if ($r->scope_kind && $r->scope_id) return Workspace::scopeName((string) $r->scope_kind, (int) $r->scope_id);
         return (string) ($r->place_text ?? '');
     }
 }
