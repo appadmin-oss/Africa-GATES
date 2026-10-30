@@ -209,7 +209,8 @@ final class VolunteerAttendanceTest extends TestCase
         unset($_SESSION['user_id']);
         $form = fn () => (string) $this->ctrl(VolunteerController::class)->applyForm((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/apply'), new Response())->getBody();
         $html = $form();
-        $this->assertStringContainsString('First, make your Africa GATES account', $html, 'told why, not bounced');
+        $this->assertStringContainsString('Make an account', $html, 'told why, not bounced');
+        $this->assertStringContainsString('aria-current="step"><span class="ap-path__n" aria-hidden="true">1</span>Account', $html, 'and that the account is the step they are on');
         $this->assertStringContainsString('next=%2Fvolunteer%2Fapply', $html, 'and brought back after');
         $this->assertStringNotContainsString('data-ap-form', $html);
 

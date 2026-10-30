@@ -40,40 +40,46 @@
 <body class="ap">
 <div class="ap-wrap">
   <header class="ap-top">
-    <p class="sh7-brand"><span class="sh7-brand__tile" aria-hidden="true">AG</span><span class="sh7-brand__words"><span class="sh7-brand__name">Africa GATES</span><span class="sh7-brand__sub">Volunteers</span></span></p>
+    <a class="ap-brand" href="/" aria-label="Africa GATES home">
+      <img class="ap-brand__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="36" height="36" alt="">
+      <span class="ap-brand__words"><span class="ap-brand__name">Africa GATES</span><span class="ap-brand__sub">Volunteers</span></span>
+    </a>
     <a class="ap-exit" href="{{ user ? '/account' : '/' }}">Not now</a>
   </header>
 
-  <main id="apMain">
-    <section class="ap-hero" aria-labelledby="apTitle">
-      <h1 id="apTitle">Volunteer with Africa GATES</h1>
-      <p class="ap-lede">Help on an award night, bring people to vote, check nominations or tell a programme’s story. About five minutes to apply.</p>
-      {% if was and was.status == 'declined' %}<p class="sh7-note sh7-note--warn">Your last application wasn’t taken forward: “{{ was.decline_reason }}”. You can apply again.</p>{% endif %}
-      {% if was and was.status == 'left' %}<p class="sh7-note sh7-note--mute">Welcome back. Your record is still yours. Apply again to help again.</p>{% endif %}
-      <ol class="ap-next{{ need ? ' ap-next--4' }}" aria-label="How it works">
-        {% if need %}<li{% if need == 'account' %} aria-current="step"{% endif %}><b>1. Make an account</b>With your email. It takes a minute.</li>{% endif %}
-        <li{% if need == 'verify' %} aria-current="step"{% endif %}><b>{{ need ? '2. You apply' : '1. You apply' }}</b>Your details stay private to the volunteer team.</li>
-        <li><b>{{ need ? '3' : '2' }}. We check</b>We contact the person who vouches for you.</li>
-        <li><b>{{ need ? '4' : '3' }}. You start</b>Pick tasks and short training that suit you.</li>
-      </ol>
-    </section>
+  {# The way through, as one row: where the person is, never four cards to scroll past. #}
+  {% set path = need ? ['Account', 'Apply', 'Check', 'Start'] : ['Apply', 'Check', 'Start'] %}
+  {% set at = need == 'verify' ? 1 : 0 %}
 
-    {% if need == 'account' %}
+  <main id="apMain">
+    {% if need %}
       {# An account comes first (owner, 30 Oct 2026): every role, message and letter reaches a
          volunteer through it. Said here, with the way to make one — not a silent bounce to a
          sign-in screen that never says why. #}
-      <section class="ap-step ap-gate" aria-labelledby="apGateH">
-        <h2 class="ap-step__h" id="apGateH">First, make your Africa GATES account</h2>
-        <p class="ap-step__why">Volunteers apply from their own account, so your roles, hours and messages stay yours. We send a code to your email; no password needed. You come straight back here after.</p>
-        <div class="ap-nav"><a class="ap-btn ap-btn--go" href="{{ join }}">Make an account</a><a class="ap-btn" href="{{ join }}">I have one: sign in</a></div>
-      </section>
-    {% elseif need == 'verify' %}
-      <section class="ap-step ap-gate" aria-labelledby="apGateH">
-        <h2 class="ap-step__h" id="apGateH">Verify your email first</h2>
-        <p class="ap-step__why">Your account is ready, but your email address isn’t verified yet{{ user and user.email ? ' (' ~ user.email ~ ')' }}. Open the link we sent, then come back to apply.</p>
-        <div class="ap-nav"><a class="ap-btn ap-btn--go" href="/account/verify">Send me the link again</a><a class="ap-btn" href="/account">Back to my account</a></div>
+      <section class="ap-gate" aria-labelledby="apTitle">
+        <img class="ap-gate__logo" src="{{ asset('/assets/img/logo-mark.png') }}" width="64" height="64" alt="">
+        <h1 class="ap-gate__h" id="apTitle">{{ need == 'verify' ? 'Verify your email first' : 'Volunteer with Africa GATES' }}</h1>
+        <p class="ap-gate__lede">{% if need == 'verify' %}Open the link we sent{{ user and user.email ? ' to ' ~ user.email }}, then come back to apply.{% else %}Help on award nights, bring people to vote and check nominations.{% endif %}</p>
+        <ol class="ap-path" aria-label="How it works">
+          {% for s in path %}<li{% if loop.index0 == at %} aria-current="step"{% elseif loop.index0 < at %} class="is-done"{% endif %}><span class="ap-path__n" aria-hidden="true">{{ loop.index0 < at ? '✓' : loop.index }}</span>{{ s }}</li>{% endfor %}
+        </ol>
+        {% if need == 'verify' %}
+          <a class="ap-btn ap-btn--go ap-gate__go" href="/account/verify">Send the link again</a>
+          <p class="ap-gate__alt"><a href="/account">Back to my account</a></p>
+        {% else %}
+          <a class="ap-btn ap-btn--go ap-gate__go" href="{{ join }}">Make an account</a>
+          <p class="ap-gate__alt">Have one? <a href="{{ join }}">Sign in</a></p>
+          <p class="ap-gate__fine">We email you a code. No password.</p>
+        {% endif %}
       </section>
     {% else %}
+    <section class="ap-hero" aria-labelledby="apTitle">
+      <h1 id="apTitle">Volunteer with Africa GATES</h1>
+      <p class="ap-lede">Help on an award night, bring people to vote, check nominations or tell a programme’s story. About five minutes.</p>
+      {% if was and was.status == 'declined' %}<p class="sh7-note sh7-note--warn">Your last application wasn’t taken forward: “{{ was.decline_reason }}”. You can apply again.</p>{% endif %}
+      {% if was and was.status == 'left' %}<p class="sh7-note sh7-note--mute">Welcome back. Your record is still yours. Apply again to help again.</p>{% endif %}
+      <p class="ap-after">After you send it, we check with the person who vouches for you, then you start.</p>
+    </section>
 
     {% if errors %}
       <div class="ap-errors" role="alert" tabindex="-1" id="apErrors">
