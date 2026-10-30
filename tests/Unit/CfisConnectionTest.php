@@ -97,6 +97,7 @@ final class CfisConnectionTest extends TestCase
         $this->assertSame(2, CfisReturns::push());
         $this->assertSame('https://cfis.test/api/returns/afg', $this->sent[0]['url']);
         $rows = array_column($this->sent[0]['claims']['returns'], 'amount_minor', 'reference');
+        $this->assertSame(['returns'], array_values(array_unique(array_column($this->sent[0]['claims']['returns'], 'to'))), 'an open pool is returns');
         $this->assertSame(['AFG-A' => 200000, 'AFG-B' => 100000], $rows);
         $body = explode('.', CfisCatalogue::sign(str_repeat('s', 40), ['x' => 1]));
         $this->assertSame(rtrim(strtr(base64_encode(hash_hmac('sha256', $body[1], str_repeat('s', 40), true)), '+/', '-_'), '='), $body[2], 'signed with the platform\'s secret');
@@ -105,7 +106,7 @@ final class CfisConnectionTest extends TestCase
 
         Ret::reverse($a, 'refunded');
         $this->assertSame(1, CfisReturns::push());
-        $this->assertSame([['reference' => 'AFG-A', 'amount_minor' => 0]], $this->sent[1]['claims']['returns'], 'a refund reports 0, not silence');
+        $this->assertSame([['reference' => 'AFG-A', 'amount_minor' => 0, 'to' => 'returns']], $this->sent[1]['claims']['returns'], 'a refund reports 0, not silence');
     }
 
     public function test_a_refused_push_is_sent_again_next_time(): void
@@ -128,5 +129,35 @@ final class CfisConnectionTest extends TestCase
         DB::table('gates_settings')->where('key_name', 'cfis_secret')->delete();
         $this->assertSame(0, CfisReturns::push());
         $this->assertSame([], $this->sent);
+    }
+
+    public function test_a_pool_nobody_reached_is_reported_again_as_reserves(): void
+    {
+        $this->paidVote('AFG-E', 10000);
+        $this->paidVote('AFG-F', 5000);
+        $this->assertSame(2, CfisReturns::push());
+
+        // Voting closes; nobody reached the 100-vote target, so the pool goes to the reserves.
+        DB::table('gates_award_cycles')->where('id', 1)->update(['status' => 'results', 'voting_close' => Carbon::now()->subDay()->toDateTimeString()]);
+        $r = \AfricaGates\Services\CommunityReturnPool::settle(1, 1);
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertSame(0, (int) \AfricaGates\Services\CommunityReturnPool::settlement(1)->winners);
+
+        $this->assertSame(2, CfisReturns::push(), 'the settlement alone sends the edition again');
+        $last = end($this->sent)['claims']['returns'];
+        $this->assertSame(['reserves'], array_values(array_unique(array_column($last, 'to'))));
+        $this->assertSame(['AFG-E' => 200000, 'AFG-F' => 100000], array_column($last, 'amount_minor', 'reference'), 'the same money, now to the reserves');
+        $this->assertSame(0, CfisReturns::push(), 'and only once');
+    }
+
+    public function test_a_pool_somebody_reached_stays_returns(): void
+    {
+        DB::table('gates_votes')->insert(['nominee_id' => 1, 'category_id' => 1, 'voter_email_hash' => 'h', 'vote_type' => 'standard', 'weight' => 150, 'fraud_flag' => 0]);
+        $this->paidVote('AFG-G', 10000);
+        CfisReturns::push();
+        DB::table('gates_award_cycles')->where('id', 1)->update(['status' => 'results', 'voting_close' => Carbon::now()->subDay()->toDateTimeString()]);
+        $this->assertTrue(\AfricaGates\Services\CommunityReturnPool::settle(1, 1)['ok']);
+        CfisReturns::push();
+        $this->assertSame('returns', end($this->sent)['claims']['returns'][0]['to']);
     }
 }
