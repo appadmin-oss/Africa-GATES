@@ -28,7 +28,6 @@ final class Workspace
     public const ROOT = [
         'home'     => ['Today', 'home'],
         'tasks'    => ['Tasks', 'list'],
-        'contacts' => ['Contacts', 'contact'],
         'meetings' => ['Meetings', 'video'],
         'hours'    => ['Hours', 'clock'],
         'training' => ['Training', 'book'],
@@ -39,9 +38,9 @@ final class Workspace
 
     /** Which root pages each role's rail carries, grouped in the handoff's order. */
     private const RAIL = [
-        'active'    => [[null, ['home', 'tasks', 'contacts', 'meetings', 'hours']], ['@where', []], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
-        'lead'      => [[null, ['home', 'tasks', 'contacts', 'meetings', 'hours']], ['@where', []], ['Your team', ['team']], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
-        'new'       => [[null, ['home', 'tasks', 'contacts', 'meetings', 'training']], ['You', ['requests', '@me']]],
+        'active'    => [[null, ['home', 'tasks', 'meetings', 'hours']], ['@where', []], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
+        'lead'      => [[null, ['home', 'tasks', 'meetings', 'hours']], ['@where', []], ['Your team', ['team']], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
+        'new'       => [[null, ['home', 'tasks', 'meetings', 'training']], ['@where', []], ['You', ['requests', '@me']]],
         'applicant' => [[null, ['home', 'training']], ['You', ['@me']]],
     ];
 
@@ -53,7 +52,6 @@ final class Workspace
         'record'   => ['overview' => 'Overview', 'badges' => 'Badges', 'refs' => 'Reference letters'],
         'team'     => ['roster' => 'Roster', 'approvals' => 'To confirm', 'requests' => 'Requests'],
         'requests' => ['open' => 'Open', 'decided' => 'Decided'],
-        'contacts' => ['mine' => 'Mine', 'log' => 'Log a contact'],
         'meetings' => ['coming' => 'Coming up', 'new' => 'Schedule', 'past' => 'Past'],
     ];
 
@@ -74,13 +72,13 @@ final class Workspace
         'root.hours'     => 'Most hours log themselves: checking in and out at an event, and accepted work. Log by hand only for work nobody saw.',
         'root.training'  => 'Short modules. Each one unlocks roles.',
         'root.record'    => 'Your verified record. It’s yours to keep and to use for references.',
-        'root.contacts'  => 'People you meet who want to hear from Africa GATES. Log them with their agreement, and the team follows up.',
         'root.meetings'  => 'Meet the people you volunteer with, online or in person. Only the people invited see a meeting.',
         'root.team'      => 'The people you lead: their work and the hours to confirm.',
         'root.requests'  => 'Ask for a swap, time off, an hours correction, a role or a travel refund. Each request says who decides and how long it usually takes.',
         'cycle.overview' => 'How this award is doing, where it is, and your part in it.',
         'cycle.tasks'    => 'Tasks on this award.',
         'cycle.access'   => 'What you can see here, what stays hidden, and when it ends.',
+        'cycle.nominees' => 'The nominees on this award. Reach one at a time, and log how it went so the team doesn’t call twice.',
         'event.today'    => 'The night, how ready it is, and your part in it.',
         'event.tasks'    => 'Tasks before the night.',
         'event.brief'    => 'What you need on the night.',
@@ -110,11 +108,13 @@ final class Workspace
     public const CYCLE_WORK = [
         'vol.nomination_check' => ['queue' => ['Check nominations', 'noms']],
         'vol.voter_drive'      => ['drive' => ['Voter drive', 'vote']],
+        Outreach::CAPABILITY   => ['nominees' => ['Nominees', 'contact']],
     ];
 
     /** Tabs on a place's pages (nav-volunteer.json). */
     public const SCOPE_TABS = [
-        'queue' => ['check' => 'To check', 'done' => 'Done', 'agree' => 'Agreement'],
+        'queue'    => ['check' => 'To check', 'done' => 'Done', 'agree' => 'Agreement'],
+        'nominees' => ['all' => 'All', 'due' => 'Follow up', 'new' => 'Not reached yet'],
     ];
 
     /** A place's rail groups, with the award work its grants carry. */
@@ -191,6 +191,12 @@ final class Workspace
             $k = '@cycle:' . $p['id'];
             $n = count(NominationChecks::queue($v, (int) $p['id']));
             if ($n > 0 && !isset($c[$k])) $c[$k] = ['n' => $n, 'tone' => 'warn'];
+        }
+        // Follow-ups due on the awards this person reaches nominees on, added to the same count:
+        // the award's entry in the rail says how much on it is waiting for them, whatever kind.
+        foreach (Outreach::awards($v) as $cid => $_) {
+            $n = count(Outreach::nominees($v, $cid, '', 'due'));
+            if ($n > 0) $c['@cycle:' . $cid] = ['n' => ($c['@cycle:' . $cid]['n'] ?? 0) + $n, 'tone' => 'warn'];
         }
         return $c;
     }
@@ -285,8 +291,8 @@ final class Workspace
                     }
                 }
             }
-            foreach (array_slice(Contacts::mine($v), 0, 100) as $c) {
-                $out[] = ['t' => (string) $c->name, 'sub' => $c->interest_label . ' · Contact', 'href' => '/volunteer/contacts/' . $c->id, 'kind' => 'Contact'];
+            foreach (array_slice(Outreach::nominees($v), 0, 300) as $n) {
+                $out[] = ['t' => (string) $n->name, 'sub' => $n->award . ' · Nominee', 'href' => '/volunteer/cycle/' . $n->cycle_id . '/nominees?n=' . $n->id, 'kind' => 'Nominee'];
             }
             foreach (Meetings::mine($v) as $m) {
                 $out[] = ['t' => (string) $m->title, 'sub' => self::day((string) $m->next) . ' · Meeting', 'href' => '/volunteer/meetings/' . $m->id, 'kind' => 'Meeting'];

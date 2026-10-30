@@ -6,11 +6,11 @@ namespace AfricaGates\Controllers;
 use AfricaGates\Services\Requests;
 use AfricaGates\Services\UserAccountService;
 use AfricaGates\Services\Volunteer\Attendance;
-use AfricaGates\Services\Volunteer\Contacts;
 use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Services\Volunteer\Level;
 use AfricaGates\Services\Volunteer\Meetings;
 use AfricaGates\Services\Volunteer\NominationChecks;
+use AfricaGates\Services\Volunteer\Outreach;
 use AfricaGates\Services\Volunteer\Tasks;
 use AfricaGates\Services\Volunteer\Team;
 use AfricaGates\Services\Volunteer\Training;
@@ -77,17 +77,17 @@ final class VolunteerController
         ] + $content);
     }
 
-    /** GET /volunteer/contacts/{id} — one contact this volunteer logged, its history and a correction form. */
-    public function contact(Request $req, Response $res, array $args): Response
+    /**
+     * GET /volunteer/contacts[/…] — retired (owner, 30 Oct 2026). Contacts became nominee outreach,
+     * which is award work and lives in each award, so an old link or bookmark lands on the first
+     * award this person reaches nominees on, or on Today. 302: where it goes depends on the person.
+     */
+    public function contacts(Request $req, Response $res): Response
     {
         [$user, $v] = $this->who();
-        if (!$user) return $this->to($res, '/account/login?next=/volunteer/contacts');
-        if (!$v || $this->role($v) === 'applicant') return $this->to($res, '/volunteer');
-        $c = WorkspacePages::contact($v, (int) $args['id'], (array) ($this->take('vol_old') ?? []));
-        if (!$c) throw new HttpNotFoundException($req);   // another volunteer's, or none: the same answer
-        $role = $this->role($v);
-        return $this->render($res, $user, $v, $role, ['scope' => 'root', 'nav' => Workspace::rootNav($v, $role, 'contacts', Workspace::counts($v, $role)),
-            'crumbs' => [['label' => 'Contacts', 'href' => '/volunteer/contacts'], ['label' => $c['title']]], 'back' => ['label' => 'Contacts', 'href' => '/volunteer/contacts']] + $c);
+        if (!$user || !$v) return $this->to($res, '/volunteer');
+        $first = array_key_first(Outreach::awards($v));
+        return $this->to($res, $first ? '/volunteer/cycle/' . $first . '/nominees' : '/volunteer');
     }
 
     /** GET /volunteer/meetings/{id}.ics — one meeting, repeats included, for the person's own calendar app. */
@@ -169,13 +169,15 @@ final class VolunteerController
         $tabs = Workspace::SCOPE_TABS[$page] ?? [];
         $tab = (string) ($args['tab'] ?? array_key_first($tabs) ?? '');
         if ($tabs ? !isset($tabs[$tab]) : isset($args['tab'])) throw new HttpNotFoundException($req);
-        $c = WorkspacePages::place($v, $p, $page, $tab, $req->getQueryParams());
+        $c = WorkspacePages::place($v, $p, $page, $tab, ['_old' => (array) ($this->take('vol_old') ?? [])] + $req->getQueryParams());
         $role = $this->role($v);
         $toCheck = $kind === 'cycle' && in_array(NominationChecks::CAPABILITY, $p['caps'], true) ? count(NominationChecks::queue($v, (int) $p['id'])) : 0;
+        $due = $kind === 'cycle' && in_array(Outreach::CAPABILITY, $p['caps'], true) ? count(Outreach::nominees($v, (int) $p['id'], '', 'due')) : 0;
         $base = $p['href'] . '/' . $page;
         return $this->render($res, $user, $v, $role, [
-            'scope' => $kind, 'nav' => Workspace::scopeNav($kind, (int) $p['id'], $page, $p['caps'], $toCheck ? ['queue' => ['n' => $toCheck, 'tone' => 'warn']] : []),
-            'tabs' => $tabs ? Workspace::tabs($base, $tabs, $tab, ['check' => $toCheck]) : [],
+            'scope' => $kind, 'nav' => Workspace::scopeNav($kind, (int) $p['id'], $page, $p['caps'], array_filter([
+                'queue' => $toCheck ? ['n' => $toCheck, 'tone' => 'warn'] : null, 'nominees' => $due ? ['n' => $due, 'tone' => 'warn'] : null])),
+            'tabs' => $tabs ? Workspace::tabs($base, $tabs, $tab, ['check' => $toCheck, 'due' => $due]) : [],
             'instance' => ['name' => $p['name'], 'sub' => implode(', ', $p['roles']), 'ini' => Workspace::initials($p['name']), 'tone' => $kind === 'event' ? 'ok' : 'info'],
             'siblings' => Workspace::siblings($v, $kind, (int) $p['id'], $page),
             'back' => ['label' => 'Back to my volunteering', 'href' => '/volunteer'],
@@ -280,9 +282,9 @@ final class VolunteerController
             'arrive' => ($k = Attendance::arrive($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok'] ? $ok('Checked in. Check out when you leave.') : $no((string) $k['error']),
             'leave' => ($k = Attendance::leave($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok']
                 ? $ok('Checked out. ' . Level::h((float) $k['hours']) . ($k['review'] ? ' sent to a lead to confirm.' : ' added to your hours.')) : $no((string) $k['error']),
-            'contact' => $active ? (($k = Contacts::log($v, $b))['ok'] ? $ok('Logged. The team follows up.') : $no((string) $k['error'])) : $no('Contacts open once you’re approved.'),
-            'contact_edit' => ($k = Contacts::edit($v, (int) ($b['contact'] ?? 0), $b))['ok'] ? $ok('Saved. The team gets the correction.') : $no((string) $k['error']),
-            'forget_contact' => Contacts::forget($v, (int) ($b['contact'] ?? 0)) ? $ok('Marked. The team won’t contact them.') : $no('That contact isn’t yours.'),
+            'outreach_agree' => Outreach::agree($v, (int) ($b['cycle'] ?? 0)) ? $ok('Thanks. You can reach nominees on this award now.') : $no('That award isn’t one you reach nominees on.'),
+            'outreach_log' => ($k = Outreach::log($v, (int) ($b['nominee'] ?? 0), $b))['ok'] ? $ok('Logged. The team can see it.') : $no((string) $k['error']),
+            'outreach_email' => ($k = Outreach::email($v, (int) ($b['nominee'] ?? 0), $b, $this->mailer))['ok'] ? $ok('Sent and logged.') : $no((string) $k['error']),
             'meet' => $active ? (($k = Meetings::schedule($v, $b, $this->mailer))['ok'] ? $ok('Scheduled. ' . ($k['invited'] === 1 ? 'One person is' : $k['invited'] . ' people are') . ' invited by email.') : $no((string) $k['error'])) : $no('Meetings open once you’re approved.'),
             'meet_answer' => Meetings::answer($v, (int) ($b['meeting'] ?? 0), (string) ($b['answer'] ?? '')) ? $ok(($b['answer'] ?? '') === 'yes' ? 'Thanks. They know you’re going.' : 'Thanks. They know you can’t come.') : $no('That meeting can’t be answered now.'),
             'meet_notes' => ($k = Meetings::notes($v, (int) ($b['meeting'] ?? 0), (string) ($b['notes'] ?? '')))['ok'] ? $ok('Notes saved. Everybody invited can read them.') : $no((string) $k['error']),
@@ -312,15 +314,13 @@ final class VolunteerController
         $_SESSION[$r['ok'] ? 'vol_toast' : 'vol_error'] = $r['msg'];
         if (($b['do'] ?? '') === 'request' && $r['ok']) $back = '/volunteer/requests';
         if (($b['do'] ?? '') === 'leave' && $r['ok']) $back = '/volunteer/me/leave';
-        if (($b['do'] ?? '') === 'contact' && $r['ok']) $back = '/volunteer/contacts';
         if (($b['do'] ?? '') === 'meet' && $r['ok']) $back = '/volunteer/meetings/' . (int) ($k['id'] ?? 0);
         if (($b['do'] ?? '') === 'meet' && !$r['ok']) {
             $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['title', 'date', 'time', 'minutes', 'repeats', 'times', 'mode', 'link', 'location', 'people', 'agenda']));
         }
-        // A refused contact comes back with what was typed, so nothing is typed twice. The two
-        // confirmations are not kept: they are asked afresh.
-        if (in_array($b['do'] ?? '', ['contact', 'contact_edit'], true) && !$r['ok']) {
-            $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['name', 'phone', 'email', 'interest', 'place', 'place_text', 'note']));
+        // A refused conversation or email comes back with what was typed, so nothing is typed twice.
+        if (in_array($b['do'] ?? '', ['outreach_log', 'outreach_email'], true) && !$r['ok']) {
+            $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['channel', 'outcome', 'note', 'follow_up_on', 'to', 'subject', 'body']));
         }
         // A sent check opens the next one waiting (a HubSpot-style queue), so a checker works
         // through them without returning to the list each time; the list when none is left.

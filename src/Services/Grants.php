@@ -34,6 +34,7 @@ final class Grants
         'award.moderate'            => 'Moderate this award',
         'vol.nomination_check'      => 'Nomination check',
         'vol.voter_drive'           => 'Voter drive',
+        'vol.nominee_outreach'      => 'Nominee outreach',
         'vol.door'                  => 'Door steward',
         'vol.usher'                 => 'Usher',
         'vol.interview_scheduling'  => 'Interview scheduling',

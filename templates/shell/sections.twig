@@ -122,7 +122,7 @@
 {% macro section(s, here, act) %}
 {% import _self as M %}
 {% set act = act ?: '/volunteer/act' %}
-<section class="sh7-sec sh7-sec--{{ s.k }}{{ s.box|default(false) ? ' is-boxed' }}">
+<section class="sh7-sec sh7-sec--{{ s.k }}{{ s.box|default(false) ? ' is-boxed' }}"{% if s.anchor is defined %} id="{{ s.anchor }}" tabindex="-1"{% endif %}>
   {% if s.h is defined and s.h and s.k != 'hero' %}<h2 class="sh7-sec__h">{{ s.h }}</h2>{% endif %}
 
   {% if s.k == 'rows' %}

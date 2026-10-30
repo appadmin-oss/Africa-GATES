@@ -28,7 +28,6 @@ final class WorkspacePages
         return match ($page) {
             'home'     => self::home($v, $role, $q),
             'tasks'    => self::tasks($v, $tab),
-            'contacts' => self::contacts($v, $tab, (array) ($q['_old'] ?? []), $q),
             'meetings' => self::meetings($v, $tab, (array) ($q['_old'] ?? [])),
             'hours'    => self::hours($v, $tab),
             'training' => self::training($v, $tab),
@@ -66,6 +65,11 @@ final class WorkspacePages
         foreach (Hours::rows($v, 'review', 20) as $h) if (!$h->proof) {
             $needs[] = ['t' => 'Add proof for ' . Level::h((float) $h->hours), 'sub' => $h->what . ' · a photo or link speeds up the check',
                         'dot' => 'info', 'cta' => ['label' => 'Add proof', 'href' => '/volunteer/hours/review']];
+        }
+        foreach (Outreach::awards($v) as $cid => $award) {
+            $due = count(Outreach::nominees($v, $cid, '', 'due'));
+            if ($due) $needs[] = ['t' => ($due === 1 ? 'One nominee' : $due . ' nominees') . ' to follow up', 'sub' => $award,
+                                  'dot' => 'warn', 'cta' => ['label' => 'Follow up', 'href' => '/volunteer/cycle/' . $cid . '/nominees/due']];
         }
         if ($needs !== []) $secs[] = ['k' => 'rows', 'h' => 'Needs you', 'items' => $needs];
 
@@ -155,101 +159,6 @@ final class WorkspacePages
         return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'secs' => $secs];
     }
 
-
-    // ── Contacts ──────────────────────────────────────────────────────────────────────────
-
-    /** People this volunteer met and logged (Volunteer\Contacts), and the form to log one. */
-    private static function contacts(object $v, string $tab, array $old = [], array $q = []): array
-    {
-        if ($tab === 'log') {
-            return ['title' => 'Log a contact', 'secs' => [['k' => 'form', 'do' => 'contact', 'submit' => 'Log this contact',
-                'route' => 'The team follows up. You don’t need to contact them yourself.',
-                'groups' => [...self::contactGroups($v, $old),
-                    ['label' => 'Before you log them', 'help' => 'Ask them both. If either is no, don’t log them.', 'fields' => [
-                        ['name' => 'consent', 'label' => 'They agreed to be contacted by Africa GATES about this', 'type' => 'check', 'required' => true],
-                        ['name' => 'adult', 'label' => 'They are 18 or older', 'type' => 'check', 'required' => true]]],
-                ]]]];
-        }
-        $find = mb_substr(trim((string) ($q['q'] ?? '')), 0, 80);
-        $interest = isset(Contacts::INTERESTS[(string) ($q['interest'] ?? '')]) ? (string) $q['interest'] : '';
-        $sum = Contacts::summary($v);
-        $crm = \AfricaGates\Services\CrmAudiencePush::ready();
-        $rows = [];
-        foreach (Contacts::mine($v, $find, $interest) as $c) {
-            $reach = trim(implode(' · ', array_filter([(string) $c->phone, (string) $c->email])));
-            $rows[] = ['t' => (string) $c->name, 'href' => '/volunteer/contacts/' . $c->id,
-                       'sub' => $c->interest_label . ($c->where !== '' ? ' · met at ' . $c->where : '') . ' · ' . Workspace::day((string) $c->created_at) . ($reach !== '' ? ' · ' . $reach : ''),
-                       'chip' => self::contactChip($c, $crm)];
-        }
-        $secs = [];
-        if ($sum['total'] > 0) {
-            $secs[] = ['k' => 'stats', 'items' => array_values(array_filter([['l' => 'Logged', 'v' => (string) $sum['total']], ['l' => 'This month', 'v' => (string) $sum['month']],
-                $crm ? ['l' => 'Waiting to reach the team', 'v' => (string) $sum['waiting'], 's' => $sum['waiting'] ? 'Sent within the hour' : 'All sent'] : null]))];
-            $secs[] = ['k' => 'form', 'get' => '/volunteer/contacts', 'label' => 'Find a contact', 'submit' => 'Find', 'clear' => $find !== '' || $interest !== '', 'fields' => [
-                ['name' => 'q', 'label' => 'Name, phone or email', 'type' => 'search', 'autocomplete' => 'off', 'value' => $find],
-                ['name' => 'interest', 'label' => 'Interested in', 'type' => 'select', 'options' => ['' => 'Anything'] + Contacts::INTERESTS, 'value' => $interest]]];
-        }
-        $secs[] = $rows ? ['k' => 'rows', 'h' => $find !== '' || $interest !== '' ? count($rows) . ' found' : 'People you’ve logged', 'items' => $rows]
-            : ($sum['total'] > 0 ? ['k' => 'note', 'text' => 'Nobody matches. Try part of a name or the last digits of a phone number.', 'tone' => 'mute']
-                                 : ['k' => 'note', 'text' => 'Nobody logged yet. When you meet someone who wants to hear from Africa GATES, log them with their agreement.', 'tone' => 'mute',
-                                    'cta' => ['label' => 'Log a contact', 'href' => '/volunteer/contacts/log']]);
-        $secs[] = ['k' => 'note', 'text' => 'Only you and the Africa GATES team see these. Nobody under 18 is logged.', 'tone' => 'mute'];
-        return ['title' => 'Contacts', 'secs' => $secs];
-    }
-
-    /** One contact, as a record page with its history; null if it is not this volunteer's. */
-    public static function contact(object $v, int $id, array $old = []): ?array
-    {
-        $c = Contacts::get($v, $id);
-        if (!$c) return null;
-        $crm = \AfricaGates\Services\CrmAudiencePush::ready();
-        $acts = $c->forgotten_at ? [] : [['label' => 'They asked not to be contacted', 'post' => ['do' => 'forget_contact', 'contact' => $id],
-                                          'confirm' => 'Mark ' . $c->name . ' as not to be contacted? The team is told.']];
-        $facts = array_values(array_filter([['Interested in', $c->interest_label], $c->phone ? ['Phone', (string) $c->phone] : null, $c->email ? ['Email', (string) $c->email] : null,
-            ['Met', ($c->where !== '' ? $c->where . ', ' : '') . Workspace::day((string) $c->created_at)]]));
-        $secs = [['k' => 'hero', 'ini' => Workspace::initials((string) $c->name), 'tone' => $c->forgotten_at ? 'mute' : 'info', 't' => (string) $c->name, 'sub' => 'Contact',
-                  'chips' => array_values(array_filter([self::contactChip($c, $crm)])), 'facts' => $facts, 'acts' => $acts]];
-        if ($c->note) $secs[] = ['k' => 'note', 'h' => 'Your note', 'text' => (string) $c->note . "\n\nIt stays with Africa GATES; the CRM doesn’t get it.", 'tone' => 'mute', 'pre' => true];
-        $history = [['t' => 'Logged, with their agreement', 'sub' => Workspace::day((string) $c->consent_at) . ' · ' . date('H:i', (int) strtotime((string) $c->consent_at))]];
-        if ($c->updated_at !== $c->created_at && !$c->forgotten_at) $history[] = ['t' => 'Details corrected', 'sub' => Workspace::day((string) $c->updated_at) . ' · ' . date('H:i', (int) strtotime((string) $c->updated_at))];
-        if ($crm) $history[] = ['t' => $c->sent ? 'With the team' : 'Waiting to reach the team', 'sub' => $c->sent ? 'In the CRM, for follow-up.' : 'Sent within the hour.'];
-        if ($c->forgotten_at) $history[] = ['t' => 'Asked not to be contacted', 'sub' => Workspace::day((string) $c->forgotten_at) . ($crm ? ' · the team is told' : '')];
-        $secs[] = ['k' => 'rows', 'h' => 'History', 'items' => $history];
-        if (!$c->forgotten_at) {
-            $values = $old ?: ['name' => $c->name, 'phone' => $c->phone, 'email' => $c->email, 'interest' => $c->interest,
-                               'place' => $c->scope_kind ? $c->scope_kind . ':' . $c->scope_id : ($c->place_text ? 'else' : ''), 'place_text' => $c->place_text, 'note' => $c->note];
-            $secs[] = ['k' => 'form', 'h' => 'Correct their details', 'do' => 'contact_edit', 'hidden' => ['contact' => $id], 'submit' => 'Save changes',
-                       'route' => 'The team gets the correction on the same record.', 'groups' => self::contactGroups($v, $values)];
-        }
-        return ['title' => (string) $c->name, 'kicker' => 'Contact', 'noHead' => true, 'secs' => $secs];
-    }
-
-    /** Where a contact stands, in words: stopped, with the team, or on its way. */
-    private static function contactChip(object $c, bool $crm): ?array
-    {
-        if ($c->forgotten_at) return ['Asked not to be contacted', 'mute'];
-        if (!$crm) return null;
-        return $c->sent ? ['With the team', 'ok'] : ['Waiting to send', 'warn'];
-    }
-
-    /** The fields of a contact, for logging one and for correcting one. */
-    private static function contactGroups(object $v, array $old): array
-    {
-        $o = static fn (string $k): string => mb_substr((string) ($old[$k] ?? ''), 0, 300);
-        $places = ['' => 'Choose…'];
-        foreach (Workspace::places($v) as $p) $places[$p['kind'] . ':' . $p['id']] = $p['name'];
-        $places['else'] = 'Somewhere else';
-        return [
-            ['label' => 'Who', 'fields' => [['name' => 'name', 'label' => 'Their name', 'type' => 'text', 'required' => true, 'autocomplete' => 'off', 'value' => $o('name')]]],
-            ['label' => 'How to reach them', 'help' => 'A phone number or an email. One is enough.', 'fields' => [
-                ['name' => 'phone', 'label' => 'Phone', 'type' => 'tel', 'autocomplete' => 'off', 'inputmode' => 'tel', 'value' => $o('phone')],
-                ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'autocomplete' => 'off', 'value' => $o('email')]]],
-            ['label' => 'What they’re interested in', 'fields' => [['name' => 'interest', 'label' => 'Interested in', 'type' => 'radio', 'required' => true, 'options' => Contacts::INTERESTS, 'value' => $o('interest')]]],
-            ['label' => 'Where you met', 'fields' => [['name' => 'place', 'label' => 'Where', 'type' => 'select', 'options' => $places, 'value' => $o('place')],
-                                                    ['name' => 'place_text', 'label' => 'If somewhere else, where', 'type' => 'text', 'autocomplete' => 'off', 'value' => $o('place_text')]]],
-            ['label' => 'A note for the team', 'help' => 'Optional. It stays with Africa GATES.', 'fields' => [['name' => 'note', 'label' => 'Note', 'type' => 'textarea', 'value' => $o('note')]]],
-        ];
-    }
 
     // ── Meetings ──────────────────────────────────────────────────────────────────────────
 
@@ -636,6 +545,7 @@ final class WorkspacePages
         $id = $p['id'];
         if ($kind === 'cycle' && $page === 'queue') return self::queue($v, $p, $tab, (int) ($q['n'] ?? 0));
         if ($kind === 'cycle' && $page === 'drive') return self::drive($v, $p, $tab);
+        if ($kind === 'cycle' && $page === 'nominees') return self::nominees($v, $p, $tab, (int) ($q['n'] ?? 0), $q);
         if ($page === 'guide') return ['title' => 'Role guide', 'secs' => self::guide($p['caps'])];
         $tasks = DB::table('gates_vol_tasks')->where('scope_kind', $kind)->where('scope_id', $id)->where('status', 'open')->orderBy('due_at')->get()->all();
         $taskRows = static function () use ($tasks, $v): array {
@@ -677,12 +587,18 @@ final class WorkspacePages
             if (in_array(VoterDrive::CAPABILITY, $p['caps'], true) && ($l = VoterDrive::link($v, $id)) && $l['people'] > 0) {
                 $part[] = ['l' => 'People who voted through your link', 'v' => (string) $l['people']];
             }
+            if (in_array(Outreach::CAPABILITY, $p['caps'], true) && Outreach::ready()) {
+                $n = (int) DB::table('gates_vol_outreach')->where('volunteer_id', $v->id)->where('cycle_id', $id)->count();
+                if ($n) $part[] = ['l' => 'Conversations with nominees', 'v' => (string) $n];
+            }
             $start = in_array(NominationChecks::CAPABILITY, $p['caps'], true) ? 'Your part starts with your first check.'
-                   : (in_array(VoterDrive::CAPABILITY, $p['caps'], true) ? 'Your part starts when someone votes through your link.' : 'Your part here starts with a task.');
+                   : (in_array(Outreach::CAPABILITY, $p['caps'], true) ? 'Your part starts with your first conversation with a nominee.'
+                   : (in_array(VoterDrive::CAPABILITY, $p['caps'], true) ? 'Your part starts when someone votes through your link.' : 'Your part here starts with a task.'));
             $secs[] = $part ? ['k' => 'stats', 'h' => 'Your part', 'items' => $part] : ['k' => 'note', 'text' => $start, 'tone' => 'mute'];
             $acts = [];
             if (in_array(NominationChecks::CAPABILITY, $p['caps'], true)) $acts[] = ['label' => 'Check nominations', 'href' => $p['href'] . '/queue'];
             if (in_array(VoterDrive::CAPABILITY, $p['caps'], true)) $acts[] = ['label' => 'Get your link', 'href' => $p['href'] . '/drive'];
+            if (in_array(Outreach::CAPABILITY, $p['caps'], true)) $acts[] = ['label' => 'Reach nominees', 'href' => $p['href'] . '/nominees'];
             if ($acts) array_unshift($secs, ['k' => 'note', 'text' => 'You help here with ' . mb_strtolower(implode(' and ', $p['roles'])) . '.', 'tone' => 'info', 'cta' => $acts[0]]);
             return ['title' => $p['name'], 'purpose' => self::PURPOSE_FOR($kind, $page), 'secs' => $secs, 'side' => self::access($v, $kind, $id, true)];
         }
@@ -802,6 +718,134 @@ final class WorkspacePages
         return ['title' => 'Voter drive', 'secs' => $secs];
     }
 
+    /**
+     * Nominees (Volunteer\Outreach): the award's nominees, follow-ups first, and one nominee at a
+     * time with their contact, the team's history, a log form and a one-person email. No
+     * selection and no "message all": the owner asked for none.
+     */
+    private static function nominees(object $v, array $p, string $tab, int $nid, array $q): array
+    {
+        $id = (int) $p['id'];
+        $base = $p['href'] . '/nominees';
+        if ($nid > 0) return self::nominee($v, $p, $nid, (array) ($q['_old'] ?? []));
+        $find = mb_substr(trim((string) ($q['q'] ?? '')), 0, 80);
+        $show = in_array($tab, ['due', 'new'], true) ? $tab : '';
+        $rows = [];
+        foreach (Outreach::nominees($v, $id, $find, $show) as $n) {
+            $last = $n->last;
+            $sub = $n->category . ' · ' . ($last ? (Outreach::OUTCOMES[$last->outcome] ?? '') . ', ' . Workspace::day((string) $last->created_at)
+                . ($last->follow_up_on && !$n->stopped ? ' · follow up ' . Workspace::day((string) $last->follow_up_on) : '') : 'nobody has reached them yet');
+            $rows[] = ['t' => (string) $n->name, 'sub' => $sub, 'href' => $base . '?n=' . $n->id,
+                       'chip' => $n->stopped ? ['Asked not to be contacted', 'mute'] : ($n->due ? ['Follow up', 'warn'] : ($last ? null : ['Not reached yet', 'info']))];
+        }
+        $secs = [['k' => 'form', 'get' => $base . ($show ? '/' . $show : ''), 'label' => 'Find a nominee', 'submit' => 'Find', 'clear' => $find !== '',
+                  'fields' => [['name' => 'q', 'label' => 'Name', 'type' => 'search', 'autocomplete' => 'off', 'value' => $find]]]];
+        $empty = match (true) {
+            $find !== '' => 'Nobody by that name on this award.',
+            $show === 'due' => 'No follow-ups due. Well done.',
+            $show === 'new' => 'Everybody on this award has been reached at least once.',
+            default => 'No nominees on this award yet. They show here once a nomination is approved.',
+        };
+        $secs[] = $rows ? ['k' => 'rows', 'h' => count($rows) . ' ' . (count($rows) === 1 ? 'nominee' : 'nominees'), 'items' => $rows]
+                        : ['k' => 'note', 'text' => $empty, 'tone' => 'mute'];
+        $secs = Outreach::agreed($v, $id) ? [...$secs, ...self::outreachTerms($v, $p)] : [...self::outreachTerms($v, $p), ...$secs];
+        return ['title' => 'Nominees', 'secs' => $secs];
+    }
+
+    /** The rules on a nominee's details: to agree to, or as the standing reminder once agreed. */
+    private static function outreachTerms(object $v, array $p): array
+    {
+        $rows = array_map(static fn (array $t): array => ['t' => $t[0], 'sub' => $t[1]], Outreach::TERMS);
+        if (Outreach::agreed($v, (int) $p['id'])) {
+            return [['k' => 'note', 'tone' => 'mute', 'text' => 'Nominees’ details are only for Africa GATES and this award. No personal use, no selling, no sharing.']];
+        }
+        return [['k' => 'note', 'tone' => 'info', 'text' => 'Before you see any nominee’s phone or email, read and agree to how they may be used.'],
+                ['k' => 'rows', 'h' => 'How you may use nominees’ details', 'items' => $rows],
+                ['k' => 'form', 'do' => 'outreach_agree', 'hidden' => ['cycle' => (int) $p['id']], 'submit' => 'I agree',
+                 'route' => 'We keep a record that you agreed, and when.', 'groups' => []]];
+    }
+
+    /** One nominee: who they are, how to reach them, what the team has said, and what you say next. */
+    private static function nominee(object $v, array $p, int $nid, array $old): array
+    {
+        $n = Outreach::nominee($v, $nid);
+        if (!$n) return ['title' => 'Nominees', 'secs' => [['k' => 'note', 'text' => 'That nominee isn’t on this award.', 'tone' => 'warn',
+                                                            'cta' => ['label' => 'Back to nominees', 'href' => $p['href'] . '/nominees']]]];
+        $acts = [];
+        if ($n->phones) {
+            $d = Outreach::dial((string) $n->phones[0]);
+            $acts[] = ['label' => 'Call', 'href' => $d['tel'], 'primary' => true];
+            $acts[] = ['label' => 'WhatsApp', 'href' => $d['whatsapp'], 'ext' => true];
+        }
+        if ($n->emails && !$n->email_today) $acts[] = ['label' => 'Write an email', 'href' => '#write', 'primary' => !$n->phones];
+        $secs = [['k' => 'hero', 'ini' => Workspace::initials((string) $n->name), 'tone' => $n->stopped ? 'mute' : 'info', 't' => (string) $n->name,
+                  'sub' => $n->category . ' · ' . $n->award,
+                  'chips' => array_values(array_filter([$n->stopped ? ['Asked not to be contacted', 'mute'] : null])),
+                  'facts' => array_values(array_filter([$n->organisation ? ['Organisation', (string) $n->organisation] : null])), 'acts' => $acts]];
+
+        if (!$n->agreed) {
+            return ['title' => (string) $n->name, 'kicker' => 'Nominees', 'noHead' => true, 'secs' => [...$secs, ...self::outreachTerms($v, $p)]];
+        }
+        // The history before the number: "Bola rang twice" is read before the third call, not after it.
+        $hist = [];
+        foreach ($n->history as $h) {
+            $what = $h->body !== null ? 'Email: ' . (string) $h->subject : (Outreach::OUTCOMES[$h->outcome] ?? '') . ' · ' . (Outreach::CHANNELS[$h->channel] ?? '');
+            $words = $h->body !== null ? (string) $h->body : (string) ($h->note ?? '');
+            $hist[] = ['t' => $what, 'meta' => Workspace::day((string) $h->created_at),
+                       'sub' => trim($h->by . ($words !== '' ? ': ' . mb_strimwidth($words, 0, 240, '…') : '')
+                              . ($h->follow_up_on ? ' · follow up ' . Workspace::day((string) $h->follow_up_on) : ''))];
+        }
+        $secs[] = $hist ? ['k' => 'rows', 'h' => 'What the team has said', 'items' => $hist]
+                        : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nobody on the team has reached them yet.'];
+        if ($n->stopped) {
+            $secs[] = ['k' => 'note', 'tone' => 'warn', 'text' => 'They asked not to be contacted. Nobody on this award reaches out to them again, so their details are hidden.'];
+        } else {
+            $reach = [];
+            foreach ($n->phones as $ph) $reach[] = ['t' => (string) $ph, 'sub' => 'Phone', 'cta' => ['label' => 'Call', 'href' => Outreach::dial((string) $ph)['tel']]];
+            foreach ($n->emails as $em) $reach[] = ['t' => (string) $em, 'sub' => 'Email', 'cta' => $n->email_today ? null : ['label' => 'Write', 'href' => '#write']];
+            $secs[] = $reach ? ['k' => 'rows', 'h' => 'How to reach them', 'items' => $reach]
+                             : ['k' => 'note', 'tone' => 'mute', 'text' => 'No phone or email on file yet. They add them when they finish their profile.'];
+            if ($n->phones) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Calls and WhatsApp use your own phone, so they show your number.'];
+            $secs = [...$secs, ...self::outreachTerms($v, $p)];
+        }
+
+        if ($n->stopped) return ['title' => (string) $n->name, 'kicker' => 'Nominees', 'noHead' => true, 'secs' => $secs];
+
+        $o = static fn (string $k, string $d = ''): string => mb_substr((string) ($old[$k] ?? $d), 0, 3000);
+        $secs[] = ['k' => 'form', 'h' => 'Log a conversation', 'do' => 'outreach_log', 'hidden' => ['nominee' => $n->id], 'submit' => 'Log it',
+                   'route' => 'Everybody on this award sees it, with your name.',
+                   'groups' => [
+                       ['label' => 'How', 'fields' => [['name' => 'channel', 'label' => 'How you reached them', 'type' => 'radio', 'required' => true,
+                                                         'options' => array_diff_key(Outreach::CHANNELS, ['email' => 1]), 'value' => $o('channel', 'call')]]],
+                       ['label' => 'How it went', 'fields' => [['name' => 'outcome', 'label' => 'How it went', 'type' => 'radio', 'required' => true,
+                                                                 'options' => Outreach::OUTCOMES, 'value' => $o('outcome')]]],
+                       ['label' => 'Note', 'help' => 'What they said, or what they need. Optional.', 'fields' => [['name' => 'note', 'label' => 'Note', 'type' => 'textarea', 'value' => $o('note')]]],
+                       ['label' => 'Follow up', 'help' => 'Leave it empty and we pick one: in two days after no answer or a message.',
+                        'fields' => [['name' => 'follow_up_on', 'label' => 'Follow up on', 'type' => 'date', 'min' => date('Y-m-d'), 'value' => $o('follow_up_on')]]],
+                   ]];
+        if ($n->emails) {
+            if ($n->email_today) {
+                $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'They’ve had an email from the team today. Write again tomorrow, or call.'];
+            } else {
+                $to = count($n->emails) > 1
+                    ? [['name' => 'to', 'label' => 'To', 'type' => 'select', 'options' => array_combine($n->emails, $n->emails), 'value' => $o('to', (string) $n->emails[0])]]
+                    : [];
+                $secs[] = ['k' => 'form', 'h' => 'Write an email', 'anchor' => 'write', 'do' => 'outreach_email',
+                           'hidden' => ['nominee' => $n->id] + (count($n->emails) === 1 ? ['to' => (string) $n->emails[0]] : []), 'submit' => 'Send to ' . $n->name,
+                           'route' => 'Sent by Africa GATES and signed with your first name. Your email address goes with it, so they can reply to you. It’s logged here.',
+                           'groups' => array_values(array_filter([
+                               $to ? ['label' => 'To', 'fields' => $to] : null,
+                               ['label' => 'Subject', 'fields' => [['name' => 'subject', 'label' => 'Subject', 'type' => 'text', 'required' => true, 'autocomplete' => 'off',
+                                                                     'value' => $o('subject', 'Your nomination for ' . $p['name'])]]],
+                               ['label' => 'Message', 'fields' => [['name' => 'body', 'label' => 'Message', 'type' => 'textarea', 'required' => true, 'value' => $o('body')]]],
+                               ['label' => 'Follow up', 'help' => 'Leave it empty and we pick three days from now.',
+                                'fields' => [['name' => 'follow_up_on', 'label' => 'Follow up on', 'type' => 'date', 'min' => date('Y-m-d'), 'value' => $o('follow_up_on')]]],
+                           ]))];
+            }
+        }
+        return ['title' => (string) $n->name, 'kicker' => 'Nominees', 'noHead' => true, 'secs' => $secs];
+    }
+
     /** The rules for a person's roles here (the DC's role guide). */
     private static function guide(array $caps): array
     {
@@ -809,12 +853,19 @@ final class WorkspacePages
         if (in_array(NominationChecks::CAPABILITY, $caps, true)) {
             $rules[] = ['t' => 'Check against the rules, not your view of the nominee', 'sub' => ''];
             $rules[] = ['t' => 'Flag a possible duplicate; never merge', 'sub' => 'A moderator compares the two and decides.'];
-            $rules[] = ['t' => 'Don’t contact nominators or nominees', 'sub' => 'Their details stay hidden from you on purpose.'];
+            $rules[] = ['t' => 'Don’t contact nominators', 'sub' => 'Their details stay hidden from you on purpose.'];
         }
         if (in_array(VoterDrive::CAPABILITY, $caps, true)) {
             $rules[] = ['t' => 'Never ask for a vote for a named nominee', 'sub' => 'You bring voters, not votes.'];
             $rules[] = ['t' => 'Never take money or phones', 'sub' => 'People verify on their own phone.'];
             $rules[] = ['t' => 'Wear the bib and show your pass', 'sub' => ''];
+        }
+        if (in_array(Outreach::CAPABILITY, $caps, true)) {
+            $rules[] = ['t' => 'One person at a time', 'sub' => 'Never add nominees to a group or a broadcast list.'];
+            $rules[] = ['t' => 'Read the history first', 'sub' => 'If someone spoke to them this week, don’t call again.'];
+            $rules[] = ['t' => 'Never ask for a vote or money', 'sub' => 'Help them finish their profile and answer questions.'];
+            $rules[] = ['t' => 'If they say stop, log it', 'sub' => 'Nobody on the award contacts them again.'];
+            $rules[] = ['t' => 'Keep their details here', 'sub' => 'Don’t copy numbers or emails anywhere else.'];
         }
         return $rules ? [['k' => 'rows', 'h' => 'Rules for your role', 'items' => $rules]]
                       : [['k' => 'note', 'text' => 'Your role here is on the night. The briefing has what you need.', 'tone' => 'mute']];
@@ -831,10 +882,13 @@ final class WorkspacePages
                 'vol.nomination_check' => 'Nominations: the reason, the category and the evidence',
                 'vol.voter_drive' => 'Your link’s sign-ups, as counts',
                 'vol.team_lead' => 'Your team’s work and the hours they log by hand',
+                Outreach::CAPABILITY => 'Nominees’ phone numbers and emails, and the team’s conversations with them',
                 default => Grants::CAPABILITIES[$g->capability] ?? (string) $g->capability,
             }, 'sub' => ''];
         }
-        $hidden = [['t' => 'Phone numbers, emails, payments, scores and judges’ notes', 'sub' => 'Never sent to a volunteer, whatever the page.']];
+        $reach = (bool) array_filter($grants, static fn ($g) => (string) $g->capability === Outreach::CAPABILITY);
+        $hidden = [$reach ? ['t' => 'Nominators’ details, payments, scores and judges’ notes', 'sub' => 'Never sent to a volunteer, whatever the page.']
+                          : ['t' => 'Phone numbers, emails, payments, scores and judges’ notes', 'sub' => 'Never sent to a volunteer, whatever the page.']];
         $ends = [];
         foreach ($grants as $g) {
             $by = $g->granted_by ? (string) (DB::table('gates_admins')->where('id', $g->granted_by)->value('name') ?? '') : '';

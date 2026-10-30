@@ -236,34 +236,6 @@ final class CrmAudiencePush
             }
         }
 
-        // People volunteers met and logged with their agreement (Volunteer\Contacts), by when the
-        // row last changed — so "they asked not to be contacted" reaches the CRM as a stop on
-        // the same row. What they are interested in and who met them where; never the
-        // volunteer's note. A volunteer under 18 is not named.
-        if ($room() > 0 && \AfricaGates\Support\SchemaHas::table('gates_vol_contacts')) {
-            $at = (string) ($state['contacts.at'] ?? self::EPOCH);
-            $cid = (int) ($state['contacts.id'] ?? 0);
-            $adult = date('Y-m-d', strtotime('-18 years'));
-            $settled = date('Y-m-d H:i:s');   // never into the current second; see volunteers above
-            foreach (DB::table('gates_vol_contacts as c')->join('gates_volunteers as v', 'v.id', '=', 'c.volunteer_id')->join('gates_users as u', 'u.id', '=', 'v.user_id')
-                         ->where('c.updated_at', '<', $settled)
-                         ->where(fn($w) => $w->where('c.updated_at', '>', $at)->orWhere(fn($o) => $o->where('c.updated_at', $at)->where('c.id', '>', $cid)))
-                         ->orderBy('c.updated_at')->orderBy('c.id')->limit($room())
-                         ->get(['c.*', 'v.dob', 'v.display_name', 'u.name as vol_name']) as $r) {
-                $next['contacts.at'] = (string) $r->updated_at;
-                $next['contacts.id'] = (string) $r->id;
-                $by = $r->dob !== null && (string) $r->dob <= $adult ? trim((string) ($r->display_name ?: $r->vol_name)) : '';
-                $where = \AfricaGates\Services\Volunteer\Contacts::where($r);
-                $add(['kind' => 'enquiry', 'ref' => 'met:' . $r->id, 'email' => (string) ($r->email ?? ''), 'phone' => (string) ($r->phone ?? ''),
-                      'name' => (string) $r->name, 'list' => 'Met by Africa GATES volunteers',
-                      'status' => $r->forgotten_at ? 'unsubscribed' : 'active',
-                      'detail' => trim((\AfricaGates\Services\Volunteer\Contacts::INTERESTS[(string) $r->interest] ?? 'Something else')
-                          . ' · met by ' . ($by !== '' ? $by : 'an Africa GATES volunteer') . ($where !== '' ? ' at ' . $where : '')
-                          . ($r->forgotten_at ? ' · asked not to be contacted' : '')),
-                      'at' => self::at($r->created_at)]);
-            }
-        }
-
         return ['rows' => $rows, 'state' => $next];
     }
 
@@ -349,17 +321,6 @@ final class CrmAudiencePush
     }
 
     /** @return array<string,string> */
-    /**
-     * Has this volunteer contact gone to the CRM in its present form? True once the contacts
-     * cursor is at or past the row's last change, so an edit reads as "not sent" until it is.
-     */
-    public static function contactSent(string $updatedAt, int $id, ?array $state = null): bool
-    {
-        $state ??= self::state();
-        $at = (string) ($state['contacts.at'] ?? self::EPOCH);
-        return $updatedAt < $at || ($updatedAt === $at && $id <= (int) ($state['contacts.id'] ?? 0));
-    }
-
     public static function state(): array
     {
         try {

@@ -111,11 +111,10 @@ final class VolunteerWorkspaceGapsTest extends TestCase
         $this->assertStringContainsString('<span class="sh7-sr">, 1 waiting</span>', $html, 'a count carries hidden words');
         $this->assertDoesNotMatchRegularExpression('~<span[^>]*class="sh7-badge[^"]*"[^>]*aria-label=~', $html, 'aria-label on a span is not read; counts carry hidden words');
 
-        \AfricaGates\Services\Volunteer\Contacts::log(Volunteers::byId((int) $b->id), ['name' => 'Funmi Bello', 'phone' => '0803 123 4567', 'interest' => 'vote', 'consent' => '1', 'adult' => '1']);
         $_SESSION['vol_error'] = 'That meeting can’t be answered now.';
-        $html = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/contacts'), new Response(), ['page' => 'contacts'])->getBody();
+        $html = (string) $this->ctrl()->root((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/meetings'), new Response(), ['page' => 'meetings'])->getBody();
         $this->assertStringContainsString('<title>Not done: That meeting can’t be answered now. · ', $html);
         $this->assertStringContainsString('data-sh7-stay', $html, 'an error stays until dismissed');
-        $this->assertMatchesRegularExpression('~href="/volunteer/contacts/\d+">Funmi Bello</a>~', $html, 'a row names its record in its link');
+        $this->assertMatchesRegularExpression('~href="/volunteer/meetings/\d+">Door briefing</a>~', $html, 'a row names its record in its link');
     }
 }
