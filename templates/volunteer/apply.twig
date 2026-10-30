@@ -39,8 +39,8 @@
 </head>
 <body class="ap">
 <div class="ap-wrap">
-  <header class="ap-top">
-    <a class="ap-brand" href="/" aria-label="Africa GATES home">
+  <header class="ap-top{{ need ? ' ap-top--bare' }}">
+    <a class="ap-brand" href="/" aria-label="Africa GATES home"{% if need %} hidden{% endif %}>
       <img class="ap-brand__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="36" height="36" alt="">
       <span class="ap-brand__words"><span class="ap-brand__name">Africa GATES</span><span class="ap-brand__sub">Volunteers</span></span>
     </a>
@@ -57,20 +57,35 @@
          volunteer through it. Said here, with the way to make one — not a silent bounce to a
          sign-in screen that never says why. #}
       <section class="ap-gate" aria-labelledby="apTitle">
-        <img class="ap-gate__logo" src="{{ asset('/assets/img/logo-mark.png') }}" width="64" height="64" alt="">
-        <h1 class="ap-gate__h" id="apTitle">{{ need == 'verify' ? 'Verify your email first' : 'Volunteer with Africa GATES' }}</h1>
-        <p class="ap-gate__lede">{% if need == 'verify' %}Open the link we sent{{ user and user.email ? ' to ' ~ user.email }}, then come back to apply.{% else %}Help on award nights, bring people to vote and check nominations.{% endif %}</p>
-        <ol class="ap-path" aria-label="How it works">
-          {% for s in path %}<li{% if loop.index0 == at %} aria-current="step"{% elseif loop.index0 < at %} class="is-done"{% endif %}><span class="ap-path__n" aria-hidden="true">{{ loop.index0 < at ? '✓' : loop.index }}</span>{{ s }}</li>{% endfor %}
-        </ol>
+        <img class="ap-gate__logo" src="{{ asset('/assets/img/logo-africa-gates-alpha.png') }}" width="96" height="110" alt="Africa GATES">
         {% if need == 'verify' %}
+          <h1 class="ap-gate__h" id="apTitle">Verify your email first</h1>
+          <p class="ap-gate__lede">Open the link we sent{{ user and user.email ? ' to ' ~ user.email }}, then come back to apply.</p>
           <a class="ap-btn ap-btn--go ap-gate__go" href="/account/verify">Send the link again</a>
           <p class="ap-gate__alt"><a href="/account">Back to my account</a></p>
         {% else %}
-          <a class="ap-btn ap-btn--go ap-gate__go" href="{{ join }}">Make an account</a>
-          <p class="ap-gate__alt">Have one? <a href="{{ join }}">Sign in</a></p>
-          <p class="ap-gate__fine">We email you a code. No password.</p>
+          <h1 class="ap-gate__h" id="apTitle">Volunteer with us</h1>
+          <p class="ap-gate__lede">Help on award nights, bring people to vote and check nominations.</p>
+          {# Social proof is a count, never a typed figure, and only once it means something. #}
+          {% if team|default(0) >= 10 %}<p class="ap-gate__proof"><span class="ap-gate__dot" aria-hidden="true"></span>{{ team }} volunteers already on the team</p>{% endif %}
+          <ul class="ap-gate__why">
+            <li>Pick tasks that fit your week</li>
+            <li>Short training. No experience needed</li>
+            <li>Verified hours and a reference letter</li>
+          </ul>
+          {# One field (research, 30 Oct 2026): the email goes straight to the code request, and
+             the code screen brings the person back here. No password, nothing else to fill. #}
+          <form class="ap-gate__form" method="post" action="/account/login/otp">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="via" value="email">
+            <label class="ap-sr" for="apEmail">Your email</label>
+            <input class="ap-in ap-gate__in" id="apEmail" type="email" name="email" required autocomplete="email" inputmode="email" placeholder="Your email" spellcheck="false">
+            <button class="ap-btn ap-btn--go ap-gate__go" type="submit">Continue with email</button>
+          </form>
+          <p class="ap-gate__fine">We send a 6-digit code. No password. New or returning, it’s the same step.</p>
         {% endif %}
+        <ol class="ap-path" aria-label="How it works">
+          {% for s in path %}<li{% if loop.index0 == at %} aria-current="step"{% elseif loop.index0 < at %} class="is-done"{% endif %}><span class="ap-path__n" aria-hidden="true">{{ loop.index0 < at ? '✓' : loop.index }}</span>{{ s }}</li>{% endfor %}
+        </ol>
       </section>
     {% else %}
     <section class="ap-hero" aria-labelledby="apTitle">

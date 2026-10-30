@@ -223,9 +223,13 @@ final class VolunteerController
         // An account comes first (owner, 30 Oct 2026). Somebody signed out is TOLD so, on this
         // page, with the way to make one — not bounced to a sign-in screen that never says why.
         if (!$user || !Volunteers::accountReady((int) $user->id)) {
+            // The email box on this page posts straight to the code request, so the way back is
+            // held here, where every sign-in path (code, password, verify link) reads it.
+            if (!$user) $_SESSION['login_next'] = '/volunteer/apply';
+            $team = Volunteers::ready() ? (int) \Illuminate\Database\Capsule\Manager::table('gates_volunteers')->where('status', 'active')->count() : 0;
             return $this->view->render($res, 'volunteer/apply.twig', [
+                'team' => $team,
                 'page_title' => 'Volunteer with Africa GATES', 'need' => $user ? 'verify' : 'account', 'user' => $user, 'old' => [], 'errors' => [], 'was' => null,
-                'join' => '/account/login?via=email&next=' . rawurlencode('/volunteer/apply'),
             ]);
         }
         if ($v && !in_array($v->status, ['declined', 'left'], true)) return $this->to($res, '/volunteer');

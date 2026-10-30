@@ -19,24 +19,39 @@
 .ap-brand__sub { font-size: var(--cn-fs-12); color: var(--cn-ink-3); }
 .ap-after { margin: 0; font-size: var(--cn-fs-14); color: var(--cn-ink-3); }
 
-/* The account step: one quiet card, centred, short enough to sit on a phone without scrolling. */
-.ap-gate { max-width: 440px; margin: 8px auto 0; padding: 28px 24px 24px; box-sizing: border-box; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px;
-  background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-18); box-shadow: var(--cn-sh-hero); }
-.ap-gate__logo { width: 64px; height: 64px; object-fit: contain; }
-.ap-gate__h { margin: 0; font-size: var(--cn-fs-24); line-height: 1.2; font-weight: 600; letter-spacing: -.01em; }
-.ap-gate__lede { margin: 0; font-size: var(--cn-fs-15); line-height: 1.5; color: var(--cn-ink-2); max-width: 34ch; }
-.ap-gate__go { width: 100%; box-sizing: border-box; margin-top: 4px; }
+/* The account step: one surface, logo first, one field. A card on a wide screen; on a phone the
+   card's frame goes and the page is the surface, so nothing reads as a box inside a box. */
+.ap-gate { max-width: 420px; margin: 0 auto; padding: 32px 28px 24px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;
+  background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-20); box-shadow: var(--cn-sh-hero); }
+.ap-gate__logo { width: 96px; height: auto; }
+.ap-gate__h { margin: 4px 0 0; font-size: var(--cn-fs-28); line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
+.ap-gate__lede { margin: 0; font-size: var(--cn-fs-16); line-height: 1.5; color: var(--cn-ink-2); max-width: 32ch; }
+.ap-gate__proof { margin: 0; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: var(--cn-r-pill); background: var(--cn-green-wash); color: var(--cn-green-ink); font-size: var(--cn-fs-13); font-weight: 500; }
+.ap-gate__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cn-green); }
+.ap-gate__why { list-style: none; margin: 2px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 8px; align-self: stretch; text-align: left; }
+.ap-gate__why li { display: flex; align-items: center; gap: 10px; font-size: var(--cn-fs-15); color: var(--cn-ink); }
+.ap-gate__why li::before { content: "✓"; flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--cn-green); color: var(--cn-surface); font-size: var(--cn-fs-12); font-weight: 700; }
+.ap-gate__form { align-self: stretch; display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.ap-gate__in { min-height: 52px; text-align: left; }
+.ap-gate__go { width: 100%; min-height: 52px; box-sizing: border-box; }
 .ap-gate__alt { margin: 0; font-size: var(--cn-fs-14); color: var(--cn-ink-2); }
 .ap-gate__alt a { display: inline-flex; align-items: center; min-height: 24px; color: var(--cn-ink) !important; font-weight: 600; }
-.ap-gate__fine { margin: 0; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
+.ap-gate__fine { margin: 0; font-size: var(--cn-fs-13); line-height: 1.45; color: var(--cn-ink-3); }
+.ap-gate .ap-path { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--cn-line-card); }
+@media (max-width: 600px) {
+  .ap-gate { padding: 8px 4px 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+}
 
-/* The way through, as one row of numbered words. */
-.ap-path { list-style: none; margin: 4px 0 2px; padding: 0; display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 14px; font-size: var(--cn-fs-13); color: var(--cn-ink-3); }
-.ap-path li { display: inline-flex; align-items: center; gap: 6px; }
-.ap-path__n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--cn-line-strong); font-size: var(--cn-fs-12); font-weight: 600; }
+/* The way through: four numbered steps on one line joined by a rule, labels under the numbers,
+   so it never wraps on a 320px phone. */
+.ap-path { list-style: none; margin: 6px 0 4px; padding: 0; width: 100%; display: flex; font-size: var(--cn-fs-12); color: var(--cn-ink-3); }
+.ap-path li { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ap-path li + li::before { content: ""; position: absolute; top: 12px; right: calc(50% + 16px); left: calc(-50% + 16px); height: 1px; background: var(--cn-line-strong); }
+.ap-path__n { display: inline-grid; place-items: center; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--cn-line-strong); background: var(--cn-surface); font-size: var(--cn-fs-12); font-weight: 600; }
 .ap-path li[aria-current="step"] { color: var(--cn-ink); font-weight: 600; }
 .ap-path li[aria-current="step"] .ap-path__n { background: var(--cn-green); border-color: var(--cn-green); color: var(--cn-surface); }
 .ap-path li.is-done .ap-path__n { background: var(--cn-green-wash); border-color: var(--cn-green-edge); color: var(--cn-green-ink); }
+.ap-top--bare { justify-content: flex-end; }
 .ap-exit { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font-size: var(--cn-fs-14); color: var(--cn-ink-2) !important; }
 
 .ap-hero { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
