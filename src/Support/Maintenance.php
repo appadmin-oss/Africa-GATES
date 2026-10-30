@@ -281,6 +281,10 @@ final class Maintenance
                 // deadline this has. See JudgeAssist::sweep().
                 $ran[] = ['judgemaps', $this->task('judgemaps',
                     fn() => \AfricaGates\Services\JudgeAssist::sweep())];
+                // Community returns to finance, so revenue sharing takes them off the top.
+                // Hourly: a return is accrued on confirmation and a settlement is days later.
+                $ran[] = ['cfisreturns', $this->task('cfisreturns',
+                    fn() => \AfricaGates\Services\CfisReturns::push())];
                 // Refused bot questions. Machine output, but generated FROM a nominee's
                 // recorded speech, so it expires like everything else here rather than
                 // being the one table kept forever.
@@ -411,6 +415,8 @@ final class Maintenance
                 // was waiting on should not have to wait an hour to find out whether it
                 // took — `/__cron/run?task=seeds` answers now.
                 'seeds'     => $ran[] = ['seeds', $this->task('seeds', fn() => \AfricaGates\Support\SeedRunner::sweep())],
+                // Addressable by name: no shell, and finance may want the returns before a run.
+                'cfisreturns' => $ran[] = ['cfisreturns', $this->task('cfisreturns', fn() => \AfricaGates\Services\CfisReturns::push())],
                 // Addressable by name: an operator watching a challenge close at midnight
                 // should not wait an hour to see the banners come down, and there is no
                 // shell here to make them come down any other way.

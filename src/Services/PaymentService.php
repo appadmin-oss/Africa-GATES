@@ -580,6 +580,9 @@ class PaymentService
 
     private function initializePaystack(int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta, string $planCode = ''): array
     {
+        // Finance reads the kind and the sharing labels out of this metadata (CfisTags).
+        $meta += CfisTags::for($reference, $meta);
+
         // Paystack transacts in KOBO.
         $payload = [
             'amount'       => $amountNaira * 100,
