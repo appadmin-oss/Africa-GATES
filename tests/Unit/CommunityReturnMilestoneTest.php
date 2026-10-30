@@ -55,7 +55,7 @@ class CommunityReturnMilestoneTest extends TestCase
     /** Ada has claimed her page, verified, past the cooling-off window, as member 7. */
     private function claimed(): void
     {
-        DB::table('gates_users')->insert(['id' => 7, 'name' => 'Ada', 'email' => 'ada@example.com']);
+        DB::table('gates_users')->insert(['id' => 7, 'name' => 'Ada', 'email' => 'ada@example.com', 'email_verified' => 1]);
         DB::table('gates_nominee_claims')->insert([
             'nominee_id' => 1, 'user_id' => 7, 'status' => 'active', 'active_nominee_id' => 1,
             'claimed_at' => Carbon::now()->subDays(20)->toDateTimeString(),

@@ -39,8 +39,8 @@ final class MemberWalletTest extends TestCase
         ]);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'Music']);
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'Ada', 'status' => 'approved']);
-        DB::table('gates_users')->insert(['id' => 7, 'name' => 'Ada', 'email' => 'ada@example.com', 'points' => 0]);
-        DB::table('gates_users')->insert(['id' => 8, 'name' => 'Bola', 'email' => 'bola@example.com', 'points' => 0]);
+        DB::table('gates_users')->insert(['id' => 7, 'name' => 'Ada', 'email' => 'ada@example.com', 'points' => 0, 'email_verified' => 1]);
+        DB::table('gates_users')->insert(['id' => 8, 'name' => 'Bola', 'email' => 'bola@example.com', 'points' => 0, 'email_verified' => 1]);
     }
 
     /** Ada holds nominee 1's claim, ₦1,000 of return is released, terms are published. */

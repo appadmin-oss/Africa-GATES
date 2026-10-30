@@ -118,7 +118,9 @@ final class CommunityReturnWithdrawals
             'detail' => $available > 0
                 ? '₦' . CommunityReturnService::naira($available) . ' is available.'
                 : ($wallet['locked_kobo'] > 0
-                    ? '₦' . CommunityReturnService::naira($wallet['locked_kobo']) . ' is locked until your edition’s milestone is confirmed.'
+                    ? '₦' . CommunityReturnService::naira($wallet['locked_kobo']) . (($wallet['in_pool'] ?? false)
+                        ? ' raised by your supporters is in the edition’s pool. It is shared when voting closes, between the nominees who reached the vote target.'
+                        : ' is locked until your edition’s milestone is confirmed.')
                     : ($wallet['awaiting_kobo'] > 0
                         ? '₦' . CommunityReturnService::naira($wallet['awaiting_kobo']) . ' is released when your edition announces its results.'
                         : 'Nothing is available yet.'))];
@@ -127,6 +129,13 @@ final class CommunityReturnWithdrawals
         $checks[] = ['key' => 'identity', 'label' => 'Verified claim', 'ok' => $isClaimant && $state['payable'],
             'detail' => !$isClaimant ? 'Only the person holding this page’s verified claim can ask for its return.'
                 : ($state['payable'] ? 'Your claim is verified.' : (string) $state['reason'])];
+
+        // A verified account, as well as the claim (owner, 30 Oct 2026): being approved puts a
+        // nominee in an edition's count, but money goes only to somebody whose account has
+        // proved its address.
+        $verified = $userId > 0 && (int) (DB::table('gates_users')->where('id', $userId)->value('email_verified') ?? 0) === 1;
+        $checks[] = ['key' => 'verified', 'label' => 'Verified account', 'ok' => $verified,
+            'detail' => $verified ? 'Your account’s email address is verified.' : 'Verify your account’s email address first. We sent a link when you signed up.'];
 
         // Before the form is drawn the account is not a condition yet: the form is where it
         // is given. Asking it there kept the form from ever appearing for somebody with no

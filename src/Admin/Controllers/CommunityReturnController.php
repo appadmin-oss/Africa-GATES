@@ -87,6 +87,7 @@ final class CommunityReturnController
             'cycles'      => $cycles,
             'cycle_id'    => $cycleId,
             'progress'    => $cycleId > 0 ? Milestone::progress($cycleId) : null,
+            'pool'        => $cycleId > 0 && \AfricaGates\Services\CommunityReturnPool::applies($cycleId) ? \AfricaGates\Services\CommunityReturnPool::progress($cycleId) : null,
             'nominees'    => $cycleId > 0 ? $this->nominees($cycleId) : [],
             'status'      => $status,
             'statuses'    => Wd::STATUSES,
@@ -102,11 +103,12 @@ final class CommunityReturnController
     /** Short names for the rule tile. */
     private const MODEL_NAMES = [
         'threshold' => 'Threshold', 'milestone' => 'Two-stage',
-        'flat' => 'Flat', 'tiered' => 'Tiered', 'custom' => 'Custom',
+        'flat' => 'Flat', 'tiered' => 'Tiered', 'custom' => 'Custom', 'pool' => 'Target pool',
     ];
 
     /** The model picker, each with what it means in a phrase. */
     private const MODEL_CHOICES = [
+        'pool'      => 'Target pool — one pool; nominees who reach the same vote target share it by votes',
         'threshold' => 'Threshold — nothing until qualifying support, then the full share',
         'milestone' => 'Two-stage — a locked share until the edition’s milestone, then the full share',
         'flat'      => 'Flat — the full share on every contribution',
@@ -146,6 +148,18 @@ final class CommunityReturnController
                       'wallet' => Ret::wallet((int) $r->nominee_id)];
         }
         return $out;
+    }
+
+    /** POST /admin/community-return/{cycle}/settle — share the edition's pool, once, after voting closes. */
+    public function settle(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $cycleId = (int) ($args['cycle'] ?? 0);
+        $body = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\CommunityReturnPool::settle($cycleId, $this->adminId(), (string) ($body['_reason'] ?? ''));
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
+        if ($r['ok']) $this->audit?->record($this->adminId(), 'community_return.pool_settled', 'cycle', $cycleId);
+        return $this->back($res, $cycleId);
     }
 
     public function saveRules(Request $req, Response $res, array $args): Response

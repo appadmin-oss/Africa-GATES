@@ -258,6 +258,8 @@ final class CommunityReturnService
 
     public const MODEL_THRESHOLD = 'threshold';
     public const MODEL_MILESTONE = 'milestone';
+    /** One edition pool, shared at close by the nominees who reached the same vote target (CommunityReturnPool). */
+    public const MODEL_POOL = 'pool';
 
     /** A locked accrual: earned before its edition's milestone was confirmed. */
     public const STAGE_LOCKED = 'locked';
@@ -274,7 +276,7 @@ final class CommunityReturnService
     public static function modelOf(array $eff): string
     {
         $m = (string) ($eff['community_return_model'] ?? '');
-        return ($m === self::MODEL_MILESTONE || CommunityReturnLadder::isLadder($m)) ? $m : self::MODEL_THRESHOLD;
+        return ($m === self::MODEL_MILESTONE || $m === self::MODEL_POOL || CommunityReturnLadder::isLadder($m)) ? $m : self::MODEL_THRESHOLD;
     }
 
     /**
@@ -473,7 +475,20 @@ final class CommunityReturnService
         $stage = null;
         $rules = CommunityReturnMilestone::rulesForCycle($cycleId);
         $model = self::modelOf($rules);
-        if (CommunityReturnLadder::isLadder($model)) {
+        if ($model === self::MODEL_POOL) {
+            // ── THE TARGET POOL ──────────────────────────────────────────────────
+            //
+            // Every eligible contribution puts the edition's share into the pool, written
+            // against the nominee it was for and held LOCKED until the pool is settled
+            // (CommunityReturnPool::settle()). Nothing to qualify for here: who shares the
+            // pool is decided once, at close, by the vote target. A contribution arriving
+            // after the pool was settled adds nothing — the pool is closed.
+            if (self::fraudFlagged($donationId)) return $no('NOT_ELIGIBLE');
+            if ($cycleId !== null && CommunityReturnPool::settlement($cycleId)) return $no('POOL_SETTLED');
+            $rate = max(0, min(10000, (int) ($rules['community_return_bps'] ?? self::FALLBACK_RATE_BPS)));
+            if ($rate <= 0) return $no('RATE_OFF');
+            $stage = self::STAGE_LOCKED;
+        } elseif (CommunityReturnLadder::isLadder($model)) {
             // ── FLAT, TIERED AND CUSTOM: A LADDER ─────────────────────────────
             //
             // The step is read against eligible money raised strictly BEFORE this
@@ -591,6 +606,13 @@ final class CommunityReturnService
         $accrual = DB::table('gates_community_returns')
             ->where('donation_id', $donationId)->where('entry_type', 'accrual')->first();
         if (!$accrual) return ['ok' => false, 'code' => 'NOTHING_ACCRUED', 'kobo' => 0];
+        // A settled pool is closed: the share went to the winners, or to the reserves, and a
+        // refund on a contribution to one nominee is never taken off another. The platform
+        // absorbs it (CommunityReturnPool).
+        if ($accrual->cycle_id !== null && self::modelForCycle((int) $accrual->cycle_id) === self::MODEL_POOL
+            && CommunityReturnPool::settlement((int) $accrual->cycle_id)) {
+            return ['ok' => false, 'code' => 'POOL_SETTLED', 'kobo' => 0];
+        }
 
         $row = [
             'nominee_id'  => (int) $accrual->nominee_id,
@@ -804,7 +826,12 @@ final class CommunityReturnService
             $announced = [];
         }
         foreach ($cycleIds as $c) {
-            if (self::usesMilestone(CommunityReturnMilestone::rulesForCycle($c))) {
+            $rules = CommunityReturnMilestone::rulesForCycle($c);
+            if (self::modelOf($rules) === self::MODEL_POOL) {
+                // The pool is released when it is settled, and not before: until then nobody
+                // knows who shares it.
+                if (CommunityReturnPool::settlement($c)) $out[$c] = true;
+            } elseif (self::usesMilestone($rules)) {
                 if (CommunityReturnMilestone::confirmedAt($c) !== null) $out[$c] = true;
             } elseif (in_array($c, $announced, true)) {
                 $out[$c] = true;
@@ -851,7 +878,7 @@ final class CommunityReturnService
         foreach ($rows as $r) $cycles[(int) ($r->cycle_id ?? 0)] = true;
         $released = self::releasedCycles(array_keys($cycles));
 
-        $locked = 0; $unreleased = 0; $paid = 0; $reversed = 0; $forfeited = 0;
+        $locked = 0; $unreleased = 0; $paid = 0; $reversed = 0; $forfeited = 0; $inPool = false;
         foreach ($rows as $r) {
             $type = (string) $r->entry_type;
             $amt  = (int) $r->amount_kobo;
@@ -862,6 +889,7 @@ final class CommunityReturnService
             if (isset($released[(int) ($r->cycle_id ?? 0)])) continue;
             $unreleased += $amt;
             if ((string) ($r->stage ?? '') === self::STAGE_LOCKED) $locked += $amt;
+            if ($r->cycle_id !== null && $amt > 0 && self::modelForCycle((int) $r->cycle_id) === self::MODEL_POOL) $inPool = true;
         }
 
         $review = CommunityReturnWithdrawals::underReviewKobo($nomineeId);
@@ -882,6 +910,9 @@ final class CommunityReturnService
             'payable_kobo'      => $b['payable_kobo'],
             'withdrawable_kobo' => $b['withdrawable_kobo'],
             'claim_block'       => $b['claim_block'],
+            // Some of the locked money is in a target pool, not waiting on a milestone: the
+            // nominee is told it is shared at close, not that it is theirs once confirmed.
+            'in_pool'           => $inPool,
         ];
     }
 

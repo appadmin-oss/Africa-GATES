@@ -295,3 +295,11 @@
 @media (hover:hover){
   .aw-card:hover{ border-color:var(--ag-line-2); box-shadow:var(--ag-sh-pop) }
 }
+
+/* The target pool: the edition's combined vote target and the gap (CommunityReturnPool). */
+.aw-pool{ display:flex; flex-direction:column; gap:6px; padding:14px 16px; border:1px solid var(--ag-line); border-radius:12px }
+.aw-pool__h{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-ink-2) }
+.aw-pool__n{ margin:0; font-weight:700; font-size:var(--ag-fs-16) }
+.aw-pool__bar{ display:block; height:8px; border-radius:999px; background:var(--ag-line); overflow:hidden }
+.aw-pool__bar span{ display:block; height:100%; background:var(--ag-ink) }
+.aw-pool__s{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }

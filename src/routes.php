@@ -4530,6 +4530,7 @@ return function(App $app) {
         $a->get('/community-return',                                   \AfricaGates\Admin\Controllers\CommunityReturnController::class.':index');
         $a->post('/community-return/{cycle:[0-9]+}/rules',             \AfricaGates\Admin\Controllers\CommunityReturnController::class.':saveRules');
         $a->post('/community-return/{cycle:[0-9]+}/confirm',           \AfricaGates\Admin\Controllers\CommunityReturnController::class.':confirm');
+        $a->post('/community-return/{cycle:[0-9]+}/settle',            \AfricaGates\Admin\Controllers\CommunityReturnController::class.':settle');
         $a->post('/community-return/withdrawals/{id:[0-9]+}/approve',  \AfricaGates\Admin\Controllers\CommunityReturnController::class.':approve');
         $a->post('/community-return/withdrawals/{id:[0-9]+}/pay',      \AfricaGates\Admin\Controllers\CommunityReturnController::class.':pay');
         $a->post('/community-return/withdrawals/{id:[0-9]+}/reject',   \AfricaGates\Admin\Controllers\CommunityReturnController::class.':reject');

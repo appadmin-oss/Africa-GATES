@@ -232,6 +232,12 @@ final class AwardsFront
             'host'       => $host,
             'where'      => self::where($p),
             'cycle'      => $cycle ? (array) $cycle : null,
+            // The target pool's one public figure: the edition's combined vote target and the
+            // gap (CommunityReturnPool). Only where it can pay: paid voting on, the edition on
+            // the pool model.
+            'pool'       => $cycle && CommunityReturnService::active() && CommunityReturnPool::applies((int) $cycle->id)
+                            ? array_intersect_key(CommunityReturnPool::progress((int) $cycle->id), array_flip(['target', 'nominees', 'combined_target', 'combined_votes', 'gap', 'pct', 'reached', 'settled']))
+                            : null,
             'edition'    => $cycle ? EditionName::label($cycle) : '',
             'edition_full'=> $cycle ? EditionName::full($cycle) : '',
             'is_current' => $cycle && $current && (int) $cycle->id === (int) $current->id,

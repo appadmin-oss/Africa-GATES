@@ -232,6 +232,16 @@
     </ol>
     {% endif %}
     {% if a.phase and a.phase.detail %}<p class="aw-ed__detail">{{ a.phase.detail }}</p>{% endif %}
+    {% if a.pool and a.pool.nominees > 0 %}
+    {# The target pool: one target for the edition, the votes toward it and the gap. #}
+    <div class="aw-pool">
+      <p class="aw-pool__h">{{ 'Community return'|trans }}</p>
+      <p class="aw-pool__n">{{ '%v% of %t% votes'|trans({'%v%': a.pool.combined_votes|number_format, '%t%': a.pool.combined_target|number_format}) }}</p>
+      <span class="aw-pool__bar" role="img" aria-label="{{ '%p% per cent of the way'|trans({'%p%': a.pool.pct}) }}"><span style="width:{{ a.pool.pct }}%"></span></span>
+      <p class="aw-pool__s">{{ (a.pool.settled ? 'Settled. ' : (a.pool.gap|number_format ~ ' ' ~ 'votes to go'|trans ~ '. '))
+        ~ 'Every nominee has the same target of %t% votes. Those who reach it share the community return by their votes.'|trans({'%t%': a.pool.target|number_format}) }}</p>
+    </div>
+    {% endif %}
     {% if a.delay %}
       <div class="aw-late" role="note">
         <b>{{ 'The results were due on %date% and have not been announced yet.'|trans({'%date%': a.delay.promised|when_zoned('j M Y')}) }}</b>

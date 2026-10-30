@@ -229,6 +229,12 @@ final class CommunityReturnMilestone
             'community_return_milestone_naira' => $target,
         ];
 
+        if ($model === CommunityReturnService::MODEL_POOL) {
+            $votes = (int) ($in['target_votes'] ?? 0);
+            if ($votes < 1) return ['ok' => false, 'message' => 'The target pool needs a vote target, the same for every nominee.'];
+            if ($full < 1) return ['ok' => false, 'message' => 'Set the share of each contribution that goes into the pool.'];
+            $write['community_return_target_votes'] = $votes;
+        }
         if ($model === CommunityReturnService::MODEL_MILESTONE) {
             if ($locked > $full) return ['ok' => false, 'message' => 'The locked share cannot be larger than the full share.'];
             if ($target < 1)     return ['ok' => false, 'message' => 'The two-stage model needs a milestone target in naira.'];
@@ -273,6 +279,7 @@ final class CommunityReturnMilestone
         $model = CommunityReturnService::modelOf($rules);
         $pct   = static fn (int $bps): string => CommunityReturnLadder::pct($bps);
         if (CommunityReturnLadder::isLadder($model)) return CommunityReturnLadder::describe($rules, $model);
+        if ($model === CommunityReturnService::MODEL_POOL) return CommunityReturnPool::summary($rules);
         if ($model === CommunityReturnService::MODEL_MILESTONE) {
             return $pct((int) ($rules['community_return_locked_bps'] ?? 0)) . '% of every eligible contribution, held locked until the edition’s milestone is confirmed; '
                  . $pct((int) ($rules['community_return_bps'] ?? 0)) . '% of every contribution after it.';

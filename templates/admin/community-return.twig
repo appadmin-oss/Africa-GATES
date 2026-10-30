@@ -66,6 +66,40 @@
     {% endif %}
   {% endif %}
 
+  {% if pool %}
+  {# The target pool (CommunityReturnPool): one bar for the edition, then every nominee. #}
+  <h2 id="crPoolH">The edition’s pool</h2>
+  <div class="ad-stat-grid">
+    <div class="ad-stat"><div class="ad-stat__lbl">In the pool</div><div class="ad-stat__num">{{ m.naira(pool.pool_kobo) }}</div>
+      <div class="ad-stat__hint">{{ pool.settled ? 'settled ' ~ pool.settled.settled_at|slice(0, 16) : 'shared when voting closes' }}</div></div>
+    <div class="ad-stat"><div class="ad-stat__lbl">Votes toward the target</div><div class="ad-stat__num">{{ pool.combined_votes|number_format }} of {{ pool.combined_target|number_format }}</div>
+      <div class="ad-stat__hint">{{ pool.target|number_format }} each × {{ pool.nominees }} approved {{ pool.nominees == 1 ? 'nominee' : 'nominees' }} · {{ pool.gap|number_format }} to go</div></div>
+    <div class="ad-stat {{ pool.reached ? 'ad-stat--accent' : '' }}"><div class="ad-stat__lbl">Reached the target</div><div class="ad-stat__num">{{ pool.reached }}</div>
+      <div class="ad-stat__hint">{{ pool.reached ? 'they share the pool by their votes' : 'nobody yet: the pool would go to the reserves' }}</div></div>
+  </div>
+  {% if pool.settled %}
+    <p class="ad-callout">Settled: {{ m.naira(pool.settled.paid_kobo) }} to {{ pool.settled.winners }} {{ pool.settled.winners == 1 ? 'nominee' : 'nominees' }}{% if pool.settled.reserves_kobo > 0 %}, {{ m.naira(pool.settled.reserves_kobo) }} to the reserves{% endif %}.</p>
+  {% else %}
+    <form method="post" action="/admin/community-return/{{ pool.cycle_id }}/settle" class="ad-form__actions">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="ad-btn ad-btn--primary" type="submit"
+        data-confirm="Settle the pool of {{ m.naira(pool.pool_kobo) }}? {{ pool.reached ? pool.reached ~ ' nominee(s) who reached the target share it by their votes.' : 'Nobody reached the target, so it goes to the reserves.' }} This cannot be undone.">Settle the pool</button>
+      <span class="ad-stat__hint">Only once voting has closed.</span>
+    </form>
+  {% endif %}
+  <div class="ad-table-wrap"><table class="ad-table">
+    <caption class="sr-only">Every approved nominee and their votes toward the target</caption>
+    <thead><tr><th scope="col">Nominee</th><th scope="col">Votes</th><th scope="col">Target</th></tr></thead>
+    <tbody>
+    {% for r in pool.rows %}
+      <tr><th scope="row">{{ r.name }}</th><td>{{ r.votes|number_format }}</td><td>{{ r.reached ? 'Reached' : r.to_go|number_format ~ ' to go' }}</td></tr>
+    {% else %}
+      <tr><td colspan="3">No approved nominees yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+
   <h2 id="crRulesH">This edition’s rules</h2>
   {% if p.rules_locked %}
     <p class="ad-callout">These rules are fixed: the edition already has entries on the ledger, and nominees earned them under the rules as they stood.</p>
@@ -80,6 +114,11 @@
               <option value="{{ key }}" {% if p.model == key %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
+        </div>
+        <div>
+          <label for="crVotes">Vote target per nominee (target pool)</label>
+          <input id="crVotes" type="number" name="target_votes" min="1" step="1" value="{{ p.rules.community_return_target_votes|default(1000) }}">
+          <p class="hint">The same for every approved nominee. Free and paid votes both count.</p>
         </div>
         <div>
           <label for="crTarget">Milestone target (₦)</label>
