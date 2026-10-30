@@ -466,10 +466,15 @@ final class NomineeVotingNotice
         if (CommunityReturnService::modelOf($rules) !== CommunityReturnService::MODEL_POOL) {
             return [['The rule', CommunityReturnMilestone::summary($rules)], $withdraw];
         }
-        $target = number_format(max(1, (int) ($rules['community_return_target_votes'] ?? 1000)));
+        $t = CommunityReturnPool::target((int) $cycleId);
+        $how = $t['each'] > 0
+            ? number_format($t['each']) . ' votes each, free and paid: the ₦' . number_format($t['milestone_naira'])
+              . ' milestone at ₦' . number_format($t['price_naira']) . ' a vote, across ' . number_format($t['nominees']) . ' '
+              . ($t['nominees'] === 1 ? 'nominee' : 'nominees') . '.'
+            : 'Every nominee has the same target: the edition’s milestone in votes, divided across the approved nominees.';
         return [
             ['What goes in', CommunityReturnLadder::pct((int) $rules['community_return_bps']) . '% of every contribution made for a nominee in this edition goes into one pool.'],
-            ['The target', 'Every nominee has the same target: ' . $target . ' votes, free and paid together.'],
+            ['The target', $how],
             ['How it is shared', 'When voting closes, the nominees who reached the target share the pool by their votes. If only one reaches it, they receive all of it.'],
             ['If nobody reaches it', 'There is no return, and the pool goes to the programme’s reserves.'],
             $withdraw,

@@ -73,7 +73,7 @@
     <div class="ad-stat"><div class="ad-stat__lbl">In the pool</div><div class="ad-stat__num">{{ m.naira(pool.pool_kobo) }}</div>
       <div class="ad-stat__hint">{{ pool.settled ? 'settled ' ~ pool.settled.settled_at|slice(0, 16) : 'shared when voting closes' }}</div></div>
     <div class="ad-stat"><div class="ad-stat__lbl">Votes toward the target</div><div class="ad-stat__num">{{ pool.combined_votes|number_format }} of {{ pool.combined_target|number_format }}</div>
-      <div class="ad-stat__hint">{{ pool.target|number_format }} each × {{ pool.nominees }} approved {{ pool.nominees == 1 ? 'nominee' : 'nominees' }} · {{ pool.gap|number_format }} to go</div></div>
+      <div class="ad-stat__hint">{% if pool.target %}{{ pool.target|number_format }} each: ₦{{ pool.how.milestone_naira|number_format }} ÷ ₦{{ pool.how.price_naira|number_format }} a vote = {{ pool.how.votes|number_format }} votes ÷ {{ pool.nominees }} approved {{ pool.nominees == 1 ? 'nominee' : 'nominees' }} · {{ pool.gap|number_format }} to go{% else %}No target yet: set the milestone below, and approve nominees.{% endif %}</div></div>
     <div class="ad-stat {{ pool.reached ? 'ad-stat--accent' : '' }}"><div class="ad-stat__lbl">Reached the target</div><div class="ad-stat__num">{{ pool.reached }}</div>
       <div class="ad-stat__hint">{{ pool.reached ? 'they share the pool by their votes' : 'nobody yet: the pool would go to the reserves' }}</div></div>
   </div>
@@ -116,14 +116,9 @@
           </select>
         </div>
         <div>
-          <label for="crVotes">Vote target per nominee (target pool)</label>
-          <input id="crVotes" type="number" name="target_votes" min="1" step="1" value="{{ p.rules.community_return_target_votes|default(1000) }}">
-          <p class="hint">The same for every approved nominee. Free and paid votes both count.</p>
-        </div>
-        <div>
           <label for="crTarget">Milestone target (₦)</label>
           <input id="crTarget" type="number" name="milestone_naira" min="0" step="1000" value="{{ p.rules.community_return_milestone_naira }}">
-          <p class="hint">Two-stage, or a custom ladder held locked: the edition’s eligible paid-vote revenue that has to be reached before you can confirm.</p>
+          <p class="hint">Target pool: turned into votes at the price of one vote and divided across the approved nominees — that is each nominee’s vote target. Two-stage, or a custom ladder held locked: the paid-vote revenue to reach before you can confirm.</p>
         </div>
       </div>
       <div class="ad-form__row">

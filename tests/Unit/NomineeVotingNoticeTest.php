@@ -367,7 +367,7 @@ final class NomineeVotingNoticeTest extends TestCase
             ['award' => 'A trophy and a certificate', 'cash' => '500,000'], ['award' => '', 'cash' => ''], ['award' => 'A certificate', 'cash' => ''],
         ]));
         DB::table('gates_settings')->insert(['key_name' => 'paid_voting_enabled', 'value' => '1']);
-        $r = \AfricaGates\Services\CommunityReturnMilestone::saveEditionRules($this->cycleId, ['model' => 'pool', 'full_pct' => 20, 'target_votes' => 750]);
+        $r = \AfricaGates\Services\CommunityReturnMilestone::saveEditionRules($this->cycleId, ['model' => 'pool', 'full_pct' => 20, 'milestone_naira' => 75000]);
         $this->assertTrue($r['ok'], $r['message']);
         $this->nominee('Ada Obi');
         $m = $this->recorder();
@@ -379,7 +379,7 @@ final class NomineeVotingNoticeTest extends TestCase
             $this->assertStringNotContainsString('3rd place', $m->sent[0][$part]);
             $this->assertStringContainsString('overall winners of the edition, across every category', $m->sent[0][$part], 'the prizes are overall, never per category');
             $this->assertStringContainsString('Your community return', $m->sent[0][$part]);
-            $this->assertStringContainsString('same target: 750 votes', $m->sent[0][$part], 'read from the edition, not typed');
+            $this->assertStringContainsString('750 votes each', $m->sent[0][$part], 'read from the edition, not typed');
             $this->assertStringContainsString('verified account', $m->sent[0][$part]);
         }
 
@@ -389,7 +389,8 @@ final class NomineeVotingNoticeTest extends TestCase
             '₦1,000,000 and ' . str_repeat('a trophy, mentoring and a residency ', 8)], range(1, 10));
         $v['community_return'] = NomineeVotingNotice::communityReturn($this->programmeId, $this->cycleId);
         $this->assertCount(5, $v['community_return']);
-        $this->assertSame(['The target', 'Every nominee has the same target: 750 votes, free and paid together.'], $v['community_return'][1]);
+        $this->assertSame(['The target', '750 votes each, free and paid: the ₦75,000 milestone at ₦100 a vote, across 1 nominee.'],
+            $v['community_return'][1], 'worked out from the milestone, the vote price and the nominees, never typed');
         $short = $v + ['prizes' => array_map(static fn (int $i): array => [\AfricaGates\Support\EditionPrizes::ordinal($i), '₦1,000,000 and ' . str_repeat('x', 55)], range(1, 10))];
         foreach (['A4', 'letter'] as $paper) {
             $mm = NomineeVotingLetter::measure($short, $paper, 'guide');

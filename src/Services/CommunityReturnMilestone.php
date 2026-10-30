@@ -230,10 +230,9 @@ final class CommunityReturnMilestone
         ];
 
         if ($model === CommunityReturnService::MODEL_POOL) {
-            $votes = (int) ($in['target_votes'] ?? 0);
-            if ($votes < 1) return ['ok' => false, 'message' => 'The target pool needs a vote target, the same for every nominee.'];
+            // The vote target is worked out from the milestone (CommunityReturnPool::target()).
+            if ($target < 1) return ['ok' => false, 'message' => 'The target pool needs a milestone in naira: the vote target is worked out from it.'];
             if ($full < 1) return ['ok' => false, 'message' => 'Set the share of each contribution that goes into the pool.'];
-            $write['community_return_target_votes'] = $votes;
         }
         if ($model === CommunityReturnService::MODEL_MILESTONE) {
             if ($locked > $full) return ['ok' => false, 'message' => 'The locked share cannot be larger than the full share.'];

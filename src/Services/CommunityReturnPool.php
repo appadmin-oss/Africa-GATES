@@ -11,8 +11,12 @@ use Illuminate\Support\Carbon;
  *
  * ── THE RULE ─────────────────────────────────────────────────────────────────
  *
- *   · Every approved nominee in the edition has the SAME vote target
- *     (`community_return_target_votes`). Approved is enough to be counted.
+ *   · Every approved nominee in the edition has the SAME vote target, and nobody types it
+ *     (owner, 31 Oct 2026): the edition's milestone (`community_return_milestone_naira`) is
+ *     turned into votes at the price of one vote, and those votes are divided across the
+ *     approved nominees, rounded up — ₦1,000,000 at ₦100 a vote is 10,000 votes, which across
+ *     20 nominees is 500 each. So it moves while nominees are approved and is written down
+ *     when the pool settles. Approved is enough to be counted.
  *   · The edition's share of every eligible contribution (`community_return_bps`) goes into
  *     ONE POOL. Each accrual is still written against the nominee whose supporters paid it,
  *     held LOCKED, so the ledger keeps saying where every kobo came from.
@@ -75,9 +79,26 @@ final class CommunityReturnPool
         return CommunityReturnService::modelForCycle($cycleId) === CommunityReturnService::MODEL_POOL;
     }
 
+    /**
+     * How the target is worked out: the milestone in naira, the price of one vote, the votes that
+     * makes, the approved nominees, and the votes each. `each` is 0 while there is no milestone,
+     * no price or no nominee — a target of nothing is "not set", never "everybody has reached it".
+     *
+     * @return array{milestone_naira:int, price_naira:int, votes:int, nominees:int, each:int}
+     */
+    public static function target(int $cycleId): array
+    {
+        $milestone = max(0, (int) (CommunityReturnMilestone::rulesForCycle($cycleId)['community_return_milestone_naira'] ?? 0));
+        $price = max(0, PaidVoteService::pricePerVote());
+        $votes = $price > 0 ? intdiv($milestone + $price - 1, $price) : 0;
+        $nominees = count(self::nominees($cycleId));
+        return ['milestone_naira' => $milestone, 'price_naira' => $price, 'votes' => $votes, 'nominees' => $nominees,
+                'each' => $nominees > 0 ? intdiv($votes + $nominees - 1, $nominees) : 0];
+    }
+
     public static function targetVotes(int $cycleId): int
     {
-        return max(1, (int) (CommunityReturnMilestone::rulesForCycle($cycleId)['community_return_target_votes'] ?? 1000));
+        return self::target($cycleId)['each'];
     }
 
     /** The settlement, once written. */
@@ -99,13 +120,14 @@ final class CommunityReturnPool
      */
     public static function progress(int $cycleId): array
     {
-        $target = self::targetVotes($cycleId);
+        $how = self::target($cycleId);
+        $target = $how['each'];
         $names = self::nominees($cycleId);
         $votes = self::votes($cycleId);
         $rows = [];
         foreach ($names as $id => $name) {
             $v = $votes[$id] ?? 0;
-            $rows[] = ['id' => (int) $id, 'name' => $name, 'votes' => $v, 'reached' => $v >= $target, 'to_go' => max(0, $target - $v)];
+            $rows[] = ['id' => (int) $id, 'name' => $name, 'votes' => $v, 'reached' => $target > 0 && $v >= $target, 'to_go' => max(0, $target - $v)];
         }
         usort($rows, static fn ($a, $b) => $b['votes'] <=> $a['votes'] ?: strcmp($a['name'], $b['name']));
         $combinedTarget = $target * count($rows);
@@ -114,7 +136,7 @@ final class CommunityReturnPool
         $combinedVotes = array_sum(array_map(static fn ($r) => min($r['votes'], $target), $rows));
         $settled = self::settlement($cycleId);
         return [
-            'cycle_id' => $cycleId, 'target' => $target, 'nominees' => count($rows),
+            'cycle_id' => $cycleId, 'target' => $target, 'how' => $how, 'nominees' => count($rows),
             'combined_target' => $combinedTarget, 'combined_votes' => $combinedVotes,
             'gap' => max(0, $combinedTarget - $combinedVotes),
             'pct' => $combinedTarget > 0 ? (int) min(100, floor(100 * $combinedVotes / $combinedTarget)) : 0,
@@ -152,6 +174,7 @@ final class CommunityReturnPool
         if (!$closed) return $no('OPEN', 'Voting is still open. Settle the pool once it has closed.');
 
         $p = self::progress($cycleId);
+        if ($p['target'] < 1) return $no('NO_TARGET', 'Set the edition’s milestone first: the vote target is worked out from it.');
         $pool = $p['pool_kobo'];
         $winners = array_values(array_filter($p['rows'], static fn ($r) => $r['reached']));
         $shares = $winners && $pool > 0 ? self::split($pool, array_map(static fn ($r) => $r['votes'], $winners)) : [];
@@ -220,8 +243,9 @@ final class CommunityReturnPool
     public static function summary(array $rules): string
     {
         $pct = rtrim(rtrim(number_format(((int) ($rules['community_return_bps'] ?? 0)) / 100, 2), '0'), '.');
-        return $pct . '% of every contribution goes into the edition’s pool. Every nominee has the same target of '
-             . number_format(max(1, (int) ($rules['community_return_target_votes'] ?? 1000))) . ' votes; when voting closes, '
-             . 'those who reached it share the pool by their votes. If nobody reaches it, the pool goes to the reserves.';
+        return $pct . '% of every contribution goes into the edition’s pool. Every nominee has the same vote target: the '
+             . 'edition’s milestone of ₦' . number_format(max(0, (int) ($rules['community_return_milestone_naira'] ?? 0)))
+             . ' in votes, divided across the approved nominees. When voting closes, those who reached it share the pool '
+             . 'by their votes. If nobody reaches it, the pool goes to the reserves.';
     }
 }

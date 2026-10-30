@@ -151,9 +151,6 @@ class RuleEngine
         // milestone can never be confirmed — a target of nothing would unlock everything
         // on the first contribution, which is the opposite of what a milestone is for.
         'community_return_milestone_naira' => 0,
-        // The target pool (CommunityReturnPool): the votes EVERY approved nominee in the
-        // edition has to reach, free and paid together, to share the edition's pool.
-        'community_return_target_votes'    => 1000,
         // Flat, tiered and custom (CommunityReturnLadder): the ladder as [from naira,
         // basis points] steps, what it is measured on, and whether a custom ladder holds
         // its credits locked until the milestone. An empty ladder on `tiered` is the

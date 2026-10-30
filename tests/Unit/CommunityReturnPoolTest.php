@@ -36,7 +36,7 @@ final class CommunityReturnPoolTest extends TestCase
             DB::table('gates_nominees')->insert(['id' => $id, 'category_id' => 1, 'name' => $n, 'status' => 'approved']);
         }
         DB::table('gates_nominees')->insert(['id' => 4, 'category_id' => 1, 'name' => 'Pending Pat', 'status' => 'pending']);
-        $r = Milestone::saveEditionRules(1, ['model' => 'pool', 'full_pct' => 20, 'target_votes' => 100]);
+        $r = Milestone::saveEditionRules(1, ['model' => 'pool', 'full_pct' => 20, 'milestone_naira' => 30000]);
         $this->assertTrue($r['ok'], $r['message']);
     }
 
@@ -151,5 +151,30 @@ final class CommunityReturnPoolTest extends TestCase
         $this->assertStringContainsString('Verify your account', $c['reason']);
         DB::table('gates_users')->where('id', 7)->update(['email_verified' => 1]);
         $this->assertTrue(Wd::checks(1, 7, true, $bank)['ok'], Wd::checks(1, 7, true, $bank)['reason']);
+    }
+
+    public function test_the_target_is_the_milestone_in_votes_divided_across_the_approved_nominees(): void
+    {
+        $t = Pool::target(1);
+        $this->assertSame(['milestone_naira' => 30000, 'price_naira' => 100, 'votes' => 300, 'nominees' => 3, 'each' => 100], $t);
+
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'vote_price_naira'], ['value' => '250']);
+        $this->assertSame(40, Pool::target(1)['each'], '₦30,000 ÷ ₦250 = 120 votes ÷ 3 nominees');
+        DB::table('gates_nominees')->where('id', 4)->update(['status' => 'approved']);
+        $this->assertSame(30, Pool::target(1)['each'], 'a fourth approved nominee lowers each target');
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'vote_price_naira'], ['value' => '700']);
+        $this->assertSame(11, Pool::target(1)['each'], 'rounded up: ₦30,000 ÷ ₦700 is 43 votes, ÷ 4 is 10.75');
+
+        $this->assertFalse(Milestone::saveEditionRules(1, ['model' => 'pool', 'full_pct' => 20, 'milestone_naira' => 0])['ok'], 'no milestone, no target');
+    }
+
+    public function test_no_milestone_means_nobody_has_reached_anything(): void
+    {
+        DB::table('gates_award_cycles')->insert(['id' => 2, 'programme_id' => 1, 'year' => 1999, 'status' => 'voting']);
+        DB::table('gates_award_categories')->insert(['id' => 2, 'cycle_id' => 2, 'slug' => 'c2', 'title' => 'Old']);
+        DB::table('gates_nominees')->insert(['id' => 9, 'category_id' => 2, 'name' => 'Zed', 'status' => 'approved']);
+        $p = Pool::progress(2);
+        $this->assertSame(0, $p['target']);
+        $this->assertSame(0, $p['reached'], 'a target of nothing is not set, not reached by everybody');
     }
 }

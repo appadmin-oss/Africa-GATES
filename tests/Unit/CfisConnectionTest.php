@@ -33,7 +33,7 @@ final class CfisConnectionTest extends TestCase
             'voting_open' => Carbon::now()->subDays(5)->toDateTimeString(), 'voting_close' => Carbon::now()->addDays(5)->toDateTimeString()]);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'science', 'title' => 'Science']);
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'Ada', 'status' => 'approved']);
-        $this->assertTrue(Milestone::saveEditionRules(1, ['model' => 'pool', 'full_pct' => 20, 'target_votes' => 100])['ok']);
+        $this->assertTrue(Milestone::saveEditionRules(1, ['model' => 'pool', 'full_pct' => 20, 'milestone_naira' => 10000])['ok']);
         foreach (['cfis_url' => 'https://cfis.test', 'cfis_source' => 'afg', 'cfis_secret' => str_repeat('s', 40)] as $k => $v) {
             DB::table('gates_settings')->updateOrInsert(['key_name' => $k], ['value' => $v]);
         }
