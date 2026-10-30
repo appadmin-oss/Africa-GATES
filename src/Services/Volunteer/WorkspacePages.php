@@ -398,6 +398,7 @@ final class WorkspacePages
                 ['k' => 'note', 'text' => Effect::explain($e) . ($e['reliability'] !== null ? ' Reliability is what you finished or turned up to, out of what you took on.' : ''), 'tone' => 'mute'],
                 ['k' => 'steps', 'h' => 'Levels', 'items' => $steps]]];
         }
+        if ($tab === 'rewards') return self::rewards($v);
         if ($tab === 'badges') {
             $rows = [];
             foreach (self::badges($v, $lv) as [$t, $sub]) $rows[] = ['t' => $t, 'sub' => $sub, 'chip' => ['Earned', 'ok']];
@@ -779,6 +780,29 @@ final class WorkspacePages
             1 => 'nobody has reached them yet',
             default => self::profileWords($n),
         };
+    }
+
+    /** Rewards (Volunteer\Rewards): what verified hours have earned, the balance, and where it goes. */
+    private static function rewards(object $v): array
+    {
+        $per = Rewards::perHour();
+        if (!\AfricaGates\Services\PointsService::enabled() || $per < 1) {
+            return ['title' => 'Rewards', 'secs' => [['k' => 'note', 'tone' => 'mute', 'text' => 'Rewards are switched off right now. Your verified hours are kept, and earn when they come back on.']]];
+        }
+        Rewards::sync($v);
+        $bal = \AfricaGates\Services\PointsService::balance((int) $v->user_id);
+        $per1 = \AfricaGates\Services\PointsService::pointsPerVote();
+        $rows = [];
+        foreach (DB::table('gates_points_ledger')->where('user_id', (int) $v->user_id)->whereIn('ref_type', [Rewards::REF, Rewards::REF_BACK])->orderByDesc('id')->limit(30)->get() as $l) {
+            $rows[] = ['t' => ((int) $l->delta > 0 ? '+' : '') . number_format((int) $l->delta) . ' points', 'sub' => (string) $l->note, 'meta' => Workspace::day((string) $l->created_at)];
+        }
+        return ['title' => 'Rewards', 'acts' => [['label' => 'Use your points', 'href' => '/account/points', 'primary' => true]], 'secs' => [
+            ['k' => 'stats', 'items' => [['l' => 'Your points', 'v' => number_format($bal), 's' => 'Everything in your account, not only volunteering'],
+                                         ['l' => 'Earned volunteering', 'v' => number_format(Rewards::earned($v)), 's' => number_format($per) . ' for each verified hour']]],
+            ['k' => 'note', 'tone' => 'info', 'text' => 'Points are rewards, not money. ' . number_format($per1) . ' points give one vote in an award you don’t help run.'],
+            $rows ? ['k' => 'rows', 'h' => 'Earned', 'items' => $rows]
+                  : ['k' => 'note', 'tone' => 'mute', 'text' => 'Your first points come with your first verified hour.'],
+        ]];
     }
 
     /** The rules on a nominee's details: to agree to, or as the standing reminder once agreed. */

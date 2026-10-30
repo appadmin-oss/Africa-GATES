@@ -49,7 +49,7 @@ final class Workspace
         'tasks'    => ['mine' => 'Mine', 'library' => 'Library', 'done' => 'Done'],
         'hours'    => ['summary' => 'Summary', 'review' => 'In review', 'log' => 'Log hours'],
         'training' => ['next' => 'Next for you', 'passed' => 'Passed'],
-        'record'   => ['overview' => 'Overview', 'badges' => 'Badges', 'refs' => 'Reference letters'],
+        'record'   => ['overview' => 'Overview', 'rewards' => 'Rewards', 'badges' => 'Badges', 'refs' => 'Reference letters'],
         'team'     => ['roster' => 'Roster', 'approvals' => 'To confirm', 'requests' => 'Requests'],
         'requests' => ['open' => 'Open', 'decided' => 'Decided'],
         'meetings' => ['coming' => 'Coming up', 'new' => 'Schedule', 'past' => 'Past'],

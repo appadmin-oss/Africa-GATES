@@ -20,6 +20,7 @@ final class Rules
         'vol_min_age'            => 16,   // youngest applicant accepted
         'vol_guardian_under'     => 18,   // a guardian's consent below this age
         'vol_week_hours_default' => 12,   // the weekly guide before a person sets their own
+        'vol_points_per_hour'    => 100,  // reward points a verified hour earns (Rewards); 0 turns it off
     ];
 
     /** The module a Level 3 needs, besides the hours (the lead's training). */

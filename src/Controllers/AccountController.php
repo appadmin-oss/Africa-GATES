@@ -1656,6 +1656,8 @@ class AccountController
     {
         $user = $this->accounts->current();
         if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+        // A volunteer's verified hours land here even if they never opened the workspace since.
+        try { if ($vol = \AfricaGates\Services\Volunteer\Volunteers::of((int) $user->id)) \AfricaGates\Services\Volunteer\Rewards::sync($vol); } catch (\Throwable) {}
         $bal = PointsService::balance((int) $user->id);
 
         return $this->view->render($res, 'pages/account/points.twig', $this->railFor($user, 'wallet') + [

@@ -429,6 +429,8 @@ final class VolunteerController
 
     private function render(Response $res, object $user, object $v, string $role, array $ctx): Response
     {
+        // Verified hours earn their points on the next page view, wherever they were verified.
+        try { \AfricaGates\Services\Volunteer\Rewards::sync($v); } catch (\Throwable) {}
         $ctx['purpose'] = ($ctx['purpose'] ?? '') !== '' ? $ctx['purpose'] : (Workspace::PURPOSE[$ctx['purposeKey'] ?? ''] ?? '');
         // Find (§2.4) on every workspace page. There is no Ask here: the assistant is the
         // console's, and a volunteer is never an admin actor (§0.4).
