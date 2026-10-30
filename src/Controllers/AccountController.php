@@ -1552,18 +1552,21 @@ class AccountController
         $out = [];
         foreach (\AfricaGates\Services\NomineeDetails::forUser((int) $user->id) as $d) {
             $left = count(array_filter(\AfricaGates\Services\NomineeDetails::checklist($d), static fn ($v) => !$v));
-            $out[] = ['key' => 'nominee', 'label' => 'Nominee' . ($d->category ? ': ' . $d->category : ''), 'state' => $left ? $left . ' ' . ($left === 1 ? 'step' : 'steps') . ' to finish' : 'Profile complete',
+            $out[] = ['key' => 'nominee', 'd' => 'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4', 'icon' => 'gold',
+                      'pct' => (int) round(100 * (count(\AfricaGates\Services\NomineeDetails::STEPS) - $left) / count(\AfricaGates\Services\NomineeDetails::STEPS)),
+                      'label' => 'Nominee' . ($d->category ? ': ' . $d->category : ''), 'state' => $left ? $left . ' ' . ($left === 1 ? 'step' : 'steps') . ' to finish' : 'Profile complete',
                       'tone' => $left ? 'warn' : 'ok', 'href' => '/account/nomination/' . $d->nominee_id, 'cta' => $left ? 'Finish' : 'Review'];
         }
         $v = \AfricaGates\Services\Volunteer\Volunteers::of((int) $user->id);
         $vs = $v ? (string) $v->status : '';
-        $out[] = match (true) {
+        $vol = match (true) {
             in_array($vs, ['active', 'paused'], true) => ['key' => 'volunteer', 'label' => 'Volunteer', 'state' => $vs === 'paused' ? 'On a break' : 'Active', 'tone' => 'ok', 'href' => '/volunteer', 'cta' => 'Open'],
             $vs === 'applicant' => ['key' => 'volunteer', 'label' => 'Volunteer', 'state' => 'Application being checked', 'tone' => 'info', 'href' => '/volunteer', 'cta' => 'See it'],
             default => ['key' => 'volunteer', 'label' => 'Volunteer', 'state' => 'Help on award nights and bring people to vote', 'tone' => 'mute', 'href' => '/volunteer/apply', 'cta' => 'Apply'],
         };
+        $out[] = $vol + ['d' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8', 'icon' => 'green'];
         $led = \AfricaGates\Services\EventPlan\Plan::ready() ? count(\AfricaGates\Services\EventPlan\Plan::leadEvents((int) $user->id)) : 0;
-        if ($led) $out[] = ['key' => 'lead', 'label' => 'Event lead', 'state' => $led . ' ' . ($led === 1 ? 'event' : 'events'), 'tone' => 'ok', 'href' => '/lead', 'cta' => 'Open'];
+        if ($led) $out[] = ['key' => 'lead', 'd' => 'M4 7h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z', 'icon' => 'info', 'label' => 'Event lead', 'state' => $led . ' ' . ($led === 1 ? 'event' : 'events'), 'tone' => 'ok', 'href' => '/lead', 'cta' => 'Open'];
         return $out;
     }
 

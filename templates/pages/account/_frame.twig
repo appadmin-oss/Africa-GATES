@@ -35,7 +35,7 @@
   <aside class="acx-rail" aria-label="{{ 'Account'|trans }}">
     <div class="acx-rail__who">
       {% include 'partials/avatar.twig' with {name: rail_user.name|default(_me), id: rail_user.id|default(null), size: 44, named: true} only %}
-      <span class="acx-rail__id"><b>{{ rail_user.name|default(_me) }}</b><span>{{ rail_user.email|default('') }}</span></span>
+      <span class="acx-rail__id"><b>{{ rail_user.name|default(_me) }}</b><a class="acx-rail__me" href="/account?tab=profile">{{ 'Your profile'|trans }}</a></span>
     </div>
     {# Grouped by the job (Account Wallet v2): the overview, then Money, Taking part, You. #}
     <nav class="acx-rail__nav" aria-label="{{ 'Account sections'|trans }}">

@@ -83,7 +83,7 @@ final class AccountRail
         'saved'      => 'Conversations you saved to come back to.',
         'profile'    => 'Your details, and the roles you hold here: nominee, volunteer, event lead.',
         'security'   => 'How you sign in, and the devices that can.',
-        'settings'   => 'Notifications, what you care about, and how the site reads for you.',
+        'settings'   => 'Your details, preferences and data.',
     ];
 
     public static function valid(string $tab): string
