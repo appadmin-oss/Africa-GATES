@@ -293,7 +293,7 @@ final class NomineeVotingLetter
                     $y = $put('And ' . $more . ' more ' . ($more === 1 ? 'place' : 'places') . ' on the award’s page.', $y, 'serif', 12.0, $lead, $soft, 1, $x + 35.0, $w - 35.0) + $gap(1.6);
                 }
             } else {
-                $labelW = 47.0;
+                $labelW = 38.0;
                 foreach ($items as $i => $row) {
                     [$label, $text] = is_array($row) ? [(string) ($row[0] ?? ''), (string) ($row[1] ?? '')] : ['', (string) $row];
                     if ($i > 0 && $draw) $pdf->line($x + 8.0, $y - $gap(1.2), $x + $w, $y - $gap(1.2), self::rgb('line-3'), 0.4 * self::PT);

@@ -120,8 +120,11 @@ final class CommunityReturnPool
      */
     public static function progress(int $cycleId): array
     {
+        // Once settled, the target is the one written down then: nominees approved later, or a
+        // new vote price, must not change who reached a target that has already been paid on.
+        $settled = self::settlement($cycleId);
         $how = self::target($cycleId);
-        $target = $how['each'];
+        $target = $settled ? (int) $settled->target_votes : $how['each'];
         $names = self::nominees($cycleId);
         $votes = self::votes($cycleId);
         $rows = [];
@@ -134,7 +137,6 @@ final class CommunityReturnPool
         // Each nominee counts up to their own target: the bar is how close the edition is to
         // EVERYBODY reaching it, so one nominee's landslide cannot fill the bar for the rest.
         $combinedVotes = array_sum(array_map(static fn ($r) => min($r['votes'], $target), $rows));
-        $settled = self::settlement($cycleId);
         return [
             'cycle_id' => $cycleId, 'target' => $target, 'how' => $how, 'nominees' => count($rows),
             'combined_target' => $combinedTarget, 'combined_votes' => $combinedVotes,

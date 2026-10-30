@@ -389,7 +389,7 @@ final class NomineeVotingNoticeTest extends TestCase
             '₦1,000,000 and ' . str_repeat('a trophy, mentoring and a residency ', 8)], range(1, 10));
         $v['community_return'] = NomineeVotingNotice::communityReturn($this->programmeId, $this->cycleId);
         $this->assertCount(5, $v['community_return']);
-        $this->assertSame(['The target', '750 votes each, free and paid: the ₦75,000 milestone at ₦100 a vote, across 1 nominee.'],
+        $this->assertSame(['The target', '750 votes each on ' . \AfricaGates\Support\DisplayTime::show(\Illuminate\Support\Carbon::now()->toDateTimeString(), 'j F') . ': the ₦75,000 milestone at ₦100 a vote, across 1 approved nominee. It falls as more are approved; the award page shows it now.'],
             $v['community_return'][1], 'worked out from the milestone, the vote price and the nominees, never typed');
         $short = $v + ['prizes' => array_map(static fn (int $i): array => [\AfricaGates\Support\EditionPrizes::ordinal($i), '₦1,000,000 and ' . str_repeat('x', 55)], range(1, 10))];
         foreach (['A4', 'letter'] as $paper) {

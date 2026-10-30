@@ -468,9 +468,12 @@ final class NomineeVotingNotice
         }
         $t = CommunityReturnPool::target((int) $cycleId);
         $how = $t['each'] > 0
-            ? number_format($t['each']) . ' votes each, free and paid: the ₦' . number_format($t['milestone_naira'])
-              . ' milestone at ₦' . number_format($t['price_naira']) . ' a vote, across ' . number_format($t['nominees']) . ' '
-              . ($t['nominees'] === 1 ? 'nominee' : 'nominees') . '.'
+            // Nominees are approved one at a time and the letter goes as each is, so the figure is
+            // dated and said to fall: a target printed as fixed would be wrong on every early letter.
+            ? number_format($t['each']) . ' votes each on ' . DisplayTime::show(Carbon::now()->toDateTimeString(), 'j F') . ': the ₦'
+              . number_format($t['milestone_naira']) . ' milestone at ₦' . number_format($t['price_naira']) . ' a vote, across '
+              . number_format($t['nominees']) . ' approved ' . ($t['nominees'] === 1 ? 'nominee' : 'nominees')
+              . '. It falls as more are approved; the award page shows it now.'
             : 'Every nominee has the same target: the edition’s milestone in votes, divided across the approved nominees.';
         return [
             ['What goes in', CommunityReturnLadder::pct((int) $rules['community_return_bps']) . '% of every contribution made for a nominee in this edition goes into one pool.'],

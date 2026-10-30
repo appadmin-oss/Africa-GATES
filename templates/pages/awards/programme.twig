@@ -243,7 +243,9 @@
       <p class="aw-pool__n">{{ '%v% of %t% votes'|trans({'%v%': a.pool.combined_votes|number_format, '%t%': a.pool.combined_target|number_format}) }}</p>
       <span class="aw-pool__bar" role="img" aria-label="{{ '%p% per cent of the way'|trans({'%p%': a.pool.pct}) }}"><span style="width:{{ a.pool.pct }}%"></span></span>
       <p class="aw-pool__s">{{ (a.pool.settled ? 'Settled. ' : (a.pool.gap|number_format ~ ' ' ~ 'votes to go'|trans ~ '. '))
-        ~ 'Every nominee has the same target of %t% votes. Those who reach it share the community return by their votes.'|trans({'%t%': a.pool.target|number_format}) }}</p>
+        ~ (a.pool.settled
+            ? 'Every nominee had the same target of %t% votes. Those who reached it shared the community return by their votes.'|trans({'%t%': a.pool.target|number_format})
+            : 'Every nominee has the same target of %t% votes today. It falls as more nominees are approved. Those who reach it share the community return by their votes.'|trans({'%t%': a.pool.target|number_format})) }}</p>
     </div>
     {% endif %}
     {% if a.delay %}

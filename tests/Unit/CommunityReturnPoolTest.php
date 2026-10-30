@@ -177,4 +177,15 @@ final class CommunityReturnPoolTest extends TestCase
         $this->assertSame(0, $p['target']);
         $this->assertSame(0, $p['reached'], 'a target of nothing is not set, not reached by everybody');
     }
+
+    public function test_a_settled_target_does_not_move(): void
+    {
+        $this->votes(1, 120);
+        $this->close();
+        $this->assertTrue(Pool::settle(1, 1)['ok']);
+        DB::table('gates_nominees')->where('id', 4)->update(['status' => 'approved']);   // approved after settling
+        $p = Pool::progress(1);
+        $this->assertSame(100, $p['target'], 'the target written at settlement, not today’s 75');
+        $this->assertSame(1, $p['reached']);
+    }
 }
