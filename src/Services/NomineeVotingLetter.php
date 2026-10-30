@@ -219,7 +219,7 @@ final class NomineeVotingLetter
         // One short paragraph each, the label run in, so the letter keeps to one page; the email
         // carries them in full.
         $prize = trim((string) (((array) ($v['prizes'] ?? []))[0] ?? ''));
-        foreach ([['Prizes to be won: ', $prize, 2], ['Your community return: ', trim((string) ($v['return_short'] ?? '')), 3]] as [$h, $para, $max]) {
+        foreach ([['Prizes to be won: ', $prize, 2], ['Your community return: ', trim((string) ($v['return_short'] ?? '')), 5]] as [$h, $para, $max]) {
             if ($para === '') continue;
             $y += $gap(2.4);
             $y = $put($h . $para, $x, $y, $w, 'serif', 12.0, $leadAddr, $ink, $max);

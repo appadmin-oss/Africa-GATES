@@ -489,9 +489,12 @@ final class NomineeVotingNotice
         $rules = CommunityReturnMilestone::rulesForCycle($cycleId);
         if ((int) ($rules['community_return_bps'] ?? 0) <= 0) return '';
         if (CommunityReturnService::modelOf($rules) !== CommunityReturnService::MODEL_POOL) return CommunityReturnMilestone::summary($rules);
-        return CommunityReturnLadder::pct((int) $rules['community_return_bps']) . '% of every contribution goes into one pool. '
-             . 'The nominees who reach ' . number_format(max(1, (int) ($rules['community_return_target_votes'] ?? 1000)))
-             . ' votes share it by their votes. The email explains how.';
+        // The whole rule, short enough for the one-page letter: what goes in, the shared target,
+        // how it is shared, where it goes otherwise, and what withdrawing needs.
+        return CommunityReturnLadder::pct((int) $rules['community_return_bps']) . '% of every contribution in this edition goes into one pool. '
+             . 'Every nominee has the same target of ' . number_format(max(1, (int) ($rules['community_return_target_votes'] ?? 1000)))
+             . ' votes; those who reach it share the pool by their votes, and if nobody does it goes to the reserves. '
+             . 'Withdrawing needs a verified account.';
     }
 
     /** "AG/VOT/{cycle}/{nominee}": stable, so a reprint and the original agree. */

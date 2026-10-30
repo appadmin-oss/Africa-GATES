@@ -383,7 +383,9 @@ final class NomineeVotingNoticeTest extends TestCase
         $v['community_return'] = NomineeVotingNotice::communityReturn($this->programmeId, $this->cycleId);
         $v['return_short'] = NomineeVotingNotice::communityReturnShort($this->cycleId);
         $this->assertCount(3, $v['community_return']);
-        $this->assertStringContainsString('750 votes', $v['return_short']);
+        foreach (['20%', 'same target of 750 votes', 'by their votes', 'reserves', 'verified account'] as $w) {
+            $this->assertStringContainsString($w, $v['return_short'], 'the letter states the rule itself: ' . $w);
+        }
         foreach (['A4', 'letter'] as $paper) {
             $mm = NomineeVotingLetter::measure($v, $paper);
             $this->assertLessThanOrEqual($mm['limit'], $mm['bottom'], sprintf('runs %.1fmm into the footer on %s', $mm['bottom'] - $mm['limit'], $paper));
