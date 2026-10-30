@@ -219,10 +219,11 @@ final class NomineeVotingLetter
         // One short paragraph each, the label run in, so the letter keeps to one page; the email
         // carries them in full.
         $prize = trim((string) (((array) ($v['prizes'] ?? []))[0] ?? ''));
-        foreach ([['Prizes to be won: ', $prize, 2], ['Your community return: ', trim((string) ($v['return_short'] ?? '')), 5]] as [$h, $para, $max]) {
+        foreach ([['Prizes to be won', $prize, 2], ['Your community return', trim((string) ($v['return_short'] ?? '')), 5]] as [$h, $para, $max]) {
             if ($para === '') continue;
-            $y += $gap(2.4);
-            $y = $put($h . $para, $x, $y, $w, 'serif', 12.0, $leadAddr, $ink, $max);
+            $y += $gap(3.0);
+            $y = $put($h, $x, $y, $w, 'sanss', 12.0, $lead, $green, 1) + $gap(1.0);
+            $y = $put($para, $x, $y, $w, 'serif', 12.0, $leadAddr, $ink, $max);
         }
 
         // ── the vote row: the QR, and the address for whoever cannot scan ────
