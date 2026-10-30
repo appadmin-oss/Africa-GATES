@@ -21,6 +21,11 @@ class GatedFormController
         $raw    = (string) ($args['token'] ?? '');
         $row    = GatedFormService::resolve($raw);
         $status = GatedFormService::status($row);
+        // A nominee's link sent before 30 Oct 2026 opens the account page that replaced this form
+        // (NomineeDetails), so nobody holding an old email meets a form that no longer counts.
+        if ($row && $row->purpose === 'nominee' && preg_match('/^[a-f0-9]{40}$/', $raw)) {
+            return $res->withHeader('Location', '/nominee/start/' . $raw)->withStatus(302);
+        }
         $name   = $row ? GatedFormService::subjectName((string) $row->purpose, (int) $row->subject_id) : '';
 
         $error = $_SESSION['flash_error'] ?? null;

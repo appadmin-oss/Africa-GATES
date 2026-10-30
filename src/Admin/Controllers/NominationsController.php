@@ -582,7 +582,7 @@ HTML;
         $sent = $this->sendNomineeForm($nom, $nomineeId);
         if ($sent === 'sent') {
             $this->audit->record((int)$_SESSION['admin_id'], 'nomination.regenerate_form', 'nomination', $id);
-            $_SESSION['flash_ok'] = 'A fresh single-use acceptance form link was emailed to the nominee (any previous link is now void).';
+            $_SESSION['flash_ok'] = 'A fresh profile link was emailed to the nominee. Any earlier link has stopped working.';
         } elseif ($sent === 'withheld') {
             $_SESSION['flash_error'] = 'Not sent: the nominee’s email is the address of somebody who nominated them, so the link would reach the nominator. Add the nominee’s own address, then send it again.';
         } else {
@@ -624,9 +624,11 @@ HTML;
         // a missing gates_form_tokens table (stale DB) or a mail failure must
         // never bubble up and 500 an approval that already committed.
         try {
-            $ttl  = 30;
-            $raw  = GatedFormService::issue('nominee', $nomineeId, $email, $ttl);
-            $link = GatedFormService::link($raw);
+            // The link signs the nominee in (or makes their account) and puts the nomination on
+            // it for good (NomineeDetails): no single-use form to fill once and never see again.
+            $ttl  = \AfricaGates\Services\NomineeDetails::LINK_DAYS;
+            $link = \AfricaGates\Services\NomineeDetails::invite($nomineeId, $nom);
+            if ($link === '') return 'failed';
             // The handoff's "Approved". The page, the dates and the deadline are the live
             // ones: the form is due when this single-use link expires.
             $base = \AfricaGates\Support\SiteUrl::base();
@@ -775,7 +777,15 @@ HTML;
     private function reviewContext(object $nom): array
     {
         $cats = DB::table('gates_award_categories')->where('cycle_id', $nom->cycle_id)->orderBy('sort_order')->get()->map(fn($r) => (array)$r)->all();
+        // What the nominee added on their own page (NomineeDetails), if they have one yet.
+        $own = null;
+        if (\AfricaGates\Services\NomineeDetails::ready() && ($d = DB::table('gates_nominee_details')->where('nomination_id', $nom->id)->first())) {
+            $own = ['linked' => (bool) $d->user_id, 'complete' => (bool) $d->completed_at, 'check' => \AfricaGates\Services\NomineeDetails::checklist($d),
+                    'phones' => \AfricaGates\Services\NomineeDetails::list($d->phones), 'emails' => \AfricaGates\Services\NomineeDetails::list($d->emails), 'bio' => (string) $d->bio,
+                    'photos' => \AfricaGates\Services\NomineeDetails::files((int) $d->nominee_id, 'photo'), 'evidence' => \AfricaGates\Services\NomineeDetails::files((int) $d->nominee_id, 'evidence')];
+        }
         return [
+            'own'         => $own,
             'nom'         => (array)$nom,
             'categories'  => $cats,
             'eligibility' => $this->awards ? $this->awards->nomineeEligibility((string)$nom->nominee_name, (int)$nom->cycle_id) : null,
@@ -935,9 +945,10 @@ HTML;
     /**
      * GET /admin/nominations/review/export.csv — the list as filtered, or the selected rows.
      *
-     * Working columns only: who, what, where it stands and what the checks say. No email
-     * address and no phone number — this is for working the queue, and a spreadsheet of
-     * contact details is a different thing with a different lawful basis (Contacts).
+     * With contacts (owner, 30 Oct 2026: "the export of the nominees should include their
+     * contact, not just names"): the nominee's email and phone as the nominator gave them, every
+     * phone and email the nominee has added on their own page since (NomineeDetails), and the
+     * nominator's. The audit row records that contacts left the console, and how many.
      */
     public function queueExport(Request $req, Response $res): Response
     {
@@ -946,15 +957,31 @@ HTML;
         $ids = array_values(array_filter(array_map('intval', (array) ($q['ids'] ?? []))));
         $rows = \AfricaGates\Admin\Services\ReviewQueue::exportRows($p, $this->awards, $ids);
         $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'nomination.export', 'nomination', null,
-            ['tab' => $p['tab'], 'rows' => count($rows), 'selected' => count($ids)]);
+            ['tab' => $p['tab'], 'rows' => count($rows), 'selected' => count($ids), 'contacts' => true]);
 
+        // What each nominee added themselves, keyed by the nomination their page came from.
+        $own = [];
+        if (\AfricaGates\Services\NomineeDetails::ready() && $rows) {
+            foreach (DB::table('gates_nominee_details')->whereIn('nomination_id', array_map(static fn ($r) => (int) $r['id'], $rows))
+                         ->get(['nomination_id', 'phones', 'emails', 'completed_at']) as $d) {
+                $own[(int) $d->nomination_id] = $d;
+            }
+        }
         $fh = fopen('php://temp', 'r+');
-        \AfricaGates\Support\Csv::put($fh, ['Reference', 'Nominee', 'Organisation', 'Country', 'Programme', 'Category',
-            'Reads closer to', 'Nominated by', 'How they know them', 'Checks', 'Supporting links or files', 'Status', 'Received'], ',', '"', '\\');
+        \AfricaGates\Support\Csv::put($fh, ['Reference', 'Nominee', 'Nominee email', 'Nominee phone', 'Other emails (added by nominee)', 'Other phones (added by nominee)',
+            'Profile complete', 'Organisation', 'Country', 'Programme', 'Category', 'Reads closer to', 'Nominated by', 'Nominator email', 'Nominator phone',
+            'How they know them', 'Checks', 'Supporting links or files', 'Status', 'Received'], ',', '"', '\\');
         foreach ($rows as $r) {
+            $d = $own[(int) $r['id']] ?? null;
+            $email = strtolower(trim((string) ($r['nominee_email'] ?? '')));
+            $phone = trim((string) ($r['nominee_phone'] ?? ''));
+            $emails = $d ? array_values(array_diff(\AfricaGates\Services\NomineeDetails::list($d->emails), [$email])) : [];
+            $phones = $d ? array_values(array_diff(\AfricaGates\Services\NomineeDetails::list($d->phones), [$phone])) : [];
             \AfricaGates\Support\Csv::put($fh, [
-                (string) ($r['reference'] ?? ''), $r['name'], $r['org'], (string) ($r['country_code'] ?? ''), $r['edition'],
-                $r['category'], $r['suggest']['title'] ?? '', $r['by'], $r['rel'],
+                (string) ($r['reference'] ?? ''), $r['name'], $email, $phone, implode('; ', $emails), implode('; ', $phones),
+                $d ? ($d->completed_at ? 'Yes' : 'Not yet') : 'No account yet',
+                $r['org'], (string) ($r['country_code'] ?? ''), $r['edition'], $r['category'], $r['suggest']['title'] ?? '', $r['by'],
+                (string) ($r['nominator_email'] ?? ''), (string) ($r['nominator_phone'] ?? ''), $r['rel'],
                 implode('; ', array_column($r['checks'], 't')), (string) $r['evidence'],
                 \AfricaGates\Support\NominationStatus::label((string) $r['status']), (string) $r['created_at'],
             ], ',', '"', '\\');

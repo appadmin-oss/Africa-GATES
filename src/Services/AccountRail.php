@@ -35,6 +35,7 @@ final class AccountRail
         // advertiser who left it had no way back.
         'ads'        => ['Ads',        '/account/ads',             'M3 10v4h3l6 5V5L6 10zM16 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12', 'info'],
         'saved'      => ['Saved',      '/account?tab=saved',       'M6 3h12v18l-6-4-6 4z', 'gold'],
+        'profile'    => ['Profile',    '/account?tab=profile',     'M20 21a8 8 0 1 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z', 'green'],
         'security'   => ['Security',   '/account?tab=security',    'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z', 'ink'],
         'settings'   => ['Settings',   '/account?tab=settings',    'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v3M12 19v3M2 12h3M19 12h3', 'ink'],
     ];
@@ -56,11 +57,11 @@ final class AccountRail
         ''            => ['overview'],
         'Money'       => ['wallet', 'referral', 'purchases', 'ads'],
         'Taking part' => ['challenges', 'activity', 'saved'],
-        'You'         => ['security', 'settings'],
+        'You'         => ['profile', 'security', 'settings'],
     ];
 
     /** The tabs `/account?tab=` itself draws. The others are their own pages. */
-    public const PAGE_TABS = ['overview', 'referral', 'challenges', 'purchases', 'saved', 'security', 'settings'];
+    public const PAGE_TABS = ['overview', 'referral', 'challenges', 'purchases', 'saved', 'profile', 'security', 'settings'];
 
     /**
      * Sections drawn only for the members they concern. None today: the community return was
@@ -80,8 +81,9 @@ final class AccountRail
         'purchases'  => 'Tickets and orders, with where each one is up to.',
         'activity'   => 'What has happened to the things you nominated, voted for and bought.',
         'saved'      => 'Conversations you saved to come back to.',
+        'profile'    => 'Your details, and the roles you hold here: nominee, volunteer, event lead.',
         'security'   => 'How you sign in, and the devices that can.',
-        'settings'   => 'Your details, what you care about, and how the site reads for you.',
+        'settings'   => 'Notifications, what you care about, and how the site reads for you.',
     ];
 
     public static function valid(string $tab): string

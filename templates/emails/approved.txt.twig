@@ -1,13 +1,15 @@
 {#- Plain-text part for approved.html.twig. -#}
 You’re a nominee, {{ first_name }}
 
-Your nomination has been checked and approved. One step left: your nominee form, so the panel and the public see you as you are. The link works once.
+Your nomination has been checked and approved. Next, make your free account and finish your profile: your phone numbers and emails, photographs, and evidence of your work. No password; we send you a code.
+
+Your profile stays on your account, so you can come back and update it any time. The reason you were nominated stays as your nominator wrote it.
 
 Category: {{ category }}
-Form due: {{ due }}
+Link works until: {{ due }}
 {% if voting_opens %}Voting opens: {{ voting_opens }}
 {% endif %}
-Complete my nominee form: {{ form_url }}
+Finish my profile: {{ form_url }}
 {% if page_url %}See your public page: {{ page_url }}
 {% endif %}
 —

@@ -328,19 +328,23 @@ class MemberActivityService
     }
 
     /**
-     * Profile completeness: verified email 40%, phone 30%, password 30%.
+     * Profile completeness, one fifth each: a verified email, a full name, a phone, what they do
+     * and where they are based. A password is not in it (owner, 30 Oct 2026): sign-in is by code,
+     * so asking for one to "complete" a profile contradicts the page that says none is needed.
      *
      * @return array{pct:int,missing:list<string>}
      */
     public static function completeness(object|array $user): array
     {
         $u = (object) $user;
-        $pct = 0;
-        $missing = [];
-        if ((int) ($u->email_verified ?? 0) === 1) $pct += 40; else $missing[] = 'verify';
-        if (trim((string) ($u->phone ?? '')) !== '') $pct += 30; else $missing[] = 'phone';
-        if (trim((string) ($u->password_hash ?? '')) !== '') $pct += 30; else $missing[] = 'password';
-        return ['pct' => $pct, 'missing' => $missing];
+        $have = [
+            'verify'   => (int) ($u->email_verified ?? 0) === 1,
+            'name'     => (bool) preg_match('/\S+\s+\S+/u', trim((string) ($u->name ?? ''))),
+            'phone'    => trim((string) ($u->phone ?? '')) !== '',
+            'headline' => trim((string) ($u->headline ?? '')) !== '',
+            'based_in' => trim((string) ($u->based_in ?? '')) !== '',
+        ];
+        return ['pct' => 20 * count(array_filter($have)), 'missing' => array_keys(array_filter($have, static fn ($v) => !$v))];
     }
 
     /**
@@ -355,7 +359,7 @@ class MemberActivityService
         $comp = self::completeness($u);
         return [
             ['key' => 'verify',   'label' => 'Verify your email',                 'done' => (int) ($u->email_verified ?? 0) === 1, 'href' => '/account/verify'],
-            ['key' => 'profile',  'label' => 'Complete your profile',             'done' => $comp['pct'] === 100,                   'href' => '/account?tab=settings#profile'],
+            ['key' => 'profile',  'label' => 'Complete your profile',             'done' => $comp['pct'] === 100,                   'href' => '/account?tab=profile'],
             ['key' => 'vote',     'label' => 'Cast your first verified vote',     'done' => $votes !== [],                          'href' => '/vote'],
             ['key' => 'nominate', 'label' => 'Nominate someone extraordinary',    'done' => $nominations !== [],                    'href' => '/nominate'],
             ['key' => 'community','label' => 'Join a community conversation',     'done' => ($communityCounts['threads'] ?? 0) + ($communityCounts['comments'] ?? 0) > 0, 'href' => '/community'],

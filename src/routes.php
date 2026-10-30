@@ -3837,6 +3837,10 @@ return function(App $app) {
         $a->get('/logout',        AccountController::class.':logout');
         $a->post('/logout',       AccountController::class.':logout');
         // Mint this member's referral code. POST, because it creates something.
+        // A nominee's own details (NomineeDetails): their contact, photographs, evidence and
+        // bio, on their account for good. The nominator's reason is shown and never editable.
+        $a->get('/nomination[/{id:[0-9]+}]',  \AfricaGates\Controllers\NomineeProfileController::class . ':page');
+        $a->post('/nomination/{id:[0-9]+}',   \AfricaGates\Controllers\NomineeProfileController::class . ':save');
         $a->post('/referral', AccountController::class . ':referral');
         // Ask to be paid what the referrals earned. Creates a request; an admin settles it
         // against a real transfer reference — see ReferralPayout.
@@ -3910,6 +3914,8 @@ return function(App $app) {
     // The application page is open to somebody signed out, because its first job is telling
     // them to make an account (owner, 30 Oct 2026) — the group's middleware would bounce them to
     // a sign-in screen that never says why. The page itself asks for the account.
+    // The link approval emails a nominee. Open signed-out: its first job is the sign-in.
+    $app->get('/nominee/start/{token:[a-f0-9]{40}}', \AfricaGates\Controllers\NomineeProfileController::class . ':start');
     $app->get('/volunteer/apply', \AfricaGates\Controllers\VolunteerController::class . ':applyForm');
     $app->group('/volunteer', function (RouteCollectorProxy $v) {
         $c = \AfricaGates\Controllers\VolunteerController::class;

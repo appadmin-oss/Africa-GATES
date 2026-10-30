@@ -85,7 +85,7 @@ final class AccountFrameTest extends TestCase
     {
         $this->assertStringContainsString('id="me-referral"', $this->get('dashboard', '/account?tab=referral'));
         $this->assertStringContainsString('id="me-security"', $this->get('dashboard', '/account?tab=security'));
-        $this->assertStringContainsString('id="profile"', $this->get('dashboard', '/account?tab=settings'));
+        $this->assertStringContainsString('id="profile"', $this->get('dashboard', '/account?tab=profile'), 'your details moved to Profile on 30 Oct 2026');
 
         $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/AccountController.php');
         $this->assertDoesNotMatchRegularExpression("~'/account#~", $src, 'a redirect to /account#x lands on the overview, where x is not');

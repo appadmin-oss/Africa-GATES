@@ -12,7 +12,9 @@ use Slim\Psr7\Factory\ServerRequestFactory;
 use Tests\TestCase;
 
 /**
- * /form/{token}, the single-use nominee and judge form, through the real router.
+ * /form/{token}, the single-use judge form, through the real router. A nominee's link opens the
+ * account page that replaced their form on 30 Oct 2026 (NomineeDetails), and that page is fetched
+ * through the router here too, because a link in an email is only proved by following it.
  *
  * pages/gated-form.twig was destroyed on 3 Oct and not rebuilt, so the "Complete my nominee
  * form" button in every approval email answered a 500. GatedFormServiceTest proved the
@@ -24,11 +26,23 @@ final class GatedFormPageTest extends TestCase
     {
         parent::setUp();
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'Ada Obi', 'status' => 'approved', 'vote_count' => 0]);
+        DB::table('gates_judges')->insert(['id' => 1, 'name' => 'Ade Judge', 'is_active' => 1, 'email' => 'ade@example.test']);
+    }
+
+    public function test_a_nominees_link_opens_their_account_page(): void
+    {
+        $raw = GatedFormService::issue('nominee', 1, 'ada@x.io');
+        $res = $this->get('/form/' . $raw);
+        $this->assertSame('/nominee/start/' . $raw, $res->getHeaderLine('Location'));
+        $res = $this->get('/nominee/start/' . $raw);
+        $html = (string) $res->getBody();
+        $this->assertSame(200, $res->getStatusCode(), mb_substr(strip_tags($html), 0, 400));
+        $this->assertStringContainsString('Continue with email', $html);
     }
 
     public function test_a_live_link_draws_the_form_and_says_what_is_required(): void
     {
-        $raw = GatedFormService::issue('nominee', 1, 'ada@x.io');
+        $raw = GatedFormService::issue('judge', 1, 'ade@example.test');
         $res = $this->get('/form/' . $raw);
         $html = (string) $res->getBody();
 
@@ -50,7 +64,7 @@ final class GatedFormPageTest extends TestCase
 
     public function test_a_used_link_says_it_was_used_and_where_to_go(): void
     {
-        $raw = GatedFormService::issue('nominee', 1, 'ada@x.io');
+        $raw = GatedFormService::issue('judge', 1, 'ade@example.test');
         GatedFormService::submit($raw, ['bio' => 'A teacher.', 'expertise' => '', 'phone' => '', 'links' => '', 'accept_terms' => 1]);
         $html = (string) $this->get('/form/' . $raw)->getBody();
 

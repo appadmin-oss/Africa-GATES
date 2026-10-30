@@ -1,0 +1,60 @@
+{#
+  /nominee/start/{token} — the link approval emails a nominee (NomineeProfileController::start).
+  Signed out: one email box that posts straight to the code request, and the code screen brings
+  them back here, where the link ties the nominee to the account once. Styled as the volunteer
+  sign-up (apply.css): one surface, the logo first, one field.
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ page_title }}</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
+<link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/shell7.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/apply.css') }}">
+{% include 'partials/csrf-fresh.twig' %}
+</head>
+<body class="ap">
+<div class="ap-wrap">
+  <header class="ap-top ap-top--bare"><a class="ap-exit" href="/">Not now</a></header>
+  <main id="apMain">
+    <section class="ap-gate" aria-labelledby="apTitle">
+      <img class="ap-gate__logo" src="{{ asset('/assets/img/logo-africa-gates-alpha.png') }}" width="96" height="110" alt="Africa GATES">
+      {% if state == 'signin' or state == 'spent' %}
+        <h1 class="ap-gate__h" id="apTitle">{{ state == 'spent' ? 'Welcome back' : 'Congratulations' }}{{ nominee ? ', ' ~ nominee.name|split(' ')|first }}</h1>
+        <p class="ap-gate__lede">{% if state == 'spent' %}Sign in with the account you used before to see your nomination.{% else %}You’re a nominee{{ nominee and nominee.category ? ' for ' ~ nominee.category }}. Sign in or make your free account to finish your profile.{% endif %}</p>
+        <ul class="ap-gate__why">
+          <li>Add your phone numbers and emails</li>
+          <li>Add photographs and evidence of your work</li>
+          <li>Come back any time to update it</li>
+        </ul>
+        <form class="ap-gate__form" method="post" action="/account/login/otp">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="via" value="email">
+          <label class="ap-sr" for="nmEmail">Your email</label>
+          <input class="ap-in ap-gate__in" id="nmEmail" type="email" name="email" value="{{ email }}" required autocomplete="email" inputmode="email" placeholder="Your email" spellcheck="false">
+          <button class="ap-btn ap-btn--go ap-gate__go" type="submit">Continue with email</button>
+        </form>
+        <p class="ap-gate__fine">We send a 6-digit code. No password. New or returning, it’s the same step.</p>
+      {% elseif state == 'verify' %}
+        <h1 class="ap-gate__h" id="apTitle">Verify your email first</h1>
+        <p class="ap-gate__lede">Open the link we sent to {{ email }}, then open your nomination email again.</p>
+        <a class="ap-btn ap-btn--go ap-gate__go" href="/account/verify">Send the link again</a>
+      {% elseif state == 'refused' %}
+        <h1 class="ap-gate__h" id="apTitle">We couldn’t open this</h1>
+        <p class="ap-gate__lede" role="alert">{{ error }}</p>
+        <a class="ap-btn ap-btn--go ap-gate__go" href="/account/nomination">My nomination</a>
+        <p class="ap-gate__alt"><a href="/help">Get help</a></p>
+      {% else %}
+        <h1 class="ap-gate__h" id="apTitle">This link isn’t ours</h1>
+        <p class="ap-gate__lede">Check you copied the whole link from the email. If it still doesn’t work, we can send a new one.</p>
+        <a class="ap-btn ap-btn--go ap-gate__go" href="/help">Get help</a>
+      {% endif %}
+    </section>
+  </main>
+</div>
+</body>
+</html>

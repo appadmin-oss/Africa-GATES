@@ -111,6 +111,22 @@
 .acx-setup__head span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
 .acx-setup__bar{ height:6px }
 .acx-setup__list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column }
+/* Your profile and your roles (owner, 30 Oct 2026): the overview card and the Profile tab's head. */
+.acx-prof{ display:flex; flex-direction:column; gap:12px; padding:18px }
+.acx-prof .acx-setup__bar{ height:6px }
+.acx-prof__go{ align-self:stretch; justify-content:center }
+.acx-roles{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column }
+.acx-roles li + li{ border-top:1px solid var(--ag-line-3) }
+.acx-role{ display:flex; align-items:center; gap:12px; min-height:52px; color:var(--ag-ink); text-decoration:none }
+.acx-role__t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.acx-role__t b{ font-size:var(--ag-fs-14-5); font-weight:600 }
+.acx-role__t span{ font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.acx-role__cta{ flex:none; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-green) }
+.acx-me{ display:flex; align-items:center; gap:14px }
+.acx-me__t{ display:flex; flex-direction:column; gap:2px; min-width:0 }
+.acx-me__t b{ font-size:var(--ag-fs-17); font-weight:600 }
+.acx-me__t span{ font-size:var(--ag-fs-14); color:var(--ag-soft) }
+
 .acx-setup__list li + li{ border-top:1px solid var(--ag-line-3) }
 .acx-step{ display:flex; align-items:center; gap:12px; min-height:52px; color:var(--ag-ink); text-decoration:none; font-size:var(--ag-fs-14-5) }
 .acx-step__o{ flex:none; width:24px; height:24px; border-radius:50%; box-sizing:border-box; border:2px solid var(--ag-line-2); display:flex; align-items:center; justify-content:center; color:var(--ag-surface) }

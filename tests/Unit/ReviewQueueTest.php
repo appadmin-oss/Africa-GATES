@@ -281,7 +281,8 @@ final class ReviewQueueTest extends TestCase
             'the same audit row a single approval writes');
     }
 
-    public function test_the_export_follows_the_filters_and_carries_no_contact_details(): void
+    /** With contacts since 30 Oct 2026 (owner: "the export should include their contact"). */
+    public function test_the_export_follows_the_filters_and_carries_the_contacts(): void
     {
         $this->as();
         $a = $this->nom('Adaeze Okafor', ['nominee_email' => 'adaeze@example.test', 'nominee_phone' => '+2348000000000']);
@@ -291,9 +292,10 @@ final class ReviewQueueTest extends TestCase
         $csv = (string) $this->controller()->queueExport($req, (new ResponseFactory())->createResponse())->getBody();
         $this->assertStringContainsString('Adaeze Okafor', $csv);
         $this->assertStringNotContainsString('Musa Ibrahim', $csv);
-        $this->assertStringNotContainsString('@example.test', $csv);
-        $this->assertStringNotContainsString('+234', $csv);
-        $this->assertTrue(DB::table('gates_audit_log')->where('action', 'nomination.export')->exists());
+        $this->assertStringContainsString('adaeze@example.test', $csv);
+        $this->assertStringContainsString('+2348000000000', $csv);
+        $this->assertStringContainsString('"contacts":true', (string) DB::table('gates_audit_log')->where('action', 'nomination.export')->value('meta'),
+            'the audit row says contacts left the console');
         unset($a);
     }
 

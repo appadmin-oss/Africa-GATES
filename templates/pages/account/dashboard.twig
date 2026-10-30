@@ -107,6 +107,19 @@
 
   <div class="acx-ov">
     <div class="acx-col">
+      {# Your profile, and the roles this account holds (owner, 30 Oct 2026: "people need to be
+         able to set up their profile"). The figure is MemberActivityService::completeness. #}
+      <section class="acx-card acx-prof" aria-labelledby="acx-prof-h">
+        <div class="acx-setup__head"><b id="acx-prof-h">{{ 'Your profile'|trans }}</b><span>{{ profile_done.pct }}%</span></div>
+        <span class="acx-setup__bar"><span style="width:{{ profile_done.pct }}%"><span class="ag-sr">{{ '%n% per cent complete'|trans({'%n%': profile_done.pct}) }}</span></span></span>
+        <ul class="acx-roles">
+          {% for r in my_roles %}
+            <li><a class="acx-role" href="{{ r.href }}"><span class="acx-role__t"><b>{{ r.label }}</b><span>{{ r.state }}</span></span><span class="acx-role__cta">{{ r.cta }}</span></a></li>
+          {% endfor %}
+        </ul>
+        <a class="ag-btn {{ profile_done.pct < 100 ? 'ag-btn--primary' : 'ag-btn--secondary' }} ag-btn--pill acx-prof__go" href="/account?tab=profile">{{ profile_done.pct < 100 ? 'Set up your profile'|trans : 'View your profile'|trans }}</a>
+      </section>
+
       {% for w in backed_winners|slice(0, 1) %}
       <a class="acx-card acx-won" href="/account/notifications">
         <span class="acx-won__i" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16 3 6l5 4 4-6 4 6 5-4-2 10z"/></svg></span>
@@ -159,6 +172,7 @@
     </div>
 
     <div class="acx-col">
+
       {% set _todo = checklist|filter(c => not c.done) %}
       {% if _todo|length %}
       {% set _done = checklist|length - _todo|length %}
@@ -350,6 +364,53 @@
       <button class="ag-btn ag-btn--danger" type="submit">{{ 'Sign out'|trans }}</button>
     </form>
   </section>
+{% elseif tab == 'profile' %}
+  {# ══ PROFILE ═══════════════════════════════════════════════════════════════
+     How people see you here, and the roles you hold, in one place (owner, 30 Oct 2026). The
+     details form moved here from Settings; the roles used to be rows at the bottom of Settings. #}
+  {% set _miss = {verify: 'Verify your email'|trans, name: 'Your full name'|trans, phone: 'A phone number'|trans, headline: 'What you do'|trans, based_in: 'Where you’re based'|trans} %}
+  <section class="acx-card acx-prof acx-prof--head" aria-labelledby="acx-me-h">
+    <div class="acx-me">
+      {% include 'partials/avatar.twig' with {name: _u.name, id: _u.id|default(null), size: 56} only %}
+      <span class="acx-me__t"><b id="acx-me-h">{{ _u.name }}</b><span>{{ [_u.headline|default(''), _u.based_in|default('')]|filter(x => x)|join(' · ') ?: 'Add what you do and where you’re based'|trans }}</span></span>
+    </div>
+    <div class="acx-setup__head"><b>{{ profile_done.pct == 100 ? 'Your profile is complete'|trans : 'Your profile is %n% per cent done'|trans({'%n%': profile_done.pct}) }}</b></div>
+    <span class="acx-setup__bar"><span style="width:{{ profile_done.pct }}%"><span class="ag-sr">{{ '%n% per cent complete'|trans({'%n%': profile_done.pct}) }}</span></span></span>
+    {% if profile_done.missing %}<p class="acc__p">{{ 'Still to add:'|trans }} {{ profile_done.missing|map(k => _miss[k])|join(', ') }}.</p>{% endif %}
+  </section>
+
+  <section class="acc__sec" aria-labelledby="acx-roles-h">
+    <h2 class="acc__h2" id="acx-roles-h">{{ 'Your roles'|trans }}</h2>
+    <nav class="ag-list" aria-label="{{ 'Your roles'|trans }}">
+      {% for r in my_roles %}
+        {# The lead console's address is typed here so the page sweep (PublicIaTest) sees its way in. #}
+        {% if r.key == 'lead' %}<a class="ag-list__row" href="/lead">{% else %}<a class="ag-list__row" href="{{ r.href }}">{% endif %}
+          <span class="ag-list__label">{{ r.label }}</span>
+          <span class="ag-list__value acc__val">{{ r.state }}</span>
+          <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
+        </a>
+      {% endfor %}
+    </nav>
+  </section>
+
+  {# ── Your details ──────────────────────────────────────────────────────────── #}
+  <section class="acc__sec" id="profile" aria-labelledby="acc-prof-h">
+    <h2 class="acc__h2" id="acc-prof-h">{{ 'Your details'|trans }}</h2>
+    <p class="acc__p">{{ 'Your name and what you do show when you vote, nominate or post. Your phone stays private.'|trans }}</p>
+    <form method="post" action="/account/profile" class="acc__form" novalidate data-ag-validate>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      {{ f.text({id: 'p-name', name: 'name', label: 'Your name'|trans, value: _u.name, required: true, maxlength: 160, autocomplete: 'name', pattern: name_pattern, hint: 'Your first and last name.'|trans}, '') }}
+      {{ f.text({id: 'p-headline', name: 'headline', label: 'What you do'|trans, value: _u.headline|default(''), maxlength: 120, optional: true}, '') }}
+      {{ f.text({id: 'p-based', name: 'based_in', label: 'Where you’re based'|trans, value: _u.based_in|default(''), maxlength: 120, optional: true}, '') }}
+      {{ f.text({id: 'p-phone', name: 'phone', label: 'Phone'|trans, type: 'tel', value: _u.phone|default(''), maxlength: 40, autocomplete: 'tel', inputmode: 'tel', optional: true, hint: 'With it on file you can sign in with a code by text.'|trans}, '') }}
+      {% if has_password %}
+        {{ f.text({id: 'p-cur', name: 'current_password', label: 'Current password'|trans, type: 'password', autocomplete: 'current-password', optional: true, hint: 'Only to change your password.'|trans}, '') }}
+      {% endif %}
+      {{ f.text({id: 'p-new', name: 'new_password', label: has_password ? 'New password'|trans : 'Set a password'|trans, type: 'password', minlength: 8, autocomplete: 'new-password', optional: true, hint: 'At least 8 characters. You can always sign in with a code instead.'|trans}, '') }}
+      <button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Save'|trans }}</button>
+    </form>
+  </section>
+
 {% elseif tab == 'settings' %}
   <section class="acx-card acx-greet" id="greetings" aria-labelledby="acx-greet-h">
     <div class="acx-greet__t"><h2 class="acx-h2" id="acx-greet-h">{{ 'Seasonal greetings'|trans }}</h2>
@@ -371,42 +432,11 @@
       <span class="ag-list__value acc__val">{{ interests|length ? interests|map(k => _labels[k]|default(k)|trans)|join(', ') : 'Not chosen'|trans }}</span>
       <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
     </a>
-    {# The volunteer workspace (/volunteer, consoles v7 §6). The application is the way in; a
-       member who already volunteers is sent on to their workspace from it. #}
-    <a class="ag-list__row" href="/volunteer/apply">
-      <span class="ag-list__label">{{ 'Volunteering'|trans }}</span>
-      <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
-    </a>
-    {# The event lead console (/lead). Shown only to somebody who leads an event: the role is
-       given by the organiser, so there is nothing to apply for and no row to show otherwise. #}
-    {% if events_led %}
-    <a class="ag-list__row" href="/lead">
-      <span class="ag-list__label">{{ 'Events I lead'|trans }}</span>
-      <span class="ag-list__value acc__val">{{ events_led }}</span>
-      <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
-    </a>
-    {% endif %}
     <a class="ag-list__row" href="/account/display">
       <span class="ag-list__label">{{ 'Display & reading'|trans }}</span>
       <span class="ag-list__chev" aria-hidden="true"><svg class="ag-ico-dir" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></span>
     </a>
   </nav>
-  {# ── Your details ──────────────────────────────────────────────────────────── #}
-  <section class="acc__sec" id="profile" aria-labelledby="acc-prof-h">
-    <h2 class="acc__h2" id="acc-prof-h">{{ 'Your details'|trans }}</h2>
-    <form method="post" action="/account/profile" class="acc__form" novalidate data-ag-validate>
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      {{ f.text({id: 'p-name', name: 'name', label: 'Your name'|trans, value: _u.name, required: true, maxlength: 160, autocomplete: 'name', pattern: name_pattern, hint: 'Your first and last name.'|trans}, '') }}
-      {{ f.text({id: 'p-headline', name: 'headline', label: 'What you do'|trans, value: _u.headline|default(''), maxlength: 120, optional: true}, '') }}
-      {{ f.text({id: 'p-based', name: 'based_in', label: 'Where you’re based'|trans, value: _u.based_in|default(''), maxlength: 120, optional: true}, '') }}
-      {{ f.text({id: 'p-phone', name: 'phone', label: 'Phone'|trans, type: 'tel', value: _u.phone|default(''), maxlength: 40, autocomplete: 'tel', inputmode: 'tel', optional: true, hint: 'With it on file you can sign in with a code by text.'|trans}, '') }}
-      {% if has_password %}
-        {{ f.text({id: 'p-cur', name: 'current_password', label: 'Current password'|trans, type: 'password', autocomplete: 'current-password', optional: true, hint: 'Only to change your password.'|trans}, '') }}
-      {% endif %}
-      {{ f.text({id: 'p-new', name: 'new_password', label: has_password ? 'New password'|trans : 'Set a password'|trans, type: 'password', minlength: 8, autocomplete: 'new-password', optional: true, hint: 'At least 8 characters. You can always sign in with a code instead.'|trans}, '') }}
-      <button class="ag-btn ag-btn--primary ag-btn--pill" type="submit">{{ 'Save'|trans }}</button>
-    </form>
-  </section>
 
 {% endif %}
 {% endblock %}

@@ -1441,6 +1441,10 @@ class AccountController
             'interests'      => \AfricaGates\Services\MemberInterests::of((int) $user->id),
             'interest_options' => \AfricaGates\Services\MemberInterests::options(),
             // Events this member leads (a member role since 29 Oct 2026): the way into /lead.
+            // The profile and the roles this account holds, for the Profile tab and the overview
+            // card (owner, 30 Oct 2026: "people need to be able to set up their profile").
+            'profile_done'   => \AfricaGates\Services\MemberActivityService::completeness($user),
+            'my_roles'       => $this->roles($user),
             'events_led'     => \AfricaGates\Services\EventPlan\Plan::ready() ? count(\AfricaGates\Services\EventPlan\Plan::leadEvents((int) $user->id)) : 0,
             'unread'         => count(array_filter($alerts, static fn ($x) => $x['unread'])),
             'points'         => $bal,
@@ -1537,6 +1541,32 @@ class AccountController
      *
      * @return array<string,mixed>
      */
+    /**
+     * The roles this account holds or can ask for, each with where it stands and where it opens:
+     * nominee (NomineeDetails), volunteer (Volunteers), event lead (EventPlan\Plan).
+     *
+     * @return list<array{key:string,label:string,state:string,tone:string,href:string,cta:string}>
+     */
+    private function roles(object $user): array
+    {
+        $out = [];
+        foreach (\AfricaGates\Services\NomineeDetails::forUser((int) $user->id) as $d) {
+            $left = count(array_filter(\AfricaGates\Services\NomineeDetails::checklist($d), static fn ($v) => !$v));
+            $out[] = ['key' => 'nominee', 'label' => 'Nominee' . ($d->category ? ': ' . $d->category : ''), 'state' => $left ? $left . ' ' . ($left === 1 ? 'step' : 'steps') . ' to finish' : 'Profile complete',
+                      'tone' => $left ? 'warn' : 'ok', 'href' => '/account/nomination/' . $d->nominee_id, 'cta' => $left ? 'Finish' : 'Review'];
+        }
+        $v = \AfricaGates\Services\Volunteer\Volunteers::of((int) $user->id);
+        $vs = $v ? (string) $v->status : '';
+        $out[] = match (true) {
+            in_array($vs, ['active', 'paused'], true) => ['key' => 'volunteer', 'label' => 'Volunteer', 'state' => $vs === 'paused' ? 'On a break' : 'Active', 'tone' => 'ok', 'href' => '/volunteer', 'cta' => 'Open'],
+            $vs === 'applicant' => ['key' => 'volunteer', 'label' => 'Volunteer', 'state' => 'Application being checked', 'tone' => 'info', 'href' => '/volunteer', 'cta' => 'See it'],
+            default => ['key' => 'volunteer', 'label' => 'Volunteer', 'state' => 'Help on award nights and bring people to vote', 'tone' => 'mute', 'href' => '/volunteer/apply', 'cta' => 'Apply'],
+        };
+        $led = \AfricaGates\Services\EventPlan\Plan::ready() ? count(\AfricaGates\Services\EventPlan\Plan::leadEvents((int) $user->id)) : 0;
+        if ($led) $out[] = ['key' => 'lead', 'label' => 'Event lead', 'state' => $led . ' ' . ($led === 1 ? 'event' : 'events'), 'tone' => 'ok', 'href' => '/lead', 'cta' => 'Open'];
+        return $out;
+    }
+
     private function railFor(object $user, string $tab): array
     {
         $r = \AfricaGates\Services\AccountRail::countsFor($user, $this->community);
@@ -2079,14 +2109,14 @@ class AccountController
         $r = $this->accounts->updateProfile((int) $user->id, (string) ($b['name'] ?? ''), (string) ($b['phone'] ?? ''));
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['error'];
-            return $res->withHeader('Location', '/account?tab=settings#profile')->withStatus(302);
+            return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
         }
         // "What you do" and "Where you're based" — the profile basics joining asked for.
         if (array_key_exists('headline', $b) || array_key_exists('based_in', $b)) {
             $a = $this->accounts->saveAbout((int) $user->id, (string) ($b['headline'] ?? ''), (string) ($b['based_in'] ?? ''));
             if (!$a['ok']) {
                 $_SESSION['flash_error'] = $a['error'];
-                return $res->withHeader('Location', '/account?tab=settings#profile')->withStatus(302);
+                return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
             }
         }
 
@@ -2095,17 +2125,17 @@ class AccountController
         if ($newPw !== '') {
             if (strlen($newPw) < 8) {
                 $_SESSION['flash_error'] = 'New password must be at least 8 characters.';
-                return $res->withHeader('Location', '/account')->withStatus(302);
+                return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
             }
             if (!empty($user->password_hash) && !password_verify((string) ($b['current_password'] ?? ''), (string) $user->password_hash)) {
                 $_SESSION['flash_error'] = 'Your current password is incorrect.';
-                return $res->withHeader('Location', '/account')->withStatus(302);
+                return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
             }
             $this->accounts->setPassword((int) $user->id, $newPw);
         }
 
         $_SESSION['flash_ok'] = 'Your account was updated.';
-        return $res->withHeader('Location', '/account')->withStatus(302);
+        return $res->withHeader('Location', '/account?tab=profile#profile')->withStatus(302);
     }
 
     public function logout(Request $req, Response $res): Response

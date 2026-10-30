@@ -180,9 +180,27 @@
     </form>
 
     {% if nom.status == 'approved' %}
+    {# What the nominee added on their own page (NomineeDetails). Read here; only they edit it. #}
+    <section class="ad-card nm-staff" style="margin-top:14px;padding:16px" aria-labelledby="nmStaffH">
+      <h4 id="nmStaffH" style="font-size:13px;font-weight:600;margin:0 0 4px">The nominee’s profile</h4>
+      {% if own is null %}
+        <p style="font-size:12.5px;color:var(--cn-ink-3);margin:0">No link sent yet. Send one below.</p>
+      {% elseif not own.linked %}
+        <p style="font-size:12.5px;color:var(--cn-ink-3);margin:0">Link sent. They haven’t made their account yet.</p>
+      {% else %}
+        <p style="font-size:12.5px;color:var(--cn-ink-3);margin:0 0 8px">{{ own.complete ? 'Complete.' : (own.check|filter(v => v)|length) ~ ' of ' ~ own.check|length ~ ' steps done.' }}</p>
+        <dl style="margin:0;display:grid;gap:4px;font-size:13px">
+          <div><dt style="display:inline;color:var(--cn-ink-3)">Phones: </dt><dd style="display:inline;margin:0">{{ own.phones|join(', ') ?: 'None yet' }}</dd></div>
+          <div><dt style="display:inline;color:var(--cn-ink-3)">Emails: </dt><dd style="display:inline;margin:0">{{ own.emails|join(', ') ?: 'None yet' }}</dd></div>
+          <div><dt style="display:inline;color:var(--cn-ink-3)">Photographs: </dt><dd style="display:inline;margin:0">{% for f in own.photos %}<a href="{{ f.path }}" target="_blank" rel="noopener">{{ f.label ?: 'Photo ' ~ loop.index }}</a>{{ not loop.last ? ', ' }}{% else %}None yet{% endfor %}</dd></div>
+          <div><dt style="display:inline;color:var(--cn-ink-3)">Evidence: </dt><dd style="display:inline;margin:0">{% for f in own.evidence %}<a href="{{ f.url ?: f.path }}" target="_blank" rel="noopener">{{ f.label }}</a>{{ not loop.last ? ', ' }}{% else %}None yet{% endfor %}</dd></div>
+        </dl>
+        {% if own.bio %}<p style="font-size:13px;margin:8px 0 0;white-space:pre-line">{{ own.bio }}</p>{% endif %}
+      {% endif %}
+    </section>
     <form method="post" action="/admin/nominations/{{ nom.id }}/regenerate-form" style="margin-top:10px">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button type="submit" class="ad-btn" style="width:100%;justify-content:center" data-confirm="Email the nominee a fresh single-use form link? Any previous link will stop working.">✉ Resend / regenerate nominee form link</button>
+      <button type="submit" class="ad-btn" style="width:100%;justify-content:center" data-confirm="Email the nominee a fresh link to make their account and finish their profile? Any earlier link stops working.">✉ Send the nominee their profile link again</button>
     </form>
     {% endif %}
 
