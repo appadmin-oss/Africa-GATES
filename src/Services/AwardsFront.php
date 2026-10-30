@@ -238,6 +238,8 @@ final class AwardsFront
             'pool'       => $cycle && CommunityReturnService::active() && CommunityReturnPool::applies((int) $cycle->id)
                             ? array_intersect_key(CommunityReturnPool::progress((int) $cycle->id), array_flip(['target', 'nominees', 'combined_target', 'combined_votes', 'gap', 'pct', 'reached', 'settled']))
                             : null,
+            // What each place wins in THIS edition (EditionPrizes).
+            'prizes'     => $cycle ? \AfricaGates\Support\EditionPrizes::for((int) $cycle->id) : [],
             'edition'    => $cycle ? EditionName::label($cycle) : '',
             'edition_full'=> $cycle ? EditionName::full($cycle) : '',
             'is_current' => $cycle && $current && (int) $cycle->id === (int) $current->id,

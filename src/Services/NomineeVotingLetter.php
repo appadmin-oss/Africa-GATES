@@ -261,7 +261,7 @@ final class NomineeVotingLetter
 
         $sections = [];
         if (($v['steps'] ?? []) !== []) $sections[] = ['How voting works', 'steps', (array) $v['steps']];
-        if (($v['prizes'] ?? []) !== []) $sections[] = ['Prizes to be won', 'paras', (array) $v['prizes']];
+        if (($v['prizes'] ?? []) !== []) $sections[] = ['Prizes to be won', 'prizes', (array) $v['prizes']];
         if (($v['community_return'] ?? []) !== []) $sections[] = ['Your community return', 'rows', (array) $v['community_return']];
 
         foreach ($sections as $n => [$title, $kind, $items]) {
@@ -276,10 +276,22 @@ final class NomineeVotingLetter
                     $put(chr(97 + $i) . '.', $y, 'sans', 12.0, $lead, $soft, 1, $x + 8.0, 6.0);
                     $y = $put((string) $step, $y, 'serif', 12.0, $lead, $ink, 5, $x + 14.0, $w - 14.0) + $gap(2.0);
                 }
-            } elseif ($kind === 'paras') {
-                // The "overall winners" line and at most two paragraphs of four lines: the award's
-                // full words are on its page.
-                foreach (array_slice($items, 0, 3) as $para) $y = $put((string) $para, $y, 'serif', 12.0, $lead, $ink, 4, $x + 8.0, $w - 8.0) + $gap(2.4);
+            } elseif ($kind === 'prizes') {
+                // The places as rows, under the line that says they are overall. Eight one-line
+                // places or four of two lines take the same height, which is what fits US Letter
+                // with the longest text the form takes; the rest are counted, and the award's page
+                // carries the full list.
+                $y = $put(\AfricaGates\Support\EditionPrizes::LEAD, $y, 'serif', 12.0, $lead, $soft, 2, $x + 8.0, $w - 8.0) + $gap(2.0);
+                $short = array_reduce($items, static fn (bool $ok, $row): bool => $ok && mb_strlen((string) $row[1]) <= 70, true);
+                $cap = $short ? 8 : 4;
+                foreach (array_slice($items, 0, $cap) as $row) {
+                    $put((string) $row[0], $y, 'sanss', 12.0, $lead, $ink, 1, $x + 8.0, 27.0);
+                    $y = $put((string) $row[1], $y, 'serif', 12.0, $lead, $ink, 2, $x + 35.0, $w - 35.0) + $gap(1.2);
+                }
+                if (count($items) > $cap) {
+                    $more = count($items) - $cap;
+                    $y = $put('And ' . $more . ' more ' . ($more === 1 ? 'place' : 'places') . ' on the award’s page.', $y, 'serif', 12.0, $lead, $soft, 1, $x + 35.0, $w - 35.0) + $gap(1.6);
+                }
             } else {
                 $labelW = 47.0;
                 foreach ($items as $i => $row) {

@@ -28,8 +28,6 @@ final class AwardDetails
     public const FIELDS = [
         'eligibility' => ['label' => 'Who can be nominated', 'max' => 1500,
             'help' => 'Who is eligible, and who is not. A new section on the tab, after "What the award celebrates".'],
-        'prize' => ['label' => 'What winners receive', 'max' => 1000,
-            'help' => 'The prizes for the edition’s overall winners, ranked across every category, not per category: the trophy, the cash, the opportunities. Leave blank to say nothing.'],
         'nominations_note' => ['label' => 'Anything to add about nominations', 'max' => 1000,
             'help' => 'Drawn under the platform\'s own rules for nominating.'],
         'judging_note' => ['label' => 'Anything to add about judging', 'max' => 1000,

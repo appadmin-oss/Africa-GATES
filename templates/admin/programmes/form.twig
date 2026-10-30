@@ -59,6 +59,7 @@
     <div class="ad-card__head"><div class="ad-card__title">Award details<small>What the public "Award details" tab says in this award's own words. The rules themselves are written by the platform.</small></div>
       {% if not is_new and row.slug %}<a class="ad-btn ad-btn--sm" href="/awards/{{ row.slug }}?tab=details" target="_blank" rel="noopener">Preview the tab →</a>{% endif %}</div>
     <div class="ad-card__body">
+      <p class="hint" style="margin:0 0 12px">Prizes are set per edition, by place{% if not is_new %}: <a href="/admin/programmes/{{ row.id }}/cycle#prizes">Edition → Prizes</a>{% endif %}.</p>
       <div class="ad-form">
         {% for k, fdef in detail_fields %}
           <div>

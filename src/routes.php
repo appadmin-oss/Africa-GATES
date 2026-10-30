@@ -4229,6 +4229,7 @@ return function(App $app) {
         $a->get('/programmes/{id:[0-9]+}/cycle/letter',  AdminProgrammesController::class.':letterEditor')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/cycle/letter', AdminProgrammesController::class.':letterSave')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/cycle',    AdminProgrammesController::class.':cycleSave')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/prizes', AdminProgrammesController::class.':prizesSave')->add(new RoleMiddleware('superadmin'));
         // Opening next year's edition is its OWN action. The cycle form posts the current
         // cycle's id, so "change the year and save" renames this year's edition and takes
         // its nominees, votes and scores with it — creating one is a different intention.

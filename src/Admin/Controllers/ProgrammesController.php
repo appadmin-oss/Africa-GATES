@@ -423,6 +423,9 @@ class ProgrammesController
             'programme'  => (array)$programme,
             'cycle'      => $cycle ? (array)$cycle : null,
             'categories' => $categories,
+            'prizes'     => $cycle ? \AfricaGates\Support\EditionPrizes::for((int) $cycle->id) : [],
+            'prizes_max' => \AfricaGates\Support\EditionPrizes::MAX,
+            'prize_max'  => \AfricaGates\Support\EditionPrizes::AWARD_MAX,
             // What the platform ACTUALLY thinks, so the admin can trust the
             // automation instead of inferring it from five date fields.
             'phase'      => $phase,
@@ -465,6 +468,23 @@ class ProgrammesController
             // `CycleEdition::listFor()`, and IT is what the Editions panel draws, so
             // the raw copy was a second query answering a question already answered.
         ]);
+    }
+
+    /** Save what each place wins in one edition (EditionPrizes). */
+    public function prizesSave(Request $req, Response $res, array $args): Response
+    {
+        $programmeId = (int) $args['id'];
+        $b = (array) $req->getParsedBody();
+        $cycle = DB::table('gates_award_cycles')->where('id', (int) ($b['cycle_id'] ?? 0))->where('programme_id', $programmeId)->first();
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $rows = is_array($b['prizes'] ?? null) ? array_values($b['prizes']) : [];
+        $error = \AfricaGates\Support\EditionPrizes::save((int) $cycle->id, $rows);
+        if ($error === null) {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'edition.prizes', 'cycle', (int) $cycle->id,
+                ['places' => count(\AfricaGates\Support\EditionPrizes::for((int) $cycle->id))]);
+        }
+        $_SESSION[$error === null ? 'flash_ok' : 'flash_error'] = $error ?? 'Prizes saved.';
+        return $res->withHeader('Location', '/admin/programmes/' . $programmeId . '/cycle?cycle=' . (int) $cycle->id . '#prizes')->withStatus(303);
     }
 
     public function cycleSave(Request $req, Response $res, array $args): Response

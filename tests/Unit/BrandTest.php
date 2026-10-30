@@ -51,18 +51,19 @@ final class BrandTest extends TestCase
         $id = (int) DB::table('gates_award_programmes')->insertGetId(['slug' => 'brand-a', 'title' => 'Brand A', 'is_active' => 1]);
         $this->assertNull(AwardDetails::save($id, [
             'eligibility' => 'Teachers in public schools, nominated through African G8.',
-            'prize' => '<b>₦500,000</b> and a trophy',
+            'judging_note' => '<b>Five</b> judges',
             'faq_q' => ['Can I nominate myself?', 'Half a pair', ''],
             'faq_a' => ['No — somebody who knows your work must.', '', ''],
         ]));
         $d = AwardDetails::of(DB::table('gates_award_programmes')->where('id', $id)->first());
         $this->assertSame('Teachers in public schools, nominated through Africa GATES.', $d['eligibility']);
-        $this->assertSame('₦500,000 and a trophy', $d['prize'], 'markup reached the page');
+        $this->assertSame('Five judges', $d['judging_note'], 'markup reached the page');
         $this->assertSame([['q' => 'Can I nominate myself?', 'a' => 'No — somebody who knows your work must.']], $d['faq'],
             'a half-filled pair was kept');
-        $this->assertSame('', $d['judging_note'], 'an unset section is not blank-safe');
+        $this->assertSame('', $d['voting_note'], 'an unset section is not blank-safe');
+        $this->assertArrayNotHasKey('prize', $d, 'prizes live on the edition now (EditionPrizes)');
 
-        $this->assertNotNull(AwardDetails::save($id, ['prize' => str_repeat('x', 1001)]), 'the cap was not enforced');
+        $this->assertNotNull(AwardDetails::save($id, ['judging_note' => str_repeat('x', 1001)]), 'the cap was not enforced');
         $many = array_fill(0, 9, 'Q?');
         $this->assertNotNull(AwardDetails::save($id, ['faq_q' => $many, 'faq_a' => array_fill(0, 9, 'A.')]), 'nine questions were accepted');
     }

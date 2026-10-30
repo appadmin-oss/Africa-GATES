@@ -22,6 +22,9 @@
     background:#fffaf0; border-radius:0 8px 8px 0; font-size:13px; line-height:1.65;
     color:#7a5605 }
   .ed-new{ margin-top:14px }
+  .pz-row{ display:grid; grid-template-columns:2fr 1fr; gap:10px; margin:0 0 10px; padding:10px 12px; border:1px solid var(--cn-line-card); border-radius:8px }
+  .pz-row legend{ font-weight:700; font-size:13px; padding:0 4px }
+  @media (max-width:640px){ .pz-row{ grid-template-columns:1fr } }
   .ed-new__f{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
     gap:10px; align-items:end }
   .ed-new label{ display:block; font-size:11px; font-weight:700; letter-spacing:.05em;
@@ -324,6 +327,28 @@
   </div>
 
   <div>
+    {# ══ PRIZES, BY PLACE, FOR THIS EDITION (EditionPrizes) ═══════════════════
+       Its own form, outside the cycle form: a <form> inside another is dropped by the parser. #}
+    {% if cycle %}
+    <div class="ad-card" id="prizes" style="margin-bottom:14px">
+      <div class="ad-card__head"><div class="ad-card__title">Prizes<small>What each place wins overall in this edition, across every category. Shown on the award page and in the voting letter.</small></div></div>
+      <div class="ad-card__body">
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/cycle/prizes">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="cycle_id" value="{{ cycle.id }}">
+          {% set _rows = min(prizes|length + 2, prizes_max) %}
+          {% for i in 0..(_rows - 1) %}{% set z = prizes[i]|default({award: '', cash_naira: null}) %}
+          <fieldset class="pz-row">
+            <legend>{{ i + 1 }}{{ (i + 1) in [11,12,13] ? 'th' : ({1:'st',2:'nd',3:'rd'}[(i + 1) % 10]|default('th')) }} place</legend>
+            <div><label for="pz-a-{{ i }}">What they receive</label><input type="text" id="pz-a-{{ i }}" name="prizes[{{ i }}][award]" value="{{ z.award }}" maxlength="{{ prize_max }}" placeholder="{{ i == 0 ? 'A trophy and a year of mentoring' : '' }}"></div>
+            <div><label for="pz-c-{{ i }}">Cash (₦, optional)</label><input type="text" inputmode="numeric" id="pz-c-{{ i }}" name="prizes[{{ i }}][cash]" value="{{ z.cash_naira }}" placeholder="{{ i == 0 ? '500000' : '' }}"></div>
+          </fieldset>
+          {% endfor %}
+          <p class="hint" style="margin:0">Leave a place blank to remove it. Places are numbered in order, so there is never a gap. Save to add more rows.</p>
+          <div><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Save prizes</button></div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
     <div class="ad-card">
       <div class="ad-card__head"><div class="ad-card__title">Categories<small>For the current cycle</small></div></div>
       <div class="ad-card__body">

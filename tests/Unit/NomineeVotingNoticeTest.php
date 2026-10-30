@@ -357,14 +357,15 @@ final class NomineeVotingNoticeTest extends TestCase
     }
 
     /**
-     * The letter carries the prizes (the award's own "What winners receive") and the community
-     * return as this edition runs it (owner, 30 Oct 2026), in the letter, the email and the
-     * plain text, and still on one page with the longest prize text the form takes.
+     * The letter carries this edition's prizes by place (EditionPrizes) and the community return
+     * as this edition runs it (owners, 30–31 Oct 2026), in the letter, the email and the plain
+     * text, and the guide page still fits with the most places it draws at the longest text.
      */
     public function test_the_letter_carries_the_prizes_and_the_community_return(): void
     {
-        $prize = 'A trophy, a certificate and a cash prize of ₦500,000 for the overall winner.';
-        DB::table('gates_award_programmes')->where('id', $this->programmeId)->update(['details_json' => json_encode(['prize' => $prize])]);
+        $this->assertNull(\AfricaGates\Support\EditionPrizes::save($this->cycleId, [
+            ['award' => 'A trophy and a certificate', 'cash' => '500,000'], ['award' => '', 'cash' => ''], ['award' => 'A certificate', 'cash' => ''],
+        ]));
         DB::table('gates_settings')->insert(['key_name' => 'paid_voting_enabled', 'value' => '1']);
         $r = \AfricaGates\Services\CommunityReturnMilestone::saveEditionRules($this->cycleId, ['model' => 'pool', 'full_pct' => 20, 'target_votes' => 750]);
         $this->assertTrue($r['ok'], $r['message']);
@@ -373,8 +374,10 @@ final class NomineeVotingNoticeTest extends TestCase
         NomineeVotingNotice::sweep($m);
         foreach (['htmlBody', 'plainBody'] as $part) {
             $this->assertStringContainsString('Prizes to be won', $m->sent[0][$part]);
-            $this->assertStringContainsString('₦500,000', $m->sent[0][$part]);
-            $this->assertStringContainsString('overall winners of the edition', $m->sent[0][$part], 'the prizes are overall, never per category');
+            $this->assertStringContainsString('₦500,000 and a trophy and a certificate', $m->sent[0][$part]);
+            $this->assertStringContainsString('2nd place', $m->sent[0][$part], 'a blank row leaves no gap');
+            $this->assertStringNotContainsString('3rd place', $m->sent[0][$part]);
+            $this->assertStringContainsString('overall winners of the edition, across every category', $m->sent[0][$part], 'the prizes are overall, never per category');
             $this->assertStringContainsString('Your community return', $m->sent[0][$part]);
             $this->assertStringContainsString('same target: 750 votes', $m->sent[0][$part], 'read from the edition, not typed');
             $this->assertStringContainsString('verified account', $m->sent[0][$part]);
@@ -382,12 +385,15 @@ final class NomineeVotingNoticeTest extends TestCase
 
         // One page, at the longest prize text the form allows, and the full pool explanation.
         $v = self::view() + ['steps' => NomineeVotingNotice::steps()];
-        $v['prizes'] = ['The prizes are for the overall winners of the edition, ranked across every category.',
-                        str_repeat('A trophy and a cash prize for each winner. ', 11), str_repeat('Mentoring for a year. ', 18)];
+        $v['prizes'] = array_map(static fn (int $i): array => [\AfricaGates\Support\EditionPrizes::ordinal($i),
+            '₦1,000,000 and ' . str_repeat('a trophy, mentoring and a residency ', 8)], range(1, 10));
         $v['community_return'] = NomineeVotingNotice::communityReturn($this->programmeId, $this->cycleId);
         $this->assertCount(5, $v['community_return']);
         $this->assertSame(['The target', 'Every nominee has the same target: 750 votes, free and paid together.'], $v['community_return'][1]);
+        $short = $v + ['prizes' => array_map(static fn (int $i): array => [\AfricaGates\Support\EditionPrizes::ordinal($i), '₦1,000,000 and ' . str_repeat('x', 55)], range(1, 10))];
         foreach (['A4', 'letter'] as $paper) {
+            $mm = NomineeVotingLetter::measure($short, $paper, 'guide');
+            $this->assertLessThanOrEqual($mm['limit'], $mm['bottom'], 'eight one-line places run into the footer on ' . $paper);
             foreach (['letter', 'guide'] as $page) {
                 $mm = NomineeVotingLetter::measure($v, $paper, $page);
                 $this->assertLessThanOrEqual($mm['limit'], $mm['bottom'], sprintf('the %s page runs %.1fmm into the footer on %s', $page, $mm['bottom'] - $mm['limit'], $paper));

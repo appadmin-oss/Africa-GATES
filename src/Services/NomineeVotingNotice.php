@@ -313,7 +313,8 @@ final class NomineeVotingNotice
             'signatory_title' => $cfg['signatory_title'],
             'how'             => self::howVotingWorks((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'steps'           => self::steps((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
-            'prizes'          => self::prizes((int) ($cycle->programme_id ?? 0)),
+            'prizes'          => self::prizes((int) $cycle->id ?: null),
+            'prizes_lead'     => \AfricaGates\Support\EditionPrizes::LEAD,
             'community_return'=> self::communityReturn((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'paper'           => NomineeVotingLetter::paperFor((string) ($nominee->country_code ?? '')),
         ] + self::words((int) $cycle->id);
@@ -436,21 +437,16 @@ final class NomineeVotingNotice
     }
 
     /**
-     * What winners receive, in the award's own words (AwardDetails "What winners receive"), as
-     * paragraphs. Nothing typed here: an award that has not said leaves the section out.
+     * What each place wins in this edition (EditionPrizes), as labelled rows: [place, prize].
+     * Nothing typed here: an edition with no prizes set leaves the section out. The places are
+     * the edition's OVERALL standing (owner, 30 Oct 2026), and every reader says so with
+     * EditionPrizes::LEAD.
      *
-     * @return list<string>
+     * @return list<array{0:string,1:string}>
      */
-    public static function prizes(int $programmeId): array
+    public static function prizes(?int $cycleId): array
     {
-        if ($programmeId < 1) return [];
-        $p = DB::table('gates_award_programmes')->where('id', $programmeId)->first();
-        $text = trim((string) (\AfricaGates\Support\AwardDetails::of($p ?: null)['prize'] ?? ''));
-        if ($text === '') return [];
-        // The prizes are the edition's OVERALL award, decided across every category, not a
-        // prize per category (owner, 30 Oct 2026). Said first, so nobody reads them that way.
-        return array_merge(['The prizes are for the overall winners of the edition, ranked across every category.'],
-            array_values(array_filter(array_map('trim', preg_split("/\n{2,}/", $text) ?: []))));
+        return array_map(static fn (array $z): array => [$z['label'], $z['text']], \AfricaGates\Support\EditionPrizes::for($cycleId));
     }
 
     /**
@@ -531,7 +527,7 @@ final class NomineeVotingNotice
             ],
             array_merge(...array_map(static fn (array $h, int $i): array =>
                 [($i + 1) . '. ' . $h['title'] . '. ' . $h['text']], $v['how'], array_keys($v['how']))),
-            ($v['prizes'] ?? []) ? array_merge(['', 'Prizes to be won'], $v['prizes']) : [],
+            ($v['prizes'] ?? []) ? array_merge(['', 'Prizes to be won', \AfricaGates\Support\EditionPrizes::LEAD], array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['prizes'])) : [],
             ($v['community_return'] ?? []) ? array_merge(['', 'Your community return'], array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['community_return'])) : [],
             [
                 '',

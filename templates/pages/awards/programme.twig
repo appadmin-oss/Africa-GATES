@@ -153,8 +153,12 @@
     {% if _d.eligibility %}
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'Who can be nominated'|trans }}</h2>{% for para in _d.eligibility|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}</section>
     {% endif %}
-    {% if _d.prize %}
-    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'What winners receive'|trans }}</h2>{% for para in _d.prize|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}</section>
+    {# Per edition, by place (EditionPrizes): the edition shown, never a prize per category. #}
+    {% if a.prizes %}
+    <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'What winners receive'|trans }}</h2>
+      <p>{{ 'For the overall winners of the edition, across every category.'|trans }}</p>
+      <dl class="aw-prizes">{% for z in a.prizes %}<div class="aw-prizes__r"><dt>{{ z.label }}</dt><dd>{{ z.text }}</dd></div>{% endfor %}</dl>
+    </section>
     {% endif %}
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'How nominations work'|trans }}</h2>
       <p>{{ (a.nom_rules.min == a.nom_rules.max

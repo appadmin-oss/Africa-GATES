@@ -303,3 +303,9 @@
 .aw-pool__bar{ display:block; height:8px; border-radius:999px; background:var(--ag-line); overflow:hidden }
 .aw-pool__bar span{ display:block; height:100%; background:var(--ag-ink) }
 .aw-pool__s{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
+
+/* What each place wins in the edition shown (EditionPrizes). */
+.aw-prizes{ margin:0; border-top:1px solid var(--ag-line) }
+.aw-prizes__r{ display:grid; grid-template-columns:7.5rem 1fr; gap:12px; padding:10px 0; border-bottom:1px solid var(--ag-line) }
+.aw-prizes__r dt{ font-weight:700 }
+.aw-prizes__r dd{ margin:0 }
