@@ -213,6 +213,18 @@ final class NomineeVotingLetter
             }
         }
 
+        // ── prizes to be won, and the community return ───────────────────────
+        // Short, from the award's own words and the edition's rules
+        // (NomineeVotingNotice::prizes(), ::communityReturn()); left out when empty.
+        // One short paragraph each, the label run in, so the letter keeps to one page; the email
+        // carries them in full.
+        $prize = trim((string) (((array) ($v['prizes'] ?? []))[0] ?? ''));
+        foreach ([['Prizes to be won: ', $prize, 2], ['Your community return: ', trim((string) ($v['return_short'] ?? '')), 3]] as [$h, $para, $max]) {
+            if ($para === '') continue;
+            $y += $gap(2.4);
+            $y = $put($h . $para, $x, $y, $w, 'serif', 12.0, $leadAddr, $ink, $max);
+        }
+
         // ── the vote row: the QR, and the address for whoever cannot scan ────
         $y += $gap(5.0);
         $qr = 21.0;

@@ -354,6 +354,51 @@ final class NomineeVotingNoticeTest extends TestCase
         $this->assertSame('A4', NomineeVotingLetter::paperFor(''));
     }
 
+    /**
+     * The letter carries the prizes (the award's own "What winners receive") and the community
+     * return as this edition runs it (owner, 30 Oct 2026), in the letter, the email and the
+     * plain text, and still on one page with the longest prize text the form takes.
+     */
+    public function test_the_letter_carries_the_prizes_and_the_community_return(): void
+    {
+        $prize = 'A trophy, a certificate and a cash prize of ₦500,000 for each category winner.';
+        DB::table('gates_award_programmes')->where('id', $this->programmeId)->update(['details_json' => json_encode(['prize' => $prize])]);
+        DB::table('gates_settings')->insert(['key_name' => 'paid_voting_enabled', 'value' => '1']);
+        $r = \AfricaGates\Services\CommunityReturnMilestone::saveEditionRules($this->cycleId, ['model' => 'pool', 'full_pct' => 20, 'target_votes' => 750]);
+        $this->assertTrue($r['ok'], $r['message']);
+        $this->nominee('Ada Obi');
+        $m = $this->recorder();
+        NomineeVotingNotice::sweep($m);
+        foreach (['htmlBody', 'plainBody'] as $part) {
+            $this->assertStringContainsString('Prizes to be won', $m->sent[0][$part]);
+            $this->assertStringContainsString('₦500,000', $m->sent[0][$part]);
+            $this->assertStringContainsString('Your community return', $m->sent[0][$part]);
+            $this->assertStringContainsString('same target of 750 votes', $m->sent[0][$part], 'read from the edition, not typed');
+            $this->assertStringContainsString('verified account', $m->sent[0][$part]);
+        }
+
+        // One page, at the longest prize text the form allows, and the full pool explanation.
+        $v = self::view() + ['steps' => NomineeVotingNotice::steps()];
+        $v['prizes'] = [str_repeat('A trophy and a cash prize for each winner. ', 11), str_repeat('Mentoring for a year. ', 18)];
+        $v['community_return'] = NomineeVotingNotice::communityReturn($this->programmeId, $this->cycleId);
+        $v['return_short'] = NomineeVotingNotice::communityReturnShort($this->cycleId);
+        $this->assertCount(3, $v['community_return']);
+        $this->assertStringContainsString('750 votes', $v['return_short']);
+        foreach (['A4', 'letter'] as $paper) {
+            $mm = NomineeVotingLetter::measure($v, $paper);
+            $this->assertLessThanOrEqual($mm['limit'], $mm['bottom'], sprintf('runs %.1fmm into the footer on %s', $mm['bottom'] - $mm['limit'], $paper));
+        }
+    }
+
+    public function test_an_award_with_no_prize_and_no_paid_voting_says_neither(): void
+    {
+        $this->nominee('Ada Obi');
+        $m = $this->recorder();
+        NomineeVotingNotice::sweep($m);
+        $this->assertStringNotContainsString('Prizes to be won', $m->sent[0]['htmlBody']);
+        $this->assertStringNotContainsString('community return', $m->sent[0]['htmlBody'], 'nothing can be raised in a nominee’s name');
+    }
+
     /** The steps are true of THIS edition: no free vote promised where there is none, no price where none is sold. */
     public function test_the_letters_steps_follow_the_voting_rules(): void
     {

@@ -313,6 +313,9 @@ final class NomineeVotingNotice
             'signatory_title' => $cfg['signatory_title'],
             'how'             => self::howVotingWorks((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'steps'           => self::steps((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
+            'prizes'          => self::prizes((int) ($cycle->programme_id ?? 0)),
+            'community_return'=> self::communityReturn((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
+            'return_short'    => self::communityReturnShort((int) $cycle->id ?: null),
             'paper'           => NomineeVotingLetter::paperFor((string) ($nominee->country_code ?? '')),
         ] + self::words((int) $cycle->id);
     }
@@ -433,6 +436,64 @@ final class NomineeVotingNotice
         return $out;
     }
 
+    /**
+     * What winners receive, in the award's own words (AwardDetails "What winners receive"), as
+     * paragraphs. Nothing typed here: an award that has not said leaves the section out.
+     *
+     * @return list<string>
+     */
+    public static function prizes(int $programmeId): array
+    {
+        if ($programmeId < 1) return [];
+        $p = DB::table('gates_award_programmes')->where('id', $programmeId)->first();
+        $text = trim((string) (\AfricaGates\Support\AwardDetails::of($p ?: null)['prize'] ?? ''));
+        if ($text === '') return [];
+        return array_values(array_filter(array_map('trim', preg_split("/\n{2,}/", $text) ?: [])));
+    }
+
+    /**
+     * The community return, as this edition runs it, in short sentences. Left out where it
+     * cannot pay: paid voting off (nothing raises money in a nominee's name) or a 0% share.
+     * The target pool (CommunityReturnPool) is told in full, because it is the one a nominee
+     * can work towards; the other models say their rule in one sentence.
+     *
+     * @return list<string>
+     */
+    public static function communityReturn(?int $programmeId, ?int $cycleId): array
+    {
+        if (!CommunityReturnService::active()) return [];
+        $rules = CommunityReturnMilestone::rulesForCycle($cycleId);
+        if ((int) ($rules['community_return_bps'] ?? 0) <= 0) return [];
+        $withdraw = 'To withdraw your share you need a verified account and a verified claim on your nominee page.';
+        if (CommunityReturnService::modelOf($rules) !== CommunityReturnService::MODEL_POOL) {
+            return [CommunityReturnMilestone::summary($rules), $withdraw];
+        }
+        $pct = CommunityReturnLadder::pct((int) $rules['community_return_bps']);
+        $target = number_format(max(1, (int) ($rules['community_return_target_votes'] ?? 1000)));
+        return [
+            $pct . '% of every contribution made for a nominee in this edition goes into one community-return pool.',
+            'Every nominee has the same target of ' . $target . ' votes, free and paid together. When voting closes, '
+              . 'the nominees who reached it share the pool by their votes; if only one reaches it, they receive all of it. '
+              . 'If nobody reaches it, the pool goes to the programme’s reserves.',
+            $withdraw,
+        ];
+    }
+
+    /**
+     * The community return in one sentence, for the one-page letter: the email carries the full
+     * explanation, and the letter must stay one page at A4 and at US Letter.
+     */
+    public static function communityReturnShort(?int $cycleId): string
+    {
+        if (!CommunityReturnService::active()) return '';
+        $rules = CommunityReturnMilestone::rulesForCycle($cycleId);
+        if ((int) ($rules['community_return_bps'] ?? 0) <= 0) return '';
+        if (CommunityReturnService::modelOf($rules) !== CommunityReturnService::MODEL_POOL) return CommunityReturnMilestone::summary($rules);
+        return CommunityReturnLadder::pct((int) $rules['community_return_bps']) . '% of every contribution goes into one pool. '
+             . 'The nominees who reach ' . number_format(max(1, (int) ($rules['community_return_target_votes'] ?? 1000)))
+             . ' votes share it by their votes. The email explains how.';
+    }
+
     /** "AG/VOT/{cycle}/{nominee}": stable, so a reprint and the original agree. */
     public static function reference(int $cycleId, int $nomineeId): string
     {
@@ -484,6 +545,8 @@ final class NomineeVotingNotice
             ],
             array_merge(...array_map(static fn (array $h, int $i): array =>
                 [($i + 1) . '. ' . $h['title'] . '. ' . $h['text']], $v['how'], array_keys($v['how']))),
+            ($v['prizes'] ?? []) ? array_merge(['', 'Prizes to be won'], $v['prizes']) : [],
+            ($v['community_return'] ?? []) ? array_merge(['', 'Your community return'], $v['community_return']) : [],
             [
                 '',
                 'The formal letter of notification is attached, for your records.',
