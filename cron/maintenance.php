@@ -6,7 +6,7 @@
  * actual orchestration and is shared with the token-gated webcron endpoint
  * (/__cron/run). Hooked from a single cron entry (every 15 min, or hourly):
  *
- *   * /15 * * * *  /usr/bin/php /path/to/cron/maintenance.php
+ *   * /15 * * * *  /opt/cpanel/ea-php84/root/usr/bin/php /path/to/cron/maintenance.php
  *
  * Manual run:  php cron/maintenance.php [task]
  *   tasks: cycles | cpi | cache | queue | otp | magic | collusion | digest | all

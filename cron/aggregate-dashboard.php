@@ -3,7 +3,7 @@ declare(strict_types=1);
 use Illuminate\Support\Carbon;
 /**
  * AFRICA GATES DASHBOARD CRON — Run every 4h
- * cPanel: 0 0,4,8,12,16,20 * * * /usr/bin/php /path/to/cron/aggregate-dashboard.php
+ * cPanel: 0 0,4,8,12,16,20 * * * /opt/cpanel/ea-php84/root/usr/bin/php /path/to/cron/aggregate-dashboard.php
  */
 require __DIR__.'/../vendor/autoload.php';
 Dotenv\Dotenv::createImmutable(__DIR__.'/../')->safeLoad();

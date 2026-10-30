@@ -2,7 +2,7 @@
 declare(strict_types=1);
 /**
  * AFRICA GATES CPI CRON — Run every 6h
- * cPanel: 0 0,6,12,18 * * * /usr/bin/php /path/to/cron/recalculate-cpi.php
+ * cPanel: 0 0,6,12,18 * * * /opt/cpanel/ea-php84/root/usr/bin/php /path/to/cron/recalculate-cpi.php
  *
  * NOTE: there must be exactly ONE CPI formula. The canonical implementation
  * lives in src/Console/Commands/CpiRecomputeCommand.php (45% community votes +
