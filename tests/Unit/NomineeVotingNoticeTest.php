@@ -363,7 +363,7 @@ final class NomineeVotingNoticeTest extends TestCase
      */
     public function test_the_letter_carries_the_prizes_and_the_community_return(): void
     {
-        $prize = 'A trophy, a certificate and a cash prize of ₦500,000 for each category winner.';
+        $prize = 'A trophy, a certificate and a cash prize of ₦500,000 for the overall winner.';
         DB::table('gates_award_programmes')->where('id', $this->programmeId)->update(['details_json' => json_encode(['prize' => $prize])]);
         DB::table('gates_settings')->insert(['key_name' => 'paid_voting_enabled', 'value' => '1']);
         $r = \AfricaGates\Services\CommunityReturnMilestone::saveEditionRules($this->cycleId, ['model' => 'pool', 'full_pct' => 20, 'target_votes' => 750]);
@@ -374,6 +374,7 @@ final class NomineeVotingNoticeTest extends TestCase
         foreach (['htmlBody', 'plainBody'] as $part) {
             $this->assertStringContainsString('Prizes to be won', $m->sent[0][$part]);
             $this->assertStringContainsString('₦500,000', $m->sent[0][$part]);
+            $this->assertStringContainsString('overall winners of the edition', $m->sent[0][$part], 'the prizes are overall, never per category');
             $this->assertStringContainsString('Your community return', $m->sent[0][$part]);
             $this->assertStringContainsString('same target: 750 votes', $m->sent[0][$part], 'read from the edition, not typed');
             $this->assertStringContainsString('verified account', $m->sent[0][$part]);
@@ -381,7 +382,8 @@ final class NomineeVotingNoticeTest extends TestCase
 
         // One page, at the longest prize text the form allows, and the full pool explanation.
         $v = self::view() + ['steps' => NomineeVotingNotice::steps()];
-        $v['prizes'] = [str_repeat('A trophy and a cash prize for each winner. ', 11), str_repeat('Mentoring for a year. ', 18)];
+        $v['prizes'] = ['The prizes are for the overall winners of the edition, ranked across every category.',
+                        str_repeat('A trophy and a cash prize for each winner. ', 11), str_repeat('Mentoring for a year. ', 18)];
         $v['community_return'] = NomineeVotingNotice::communityReturn($this->programmeId, $this->cycleId);
         $this->assertCount(5, $v['community_return']);
         $this->assertSame(['The target', 'Every nominee has the same target: 750 votes, free and paid together.'], $v['community_return'][1]);

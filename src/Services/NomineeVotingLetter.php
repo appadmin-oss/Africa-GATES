@@ -277,8 +277,9 @@ final class NomineeVotingLetter
                     $y = $put((string) $step, $y, 'serif', 12.0, $lead, $ink, 5, $x + 14.0, $w - 14.0) + $gap(2.0);
                 }
             } elseif ($kind === 'paras') {
-                // At most two paragraphs of five lines: the award's full words are on its page.
-                foreach (array_slice($items, 0, 2) as $para) $y = $put((string) $para, $y, 'serif', 12.0, $lead, $ink, 5, $x + 8.0, $w - 8.0) + $gap(2.4);
+                // The "overall winners" line and at most two paragraphs of four lines: the award's
+                // full words are on its page.
+                foreach (array_slice($items, 0, 3) as $para) $y = $put((string) $para, $y, 'serif', 12.0, $lead, $ink, 4, $x + 8.0, $w - 8.0) + $gap(2.4);
             } else {
                 $labelW = 47.0;
                 foreach ($items as $i => $row) {

@@ -447,7 +447,10 @@ final class NomineeVotingNotice
         $p = DB::table('gates_award_programmes')->where('id', $programmeId)->first();
         $text = trim((string) (\AfricaGates\Support\AwardDetails::of($p ?: null)['prize'] ?? ''));
         if ($text === '') return [];
-        return array_values(array_filter(array_map('trim', preg_split("/\n{2,}/", $text) ?: [])));
+        // The prizes are the edition's OVERALL award, decided across every category, not a
+        // prize per category (owner, 30 Oct 2026). Said first, so nobody reads them that way.
+        return array_merge(['The prizes are for the overall winners of the edition, ranked across every category.'],
+            array_values(array_filter(array_map('trim', preg_split("/\n{2,}/", $text) ?: []))));
     }
 
     /**
