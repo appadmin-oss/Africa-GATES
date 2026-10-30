@@ -322,6 +322,15 @@ final class VolunteerController
         if (in_array($b['do'] ?? '', ['outreach_log', 'outreach_email'], true) && !$r['ok']) {
             $_SESSION['vol_old'] = array_intersect_key($b, array_flip(['channel', 'outcome', 'note', 'follow_up_on', 'to', 'subject', 'body']));
         }
+        // A conversation logged opens the next nominee best to reach (Outreach::next), so a volunteer
+        // works down the award without going back to the list; the list when nobody is left.
+        if (in_array($b['do'] ?? '', ['outreach_log', 'outreach_email'], true) && $r['ok']) {
+            $nid = (int) ($b['nominee'] ?? 0);
+            $cycle = (int) (DB::table('gates_nominees as n')->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')->where('n.id', $nid)->value('c.cycle_id') ?? 0);
+            $next = $cycle ? Outreach::next($v, $cycle, $nid) : null;
+            $back = '/volunteer/cycle/' . $cycle . '/nominees' . ($next ? '?n=' . $next->id : '');
+            $_SESSION['vol_toast'] = $r['msg'] . ($next ? ' Next: ' . $next->name . '.' : ' Nobody else is waiting to be reached.');
+        }
         // A sent check opens the next one waiting (a HubSpot-style queue), so a checker works
         // through them without returning to the list each time; the list when none is left.
         if (($b['do'] ?? '') === 'nomcheck' && $r['ok']) {

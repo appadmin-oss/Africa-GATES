@@ -83,6 +83,13 @@ final class Outreach
     /** Days until the follow-up when none is picked, by outcome. The rest have none. */
     public const RETRY_DAYS = ['no_answer' => 2, 'left_message' => 2];
 
+    /** What a nominee's profile still needs, in the words a volunteer says on the phone. */
+    public const NEEDS = ['contact' => 'a phone and email', 'photo' => 'a photo', 'bio' => 'a short bio',
+                          'evidence' => 'evidence of their work', 'terms' => 'to accept the terms'];
+
+    /** Somebody on the team reached them this recently: give them room (days). */
+    public const RECENT_DAYS = 2;
+
     /** Emails a volunteer may send in a day. A busy day of follow-ups, not a list. */
     public const EMAILS_PER_DAY = 25;
 
@@ -169,16 +176,75 @@ final class Outreach
             ->orderBy('n.name')->limit(3000)
             ->get(['n.id', 'n.name', 'n.organisation', 'c.cycle_id', 'c.title as category'])->all();
         $last = self::lastFor(array_keys($awards));
+        $prof = self::profiles(array_map(static fn ($r) => (int) $r->id, $rows));
         $today = date('Y-m-d');
+        $recent = date('Y-m-d H:i:s', strtotime('-' . self::RECENT_DAYS . ' days'));
         foreach ($rows as $r) {
             $r->award = $awards[(int) $r->cycle_id] ?? '';
             $r->last = $last[(int) $r->id]['last'] ?? null;
             $r->stopped = $last[(int) $r->id]['stopped'] ?? false;
+            $r->spoke = $last[(int) $r->id]['spoke'] ?? false;
             $r->due = !$r->stopped && $r->last && $r->last->follow_up_on && (string) $r->last->follow_up_on <= $today;
+            // Reached in the last two days, and not merely tried: the next call can wait.
+            $r->recent = !$r->due && $r->last && (string) $r->last->created_at >= $recent && in_array($r->last->outcome, ['reached', 'left_message'], true);
+            $r->needs = $prof[(int) $r->id]['needs'] ?? array_keys(self::NEEDS);
+            $r->linked = $prof[(int) $r->id]['linked'] ?? false;
+            // Who to ring next, most useful first: a promised follow-up, then somebody nobody has
+            // tried, then a profile with gaps, then the finished; the recently reached and the
+            // stopped last, because ringing either again is the call the nominee did not want.
+            $r->rank = $r->stopped ? 5 : ($r->due ? 0 : ($r->recent ? 4 : (!$r->last ? 1 : ($r->needs ? 2 : 3))));
         }
-        usort($rows, static fn ($a, $b) => [$b->due, !$a->last && !$a->stopped, $a->stopped ? 1 : 0] <=> [$a->due, !$b->last && !$b->stopped, $b->stopped ? 1 : 0]
-            ?: strcasecmp((string) $a->name, (string) $b->name));
+        usort($rows, static fn ($a, $b) => [$a->rank, -count($a->needs)] <=> [$b->rank, -count($b->needs)] ?: strcasecmp((string) $a->name, (string) $b->name));
         return self::$list[(int) $v->id] = $rows;
+    }
+
+    /**
+     * Who is best to reach next on an award: the top of the list that is not this nominee, has not
+     * asked to stop and was not reached in the last two days. Null when nobody is left to try.
+     */
+    public static function next(object $v, int $cycle, int $after = 0): ?object
+    {
+        foreach (self::nominees($v, $cycle) as $r) {
+            if ((int) $r->id !== $after && $r->rank <= 2) return $r;
+        }
+        return null;
+    }
+
+    /** How the award stands for the whole team: nominees, reached at least once, profiles complete. */
+    public static function coverage(object $v, int $cycle): array
+    {
+        $rows = self::nominees($v, $cycle);
+        return ['total' => count($rows), 'reached' => count(array_filter($rows, static fn ($r) => $r->spoke)),
+                'complete' => count(array_filter($rows, static fn ($r) => !$r->needs))];
+    }
+
+    /**
+     * What each nominee's profile still needs (NomineeDetails' checklist, read in two queries for
+     * the whole list rather than three per nominee), and whether they have made their account.
+     *
+     * @param list<int> $ids
+     * @return array<int,array{needs:list<string>, linked:bool}>
+     */
+    private static function profiles(array $ids): array
+    {
+        if (!$ids || !NomineeDetails::ready()) return [];
+        $files = [];
+        foreach (array_chunk($ids, 500) as $chunk) {
+            foreach (DB::table('gates_nominee_files')->whereIn('nominee_id', $chunk)->whereNull('removed_at')->distinct()->get(['nominee_id', 'kind']) as $f) {
+                $files[(int) $f->nominee_id][(string) $f->kind] = true;
+            }
+        }
+        $out = [];
+        foreach (array_chunk($ids, 500) as $chunk) {
+            foreach (DB::table('gates_nominee_details')->whereIn('nominee_id', $chunk)->get(['nominee_id', 'phones', 'emails', 'bio', 'terms_at', 'user_id']) as $d) {
+                $k = (int) $d->nominee_id;
+                $have = ['contact' => NomineeDetails::list($d->phones) !== [] && NomineeDetails::list($d->emails) !== [],
+                         'photo' => isset($files[$k]['photo']), 'bio' => mb_strlen(trim((string) $d->bio)) >= 20,
+                         'evidence' => isset($files[$k]['evidence']), 'terms' => (bool) $d->terms_at];
+                $out[$k] = ['needs' => array_keys(array_filter($have, static fn ($x) => !$x)), 'linked' => (bool) $d->user_id];
+            }
+        }
+        return $out;
     }
 
     /** Follow-ups due today or earlier, across this person's awards. The rail's count. */
@@ -209,7 +275,42 @@ final class Outreach
         $n->phones = $n->stopped || !$n->agreed ? [] : $c['phones'];
         $n->emails = $n->stopped || !$n->agreed ? [] : $c['emails'];
         $n->email_today = !$n->stopped && self::emailedToday($id);
+        $pr = self::profiles([$id])[$id] ?? ['needs' => array_keys(self::NEEDS), 'linked' => false];
+        $n->needs = $pr['needs'];
+        $n->linked = $pr['linked'];
+        $h = $n->history[0] ?? null;
+        $n->recent = $h && !$n->stopped && (string) $h->created_at >= date('Y-m-d H:i:s', strtotime('-' . self::RECENT_DAYS . ' days'))
+                  && in_array($h->outcome, ['reached', 'left_message'], true) && !($h->follow_up_on && (string) $h->follow_up_on <= date('Y-m-d'));
         return $n;
+    }
+
+    /** What the profile still needs, as one phrase: "a photo, a short bio and evidence of their work". */
+    public static function needsPhrase(array $needs): string
+    {
+        $w = array_values(array_intersect_key(self::NEEDS, array_flip($needs)));
+        return count($w) > 1 ? implode(', ', array_slice($w, 0, -1)) . ' and ' . end($w) : (string) ($w[0] ?? '');
+    }
+
+    /**
+     * A first draft of an email, written from what the nominee's profile still needs. A draft
+     * only: the volunteer reads it, changes it and sends it to one person, or does not.
+     */
+    public static function draft(object $v, object $n): string
+    {
+        $first = \AfricaGates\Services\DoorWelcome::firstName((string) $n->name) ?: (string) $n->name;
+        $me = Volunteers::firstName($v);
+        $base = rtrim(SiteUrl::base(), '/');
+        $ask = !$n->linked
+            ? "We emailed you a link to set up your nominee profile. If you can't find it, reply and I'll ask the team to send it again."
+            : ($n->needs ? 'Your profile still needs ' . self::needsPhrase($n->needs) . '. You can add them here: ' . $base . '/account/nomination'
+                         : 'Your profile is complete. Thank you. Is there anything you would like to ask about the award?');
+        return "Hello {$first},
+
+I'm {$me}, a volunteer with Africa GATES for {$n->award}. Congratulations on your nomination.
+
+{$ask}
+
+If you have a question, just reply to this email.";
     }
 
     /** Every conversation with a nominee, newest first, with the volunteer's name. @return list<object> */
@@ -345,9 +446,14 @@ final class Outreach
         foreach (DB::table('gates_vol_outreach')->whereIn('id', $newest)
                      ->orWhere(static fn ($w) => $w->whereIn('cycle_id', $cycles)->where('outcome', 'stop'))->orderBy('id')->get() as $r) {
             $k = (int) $r->nominee_id;
-            $out[$k] ??= ['last' => null, 'stopped' => false];
+            $out[$k] ??= ['last' => null, 'stopped' => false, 'spoke' => false];
             $out[$k]['last'] = $r;
             if ($r->outcome === 'stop') $out[$k]['stopped'] = true;
+        }
+        // Anybody on the team has actually spoken to them, ever: one id per nominee, not the rows.
+        foreach (DB::table('gates_vol_outreach')->whereIn('cycle_id', $cycles)->where('outcome', 'reached')->distinct()->pluck('nominee_id') as $k) {
+            $out[(int) $k] ??= ['last' => null, 'stopped' => false, 'spoke' => false];
+            $out[(int) $k]['spoke'] = true;
         }
         return $out;
     }

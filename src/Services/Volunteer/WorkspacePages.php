@@ -734,12 +734,24 @@ final class WorkspacePages
         foreach (Outreach::nominees($v, $id, $find, $show) as $n) {
             $last = $n->last;
             $sub = $n->category . ' · ' . ($last ? (Outreach::OUTCOMES[$last->outcome] ?? '') . ', ' . Workspace::day((string) $last->created_at)
-                . ($last->follow_up_on && !$n->stopped ? ' · follow up ' . Workspace::day((string) $last->follow_up_on) : '') : 'nobody has reached them yet');
+                . ($last->follow_up_on && !$n->stopped ? ' · follow up ' . Workspace::day((string) $last->follow_up_on) : '') : 'nobody has reached them yet')
+                . ($n->stopped ? '' : ' · ' . self::profileWords($n));
             $rows[] = ['t' => (string) $n->name, 'sub' => $sub, 'href' => $base . '?n=' . $n->id,
-                       'chip' => $n->stopped ? ['Asked not to be contacted', 'mute'] : ($n->due ? ['Follow up', 'warn'] : ($last ? null : ['Not reached yet', 'info']))];
+                       'chip' => $n->stopped ? ['Asked not to be contacted', 'mute'] : ($n->due ? ['Follow up', 'warn']
+                           : ($n->recent ? ['Reached ' . Workspace::day((string) $last->created_at), 'ok'] : ($last ? null : ['Not reached yet', 'info'])))];
         }
-        $secs = [['k' => 'form', 'get' => $base . ($show ? '/' . $show : ''), 'label' => 'Find a nominee', 'submit' => 'Find', 'clear' => $find !== '',
-                  'fields' => [['name' => 'q', 'label' => 'Name', 'type' => 'search', 'autocomplete' => 'off', 'value' => $find]]]];
+        $secs = [];
+        if ($find === '' && $show === '' && Outreach::agreed($v, $id)) {
+            $cv = Outreach::coverage($v, $id);
+            if ($cv['total'] > 0) $secs[] = ['k' => 'stats', 'items' => [
+                ['l' => 'Spoken to', 'v' => $cv['reached'] . ' of ' . $cv['total'], 'pct' => (int) round(100 * $cv['reached'] / $cv['total']), 's' => 'By anybody on the team'],
+                ['l' => 'Profiles complete', 'v' => $cv['complete'] . ' of ' . $cv['total'], 'pct' => (int) round(100 * $cv['complete'] / $cv['total'])]]];
+            $nx = Outreach::next($v, $id);
+            if ($nx) $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Best to reach next: ' . $nx->name . ' (' . self::why($nx) . ').',
+                                'cta' => ['label' => 'Open', 'href' => $base . '?n=' . $nx->id]];
+        }
+        $secs[] = ['k' => 'form', 'get' => $base . ($show ? '/' . $show : ''), 'label' => 'Find a nominee', 'submit' => 'Find', 'clear' => $find !== '',
+                   'fields' => [['name' => 'q', 'label' => 'Name', 'type' => 'search', 'autocomplete' => 'off', 'value' => $find]]];
         $empty = match (true) {
             $find !== '' => 'Nobody by that name on this award.',
             $show === 'due' => 'No follow-ups due. Well done.',
@@ -750,6 +762,23 @@ final class WorkspacePages
                         : ['k' => 'note', 'text' => $empty, 'tone' => 'mute'];
         $secs = Outreach::agreed($v, $id) ? [...$secs, ...self::outreachTerms($v, $p)] : [...self::outreachTerms($v, $p), ...$secs];
         return ['title' => 'Nominees', 'secs' => $secs];
+    }
+
+    /** Where a nominee's profile stands, in a few words for a list row. */
+    private static function profileWords(object $n): string
+    {
+        if (!$n->linked) return 'no account yet';
+        return $n->needs ? 'needs ' . Outreach::needsPhrase($n->needs) : 'profile complete';
+    }
+
+    /** Why a nominee is the best to reach next, in a few words. */
+    private static function why(object $n): string
+    {
+        return match ((int) $n->rank) {
+            0 => 'follow-up due',
+            1 => 'nobody has reached them yet',
+            default => self::profileWords($n),
+        };
     }
 
     /** The rules on a nominee's details: to agree to, or as the standing reminder once agreed. */
@@ -786,7 +815,23 @@ final class WorkspacePages
         if (!$n->agreed) {
             return ['title' => (string) $n->name, 'kicker' => 'Nominees', 'noHead' => true, 'secs' => [...$secs, ...self::outreachTerms($v, $p)]];
         }
-        // The history before the number: "Bola rang twice" is read before the third call, not after it.
+        // In the order a call goes: a warning if somebody just reached them, what to talk about,
+        // what the team has already said (read before the number, not after the third call), how
+        // to reach them, and then the outcome.
+        if ($n->recent) {
+            $h = $n->history[0];
+            $secs[] = ['k' => 'note', 'tone' => 'warn', 'text' => $h->by . ' reached them ' . Workspace::day((string) $h->created_at)
+                . '. Give them a day or two, unless they asked you to call.'];
+        }
+        if ($n->stopped) {
+            $secs[] = ['k' => 'note', 'tone' => 'warn', 'text' => 'They asked not to be contacted. Nobody on this award reaches out to them again, so their details are hidden.'];
+        } else {
+            $secs[] = ['k' => 'rows', 'h' => 'What to help with', 'items' => [
+                ['t' => $n->linked ? 'Account made' : 'No account yet', 'sub' => $n->linked ? 'They can sign in and add to their profile.' : 'They haven’t opened the link we emailed.',
+                 'chip' => $n->linked ? ['Done', 'ok'] : ['To do', 'warn']],
+                ['t' => $n->needs ? 'Still needs ' . Outreach::needsPhrase($n->needs) : 'Profile complete', 'sub' => $n->needs ? 'They add it themselves. You never upload for them.' : '',
+                 'chip' => $n->needs ? ['To do', 'warn'] : ['Done', 'ok']]]];
+        }
         $hist = [];
         foreach ($n->history as $h) {
             $what = $h->body !== null ? 'Email: ' . (string) $h->subject : (Outreach::OUTCOMES[$h->outcome] ?? '') . ' · ' . (Outreach::CHANNELS[$h->channel] ?? '');
@@ -797,19 +842,23 @@ final class WorkspacePages
         }
         $secs[] = $hist ? ['k' => 'rows', 'h' => 'What the team has said', 'items' => $hist]
                         : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nobody on the team has reached them yet.'];
-        if ($n->stopped) {
-            $secs[] = ['k' => 'note', 'tone' => 'warn', 'text' => 'They asked not to be contacted. Nobody on this award reaches out to them again, so their details are hidden.'];
-        } else {
+        if (!$n->stopped) {
             $reach = [];
             foreach ($n->phones as $ph) $reach[] = ['t' => (string) $ph, 'sub' => 'Phone', 'cta' => ['label' => 'Call', 'href' => Outreach::dial((string) $ph)['tel']]];
             foreach ($n->emails as $em) $reach[] = ['t' => (string) $em, 'sub' => 'Email', 'cta' => $n->email_today ? null : ['label' => 'Write', 'href' => '#write']];
             $secs[] = $reach ? ['k' => 'rows', 'h' => 'How to reach them', 'items' => $reach]
                              : ['k' => 'note', 'tone' => 'mute', 'text' => 'No phone or email on file yet. They add them when they finish their profile.'];
-            if ($n->phones) $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Calls and WhatsApp use your own phone, so they show your number.'];
-            $secs = [...$secs, ...self::outreachTerms($v, $p)];
+            if ($n->phones) {
+                $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'Calls and WhatsApp use your own phone, so they show your number.'];
+                // After a call, the two commonest answers in one tap each; the form below has the rest.
+                $secs[] = ['k' => 'rows', 'h' => 'Just called?', 'items' => [
+                    ['t' => 'No answer', 'sub' => 'We remind you in two days.', 'cta' => ['label' => 'Log it', 'post' => ['do' => 'outreach_log', 'nominee' => $n->id, 'channel' => 'call', 'outcome' => 'no_answer']]],
+                    ['t' => 'Left a message', 'sub' => 'We remind you in two days.', 'cta' => ['label' => 'Log it', 'post' => ['do' => 'outreach_log', 'nominee' => $n->id, 'channel' => 'call', 'outcome' => 'left_message']]],
+                ]];
+            }
         }
 
-        if ($n->stopped) return ['title' => (string) $n->name, 'kicker' => 'Nominees', 'noHead' => true, 'secs' => $secs];
+        if ($n->stopped) return ['title' => (string) $n->name, 'kicker' => 'Nominees', 'noHead' => true, 'secs' => [...$secs, ...self::outreachTerms($v, $p)]];
 
         $o = static fn (string $k, string $d = ''): string => mb_substr((string) ($old[$k] ?? $d), 0, 3000);
         $secs[] = ['k' => 'form', 'h' => 'Log a conversation', 'do' => 'outreach_log', 'hidden' => ['nominee' => $n->id], 'submit' => 'Log it',
@@ -837,13 +886,14 @@ final class WorkspacePages
                                $to ? ['label' => 'To', 'fields' => $to] : null,
                                ['label' => 'Subject', 'fields' => [['name' => 'subject', 'label' => 'Subject', 'type' => 'text', 'required' => true, 'autocomplete' => 'off',
                                                                      'value' => $o('subject', 'Your nomination for ' . $p['name'])]]],
-                               ['label' => 'Message', 'fields' => [['name' => 'body', 'label' => 'Message', 'type' => 'textarea', 'required' => true, 'value' => $o('body')]]],
+                               ['label' => 'Message', 'help' => 'A draft from what their profile needs. Change it to sound like you.',
+                                'fields' => [['name' => 'body', 'label' => 'Message', 'type' => 'textarea', 'required' => true, 'value' => $o('body', Outreach::draft($v, $n))]]],
                                ['label' => 'Follow up', 'help' => 'Leave it empty and we pick three days from now.',
                                 'fields' => [['name' => 'follow_up_on', 'label' => 'Follow up on', 'type' => 'date', 'min' => date('Y-m-d'), 'value' => $o('follow_up_on')]]],
                            ]))];
             }
         }
-        return ['title' => (string) $n->name, 'kicker' => 'Nominees', 'noHead' => true, 'secs' => $secs];
+        return ['title' => (string) $n->name, 'kicker' => 'Nominees', 'noHead' => true, 'secs' => [...$secs, ...self::outreachTerms($v, $p)]];
     }
 
     /** The rules for a person's roles here (the DC's role guide). */

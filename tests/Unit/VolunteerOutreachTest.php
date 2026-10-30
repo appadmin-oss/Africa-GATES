@@ -237,4 +237,53 @@ final class VolunteerOutreachTest extends TestCase
         $this->assertTrue(Outreach::nominees($v)[0]->due, 'a conversation logged is seen at once');
         $db->disableQueryLog();
     }
+
+    public function test_the_next_to_reach_is_the_most_useful_call_and_logging_opens_it(): void
+    {
+        $done = $this->nominee('Amaka Done', '+2348030000011', 'done@x.ng');
+        DB::table('gates_nominee_details')->where('nominee_id', $done)->update(['bio' => str_repeat('Teaches maths. ', 3), 'terms_at' => date('Y-m-d H:i:s'), 'user_id' => 99]);
+        foreach (['photo', 'evidence'] as $k) DB::table('gates_nominee_files')->insert(['nominee_id' => $done, 'kind' => $k, 'url' => 'https://x.ng/' . $k, 'created_at' => date('Y-m-d H:i:s')]);
+        $gaps = $this->nominee('Bayo Gaps', '+2348030000012', 'gaps@x.ng');
+        $fresh = $this->nominee('Chidi Fresh', '+2348030000013', 'fresh@x.ng');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($v, $this->cycle);
+        // Bayo and Amaka were reached; Chidi nobody has tried.
+        foreach ([$gaps, $done] as $id) DB::table('gates_vol_outreach')->insert(['volunteer_id' => $v->id, 'nominee_id' => $id, 'cycle_id' => $this->cycle,
+            'channel' => 'call', 'outcome' => 'reached', 'created_at' => date('Y-m-d H:i:s', strtotime('-9 days'))]);
+        Outreach::reset();
+        $order = array_map(static fn ($r) => $r->name, Outreach::nominees($v));
+        $this->assertSame(['Chidi Fresh', 'Bayo Gaps', 'Amaka Done'], $order, 'untried, then gaps, then the finished');
+        $this->assertSame([], Outreach::nominees($v)[2]->needs, 'Amaka needs nothing');
+        $this->assertSame('Chidi Fresh', Outreach::next($v, $this->cycle)->name);
+        $this->assertEquals(['total' => 3, 'reached' => 2, 'complete' => 1], Outreach::coverage($v, $this->cycle));
+
+        // A one-tap "no answer" on Chidi opens Bayo, the next most useful.
+        $req = (new ServerRequestFactory())->createServerRequest('POST', '/volunteer/act')
+            ->withParsedBody(['do' => 'outreach_log', 'nominee' => (string) $fresh, 'channel' => 'call', 'outcome' => 'no_answer', 'back' => '/volunteer']);
+        $res = $this->ctrl()->act($req, new Response());
+        $this->assertSame('/volunteer/cycle/' . $this->cycle . '/nominees?n=' . $gaps, $res->getHeaderLine('Location'));
+        $this->assertStringContainsString('Next: Bayo Gaps', (string) $_SESSION['vol_toast']);
+    }
+
+    public function test_a_nominee_just_reached_is_given_room_and_the_draft_says_what_is_missing(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        DB::table('gates_nominee_details')->where('nominee_id', $n)->update(['user_id' => 7]);
+        $a = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($a, $this->cycle);
+        Outreach::log($a, $n, ['channel' => 'call', 'outcome' => 'reached', 'note' => 'Will add a photo tonight.']);
+        $b = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($b, $this->cycle);
+        $seen = Outreach::nominee($b, $n);
+        $this->assertTrue($seen->recent, 'reached today: the next call can wait');
+        $this->assertNull(Outreach::next($b, $this->cycle), 'and is not offered as next');
+        $html = $this->page('all', ['n' => $n]);
+        $this->assertStringContainsString('reached them', $html);
+        $this->assertStringContainsString('Give them a day or two', $html);
+        $draft = Outreach::draft($b, $seen);
+        $this->assertStringContainsString('Hello Halima', $draft);
+        $this->assertStringContainsString('a photo, a short bio, evidence of their work and to accept the terms', $draft, 'the draft names what the profile needs');
+        $this->assertStringContainsString('/account/nomination', $draft);
+        $this->assertStringContainsString('Log it', $html, 'one-tap outcomes after a call');
+    }
 }
