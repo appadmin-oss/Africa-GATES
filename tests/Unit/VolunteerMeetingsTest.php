@@ -52,7 +52,7 @@ final class VolunteerMeetingsTest extends TestCase
     private function vol(string $name, string $dob = '1995-05-01', array $caps = ['vol.voter_drive'], bool $worked = true, ?int $cycle = null): object
     {
         $uid = (int) DB::table('gates_users')->insertGetId(['name' => $name, 'email' => strtolower(strtok($name, ' ')) . bin2hex(random_bytes(2)) . '@vol-mail.ng',
-            'password_hash' => 'x', 'status' => 'active', 'created_at' => date('Y-m-d H:i:s')]);
+            'password_hash' => 'x', 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
         $r = Volunteers::apply($uid, ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikotun', 'dob' => $dob, 'interests' => ['drive'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1', 'guardian' => '1']);
         $this->assertTrue($r['ok'], implode(' ', $r['errors'] ?? []));
         Volunteers::approve((int) $r['id'], 1);

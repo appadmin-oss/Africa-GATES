@@ -12,6 +12,7 @@
   every field kept and the errors listed at the top, each linked to its step.
 #}
 {% set old = old|default({}) %}
+{% set need = need|default('') %}
 {% set picked = old.interests|default([]) %}
 {% set skilled = old.skills|default([]) %}
 {% set steps = [
@@ -40,7 +41,7 @@
 <div class="ap-wrap">
   <header class="ap-top">
     <p class="sh7-brand"><span class="sh7-brand__tile" aria-hidden="true">AG</span><span class="sh7-brand__words"><span class="sh7-brand__name">Africa GATES</span><span class="sh7-brand__sub">Volunteers</span></span></p>
-    <a class="ap-exit" href="/account">Not now</a>
+    <a class="ap-exit" href="{{ user ? '/account' : '/' }}">Not now</a>
   </header>
 
   <main id="apMain">
@@ -49,12 +50,30 @@
       <p class="ap-lede">Help on an award night, bring people to vote, check nominations or tell a programme’s story. About five minutes to apply.</p>
       {% if was and was.status == 'declined' %}<p class="sh7-note sh7-note--warn">Your last application wasn’t taken forward: “{{ was.decline_reason }}”. You can apply again.</p>{% endif %}
       {% if was and was.status == 'left' %}<p class="sh7-note sh7-note--mute">Welcome back. Your record is still yours. Apply again to help again.</p>{% endif %}
-      <ol class="ap-next" aria-label="What happens next">
-        <li><b>1. You apply</b>Your details stay private to the volunteer team.</li>
-        <li><b>2. We check</b>We contact the person who vouches for you.</li>
-        <li><b>3. You start</b>Pick tasks and short training that suit you.</li>
+      <ol class="ap-next{{ need ? ' ap-next--4' }}" aria-label="How it works">
+        {% if need %}<li{% if need == 'account' %} aria-current="step"{% endif %}><b>1. Make an account</b>With your email. It takes a minute.</li>{% endif %}
+        <li{% if need == 'verify' %} aria-current="step"{% endif %}><b>{{ need ? '2. You apply' : '1. You apply' }}</b>Your details stay private to the volunteer team.</li>
+        <li><b>{{ need ? '3' : '2' }}. We check</b>We contact the person who vouches for you.</li>
+        <li><b>{{ need ? '4' : '3' }}. You start</b>Pick tasks and short training that suit you.</li>
       </ol>
     </section>
+
+    {% if need == 'account' %}
+      {# An account comes first (owner, 30 Oct 2026): every role, message and letter reaches a
+         volunteer through it. Said here, with the way to make one — not a silent bounce to a
+         sign-in screen that never says why. #}
+      <section class="ap-step ap-gate" aria-labelledby="apGateH">
+        <h2 class="ap-step__h" id="apGateH">First, make your Africa GATES account</h2>
+        <p class="ap-step__why">Volunteers apply from their own account, so your roles, hours and messages stay yours. We send a code to your email; no password needed. You come straight back here after.</p>
+        <div class="ap-nav"><a class="ap-btn ap-btn--go" href="{{ join }}">Make an account</a><a class="ap-btn" href="{{ join }}">I have one: sign in</a></div>
+      </section>
+    {% elseif need == 'verify' %}
+      <section class="ap-step ap-gate" aria-labelledby="apGateH">
+        <h2 class="ap-step__h" id="apGateH">Verify your email first</h2>
+        <p class="ap-step__why">Your account is ready, but your email address isn’t verified yet{{ user and user.email ? ' (' ~ user.email ~ ')' }}. Open the link we sent, then come back to apply.</p>
+        <div class="ap-nav"><a class="ap-btn ap-btn--go" href="/account/verify">Send me the link again</a><a class="ap-btn" href="/account">Back to my account</a></div>
+      </section>
+    {% else %}
 
     {% if errors %}
       <div class="ap-errors" role="alert" tabindex="-1" id="apErrors">
@@ -189,8 +208,9 @@
         <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="submit">Send my application</button></div>
       </section>
     </form>
+    {% endif %}
   </main>
 </div>
-<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/vol-apply.js') }}" defer></script>
+{% if not need %}<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/vol-apply.js') }}" defer></script>{% endif %}
 </body>
 </html>

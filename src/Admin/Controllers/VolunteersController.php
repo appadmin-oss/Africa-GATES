@@ -49,7 +49,7 @@ final class VolunteersController
         ] : [];
         $data = $ready ? match ($tab) {
             'applications' => ['rows' => $this->applications()],
-            'roster' => ['rows' => $this->roster(), 'caps' => Grants::CAPABILITIES, 'places' => $this->places()],
+            'roster' => ['rows' => $this->roster((string) ($req->getQueryParams()['sort'] ?? 'name')), 'sort' => (string) ($req->getQueryParams()['sort'] ?? 'name'), 'caps' => Grants::CAPABILITIES, 'places' => $this->places()],
             'tasks' => ['rows' => $this->tasks(), 'checked' => Tasks::CHECKED_BY, 'places' => $this->places(), 'modules' => Training::titles()],
             'training' => ['rows' => DB::table('gates_vol_modules')->orderBy('title')->get()->all(), 'caps' => Grants::CAPABILITIES],
             'hours' => ['rows' => Hours::waiting()],
@@ -111,17 +111,22 @@ final class VolunteersController
         return $rows;
     }
 
-    private function roster(): array
+    /** @param 'name'|'reliability'|'hours' $sort */
+    private function roster(string $sort = 'name'): array
     {
         $rows = [];
         foreach (DB::table('gates_volunteers as v')->join('gates_users as u', 'u.id', '=', 'v.user_id')->whereIn('v.status', ['active', 'paused'])
                      ->orderBy('u.name')->limit(500)->get(['v.*', 'u.name as user_name']) as $v) {
             $v->name = trim((string) $v->display_name) ?: (string) $v->user_name;
             $v->lv = Level::of($v);
+            $v->eff = \AfricaGates\Services\Volunteer\Effect::of($v);
             $v->grants = Grants::forActor('member', (int) $v->user_id, 'vol.');
             foreach ($v->grants as $g) $g->where = Workspace::scopeName((string) $g->scope_kind, (int) $g->scope_id);
             $rows[] = $v;
         }
+        // Weakest first when sorting by reliability: the list is where somebody decides who needs a word.
+        if ($sort === 'reliability') usort($rows, static fn ($a, $b) => [$a->eff['reliability'] === null, $a->eff['reliability'], $a->name] <=> [$b->eff['reliability'] === null, $b->eff['reliability'], $b->name]);
+        if ($sort === 'hours') usort($rows, static fn ($a, $b) => [$b->eff['hours'], $a->name] <=> [$a->eff['hours'], $b->name]);
         return $rows;
     }
 

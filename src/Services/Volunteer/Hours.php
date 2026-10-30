@@ -7,7 +7,8 @@ use Illuminate\Database\Capsule\Manager as DB;
 /**
  * Every hour a volunteer gives, with where it came from (plan §7.3; handoff §6.3 "Hours").
  *
- *   scan     check-in and check-out at the venue: observed, needs nobody's approval
+ *   scan     check-in and check-out at an event (Attendance): verified when a lead tapped either
+ *            end, in review when the volunteer tapped both
  *   signup   a shift a member of staff marked attended: witnessed (rows from before shifts were
  *            removed on 29 Oct 2026; kept and shown, never written again)
  *   task     accepted task work: witnessed by whoever checked it
@@ -21,7 +22,7 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 final class Hours
 {
-    public const SOURCES = ['scan' => 'Scans', 'signup' => 'Marked attended', 'task' => 'Accepted work', 'manual' => 'By hand'];
+    public const SOURCES = ['scan' => 'On site', 'signup' => 'Marked attended', 'task' => 'Accepted work', 'manual' => 'By hand'];
 
     /**
      * Log hours by hand. Goes to review; a lead confirms it.

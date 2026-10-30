@@ -63,6 +63,12 @@ final class Volunteers
         return self::ready() ? (DB::table('gates_volunteers')->where('id', $id)->first() ?: null) : null;
     }
 
+    /** The member account exists and has verified its email: the one gate in front of applying. */
+    public static function accountReady(int $userId): bool
+    {
+        return $userId > 0 && (int) (DB::table('gates_users')->where('id', $userId)->value('email_verified') ?? 0) === 1;
+    }
+
     /** The name a volunteer is shown by: what they chose, else their account name. */
     public static function name(object $v): string
     {
@@ -106,6 +112,10 @@ final class Volunteers
     public static function apply(int $userId, array $f): array
     {
         if (!self::ready()) return ['ok' => false, 'errors' => ['The database needs its latest update first.']];
+        // An account first, with its email proved (owner, 30 Oct 2026): roles, letters and every
+        // message about a place reach the volunteer at that address, and a role is only ever given
+        // to an address its holder has verified (Account\Roles).
+        if (!self::accountReady($userId)) return ['ok' => false, 'errors' => ['Verify your email address first. We sent you a link when you joined.']];
         $e = [];
         $t = static fn (string $k, int $n = 190): string => mb_substr(trim((string) preg_replace('/\s+/u', ' ', (string) ($f[$k] ?? ''))), 0, $n);
         $digits = static fn (string $v): string => (string) preg_replace('/\D+/', '', $v);

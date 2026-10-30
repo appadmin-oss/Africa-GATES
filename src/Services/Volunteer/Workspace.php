@@ -71,7 +71,7 @@ final class Workspace
     public const PURPOSE = [
         'root.home'      => 'What’s next for you, and how the awards you help on are doing.',
         'root.tasks'     => 'Work you can do from anywhere. Each task says how it’s checked.',
-        'root.hours'     => 'Most hours log themselves from scans and accepted work. Log by hand only for work nobody saw.',
+        'root.hours'     => 'Most hours log themselves: checking in and out at an event, and accepted work. Log by hand only for work nobody saw.',
         'root.training'  => 'Short modules. Each one unlocks roles.',
         'root.record'    => 'Your verified record. It’s yours to keep and to use for references.',
         'root.contacts'  => 'People you meet who want to hear from Africa GATES. Log them with their agreement, and the team follows up.',

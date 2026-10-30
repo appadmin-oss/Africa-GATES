@@ -19,6 +19,8 @@
 .ap-lede { margin: 0; font-size: var(--cn-fs-16); line-height: 1.55; color: var(--cn-ink-2); max-width: 60ch; }
 .ap-next { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .ap-next li { background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-14); padding: 12px; font-size: var(--cn-fs-13); line-height: 1.45; color: var(--cn-ink-2); }
+.ap-next--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ap-next li[aria-current="step"] { border-color: var(--cn-green); background: var(--cn-green-wash); color: var(--cn-ink); }
 .ap-next b { display: block; font-size: var(--cn-fs-14); color: var(--cn-ink); margin-bottom: 2px; }
 
 /* The steps, as a list that is also the progress. */
@@ -94,7 +96,7 @@ textarea.ap-in { min-height: 96px; line-height: 1.5; resize: vertical; }
 @media (max-width: 600px) {
   .ap-wrap { padding: 16px 16px 88px; }
   .ap-hero h1 { font-size: var(--cn-fs-24); }
-  .ap-next { grid-template-columns: minmax(0, 1fr); }
+  .ap-next, .ap-next--4 { grid-template-columns: minmax(0, 1fr); }
   .ap-grid { grid-template-columns: minmax(0, 1fr); }
   .ap-steps span { display: none; }   /* the bar still shows the step; its name is the heading below */
   .ap-step { padding: 18px 16px; border-radius: var(--cn-r-16); }

@@ -405,8 +405,11 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 @container shell (max-width: 599px) {
   /* Declared after the general rules above, so the phone's sizes win: Find takes the bar's
      free width and a 44px target (handoff rule 7, SKILL §14). */
-  .sh7-find { flex: 1 1 auto; }
+  .sh7-find { flex: 1 1 0; min-width: 120px; }
   .sh7-find .sh7-find__q { height: 44px; }
+  /* The page's name keeps its own width (up to half the bar) and Find takes the rest: with
+     Find on `auto` it swallowed the bar and the name shrank to its first letter. */
+  .sh7-apptitle { flex: 0 1 auto; max-width: 50%; }
 }
 
 /* ── The application page (no shell: an applicant has nothing to navigate yet) ──── */

@@ -39,7 +39,7 @@ final class VolunteersTest extends TestCase
     private function member(string $name = 'Chika Nwosu'): int
     {
         return (int) DB::table('gates_users')->insertGetId(['name' => $name, 'email' => strtolower(str_replace(' ', '.', $name)) . '.' . bin2hex(random_bytes(3)) . '@example.test',
-            'password_hash' => 'x', 'status' => 'active', 'created_at' => date('Y-m-d H:i:s')]);
+            'password_hash' => 'x', 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
     }
 
     private function approved(?int $uid = null): object

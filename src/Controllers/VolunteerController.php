@@ -5,6 +5,7 @@ namespace AfricaGates\Controllers;
 
 use AfricaGates\Services\Requests;
 use AfricaGates\Services\UserAccountService;
+use AfricaGates\Services\Volunteer\Attendance;
 use AfricaGates\Services\Volunteer\Contacts;
 use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Services\Volunteer\Level;
@@ -219,12 +220,21 @@ final class VolunteerController
     public function applyForm(Request $req, Response $res): Response
     {
         [$user, $v] = $this->who();
-        if (!$user) return $this->to($res, '/account/login?next=/volunteer/apply');
+        // An account comes first (owner, 30 Oct 2026). Somebody signed out is TOLD so, on this
+        // page, with the way to make one — not bounced to a sign-in screen that never says why.
+        if (!$user || !Volunteers::accountReady((int) $user->id)) {
+            return $this->view->render($res, 'volunteer/apply.twig', [
+                'page_title' => 'Volunteer with Africa GATES', 'need' => $user ? 'verify' : 'account', 'user' => $user, 'old' => [], 'errors' => [], 'was' => null,
+                'join' => '/account/login?via=email&next=' . rawurlencode('/volunteer/apply'),
+            ]);
+        }
         if ($v && !in_array($v->status, ['declined', 'left'], true)) return $this->to($res, '/volunteer');
         $old = $_SESSION['vol_apply_old'] ?? [];
         unset($_SESSION['vol_apply_old']);
+        // What the account already knows is not asked again.
+        if (!isset($old['phone']) && trim((string) ($user->phone ?? '')) !== '') $old['phone'] = (string) $user->phone;
         return $this->view->render($res, 'volunteer/apply.twig', [
-            'page_title' => 'Volunteer with Africa GATES', 'user' => $user, 'old' => $old, 'was' => $v,
+            'page_title' => 'Volunteer with Africa GATES', 'need' => '', 'user' => $user, 'old' => $old, 'was' => $v,
             'interests' => Volunteers::INTERESTS, 'skills' => Volunteers::SKILLS, 'states' => Volunteers::STATES, 'genders' => Volunteers::GENDERS,
             'occupations' => Volunteers::OCCUPATIONS, 'weekdays' => Volunteers::WEEKDAYS, 'weekends' => Volunteers::WEEKENDS, 'heard' => Volunteers::HEARD,
             'tshirts' => Volunteers::TSHIRTS, 'errors' => $this->take('vol_errors') ?? [],
@@ -263,6 +273,9 @@ final class VolunteerController
         $active = in_array($this->role($v), ['new', 'active', 'lead'], true) || $v->status === 'paused';
 
         $r = match ((string) ($b['do'] ?? '')) {
+            'arrive' => ($k = Attendance::arrive($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok'] ? $ok('Checked in. Check out when you leave.') : $no((string) $k['error']),
+            'leave' => ($k = Attendance::leave($v, (int) ($b['event'] ?? 0), Attendance::SELF, $name))['ok']
+                ? $ok('Checked out. ' . Level::h((float) $k['hours']) . ($k['review'] ? ' sent to a lead to confirm.' : ' added to your hours.')) : $no((string) $k['error']),
             'contact' => $active ? (($k = Contacts::log($v, $b))['ok'] ? $ok('Logged. The team follows up.') : $no((string) $k['error'])) : $no('Contacts open once you’re approved.'),
             'contact_edit' => ($k = Contacts::edit($v, (int) ($b['contact'] ?? 0), $b))['ok'] ? $ok('Saved. The team gets the correction.') : $no((string) $k['error']),
             'forget_contact' => Contacts::forget($v, (int) ($b['contact'] ?? 0)) ? $ok('Marked. The team won’t contact them.') : $no('That contact isn’t yours.'),

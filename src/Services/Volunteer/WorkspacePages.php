@@ -385,10 +385,10 @@ final class WorkspacePages
             $secs[] = ['k' => 'chart', 'kpis' => [['l' => 'Verified hours', 'v' => Level::h($sum['verified'])], ['l' => 'This week', 'v' => Level::h($sum['week']), 'd' => 'Your limit is ' . $sum['limit']],
                        ['l' => 'In review', 'v' => Level::h($sum['review'])]],
                        'bars' => array_map(static fn ($w) => ['l' => $w['label'], 'v' => [$w['scan'], $w['task'], $w['manual']]], $weeks),
-                       'legend' => ['Door and gate scans', 'Accepted work', 'Logged by hand']];
+                       'legend' => ['On site', 'Accepted work', 'Logged by hand']];
             $rows = [];
-            foreach (['scan' => 'Door and gate scans', 'task' => 'Accepted task work', 'manual' => 'Logged by you, confirmed by a lead'] as $k => $l) {
-                $h = (float) ($sum['by_source'][$k] ?? 0);
+            foreach (['scan' => 'On site at events', 'task' => 'Accepted task work', 'manual' => 'Logged by you, confirmed by a lead'] as $k => $l) {
+                $h = (float) ($sum['by_source'][$k] ?? 0) + ($k === 'scan' ? (float) ($sum['by_source']['signup'] ?? 0) : 0);
                 if ($h > 0) $rows[] = ['t' => $l, 'sub' => Level::h($h) . ($k === 'manual' ? '' : ' · automatic'), 'chip' => $k === 'manual' ? ['Confirmed', 'info'] : ['Automatic', 'ok']];
             }
             $secs[] = $rows ? ['k' => 'rows', 'h' => 'Where they came from', 'items' => $rows]
@@ -406,7 +406,7 @@ final class WorkspacePages
             }
             $secs[] = $rows ? ['k' => 'rows', 'h' => 'Waiting', 'items' => $rows] : ['k' => 'note', 'text' => 'Nothing is in review.', 'tone' => 'mute'];
         } else {
-            $secs[] = ['k' => 'note', 'text' => 'Most hours log themselves: gate scans and accepted tasks. Log by hand only for work nobody saw. A lead confirms it, and a photo or link speeds that up.', 'tone' => 'info'];
+            $secs[] = ['k' => 'note', 'text' => 'Most hours log themselves: checking in and out at an event, and accepted tasks. Log by hand only for work nobody saw. A lead confirms it, and a photo or link speeds that up.', 'tone' => 'info'];
             $secs[] = ['k' => 'form', 'h' => 'Log hours', 'do' => 'log', 'submit' => 'Send for confirming', 'groups' => [
                 ['label' => 'What you did', 'help' => 'Enough for a lead to recognise it.', 'fields' => [['name' => 'what', 'label' => 'What you did', 'type' => 'text', 'required' => true]]],
                 ['label' => 'When, and how long', 'help' => 'One day at a time, up to 16 hours.', 'fields' => [
@@ -479,10 +479,15 @@ final class WorkspacePages
                 $steps[] = ['t' => 'Level ' . $n, 'sub' => $n < $lv['level'] ? 'Reached' : ($n === $lv['level'] ? 'Now' : ($lv['next'] && $lv['next']['level'] === $n ? implode(' and ', $lv['next']['needs']) : 'After Level ' . ($n - 1))),
                             'st' => $n < $lv['level'] ? 'done' : ($n === $lv['level'] ? 'now' : '')];
             }
-            $stats = [['l' => 'Verified hours', 'v' => Level::h($lv['hours'])]];
-            $done = (int) DB::table('gates_vol_task_takes')->where('volunteer_id', $v->id)->where('status', 'done')->count();
-            if ($done) $stats[] = ['l' => 'Tasks accepted', 'v' => (string) $done];
-            return ['title' => 'My record', 'secs' => [['k' => 'steps', 'h' => 'Levels', 'items' => $steps], ['k' => 'stats', 'items' => $stats]]];
+            $e = Effect::of($v);
+            $stats = [['l' => 'Verified hours', 'v' => Level::h($lv['hours']), 's' => 'All time'],
+                      ['l' => 'Last six months', 'v' => Level::h($e['hours']), 's' => $e['weeks'] ? 'In ' . $e['weeks'] . ($e['weeks'] === 1 ? ' week' : ' weeks') . ', about ' . Level::h($e['per_week']) . ' a week' : 'No hours yet'],
+                      ['l' => 'Tasks finished', 'v' => (string) $e['done'], 's' => $e['on_time'] !== null ? $e['on_time'] . '% on time' : ''],
+                      ['l' => 'Reliability', 'v' => $e['reliability'] !== null ? $e['reliability'] . '%' : '–', 's' => $e['word']]];
+            if ($e['roles']) $stats[] = ['l' => 'Turned up', 'v' => $e['shown'] . ' of ' . $e['roles'], 's' => 'Events you had a role at'];
+            return ['title' => 'My record', 'secs' => [['k' => 'stats', 'h' => 'How it’s going', 'items' => $stats],
+                ['k' => 'note', 'text' => Effect::explain($e) . ($e['reliability'] !== null ? ' Reliability is what you finished or turned up to, out of what you took on.' : ''), 'tone' => 'mute'],
+                ['k' => 'steps', 'h' => 'Levels', 'items' => $steps]]];
         }
         if ($tab === 'badges') {
             $rows = [];
@@ -497,7 +502,7 @@ final class WorkspacePages
     private static function badges(object $v, array $lv): array
     {
         $out = [];
-        foreach ([10, 50, 100] as $h) if ($lv['hours'] >= $h) $out[] = [$h . ' verified hours', 'From scans and accepted work'];
+        foreach ([10, 50, 100] as $h) if ($lv['hours'] >= $h) $out[] = [$h . ' verified hours', 'From time on site and accepted work'];
         $first = DB::table('gates_vol_task_takes')->where('volunteer_id', $v->id)->where('status', 'done')->orderBy('done_at')->value('done_at');
         if ($first) $out[] = ['First task accepted', Workspace::day((string) $first)];
         return $out;
@@ -512,11 +517,13 @@ final class WorkspacePages
             $rows = [];
             foreach (Team::roster($v) as $m) {
                 $limit = (int) ($m->max_hours_week ?: Rules::get('vol_week_hours_default'));
-                $rows[] = ['t' => (string) $m->name, 'sub' => 'Level ' . $m->level . ' · ' . ($m->tasks ? $m->tasks . ($m->tasks === 1 ? ' task' : ' tasks') . ' taken' : 'no task taken')
-                               . ' · up to ' . $limit . ' hours a week', 'ini' => Workspace::initials((string) $m->name), 'meta' => Level::h((float) $m->hours)];
+                $e = Effect::of($m);
+                $rows[] = ['t' => (string) $m->name, 'sub' => 'Level ' . $m->level . ' · ' . Effect::line($e) . ' · ' . ($m->tasks ? $m->tasks . ($m->tasks === 1 ? ' task' : ' tasks') . ' open' : 'no task open')
+                               . ' · up to ' . $limit . ' hours a week', 'ini' => Workspace::initials((string) $m->name), 'meta' => Level::h((float) $m->hours),
+                           'chip' => Effect::chip($e)];
             }
             $secs[] = $rows ? ['k' => 'rows', 'h' => 'Your team', 'items' => $rows] : ['k' => 'note', 'text' => 'Your team is everybody holding a volunteer role where you lead. Nobody yet.', 'tone' => 'mute'];
-            if ($rows) $secs[] = ['k' => 'note', 'text' => 'Each limit is the one the person set in Availability. Ask before giving somebody more.', 'tone' => 'mute'];
+            if ($rows) $secs[] = ['k' => 'note', 'text' => 'Reliability is what each person finished or turned up to in the last six months, out of what they took on. Each limit is the one they set in Availability.', 'tone' => 'mute'];
         } elseif ($tab === 'approvals') {
             $rows = [];
             foreach (Team::waitingHours($v) as $h) {
@@ -708,7 +715,23 @@ final class WorkspacePages
                  'facts' => array_values(array_filter([$e ? ['When', Workspace::day((string) $e->event_date) . ' · ' . date('H:i', (int) strtotime((string) $e->event_date))] : null,
                                                        $e && $e->venue ? ['Where', (string) $e->venue] : null])),
                  'acts' => [['label' => 'Briefing', 'href' => $p['href'] . '/brief', 'primary' => true]]];
-        return ['title' => $p['name'], 'noHead' => true, 'secs' => [$hero], 'side' => self::access($v, $kind, $id, true)];
+        $secs = [$hero];
+        // Time on site, in the hero so the one button that matters on the night is the first one:
+        // the volunteer's own taps, which a lead confirms; a lead's tap counts at once.
+        if (Attendance::ready() && $e) {
+            $visit = Attendance::open((int) $v->id, $id);
+            if ($visit) {
+                $secs[0]['chips'][] = ['Checked in at ' . date('H:i', (int) strtotime((string) $visit->in_at)), 'ok'];
+                array_unshift($secs[0]['acts'], ['label' => 'Check out', 'post' => ['do' => 'leave', 'event' => $id], 'primary' => true]);
+                $secs[0]['acts'][1]['primary'] = false;
+            } elseif (Attendance::isOpenNow($id)) {
+                array_unshift($secs[0]['acts'], ['label' => 'Check in', 'post' => ['do' => 'arrive', 'event' => $id], 'primary' => true]);
+                $secs[0]['acts'][1]['primary'] = false;
+                $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Check in when you arrive and out when you leave. A lead confirms the time, and it counts as your hours.'];
+            }
+            if (($h = Attendance::hoursAt((int) $v->id, $id)) > 0) $secs[] = ['k' => 'stats', 'items' => [['l' => 'Your time here', 'v' => Level::h($h), 's' => 'Check-in to check-out']]];
+        }
+        return ['title' => $p['name'], 'noHead' => true, 'secs' => $secs, 'side' => self::access($v, $kind, $id, true)];
     }
 
     /**

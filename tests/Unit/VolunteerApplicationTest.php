@@ -36,7 +36,7 @@ final class VolunteerApplicationTest extends TestCase
     private function member(): int
     {
         return (int) DB::table('gates_users')->insertGetId(['name' => 'Ngozi Okafor', 'email' => 'ngozi' . bin2hex(random_bytes(3)) . '@example.test',
-            'password_hash' => 'x', 'status' => 'active', 'created_at' => date('Y-m-d H:i:s')]);
+            'password_hash' => 'x', 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
     }
 
     private function form(array $f = []): array

@@ -13,6 +13,8 @@ use AfricaGates\Services\EventScanPass;
 use AfricaGates\Services\Shell\Updates;
 use AfricaGates\Services\UserAccountService;
 use AfricaGates\Services\Requests;
+use AfricaGates\Services\Volunteer\Attendance;
+use AfricaGates\Services\Volunteer\Hours;
 use AfricaGates\Services\Volunteer\Workspace;
 use AfricaGates\Support\DisplayTime;
 use AfricaGates\Support\SiteUrl;
@@ -179,6 +181,9 @@ final class LeadController
             'door_issue' => [$this->issueDoor($me, $b), 'Scanning link made.', 'event', $int('event')],
             'door_revoke' => [$this->revokeDoor($me, $b), 'Turned off. It stops working now.', 'event', $int('event')],
             'request_remind' => [$this->remind($me, $int('request')), 'Reminded.', 'request', $int('request')],
+            'attend_in' => [$this->attend($me, $b, true), 'Checked in.', 'event', $int('event')],
+            'attend_out' => [$this->attend($me, $b, false), 'Checked out. Their hours count now.', 'event', $int('event')],
+            'attend_confirm' => [$this->attendConfirm($me, $b), 'Confirmed. Their hours count now.', 'event', $int('event')],
             default => [['ok' => false, 'error' => 'That isn’t something this page can do.'], '', '', 0],
         };
         if (!$r['ok']) return $this->back($res, $back, false, (string) ($r['error'] ?? 'That didn’t work.'));
@@ -188,7 +193,7 @@ final class LeadController
                                                     'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until', 'why']));
         if ($type === 'event') {
             $target = (int) ($r['event'] ?? $target);
-            foreach (['id', 'work', 'risk', 'line', 'decision', 'cue', 'sponsor', 'check', 'table', 'pass'] as $k) if (!empty($r[$k] ?? $b[$k] ?? null) && $k !== 'event') $meta[$k] = (int) ($r[$k] ?? $b[$k]);
+            foreach (['id', 'work', 'risk', 'line', 'decision', 'cue', 'sponsor', 'check', 'table', 'pass', 'vol', 'hour'] as $k) if (!empty($r[$k] ?? $b[$k] ?? null) && $k !== 'event') $meta[$k] = (int) ($r[$k] ?? $b[$k]);
         } else {
             $target = (int) ($r['id'] ?? $target);
         }
@@ -224,6 +229,28 @@ final class LeadController
         $r = Requests::act($id, (string) ($b['action'] ?? ''), Plan::ACTOR, $me['id'], $me['name'], (string) ($b['note'] ?? ''));
         if ($r['ok']) Plan::syncRequest($id);   // a withdrawn spend request puts its line back to "not approved yet"
         return $r;
+    }
+
+    /** A lead checks a volunteer with a role at THEIR event in or out (Volunteer\Attendance). */
+    private function attend(array $me, array $b, bool $in): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can check its volunteers in.'];
+        $v = \Illuminate\Database\Capsule\Manager::table('gates_volunteers')->where('id', (int) ($b['vol'] ?? 0))->first();
+        if (!$v) return ['ok' => false, 'error' => 'That volunteer was not found.'];
+        $r = $in ? Attendance::arrive($v, $event, Attendance::LEAD, $me['name']) : Attendance::leave($v, $event, Attendance::LEAD, $me['name']);
+        return $r + ['event' => $event];
+    }
+
+    /** A lead confirms a visit a volunteer recorded alone — only one at their own event. */
+    private function attendConfirm(array $me, array $b): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        $hour = (int) ($b['hour'] ?? 0);
+        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can confirm its time on site.'];
+        $here = \Illuminate\Database\Capsule\Manager::table('gates_vol_attendance')->where('event_id', $event)->where('hours_id', $hour)->exists();
+        if (!$here) return ['ok' => false, 'error' => 'That time was not at this event.'];
+        return Hours::confirm($hour, true, 'member', $me['id'], $me['name']) + ['event' => $event];
     }
 
     /** A scanning link for one door of the lead's event (EventScanPass: hashed, windowed, ends by itself). */

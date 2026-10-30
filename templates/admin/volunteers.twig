@@ -82,14 +82,18 @@
     <div class="cn-card vl-sec">{{ kit.empty('No volunteers yet', 'Approved applicants appear here.', 'users') }}</div>
   {% else %}
     <div class="cn-card vl-sec">
+      <p class="vl-help">Sort by:
+        {% for k, l in {name: 'name', reliability: 'reliability, weakest first', hours: 'hours, most first'} %}{% if not loop.first %} · {% endif %}{% if sort == k %}<strong aria-current="true">{{ l }}</strong>{% else %}<a href="/admin/volunteers?tab=roster&amp;sort={{ k }}">{{ l }}</a>{% endif %}{% endfor %}</p>
       <table class="cn-table">
-        <thead><tr><th scope="col">Volunteer</th><th scope="col">Level</th><th scope="col">Verified hours</th><th scope="col">Roles held</th><th scope="col">Give a role</th></tr></thead>
+        <thead><tr><th scope="col">Volunteer</th><th scope="col">Level</th><th scope="col">Verified hours</th><th scope="col">Last six months</th><th scope="col">Reliability</th><th scope="col">Roles held</th><th scope="col">Give a role</th></tr></thead>
         <tbody>
           {% for v in rows %}
             <tr>
               <td>{{ v.name }}{% if v.status == 'paused' %} · on a break{% endif %}</td>
               <td>{{ v.lv.level }}</td>
               <td>{{ v.lv.hours }}</td>
+              <td>{{ v.eff.hours }} hours{% if v.eff.weeks %}, {{ v.eff.weeks }} {{ v.eff.weeks == 1 ? 'week' : 'weeks' }}{% endif %}<br><span class="vl-help">{{ v.eff.done }} {{ v.eff.done == 1 ? 'task' : 'tasks' }} finished{% if v.eff.roles %} · at {{ v.eff.shown }} of {{ v.eff.roles }} events{% endif %}</span></td>
+              <td>{{ v.eff.word }}{% if v.eff.reliability is not null %} ({{ v.eff.reliability }}%){% endif %}</td>
               <td>{% for g in v.grants %}
                 <form method="post" action="/admin/volunteers" class="vl-grant"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="roster">
                   <input type="hidden" name="do" value="revoke"><input type="hidden" name="grant" value="{{ g.id }}">
@@ -107,7 +111,7 @@
           {% endfor %}
         </tbody>
       </table>
-      <p class="vl-help">Every role ends on its date with nothing scheduled; the volunteer’s page drops it on their next visit.</p>
+      <p class="vl-help">Reliability is what each person finished or checked in to over the last six months, out of what they took on; it shows after three. Every role ends on its date with nothing scheduled; the volunteer’s page drops it on their next visit.</p>
     </div>
   {% endif %}
 

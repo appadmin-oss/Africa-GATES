@@ -354,15 +354,49 @@ final class EventPages
         return array_values($out);
     }
 
+    /**
+     * Volunteers with a role here, and their time on site (Volunteer\Attendance). The lead checks
+     * people in and out — a lead's tap makes the hours count at once — and confirms the visits a
+     * volunteer recorded alone. How reliable each person has been comes from Volunteer\Effect, the
+     * same figure their own record and the staff list show.
+     */
     private static function volunteers(object $e): array
     {
-        $items = array_map(static fn ($p) => ['t' => $p->name, 'sub' => $p->role, 'ini' => Workspace::initials($p->name)], self::volunteersAt((int) $e->id));
-        return ['title' => 'People', 'secs' => [
-            $items ? ['k' => 'rows', 'h' => 'Volunteers with a role here', 'items' => $items]
-                   : ['k' => 'note', 'tone' => 'mute', 'text' => 'No volunteer holds a role at this event yet.'],
-            ['k' => 'note', 'tone' => 'mute', 'text' => 'Roles are given by the volunteer team and end by themselves after the event. Ask for somebody with a request.',
-             'cta' => ['label' => 'Ask for volunteers', 'href' => self::url((int) $e->id, 'requests')]],
-        ]];
+        $id = (int) $e->id;
+        $board = \AfricaGates\Services\Volunteer\Attendance::board($id);
+        $ready = \AfricaGates\Services\Volunteer\Attendance::ready();
+        $open = $ready && \AfricaGates\Services\Volunteer\Attendance::isOpenNow($id);
+        $items = [];
+        foreach ($board as $p) {
+            $eff = \AfricaGates\Services\Volunteer\Effect::of($p->vol);
+            $sub = $p->role . ' · ' . \AfricaGates\Services\Volunteer\Effect::line($eff) . ($p->hours > 0 ? ' · ' . \AfricaGates\Services\Volunteer\Level::h($p->hours) . ' here' : '');
+            $cta = null;
+            if ($p->here) $cta = ['label' => 'Check out', 'post' => ['do' => 'attend_out', 'event' => $id, 'vol' => (int) $p->vol->id]];
+            elseif ($open) $cta = ['label' => 'Check in', 'post' => ['do' => 'attend_in', 'event' => $id, 'vol' => (int) $p->vol->id]];
+            $items[] = ['t' => $p->name, 'sub' => $sub, 'ini' => Workspace::initials($p->name),
+                        'chip' => $p->here ? ['Here since ' . date('H:i', (int) strtotime((string) $p->since)), 'ok'] : \AfricaGates\Services\Volunteer\Effect::chip($eff), 'cta' => $cta];
+        }
+        $secs = [];
+        if ($items) {
+            $here = count(array_filter($board, static fn ($p) => $p->here));
+            $secs[] = ['k' => 'stats', 'items' => [['l' => 'With a role', 'v' => (string) count($board), 's' => ''], ['l' => 'Here now', 'v' => (string) $here, 's' => ''],
+                ['l' => 'Hours on site', 'v' => \AfricaGates\Services\Volunteer\Level::h(array_sum(array_map(static fn ($p) => $p->hours, $board))), 's' => 'Confirmed or waiting']]];
+            $secs[] = ['k' => 'rows', 'h' => 'Volunteers with a role here', 'items' => $items];
+        } else {
+            $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => 'No volunteer holds a role at this event yet.'];
+        }
+        $wait = $ready ? DB::table('gates_vol_attendance as a')->join('gates_vol_hours as h', 'h.id', '=', 'a.hours_id')->join('gates_volunteers as v', 'v.id', '=', 'a.volunteer_id')
+            ->where('a.event_id', $id)->where('h.status', 'review')->orderBy('a.in_at')->get(['h.id as hour', 'h.hours', 'a.in_at', 'a.out_at', 'v.*'])->all() : [];
+        if ($wait) {
+            $secs[] = ['k' => 'rows', 'h' => 'Time to confirm', 'items' => array_map(static fn ($w) => [
+                't' => \AfricaGates\Services\Volunteer\Volunteers::name($w) . ', ' . \AfricaGates\Services\Volunteer\Level::h((float) $w->hours),
+                'sub' => 'Checked in ' . date('D j M, H:i', (int) strtotime((string) $w->in_at)) . ', out ' . date('H:i', (int) strtotime((string) $w->out_at)) . ', by themselves',
+                'cta' => ['label' => 'Confirm', 'post' => ['do' => 'attend_confirm', 'event' => $id, 'hour' => (int) $w->hour]]], $wait)];
+        }
+        $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => ($ready ? 'Check-in opens six hours before the event and closes six hours after it. Your tap makes the hours count; a volunteer’s own taps wait for you here. ' : '')
+            . 'Reliability is what each person finished or turned up to in the last six months. Roles are given by the volunteer team and end by themselves after the event.',
+            'cta' => ['label' => 'Ask for volunteers', 'href' => self::url($id, 'requests')]];
+        return ['title' => 'People', 'secs' => $secs];
     }
 
     /** Guests of honour: nominees only, or everybody invited. */

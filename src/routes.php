@@ -3907,9 +3907,12 @@ return function(App $app) {
     // ═══ VOLUNTEERS (consoles v7 handoff §6; docs/architecture/CONSOLES-V7-REVIEW.md, V1) ═══
     // A member area behind the member session: a volunteer is a member actor and never an admin
     // one (§0.4). Literals are registered before the placeholders they would match.
+    // The application page is open to somebody signed out, because its first job is telling
+    // them to make an account (owner, 30 Oct 2026) — the group's middleware would bounce them to
+    // a sign-in screen that never says why. The page itself asks for the account.
+    $app->get('/volunteer/apply', \AfricaGates\Controllers\VolunteerController::class . ':applyForm');
     $app->group('/volunteer', function (RouteCollectorProxy $v) {
         $c = \AfricaGates\Controllers\VolunteerController::class;
-        $v->get('/apply',                         $c . ':applyForm');
         $v->post('/apply',                        $c . ':apply');
         $v->post('/act',                          $c . ':act');
         $v->get('/me/export.json',                $c . ':export');

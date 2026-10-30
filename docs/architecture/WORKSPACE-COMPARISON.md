@@ -65,6 +65,26 @@ tables are left in place, unread, because hours already verified point at them (
 signup`); nothing writes them. Items 2, 3 and 5 below, and the shift half of item 1, describe
 what existed before this.
 
+## Hours and effectiveness after shifts (owner, 30 Oct 2026)
+
+"The hours should still be calculated. We need to be able to know how effective the volunteers
+are." Shifts carried the only observed hours, so removing them left tasks and hand-logged claims.
+
+- **Time on site** (`Volunteer\Attendance`, `gates_vol_attendance`): a volunteer with a role at
+  an event checks in and out from the event's page, or the event lead does it from People ›
+  Volunteers. Open from six hours before the event to six hours after it. Closing a visit writes
+  one hours row (`source = scan`, `ref_kind = attend`): a lead's tap at either end makes it count
+  at once; the volunteer's own two taps wait for a lead, who confirms them on the same page. Over
+  16 hours is capped and always reviewed.
+- **Effectiveness** (`Volunteer\Effect`, one resolver): over six months, verified hours and the
+  weeks they came in, tasks finished, handed back and past due, on time, and events turned up to.
+  Reliability = (finished + turned up) ÷ (everything taken on), shown only after three. Hours are
+  not in it. Shown on the volunteer's record, the lead's team and event pages, and the staff
+  roster (sortable, weakest first).
+- **An account comes first**: `/volunteer/apply` is open signed-out and says so, with a button
+  to make an account (back to the form after); an unverified email is told to verify; `apply()`
+  refuses both.
+
 ## 3. What was built (29 Oct 2026)
 
 Each is one rule, held by a test, and draws nothing the database did not record.
