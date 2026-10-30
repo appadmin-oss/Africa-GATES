@@ -315,7 +315,6 @@ final class NomineeVotingNotice
             'steps'           => self::steps((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'prizes'          => self::prizes((int) ($cycle->programme_id ?? 0)),
             'community_return'=> self::communityReturn((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
-            'return_short'    => self::communityReturnShort((int) $cycle->id ?: null),
             'paper'           => NomineeVotingLetter::paperFor((string) ($nominee->country_code ?? '')),
         ] + self::words((int) $cycle->id);
     }
@@ -346,7 +345,7 @@ final class NomineeVotingNotice
         $freeOff = PaidVoteService::freeVotingDisabled();
         $price   = '₦' . number_format(PaidVoteService::pricePerVote());
 
-        $out = ['Supporters open your voting page or scan the code below.'];
+        $out = ['Supporters open your voting page, or scan the code on your letter.'];
         $out[] = $freeOff
             ? 'In this edition votes are cast by contribution, at ' . $price . ' a vote, through our secure '
               . 'payment provider. Supporters give their name, phone number and email.'
@@ -452,49 +451,30 @@ final class NomineeVotingNotice
     }
 
     /**
-     * The community return, as this edition runs it, in short sentences. Left out where it
-     * cannot pay: paid voting off (nothing raises money in a nominee's name) or a 0% share.
-     * The target pool (CommunityReturnPool) is told in full, because it is the one a nominee
-     * can work towards; the other models say their rule in one sentence.
+     * The community return, as this edition runs it, as labelled rows: [label, text]. Left out
+     * where it cannot pay: paid voting off (nothing raises money in a nominee's name) or a 0%
+     * share. The target pool (CommunityReturnPool) is told in full, row by row, because it is
+     * the rule a nominee can work towards; the other models state their rule in one row.
      *
-     * @return list<string>
+     * @return list<array{0:string,1:string}>
      */
     public static function communityReturn(?int $programmeId, ?int $cycleId): array
     {
         if (!CommunityReturnService::active()) return [];
         $rules = CommunityReturnMilestone::rulesForCycle($cycleId);
         if ((int) ($rules['community_return_bps'] ?? 0) <= 0) return [];
-        $withdraw = 'To withdraw your share you need a verified account and a verified claim on your nominee page.';
+        $withdraw = ['Withdrawing', 'You need a verified account and a verified claim on your nominee page.'];
         if (CommunityReturnService::modelOf($rules) !== CommunityReturnService::MODEL_POOL) {
-            return [CommunityReturnMilestone::summary($rules), $withdraw];
+            return [['The rule', CommunityReturnMilestone::summary($rules)], $withdraw];
         }
-        $pct = CommunityReturnLadder::pct((int) $rules['community_return_bps']);
         $target = number_format(max(1, (int) ($rules['community_return_target_votes'] ?? 1000)));
         return [
-            $pct . '% of every contribution made for a nominee in this edition goes into one community-return pool.',
-            'Every nominee has the same target of ' . $target . ' votes, free and paid together. When voting closes, '
-              . 'the nominees who reached it share the pool by their votes; if only one reaches it, they receive all of it. '
-              . 'If nobody reaches it, the pool goes to the programme’s reserves.',
+            ['What goes in', CommunityReturnLadder::pct((int) $rules['community_return_bps']) . '% of every contribution made for a nominee in this edition goes into one pool.'],
+            ['The target', 'Every nominee has the same target: ' . $target . ' votes, free and paid together.'],
+            ['How it is shared', 'When voting closes, the nominees who reached the target share the pool by their votes. If only one reaches it, they receive all of it.'],
+            ['If nobody reaches it', 'There is no return, and the pool goes to the programme’s reserves.'],
             $withdraw,
         ];
-    }
-
-    /**
-     * The community return in one sentence, for the one-page letter: the email carries the full
-     * explanation, and the letter must stay one page at A4 and at US Letter.
-     */
-    public static function communityReturnShort(?int $cycleId): string
-    {
-        if (!CommunityReturnService::active()) return '';
-        $rules = CommunityReturnMilestone::rulesForCycle($cycleId);
-        if ((int) ($rules['community_return_bps'] ?? 0) <= 0) return '';
-        if (CommunityReturnService::modelOf($rules) !== CommunityReturnService::MODEL_POOL) return CommunityReturnMilestone::summary($rules);
-        // The whole rule, short enough for the one-page letter: what goes in, the shared target,
-        // how it is shared, where it goes otherwise, and what withdrawing needs.
-        return CommunityReturnLadder::pct((int) $rules['community_return_bps']) . '% of every contribution in this edition goes into one pool. '
-             . 'Every nominee has the same target of ' . number_format(max(1, (int) ($rules['community_return_target_votes'] ?? 1000)))
-             . ' votes; those who reach it share the pool by their votes, and if nobody does it goes to the reserves. '
-             . 'Withdrawing needs a verified account.';
     }
 
     /** "AG/VOT/{cycle}/{nominee}": stable, so a reprint and the original agree. */
@@ -549,7 +529,7 @@ final class NomineeVotingNotice
             array_merge(...array_map(static fn (array $h, int $i): array =>
                 [($i + 1) . '. ' . $h['title'] . '. ' . $h['text']], $v['how'], array_keys($v['how']))),
             ($v['prizes'] ?? []) ? array_merge(['', 'Prizes to be won'], $v['prizes']) : [],
-            ($v['community_return'] ?? []) ? array_merge(['', 'Your community return'], $v['community_return']) : [],
+            ($v['community_return'] ?? []) ? array_merge(['', 'Your community return'], array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['community_return'])) : [],
             [
                 '',
                 'The formal letter of notification is attached, for your records.',

@@ -118,7 +118,7 @@ final class NomineeVotingNoticeTest extends TestCase
         $pdf = $sent['attachments'][0];
         $this->assertSame('application/pdf', $pdf['mime']);
         $this->assertStringStartsWith('%PDF', $pdf['body']);
-        $this->assertSame(1, self::pages($pdf['body']), 'the v2 letter is one page, its steps inline');
+        $this->assertSame(2, self::pages($pdf['body']), 'the letter, then the nomination guide with the steps');
         $this->assertStringEndsWith('.pdf', $pdf['name']);
     }
 
@@ -314,11 +314,11 @@ final class NomineeVotingNoticeTest extends TestCase
     }
 
     /**
-     * The design's one rule about paper: ONE page, at A4 and at US Letter, which is 17.6mm
-     * shorter. The longest name, category and award the console allows must still fit, with
-     * the close above the pinned footer.
+     * Each page fits its paper, at A4 and at US Letter, which is 17.6mm shorter: the longest
+     * name, category and award the console allows must still leave the close above the
+     * pinned footer on page one, and the guide above it on page two.
      */
-    public function test_the_letter_is_one_page_at_a4_and_at_letter_at_the_longest_inputs(): void
+    public function test_each_page_fits_at_a4_and_at_letter_at_the_longest_inputs(): void
     {
         $v = self::view() + ['steps' => NomineeVotingNotice::steps()];
         $v['name']     = str_repeat('Ọlásùnkànmí Adébáyọ̀-Williams ', 5);
@@ -338,7 +338,9 @@ final class NomineeVotingNoticeTest extends TestCase
             $this->assertLessThanOrEqual($m['limit'], $m['bottom'],
                 sprintf('the letter runs %.1fmm into the footer on %s', $m['bottom'] - $m['limit'], $paper));
             $pdf = NomineeVotingLetter::render($v, $paper);
-            $this->assertSame(1, self::pages($pdf), "the letter ran past one page on $paper");
+            $this->assertSame(2, self::pages($pdf), "the letter and the guide, and nothing spilling past them, on $paper");
+            $g = NomineeVotingLetter::measure($v, $paper, 'guide');
+            $this->assertLessThanOrEqual($g['limit'], $g['bottom'], "the guide runs into the footer on $paper");
             [$w, $h] = NomineeVotingLetter::PAPER[$paper];
             $this->assertStringContainsString(sprintf('/MediaBox [0 0 %.2F %.2F]', $w * 72 / 25.4, $h * 72 / 25.4), $pdf,
                 "the page is not $paper");
@@ -373,7 +375,7 @@ final class NomineeVotingNoticeTest extends TestCase
             $this->assertStringContainsString('Prizes to be won', $m->sent[0][$part]);
             $this->assertStringContainsString('₦500,000', $m->sent[0][$part]);
             $this->assertStringContainsString('Your community return', $m->sent[0][$part]);
-            $this->assertStringContainsString('same target of 750 votes', $m->sent[0][$part], 'read from the edition, not typed');
+            $this->assertStringContainsString('same target: 750 votes', $m->sent[0][$part], 'read from the edition, not typed');
             $this->assertStringContainsString('verified account', $m->sent[0][$part]);
         }
 
@@ -381,14 +383,14 @@ final class NomineeVotingNoticeTest extends TestCase
         $v = self::view() + ['steps' => NomineeVotingNotice::steps()];
         $v['prizes'] = [str_repeat('A trophy and a cash prize for each winner. ', 11), str_repeat('Mentoring for a year. ', 18)];
         $v['community_return'] = NomineeVotingNotice::communityReturn($this->programmeId, $this->cycleId);
-        $v['return_short'] = NomineeVotingNotice::communityReturnShort($this->cycleId);
-        $this->assertCount(3, $v['community_return']);
-        foreach (['20%', 'same target of 750 votes', 'by their votes', 'reserves', 'verified account'] as $w) {
-            $this->assertStringContainsString($w, $v['return_short'], 'the letter states the rule itself: ' . $w);
-        }
+        $this->assertCount(5, $v['community_return']);
+        $this->assertSame(['The target', 'Every nominee has the same target: 750 votes, free and paid together.'], $v['community_return'][1]);
         foreach (['A4', 'letter'] as $paper) {
-            $mm = NomineeVotingLetter::measure($v, $paper);
-            $this->assertLessThanOrEqual($mm['limit'], $mm['bottom'], sprintf('runs %.1fmm into the footer on %s', $mm['bottom'] - $mm['limit'], $paper));
+            foreach (['letter', 'guide'] as $page) {
+                $mm = NomineeVotingLetter::measure($v, $paper, $page);
+                $this->assertLessThanOrEqual($mm['limit'], $mm['bottom'], sprintf('the %s page runs %.1fmm into the footer on %s', $page, $mm['bottom'] - $mm['limit'], $paper));
+            }
+            $this->assertSame(2, self::pages(NomineeVotingLetter::render($v, $paper)), 'the letter, then the guide');
         }
     }
 
