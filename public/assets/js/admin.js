@@ -598,12 +598,24 @@
   // The edition's Prizes card renders every place up to the most, the spare ones hidden.
   // "Add a place" opens the next and moves focus into it, so a keyboard or screen-reader
   // user lands where they are about to type; the button goes once every place is open.
+  //
+  // And clicking into the LAST open place opens the one after it by itself (owner, 31 Oct
+  // 2026), so there is always an empty place waiting and the button is only a fallback.
+  const agPrizeOpen = function (form, focus) {
+    const next = form.querySelector('[data-pz-row][hidden]');
+    if (next) { next.hidden = false; if (focus) { const f = next.querySelector('input'); if (f) f.focus(); } }
+    if (!form.querySelector('[data-pz-row][hidden]')) form.querySelectorAll('[data-ag-do="prize-add"]').forEach(function (b) { b.hidden = true; });
+  };
   document.addEventListener('click', function (e) {
     const btn = e.target.closest('[data-ag-do="prize-add"]');
-    if (!btn || !btn.form) return;
-    const next = btn.form.querySelector('[data-pz-row][hidden]');
-    if (next) { next.hidden = false; const f = next.querySelector('input'); if (f) f.focus(); }
-    if (!btn.form.querySelector('[data-pz-row][hidden]')) btn.hidden = true;
+    if (btn && btn.form) agPrizeOpen(btn.form, true);
+  });
+  document.addEventListener('focusin', function (e) {
+    const row = e.target.closest && e.target.closest('[data-pz-row]');
+    if (!row || !row.form && !row.closest('form')) return;
+    const form = row.closest('form');
+    const open = Array.prototype.filter.call(form.querySelectorAll('[data-pz-row]'), function (r) { return !r.hidden; });
+    if (open[open.length - 1] === row) agPrizeOpen(form, false);
   });
 
   // ── THE CUSTOM SIZE BOXES FOLLOW THE SIZE SELECT ──────────────────────────
