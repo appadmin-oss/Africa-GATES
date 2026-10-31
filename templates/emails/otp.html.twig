@@ -1,0 +1,17 @@
+{#- Sign-in code · Account. Sender: AccountController::otpRequest (email channel).
+    Variables: code, minutes (UserAccountService::OTP_TTL_MINUTES), valid_until (zoned time).
+    Design: Email Templates.dc.html → "Sign-in code". The window is the constant that expires
+    the code — the design typed 10, the code lives 15. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Accounts{% endblock %}
+{% block hero %}illo-envelope{% endblock %}
+{% block why %}Somebody asked to sign in to Africa GATES with this address.{% endblock %}
+{% block subject %}Your Africa GATES sign-in code{% endblock %}
+{% block preheader %}{{ code }} · works once, for {{ minutes }} minutes{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1('Your sign-in code') }}
+{{ b.p("Enter this code on the page you just left. It works once, for #{minutes} minutes.") }}
+{{ b.code(code, "Valid until #{valid_until}") }}
+{{ b.note('Didn’t ask for this? Ignore it. Nobody can sign in without the code, and it expires on its own.') }}
+{% endblock %}

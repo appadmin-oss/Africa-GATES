@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>a{color:#237b22;text-decoration:none}a:hover{color:#145213}button{font-family:inherit}a:focus-visible,button:focus-visible{outline:3px solid #237b22;outline-offset:2px}</style>
+</helmet>
+<div ref="{{ rootRef }}" style="position:relative;width:100%;height:100dvh;max-height:100%;display:flex;flex-direction:column;background:#f1efe9;color:#10292c;font-family:'DM Sans',system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased">
+  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}"><div style="flex:none;height:44px;padding:0 26px;display:flex;align-items:center;font-weight:600;font-size:15px">9:41</div><dc-import name="AppBar" variant="child" title="{{ title }}" sub="{{ kicker }}" back="AccountPage.dc.html" hint-size="100%,56px" style="flex:none"></dc-import></sc-if>
+  <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}"><dc-import name="SiteHeader" signedIn="{{ signedIn }}" hint-size="100%,64px" style="flex:none;position:relative;z-index:40;width:100%"></dc-import></sc-if>
+
+  <main style="flex:1;min-height:0;overflow:auto">
+    <section aria-labelledby="ch-h1" style="background:{{ wash }};border-bottom:1px solid {{ washLine }}">
+      <div style="max-width:1160px;margin:0 auto;padding:{{ heroPad }};display:grid;grid-template-columns:{{ heroCols }};gap:{{ heroGap }};align-items:center">
+        <sc-if value="{{ hasArt }}" hint-placeholder-val="{{ false }}"><img src="{{ art }}" alt="{{ artAlt }}" style="width:100%;max-width:{{ artMax }};justify-self:center;height:auto;display:block"></sc-if>
+        <sc-if value="{{ noArt }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="justify-self:center;width:{{ iconBox }};height:{{ iconBox }};border-radius:32px;background:#fff;color:{{ accent }};display:flex;align-items:center;justify-content:center;box-shadow:0 20px 40px -24px rgba(16,41,44,.35)"><svg width="46%" height="46%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ icon }}"></path></svg></span></sc-if>
+        <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+          <span style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:{{ ink }}"><sc-if value="{{ hasFlag }}" hint-placeholder-val="{{ true }}"><span aria-hidden="true" style="display:flex;width:24px;height:15px;border-radius:3px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(16,41,44,.15)"><span style="flex:1;background:#008751"></span><span style="flex:1;background:#fff"></span><span style="flex:1;background:#008751"></span></span></sc-if>{{ kicker }}<span style="height:24px;padding:0 10px;border-radius:999px;background:#fff;color:{{ stInk }};font-size:12px;display:flex;align-items:center">{{ stLabel }}</span></span>
+          <h1 id="ch-h1" style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:{{ h1 }};line-height:1.04;text-wrap:balance">{{ title }}</h1>
+          <p style="margin:0;font-size:{{ lead }};line-height:1.5;color:#1d3336;max-width:44ch">{{ promise }}</p>
+          <dl style="margin:4px 0 0;display:grid;grid-template-columns:{{ factCols }};gap:1px;background:{{ washLine }};border:1px solid {{ washLine }};border-radius:16px;overflow:hidden">
+            <sc-for list="{{ facts }}" as="f" hint-placeholder-count="4"><div style="display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:rgba(255,255,255,.75)"><dt style="font-size:12px;color:#626a6e">{{ f.k }}</dt><dd style="margin:0;font-weight:700;font-size:15.5px">{{ f.v }}</dd></div></sc-for>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <div style="max-width:1160px;margin:0 auto;padding:{{ pagePad }};display:grid;grid-template-columns:{{ cols }};gap:40px;align-items:start">
+      <div style="min-width:0;display:flex;flex-direction:column;gap:32px">
+        <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:12px;padding:18px;background:#fff;border:1px solid #e8e5dd;border-radius:20px">
+            <span style="display:flex;align-items:center;justify-content:space-between;gap:10px"><b style="font-size:16px">{{ meterTitle }}</b><span style="font-size:13.5px;color:#626a6e">{{ timeLeft }}</span></span>
+            <sc-if value="{{ hasMeter }}" hint-placeholder-val="{{ true }}"><div role="img" aria-label="{{ meterAria }}" style="display:grid;grid-template-columns:repeat({{ capN }},1fr);gap:4px"><sc-for list="{{ spots }}" as="s" hint-placeholder-count="11"><span style="height:10px;border-radius:5px;background:{{ s.bg }};box-shadow:{{ s.ring }}"></span></sc-for></div></sc-if>
+            <sc-if value="{{ joined }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#3a4a4c"><b style="color:#10292c">You:</b> {{ mine }}</span></sc-if>
+          </div>
+        </sc-if>
+
+        <section aria-labelledby="h-how" style="display:flex;flex-direction:column;gap:12px">
+          <h2 id="h-how" style="margin:0;font-weight:700;font-size:21px">How to take part</h2>
+          <ol style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:{{ stepCols }};gap:10px">
+            <sc-for list="{{ steps }}" as="s" hint-placeholder-count="3"><li style="display:flex;flex-direction:{{ stepDir }};gap:12px;padding:18px;background:#fff;border:1px solid #e8e5dd;border-radius:18px"><span style="flex:none;width:34px;height:34px;border-radius:50%;background:{{ accent }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px">{{ s.n }}</span><span style="display:flex;flex-direction:column;gap:4px"><b style="font-size:16px;line-height:1.3">{{ s.t }}</b><span style="font-size:14px;line-height:1.5;color:#3a4a4c">{{ s.s }}</span></span></li></sc-for>
+          </ol>
+        </section>
+
+        <section aria-labelledby="h-count" style="display:flex;flex-direction:column;gap:12px">
+          <h2 id="h-count" style="margin:0;font-weight:700;font-size:21px">{{ countTitle }}</h2>
+          <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;background:#fff;border:1px solid #e8e5dd;border-radius:18px;overflow:hidden">
+            <sc-for list="{{ rules }}" as="r" hint-placeholder-count="6"><li style="display:flex;gap:12px;align-items:flex-start;padding:14px 18px;border-top:{{ r.sep }};font-size:15px;line-height:1.5"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" style="flex:none;margin-top:2px"><path d="M4 10.5 8.5 15 16 5.5" stroke="#237b22" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>{{ r.t }}</span></li></sc-for>
+          </ul>
+        </section>
+
+        <section aria-labelledby="h-win" style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2 id="h-win" style="margin:0;font-weight:700;font-size:21px">{{ winTitle }}</h2><span style="font-size:13.5px;color:#626a6e">{{ winSub }}</span></div>
+          <sc-if value="{{ hasWinners }}" hint-placeholder-val="{{ true }}">
+            <ol style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:{{ winCols }};gap:0 24px;background:#fff;border:1px solid #e8e5dd;border-radius:18px;padding:4px 18px">
+              <sc-for list="{{ winners }}" as="w" hint-placeholder-count="7"><li style="display:flex;align-items:center;gap:12px;min-height:58px;border-top:{{ w.sep }}"><span style="flex:none;width:32px;font:700 13.5px/1 'JetBrains Mono',monospace;color:#7a5600">{{ w.rank }}</span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><b style="font-size:15px;font-weight:600">{{ w.name }}</b><span style="font-size:12.5px;color:#626a6e">{{ w.where }}</span></span><span style="flex:none;font:500 12.5px/1 'JetBrains Mono',monospace;color:#3a4a4c">{{ w.when }}</span></li></sc-for>
+            </ol>
+          </sc-if>
+          <sc-if value="{{ noWinners }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:16px;padding:20px;background:#fff;border:1px dashed #c9c4b8;border-radius:18px"><span aria-hidden="true" style="flex:none;width:48px;height:48px;border-radius:50%;background:{{ wash }};color:{{ accent }};display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6"></path></svg></span><span style="display:flex;flex-direction:column;gap:3px"><b style="font-size:16px">{{ emptyT }}</b><span style="font-size:14px;line-height:1.5;color:#3a4a4c">{{ emptyS }}</span></span></div>
+          </sc-if>
+        </section>
+
+        <section aria-labelledby="h-faq" style="display:flex;flex-direction:column;gap:12px">
+          <h2 id="h-faq" style="margin:0;font-weight:700;font-size:21px">Questions</h2>
+          <div style="display:flex;flex-direction:column;border-top:1px solid #e0ddd4"><sc-for list="{{ faq }}" as="q" hint-placeholder-count="4"><div style="border-bottom:1px solid #e0ddd4"><button onClick="{{ q.toggle }}" aria-expanded="{{ q.open }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;padding:0;border:0;background:transparent;color:#10292c;font-weight:600;font-size:16px;text-align:start;cursor:pointer">{{ q.q }}<span aria-hidden="true" style="font-size:22px;font-weight:400">{{ q.sign }}</span></button><sc-if value="{{ q.open }}" hint-placeholder-val="{{ false }}"><p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#3a4a4c;max-width:62ch">{{ q.a }}</p></sc-if></div></sc-for></div>
+          <a href="LegalPage.dc.html" style="font-weight:600;font-size:14.5px">Full challenge terms · v{{ termsV }}</a>
+        </section>
+
+        <sc-if value="{{ hasOthers }}" hint-placeholder-val="{{ true }}">
+          <section aria-labelledby="h-more" style="display:flex;flex-direction:column;gap:12px">
+            <h2 id="h-more" style="margin:0;font-weight:700;font-size:21px">More challenges</h2>
+            <div style="display:grid;grid-template-columns:{{ moreCols }};gap:10px"><sc-for list="{{ others }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.pick }}" style="display:flex;align-items:center;gap:14px;padding:16px;border:1px solid #e8e5dd;border-radius:18px;background:#fff;color:#10292c;text-align:start;cursor:pointer"><span aria-hidden="true" style="flex:none;width:44px;height:44px;border-radius:14px;background:{{ o.wash }};color:{{ o.accent }};display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ o.icon }}"></path></svg></span><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:15.5px;font-weight:600">{{ o.t }}</b><span style="font-size:13px;color:#626a6e">{{ o.s }}</span></span><span style="flex:none;font-size:12.5px;font-weight:700;color:{{ o.stInk }}">{{ o.st }}</span></button></sc-for></div>
+          </section>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+        <aside aria-label="Take part" style="position:sticky;top:24px;display:flex;flex-direction:column;gap:16px;padding:24px;background:#fff;border:1px solid #e8e5dd;border-radius:22px;box-shadow:0 18px 40px -30px rgba(16,41,44,.4)">
+          <span style="font-size:12.5px;font-weight:700;letter-spacing:.06em;color:{{ ink }}">PRIZE</span>
+          <b style="font-size:38px;font-weight:800;letter-spacing:-.03em;line-height:1">{{ prizeBig }} <span style="font-size:15px;font-weight:600;letter-spacing:0;color:#626a6e">{{ prizeUnit }}</span></b>
+          <div style="display:flex;flex-direction:column;gap:10px;padding-top:16px;border-top:1px solid #eeece6">
+            <span style="display:flex;justify-content:space-between;gap:10px"><b style="font-size:15px">{{ meterTitle }}</b><span style="font-size:13.5px;color:#626a6e">{{ timeLeft }}</span></span>
+            <sc-if value="{{ hasMeter }}" hint-placeholder-val="{{ true }}"><div role="img" aria-label="{{ meterAria }}" style="display:grid;grid-template-columns:repeat({{ capN }},1fr);gap:4px"><sc-for list="{{ spots }}" as="s" hint-placeholder-count="11"><span style="height:10px;border-radius:5px;background:{{ s.bg }};box-shadow:{{ s.ring }}"></span></sc-for></div></sc-if>
+          </div>
+          <sc-if value="{{ joined }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:8px;padding:14px;background:#f6f7f6;border-radius:14px"><span style="font-size:14px"><b>You:</b> {{ mine }}</span><span aria-hidden="true" style="height:6px;border-radius:3px;background:#e0ddd4;overflow:hidden"><span style="display:block;height:100%;width:{{ minePct }};background:{{ accent }}"></span></span></div></sc-if>
+          <a href="{{ ctaHref }}" style="display:flex;align-items:center;justify-content:center;white-space:nowrap;height:54px;border-radius:14px;background:{{ ctaBg }};border:{{ ctaBd }};color:{{ ctaFg }};font-weight:700;font-size:16px">{{ cta }}</a>
+          <span style="font-size:13px;line-height:1.5;color:#626a6e">{{ ctaNote }}</span>
+          <div style="display:flex;gap:8px;padding-top:4px"><button style="flex:1;height:44px;border:1px solid #d6d4cc;border-radius:12px;background:#fff;color:#10292c;font-weight:600;font-size:14px;cursor:pointer">Share</button><button style="flex:1;height:44px;border:1px solid #d6d4cc;border-radius:12px;background:#fff;color:#10292c;font-weight:600;font-size:14px;cursor:pointer">Get the flier</button></div>
+        </aside>
+      </sc-if>
+    </div>
+  </main>
+
+  <sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;display:flex;align-items:center;gap:14px;padding:12px 16px 28px;background:rgba(251,251,250,.96);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid #e8e5dd">
+      <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><b style="font-size:17px">{{ prizeBig }} {{ prizeUnit }}</b><span style="font-size:12.5px;color:#626a6e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ barSub }}</span></span>
+      <a href="{{ ctaHref }}" style="flex:none;display:flex;align-items:center;white-space:nowrap;height:54px;padding:0 20px;border-radius:16px;background:{{ ctaBg }};border:{{ ctaBd }};color:{{ ctaFg }};font-weight:700;font-size:16px">{{ cta }}</a>
+    </div>
+    <dc-import name="Gee" layout="phone" offset="108px" hint-size="0px,0px"></dc-import>
+  </sc-if>
+  <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}"><dc-import name="Gee" layout="desktop" hint-size="0px,0px"></dc-import></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;phone&quot;,&quot;tablet&quot;,&quot;desktop&quot;],&quot;default&quot;:&quot;phone&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;challenge&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;nigeria&quot;,&quot;teachers&quot;,&quot;gala&quot;],&quot;default&quot;:&quot;nigeria&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;signedIn&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;open&quot;,&quot;full&quot;,&quot;upcoming&quot;,&quot;ended&quot;],&quot;default&quot;:&quot;open&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+// Every challenge is one config row. The page derives copy, steps, rules, meter and winners from it.
+// action: nominate | vote | refer | give · mode: first (first N to finish) | top (most by the end) | draw (random among finishers)
+// prize.type: cash_each | cash_pool | points | tickets
+const CH={
+ nigeria:{slug:'celebrate-nigeria',title:'Celebrate Nigeria',kicker:'Independence Day challenge',flag:true,art:'assets/alimosho-celebrates-nigeria.png',artAlt:'Àlímọ̀ṣọ́ celebrates Nigeria artwork',
+  accent:'#237b22',ink:'#1a6118',wash:'#eef5ec',line:'#d9e8d5',action:'nominate',target:10,cap:11,mode:'first',prize:{type:'cash_each',amount:6000,cur:'₦'},
+  award:'Alimosho Awards 2026',cats:'Choral, Business or Impact',ends:'15 Oct, 23:59 WAT',days:14,termsV:'1.2',claimed:7,mine:6,area:'Alimosho',
+  winners:[['Aisha B.','Ikotun','30 Sep, 09:14'],['Emeka O.','Egbeda','30 Sep, 11:02'],['Folake A.','Igando','30 Sep, 15:47'],['Sani M.','Idimu','30 Sep, 19:20'],['Ifeoma N.','Akowonjo','1 Oct, 08:05'],['Dayo K.','Ipaja','1 Oct, 10:31'],['Ruth E.','Ayobo','1 Oct, 12:56']]},
+ teachers:{slug:'teachers-day',title:'Thank a teacher',kicker:'World Teachers’ Day',icon:'M3 10 12 5l9 5-9 5zM7 12v4c0 1.5 2.2 3 5 3s5-1.5 5-3v-4',
+  accent:'#1f6fa3',ink:'#1f5f8b',wash:'#eaf2f8',line:'#d3e3ef',action:'nominate',target:5,cap:0,mode:'draw',prize:{type:'tickets',amount:2,label:'gala tickets'},drawCount:20,
+  award:'Africa GATES Education Awards · 4th Edition',cats:'Teacher of the Year or STEM Educator',ends:'12 Oct, 23:59 WAT',days:11,termsV:'1.0',claimed:0,mine:2,qualified:0,drawDate:'14 Oct',winners:[]},
+ gala:{slug:'bring-five',title:'Bring five to the gala',kicker:'Referral challenge',icon:'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6',
+  accent:'#a47306',ink:'#7a5600',wash:'#fbf4e2',line:'#efe0b8',action:'refer',target:5,cap:3,mode:'top',prize:{type:'points',amount:5000},
+  award:'KCEA 11th Edition ceremony',ends:'30 Nov, 23:59 EAT',days:60,termsV:'1.0',claimed:0,mine:3,
+  winners:[['Wanjiru K.','Nairobi','14 tickets'],['Brian M.','Kisumu','11 tickets'],['Neema J.','Mombasa','9 tickets']]}
+};
+const fmt=n=>n.toLocaleString('en');
+function derive(c){
+  const verb={nominate:'nominate',vote:'vote in',refer:'bring',give:'give to'}[c.action];
+  const unit={nominate:['different nominee','different nominees'],vote:['category','categories'],refer:['paid ticket','paid tickets'],give:['gift','gifts']}[c.action];
+  const u=c.target===1?unit[0]:unit[1];
+  const p=c.prize, prizeBig=p.type==='points'?fmt(p.amount):p.type==='tickets'?String(p.amount):(p.cur+fmt(p.amount)), prizeUnit=p.type==='points'?'points':p.type==='tickets'?p.label:(p.type==='cash_each'?'each':'shared');
+  const who=c.mode==='first'?`The first ${c.cap} people`:c.mode==='top'?`The top ${c.cap}`:`${c.drawCount} people drawn at random from everyone who`;
+  const promise=c.mode==='first'?`${who} to get ${c.target} ${u} verified each win ${prizeBig}${p.type==='cash_each'?'':' '+prizeUnit}.`
+    :c.mode==='top'?`${who} by ${c.ends.split(',')[0]} win ${prizeBig} ${prizeUnit}. Every paid ticket through your link counts.`
+    :`${who} gets ${c.target} ${u} verified win ${prizeBig} ${prizeUnit}.`;
+  const steps={nominate:[['Sign in or create your account','Free. Verify your phone number with a code.'],[`Nominate ${c.target} ${u}`,`For ${c.award}, in ${c.cats}, with every field complete.`],['Get them verified','Each nominee confirms, and our team checks the details.']],
+    refer:[['Sign in or create your account','Free. Verify your phone number with a code.'],['Share your event link','From your account, under Referrals.'],[`Get ${c.target} paid tickets`,'A ticket counts once it’s paid for. Refunds don’t count.']]}[c.action]||[];
+  const base=['Your account’s phone number is verified','One entry per person and per phone number'];
+  const per={nominate:[`${c.target} different people, none of them you`,'Every field is complete: full name, phone, email, category and a reason of at least 40 characters','Each nominee confirms by SMS or WhatsApp that they are real and agree to be nominated','Our team checks each nomination. Fake or copied details disqualify the whole entry'],
+    refer:['Tickets bought through your link or code','Paid, not reserved. Refunded tickets are removed','Buying tickets for yourself through your own link doesn’t count']}[c.action]||[];
+  const order={first:'Prizes go in the order entries are fully verified, not the order they were sent',top:'Ranked by verified count at the close. Ties go to whoever reached the count first',draw:`The draw is recorded and published on ${c.drawDate}`}[c.mode];
+  return {u,prizeBig,prizeUnit,promise,steps,rules:[...base,...per,order]};
+}
+class Component extends DCLogic {
+  state = { faq:0, pick:null };
+  rootRef=React.createRef();
+  componentDidMount(){ const el=this.rootRef.current; if(el&&window.ResizeObserver){ this.ro=new ResizeObserver(es=>{const w=Math.round(es[0].contentRect.width); if(w&&w!==this.state.w) this.setState({w});}); this.ro.observe(el); } }
+  componentWillUnmount(){ if(this.ro) this.ro.disconnect(); }
+  renderVals(){
+    const S=this.state, set=o=>this.setState(o), W=S.w||1440, L=this.props.layout ?? (W<600?'phone':W<1024?'tablet':'desktop'), isPhone=L==='phone', isDesktop=!isPhone;
+    const key=S.pick ?? (this.props.challenge ?? 'nigeria'), c=CH[key]||CH.nigeria, d=derive(c);
+    const signedIn=this.props.signedIn ?? false, st=this.props.state ?? 'open';
+    const full=st==='full'||(c.mode==='first'&&c.claimed>=c.cap), ended=st==='ended', upcoming=st==='upcoming', open=!full&&!ended&&!upcoming, joined=signedIn&&open;
+    const capped=c.mode==='first', claimed=full&&capped?c.cap:c.claimed;
+    const wins=c.mode==='first'?(full?c.winners.concat([['Tolu A.','Ikotun','1 Oct, 14:10'],['Halima S.','Egbeda','1 Oct, 15:22'],['Peter O.','Igando','1 Oct, 16:48'],['Joy I.','Ipaja','1 Oct, 17:30']]).slice(0,c.cap):c.winners):c.winners;
+    const ST={open:['Open','#1a6118'],full:['Full','#7a5600'],ended:['Ended','#626a6e'],upcoming:['Starts soon','#1f6fa3']};
+    const stKey=full?'full':st;
+    const cta=upcoming?'Remind me':ended?'See the results':full?'See the awards':joined?(c.action==='refer'?'Get my link':'Add a nominee'):'Sign in to join';
+    const ctaHref=upcoming?'#':ended||full?'AwardsPage.dc.html':joined?(c.action==='refer'?'AccountPage.dc.html':'NominationFlow.dc.html'):'SignIn.dc.html';
+    const prim=!(full||ended);
+    const meterTitle=capped?(full?`All ${c.cap} prizes claimed`:`${c.cap-claimed} of ${c.cap} prizes left`):c.mode==='top'?`Top ${c.cap} win`:`${c.drawCount} winners drawn ${c.drawDate}`;
+    const mine=c.action==='refer'?`${c.mine} of ${c.target} paid tickets`:`${c.mine} of ${c.target} verified`;
+    return {
+      rootRef:this.rootRef, isPhone, isDesktop, signedIn, joined,
+      title:c.title, kicker:c.kicker, hasFlag:!!c.flag, art:c.art||'', artAlt:c.artAlt||'', hasArt:!!c.art, noArt:!c.art, icon:c.icon||'', accent:c.accent, ink:c.ink, wash:c.wash, washLine:c.line,
+      prizeBig:d.prizeBig, prizeUnit:d.prizeUnit, stLabel:ST[stKey][0], stInk:ST[stKey][1], promise:d.promise, termsV:c.termsV,
+      facts:[['Prize',`${d.prizeBig} ${d.prizeUnit}`],['Winners',capped?`First ${c.cap}`:c.mode==='top'?`Top ${c.cap}`:`${c.drawCount}, by draw`],['To qualify',`${c.target} ${d.u}`],[ended?'Ended':'Ends',c.ends]].map(f=>({k:f[0],v:f[1]})),
+      hasMeter:capped, capN:String(c.cap||1), spots:Array.from({length:c.cap||0},(_,i)=>({bg:i<claimed?c.accent:'#fff',ring:i<claimed?'none':'inset 0 0 0 1.5px #d6d4cc'})), meterAria:`${claimed} of ${c.cap} prizes claimed`,
+      meterTitle, timeLeft:upcoming?'Starts 5 Oct':ended?'Closed':full?'Challenge full':`${c.days} days left`, mine, minePct:Math.min(100,c.mine/c.target*100)+'%',
+      cta, ctaHref, ctaBg:prim?c.accent:'#fff', ctaFg:prim?'#fff':'#10292c', ctaBd:prim?'0':'1px solid #10292c',
+      ctaNote:upcoming?'We’ll send one SMS when it opens.':ended?'Thanks to everyone who took part.':full?`All ${c.cap} prizes are taken. Your nominations still count for the awards.`:joined?'Track your progress in your account.':'Free to join. You need an account with a verified phone number.',
+      barSub:full?'All claimed':joined?mine:capped?`${c.cap-claimed} of ${c.cap} left · ${c.days} days`:`${c.days} days left`,
+      steps:d.steps.map((s,i)=>({n:String(i+1),t:s[0],s:s[1]})), countTitle:c.action==='refer'?'What counts':'What counts as verified',
+      rules:d.rules.map((t,i)=>({t,sep:i?'1px solid #eeece6':'0'})),
+      winTitle:c.mode==='top'?'Leading now':'Winners so far', winSub:c.mode==='first'?'In the order they qualified':c.mode==='top'?'Updated every hour':`Draw on ${c.drawDate}`,
+      hasWinners:wins.length>0, noWinners:wins.length===0, emptyT:c.mode==='draw'?`The draw happens on ${c.drawDate}`:'Nobody has qualified yet',
+      emptyS:c.mode==='draw'?`Everyone who gets ${c.target} ${d.u} verified before the close goes into the draw.`:'The first winner will appear here the moment their entry is verified.',
+      winners:wins.map((w,i)=>({rank:'#'+(i+1),name:w[0],where:w[1]+(c.area?', '+c.area:''),when:w[2],sep:(isDesktop&&L==='desktop')?(i>1?'1px solid #eeece6':'0'):(i?'1px solid #eeece6':'0')})),
+      faq:[['Who can take part?','Anyone with an Africa GATES account and a verified phone number. One entry per person.'],['How is the prize paid?',c.prize.type==='points'?'Points land in your account within a day of the close and can be redeemed for votes.':c.prize.type==='tickets'?'Tickets are sent to your account and by SMS within a day of the draw.':'Within 7 days of qualifying, to the mobile money wallet or bank account in your name.'],['Can I change an entry?','You can edit anything until it’s verified. After that it’s locked, so check the details first.'],['What if something looks wrong?','Tell us from the challenge page or ask Gee. We review every report before prizes go out.']].map((q,i)=>({q:q[0],a:q[1],open:S.faq===i,sign:S.faq===i?'−':'+',toggle:()=>set({faq:S.faq===i?-1:i})})),
+      others:Object.keys(CH).filter(k=>k!==key).map(k=>{const o=CH[k],od=derive(o);return {t:o.title,s:`${od.prizeBig} ${od.prizeUnit} · ${o.target} ${od.u}`,st:k==='teachers'?'Opens 5 Oct':'Open',stInk:k==='teachers'?'#1f6fa3':'#1a6118',wash:o.wash,accent:o.accent,icon:o.icon||'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6',pick:()=>set({pick:k,faq:0})};}), hasOthers:true,
+      heroPad:isPhone?'18px 16px 22px':(L==='tablet'?'32px 28px':'48px 32px'), heroCols:isPhone?'minmax(0,1fr)':(L==='tablet'?'minmax(0,.8fr) minmax(0,1.2fr)':'420px minmax(0,1fr)'), heroGap:isPhone?'16px':'48px',
+      artMax:isPhone?'260px':'420px', iconBox:isPhone?'120px':'200px', h1:isPhone?'34px':(L==='tablet'?'42px':'56px'), lead:isPhone?'17px':'20px', factCols:isPhone?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',
+      pagePad:isPhone?'20px 16px 40px':'40px 32px 72px', cols:L==='desktop'?'minmax(0,1fr) 360px':'minmax(0,1fr)',
+      stepCols:isPhone?'minmax(0,1fr)':'repeat(3,minmax(0,1fr))', stepDir:isPhone?'row':'column', winCols:L==='desktop'?'repeat(2,minmax(0,1fr))':'minmax(0,1fr)', moreCols:isPhone?'minmax(0,1fr)':'repeat(2,minmax(0,1fr))'
+    };
+  }
+}
+</script>
+</body>
+</html>

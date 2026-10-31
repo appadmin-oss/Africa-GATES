@@ -1,0 +1,76 @@
+{#
+  ONE AD, AS EVERY PLACE DRAWS IT (Services\Ads)
+
+  The anatomy is Meta's feed ad, because it is the one readers already know: who it is from
+  and "Sponsored" first, the advertiser's text, the image, then a link bar with the domain,
+  the headline and the button. The label sits beside the name at the top left, where the eye
+  lands first: the FTC's native-advertising guide asks for exactly that, and warns that a
+  label below or apart from the ad is missed. It is a word in the soft ink (4.8:1), never
+  pale grey.
+
+  The ⋯ menu carries what every large platform offers on an ad: hide it, report it, why you
+  are seeing it, and the advertiser's other ads (the library). Each is a plain form or link,
+  so it works with no script; ads.js only makes them answer in place.
+
+  Args (with … only):
+    ad          the pick from AdDelivery (or a campaign's ad, for a preview)
+    csrf_token  the page's token (`only` hides the global)
+    ad.house    our own notice for advertising, drawn when nothing is booked (AdDelivery::
+                house()): labelled "From Africa GATES", never "Sponsored", never counted
+    preview     true on the advertiser's own pages and the library: nothing is counted,
+                the links go straight to the advertiser, and there is no menu
+    back        the path the menu's forms return to without a script
+    media_box   true to draw the image box even with no image (the builder's live preview)
+#}
+{% if ad %}
+{%- set _house = ad.house|default(false) -%}
+{%- set _pv = preview|default(false) or _house -%}
+{%- set _href = _pv ? ad.url|default('#') : ad.href -%}
+{#- Our own notice links our own page, and nobody paid for it, so it is not rel="sponsored". -#}
+{%- set _rel = _house ? '' : 'sponsored' ~ (ad.external|default(not (_href starts with '/')) ? ' noopener noreferrer' : '') -%}
+<article class="ag-ad"{% if not _pv %} data-ad="{{ ad.token }}" data-csrf="{{ csrf_token|default('') }}"{% endif %} aria-label="{{ _house ? 'From Africa GATES'|trans : 'Sponsored: %a%'|trans({'%a%': ad.advertiser}) }}">
+  <header class="ag-ad__head">
+    <span class="ag-ad__logo" aria-hidden="true" data-pv="logo">{% if ad.logo|default(null) %}<img src="{{ ad.logo }}" alt="" width="40" height="40" loading="lazy">{% else %}{{ ad.initials|default('?') }}{% endif %}</span>
+    <span class="ag-ad__who">
+      <span class="ag-ad__by" data-pv="by">{{ ad.advertiser }}</span>
+      <span class="ag-ad__tag">{{ _house ? 'From Africa GATES'|trans : 'Sponsored'|trans }}</span>
+    </span>
+    {% if not _pv %}
+    <details class="ag-ad__menu">
+      <summary class="ag-ad__more" aria-label="{{ 'Options for this ad'|trans }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></summary>
+      <div class="ag-ad__pop">
+        <form method="post" action="/ads/hide" data-ad-act="hide">
+          <input type="hidden" name="_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="t" value="{{ ad.token }}"><input type="hidden" name="back" value="{{ back|default('/') }}">
+          <button type="submit" class="ag-ad__item">{{ 'Hide ad'|trans }}</button>
+        </form>
+        <details class="ag-ad__sub">
+          <summary class="ag-ad__item">{{ 'Report ad'|trans }}</summary>
+          <form method="post" action="/ads/report" data-ad-act="report" class="ag-ad__rep">
+            <input type="hidden" name="_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="t" value="{{ ad.token }}"><input type="hidden" name="back" value="{{ back|default('/') }}">
+            <fieldset><legend class="ag-ad__lg">{{ 'What is wrong with it?'|trans }}</legend>
+              {% for k, label in ad.reasons|default({}) %}<label class="ag-ad__opt"><input type="radio" name="reason" value="{{ k }}"{% if loop.first %} required{% endif %}> {{ label|trans }}</label>{% endfor %}
+            </fieldset>
+            <button type="submit" class="ag-btn ag-btn--secondary ag-btn--pill ag-ad__send">{{ 'Send report'|trans }}</button>
+          </form>
+        </details>
+        <p class="ag-ad__why"><b>{{ 'Why am I seeing this?'|trans }}</b> {{ 'It is shown to everyone who opens this page. Nothing you did here chose it.'|trans }}</p>
+        <a class="ag-ad__item" href="/advertise/library?from={{ ad.id }}">{{ 'More ads from %a%'|trans({'%a%': ad.advertiser}) }}</a>
+        <a class="ag-ad__item" href="/advertise">{{ 'About ads on Africa GATES'|trans }}</a>
+      </div>
+    </details>
+    {% endif %}
+  </header>
+  <p class="ag-ad__text" data-pv="body">{{ ad.body }}</p>
+  {% if ad.image|default(null) or media_box|default(false) %}
+  <a class="ag-ad__media" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %} tabindex="-1" aria-hidden="true" data-pv="image">{% if ad.image|default(null) %}<img src="{{ ad.image }}" alt="" loading="lazy" decoding="async" width="600" height="600">{% else %}<span class="ag-ad__ph">{{ 'Your square image'|trans }}</span>{% endif %}</a>
+  {% endif %}
+  <a class="ag-ad__foot" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %}>
+    <span class="ag-ad__meta">
+      <span class="ag-ad__dom" data-pv="domain">{{ ad.domain|default('') }}</span>
+      <span class="ag-ad__h" data-pv="headline">{{ ad.headline }}</span>
+      <span class="ag-ad__offer" data-pv="offer"{% if not ad.offer %} hidden{% endif %}>{{ ad.offer }}{% if ad.offer_code %} · <span class="ag-ad__code">{{ ad.offer_code }}</span>{% endif %}</span>
+    </span>
+    <span class="ag-btn ag-btn--secondary ag-ad__cta" data-pv="cta">{{ ad.cta|trans }}</span>
+  </a>
+</article>
+{% endif %}

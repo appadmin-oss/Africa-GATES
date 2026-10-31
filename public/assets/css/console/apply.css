@@ -1,0 +1,143 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /volunteer/apply — the volunteer application (owner, 29 Oct 2026: rebuilt).
+
+   Six short steps, one on screen at a time with script and all of them in a column without it,
+   so it works on any phone and the first field is never more than a thumb away. Choices are
+   big chips rather than tiny boxes: a whole chip is the target (WCAG 2.5.8), and the box
+   inside it stays a real checkbox or radio, so a screen reader hears exactly what it is.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ap { min-height: 100dvh; background: var(--cn-ground); color: var(--cn-ink); font-family: var(--cn-font); }
+.ap-wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 96px; box-sizing: border-box; }
+
+.ap-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+/* Our mark and name, as the sign-in page draws them. */
+.ap-brand { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: var(--cn-ink) !important; text-decoration: none; }
+.ap-brand__mark { width: 36px; height: 36px; padding: 3px; box-sizing: border-box; border-radius: var(--cn-r-10); border: 1px solid var(--cn-line-card); background: var(--cn-surface); object-fit: contain; }
+.ap-brand__words { display: flex; flex-direction: column; line-height: 1.15; }
+.ap-brand__name { font-size: var(--cn-fs-15); font-weight: 600; }
+.ap-brand__sub { font-size: var(--cn-fs-12); color: var(--cn-ink-3); }
+.ap-after { margin: 0; font-size: var(--cn-fs-14); color: var(--cn-ink-3); }
+
+/* The account step: one surface, logo first, one field. A card on a wide screen; on a phone the
+   card's frame goes and the page is the surface, so nothing reads as a box inside a box. */
+.ap-gate { max-width: 420px; margin: 0 auto; padding: 32px 28px 24px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;
+  background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-20); box-shadow: var(--cn-sh-hero); }
+.ap-gate__logo { width: 96px; height: auto; }
+.ap-gate__h { margin: 4px 0 0; font-size: var(--cn-fs-28); line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
+.ap-gate__lede { margin: 0; font-size: var(--cn-fs-16); line-height: 1.5; color: var(--cn-ink-2); max-width: 32ch; }
+.ap-gate__proof { margin: 0; display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: var(--cn-r-pill); background: var(--cn-green-wash); color: var(--cn-green-ink); font-size: var(--cn-fs-13); font-weight: 500; }
+.ap-gate__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cn-green); }
+.ap-gate__why { list-style: none; margin: 2px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 8px; align-self: stretch; text-align: left; }
+.ap-gate__why li { display: flex; align-items: center; gap: 10px; font-size: var(--cn-fs-15); color: var(--cn-ink); }
+.ap-gate__why li::before { content: "✓"; flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--cn-green); color: var(--cn-surface); font-size: var(--cn-fs-12); font-weight: 700; }
+.ap-gate__form { align-self: stretch; display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.ap-gate__in { min-height: 52px; text-align: left; }
+.ap-gate__go { width: 100%; min-height: 52px; box-sizing: border-box; }
+.ap-gate__alt { margin: 0; font-size: var(--cn-fs-14); color: var(--cn-ink-2); }
+.ap-gate__alt a { display: inline-flex; align-items: center; min-height: 24px; color: var(--cn-ink) !important; font-weight: 600; }
+.ap-gate__fine { margin: 0; font-size: var(--cn-fs-13); line-height: 1.45; color: var(--cn-ink-3); }
+.ap-gate .ap-path { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--cn-line-card); }
+@media (max-width: 600px) {
+  .ap-gate { padding: 8px 4px 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+}
+
+/* The way through: four numbered steps on one line joined by a rule, labels under the numbers,
+   so it never wraps on a 320px phone. */
+.ap-path { list-style: none; margin: 6px 0 4px; padding: 0; width: 100%; display: flex; font-size: var(--cn-fs-12); color: var(--cn-ink-3); }
+.ap-path li { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ap-path li + li::before { content: ""; position: absolute; top: 12px; right: calc(50% + 16px); left: calc(-50% + 16px); height: 1px; background: var(--cn-line-strong); }
+.ap-path__n { display: inline-grid; place-items: center; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--cn-line-strong); background: var(--cn-surface); font-size: var(--cn-fs-12); font-weight: 600; }
+.ap-path li[aria-current="step"] { color: var(--cn-ink); font-weight: 600; }
+.ap-path li[aria-current="step"] .ap-path__n { background: var(--cn-green); border-color: var(--cn-green); color: var(--cn-surface); }
+.ap-path li.is-done .ap-path__n { background: var(--cn-green-wash); border-color: var(--cn-green-edge); color: var(--cn-green-ink); }
+.ap-top--bare { justify-content: flex-end; }
+.ap-exit { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font-size: var(--cn-fs-14); color: var(--cn-ink-2) !important; }
+
+.ap-hero { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.ap-hero h1 { margin: 0; font-size: var(--cn-fs-28); line-height: 1.15; font-weight: 600; letter-spacing: -.01em; }
+.ap-lede { margin: 0; font-size: var(--cn-fs-16); line-height: 1.55; color: var(--cn-ink-2); max-width: 60ch; }
+
+/* The steps, as a list that is also the progress. */
+.ap-steps { list-style: none; margin: 0 0 14px; padding: 0; display: flex; gap: 6px; }
+.ap-steps li { flex: 1 1 0; min-width: 0; }
+.ap-steps a { display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: var(--cn-ink-3) !important; font-size: var(--cn-fs-12); min-height: 24px; }
+.ap-steps a::before { content: ""; height: 4px; border-radius: var(--cn-r-pill); background: var(--cn-line); }
+.ap-steps a.is-done::before { background: var(--cn-green-edge); }
+.ap-steps a[aria-current="step"] { color: var(--cn-ink) !important; font-weight: 600; }
+.ap-steps a[aria-current="step"]::before { background: var(--cn-green); }
+.ap-steps span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ap-errors { background: var(--cn-red-wash); border: 1px solid var(--cn-red-edge); border-radius: var(--cn-r-14); padding: 14px 16px; margin-bottom: 14px; }
+.ap-errors h2 { margin: 0 0 6px; font-size: var(--cn-fs-15); color: var(--cn-red-ink); }
+.ap-errors ul { margin: 0; padding-left: 18px; font-size: var(--cn-fs-14); line-height: 1.6; color: var(--cn-ink); }
+
+/* One step. */
+.ap-step { background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-18); box-shadow: var(--cn-sh-hero);
+  padding: 22px 20px; margin: 0 0 14px; display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 16px; }
+.ap-step__h { margin: 0; font-size: var(--cn-fs-22); line-height: 1.2; font-weight: 600; }
+.ap-step__h:focus { outline: none; }
+.ap-step__n { display: block; font-size: var(--cn-fs-13); font-weight: 500; color: var(--cn-ink-3); margin-bottom: 4px; }
+.ap-step__why { margin: -8px 0 0; font-size: var(--cn-fs-14); line-height: 1.5; color: var(--cn-ink-2); }
+
+.ap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ap-grid > .ap-wide { grid-column: 1 / -1; }
+
+.ap-f { display: flex; flex-direction: column; gap: 6px; min-width: 0; border: 0; margin: 0; padding: 0; }
+.ap-f__l { font-size: var(--cn-fs-14); font-weight: 600; color: var(--cn-ink); padding: 0; }
+.ap-opt { font-weight: 400; color: var(--cn-ink-3); }
+.ap-f__h { margin: 0; font-size: var(--cn-fs-13); line-height: 1.45; color: var(--cn-ink-3); }
+.ap-in { width: 100%; box-sizing: border-box; min-height: 48px; padding: 10px 14px; border: 1px solid var(--cn-line-strong); border-radius: var(--cn-r-12);
+  background: var(--cn-surface); color: var(--cn-ink); font: var(--cn-fs-16) var(--cn-font); }
+textarea.ap-in { min-height: 96px; line-height: 1.5; resize: vertical; }
+.ap-in:focus-visible { outline: 2px solid var(--cn-green); outline-offset: 1px; border-color: var(--cn-green); }
+.ap-in[aria-invalid="true"] { border-color: var(--cn-red); }
+
+/* Chips: a radio or checkbox inside a label that is the whole target. */
+.ap-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ap-chip { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; box-sizing: border-box;
+  border: 1px solid var(--cn-line-strong); border-radius: var(--cn-r-pill); background: var(--cn-surface); cursor: pointer;
+  font-size: var(--cn-fs-15); color: var(--cn-ink); }
+.ap-chip input { width: 18px; height: 18px; margin: 0; accent-color: var(--cn-green); flex: none; }
+.ap-chip:has(input:checked) { border-color: var(--cn-green); background: var(--cn-green-wash); color: var(--cn-green-ink); font-weight: 500; }
+.ap-chip:has(input:focus-visible) { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+.ap-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.ap-cards .ap-chip { border-radius: var(--cn-r-14); align-items: flex-start; padding: 12px 14px; }
+.ap-cards .ap-chip input { margin-top: 2px; }
+
+.ap-check { display: flex; gap: 10px; align-items: flex-start; font-size: var(--cn-fs-15); line-height: 1.45; cursor: pointer; min-height: 24px; }
+.ap-check input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--cn-green); }
+
+.ap-code { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.ap-code li { display: flex; gap: 10px; font-size: var(--cn-fs-15); line-height: 1.5; }
+.ap-code li::before { content: "✓"; color: var(--cn-green-ink); font-weight: 600; }
+.ap-share { margin: 0; padding: 12px 14px; border-radius: var(--cn-r-12); background: var(--cn-ground); font-size: var(--cn-fs-13); line-height: 1.5; color: var(--cn-ink-2); }
+
+/* The step's buttons. */
+.ap-nav { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.ap-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px; border-radius: var(--cn-r-pill);
+  border: 1px solid var(--cn-line-strong); background: var(--cn-surface); color: var(--cn-ink); font: 500 var(--cn-fs-15) var(--cn-font); cursor: pointer; text-decoration: none; }
+.ap-btn--go { background: var(--cn-ink); border-color: var(--cn-ink); color: var(--cn-surface); }
+.ap-btn:focus-visible { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+.ap-nav [data-ap-back][hidden], .ap-nav [data-ap-next][hidden] { display: none; }
+
+/* With script, one step at a time. Without it, every step is on the page and the last one sends. */
+.ap.is-stepped .ap-step:not(.is-on) { display: none; }
+.ap:not(.is-stepped) .ap-nav [data-ap-next], .ap:not(.is-stepped) .ap-nav [data-ap-back] { display: none; }
+.ap:not(.is-stepped) .ap-step:not(:last-of-type) .ap-nav { display: none; }
+
+.ap-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 600px) {
+  .ap-wrap { padding: 16px 16px 88px; }
+  .ap-hero h1 { font-size: var(--cn-fs-24); }
+    .ap-grid { grid-template-columns: minmax(0, 1fr); }
+  .ap-steps span { display: none; }   /* the bar still shows the step; its name is the heading below */
+  .ap-step { padding: 18px 16px; border-radius: var(--cn-r-16); }
+  .ap-nav { position: sticky; bottom: 0; margin: 0 -16px -18px; padding: 12px 16px; background: var(--cn-surface);
+    border-top: 1px solid var(--cn-line-card); border-radius: 0 0 var(--cn-r-16) var(--cn-r-16); }
+  .ap-nav .ap-btn--go { flex: 1 1 auto; }
+}
+@media (prefers-reduced-motion: no-preference) { .ap-chip { transition: background-color .12s, border-color .12s; } }
+@media (forced-colors: active) { .ap-path li[aria-current="step"] .ap-path__n { background: Highlight; } .ap-chip:has(input:checked) { outline: 2px solid Highlight; } .ap-steps a[aria-current="step"]::before { background: Highlight; } }
+.ap [hidden] { display: none !important; }

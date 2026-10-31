@@ -1,0 +1,70 @@
+{% extends "admin/layout.twig" %}
+{#
+  THE ASSISTANT, EXPANDED — 26 Oct 2026, after the design the owner pointed at (an
+  operations assistant with its conversations on the left, the conversation in the middle
+  and the evidence beside it).
+
+  Three panes, all drawn by console-assistant.js from the endpoints in AssistantController:
+    · Conversations — this person's own, kept on the server (Admin\Services\AssistantThreads),
+      grouped by when they last moved, searchable by anything said in them.
+    · The conversation — each answer with the checks it ran (expandable), a card for every
+      check result, the console pages it offers, and helpful / not helpful / copy.
+    · Evidence — a check's full result as a table, beside the answer that summarised it.
+
+  The composer takes @ to tag a console page and ? for shortcuts. The drawer in the layout
+  is the same component, compact, on the same conversation.
+
+  Without script the page says so: a conversation needs it, and a form that posts into a
+  JSON endpoint would land somebody on raw JSON.
+#}
+
+{% block topbar_title %}Assistant{% endblock %}
+{# A focus view, like the review desk: its own header, no page heading above the panes. #}
+{% block page_head %}{% endblock %}
+
+{% block content %}
+<div class="as" data-as="page" data-as-open="{{ open_thread }}"
+     data-as-dest="{{ shell.destinations|map(d => {label: d.label, href: d.href, group: d.group})|json_encode }}">
+
+  <aside class="as-side" aria-label="Conversations">
+    <div class="as-side__top">
+      <button type="button" class="as-side__new" data-as-new><svg aria-hidden="true" focusable="false"><use href="#ic-plus"/></svg>New chat</button>
+      <label class="as-side__find">
+        <svg aria-hidden="true" focusable="false"><use href="#ic-search"/></svg>
+        <input type="search" placeholder="Search conversations" aria-label="Search conversations" data-as-search autocomplete="off">
+      </label>
+    </div>
+    <nav class="as-side__list" data-as-list aria-label="Your conversations"></nav>
+    <p class="as-side__note">Kept for {{ constant('AfricaGates\\Admin\\Services\\AssistantThreads::RETAIN_DAYS') }} days after they last move. Only you can see yours.</p>
+  </aside>
+
+  <section class="as-chat" aria-label="Conversation">
+    <header class="as-chat__head">
+      <button type="button" class="as-iconbtn as-chat__sidebtn" data-as-side aria-label="Show conversations"><svg aria-hidden="true" focusable="false"><use href="#ic-sidebar"/></svg></button>
+      <h1 class="as-chat__t" data-as-title>New conversation</h1>
+      <a class="as-chat__link" href="/admin/assistant/scripts">Operations scripts</a>
+      <button type="button" class="as-iconbtn" data-as-panel-toggle aria-label="Show the evidence" aria-pressed="false" hidden><svg aria-hidden="true" focusable="false"><use href="#ic-table"/></svg></button>
+    </header>
+
+    <div class="as-log" data-as-log role="log" aria-live="polite" aria-label="Conversation"></div>
+
+    <noscript><p class="as-err">The assistant needs JavaScript to hold a conversation. Operations scripts work without it.</p></noscript>
+
+    <div class="as-compose">
+      {% include 'admin/partials/assistant-composer.twig' with {as_disabled: not ai_configured} %}
+      <p class="as-compose__note">
+        {% if ai_configured %}It runs the platform's own read-only checks before it answers and shows you each result. It cannot change data: repairs are run by a person, on <a href="/admin/assistant/scripts">Operations scripts</a>.{% if not is_superadmin %} Up to {{ budget }} messages an hour for your role.{% endif %}
+        {% else %}No AI provider is answering. {% if is_superadmin %}Add a key under <a href="/admin/settings">Settings → AI</a>.{% else %}A superadmin can add one in Settings.{% endif %}{% endif %}
+      </p>
+    </div>
+  </section>
+
+  <aside class="as-panel" data-as-panel aria-label="Evidence" hidden>
+    <header class="as-panel__head">
+      <span class="as-panel__t" data-as-panel-title>Evidence</span>
+      <button type="button" class="as-iconbtn" data-as-panel-close aria-label="Close the evidence"><svg aria-hidden="true" focusable="false"><use href="#ic-x"/></svg></button>
+    </header>
+    <div class="as-panel__body" data-as-panel-body></div>
+  </aside>
+</div>
+{% endblock %}

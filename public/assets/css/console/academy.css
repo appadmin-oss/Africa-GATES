@@ -1,0 +1,107 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /volunteer/academy — the Volunteer academy as a course (owner, 31 Oct 2026: "more standard
+   and modern onboarding"). An outline with progress on the left, one lesson at a time on the
+   right; on a phone the outline folds above the lesson. Without academy.js every lesson is
+   drawn in order and the outline is a list of anchors, so nothing here may depend on it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ac { min-height: 100dvh; margin: 0; background: var(--cn-ground); color: var(--cn-ink); font-family: var(--cn-font); }
+.ac-skip { position: absolute; left: -9999px; }
+.ac-skip:focus { left: 16px; top: 8px; z-index: 2; padding: 8px 12px; background: var(--cn-surface); border-radius: var(--cn-r-8); }
+
+.ac-top { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px; background: var(--cn-surface); border-bottom: 1px solid var(--cn-line-card); }
+.ac-brand { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--cn-ink) !important; text-decoration: none; font-size: var(--cn-fs-15); font-weight: 600; }
+.ac-brand__sub { font-size: var(--cn-fs-14); font-weight: 400; color: var(--cn-ink-2); }
+
+.ac-wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 96px; box-sizing: border-box;
+  display: grid; grid-template-columns: 1fr; gap: 24px; }
+@media (min-width: 900px) { .ac-wrap { grid-template-columns: 280px minmax(0, 1fr); gap: 40px; } }
+
+/* ── the outline ───────────────────────────────────────────────────────── */
+.ac-side { align-self: start; }
+@media (min-width: 900px) { .ac-side { position: sticky; top: 88px; max-height: calc(100dvh - 104px); overflow: auto; } }
+.ac-prog { margin-bottom: 16px; padding: 14px 16px; background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-12); }
+.ac-prog__t { margin: 0 0 8px; font-size: var(--cn-fs-14); font-weight: 600; }
+.ac-prog__bar { height: 8px; border-radius: var(--cn-r-pill); background: var(--cn-green-wash); overflow: hidden; }
+.ac-prog__bar span { display: block; height: 100%; width: 0; background: var(--cn-green); border-radius: inherit; transition: width .3s ease; }
+.ac-outline { background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-12); padding: 4px 8px 12px; }
+.ac-outline > summary { min-height: 44px; display: flex; align-items: center; padding: 0 8px; font-size: var(--cn-fs-15); font-weight: 600; cursor: pointer; }
+@media (min-width: 900px) { .ac-outline > summary { display: none; } }
+.ac-ol-home { display: flex; align-items: center; min-height: 40px; padding: 0 8px; border-radius: var(--cn-r-8); color: var(--cn-ink) !important; text-decoration: none; font-size: var(--cn-fs-14); font-weight: 600; }
+.ac-ol-h { margin: 14px 8px 4px; font-size: var(--cn-fs-13); font-weight: 600; color: var(--cn-ink-2); }
+.ac-ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ac-ol a { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 10px; min-height: 40px; padding: 4px 8px;
+  border-radius: var(--cn-r-8); color: var(--cn-ink) !important; text-decoration: none; font-size: var(--cn-fs-14); }
+.ac-ol a:hover, .ac-ol-home:hover { background: var(--cn-hover); }
+.ac-ol a[aria-current], .ac-ol-home[aria-current] { background: var(--cn-green-wash); font-weight: 600; }
+.ac-tick { width: 24px; height: 24px; border-radius: var(--cn-r-pill); display: inline-grid; place-items: center;
+  border: 1px solid var(--cn-line-strong); font-size: var(--cn-fs-12); color: var(--cn-ink-2); }
+.ac-ol a.is-done .ac-tick { position: relative; background: var(--cn-green); border-color: var(--cn-green); color: transparent; }
+.ac-ol a.is-done .ac-tick::before { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--cn-surface); font-size: var(--cn-fs-13); }
+.ac-ol-m { font-size: var(--cn-fs-13); color: var(--cn-ink-2); }
+
+/* ── a lesson ──────────────────────────────────────────────────────────── */
+.ac-main { min-width: 0; }
+.ac-lesson { background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-16);
+  padding: 24px 20px; margin-bottom: 24px; font-size: var(--cn-fs-16); line-height: 1.6; }
+@media (min-width: 900px) { .ac-lesson { padding: 36px 40px; } }
+.ac--js .ac-lesson { margin-bottom: 0; }
+/* A shared lesson link jumps to the lesson; the sticky header must not cover its title. */
+.ac-lesson { scroll-margin-top: 84px; }
+.ac-kicker { margin: 0 0 6px; font-size: var(--cn-fs-13); font-weight: 600; color: var(--cn-green-ink); }
+.ac-h1 { margin: 0 0 10px; font-size: var(--cn-fs-30); line-height: 1.15; font-weight: 600; }
+.ac-lesson h2 { margin: 0 0 12px; font-size: var(--cn-fs-26); line-height: 1.2; font-weight: 600; }
+.ac-lede { margin: 0 0 20px; font-size: var(--cn-fs-17); color: var(--cn-ink-2); }
+.ac-learn { margin: 0 0 20px; padding: 12px 14px; border-radius: var(--cn-r-10); background: var(--cn-green-wash); font-size: var(--cn-fs-15); }
+.ac-learn span { font-weight: 600; }
+.ac-body > p { margin: 0 0 14px; }
+
+/* steps as cards, numbered by the list */
+.ac-steps { list-style: none; counter-reset: ac-step; margin: 0 0 20px; padding: 0; display: grid; gap: 10px; }
+.ac-steps[start="4"] { counter-reset: ac-step 3; }
+.ac-steps > li { counter-increment: ac-step; position: relative; padding: 12px 14px 12px 52px; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-12); background: var(--cn-surface); }
+.ac-steps > li::before { content: counter(ac-step); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: var(--cn-r-pill);
+  display: grid; place-items: center; background: var(--cn-ink); color: var(--cn-surface); font-size: var(--cn-fs-13); font-weight: 600; }
+.ac-ui { font-weight: 600; }
+
+.ac-shot { margin: 4px 0 24px; }
+.ac-shot img { display: block; width: 100%; height: auto; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-12); box-shadow: 0 1px 2px var(--cn-line-card); }
+.ac-shot figcaption { margin-top: 8px; font-size: var(--cn-fs-14); color: var(--cn-ink-2); }
+
+.ac-faq dt { margin-top: 14px; font-weight: 600; }
+.ac-faq dd { margin: 4px 0 0; color: var(--cn-ink-2); }
+
+.ac-pager { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--cn-line-card); }
+.ac-pager .sh7-btn--primary { margin-left: auto; }
+
+/* ── welcome: three ways in ────────────────────────────────────────────── */
+.ac-lesson h2.ac-paths-h { font-size: var(--cn-fs-17); margin: 8px 0 12px; }
+.ac-paths { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+@media (min-width: 700px) { .ac-paths { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ac-path { display: grid; gap: 6px; height: 100%; box-sizing: border-box; padding: 16px; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-12);
+  color: var(--cn-ink) !important; text-decoration: none; background: var(--cn-surface); }
+.ac-path:hover { border-color: var(--cn-line-strong); background: var(--cn-hover); }
+.ac-path--main { border-color: var(--cn-green-edge); background: var(--cn-green-wash); }
+.ac-path__t { font-size: var(--cn-fs-16); font-weight: 600; }
+.ac-path__d { font-size: var(--cn-fs-14); color: var(--cn-ink-2); }
+.ac-path__m { font-size: var(--cn-fs-13); color: var(--cn-green-ink); font-weight: 600; }
+
+.ac-lesson.ac-done h2 { font-size: var(--cn-fs-28); }
+
+@media (prefers-reduced-motion: reduce) { .ac-prog__bar span { transition: none; } }
+
+/* ── phones ── the brand wrapped to two lines beside a full-width button, and the pager's two
+   buttons sat side by side at 36px. One line of brand, a 44px button, and the pager stacked with
+   the forward step on top, where the thumb is. Width here is the window's: the academy has no
+   panel of its own to measure. */
+.ac-brand { white-space: nowrap; }
+@media (max-width: 599px) {
+  .ac-top { padding: 8px 12px; }
+  .ac-brand__sub { display: none; }
+  .ac-lesson { padding: 20px 16px; }
+  .ac-h1 { font-size: var(--cn-fs-26); }
+  .ac-pager { flex-direction: column-reverse; }
+  .ac-pager .sh7-btn { width: 100%; margin-left: 0; }
+}
+@media (pointer: coarse) { .ac .sh7-btn { height: auto; min-height: 44px; } .ac-ol a, .ac-ol-home { min-height: 44px; } }

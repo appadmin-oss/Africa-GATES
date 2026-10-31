@@ -1,0 +1,100 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE ORGANISATION CONSOLE FRAME — every section of /org
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed 3 Oct 2026 with the rest of the public pages (inventory
+  pages--org--dashboard.md) and rebuilt here. `GET /org` has been routed to a template that
+  does not exist ever since, so the console an organisation manages its money from has been
+  a 500 — which is why nothing on it resembled the design: there was no page.
+
+  ── IT IS THE ACCOUNT CONSOLE'S FRAME, DELIBERATELY ─────────────────────────
+
+  `pages/account/_frame.twig` already solved this screen: a rail of sections beside a
+  content column from 600 up, no rail at all on a phone, and EVERY SECTION AN ADDRESS
+  (`?tab=`) so the phone's pushed screens and the desktop's rail are the same pages
+  (REFERENCE §7.2). Inventing a second console pattern would mean two answers to "how does
+  a signed-in area navigate here", and the one that gets maintained is whichever a
+  contributor opened first. Same markup names (`acx-*`), same rail, same app bar.
+
+  What is NOT shared is the gate: which sections an organisation is offered depends on what
+  it is, and that answer lives in `Services\OrgRail::offers()` — asked by the rail AND by
+  each section, so a tab can never lead to a section that refuses to draw.
+
+  A child sets, at template scope (a set inside a block is invisible to the others):
+    org_tab   the section key (Services\OrgRail::SECTIONS)
+    rail      OrgRail::tabs(), from the controller
+  and fills `org_body`.
+#}
+
+{% set _tab   = org_tab|default('overview') %}
+{% set _title = org_title(_tab) %}
+{% set _lead  = org_lead(_tab) %}
+{% set app_bar = app_bar|default({variant: 'child', title: _title, back: _tab == 'overview' ? '/' : '/org', share: false}) %}
+{% set colour_tier = colour_tier|default('2') %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/account.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/org.css') }}">{% block org_styles %}{% endblock %}{% endblock %}
+
+{% block content %}
+<div class="acx">
+  <aside class="acx-rail" aria-label="{{ 'Your organisation'|trans }}">
+    {#
+      WHO THIS CONSOLE IS LOOKING AT, AND WHAT IT IS ALLOWED TO CLAIM.
+
+      The design draws "Verified organisation" under the name. Printed as a constant it says
+      that beside a SUSPENDED account — on the console whose first panel exists to explain
+      the suspension. It is derived from the status, and the second line of the signed-in
+      person is their role, because "view only" changes what every button below will do.
+    #}
+    <div class="acx-rail__who">
+      <span class="org-mono" aria-hidden="true">{{ org.name|slice(0, 1)|upper }}</span>
+      <span class="acx-rail__id">
+        <b>{{ org.name }}</b>
+        <span>{{ org_standing }}</span>
+      </span>
+    </div>
+    <nav class="acx-rail__nav" aria-label="{{ 'Sections'|trans }}">
+      {% for t in rail|default([]) %}
+        <a class="acx-tab" href="{{ t.href }}"{% if t.current %} aria-current="page"{% endif %}>
+          <span class="acx-ico acx-ico--{{ t.tone }}" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.d }}"/></svg></span>
+          <span class="acx-tab__l">{{ t.label }}</span>
+          {% if t.n %}<span class="acx-n{{ t.attention ? ' acx-n--on' }}">{{ t.n }}</span>{% endif %}
+        </a>
+      {% endfor %}
+    </nav>
+    <div class="org-rail__foot">
+      <p class="org-rail__me">{{ me.name|default(me.email) }}<span>{{ org_role }}</span></p>
+      <form method="post" action="/org/logout">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="org-out" type="submit">{{ 'Sign out'|trans }}</button>
+      </form>
+    </div>
+  </aside>
+
+  <div class="acx-main">
+    <div class="acx-title">
+      <h1 class="acx-title__h">{{ _title }}</h1>
+      {% if _lead %}<p class="acx-title__p">{{ _lead }}</p>{% endif %}
+    </div>
+    {% if _lead %}<p class="acx-lead-ph">{{ _lead }}</p>{% endif %}
+
+    {#
+      THE CAVEAT THAT HAS TO BE ABOVE THE BUTTONS IT GOVERNS.
+
+      "View only" changes what every form on every section will do, so it belongs in the
+      reading order before them — not in a rail somebody has already scrolled past on a
+      phone, where there is no rail at all.
+    #}
+    {% if me.role != 'owner' %}
+      <p class="org-note" role="note">{{ 'You have view-only access: no uploads, offers, page edits or money moves.'|trans }}</p>
+    {% endif %}
+
+    {% if flash_ok %}<p class="org-flag org-flag--ok" role="status">{{ flash_ok }}</p>{% endif %}
+    {% if flash_error %}<p class="org-flag org-flag--err" role="alert">{{ flash_error }}</p>{% endif %}
+
+    {% block org_body %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

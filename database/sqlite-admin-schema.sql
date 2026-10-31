@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS gates_admins (
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT,
   name TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'editor' CHECK(role IN ('superadmin','admin','editor','judge','viewer')),
+  role TEXT NOT NULL DEFAULT 'editor' CHECK(role IN ('superadmin','admin','editor','moderator','judge','viewer')),
   avatar_path TEXT,
   is_active INTEGER NOT NULL DEFAULT 1,
   last_login_at TEXT,
@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS gates_audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_admin ON gates_audit_log(admin_id);
 CREATE INDEX IF NOT EXISTS idx_audit_action ON gates_audit_log(action);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON gates_audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_target ON gates_audit_log(target_type, target_id);
 
 CREATE TABLE IF NOT EXISTS gates_judges (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,6 +92,51 @@ CREATE TABLE IF NOT EXISTS gates_uploads (
   alt TEXT,
   attached_to_type TEXT,
   attached_to_id INTEGER,
+  -- Mirrors admin-schema.sql — see the note there for what each answers.
+  provider TEXT NOT NULL DEFAULT 'local' CHECK(provider IN ('local','cloudinary')),
+  public_id TEXT,
+  local_path TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_uploads_attached ON gates_uploads(attached_to_type, attached_to_id);
+CREATE INDEX IF NOT EXISTS idx_uploads_provider ON gates_uploads(provider);
+CREATE INDEX IF NOT EXISTS idx_uploads_public_id ON gates_uploads(public_id);
+
+-- Ledger for the local → Cloudinary sweep. See admin-schema.sql for why it exists.
+CREATE TABLE IF NOT EXISTS gates_media_migrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_path TEXT NOT NULL UNIQUE,
+  public_id TEXT,
+  remote_url TEXT,
+  target_table TEXT,
+  target_column TEXT,
+  target_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'migrated' CHECK(status IN ('migrated','missing','failed','skipped')),
+  error TEXT,
+  bytes INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_media_status ON gates_media_migrations(status);
+
+-- Outbound webhooks (admin-managed integration endpoints) + delivery log.
+CREATE TABLE IF NOT EXISTS gates_webhooks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT NOT NULL,
+  secret TEXT NOT NULL,
+  events TEXT NOT NULL DEFAULT '*',
+  description TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  last_status INTEGER,
+  last_event_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS gates_webhook_deliveries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  webhook_id INTEGER NOT NULL,
+  event TEXT NOT NULL,
+  status_code INTEGER,
+  ok INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_delivery_hook ON gates_webhook_deliveries(webhook_id, created_at);

@@ -1,0 +1,26 @@
+{#- An ad was reviewed (to the advertiser) · Ads. Sender: Ads\AdNotice::decided(), after the
+    moderation queue approves, refuses or takes down an ad. Variables: first_name, decision
+    ('approved' | 'refused' | 'taken_down'), campaign, headline, reason, ends_on (a trial's last
+    day, or empty), manage_url, policy_url. Transactional: it is about the advertiser's own ad,
+    and a decision they must act on cannot carry a way to switch it off. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Ads{% endblock %}
+{% block why %}You placed an ad on Africa GATES.{% endblock %}
+{% block subject %}{% if decision == 'approved' %}Your ad is approved: {{ headline }}{% elseif decision == 'taken_down' %}Your ad was taken down: {{ headline }}{% else %}Your ad needs a change: {{ headline }}{% endif %}{% endblock %}
+{% block preheader %}{% if decision == 'approved' %}It can run now. See its views and clicks in the Ads Manager.{% else %}The reason is below. Fix the ad and send it again.{% endif %}{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{% if decision == 'approved' %}
+{{ b.h1('Your ad is approved') }}
+{{ b.p("A person checked “#{headline}” in #{campaign} and it can run now.") }}
+{% if ends_on %}{{ b.note("Your free trial runs until #{ends_on}, or until it reaches its views.") }}{% endif %}
+{{ b.button('See its results', manage_url) }}
+{% else %}
+{{ b.h1(decision == 'taken_down' ? 'Your ad was taken down' : 'Your ad needs a change') }}
+{{ b.p("A person checked “#{headline}” in #{campaign}. It is not showing for this reason:") }}
+{{ b.warn(reason, 'Reason') }}
+{{ b.button('Fix it and send it again', manage_url) }}
+{{ b.note("The rules every ad follows are in the Advertising Policy: #{policy_url}") }}
+{% endif %}
+{{ b.sign('Thank you,', 'The Africa GATES team') }}
+{% endblock %}

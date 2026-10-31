@@ -1,0 +1,16 @@
+/* `…/video` — the share video page (templates/pages/share-video.twig). The video itself is
+   drawn on the canvas by assets/js/share-video.js; this sheet only frames it. */
+.sv{ max-width:640px; margin:0 auto; padding:16px 16px 48px; display:flex; flex-direction:column; gap:16px }
+.sv__head{ display:flex; flex-direction:column; gap:8px }
+.sv__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-30); line-height:1.1 }
+.sv__lead,
+.sv__note{ margin:0; font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
+.sv__note{ font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.sv__stage{ display:flex; justify-content:center }
+.sv__canvas{ width:auto; height:min(70vh, 640px); aspect-ratio:9 / 16; border-radius:var(--ag-r-20); background:var(--ag-ink); box-shadow:0 18px 40px color-mix(in srgb, var(--ag-ink) 22%, transparent) }
+.sv__do{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center }
+.sv__status{ margin:0; min-height:1.5em; text-align:center; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.sv__dl{ align-self:center; font-weight:700; color:var(--ag-green) }
+.sv__back{ margin:0; text-align:center; font-size:var(--ag-fs-14) }
+.sv__back a{ color:var(--ag-ink-2) }
+@media (min-width:600px){ .sv{ padding-top:32px } .sv__h1{ font-size:var(--ag-fs-40) } }

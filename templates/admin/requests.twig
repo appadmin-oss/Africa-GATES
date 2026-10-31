@@ -1,0 +1,65 @@
+{% extends "admin/layout.twig" %}
+{#
+  REQUESTS — where staff decide what event leads and volunteers asked for (consoles v7 §2.6).
+  Each request carries its facts, its history and, only for the person who decides it, the
+  decide form: Approve, Ask for info, Decline. Asking for info and declining need a note, and
+  the person who asked sees it. Every decision is audited by the controller.
+#}
+{% import 'admin/partials/kit.twig' as kit %}
+{% block topbar_sub %}What event leads and volunteers have asked for. Each one says who decides, and what changes if it’s approved.{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/volunteers.css') }}">{% endblock %}
+
+{% block content %}
+<div class="cn-toolbar">
+  <div class="cn-fchips" role="group" aria-label="Requests">
+    {% for k, l in tabs %}
+      <a class="cn-fchip{{ tab == k ? ' is-on' }}" href="/admin/requests?tab={{ k }}"{% if tab == k %} aria-current="page"{% endif %}>
+        <span class="cn-fchip__k">{{ l }}</span>{% if counts[k] is defined and counts[k] > 0 %}<span class="cn-fchip__v">{{ counts[k] }}</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% if flash_ok %}<p class="vl-ok" role="status">{{ flash_ok }}</p>{% endif %}
+{% if flash_error %}<div class="cn-error" role="alert"><span class="cn-error__t">That didn’t go through</span><span class="cn-error__m">{{ flash_error }}</span></div>{% endif %}
+
+{% if not ready %}
+  <div class="cn-card vl-sec">{{ kit.empty('The request tables are not here yet', 'Apply the latest database update and come back.', 'list') }}</div>
+{% elseif rows is empty %}
+  <div class="cn-card vl-sec">{{ kit.empty(
+      tab == 'waiting' ? 'Nothing is waiting on you' : (tab == 'open' ? 'No open requests' : 'Nothing decided yet'),
+      'When an event lead or a volunteer asks for something you decide, it shows here, oldest first.', 'list') }}</div>
+{% else %}
+  {% for r in rows %}
+    <section class="cn-card vl-sec" aria-labelledby="rq{{ r.id }}">
+      <h2 class="vl-h" id="rq{{ r.id }}">{{ r.title }}</h2>
+      <p class="vl-help">{{ r.can_decide ? 'Waiting on you' : r.status_label }} · asked {{ r.asked|date('j M, H:i') }}</p>
+      <dl class="cn-facts">
+        <div><dt>Type</dt><dd>{{ r.type }}</dd></div>
+        <div><dt>From</dt><dd>{{ r.from }}</dd></div>
+        {% if r.where %}<div><dt>Where</dt><dd>{{ r.where }}</dd></div>{% endif %}
+        {% if r.amount %}<div><dt>Amount</dt><dd>{{ r.amount }}</dd></div>{% endif %}
+        {% if r.needed_by %}<div><dt>Needed by</dt><dd>{{ r.needed_by }}</dd></div>{% endif %}
+        <div><dt>Why</dt><dd>{{ r.why }}</dd></div>
+        {% if r.consequence and r.status == 'waiting' %}<div><dt>If approved</dt><dd>{{ r.consequence }}</dd></div>{% endif %}
+        <div><dt>Decides</dt><dd>{{ r.decides }}</dd></div>
+      </dl>
+      {% if r.history|length > 1 %}
+        <ol class="vl-help">
+          {% for e in r.history %}<li>{{ e.at|date('j M') }} · {{ e.who }} {{ {'asked': 'asked', 'approve': 'approved', 'ask_info': 'asked for information', 'decline': 'declined', 'add_info': 'added information', 'withdraw': 'withdrew it', 'undo': 'undid the last step', 'remind': 'sent a reminder', 'sent': 'sent it'}[e.action] ?? e.action }}{% if e.note %}: “{{ e.note }}”{% endif %}</li>{% endfor %}
+        </ol>
+      {% endif %}
+      {% if r.can_decide %}
+        <form class="vl-form" method="post" action="/admin/requests">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="{{ tab }}"><input type="hidden" name="request" value="{{ r.id }}">
+          <label class="vl-wide" for="note{{ r.id }}">Note for them<textarea id="note{{ r.id }}" name="note" rows="2" placeholder="Needed to ask for info or to decline. They see it."></textarea></label>
+          <p class="vl-acts vl-wide">
+            <button class="cn-btn cn-btn--primary" type="submit" name="action" value="approve">Approve</button>
+            <button class="cn-btn" type="submit" name="action" value="ask_info">Ask for info</button>
+            <button class="cn-btn" type="submit" name="action" value="decline">Decline</button>
+          </p>
+        </form>
+      {% endif %}
+    </section>
+  {% endfor %}
+{% endif %}
+{% endblock %}

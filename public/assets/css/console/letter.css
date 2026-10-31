@@ -1,0 +1,181 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE VOTING LETTER EDITOR — admin/programmes/letter.twig · letter-editor.js
+   Linked by letter.twig only.
+
+   A document editor in the manner of Claude Docs (owner, 28 Oct 2026: "the editor must be
+   sleek like Claude Docs"): one slim bar pinned to the top, then the letter alone on a plain
+   canvas — no page card, no coloured band, no rail of boxes. The tools live in the bar as
+   quiet buttons that open small panels; the fit and word count live in a status pill at the
+   foot. What can be typed is in the ink; what the platform fills in is grey, so the
+   difference reads without a legend.
+   Widths are measured on the editor itself (container queries), so the rail opening or the
+   Ask pane docking moves the breakpoint the way it should. Colour only from var(--cn-*).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* The page is the document: the console's section links and page padding step aside,
+   as the assistant's page already does. */
+.cn-main:has(> .cn-main__in > .le) { padding-top: 0; }
+.cn-main__in:has(> .le) { max-width: none; gap: 0; }
+.cn-main__in:has(> .le) > .cn-related { display: none; }
+
+.le { container-type: inline-size; display: flex; flex-direction: column; min-height: 100%; }
+
+/* ── the bar ───────────────────────────────────────────────────────────────── */
+.le-bar {
+  position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 10px 16px; margin: 0 -32px; padding: 12px 32px; background: color-mix(in srgb, var(--cn-surface) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--cn-line-faint);
+}
+.le-bar__t { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.le-back {
+  flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--cn-soft);
+}
+@media (hover: hover) { .le-back:hover { background: var(--cn-hover); color: var(--cn-ink); } }
+.le-bar__name { min-width: 0; }
+.le-h1 { margin: 0; font-size: var(--cn-fs-15); font-weight: 600; letter-spacing: -0.01em; color: var(--cn-ink); }
+.le-bar__s { margin: 1px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
+.le-dot { color: var(--cn-faint); }
+.le-saved { color: var(--cn-faint); }
+.le-state { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.le-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.le-state--live { color: var(--cn-green-ink); }
+.le-state--draft { color: var(--cn-gold-ink); }
+.le-state--saving { color: var(--cn-soft); }
+.le-state--error { color: var(--cn-red-ink); }
+
+.le-bar__a { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.le-tool, .le-go {
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 11px; border-radius: 8px;
+  font: 500 var(--cn-fs-13)/1 var(--cn-font); white-space: nowrap; cursor: pointer; text-decoration: none;
+}
+.le-tool { border: 0; background: none; color: var(--cn-ink-2); }
+.le-tool svg { color: var(--cn-soft); }
+@media (hover: hover) { .le-tool:hover { background: var(--cn-hover); color: var(--cn-ink); } }
+.le-go { margin-inline-start: 6px; border: 0; background: var(--cn-ink); color: var(--cn-surface); font-weight: 600; padding: 0 14px; }
+@media (hover: hover) { .le-go:hover { background: var(--cn-ink-2); } }
+.le-tool:focus-visible, .le-go:focus-visible, .le-back:focus-visible, .le-opt:focus-visible, .le-mini:focus-visible { outline: 2px solid var(--cn-green); outline-offset: 2px; }
+@media (pointer: coarse) { .le-tool, .le-go, .le-back { min-height: 44px; } .le-back { width: 44px; } }
+/* With script the letter saves itself, so a save button is one thing too many. */
+.le[data-le-on] .le-save { display: none; }
+
+/* The bar's menus are <details>, so they open with no script at all. */
+.le-menu { position: relative; }
+.le-menu > summary { list-style: none; }
+.le-menu > summary::-webkit-details-marker { display: none; }
+.le-menu[open] > summary { background: var(--cn-hover); color: var(--cn-ink); }
+.le-pane {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 6px); z-index: var(--cn-z-menu); width: 320px; max-height: 70vh; overflow: auto;
+  padding: 14px; background: var(--cn-surface); border: 1px solid var(--cn-line); border-radius: var(--cn-r-12);
+  box-shadow: 0 18px 44px -16px color-mix(in srgb, var(--cn-ink) 24%, transparent);
+}
+.le-pane__h { margin: 0 0 4px; font-size: var(--cn-fs-13); font-weight: 600; color: var(--cn-ink); }
+.le-pane__p { margin: 0 0 10px; font-size: var(--cn-fs-12-5); line-height: 1.5; color: var(--cn-soft); }
+.le-pane kbd {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
+  border: 1px solid var(--cn-line); border-radius: 5px; font: 500 var(--cn-fs-11)/1 var(--cn-mono); color: var(--cn-soft);
+}
+.le-opts { display: grid; margin: 0 -6px; }
+.le-opt {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 36px; padding: 0 8px;
+  border: 0; border-radius: 8px; background: none; text-align: start; cursor: pointer; font: 500 var(--cn-fs-13)/1.3 var(--cn-font); color: var(--cn-ink);
+}
+.le-opt small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--cn-fs-12); font-weight: 400; color: var(--cn-faint); }
+@media (hover: hover) { .le-opt:hover { background: var(--cn-hover); } }
+
+.le-vers { margin: 0 0 10px; padding: 0; list-style: none; display: grid; }
+.le-ver { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--cn-line-row); }
+.le-ver:first-child { border-top: 0; }
+.le-ver__t { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--cn-fs-13); }
+.le-ver__t b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.le-ver__t span { font-size: var(--cn-fs-12); color: var(--cn-soft); }
+.le-mini {
+  flex: none; height: 30px; padding: 0 10px; border: 1px solid var(--cn-line); border-radius: 8px; background: var(--cn-surface);
+  font: 500 var(--cn-fs-12-5)/1 var(--cn-font); color: var(--cn-ink-2); cursor: pointer;
+}
+@media (hover: hover) { .le-mini:hover { background: var(--cn-hover); } }
+.le-mini--quiet { border: 0; padding: 0; height: auto; background: none; color: var(--cn-soft); text-decoration: underline; text-underline-offset: 3px; }
+.le-reset { margin: 0; padding-top: 10px; border-top: 1px solid var(--cn-line-faint); }
+
+/* ── the document ──────────────────────────────────────────────────────────── */
+/* Two classes, because the console caps every form at 100% with .cn-main :is(form, …),
+   which outranks one class and would stretch the letter across the whole screen. */
+.le .le-doc {
+  width: 100%; max-width: 700px; margin: 56px auto 40px; padding: 0 4px; box-sizing: border-box;
+  font-family: var(--cn-font); font-size: var(--cn-fs-17); line-height: 1.75; color: var(--cn-ink);
+}
+.le-hint { margin: 0 0 44px; font-size: var(--cn-fs-13); line-height: 1.55; color: var(--cn-faint); }
+.le-fixed { color: var(--cn-faint); }
+.le-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; margin: 0 0 22px; font-size: var(--cn-fs-13); line-height: 1.5; }
+.le-head b { font-weight: 600; color: var(--cn-soft); }
+.le-ref { font-family: var(--cn-mono); font-size: var(--cn-fs-12); }
+
+/* What can be typed shows no box at all, as in a document: the caret is the affordance. */
+.le-ed { outline: none; caret-color: var(--cn-green); }
+.le-ed--h { font-size: var(--cn-fs-30); line-height: 1.2; font-weight: 700; letter-spacing: -0.025em; }
+.le-ed--b p { margin: 0 0 16px; }
+.le-ed[data-empty="1"]::before { content: attr(data-placeholder); color: var(--cn-faint); pointer-events: none; }
+.le-dear { margin: 28px 0 14px; }
+
+.le-f {
+  display: inline-flex; align-items: center; padding: 0 5px; margin: 0 1px; border-radius: 4px;
+  background: var(--cn-hover); color: var(--cn-ink-2);
+  font-size: var(--cn-fs-15); font-weight: 500; line-height: 1.5; white-space: nowrap; cursor: default; user-select: all;
+}
+.le-f--bad { background: var(--cn-red-wash); color: var(--cn-red-ink); }
+
+.le-lock { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 24px; padding: 12px 14px; background: var(--cn-panel); border-radius: 10px; font-size: var(--cn-fs-14); line-height: 1.55; color: var(--cn-soft); }
+.le-lock svg { flex: none; margin-top: 3px; }
+.le-steps { margin: 0 0 22px; font-size: var(--cn-fs-14); line-height: 1.6; }
+.le-steps b { display: block; font-weight: 600; color: var(--cn-soft); }
+.le-steps ol { margin: 4px 0 0; padding-inline-start: 18px; }
+.le-qr { display: flex; align-items: center; gap: 14px; margin: 0 0 26px; font-size: var(--cn-fs-14); line-height: 1.5; }
+.le-qr__code { flex: none; width: 44px; height: 44px; border-radius: 4px; background: repeating-conic-gradient(var(--cn-ink-2) 0 25%, var(--cn-surface) 0 50%) 0 0 / 7px 7px; opacity: 0.32; }
+.le-qr__u { color: var(--cn-ink-2); }
+.le-sign { margin: 0; font-size: var(--cn-fs-15); line-height: 1.6; }
+.le-sign b { font-weight: 600; color: var(--cn-soft); }
+
+.le-checks { margin: 36px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: var(--cn-fs-13); color: var(--cn-red-ink); }
+.le-checks:empty { display: none; }
+.le-checks .le-tip { color: var(--cn-soft); }
+
+/* No script: the plain fields are the editor. With script they are mirrors, kept for the post. */
+.le-src-l { display: block; margin: 8px 0 4px; font-size: var(--cn-fs-13); font-weight: 600; color: var(--cn-ink-2); }
+.le-src { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--cn-line); border-radius: 8px; font: inherit; color: var(--cn-ink); background: var(--cn-surface); }
+.le-src--h { font-weight: 650; font-size: var(--cn-fs-22); }
+.le-src--b { min-height: 260px; resize: vertical; }
+.le[data-le-on] .le-src, .le[data-le-on] .le-src-l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ── the status pill, at the foot of the page ──────────────────────────────── */
+.le-status {
+  position: sticky; bottom: 16px; z-index: 2; align-self: center; display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 6px 14px; margin: 0 0 8px; padding: 7px 14px; background: var(--cn-surface); border: 1px solid var(--cn-line);
+  border-radius: var(--cn-r-pill); box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--cn-ink) 22%, transparent);
+  font-size: var(--cn-fs-12-5); color: var(--cn-soft);
+}
+.le-status__k { color: var(--cn-ink-2); font-weight: 500; }
+.le-fits { display: inline-flex; gap: 12px; }
+.le-fit { display: inline-flex; align-items: center; gap: 5px; }
+.le-fit::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
+.le-fit b { font-weight: 500; }
+.le-fit--ok::before { background: var(--cn-green); } .le-fit--ok b { color: var(--cn-green-ink); }
+.le-fit--over::before { background: var(--cn-red); } .le-fit--over b { color: var(--cn-red-ink); }
+.le-status__c:empty { display: none; }
+.le-status__c { padding-inline-start: 14px; border-inline-start: 1px solid var(--cn-line); }
+
+/* The detail picker that "{" opens at the caret. */
+.le-pop {
+  position: fixed; z-index: var(--cn-z-menu); min-width: 240px; padding: 6px; background: var(--cn-surface);
+  border: 1px solid var(--cn-line); border-radius: var(--cn-r-12);
+  box-shadow: 0 16px 40px -12px color-mix(in srgb, var(--cn-ink) 22%, transparent);
+}
+.le-pop button { display: flex; width: 100%; justify-content: space-between; gap: 12px; min-height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: none; font: 500 var(--cn-fs-13)/1 var(--cn-font); color: var(--cn-ink); cursor: pointer; text-align: start; }
+.le-pop button span { color: var(--cn-faint); }
+.le-pop button[aria-selected="true"] { background: var(--cn-hover); }
+
+@container (max-width: 640px) {
+  .le-bar { margin: 0 -16px; padding: 10px 16px; }
+  .le-doc { margin-top: 32px; }
+  .le-ed--h { font-size: var(--cn-fs-24); }
+  .le-pane { position: fixed; inset: auto 12px 12px 12px; top: auto; width: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .le-bar { backdrop-filter: none; } }

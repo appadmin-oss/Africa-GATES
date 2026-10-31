@@ -1,0 +1,173 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  AN ORGANISATION'S OWN PAGE — what OrgBrand lets a partner write, drawn on /giving/{slug}
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Destroyed on 3 Oct with the page that included it and written again on the shell
+  (inventory: pages--donate.md). Every rule the old renderer held is kept:
+
+  · ONE JSON document, read once by the controller and handed in `only`, so this partial
+    cannot quietly read a variable the page happens to have in scope.
+  · Everything is re-validated on the way OUT (OrgBrand::of()) — a stored document
+    outlives the code that wrote it, so a URL is never trusted because it was checked once.
+  · Video is CLICK-TO-LOAD and that is a legal requirement, not a performance choice: an
+    iframe in the markup sends the visitor's address to YouTube or Vimeo before they have
+    done anything (GDPR joint-controller line, NDPA 2023). Nothing is fetched until play is
+    pressed; the button names the provider first; a plain link out stays for a browser
+    that refuses the frame. The shipped HTML carries zero iframes (OrgPageTest).
+  · `org.contact_email` is the address given to verify a CAC registration — a compliance
+    contact, never published. Only `brand.website`, typed into a field labelled public.
+  · The platform's credit sits BELOW the organisation's ask, never beside it.
+
+  The accent is the organisation's, so it is DATA, not a palette token: it reaches the page
+  only as the three custom properties OrgBrand::css() derived and contrast-checked.
+#}
+{% if org and brand %}
+<div class="ob" style="--ob-accent:{{ brand_css.accent }};--ob-accent-dark:{{ brand_css.accent_dark }};--ob-accent-wash:{{ brand_css.accent_wash }}">
+  {% if brand.sections.story and story_paragraphs is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-story">
+      <h2 class="gv-h2" id="ob-story">{{ 'About %o%'|trans({'%o%': org.name}) }}</h2>
+      <div class="gv-prose">{% for p in story_paragraphs %}<p>{{ p }}</p>{% endfor %}</div>
+    </section>
+  {% endif %}
+
+  {% if brand.sections.impact and brand.blocks.impact is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-impact">
+      <h2 class="gv-h2" id="ob-impact">{{ 'What %o% has done'|trans({'%o%': org.name}) }}</h2>
+      <div class="ob-figs">
+        {% for row in brand.blocks.impact %}
+          <div class="ob-fig"><span class="ob-fig__n">{{ row.figure }}</span><span class="ob-fig__l">{{ row.label }}</span></div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if brand.sections.asks and brand.blocks.asks is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-asks">
+      <h2 class="gv-h2" id="ob-asks">{{ 'What a gift buys'|trans }}</h2>
+      <ul class="gv-list">
+        {% for row in brand.blocks.asks %}
+          <li class="gv-list__r"><span class="gv-list__t">{{ row.buys }}</span><span class="gv-list__v">{{ row.amount }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if brand.sections.video and brand.videos is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-video">
+      <h2 class="gv-h2" id="ob-video">{{ '%o% on film'|trans({'%o%': org.name}) }}</h2>
+      <div class="ob-vids">
+        {% for v in brand.videos %}
+          {% set _prov = v.provider == 'vimeo' ? 'Vimeo' : 'YouTube' %}
+          <figure class="ob-vid" data-ob-video data-ob-src="{{ v.embed }}" data-ob-name="{{ v.title ?: (org.name ~ ' — video') }}">
+            <button type="button" class="ob-vid__play" data-ob-play aria-label="{{ 'Play %t% — loads from %p%'|trans({'%t%': v.title ?: 'the video'|trans, '%p%': _prov}) }}">
+              <span class="ob-vid__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" focusable="false"><path d="M8 5v14l11-7z"/></svg></span>
+              <span class="ob-vid__meta">
+                {% if v.title %}<span class="ob-vid__t">{{ v.title }}</span>{% endif %}
+                <span class="ob-vid__p">{{ 'Loads from %p% when you press play'|trans({'%p%': _prov}) }}</span>
+              </span>
+            </button>
+            <figcaption class="ob-vid__alt"><a href="{{ v.watch }}" target="_blank" rel="noopener noreferrer nofollow ugc">{{ 'Watch on %p%'|trans({'%p%': _prov}) }}</a></figcaption>
+          </figure>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if brand.sections.gallery and brand.gallery is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-shots">
+      <h2 class="gv-h2" id="ob-shots">{{ 'Photographs'|trans }}</h2>
+      <div class="ob-shots">{% for path in brand.gallery %}<img src="{{ asset('/' ~ path) }}" alt="" loading="lazy" decoding="async">{% endfor %}</div>
+    </section>
+  {% endif %}
+
+  {% if brand.sections.quotes and brand.blocks.quotes is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-quotes">
+      <h2 class="gv-h2" id="ob-quotes">{{ 'What people say'|trans }}</h2>
+      <div class="ob-quotes">
+        {% for row in brand.blocks.quotes %}<blockquote class="ob-quote"><p>{{ row.text }}</p><cite>{{ row.who }}</cite></blockquote>{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if brand.sections.team and brand.blocks.team is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-team">
+      <h2 class="gv-h2" id="ob-team">{{ 'Who runs %o%'|trans({'%o%': org.name}) }}</h2>
+      <ul class="gv-list">
+        {% for row in brand.blocks.team %}<li class="gv-list__r"><span class="gv-list__t">{{ row.name }}</span><span class="gv-list__m">{{ row.role }}</span></li>{% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {# `when` is free text and deliberately so: "Since 2009", "Spring 2021". #}
+  {% if brand.sections.milestones and brand.blocks.milestones is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-track">
+      <h2 class="gv-h2" id="ob-track">{{ 'A short history'|trans }}</h2>
+      <ol class="ob-track">
+        {% for row in brand.blocks.milestones %}<li><span class="ob-track__w">{{ row.when }}</span><span class="ob-track__d">{{ row.what }}</span></li>{% endfor %}
+      </ol>
+    </section>
+  {% endif %}
+
+  {% if brand.sections.partners and brand.blocks.partners is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-with">
+      <h2 class="gv-h2" id="ob-with">{{ 'Who %o% works with'|trans({'%o%': org.name}) }}</h2>
+      <ul class="gv-list">
+        {% for row in brand.blocks.partners %}<li class="gv-list__r"><span class="gv-list__t">{{ row.name }}</span><span class="gv-list__m">{{ row.note }}</span></li>{% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if brand.sections.faq and brand.blocks.faq is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-faq">
+      <h2 class="gv-h2" id="ob-faq">{{ 'What donors ask %o%'|trans({'%o%': org.name}) }}</h2>
+      <div class="gv-faq">
+        {% for row in brand.blocks.faq %}<details class="gv-faq__i"><summary>{{ row.q }}</summary><p>{{ row.a }}</p></details>{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# `nofollow ugc`: links a partner typed, which this platform does not vouch for. #}
+  {% if brand.sections.links and brand.links is not empty %}
+    <section class="gv-sec" aria-labelledby="ob-links">
+      <h2 class="gv-h2" id="ob-links">{{ 'Reports, press and elsewhere'|trans }}</h2>
+      <ul class="gv-list">
+        {% for l in brand.links %}
+          <li><a class="gv-list__r gv-list__r--a" href="{{ l.url }}" target="_blank" rel="noopener noreferrer nofollow ugc">
+            <span class="gv-list__t">{{ l.label }}</span><span class="gv-list__m">{{ l.host }}<span aria-hidden="true"> ↗</span></span>
+            <span class="ag-sr">{{ 'opens in a new tab'|trans }}</span>
+          </a></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if brand.sections.contact and brand.website %}
+    <section class="gv-sec" aria-labelledby="ob-contact">
+      <h2 class="gv-h2" id="ob-contact">{{ 'Contact %o%'|trans({'%o%': org.name}) }}</h2>
+      <ul class="gv-list">
+        <li><a class="gv-list__r gv-list__r--a" href="{{ brand.website }}" target="_blank" rel="noopener noreferrer nofollow ugc">
+          <span class="gv-list__t">{{ 'Their website'|trans }}</span>
+          <span class="gv-list__m">{{ brand.website|replace({'https://': '', 'http://': ''}) }}<span aria-hidden="true"> ↗</span></span>
+        </a></li>
+      </ul>
+    </section>
+  {% endif %}
+
+  {# The platform underneath it: a credit, what that buys, and a quiet route for somebody
+     who wants to back the awards themselves. No amount field, nothing preselected, and the
+     organisation cannot switch it off (OrgBrand::GATES_CREDIT). #}
+  <section class="ob-gates">
+    <p class="ob-gates__c">{{ gates_credit }}</p>
+    {# Branches on the fee actually set. The old credit said "takes no cut" on every
+       partner page, including the ones paying a platform share the checkout disclosed in
+       naira a screen earlier — the page contradicting its own receipt. #}
+    {% if org_fee_bps|default(0) > 0 %}
+    <p class="ob-gates__b">{{ 'Your gift goes straight to %o%, less the %f%% Africa GATES share shown at checkout. Africa GATES is a project of Afrovanguard, a registered non-profit.'|trans({'%o%': org.name, '%f%': (org_fee_bps / 100)|number_format(2)}) }}</p>
+    {% else %}
+    <p class="ob-gates__b">{{ 'Your gift goes straight to %o%, and we take no cut. Africa GATES is a project of Afrovanguard, a registered non-profit funded by optional support.'|trans({'%o%': org.name}) }}</p>
+    {% endif %}
+    <p class="ob-gates__l"><a href="/philosophy">{{ 'What Africa GATES is'|trans }}</a><span aria-hidden="true"> · </span><a href="/giving">{{ 'Support the awards programme'|trans }}</a></p>
+  </section>
+</div>
+{% endif %}

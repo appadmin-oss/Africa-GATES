@@ -1,0 +1,258 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE SHARED LIBRARY — what `partials/ui.twig`'s macros look like
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ── WHY THIS FILE CAME BACK ───────────────────────────────────────────────
+
+   `ui.twig` survived the 3 Oct destroy and every one of its macros did; the
+   stylesheet that drew them did not. DESTROYED.md lists `library.css` as
+   "destroyed with its readers: Phase 5 (award page) · Q16 (account,
+   challenges)" — but the PARTIAL stayed, so from that commit `ui.facts()`,
+   `ui.meter()`, `ui.steps()`, `ui.ticks()`, `ui.notice()`, `ui.faq()` and
+   `ui.bar()` emitted markup that nothing styled. Not broken in a way anything
+   reports: the elements are there, correctly structured and correctly labelled,
+   and they render as naked `<dl>`, `<ol>` and `<ul>`.
+
+   Rebuilt here rather than inside `challenge.css`, because the challenge page is
+   not its only reader and a copy inside one page's sheet is how two pages come
+   to draw the same macro differently. Written against the CURRENT tokens
+   (`ag_accents()` + `tokens.css`), not the retired names that got the old file
+   destroyed.
+
+   ── WHAT IS DELIBERATELY NOT HERE ─────────────────────────────────────────
+
+   `ag-card`, `ag-list`, `ag-btn`, `ag-hint` and `ag-list__value` live in
+   `components.css` and survived. This file adds only what `ui.twig` emits and
+   nothing else does.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── a label and its value on one line ───────────────────────────────────── */
+.ag-between {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ag-sp-12);
+  /* `min-width:0` so a long value wraps inside its own half rather than pushing
+     the row wider than the card. */
+  min-width: 0;
+}
+.ag-between > b { min-width: 0; }
+
+/* ── facts: the hero's key/value strip ───────────────────────────────────── */
+.ag-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ag-sp-16) var(--ag-sp-28);
+  margin: var(--ag-sp-18) 0 0;
+}
+.ag-facts > div { min-width: 0; }
+/* ── SENTENCE CASE, UI FACE ────────────────────────────────────────────────
+   The pre-destroy library drew every label as spaced uppercase mono. The
+   redesign does not: §6.2 keeps the monospace face for references and codes, and
+   §18.4 allows capitals only on a stamp. `MonoAndCaseTest` holds both, and caught
+   this file carrying the old idiom across. A key here is a word, not a code. */
+.ag-facts dt {
+  margin: 0 0 3px;
+  font-size: var(--ag-fs-12-5);
+  font-weight: 700;
+  color: var(--ag-soft);
+}
+.ag-facts dd {
+  margin: 0;
+  font: 600 var(--ag-fs-16)/1.25 var(--ag-font-ui);
+  color: var(--ag-ink);
+}
+/* `text` is the variant the hero uses: the value reads as a sentence rather than
+   as a figure, so it does not compete with the prize. */
+.ag-facts--text dd { font-weight: 500; font-size: var(--ag-fs-15); color: var(--ag-ink-2); }
+.ag-facts--live dd { color: var(--ag-live-ink); }
+.ag-facts--ok   dd { color: var(--ag-green-deep); }
+
+/* ── meter: a COUNT, drawn as segments ───────────────────────────────────── */
+/* ── FLEX, NOT GRID, AND THE REASON IS A REAL CAP ──────────────────────────
+   The macro sets `grid-template-columns:repeat(N,1fr)` inline, which divides the
+   width by N however large N is. A challenge with fifty places — an ordinary cap —
+   drew fifty segments in a 260px rail: 1.3px each, a grey smear with no readable
+   count. The original drew them with `grid-auto-columns:1fr` and had the same
+   squeeze.
+
+   Flex with a floor instead: `flex:1 1 6px; min-width:6px` fills the row exactly as
+   `1fr` does while the segments fit, and WRAPS to a second row once they do not, so
+   a meter stays a count at any cap. The inline grid template is inert under
+   `display:flex`, so the macro needs no change — and a macro used by pages this
+   file does not know about should not have to. */
+.ag-meter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 10px 0 0;
+}
+.ag-meter > span {
+  flex: 1 1 6px;
+  min-width: 6px;
+  height: 8px;
+  border-radius: var(--ag-r-pill);
+  background: var(--ag-line-2);
+}
+.ag-meter__on   { background: var(--ag-meter-fill, var(--ag-green)); }
+
+/* ── `wait` AND `need` ARE NOT HERE, AND THAT IS NOT AN OMISSION ───────────
+   The macro takes RUNS rather than a count so that an entry's three live states —
+   verified, being checked, and needing the member's own detail — can be told apart,
+   and that distinction is real: one is our delay and one is the member's turn.
+   Drawing both in one colour tells them the wrong thing.
+   But no page draws the run form today. The page that did was destroyed, and the
+   one that will is the member's account page. Declaring the two tones here spends
+   gold and live out of the budget of EVERY page that links this sheet, for colours
+   no reader ever sees — `ColourBudgetTest` charged the challenge page three on a
+   tier-2 allowance of two, correctly.
+   They come back with the page that draws them, in that page's own sheet or here
+   with that page's tier declared. Until then the macro's extra runs fall through to
+   the unreached style, which is honest: an unknown state is not a state. */
+
+/* On a tinted ground a grey fill disappears, so the unreached segments become
+   rings instead. */
+.ag-meter--outline > span { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ag-line-2); }
+.ag-meter--outline .ag-meter__on { background: var(--ag-meter-fill, var(--ag-green)); box-shadow: none; }
+
+/* ── bar: a proportion with no unit to count ─────────────────────────────── */
+.ag-meter--bar {
+  display: block;
+  height: 8px;
+  margin: 8px 0 0;
+  border-radius: var(--ag-r-pill);
+  background: var(--ag-line-2);
+  overflow: hidden;
+}
+.ag-meter--bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ag-green);
+}
+
+/* ── steps: a numbered sequence ──────────────────────────────────────────── */
+.ag-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-sp-12); }
+.ag-steps > li { display: flex; gap: var(--ag-sp-12); align-items: flex-start; min-width: 0; }
+.ag-steps__n {
+  flex: none;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ag-step-fill, var(--ag-ink));
+  color: var(--ag-surface);
+  /* Tabular figures rather than the monospace face: the numbers should align down
+     the column without the step marker reading as a code. */
+  font-size: var(--ag-fs-13);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ag-steps__b { min-width: 0; display: grid; gap: 2px; }
+.ag-steps__t { font: 600 var(--ag-fs-15-5)/1.35 var(--ag-font-ui); color: var(--ag-ink); }
+.ag-steps__s { font: 400 var(--ag-fs-14)/1.5 var(--ag-font-ui); color: var(--ag-ink-2); }
+
+/* The `cards` variant: each step boxed, for a page where the sequence is the
+   main instruction rather than a reminder. */
+.ag-steps--cards > li {
+  padding: var(--ag-sp-14);
+  border: 1px solid var(--ag-line);
+  border-radius: var(--ag-r-14);
+  background: var(--ag-surface);
+}
+
+/* ── ticks: conditions that each hold ────────────────────────────────────── */
+.ag-ticks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ag-ticks > li { display: flex; gap: 10px; align-items: flex-start; min-width: 0;
+                 font: 400 var(--ag-fs-15)/1.5 var(--ag-font-ui); color: var(--ag-ink-2); }
+.ag-ticks__i { flex: none; margin-top: 2px; color: var(--ag-green); display: inline-flex; }
+
+/* ── notice: a section that is doing its job with nothing in it yet ──────── */
+.ag-notice {
+  display: flex;
+  gap: var(--ag-sp-12);
+  align-items: flex-start;
+  padding: var(--ag-sp-16);
+  /* Dashed, and that is the whole point: it reads as "a place for something"
+     rather than as a thing. */
+  border: 1px dashed var(--ag-line-2);
+  border-radius: var(--ag-r-14);
+}
+.ag-notice__i { flex: none; color: var(--ag-mute); display: inline-flex; }
+.ag-notice__b { min-width: 0; display: grid; gap: 3px; }
+.ag-notice__b > b    { font: 600 var(--ag-fs-15)/1.35 var(--ag-font-ui); color: var(--ag-ink); }
+.ag-notice__b > span { font: 400 var(--ag-fs-14)/1.5 var(--ag-font-ui); color: var(--ag-ink-2); }
+
+/* ── faq: native disclosures ─────────────────────────────────────────────── */
+.ag-faq { display: grid; }
+.ag-faq__i { border-bottom: 1px solid var(--ag-line); }
+.ag-faq__i summary {
+  /* 44px of target, and `list-style:none` + `::-webkit-details-marker` because
+     Safari draws its own triangle outside the padding box. */
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ag-sp-12);
+  min-height: 44px;
+  padding: var(--ag-sp-12) 0;
+  font: 600 var(--ag-fs-15)/1.4 var(--ag-font-ui);
+  color: var(--ag-ink);
+}
+.ag-faq__i summary::-webkit-details-marker { display: none; }
+.ag-faq__i summary::after {
+  content: '';
+  flex: none;
+  width: 9px; height: 9px;
+  border-right: 2px solid var(--ag-chevron);
+  border-bottom: 2px solid var(--ag-chevron);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform var(--ag-dur-1) var(--ag-ease);
+}
+.ag-faq__i[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.ag-faq__i summary:focus-visible { outline: 3px solid var(--ag-green); outline-offset: 2px; }
+.ag-faq__i > p { margin: 0 0 var(--ag-sp-14); font: 400 var(--ag-fs-14-5)/1.6 var(--ag-font-ui); color: var(--ag-ink-2); }
+
+/* ── a small button, and the phone's fixed action bar ────────────────────── */
+.ag-btn--sm { min-height: 36px; padding: 0 14px; font-size: var(--ag-fs-13-5); }
+
+/* ── THE PAGE'S OWN BOTTOM BAR, THE WAY THIS SHELL DOES THEM ───────────────
+   Three things, and none is optional:
+
+   1. The page sets `flow_page = true`, so the shell does not also render the tab
+      bar. Two fixed bars at `bottom:0` means one is under the other, and which one
+      depends on source order rather than on anything anybody decided.
+   2. The bar carries `data-bottom-ui`. `shell.js` measures the tallest visible one
+      into `--ag-bottom-ui` on <body>, which is how Gee's launcher and the scroll
+      padding know to clear it — a bar that does not declare itself is a bar the
+      floating help button sits on top of.
+   3. The scroller pads itself by that measurement, below, so the footer's last line
+      is never under the bar.
+
+   Same shape as `.ed-bar` in `components/events.css`. Copied deliberately rather
+   than shared: that one is the events page's bar with its own copy slots, this is
+   the library's, and merging them would make one page's change the other's. */
+.ag-actionbar {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: var(--ag-z-appbar);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ag-sp-12);
+  /* The phone's own bottom inset ADDED to the padding, never replacing it, or the
+     bar sits on the home indicator on an iPhone. */
+  padding: 10px var(--ag-gutter) calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--ag-line-2);
+  background: var(--ag-bar);
+}
+body:has(.ag-actionbar) .ag-main { padding-bottom: var(--ag-bottom-ui); }
+.ag-actionbar__sum { min-width: 0; display: grid; gap: 1px; }
+.ag-actionbar__sum > b    { font: 700 var(--ag-fs-16)/1.2 var(--ag-font-ui); color: var(--ag-ink); }
+.ag-actionbar__sum > span { font: 400 var(--ag-fs-12-5)/1.3 var(--ag-font-ui); color: var(--ag-soft); }
+
+/* From 600px the page has room for its own call to action, so the fixed bar goes
+   — a bar pinned to the bottom of a desktop window is a phone pattern on a
+   screen that never needed it. */
+@media (min-width: 600px) { .ag-actionbar { display: none; } }

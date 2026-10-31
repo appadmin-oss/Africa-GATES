@@ -1,0 +1,97 @@
+{#-
+  The house shell every branded email arrives in — OtpService::brandWrap() renders it.
+  Design: design_handoff_letter_email_admin/email ("Shell, final"): the masthead sits on the
+  paper ground, the card is white with a 16px radius and no border, the illustration opens
+  the card at 600×260, and the footer sits under the card on the ground. No dark fills.
+
+  Colours are `c.*` — Support\Accent::mail(), the palette under the handoff's names. Mail
+  cannot read var(), and a hex typed here would be a second source for a colour.
+
+  What this shell has to keep (docs/handoff/inventory/_emails.md, and the tests that hold it):
+    · the doctype and metas, the iOS data-detector neutraliser, the phone gutter;
+    · the colour-LOCK dark block — a decision: every body is a fragment whose ink is inline,
+      so a card flipped dark would put all of it dark-on-dark;
+    · the hidden preheader with mso-hide:all;
+    · a fluid card (width="100%" + max-width) with an [if mso] fixed 600 table — Outlook's
+      Word engine ignores max-width, and a fixed 600 does not shrink on a phone;
+    · the gutter on CELLS, never on a table — Outlook ignores padding on a table;
+    · the masthead as the design draws it: Brand::MARK at 26×26 in a 40px white tile with a
+      `line-2` hairline and an 8px radius, and "Africa GATES" set as TEXT beside it — so with
+      images blocked the name is still there, and the alt is styled (an unstyled alt reads
+      as a broken attachment); width AND height on every image (a blocked image with no
+      height collapses its band);
+    · the `ag-pad ag-body` cell, which InviteInboxCompatTest cuts the letter out on;
+    · the footer: why this arrived, © · postal address, Help · Privacy · Unsubscribe — the
+      last only on an announcement.
+  A comment here ships to nobody (Twig strips it); an HTML comment ships to everybody and
+  is scanned by the compat tests as markup, so the only ones below are Outlook's [if mso]
+  conditionals, which are instructions to a client rather than notes.
+-#}
+<!DOCTYPE html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>{{ subject }}</title>
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+  <style>
+    a[x-apple-data-detectors] {
+      color:inherit !important; text-decoration:none !important; font-size:inherit !important;
+      font-family:inherit !important; font-weight:inherit !important; line-height:inherit !important;
+    }
+    p, td, a, h1, h2, div { mso-line-height-rule:exactly; }
+    @media only screen and (max-width:620px) {
+      .ag-outer { padding:20px 10px !important; }
+      .ag-pad { padding-left:22px !important; padding-right:22px !important; padding-top:28px !important; }
+      .ag-h1 { font-size:26px !important; line-height:31px !important; }
+      .ag-btn { display:block !important; width:100% !important; }
+      .ag-fk { width:92px !important; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .ag-ground { background-color:{{ c.ground }} !important; }
+      .ag-head   { background-color:{{ c.ground }} !important; }
+      .ag-card   { background-color:{{ c.surface }} !important; }
+      .ag-body   { background-color:{{ c.surface }} !important; color:{{ c['ink-2'] }} !important; }
+      .ag-foot   { background-color:{{ c.ground }} !important; color:{{ c.soft }} !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:{{ c.ground }};font-family:Arial,Helvetica,sans-serif">
+  <div style="display:none;max-height:0;max-width:0;font-size:1px;line-height:1px;opacity:0;overflow:hidden;mso-hide:all">{{ preheader }}{% for i in 1..7 %}&#x200A;&zwnj;{% endfor %}</div>
+  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="{{ c.ground }}" style="background:{{ c.ground }}">
+    <tr><td class="ag-outer" align="center" style="padding:28px 12px">
+      <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px"><tr><td><![endif]-->
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px">
+        <tr><td class="ag-head" style="padding:0 8px 20px;background:{{ c.ground }}">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td valign="middle" width="40" align="center" bgcolor="{{ c.surface }}" style="width:38px;height:38px;border:1px solid {{ c['line-2'] }};border-radius:8px;background:{{ c.surface }};">
+              <img src="{{ logo }}" width="26" height="26" alt="Africa GATES" style="display:block;width:26px;height:26px;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:12px;font-weight:700;color:{{ c.green }}">
+            </td>
+            <td align="left" valign="middle" style="padding-left:10px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:20px;font-weight:700;color:{{ c.ink }}">Africa GATES</td>
+            {% if category %}<td align="right" valign="middle" style="font-family:Arial,Helvetica,sans-serif;font-size:11.5px;line-height:16px;font-weight:700;color:{{ c.ink }}">{{ category }}</td>{% endif %}
+          </tr></table>
+        </td></tr>
+        <tr><td style="padding:0">
+          <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="{{ c.surface }}" style="width:100%;max-width:600px;background:{{ c.surface }};border-radius:16px;overflow:hidden">
+            {% if hero %}<tr><td style="padding:0;font-size:0;line-height:0;background:{{ c.bar }}"><img src="{{ hero }}" alt="" width="600" height="{{ hero_height }}" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>{% endif %}
+            <tr><td class="ag-pad ag-body" style="padding:40px 44px 22px;background:{{ c.surface }};color:{{ c['ink-2'] }};font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.7">
+              {{ body|raw }}
+            </td></tr>
+          </table>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td class="ag-foot" align="center" style="padding:20px 12px 4px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;color:{{ c.soft }}">
+          {% if why %}{{ why }}<br>{% endif %}
+          &copy; {{ year }} Africa GATES, an Afrovanguard initiative &middot; {{ postal }}<br>
+          <a href="{{ base }}/help" style="color:{{ c.soft }};text-decoration:underline">Help</a> &nbsp;&middot;&nbsp; <a href="{{ base }}/privacy" style="color:{{ c.soft }};text-decoration:underline">Privacy</a>{% if unsubscribe_url %} &nbsp;&middot;&nbsp; <a href="{{ unsubscribe_url }}" style="color:{{ c.soft }};text-decoration:underline">Unsubscribe</a>{% endif %}
+        </td></tr>
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
+    </td></tr>
+  </table>
+</body>
+</html>

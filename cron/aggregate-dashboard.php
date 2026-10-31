@@ -3,12 +3,13 @@ declare(strict_types=1);
 use Illuminate\Support\Carbon;
 /**
  * AFRICA GATES DASHBOARD CRON — Run every 4h
- * cPanel: 0 0,4,8,12,16,20 * * * /usr/bin/php /path/to/cron/aggregate-dashboard.php
+ * cPanel: 0 0,4,8,12,16,20 * * * /opt/cpanel/ea-php84/root/usr/bin/php /path/to/cron/aggregate-dashboard.php
  */
 require __DIR__.'/../vendor/autoload.php';
 Dotenv\Dotenv::createImmutable(__DIR__.'/../')->safeLoad();
 use Illuminate\Database\Capsule\Manager as DB;
 $cap=new DB();$cap->addConnection(require __DIR__.'/../config/database.php');$cap->setAsGlobal();$cap->bootEloquent();
+if(!\AfricaGates\Support\CronGuard::acquire('aggregate-dashboard', __DIR__.'/../var/data')){fwrite(STDERR,"[dashboard] another run is still in progress — exiting.\n");exit(0);}
 $t0=microtime(true);$log=fn(string $m)=>print('['.date('Y-m-d H:i:s').'] '.$m.PHP_EOL);$log('Dashboard aggregation starting…');
 
 $tp=DB::table('gates_profiles')->where('status','approved')->count();

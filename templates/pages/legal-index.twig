@@ -1,0 +1,51 @@
+{% extends 'layout/shell.twig' %}
+{#
+  /legal — THE LEGAL DIRECTORY (LegalService::directory())
+
+  Every policy in one place, grouped by who it is for, each row saying the one question its
+  document answers, so a reader finds "can I get my money back" without knowing the
+  document is called Refunds and Cancellations. The groups and the one-line summaries are
+  LegalService::GROUPS and ::SUMMARIES; the documents are whatever is published, so a page
+  an operator adds in the console appears here (under More) the moment it is published.
+#}
+{% set colour_tier = '0' %}
+{% set app_bar = {variant: 'child', title: 'Legal'|trans, back: '/'} %}
+
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/legal-index.css') }}">{% endblock %}
+
+{% block content %}
+<div class="lx">
+  <header class="lx-head">
+    <h1 class="lx-h1">{{ 'Legal'|trans }}</h1>
+    <p class="lx-lead">{{ 'Every policy that applies to you on Africa GATES, in plain words. Each one can be downloaded as text.'|trans }}</p>
+  </header>
+
+  {% for g in groups %}
+  <section class="lx-group" aria-labelledby="lx-{{ g.key }}">
+    <h2 class="lx-h2" id="lx-{{ g.key }}">{{ g.title|trans }}</h2>
+    <ul class="lx-list">
+      {% for d in g.docs %}
+      <li>
+        <a class="lx-row" href="{{ d.url }}">
+          <span class="lx-row__t">{{ d.title|trans }}</span>
+          {% if d.summary %}<span class="lx-row__s">{{ d.summary|trans }}</span>{% endif %}
+          {% if d.updated %}<span class="lx-row__d">{{ 'Updated %d%'|trans({'%d%': d.updated}) }}</span>{% endif %}
+          <svg class="lx-row__chev ag-ico-dir" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+
+  <section class="lx-group" aria-labelledby="lx-awards">
+    <h2 class="lx-h2" id="lx-awards">{{ 'How awards are decided'|trans }}</h2>
+    <ul class="lx-list">
+      <li><a class="lx-row" href="/integrity"><span class="lx-row__t">{{ 'How a winner is decided'|trans }}</span><span class="lx-row__s">{{ 'The scoring, the checks, and how to raise a concern.'|trans }}</span><svg class="lx-row__chev ag-ico-dir" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
+      <li><a class="lx-row" href="/philosophy"><span class="lx-row__t">{{ 'The philosophy'|trans }}</span><span class="lx-row__s">{{ 'Why the awards work the way they do.'|trans }}</span><svg class="lx-row__chev ag-ico-dir" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></li>
+    </ul>
+  </section>
+
+  <p class="lx-note">{{ 'Governed by the laws of the Federal Republic of Nigeria. A question about any of these?'|trans }} <a href="/support">{{ 'Ask us'|trans }}</a></p>
+</div>
+{% endblock %}

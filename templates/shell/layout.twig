@@ -1,0 +1,233 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE v7 SHELL — one set of partials for the volunteer workspace now and the event lead
+  console next (docs/handoff/consoles-v7/README §2; CONSOLES-V7-REVIEW slice K4).
+
+  · Reads ONLY `shell` (Workspace::context's shape, README §3). Nothing here queries.
+  · Colour is `ag_accents('console')` in a nonced <style> before the stylesheets; sizes and
+    faces are console/tokens.css. No hex, no px type, no capitals (ConsolePaletteTest,
+    ConsoleTypeTest).
+  · Layout measures its CONTAINER, not the window (README §2.2): ≥1024 a 240px rail, 600–1023
+    a 64px icon rail, under 600 no rail — an app bar on top and a tab bar of the scope's first
+    four pages plus More at the bottom.
+  · Every control works without script. Forms post; links are links. shell7.js adds the toast's
+    exit, the More sheet and a confirm on the few destructive buttons.
+#}
+{% import 'shell/sections.twig' as S %}
+{% set sh = shell %}
+{% set act = sh.act|default('/volunteer/act') %}
+{% set home = sh.home|default('/volunteer') %}
+{# The account menu's list, and which part of the account this surface is. #}
+{% set acct = account_switch() %}
+{% set acctHere = sh.acctHere|default(act starts with '/volunteer' ? 'volunteer' : (act starts with '/lead' ? 'lead' : 'admin')) %}
+{% set acctLabel = acct ? (acct|filter(m => m.kind == acctHere)|first).label|default('Africa GATES') : 'Africa GATES' %}
+{% set phoneTabs = [] %}
+{% for g in sh.nav %}{% for i in g.items %}{% if phoneTabs|length < 4 and not i.drill %}{% set phoneTabs = phoneTabs|merge([i]) %}{% endif %}{% endfor %}{% endfor %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{# The outcome of what was just done goes FIRST in the title: a screen reader reads the title
+   when a page loads, while a message already on the page at load is often not announced at
+   all. "Not done:" leads an error (GOV.UK's "Error:" pattern, in this site's words). #}
+<title>{% if shell.error|default('') %}Not done: {{ shell.error }} · {% elseif shell.toast|default('') %}{{ shell.toast }} · {% endif %}{{ page_title|default('Africa GATES') }}</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preload" href="/assets/fonts/geist/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
+<link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/shell7.css') }}">
+{% include 'partials/csrf-fresh.twig' %}
+</head>
+<body class="sh7">
+<a class="sh7-skip" href="#sh7Main">Skip to the page</a>
+<div class="sh7-root">
+
+  <aside class="sh7-rail" aria-label="{{ sh.scope == 'root' ? sh.railLabel|default('My volunteering') : (sh.instance.name|default('Profile and access')) }}">
+    {% if sh.scope == 'root' %}
+      {% if acct %}
+        {# The product switcher (after ElevenLabs): the top of the rail names the part of the
+           account you are in and opens the others. The foot stays personal. #}
+        <details class="sh7-prod">
+          <summary class="sh7-brand sh7-prod__btn" aria-label="{{ acctLabel }}. Switch to another part of your account">
+            <span class="sh7-brand__tile" aria-hidden="true">AG</span>
+            <span class="sh7-brand__words"><span class="sh7-brand__name">{{ acctLabel }}</span><span class="sh7-brand__sub">{{ sh.brand }}</span></span>
+            <span class="sh7-prod__chev" aria-hidden="true">{{ S.icon('chev') }}</span>
+          </summary>
+          <div class="sh7-prod__menu" role="menu" aria-label="Your account">{{ S.acctSwitch(acct, acctHere) }}</div>
+        </details>
+      {% else %}
+        <div class="sh7-brand">
+          <span class="sh7-brand__tile" aria-hidden="true">AG</span>
+          <span class="sh7-brand__words"><span class="sh7-brand__name">Africa GATES</span><span class="sh7-brand__sub">{{ sh.brand }}</span></span>
+        </div>
+      {% endif %}
+    {% else %}
+      <a class="sh7-back" href="{{ sh.back.href }}" title="{{ sh.back.label }}">{{ S.icon('back') }}<span class="sh7-label">{{ sh.back.label }}</span></a>
+      {% if sh.instance is defined and sh.instance %}
+        {% if sh.siblings is defined and sh.siblings|length > 1 %}
+          {# The switcher (§1): the other places of the same kind; switching keeps the page. #}
+          <details class="sh7-switch">
+            <summary class="sh7-ident" aria-label="{{ sh.instance.name }}. Switch to another">
+              <span class="sh7-tile sh7-tile--{{ sh.instance.tone }}" aria-hidden="true">{{ sh.instance.ini }}</span>
+              <span class="sh7-ident__words"><span class="sh7-ident__name">{{ sh.instance.name }}</span>{% if sh.instance.sub %}<span class="sh7-ident__sub">{{ sh.instance.sub }}</span>{% endif %}</span>
+              <span class="sh7-switch__mark" aria-hidden="true">⇅</span>
+            </summary>
+            <ul class="sh7-switch__list">
+              {% for o in sh.siblings %}
+                <li><a class="sh7-item{{ o.current ? ' is-on' }}" href="{{ o.href }}"{% if o.current %} aria-current="true"{% endif %}><span class="sh7-tile sh7-tile--sm" aria-hidden="true">{{ o.ini }}</span><span class="sh7-label">{{ o.name }}<span class="sh7-switch__sub"> · {{ o.sub }}</span></span></a></li>
+              {% endfor %}
+            </ul>
+          </details>
+        {% else %}
+          <div class="sh7-ident">
+            <span class="sh7-tile sh7-tile--{{ sh.instance.tone }}" aria-hidden="true">{{ sh.instance.ini }}</span>
+            <span class="sh7-ident__words"><span class="sh7-ident__name">{{ sh.instance.name }}</span>{% if sh.instance.sub %}<span class="sh7-ident__sub">{{ sh.instance.sub }}</span>{% endif %}</span>
+          </div>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+    <nav class="sh7-nav" aria-label="Pages">
+      {% for g in sh.nav %}
+        <div class="sh7-group">
+          {% if g.label %}<p class="sh7-group__label" id="sh7G{{ loop.index }}">{{ g.label }}</p>{% endif %}
+          <ul class="sh7-list"{% if g.label %} aria-labelledby="sh7G{{ loop.index }}"{% endif %}>
+            {% for i in g.items %}
+              <li><a class="sh7-item{{ i.current ? ' is-on' }}" href="{{ i.href }}"{% if i.current %} aria-current="page"{% endif %} title="{{ i.label }}">
+                {{ S.icon(i.icon) }}<span class="sh7-label">{{ i.label }}</span>
+                {% if i.count %}<span class="sh7-badge sh7-badge--{{ i.count.tone }}" aria-hidden="true">{{ i.count.n }}</span><span class="sh7-sr">, {{ i.count.n }} waiting</span>{% endif %}
+                {% if i.drill %}<span class="sh7-item__drill" aria-hidden="true">{{ S.icon('chev') }}</span>{% endif %}
+              </a></li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endfor %}
+    </nav>
+    <div class="sh7-foot">
+      <a class="sh7-item" href="{{ sh.foot.href|default('/account') }}" title="{{ sh.foot.label|default('Your account') }}">{{ S.icon('user') }}<span class="sh7-label">{{ sh.me.name }}</span></a>
+    </div>
+  </aside>
+
+  <div class="sh7-frame">
+    <header class="sh7-bar">
+      {% if sh.scope != 'root' or sh.back is defined %}
+        <a class="sh7-appback" href="{{ sh.back.href|default(home) }}" aria-label="{{ sh.back.label|default('Back') }}">{{ S.icon('back') }}</a>
+      {% endif %}
+      <nav class="sh7-crumbs" aria-label="You are here"><ol>
+        {% for c in sh.crumbs %}
+          <li>{% if c.href is defined and not loop.last %}<a href="{{ c.href }}">{{ c.label }}</a>{% else %}<span{% if loop.last %} aria-current="page"{% endif %}>{{ c.label }}</span>{% endif %}</li>
+        {% endfor %}
+      </ol></nav>
+      <span class="sh7-apptitle">{{ sh.title }}</span>
+      {% if sh.find is defined and sh.find %}
+        {# Find (§2.4, ⌘K). Without script it is a search that posts nowhere: a GET of the results page. #}
+        <form class="sh7-find" role="search" method="get" action="{{ sh.find.action }}">
+          <label class="sh7-sr" for="sh7FindQ">Find a page, an event or a piece of work</label>
+          <input class="sh7-input sh7-find__q" id="sh7FindQ" type="search" name="q" value="{{ sh.find.q|default('') }}" placeholder="Find…" autocomplete="off"
+                 role="combobox" aria-expanded="false" aria-controls="sh7FindList" aria-keyshortcuts="Meta+K Control+K">
+          <span class="sh7-find__kbd" aria-hidden="true">⌘K</span>
+          <div class="sh7-find__list" id="sh7FindList" role="listbox" aria-label="Matches" hidden></div>
+        </form>
+        <script type="application/json" id="sh7FindData" nonce="{{ csp_nonce }}">{{ sh.find.items|json_encode(JSON_SAFE)|raw }}</script>
+      {% endif %}
+      {% if sh.ask is defined and sh.ask %}
+        <a class="sh7-btn sh7-btn--sm sh7-askbtn" href="{{ sh.ask.href }}" data-sh7-ask aria-keyshortcuts="Meta+J Control+J">Ask</a>
+      {% endif %}
+      {% if sh.bell is defined and sh.bell %}
+        {# Updates (§2.4): grouped by what they ask of the person, each derived from a record. #}
+        <details class="sh7-bellbox">
+          <summary class="sh7-bell" aria-label="Updates{{ sh.bell.n ? ', ' ~ sh.bell.n ~ ' need you' }}">{{ S.icon('bell') }}{% if sh.bell.n %}<span class="sh7-bell__n" aria-hidden="true">{{ sh.bell.n }}</span>{% endif %}</summary>
+          <div class="sh7-bellpanel" role="dialog" aria-label="Updates">
+            {% for g in sh.bell.groups %}
+              <p class="sh7-bellpanel__h sh7-bellpanel__h--{{ g.tone }}">{{ g.h }}</p>
+              <ul class="sh7-bellpanel__list">{% for i in g.items %}<li><a class="sh7-bellpanel__item" href="{{ i.href }}"><span class="sh7-bellpanel__t">{{ i.t }}</span>{% if i.sub %}<span class="sh7-bellpanel__sub">{{ i.sub }}</span>{% endif %}</a></li>{% endfor %}</ul>
+            {% else %}
+              <p class="sh7-bellpanel__none">Nothing needs you right now.</p>
+            {% endfor %}
+          </div>
+        </details>
+      {% else %}
+        <a class="sh7-bell" href="{{ home }}" aria-label="Updates">{{ S.icon('bell') }}</a>
+      {% endif %}
+    </header>
+
+    {% if sh.tabs %}
+      <nav class="sh7-tabs" aria-label="{{ sh.title }}">
+        {% for t in sh.tabs %}
+          <a class="sh7-tab{{ t.current ? ' is-on' }}" href="{{ t.href }}"{% if t.current %} aria-current="page"{% endif %}>{{ t.label }}{% if t.count %}<span class="sh7-badge sh7-badge--warn" aria-hidden="true">{{ t.count }}</span><span class="sh7-sr">, {{ t.count }} waiting</span>{% endif %}</a>
+        {% endfor %}
+      </nav>
+    {% endif %}
+
+    <main id="sh7Main" class="sh7-main" tabindex="-1">
+      <div class="sh7-page{{ sh.side is defined and sh.side ? ' has-side' }}">
+        {% if sh.paused|default(false) %}<p class="sh7-note sh7-note--warn">You’re on a break until {{ sh.paused }}. Nobody invites you until then. <a href="/volunteer/me/leave">Come back now</a></p>{% endif %}
+        {% if not sh.noHead|default(false) %}
+          <div class="sh7-head">
+            <div class="sh7-head__words">
+              {% if sh.kicker|default('') %}<p class="sh7-head__kicker">{{ sh.kicker }}</p>{% endif %}
+              <h1 class="sh7-head__title">{{ sh.title }}</h1>
+              {% if sh.purpose %}<p class="sh7-head__purpose">{{ sh.purpose }}</p>{% endif %}
+            </div>
+            {% if sh.acts is defined and sh.acts %}<div class="sh7-head__acts">{% for a in sh.acts %}{{ S.action(a, sh.here, false, act) }}{% endfor %}</div>{% endif %}
+          </div>
+        {% endif %}
+        <div class="sh7-cols">
+          <div class="sh7-col">{% for sec in sh.secs %}{{ S.section(sec, sh.here, act) }}{% endfor %}</div>
+          {% if sh.side is defined and sh.side %}<aside class="sh7-side" aria-label="Also useful">{% for sec in sh.side %}{{ S.section(sec, sh.here, act) }}{% endfor %}</aside>{% endif %}
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <nav class="sh7-phonetabs" aria-label="Pages">
+    {% for i in phoneTabs %}
+      <a class="sh7-phonetab{{ i.current ? ' is-on' }}" href="{{ i.href }}"{% if i.current %} aria-current="page"{% endif %}>{{ S.icon(i.icon) }}<span>{{ i.label }}</span></a>
+    {% endfor %}
+    <details class="sh7-more">
+      <summary class="sh7-phonetab">{{ S.icon('more') }}<span>More pages</span></summary>
+      <div class="sh7-sheet" role="dialog" aria-label="More pages">
+        {% for g in sh.nav %}{% for i in g.items %}
+          <a class="sh7-item" href="{{ i.href }}"{% if i.current %} aria-current="page"{% endif %}>{{ S.icon(i.icon) }}<span class="sh7-label">{{ i.label }}</span>{% if i.count %}<span class="sh7-badge sh7-badge--{{ i.count.tone }}" aria-hidden="true">{{ i.count.n }}</span><span class="sh7-sr">, {{ i.count.n }} waiting</span>{% endif %}</a>
+        {% endfor %}{% endfor %}
+        {% if acct %}<p class="sh7-bellpanel__h">Switch to</p>{{ S.acctSwitch(acct, acctHere) }}{% endif %}
+      </div>
+    </details>
+  </nav>
+
+  {% if sh.ask is defined and sh.ask %}
+    {# Ask (§2.4, ⌘J): the console's own assistant, beside the page. It sees only what this role may open. #}
+    <dialog class="sh7-ask" id="sh7Ask" aria-labelledby="sh7AskH" data-post="{{ sh.ask.post }}">
+      <div class="sh7-ask__head"><h2 class="sh7-sec__h" id="sh7AskH">Ask about {{ sh.ask.scope }}</h2>
+        <button class="sh7-btn sh7-btn--sm" type="button" data-sh7-ask-close>Close</button></div>
+      <div class="sh7-ask__log" id="sh7AskLog" aria-live="polite">
+        <p class="sh7-ask__lede">Try one of these, or ask in your own words.</p>
+        <p class="sh7-ask__starters">{% for q in sh.ask.starters %}<button class="sh7-btn sh7-btn--sm" type="button" data-sh7-starter>{{ q }}</button>{% endfor %}</p>
+      </div>
+      <form class="sh7-ask__form" id="sh7AskForm">
+        <label class="sh7-sr" for="sh7AskQ">Your question</label>
+        <textarea class="sh7-input" id="sh7AskQ" rows="3" required></textarea>
+        <button class="sh7-btn sh7-btn--primary" type="submit">Ask</button>
+      </form>
+      <p class="sh7-ask__note">The assistant reads only what your role can open, and says when it doesn’t know.</p>
+    </dialog>
+  {% endif %}
+
+  {# What just happened. An error STAYS until it is dismissed — it is the one message somebody
+     must not miss — and a confirmation leaves on its own, never while it is hovered or focused.
+     Either is also first in the page title, and shell7.js repeats it into the live region below
+     a moment after load, because a region already filled at load is often not announced. #}
+  {% if sh.toast or sh.error %}
+    <div class="sh7-toast{{ sh.error ? ' sh7-toast--bad' }}" data-sh7-toast{{ sh.error ? ' data-sh7-stay' }} tabindex="-1">
+      <span class="sh7-toast__t">{{ sh.error ? 'Not done: ' }}{{ sh.error ?: sh.toast }}</span>
+      <button class="sh7-toast__x" type="button" data-sh7-toast-x aria-label="Dismiss this message">×</button>
+    </div>
+  {% endif %}
+  <div class="sh7-sr" id="sh7Live" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div class="sh7-sr" id="sh7Alert" role="alert" aria-atomic="true"></div>
+</div>
+<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/shell7.js') }}" defer></script>
+</body>
+</html>

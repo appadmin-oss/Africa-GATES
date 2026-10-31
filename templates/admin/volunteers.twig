@@ -1,0 +1,255 @@
+{% extends "admin/layout.twig" %}
+{#
+  VOLUNTEERS — the staff side of the volunteer workspace (consoles v7 §4.1 People › Volunteers;
+  CONSOLES-V7-REVIEW slice V1). What staff do here is what fills a volunteer's pages: approve
+  an application, give a role that ENDS, post a task, accept work,
+  write training, answer hours nobody's lead has. Every control is a form that posts; every
+  write is audited by the controller.
+#}
+{% import 'admin/partials/kit.twig' as kit %}
+{% block topbar_sub %}Applications, roles that end on their own, tasks, training and hours: what fills each volunteer’s workspace.{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/volunteers.css') }}">{% endblock %}
+
+{% block content %}
+<div class="cn-toolbar">
+  <div class="cn-fchips" role="group" aria-label="Volunteers">
+    {% for k, l in tabs %}
+      <a class="cn-fchip{{ tab == k ? ' is-on' }}" href="/admin/volunteers?tab={{ k }}"{% if tab == k %} aria-current="page"{% endif %}>
+        <span class="cn-fchip__k">{{ l }}</span>{% if counts[k] is defined and counts[k] > 0 %}<span class="cn-fchip__v">{{ counts[k] }}</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% if flash_ok %}<p class="vl-ok" role="status">{{ flash_ok }}</p>{% endif %}
+{% if flash_error %}<div class="cn-error" role="alert"><span class="cn-error__t">That didn’t go through</span><span class="cn-error__m">{{ flash_error }}</span></div>{% endif %}
+
+{% if not ready %}
+  <div class="cn-card vl-sec">{{ kit.empty('The volunteer tables are not here yet', 'Apply the latest database update (2027_04_12_volunteers_grants_requests) and come back.', 'users') }}</div>
+
+{% elseif tab == 'applications' %}
+  {% if rows is empty %}
+    <div class="cn-card vl-sec">{{ kit.empty('No applications waiting', 'A member applies from Volunteering on their account page.', 'users') }}</div>
+  {% else %}
+    {% for v in rows %}
+      <section class="cn-card vl-sec" aria-label="{{ v.display_name ?: v.user_name }}">
+        <h2 class="vl-h">{{ v.display_name ?: v.user_name }}</h2>
+        <dl class="cn-facts">
+          <div><dt>Applied</dt><dd>{{ v.applied_at|date('j M Y') }}</dd></div>
+          <div><dt>Age</dt><dd>{{ v.age ?? '—' }}{% if v.guardian_consent_at %} · a guardian agreed{% endif %}</dd></div>
+          {% if v.phone %}<div><dt>Phone</dt><dd>{{ v.phone }}</dd></div>{% endif %}
+          <div><dt>Where</dt><dd>{{ v.area }}{% if v.state %}, {{ v.state }}{% endif %}</dd></div>
+          <div><dt>When</dt><dd>{{ v.when }}{% if v.from_home %} · also from home{% endif %}</dd></div>
+          <div><dt>Would like to</dt><dd>{{ v.wants|join(', ') }}</dd></div>
+          {% if v.brings %}<div><dt>Skills</dt><dd>{{ v.brings|join(', ') }}</dd></div>{% endif %}
+          {% if v.languages %}<div><dt>Languages</dt><dd>{{ v.languages }}</dd></div>{% endif %}
+          {% if v.occupation_label %}<div><dt>Does</dt><dd>{{ v.occupation_label }}</dd></div>{% endif %}
+          {% if v.gender_label %}<div><dt>Gender</dt><dd>{{ v.gender_label }}</dd></div>{% endif %}
+          {% if v.emergency_contact %}<div><dt>Emergency contact</dt><dd>{{ v.emergency_contact }}</dd></div>{% endif %}
+          {% if v.access_needs %}<div><dt>To arrange</dt><dd>{{ v.access_needs }}</dd></div>{% endif %}
+          {% if v.tshirt %}<div><dt>T-shirt</dt><dd>{{ v.tshirt }}</dd></div>{% endif %}
+          {% if v.heard_label %}<div><dt>Heard from</dt><dd>{{ v.heard_label }}</dd></div>{% endif %}
+        </dl>
+        {% if v.motivation %}<p>{{ v.motivation }}</p>{% endif %}
+        {% if v.experience %}<p class="vl-help">Before: {{ v.experience }}</p>{% endif %}
+        <table class="cn-table">
+          <thead><tr><th scope="col">Referee</th><th scope="col">Reached at</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+            {% for r in v.refs %}
+              <tr><td>{{ r.name }}{% if r.relation %} · {{ r.relation }}{% endif %}</td><td>{{ r.contact }}</td><td>{{ r.status == 'replied' ? 'Replied' : 'Asked ' ~ r.asked_at|date('j M') }}</td>
+                <td>{% if r.status == 'asked' %}
+                  <form method="post" action="/admin/volunteers"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="applications">
+                    <input type="hidden" name="do" value="ref_replied"><input type="hidden" name="ref" value="{{ r.id }}">
+                    <label class="sr-only" for="rn{{ r.id }}">What they said</label><input class="vl-in" id="rn{{ r.id }}" name="note" placeholder="What they said (optional)">
+                    <button class="cn-btn cn-btn--sm" type="submit">They replied</button></form>
+                {% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="vl-acts">
+          <form method="post" action="/admin/volunteers"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="applications">
+            <input type="hidden" name="do" value="approve"><input type="hidden" name="id" value="{{ v.id }}"><button class="cn-btn cn-btn--primary" type="submit">Approve</button></form>
+          <form method="post" action="/admin/volunteers"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="applications">
+            <input type="hidden" name="do" value="decline"><input type="hidden" name="id" value="{{ v.id }}">
+            <label class="sr-only" for="dr{{ v.id }}">Why not</label><input class="vl-in" id="dr{{ v.id }}" name="reason" placeholder="Why not — they see this" required>
+            <button class="cn-btn" type="submit">Decline</button></form>
+        </div>
+      </section>
+    {% endfor %}
+  {% endif %}
+
+{% elseif tab == 'roster' %}
+  {% if rows is empty %}
+    <div class="cn-card vl-sec">{{ kit.empty('No volunteers yet', 'Approved applicants appear here.', 'users') }}</div>
+  {% else %}
+    <div class="cn-card vl-sec">
+      <p class="vl-help">Sort by:
+        {% for k, l in {name: 'name', reliability: 'reliability, weakest first', hours: 'hours, most first'} %}{% if not loop.first %} · {% endif %}{% if sort == k %}<strong aria-current="true">{{ l }}</strong>{% else %}<a href="/admin/volunteers?tab=roster&amp;sort={{ k }}">{{ l }}</a>{% endif %}{% endfor %}</p>
+      <table class="cn-table">
+        <thead><tr><th scope="col">Volunteer</th><th scope="col">Level</th><th scope="col">Verified hours</th><th scope="col">Last six months</th><th scope="col">Reliability</th><th scope="col">Roles held</th><th scope="col">Give a role</th></tr></thead>
+        <tbody>
+          {% for v in rows %}
+            <tr>
+              <td>{{ v.name }}{% if v.status == 'paused' %} · on a break{% endif %}</td>
+              <td>{{ v.lv.level }}</td>
+              <td>{{ v.lv.hours }}</td>
+              <td>{{ v.eff.hours }} hours{% if v.eff.weeks %}, {{ v.eff.weeks }} {{ v.eff.weeks == 1 ? 'week' : 'weeks' }}{% endif %}<br><span class="vl-help">{{ v.eff.done }} {{ v.eff.done == 1 ? 'task' : 'tasks' }} finished{% if v.eff.roles %} · at {{ v.eff.shown }} of {{ v.eff.roles }} events{% endif %}</span></td>
+              <td>{{ v.eff.word }}{% if v.eff.reliability is not null %} ({{ v.eff.reliability }}%){% endif %}</td>
+              <td>{% for g in v.grants %}
+                <form method="post" action="/admin/volunteers" class="vl-grant"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="roster">
+                  <input type="hidden" name="do" value="revoke"><input type="hidden" name="grant" value="{{ g.id }}">
+                  {{ caps[g.capability]|default(g.capability) }} · {{ g.where }} · until {{ g.expires_at|date('j M') }} <button class="cn-btn cn-btn--sm" type="submit">End now</button></form>
+              {% else %}None{% endfor %}</td>
+              <td>
+                <form method="post" action="/admin/volunteers" class="vl-grant"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="roster">
+                  <input type="hidden" name="do" value="grant"><input type="hidden" name="id" value="{{ v.id }}">
+                  <label class="sr-only" for="gc{{ v.id }}">Role</label><select id="gc{{ v.id }}" name="capability">{% for k, l in caps %}{% if k starts with 'vol.' %}<option value="{{ k }}">{{ l }}</option>{% endif %}{% endfor %}</select>
+                  <label class="sr-only" for="gp{{ v.id }}">Where</label><select id="gp{{ v.id }}" name="place" required>{% for p in places %}<option value="{{ p.kind }}:{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
+                  <label class="sr-only" for="ge{{ v.id }}">Ends</label><input id="ge{{ v.id }}" type="date" name="expires_at" required min="{{ 'now'|date('Y-m-d') }}">
+                  <button class="cn-btn cn-btn--sm" type="submit">Give</button></form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="vl-help">Reliability is what each person finished or checked in to over the last six months, out of what they took on; it shows after three. Every role ends on its date with nothing scheduled; the volunteer’s page drops it on their next visit.</p>
+    </div>
+  {% endif %}
+
+{% elseif tab == 'tasks' %}
+  <section class="cn-card vl-sec" aria-labelledby="vlTaskH">
+    <h2 class="vl-h" id="vlTaskH">Post a task</h2>
+    <form method="post" action="/admin/volunteers" class="vl-form"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks"><input type="hidden" name="do" value="task">
+      <label>Name <input name="title" required placeholder="Digitise the 1st Edition booklet"></label>
+      <label>How it’s checked <select name="checked_by">{% for k, l in checked %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label>For <select name="scope"><option value="">Anywhere</option>{% for p in places %}<option value="{{ p.kind }}:{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+      <label>About how long (minutes) <input type="number" name="est_minutes" min="0"></label>
+      <label>Target (how many) <input type="number" name="target" min="0"></label>
+      <label>Due <input type="datetime-local" step="1" name="due_at"></label>
+      <label>Training it needs <select name="module_key"><option value="">None</option>{% for k, l in modules %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label class="vl-wide">What to do <textarea name="body" rows="3"></textarea></label>
+      <label class="vl-check"><input type="checkbox" name="from_home" value="1" checked> From home</label>
+      <p><button class="cn-btn cn-btn--primary" type="submit">Post the task</button></p>
+    </form>
+  </section>
+  <section class="cn-card vl-sec" aria-label="Open tasks">
+    <h2 class="vl-h">Open tasks</h2>
+    {% if rows is empty %}{{ kit.empty('No open tasks', 'Post one above.', 'list') }}{% else %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">Task</th><th scope="col">Who has it</th></tr></thead>
+      <tbody>
+        {% for t in rows %}
+          <tr><td>{{ t.title }}<br><span class="cn-code--soft">{{ checked[t.checked_by]|default('') }}</span></td>
+            <td>{% for k in t.takes %}
+              <form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="tasks">
+                <input type="hidden" name="do" value="accept"><input type="hidden" name="take" value="{{ k.id }}">
+                {{ k.display_name ?: k.name }}{% if t.target %} · {{ k.progress }} of {{ t.target }}{% endif %}
+                <label class="sr-only" for="th{{ k.id }}">Hours it earned</label><input id="th{{ k.id }}" type="number" name="hours" min="0" step="0.25" placeholder="Hours" required>
+                <label class="sr-only" for="ta{{ k.id }}">Accepted</label><input id="ta{{ k.id }}" type="number" name="accepted" min="0" placeholder="Accepted">
+                <button class="cn-btn cn-btn--sm" type="submit">Accept</button></form>
+            {% else %}Nobody yet{% endfor %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>{% endif %}
+  </section>
+
+{% elseif tab == 'training' %}
+  <section class="cn-card vl-sec" aria-labelledby="vlModH">
+    <h2 class="vl-h" id="vlModH">Write or update a module</h2>
+    <p class="vl-help">Short pages with a three-question check. A module with the same short code is updated in place.</p>
+    <form method="post" action="/admin/volunteers" class="vl-form"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="training"><input type="hidden" name="do" value="module">
+      <label>Title <input name="title" required placeholder="Door steward"></label>
+      <label>Short code <input name="slug" required placeholder="door-steward"></label>
+      <label>Minutes <input type="number" name="minutes" min="1" max="120" value="10"></label>
+      <label>Pass lasts (days, blank for ever) <input type="number" name="valid_days" min="0"></label>
+      <label>Unlocks <select name="unlocks"><option value="">Nothing</option>{% for k, l in caps %}{% if k starts with 'vol.' %}<option value="{{ k }}">{{ l }}</option>{% endif %}{% endfor %}</select></label>
+      <label class="vl-wide">The page <textarea name="body" rows="6" placeholder="Paragraphs, separated by a blank line."></textarea></label>
+      {% for i in 0..2 %}
+        <fieldset class="vl-wide"><legend>Question {{ i + 1 }}</legend>
+          <label>Question <input name="q[{{ i }}]"></label>
+          <label>Answers, one per line <textarea name="opts[{{ i }}]" rows="3"></textarea></label>
+          <label>The right answer is number <input type="number" name="answer[{{ i }}]" min="1" max="6" value="1"></label>
+        </fieldset>
+      {% endfor %}
+      <p><button class="cn-btn cn-btn--primary" type="submit">Save the module</button></p>
+    </form>
+  </section>
+  <section class="cn-card vl-sec" aria-label="Modules">
+    <h2 class="vl-h">Modules</h2>
+    {% if rows is empty %}{{ kit.empty('No training yet', 'A role or a task can need a module before a volunteer takes it on.', 'book') }}{% else %}
+    <table class="cn-table"><thead><tr><th scope="col">Module</th><th scope="col">Minutes</th><th scope="col">Lasts</th><th scope="col">Unlocks</th></tr></thead>
+      <tbody>{% for m in rows %}<tr><td>{{ m.title }} <span class="cn-code--soft">{{ m.slug }}</span></td><td>{{ m.minutes }}</td><td>{{ m.valid_days ? m.valid_days ~ ' days' : 'For ever' }}</td><td>{{ caps[m.unlocks]|default(m.unlocks ?: '—') }}</td></tr>{% endfor %}</tbody>
+    </table>{% endif %}
+  </section>
+
+{% elseif tab == 'hours' %}
+  <section class="cn-card vl-sec" aria-label="Hours to confirm">
+    <p class="vl-help">Hours logged by hand that no team lead has answered. Confirm only what somebody saw or there is proof of; a decline needs a reason, and the volunteer sees it.</p>
+    {% if rows is empty %}{{ kit.empty('Nothing to confirm', 'Hand-logged hours wait here until a lead or staff answers them.', 'clock') }}{% else %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">Volunteer</th><th scope="col">What</th><th scope="col">Hours</th><th scope="col">Answer</th></tr></thead>
+      <tbody>
+        {% for h in rows %}
+          <tr><td>{{ h.display_name ?: h.user_name }}</td>
+            <td>{{ h.what }} · {{ h.worked_on|date('j M') }}{% if h.witness %} · seen by {{ h.witness }}{% endif %}{% if h.proof %} · <a href="{{ h.proof }}" rel="noopener noreferrer" target="_blank">proof</a>{% endif %}</td>
+            <td>{{ h.hours }}</td>
+            <td><form method="post" action="/admin/volunteers" class="vl-inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="tab" value="hours">
+              <input type="hidden" name="do" value="hours"><input type="hidden" name="hour" value="{{ h.id }}">
+              <label class="sr-only" for="hr{{ h.id }}">Reason, if you decline</label><input id="hr{{ h.id }}" name="reason" placeholder="Reason, if you decline">
+              <button class="cn-btn cn-btn--sm cn-btn--primary" type="submit" name="verdict" value="yes">Confirm</button>
+              <button class="cn-btn cn-btn--sm" type="submit" name="verdict" value="no">Decline</button></form></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>{% endif %}
+  </section>
+
+{% elseif tab == 'reports' %}
+  {% set t = report.totals %}
+  <section class="cn-card vl-sec" aria-label="Contact reports">
+    <p class="vl-help">Every call, WhatsApp, text, email or visit a volunteer logs with a nominee. “Spoken to” counts a nominee once somebody actually spoke with them; a missed call or a message left does not. Team leads see the same figures for their own award.</p>
+    <form method="get" action="/admin/volunteers" class="vl-inline" role="search">
+      <input type="hidden" name="tab" value="reports">
+      <label for="rp-cycle">Award</label>
+      <select id="rp-cycle" name="cycle"><option value="0">All awards</option>{% for id, name in awards %}<option value="{{ id }}"{{ cycle == id ? ' selected' }}>{{ name }}</option>{% endfor %}</select>
+      <label for="rp-days">Period</label>
+      <select id="rp-days" name="days">{% for d, l in {0: 'All time', 7: 'Last 7 days', 30: 'Last 30 days', 90: 'Last 90 days'} %}<option value="{{ d }}"{{ days == d ? ' selected' }}>{{ l }}</option>{% endfor %}</select>
+      <button class="cn-btn cn-btn--sm" type="submit">Show</button>
+      <a class="cn-btn cn-btn--sm" href="/admin/volunteers?tab=reports&amp;cycle={{ cycle }}&amp;days={{ days }}&amp;csv=1">Download CSV</a>
+    </form>
+    {% if awards is empty %}{{ kit.empty('No contacts logged yet', 'When a volunteer with the nominee outreach role logs a call, message or email, it appears here.', 'users') }}{% else %}
+    <p role="status">{{ t.contacts }} {{ t.contacts == 1 ? 'contact' : 'contacts' }} by {{ t.volunteers }} {{ t.volunteers == 1 ? 'volunteer' : 'volunteers' }} · {{ t.nominees }} nominees contacted · {{ t.reached }} spoken to · {{ t.due }} follow-ups due</p>
+
+    <h2 class="vl-h">Coverage by award</h2>
+    <table class="cn-table">
+      <thead><tr><th scope="col">Award</th><th scope="col">Nominees</th><th scope="col">Contacted</th><th scope="col">Spoken to</th></tr></thead>
+      <tbody>{% for c in report.coverage %}<tr><td>{{ c.title }}</td><td>{{ c.total }}</td><td>{{ c.contacted }}</td><td>{{ c.reached }}{% if c.total %} ({{ (100 * c.reached / c.total)|round }}%){% endif %}</td></tr>{% endfor %}</tbody>
+    </table>
+
+    <h2 class="vl-h">How it went</h2>
+    <table class="cn-table">
+      <thead><tr><th scope="col">Outcome</th><th scope="col">Contacts</th></tr></thead>
+      <tbody>{% for k, l in outcomes %}<tr><td>{{ l }}</td><td>{{ report.outcomes[k]|default(0) }}</td></tr>{% endfor %}</tbody>
+    </table>
+    <table class="cn-table">
+      <thead><tr><th scope="col">How</th><th scope="col">Contacts</th></tr></thead>
+      <tbody>{% for k, l in channels %}<tr><td>{{ l }}</td><td>{{ report.channels[k]|default(0) }}</td></tr>{% endfor %}</tbody>
+    </table>
+
+    <h2 class="vl-h">By volunteer</h2>
+    {% if report.people is empty %}<p class="vl-help">Nobody logged a contact in this period.</p>{% else %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">Volunteer</th><th scope="col">Contacts</th><th scope="col">Nominees</th><th scope="col">Spoke</th><th scope="col">Last contact</th></tr></thead>
+      <tbody>{% for p in report.people %}<tr><td>{{ p.name }}</td><td>{{ p.contacts }}</td><td>{{ p.nominees }}</td><td>{{ p.reached }}</td><td>{{ p.last_at|date('j M Y, H:i') }}</td></tr>{% endfor %}</tbody>
+    </table>{% endif %}
+
+    <h2 class="vl-h">Latest contacts</h2>
+    {% if report.recent is empty %}<p class="vl-help">No contacts in this period.</p>{% else %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">When</th><th scope="col">Nominee</th><th scope="col">Volunteer</th><th scope="col">How · outcome</th><th scope="col">Note</th></tr></thead>
+      <tbody>{% for c in report.recent %}<tr><td>{{ c.created_at|date('j M, H:i') }}</td><td>{{ c.nominee }}<br><span class="vl-help">{{ c.award }}</span></td><td>{{ c.volunteer }}</td>
+        <td>{{ c.channel_label }} · {{ c.outcome_label }}{% if c.follow_up_on %}<br><span class="vl-help">Follow up {{ c.follow_up_on|date('j M') }}</span>{% endif %}</td><td>{{ c.note }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% if report.recent|length >= 200 %}<p class="vl-help">Showing the newest 200. The CSV has every contact in this period.</p>{% endif %}{% endif %}
+    {% endif %}
+  </section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{#- Plain-text part for nominated.html.twig. -#}
+{{ first_name }}, someone thinks you deserve to be celebrated
+{% if quote %}
+
+“{{ quote }}”
+— {{ quote_by ?: 'Someone who knows your work' }}
+{% endif %}
+
+{% if confirm_url %}Confirm it’s you and that you are happy to be nominated. Then you can tell the judges about your work in your own words.
+
+Confirm and continue: {{ confirm_url }}
+
+The link works for {{ confirm_days }} days. Nothing here costs money. Not you, or you’d rather not take part? Open the link and say no.
+{% else %}A reviewer checks every nomination before it joins the award. If yours is approved, we will email you an invitation to tell the judges about your work in your own words.
+
+See the award: {{ watch_url }}
+
+Nothing here costs money. Not you, or you’d rather not take part? Tell us through the help desk and we’ll remove it: {{ help_url }}
+{% endif %}
+
+—
+Somebody nominated you for an Africa GATES award.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

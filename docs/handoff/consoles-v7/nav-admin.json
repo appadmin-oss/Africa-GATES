@@ -1,0 +1,1019 @@
+{
+  "product": "admin console",
+  "version": 5,
+  "routeBase": "/admin",
+  "viewers": [
+    "admin",
+    "moderator",
+    "lead"
+  ],
+  "scopes": {
+    "root": {
+      "routes": "/admin/{page}[/{tab}]",
+      "nav": [
+        {
+          "group": null,
+          "pages": [
+            {
+              "key": "home",
+              "label": "Home",
+              "icon": "home",
+              "purpose": "Every job waiting on a person, across everything your role can reach, most urgent first."
+            },
+            {
+              "key": "inbox",
+              "label": "Inbox",
+              "icon": "inbox",
+              "purpose": "Work assigned to you by name, with its due time. Unassigned work goes to the lead of its scope."
+            },
+            {
+              "key": "requests",
+              "label": "Requests",
+              "icon": "list",
+              "tabs": [
+                {
+                  "key": "you",
+                  "label": "Waiting on you"
+                },
+                {
+                  "key": "open",
+                  "label": "All open"
+                },
+                {
+                  "key": "decided",
+                  "label": "Decided"
+                }
+              ],
+              "purpose": "What leads, moderators and volunteers have asked for. Each says who decides, how long that usually takes, and what changes if it’s approved."
+            },
+            {
+              "key": "calendar",
+              "label": "Calendar",
+              "icon": "cal",
+              "purpose": "Every deadline, event day and draw across programmes, in date order."
+            }
+          ]
+        },
+        {
+          "group": "Run",
+          "pages": [
+            {
+              "key": "awards",
+              "label": "Awards",
+              "icon": "trophy",
+              "tabs": [
+                {
+                  "key": "editions",
+                  "label": "Editions"
+                },
+                {
+                  "key": "page",
+                  "label": "Awards page"
+                }
+              ],
+              "purpose": "Every award on the platform. Open an edition to work inside it."
+            },
+            {
+              "key": "events",
+              "label": "Events",
+              "icon": "ticket",
+              "tabs": [
+                {
+                  "key": "all",
+                  "label": "Events"
+                },
+                {
+                  "key": "registrations",
+                  "label": "Registrations"
+                },
+                {
+                  "key": "stands",
+                  "label": "Stand presets"
+                }
+              ],
+              "purpose": "Every event, with tickets and stands. Open one to plan and run it."
+            },
+            {
+              "key": "challenges",
+              "label": "Challenges",
+              "icon": "bolt",
+              "purpose": "Paid challenges and where each one stands."
+            },
+            {
+              "key": "giving",
+              "label": "Giving",
+              "icon": "heart",
+              "tabs": [
+                {
+                  "key": "partners",
+                  "label": "Partners"
+                },
+                {
+                  "key": "return",
+                  "label": "Community return"
+                }
+              ],
+              "purpose": "Organisations raising money on Africa GATES. Open one to see its pages and payouts."
+            }
+          ]
+        },
+        {
+          "group": "Reach",
+          "pages": [
+            {
+              "key": "audience",
+              "label": "Audience",
+              "icon": "mega",
+              "tabs": [
+                {
+                  "key": "contacts",
+                  "label": "Contacts"
+                },
+                {
+                  "key": "broadcasts",
+                  "label": "Broadcasts"
+                },
+                {
+                  "key": "newsletter",
+                  "label": "Newsletter"
+                },
+                {
+                  "key": "greetings",
+                  "label": "Seasonal greetings"
+                }
+              ],
+              "purpose": "Who we reach, and what we send them. Opted-in people only."
+            },
+            {
+              "key": "forms",
+              "label": "Forms",
+              "icon": "form",
+              "tabs": [
+                {
+                  "key": "submissions",
+                  "label": "Submissions"
+                },
+                {
+                  "key": "enquiries",
+                  "label": "Partner enquiries"
+                }
+              ],
+              "purpose": "Submissions from the site’s forms, and partner enquiries."
+            }
+          ]
+        },
+        {
+          "group": "Content",
+          "pages": [
+            {
+              "key": "posts",
+              "label": "Posts",
+              "icon": "doc",
+              "tabs": [
+                {
+                  "key": "posts",
+                  "label": "Posts"
+                },
+                {
+                  "key": "opportunities",
+                  "label": "Opportunities"
+                },
+                {
+                  "key": "legacy",
+                  "label": "Legacy vault"
+                }
+              ],
+              "purpose": "The blog, opportunities and the legacy vault."
+            },
+            {
+              "key": "media",
+              "label": "Media",
+              "icon": "image",
+              "purpose": "Every image and file the site uses."
+            },
+            {
+              "key": "moderation",
+              "label": "Moderation",
+              "icon": "shield",
+              "tabs": [
+                {
+                  "key": "queue",
+                  "label": "Queue"
+                },
+                {
+                  "key": "support",
+                  "label": "Support tickets"
+                }
+              ],
+              "purpose": "Comments, messages and quotes waiting on a person, and support tickets."
+            }
+          ]
+        },
+        {
+          "group": "Money",
+          "pages": [
+            {
+              "key": "payments",
+              "label": "Payments",
+              "icon": "card",
+              "tabs": [
+                {
+                  "key": "check",
+                  "label": "Gateway check"
+                },
+                {
+                  "key": "ledger",
+                  "label": "Ledger"
+                },
+                {
+                  "key": "delivery",
+                  "label": "Vote delivery"
+                },
+                {
+                  "key": "recovery",
+                  "label": "Vote recovery"
+                }
+              ],
+              "purpose": "Our records against the gateway’s. Fix the ones that disagree before someone pays twice."
+            },
+            {
+              "key": "refunds",
+              "label": "Refunds",
+              "icon": "undo",
+              "tabs": [
+                {
+                  "key": "requests",
+                  "label": "Requests"
+                },
+                {
+                  "key": "disputes",
+                  "label": "Disputes"
+                }
+              ],
+              "purpose": "Refund requests and card chargebacks."
+            },
+            {
+              "key": "payouts",
+              "label": "Payouts",
+              "icon": "send",
+              "purpose": "Money going out to partners and referrers."
+            },
+            {
+              "key": "finance",
+              "label": "Finance",
+              "icon": "chart",
+              "tabs": [
+                {
+                  "key": "overview",
+                  "label": "Overview"
+                },
+                {
+                  "key": "vendor",
+                  "label": "Vendor rules"
+                }
+              ],
+              "purpose": "What has been taken and what the platform kept."
+            },
+            {
+              "key": "shop",
+              "label": "Shop",
+              "icon": "bag",
+              "tabs": [
+                {
+                  "key": "orders",
+                  "label": "Orders"
+                },
+                {
+                  "key": "products",
+                  "label": "Products"
+                },
+                {
+                  "key": "codes",
+                  "label": "Discount codes"
+                },
+                {
+                  "key": "shipping",
+                  "label": "Delivery charges"
+                }
+              ],
+              "purpose": "Orders from the shop, and what is still to send."
+            }
+          ]
+        },
+        {
+          "group": "Organisation",
+          "pages": [
+            {
+              "key": "people",
+              "label": "People",
+              "icon": "users",
+              "tabs": [
+                {
+                  "key": "team",
+                  "label": "Team"
+                },
+                {
+                  "key": "volunteers",
+                  "label": "Volunteers"
+                },
+                {
+                  "key": "judges",
+                  "label": "Judges"
+                }
+              ],
+              "purpose": "Console team, volunteers and judges."
+            },
+            {
+              "key": "alerts",
+              "label": "Alerts",
+              "icon": "bell",
+              "purpose": "Everything the platform noticed on its own, most severe first. Each one says what to do next."
+            },
+            {
+              "key": "handbook",
+              "label": "Handbook",
+              "icon": "book",
+              "purpose": "How this console is organised, who can open what, and the rules it runs on."
+            },
+            {
+              "key": "audit",
+              "label": "Data and audit",
+              "icon": "clock",
+              "tabs": [
+                {
+                  "key": "log",
+                  "label": "Audit log"
+                },
+                {
+                  "key": "integrity",
+                  "label": "Integrity"
+                },
+                {
+                  "key": "analytics",
+                  "label": "Analytics"
+                },
+                {
+                  "key": "data",
+                  "label": "All data"
+                }
+              ],
+              "purpose": "The audit log, integrity checks, analytics and every dataset, read-only. Log entries can’t be edited."
+            },
+            {
+              "key": "settings",
+              "label": "Settings",
+              "icon": "gear",
+              "opens": "settings"
+            }
+          ]
+        }
+      ]
+    },
+    "award": {
+      "routes": "/admin/awards/{programme}/{edition}/{page}[/{tab}]",
+      "nav": [
+        {
+          "group": null,
+          "pages": [
+            {
+              "key": "overview",
+              "label": "Overview",
+              "icon": "home",
+              "purpose": "The edition end to end: where it is, how it’s doing, and what needs a person."
+            }
+          ]
+        },
+        {
+          "group": "Nominations",
+          "pages": [
+            {
+              "key": "nominations",
+              "label": "Nominations",
+              "icon": "noms",
+              "tabs": [
+                {
+                  "key": "review",
+                  "label": "Review"
+                },
+                {
+                  "key": "desk",
+                  "label": "Review desk"
+                },
+                {
+                  "key": "duplicates",
+                  "label": "Duplicates"
+                },
+                {
+                  "key": "nominees",
+                  "label": "Nominees"
+                },
+                {
+                  "key": "profiles",
+                  "label": "Profiles"
+                }
+              ],
+              "purpose": "Every nomination for this edition. A person approves each one; volunteer checks show as recommendations."
+            },
+            {
+              "key": "interviews",
+              "label": "Interviews and questions",
+              "icon": "msg",
+              "tabs": [
+                {
+                  "key": "interviews",
+                  "label": "Interviews"
+                },
+                {
+                  "key": "questionnaires",
+                  "label": "Questionnaires"
+                },
+                {
+                  "key": "invitations",
+                  "label": "Invitations"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "group": "Decide",
+          "pages": [
+            {
+              "key": "shortlist",
+              "label": "Shortlist",
+              "icon": "list",
+              "purpose": "Who goes through to judging in each category."
+            },
+            {
+              "key": "judging",
+              "label": "Judging",
+              "icon": "star",
+              "tabs": [
+                {
+                  "key": "panels",
+                  "label": "Panels"
+                },
+                {
+                  "key": "schedule",
+                  "label": "Schedule"
+                },
+                {
+                  "key": "rubric",
+                  "label": "Rubric"
+                },
+                {
+                  "key": "audit",
+                  "label": "Judging audit"
+                }
+              ],
+              "purpose": "Panels, conflicts, scorecards and quorum."
+            },
+            {
+              "key": "voting",
+              "label": "Voting",
+              "icon": "vote",
+              "purpose": "Turnout, contributions and what the collusion scan is holding."
+            },
+            {
+              "key": "results",
+              "label": "Results release",
+              "icon": "flag",
+              "tabs": [
+                {
+                  "key": "release",
+                  "label": "Release"
+                },
+                {
+                  "key": "recognitions",
+                  "label": "Recognitions"
+                }
+              ],
+              "purpose": "What this edition will publish, and the sealed release itself."
+            }
+          ]
+        },
+        {
+          "group": "Around it",
+          "pages": [
+            {
+              "key": "events",
+              "label": "Events",
+              "icon": "ticket",
+              "purpose": "Where this edition ends. One event can carry several awards."
+            },
+            {
+              "key": "volunteers",
+              "label": "Volunteers",
+              "icon": "users",
+              "purpose": "Volunteer roles on this edition and how their work is measured."
+            },
+            {
+              "key": "setup",
+              "label": "Award setup",
+              "icon": "gear",
+              "tabs": [
+                {
+                  "key": "basics",
+                  "label": "Basics"
+                },
+                {
+                  "key": "look",
+                  "label": "Look"
+                },
+                {
+                  "key": "form",
+                  "label": "Nomination form"
+                },
+                {
+                  "key": "rules",
+                  "label": "Rules"
+                },
+                {
+                  "key": "categories",
+                  "label": "Categories"
+                },
+                {
+                  "key": "terms",
+                  "label": "Details and terms"
+                }
+              ],
+              "purpose": "How this award looks, asks and decides. Changes publish as a new version."
+            }
+          ]
+        }
+      ]
+    },
+    "event": {
+      "routes": "/admin/events/{event}/{page}[/{tab}]",
+      "nav": [
+        {
+          "group": null,
+          "pages": [
+            {
+              "key": "today",
+              "label": "Today",
+              "icon": "home",
+              "purpose": "What blocks the night, and how ready it is."
+            }
+          ]
+        },
+        {
+          "group": "Plan",
+          "pages": [
+            {
+              "key": "plan",
+              "label": "Plan",
+              "icon": "list",
+              "tabs": [
+                {
+                  "key": "work",
+                  "label": "Work"
+                },
+                {
+                  "key": "timeline",
+                  "label": "Timeline"
+                },
+                {
+                  "key": "risks",
+                  "label": "Risks"
+                },
+                {
+                  "key": "decisions",
+                  "label": "Decisions"
+                }
+              ],
+              "purpose": "Work, timeline, risks and decisions, each with an owner and a due time."
+            },
+            {
+              "key": "award",
+              "label": "Award",
+              "icon": "trophy"
+            }
+          ]
+        },
+        {
+          "group": "Run the event",
+          "pages": [
+            {
+              "key": "people",
+              "label": "People",
+              "icon": "users",
+              "tabs": [
+                {
+                  "key": "team",
+                  "label": "Team"
+                },
+                {
+                  "key": "volunteers",
+                  "label": "Volunteers"
+                },
+                {
+                  "key": "nominees",
+                  "label": "Nominees"
+                },
+                {
+                  "key": "seating",
+                  "label": "Seating"
+                },
+                {
+                  "key": "invites",
+                  "label": "Invitations"
+                }
+              ],
+              "purpose": "Team, volunteers, finalists, seating and invitations."
+            },
+            {
+              "key": "crm",
+              "label": "Relationships",
+              "icon": "msg",
+              "tabs": [
+                {
+                  "key": "sponsors",
+                  "label": "Sponsors"
+                },
+                {
+                  "key": "contacts",
+                  "label": "Contacts"
+                },
+                {
+                  "key": "letters",
+                  "label": "Letters"
+                },
+                {
+                  "key": "messages",
+                  "label": "Messages"
+                }
+              ],
+              "purpose": "Sponsors, contacts, letters and messages for this event."
+            },
+            {
+              "key": "money",
+              "label": "Money",
+              "icon": "card",
+              "tabs": [
+                {
+                  "key": "budget",
+                  "label": "Budget"
+                },
+                {
+                  "key": "approvals",
+                  "label": "Approvals"
+                },
+                {
+                  "key": "vendors",
+                  "label": "Vendors"
+                },
+                {
+                  "key": "income",
+                  "label": "Income"
+                }
+              ],
+              "purpose": "Budget, approvals, vendors and income, from the one ledger."
+            },
+            {
+              "key": "night",
+              "label": "The night",
+              "icon": "night",
+              "tabs": [
+                {
+                  "key": "show",
+                  "label": "Run of show"
+                },
+                {
+                  "key": "door",
+                  "label": "Door"
+                },
+                {
+                  "key": "safety",
+                  "label": "Safety"
+                }
+              ],
+              "purpose": "Run of show, door and safety for the night."
+            }
+          ]
+        },
+        {
+          "group": "Learn",
+          "pages": [
+            {
+              "key": "growth",
+              "label": "Growth",
+              "icon": "grow",
+              "purpose": "This edition against the last, on the same day before the night."
+            },
+            {
+              "key": "reports",
+              "label": "Reports",
+              "icon": "rep",
+              "tabs": [
+                {
+                  "key": "status",
+                  "label": "Status"
+                },
+                {
+                  "key": "post",
+                  "label": "Post-event"
+                },
+                {
+                  "key": "audit",
+                  "label": "Audit"
+                }
+              ],
+              "purpose": "Status for the committee, the post-event report and the audit trail."
+            }
+          ]
+        },
+        {
+          "group": "Admin",
+          "pages": [
+            {
+              "key": "requests",
+              "label": "Requests",
+              "icon": "list",
+              "purpose": "Requests about this event, from you and your team."
+            },
+            {
+              "key": "settings",
+              "label": "Event settings",
+              "icon": "gear",
+              "tabs": [
+                {
+                  "key": "general",
+                  "label": "General"
+                },
+                {
+                  "key": "members",
+                  "label": "Members"
+                },
+                {
+                  "key": "limits",
+                  "label": "Limits"
+                },
+                {
+                  "key": "devices",
+                  "label": "Devices"
+                }
+              ],
+              "purpose": "Date, venue, members, limits and the devices used at the door."
+            }
+          ]
+        }
+      ]
+    },
+    "org": {
+      "routes": "/admin/giving/{org}/{page}[/{tab}]",
+      "nav": [
+        {
+          "group": null,
+          "pages": [
+            {
+              "key": "overview",
+              "label": "Overview",
+              "icon": "home"
+            }
+          ]
+        },
+        {
+          "group": "Giving",
+          "pages": [
+            {
+              "key": "pages",
+              "label": "Pages",
+              "icon": "doc"
+            },
+            {
+              "key": "donations",
+              "label": "Donations",
+              "icon": "heart"
+            },
+            {
+              "key": "payouts",
+              "label": "Payouts",
+              "icon": "card"
+            }
+          ]
+        },
+        {
+          "group": "Admin",
+          "pages": [
+            {
+              "key": "team",
+              "label": "Their team",
+              "icon": "users"
+            },
+            {
+              "key": "brand",
+              "label": "Brand and page",
+              "icon": "gear"
+            }
+          ]
+        }
+      ]
+    },
+    "settings": {
+      "routes": "/admin/settings/{page}",
+      "nav": [
+        {
+          "group": "Platform",
+          "pages": [
+            {
+              "key": "general",
+              "label": "General",
+              "icon": "gear"
+            },
+            {
+              "key": "awards",
+              "label": "Award defaults",
+              "icon": "trophy"
+            },
+            {
+              "key": "voting",
+              "label": "Voting rules",
+              "icon": "vote"
+            },
+            {
+              "key": "payments",
+              "label": "Payments",
+              "icon": "card"
+            },
+            {
+              "key": "limits",
+              "label": "Spending limits",
+              "icon": "chart",
+              "purpose": "Budgets, spending limits and the alerts that fire before money runs out."
+            },
+            {
+              "key": "messaging",
+              "label": "Messaging",
+              "icon": "msg"
+            }
+          ]
+        },
+        {
+          "group": "Connections",
+          "pages": [
+            {
+              "key": "integrations",
+              "label": "Integrations",
+              "icon": "plug"
+            },
+            {
+              "key": "mail",
+              "label": "Email health",
+              "icon": "inbox"
+            },
+            {
+              "key": "webhooks",
+              "label": "Webhooks",
+              "icon": "plug"
+            },
+            {
+              "key": "keys",
+              "label": "API keys",
+              "icon": "lock",
+              "purpose": "Keys that let other systems talk to Africa GATES. A key is shown once, when it’s made."
+            }
+          ]
+        },
+        {
+          "group": "Governance",
+          "pages": [
+            {
+              "key": "roles",
+              "label": "Team and roles",
+              "icon": "users",
+              "tabs": [
+                {
+                  "key": "members",
+                  "label": "Members"
+                },
+                {
+                  "key": "invites",
+                  "label": "Invitations"
+                },
+                {
+                  "key": "roles",
+                  "label": "Roles"
+                }
+              ]
+            },
+            {
+              "key": "security",
+              "label": "Security and sign-in",
+              "icon": "lock"
+            },
+            {
+              "key": "legal",
+              "label": "Legal",
+              "icon": "doc"
+            },
+            {
+              "key": "ai",
+              "label": "AI prompts",
+              "icon": "star"
+            },
+            {
+              "key": "sandbox",
+              "label": "Test data",
+              "icon": "shield"
+            }
+          ]
+        },
+        {
+          "group": "Tools",
+          "pages": [
+            {
+              "key": "interview",
+              "label": "Interview bot",
+              "icon": "msg",
+              "purpose": "The interview bot finalists talk to before judging."
+            },
+            {
+              "key": "scripts",
+              "label": "Operations scripts",
+              "icon": "list",
+              "purpose": "Saved operations scripts. Each one shows what it will change before it runs."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "leadRoot": {
+    "route": "/admin/lead/{page}",
+    "nav": [
+      {
+        "group": null,
+        "pages": [
+          {
+            "key": "overview",
+            "label": "Overview",
+            "icon": "home"
+          },
+          {
+            "key": "inbox",
+            "label": "Inbox",
+            "icon": "inbox"
+          },
+          {
+            "key": "requests",
+            "label": "Requests",
+            "icon": "list",
+            "tabs": [
+              {
+                "key": "open",
+                "label": "Open"
+              },
+              {
+                "key": "decided",
+                "label": "Decided"
+              }
+            ],
+            "purpose": "What you’ve asked for, who decides, and where it stands."
+          },
+          {
+            "key": "yours",
+            "label": "Your events",
+            "icon": "ticket"
+          }
+        ]
+      },
+      {
+        "group": "Across your events",
+        "pages": [
+          {
+            "key": "deadlines",
+            "label": "Deadlines",
+            "icon": "cal"
+          },
+          {
+            "key": "risks",
+            "label": "Risks",
+            "icon": "flag"
+          },
+          {
+            "key": "approvals",
+            "label": "Approvals",
+            "icon": "card"
+          },
+          {
+            "key": "analytics",
+            "label": "Analytics",
+            "icon": "chart"
+          }
+        ]
+      },
+      {
+        "group": "Team",
+        "pages": [
+          {
+            "key": "people",
+            "label": "People",
+            "icon": "users"
+          }
+        ]
+      }
+    ],
+    "rule": "Lands on Overview. Back from an event returns to Overview. Everything is limited to the lead’s event grants."
+  }
+}

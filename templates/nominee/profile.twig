@@ -1,0 +1,177 @@
+{#
+  /account/nomination — a nominee's own page (NomineeProfileController::page, NomineeDetails).
+
+  Five steps, each a section of its own form. A step not done yet opens itself; a step done shows
+  what is saved, with "Update" to change it, so a complete page reads as a review rather than a form
+  to fill again. The nominator's reason is shown, locked, and has no field anywhere. Every control
+  is a plain form that posts: nothing here needs script.
+#}
+{% set open = open|default('') %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ error ? 'Not saved: ' : '' }}{{ page_title }}</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
+<link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/shell7.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/apply.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/nominee.css') }}">
+{% include 'partials/csrf-fresh.twig' %}
+</head>
+<body class="ap">
+<div class="ap-wrap">
+  <header class="ap-top">
+    <a class="ap-brand" href="/" aria-label="Africa GATES home">
+      <img class="ap-brand__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="36" height="36" alt="">
+      <span class="ap-brand__words"><span class="ap-brand__name">Africa GATES</span><span class="ap-brand__sub">My nomination</span></span>
+    </a>
+    <a class="ap-exit" href="/account">My account</a>
+  </header>
+
+  <main id="apMain" class="nm">
+  {% if not d %}
+    <section class="ap-gate" aria-labelledby="nmTitle">
+      <img class="ap-gate__logo" src="{{ asset('/assets/img/logo-africa-gates-alpha.png') }}" width="96" height="110" alt="Africa GATES">
+      <h1 class="ap-gate__h" id="nmTitle">No nomination here yet</h1>
+      <p class="ap-gate__lede">When a nomination of you is approved, we email you a link. Open it while signed in to this account and it appears here.</p>
+      <a class="ap-btn ap-btn--go ap-gate__go" href="/nominate">Nominate somebody</a>
+    </section>
+  {% else %}
+    {% if ok %}<p class="nm-flash nm-flash--ok" role="status">{{ ok }}</p>{% endif %}
+    {% if error %}<p class="nm-flash nm-flash--bad" role="alert">{{ error }}</p>{% endif %}
+
+    <section class="nm-hero" aria-labelledby="nmTitle">
+      <p class="nm-hero__kick">{{ n.programme }}</p>
+      <h1 class="nm-hero__t" id="nmTitle">{{ n.name }}</h1>
+      <p class="nm-hero__sub">Nominee{{ n.category ? ' · ' ~ n.category }}</p>
+      {% set all = steps|length %}
+      <progress class="nm-meter" value="{{ done }}" max="{{ all }}">{{ done }} of {{ all }}</progress>
+      <p class="nm-hero__state">{% if done == all %}Your profile is complete. Review it below and update anything, any time.{% else %}{{ done }} of {{ all }} done. {{ all - done }} to go.{% endif %}</p>
+      <ol class="nm-steps">
+        {% for k, t in steps %}<li class="{{ check[k] ? 'is-done' }}"><a href="#nm-{{ k }}"><span class="nm-steps__n" aria-hidden="true">{{ check[k] ? '✓' : loop.index }}</span>{{ t }}<span class="ap-sr">{{ check[k] ? ', done' : ', to do' }}</span></a></li>{% endfor %}
+      </ol>
+      {% if mine|length > 1 %}
+        <nav class="nm-switch" aria-label="Your nominations">{% for m in mine %}<a href="/account/nomination/{{ m.nominee_id }}"{% if m.nominee_id == d.nominee_id %} aria-current="page"{% endif %}>{{ m.category ?: m.name }}</a>{% endfor %}</nav>
+      {% endif %}
+    </section>
+
+    <section class="nm-card nm-reason" aria-labelledby="nmWhy">
+      <h2 class="nm-card__h" id="nmWhy">Why you were nominated</h2>
+      <p class="nm-lock">Written by the person who nominated you. It can’t be changed.</p>
+      <blockquote class="nm-quote">{{ reason ?: 'The nominator didn’t write a reason.' }}</blockquote>
+    </section>
+
+    {% macro head(k, t, done) %}
+      <div class="nm-card__top"><h2 class="nm-card__h" id="nm-{{ k }}-h">{{ t }}</h2><span class="nm-chip {{ done ? 'nm-chip--ok' : 'nm-chip--todo' }}">{{ done ? 'Done' : 'To do' }}</span></div>
+    {% endmacro %}
+    {% import _self as M %}
+
+    {# ── Contact ── #}
+    <section class="nm-card" id="nm-contact" aria-labelledby="nm-contact-h">
+      {{ M.head('contact', 'Your phone and email', check.contact) }}
+      {% if check.contact %}<dl class="nm-facts"><div><dt>Phone</dt><dd>{{ phones|join(', ') }}</dd></div><div><dt>Email</dt><dd>{{ emails|join(', ') }}</dd></div></dl>{% endif %}
+      <details class="nm-edit"{{ not check.contact or open == 'contact' ? ' open' }}>
+        <summary>{{ check.contact ? 'Update' : 'Add' }}</summary>
+        <form method="post" action="/account/nomination/{{ d.nominee_id }}" class="nm-form">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="contact">
+          <fieldset class="nm-group"><legend>Phone numbers <span class="ap-opt">(up to {{ max.phones }})</span></legend>
+            {% for i in 0..(max.phones - 1) %}<label class="ap-sr" for="nmP{{ i }}">Phone {{ i + 1 }}</label><input class="ap-in" id="nmP{{ i }}" type="tel" name="phones[]" value="{{ phones[i]|default('') }}" autocomplete="{{ i == 0 ? 'tel' : 'off' }}" inputmode="tel" placeholder="{{ i == 0 ? 'Main number' : 'Another number (optional)' }}"{{ i == 0 ? ' required' }}>{% endfor %}
+          </fieldset>
+          <fieldset class="nm-group"><legend>Email addresses <span class="ap-opt">(up to {{ max.emails }})</span></legend>
+            {% for i in 0..(max.emails - 1) %}<label class="ap-sr" for="nmE{{ i }}">Email {{ i + 1 }}</label><input class="ap-in" id="nmE{{ i }}" type="email" name="emails[]" value="{{ emails[i]|default('') }}" autocomplete="{{ i == 0 ? 'email' : 'off' }}" inputmode="email" spellcheck="false" placeholder="{{ i == 0 ? 'Main email' : 'Another email (optional)' }}"{{ i == 0 ? ' required' }}>{% endfor %}
+          </fieldset>
+          <p class="nm-hint">Only the Africa GATES team sees these. They’re never on your public page.</p>
+          <button class="ap-btn ap-btn--go" type="submit">Save contact</button>
+        </form>
+      </details>
+    </section>
+
+    {# ── Photographs ── #}
+    <section class="nm-card" id="nm-photo" aria-labelledby="nm-photo-h">
+      {{ M.head('photo', 'Photographs', check.photo) }}
+      {% if photos %}
+        <ul class="nm-photos">
+          {% for f in photos %}
+            <li><img src="{{ f.path }}" alt="{{ f.label ?: 'Your photograph ' ~ loop.index }}" loading="lazy">
+              <form method="post" action="/account/nomination/{{ d.nominee_id }}"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="remove"><input type="hidden" name="section" value="photo"><input type="hidden" name="file" value="{{ f.id }}">
+                <button class="nm-x" type="submit">Remove<span class="ap-sr"> photograph {{ loop.index }}</span></button></form></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if photos|length < max.photos %}
+      <details class="nm-edit"{{ not check.photo or open == 'photo' ? ' open' }}>
+        <summary>Add a photograph</summary>
+        <form method="post" action="/account/nomination/{{ d.nominee_id }}" class="nm-form" enctype="multipart/form-data">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="photo">
+          <label class="nm-drop" for="nmPhoto"><span class="nm-drop__t">Choose a photograph</span><span class="nm-drop__s">A clear, recent picture of you. JPG or PNG, at least 300 pixels wide, up to 10MB.</span>
+            <input id="nmPhoto" type="file" name="photo" accept="image/jpeg,image/png,image/webp" required></label>
+          <label class="ap-f" for="nmPhotoL"><span class="ap-f__l">What it shows <span class="ap-opt">(optional)</span></span><input class="ap-in" id="nmPhotoL" name="label" placeholder="At the 2025 science fair"></label>
+          <button class="ap-btn ap-btn--go" type="submit">Upload photograph</button>
+        </form>
+      </details>
+      {% endif %}
+    </section>
+
+    {# ── Bio ── #}
+    <section class="nm-card" id="nm-bio" aria-labelledby="nm-bio-h">
+      {{ M.head('bio', 'A few words about you', check.bio) }}
+      {% if check.bio %}<p class="nm-text">{{ d.bio }}</p>{% endif %}
+      <details class="nm-edit"{{ not check.bio or open == 'bio' ? ' open' }}>
+        <summary>{{ check.bio ? 'Update' : 'Write' }}</summary>
+        <form method="post" action="/account/nomination/{{ d.nominee_id }}" class="nm-form">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="bio">
+          <label class="ap-f" for="nmBio"><span class="ap-f__l">In your own words</span><span class="ap-f__h">What you do, and what you’re proud of. Up to {{ max.bio }} characters.</span>
+            <textarea class="ap-in" id="nmBio" name="bio" rows="6" minlength="20" maxlength="{{ max.bio }}" required>{{ d.bio }}</textarea></label>
+          <button class="ap-btn ap-btn--go" type="submit">Save</button>
+        </form>
+      </details>
+    </section>
+
+    {# ── Evidence ── #}
+    <section class="nm-card" id="nm-evidence" aria-labelledby="nm-evidence-h">
+      {{ M.head('evidence', 'Evidence of your work', check.evidence) }}
+      {% if evidence %}
+        <ul class="nm-list">
+          {% for f in evidence %}
+            <li><span class="nm-list__ic" aria-hidden="true">{{ f.url ? '↗' : '▤' }}</span><a href="{{ f.url ?: f.path }}" target="_blank" rel="noopener noreferrer">{{ f.label }}<span class="ap-sr"> ({{ f.url ? 'link' : 'file' }}, opens in a new tab)</span></a>
+              <form method="post" action="/account/nomination/{{ d.nominee_id }}"><input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="remove"><input type="hidden" name="section" value="evidence"><input type="hidden" name="file" value="{{ f.id }}">
+                <button class="nm-x" type="submit">Remove<span class="ap-sr"> {{ f.label }}</span></button></form></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if evidence|length < max.evidence %}
+      <details class="nm-edit"{{ not check.evidence or open == 'evidence' ? ' open' }}>
+        <summary>Add evidence</summary>
+        <form method="post" action="/account/nomination/{{ d.nominee_id }}" class="nm-form" enctype="multipart/form-data">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="evidence">
+          <label class="ap-f" for="nmEvL"><span class="ap-f__l">What it shows</span><input class="ap-in" id="nmEvL" name="label" required placeholder="Certificate from the state ministry"></label>
+          <label class="nm-drop" for="nmEvF"><span class="nm-drop__t">Choose a file</span><span class="nm-drop__s">PDF, image or document, up to 15MB.</span><input id="nmEvF" type="file" name="file"></label>
+          <label class="ap-f" for="nmEvU"><span class="ap-f__l">Or a link <span class="ap-opt">(instead of a file)</span></span><input class="ap-in" id="nmEvU" type="url" name="url" inputmode="url" placeholder="https://"></label>
+          <button class="ap-btn ap-btn--go" type="submit">Add evidence</button>
+        </form>
+      </details>
+      {% endif %}
+    </section>
+
+    {# ── Terms ── #}
+    <section class="nm-card" id="nm-terms" aria-labelledby="nm-terms-h">
+      {{ M.head('terms', 'Accept the terms', check.terms) }}
+      {% if check.terms %}
+        <p class="nm-text">Accepted {{ d.terms_at|date('j M Y') }}. <a href="{{ terms_url }}">Read the terms</a></p>
+      {% else %}
+        <form method="post" action="/account/nomination/{{ d.nominee_id }}" class="nm-form">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="terms">
+          <label class="ap-check"><input type="checkbox" name="accept" value="1" required><span>I agree to stand as a nominee under the <a href="{{ terms_url }}">programme’s terms</a></span></label>
+          <button class="ap-btn ap-btn--go" type="submit">Accept</button>
+        </form>
+      {% endif %}
+    </section>
+  {% endif %}
+  </main>
+</div>
+</body>
+</html>

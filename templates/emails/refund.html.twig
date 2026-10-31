@@ -1,0 +1,25 @@
+{#- Refund issued · Payments. Sender: RefundService::tellTheBuyer (an order whose votes were never added).
+    Variables: first_name, charged, back (the gateway's figure, or ''), settled (bool), reference, help_url.
+    Design: Email Templates.dc.html → "Refund issued", corrected to the live site (owner, 19 Oct
+    2026): no votes were ever added on these orders, so "the N votes have been removed from the
+    tally" and "your free daily vote is not affected" describe something that did not happen;
+    the amount sent back is quoted only when the gateway reported it; "reply to this email" is
+    the help desk. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Payments{% endblock %}
+{% block why %}You made a payment on Africa GATES.{% endblock %}
+{% block subject %}Your Africa GATES payment has been refunded{% endblock %}
+{% block preheader %}{{ back ?: 'Your payment' }} back to the card or account you paid with.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{{ b.h1(settled ? 'Your refund is done' : 'Your refund is on its way') }}
+{{ b.facts([
+  ['Amount', back ?: 'In full', 'b'],
+  ['Back to', 'The card or account you paid with'],
+  ['Expected', settled ? 'Refunded' : 'Banks usually take 5–10 working days to show it'],
+  ['Reference', reference, 'm']
+]) }}
+{{ b.p("Your payment of #{charged} went through, but voting in that category had already closed by the time it reached us, so no votes were added. We do not keep money for votes we did not count. Nothing is needed from you.") }}
+{{ b.note('Questions, or would you rather have the votes if the category reopens? Tell us through the help desk and a person will sort it out.') }}
+{{ b.link('Open the help desk', help_url) }}
+{% endblock %}

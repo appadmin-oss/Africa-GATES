@@ -1,0 +1,18 @@
+{#- Plain-text part for winner.html.twig. -#}
+{{ award ? award ~ ' · ' ~ edition : edition }}
+
+{{ kind == 'winner' ? first_name ~ ', you won ' ~ category : first_name ~ ', you are the runner-up in ' ~ category }}
+
+The judges’ marks and the public’s support, added together, put you {{ kind == 'winner' ? 'first' : 'second' }}. Congratulations, from all of us.
+
+The result is public now. Its page shows every nominee who scored and both halves of every index.
+
+See the result: {{ result_url }}
+
+With pride,
+The Africa GATES team
+
+—
+You are a nominee for an Africa GATES award.
+{{ postal_address }}
+Help: {{ site_url }}/help · Privacy: {{ site_url }}/privacy

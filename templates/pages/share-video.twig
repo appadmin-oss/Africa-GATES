@@ -1,0 +1,40 @@
+{% extends 'layout/shell.twig' %}
+{#
+  `…/video` — the 9:16 share video (handoff 16 Oct 2026). Services\ShareVideo builds the
+  story from the record; assets/js/share-video.js draws the four beats on a canvas and
+  records them with MediaRecorder, in the visitor's browser, because this host has no
+  headless browser to render one. Without JavaScript the page still says what it is and
+  links back to the record.
+#}
+{% set colour_tier = '1' %}
+{% set app_bar = {variant: 'child', title: 'Share video'|trans} %}
+
+{% block head_styles %}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/share-video.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sv">
+  <div class="sv__head">
+    <h1 class="sv__h1">{{ 'Share video'|trans }}</h1>
+    <p class="sv__lead">{{ 'A short vertical video for a status, story or reel.'|trans }}</p>
+  </div>
+
+  <div class="sv__stage">
+    <canvas class="sv__canvas" width="1080" height="1920" data-sv-canvas data-story="{{ story|json_encode }}"
+            role="img" aria-label="{{ 'Video: %t%'|trans({'%t%': story.title}) }}"></canvas>
+  </div>
+
+  <div class="sv__do">
+    <button type="button" class="ag-btn ag-btn--secondary" data-sv-play>{{ 'Play'|trans }}</button>
+    <button type="button" class="ag-btn ag-btn--primary" data-sv-make>{{ 'Save the video'|trans }}</button>
+    <button type="button" class="ag-btn ag-btn--secondary" data-sv-still>{{ 'Save a picture'|trans }}</button>
+  </div>
+  <p class="sv__status" data-sv-status role="status" aria-live="polite"></p>
+  <a class="sv__dl" data-sv-dl hidden></a>
+  <p class="sv__note">{{ 'Saving takes about 19 seconds. Keep this tab open until it finishes.'|trans }}</p>
+  <p class="sv__back"><a href="{{ story.url }}">{{ 'Back to %t%'|trans({'%t%': story.title}) }}</a></p>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/share-video.js') }}"></script>{% endblock %}

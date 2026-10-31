@@ -1,0 +1,174 @@
+{% extends 'pages/account/_frame.twig' %}
+{#
+  WITHDRAW — /account/wallet/withdraw · Account Wallet v2 (screen=withdraw) · two steps here
+
+  step 'form'    From (a pocket, as radios), the amount (large, with All and quick amounts,
+                 the fee line live from the bands wallet.js reads off `data-wl-fees`), then To:
+                 the saved payout account or "Another account in my name". On a phone a
+                 fixed bar says what arrives and carries Continue; from 600 a summary column
+                 does. Without the script the fee schedule is printed and the review step
+                 shows the exact figure. The new-account fields open by CSS (`:has`), so
+                 choosing them needs no script either.
+  step 'review'  The amount, the fee taken from it, what arrives, where it goes, and the
+                 rules to accept. On a phone it is a sheet over the page; from 600 a page
+                 step. Nothing has been written until Confirm, and Confirm asks every
+                 condition again under a lock.
+
+  The third screen — "On its way" — is the transaction's own receipt (wallet-tx.twig with
+  ?new=1), because the request IS that transaction. It never says "successful".
+
+  Points have no withdraw: they are spent on votes, and the pocket list leaves them out.
+#}
+{% set acc_tab = 'withdraw' %}
+{% set colour_tier = '2' %}
+{% set flow_page = true %}
+{% set _money = pockets|default([])|filter(p => p.kind != 'points') %}
+{% macro naira(k) %}₦{{ (k / 100)|number_format(2) }}{% endmacro %}
+{% import _self as m %}
+{% block acc_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/wallet.css') }}">{% endblock %}
+{% block acc_crumb %}<a class="wl-crumb" href="/account/wallet"><svg class="ag-ico-dir" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>{{ 'Wallet'|trans }}</a>{% endblock %}
+
+{% block acc_body %}
+<div class="wl">
+{% if step == 'review' %}
+  {% set _rows = [
+    {k: 'Amount'|trans, v: m.naira(q.amount_kobo)},
+    {k: 'Service fee'|trans, v: '−' ~ m.naira(q.fee_kobo)},
+    {k: 'You receive'|trans, v: m.naira(q.net_kobo), total: true},
+    {k: 'To'|trans, v: q.bank.bank ~ ' · ' ~ q.bank.account_number, ref: true},
+    resolved ? {k: 'Account name'|trans, note: 'from your bank'|trans, v: resolved, total: true} : {k: 'Account name'|trans, v: q.bank.account_name},
+    {k: 'Arrives'|trans, v: auto_on ? 'Usually within minutes, after automatic checks; a person reviews anything flagged.'|trans : 'After a person checks it — usually within %d% working days'|trans({'%d%': terms.payout_days})}
+  ] %}
+  <div class="wl-rv">
+    <a class="wl-rv__scrim" href="/account/wallet/withdraw?pocket={{ pocket.key|url_encode }}" aria-label="{{ 'Change something'|trans }}" tabindex="-1"></a>
+    <form method="post" action="/account/wallet/withdraw" class="wl-rv__sheet" novalidate data-ag-validate aria-labelledby="wl-rv-h">
+      <span class="wl-rv__grab" aria-hidden="true"></span>
+      <section class="wl-rv__sum">
+        <h2 class="wl-rv__h" id="wl-rv-h">{{ 'You are withdrawing'|trans }}</h2>
+        <p class="wl-rv__n">{{ m.naira(q.amount_kobo) }}</p>
+        <p class="wl-rv__from">{{ 'from %p%'|trans({'%p%': pocket.label|trans ~ (pocket.sub ? ' · ' ~ pocket.sub : '')}) }}</p>
+        <dl class="wl-dl wl-rv__dl">
+          {% for r in _rows %}
+            <div{% if r.total|default(false) %} class="wl-dl__total"{% endif %}><dt>{{ r.k }}{% if r.note|default('') %}<span class="wl-dl__src">{{ r.note }}</span>{% endif %}</dt><dd>{% if r.ref|default(false) %}{{ q.bank.bank }} · <span class="wl-ref">{{ q.bank.account_number }}</span>{% else %}{{ r.v }}{% endif %}</dd></div>
+          {% endfor %}
+        </dl>
+      </section>
+      <div class="wl-rv__act">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="pocket" value="{{ pocket.key }}">
+        <input type="hidden" name="amount_kobo" value="{{ pocket.partial ? q.amount_kobo : '' }}">
+        <input type="hidden" name="bank" value="{{ q.bank.bank }}">
+        <input type="hidden" name="bank_code" value="{{ q.bank_code }}">
+        <input type="hidden" name="account_name" value="{{ q.bank.account_name }}">
+        <input type="hidden" name="account_number" value="{{ q.bank.account_number }}">
+        <label class="wl-check"><input type="checkbox" name="accept" value="1" required>
+          <span>{{ 'The account is in my name; I accept the withdrawal rules and fee.'|trans }} <a href="/integrity#return">{{ 'Read the rules'|trans }}</a></span></label>
+        <div class="wl-rv__btns">
+          <a class="ag-btn ag-btn--secondary wl-btn" href="/account/wallet/withdraw?pocket={{ pocket.key|url_encode }}"><span class="wl-rv__ph">{{ 'Change'|trans }}</span><span class="wl-rv__dk">{{ 'Change something'|trans }}</span></a>
+          <button class="ag-btn ag-btn--primary wl-btn" type="submit"><span class="wl-rv__ph">{{ 'Confirm'|trans }}</span><span class="wl-rv__dk">{{ 'Confirm withdrawal'|trans }}</span></button>
+        </div>
+        <p class="wl-rv__note">{{ 'Not you? Check the number. Payouts go only to accounts in your name.'|trans }}</p>
+      </div>
+    </form>
+  </div>
+
+{% elseif pockets|filter(p => p.can) is empty %}
+  <section class="acx-card wl-rc" aria-labelledby="wl-no-h">
+    <h2 class="wl-rc__h" id="wl-no-h">{{ _money is empty ? 'No money in your wallet yet'|trans : 'Nothing can be withdrawn yet'|trans }}</h2>
+    {% for p in _money %}{% if p.why %}<p class="wl-rc__p"><b>{{ p.label|trans }}.</b> {{ p.why|trans }}</p>{% endif %}{% endfor %}
+    <a class="ag-btn ag-btn--secondary wl-btn" href="/account/wallet">{{ 'Back to wallet'|trans }}</a>
+  </section>
+
+{% else %}
+  {% set _p = pocket and pocket.can ? pocket : pockets|filter(p => p.can)|first %}
+  {% set _saved = saved|default({})|length and saved.account_number|default('') != '' %}
+  {% set _new = not _saved or bank.mode|default('') == 'new' %}
+  <form method="post" action="/account/wallet/withdraw/review" class="wl-wd" novalidate data-ag-validate
+        data-wl-fees="{{ fee_bands|json_encode }}" data-wl-max="{{ _p.available_kobo }}">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="wl-wd__main">
+      <fieldset class="wl-wd__sec">
+        <legend class="wl-wd__k">{{ 'From'|trans }}</legend>
+        <div class="acx-card wl-opts">
+          {% for p in _money %}
+            <label class="wl-opt{{ p.can ? '' : ' wl-opt--off' }}">
+              <input class="wl-opt__r" type="radio" name="pocket" value="{{ p.key }}" data-wl-pocket data-max="{{ p.available_kobo }}" data-partial="{{ p.partial ? 1 : 0 }}"{% if p.key == _p.key %} checked{% endif %}{% if not p.can %} disabled{% endif %}>
+              <span class="wl-opt__t"><b>{{ p.label|trans }}</b><span>{{ p.can ? p.sub|trans : p.why|trans }}</span></span>
+              <b class="wl-opt__n">{{ m.naira(p.available_kobo) }}</b>
+            </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <section class="acx-card wl-wd__amt" aria-labelledby="wl-amt-l">
+        <div class="wl-wd__head"><label id="wl-amt-l" for="wl-amount">{{ 'Amount'|trans }}</label><span>{{ 'Available'|trans }} <b data-wl-avail>{{ m.naira(_p.available_kobo) }}</b></span></div>
+        <div class="wl-amtrow">
+          <span class="wl-amtrow__c" aria-hidden="true">₦</span>
+          <input class="wl-amtrow__in" id="wl-amount" name="amount" value="{{ bank.amount|default('') }}" inputmode="decimal" autocomplete="off"
+                 placeholder="{{ (_p.available_kobo / 100)|number_format(2, '.', '') }}" aria-describedby="wl-fee" data-wl-amount{% if not _p.partial %} readonly{% endif %}>
+          <button type="button" class="wl-amtrow__all" data-wl-all hidden>{{ 'All'|trans }}</button>
+        </div>
+        <div class="wl-quickamt" data-wl-quick hidden></div>
+        <p class="wl-wd__whole" data-wl-whole{% if _p.partial %} hidden{% endif %}>{{ 'Referral earnings are withdrawn whole.'|trans }}</p>
+        <p class="wl-form__fee" id="wl-fee" data-wl-fee aria-live="polite">{{ 'Service fee'|trans }}: {{ fee_text }}</p>
+      </section>
+
+      <fieldset class="wl-wd__sec">
+        <legend class="wl-wd__k">{{ 'To'|trans }}</legend>
+        <div class="acx-card wl-opts">
+          {% if _saved %}
+            <label class="wl-opt">
+              <input class="wl-opt__r" type="radio" name="acct" value="saved"{% if not _new %} checked{% endif %}>
+              <span class="wl-opt__i" aria-hidden="true"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18M12 3l9 5H3z"/></svg></span>
+              <span class="wl-opt__t"><b>{{ saved.account_name }}</b><span>{{ saved.bank }} · <span class="wl-ref">{{ saved.account_number }}</span> · {{ 'saved'|trans }}</span></span>
+            </label>
+          {% endif %}
+          <label class="wl-opt">
+            <input class="wl-opt__r" type="radio" name="acct" value="new" data-wl-acct-new{% if _new %} checked{% endif %}>
+            <span class="wl-opt__t"><b>{{ _saved ? 'Another account in my name'|trans : 'An account in my name'|trans }}</b></span>
+          </label>
+          <div class="wl-new" data-wl-new>
+            {% if banks|length %}
+              {# Chosen, not typed: the transfer is built from the bank's code. #}
+              <label class="wl-sel">{{ 'Bank'|trans }}
+                <select class="wl-sel__in" name="bank_code" data-wl-bank>
+                  <option value="">{{ 'Choose your bank'|trans }}</option>
+                  {% for bk in banks %}<option value="{{ bk.code }}"{% if bk.code == bank.bank_code|default('') %} selected{% endif %}>{{ bk.name }}</option>{% endfor %}
+                </select>
+              </label>
+            {% else %}
+              <label class="wl-sel">{{ 'Bank'|trans }}<input class="wl-sel__in" name="bank" value="{{ bank.bank|default('') }}" maxlength="80" autocomplete="off"></label>
+            {% endif %}
+            <label class="wl-sel">{{ 'Account number'|trans }}<input class="wl-sel__in wl-nuban-ref" name="account_number" value="{{ bank.account_number|default('') }}" inputmode="numeric" maxlength="10" pattern="[0-9]{10}" autocomplete="off" placeholder="{{ '10-digit NUBAN'|trans }}" data-wl-nuban></label>
+            <div class="wl-resolved" data-wl-resolved role="status" hidden>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7"/></svg>
+              <span><b data-wl-resolved-n></b><span>{{ 'Name from your bank'|trans }}</span></span>
+            </div>
+            <label class="wl-sel" data-wl-name-f>{{ 'Account name'|trans }}<input class="wl-sel__in" name="account_name" value="{{ bank.account_name|default('') }}" maxlength="120" autocomplete="name"></label>
+            <p class="wl-new__p">{{ 'Money goes only to an account in your own name.'|trans }}</p>
+          </div>
+        </div>
+      </fieldset>
+      {% if auto_on and banks|length %}<p class="wl-wd__note">{{ 'Withdrawals to an account in your own name are usually sent within minutes.'|trans }}</p>{% endif %}
+    </div>
+
+    <aside class="acx-card wl-wd__side" aria-label="{{ 'Summary'|trans }}">
+      <b class="wl-wd__sh">{{ 'Summary'|trans }}</b>
+      <dl class="wl-dl">
+        <div><dt>{{ 'Amount'|trans }}</dt><dd data-wl-sum-amt>{{ m.naira(_p.available_kobo) }}</dd></div>
+        <div><dt>{{ 'Service fee'|trans }}</dt><dd data-wl-sum-fee>—</dd></div>
+        <div class="wl-dl__total"><dt>{{ 'You receive'|trans }}</dt><dd data-wl-net>—</dd></div>
+      </dl>
+      <button class="ag-btn ag-btn--primary wl-btn" type="submit">{{ 'Continue'|trans }}</button>
+    </aside>
+
+    <div class="wl-wdbar" data-bottom-ui>
+      <span class="wl-wdbar__t"><span>{{ 'You receive'|trans }}</span><b data-wl-net>—</b></span>
+      <button class="ag-btn ag-btn--primary wl-wdbar__go" type="submit">{{ 'Continue'|trans }}</button>
+    </div>
+  </form>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/wallet.js') }}"></script>{% endblock %}

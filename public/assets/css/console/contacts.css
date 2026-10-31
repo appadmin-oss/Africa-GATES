@@ -1,0 +1,48 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   CONTACTS — AdminConsole v2 (README §10b). Built on console/list.css; this adds only
+   what that pattern does not have: the stat strip the design draws over the tabs, a
+   right-aligned money column, and a prev/next pager (the list is too long to draw whole).
+   Colour only from var(--cn-*); the page measures its own container (.ls).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ct-stats {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--cn-line-faint); border-radius: 12px; overflow: hidden; background: var(--cn-surface);
+}
+.ct-stat {
+  display: flex; flex-direction: column; gap: 8px; padding: 14px 18px;
+  border-inline-end: 1px solid var(--cn-line-soft); border-bottom: 1px solid var(--cn-line-soft); margin: 0 -1px -1px 0;
+}
+.ct-stat__k { font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
+.ct-stat__row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ct-stat__v { font-size: var(--cn-fs-22); font-weight: 600; letter-spacing: -.02em; line-height: 1; color: var(--cn-ink); }
+.ct-stat__note { font-size: var(--cn-fs-12); font-weight: 500; color: var(--cn-soft); }
+.ct-stat__note--up { color: var(--cn-green-ink); }
+
+.ct-end { text-align: end; }
+
+.ct-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ct-pager { display: flex; align-items: center; gap: 8px; }
+.ct-pager__at { font-size: var(--cn-fs-12-5); color: var(--cn-soft); }
+.ct-pager__btn {
+  display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid var(--cn-line);
+  border-radius: var(--cn-r-8); background: var(--cn-surface); color: var(--cn-ink) !important;
+  font-size: var(--cn-fs-13); font-weight: 500; text-decoration: none;
+}
+.ct-pager__btn:hover { background: var(--cn-panel); }
+
+.ct-note { max-width: 72ch; font-size: var(--cn-fs-12-5); color: var(--cn-soft); line-height: 1.5; text-wrap: pretty; }
+
+@container (min-width: 600px) { .ct-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* Phone: the design's swipeable strip of cards, not a grid with an empty cell. */
+@container (max-width: 599px) {
+  .ct-stats {
+    display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+    border: 0; border-radius: 0; background: none; margin-inline: -16px; padding-inline: 16px;
+  }
+  .ct-stat { flex: none; min-width: 148px; scroll-snap-align: start; gap: 6px; padding: 12px 14px; margin: 0;
+    border: 1px solid var(--cn-line-faint); border-radius: 14px; background: var(--cn-surface); }
+  .ct-pager__btn { height: 44px; }
+  .ct-end { text-align: start; }
+}

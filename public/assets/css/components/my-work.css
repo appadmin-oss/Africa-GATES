@@ -1,0 +1,206 @@
+/* /my-work/{token} — the nominee's questionnaire (templates/pages/my-work.twig). Quiet on
+   purpose: one question at a time, a white card on the ground, the answer box the biggest
+   thing on the screen. */
+.mw{ max-width:720px; margin:0 auto; padding:16px 16px 56px; display:flex; flex-direction:column; gap:18px }
+.mw__head{ display:flex; flex-direction:column; gap:8px }
+.mw__kicker{ margin:0; font-weight:700; font-size:var(--ag-fs-13-5); color:var(--ag-soft) }
+.mw__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-30); line-height:1.12 }
+.mw__h2{ margin:0; font-weight:700; font-size:var(--ag-fs-20) }
+.mw__p,
+.mw__help{ margin:0; font-size:var(--ag-fs-15-5); line-height:1.6; color:var(--ag-ink-2) }
+.mw__help{ font-size:var(--ag-fs-14-5) }
+.mw__test{ margin:0; padding:12px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12); background:var(--ag-surface); color:var(--ag-ink); font-weight:700 }
+.mw__flash{ margin:0; padding:12px 14px; border-radius:var(--ag-r-12); font-size:var(--ag-fs-14-5); line-height:1.5 }
+.mw__flash p{ margin:0 0 6px }
+.mw__flash ul{ margin:0; padding-inline-start:18px }
+.mw__flash--ok{ background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.mw__flash--err{ background:var(--ag-live-wash); color:var(--ag-error) }
+.mw__flash--err a{ color:inherit }
+.mw__card,
+.mw__q{ margin:0; padding:20px; border:1px solid var(--ag-line); border-radius:var(--ag-r-20); background:var(--ag-surface); display:flex; flex-direction:column; gap:12px; min-width:0 }
+/* A fieldset is not a flex box in every engine, and its <legend> is drawn INTO the top
+   border by default — the heading sat on the card's edge. Floated full width, the legend
+   becomes ordinary content inside the card; everything after it clears. */
+.mw__q{ display:block }
+.mw__q > * + *{ margin-top:12px }
+.mw__q > legend{ float:left; width:100%; margin:0 0 12px }
+.mw__q > legend + *{ clear:both; margin-top:0 }
+.mw__q[hidden]{ display:none }
+.mw__form{ display:flex; flex-direction:column; gap:18px }
+.mw__qh{ display:flex; gap:12px; align-items:flex-start; padding:0; font-weight:700; font-size:var(--ag-fs-19); line-height:1.35 }
+.mw__qh:focus{ outline:none }
+.mw__qn{ flex:none; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--ag-green-wash); color:var(--ag-green-deep); font-size:var(--ag-fs-14) }
+.mw__req{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.mw__look{ margin:0; padding:10px 12px; border-radius:var(--ag-r-12); background:var(--ag-ground); font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+.mw__in{ width:100%; min-height:52px; padding:12px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-16); line-height:1.5 }
+textarea.mw__in{ min-height:160px; resize:vertical }
+.mw__lbl{ display:flex; flex-direction:column; gap:6px; font-weight:600; font-size:var(--ag-fs-14) }
+.mw__mic{ align-self:flex-start }
+.mw__nav,
+.mw__do{ display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between }
+.mw__nav [data-mw-next]{ margin-inline-start:auto }
+.mw__map ol{ display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:0; list-style:none }
+.mw__map button{ width:44px; height:44px; border-radius:50%; border:1px solid var(--ag-line-2); background:var(--ag-surface); color:var(--ag-ink-2); font:inherit; font-weight:700; cursor:pointer }
+.mw__map button.is-done{ background:var(--ag-green-wash); border-color:var(--ag-green-edge); color:var(--ag-green-deep) }
+.mw__map button[aria-current]{ border:2px solid var(--ag-ink); color:var(--ag-ink) }
+.mw__work{ display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:var(--ag-r-16); background:var(--ag-ground) }
+.mw__file{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-green-deep) }
+.mw__ready{ margin:0; font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+.mw__up{ display:flex; flex-direction:column; gap:10px; align-items:flex-start }
+.mw__audio{ width:100% }
+.mw__resume{ display:flex; justify-content:center }
+@media (min-width:600px){ .mw{ padding-top:32px } .mw__h1{ font-size:var(--ag-fs-36) } .mw__card, .mw__q{ padding:28px } }
+
+/* ── the interview (templates/pages/my-work/interview.twig) ──────────────────
+   An app screen: the shell's <main> stops scrolling on this page and the conversation
+   scrolls instead. Header and composer are flex:none; the log is the one flex:1 child with
+   overflow, so the question being answered and the box to answer it in never leave the
+   screen. The other two parts are not a conversation and scroll inside their own pane. */
+body[data-page="mw-interview"] .ag-main{ overflow:hidden; display:flex; flex-direction:column }
+.iv{ flex:1; min-height:0; width:100%; max-width:760px; margin:0 auto; display:flex; flex-direction:column }
+.iv__top{ position:relative; flex:none; padding:6px 12px 8px; display:flex; flex-direction:column; gap:6px; border-bottom:1px solid var(--ag-line); background:var(--ag-bar) }
+.iv__test,
+.iv__flash{ padding:8px 12px; font-size:var(--ag-fs-13) }
+.iv__row{ display:flex; align-items:center; gap:8px }
+/* A segmented control: three parts in one pill, the current one lifted out of it. */
+.iv__tabs{ flex:1; min-width:0; display:flex; padding:2px; border-radius:var(--ag-r-pill); background:var(--ag-tint) }
+.iv__tab{ flex:1 1 0; min-width:0; display:inline-flex; align-items:center; justify-content:center; gap:4px; min-height:44px; padding:0 8px; border:2px solid transparent; border-radius:var(--ag-r-pill); color:var(--ag-ink-2); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none; white-space:nowrap }
+.iv__tab[aria-current]{ background:var(--ag-surface); border-color:var(--ag-ink); color:var(--ag-ink) }
+.iv__count{ font-weight:700; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.iv__out-form{ flex:none; margin:0 }
+.iv__link{ min-height:44px; padding:0 4px; border:0; background:none; color:var(--ag-soft); font:inherit; font-size:var(--ag-fs-13); text-decoration:underline; cursor:pointer; white-space:nowrap }
+/* The progress is the header's own bottom edge: no row of its own. One segment per outcome,
+   from the ledger — it moves in jumps, and there is deliberately no percentage anywhere. */
+.iv__prog{ position:absolute; left:0; right:0; bottom:-1px; display:flex; gap:3px; padding:0 12px }
+.iv__prog--inline{ position:static; padding:0; margin:2px 0 6px }
+.iv__seg{ flex:1 1 0; height:3px; border-radius:var(--ag-r-pill); background:var(--ag-tint) }
+.iv__seg--met{ background:var(--ag-green) }
+/* Half a segment, in the page's own green: these pages are tier 2, and a third hue as a
+   field would spend colour they do not have. The word in the sheet says which is which. */
+.iv__seg--partial{ background:linear-gradient(90deg, var(--ag-green) 50%, var(--ag-tint) 50%) }
+/* "3 of 7": the way into What's left, where the header's form link used to be (the way out
+   is under the composer now, as the design draws it, and at the foot of every other part). */
+.iv__pill{ flex:none; display:inline-flex; align-items:center; gap:7px; min-height:44px; padding:0 14px; border-radius:var(--ag-r-pill); background:var(--ag-ground); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-13-5); text-decoration:none; white-space:nowrap }
+.iv__pill-dot{ width:7px; height:7px; border-radius:50%; background:var(--ag-green) }
+.iv__h1{ margin:0; font-weight:700; font-size:var(--ag-fs-17); line-height:1.3; color:var(--ag-ink) }
+.iv__h1--pane{ margin:0 0 12px }
+.iv__fine{ margin:0; font-size:var(--ag-fs-13); line-height:1.45; color:var(--ag-soft) }
+
+/* the conversation opens on what is read once, and it scrolls away like the top of any chat */
+.iv__intro{ align-self:stretch; padding:4px 4px 10px; margin-bottom:4px; border-bottom:1px solid var(--ag-line); display:flex; flex-direction:column; gap:4px }
+
+.iv__pane{ flex:1; min-height:0; display:flex; flex-direction:column }
+.iv__pane[hidden]{ display:none }
+.iv__pane--scroll{ overflow-y:auto; overscroll-behavior:contain; padding:16px }
+
+/* the conversation */
+.iv__log{ flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; margin:0; padding:16px; list-style:none; display:flex; flex-direction:column; gap:10px; scroll-padding-bottom:16px }
+.iv__log:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+.iv__turn{ max-width:86%; padding:10px 14px; border-radius:var(--ag-r-18); background:var(--ag-surface); border:1px solid var(--ag-line); display:flex; flex-direction:column; gap:4px }
+.iv__turn--me{ align-self:flex-end; background:var(--ag-green-wash); border-color:transparent }
+.iv__turn.is-pending{ opacity:.6 }
+.iv__turn.is-typing .iv__text{ color:var(--ag-soft) }
+.iv__who{ margin:0; font-weight:700; font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.iv__text{ margin:0; font-size:var(--ag-fs-16); line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--ag-ink) }
+.iv__acts{ display:flex; gap:8px; margin-top:2px }
+.iv__mini{ min-height:44px; padding:0 14px }
+.iv__event{ align-self:center; max-width:90%; padding:6px 12px; border-radius:var(--ag-r-pill); background:var(--ag-tint); font-size:var(--ag-fs-13); color:var(--ag-ink-2); text-align:center }
+.iv__ask{ max-width:86%; padding:12px 14px; border:1px dashed var(--ag-line-2); border-radius:var(--ag-r-18); background:var(--ag-surface); display:flex; flex-direction:column; gap:6px }
+.iv__ask-t{ margin:0; font-weight:700; font-size:var(--ag-fs-15-5) }
+.iv__ask-do{ display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 0 }
+.iv__pick{ position:relative; overflow:hidden; cursor:pointer }
+.iv__pick input,
+.iv__icon input{ position:absolute; inset:0; opacity:0; cursor:pointer; font-size:0 }
+.iv__note{ flex:none; margin:0; padding:12px 16px; border-top:1px solid var(--ag-line); font-size:var(--ag-fs-14); color:var(--ag-ink-2) }
+
+/* the composer: pinned, never scrolls away */
+.iv__composer{ flex:none; padding:8px 12px calc(10px + env(safe-area-inset-bottom)); border-top:1px solid var(--ag-line); background:var(--ag-bar); display:flex; flex-direction:column; gap:6px }
+.iv__composer[hidden]{ display:none }
+.iv__chips{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; margin:0 -12px; padding:0 12px }
+.iv__chips:empty{ display:none }
+.iv__chips::-webkit-scrollbar{ display:none }
+.iv__chip{ flex:none; min-height:44px; padding:0 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-weight:600; font-size:var(--ag-fs-14); white-space:nowrap; cursor:pointer }
+.iv__status{ margin:0; font-size:var(--ag-fs-13); color:var(--ag-soft) }
+.iv__status:empty{ display:none }
+.iv__bar-in{ display:flex; align-items:flex-end; gap:6px }
+.iv__icon{ position:relative; flex:none; width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:50%; background:none; color:var(--ag-ink-2); cursor:pointer }
+.iv__icon[aria-pressed="true"]{ background:var(--ag-live-wash); color:var(--ag-error) }
+.iv__in{ flex:1; min-width:0; min-height:44px; max-height:9.5em; padding:10px 14px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-22); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-16); line-height:1.4; resize:none }
+.iv__send{ flex:none; min-height:44px; padding:0 18px; border:0; border-radius:var(--ag-r-pill); background:var(--ag-green); color:var(--ag-surface); font:inherit; font-weight:700; font-size:var(--ag-fs-15); cursor:pointer }
+.iv__send:disabled{ opacity:.55; cursor:default }
+
+/* show + review */
+.iv__works,
+.iv__ledger,
+.iv__left{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:10px }
+.iv__left{ padding-inline-start:18px; list-style:disc; gap:4px }
+.iv__h3{ margin:0; font-weight:700; font-size:var(--ag-fs-16) }
+.iv__outc{ padding:14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-16); display:flex; flex-direction:column; gap:8px }
+.iv__quote{ margin:0; padding-inline-start:12px; border-inline-start:3px solid var(--ag-line-2); font-size:var(--ag-fs-15); line-height:1.55; color:var(--ag-ink-2) }
+.iv__send-form{ display:flex; flex-direction:column; gap:10px }
+/* the interviewer's notes, in the conversation, after the turn they came from */
+.iv__noted{ align-self:flex-start; max-width:86%; padding:2px 0 2px 14px; border-inline-start:2px solid var(--ag-green); display:flex; flex-direction:column; gap:3px }
+.iv__noted-k{ margin:0; font-weight:600; font-size:var(--ag-fs-12); color:var(--ag-green-deep) }
+.iv__noted-t{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-ink-2) }
+.iv__noted-t b{ color:var(--ag-ink) }
+
+/* your own message is a control: press it to take it back */
+.iv__turn--me{ cursor:pointer }
+.iv__turn.is-picked{ box-shadow:0 0 0 3px var(--ag-surface), 0 0 0 5px var(--ag-green) }
+.iv__turn.is-flash{ box-shadow:0 0 0 3px var(--ag-surface), 0 0 0 5px var(--ag-gold) }
+/* a message that did not get through stays where it was, with its text */
+.iv__turn.is-failed{ background:var(--ag-surface); border:1.5px solid color-mix(in srgb, var(--ag-error) 35%, transparent) }
+.iv__turn.is-failed .iv__text{ color:var(--ag-ink-2) }
+.iv__failed{ margin:4px 0 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-weight:600; font-size:var(--ag-fs-12-5); color:var(--ag-error) }
+.iv__failed button{ min-height:44px; padding:0 16px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font:inherit; font-weight:600; cursor:pointer }
+
+.iv__out-form--talk{ flex:none; display:flex; justify-content:center; padding:0 12px calc(4px + env(safe-area-inset-bottom)); background:var(--ag-bar) }
+.iv__composer{ padding-bottom:4px }
+.iv__jump{ align-self:flex-start; display:inline-flex; align-items:center; min-height:44px; color:var(--ag-green-deep); font-weight:600; font-size:var(--ag-fs-14) }
+.iv__centre{ text-align:center; align-self:center }
+
+/* the welcome, and coming back: screens of their own, with no parts bar over them */
+.iv[data-showing="welcome"] .iv__row, .iv[data-showing="welcome"] .iv__top > .iv__prog,
+.iv[data-showing="back"] .iv__row, .iv[data-showing="back"] .iv__top > .iv__prog{ display:none }
+.iv[data-showing="welcome"] .iv__top:not(:has(.iv__test, .iv__flash)), .iv[data-showing="back"] .iv__top:not(:has(.iv__test, .iv__flash)){ display:none }
+.iv__sheet-h:focus{ outline:none }
+.iv__sheet-in > form{ display:flex; justify-content:center; margin:0 }
+.iv__entry{ gap:14px; padding:28px 22px 32px }
+.iv__big{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-32); line-height:1.1; color:var(--ag-ink) }
+.iv__facts{ margin:4px 0; padding:0; list-style:none; counter-reset:f }
+.iv__facts li{ counter-increment:f; display:grid; grid-template-columns:auto 1fr; gap:14px; padding:14px 0; border-top:1px solid var(--ag-line); font-size:var(--ag-fs-14); line-height:1.6; color:var(--ag-ink-2) }
+.iv__facts li:last-child{ border-bottom:1px solid var(--ag-line) }
+.iv__facts li::before{ content:counter(f); font-weight:700; font-size:var(--ag-fs-12-5); color:var(--ag-soft); padding-top:2px }
+.iv__facts b{ color:var(--ag-ink) }
+.iv__go{ width:100%; min-height:56px; border-radius:var(--ag-r-16); justify-content:center }
+.iv__two{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+.iv__two .ag-btn{ min-height:50px; justify-content:center }
+.iv__turn--quote{ margin:0; align-self:flex-start; font-size:var(--ag-fs-15); line-height:1.6 }
+
+/* sheets: What's left, and taking something back */
+.iv__sheet{ position:fixed; inset:auto 0 0 0; margin:0 auto; width:100%; max-width:560px; max-height:80dvh; padding:0; border:0; border-radius:var(--ag-r-24) var(--ag-r-24) 0 0; background:var(--ag-surface); color:var(--ag-ink); overflow-y:auto; overscroll-behavior:contain }
+.iv__sheet::backdrop{ background:var(--ag-scrim) }
+.iv__sheet-in{ display:flex; flex-direction:column; gap:12px; padding:12px 22px calc(26px + env(safe-area-inset-bottom)) }
+.iv__sheet-in::before{ content:""; align-self:center; width:38px; height:4px; border-radius:var(--ag-r-pill); background:var(--ag-line-2); margin-bottom:6px }
+.iv__sheet-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px }
+.iv__sheet-h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-24) }
+.iv__sheet-n{ font-weight:700; font-size:var(--ag-fs-14); color:var(--ag-green-deep) }
+.iv__rows{ margin:0; padding:0; list-style:none }
+.iv__rowo{ display:grid; grid-template-columns:auto 1fr; gap:13px; padding:13px 8px; border-top:1px solid var(--ag-line) }
+.iv__rowo:first-child{ border-top:0 }
+.iv__rowo-t{ display:flex; flex-direction:column; gap:2px; font-size:var(--ag-fs-14-5) }
+.iv__rowo--unmet .iv__rowo-t b{ color:var(--ag-ink-2); font-weight:600 }
+.iv__rowo-s{ font-size:var(--ag-fs-12-5); color:var(--ag-soft) }
+.iv__rowo--partial .iv__rowo-s{ color:var(--ag-gold-ink) }
+.iv__mark{ width:16px; height:16px; margin-top:3px; border-radius:50%; border:2px solid var(--ag-line-2); display:grid; place-items:center; box-sizing:border-box }
+.iv__rowo--met .iv__mark{ border-color:var(--ag-green); background:var(--ag-green) }
+.iv__rowo--met .iv__mark::after{ content:""; width:5px; height:8px; margin-top:-2px; border:solid var(--ag-surface); border-width:0 2px 2px 0; transform:rotate(45deg) }
+.iv__rowo--partial .iv__mark{ border-color:var(--ag-gold-ink) }
+.iv__rowo.is-optional.iv__rowo--unmet .iv__mark{ border-style:dashed }
+.iv__opt{ display:flex; flex-direction:column; align-items:flex-start; gap:3px; width:100%; min-height:56px; padding:12px 16px; border:0; border-radius:var(--ag-r-16); background:var(--ag-ground); color:var(--ag-ink); font:inherit; font-size:var(--ag-fs-15); text-align:start; cursor:pointer }
+.iv__opt span{ font-size:var(--ag-fs-12-5); color:var(--ag-ink-2) }
+.iv__opt--danger{ background:var(--ag-surface); border:1px solid color-mix(in srgb, var(--ag-error) 30%, transparent) }
+.iv__opt--danger b, .iv__opt--danger span{ color:var(--ag-error) }
+
+@media (min-width:600px){ .iv__top{ padding:8px 16px 10px } .iv__h1{ font-size:var(--ag-fs-20) } .iv__tabs{ flex:0 1 420px } .iv__row{ justify-content:space-between } }
+@media (prefers-reduced-motion:reduce){ .iv *{ transition:none!important; animation:none!important; scroll-behavior:auto!important } }

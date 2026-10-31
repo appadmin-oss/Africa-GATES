@@ -1,0 +1,162 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Moderation{% endblock %}
+{# ── WHY EVERY "REMOVE" HERE ASKS FIRST ───────────────────────────────────────
+   The removes are SOFT — status becomes `rejected`, the row survives, and the
+   controller says so. That is not the same as reversible: this queue lists
+   `pending` and `quarantined` only, so a rejected item drops out of it and there
+   is no screen with a button to bring it back.
+
+   "It is only a soft delete" is therefore true and misleading at the same time,
+   and the confirmation says the useful half — it leaves the queue and you cannot
+   put it back from here. #}
+{% block content %}
+
+<p style="margin:0 0 16px;font-size:13px;color:var(--cn-soft);max-width:60ch">
+  Posts are auto-moderated on submit — clean content goes live instantly and obvious spam is blocked outright.
+  Only borderline items wait here for a human decision, so there's nothing to approve unless something lands in the grey area.
+  {% if pending == 0 %}<strong style="color:#16794d">Nothing pending — the filter is keeping up.</strong>{% endif %}
+</p>
+
+{% macro verdict(score, reason) %}
+  <span style="font-family:monospace;font-size:11px;color:#b03a5b">AI {{ (score|default(0) * 100)|round }}%</span>
+  {% if reason %}<span style="font-size:11px;color:var(--cn-soft)"> · {{ reason }}</span>{% endif %}
+{% endmacro %}
+{% import _self as ui %}
+
+{# ── FIRST IN THE QUEUE, ON PURPOSE ───────────────────────────────────────────
+   These are messages voters wrote about a NAMED nominee, shown on that nominee's
+   own page. Several nominees are children and did not ask to be nominated, so this
+   is the one item here where a wrong "approve" lands on a real person rather than
+   on a forum. The nominee's name is on every row so the decision is made knowing
+   who the words are about.
+
+   'held' means the classifier was unavailable, not that the text was borderline —
+   an unjudged message, which is why it is labelled differently below. #}
+{# Ads: checked by a person before they run (Services\Ads\AdReview). The flags are the
+   automatic first pass and never decide on their own. A refusal carries the reason the
+   confirm dialog asks for, and the advertiser sees it beside the ad. #}
+{% if ads|default([])|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Ads<small>{{ ads|length }} awaiting review · shown labelled Sponsored once approved</small></div></div><div class="ad-card__body">
+  {% for a in ads %}
+  <div style="display:flex;gap:14px;border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
+    {% if a.image %}<img src="{{ a.image }}" alt="" width="96" height="96" style="flex:none;width:96px;height:96px;object-fit:cover;border-radius:8px">{% endif %}
+    <div style="min-width:0">
+      <div style="font-size:12px;color:var(--cn-soft)">{{ a.advertiser }}{% if a.trial %} · free trial{% endif %} · {{ a.placements|join(', ') }}</div>
+      <div style="font-size:14px;font-weight:700;color:var(--cn-ink);margin-top:2px">{{ a.headline }}</div>
+      <div style="font-size:14px;line-height:1.6;color:var(--cn-ink);margin-top:2px">{{ a.body }}</div>
+      {% if a.offer %}<div style="font-size:13px;color:var(--cn-ink);margin-top:2px">Offer: {{ a.offer }}{% if a.offer_code %} · {{ a.offer_code }}{% endif %}</div>{% endif %}
+      <div style="font-size:12px;color:var(--cn-soft);margin:6px 0 4px">{{ a.cta }} → <span style="overflow-wrap:anywhere">{{ a.url }}</span> · {{ a.created_at }}</div>
+      <div style="font-size:12px;color:var(--cn-soft);margin:0 0 4px">{{ a.category }} · ARCON: {{ a.arcon_ref ?: 'none given' }}{% if a.nafdac_ref %} · NAFDAC: {{ a.nafdac_ref }}{% endif %}{% if a.licence_ref %} · Licence: {{ a.licence_ref }}{% endif %}</div>
+      {% if a.flags %}<div style="font-size:12px;font-weight:700;color:var(--cn-ink);margin:0 0 8px">Check: {{ a.flags|join(' · ') }}</div>{% endif %}
+      <form method="post" action="/admin/moderation/ad/{{ a.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve</button></form>
+      <form method="post" action="/admin/moderation/ad/{{ a.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Refuse this ad? The advertiser sees the reason you give, so make it something they can fix.">Refuse</button></form>
+    </div>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{# Running ads that readers reported, most reports first. Taking one down needs the reason
+   the advertiser will see; a report alone never takes an ad down. #}
+{% if ads_reported|default([])|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Reported ads<small>{{ ads_reported|length }} running ad(s) with reports from readers</small></div></div><div class="ad-card__body">
+  {% for a in ads_reported %}
+  <div style="display:flex;gap:14px;border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
+    {% if a.image %}<img src="{{ a.image }}" alt="" width="72" height="72" style="flex:none;width:72px;height:72px;object-fit:cover;border-radius:8px">{% endif %}
+    <div style="min-width:0">
+      <div style="font-size:12px;color:var(--cn-soft)">{{ a.advertiser }} · {{ a.reports }} report(s)</div>
+      <div style="font-size:14px;font-weight:700;color:var(--cn-ink);margin-top:2px">{{ a.headline }}</div>
+      <div style="font-size:13px;color:var(--cn-ink);margin:2px 0 6px">{% for why, n in a.reasons %}{{ why }} ({{ n }}){% if not loop.last %} · {% endif %}{% endfor %}</div>
+      <form method="post" action="/admin/moderation/ad/{{ a.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Take this ad down? It stops at once. The advertiser sees the reason you give and can fix it.">Take down</button></form>
+    </div>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if vote_messages|default([])|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Messages of support<small>{{ vote_messages|length }} awaiting review · shown on a nominee's page once approved</small></div></div><div class="ad-card__body">
+  {% for m in vote_messages %}
+  <div style="border:1px solid var(--cn-line-card);border-left:3px solid {{ m.status == 'pending' ? '#a47306' : '#b03a5b' }};border-radius:0 10px 10px 0;padding:14px;margin-bottom:10px">
+    <div style="font-size:14px;line-height:1.6;color:var(--cn-ink)">{{ m.body }}</div>
+    <div style="font-size:11px;color:var(--cn-soft);margin:7px 0 9px">
+      about <strong style="color:var(--cn-ink)">{{ m.nominee_name|default('nominee #' ~ m.nominee_id) }}</strong>
+      · {{ m.source == 'paid' ? 'paid vote' : 'free vote' }}
+      · {{ m.created_at }}
+      {# The name is shown to the MODERATOR whatever the voter chose, because a
+         moderator deciding on words about a real person should see who wrote them.
+         Whether it is PUBLISHED is a separate question the label answers. #}
+      {% if m.display_name %} · by {{ m.display_name }}{{ m.show_name ? ' (asked to be named)' : ' (will publish as “A supporter”)' }}{% endif %}
+      · <span style="font-weight:700;color:{{ m.status == 'pending' ? '#a47306' : '#b03a5b' }}">{{ m.status == 'pending' ? 'held — not yet judged' : 'quarantined' }}</span>
+      {# Reader reports, and they sort this list. A message readers flagged is the one
+         with a person on the other end of the delay — the classifier cleared it and
+         people who can see who it is about disagreed. #}
+      {% if m.reports %}· <span style="font-weight:700;color:#b03a5b">⚑ {{ m.reports }} reader {{ m.reports == 1 ? 'report' : 'reports' }}</span>{% endif %}
+      {% if m.mod_score is not null %} · {{ ui.verdict(m.mod_score, m.mod_reason) }}{% elseif m.mod_reason %} · <span style="font-size:11px">{{ m.mod_reason }}</span>{% endif %}
+    </div>
+    <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve &amp; publish</button></form>
+    <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Remove this message? The author is not told, and it leaves this queue — so there is no button here to put it back. It is marked rejected rather than deleted, but recovering it means going into the database.">Remove</button></form>
+    <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/recheck" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" title="Run the current AI moderation pipeline again and apply its verdict">✦ AI re-check</button></form>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if threads|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Quarantined threads<small>{{ threads|length }} awaiting review</small></div></div><div class="ad-card__body">
+  {% for t in threads %}
+  <div style="border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="font-weight:700;color:var(--cn-ink)">{{ t.title }}</div>
+    <div style="font-size:13px;color:var(--cn-soft);margin:4px 0">{{ t.body|slice(0,280) }}{% if t.body|length > 280 %}…{% endif %}</div>
+    <div style="font-size:11px;color:var(--cn-soft);margin-bottom:8px">by {{ t.author_name }} · {{ t.created_at }} · {{ ui.verdict(t.ai_score, '') }}</div>
+    <form method="post" action="/admin/moderation/thread/{{ t.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve &amp; publish</button></form>
+    <form method="post" action="/admin/moderation/thread/{{ t.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Remove this thread? The author is not told, and it leaves this queue — so there is no button here to put it back. It is marked rejected rather than deleted, but recovering it means going into the database.">Remove</button></form>
+    <form method="post" action="/admin/moderation/thread/{{ t.id }}/recheck" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" title="Run the current AI moderation pipeline again and apply its verdict">✦ AI re-check</button></form>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if comments|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Quarantined comments &amp; replies<small>{{ comments|length }} awaiting review</small></div></div><div class="ad-card__body">
+  {% for c in comments %}
+  <div style="border:1px solid var(--cn-line-card);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="font-size:14px;color:var(--cn-ink)">{{ c.body }}</div>
+    <div style="font-size:11px;color:var(--cn-soft);margin:6px 0 8px">by {{ c.author_name }} · on {{ c.target_type }} #{{ c.target_id }} · {{ c.created_at }} · {{ ui.verdict(c.ai_score, c.ai_reason) }}</div>
+    <form method="post" action="/admin/moderation/comment/{{ c.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve</button></form>
+    <form method="post" action="/admin/moderation/comment/{{ c.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Remove this comment? The author is not told, and it leaves this queue — so there is no button here to put it back. It is marked rejected rather than deleted, but recovering it means going into the database.">Remove</button></form>
+    <form method="post" action="/admin/moderation/comment/{{ c.id }}/recheck" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" title="Run the current AI moderation pipeline again and apply its verdict">✦ AI re-check</button></form>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if pending == 0 %}
+<div class="ad-card"><div class="ad-card__body" style="text-align:center;padding:36px;color:var(--cn-soft)">
+  ✓ The queue is empty. The AI/heuristic filter is handling submissions automatically.
+</div></div>
+{% endif %}
+
+{% if recent_log|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Recent automatic decisions<small>What the filter did, most recent first</small></div></div><div class="ad-card__body">
+  <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="text-align:left;color:var(--cn-soft)">
+      <th scope="col" style="padding:6px 8px">When</th><th scope="col" style="padding:6px 8px">Target</th><th scope="col" style="padding:6px 8px">Decision</th><th scope="col" style="padding:6px 8px">Provider</th><th scope="col" style="padding:6px 8px">Score</th><th scope="col" style="padding:6px 8px">Reason</th>
+    </tr></thead>
+    <tbody>
+    {% for l in recent_log %}
+      <tr style="border-top:1px solid var(--cn-line-card)">
+        <td style="padding:6px 8px;white-space:nowrap;color:var(--cn-soft)">{{ l.created_at }}</td>
+        <td style="padding:6px 8px">{{ l.target_type }} #{{ l.target_id }}</td>
+        <td style="padding:6px 8px"><span style="font-weight:700;color:{{ l.decision == 'allow' ? '#16794d' : (l.decision == 'reject' ? '#b03a5b' : '#a47306') }}">{{ l.decision }}</span></td>
+        <td style="padding:6px 8px">{{ l.provider }}</td>
+        <td style="padding:6px 8px;font-family:monospace">{{ (l.score|default(0) * 100)|round }}%</td>
+        <td style="padding:6px 8px;color:var(--cn-soft)">{{ l.reason }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div></div>
+{% endif %}
+
+{% endblock %}

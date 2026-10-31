@@ -1,0 +1,30 @@
+{#- You've been nominated (to the nominee) · Nominations.
+    Senders: NomineeConfirmation::ask (with confirm_url — the nominee confirms it is them),
+             NominationAftercare::email (without — the panel checks it first).
+    Variables: programme, first_name, quote, quote_by, confirm_url, confirm_days, watch_url, help_url.
+    Design: Email Templates.dc.html → "You've been nominated", corrected to the live site
+    (owner, 19 Oct 2026): `quote_by` never names a nominator who asked to stay private
+    (nominator_private); "reply to this email" is the help desk, which a person reads; and
+    the path without a confirm link says what actually happens next. -#}
+{% extends 'emails/_layout.html.twig' %}
+{% block category %}Nominations{% endblock %}
+{% block hero %}illo-gift{% endblock %}
+{% block why %}Somebody nominated you for an Africa GATES award.{% endblock %}
+{% block subject %}You’ve been nominated — Africa GATES{% endblock %}
+{% block preheader %}{{ quote_by ? quote_by ~ ' nominated you' : 'Somebody nominated you' }}{{ programme ? ' for ' ~ programme : '' }}.{% endblock %}
+{% block body %}
+{%- import 'emails/_blocks.html.twig' as b -%}
+{% if programme %}{{ b.eyebrow(programme) }}{% endif %}
+{{ b.h1("#{first_name}, someone thinks you deserve to be celebrated") }}
+{% if quote %}{{ b.quote(quote, quote_by ?: 'Someone who knows your work') }}{% endif %}
+{% if confirm_url %}
+{{ b.p('Confirm it’s you and that you are happy to be nominated. Then you can tell the judges about your work in your own words.') }}
+{{ b.button('Confirm and continue', confirm_url) }}
+{{ b.note("The link works for #{confirm_days} days. Nothing here costs money. Not you, or you’d rather not take part? Open the link and say no.") }}
+{% else %}
+{{ b.p('A reviewer checks every nomination before it joins the award. If yours is approved, we will email you an invitation to tell the judges about your work in your own words.') }}
+{{ b.button('See the award', watch_url) }}
+{{ b.note('Nothing here costs money. Not you, or you’d rather not take part? Tell us through the help desk and we’ll remove it.') }}
+{{ b.link('Tell us through the help desk', help_url) }}
+{% endif %}
+{% endblock %}

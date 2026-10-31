@@ -1,0 +1,357 @@
+<?php
+declare(strict_types=1);
+
+namespace Tests\Unit;
+
+use AfricaGates\Controllers\VolunteerController;
+use AfricaGates\Services\Grants;
+use AfricaGates\Services\Volunteer\Outreach;
+use AfricaGates\Services\Volunteer\Rules;
+use AfricaGates\Services\Volunteer\Training;
+use AfricaGates\Services\Volunteer\Volunteers;
+use AfricaGates\Services\Volunteer\Workspace;
+use Illuminate\Database\Capsule\Manager as DB;
+use Slim\Exception\HttpNotFoundException;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response;
+use Tests\TestCase;
+
+/**
+ * Nominee outreach (owner, 30 Oct 2026): a volunteer reaches the nominees of an award they help
+ * on, one at a time, and logs how it went.
+ *
+ * What these try to break: a nominee's phone reaching a volunteer without the outreach role, or
+ * before they agreed to the rules on using it; a volunteer under 18 holding the role; a nominee on
+ * another award; a stop that one volunteer logs and another can still call through; a nominee
+ * emailed twice in a day by the team; an email that fails and is logged as sent; a follow-up the
+ * outcome should have set; and a rail that still carries the retired Contacts page.
+ */
+final class VolunteerOutreachTest extends TestCase
+{
+    private int $cycle = 0;
+    private int $cat = 0;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Rules::reset();
+        Training::reset();
+        Outreach::reset();   // per process, and the suite is one
+        $p = (int) DB::table('gates_award_programmes')->insertGetId(['slug' => 'op-' . bin2hex(random_bytes(3)), 'title' => 'Teachers Prize', 'is_active' => 1]);
+        $this->cycle = (int) DB::table('gates_award_cycles')->insertGetId(['programme_id' => $p, 'year' => 2026, 'status' => 'nominations']);
+        $this->cat = (int) DB::table('gates_award_categories')->insertGetId(['cycle_id' => $this->cycle, 'slug' => 'c' . bin2hex(random_bytes(2)), 'title' => 'Teacher of the Year', 'sort_order' => 1]);
+    }
+
+    protected function tearDown(): void
+    {
+        unset($_SESSION['user_id'], $_SESSION['vol_toast'], $_SESSION['vol_error'], $_SESSION['vol_old']);
+        parent::tearDown();
+    }
+
+    private function ctrl(): VolunteerController
+    {
+        $b = new \DI\ContainerBuilder();
+        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+        return $b->build()->get(VolunteerController::class);
+    }
+
+    private function volunteer(array $caps, string $dob = '1999-05-01', ?int $cycle = null): object
+    {
+        $uid = (int) DB::table('gates_users')->insertGetId(['name' => 'Chika Nwosu', 'email' => 'chika.' . bin2hex(random_bytes(3)) . '@example.test',
+            'password_hash' => 'x', 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
+        $r = Volunteers::apply($uid, ['phone' => '0803 555 0101', 'state' => 'Lagos', 'emergency_name' => 'Ada Okafor', 'emergency_phone' => '0803 555 0199', 'area' => 'Ikotun',
+            'dob' => $dob, 'guardian' => 'Mrs Nwosu, 0803 111 2222', 'interests' => ['drive'], 'ref_name' => 'Mrs Adeyemi', 'ref_contact' => '0803 000 0000', 'conduct' => '1']);
+        $this->assertTrue($r['ok'], implode(' ', $r['errors'] ?? []));
+        Volunteers::approve((int) $r['id'], 1);
+        foreach ($caps as $c) $this->assertTrue(Grants::grant('member', $uid, $c, 'cycle', $cycle ?? $this->cycle, date('Y-m-d', strtotime('+20 days')), 1)['ok']);
+        $_SESSION['user_id'] = $uid;
+        return Volunteers::of($uid);
+    }
+
+    private function nominee(string $name, string $phone = '+2348031112233', string $email = 'halima@school.ng', ?int $cat = null): int
+    {
+        $id = (int) DB::table('gates_nominees')->insertGetId(['category_id' => $cat ?? $this->cat, 'name' => $name, 'status' => 'approved', 'nominated_at' => date('Y-m-d H:i:s')]);
+        DB::table('gates_nominee_details')->insert(['nominee_id' => $id, 'phones' => json_encode([$phone]), 'emails' => json_encode([$email]),
+            'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+        return $id;
+    }
+
+    private function page(string $tab = 'all', array $q = []): string
+    {
+        $req = (new ServerRequestFactory())->createServerRequest('GET', '/volunteer')->withQueryParams($q);
+        $res = $this->ctrl()->place($req, new Response(), ['kind' => 'cycle', 'id' => (string) $this->cycle, 'page' => 'nominees'] + ($tab !== 'all' ? ['tab' => $tab] : []));
+        $this->assertSame(200, $res->getStatusCode());
+        return (string) $res->getBody();
+    }
+
+    public function test_the_role_is_needed_and_the_rules_come_before_any_number(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        $checker = $this->volunteer(['vol.nomination_check']);
+        $this->assertSame([], Outreach::awards($checker), 'checking nominations is not reaching nominees');
+        $this->assertNull(Outreach::nominee($checker, $n));
+        try { $this->page(); $this->fail('a page the role does not carry'); } catch (HttpNotFoundException) {}
+
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        $html = $this->page('all', ['n' => $n]);
+        $this->assertStringContainsString('Halima Bello', $html);
+        $this->assertStringNotContainsString('8031112233', $html, 'no number before the rules are agreed');
+        $this->assertStringNotContainsString('halima@school.ng', $html);
+        $this->assertStringContainsString('Never sell, share or post them', $html);
+        $this->assertStringContainsString('name="do" value="outreach_agree"', $html);
+        $this->assertFalse(Outreach::log($v, $n, ['channel' => 'call', 'outcome' => 'reached'])['ok'], 'nothing is logged before agreeing');
+
+        $this->assertTrue(Outreach::agree($v, $this->cycle));
+        $this->assertTrue(Outreach::agreed($v, $this->cycle));
+        $this->assertSame(1, DB::table('gates_vol_outreach_terms')->where('volunteer_id', $v->id)->count(), 'the agreement is recorded');
+        $html = $this->page('all', ['n' => $n]);
+        $this->assertStringContainsString('href="tel:+2348031112233"', $html);
+        $this->assertStringContainsString('href="https://wa.me/2348031112233"', $html);
+        $this->assertStringContainsString('halima@school.ng', $html);
+        $this->assertStringContainsString('No personal use, no selling, no sharing', $html, 'the rule stays on the page once agreed');
+    }
+
+    public function test_a_volunteer_under_18_cannot_reach_nominees(): void
+    {
+        $this->nominee('Halima Bello');
+        $v = $this->volunteer([Outreach::CAPABILITY], date('Y-m-d', strtotime('-16 years')));
+        $this->assertSame([], Outreach::awards($v));
+    }
+
+    public function test_only_nominees_on_their_own_award(): void
+    {
+        $p = (int) DB::table('gates_award_programmes')->insertGetId(['slug' => 'other-' . bin2hex(random_bytes(3)), 'title' => 'Other Prize', 'is_active' => 1]);
+        $cy = (int) DB::table('gates_award_cycles')->insertGetId(['programme_id' => $p, 'year' => 2026, 'status' => 'nominations']);
+        $cat = (int) DB::table('gates_award_categories')->insertGetId(['cycle_id' => $cy, 'slug' => 'o' . bin2hex(random_bytes(2)), 'title' => 'Other', 'sort_order' => 1]);
+        $theirs = $this->nominee('Somebody Else', '+2348039998877', 'else@x.ng', $cat);
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($v, $this->cycle);
+        $this->assertNull(Outreach::nominee($v, $theirs));
+        $this->assertFalse(Outreach::agree($v, $cy), 'no agreeing to an award you are not on');
+        $this->assertFalse(Outreach::log($v, $theirs, ['channel' => 'call', 'outcome' => 'reached'])['ok']);
+    }
+
+    public function test_the_outcome_sets_the_follow_up_and_a_stop_holds_for_everyone(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        $a = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($a, $this->cycle);
+        $this->assertTrue(Outreach::log($a, $n, ['channel' => 'call', 'outcome' => 'no_answer'])['ok']);
+        $this->assertSame(date('Y-m-d', strtotime('+2 days')), DB::table('gates_vol_outreach')->where('nominee_id', $n)->value('follow_up_on'), 'no answer: try again in two days');
+        $this->assertFalse(Outreach::log($a, $n, ['channel' => 'call', 'outcome' => 'reached', 'follow_up_on' => date('Y-m-d', strtotime('-1 day'))])['ok'], 'not in the past');
+
+        $b = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($b, $this->cycle);
+        $this->assertTrue(Outreach::log($b, $n, ['channel' => 'whatsapp', 'outcome' => 'stop', 'follow_up_on' => date('Y-m-d', strtotime('+5 days'))])['ok']);
+        $this->assertNull(DB::table('gates_vol_outreach')->where('outcome', 'stop')->value('follow_up_on'), 'a stop has no next step');
+
+        $seen = Outreach::nominee($a, $n);
+        $this->assertTrue($seen->stopped);
+        $this->assertSame([], $seen->phones, 'the other volunteer no longer sees a number');
+        $this->assertCount(2, $seen->history, 'one history for the whole team');
+        $this->assertFalse(Outreach::log($a, $n, ['channel' => 'call', 'outcome' => 'reached'])['ok']);
+        $this->assertFalse(Outreach::email($a, $n, ['to' => 'halima@school.ng', 'subject' => 'Hello', 'body' => 'Just checking in.'], null, static fn () => true)['ok']);
+        $_SESSION['user_id'] = $a->user_id;
+        $this->assertStringNotContainsString('tel:', $this->page('all', ['n' => $n]));
+    }
+
+    public function test_one_email_to_one_person_and_one_a_day_from_the_team(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        $a = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($a, $this->cycle);
+        $sent = [];
+        $send = static function (string $to, string $subject, string $html, string $plain) use (&$sent): bool { $sent[] = [$to, $plain]; return true; };
+
+        $this->assertFalse(Outreach::email($a, $n, ['to' => 'someone@else.ng', 'subject' => 'Hi', 'body' => 'A message for you.'], null, $send)['ok'], 'only their own address');
+        $this->assertFalse(Outreach::email($a, $n, ['to' => 'halima@school.ng', 'subject' => 'Hi', 'body' => 'Hi'], null, $send)['ok'], 'a message, not a word');
+
+        // A send that fails gives nothing to the nominee: nothing logged, and the volunteer may try again.
+        $this->assertFalse(Outreach::email($a, $n, ['to' => 'halima@school.ng', 'subject' => 'Your profile', 'body' => 'Could you add a photo?'], null, static fn () => false)['ok']);
+        $this->assertSame(0, DB::table('gates_vol_outreach')->count());
+
+        $r = Outreach::email($a, $n, ['to' => 'halima@school.ng', 'subject' => 'Your profile', 'body' => 'Could you add a photo?'], null, $send);
+        $this->assertTrue($r['ok'], $r['error'] ?? '');
+        $this->assertCount(1, $sent);
+        $this->assertStringContainsString('Africa GATES volunteer', $sent[0][1], 'signed, so they know who wrote');
+        $this->assertStringContainsString('@example.test', $sent[0][1], 'with an address to reply to a person');
+        $row = DB::table('gates_vol_outreach')->first();
+        $this->assertSame('Could you add a photo?', $row->body, 'the team reads exactly what was sent');
+        $this->assertSame(date('Y-m-d', strtotime('+3 days')), $row->follow_up_on);
+
+        $b = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($b, $this->cycle);
+        $this->assertFalse(Outreach::email($b, $n, ['to' => 'halima@school.ng', 'subject' => 'Hello', 'body' => 'Another message.'], null, $send)['ok'], 'one a day from the whole team');
+        $this->assertCount(1, $sent);
+    }
+
+    public function test_follow_ups_due_lead_the_list_and_reach_the_rail_and_today(): void
+    {
+        $due = $this->nominee('Zainab Musa', '+2348030000001', 'z@x.ng');
+        $this->nominee('Ada Obi', '+2348030000002', 'a@x.ng');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($v, $this->cycle);
+        DB::table('gates_vol_outreach')->insert(['volunteer_id' => $v->id, 'nominee_id' => $due, 'cycle_id' => $this->cycle, 'channel' => 'call',
+            'outcome' => 'no_answer', 'follow_up_on' => date('Y-m-d'), 'created_at' => date('Y-m-d H:i:s', strtotime('-2 days'))]);
+        Outreach::reset();   // written behind the service's back
+        $list = Outreach::nominees($v);
+        $this->assertSame('Zainab Musa', $list[0]->name, 'due first, though Ada sorts before her by name');
+        $this->assertSame(1, Outreach::dueCount($v));
+        $this->assertSame(['n' => 1, 'tone' => 'warn'], Workspace::counts($v, Volunteers::role($v))['@cycle:' . $this->cycle]);
+        $html = $this->page('due');
+        // Find carries every nominee by name, so the list is read by its own heading and links.
+        $this->assertStringContainsString('>1 nominee<', $html);
+        $this->assertStringContainsString('?n=' . $due . '">Zainab Musa</a>', $html);
+        $this->assertStringNotContainsString('">Ada Obi</a>', $html);
+    }
+
+    public function test_contacts_is_retired_from_the_rail_and_forwards(): void
+    {
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        foreach (['new', 'active', 'lead'] as $role) {
+            foreach (Workspace::rootNav($v, $role, 'home', []) as $g) {
+                foreach ($g['items'] as $i) $this->assertNotSame('contacts', $i['key'], 'Contacts is award work now, not a page of its own');
+            }
+        }
+        $res = $this->ctrl()->contacts((new ServerRequestFactory())->createServerRequest('GET', '/volunteer/contacts'), new Response());
+        $this->assertSame('/volunteer/cycle/' . $this->cycle . '/nominees', $res->getHeaderLine('Location'));
+        $this->assertArrayHasKey(Outreach::CAPABILITY, Grants::CAPABILITIES, 'staff can give the role');
+    }
+
+    public function test_the_list_is_read_once_a_request_and_a_write_reads_it_again(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($v, $this->cycle);
+        $db = DB::connection();
+        $db->flushQueryLog();
+        $db->enableQueryLog();
+        Outreach::nominees($v);
+        $first = count($db->getQueryLog());
+        $this->assertGreaterThan(0, $first, 'the first call reaches the database');
+        Outreach::nominees($v, $this->cycle, '', 'due');
+        Outreach::dueCount($v);
+        Outreach::nominees($v, 0, 'hal');
+        $this->assertSame($first, count($db->getQueryLog()), 'the rest are answered from the first');
+        Outreach::log($v, $n, ['channel' => 'call', 'outcome' => 'no_answer', 'follow_up_on' => date('Y-m-d')]);
+        $this->assertTrue(Outreach::nominees($v)[0]->due, 'a conversation logged is seen at once');
+        $db->disableQueryLog();
+    }
+
+    public function test_the_next_to_reach_is_the_most_useful_call_and_logging_opens_it(): void
+    {
+        $done = $this->nominee('Amaka Done', '+2348030000011', 'done@x.ng');
+        DB::table('gates_nominee_details')->where('nominee_id', $done)->update(['bio' => str_repeat('Teaches maths. ', 3), 'terms_at' => date('Y-m-d H:i:s'), 'user_id' => 99]);
+        foreach (['photo', 'evidence'] as $k) DB::table('gates_nominee_files')->insert(['nominee_id' => $done, 'kind' => $k, 'url' => 'https://x.ng/' . $k, 'created_at' => date('Y-m-d H:i:s')]);
+        $gaps = $this->nominee('Bayo Gaps', '+2348030000012', 'gaps@x.ng');
+        $fresh = $this->nominee('Chidi Fresh', '+2348030000013', 'fresh@x.ng');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($v, $this->cycle);
+        // Bayo and Amaka were reached; Chidi nobody has tried.
+        foreach ([$gaps, $done] as $id) DB::table('gates_vol_outreach')->insert(['volunteer_id' => $v->id, 'nominee_id' => $id, 'cycle_id' => $this->cycle,
+            'channel' => 'call', 'outcome' => 'reached', 'created_at' => date('Y-m-d H:i:s', strtotime('-9 days'))]);
+        Outreach::reset();
+        $order = array_map(static fn ($r) => $r->name, Outreach::nominees($v));
+        $this->assertSame(['Chidi Fresh', 'Bayo Gaps', 'Amaka Done'], $order, 'untried, then gaps, then the finished');
+        $this->assertSame([], Outreach::nominees($v)[2]->needs, 'Amaka needs nothing');
+        $this->assertSame('Chidi Fresh', Outreach::next($v, $this->cycle)->name);
+        $this->assertEquals(['total' => 3, 'reached' => 2, 'complete' => 1], Outreach::coverage($v, $this->cycle));
+
+        // A one-tap "no answer" on Chidi opens Bayo, the next most useful.
+        $req = (new ServerRequestFactory())->createServerRequest('POST', '/volunteer/act')
+            ->withParsedBody(['do' => 'outreach_log', 'nominee' => (string) $fresh, 'channel' => 'call', 'outcome' => 'no_answer', 'back' => '/volunteer']);
+        $res = $this->ctrl()->act($req, new Response());
+        $this->assertSame('/volunteer/cycle/' . $this->cycle . '/nominees?n=' . $gaps, $res->getHeaderLine('Location'));
+        $this->assertStringContainsString('Next: Bayo Gaps', (string) $_SESSION['vol_toast']);
+    }
+
+    public function test_a_nominee_just_reached_is_given_room_and_the_draft_says_what_is_missing(): void
+    {
+        $n = $this->nominee('Halima Bello');
+        DB::table('gates_nominee_details')->where('nominee_id', $n)->update(['user_id' => 7]);
+        $a = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($a, $this->cycle);
+        Outreach::log($a, $n, ['channel' => 'call', 'outcome' => 'reached', 'note' => 'Will add a photo tonight.']);
+        $b = $this->volunteer([Outreach::CAPABILITY]);
+        Outreach::agree($b, $this->cycle);
+        $seen = Outreach::nominee($b, $n);
+        $this->assertTrue($seen->recent, 'reached today: the next call can wait');
+        $this->assertNull(Outreach::next($b, $this->cycle), 'and is not offered as next');
+        $html = $this->page('all', ['n' => $n]);
+        $this->assertStringContainsString('reached them', $html);
+        $this->assertStringContainsString('Give them a day or two', $html);
+        $draft = Outreach::draft($b, $seen);
+        $this->assertStringContainsString('Hello Halima', $draft);
+        $this->assertStringContainsString('a photo, a short bio, evidence of their work and to accept the terms', $draft, 'the draft names what the profile needs');
+        $this->assertStringContainsString('/account/nomination', $draft);
+        $this->assertStringContainsString('Log it', $html, 'one-tap outcomes after a call');
+    }
+
+    /**
+     * The contact report read back (owner, 31 Oct 2026): one reader for the lead and for staff.
+     * A nominee is "spoken to" only once somebody actually spoke with them, and is counted once
+     * however many people did; another award's contacts never leak into this one.
+     */
+    public function test_the_contact_report_counts_people_not_attempts_and_stays_on_its_award(): void
+    {
+        $a = $this->nominee('Halima Bello');
+        $b = $this->nominee('Musa Danjuma', '+2348034445566', 'musa@school.ng');
+        $this->nominee('Never Called');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        $this->assertTrue(Outreach::agree($v, $this->cycle));
+        $w = $this->volunteer([Outreach::CAPABILITY]);
+        $this->assertTrue(Outreach::agree($w, $this->cycle));
+        $this->assertTrue(Outreach::log($v, $a, ['channel' => 'call', 'outcome' => 'no_answer', 'follow_up_on' => date('Y-m-d')])['ok']);
+        Outreach::reset();
+        $this->assertTrue(Outreach::log($v, $a, ['channel' => 'whatsapp', 'outcome' => 'reached', 'note' => '=HYPERLINK("x")'])['ok']);
+        Outreach::reset();
+        $this->assertTrue(Outreach::log($w, $a, ['channel' => 'call', 'outcome' => 'reached'])['ok']);
+        Outreach::reset();
+        $this->assertTrue(Outreach::log($w, $b, ['channel' => 'sms', 'outcome' => 'left_message'])['ok']);
+        // Two days on, the automatic retry date has come.
+        DB::table('gates_vol_outreach')->where('nominee_id', $b)->update(['follow_up_on' => date('Y-m-d', strtotime('-1 day'))]);
+
+        // Another award's contact, logged straight into the table: it must not count here.
+        DB::table('gates_vol_outreach')->insert(['volunteer_id' => $v->id, 'nominee_id' => $b, 'cycle_id' => $this->cycle + 999,
+            'channel' => 'call', 'outcome' => 'reached', 'created_at' => date('Y-m-d H:i:s')]);
+
+        $r = Outreach::report([$this->cycle]);
+        $this->assertSame(4, $r['totals']['contacts']);
+        $this->assertSame(2, $r['totals']['nominees'], 'two nominees contacted');
+        $this->assertSame(1, $r['totals']['reached'], 'Halima was spoken to twice and is one person; Musa only got a message');
+        $this->assertSame(2, $r['totals']['volunteers']);
+        $this->assertSame(1, $r['totals']['due'], 'Musa\'s follow-up has come; Halima\'s newest contact carries none');
+        $this->assertSame(['id' => $this->cycle, 'total' => 3, 'contacted' => 2, 'reached' => 1],
+            array_intersect_key($r['coverage'][0], ['id' => 1, 'total' => 1, 'contacted' => 1, 'reached' => 1]));
+        $this->assertSame(2, $r['outcomes']['reached']);
+        $this->assertSame(2, $r['channels']['call']);
+        $this->assertSame([2, 2], array_column($r['people'], 'contacts'));
+        $this->assertCount(1, Outreach::report([$this->cycle], 0, 1)['recent']);
+
+        // The lead's tab draws the same figures for the award they lead.
+        $lead = $this->volunteer(['vol.team_lead']);
+        $req = (new ServerRequestFactory())->createServerRequest('GET', '/volunteer/team/reports');
+        $res = $this->ctrl()->root($req, new Response(), ['page' => 'team', 'tab' => 'reports']);
+        $this->assertSame(200, $res->getStatusCode());
+        $html = (string) $res->getBody();
+        $this->assertStringContainsString('1 of 3', $html);
+        $this->assertStringContainsString('Halima Bello', $html);
+        $this->assertStringContainsString('Who did what', $html);
+
+        // Staff: the tab, and a CSV in which a typed formula cannot run.
+        $b2 = new \DI\ContainerBuilder();
+        $b2->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+        $admin = $b2->build()->get(\AfricaGates\Admin\Controllers\VolunteersController::class);
+        $_SESSION['admin_id'] = 1;
+        $get = static fn (array $q) => (new ServerRequestFactory())->createServerRequest('GET', '/admin/volunteers')->withQueryParams($q);
+        $page = (string) $admin->index($get(['tab' => 'reports', 'cycle' => (string) $this->cycle]), new Response())->getBody();
+        $this->assertStringContainsString('Coverage by award', $page);
+        $this->assertStringContainsString('Musa Danjuma', $page);
+        $csv = $admin->index($get(['tab' => 'reports', 'csv' => '1']), new Response());
+        $this->assertStringContainsString('text/csv', $csv->getHeaderLine('Content-Type'));
+        $body = (string) $csv->getBody();
+        $this->assertSame(5, substr_count(trim($body), "\n") + 1, 'a header and four contacts; the other award is not in "all awards" here either');
+        $this->assertStringContainsString("'=HYPERLINK", $body);
+        unset($_SESSION['admin_id']);
+    }
+}
