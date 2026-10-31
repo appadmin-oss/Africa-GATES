@@ -283,8 +283,8 @@ final class NomineeVotingLetter
                 // carries the full list.
                 $y = $put(\AfricaGates\Support\EditionPrizes::LEAD, $y, 'serif', 12.0, $lead, $soft, 2, $x + 8.0, $w - 8.0) + $gap(2.0);
                 $short = array_reduce($items, static fn (bool $ok, $row): bool => $ok && mb_strlen((string) $row[1]) <= 70, true);
-                // Two fewer of each where a condition follows, so the page still fits.
-                $cap = ((string) ($v['prizes_condition'] ?? '') !== '') ? ($short ? 6 : 3) : ($short ? 8 : 4);
+                // One fewer of each where the conditions line follows, so the page still fits.
+                $cap = ((string) ($v['prizes_link'] ?? '') !== '') ? ($short ? 7 : 3) : ($short ? 8 : 4);
                 foreach (array_slice($items, 0, $cap) as $row) {
                     $put((string) $row[0], $y, 'sanss', 12.0, $lead, $ink, 1, $x + 8.0, 27.0);
                     $y = $put((string) $row[1], $y, 'serif', 12.0, $lead, $ink, 2, $x + 35.0, $w - 35.0) + $gap(1.2);
@@ -293,9 +293,9 @@ final class NomineeVotingLetter
                     $more = count($items) - $cap;
                     $y = $put('And ' . $more . ' more ' . ($more === 1 ? 'place' : 'places') . ' on the award’s page.', $y, 'serif', 12.0, $lead, $soft, 1, $x + 35.0, $w - 35.0) + $gap(1.6);
                 }
-                // The condition the terms put on the prizes, where the edition states one.
-                if ((string) ($v['prizes_condition'] ?? '') !== '') {
-                    $y = $put((string) $v['prizes_condition'], $y + $gap(0.8), 'serif', 12.0, $lead, $soft, 3, $x + 8.0, $w - 8.0) + $gap(1.2);
+                // Where the edition's prizes come with a condition, a link to where it is stated.
+                if ((string) ($v['prizes_link'] ?? '') !== '') {
+                    $y = $put('Conditions for these prizes: ' . (string) $v['prizes_link'], $y + $gap(0.8), 'serif', 12.0, $lead, $soft, 2, $x + 8.0, $w - 8.0) + $gap(1.2);
                 }
             } else {
                 $labelW = 38.0;

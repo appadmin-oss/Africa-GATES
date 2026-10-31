@@ -315,7 +315,11 @@ final class NomineeVotingNotice
             'steps'           => self::steps((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'prizes'          => self::prizes((int) $cycle->id ?: null),
             'prizes_lead'     => \AfricaGates\Support\EditionPrizes::LEAD,
-            'prizes_condition'=> self::prizes((int) $cycle->id ?: null) !== [] ? (\AfricaGates\Support\EditionPrizes::condition((int) $cycle->id ?: null)['letter'] ?? '') : '',
+            // The condition the terms put on the prizes is stated on the award page, with the live
+            // total; the letter only links to it (owner, 31 Oct 2026). Empty where none applies.
+            'prizes_link'     => self::prizes((int) $cycle->id ?: null) !== [] && \AfricaGates\Support\EditionPrizes::condition((int) $cycle->id ?: null) !== null
+                ? ((string) ($cycle->programme_slug ?? '') !== '' ? $base . '/awards/' . rawurlencode((string) $cycle->programme_slug) . '?tab=details' : $base . '/awards')
+                : '',
             'community_return'=> self::communityReturn((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'paper'           => NomineeVotingLetter::paperFor((string) ($nominee->country_code ?? '')),
         ] + self::words((int) $cycle->id);
@@ -537,7 +541,7 @@ final class NomineeVotingNotice
             array_merge(...array_map(static fn (array $h, int $i): array =>
                 [($i + 1) . '. ' . $h['title'] . '. ' . $h['text']], $v['how'], array_keys($v['how']))),
             ($v['prizes'] ?? []) ? array_merge(['', 'Prizes to be won', \AfricaGates\Support\EditionPrizes::LEAD], array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['prizes']),
-                ($v['prizes_condition'] ?? '') !== '' ? [(string) $v['prizes_condition']] : []) : [],
+                ($v['prizes_link'] ?? '') !== '' ? ['Conditions for these prizes: ' . (string) $v['prizes_link']] : []) : [],
             ($v['community_return'] ?? []) ? array_merge(['', 'Your community return'], array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['community_return'])) : [],
             [
                 '',
