@@ -286,4 +286,72 @@ final class VolunteerOutreachTest extends TestCase
         $this->assertStringContainsString('/account/nomination', $draft);
         $this->assertStringContainsString('Log it', $html, 'one-tap outcomes after a call');
     }
+
+    /**
+     * The contact report read back (owner, 31 Oct 2026): one reader for the lead and for staff.
+     * A nominee is "spoken to" only once somebody actually spoke with them, and is counted once
+     * however many people did; another award's contacts never leak into this one.
+     */
+    public function test_the_contact_report_counts_people_not_attempts_and_stays_on_its_award(): void
+    {
+        $a = $this->nominee('Halima Bello');
+        $b = $this->nominee('Musa Danjuma', '+2348034445566', 'musa@school.ng');
+        $this->nominee('Never Called');
+        $v = $this->volunteer([Outreach::CAPABILITY]);
+        $this->assertTrue(Outreach::agree($v, $this->cycle));
+        $w = $this->volunteer([Outreach::CAPABILITY]);
+        $this->assertTrue(Outreach::agree($w, $this->cycle));
+        $this->assertTrue(Outreach::log($v, $a, ['channel' => 'call', 'outcome' => 'no_answer', 'follow_up_on' => date('Y-m-d')])['ok']);
+        Outreach::reset();
+        $this->assertTrue(Outreach::log($v, $a, ['channel' => 'whatsapp', 'outcome' => 'reached', 'note' => '=HYPERLINK("x")'])['ok']);
+        Outreach::reset();
+        $this->assertTrue(Outreach::log($w, $a, ['channel' => 'call', 'outcome' => 'reached'])['ok']);
+        Outreach::reset();
+        $this->assertTrue(Outreach::log($w, $b, ['channel' => 'sms', 'outcome' => 'left_message'])['ok']);
+        // Two days on, the automatic retry date has come.
+        DB::table('gates_vol_outreach')->where('nominee_id', $b)->update(['follow_up_on' => date('Y-m-d', strtotime('-1 day'))]);
+
+        // Another award's contact, logged straight into the table: it must not count here.
+        DB::table('gates_vol_outreach')->insert(['volunteer_id' => $v->id, 'nominee_id' => $b, 'cycle_id' => $this->cycle + 999,
+            'channel' => 'call', 'outcome' => 'reached', 'created_at' => date('Y-m-d H:i:s')]);
+
+        $r = Outreach::report([$this->cycle]);
+        $this->assertSame(4, $r['totals']['contacts']);
+        $this->assertSame(2, $r['totals']['nominees'], 'two nominees contacted');
+        $this->assertSame(1, $r['totals']['reached'], 'Halima was spoken to twice and is one person; Musa only got a message');
+        $this->assertSame(2, $r['totals']['volunteers']);
+        $this->assertSame(1, $r['totals']['due'], 'Musa\'s follow-up has come; Halima\'s newest contact carries none');
+        $this->assertSame(['id' => $this->cycle, 'total' => 3, 'contacted' => 2, 'reached' => 1],
+            array_intersect_key($r['coverage'][0], ['id' => 1, 'total' => 1, 'contacted' => 1, 'reached' => 1]));
+        $this->assertSame(2, $r['outcomes']['reached']);
+        $this->assertSame(2, $r['channels']['call']);
+        $this->assertSame([2, 2], array_column($r['people'], 'contacts'));
+        $this->assertCount(1, Outreach::report([$this->cycle], 0, 1)['recent']);
+
+        // The lead's tab draws the same figures for the award they lead.
+        $lead = $this->volunteer(['vol.team_lead']);
+        $req = (new ServerRequestFactory())->createServerRequest('GET', '/volunteer/team/reports');
+        $res = $this->ctrl()->root($req, new Response(), ['page' => 'team', 'tab' => 'reports']);
+        $this->assertSame(200, $res->getStatusCode());
+        $html = (string) $res->getBody();
+        $this->assertStringContainsString('1 of 3', $html);
+        $this->assertStringContainsString('Halima Bello', $html);
+        $this->assertStringContainsString('Who did what', $html);
+
+        // Staff: the tab, and a CSV in which a typed formula cannot run.
+        $b2 = new \DI\ContainerBuilder();
+        $b2->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+        $admin = $b2->build()->get(\AfricaGates\Admin\Controllers\VolunteersController::class);
+        $_SESSION['admin_id'] = 1;
+        $get = static fn (array $q) => (new ServerRequestFactory())->createServerRequest('GET', '/admin/volunteers')->withQueryParams($q);
+        $page = (string) $admin->index($get(['tab' => 'reports', 'cycle' => (string) $this->cycle]), new Response())->getBody();
+        $this->assertStringContainsString('Coverage by award', $page);
+        $this->assertStringContainsString('Musa Danjuma', $page);
+        $csv = $admin->index($get(['tab' => 'reports', 'csv' => '1']), new Response());
+        $this->assertStringContainsString('text/csv', $csv->getHeaderLine('Content-Type'));
+        $body = (string) $csv->getBody();
+        $this->assertSame(5, substr_count(trim($body), "\n") + 1, 'a header and four contacts; the other award is not in "all awards" here either');
+        $this->assertStringContainsString("'=HYPERLINK", $body);
+        unset($_SESSION['admin_id']);
+    }
 }

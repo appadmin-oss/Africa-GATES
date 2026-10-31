@@ -439,6 +439,49 @@ final class WorkspacePages
 
     // ── My team (leads) ───────────────────────────────────────────────────────────────────
 
+    /**
+     * A lead's contact report: coverage per award, who on the team did what, and the contacts,
+     * newest first. Read through Outreach::report(), the same reader staff use.
+     *
+     * @param list<int> $cycles
+     */
+    private static function contactReport(array $cycles, string $none): array
+    {
+        if (!$cycles) return [['k' => 'note', 'text' => $none, 'tone' => 'mute']];
+        $r = Outreach::report($cycles, 0, 60);
+        $t = $r['totals'];
+        $secs = [];
+        $stats = [];
+        foreach ($r['coverage'] as $c) {
+            $pct = $c['total'] ? (int) round(100 * $c['reached'] / $c['total']) : 0;
+            $stats[] = ['l' => 'Spoken to · ' . $c['title'], 'v' => $c['reached'] . ' of ' . $c['total'], 'pct' => $pct,
+                        's' => $c['contacted'] . ' contacted at least once'];
+        }
+        $stats[] = ['l' => 'Contacts logged', 'v' => (string) $t['contacts'], 's' => $t['volunteers'] . ($t['volunteers'] === 1 ? ' person' : ' people') . ' logging'];
+        $stats[] = ['l' => 'Follow-ups due', 'v' => (string) $t['due'], 's' => 'promised calls whose day has come'];
+        $secs[] = ['k' => 'stats', 'items' => $stats];
+        if (!$r['people']) {
+            $secs[] = ['k' => 'note', 'text' => 'Nobody on your award has logged a contact with a nominee yet. Each call, message or email they log appears here.', 'tone' => 'mute'];
+            return $secs;
+        }
+        $people = [];
+        foreach ($r['people'] as $p) {
+            $people[] = ['t' => $p['name'], 'ini' => Workspace::initials($p['name']), 'meta' => $p['contacts'] . ($p['contacts'] === 1 ? ' contact' : ' contacts'),
+                         'sub' => $p['nominees'] . ($p['nominees'] === 1 ? ' nominee' : ' nominees') . ' · spoke ' . $p['reached'] . ($p['reached'] === 1 ? ' time' : ' times') . ' · last ' . Workspace::day($p['last_at'])];
+        }
+        $secs[] = ['k' => 'rows', 'h' => 'Who did what', 'items' => $people];
+        $rows = [];
+        foreach ($r['recent'] as $c) {
+            $rows[] = ['t' => $c->nominee . ' — ' . $c->outcome_label, 'ini' => Workspace::initials((string) $c->nominee),
+                       'href' => '/volunteer/cycle/' . $c->cycle_id . '/nominees?n=' . $c->nominee_id,
+                       'sub' => $c->channel_label . ' by ' . $c->volunteer . ' · ' . Workspace::day($c->created_at)
+                                . ($c->follow_up_on ? ' · follow up ' . Workspace::day($c->follow_up_on) : '') . ($c->note ? ' · ' . mb_strimwidth((string) $c->note, 0, 120, '…') : '')];
+        }
+        $secs[] = ['k' => 'rows', 'h' => 'Latest contacts', 'items' => $rows];
+        $secs[] = ['k' => 'note', 'text' => '“Spoken to” counts a nominee once somebody actually spoke with them; a missed call or a message left does not. Staff see the same figures.', 'tone' => 'mute'];
+        return $secs;
+    }
+
     private static function team(object $v, string $tab): array
     {
         $secs = [];
@@ -463,6 +506,12 @@ final class WorkspacePages
             }
             $secs[] = $rows ? ['k' => 'rows', 'h' => 'To confirm', 'items' => $rows] : ['k' => 'note', 'text' => 'Nothing to confirm.', 'tone' => 'ok'];
             $secs[] = ['k' => 'note', 'text' => 'Confirm only what you saw or have proof of. Declining needs a reason, and the person sees it.', 'tone' => 'mute'];
+        } elseif ($tab === 'reports') {
+            // The contacts the team logged with nominees, on the awards this person leads. An
+            // event lead leads no award, so says so rather than drawing an empty report.
+            $cycles = [];
+            foreach (Team::scopes($v) as [$kind, $id]) if ($kind === 'cycle') $cycles[] = $id;
+            $secs = array_merge($secs, self::contactReport($cycles, 'You lead no award, so there are no nominee contacts to report. Contact reports belong to awards; an event lead’s team is on the Roster.'));
         } elseif ($tab === 'requests') {
             $secs[] = self::requestTable(Requests::waitingOn('member', (int) $v->user_id), 'Nothing from your team.', 'Each request shows who asked and why. Declining needs a reason.');
         }

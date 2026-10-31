@@ -201,5 +201,55 @@
       </tbody>
     </table>{% endif %}
   </section>
+
+{% elseif tab == 'reports' %}
+  {% set t = report.totals %}
+  <section class="cn-card vl-sec" aria-label="Contact reports">
+    <p class="vl-help">Every call, WhatsApp, text, email or visit a volunteer logs with a nominee. “Spoken to” counts a nominee once somebody actually spoke with them; a missed call or a message left does not. Team leads see the same figures for their own award.</p>
+    <form method="get" action="/admin/volunteers" class="vl-inline" role="search">
+      <input type="hidden" name="tab" value="reports">
+      <label for="rp-cycle">Award</label>
+      <select id="rp-cycle" name="cycle"><option value="0">All awards</option>{% for id, name in awards %}<option value="{{ id }}"{{ cycle == id ? ' selected' }}>{{ name }}</option>{% endfor %}</select>
+      <label for="rp-days">Period</label>
+      <select id="rp-days" name="days">{% for d, l in {0: 'All time', 7: 'Last 7 days', 30: 'Last 30 days', 90: 'Last 90 days'} %}<option value="{{ d }}"{{ days == d ? ' selected' }}>{{ l }}</option>{% endfor %}</select>
+      <button class="cn-btn cn-btn--sm" type="submit">Show</button>
+      <a class="cn-btn cn-btn--sm" href="/admin/volunteers?tab=reports&amp;cycle={{ cycle }}&amp;days={{ days }}&amp;csv=1">Download CSV</a>
+    </form>
+    {% if awards is empty %}{{ kit.empty('No contacts logged yet', 'When a volunteer with the nominee outreach role logs a call, message or email, it appears here.', 'users') }}{% else %}
+    <p role="status">{{ t.contacts }} {{ t.contacts == 1 ? 'contact' : 'contacts' }} by {{ t.volunteers }} {{ t.volunteers == 1 ? 'volunteer' : 'volunteers' }} · {{ t.nominees }} nominees contacted · {{ t.reached }} spoken to · {{ t.due }} follow-ups due</p>
+
+    <h2 class="vl-h">Coverage by award</h2>
+    <table class="cn-table">
+      <thead><tr><th scope="col">Award</th><th scope="col">Nominees</th><th scope="col">Contacted</th><th scope="col">Spoken to</th></tr></thead>
+      <tbody>{% for c in report.coverage %}<tr><td>{{ c.title }}</td><td>{{ c.total }}</td><td>{{ c.contacted }}</td><td>{{ c.reached }}{% if c.total %} ({{ (100 * c.reached / c.total)|round }}%){% endif %}</td></tr>{% endfor %}</tbody>
+    </table>
+
+    <h2 class="vl-h">How it went</h2>
+    <table class="cn-table">
+      <thead><tr><th scope="col">Outcome</th><th scope="col">Contacts</th></tr></thead>
+      <tbody>{% for k, l in outcomes %}<tr><td>{{ l }}</td><td>{{ report.outcomes[k]|default(0) }}</td></tr>{% endfor %}</tbody>
+    </table>
+    <table class="cn-table">
+      <thead><tr><th scope="col">How</th><th scope="col">Contacts</th></tr></thead>
+      <tbody>{% for k, l in channels %}<tr><td>{{ l }}</td><td>{{ report.channels[k]|default(0) }}</td></tr>{% endfor %}</tbody>
+    </table>
+
+    <h2 class="vl-h">By volunteer</h2>
+    {% if report.people is empty %}<p class="vl-help">Nobody logged a contact in this period.</p>{% else %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">Volunteer</th><th scope="col">Contacts</th><th scope="col">Nominees</th><th scope="col">Spoke</th><th scope="col">Last contact</th></tr></thead>
+      <tbody>{% for p in report.people %}<tr><td>{{ p.name }}</td><td>{{ p.contacts }}</td><td>{{ p.nominees }}</td><td>{{ p.reached }}</td><td>{{ p.last_at|date('j M Y, H:i') }}</td></tr>{% endfor %}</tbody>
+    </table>{% endif %}
+
+    <h2 class="vl-h">Latest contacts</h2>
+    {% if report.recent is empty %}<p class="vl-help">No contacts in this period.</p>{% else %}
+    <table class="cn-table">
+      <thead><tr><th scope="col">When</th><th scope="col">Nominee</th><th scope="col">Volunteer</th><th scope="col">How · outcome</th><th scope="col">Note</th></tr></thead>
+      <tbody>{% for c in report.recent %}<tr><td>{{ c.created_at|date('j M, H:i') }}</td><td>{{ c.nominee }}<br><span class="vl-help">{{ c.award }}</span></td><td>{{ c.volunteer }}</td>
+        <td>{{ c.channel_label }} · {{ c.outcome_label }}{% if c.follow_up_on %}<br><span class="vl-help">Follow up {{ c.follow_up_on|date('j M') }}</span>{% endif %}</td><td>{{ c.note }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% if report.recent|length >= 200 %}<p class="vl-help">Showing the newest 200. The CSV has every contact in this period.</p>{% endif %}{% endif %}
+    {% endif %}
+  </section>
 {% endif %}
 {% endblock %}
