@@ -1,0 +1,193 @@
+{#
+  /volunteer/academy — THE VOLUNTEER ACADEMY (owner, 31 Oct 2026: "a standard, detailed,
+  easy-to-understand academy with screenshots on how to use the portal now").
+
+  Open signed out, so a coordinator can drop the link in a group chat. Short sentences, one
+  action per step, and every button named exactly as the screen names it: names that live in
+  Workspace's constants come from the controller (`report`, `hours_log`); every other name is
+  wrapped in .ac-ui and VolunteerAcademyTest holds each one to the workspace's own sources, so
+  a renamed button fails the suite instead of leaving a guide that sends people looking for it.
+  Screenshots: scripts/academy-shots.mjs (1366×768, cropped to the step, the control outlined).
+#}
+{% macro shot(stem, shots) %}{% set s = shots[stem] %}<figure class="ac-shot"><img src="{{ asset('/assets/img/academy/' ~ stem ~ '.webp') }}" alt="{{ s[0] }}" loading="lazy" decoding="async"><figcaption>{{ s[1] }}</figcaption></figure>{% endmacro %}
+{% import _self as A %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ page_title }}</title>
+<meta name="description" content="How to use the Africa GATES volunteer portal, step by step: reporting your contacts with nominees, hours, events, requests and more.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style nonce="{{ csp_nonce }}">{{ ag_accents('console')|raw }}</style>
+<link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/shell7.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/console/academy.css') }}">
+</head>
+<body class="ac">
+<div class="ac-wrap">
+  <header class="ac-top">
+    <a class="ac-brand" href="/">Africa GATES <span class="ac-brand__sub">Volunteers</span></a>
+    <a class="sh7-btn sh7-btn--primary" href="/volunteer">Open my volunteering</a>
+  </header>
+
+  <main>
+    <h1 class="ac-h1">Volunteer academy</h1>
+    <p class="ac-lede">How to use the volunteer portal, one step at a time. Share this page with anyone on your team. You don’t need to sign in to read it.</p>
+
+    <nav class="ac-toc" aria-label="On this page">
+      <ol>
+        <li><a href="#start">Getting an account and applying</a></li>
+        <li><a href="#today">Your Today page</a></li>
+        <li><a href="#report">Reporting your contacts with nominees</a></li>
+        <li><a href="#follow">Follow-ups</a></li>
+        <li><a href="#hours">Logging hours by hand</a></li>
+        <li><a href="#event">Checking in and out at an event</a></li>
+        <li><a href="#tasks">Tasks, meetings and training</a></li>
+        <li><a href="#requests">Requests, including correcting hours</a></li>
+        <li><a href="#record">Your record and reference letters</a></li>
+        <li><a href="#break">Taking a break</a></li>
+        <li><a href="#leads">For leads</a></li>
+        <li><a href="#faq">If something goes wrong</a></li>
+      </ol>
+    </nav>
+
+    <section class="ac-sec" id="start" aria-labelledby="h-start">
+      <h2 id="h-start">Getting an account and applying</h2>
+      <ol class="ac-steps">
+        <li>Open <a href="/volunteer/apply">the volunteer application</a>.</li>
+        <li>Type your email and press <b class="ac-ui">Continue with email</b>. We send you a 6-digit code.</li>
+        <li>Type the code. You are signed in.</li>
+        <li>Answer the six short steps, then press <b class="ac-ui">Send my application</b>.</li>
+        <li>We ask the person who vouches for you. When you are approved, your Today page changes.</li>
+      </ol>
+    </section>
+
+    <section class="ac-sec" id="today" aria-labelledby="h-today">
+      <h2 id="h-today">Your Today page</h2>
+      <p>Today is the first page you see. It lists what needs you, where you help, and your hours.</p>
+      <ol class="ac-steps">
+        <li>Look at <b>Needs you</b>. Each line has its own button, for example <b class="ac-ui">Answer the invite</b> or <b class="ac-ui">See who to follow up</b>.</li>
+        <li>Use the buttons at the top to report: <b>{{ report.log }}</b> or <b>{{ hours_log.action }}</b>.</li>
+        <li>Lost? Type a word like “report” or “hours” in <b>Find</b> at the top of every page.</li>
+      </ol>
+      {{ A.shot('today', shots) }}
+    </section>
+
+    <section class="ac-sec" id="report" aria-labelledby="h-report">
+      <h2 id="h-report">Reporting your contacts with nominees</h2>
+      <p>Your report is the record of every contact you make with a nominee: each call, WhatsApp, text, email or visit. You log each one as it happens. Your team sees it, so nobody calls the same person twice.</p>
+      <p class="sh7-note sh7-note--info">You see this only if you have the nominee outreach role on an award.</p>
+      <ol class="ac-steps">
+        <li>On Today, press <b>{{ report.log }}</b>. The award’s Nominees page opens.</li>
+        <li>The first time, read the rules and press <b class="ac-ui">I agree</b>.</li>
+        <li>Pick the nominee you contacted. Use <b class="ac-ui">Find a nominee</b> if the list is long.</li>
+      </ol>
+      {{ A.shot('nominees', shots) }}
+      <ol class="ac-steps" start="4">
+        <li>On their page, reach them with <b class="ac-ui">Call them</b>, <b class="ac-ui">WhatsApp</b> or <b class="ac-ui">Write an email</b>.</li>
+        <li>Then fill in <b>{{ report.form }}</b>: how you reached them, how it went, and a short note.</li>
+        <li>Pick a follow-up date if you need to try again. Leave it empty after no answer and we pick two days.</li>
+        <li>Press <b>{{ report.submit }}</b>. The next nominee to reach opens for you.</li>
+      </ol>
+      {{ A.shot('log-contact', shots) }}
+      <p>No answer? On the nominee’s page, use the quick <b class="ac-ui">Log it</b> buttons beside <b>No answer</b> or <b>Left a message</b>.</p>
+      <p>If they ask not to be contacted, log <b>They asked not to be contacted</b>. Nobody on the award can reach them after that.</p>
+    </section>
+
+    <section class="ac-sec" id="follow" aria-labelledby="h-follow">
+      <h2 id="h-follow">Follow-ups</h2>
+      <ol class="ac-steps">
+        <li>Open the award’s Nominees page and the <b>{{ report.due }}</b> tab.</li>
+        <li>Everybody there has a follow-up date that has come. Contact them, then log it again.</li>
+        <li>The number next to the award on the left counts follow-ups due.</li>
+      </ol>
+      {{ A.shot('follow-up', shots) }}
+    </section>
+
+    <section class="ac-sec" id="hours" aria-labelledby="h-hours">
+      <h2 id="h-hours">Logging hours by hand</h2>
+      <p>Hours at an event and from accepted tasks count by themselves. Log by hand only work nobody saw.</p>
+      <ol class="ac-steps">
+        <li>On Today, press <b>{{ hours_log.action }}</b>.</li>
+        <li>Say what you did, the day and the hours. Add who saw it and a proof link if you can.</li>
+        <li>Press <b class="ac-ui">Send for confirming</b>.</li>
+        <li>It waits under <b>In review</b>. A lead confirms it. If they decline, you see their reason there, with <b class="ac-ui">Ask for a correction</b>.</li>
+      </ol>
+      {{ A.shot('hours-log', shots) }}
+      {{ A.shot('hours-review', shots) }}
+    </section>
+
+    <section class="ac-sec" id="event" aria-labelledby="h-event">
+      <h2 id="h-event">Checking in and out at an event</h2>
+      <ol class="ac-steps">
+        <li>On the night, open the event under <b>Where you help</b>.</li>
+        <li>Press <b class="ac-ui">Check in</b> when you arrive.</li>
+        <li>Press <b class="ac-ui">Check out</b> when you leave. Your hours go to a lead to confirm.</li>
+        <li>Press <b class="ac-ui">Read the briefing</b> for what you need on the night.</li>
+      </ol>
+      {{ A.shot('event', shots) }}
+    </section>
+
+    <section class="ac-sec" id="tasks" aria-labelledby="h-tasks">
+      <h2 id="h-tasks">Tasks, meetings and training</h2>
+      <ol class="ac-steps">
+        <li>Tasks: open <b>Tasks</b>, then <b>Library</b>. Press <b class="ac-ui">Take it</b>. To give one back, press <b class="ac-ui">Drop this task</b>.</li>
+        <li>Meetings: open <b>Meetings</b>. Answer with <b class="ac-ui">I’m going</b> or <b class="ac-ui">I can’t come</b>. To hold one, open <b>Schedule</b> and press <b class="ac-ui">Schedule and invite</b>. After it, the organiser writes notes and presses <b class="ac-ui">Save notes</b>.</li>
+        <li>Training: open <b>Training</b>, press <b class="ac-ui">Start this module</b>, read it, answer, and press <b class="ac-ui">Send my answers</b>.</li>
+      </ol>
+    </section>
+
+    <section class="ac-sec" id="requests" aria-labelledby="h-requests">
+      <h2 id="h-requests">Requests, including correcting hours</h2>
+      <ol class="ac-steps">
+        <li>Open <b>Requests</b> and press <b class="ac-ui">New request</b>.</li>
+        <li>Pick the type: <b>Time off</b>, <b>Correct my hours</b>, <b>Access to a role</b> or <b>Travel refund</b>.</li>
+        <li>Say what you need and why, then press <b class="ac-ui">Send request</b>. It says who decides.</li>
+        <li>If they ask a question, it shows on Today with <b class="ac-ui">Reply to their question</b>.</li>
+      </ol>
+      {{ A.shot('requests', shots) }}
+    </section>
+
+    <section class="ac-sec" id="record" aria-labelledby="h-record">
+      <h2 id="h-record">Your record and reference letters</h2>
+      <ol class="ac-steps">
+        <li>Open <b>My record</b> to see your verified hours, level and badges.</li>
+        <li>For a reference, open <b>Reference letters</b> and press <b class="ac-ui">Ask for a letter</b>.</li>
+      </ol>
+    </section>
+
+    <section class="ac-sec" id="break" aria-labelledby="h-break">
+      <h2 id="h-break">Taking a break</h2>
+      <ol class="ac-steps">
+        <li>Open <b>Profile and access</b>, then <b>Take a break or leave</b>.</li>
+        <li>Pick 2, 4 or 8 weeks. Nobody invites you until then.</li>
+        <li>To come back early, press <b class="ac-ui">Come back now</b>.</li>
+      </ol>
+    </section>
+
+    <section class="ac-sec" id="leads" aria-labelledby="h-leads">
+      <h2 id="h-leads">For leads</h2>
+      <ol class="ac-steps">
+        <li>Open <b>My team</b>, then <b>To confirm</b>.</li>
+        <li>Confirm only what you saw or have proof of. Press <b class="ac-ui">Confirm hours</b>.</li>
+        <li>To decline, type a reason first, then press <b class="ac-ui">Decline hours</b>. They see your reason.</li>
+        <li>Your team’s requests are under <b>Requests</b> on the same page.</li>
+      </ol>
+      {{ A.shot('team', shots) }}
+    </section>
+
+    <section class="ac-sec" id="faq" aria-labelledby="h-faq">
+      <h2 id="h-faq">If something goes wrong</h2>
+      <dl class="ac-faq">
+        <dt>I can’t see the Nominees page.</dt><dd>You need the nominee outreach role on that award. Ask your lead or send a request for <b>Access to a role</b>.</dd>
+        <dt>I can’t see a nominee’s phone number.</dt><dd>Agree to the rules for that award first. If they asked not to be contacted, nobody sees it.</dd>
+        <dt>My hours were declined.</dt><dd>Open Hours, then <b>In review</b>. Read the reason and press <b class="ac-ui">Ask for a correction</b>.</dd>
+        <dt>A message says “Not done”.</dt><dd>It says why. Fix that one thing and press the button again. What you typed is kept.</dd>
+        <dt>I’m stuck.</dt><dd>Type what you want in <b>Find</b>, or ask your lead.</dd>
+      </dl>
+    </section>
+  </main>
+</div>
+</body>
+</html>

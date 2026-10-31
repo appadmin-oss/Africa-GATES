@@ -24,6 +24,30 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 final class Workspace
 {
+    /**
+     * THE CONTACT REPORT (owner, 31 Oct 2026: "the report is in several layers … it has to do
+     * with contacts made to nominees"). What volunteers mean by "sending my report" is the record
+     * of each contact they make with a nominee (Outreach::log, outreach_email), in layers:
+     *
+     *   1. each contact, logged on the nominee's page        → "Log a contact with a nominee"
+     *   2. follow-ups the log set, due today or earlier       → the Nominees page's "Follow up" tab
+     *   3. what the team said to each nominee                 → that nominee's page, newest first
+     *
+     * A volunteer's own list of contacts, a lead's view per volunteer and a staff view per award
+     * have no reader yet (31 Oct 2026); the rows exist in gates_vol_outreach for them.
+     *
+     * Named once here and read by Today, the tabs, Find and the Volunteer academy, so the guide
+     * can never name a button the workspace has renamed. Hours logged by hand are a separate,
+     * smaller thing (HOURS_LOG): a lead confirms time, not conversations.
+     */
+    public const REPORT = ['log' => 'Log a contact with a nominee', 'due' => 'Follow up', 'form' => 'Log a contact', 'submit' => 'Log this contact'];
+
+    /** Hours logged by hand for work nobody saw; a lead confirms them. */
+    public const HOURS_LOG = ['action' => 'Log hours by hand', 'href' => '/volunteer/hours/log', 'status' => '/volunteer/hours/review'];
+
+    /** The Volunteer academy: the guide, open to anybody signed out so a coordinator can share it. */
+    public const GUIDE = ['label' => 'Volunteer academy', 'href' => '/volunteer/academy', 'icon' => 'doc'];
+
     /** Root pages, their rail label and icon (handoff §6.1, `nav-volunteer.json`). */
     public const ROOT = [
         'home'     => ['Today', 'home'],
@@ -38,10 +62,10 @@ final class Workspace
 
     /** Which root pages each role's rail carries, grouped in the handoff's order. */
     private const RAIL = [
-        'active'    => [[null, ['home', 'tasks', 'meetings', 'hours']], ['@where', []], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
-        'lead'      => [[null, ['home', 'tasks', 'meetings', 'hours']], ['@where', []], ['Your team', ['team']], ['Grow', ['training', 'record']], ['You', ['requests', '@me']]],
-        'new'       => [[null, ['home', 'tasks', 'meetings', 'training']], ['@where', []], ['You', ['requests', '@me']]],
-        'applicant' => [[null, ['home', 'training']], ['You', ['@me']]],
+        'active'    => [[null, ['home', 'tasks', 'meetings', 'hours']], ['@where', []], ['Grow', ['training', 'record']], ['You', ['requests', '@guide', '@me']]],
+        'lead'      => [[null, ['home', 'tasks', 'meetings', 'hours']], ['@where', []], ['Your team', ['team']], ['Grow', ['training', 'record']], ['You', ['requests', '@guide', '@me']]],
+        'new'       => [[null, ['home', 'tasks', 'meetings', 'training']], ['@where', []], ['You', ['requests', '@guide', '@me']]],
+        'applicant' => [[null, ['home', 'training']], ['You', ['@guide', '@me']]],
     ];
 
     /** Tabs per root page (handoff TABS); the first is the default. */
@@ -69,7 +93,7 @@ final class Workspace
     public const PURPOSE = [
         'root.home'      => 'What’s next for you, and how the awards you help on are doing.',
         'root.tasks'     => 'Work you can do from anywhere. Each task says how it’s checked.',
-        'root.hours'     => 'Most hours log themselves: checking in and out at an event, and accepted work. Log by hand only for work nobody saw.',
+        'root.hours'     => 'Checking in and out at an event, and accepted tasks, count by themselves. Log hours by hand only for work nobody saw; a lead confirms them.',
         'root.training'  => 'Short modules. Each one unlocks roles.',
         'root.record'    => 'Your verified record. It’s yours to keep and to use for references.',
         'root.meetings'  => 'Meet the people you volunteer with, online or in person. Only the people invited see a meeting.',
@@ -78,7 +102,7 @@ final class Workspace
         'cycle.overview' => 'How this award is doing, where it is, and your part in it.',
         'cycle.tasks'    => 'Tasks on this award.',
         'cycle.access'   => 'What you can see here, what stays hidden, and when it ends.',
-        'cycle.nominees' => 'The nominees on this award. Reach one at a time, and log how it went so the team doesn’t call twice.',
+        'cycle.nominees' => 'The nominees on this award. Reach one at a time and log each contact, so the team doesn’t call twice. Each contact you log is your report; the team and staff read it.',
         'event.today'    => 'The night, how ready it is, and your part in it.',
         'event.tasks'    => 'Tasks before the night.',
         'event.brief'    => 'What you need on the night.',
@@ -114,7 +138,7 @@ final class Workspace
     /** Tabs on a place's pages (nav-volunteer.json). */
     public const SCOPE_TABS = [
         'queue'    => ['check' => 'To check', 'done' => 'Done', 'agree' => 'Agreement'],
-        'nominees' => ['all' => 'All', 'due' => 'Follow up', 'new' => 'Not reached yet'],
+        'nominees' => ['all' => 'All', 'due' => self::REPORT['due'], 'new' => 'Not reached yet'],
     ];
 
     /** A place's rail groups, with the award work its grants carry. */
@@ -222,6 +246,11 @@ final class Workspace
             }
             $items = [];
             foreach ($keys as $k) {
+                if ($k === '@guide') {
+                    // The guide leaves the workspace for a public page, so it is a link and never "current".
+                    $items[] = ['key' => 'guide', 'label' => self::GUIDE['label'], 'icon' => self::GUIDE['icon'], 'href' => self::GUIDE['href'], 'current' => false, 'drill' => false, 'count' => null];
+                    continue;
+                }
                 if ($k === '@me') {
                     $items[] = ['key' => 'me', 'label' => 'Profile and access', 'icon' => 'gear', 'href' => '/volunteer/me', 'current' => false, 'drill' => true, 'count' => null];
                     continue;
@@ -300,13 +329,20 @@ final class Workspace
             foreach (Requests::from('member', (int) $v->user_id, 'open', 'volunteer') as $r) {
                 $out[] = ['t' => (string) $r->title, 'sub' => Requests::STATUSES[$r->status] ?? '', 'href' => '/volunteer/requests/' . $r->id, 'kind' => 'Request'];
             }
-            $out[] = ['t' => 'Log hours', 'sub' => 'Hours', 'href' => '/volunteer/hours/log', 'kind' => 'Do'];
+            // "Report" is the word volunteers use for their contacts with nominees, so Find answers it
+            // per award: the log, and the running report of what they have logged there.
+            foreach (Outreach::awards($v) as $cid => $award) {
+                $out[] = ['t' => self::REPORT['log'], 'sub' => $award . ' · report a call, message or email', 'href' => '/volunteer/cycle/' . $cid . '/nominees', 'kind' => 'Do'];
+                $out[] = ['t' => 'Follow-ups due', 'sub' => $award . ' · contact report, who to reach again', 'href' => '/volunteer/cycle/' . $cid . '/nominees/due', 'kind' => 'Report'];
+            }
+            $out[] = ['t' => self::HOURS_LOG['action'], 'sub' => 'Hours · for work nobody saw; a lead confirms it', 'href' => self::HOURS_LOG['href'], 'kind' => 'Do'];
             $out[] = ['t' => 'Make a request', 'sub' => 'Requests', 'href' => '/volunteer/requests?new=off', 'kind' => 'Do'];
         }
         foreach (Training::next($v) as $m) {
             $out[] = ['t' => (string) $m->title, 'sub' => 'Training', 'href' => '/volunteer/training/take/' . $m->slug, 'kind' => 'Training'];
         }
         foreach (self::ME as $k => [$l]) $out[] = ['t' => $l, 'sub' => 'Profile and access', 'href' => '/volunteer/me/' . $k, 'kind' => 'Page'];
+        $out[] = ['t' => 'How to use this portal', 'sub' => self::GUIDE['label'] . ' · help, guide, step by step', 'href' => self::GUIDE['href'], 'kind' => 'Guide'];
         return $out;
     }
 

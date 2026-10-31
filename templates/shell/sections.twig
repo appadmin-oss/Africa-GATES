@@ -151,8 +151,8 @@
                 <input type="hidden" name="do" value="hours_confirm"><input type="hidden" name="hour" value="{{ r.decide.hour }}">
                 <label class="sh7-sr" for="r{{ r.decide.hour }}">Reason, if you decline</label>
                 <input class="sh7-input" id="r{{ r.decide.hour }}" type="text" name="reason" placeholder="Reason, if you decline">
-                <button class="sh7-btn sh7-btn--sm sh7-btn--primary" type="submit" name="verdict" value="yes">Confirm</button>
-                <button class="sh7-btn sh7-btn--sm" type="submit" name="verdict" value="no">Decline</button>
+                <button class="sh7-btn sh7-btn--sm sh7-btn--primary" type="submit" name="verdict" value="yes">Confirm hours</button>
+                <button class="sh7-btn sh7-btn--sm" type="submit" name="verdict" value="no">Decline hours</button>
               </form>
             {% endif %}
             {% if r.form is defined and r.form %}
@@ -282,7 +282,7 @@
     <form class="sh7-filter" method="get" action="{{ s.get }}" role="search"{% if s.label is defined %} aria-label="{{ s.label }}"{% endif %}>
       {% for f in s.fields %}{{ M.field(f) }}{% endfor %}
       <button class="sh7-btn" type="submit">{{ s.submit }}</button>
-      {% if s.clear is defined and s.clear %}<a class="sh7-btn" href="{{ s.get }}">Clear</a>{% endif %}
+      {% if s.clear is defined and s.clear %}<a class="sh7-btn" href="{{ s.get }}">Clear the search</a>{% endif %}
     </form>
 
   {% elseif s.k == 'form' %}

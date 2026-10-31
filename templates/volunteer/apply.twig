@@ -44,6 +44,7 @@
       <img class="ap-brand__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="36" height="36" alt="">
       <span class="ap-brand__words"><span class="ap-brand__name">Africa GATES</span><span class="ap-brand__sub">Volunteers</span></span>
     </a>
+    <a class="ap-exit" href="/volunteer/academy">How it works</a>
     <a class="ap-exit" href="{{ user ? '/account' : '/' }}">Not now</a>
   </header>
 
@@ -155,7 +156,7 @@
             <input class="ap-in" id="a_km" type="number" name="travel_km" min="0" max="100" inputmode="numeric" value="{{ old.travel_km|default('10') }}"></label>
           <label class="ap-check ap-wide"><input type="checkbox" name="from_home" value="1"{{ (old.from_home is defined ? old.from_home : '1') ? ' checked' }}> I can also help from home, on my phone or computer</label>
         </div>
-        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: how you’ll help</button></div>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back a step</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: how you’ll help</button></div>
       </section>
 
       {# ── 3. How you'll help ─────────────────────────────────────────────────── #}
@@ -176,7 +177,7 @@
           <label class="ap-f ap-wide" for="a_why"><span class="ap-f__l">Why you’d like to volunteer <span class="ap-opt">(optional)</span></span>
             <textarea class="ap-in" id="a_why" name="motivation" maxlength="2000" rows="3">{{ old.motivation|default('') }}</textarea></label>
         </div>
-        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: safety</button></div>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back a step</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: safety</button></div>
       </section>
 
       {# ── 4. Safety ──────────────────────────────────────────────────────────── #}
@@ -192,7 +193,7 @@
             <input class="ap-in" id="a_acc" name="access_needs" value="{{ old.access_needs|default('') }}" placeholder="Step-free access, a seat, a screen reader…" aria-describedby="a_acc_h">
             <span class="ap-f__h" id="a_acc_h">It’s used to plan your work, never to turn you down.</span></label>
         </div>
-        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: someone who vouches</button></div>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back a step</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: someone who vouches</button></div>
       </section>
 
       {# ── 5. Someone who vouches ─────────────────────────────────────────────── #}
@@ -207,7 +208,7 @@
           <label class="ap-f ap-wide" for="a_rr"><span class="ap-f__l">How they know you <span class="ap-opt">(optional)</span></span>
             <input class="ap-in" id="a_rr" name="ref_relation" value="{{ old.ref_relation|default('') }}" placeholder="My teacher at Ikotun High School"></label>
         </div>
-        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: agree and send</button></div>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back a step</button><button class="ap-btn ap-btn--go" type="button" data-ap-next>Next: agree and send</button></div>
       </section>
 
       {# ── 6. Agree and send ──────────────────────────────────────────────────── #}
@@ -226,7 +227,7 @@
         {# Said before they send: CrmAudiencePush shares these three things with Afrovanguard's one
            contact list (CACENTRE), and nothing else from this form. #}
         <p class="ap-share">Your name, email and where your application stands are shared with Afrovanguard’s contact list, so the wider team knows you. Your phone, date of birth, emergency contact and referee are not. Under 18? Nothing is shared.</p>
-        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back</button><button class="ap-btn ap-btn--go" type="submit">Send my application</button></div>
+        <div class="ap-nav"><button class="ap-btn" type="button" data-ap-back>Back a step</button><button class="ap-btn ap-btn--go" type="submit">Send my application</button></div>
       </section>
     </form>
     {% endif %}

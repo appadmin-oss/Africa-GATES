@@ -187,7 +187,7 @@
       <a class="sh7-phonetab{{ i.current ? ' is-on' }}" href="{{ i.href }}"{% if i.current %} aria-current="page"{% endif %}>{{ S.icon(i.icon) }}<span>{{ i.label }}</span></a>
     {% endfor %}
     <details class="sh7-more">
-      <summary class="sh7-phonetab">{{ S.icon('more') }}<span>More</span></summary>
+      <summary class="sh7-phonetab">{{ S.icon('more') }}<span>More pages</span></summary>
       <div class="sh7-sheet" role="dialog" aria-label="More pages">
         {% for g in sh.nav %}{% for i in g.items %}
           <a class="sh7-item" href="{{ i.href }}"{% if i.current %} aria-current="page"{% endif %}>{{ S.icon(i.icon) }}<span class="sh7-label">{{ i.label }}</span>{% if i.count %}<span class="sh7-badge sh7-badge--{{ i.count.tone }}" aria-hidden="true">{{ i.count.n }}</span><span class="sh7-sr">, {{ i.count.n }} waiting</span>{% endif %}</a>

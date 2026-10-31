@@ -29,7 +29,7 @@ final class WorkspacePages
             'home'     => self::home($v, $role, $q),
             'tasks'    => self::tasks($v, $tab),
             'meetings' => self::meetings($v, $tab, (array) ($q['_old'] ?? [])),
-            'hours'    => self::hours($v, $tab),
+            'hours'    => self::hours($v, $tab, (array) ($q['_old'] ?? [])),
             'training' => self::training($v, $tab),
             'record'   => self::record($v, $tab),
             'team'     => self::team($v, $tab),
@@ -49,18 +49,18 @@ final class WorkspacePages
         $needs = [];
         foreach (Meetings::mine($v) as $m) if ($m->answer === 'invited') {
             $needs[] = ['t' => $m->organiser_name . ' invited you to ' . $m->title, 'sub' => Workspace::day((string) $m->next) . ' · ' . date('H:i', (int) strtotime((string) $m->next)),
-                        'dot' => 'info', 'cta' => ['label' => 'Answer', 'href' => '/volunteer/meetings/' . $m->id]];
+                        'dot' => 'info', 'cta' => ['label' => 'Answer the invite', 'href' => '/volunteer/meetings/' . $m->id]];
         }
         foreach (Training::next($v) as $m) if ($m->tone === 'warn') {
             // "Door steward expires in 5 days" / "10 minutes · keeps Door steward" (handoff: "Safety 2026 expires in 5 days").
             $bits = explode(' · ', (string) $m->reason, 2);
             $needs[] = ['t' => $m->title . ' ' . lcfirst($bits[0]), 'sub' => (int) $m->minutes . ' minutes' . (isset($bits[1]) ? ' · ' . $bits[1] : ''),
-                        'dot' => 'warn', 'chip' => ['Due', 'warn'], 'cta' => ['label' => 'Retake', 'href' => '/volunteer/training/take/' . $m->slug]];
+                        'dot' => 'warn', 'chip' => ['Due', 'warn'], 'cta' => ['label' => 'Retake the module', 'href' => '/volunteer/training/take/' . $m->slug]];
         }
         foreach (Requests::from('member', (int) $v->user_id, 'open', 'volunteer') as $r) if ($r->status === 'needs_info') {
             $ask = DB::table('gates_request_events')->where('request_id', $r->id)->where('action', 'ask_info')->orderByDesc('id')->value('note');
             $needs[] = ['t' => Requests::deciderLabel($r) . ' asked about your request', 'sub' => $ask ? '“' . $ask . '”' : (string) $r->title,
-                        'dot' => 'info', 'cta' => ['label' => 'Reply', 'href' => '/volunteer/requests/' . $r->id]];
+                        'dot' => 'info', 'cta' => ['label' => 'Reply to their question', 'href' => '/volunteer/requests/' . $r->id]];
         }
         foreach (Hours::rows($v, 'review', 20) as $h) if (!$h->proof) {
             $needs[] = ['t' => 'Add proof for ' . Level::h((float) $h->hours), 'sub' => $h->what . ' · a photo or link speeds up the check',
@@ -69,14 +69,14 @@ final class WorkspacePages
         foreach (Outreach::awards($v) as $cid => $award) {
             $due = count(Outreach::nominees($v, $cid, '', 'due'));
             if ($due) $needs[] = ['t' => ($due === 1 ? 'One nominee' : $due . ' nominees') . ' to follow up', 'sub' => $award,
-                                  'dot' => 'warn', 'cta' => ['label' => 'Follow up', 'href' => '/volunteer/cycle/' . $cid . '/nominees/due']];
+                                  'dot' => 'warn', 'cta' => ['label' => 'See who to follow up', 'href' => '/volunteer/cycle/' . $cid . '/nominees/due']];
         }
         if ($needs !== []) $secs[] = ['k' => 'rows', 'h' => 'Needs you', 'items' => $needs];
 
         if ($role === 'lead') {
             $w = Team::waitingHours($v);
             if ($w) $secs[] = ['k' => 'rows', 'h' => 'Your team', 'items' => [['t' => (count($w) === 1 ? 'One report' : count($w) . ' reports') . ' of hours to confirm',
-                               'sub' => 'Confirm only what you saw or have proof of', 'dot' => 'warn', 'cta' => ['label' => 'Confirm', 'href' => '/volunteer/team/approvals']]]];
+                               'sub' => 'Confirm only what you saw or have proof of', 'dot' => 'warn', 'cta' => ['label' => 'Confirm their hours', 'href' => '/volunteer/team/approvals']]]];
         }
 
         $cards = [];
@@ -106,7 +106,21 @@ final class WorkspacePages
         if (!Tasks::mine($v)) $side[] = ['k' => 'note', 'text' => 'Nothing taken yet. The task library has work you can do from anywhere.', 'tone' => 'mute',
                                          'cta' => ['label' => 'See tasks', 'href' => '/volunteer/tasks/library']];
 
-        return ['title' => 'Today', 'purpose' => self::homeLine($v, $lv), 'secs' => $secs, 'side' => $side];
+        return ['title' => 'Today', 'purpose' => self::homeLine($v, $lv), 'acts' => self::homeActs($v), 'secs' => $secs, 'side' => $side];
+    }
+
+    /**
+     * Today's header actions. "How do I send my report" is the question volunteers ask most
+     * (owner, 31 Oct 2026), and the report is their contacts with nominees, so for anybody who
+     * reaches nominees that is the first, filled button; then hours by hand, then the guide.
+     */
+    private static function homeActs(object $v): array
+    {
+        $first = array_key_first(Outreach::awards($v));
+        return array_values(array_filter([
+            $first ? ['label' => Workspace::REPORT['log'], 'href' => '/volunteer/cycle/' . $first . '/nominees', 'primary' => true] : null,
+            ['label' => Workspace::HOURS_LOG['action'], 'href' => Workspace::HOURS_LOG['href'], 'primary' => !$first],
+            ['label' => 'How to use this portal', 'href' => Workspace::GUIDE['href']]]));
     }
 
     private static function application(object $v, array $q): array
@@ -135,7 +149,7 @@ final class WorkspacePages
         }
         $secs[] = ['k' => 'note', 'text' => 'Do the training now and you can start the day you’re approved.', 'tone' => 'ok',
                    'cta' => ['label' => 'Start training', 'href' => '/volunteer/training']];
-        return ['title' => 'Application', 'purpose' => $asked ? 'Your application is with us. It moves on when your reference replies.' : 'Your application is with the volunteer team.', 'secs' => $secs];
+        return ['title' => 'Application', 'acts' => [['label' => 'How to use this portal', 'href' => Workspace::GUIDE['href']]], 'purpose' => $asked ? 'Your application is with us. It moves on when your reference replies.' : 'Your application is with the volunteer team.', 'secs' => $secs];
     }
 
     private static function gettingStarted(object $v): array
@@ -156,7 +170,7 @@ final class WorkspacePages
         $secs[] = $rows ? ['k' => 'rows', 'h' => 'Good first tasks', 'items' => $rows]
                         : ['k' => 'note', 'text' => 'No tasks are open right now. We tell you when one is posted.', 'tone' => 'mute'];
         $secs[] = ['k' => 'note', 'text' => 'Nothing is expected of you until you pick something. Hours count from your first accepted task.', 'tone' => 'mute'];
-        return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'secs' => $secs];
+        return ['title' => 'Today', 'purpose' => 'Two steps to your first task. Most people finish in a day.', 'acts' => self::homeActs($v), 'secs' => $secs];
     }
 
 
@@ -258,7 +272,7 @@ final class WorkspacePages
             $rows = [];
             foreach (Tasks::mine($v) as $t) {
                 $row = ['t' => (string) $t->title, 'sub' => (Tasks::CHECKED_BY[$t->checked_by] ?? '') . ($t->due_at ? ' · due ' . Workspace::day($t->due_at) : ''),
-                        'cta' => ['label' => 'Drop', 'post' => ['do' => 'droptask', 'task' => $t->id], 'confirm' => 'Drop this task?']];
+                        'cta' => ['label' => 'Drop this task', 'post' => ['do' => 'droptask', 'task' => $t->id], 'confirm' => 'Drop this task?']];
                 if ($t->target) { $row['pct'] = (int) min(100, round((int) $t->progress * 100 / (int) $t->target)); $row['barT'] = self::progressWords($t); }
                 $rows[] = $row;
             }
@@ -285,7 +299,7 @@ final class WorkspacePages
 
     // ── Hours ─────────────────────────────────────────────────────────────────────────────
 
-    private static function hours(object $v, string $tab): array
+    private static function hours(object $v, string $tab, array $old = []): array
     {
         $sum = Hours::summary($v);
         $secs = [];
@@ -316,14 +330,17 @@ final class WorkspacePages
             $secs[] = $rows ? ['k' => 'rows', 'h' => 'Waiting', 'items' => $rows] : ['k' => 'note', 'text' => 'Nothing is in review.', 'tone' => 'mute'];
         } else {
             $secs[] = ['k' => 'note', 'text' => 'Most hours log themselves: checking in and out at an event, and accepted tasks. Log by hand only for work nobody saw. A lead confirms it, and a photo or link speeds that up.', 'tone' => 'info'];
-            $secs[] = ['k' => 'form', 'h' => 'Log hours', 'do' => 'log', 'submit' => 'Send for confirming', 'groups' => [
-                ['label' => 'What you did', 'help' => 'Enough for a lead to recognise it.', 'fields' => [['name' => 'what', 'label' => 'What you did', 'type' => 'text', 'required' => true]]],
+            $o = static fn (string $k): string => mb_substr((string) ($old[$k] ?? ''), 0, 255);
+            $secs[] = ['k' => 'form', 'h' => Workspace::HOURS_LOG['action'], 'do' => 'log', 'submit' => 'Send for confirming',
+                'route' => 'A team lead where you volunteer confirms it (the volunteer team, if you have no lead). Until then it shows under In review; then Confirmed, or Declined with their reason.',
+                'groups' => [
+                ['label' => 'What you did', 'help' => 'Enough for a lead to recognise it. For example: “Called 12 nominees for the Lagos edition and updated their profiles.”', 'fields' => [['name' => 'what', 'label' => 'What you did', 'type' => 'text', 'required' => true, 'value' => $o('what')]]],
                 ['label' => 'When, and how long', 'help' => 'One day at a time, up to 16 hours.', 'fields' => [
-                    ['name' => 'date', 'label' => 'Day', 'type' => 'date', 'required' => true, 'max' => date('Y-m-d')],
-                    ['name' => 'hours', 'label' => 'Hours', 'type' => 'number', 'step' => '0.25', 'min' => '0.25', 'max' => '16', 'required' => true]]],
-                ['label' => 'Who saw it', 'help' => 'Optional, and it helps.', 'fields' => [
-                    ['name' => 'witness', 'label' => 'Who saw it', 'type' => 'text'],
-                    ['name' => 'proof', 'label' => 'Link to a photo or file', 'type' => 'url', 'placeholder' => 'https://']]]]];
+                    ['name' => 'date', 'label' => 'Day', 'type' => 'date', 'required' => true, 'max' => date('Y-m-d'), 'value' => $o('date')],
+                    ['name' => 'hours', 'label' => 'Hours', 'type' => 'number', 'step' => '0.25', 'min' => '0.25', 'max' => '16', 'required' => true, 'value' => $o('hours')]]],
+                ['label' => 'Who saw it', 'help' => 'Optional, and it helps. Proof is a link to a photo, a sign-in sheet or a shared file.', 'fields' => [
+                    ['name' => 'witness', 'label' => 'Who saw it', 'type' => 'text', 'value' => $o('witness')],
+                    ['name' => 'proof', 'label' => 'Link to a photo or file', 'type' => 'url', 'placeholder' => 'https://', 'value' => $o('proof')]]]]];
             $rows = [];
             foreach (Hours::rows($v, 'hand', 30) as $h) {
                 $rows[] = ['t' => (string) $h->what, 'sub' => Workspace::day($h->worked_on) . ' · ' . Level::h((float) $h->hours) . ($h->confirmed_name ? ' · ' . $h->confirmed_name : ''),
@@ -342,14 +359,16 @@ final class WorkspacePages
         if ($tab === 'next') {
             foreach (Training::next($v) as $m) {
                 $rows[] = ['t' => (string) $m->title, 'sub' => (int) $m->minutes . ' min · ' . $m->reason, 'chip' => $m->label !== '' ? [$m->label, $m->tone] : null,
-                           'cta' => ['label' => 'Start', 'href' => '/volunteer/training/take/' . $m->slug]];
+                           'cta' => ['label' => 'Start this module', 'href' => '/volunteer/training/take/' . $m->slug]];
             }
             $sec = $rows ? ['k' => 'rows', 'h' => 'Next for you', 'items' => $rows] : ['k' => 'note', 'text' => 'You’re up to date. New modules show here when they’re written.', 'tone' => 'ok'];
         } else {
             foreach (Training::passed($v) as $p) {
                 $lapsed = $p->expires_at && strtotime((string) $p->expires_at) < time();
                 $rows[] = ['t' => (string) $p->title, 'sub' => 'Passed ' . Workspace::day($p->passed_at) . ' · ' . (int) $p->score . ' right' . ($p->expires_at ? ' · ' . ($lapsed ? 'lapsed ' : 'until ') . Workspace::day($p->expires_at) : ''),
-                           'chip' => $lapsed ? ['Lapsed', 'bad'] : ['Passed', 'ok']];
+                           'chip' => $lapsed ? ['Lapsed', 'bad'] : ['Passed', 'ok'],
+                           // A lapsed pass is a problem with one remedy, so the remedy sits beside it.
+                           'cta' => $lapsed ? ['label' => 'Retake the module', 'href' => '/volunteer/training/take/' . $p->slug] : null];
             }
             $rows[] = ['t' => 'Code of conduct, version ' . $v->conduct_version, 'sub' => 'Accepted ' . Workspace::day($v->conduct_accepted_at), 'chip' => ['Accepted', 'ok']];
             $sec = ['k' => 'rows', 'h' => 'Passed', 'items' => $rows];
@@ -527,10 +546,10 @@ final class WorkspacePages
         }
         if ($log) $secs[] = ['k' => 'agenda', 'h' => 'Activity', 'items' => $log];
         if ($decides && $r->status === 'waiting') {
-            $secs[] = ['k' => 'decide', 'request' => $id, 'opts' => [['approve', 'Approve', true], ['ask_info', 'Ask for info', false], ['decline', 'Decline', false]],
+            $secs[] = ['k' => 'decide', 'request' => $id, 'opts' => [['approve', 'Approve the request', true], ['ask_info', 'Ask them for more information', false], ['decline', 'Decline the request', false]],
                        'note' => 'Asking for info and declining need a note. They see it.'];
         } elseif ($mine && in_array($r->status, Requests::OPEN, true)) {
-            $opts = $r->status === 'needs_info' ? [['add_info', 'Add info', true], ['withdraw', 'Withdraw', false]] : [['withdraw', 'Withdraw', false]];
+            $opts = $r->status === 'needs_info' ? [['add_info', 'Send the information', true], ['withdraw', 'Withdraw my request', false]] : [['withdraw', 'Withdraw my request', false]];
             $secs[] = ['k' => 'decide', 'request' => $id, 'opts' => $opts, 'note' => $r->status === 'needs_info' ? 'Write what they asked for, then send it back.' : ''];
         } else {
             $secs[] = ['k' => 'note', 'text' => 'This request is decided, so it can’t be changed. Ask again with a new request if something has moved.', 'tone' => 'mute'];
@@ -631,7 +650,7 @@ final class WorkspacePages
                  'chips' => array_values(array_filter([$days !== null && $days >= 0 ? [$days === 0 ? 'Today' : $days . ' ' . ($days === 1 ? 'day' : 'days') . ' to go', 'info'] : null])),
                  'facts' => array_values(array_filter([$e ? ['When', Workspace::day((string) $e->event_date) . ' · ' . date('H:i', (int) strtotime((string) $e->event_date))] : null,
                                                        $e && $e->venue ? ['Where', (string) $e->venue] : null])),
-                 'acts' => [['label' => 'Briefing', 'href' => $p['href'] . '/brief', 'primary' => true]]];
+                 'acts' => [['label' => 'Read the briefing', 'href' => $p['href'] . '/brief', 'primary' => true]]];
         $secs = [$hero];
         // Time on site, in the hero so the one button that matters on the night is the first one:
         // the volunteer's own taps, which a lead confirms; a lead's tap counts at once.
@@ -697,7 +716,7 @@ final class WorkspacePages
             return ['title' => $n['name'], 'noHead' => true, 'secs' => $secs];
         }
         $rows = array_map(static fn (array $n): array => ['t' => $n['ref'] . ' · ' . $n['name'], 'sub' => trim($n['category'] . ' · ' . $n['when'], ' ·'),
-                                                         'href' => $p['href'] . '/queue?n=' . $n['id'], 'cta' => ['label' => 'Check', 'href' => $p['href'] . '/queue?n=' . $n['id']]],
+                                                         'href' => $p['href'] . '/queue?n=' . $n['id'], 'cta' => ['label' => 'Check this nomination', 'href' => $p['href'] . '/queue?n=' . $n['id']]],
                           NominationChecks::queue($v, $id));
         return ['title' => 'Check nominations', 'secs' => [
             $rows ? ['k' => 'rows', 'h' => 'Oldest first', 'items' => $rows]
@@ -749,9 +768,9 @@ final class WorkspacePages
                 ['l' => 'Profiles complete', 'v' => $cv['complete'] . ' of ' . $cv['total'], 'pct' => (int) round(100 * $cv['complete'] / $cv['total'])]]];
             $nx = Outreach::next($v, $id);
             if ($nx) $secs[] = ['k' => 'note', 'tone' => 'info', 'text' => 'Best to reach next: ' . $nx->name . ' (' . self::why($nx) . ').',
-                                'cta' => ['label' => 'Open', 'href' => $base . '?n=' . $nx->id]];
+                                'cta' => ['label' => 'Reach them now', 'href' => $base . '?n=' . $nx->id]];
         }
-        $secs[] = ['k' => 'form', 'get' => $base . ($show ? '/' . $show : ''), 'label' => 'Find a nominee', 'submit' => 'Find', 'clear' => $find !== '',
+        $secs[] = ['k' => 'form', 'get' => $base . ($show ? '/' . $show : ''), 'label' => 'Find a nominee', 'submit' => 'Find a nominee', 'clear' => $find !== '',
                    'fields' => [['name' => 'q', 'label' => 'Name', 'type' => 'search', 'autocomplete' => 'off', 'value' => $find]]];
         $empty = match (true) {
             $find !== '' => 'Nobody by that name on this award.',
@@ -827,7 +846,7 @@ final class WorkspacePages
         $acts = [];
         if ($n->phones) {
             $d = Outreach::dial((string) $n->phones[0]);
-            $acts[] = ['label' => 'Call', 'href' => $d['tel'], 'primary' => true];
+            $acts[] = ['label' => 'Call them', 'href' => $d['tel'], 'primary' => true];
             $acts[] = ['label' => 'WhatsApp', 'href' => $d['whatsapp'], 'ext' => true];
         }
         if ($n->emails && !$n->email_today) $acts[] = ['label' => 'Write an email', 'href' => '#write', 'primary' => !$n->phones];
@@ -868,8 +887,8 @@ final class WorkspacePages
                         : ['k' => 'note', 'tone' => 'mute', 'text' => 'Nobody on the team has reached them yet.'];
         if (!$n->stopped) {
             $reach = [];
-            foreach ($n->phones as $ph) $reach[] = ['t' => (string) $ph, 'sub' => 'Phone', 'cta' => ['label' => 'Call', 'href' => Outreach::dial((string) $ph)['tel']]];
-            foreach ($n->emails as $em) $reach[] = ['t' => (string) $em, 'sub' => 'Email', 'cta' => $n->email_today ? null : ['label' => 'Write', 'href' => '#write']];
+            foreach ($n->phones as $ph) $reach[] = ['t' => (string) $ph, 'sub' => 'Phone', 'cta' => ['label' => 'Call this number', 'href' => Outreach::dial((string) $ph)['tel']]];
+            foreach ($n->emails as $em) $reach[] = ['t' => (string) $em, 'sub' => 'Email', 'cta' => $n->email_today ? null : ['label' => 'Write an email', 'href' => '#write']];
             $secs[] = $reach ? ['k' => 'rows', 'h' => 'How to reach them', 'items' => $reach]
                              : ['k' => 'note', 'tone' => 'mute', 'text' => 'No phone or email on file yet. They add them when they finish their profile.'];
             if ($n->phones) {
@@ -885,7 +904,7 @@ final class WorkspacePages
         if ($n->stopped) return ['title' => (string) $n->name, 'kicker' => 'Nominees', 'noHead' => true, 'secs' => [...$secs, ...self::outreachTerms($v, $p)]];
 
         $o = static fn (string $k, string $d = ''): string => mb_substr((string) ($old[$k] ?? $d), 0, 3000);
-        $secs[] = ['k' => 'form', 'h' => 'Log a conversation', 'do' => 'outreach_log', 'hidden' => ['nominee' => $n->id], 'submit' => 'Log it',
+        $secs[] = ['k' => 'form', 'h' => Workspace::REPORT['form'], 'anchor' => 'log', 'do' => 'outreach_log', 'hidden' => ['nominee' => $n->id], 'submit' => Workspace::REPORT['submit'],
                    'route' => 'Everybody on this award sees it, with your name.',
                    'groups' => [
                        ['label' => 'How', 'fields' => [['name' => 'channel', 'label' => 'How you reached them', 'type' => 'radio', 'required' => true,
@@ -1001,14 +1020,14 @@ final class WorkspacePages
                 ['label' => 'How we reach you', 'help' => 'Reminders go by email for now. Your choice here is kept for when other channels open.', 'fields' => [['name' => 'channel', 'label' => 'Channel', 'type' => 'segmented', 'value' => (string) ($v->channel ?: 'email'), 'options' => ['email' => 'Email', 'whatsapp' => 'WhatsApp', 'sms' => 'SMS']]]]]]],
             'access' => self::accessAll($v),
             'privacy' => [['k' => 'rows', 'h' => 'Your data', 'items' => [
-                ['t' => 'Download a copy', 'sub' => 'Profile, hours, tasks and training', 'cta' => ['label' => 'Download', 'href' => '/volunteer/me/export.json']],
+                ['t' => 'Download a copy', 'sub' => 'Profile, hours, tasks and training', 'cta' => ['label' => 'Download my data', 'href' => '/volunteer/me/export.json']],
                 ['t' => 'Date of birth', 'sub' => 'Kept to check the minimum age. Nobody else sees it.'],
                 ['t' => 'Afrovanguard’s contact list', 'sub' => 'Your name, email and whether you’re applying, active, on a break or have stepped back. Nothing else, and nothing at all if you’re under 18.']]]],
             'leave' => [['k' => 'rows', 'h' => 'Options', 'items' => array_values(array_filter([
                 $v->status === 'paused' ? ['t' => 'You’re on a break until ' . Workspace::day($v->paused_until), 'sub' => 'Come back whenever you like.', 'cta' => ['label' => 'Come back now', 'post' => ['do' => 'resume']]]
                                         : ['t' => 'Take a break', 'sub' => 'Pause invites for 2, 4 or 8 weeks. Your tasks stay until you drop them.', 'pause' => true],
                 ['t' => 'Step back for good', 'sub' => 'Every role you hold ends now. Your verified record stays yours and can still give references.',
-                 'cta' => ['label' => 'Leave', 'post' => ['do' => 'leave'], 'confirm' => 'Step back for good? Every role you hold ends now.', 'danger' => true]]]))]],
+                 'cta' => ['label' => 'Leave for good', 'post' => ['do' => 'leave'], 'confirm' => 'Step back for good? Every role you hold ends now.', 'danger' => true]]]))]],
             default => [],
         };
         return ['title' => Workspace::ME[$page][0] ?? 'Profile', 'secs' => $secs];

@@ -3917,6 +3917,8 @@ return function(App $app) {
     // The link approval emails a nominee. Open signed-out: its first job is the sign-in.
     $app->get('/nominee/start/{token:[a-f0-9]{40}}', \AfricaGates\Controllers\NomineeProfileController::class . ':start');
     $app->get('/volunteer/apply', \AfricaGates\Controllers\VolunteerController::class . ':applyForm');
+    // The Volunteer academy: open signed-out so a coordinator can share it (owner, 31 Oct 2026).
+    $app->get('/volunteer/academy', \AfricaGates\Controllers\VolunteerController::class . ':academy');
     $app->group('/volunteer', function (RouteCollectorProxy $v) {
         $c = \AfricaGates\Controllers\VolunteerController::class;
         $v->post('/apply',                        $c . ':apply');

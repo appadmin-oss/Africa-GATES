@@ -1,0 +1,25 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /volunteer/academy — the Volunteer academy (owner, 31 Oct 2026). A reading page in the
+   volunteer workspace's own tokens: one column, short steps, screenshots full width.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ac { min-height: 100dvh; margin: 0; background: var(--cn-ground); color: var(--cn-ink); font-family: var(--cn-font); }
+.ac-wrap { max-width: 820px; margin: 0 auto; padding: 16px 16px 96px; box-sizing: border-box; }
+.ac-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+.ac-brand { display: inline-flex; align-items: baseline; gap: 8px; min-height: 44px; align-items: center; color: var(--cn-ink) !important; text-decoration: none; font-size: var(--cn-fs-15); font-weight: 600; }
+.ac-brand__sub { font-size: var(--cn-fs-13); font-weight: 400; color: var(--cn-ink-3); }
+.ac-h1 { margin: 0 0 8px; font-size: var(--cn-fs-28); line-height: 1.15; font-weight: 600; }
+.ac-lede { margin: 0 0 20px; font-size: var(--cn-fs-16); line-height: 1.55; color: var(--cn-ink-2); }
+.ac-toc { padding: 16px 20px; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-10); background: var(--cn-surface); margin-bottom: 24px; }
+.ac-toc ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: var(--cn-fs-15); }
+.ac-toc a { display: inline-flex; min-height: 24px; align-items: center; color: var(--cn-ink) !important; }
+.ac-sec { padding: 24px 0; border-top: 1px solid var(--cn-line-card); font-size: var(--cn-fs-16); line-height: 1.55; }
+.ac-sec h2 { margin: 0 0 12px; font-size: var(--cn-fs-22); line-height: 1.2; font-weight: 600; }
+.ac-sec p { margin: 0 0 12px; }
+.ac-steps { margin: 0 0 16px; padding-left: 24px; display: grid; gap: 8px; }
+.ac-ui { font-weight: 600; }
+.ac-shot { margin: 8px 0 20px; }
+.ac-shot img { display: block; width: 100%; height: auto; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-10); background: var(--cn-surface); }
+.ac-shot figcaption { margin-top: 6px; font-size: var(--cn-fs-14); color: var(--cn-ink-2); }
+.ac-faq dt { margin-top: 12px; font-weight: 600; }
+.ac-faq dd { margin: 4px 0 0; color: var(--cn-ink-2); }
