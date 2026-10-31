@@ -42,6 +42,16 @@ final class Permissions
         // organisation has taken and ranks its largest donors is a different kind of
         // disclosure. Editors and moderators have no reason to see either.
         'finance'       => ['superadmin', 'admin'],
+        // ── VOLUNTEERS: WHO COORDINATES THEM ────────────────────────────────
+        //
+        // Left superadmin-only when the workspace shipped (28 Oct 2026), "who else
+        // coordinates volunteers is the owner's call". The owner made it on 31 Oct 2026:
+        // admins could not make anybody a team lead, so a coordinator had nobody to read
+        // the team's reports to. Its own section rather than `finance` (the same two roles)
+        // so a role given here is not asked for an emailed code meant for moving money,
+        // and rather than `moderation` because this page holds applicants' dates of
+        // birth and referees' phone numbers, which a viewer has no reason to read.
+        'volunteers'    => ['superadmin', 'admin'],
         // ── HEALTH: IS EVERYTHING THE PLATFORM DEPENDS ON WORKING? ───────────
         //
         // New on 4 Oct 2026, and an ACCESS WIDENING the owner approved by name (GAPS
@@ -136,6 +146,8 @@ final class Permissions
         // back on one answer: these are finance, and finance is superadmin+admin.
         //
         // `payments` covers the triage screen and the gateway ledger under it.
+        // volunteers — see the section's note in MATRIX (owner, 31 Oct 2026)
+        'volunteers' => 'volunteers',
         'finance' => 'finance', 'refunds' => 'finance', 'vote-delivery' => 'finance',
         'payments' => 'finance',
         // configuration (superadmin)

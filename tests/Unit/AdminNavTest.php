@@ -96,7 +96,9 @@ final class AdminNavTest extends TestCase
         // New with the volunteer workspace (28 Oct 2026, consoles v7 §6). Left UNMAPPED —
         // superadmin only — like Payouts and Community return: it holds applicants' dates of
         // birth and referees' phones, and who else coordinates volunteers is the owner's call.
-        '/admin/volunteers'         => null,
+        // Mapped on 31 Oct 2026 to its own section, superadmin + admin — the owner's call,
+        // made because admins could not give anybody a team lead role.
+        '/admin/volunteers'         => 'volunteers',
         // /admin/lead left the console on 29 Oct 2026: a lead is a member account at /lead.
         // Deciding requests (§2.6) is held with the money: only superadmin and admin decide.
         '/admin/requests'           => 'finance',
