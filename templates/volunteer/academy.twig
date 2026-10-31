@@ -12,7 +12,8 @@
 {% macro shot(stem, shots) %}{% set s = shots[stem] %}<figure class="ac-shot"><img src="{{ asset('/assets/img/academy/' ~ stem ~ '.webp') }}" alt="{{ s[0] }}" loading="lazy" decoding="async"><figcaption>{{ s[1] }}</figcaption></figure>{% endmacro %}
 {% import _self as A %}
 <!DOCTYPE html>
-<html lang="en">
+{% set _consent = consent() %}
+<html lang="en" data-ag-keep="{{ _consent and _consent.remember ? '1' : '0' }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -25,35 +26,47 @@
 <link rel="stylesheet" href="{{ asset('/assets/css/console/academy.css') }}">
 </head>
 <body class="ac">
+<a class="ac-skip" href="#ac-main">Skip to the lessons</a>
+<header class="ac-top">
+  <a class="ac-brand" href="/">Africa GATES <span class="ac-brand__sub">Volunteer academy</span></a>
+  <a class="sh7-btn sh7-btn--primary" href="/volunteer">Open my volunteering</a>
+</header>
 <div class="ac-wrap">
-  <header class="ac-top">
-    <a class="ac-brand" href="/">Africa GATES <span class="ac-brand__sub">Volunteers</span></a>
-    <a class="sh7-btn sh7-btn--primary" href="/volunteer">Open my volunteering</a>
-  </header>
+  <aside class="ac-side" aria-label="Course outline">
+    <div class="ac-prog" data-ac-progress hidden>
+      <p class="ac-prog__t"><span data-ac-count>0</span> of 12 lessons done</p>
+      <div class="ac-prog__bar" role="progressbar" aria-label="Course progress" aria-valuemin="0" aria-valuemax="12" aria-valuenow="0"><span data-ac-fill></span></div>
+    </div>
+    <details class="ac-outline" open data-ac-outline>
+      <summary>Course outline</summary>
+      <nav aria-label="Lessons">
+      <a class="ac-ol-home" href="#welcome" data-ac-link="welcome">Welcome</a>
+      <p class="ac-ol-h">Get started</p><ol class="ac-ol"><li><a href="#start" data-ac-link="start"><span class="ac-tick" aria-hidden="true">1</span><span class="ac-ol-t">Getting an account and applying</span><span class="ac-ol-m">3 min</span></a></li><li><a href="#today" data-ac-link="today"><span class="ac-tick" aria-hidden="true">2</span><span class="ac-ol-t">Your Today page</span><span class="ac-ol-m">2 min</span></a></li></ol><p class="ac-ol-h">Your report</p><ol class="ac-ol"><li><a href="#report" data-ac-link="report"><span class="ac-tick" aria-hidden="true">3</span><span class="ac-ol-t">Reporting your contacts with nominees</span><span class="ac-ol-m">5 min</span></a></li><li><a href="#follow" data-ac-link="follow"><span class="ac-tick" aria-hidden="true">4</span><span class="ac-ol-t">Follow-ups</span><span class="ac-ol-m">2 min</span></a></li><li><a href="#hours" data-ac-link="hours"><span class="ac-tick" aria-hidden="true">5</span><span class="ac-ol-t">Logging hours by hand</span><span class="ac-ol-m">3 min</span></a></li></ol><p class="ac-ol-h">Every day</p><ol class="ac-ol"><li><a href="#event" data-ac-link="event"><span class="ac-tick" aria-hidden="true">6</span><span class="ac-ol-t">Checking in and out at an event</span><span class="ac-ol-m">2 min</span></a></li><li><a href="#tasks" data-ac-link="tasks"><span class="ac-tick" aria-hidden="true">7</span><span class="ac-ol-t">Tasks, meetings and training</span><span class="ac-ol-m">3 min</span></a></li><li><a href="#requests" data-ac-link="requests"><span class="ac-tick" aria-hidden="true">8</span><span class="ac-ol-t">Requests, including correcting hours</span><span class="ac-ol-m">2 min</span></a></li><li><a href="#record" data-ac-link="record"><span class="ac-tick" aria-hidden="true">9</span><span class="ac-ol-t">Your record and reference letters</span><span class="ac-ol-m">1 min</span></a></li><li><a href="#break" data-ac-link="break"><span class="ac-tick" aria-hidden="true">10</span><span class="ac-ol-t">Taking a break</span><span class="ac-ol-m">1 min</span></a></li></ol><p class="ac-ol-h">For leads</p><ol class="ac-ol"><li><a href="#leads" data-ac-link="leads"><span class="ac-tick" aria-hidden="true">11</span><span class="ac-ol-t">Confirming your team’s hours</span><span class="ac-ol-m">2 min</span></a></li></ol><p class="ac-ol-h">Help</p><ol class="ac-ol"><li><a href="#faq" data-ac-link="faq"><span class="ac-tick" aria-hidden="true">12</span><span class="ac-ol-t">If something goes wrong</span><span class="ac-ol-m">2 min</span></a></li></ol>
+      </nav>
+    </details>
+  </aside>
 
-  <main>
-    <h1 class="ac-h1">Volunteer academy</h1>
-    <p class="ac-lede">How to use the volunteer portal, one step at a time. Share this page with anyone on your team. You don’t need to sign in to read it.</p>
+  <main id="ac-main" class="ac-main">
+    <section class="ac-lesson ac-welcome" id="welcome" data-lesson="welcome" aria-labelledby="h-welcome">
+      <p class="ac-kicker">12 short lessons · about 28 minutes in all</p>
+      <h1 class="ac-h1" id="h-welcome">Welcome to the volunteer portal</h1>
+      <p class="ac-lede">Learn the portal one short lesson at a time, with a picture of every screen. You don’t need to sign in to read this, and you can share the link with anyone on your team.</p>
+      <h2 class="ac-paths-h">Where do you want to start?</h2>
+      <ul class="ac-paths">
+        <li><a class="ac-path" href="#start" data-ac-go="start"><span class="ac-path__t">I’m new here</span><span class="ac-path__d">Make an account, apply, and find your way around Today.</span><span class="ac-path__m">2 lessons · 5 min</span></a></li>
+        <li><a class="ac-path ac-path--main" href="#report" data-ac-go="report"><span class="ac-path__t">I need to send my report</span><span class="ac-path__d">Log every contact with a nominee, follow up, and report hours.</span><span class="ac-path__m">3 lessons · 10 min</span></a></li>
+        <li><a class="ac-path" href="#leads" data-ac-go="leads"><span class="ac-path__t">I lead a team</span><span class="ac-path__d">Confirm or decline the hours your team reports.</span><span class="ac-path__m">1 lesson · 2 min</span></a></li>
+      </ul>
+      <nav class="ac-pager" aria-label="Start">
+        <a class="sh7-btn sh7-btn--primary" href="#start" data-ac-go="start">Start the course</a>
+      </nav>
+    </section>
 
-    <nav class="ac-toc" aria-label="On this page">
-      <ol>
-        <li><a href="#start">Getting an account and applying</a></li>
-        <li><a href="#today">Your Today page</a></li>
-        <li><a href="#report">Reporting your contacts with nominees</a></li>
-        <li><a href="#follow">Follow-ups</a></li>
-        <li><a href="#hours">Logging hours by hand</a></li>
-        <li><a href="#event">Checking in and out at an event</a></li>
-        <li><a href="#tasks">Tasks, meetings and training</a></li>
-        <li><a href="#requests">Requests, including correcting hours</a></li>
-        <li><a href="#record">Your record and reference letters</a></li>
-        <li><a href="#break">Taking a break</a></li>
-        <li><a href="#leads">For leads</a></li>
-        <li><a href="#faq">If something goes wrong</a></li>
-      </ol>
-    </nav>
-
-    <section class="ac-sec" id="start" aria-labelledby="h-start">
+    <section class="ac-lesson" id="start" data-lesson="start" aria-labelledby="h-start">
+      <p class="ac-kicker">Get started · Lesson 1 of 12 · about 3 min</p>
       <h2 id="h-start">Getting an account and applying</h2>
+      <p class="ac-learn"><span>You’ll learn</span> how to make an account and send your application.</p>
+      <div class="ac-body">
       <ol class="ac-steps">
         <li>Open <a href="/volunteer/apply">the volunteer application</a>.</li>
         <li>Type your email and press <b class="ac-ui">Continue with email</b>. We send you a 6-digit code.</li>
@@ -61,10 +74,17 @@
         <li>Answer the six short steps, then press <b class="ac-ui">Send my application</b>.</li>
         <li>We ask the person who vouches for you. When you are approved, your Today page changes.</li>
       </ol>
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 1 of 12">
+        <a class="sh7-btn" href="#welcome" data-ac-go="welcome">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#today" data-ac-done="start" data-ac-go="today">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="today" aria-labelledby="h-today">
+    <section class="ac-lesson" id="today" data-lesson="today" aria-labelledby="h-today">
+      <p class="ac-kicker">Get started · Lesson 2 of 12 · about 2 min</p>
       <h2 id="h-today">Your Today page</h2>
+      <p class="ac-learn"><span>You’ll learn</span> where everything starts, and the two buttons for reporting.</p>
+      <div class="ac-body">
       <p>Today is the first page you see. It lists what needs you, where you help, and your hours.</p>
       <ol class="ac-steps">
         <li>Look at <b>Needs you</b>. Each line has its own button, for example <b class="ac-ui">Answer the invite</b> or <b class="ac-ui">See who to follow up</b>.</li>
@@ -72,10 +92,17 @@
         <li>Lost? Type a word like “report” or “hours” in <b>Find</b> at the top of every page.</li>
       </ol>
       {{ A.shot('today', shots) }}
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 2 of 12">
+        <a class="sh7-btn" href="#start" data-ac-go="start">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#report" data-ac-done="today" data-ac-go="report">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="report" aria-labelledby="h-report">
+    <section class="ac-lesson" id="report" data-lesson="report" aria-labelledby="h-report">
+      <p class="ac-kicker">Your report · Lesson 3 of 12 · about 5 min</p>
       <h2 id="h-report">Reporting your contacts with nominees</h2>
+      <p class="ac-learn"><span>You’ll learn</span> how to log every call, WhatsApp, text, email or visit with a nominee.</p>
+      <div class="ac-body">
       <p>Your report is the record of every contact you make with a nominee: each call, WhatsApp, text, email or visit. You log each one as it happens. Your team sees it, so nobody calls the same person twice.</p>
       <p class="sh7-note sh7-note--info">You see this only if you have the nominee outreach role on an award.</p>
       <ol class="ac-steps">
@@ -93,20 +120,34 @@
       {{ A.shot('log-contact', shots) }}
       <p>No answer? On the nominee’s page, use the quick <b class="ac-ui">Log it</b> buttons beside <b>No answer</b> or <b>Left a message</b>.</p>
       <p>If they ask not to be contacted, log <b>They asked not to be contacted</b>. Nobody on the award can reach them after that.</p>
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 3 of 12">
+        <a class="sh7-btn" href="#today" data-ac-go="today">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#follow" data-ac-done="report" data-ac-go="follow">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="follow" aria-labelledby="h-follow">
+    <section class="ac-lesson" id="follow" data-lesson="follow" aria-labelledby="h-follow">
+      <p class="ac-kicker">Your report · Lesson 4 of 12 · about 2 min</p>
       <h2 id="h-follow">Follow-ups</h2>
+      <p class="ac-learn"><span>You’ll learn</span> who to reach again today, and how to log the second try.</p>
+      <div class="ac-body">
       <ol class="ac-steps">
         <li>Open the award’s Nominees page and the <b>{{ report.due }}</b> tab.</li>
         <li>Everybody there has a follow-up date that has come. Contact them, then log it again.</li>
         <li>The number next to the award on the left counts follow-ups due.</li>
       </ol>
       {{ A.shot('follow-up', shots) }}
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 4 of 12">
+        <a class="sh7-btn" href="#report" data-ac-go="report">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#hours" data-ac-done="follow" data-ac-go="hours">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="hours" aria-labelledby="h-hours">
+    <section class="ac-lesson" id="hours" data-lesson="hours" aria-labelledby="h-hours">
+      <p class="ac-kicker">Your report · Lesson 5 of 12 · about 3 min</p>
       <h2 id="h-hours">Logging hours by hand</h2>
+      <p class="ac-learn"><span>You’ll learn</span> how to report work nobody saw, and where to see if it was confirmed.</p>
+      <div class="ac-body">
       <p>Hours at an event and from accepted tasks count by themselves. Log by hand only work nobody saw.</p>
       <ol class="ac-steps">
         <li>On Today, press <b>{{ hours_log.action }}</b>.</li>
@@ -116,10 +157,17 @@
       </ol>
       {{ A.shot('hours-log', shots) }}
       {{ A.shot('hours-review', shots) }}
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 5 of 12">
+        <a class="sh7-btn" href="#follow" data-ac-go="follow">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#event" data-ac-done="hours" data-ac-go="event">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="event" aria-labelledby="h-event">
+    <section class="ac-lesson" id="event" data-lesson="event" aria-labelledby="h-event">
+      <p class="ac-kicker">Every day · Lesson 6 of 12 · about 2 min</p>
       <h2 id="h-event">Checking in and out at an event</h2>
+      <p class="ac-learn"><span>You’ll learn</span> how your hours at an event count themselves.</p>
+      <div class="ac-body">
       <ol class="ac-steps">
         <li>On the night, open the event under <b>Where you help</b>.</li>
         <li>Press <b class="ac-ui">Check in</b> when you arrive.</li>
@@ -127,19 +175,33 @@
         <li>Press <b class="ac-ui">Read the briefing</b> for what you need on the night.</li>
       </ol>
       {{ A.shot('event', shots) }}
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 6 of 12">
+        <a class="sh7-btn" href="#hours" data-ac-go="hours">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#tasks" data-ac-done="event" data-ac-go="tasks">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="tasks" aria-labelledby="h-tasks">
+    <section class="ac-lesson" id="tasks" data-lesson="tasks" aria-labelledby="h-tasks">
+      <p class="ac-kicker">Every day · Lesson 7 of 12 · about 3 min</p>
       <h2 id="h-tasks">Tasks, meetings and training</h2>
+      <p class="ac-learn"><span>You’ll learn</span> how to take a task, answer a meeting and finish a training module.</p>
+      <div class="ac-body">
       <ol class="ac-steps">
         <li>Tasks: open <b>Tasks</b>, then <b>Library</b>. Press <b class="ac-ui">Take it</b>. To give one back, press <b class="ac-ui">Drop this task</b>.</li>
         <li>Meetings: open <b>Meetings</b>. Answer with <b class="ac-ui">I’m going</b> or <b class="ac-ui">I can’t come</b>. To hold one, open <b>Schedule</b> and press <b class="ac-ui">Schedule and invite</b>. After it, the organiser writes notes and presses <b class="ac-ui">Save notes</b>.</li>
         <li>Training: open <b>Training</b>, press <b class="ac-ui">Start this module</b>, read it, answer, and press <b class="ac-ui">Send my answers</b>.</li>
       </ol>
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 7 of 12">
+        <a class="sh7-btn" href="#event" data-ac-go="event">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#requests" data-ac-done="tasks" data-ac-go="requests">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="requests" aria-labelledby="h-requests">
+    <section class="ac-lesson" id="requests" data-lesson="requests" aria-labelledby="h-requests">
+      <p class="ac-kicker">Every day · Lesson 8 of 12 · about 2 min</p>
       <h2 id="h-requests">Requests, including correcting hours</h2>
+      <p class="ac-learn"><span>You’ll learn</span> how to ask for time off, a correction, a role or a refund.</p>
+      <div class="ac-body">
       <ol class="ac-steps">
         <li>Open <b>Requests</b> and press <b class="ac-ui">New request</b>.</li>
         <li>Pick the type: <b>Time off</b>, <b>Correct my hours</b>, <b>Access to a role</b> or <b>Travel refund</b>.</li>
@@ -147,27 +209,48 @@
         <li>If they ask a question, it shows on Today with <b class="ac-ui">Reply to their question</b>.</li>
       </ol>
       {{ A.shot('requests', shots) }}
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 8 of 12">
+        <a class="sh7-btn" href="#tasks" data-ac-go="tasks">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#record" data-ac-done="requests" data-ac-go="record">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="record" aria-labelledby="h-record">
+    <section class="ac-lesson" id="record" data-lesson="record" aria-labelledby="h-record">
+      <p class="ac-kicker">Every day · Lesson 9 of 12 · about 1 min</p>
       <h2 id="h-record">Your record and reference letters</h2>
+      <p class="ac-learn"><span>You’ll learn</span> where your verified hours live, and how to ask for a reference.</p>
+      <div class="ac-body">
       <ol class="ac-steps">
         <li>Open <b>My record</b> to see your verified hours, level and badges.</li>
         <li>For a reference, open <b>Reference letters</b> and press <b class="ac-ui">Ask for a letter</b>.</li>
       </ol>
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 9 of 12">
+        <a class="sh7-btn" href="#requests" data-ac-go="requests">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#break" data-ac-done="record" data-ac-go="break">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="break" aria-labelledby="h-break">
+    <section class="ac-lesson" id="break" data-lesson="break" aria-labelledby="h-break">
+      <p class="ac-kicker">Every day · Lesson 10 of 12 · about 1 min</p>
       <h2 id="h-break">Taking a break</h2>
+      <p class="ac-learn"><span>You’ll learn</span> how to pause without losing anything.</p>
+      <div class="ac-body">
       <ol class="ac-steps">
         <li>Open <b>Profile and access</b>, then <b>Take a break or leave</b>.</li>
         <li>Pick 2, 4 or 8 weeks. Nobody invites you until then.</li>
         <li>To come back early, press <b class="ac-ui">Come back now</b>.</li>
       </ol>
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 10 of 12">
+        <a class="sh7-btn" href="#record" data-ac-go="record">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#leads" data-ac-done="break" data-ac-go="leads">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="leads" aria-labelledby="h-leads">
-      <h2 id="h-leads">For leads</h2>
+    <section class="ac-lesson" id="leads" data-lesson="leads" aria-labelledby="h-leads">
+      <p class="ac-kicker">For leads · Lesson 11 of 12 · about 2 min</p>
+      <h2 id="h-leads">Confirming your team’s hours</h2>
+      <p class="ac-learn"><span>You’ll learn</span> how to confirm or decline the hours your team reports.</p>
+      <div class="ac-body">
       <ol class="ac-steps">
         <li>Open <b>My team</b>, then <b>To confirm</b>.</li>
         <li>Confirm only what you saw or have proof of. Press <b class="ac-ui">Confirm hours</b>.</li>
@@ -175,10 +258,17 @@
         <li>Your team’s requests are under <b>Requests</b> on the same page.</li>
       </ol>
       {{ A.shot('team', shots) }}
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 11 of 12">
+        <a class="sh7-btn" href="#break" data-ac-go="break">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#faq" data-ac-done="leads" data-ac-go="faq">Mark done and continue</a>
+      </nav>
     </section>
-
-    <section class="ac-sec" id="faq" aria-labelledby="h-faq">
+    <section class="ac-lesson" id="faq" data-lesson="faq" aria-labelledby="h-faq">
+      <p class="ac-kicker">Help · Lesson 12 of 12 · about 2 min</p>
       <h2 id="h-faq">If something goes wrong</h2>
+      <p class="ac-learn"><span>You’ll learn</span> what to do when something does not work.</p>
+      <div class="ac-body">
       <dl class="ac-faq">
         <dt>I can’t see the Nominees page.</dt><dd>You need the nominee outreach role on that award. Ask your lead or send a request for <b>Access to a role</b>.</dd>
         <dt>I can’t see a nominee’s phone number.</dt><dd>Agree to the rules for that award first. If they asked not to be contacted, nobody sees it.</dd>
@@ -186,8 +276,23 @@
         <dt>A message says “Not done”.</dt><dd>It says why. Fix that one thing and press the button again. What you typed is kept.</dd>
         <dt>I’m stuck.</dt><dd>Type what you want in <b>Find</b>, or ask your lead.</dd>
       </dl>
+      </div>
+      <nav class="ac-pager" aria-label="Lesson 12 of 12">
+        <a class="sh7-btn" href="#leads" data-ac-go="leads">Previous lesson</a>
+        <a class="sh7-btn sh7-btn--primary" href="#done" data-ac-done="faq" data-ac-go="done">Mark done and finish</a>
+      </nav>
+    </section>
+
+    <section class="ac-lesson ac-done" id="done" data-lesson="done" aria-labelledby="h-done">
+      <h2 id="h-done">You’re ready</h2>
+      <p class="ac-lede">That is the whole portal. Come back to any lesson from the outline whenever you need it.</p>
+      <nav class="ac-pager" aria-label="Finish">
+        <a class="sh7-btn" href="#welcome" data-ac-go="welcome">Back to the start of the course</a>
+        <a class="sh7-btn sh7-btn--primary" href="/volunteer">Open my volunteering</a>
+      </nav>
     </section>
   </main>
 </div>
+<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/academy.js') }}" defer></script>
 </body>
 </html>
