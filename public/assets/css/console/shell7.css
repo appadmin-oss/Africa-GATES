@@ -453,3 +453,18 @@ textarea.sh7-input { height: auto; padding: 10px 12px; line-height: 1.5; }
 @container shell (min-width: 600px) and (max-width: 1023px) {
   .sh7-prod__chev { display: none; }
 }
+
+/* ── a finger, not a cursor (owner, 31 Oct 2026: "improve the responsiveness of the entire
+   volunteer"). On a touch screen every control the shell draws reaches 44px — buttons were 36,
+   tabs and row titles under 30, the bell 36 — measured at 360px wide. Keyed on the POINTER, not
+   on a width: a tablet in landscape is as much a finger as a phone, and a narrow desktop window is
+   still a mouse. Box sizes only; the type stays on the ladder. */
+@media (pointer: coarse) {
+  .sh7-btn { height: auto; min-height: 44px; }
+  .sh7-bell { width: 44px; height: 44px; }
+  .sh7-tabs { height: 48px; }
+  .sh7-tab { min-height: 44px; }
+  a.sh7-row__t { padding-block: 14px; margin-block: -14px; }
+  .sh7-root input[type="radio"], .sh7-root input[type="checkbox"] { width: 22px; height: 22px; }
+}
+.sh7-badge { font-size: var(--cn-fs-12); }

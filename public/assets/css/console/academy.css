@@ -90,3 +90,18 @@
 .ac-lesson.ac-done h2 { font-size: var(--cn-fs-28); }
 
 @media (prefers-reduced-motion: reduce) { .ac-prog__bar span { transition: none; } }
+
+/* ── phones ── the brand wrapped to two lines beside a full-width button, and the pager's two
+   buttons sat side by side at 36px. One line of brand, a 44px button, and the pager stacked with
+   the forward step on top, where the thumb is. Width here is the window's: the academy has no
+   panel of its own to measure. */
+.ac-brand { white-space: nowrap; }
+@media (max-width: 599px) {
+  .ac-top { padding: 8px 12px; }
+  .ac-brand__sub { display: none; }
+  .ac-lesson { padding: 20px 16px; }
+  .ac-h1 { font-size: var(--cn-fs-26); }
+  .ac-pager { flex-direction: column-reverse; }
+  .ac-pager .sh7-btn { width: 100%; margin-left: 0; }
+}
+@media (pointer: coarse) { .ac .sh7-btn { height: auto; min-height: 44px; } .ac-ol a, .ac-ol-home { min-height: 44px; } }
