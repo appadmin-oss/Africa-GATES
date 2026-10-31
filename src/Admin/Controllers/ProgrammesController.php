@@ -426,6 +426,8 @@ class ProgrammesController
             'prizes'     => $cycle ? \AfricaGates\Support\EditionPrizes::for((int) $cycle->id) : [],
             'prizes_max' => \AfricaGates\Support\EditionPrizes::MAX,
             'prize_max'  => \AfricaGates\Support\EditionPrizes::AWARD_MAX,
+            'prizes_on_milestone' => $cycle ? \AfricaGates\Support\EditionPrizes::onMilestone((int) $cycle->id) : true,
+            'prize_condition' => $cycle ? \AfricaGates\Support\EditionPrizes::condition((int) $cycle->id) : null,
             // What the platform ACTUALLY thinks, so the admin can trust the
             // automation instead of inferring it from five date fields.
             'phase'      => $phase,
@@ -479,6 +481,7 @@ class ProgrammesController
         if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
         $rows = is_array($b['prizes'] ?? null) ? array_values($b['prizes']) : [];
         $error = \AfricaGates\Support\EditionPrizes::save((int) $cycle->id, $rows);
+        if ($error === null) \AfricaGates\Support\EditionPrizes::setOnMilestone((int) $cycle->id, !empty($b['on_milestone']));
         if ($error === null) {
             $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'edition.prizes', 'cycle', (int) $cycle->id,
                 ['places' => count(\AfricaGates\Support\EditionPrizes::for((int) $cycle->id))]);

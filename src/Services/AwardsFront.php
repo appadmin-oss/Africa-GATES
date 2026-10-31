@@ -240,6 +240,7 @@ final class AwardsFront
                             : null,
             // What each place wins in THIS edition (EditionPrizes).
             'prizes'     => $cycle ? \AfricaGates\Support\EditionPrizes::for((int) $cycle->id) : [],
+            'prize_condition' => $cycle ? \AfricaGates\Support\EditionPrizes::condition((int) $cycle->id) : null,
             'edition'    => $cycle ? EditionName::label($cycle) : '',
             'edition_full'=> $cycle ? EditionName::full($cycle) : '',
             'is_current' => $cycle && $current && (int) $cycle->id === (int) $current->id,

@@ -92,6 +92,7 @@
   </tr>
   {% endfor %}
 </table>
+{% if prizes_condition|default('') %}<p style="margin:-10px 0 22px;font-size:15px;line-height:1.6;color:{{ c['ink-2'] }}">{{ prizes_condition }}</p>{% endif %}
 {% endif %}
 {% if community_return|default([]) %}
 <p style="margin:10px 0 8px;font-family:'Playfair Display',Georgia,serif;font-size:19px;line-height:1.3;color:{{ c.ink }}">Your community return</p>

@@ -315,6 +315,7 @@ final class NomineeVotingNotice
             'steps'           => self::steps((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'prizes'          => self::prizes((int) $cycle->id ?: null),
             'prizes_lead'     => \AfricaGates\Support\EditionPrizes::LEAD,
+            'prizes_condition'=> self::prizes((int) $cycle->id ?: null) !== [] ? (\AfricaGates\Support\EditionPrizes::condition((int) $cycle->id ?: null)['letter'] ?? '') : '',
             'community_return'=> self::communityReturn((int) ($cycle->programme_id ?? 0) ?: null, (int) $cycle->id ?: null),
             'paper'           => NomineeVotingLetter::paperFor((string) ($nominee->country_code ?? '')),
         ] + self::words((int) $cycle->id);
@@ -535,7 +536,8 @@ final class NomineeVotingNotice
             ],
             array_merge(...array_map(static fn (array $h, int $i): array =>
                 [($i + 1) . '. ' . $h['title'] . '. ' . $h['text']], $v['how'], array_keys($v['how']))),
-            ($v['prizes'] ?? []) ? array_merge(['', 'Prizes to be won', \AfricaGates\Support\EditionPrizes::LEAD], array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['prizes'])) : [],
+            ($v['prizes'] ?? []) ? array_merge(['', 'Prizes to be won', \AfricaGates\Support\EditionPrizes::LEAD], array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['prizes']),
+                ($v['prizes_condition'] ?? '') !== '' ? [(string) $v['prizes_condition']] : []) : [],
             ($v['community_return'] ?? []) ? array_merge(['', 'Your community return'], array_map(static fn (array $r): string => $r[0] . ': ' . $r[1], $v['community_return'])) : [],
             [
                 '',

@@ -25,6 +25,53 @@ final class EditionPrizes
     public const LEAD = 'For the overall winners of the edition, across every category.';
 
     /**
+     * Do this edition's prizes depend on its milestone? On unless an operator turned it off;
+     * a database without the column answers on, which is what the terms already say.
+     */
+    public static function onMilestone(?int $cycleId): bool
+    {
+        if (!$cycleId) return false;
+        try {
+            $v = DB::table('gates_award_cycles')->where('id', $cycleId)->value('prizes_on_milestone');
+        } catch (\Throwable) {
+            return true;
+        }
+        return $v === null || (int) $v === 1;
+    }
+
+    public static function setOnMilestone(int $cycleId, bool $on): void
+    {
+        try {
+            DB::table('gates_award_cycles')->where('id', $cycleId)->update(['prizes_on_milestone' => $on ? 1 : 0]);
+        } catch (\Throwable) {}
+    }
+
+    /**
+     * The condition the prizes come with, or null where there is none to state (turned off, or
+     * no milestone set). `text` is for a page read today and says where things stand; `letter`
+     * is for a letter, which is read later, so it gives no figure that will have moved.
+     *
+     * @return array{milestone_naira:int, raised_naira:int, reached:bool, text:string, letter:string}|null
+     */
+    public static function condition(?int $cycleId): ?array
+    {
+        if (!$cycleId || !self::onMilestone($cycleId)) return null;
+        $p = \AfricaGates\Services\CommunityReturnMilestone::progress($cycleId);
+        if ($p['target_kobo'] <= 0) return null;
+        $m = intdiv($p['target_kobo'], 100);
+        $raised = intdiv(max(0, $p['measured_kobo']), 100);
+        $ms = '₦' . number_format($m);
+        $if = 'If it is not reached, they may be reduced or not awarded, as the award’s terms set out.';
+        return [
+            'milestone_naira' => $m, 'raised_naira' => $raised, 'reached' => $p['reached'],
+            'text' => $p['reached']
+                ? 'The edition has reached its ' . $ms . ' milestone, so these prizes will be awarded.'
+                : 'These prizes depend on the edition reaching its ' . $ms . ' milestone (₦' . number_format($raised) . ' so far). ' . $if,
+            'letter' => 'These prizes depend on the edition reaching its ' . $ms . ' milestone. ' . $if,
+        ];
+    }
+
+    /**
      * The edition's places, in order.
      *
      * @return list<array{place:int, label:string, award:string, cash_naira:?int, text:string}>

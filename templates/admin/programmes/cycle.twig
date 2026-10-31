@@ -348,6 +348,10 @@
           </fieldset>
           {% endfor %}
           {% if _open < prizes_max %}<div><button class="ad-btn ad-btn--sm" type="button" data-ag-do="prize-add">+ Add a place</button></div>{% endif %}
+          <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px">
+            <input type="checkbox" name="on_milestone" value="1" {% if prizes_on_milestone %}checked{% endif %}>
+            <span><strong>These prizes depend on the milestone being reached</strong>. The award page and the voting letter say so beside the prizes{% if prize_condition %}: “{{ prize_condition.text }}”{% else %}, once the edition has a milestone (Community return){% endif %}.</span>
+          </label>
           <p class="hint" style="margin:0">Up to {{ prizes_max }} places. Leave a place blank to remove it; the rest are numbered in order, so there is never a gap.</p>
           <div><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Save prizes</button></div>
         </form>

@@ -377,6 +377,7 @@ final class NomineeVotingNoticeTest extends TestCase
             $this->assertStringContainsString('₦500,000 and a trophy and a certificate', $m->sent[0][$part]);
             $this->assertStringContainsString('2nd place', $m->sent[0][$part], 'a blank row leaves no gap');
             $this->assertStringNotContainsString('3rd place', $m->sent[0][$part]);
+            $this->assertStringContainsString('These prizes depend on the edition reaching its ₦75,000 milestone', $m->sent[0][$part], 'the terms’ condition beside the prizes');
             $this->assertStringContainsString('overall winners of the edition, across every category', $m->sent[0][$part], 'the prizes are overall, never per category');
             $this->assertStringContainsString('Your community return', $m->sent[0][$part]);
             $this->assertStringContainsString('750 votes each', $m->sent[0][$part], 'read from the edition, not typed');
@@ -391,6 +392,7 @@ final class NomineeVotingNoticeTest extends TestCase
         $this->assertCount(5, $v['community_return']);
         $this->assertSame(['The target', '750 votes each on ' . \AfricaGates\Support\DisplayTime::show(\Illuminate\Support\Carbon::now()->toDateTimeString(), 'j F') . ': the ₦75,000 milestone at ₦100 a vote, across 1 approved nominee. It falls as more are approved; the award page shows it now.'],
             $v['community_return'][1], 'worked out from the milestone, the vote price and the nominees, never typed');
+        $v['prizes_condition'] = 'These prizes depend on the edition reaching its ₦10,000,000 milestone. If it is not reached, they may be reduced or not awarded, as the award’s terms set out.';
         $short = $v + ['prizes' => array_map(static fn (int $i): array => [\AfricaGates\Support\EditionPrizes::ordinal($i), '₦1,000,000 and ' . str_repeat('x', 55)], range(1, 10))];
         foreach (['A4', 'letter'] as $paper) {
             $mm = NomineeVotingLetter::measure($short, $paper, 'guide');

@@ -64,4 +64,27 @@ final class EditionPrizesTest extends TestCase
         $this->assertStringContainsString('a.prizes', $tpl);
         $this->assertStringContainsString('across every category', $tpl);
     }
+
+    public function test_prizes_say_they_depend_on_the_milestone_until_it_is_reached(): void
+    {
+        $this->assertNull(EditionPrizes::condition($this->y2), 'no milestone, nothing to state');
+        $this->assertTrue(\AfricaGates\Services\CommunityReturnMilestone::saveEditionRules($this->y2, ['model' => 'milestone', 'full_pct' => 50, 'locked_pct' => 10, 'milestone_naira' => 500000])['ok']);
+        $c = EditionPrizes::condition($this->y2);
+        $this->assertFalse($c['reached']);
+        $this->assertStringContainsString('depend on the edition reaching its ₦500,000 milestone (₦0 so far)', $c['text']);
+        $this->assertStringContainsString('may be reduced or not awarded', $c['letter']);
+        $this->assertStringNotContainsString('so far', $c['letter'], 'a letter is read later: no figure that will have moved');
+
+        EditionPrizes::setOnMilestone($this->y2, false);
+        $this->assertNull(EditionPrizes::condition($this->y2), 'turned off for this edition');
+        EditionPrizes::setOnMilestone($this->y2, true);
+
+        $cat = (int) DB::table('gates_award_categories')->insertGetId(['cycle_id' => $this->y2, 'slug' => 'sci', 'title' => 'Science']);
+        $nom = (int) DB::table('gates_nominees')->insertGetId(['category_id' => $cat, 'name' => 'Ada', 'status' => 'approved']);
+        DB::table('gates_donations')->insert(['donor_name' => 'C', 'donor_email' => 'c@example.com', 'amount_naira' => 500000, 'tier' => 'paid-vote',
+            'bonus_votes' => 0, 'votes_used' => 1, 'intent_nominee_id' => $nom, 'payment_ref' => 'R1', 'status' => 'confirmed', 'created_at' => date('Y-m-d H:i:s')]);
+        $reached = EditionPrizes::condition($this->y2);
+        $this->assertTrue($reached['reached']);
+        $this->assertSame('The edition has reached its ₦500,000 milestone, so these prizes will be awarded.', $reached['text']);
+    }
 }

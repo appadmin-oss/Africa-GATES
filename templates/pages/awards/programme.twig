@@ -158,6 +158,7 @@
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'What winners receive'|trans }}</h2>
       <p>{{ 'For the overall winners of the edition, across every category.'|trans }}</p>
       <dl class="aw-prizes">{% for z in a.prizes %}<div class="aw-prizes__r"><dt>{{ z.label }}</dt><dd>{{ z.text }}</dd></div>{% endfor %}</dl>
+      {% if a.prize_condition %}<p>{{ a.prize_condition.text }}{% if a.terms %} <a href="/awards/{{ a.slug }}?tab=terms">{{ 'Read the terms'|trans }}</a>{% endif %}</p>{% endif %}
     </section>
     {% endif %}
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'How nominations work'|trans }}</h2>
