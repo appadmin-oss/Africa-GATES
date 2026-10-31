@@ -593,6 +593,19 @@
     if (el && el.form) { if (el.form.requestSubmit) el.form.requestSubmit(); else el.form.submit(); }
   });
 
+  // ── ONE MORE PRIZE PLACE ──────────────────────────────────────────────────
+  //
+  // The edition's Prizes card renders every place up to the most, the spare ones hidden.
+  // "Add a place" opens the next and moves focus into it, so a keyboard or screen-reader
+  // user lands where they are about to type; the button goes once every place is open.
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-ag-do="prize-add"]');
+    if (!btn || !btn.form) return;
+    const next = btn.form.querySelector('[data-pz-row][hidden]');
+    if (next) { next.hidden = false; const f = next.querySelector('input'); if (f) f.focus(); }
+    if (!btn.form.querySelector('[data-pz-row][hidden]')) btn.hidden = true;
+  });
+
   // ── THE CUSTOM SIZE BOXES FOLLOW THE SIZE SELECT ──────────────────────────
   //
   // On the vendor-stands screen a stand type's size comes from a select of stock sizes
