@@ -698,7 +698,9 @@ final class WorkspacePages
                  'sub' => $e ? Workspace::day((string) $e->event_date) . ($e->venue ? ' · ' . $e->venue : '') . ($p['roles'] ? '. You’re ' . mb_strtolower(implode(' and ', $p['roles'])) . '.' : '') : '',
                  'chips' => array_values(array_filter([$days !== null && $days >= 0 ? [$days === 0 ? 'Today' : $days . ' ' . ($days === 1 ? 'day' : 'days') . ' to go', 'info'] : null])),
                  'facts' => array_values(array_filter([$e ? ['When', Workspace::day((string) $e->event_date) . ' · ' . date('H:i', (int) strtotime((string) $e->event_date))] : null,
-                                                       $e && $e->venue ? ['Where', (string) $e->venue] : null])),
+                                                       $e && $e->venue ? ['Where', (string) $e->venue] : null,
+                                                       // The awards this night presents, as the public page names them.
+                                                       $e && ($aw = \AfricaGates\Services\EventsFront::awards((int) $e->id)['list']) ? ['Awards', implode(', ', array_column($aw, 'title'))] : null])),
                  'acts' => [['label' => 'Read the briefing', 'href' => $p['href'] . '/brief', 'primary' => true]]];
         $secs = [$hero];
         // Time on site, in the hero so the one button that matters on the night is the first one:

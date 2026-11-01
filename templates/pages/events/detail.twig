@@ -116,6 +116,15 @@
   <div class="ed-grid">
     {# ══ MAIN ══════════════════════════════════════════════════════════════ #}
     <div class="ed-main">
+      {% if awards.list|default([]) is not empty %}
+      <section class="ed-sec" aria-labelledby="h-awards">
+        <h2 class="ed-sec__h" id="h-awards">{{ 'Awards presented'|trans }}</h2>
+        <ul class="ed-awards">
+          {% for a in awards.list %}<li><a href="{{ a.url }}">{{ a.title }}</a></li>{% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
       {% if event.description %}
       <section class="ed-sec" aria-labelledby="h-about">
         <h2 class="ed-sec__h" id="h-about">{{ 'About this event'|trans }}</h2>

@@ -467,12 +467,25 @@ final class EventsFront
      * results") and a vote still open. Released is the STATUS (CLAUDE.md: a results date is
      * a promise, not an announcement); open voting is the COMPUTED phase.
      *
-     * @return array{results:?string, voting:?array{url:string, detail:string}}
+     * And WHICH awards it is for (owner, 1 Nov 2026: "events do not display their awards").
+     * The operator ticks them on the event form; the page used to say so only while a vote was
+     * open or a result was out, so for most of an event's life its awards were invisible. An
+     * inactive programme is not named — the sandbox lives in one.
+     *
+     * @return array{results:?string, voting:?array{url:string, detail:string}, list:list<array{title:string,url:string}>}
      */
     public static function awards(int $eventId): array
     {
-        $out = ['results' => null, 'voting' => null];
+        $out = ['results' => null, 'voting' => null, 'list' => []];
         if (!SchemaHas::table('gates_event_programmes')) return $out;
+        try {
+            foreach (DB::table('gates_event_programmes as ep')->join('gates_award_programmes as p', 'p.id', '=', 'ep.programme_id')
+                         ->where('ep.event_id', $eventId)->where('p.is_active', 1)->orderBy('p.sort_order')->orderBy('p.title')
+                         ->get(['p.title', 'p.slug']) as $p) {
+                $out['list'][] = ['title' => (string) $p->title, 'url' => '/awards/' . rawurlencode((string) $p->slug)];
+            }
+        } catch (\Throwable) {
+        }
         try {
             $cycles = DB::table('gates_event_programmes as ep')
                 ->join('gates_award_programmes as p', 'p.id', '=', 'ep.programme_id')

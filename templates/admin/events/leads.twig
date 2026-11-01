@@ -5,12 +5,21 @@
   never this console. Linked from the event's own page; the role ends with the event.
 #}
 {% import 'admin/partials/kit.twig' as kit %}
-{% block topbar_sub %}Who leads {{ event.title }}. They run it from their own account, not this console.{% endblock %}
+{% block topbar_sub %}Who leads and who works {{ event.title }}. They run it from their own account, not this console.{% endblock %}
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/volunteers.css') }}">{% endblock %}
 
 {% block content %}
 {% if flash_ok %}<p class="vl-ok" role="status">{{ flash_ok }}</p>{% endif %}
 {% if flash_error %}<div class="cn-error" role="alert"><span class="cn-error__t">That didn’t go through</span><span class="cn-error__m">{{ flash_error }}</span></div>{% endif %}
+<section class="cn-card vl-sec" aria-labelledby="ah">
+  <h2 class="vl-h" id="ah">Awards presented at this event</h2>
+  {% if awards is empty %}
+    <p class="vl-help">None. Tick the awards on the <a href="/admin/events/{{ event.id }}">event’s page</a>; they then show on the public event page and decide who can be invited.</p>
+  {% else %}
+    <ul class="vl-list">{% for a in awards %}<li class="vl-li"><span class="vl-li__t">{{ a.title }}</span><a class="vl-help" href="/awards/{{ a.slug|url_encode }}">Public page</a></li>{% endfor %}</ul>
+    <p class="vl-help">Change these on the <a href="/admin/events/{{ event.id }}">event’s page</a>.</p>
+  {% endif %}
+</section>
 
 <section class="cn-card vl-sec" aria-labelledby="lh">
   <h2 class="vl-h" id="lh">Leads</h2>
@@ -42,5 +51,40 @@
     <p class="vl-acts vl-wide"><button class="cn-btn cn-btn--primary" type="submit">Make them a lead</button></p>
   </form>
   <p class="vl-help">Leave the date empty and it ends the day after the event.</p>
+</section>
+<section class="cn-card vl-sec" aria-labelledby="vh">
+  <h2 class="vl-h" id="vh">Volunteers on this event</h2>
+  {% if crew is empty %}
+    {{ kit.empty('No volunteers on this event yet', may_staff ? 'Add door stewards, ushers and a team lead below. The event then shows in their volunteer workspace.' : 'Staff who manage volunteers can add them here.', 'users') }}
+  {% else %}
+    <ul class="vl-list">
+      {% for g in crew %}
+        <li class="vl-li">
+          <span class="vl-li__t">{{ g.name }}</span>
+          <span class="vl-help">{{ g.label }} · until {{ g.expires_at|date('j M Y') }}</span>
+          {% if may_staff %}
+          <form method="post" action="/admin/events/{{ event.id }}/leads" data-confirm="Remove {{ g.name }} from this event? It leaves their volunteer workspace on their next page.">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="vol_end"><input type="hidden" name="grant" value="{{ g.id }}">
+            <button class="cn-btn" type="submit">Remove<span class="sr-only"> {{ g.name }}</span></button>
+          </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% if may_staff %}
+    {% if pool is empty %}
+      <p class="vl-help">There are no approved volunteers yet. Approve applicants under <a href="/admin/volunteers">Volunteers</a> first.</p>
+    {% else %}
+    <form class="vl-form" method="post" action="/admin/events/{{ event.id }}/leads">
+      <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="vol_give">
+      <label for="vv">Volunteer<select id="vv" name="volunteer" required><option value="">Choose…</option>{% for p in pool %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+      <label for="vr">Role<select id="vr" name="capability">{% for k, l in vol_roles %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label for="vu">Ends<input id="vu" type="date" name="until" required value="{{ default_until }}" min="{{ 'now'|date('Y-m-d') }}"></label>
+      <p class="vl-acts vl-wide"><button class="cn-btn cn-btn--primary" type="submit">Add to this event</button></p>
+    </form>
+    <p class="vl-help">The role ends on that date with nothing to tidy up. Only approved volunteers are listed; a team lead here confirms the hours of everybody else on this event.</p>
+    {% endif %}
+  {% endif %}
 </section>
 {% endblock %}

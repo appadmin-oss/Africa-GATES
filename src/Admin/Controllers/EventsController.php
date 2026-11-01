@@ -1161,10 +1161,64 @@ class EventsController
         }
         $ok = $_SESSION['flash_ok'] ?? null; $err = $_SESSION['flash_error'] ?? null;
         unset($_SESSION['flash_ok'], $_SESSION['flash_error']);
+        $mayStaff = $this->mayStaffVolunteers();
         return $this->view->render($res, 'admin/events/leads.twig', [
-            'admin_page' => 'events', 'topbar_title' => 'Event leads', 'event' => $event,
+            'admin_page' => 'events', 'topbar_title' => 'Leads and volunteers', 'event' => $event,
             'leads' => \AfricaGates\Services\EventPlan\Leads::of((int) $event->id), 'flash_ok' => $ok, 'flash_error' => $err,
+            'awards' => \AfricaGates\Services\EventInvites::programmesFor((int) $event->id),
+            'may_staff' => $mayStaff, 'crew' => $this->crew((int) $event->id),
+            'pool' => $mayStaff ? $this->volunteerPool() : [], 'vol_roles' => self::EVENT_VOL_ROLES,
+            'default_until' => date('Y-m-d', strtotime((string) ($event->end_date ?: $event->event_date) . ' +1 day')),
         ]);
+    }
+
+    /**
+     * VOLUNTEERS ON AN EVENT (owner, 1 Nov 2026: "volunteers cannot be added to an event").
+     * The only way in was Volunteers → Roster, one row at a time, with every event and award
+     * in one long list — nothing on the event itself said who was working it or offered to
+     * add anybody. These are the roles a night is staffed with; an award's roles stay on the
+     * award. The same Grants::grant() the roster uses, so a role given here is the same role.
+     */
+    private const EVENT_VOL_ROLES = ['vol.door' => 'Door steward', 'vol.usher' => 'Usher', 'vol.team_lead' => 'Team lead'];
+
+    /**
+     * Giving a volunteer a role is the Volunteers page's power, so this asks the guard about
+     * THAT page rather than widening it to everybody who can open Events (CLAUDE.md: an access
+     * change never rides inside a feature). Everybody else sees the crew and not the form.
+     */
+    private function mayStaffVolunteers(): bool
+    {
+        $role = (string) ($_SESSION['admin_role'] ?? '');
+        return \AfricaGates\Admin\Support\Permissions::canOpen($role, '/admin/volunteers') && \AfricaGates\Admin\Support\Permissions::canWrite($role);
+    }
+
+    /** @return list<object> live volunteer roles on this event, with ->name and ->label */
+    private function crew(int $eventId): array
+    {
+        if (!\AfricaGates\Services\Grants::ready()) return [];
+        $rows = DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
+            ->leftJoin('gates_users as u', 'u.id', '=', 'v.user_id')
+            ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $eventId)
+            ->where('g.capability', 'like', 'vol.%')->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))
+            ->orderBy('g.capability')->get(['g.id', 'g.capability', 'g.expires_at', 'v.display_name', 'u.name as user_name'])->all();
+        foreach ($rows as $r) {
+            $r->name = (string) ($r->display_name ?: $r->user_name ?: 'Volunteer');
+            $r->label = \AfricaGates\Services\Grants::CAPABILITIES[$r->capability] ?? $r->capability;
+        }
+        usort($rows, static fn ($a, $b) => [$a->label, $a->name] <=> [$b->label, $b->name]);
+        return $rows;
+    }
+
+    /** @return list<array{id:int,name:string}> approved volunteers, by name */
+    private function volunteerPool(): array
+    {
+        $out = [];
+        foreach (DB::table('gates_volunteers as v')->leftJoin('gates_users as u', 'u.id', '=', 'v.user_id')
+                     ->whereIn('v.status', ['active', 'paused'])->limit(2000)->get(['v.id', 'v.display_name', 'u.name', 'v.status']) as $v) {
+            $out[] = ['id' => (int) $v->id, 'name' => (string) ($v->display_name ?: $v->name ?: 'Volunteer #' . $v->id) . ($v->status === 'paused' ? ' (on a break)' : '')];
+        }
+        usort($out, static fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+        return $out;
     }
 
     /** POST /admin/events/{id}/leads — give the event to a member by email, or end a lead's access. */
@@ -1173,7 +1227,34 @@ class EventsController
         $id = (int) ($args['id'] ?? 0);
         $b = (array) $req->getParsedBody();
         $adminId = (int) ($_SESSION['admin_id'] ?? 0);
-        if (($b['do'] ?? '') === 'end') {
+        $do = (string) ($b['do'] ?? '');
+        if (in_array($do, ['vol_give', 'vol_end'], true)) {
+            if (!$this->mayStaffVolunteers()) {
+                $_SESSION['flash_error'] = 'Your role can see who is working this event but not change it.';
+            } elseif ($do === 'vol_give') {
+                $cap = (string) ($b['capability'] ?? '');
+                $uid = (int) DB::table('gates_volunteers')->where('id', (int) ($b['volunteer'] ?? 0))->whereIn('status', ['active', 'paused'])->value('user_id');
+                $r = !isset(self::EVENT_VOL_ROLES[$cap]) ? ['ok' => false, 'error' => 'Pick a role for the night.']
+                   : (!$uid ? ['ok' => false, 'error' => 'Pick a volunteer from the list.']
+                   : \AfricaGates\Services\Grants::grant('member', $uid, $cap, 'event', $id, (string) ($b['until'] ?? ''), $adminId, 'Given on the event page'));
+                if ($r['ok']) {
+                    $_SESSION['flash_ok'] = 'Added. The event is in their volunteer workspace on their next page.';
+                    $this->audit->record($adminId, 'event.volunteer.give', 'event', $id, ['grant' => (int) ($r['id'] ?? 0), 'capability' => $cap]);
+                } else {
+                    $_SESSION['flash_error'] = (string) $r['error'];
+                }
+            } else {
+                $grant = (int) ($b['grant'] ?? 0);
+                // Only a volunteer role on THIS event: the id in the form is not trusted to be one.
+                $mine = DB::table('gates_grants')->where('id', $grant)->where('scope_kind', 'event')->where('scope_id', $id)->where('capability', 'like', 'vol.%')->exists();
+                if ($mine && \AfricaGates\Services\Grants::revoke($grant, $adminId)) {
+                    $_SESSION['flash_ok'] = 'Removed from this event.';
+                    $this->audit->record($adminId, 'event.volunteer.end', 'event', $id, ['grant' => $grant]);
+                } else {
+                    $_SESSION['flash_error'] = 'That role had already ended.';
+                }
+            }
+        } elseif ($do === 'end') {
             $grant = (int) ($b['grant'] ?? 0);
             if (\AfricaGates\Services\EventPlan\Leads::end($grant, $id, $adminId)) {
                 $_SESSION['flash_ok'] = 'Ended. The event leaves their list on their next page.';

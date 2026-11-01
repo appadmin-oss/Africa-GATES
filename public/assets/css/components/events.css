@@ -89,6 +89,10 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 }
 .ed-sec__h{ margin:0; font-weight:700; font-size:var(--ag-fs-19) }
 .ed-about{ margin:0; font-size:var(--ag-fs-16); line-height:1.65; color:var(--ag-ink) }
+/* The awards this event presents (EventsFront::awards()). Links in the house green, a list a thumb can hit. */
+.ed-awards{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px }
+.ed-awards a{ display:inline-flex; align-items:center; min-height:44px; padding:0 14px; border:1px solid var(--ag-line); border-radius:var(--ag-r-pill); color:var(--ag-ink); font-size:var(--ag-fs-15); font-weight:600; text-decoration:none; background:var(--ag-surface) }
+.ed-awards a:hover{ border-color:var(--ag-green); color:var(--ag-green) }
 
 .ed-tracks{ display:flex; gap:6px; flex-wrap:wrap }
 .ed-track{
