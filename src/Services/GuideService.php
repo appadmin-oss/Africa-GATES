@@ -672,7 +672,9 @@ SYS;
         elseif ($hit(['why is voting paid', 'why paid', 'where does the money go', 'where do the funds go', 'paid vot']))
             $route = "Contributed votes keep recognition community-funded rather than waiting on a sponsor, and they add to a nominee's tally at full weight. The written answer says where the money goes.";
         elseif ($hit(['vote', 'voting']))
-            $route = "Voting is verified — a free vote is confirmed with a one-time code, and where vote packs are offered they add to the tally too. Cast yours at /vote. Curious how votes are weighed? See /integrity.";
+            $route = PaidVoteService::freeVotingDisabled()
+                ? "Every vote is a contribution that helps fund the awards, and every one is recorded. Back a nominee from their page at /vote. Curious how votes are weighed? See /integrity."
+                : "Voting is verified — a free vote is confirmed with a one-time code, and where vote packs are offered they add to the tally too. Cast yours at /vote. Curious how votes are weighed? See /integrity.";
         elseif ($hit(['nominate', 'nomination']))
             $route = "Anyone can nominate, free, in about 90 seconds — it's OTP-verified to keep things fair, and you only need the nominee's email or phone. Start at /nominate.";
         elseif ($hit(['shop', 'buy', 'merch', 'apparel', 'tee', 'hoodie', 'order']))

@@ -34,8 +34,10 @@ final class PaidOnlyVoteCopyTest extends TestCase
         $this->set('paid_voting_enabled', '1');
         $this->set('paid_voting_disable_free', '1');
         $c = $this->copy();
-        $this->assertStringContainsString('Paid voting: ₦', $c['facts']);
-        $this->assertStringContainsString('There is no free vote', $c['facts']);
+        $this->assertStringContainsString('contribution that helps fund the awards', $c['facts']);
+        $this->assertStringContainsString('contribution of ₦', $c['faq']);
+        // Owner: "the mindset is not that we want their money" — no price-list or purchase words.
+        foreach (['Paid voting', 'paying for', 'buy'] as $w) $this->assertStringNotContainsStringIgnoringCase($w, $c['facts'] . $c['faq']);
         $this->assertStringNotContainsString('free vote per category', $c['facts']);
         $this->assertStringNotContainsString('email code', $c['facts']);
         $this->assertStringNotContainsString('One free vote', $c['faq']);

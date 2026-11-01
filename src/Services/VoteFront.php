@@ -164,7 +164,7 @@ final class VoteFront
         $faq = [
             [Translator::t('Can I vote more than once?'),
              $paidOnly
-                ? Translator::t('Yes. Voting on this award is paid: each vote costs ₦%p%, and you can buy up to %q% in one order on a nominee’s page. There is no free vote.', ['%p%' => $price, '%q%' => $most])
+                ? Translator::t('Yes. On this award every vote is a contribution of ₦%p% that helps fund the awards, and you can give up to %q% at once from a nominee’s page.', ['%p%' => $price, '%q%' => $most])
                 : Translator::t('One free vote per category, confirmed by an email code, and never duplicated.')
                   . ($paid ? ' ' . Translator::t('Where the host allows it, you can add contributed votes or redeem points on a nominee’s page.') : '')],
             [Translator::t('Why can I see the totals?'),
@@ -210,10 +210,10 @@ final class VoteFront
                 ($p['subtitle'] ?? '') !== '' ? ['k' => Translator::t('Celebrates'), 'v' => (string) $p['subtitle']] : null,
                 ['k' => Translator::t('Editions'), 'v' => self::editionsLine($p)],
                 ['k' => Translator::t('Who can vote'), 'v' => $paidOnly
-                    ? Translator::t('Anyone, by paying for their votes on a nominee’s page')
+                    ? Translator::t('Anyone who wants to back a nominee, from the nominee’s page')
                     : Translator::t('Anyone who confirms their vote with an email code')],
                 ['k' => Translator::t('Voting'), 'v' => $paidOnly
-                    ? Translator::t('Paid voting: ₦%p% a vote, up to %q% in one order. There is no free vote.', ['%p%' => $price, '%q%' => $most])
+                    ? Translator::t('Each vote is a ₦%p% contribution that helps fund the awards. Give as many as you like, up to %q% at once.', ['%p%' => $price, '%q%' => $most])
                     : ($paid
                         ? Translator::t('One free vote per category, plus optional contributed votes from ₦%p% a vote (up to %q% in one order)', ['%p%' => $price, '%q%' => $most])
                         : Translator::t('Free, one vote per category'))],

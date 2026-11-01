@@ -73,6 +73,8 @@ class VoteController {
         // rail cannot contradict each other — the reported failure this method's comment
         // above records ("Voting open", "0 Days left" and a past close date at once).
         return $this->view->render($res, 'pages/vote.twig', [
+            // Free voting can be switched off; then "one vote per category" is not the rule.
+            'paid_only'        => PaidVoteService::freeVotingDisabled(),
             'page_title'       => \AfricaGates\Support\Translator::t('Vote') . ' — Africa GATES',
             'meta_description' => 'Cast your verified vote in the Africa GATES awards. Browse the live programmes and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
@@ -153,6 +155,7 @@ class VoteController {
         $catId = isset($q['cat']) && ctype_digit((string) $q['cat']) ? (int) $q['cat'] : null;
 
         return $this->view->render($res, 'pages/vote-program.twig', [
+            'paid_only'        => PaidVoteService::freeVotingDisabled(),
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',

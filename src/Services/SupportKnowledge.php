@@ -133,6 +133,14 @@ final class SupportKnowledge
                 $lines[] = '- Paid voting is ON at ₦' . number_format(PaidVoteService::pricePerVote())
                          . ' per vote. Bundles: ' . ($bits ? implode('; ', $bits) : 'see /vote')
                          . '. Maximum per order: ' . PaidVoteService::maxQtyForOrder() . ' votes.';
+                // The guidance below assumes a free vote exists. When it has been switched off it
+                // does not, and every "was it the free vote with the emailed code?" is a question
+                // about something this person could never have done.
+                if (PaidVoteService::freeVotingDisabled()) {
+                    $lines[] = '- FREE VOTING IS OFF. There is no free vote and no emailed vote code right now: '
+                             . 'every vote is a contribution that helps fund the awards. Never offer, suggest or ask about a free vote. '
+                             . 'Speak of backing a nominee and supporting the awards, not of buying or paying for votes.';
+                }
             } else {
                 $lines[] = '- Paid voting is OFF right now. Only free votes are being taken. '
                          . 'If someone says they are trying to buy votes, that is why the option is missing.';
