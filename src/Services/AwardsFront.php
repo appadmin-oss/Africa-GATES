@@ -259,6 +259,8 @@ final class AwardsFront
             'quorum'     => $quorum,
             'paid'       => PaidVoteService::enabled()
                 ? PaidVoteCopy::sentence($pid, $cycle ? (int) $cycle->id : null) : '',
+            // Free voting can be switched off entirely; then there is no free vote to describe.
+            'paid_only'  => PaidVoteService::freeVotingDisabled(),
             'categories' => ($cats = $cycle ? self::categories($cycle, $phaseK, $released) : []),
             // The nomination rule as THIS award applies it — "between 2 and 3 categories" is
             // wrong for an award with one (NominationRules is the one resolver).

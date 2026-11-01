@@ -173,7 +173,7 @@
       {% if _d.judging_note %}{% for para in _d.judging_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'Voting'|trans }}</h2>
-      <p>{{ 'Each person verified by an email code has one free vote per category.'|trans }}{% if a.paid %} {{ 'Supporters can also add contributed votes on a nominee’s page.'|trans }} {{ a.paid }}{% endif %}</p>
+      <p>{% if a.paid_only|default(false) %}{{ 'Voting on this award is paid: you buy votes for a nominee on their page. There is no free vote.'|trans }} {{ a.paid }}{% else %}{{ 'Each person verified by an email code has one free vote per category.'|trans }}{% if a.paid %} {{ 'Supporters can also add contributed votes on a nominee’s page.'|trans }} {{ a.paid }}{% endif %}{% endif %}</p>
       {% if _d.voting_note %}{% for para in _d.voting_note|split("\n\n") %}<p>{{ para|nl2br }}</p>{% endfor %}{% endif %}
     </section>
     <section class="aw-doc__s"><h2 class="aw-doc__h">{{ 'After the results'|trans }}</h2>
