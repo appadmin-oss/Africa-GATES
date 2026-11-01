@@ -43,9 +43,9 @@
 
 /* ── a lesson ──────────────────────────────────────────────────────────── */
 .ac-main { min-width: 0; }
-.ac-lesson { background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-16);
+.ac-lesson { background: var(--cn-surface); border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-16); box-shadow: var(--cn-sh-tile);
   padding: 24px 20px; margin-bottom: 24px; font-size: var(--cn-fs-16); line-height: 1.6; }
-@media (min-width: 900px) { .ac-lesson { padding: 36px 40px; } }
+@media (min-width: 900px) { .ac-lesson { padding: 40px 48px; } }
 .ac--js .ac-lesson { margin-bottom: 0; }
 /* A shared lesson link jumps to the lesson; the sticky header must not cover its title. */
 .ac-lesson { scroll-margin-top: 84px; }
@@ -53,21 +53,35 @@
 .ac-h1 { margin: 0 0 10px; font-size: var(--cn-fs-30); line-height: 1.15; font-weight: 600; }
 .ac-lesson h2 { margin: 0 0 12px; font-size: var(--cn-fs-26); line-height: 1.2; font-weight: 600; }
 .ac-lede { margin: 0 0 20px; font-size: var(--cn-fs-17); color: var(--cn-ink-2); }
-.ac-learn { margin: 0 0 20px; padding: 12px 14px; border-radius: var(--cn-r-10); background: var(--cn-green-wash); font-size: var(--cn-fs-15); }
+.ac-learn { margin: 0 0 24px; padding: 12px 16px; border-left: 3px solid var(--cn-green); border-radius: 0 var(--cn-r-10) var(--cn-r-10) 0; background: var(--cn-green-wash); font-size: var(--cn-fs-15); }
 .ac-learn span { font-weight: 600; }
-.ac-body > p { margin: 0 0 14px; }
+.ac-body > p { margin: 0 0 14px; max-width: 68ch; }
+.ac-lesson .ac-learn, .ac-lede { max-width: 68ch; }
 
-/* steps as cards, numbered by the list */
-.ac-steps { list-style: none; counter-reset: ac-step; margin: 0 0 20px; padding: 0; display: grid; gap: 10px; }
+/* steps: a numbered line down the left, not a stack of boxes — one quiet rail the eye follows
+   (owner, 1 Nov 2026: "does not look very fine"; seven bordered cards read as a form). */
+.ac-steps { list-style: none; counter-reset: ac-step; margin: 4px 0 24px; padding: 0; display: grid; gap: 0; }
 .ac-steps[start="4"] { counter-reset: ac-step 3; }
-.ac-steps > li { counter-increment: ac-step; position: relative; padding: 12px 14px 12px 52px; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-12); background: var(--cn-surface); }
-.ac-steps > li::before { content: counter(ac-step); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: var(--cn-r-pill);
-  display: grid; place-items: center; background: var(--cn-ink); color: var(--cn-surface); font-size: var(--cn-fs-13); font-weight: 600; }
+.ac-steps > li { counter-increment: ac-step; position: relative; padding: 4px 0 18px 48px; }
+.ac-steps > li::before { content: counter(ac-step); position: absolute; left: 0; top: 2px; width: 30px; height: 30px; border-radius: var(--cn-r-pill);
+  display: grid; place-items: center; background: var(--cn-green-wash); color: var(--cn-green-ink); border: 1px solid var(--cn-green-edge);
+  font-size: var(--cn-fs-13); font-weight: 700; }
+.ac-steps > li::after { content: ""; position: absolute; left: 15px; top: 36px; bottom: 2px; width: 1px; background: var(--cn-line-card); }
+.ac-steps > li:last-child { padding-bottom: 4px; }
+.ac-steps > li:last-child::after { display: none; }
 .ac-ui { font-weight: 600; }
 
-.ac-shot { margin: 4px 0 24px; }
-.ac-shot img { display: block; width: 100%; height: auto; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-12); box-shadow: 0 1px 2px var(--cn-line-card); }
-.ac-shot figcaption { margin-top: 8px; font-size: var(--cn-fs-14); color: var(--cn-ink-2); }
+/* A screenshot as the window it was taken in: a title bar, the screen, a caption under it. */
+.ac-shot { margin: 8px 0 28px; }
+.ac-shot__win { display: block; overflow: hidden; border: 1px solid var(--cn-line-card); border-radius: var(--cn-r-12);
+  background: var(--cn-surface); box-shadow: var(--cn-sh-hero); text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
+.ac-shot__win:hover { transform: translateY(-2px); box-shadow: var(--cn-sh-menu); }
+.ac-shot__win:focus-visible { outline: 3px solid var(--cn-green); outline-offset: 3px; }
+.ac-shot__bar { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; background: var(--cn-ground); border-bottom: 1px solid var(--cn-line-card); }
+.ac-shot__bar i { width: 9px; height: 9px; border-radius: var(--cn-r-pill); background: var(--cn-line-strong); }
+.ac-shot img { display: block; width: 100%; height: auto; }
+.ac-shot figcaption { margin-top: 10px; font-size: var(--cn-fs-14); color: var(--cn-ink-2); }
+.ac-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .ac-faq dt { margin-top: 14px; font-weight: 600; }
 .ac-faq dd { margin: 4px 0 0; color: var(--cn-ink-2); }
@@ -89,7 +103,7 @@
 
 .ac-lesson.ac-done h2 { font-size: var(--cn-fs-28); }
 
-@media (prefers-reduced-motion: reduce) { .ac-prog__bar span { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ac-prog__bar span, .ac-shot__win { transition: none; } .ac-shot__win:hover { transform: none; } }
 
 /* ── phones ── the brand wrapped to two lines beside a full-width button, and the pager's two
    buttons sat side by side at 36px. One line of brand, a 44px button, and the pager stacked with

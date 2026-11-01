@@ -28,51 +28,51 @@ const srv = spawn('php', ['-S', `127.0.0.1:${PORT}`, '-t', join(ROOT, 'public'),
 await new Promise(r => setTimeout(r, 1200));
 
 const c = seed.cycle, e = seed.event, n = seed.nominee;
-// [stem, who, url, element to outline, area to crop to]
+// [stem, who, url, the control to outline]
 const SHOTS = [
-  ['today', 'volunteer', '/volunteer', '.sh7-head__acts .sh7-btn--primary', '.sh7-head'],
-  ['nominees', 'volunteer', `/volunteer/cycle/${c}/nominees`, '.sh7-tabs', '.sh7-tabs, .sh7-sec--rows'],
-  ['log-contact', 'volunteer', `/volunteer/cycle/${c}/nominees?n=${n}`, '.sh7-sec--form:has(input[value="outreach_log"]) .sh7-form__submit .sh7-btn', '.sh7-sec--form:has(input[value="outreach_log"])'],
-  ['follow-up', 'volunteer', `/volunteer/cycle/${c}/nominees/due`, '.sh7-tab.is-on', '.sh7-tabs, .sh7-sec--rows'],
-  ['hours-log', 'volunteer', '/volunteer/hours/log', '.sh7-form__submit .sh7-btn', '.sh7-sec--form'],
-  ['hours-review', 'volunteer', '/volunteer/hours/review', '.sh7-rowform .sh7-btn', '.sh7-tabs, .sh7-sec--rows'],
-  ['event', 'volunteer', `/volunteer/event/${e}`, '.sh7-hero__acts .sh7-btn--primary', '.sh7-hero'],
-  ['requests', 'volunteer', '/volunteer/requests?new=hours', '.sh7-form__submit .sh7-btn', '.sh7-sec--form'],
-  ['team', 'lead', '/volunteer/team/approvals', '.sh7-rowform', '.sh7-tabs, .sh7-sec--rows'],
+  ['start', null, '/volunteer/apply', 'body'],
+  ['today', 'volunteer', '/volunteer', '.sh7-head__acts .sh7-btn--primary'],
+  ['nominees', 'volunteer', `/volunteer/cycle/${c}/nominees`, '.sh7-tabs'],
+  ['log-contact', 'volunteer', `/volunteer/cycle/${c}/nominees?n=${n}`, '.sh7-sec--form:has(input[value="outreach_log"]) .sh7-form__submit .sh7-btn'],
+  ['follow-up', 'volunteer', `/volunteer/cycle/${c}/nominees/due`, '.sh7-tab.is-on'],
+  ['hours-log', 'volunteer', '/volunteer/hours/log', '.sh7-form__submit .sh7-btn'],
+  ['hours-review', 'volunteer', '/volunteer/hours/review', '.sh7-rowform .sh7-btn'],
+  ['event', 'volunteer', `/volunteer/event/${e}`, '.sh7-hero__acts .sh7-btn--primary'],
+  ['tasks', 'volunteer', '/volunteer/tasks', '.sh7-tabs'],
+  ['requests', 'volunteer', '/volunteer/requests?new=hours', '.sh7-form__submit .sh7-btn'],
+  ['record', 'volunteer', '/volunteer/record', '.sh7-tabs'],
+  ['break', 'volunteer', '/volunteer/me/leave', '.sh7-page'],
+  ['team', 'lead', '/volunteer/team/approvals', '.sh7-rowform'],
 ];
 
+// THE WHOLE SCREEN, NOT A STRIP (owner, 1 Nov 2026: "it does not have the screenshots"). The
+// first cut cropped to the part of the page a step was about, which left a 100px header bar for
+// Today and a sliver of tabs for Nominees: nobody could tell what screen they were looking at.
+// Each shot is now the full window at a laptop size, scrolled so the control sits in view, with
+// that control outlined; the academy frames it as a browser window.
+const W = 1200, H = 760;
 const { chromium } = pkg;
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const failed = [];
 try {
-  for (const [stem, who, url, mark, area] of SHOTS) {
-    const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, bypassCSP: true });
-    await ctx.addCookies([{ name: 'PHPSESSID', value: seed.session[who], url: BASE }]);
+  for (const [stem, who, url, mark] of SHOTS) {
+    const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1.5, bypassCSP: true });
+    // `null` is somebody signed out: the application is the first thing a new volunteer sees.
+    if (who) await ctx.addCookies([{ name: 'PHPSESSID', value: seed.session[who], url: BASE }]);
     const page = await ctx.newPage();
     await page.goto(BASE + url, { waitUntil: 'networkidle' });
     await page.addStyleTag({ content: '[data-academy-mark]{outline:3px solid var(--cn-green)!important;outline-offset:3px;border-radius:8px}' });
     const m = await page.$(mark);
-    if (m) await m.evaluate(el => el.setAttribute('data-academy-mark', ''));
-    const box = await page.evaluate(([sel, markSel]) => {
-      const els = [...document.querySelectorAll(sel)].filter(x => x.getBoundingClientRect().height > 0).slice(0, 3);
-      if (!els.length) return null;
-      // Only <main> scrolls in the shell, so bring the area to the top of the window and crop in
-      // window coordinates; an area taller than the window is cut at its foot.
-      els[0].scrollIntoView({ block: 'start' });
-      // …unless that hides the control the step is about: then the control sits at the foot.
-      const mk = document.querySelector(markSel);
-      if (mk && mk.getBoundingClientRect().bottom > innerHeight - 40) mk.scrollIntoView({ block: 'end' });
-      const r = els.map(x => x.getBoundingClientRect());
-      return { x: Math.min(...r.map(b => b.left)), y: Math.max(0, Math.min(...r.map(b => b.top))),
-               r: Math.max(...r.map(b => b.right)), b: Math.min(innerHeight, Math.max(...r.map(b => b.bottom)), mk ? mk.getBoundingClientRect().bottom + 16 : innerHeight) };
-    }, [area, mark]);
-    if (!box || !m) { failed.push(stem + ' (' + (m ? area : mark) + ')'); await ctx.close(); continue; }
-        const pad = 24, clip = { x: Math.max(0, box.x - pad), y: Math.max(0, box.y - pad) };
-    clip.width = Math.min(1366 - clip.x, box.r - box.x + 2 * pad);
-    clip.height = Math.min(768 - clip.y, box.b - box.y + 2 * pad);
+    if (!m) { failed.push(stem + ' (' + mark + ')'); await ctx.close(); continue; }
+    // A whole-page mark (.sh7-page, body) is the screen itself: nothing to outline.
+    if (!['.sh7-page', 'body'].includes(mark)) await m.evaluate(el => el.setAttribute('data-academy-mark', ''));
+    // Only <main> scrolls in the shell. Leave a control near the top where it is; bring one further
+    // down into the middle of the window.
+    await m.evaluate(el => { if (el.getBoundingClientRect().bottom > innerHeight - 60) el.scrollIntoView({ block: 'center' }); });
+    await page.waitForTimeout(150);
     const png = join(tmp, stem + '.png');
-    await page.screenshot({ path: png, clip });
-    execFileSync('php', ['-r', `$i=imagecreatefrompng($argv[1]);imagewebp($i,$argv[2],72);`, png, join(OUT, stem + '.webp')]);
+    await page.screenshot({ path: png });
+    execFileSync('php', ['-r', `$i=imagecreatefrompng($argv[1]);imagewebp($i,$argv[2],80);`, png, join(OUT, stem + '.webp')]);
     await ctx.close();
   }
 } finally {

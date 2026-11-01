@@ -9,7 +9,9 @@
   a renamed button fails the suite instead of leaving a guide that sends people looking for it.
   Screenshots: scripts/academy-shots.mjs (1366×768, cropped to the step, the control outlined).
 #}
-{% macro shot(stem, shots) %}{% set s = shots[stem] %}<figure class="ac-shot"><img src="{{ asset('/assets/img/academy/' ~ stem ~ '.webp') }}" alt="{{ s[0] }}" loading="lazy" decoding="async"><figcaption>{{ s[1] }}</figcaption></figure>{% endmacro %}
+{# A screenshot, framed as the browser window it was taken in. The whole screen, so a reader can
+   tell which page it is; the control the step is about is outlined in green. Opens full size. #}
+{% macro shot(stem, shots) %}{% set s = shots[stem] %}{% set src = asset('/assets/img/academy/' ~ stem ~ '.webp') %}<figure class="ac-shot"><a class="ac-shot__win" href="{{ src }}" target="_blank" rel="noopener"><span class="ac-shot__bar" aria-hidden="true"><i></i><i></i><i></i></span><img src="{{ src }}" alt="{{ s[0] }}" width="1800" height="1140" loading="lazy" decoding="async"><span class="ac-sr"> (opens the full-size picture)</span></a><figcaption>{{ s[1] }}</figcaption></figure>{% endmacro %}
 {% import _self as A %}
 <!DOCTYPE html>
 {% set _consent = consent() %}
@@ -74,6 +76,7 @@
         <li>Answer the six short steps, then press <b class="ac-ui">Send my application</b>.</li>
         <li>We ask the person who vouches for you. When you are approved, your Today page changes.</li>
       </ol>
+      {{ A.shot('start', shots) }}
       </div>
       <nav class="ac-pager" aria-label="Lesson 1 of 12">
         <a class="sh7-btn" href="#welcome" data-ac-go="welcome">Previous lesson</a>
@@ -191,6 +194,7 @@
         <li>Meetings: open <b>Meetings</b>. Answer with <b class="ac-ui">I’m going</b> or <b class="ac-ui">I can’t come</b>. To hold one, open <b>Schedule</b> and press <b class="ac-ui">Schedule and invite</b>. After it, the organiser writes notes and presses <b class="ac-ui">Save notes</b>.</li>
         <li>Training: open <b>Training</b>, press <b class="ac-ui">Start this module</b>, read it, answer, and press <b class="ac-ui">Send my answers</b>.</li>
       </ol>
+      {{ A.shot('tasks', shots) }}
       </div>
       <nav class="ac-pager" aria-label="Lesson 7 of 12">
         <a class="sh7-btn" href="#event" data-ac-go="event">Previous lesson</a>
@@ -224,6 +228,7 @@
         <li>Open <b>My record</b> to see your verified hours, level and badges.</li>
         <li>For a reference, open <b>Reference letters</b> and press <b class="ac-ui">Ask for a letter</b>.</li>
       </ol>
+      {{ A.shot('record', shots) }}
       </div>
       <nav class="ac-pager" aria-label="Lesson 9 of 12">
         <a class="sh7-btn" href="#requests" data-ac-go="requests">Previous lesson</a>
@@ -240,6 +245,7 @@
         <li>Pick 2, 4 or 8 weeks. Nobody invites you until then.</li>
         <li>To come back early, press <b class="ac-ui">Come back now</b>.</li>
       </ol>
+      {{ A.shot('break', shots) }}
       </div>
       <nav class="ac-pager" aria-label="Lesson 10 of 12">
         <a class="sh7-btn" href="#record" data-ac-go="record">Previous lesson</a>

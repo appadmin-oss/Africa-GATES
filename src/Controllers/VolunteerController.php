@@ -239,6 +239,7 @@ final class VolunteerController
      * cropped to the part of the screen the step is about.
      */
     public const SHOTS = [
+        'start'        => ['The volunteer application: an email box, the Continue with email button, and four steps — Account, Apply, Check, Start.', 'Applying: start with your email.'],
         'today'        => ['The Today page. At the top right are three buttons: Log a contact with a nominee, Log hours by hand, and How to use this portal.', 'Today: the report buttons are at the top.'],
         'nominees'     => ['The Nominees page for an award, with tabs All, Follow up and Not reached yet, and a list of nominees with how each was last reached.', 'Nominees: pick the person you contacted.'],
         'log-contact'  => ['A nominee’s page with the Log a contact form: how you reached them, how it went, a note and a follow-up date, and the Log this contact button.', 'Log a contact: fill it in and press Log this contact.'],
@@ -247,6 +248,9 @@ final class VolunteerController
         'hours-review' => ['The In review tab, with a report waiting for a lead and an Add proof box.', 'In review: where your hours wait for a lead.'],
         'event'        => ['An event page with the Check in button at the top.', 'At an event: Check in when you arrive, Check out when you leave.'],
         'requests'     => ['The New request form with types Time off, Correct my hours, Access to a role and Travel refund.', 'Requests: pick the type, then send.'],
+        'tasks'        => ['The Tasks page, with tabs for tasks open to you and the ones you have taken.', 'Tasks: take one that fits your week.'],
+        'record'       => ['Your record: verified hours, your level, and the tabs for your history and reference letters.', 'Your record: verified hours and reference letters.'],
+        'break'        => ['Take a break or leave: buttons for a 2, 4 or 8 week break, and Leave for good.', 'Take a break: pick how long. Your record stays yours.'],
         'team'         => ['A lead’s To confirm tab: each report of hours with a reason box and the Confirm hours and Decline hours buttons.', 'For leads: confirm or decline your team’s hours.'],
     ];
 
