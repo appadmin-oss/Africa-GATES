@@ -1555,7 +1555,7 @@ class AccountController
             $out[] = ['key' => 'nominee', 'd' => 'M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4', 'icon' => 'gold',
                       'pct' => (int) round(100 * (count(\AfricaGates\Services\NomineeDetails::STEPS) - $left) / count(\AfricaGates\Services\NomineeDetails::STEPS)),
                       'label' => 'Nominee' . ($d->category ? ': ' . $d->category : ''), 'state' => $left ? $left . ' ' . ($left === 1 ? 'step' : 'steps') . ' to finish' : 'Profile complete',
-                      'tone' => $left ? 'warn' : 'ok', 'href' => '/account/nomination/' . $d->nominee_id, 'cta' => $left ? 'Finish' : 'Review'];
+                      'tone' => $left ? 'warn' : 'ok', 'href' => \AfricaGates\Services\NomineeDetails::href($d), 'cta' => $left ? 'Finish' : 'Review'];
         }
         $v = \AfricaGates\Services\Volunteer\Volunteers::of((int) $user->id);
         $vs = $v ? (string) $v->status : '';

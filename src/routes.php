@@ -3841,6 +3841,8 @@ return function(App $app) {
         // bio, on their account for good. The nominator's reason is shown and never editable.
         $a->get('/nomination[/{id:[0-9]+}]',  \AfricaGates\Controllers\NomineeProfileController::class . ':page');
         $a->post('/nomination/{id:[0-9]+}',   \AfricaGates\Controllers\NomineeProfileController::class . ':save');
+        $a->get('/nomination/pending/{nid:[0-9]+}',  \AfricaGates\Controllers\NomineeProfileController::class . ':pending');
+        $a->post('/nomination/pending/{nid:[0-9]+}', \AfricaGates\Controllers\NomineeProfileController::class . ':save');
         $a->post('/referral', AccountController::class . ':referral');
         // Ask to be paid what the referrals earned. Creates a request; an admin settles it
         // against a real transfer reference — see ReferralPayout.

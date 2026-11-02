@@ -226,7 +226,8 @@ final class NominationCombine
         return null;
     }
 
-    private static function root(object $n): object
+    /** The nomination this one was finally combined into (itself when it was not). */
+    public static function root(object $n): object
     {
         $seen = [];
         while (!empty($n->merged_into) && !isset($seen[(int) $n->id])) {

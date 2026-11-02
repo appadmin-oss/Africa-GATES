@@ -81,7 +81,7 @@ final class NomineeDetailsTest extends TestCase
 
         $amaka = $this->member('Amaka Eze');
         $other = $this->member('Somebody Else');
-        $this->assertSame(['ok' => true, 'nominee' => $nid], NomineeDetails::bind($this->token($link), $amaka));
+        $this->assertSame(['ok' => true, 'nominee' => $nid, 'href' => '/account/nomination/' . $nid], NomineeDetails::bind($this->token($link), $amaka));
         $this->assertTrue(NomineeDetails::bind($this->token($link), $amaka)['ok'], 'her own link, opened again');
         $this->assertFalse(NomineeDetails::bind($this->token($link), $other)['ok'], 'a spent link opens nothing for anybody else');
         $this->assertNull(NomineeDetails::mine($nid, $other));

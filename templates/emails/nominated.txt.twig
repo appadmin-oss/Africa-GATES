@@ -11,6 +11,19 @@
 Confirm and continue: {{ confirm_url }}
 
 The link works for {{ confirm_days }} days. Nothing here costs money. Not you, or you’d rather not take part? Open the link and say no.
+{% elseif complete_url|default('') %}A reviewer checks every nomination before it joins the award. You know your work best, so you can make yours as strong as it can be before they do:
+{% for st in steps|default([]) %}
+{{ loop.index }}. {{ st[0] }}. {{ st[1] }}
+{% endfor %}
+{% if places_short|default(0) > 0 %}
+Before it can be approved: this award needs nominations from {{ places_need }} different places, and yours needs {{ places_short }} more. Ask people who know your work in other places to nominate you too{% if nominate_url|default('') %}: {{ nominate_url }}{% else %}.{% endif %}
+
+{% endif %}
+Complete your nomination: {{ complete_url }}
+
+The link works for {{ link_days|default(30) }} days and opens your own page on your free Africa GATES account. Come back to it any time. If the nomination is approved, the same page stays yours. Not you, or you’d rather not take part? Tell us through the help desk and we’ll remove it: {{ help_url }}
+
+{{ no_pay|default('') }}
 {% else %}A reviewer checks every nomination before it joins the award. If yours is approved, we will email you an invitation to tell the judges about your work in your own words.
 
 See the award: {{ watch_url }}
