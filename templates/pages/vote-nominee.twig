@@ -10,6 +10,8 @@
   docs/handoff/inventory/pages--vote-nominee.md). Order (§8.6): race block → "Support for
   {first}" → reviewed evidence → other nominees. The nominator's whole case for this person
   is printed between the race and the support, all of it, in the HTML (NomineeStoryTest).
+  Below 1024 the ballot follows that case; from 1024 it is a sticky column of its own
+  (2 Nov 2026, NomineePageLayoutTest — see the layout note in the content block).
 
   ── THE BALLOT, AND WHAT IT KEEPS FROM THE OLD ONE ────────────────────────────
 
@@ -275,8 +277,15 @@
    ts: _ts, ts_key: turnstile_site_key, url: '/vote/' ~ n.programme_slug ~ '/' ~ n.id} %}
 
 {% block content %}
-<div class="vn">
-  <div class="vn__left">
+{# ── THE LAYOUT (2 Nov 2026) ─────────────────────────────────────────────────
+   One column on a phone and a tablet, in the order a visitor decides in: who this is, where
+   they stand, why they are nominated, then the ballot — the bottom bar's "Vote for …" reaches
+   it from anywhere. From 1024 the ballot is a sticky column of its own beside everything
+   else. It used to sit under a 470px portrait, below the fold on a laptop, with an empty
+   column under it; the portrait now sits beside the name. #}
+<div class="vn{{ _placed ? ' vn--placed' }}">
+  <div class="vn__main">
+    <div class="vn-top">
     {% set _portrait = profile.avatar_path|default('') ?: n.photo_path %}
     {% if _portrait %}
     <div class="vn-photo">
@@ -293,10 +302,7 @@
       <span class="vn-photo__av vn-photo__av--l">{% include 'partials/avatar.twig' with {name: n.name, id: n.profile_id|default(n.id), size: 160, named: true} only %}</span>
     </div>
     {% endif %}
-    {% if not _placed %}<div class="vn__ballot vn__ballot--wide">{{ m.ballot(_bctx|merge({pre: 'd-'})) }}</div>{% endif %}
-  </div>
 
-  <div class="vn__main">
     <header class="vn-head">
       <span class="vn-head__k">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"/></svg>
@@ -310,6 +316,7 @@
         {% if backer_count|default(0) > 0 %}<span class="vn-chip">{{ backer_count == 1 ? '1 supporter'|trans : '%n% supporters'|trans({'%n%': backer_count|number_format}) }}</span>{% endif %}
       </div>
     </header>
+    </div>
 
     {% if _placed %}
       {% if _won %}
@@ -367,7 +374,6 @@
         {% endif %}
       </section>
 
-      <div class="vn__ballot vn__ballot--phone">{{ m.ballot(_bctx|merge({pre: ''})) }}</div>
     {% endif %}
 
     {% set _case = n.story|default('') ?: (profile.bio|default('') ?: n.tagline) %}
@@ -378,12 +384,13 @@
     </section>
     {% endif %}
 
+    {# The ballot below 1024, after the case for this person (see the layout note above). #}
+    {% if not _placed %}<div class="vn__ballot vn__ballot--phone">{{ m.ballot(_bctx|merge({pre: ''})) }}</div>{% endif %}
+
     <section class="vn-sec" aria-labelledby="vn-sup">
       <h2 class="vn-sec__t" id="vn-sup">{{ 'Support for %first%'|trans({'%first%': first}) }}</h2>
-      {# No count until there is one (LOW-DATA-RULES §3): "0 messages" reads as a verdict on
-         the nominee, when it only means nobody has written yet. #}
-      <p class="vn-sec__p">{% if message_count == 0 %}{{ 'No messages yet. Voters can leave one with their vote.'|trans }}{% else %}{{ message_count == 1 ? '1 message from verified voters'|trans : '%n% messages from verified voters'|trans({'%n%': message_count|number_format}) }}{% endif %}</p>
       {% if messages|length %}
+        <p class="vn-sec__p">{{ message_count == 1 ? '1 message from verified voters'|trans : '%n% messages from verified voters'|trans({'%n%': message_count|number_format}) }}</p>
         <ul class="vmi-list">{% for msg in messages %}{% include 'partials/vote-message.twig' with {m: msg} only %}{% endfor %}</ul>
         {% if message_count > messages|length %}<a class="vn-more" href="{{ messages_url }}">{{ 'Read all %n% messages'|trans({'%n%': message_count|number_format}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>{% endif %}
       {% endif %}
@@ -392,8 +399,19 @@
         <ul class="vn-roll">{% for s in supporters %}<li class="vn-roll__i"><span class="vn-roll__av" aria-hidden="true">{{ (s.name|split(' ')|map(w => w|first)|join|upper)|slice(0, 2) }}</span>{{ s.name }}</li>{% endfor %}</ul>
         {% if supporter_count > supporters|length %}<a class="vn-more" href="{{ supporters_url }}">{{ 'See all named supporters (%more% more)'|trans({'%more%': supporters_more}) }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>{% endif %}
       {% endif %}
-      <a class="vn-more" href="{{ flier_url }}">{{ 'Share kit: flier, messages and QR code'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
-      <a class="vn-more" href="{{ video_url }}">{{ 'Share video'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+      {# One card for spreading the word, with the empty state in it rather than above it on its
+         own line: "No messages yet" and two loose links read as a section with nothing in it.
+         No count until there is one (LOW-DATA-RULES §3): "0 messages" reads as a verdict. #}
+      <div class="vn-share">
+        <p class="vn-share__p">
+          {%- if message_count == 0 and not supporters|length %}{{ 'No messages yet. Voters can leave one with their vote.'|trans }} {% endif -%}
+          {{ 'Help %first% reach more voters.'|trans({'%first%': first}) }}
+        </p>
+        <div class="vn-share__acts">
+          <a class="vn-share__a" href="{{ flier_url }}">{{ 'Share kit: flier, messages and QR code'|trans }}</a>
+          <a class="vn-share__a" href="{{ video_url }}">{{ 'Share video'|trans }}</a>
+        </div>
+      </div>
     </section>
 
     {% if evidence|length %}
@@ -422,6 +440,7 @@
     </section>
     {% endif %}
   </div>
+  {% if not _placed %}<div class="vn__rail"><div class="vn__ballot vn__ballot--wide">{{ m.ballot(_bctx|merge({pre: 'd-'})) }}</div></div>{% endif %}
 </div>
 {% endblock %}
 

@@ -2,11 +2,13 @@
    ONE NOMINEE AND THE BALLOT · Phase 5 · NomineePage.dc.html + VoteBallot.dc.html · §8.6
    ══════════════════════════════════════════════════════════════════════════════
 
-   Values are the DCs' unless docs/handoff/PHASE-5.md lists a deviation. Phone below 600,
-   tablet 600–1023 (280px portrait column), desktop 1024+ (380px). The ballot is drawn in
-   two places in the markup — under the portrait from 600px, after the race on a phone —
-   and exactly one of them is displayed at any width, so the other is out of the
-   accessibility tree and never submitted.
+   Values are the DCs' unless docs/handoff/PHASE-5.md lists a deviation. LAYOUT (2 Nov 2026):
+   one column below 1024 — the portrait full-bleed on a phone and beside the name from 600 —
+   in the order a visitor decides in: who, where they stand, why, then the ballot. From 1024
+   the ballot is a sticky 380px column beside the page, in view while it is read; it used to
+   sit under a 470px portrait, below the fold on a laptop. The ballot is drawn in two places
+   in the markup — the rail from 1024, after the case below it — and exactly one of them is
+   displayed at any width, so the other is out of the accessibility tree and never submitted.
 
    COLOUR: Accent tokens only. The ballot's head is the green family's wash and edge; the
    paid region (`data-ag-paid`) is ink and outlines only — money is never the loudest thing
@@ -19,14 +21,17 @@
   max-width:1120px; margin:0 auto; padding:0 16px 28px; box-sizing:border-box;
   display:grid; grid-template-columns:minmax(0,1fr); gap:20px; align-items:start;
 }
-.vn__left{ display:flex; flex-direction:column; gap:16px; min-width:0 }
-.vn-photo{ position:relative; aspect-ratio:1 / 1; margin:0 -16px; border-radius:0 0 var(--ag-r-24) var(--ag-r-24); overflow:hidden; background:var(--ag-line); container-type:inline-size }
+.vn-top{ display:flex; flex-direction:column; gap:16px; min-width:0 }
+/* 4:3 on a phone, not square: a square portrait was the whole first screen. The crop keeps the
+   upper part, where a face is. */
+.vn-photo{ position:relative; aspect-ratio:4 / 3; margin:0 -16px; border-radius:0 0 var(--ag-r-24) var(--ag-r-24); overflow:hidden; background:var(--ag-line); container-type:inline-size }
+.vn-photo img{ object-position:50% 22% }
 .vn-photo .ag-photo{ position:absolute; inset:0 }
 .vn-photo--none{ aspect-ratio:16 / 7; display:flex; align-items:center; justify-content:center }
 .vn-photo__av{ position:relative; display:flex; border-radius:50%; box-shadow:0 0 0 4px var(--ag-surface) }
 .vn-photo__av--l{ display:none }
-.vn__ballot--wide{ display:none }
-.vn__main{ min-width:0; display:flex; flex-direction:column; gap:26px }
+.vn__rail, .vn__ballot--wide{ display:none }
+.vn__main{ min-width:0; display:flex; flex-direction:column; gap:24px }
 
 .vn-head{ display:flex; flex-direction:column; gap:10px }
 .vn-head__k{ display:flex; align-items:center; gap:8px; font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-gold-ink) }
@@ -54,6 +59,11 @@
 .vn-sec__p{ margin:0; font-size:var(--ag-fs-13-5); line-height:1.5; color:var(--ag-soft) }
 .vn-sub{ margin:6px 0 0; font-weight:700; font-size:var(--ag-fs-15) }
 .vn-story{ padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18); font-size:var(--ag-fs-15-5); line-height:1.6 }
+/* Spreading the word: one card, the empty state inside it, two outlined 44px actions. */
+.vn-share{ display:flex; flex-direction:column; gap:12px; padding:16px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
+.vn-share__p{ margin:0; font-size:var(--ag-fs-14); line-height:1.5; color:var(--ag-ink-2) }
+.vn-share__acts{ display:flex; flex-wrap:wrap; gap:8px }
+.vn-share__a{ display:inline-flex; align-items:center; min-height:44px; padding:0 16px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ag-ink); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
 .vn-more{ align-self:flex-start; display:inline-flex; align-items:center; gap:6px; min-height:44px; color:var(--ag-green); font-weight:600; font-size:var(--ag-fs-14); text-decoration:none }
 .vn-placed{ display:flex; flex-direction:column; gap:6px; padding:18px; background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-18) }
 
@@ -154,20 +164,29 @@
 .vb-done{ display:flex; flex-direction:column; gap:12px }
 
 @media (min-width:600px){
-  .vn{ grid-template-columns:280px minmax(0,1fr); gap:40px; padding:28px 28px 48px }
-  .vn__left{ position:sticky; top:24px }
-  .vn-photo{ aspect-ratio:4 / 5; margin:0; border-radius:var(--ag-r-24) }
-  .vn-photo--none{ aspect-ratio:4 / 3 }
+  .vn{ max-width:760px; padding:28px 28px 48px }
+  /* The portrait beside the name, not above it. */
+  .vn-top{ flex-direction:row; align-items:center; gap:24px }
+  .vn-photo{ flex:none; width:200px; aspect-ratio:4 / 5; margin:0; border-radius:var(--ag-r-20) }
+  .vn-photo--none{ aspect-ratio:4 / 5 }
   .vn-photo__av--s{ display:none }
   .vn-photo__av--l{ display:flex }
+  .vn-head{ flex:1; min-width:0 }
+  .vn-others{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+  .vn-head__h1{ font-size:var(--ag-fs-40) }
+}
+@media (min-width:1024px){
+  .vn{ max-width:1180px; grid-template-columns:minmax(0,1fr) 380px; gap:48px; padding:40px 32px 64px }
+  .vn--placed{ grid-template-columns:minmax(0,1fr); max-width:820px }
+  .vn-photo{ width:220px }
+  .vn-head__h1{ font-size:var(--ag-fs-44) }
+  /* The ballot beside the page and in view while it is read. Its own scroll only if a long
+     paid form outgrows the screen. */
+  .vn__rail{ display:block; position:sticky; top:24px; max-height:calc(100dvh - 120px); overflow:auto; overscroll-behavior:contain }
   .vn__ballot--wide{ display:block }
   .vn__ballot--phone{ display:none }
   .vn-bar{ display:none }
   .vn-others{ grid-template-columns:repeat(3,minmax(0,1fr)) }
-  .vn-head__h1{ font-size:var(--ag-fs-44) }
-}
-@media (min-width:1024px){
-  .vn{ grid-template-columns:380px minmax(0,1fr); padding:40px 32px 64px }
 }
 
 /* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes
