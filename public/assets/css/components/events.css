@@ -58,6 +58,19 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
   position:relative; margin-top:-22px; border-radius:22px 22px 0 0; background:var(--ag-ground);
   padding:22px 16px 4px; display:flex; flex-direction:column; gap:10px;
 }
+/* The event's type, in the hero's own text rather than on the cover (detail.twig): a white
+   pill with the kind's dot, the cover pill's look, in the cover's own tone family. */
+.ed-kind{
+  align-self:flex-start; display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 11px;
+  border-radius:var(--ag-r-pill); background:var(--ag-surface); color:var(--ed-k-ink); border:1px solid var(--ed-k-edge);
+  font-weight:700; font-size:var(--ag-fs-12-5); white-space:nowrap;
+}
+.ed-kind i{ width:7px; height:7px; border-radius:50%; background:var(--ed-k-dot) }
+.ed-kind--green{ --ed-k-ink:var(--ag-cover-green-ink); --ed-k-dot:var(--ag-cover-green-line); --ed-k-edge:var(--ag-cover-green-edge) }
+.ed-kind--gold{  --ed-k-ink:var(--ag-cover-gold-ink);  --ed-k-dot:var(--ag-cover-gold-line);  --ed-k-edge:var(--ag-cover-gold-edge) }
+.ed-kind--live{  --ed-k-ink:var(--ag-cover-live-ink);  --ed-k-dot:var(--ag-cover-live-line);  --ed-k-edge:var(--ag-cover-live-edge) }
+.ed-kind--info{  --ed-k-ink:var(--ag-cover-info-ink);  --ed-k-dot:var(--ag-cover-info-line);  --ed-k-edge:var(--ag-cover-info-edge) }
+.ed-kind--stone{ --ed-k-ink:var(--ag-cover-stone-ink); --ed-k-dot:var(--ag-cover-stone-line); --ed-k-edge:var(--ag-cover-stone-edge) }
 .ed-hero__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.15 }
 .ed-hero__by{ font-size:var(--ag-fs-14-5); color:var(--ag-ink-2) }
 .ed-hero__by:empty{ display:none }

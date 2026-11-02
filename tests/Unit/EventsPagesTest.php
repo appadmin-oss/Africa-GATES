@@ -324,6 +324,23 @@ final class EventsPagesTest extends TestCase
         $this->assertStringNotContainsString('data-ag-appbar', ChromeRender::html('/events/ev-open'), 'the phone detail is full-bleed: no app bar');
     }
 
+    /**
+     * The event's type is in the hero's own text, never the cover's pill: the hero writes its
+     * heading over the cover's foot — the sheet rises 22px over it on a phone, the title sits
+     * on it from 600 — so the pill was half under the sheet on one and under the venue on the
+     * other.
+     */
+    public function test_the_type_is_named_in_the_hero_text_not_under_it(): void
+    {
+        $this->world();
+        $html = ChromeRender::html('/events/ev-open');
+        $hero = preg_match('~<header class="ed-hero">.*?</header>~s', $html, $m) ? $m[0] : '';
+        $this->assertNotSame('', $hero, 'no hero');
+        $this->assertStringNotContainsString('ag-cover__pill', $hero, 'the cover draws its pill where the hero text covers it');
+        $this->assertMatchesRegularExpression('~<div class="ed-hero__text">\s*<span class="ed-kind ed-kind--[a-z]+"><i aria-hidden="true"></i>[^<]+</span>~', $hero,
+            'the type is named, first, in the hero text');
+    }
+
     public function test_the_fundraiser_reading_is_derived_and_hoisted_and_never_calls_a_ticket_a_gift(): void
     {
         $tpl = ChromeRender::source('templates/pages/events/detail.twig');

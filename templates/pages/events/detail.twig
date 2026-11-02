@@ -78,7 +78,11 @@
   {# ── The head: a 4:3 photo with floating buttons and a sheet on a phone; a hero from 600 ── #}
   <header class="ed-hero">
     <div class="ed-hero__media">
-      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', cover_kind: ev.cover_kind|default(null), award_linked: ev.award_linked|default(false), src: ev.image, name: ev.title, content: 'none', logo: ev.host_logo|default(''), eager: true} only %}
+      {# No pill on the cover: this hero writes its own text over the cover's foot — the sheet
+         rises over it on a phone, the title sits on it from 600 — so the cover's type pill was
+         half under the sheet on one and under "Eko Hotel" on the other. The type goes in the
+         text as a chip instead, as the events index's spotlight does it. #}
+      {% include 'partials/photo.twig' with {kind: 'thing', subject: 'event', cover_kind: ev.cover_kind|default(null), award_linked: ev.award_linked|default(false), src: ev.image, name: ev.title, content: 'none', label: false, logo: ev.host_logo|default(''), eager: true} only %}
     </div>
     <div class="ed-hero__btns">
       <a class="ed-fab" href="/events" aria-label="{{ 'All events'|trans }}">
@@ -97,6 +101,8 @@
       </span>
     </div>
     <div class="ed-hero__text">
+      {% set _kind = cover_kind('event', ev.cover_kind|default(null), ev.award_linked|default(false)) %}
+      <span class="ed-kind ed-kind--{{ _kind.tone }}"><i aria-hidden="true"></i>{{ _kind.label|trans }}</span>
       <span class="ev-dateline ed-hero__date">{{ ev.when }}</span>
       <h1 class="ed-hero__h1">{{ event.title }}</h1>
       <span class="ed-hero__by">
