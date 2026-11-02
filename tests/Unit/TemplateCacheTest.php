@@ -25,4 +25,32 @@ final class TemplateCacheTest extends TestCase
         $this->assertMatchesRegularExpression('~is_writable\(\$twigCacheDir\)~', $src, 'an unwritable cache directory would fail every page');
         $this->assertMatchesRegularExpression("~'cache' => \\\$twigCache \? \\\$twigCacheDir : false~", $src);
     }
+
+    /**
+     * A deploy is a zip extracted onto the host, which restores each file's time from when
+     * the zip was BUILT — older than a compiled copy made in between. Twig's own loader then
+     * calls the old compiled page fresh and serves it; ours names a new compiled class.
+     * The control case is asserted too, so this test is seen to name the fault it exists for.
+     */
+    public function test_a_template_replaced_by_an_older_file_is_compiled_again(): void
+    {
+        $base = sys_get_temp_dir() . '/ag-tpl-' . bin2hex(random_bytes(4));
+        mkdir($base . '/t', 0777, true);
+        $render = function (string $loaderClass) use ($base): string {
+            $env = new \Twig\Environment(new $loaderClass($base . '/t'), ['cache' => $base . '/c-' . md5($loaderClass), 'auto_reload' => true]);
+            return $env->render('p.twig');
+        };
+        foreach ([\Twig\Loader\FilesystemLoader::class => 'stale', \AfricaGates\Support\TemplateLoader::class => 'fresh'] as $cls => $want) {
+            file_put_contents($base . '/t/p.twig', 'old page');
+            touch($base . '/t/p.twig', time() - 3600);
+            $this->assertSame('old page', $render($cls));
+            // The deploy: new content, and a file time from BEFORE the compile above.
+            file_put_contents($base . '/t/p.twig', 'new page!');
+            touch($base . '/t/p.twig', time() - 1800);
+            clearstatcache();
+            $this->assertSame($want === 'fresh' ? 'new page!' : 'old page', $render($cls),
+                $want === 'fresh' ? 'the deployed template is not the one being served' : 'the control no longer reproduces the fault');
+        }
+        $this->assertStringContainsString('new \\AfricaGates\\Support\\TemplateLoader(', ChromeRender::code('config/container.php'), 'the app is not using the loader');
+    }
 }

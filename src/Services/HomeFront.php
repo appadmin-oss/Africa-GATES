@@ -380,8 +380,12 @@ final class HomeFront
         $out = [];
         foreach (self::HONOUR as [$key, $label, $alt]) {
             $base = '/assets/img/honour/' . $key;
+            // Versioned exactly as `asset()` versions a `src`: the same photo appears in the hero,
+            // the honour row and the topics, and a bare path in one srcset beside a versioned
+            // `src` in another is two URLs — the phone downloaded three of these twice.
+            $a = static fn (string $u): string => \AfricaGates\Support\Assets::url($u);
             $out[] = ['key' => $key, 'label' => $label, 'alt' => $alt,
-                      'src' => $base . '-480.webp', 'srcset' => $base . '-480.webp 480w, ' . $base . '-960.webp 960w'];
+                      'src' => $base . '-480.webp', 'srcset' => $a($base . '-480.webp') . ' 480w, ' . $a($base . '-960.webp') . ' 960w'];
         }
         return $out;
     }

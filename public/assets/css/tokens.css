@@ -63,8 +63,8 @@
      Playfair Display 700 for headlines only. DM Sans for everything else.
      JetBrains Mono 500/700 only for references and codes. */
 
-  --ag-font-display:'Playfair Display',Georgia,serif;
-  --ag-font-ui:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --ag-font-display:'Playfair Display','Playfair Display fallback',Georgia,serif;
+  --ag-font-ui:'DM Sans','DM Sans fallback','DM Sans fallback android',system-ui,-apple-system,'Segoe UI',sans-serif;
   --ag-font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;
 
   /* The closed small-text ladder. Micro 11.5–12.5 · meta 13–13.5 · secondary 14.5 ·

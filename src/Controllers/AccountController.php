@@ -878,7 +878,8 @@ class AccountController
         // Remember where the visitor was headed (e.g. a gate redirected them here)
         // so every sign-in path — password, code, or email verify — can return them.
         $next = $this->safeNext($req->getQueryParams()['next'] ?? null);
-        if ($next !== null) $_SESSION['login_next'] = $next;
+        // Not on a prefetch: hovering another sign-in link must not change where this one returns.
+        if ($next !== null && !\AfricaGates\Support\Speculative::is($req)) $_SESSION['login_next'] = $next;
         $q = $req->getQueryParams();
         $channels = $this->phoneChannels();
         $phoneOk  = $channels['sms'] || $channels['whatsapp'];

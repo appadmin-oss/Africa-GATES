@@ -60,7 +60,10 @@ final class AdDelivery
         if (!isset(AdRules::PLACEMENTS[$placement]) || !self::ready()) return null;
         if (!($ctx['reader'] ?? false)) return null;
         $day = date('Y-m-d');
-        self::countSlot($placement, $day);
+        // A prefetched page is drawn, not seen (Support\Speculative): it must not fill the slot
+        // count or spend this visitor's frequency cap on an ad they never had in front of them.
+        $ahead = \AfricaGates\Support\Speculative::is();
+        if (!$ahead) self::countSlot($placement, $day);
 
         try {
             $now  = date('Y-m-d H:i:s');
@@ -91,7 +94,7 @@ final class AdDelivery
         if ($best === null) return null;
 
         $ad = $best['ad'];
-        self::noteSeen((int) $ad->id, $day);
+        if (!$ahead) self::noteSeen((int) $ad->id, $day);
         $token = self::mint((int) $ad->id, $placement, $day);
         $set = $best['set'];
         $mark = array_slice(\AfricaGates\Support\AvatarMark::letters((string) $set->advertiser), 0, 2);

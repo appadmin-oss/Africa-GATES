@@ -739,6 +739,15 @@ final class Maintenance
             $c += $g;
         } catch (\Throwable) { /* a cache that will not prune must never stop the pass */ }
 
+        // ── AND THE COMPILED TEMPLATES A DEPLOY SUPERSEDED ──────────────────
+        // Support\TemplateLoader names a new compiled class whenever a template file
+        // changes, so every deploy leaves the previous copies behind, never read again.
+        try {
+            $t = TemplateLoader::pruneCompiled(dirname(__DIR__, 2) . '/var/cache/twig');
+            if ($t > 0) $this->log("Compiled templates pruned: $t files");
+            $c += $t;
+        } catch (\Throwable) { /* as above */ }
+
         return $c;
     }
 

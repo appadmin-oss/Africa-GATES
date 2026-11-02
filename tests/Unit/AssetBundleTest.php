@@ -311,15 +311,46 @@ class AssetBundleTest extends TestCase
         $this->assertNotSame($a, $b, 'changed CSS must produce a new URL, or nobody sees it');
     }
 
-    public function test_superseded_bundles_are_pruned(): void
+    public function test_superseded_bundles_are_pruned_but_not_from_under_a_page_already_drawn(): void
     {
         $this->seedSources();
-        AssetBundle::build($this->root);
+        $first = AssetBundle::build($this->root)['file'];
         file_put_contents($this->root . '/assets/css/shell.css', ".x{color:red}\n");
         AssetBundle::build($this->root);
 
-        $this->assertCount(1, glob($this->root . '/assets/dist/site.*.css') ?: [],
-            'assets/dist must not accumulate one file per build forever');
+        // A page drawn a minute ago (a prefetched copy, the back button's, an open tab) still
+        // names the old file; deleting it now draws that page with no styles at all.
+        $this->assertFileExists($this->root . $first, 'the superseded bundle was deleted under pages that still name it');
+
+        // A day on, it goes: assets/dist must not accumulate one file per build forever.
+        touch($this->root . $first, time() - AssetBundle::KEEP_SUPERSEDED_SECONDS - 60);
+        file_put_contents($this->root . '/assets/css/shell.css', ".y{color:red}\n");
+        AssetBundle::build($this->root);
+        $this->assertFileDoesNotExist($this->root . $first);
+        $this->assertCount(2, glob($this->root . '/assets/dist/site.*.css') ?: [], 'the current one and the one it replaced today');
+    }
+
+    /** A deploy is not followed by an hour of separate stylesheets: the first page builds it. */
+    public function test_the_first_page_after_a_change_builds_the_bundle_itself(): void
+    {
+        $this->seedSources();
+        $this->assertNull(AssetBundle::url($this->root), 'nothing built yet');
+        $url = AssetBundle::current($this->root);
+        $this->assertNotNull($url, 'the page fell back instead of building');
+        $this->assertSame($url, AssetBundle::url($this->root));
+
+        // Edited since: the next page rebuilds rather than serving the old cascade — once the
+        // attempt spacing has passed, so a failing build is not retried by every request.
+        file_put_contents($this->root . '/assets/css/shell.css', ".z{color:red}\n");
+        touch($this->root . '/assets/css/shell.css', time() + 5);
+        @unlink($this->root . '/assets/dist/.build.lock');
+        $again = AssetBundle::current($this->root);
+        $this->assertNotNull($again);
+        $this->assertNotSame($url, $again, 'a stale bundle was served after an edit');
+
+        file_put_contents($this->root . '/assets/css/shell.css', ".w{color:red}\n");
+        touch($this->root . '/assets/css/shell.css', time() + 10);
+        $this->assertNull(AssetBundle::current($this->root), 'a build attempted on every request inside the minute');
     }
 
     public function test_a_missing_source_is_reported_but_does_not_fail_the_build(): void

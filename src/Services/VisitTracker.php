@@ -574,11 +574,7 @@ final class VisitTracker
      */
     private static function isSpeculative(Request $request): bool
     {
-        foreach (['Sec-Purpose', 'Purpose', 'X-Moz', 'X-Purpose'] as $h) {
-            $v = strtolower(self::header($request, $h));
-            if ($v !== '' && (str_contains($v, 'prefetch') || str_contains($v, 'prerender') || str_contains($v, 'preview'))) return true;
-        }
-        return false;
+        return \AfricaGates\Support\Speculative::is($request);
     }
 
     /**

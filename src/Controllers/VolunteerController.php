@@ -263,7 +263,8 @@ final class VolunteerController
         if (!$user || !Volunteers::accountReady((int) $user->id)) {
             // The email box on this page posts straight to the code request, so the way back is
             // held here, where every sign-in path (code, password, verify link) reads it.
-            if (!$user) $_SESSION['login_next'] = '/volunteer/apply';
+            // Not on a prefetch (Support\Speculative): a hovered nav link is not where anybody was going.
+            if (!$user && !\AfricaGates\Support\Speculative::is()) $_SESSION['login_next'] = '/volunteer/apply';
             $team = Volunteers::ready() ? (int) \Illuminate\Database\Capsule\Manager::table('gates_volunteers')->where('status', 'active')->count() : 0;
             return $this->view->render($res, 'volunteer/apply.twig', [
                 'team' => $team,

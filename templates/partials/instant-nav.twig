@@ -23,8 +23,27 @@
   `[download]`, `[data-no-prefetch]` or opening a new tab. Add to this list, not to the pages.
   The volunteer and lead layout passes `member_area`: it links no console, and nothing on those
   pages may name one (consoles-v7 README §0.4, LeadConsoleTest).
+
+  ── NEVER A STALE PAGE ───────────────────────────────────────────────────────
+
+  A prefetched page is kept for five minutes and served as it was when it was fetched. Most
+  changes arrive as a new document anyway (a form posts and redirects; signing in rotates the
+  session cookie, which makes Chrome drop the copy), but a change made BY SCRIPT does not:
+  vote in place, react on Pulse, save a setting, then tap a link that was hovered a moment
+  earlier, and the page drawn is the one from before. Removing the rules discards everything
+  they fetched (measured: the next tap was a fresh load), and a fresh copy of the rules —
+  cloned, so its nonce travels with it — prefetches again. So any script request that is
+  not a read (`fetch` with a method other than GET or HEAD; nothing here posts with XHR)
+  resets them when it settles. A beacon is not counted: the only one records which menu
+  rows somebody uses, and changes no page.
+
+  ── NOT WHERE DATA IS DEAR ───────────────────────────────────────────────────
+
+  A prefetch spends the visitor's data on a page they may not open. Where the browser says
+  data is to be saved (`Save-Data`) or the connection is 2G, the rules are removed before
+  anything can trigger them — the same test console-nav.js makes for the console.
 #}
-<script type="speculationrules" nonce="{{ csp_nonce }}">
+<script type="speculationrules" nonce="{{ csp_nonce }}" data-ag-nav>
 {"prefetch": [{
   "where": {"and": [
     {"href_matches": "/*"},
@@ -39,4 +58,29 @@
   ]},
   "eagerness": "moderate"
 }]}
+</script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var f = window.fetch;
+  if (!f || !window.HTMLScriptElement || !HTMLScriptElement.supports || !HTMLScriptElement.supports('speculationrules')) return;
+  var conn = navigator.connection;
+  if (conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ''))) {
+    var r = document.querySelector('script[type="speculationrules"][data-ag-nav]');
+    if (r) r.remove();
+    return;
+  }
+  function reset() {
+    var s = document.querySelector('script[type="speculationrules"][data-ag-nav]');
+    if (!s) return;
+    var c = s.cloneNode(true);
+    s.remove();
+    document.head.appendChild(c);
+  }
+  window.fetch = function (input, init) {
+    var m = String((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET').toUpperCase();
+    var p = f.apply(this, arguments);
+    if (m !== 'GET' && m !== 'HEAD') p.then(reset, reset);
+    return p;
+  };
+})();
 </script>

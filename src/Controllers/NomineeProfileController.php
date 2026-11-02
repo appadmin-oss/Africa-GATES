@@ -39,7 +39,7 @@ final class NomineeProfileController
                 ->where('nm.id', $row->subject_id)->first(['nm.id', 'nm.nominee_name as name', 'c.title as category']) : null);
         if (!$user) {
             // The email box posts straight to the code request; every sign-in path reads this.
-            $_SESSION['login_next'] = '/nominee/start/' . $raw;
+            if (!\AfricaGates\Support\Speculative::is()) $_SESSION['login_next'] = '/nominee/start/' . $raw;
             $d = $nominee ? DB::table('gates_nominee_details')->where($early ? 'nomination_id' : 'nominee_id', $nominee->id)->first() : null;
             return $this->view->render($res, 'nominee/start.twig', ['page_title' => 'Your nomination — Africa GATES', 'nominee' => $nominee, 'early' => $early,
                 'state' => $nominee ? (GatedFormService::status($row) === 'ok' || ($d && $d->user_id) ? 'signin' : 'spent') : 'invalid',

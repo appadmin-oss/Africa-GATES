@@ -47,12 +47,14 @@ return [
         // production by default, `TWIG_CACHE=false` still turns it off, and it is used only
         // where the directory can be written: Twig answers every page with an error when it
         // cannot write its cache, which is a far worse failure than a slow page.
-        // `auto_reload` keeps it right across a deploy. Off under the test harness.
+        // `auto_reload` alone does not keep it right across a deploy — a zip restores OLDER
+        // file times — so Support\TemplateLoader keys each compiled template by its file's size
+        // and time as well as its name (it says why). Off under the test harness.
         $twigCacheDir = __DIR__.'/../var/cache/twig';
         $twigCache = defined('PHPUNIT_COMPOSER_INSTALL') ? false
             : Env::bool('TWIG_CACHE', !$isDev);
         if ($twigCache && !((is_dir($twigCacheDir) || @mkdir($twigCacheDir, 0775, true)) && is_writable($twigCacheDir))) $twigCache = false;
-        $twig = Twig::create(__DIR__.'/../templates', [
+        $twig = new Twig(new \AfricaGates\Support\TemplateLoader(__DIR__.'/../templates'), [
             'cache' => $twigCache ? $twigCacheDir : false,
             'auto_reload' => true,
             'debug' => $isDev,
@@ -257,7 +259,7 @@ return [
             // Never under the test harness: what a page links would then depend on whether some
             // earlier run left a current build in public/, and the suite would render one page
             // two ways. ShellLayoutTest renders the bundled head on purpose instead.
-            'css_bundle'        => defined('PHPUNIT_COMPOSER_INSTALL') ? null : \AfricaGates\Support\AssetBundle::url(),
+            'css_bundle'        => defined('PHPUNIT_COMPOSER_INSTALL') ? null : \AfricaGates\Support\AssetBundle::current(),
         ];
         foreach ($globals as $k => $v) $twig->getEnvironment()->addGlobal($k, $v);
         // ── THE CONSENT NOTICE, AS A FUNCTION AND NOT A GLOBAL ──────────────

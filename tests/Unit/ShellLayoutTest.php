@@ -267,7 +267,8 @@ final class ShellLayoutTest extends TestCase
         // Phase 2 added the chrome sheet after the base, which it specialises, and item 6
         // the cookie notice and preferences sheet after the chrome; Phase 4 the site footer
         // after those (it is chrome on every shell page); Phase 3 Gee after all of them.
-        $want = ['assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css',
+        // The self-hosted faces first (2 Nov 2026), so nothing names a face before it exists.
+        $want = ['assets/css/fonts.css', 'assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css',
                  'assets/css/components/chrome.css',
                  // The Menu sheet, rebuilt whole out of chrome.css (4 Oct 2026, MENU-SHEET.md).
                  'assets/css/components/menu-sheet.css', 'assets/css/components/consent.css',
@@ -293,7 +294,7 @@ final class ShellLayoutTest extends TestCase
     {
         $src = $this->twig('templates/layout/shell.twig');
         $this->assertMatchesRegularExpression(
-            "~\\{% if css_bundle\\|default\\(null\\) %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ css_bundle \\}\\}\">\\s*\\{% else %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ asset\\('/assets/css/tokens.css'\\) \\}\\}\">~", $src,
+            "~\\{% if css_bundle\\|default\\(null\\) %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ css_bundle \\}\\}\">\\s*\\{% else %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ asset\\('/assets/css/fonts.css'\\) \\}\\}\">\\s*<link rel=\"stylesheet\" href=\"\\{\\{ asset\\('/assets/css/tokens.css'\\) \\}\\}\">~", $src,
             'the bundle link, then the ten as the fallback');
         $this->assertMatchesRegularExpression("~components/gee\\.css'\\) \\}\\}\">\\{% endif %\\}\\s*\\{% endif %\\}~", $src, 'the fallback ends with the last sheet');
         $m = ChromeRender::code('src/Support/Maintenance.php');
@@ -301,13 +302,32 @@ final class ShellLayoutTest extends TestCase
         $this->assertStringContainsString('AssetBundle::build()', $m);
     }
 
-    /** The house fonts do not block the first paint; a browser without the script still gets them. */
-    public function test_the_fonts_do_not_block_the_first_paint(): void
+    /**
+     * The house faces come from this origin and their fallbacks are sized to them (fonts.css).
+     * Google Fonts was two more origins before a letter; the swap moved the vote hub by 0.127
+     * CLS on a phone because the system face is a different size.
+     */
+    public function test_the_fonts_are_served_from_here_and_the_swap_moves_nothing(): void
     {
         $src = $this->twig('templates/layout/shell.twig');
-        $this->assertMatchesRegularExpression('~<link rel="stylesheet" href="https://fonts\\.googleapis\\.com/[^"]+" media="print" data-ag-fonts>~', $src);
-        $this->assertMatchesRegularExpression('~<noscript><link rel="stylesheet" href="https://fonts\\.googleapis\\.com/~', $src);
-        $this->assertDoesNotMatchRegularExpression('~<link rel="stylesheet" href="https://fonts\\.googleapis\\.com/[^"]+">\\s*(?!</noscript>)~', $src, 'a blocking copy is back');
-        $this->assertStringContainsString("fonts.media = 'all'", ChromeRender::code('public/assets/js/shell.js'));
+        $this->assertStringNotContainsString('fonts.googleapis.com/css2?family=DM+Sans', $src, 'the house faces from a second origin again');
+        $this->assertStringNotContainsString('preconnect" href="https://fonts.g', $src);
+        // Not preloaded: a preload competes with the render-blocking stylesheets on a slow
+        // link (measured: first paint 150–310ms later), and the sized fallbacks make it moot.
+        $this->assertStringNotContainsString('rel="preload" href="/assets/fonts/', $src, 'a font preload delays the first paint on the connections this site is read on');
+        $this->assertSame('assets/css/fonts.css', \AfricaGates\Support\AssetBundle::STYLESHEETS[0], 'the faces must be declared before anything names them');
+
+        $css = ChromeRender::code('public/assets/css/fonts.css');
+        preg_match_all("~url\('(/assets/fonts/[a-z0-9-]+\.woff2)'\)~", $css, $m);
+        $this->assertNotEmpty($m[1]);
+        foreach (array_unique($m[1]) as $u) $this->assertFileExists(dirname(__DIR__, 2) . '/public' . $u, "$u is named and not shipped");
+        $this->assertSame(substr_count($css, "font-display:swap"), substr_count($css, "src:url("), 'a face without swap holds the text invisible');
+        foreach (['DM Sans fallback', 'DM Sans fallback android', 'Playfair Display fallback'] as $f) {
+            $this->assertMatchesRegularExpression("~font-family:'" . preg_quote($f, '~') . "'; font-weight:[0-9 ]+; src:local\([^;]+; size-adjust:[0-9.]+%; ascent-override:[0-9.]+%; descent-override:[0-9.]+%; line-gap-override:0%~", $css);
+        }
+        $tok = ChromeRender::code('public/assets/css/tokens.css');
+        $this->assertStringContainsString("--ag-font-ui:'DM Sans','DM Sans fallback','DM Sans fallback android',", $tok, 'the sized fallback is declared and never used');
+        $this->assertStringContainsString("--ag-font-display:'Playfair Display','Playfair Display fallback',", $tok);
+        $this->assertStringContainsString('ExpiresByType font/woff2 "access plus 1 year"', (string) file_get_contents(dirname(__DIR__, 2) . '/public/.htaccess'), 'every view revalidates the faces');
     }
 }

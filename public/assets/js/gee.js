@@ -1025,24 +1025,61 @@
      On a phone it sits on the right edge, which is where a row keeps its Vote button and
      a form its total; fixed there, it covered one of them on every screen. It returns on
      the first scroll back up and when the scrolling stops, and never leaves while it has
-     the keyboard's focus, so it is always one gesture away and never lost. */
+     the keyboard's focus, so it is always one gesture away and never lost.
+
+     AND IT NEVER SITS ON A CONTROL. Hiding on scroll answered the moving page and not the
+     page at rest: on the homepage the launcher lay over the right end of "Recognise with
+     Africa GATES" the moment the page opened, before anybody scrolled. No fixed place is
+     clear on every page — a phone's content runs edge to edge — so it asks the page: once
+     the scrolling settles (and on load and resize) it looks under its own resting box, and
+     while a link, a button or a field is there it stays tucked, coming back as soon as the
+     spot is clear. The Help Centre's "Ask Gee" is a way in that is never tucked. */
+  var CONTROL = 'a[href], button, input, select, textarea, summary, label, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])';
+  function overControl() {
+    if (fab.hidden) return false;
+    var x = fab.offsetLeft, y = fab.offsetTop, w = fab.offsetWidth, h = fab.offsetHeight;
+    if (!w || !h) return false;
+    var xs = [x + 3, x + w / 2, x + w - 3], ys = [y + 3, y + h / 2, y + h - 3];
+    for (var i = 0; i < xs.length; i++) for (var j = 0; j < ys.length; j++) {
+      var under = document.elementsFromPoint(xs[i], ys[j]);
+      for (var k = 0; k < under.length; k++) {
+        var el = under[k];
+        if (el === fab || fab.contains(el) || root.contains(el)) continue;
+        if (el.closest && el.closest(CONTROL)) return true;
+      }
+    }
+    return false;
+  }
   function tuckOnScroll() {
     var phone = window.matchMedia ? window.matchMedia('(max-width: 599px)') : null;
     var main = document.querySelector('.ag-main') || document.scrollingElement;
     var scroller = main === document.scrollingElement ? window : main;
-    var lastY = main.scrollTop, settle = 0;
+    var lastY = main.scrollTop, settle = 0, reading = false, blocked = false;
+    function paintTuck() {
+      if ((reading || blocked) && document.activeElement !== fab) fab.setAttribute('data-tuck', '');
+      else fab.removeAttribute('data-tuck');
+    }
+    function look() { blocked = overControl(); paintTuck(); }
     scroller.addEventListener('scroll', function () {
       var y = main.scrollTop, dy = y - lastY;
       lastY = y;
       if (Math.abs(dy) < 4) return;
-      if (dy > 0 && y > 80 && document.activeElement !== fab) fab.setAttribute('data-tuck', '');
-      else fab.removeAttribute('data-tuck');
+      reading = dy > 0 && y > 80;
+      paintTuck();
       clearTimeout(settle);
       // On a phone it stays tucked once somebody is reading down the page, until they scroll
       // back up: coming back at every pause put it over a row's button again mid-read.
-      if (!(phone && phone.matches && y > 80)) settle = setTimeout(function () { fab.removeAttribute('data-tuck'); }, 900);
+      settle = setTimeout(function () {
+        if (!(phone && phone.matches && y > 80)) reading = false;
+        look();
+      }, 900);
     }, { passive: true });
     fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });
+    var again = 0;
+    window.addEventListener('resize', function () { clearTimeout(again); again = setTimeout(look, 200); });
+    // After the first layout and again once images have landed (a hero moves everything).
+    if (window.requestAnimationFrame) requestAnimationFrame(look); else look();
+    if (document.readyState !== 'complete') window.addEventListener('load', look);
   }
   tuckOnScroll();
 })();

@@ -27,15 +27,6 @@
 (function () {
   'use strict';
 
-  /* The house fonts arrive WITHOUT blocking the first paint (layout/shell.twig). The link is
-     `media="print"`, so the browser fetches it at low priority and draws the page in the
-     fallback faces meanwhile; this applies it. A render-blocking stylesheet on a second
-     origin costs a DNS lookup, a TLS handshake and a request before ANY pixel — seconds on
-     the high-latency connections this site is mostly read on. `<noscript>` keeps the plain
-     link for a browser without this script. */
-  var fonts = document.querySelector('link[data-ag-fonts]');
-  if (fonts) fonts.media = 'all';
-
   /* The footer's columns fold on a phone and are held open from 600 (site-footer.twig).
      The markup ships them open, so a page without this script loses nothing. */
   var folds = document.querySelectorAll('details[data-ag-foot]');

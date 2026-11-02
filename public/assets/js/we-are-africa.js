@@ -364,8 +364,22 @@
     else window.addEventListener('resize', measure);
     measure();
 
+    /* The geometry (37K) and the 15,000-dot sampling wait until the band is near the screen:
+       it sits far down the homepage, and fetching and sampling it on arrival spent a phone's
+       first second on a picture most visitors never scroll to. 800px ahead, so it is drawn
+       before it arrives. */
     var url = band.dataset.topo;
     if (url && window.fetch) {
+      if (window.IntersectionObserver) {
+        var io = new IntersectionObserver(function (es) {
+          if (!es.some(function (e) { return e.isIntersecting; })) return;
+          io.disconnect();
+          load();
+        }, { rootMargin: '800px 0px' });
+        io.observe(band);
+      } else load();
+    }
+    function load() {
       fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (topo) {
         S.shapes = decode(topo);
         S.shapes.forEach(function (s) { S.byName[s.name] = s; });
