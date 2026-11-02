@@ -293,18 +293,37 @@ final class EventsPagesTest extends TestCase
         $this->assertStringNotContainsString('loop.index', $tpl, 'rank is a price question, never a list position');
     }
 
-    public function test_the_glow_is_the_specified_one_and_leaves_under_reduced_motion(): void
+    /**
+     * The card's rim (owner, 2 Nov 2026: Google's AI-mode glow, in one colour), each clause a
+     * way it was or could be wrong while rendering perfectly well: a second colour in the
+     * comet, two clocks drifting apart, a linear turn, a rim still turning off screen, a rim
+     * paused while a quarter of it was in view, and a double edge over the card's hairline.
+     */
+    public function test_the_glow_is_a_one_colour_comet_round_the_card_and_leaves_under_reduced_motion(): void
     {
         $css = ChromeRender::code('public/assets/css/components/events.css');
-        $this->assertMatchesRegularExpression("~@property --ev-a\{\s*syntax:'<angle>'~", $css);
-        $this->assertMatchesRegularExpression('~\.ed-glow__halo\{[^}]*inset:-10px[^}]*filter:blur\(22px\)[^}]*opacity:\.55[^}]*3\.2s linear infinite~s', $css);
-        $this->assertMatchesRegularExpression('~\.ed-glow__ring\{[^}]*padding-box[^}]*border-box~s', $css);
-        $this->assertMatchesRegularExpression('~@keyframes edGlow\{[^\n]*?100%\{ opacity:\.35 \}~', $css, 'it settles to .35');
+        $this->assertMatchesRegularExpression("~@property --ev-a\{\s*syntax:'<angle>'; initial-value:0deg; inherits:true \}~", $css, 'the halo and the ring need one clock');
+        $this->assertSame(1, preg_match('~\.ed-glow\{(.*?)\n\}~s', $css, $g));
+        $this->assertMatchesRegularExpression('~animation:edAngle [0-9.]+s cubic-bezier\(~', $g[1], 'a linear turn ticks round like a clock hand');
+        $this->assertMatchesRegularExpression('~inset:-1px~', $g[1], 'the ring is a second edge inside the card\'s own');
+        preg_match('~--ev-cg:conic-gradient\(from var\(--ev-a\),(.*?)\);~s', $g[1], $c);
+        $this->assertNotEmpty($c);
+        preg_match_all('~var\((--[a-z0-9-]+)\)~', $c[1], $v);
+        $this->assertSame([], array_values(array_filter(array_unique($v[1]), fn($n) => !str_starts_with($n, '--tier-'))), 'the comet is drawn in a colour that is not the tier\'s');
+        $this->assertDoesNotMatchRegularExpression('~\.ed-glow__(halo|ring)\{[^}]*edAngle~', $css, 'a second clock on a child drifts from the first');
+
+        $this->assertMatchesRegularExpression('~\.ed-glow__ring\{[^}]*padding-box, var\(--ev-cg\) border-box~s', $css);
+        $this->assertMatchesRegularExpression('~@keyframes edBloom\{[^@]*30%\{ opacity:\.6; transform:scale\(1\.03\) \}[^@]*100%\{ opacity:\.22; transform:scale\(1\) \}~s', $css, 'it blooms and settles to a trace');
+        $this->assertStringContainsString('.ed-card[data-ev-idle] .ed-glow > *{ animation-play-state:paused }', $css, 'turning off screen, repainting for nobody');
         $this->assertMatchesRegularExpression('~prefers-reduced-motion:reduce\)\{ \[data-ev-glow\]\{ display:none \} \}~', $css);
+        $this->assertStringContainsString('html.ag-rm [data-ev-glow]{ display:none }', $css, 'the site\'s own reduce-motion setting left the rim drawn, still');
         $this->assertStringContainsString('aria-hidden="true" hidden><span class="ed-glow__halo">', ChromeRender::source('templates/pages/events/_card.twig'),
-            'the effect is hidden from assistive tech and does not play before the first pick');
+            'the effect is hidden from assistive tech and does not play before it is seen');
+
         $js = ChromeRender::code('public/assets/js/event-detail.js');
         $this->assertStringContainsString('replaceChild(fresh, g)', $js, 'a pick replays by replacing the element');
+        $this->assertStringContainsString('{ threshold: [0, 0.25] }', $js, 'under one .25 threshold a card 24% in view reads as off screen and stands still');
+        $this->assertMatchesRegularExpression("~intersectionRatio > 0\) card\.removeAttribute\('data-ev-idle'\)~", $js);
     }
 
     public function test_the_phone_order_and_the_fixed_bar(): void

@@ -103,6 +103,21 @@
     g.parentNode.replaceChild(fresh, g);
   }
 
+  /* The glow plays once the first time the card is in view with a tier chosen (its
+     "initialisation"), and every animation in it is paused while the card is off screen —
+     a turning gradient repaints every frame wherever it is (events.css, THE GLOW). */
+  if (window.IntersectionObserver && q('[data-ev-glow]', card)) {
+    var seen = false;
+    // Two thresholds, two questions: any of it on screen (keep turning) and a quarter of it
+    // (worth a bloom). Under one threshold of .25 the browser reports a card 24% visible as
+    // not intersecting, and the rim stood still while somebody was looking at it.
+    new IntersectionObserver(function (es) {
+      var e = es[es.length - 1];
+      if (e.intersectionRatio > 0) card.removeAttribute('data-ev-idle'); else card.setAttribute('data-ev-idle', '');
+      if (e.intersectionRatio >= 0.25 && !seen && state.id) { seen = true; glow(); }
+    }, { threshold: [0, 0.25] }).observe(card);
+  }
+
   function pick(r, quiet) {
     if (!r || r.disabled) return;
     rows.forEach(function (x) {
@@ -126,7 +141,7 @@
     toggle('[data-ed-total-wrap]', state.price > 0 && !state.gone);
     err.textContent = '';
     paint();
-    if (!quiet) glow();
+    if (!quiet) { seen = true; glow(); }
   }
   function toggle(sel, on) { var el = q(sel, form); if (el) el.hidden = !on; }
 

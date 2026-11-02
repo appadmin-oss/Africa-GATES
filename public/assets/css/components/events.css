@@ -227,30 +227,63 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-card__note{ margin:0; font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-ink-2) }
 .ed-tint{ color:var(--ev-deep) }
 
-/* The glow (§8.10). `--ev-a` is registered so it INTERPOLATES; unregistered (a browser
-   without @property) it does not, and the ring is a static gradient border — the
-   specified fallback, with no second rule needed. */
-@property --ev-a{ syntax:'<angle>'; initial-value:0deg; inherits:false }
+/* THE GLOW — the card's rim, after Google's AI-mode glow, in ONE colour: the chosen tier's
+   (owner, 2 Nov 2026, superseding §8.10's two-ended ring). Built in the same three layers:
+     top     the card's face — the ring's `padding-box` fill, so no light reaches the form;
+     middle  the comet, a conic gradient shown only through the 2px `border-box`: a faint
+             floor of the tier's edge for half the turn, then rising through `light` and
+             `accent` to a `deep` head — one colour sweeping round, its tail dragging behind;
+     bottom  the halo, a blurred copy of the same comet behind the card, which is the glow.
+
+   · ONE CLOCK. `--ev-a` is registered (so it interpolates) and INHERITS, and is turned on
+     `.ed-glow` alone, so the halo and the ring can never drift apart. Unregistered (no
+     @property) the angle does not move and the rim is a still gradient — the fallback.
+   · THE PACE IS EASED, not linear: the head surges out of each lap and eases into the next,
+     which is what keeps it reading as light rather than a clock hand.
+   · THE BLOOM. On a pick, and the first time the card comes into view with a tier chosen,
+     the halo swells (scale 1.03, opacity .6) and settles to a trace (.22); the ring fades in
+     over the first beat. Hover widens the halo — on `scale` and `filter`, because opacity and
+     transform are held by the bloom's `forwards` fill, which beats any rule written here.
+   · IT STOPS WHEN NOBODY CAN SEE IT. event-detail.js marks the card `data-ev-idle` while it
+     is off screen: a turning gradient repaints every frame wherever it is, and this page is
+     read on low-end phones.
+   · aria-hidden and untouchable: the tier's border, wash and radio say everything it says,
+     which is what makes it safe to drop entirely under reduced motion — the OS's or the
+     site's own (`html.ag-rm`). */
+@property --ev-a{ syntax:'<angle>'; initial-value:0deg; inherits:true }
 @keyframes edAngle{ to{ --ev-a:360deg } }
-@keyframes edGlow{ 0%{ opacity:0 } 10%{ opacity:1 } 60%{ opacity:1 } 100%{ opacity:.35 } }
-@keyframes edBreath{ 0%, 100%{ transform:scale(1) } 50%{ transform:scale(1.03) } }
+@keyframes edRingIn{ from{ opacity:0 } to{ opacity:1 } }
+@keyframes edBloom{
+  0%{ opacity:0; transform:scale(.98) }
+  30%{ opacity:.6; transform:scale(1.03) }
+  100%{ opacity:.22; transform:scale(1) }
+}
 .ed-glow{
-  --ev-cg:conic-gradient(from var(--ev-a), var(--tier-accent), var(--tier-light), var(--tier-glow),
-          var(--ag-surface) 55%, var(--tier-glow), var(--tier-light), var(--tier-accent));
-  position:absolute; inset:0; z-index:-1; pointer-events:none;
-  animation:edGlow 3s ease-out forwards;
+  --ev-cg:conic-gradient(from var(--ev-a),
+          color-mix(in srgb, var(--tier-edge) 16%, transparent) 0deg 175deg,
+          color-mix(in srgb, var(--tier-light) 70%, transparent) 245deg,
+          var(--tier-accent) 318deg, var(--tier-deep) 352deg,
+          color-mix(in srgb, var(--tier-edge) 16%, transparent) 360deg);
+  /* -1px: over the card's own hairline, so the ring IS the card's edge, not a second one. */
+  position:absolute; inset:-1px; z-index:-1; pointer-events:none;
+  animation:edAngle 4s cubic-bezier(.55,.1,.35,.95) infinite;
 }
 .ed-glow__halo{
-  position:absolute; inset:-10px; border-radius:30px; background:var(--ev-cg);
-  filter:blur(22px); opacity:.55;
-  animation:edAngle 3.2s linear infinite, edBreath 3s ease-in-out infinite;
+  position:absolute; inset:-8px; border-radius:28px; background:var(--ev-cg);
+  filter:blur(20px); opacity:.22;
+  animation:edBloom 1.6s var(--ag-ease) forwards;
+  transition:scale var(--ag-dur-2) var(--ag-ease), filter var(--ag-dur-2) var(--ag-ease);
 }
 .ed-glow__ring{
   position:absolute; inset:0; border-radius:var(--ag-r-20); border:2px solid transparent;
   background:linear-gradient(var(--ag-surface), var(--ag-surface)) padding-box, var(--ev-cg) border-box;
-  animation:edAngle 3.2s linear infinite;
+  animation:edRingIn .4s var(--ag-ease) both;
 }
+.ed-card:hover .ed-glow__halo{ scale:1.03; filter:blur(26px) }
+.ed-card[data-ev-idle] .ed-glow,
+.ed-card[data-ev-idle] .ed-glow > *{ animation-play-state:paused }
 @media (prefers-reduced-motion:reduce){ [data-ev-glow]{ display:none } }
+html.ag-rm [data-ev-glow]{ display:none }
 
 /* Tier rows: a radio group. The radio stays NEUTRAL (ink); the tier's colour is the
    selected border and wash. */
@@ -265,55 +298,6 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-tier[aria-checked="true"]{ border-color:var(--tier-edge); background:var(--tier-wash) }
 .ed-tier:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .ed-tier:disabled{ cursor:not-allowed; opacity:.62 }
-/* THE CHOSEN TIER'S RING (owner, 2 Nov 2026: Google's AI-mode glow, in ONE colour — the
-   tier's own). Three layers, as that button is built:
-     top     the row's face, `padding-box`, so nothing reaches the words;
-     middle  the comet: a conic gradient that is mostly a faint floor of the tier's edge and
-             then, over the last ~45% of the turn, rises through `light` to `accent` with
-             `deep` at its head — one colour sweeping, its tail dragging behind it;
-     bottom  the surface, as `background-color`, which the faint floor mixes onto.
-   Only the 2px border shows the middle layer (`border-box` under a `padding-box` face).
-   `--tier-a` is registered so the angle INTERPOLATES; the turn is eased rather than linear,
-   so the head surges and settles each revolution instead of ticking round like a clock.
-   On the pick the halo behind the row blooms (scale 1.03, blurred) and settles to a trace.
-   One row is chosen at a time, so this is the one moving thing in the panel. Under reduced
-   motion — the OS setting or the site's own (`html.ag-rm`) — none of it runs: the row keeps
-   the plain `--tier-edge` border above, which is the whole of the meaning. */
-@property --tier-a{ syntax:'<angle>'; initial-value:0deg; inherits:true }
-@keyframes edTierTurn{ to{ --tier-a:360deg } }
-@keyframes edTierBloom{
-  0%{ opacity:0; transform:scale(.98) }
-  35%{ opacity:.6; transform:scale(1.03) }
-  100%{ opacity:.2; transform:scale(1) }
-}
-@media (prefers-reduced-motion:no-preference){
-  /* The halo sits BEHIND the row's face, so the stacking context is the LIST, not the row:
-     inside a row's own context a z-index:-1 child paints above that row's background, and
-     the blur then lies over the words. */
-  .ed-tiers{ isolation:isolate }
-  .ed-tier{ position:relative }
-  .ed-tier[aria-checked="true"]{
-    --tier-comet:conic-gradient(from var(--tier-a),
-      color-mix(in srgb, var(--tier-edge) 22%, transparent) 0deg 190deg,
-      color-mix(in srgb, var(--tier-light) 70%, transparent) 250deg,
-      var(--tier-accent) 320deg, var(--tier-deep) 352deg,
-      color-mix(in srgb, var(--tier-edge) 22%, transparent) 360deg);
-    border:2px solid transparent; padding:11.5px 13.5px;
-    background:linear-gradient(var(--tier-wash), var(--tier-wash)) padding-box, var(--tier-comet) border-box;
-    background-color:var(--ag-surface);
-    animation:edTierTurn 3.4s cubic-bezier(.55,.1,.35,.95) infinite;
-  }
-  .ed-tier[aria-checked="true"]::before{
-    content:""; position:absolute; inset:-3px; z-index:-1; border-radius:15px; pointer-events:none;
-    background:var(--tier-comet); filter:blur(9px);
-    animation:edTierBloom .9s var(--ag-ease) forwards;
-  }
-  /* Hover widens the bloom. `scale` and `filter`, never `opacity`/`transform`: those are
-     held by the bloom's `forwards` fill, and a filled animation beats any rule written here. */
-  .ed-tier[aria-checked="true"]::before{ transition:scale var(--ag-dur-2) var(--ag-ease), filter var(--ag-dur-2) var(--ag-ease) }
-  .ed-tier[aria-checked="true"]:hover::before{ scale:1.03; filter:blur(13px) }
-}
-html.ag-rm .ed-tier[aria-checked="true"]::before{ display:none }
 .ed-tier__radio{
   flex:none; width:18px; height:18px; margin-top:2px; border-radius:50%; box-sizing:border-box;
   border:2px solid var(--ag-chevron);
