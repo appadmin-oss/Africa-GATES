@@ -38,7 +38,7 @@
 {% set _first = member_name ? (member_name|trim|split(' ')|first) : '' %}
 {# `gee_mode`: a page may open Gee's face in help-desk mode by default (the Help Centre
    mounts it as `mode="support"` in HelpCentre.dc.html, Phase 9). Only the face; one brain. #}
-<div class="gee" data-gee data-mode="guide" data-gee-default="{{ gee_mode|default('guide') == 'support' ? 'support' : 'guide' }}"
+<div class="gee" data-gee data-mode="guide" data-gee-default="{{ gee_mode|default('guide') == 'support' ? 'support' : 'guide' }}" data-nav-keep="gee" data-nav-sync="data-gee-default"
      data-gee-signed="{{ is_member ? '1' : '0' }}"
      data-gee-title="{{ page_title|default('Africa GATES') }}"
      data-msg-fab-guide="{{ 'Ask Gee'|trans }}"

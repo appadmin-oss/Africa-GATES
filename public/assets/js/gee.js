@@ -1016,6 +1016,11 @@
   restore('support');
   /* A page may default to the help desk's face (the Help Centre: data-gee-default). */
   setMode(root.getAttribute('data-gee-default') === 'support' ? 'support' : 'guide');
+  // A page swapped in place (site-nav.js) brings its own default; a conversation somebody
+  // has open is theirs, so it is only applied while the panel is closed.
+  document.addEventListener('ag:load', function () {
+    if (!isOpen()) setMode(root.getAttribute('data-gee-default') === 'support' ? 'support' : 'guide');
+  });
   paint();
   syncSend();
   fab.hidden = false;
@@ -1082,6 +1087,7 @@
     });
     // After the first layout and again once images have landed (a hero moves everything).
     if (window.requestAnimationFrame) requestAnimationFrame(look); else look();
+    document.addEventListener('ag:load', function () { reading = false; look(); });
     if (document.readyState !== 'complete') window.addEventListener('load', look);
   }
   tuckOnScroll();

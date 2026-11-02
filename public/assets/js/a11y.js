@@ -226,6 +226,13 @@
     });
   }
   window.addEventListener('ag:a11y', function (e) { listenBar(e.detail); });
+  // An in-place navigation (site-nav.js) replaces <main>, and the bar with it: the old page
+  // stops speaking, and the new one gets its own bar (or none, if it has its own control).
+  document.addEventListener('ag:unload', function () {
+    if (speaking !== 'idle' && window.speechSynthesis) window.speechSynthesis.cancel();
+    bar = null; speaking = 'idle';
+  });
+  document.addEventListener('ag:load', function () { listenBar(); });
   window.addEventListener('pagehide', function () { if (speaking !== 'idle' && window.speechSynthesis) window.speechSynthesis.cancel(); });
 
   /* ── A control that submits its form when it changes ─────────────────────────

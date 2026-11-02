@@ -28,6 +28,9 @@
 
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var root = document.querySelector('[data-dv]');
   if (!root || !window.fetch || !window.URLSearchParams) return;
@@ -124,7 +127,7 @@
     list[to].focus();
   });
 
-  window.addEventListener('popstate', function () {
+  pg.on(window, 'popstate', function () {
     var k = params().get('tab') || 'all';
     if (k !== tab()) setTab(k, { fromHistory: true });
   });
@@ -393,7 +396,7 @@
       // Back closes the sheet first (skill §10): one history entry while it is open.
       history.pushState({ dvSheet: 1, dvTab: tab() }, '', location.pathname + location.search + '#filters');
     });
-    window.addEventListener('popstate', function () { if (close) shut(); });
+    pg.on(window, 'popstate', function () { if (close) shut(); });
     sheet.querySelector('[data-dv-close]').addEventListener('click', function (e) {
       e.preventDefault();
       if (location.hash === '#filters') history.back(); else shut();

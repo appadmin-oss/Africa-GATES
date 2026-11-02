@@ -234,3 +234,15 @@ html.ag-rm *::after{
   transition:none!important;
   scroll-behavior:auto!important;
 }
+
+/* ── In-place navigation's progress line (site-nav.js) ─────────────────────────
+   Only a wait somebody would notice gets it (120ms); a page from memory gets none. A
+   transform, never a width, so it costs no layout. Under reduced motion it simply shows. */
+.ag-navbar{
+  position:fixed; inset-inline:0; top:0; z-index:var(--ag-z-header); height:2px; pointer-events:none;
+  background:var(--ag-green); transform-origin:0 50%; transform:scaleX(0); opacity:0;
+}
+[dir="rtl"] .ag-navbar{ transform-origin:100% 50% }
+.ag-navbar[data-on]{ opacity:1; transform:scaleX(.7); transition:transform 1.6s var(--ag-ease), opacity var(--ag-dur-1) var(--ag-ease) }
+.ag-navbar[data-done]{ transform:scaleX(1); transition:transform var(--ag-dur-1) var(--ag-ease) }
+@media (prefers-reduced-motion:reduce){ .ag-navbar[data-on]{ transition:none } }

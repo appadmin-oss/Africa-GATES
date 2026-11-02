@@ -106,4 +106,4 @@
 
 {% block sheets %}{{ parent() }}{{ art.sheet(d) }}{% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/doc.js') }}"></script>{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/doc.js') }}" data-nav="rerun"></script>{% endblock %}

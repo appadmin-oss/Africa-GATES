@@ -24,6 +24,9 @@
    says so in its own words. Every string arrives from the template, through |trans. */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var root = document.querySelector('[data-ed]');
   if (!root) return;
@@ -61,7 +64,7 @@
   }
 
   /* ── Referral link copy: the field is a real input first ─────────────── */
-  document.addEventListener('click', function (e) {
+  pg.on(document, 'click', function (e) {
     var b = e.target.closest('[data-ag-do="copy-ref"]');
     if (!b) return;
     var f = document.getElementById(b.getAttribute('data-target'));

@@ -114,6 +114,6 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script defer src="{{ asset('/assets/js/blog.js') }}"></script>
-{% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}"></script>{% endif %}
+<script defer src="{{ asset('/assets/js/blog.js') }}" data-nav="rerun"></script>
+{% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

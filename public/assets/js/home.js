@@ -8,6 +8,9 @@
  */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -46,7 +49,7 @@
     var start = function () {
       stop();
       if (reduce || hover || document.hidden) return;
-      timer = setInterval(function () { show(i + 1); }, 5500);
+      timer = pg.every(function () { show(i + 1); }, 5500);
     };
 
     for (var d = 0; d < dots.length; d++) {
@@ -56,9 +59,11 @@
     hero.addEventListener('mouseleave', function () { hover = false; start(); });
     hero.addEventListener('focusin', function () { hover = true; stop(); });
     hero.addEventListener('focusout', function () { hover = false; start(); });
-    document.addEventListener('visibilitychange', start);
+    pg.on(document, 'visibilitychange', start);
     // The second slide once the page has finished loading, so the first turn is ready.
-    if (!reduce) window.addEventListener('load', function () { setTimeout(function () { wake(1); }, 1500); });
+    // After the page has loaded — which, arriving by an in-place navigation, it already has.
+    var later = function () { setTimeout(function () { wake(1); }, 1500); };
+    if (!reduce) { if (document.readyState === 'complete') later(); else pg.on(window, 'load', later); }
     start();
   }
 

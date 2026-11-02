@@ -29,16 +29,21 @@
 
   /* The footer's columns fold on a phone and are held open from 600 (site-footer.twig).
      The markup ships them open, so a page without this script loses nothing. */
-  var folds = document.querySelectorAll('details[data-ag-foot]');
-  if (folds.length && window.matchMedia) {
-    var wideFoot = window.matchMedia('(min-width: 600px)');
-    var setFolds = function () { for (var f = 0; f < folds.length; f++) folds[f].open = wideFoot.matches; };
-    setFolds();
-    if (wideFoot.addEventListener) wideFoot.addEventListener('change', setFolds);
-    for (var g = 0; g < folds.length; g++) folds[g].addEventListener('toggle', function (e) {
-      if (wideFoot.matches && !e.currentTarget.open) e.currentTarget.open = true;
-    });
+  var wideFoot = window.matchMedia ? window.matchMedia('(min-width: 600px)') : null;
+  function footFolds() {
+    var folds = document.querySelectorAll('details[data-ag-foot]');
+    if (!folds.length || !wideFoot) return;
+    for (var f = 0; f < folds.length; f++) {
+      folds[f].open = wideFoot.matches;
+      if (folds[f]._agFold) continue;
+      folds[f]._agFold = true;
+      folds[f].addEventListener('toggle', function (e) {
+        if (wideFoot.matches && !e.currentTarget.open) e.currentTarget.open = true;
+      });
+    }
   }
+  footFolds();
+  if (wideFoot && wideFoot.addEventListener) wideFoot.addEventListener('change', footFolds);
 
   var THRESHOLD = 8;     /* §6.6 / §9.1: scrolled = scrollTop > 8 */
   var DRIFT     = 24;    /* §9.2 state 4: an opened, empty search closes after 24px */
@@ -182,7 +187,7 @@
       btn.focus({ preventScroll: true });
     });
 
-    listen(main, onScroll);
+    return listen(main, onScroll);
     y0 = main.scrollTop;
     set(main.scrollTop <= THRESHOLD || !!input.value.trim());
   }
@@ -299,12 +304,23 @@
   }
 
   /* ── Boot ─────────────────────────────────────────────────────────────────── */
+  /* The page's collapsing searches subscribe to <main>'s scroll. On an in-place navigation
+     (site-nav.js) <main> stays and its contents change, so the old page's subscriptions are
+     dropped and the new page's made — or a search that is gone would go on being driven. */
+  var pageStops = [];
+  function pageBlocks(main) {
+    pageStops.forEach(function (stop) { if (stop) stop(); });
+    pageStops = [];
+    var blocks = main.querySelectorAll('[data-cs]');
+    for (var i = 0; i < blocks.length; i++) pageStops.push(collapsingSearch(main, blocks[i]));
+  }
+
   function boot() {
     var main = document.querySelector('.ag-main');
     if (main) {
       watchScroll(main);
-      var blocks = main.querySelectorAll('[data-cs]');
-      for (var i = 0; i < blocks.length; i++) collapsingSearch(main, blocks[i]);
+      pageBlocks(main);
+      document.addEventListener('ag:load', function () { pageBlocks(main); footFolds(); });
     }
     /* Always: a page with no bar yet may mount one later, and the figure has to be
        cleared when the last one goes. */

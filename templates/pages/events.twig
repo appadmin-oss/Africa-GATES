@@ -326,5 +326,5 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/events-index.js') }}"></script>
-{% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}<script defer src="{{ asset('/assets/js/events-index.js') }}" data-nav="rerun"></script>
+{% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

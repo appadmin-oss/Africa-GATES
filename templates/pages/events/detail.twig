@@ -349,7 +349,7 @@
 
 {% block foot_scripts %}
   <script type="application/json" id="ed-flier-data" nonce="{{ csp_nonce }}">{{ {styles: flier_styles, defaults: flier_style_default, title: event.title, date: event.event_date|slice(0, 10), pct: referral ? referral.pct : 0}|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
-  <script defer src="{{ asset('/assets/js/event-detail.js') }}"></script>
-  {% if st != 'ended' %}<script defer src="{{ asset('/assets/js/event-flier.js') }}"></script>{% endif %}
-  {% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}"></script>{% endif %}
+  <script defer src="{{ asset('/assets/js/event-detail.js') }}" data-nav="rerun"></script>
+  {% if st != 'ended' %}<script defer src="{{ asset('/assets/js/event-flier.js') }}" data-nav="rerun"></script>{% endif %}
+  {% if ad|default(null) %}<script defer src="{{ asset('/assets/js/ads.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

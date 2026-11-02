@@ -246,4 +246,7 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+  // A swapped page (site-nav.js) may bring the first-visit language prompt, or controls
+  // whose state comes from the store: answered again, with no listener bound twice.
+  document.addEventListener('ag:load', function () { bindLangAsk(); sync(); });
 })();

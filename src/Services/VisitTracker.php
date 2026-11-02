@@ -101,7 +101,9 @@ final class VisitTracker
     {
         try {
             if (!self::enabled()) return '';
-            if (strtoupper($request->getMethod()) !== 'GET') return '';
+            // GET, or the HEAD site-nav.js sends to count a page it showed from a prefetch.
+            $method = strtoupper($request->getMethod());
+            if ($method !== 'GET' && !($method === 'HEAD' && self::header($request, 'X-Site-Nav') === '1')) return '';
 
             $path = '/' . ltrim($request->getUri()->getPath(), '/');
             foreach (self::IGNORE as $prefix) {
@@ -599,6 +601,10 @@ final class VisitTracker
      */
     private static function isPageNavigation(Request $request): bool
     {
+        // A page swapped in place by site-nav.js is a page view the browser fetched by
+        // script (`Sec-Fetch-Mode: cors`). It says so; its prefetch says that instead, and
+        // isSpeculative() refuses it before this is asked.
+        if (self::header($request, 'X-Site-Nav') === '1') return true;
         $mode = strtolower(self::header($request, 'Sec-Fetch-Mode'));
         $dest = strtolower(self::header($request, 'Sec-Fetch-Dest'));
         if ($mode !== '' || $dest !== '') {

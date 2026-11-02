@@ -174,4 +174,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}{% if trial_left %}<script defer src="{{ asset('/assets/js/image-tool.js') }}"></script><script defer src="{{ asset('/assets/js/ads-builder.js') }}"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}{% if trial_left %}<script defer src="{{ asset('/assets/js/image-tool.js') }}" data-nav="rerun"></script><script defer src="{{ asset('/assets/js/ads-builder.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

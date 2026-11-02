@@ -9,6 +9,9 @@
    Classic deferred script, no inline handlers (the CSP has no 'unsafe-inline'). */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var form = document.querySelector('[data-gv-form]');
   if (form) checkout(form);
@@ -91,7 +94,7 @@
       Array.prototype.forEach.call(gos, function (b) { b.setAttribute('aria-busy', 'true'); b.textContent = f.getAttribute('data-w-busy'); });
     });
     // Back from the gateway restores this page from the cache, still busy. Undo that.
-    window.addEventListener('pageshow', function () { Array.prototype.forEach.call(gos, function (b) { b.removeAttribute('aria-busy'); }); paint(); });
+    pg.on(window, 'pageshow', function () { Array.prototype.forEach.call(gos, function (b) { b.removeAttribute('aria-busy'); }); paint(); });
 
     paint();
   }
@@ -101,7 +104,7 @@
      markup sends the visitor's address to a third party on page view. The src was built by
      OrgBrand::embedUrl() from a fixed prefix and a validated id; it is checked again here,
      at the point of use, so no later edit can turn this into an arbitrary-iframe injector. */
-  document.addEventListener('click', function (e) {
+  pg.on(document, 'click', function (e) {
     var btn = e.target.closest && e.target.closest('[data-ob-play]');
     if (!btn) return;
     var box = btn.closest('[data-ob-video]');

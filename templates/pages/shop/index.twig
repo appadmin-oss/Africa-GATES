@@ -302,5 +302,5 @@
 {% block sheets %}
   {{ parent() }}
   {{ sb.drawer(_ctx) }}
-  <script defer src="{{ asset('/assets/js/shop.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/shop.js') }}" data-nav="rerun"></script>
 {% endblock %}

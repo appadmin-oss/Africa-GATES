@@ -36,6 +36,9 @@
 
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var AFRICA = new Set(["Algeria","Angola","Benin","Botswana","Burkina Faso","Burundi","Cameroon",
     "Central African Rep.","Chad","Congo","Côte d'Ivoire","Dem. Rep. Congo","Djibouti","Egypt",
@@ -361,7 +364,7 @@
       redraw();
     }
     if (window.ResizeObserver) new ResizeObserver(measure).observe(canvas);
-    else window.addEventListener('resize', measure);
+    else pg.on(window, 'resize', measure);
     measure();
 
     /* The geometry (37K) and the 15,000-dot sampling wait until the band is near the screen:

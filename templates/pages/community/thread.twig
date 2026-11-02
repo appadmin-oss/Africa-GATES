@@ -163,6 +163,6 @@
 {% endblock %}
 
 {% block foot_scripts %}
-  {% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}"></script>{% endif %}
-  {% if member_logged_in %}<script defer src="{{ asset('/assets/js/community.js') }}"></script>{% endif %}
+  {% if poll %}<script defer src="{{ asset('/assets/js/poll.js') }}" data-nav="rerun"></script>{% endif %}
+  {% if member_logged_in %}<script defer src="{{ asset('/assets/js/community.js') }}" data-nav="rerun"></script>{% endif %}
 {% endblock %}

@@ -462,6 +462,6 @@
 {% endblock %}
 
 {% block foot_scripts %}
-  {% if _ts %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>{% endif %}
-  <script defer src="{{ asset('/assets/js/vote.js') }}"></script>
+  {% if _ts %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer data-nav="once"></script>{% endif %}
+  <script defer src="{{ asset('/assets/js/vote.js') }}" data-nav="rerun"></script>
 {% endblock %}

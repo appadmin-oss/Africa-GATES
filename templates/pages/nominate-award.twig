@@ -422,4 +422,4 @@
 {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}{% if nominations_open and not no_categories|default(false) %}<script defer src="{{ asset('/assets/js/nominate.js') }}"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}{% if nominations_open and not no_categories|default(false) %}<script defer src="{{ asset('/assets/js/nominate.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

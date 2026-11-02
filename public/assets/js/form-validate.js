@@ -373,4 +373,7 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
+  // A page swapped in place (site-nav.js) brings its forms: each is enhanced once (the
+  // `data-ag-validated` mark), so the old page's are untouched and the new page's are wired.
+  document.addEventListener('ag:load', init);
 })();

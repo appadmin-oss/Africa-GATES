@@ -19,6 +19,9 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
 
   var root = document.querySelector('[data-doc]');
   if (!root) return;
@@ -60,7 +63,7 @@
     }
     mark(secs.length ? at : -1);
   }
-  main.addEventListener('scroll', function () {
+  pg.on(main, 'scroll', function () {
     if (!ticking) { ticking = true; window.requestAnimationFrame(measure); }
   }, { passive: true });
   measure();
@@ -115,7 +118,7 @@
           window.removeEventListener('popstate', go);
           window.setTimeout(function () { jump(id); }, 0);
         };
-        window.addEventListener('popstate', go);
+        pg.on(window, 'popstate', go);
         window.setTimeout(go, 300);
         shut();
       } else {
@@ -165,7 +168,7 @@
       });
       set('speaking');
     });
-    window.addEventListener('pagehide', function () { synth.cancel(); });
+    pg.on(window, 'pagehide', function () { synth.cancel(); });
   }
 
   /* ── Citation: tabs, copy, share ──────────────────────────────────────── */

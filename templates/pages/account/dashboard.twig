@@ -481,4 +481,4 @@
 {% endif %}
 {% endblock %}
 
-{% block foot_scripts %}{% if passkeys_available and tab == 'security' %}<script defer src="{{ asset('/assets/js/passkeys.js') }}"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}{% if passkeys_available and tab == 'security' %}<script defer src="{{ asset('/assets/js/passkeys.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

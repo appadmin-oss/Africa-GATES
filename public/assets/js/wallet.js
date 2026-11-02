@@ -16,6 +16,9 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  // Page-wide listeners and timers go through agPage (layout/shell.twig), which site-nav.js
+  // undoes when this page is swapped away; elsewhere they are plain (SiteNavTest).
+  var pg = window.agPage || { on: function (t, y, f, o) { t.addEventListener(y, f, o); }, every: function (f, ms) { return setInterval(f, ms); }, leave: function () {} };
   var KEY = 'ag-hide-bal';
   var root = document.documentElement;
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -105,7 +108,7 @@
     var x = toast && toast.querySelector('[data-wl-toast-x]');
     if (x) x.addEventListener('click', function () { toast.hidden = true; });
     window.setInterval(poll, 30000);
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+    pg.on(document, 'visibilitychange', function () { if (!document.hidden) poll(); });
   }
 
   /* ── the withdraw form: the fee and what arrives, as the amount is typed ─────
