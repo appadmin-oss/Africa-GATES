@@ -101,10 +101,12 @@ final class AdDelivery
         return [
             'id' => (int) $ad->id, 'placement' => $placement, 'advertiser' => (string) $set->advertiser,
             'initials' => mb_strtoupper(implode('', $mark)) ?: '?',
-            'logo' => Media::url($set->logo_path ? (string) $set->logo_path : null, 'thumb'),
+            'logo' => Media::url($set->logo_path ? (string) $set->logo_path : null, 'avatar'),
+            'logo_srcset' => \AfricaGates\Support\ImageProfiles::srcset($set->logo_path ? (string) $set->logo_path : null),
             'headline' => (string) $ad->headline, 'body' => (string) $ad->body,
             'cta' => AdRules::CTAS[(string) $ad->cta] ?? 'Learn more',
-            'image' => Media::url($ad->image_path ? (string) $ad->image_path : null, 'thumb'),
+            'image' => Media::url($ad->image_path ? (string) $ad->image_path : null, 'ad'),
+            'image_srcset' => \AfricaGates\Support\ImageProfiles::srcset($ad->image_path ? (string) $ad->image_path : null),
             'offer' => $ad->offer ? (string) $ad->offer : null, 'offer_code' => $ad->offer_code ? (string) $ad->offer_code : null,
             'domain' => AdRules::displayDomain((string) $ad->url),
             'href' => '/ads/go/' . $token, 'token' => $token, 'external' => !str_starts_with((string) $ad->url, '/'),
@@ -267,6 +269,17 @@ final class AdDelivery
     {
         $ads = DB::table('gates_ads')->where('ad_set_id', $setId)->where('review', 'approved')->get()->all();
         if ($ads === []) return null;
+        // Versions (AdCampaigns::leader()): once one is measurably ahead it is shown
+        // LEAD_SHARE of the time, and the others share the rest in turn.
+        if (count($ads) > 1) {
+            $lead = AdCampaigns::leader(AdCampaigns::adTotals(array_map(static fn ($a) => (int) $a->id, $ads)));
+            if ($lead !== null) {
+                if (random_int(1, 100) <= AdCampaigns::LEAD_SHARE) {
+                    foreach ($ads as $a) if ((int) $a->id === $lead) return $a;
+                }
+                $ads = array_values(array_filter($ads, static fn ($a) => (int) $a->id !== $lead));
+            }
+        }
         $views = [];
         foreach (DB::table('gates_ad_stats')->whereIn('ad_id', array_map(static fn ($a) => (int) $a->id, $ads))
                      ->where('day', $day)->groupBy('ad_id')->selectRaw('ad_id, SUM(views) as v')->get() as $r) {

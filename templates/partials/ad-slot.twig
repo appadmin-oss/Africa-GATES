@@ -30,7 +30,7 @@
 {%- set _rel = _house ? '' : 'sponsored' ~ (ad.external|default(not (_href starts with '/')) ? ' noopener noreferrer' : '') -%}
 <article class="ag-ad"{% if not _pv %} data-ad="{{ ad.token }}" data-csrf="{{ csrf_token|default('') }}"{% endif %} aria-label="{{ _house ? 'From Africa GATES'|trans : 'Sponsored: %a%'|trans({'%a%': ad.advertiser}) }}">
   <header class="ag-ad__head">
-    <span class="ag-ad__logo" aria-hidden="true" data-pv="logo">{% if ad.logo|default(null) %}<img src="{{ ad.logo }}" alt="" width="40" height="40" loading="lazy">{% else %}{{ ad.initials|default('?') }}{% endif %}</span>
+    <span class="ag-ad__logo" aria-hidden="true" data-pv="logo">{% if ad.logo|default(null) %}<img src="{{ ad.logo }}"{% if ad.logo_srcset|default(null) %} srcset="{{ ad.logo_srcset }}" sizes="40px"{% endif %} alt="" width="40" height="40" loading="lazy">{% else %}{{ ad.initials|default('?') }}{% endif %}</span>
     <span class="ag-ad__who">
       <span class="ag-ad__by" data-pv="by">{{ ad.advertiser }}</span>
       <span class="ag-ad__tag">{{ _house ? 'From Africa GATES'|trans : 'Sponsored'|trans }}</span>
@@ -62,7 +62,7 @@
   </header>
   <p class="ag-ad__text" data-pv="body">{{ ad.body }}</p>
   {% if ad.image|default(null) or media_box|default(false) %}
-  <a class="ag-ad__media" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %} tabindex="-1" aria-hidden="true" data-pv="image">{% if ad.image|default(null) %}<img src="{{ ad.image }}" alt="" loading="lazy" decoding="async" width="600" height="600">{% else %}<span class="ag-ad__ph">{{ 'Your square image'|trans }}</span>{% endif %}</a>
+  <a class="ag-ad__media" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %} tabindex="-1" aria-hidden="true" data-pv="image">{% if ad.image|default(null) %}<img src="{{ ad.image }}"{% if ad.image_srcset|default(null) %} srcset="{{ ad.image_srcset }}" sizes="(min-width: 600px) 520px, calc(100vw - 32px)"{% endif %} alt="" loading="lazy" decoding="async" width="600" height="600">{% else %}<span class="ag-ad__ph">{{ 'Your square image'|trans }}</span>{% endif %}</a>
   {% endif %}
   <a class="ag-ad__foot" href="{{ _href }}"{% if _rel %} rel="{{ _rel }}"{% endif %}>
     <span class="ag-ad__meta">

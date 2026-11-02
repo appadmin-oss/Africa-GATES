@@ -130,7 +130,7 @@ final class AdsController
         }
 
         $image = $this->image($req, $f);
-        $logo  = $this->image($req, $f, 'logo', 200);
+        $logo  = $this->image($req, $f, 'logo');
         $r = AdCampaigns::createTrial((int) $user->id, $b, $image, $logo);
         if (!$r['ok']) {
             foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
@@ -150,12 +150,14 @@ final class AdsController
         if ($c === null) return $res->withHeader('Location', '/account/ads')->withStatus(302);
         unset($c['_set']);
         $form = FormErrors::take('ad_fix');
+        $new = FormErrors::take('ad_new');
 
         return $this->view->render($res, 'pages/account/ads-campaign.twig', [
             'app_bar' => ['variant' => 'child', 'title' => $c['name'], 'back' => '/account/ads', 'share' => false],
             'page_title' => $c['name'] . ' — Ads — Africa GATES', 'gates_page' => 'account',
             'c' => $c, 'rules' => self::rules(),
             'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'fixing' => (int) ($form['old']['ad_id'] ?? 0),
+            'new_errors' => $new['errors'] ?? [], 'new_old' => $new['old'] ?? [], 'new_summary' => $new['summary'] ?? '',
         ]);
     }
 
@@ -197,6 +199,25 @@ final class AdsController
             ? ['paused' => 'Paused.', 'submitted' => 'Running again.', 'cancelled' => 'Cancelled.'][$to]
             : 'That did not change anything.';
         return $res->withHeader('Location', '/account/ads/' . $id)->withStatus(303);
+    }
+
+    /** POST /account/ads/{id}/ads — another version of the campaign's ad, sent for review. */
+    public function addVersion(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $this->toLogin($res, '/account/ads');
+        $id = (int) ($args['id'] ?? 0);
+        $b = (array) $req->getParsedBody();
+        $f = FormErrors::for('ad_new')->keep($b);
+        $image = $this->image($req, $f);
+        $r = AdCampaigns::addAd($id, (int) $user->id, $b, $image);
+        if (!$r['ok']) {
+            foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
+            $f->flash();
+            return $res->withHeader('Location', '/account/ads/' . $id . '#ad-version')->withStatus(303);
+        }
+        $_SESSION['flash_ok'] = 'New version sent for review. It joins the rotation once a person approves it.';
+        return $res->withHeader('Location', '/account/ads/' . $id . '#ad-' . (int) $r['id'])->withStatus(303);
     }
 
     /** POST /account/ads/ad/{id} — an ad edited (or a refused one fixed) and sent for review again. */
@@ -280,24 +301,37 @@ final class AdsController
         return [
             'headline' => AdRules::HEADLINE_MAX, 'body_min' => AdRules::BODY_MIN, 'body' => AdRules::BODY_MAX,
             'name' => AdRules::NAME_MAX, 'offer' => AdRules::OFFER_MAX, 'code' => AdRules::CODE_MAX,
-            'image' => AdRules::IMAGE_MIN, 'days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS,
+            'image' => AdRules::IMAGE_MIN, 'logo' => \AfricaGates\Support\ImageProfiles::get('ad_logo')['min'], 'days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS,
             'freq' => AdRules::FREQUENCY_CAP,
             'placements' => AdRules::PLACEMENTS, 'objectives' => AdRules::OBJECTIVES, 'ctas' => AdRules::CTAS,
             'categories' => AdRules::CATEGORIES, 'approvals' => AdRules::APPROVALS, 'beta' => AdRules::inBeta(),
             'standards' => AdRules::STANDARDS,
+            'versions' => AdRules::ADS_PER_SET, 'test_views' => AdCampaigns::TEST_VIEWS, 'lead_share' => AdCampaigns::LEAD_SHARE,
         ];
     }
 
-    /** An uploaded image (`image`, or the `logo`), stored, or null with the reason added to the form. */
-    private function image(Request $req, FormErrors $f, string $field = 'image', int $min = AdRules::IMAGE_MIN): ?string
+    /**
+     * An uploaded image (`image`, or the `logo`), made into its profile's shape and stored
+     * (UploadService::uploadProcessed()), or null with the reason added to the form.
+     *
+     * The editor (image-tool.js) sends either the chosen square itself or the original with
+     * the cut in `<field>_crop`; with no script the server cuts the centre. A cut too small
+     * for the profile is refused in the editor's own words — the pixels it has and the
+     * pixels it needs — rather than "use a larger image" about a photo that may be 4000px.
+     */
+    private function image(Request $req, FormErrors $f, string $field = 'image'): ?string
     {
+        $min = \AfricaGates\Support\ImageProfiles::get($field === 'logo' ? 'ad_logo' : 'ad')['min'];
         $file = $req->getUploadedFiles()[$field] ?? null;
         if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) return null;
+        $crop = (string) (((array) $req->getParsedBody())[$field . '_crop'] ?? '');
         try {
-            $r = ($this->uploads ?? new UploadService())->uploadImage($file, 'ads', $field === 'logo' ? 400 : 1200, 82, null, 'ad', null, $min);
+            $r = ($this->uploads ?? new UploadService())->uploadProcessed($file, 'ads', $field === 'logo' ? 'ad_logo' : 'ad', $crop, null, 'ad', null);
             return (string) ($r['path'] ?? $r['url'] ?? '') ?: null;
         } catch (\Throwable $e) {
-            $f->add($field, sprintf('Use a JPEG, PNG or WebP at least %dpx on each side.', $min));
+            $m = $e->getMessage();
+            $f->add($field, str_starts_with($m, 'The ') || str_starts_with($m, 'Upload a ') || str_starts_with($m, 'Image larger')
+                ? $m : sprintf('Use a JPEG, PNG or WebP photo, at least %dpx on each side.', $min));
             return null;
         }
     }

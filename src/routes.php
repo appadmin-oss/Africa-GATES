@@ -3891,6 +3891,8 @@ return function(App $app) {
         // A campaign's results by day and place, for the advertiser's own spreadsheet.
         $a->get('/ads/{id:[0-9]+}/results.csv', \AfricaGates\Controllers\AdsController::class.':export');
         $a->post('/ads/{id:[0-9]+}/{action:pause|resume|cancel}', \AfricaGates\Controllers\AdsController::class.':status');
+        // Another version of a campaign's ad (up to AdRules::ADS_PER_SET), for review.
+        $a->post('/ads/{id:[0-9]+}/ads', \AfricaGates\Controllers\AdsController::class.':addVersion');
         // The wallet: one balance across every pocket (MemberWallet), each movement's receipt,
         // and the three-step withdrawal. The JSON is what an open wallet polls, so money that
         // arrives while it is on screen says so. Every one reads the member from the session.

@@ -21,9 +21,12 @@
   offer: old.offer|default(''), offer_code: old.offer_code|default(''), cta: rules.ctas[old.cta|default('learn_more')]|default('Learn more'), url: '#', external: false
 } %}
 
-{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}">{% endblock %}
+{% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/components/ads.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/ad-slot.css') }}"><link rel="stylesheet" href="{{ asset('/assets/css/components/image-tool.css') }}">{% endblock %}
 
 {% block content %}
+{# The image editor (image-tool.js): the person chooses the square, and it is made small on
+   their phone before it is sent. Imported in the block, where it is used. #}
+{% import 'partials/image-tool.twig' as imgtool %}
 <div class="am">
   <header class="am-head">
     <span class="am-beta">{{ 'Beta'|trans }}</span>
@@ -65,8 +68,8 @@
         </fieldset>
         <div class="am-field">
           <label class="ag-label" for="ad-logo">{{ 'Logo'|trans }} <span class="am-opt">{{ '(optional)'|trans }}</span></label>
-          <input class="am-input am-input--file" id="ad-logo" name="logo" type="file" accept="image/jpeg,image/png,image/webp" data-pv-file="logo" aria-describedby="ad-logo-h">
-          <p class="ag-hint" id="ad-logo-h">{{ 'Square, at least 200px. Without one, your initials are shown.'|trans }}</p>
+          <input class="am-input am-input--file" id="ad-logo" name="logo" type="file" accept="image/jpeg,image/png,image/webp" data-pv-file="logo" aria-describedby="ad-logo-h" {{ imgtool.attrs('ad_logo', true) }}>
+          <p class="ag-hint" id="ad-logo-h">{{ 'Any image of it: you choose the part to show, at least %n%px. Without one, your initials are shown.'|trans({'%n%': rules.logo}) }}</p>
           {% if errors.logo %}<p class="am-err" role="alert">{{ errors.logo|trans }}</p>{% endif %}
         </div>
         <div class="am-field">
@@ -95,8 +98,8 @@
         <legend><span class="am-step__k">{{ '3 of 3'|trans }}</span>{{ 'Your ad'|trans }}</legend>
         <div class="am-field">
           <label class="ag-label" for="ad-img">{{ 'Image'|trans }}</label>
-          <input class="am-input am-input--file" id="ad-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required data-pv-file="image" aria-describedby="ad-img-h{% if errors.image %} ad-img-e{% endif %}"{% if errors.image %} aria-invalid="true"{% endif %}>
-          <p class="ag-hint" id="ad-img-h">{{ 'Square, 1080 × 1080 is best, at least %n%px. Little or no text on the image works best.'|trans({'%n%': rules.image}) }}</p>
+          <input class="am-input am-input--file" id="ad-img" name="image" type="file" accept="image/jpeg,image/png,image/webp" required data-pv-file="image" aria-describedby="ad-img-h{% if errors.image %} ad-img-e{% endif %}"{% if errors.image %} aria-invalid="true"{% endif %} {{ imgtool.attrs('ad') }}>
+          <p class="ag-hint" id="ad-img-h">{{ 'Any photo: once you pick it, you choose the square that shows. At least %n%px on each side. Little or no text on the image works best.'|trans({'%n%': rules.image}) }}</p>
           {% if errors.image %}<p class="am-err" id="ad-img-e" role="alert">{{ errors.image|trans }}</p>{% endif %}
         </div>
         <div class="am-field">
@@ -171,4 +174,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}{% if trial_left %}<script defer src="{{ asset('/assets/js/ads-builder.js') }}"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}{% if trial_left %}<script defer src="{{ asset('/assets/js/image-tool.js') }}"></script><script defer src="{{ asset('/assets/js/ads-builder.js') }}"></script>{% endif %}{% endblock %}

@@ -56,6 +56,9 @@ final class Media
         'thumb'    => 'c_fill,g_faces:auto,w_320,h_320,f_auto,q_auto,dpr_auto',
         // The big portrait on a nominee or profile page.
         'portrait' => 'c_fill,g_faces:auto,w_800,h_1000,f_auto,q_auto,dpr_auto',
+        // An ad's square (Support\ImageProfiles 'ad'): drawn up to ~520 CSS px, so 1080 for a
+        // 2× phone. It was served as 'thumb' (320) — a soft square on every retina screen.
+        'ad'       => 'c_fill,g_auto,w_1080,h_1080,f_auto,q_auto',
         // Wide covers: shop items, blog heroes, event banners. No face gravity —
         // g_auto picks the salient region, which for a product or a venue is right
         // where a face crop would be wrong.

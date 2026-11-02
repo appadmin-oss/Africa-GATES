@@ -649,6 +649,17 @@ return [
             'asset',
             [\AfricaGates\Support\Assets::class, 'url']
         ));
+        // Image profiles (Support\ImageProfiles): the attributes image-tool.js reads off a
+        // file input, and the srcset of the sizes uploadProcessed() wrote beside an image.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'image_profile_attrs',
+            [\AfricaGates\Support\ImageProfiles::class, 'attrs'],
+            ['is_safe' => ['html']]
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'image_srcset',
+            static fn (?string $p): ?string => \AfricaGates\Support\ImageProfiles::srcset($p)
+        ));
         // ── WHICH NATIONS GATES IS ACTUALLY LIVE IN ──────────────────────────
         //
         // `{{ nations_live() }}` → 'Nigeria' · 'Nigeria and Ghana' · '12 nations'.
