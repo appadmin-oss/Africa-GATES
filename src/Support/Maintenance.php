@@ -146,6 +146,11 @@ final class Maintenance
             // Not under the test harness, which must never write into the real public/.
             $ran[] = ['assets', $this->task('assets', fn() => defined('PHPUNIT_COMPOSER_INSTALL') || \AfricaGates\Support\AssetBundle::url() !== null ? 0
                 : (\AfricaGates\Support\AssetBundle::build()['ok'] ? 1 : self::TASK_FAILED))];
+            // And the minified twin of every stylesheet edited since (MinifiedAssets): the host
+            // has no Node, so scripts are minified where the code is built, but CSS is
+            // minified here in PHP and an edited sheet is small again within the hour.
+            $ran[] = ['assets-min', $this->task('assets-min', fn() => defined('PHPUNIT_COMPOSER_INSTALL') ? 0
+                : \AfricaGates\Support\MinifiedAssets::buildCss(dirname(__DIR__, 2) . '/public')['made'])];
             // ORDER IS LOAD-BEARING. Reconciliation re-verifies stale pending payments
             // against the gateway and confirms the genuinely-paid ones; the recovery
             // mail then tells whoever is STILL pending that they did not finish. Run

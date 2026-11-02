@@ -296,7 +296,7 @@ final class AssetBundle
      * does not quietly break an image on a deployment that ran the build and nowhere
      * else — which is the hardest version of this bug to find.
      */
-    private static function rebaseUrls(string $css, string $sourceRel): string
+    public static function rebaseUrls(string $css, string $sourceRel): string
     {
         $dir = trim(dirname($sourceRel), '/');   // e.g. assets/css/components
 

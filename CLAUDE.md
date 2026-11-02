@@ -990,6 +990,15 @@ Twenty-four round trips per page, invisibly — the page draws and the figures a
 dropped connection recorded as "no such column" makes a merge skip a table, journal nothing
 for it, and report success.
 
+## Minified twins: run `php scripts/build-min.php` after editing a script
+
+`Assets::url()` serves `public/assets/min/<js|css>/<path>.<hash>.<ext>` in place of a source
+when a twin exists for the source's CURRENT content hash (`Support\MinifiedAssets`). Edit a
+script and its old twin stops matching, so the source is served as written: correct, and
+43% heavier. CSS twins are rebuilt by the hourly maintenance run in PHP; JS twins need
+esbuild, which the host does not have, so run the build where Node exists and commit
+`public/assets/min`. Never edit a twin.
+
 ## Running the tests
 
 ```bash
