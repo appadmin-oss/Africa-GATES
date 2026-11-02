@@ -78,7 +78,7 @@ final class NomineeVotingNotice
             'on'              => !empty($eff['voting_letter_auto']),
             'signatory'       => mb_substr(trim((string) ($eff['voting_letter_signatory'] ?? '')), 0, 80),
             'signatory_title' => $title !== '' ? mb_substr($title, 0, 80) : self::DEFAULT_TITLE,
-            'audience'        => ($eff['voting_letter_audience'] ?? '') === 'ballot' ? 'ballot' : 'verified',
+            'audience'        => ($eff['voting_letter_audience'] ?? 'ballot') === 'verified' ? 'verified' : 'ballot',
         ];
     }
 

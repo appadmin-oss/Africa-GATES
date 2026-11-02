@@ -1140,7 +1140,7 @@ class SettingsController
                 'voting_letter_auto'            => ($b['voting_letter_auto'] ?? '') === '1',
                 'voting_letter_signatory'       => mb_substr(trim((string) ($b['voting_letter_signatory'] ?? '')), 0, 80),
                 'voting_letter_signatory_title' => mb_substr(trim((string) ($b['voting_letter_signatory_title'] ?? '')), 0, 80),
-                'voting_letter_audience'        => ($b['voting_letter_audience'] ?? '') === 'ballot' ? 'ballot' : 'verified',
+                'voting_letter_audience'        => ($b['voting_letter_audience'] ?? '') === 'verified' ? 'verified' : 'ballot',
             ]);
         }
 

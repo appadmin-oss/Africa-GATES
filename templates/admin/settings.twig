@@ -994,8 +994,8 @@
     <label class="checkbox"><input type="checkbox" name="voting_letter_auto" value="1" {% if _vl.on %}checked{% endif %}> Send the letter automatically</label>
     <p class="hint">Sent once to each nominee while voting is open, with the letter attached as a PDF. Nobody is written to whose address is missing or could belong to two people. Each award edition shows how many have been sent on its own page, and can send the due letters at once.</p>
     <div role="radiogroup" aria-labelledby="vl-aud"><p class="hint" id="vl-aud" style="margin:10px 0 4px"><strong>Who receives it</strong></p>
-      <label class="checkbox"><input type="radio" name="voting_letter_audience" value="verified" {% if _vl.audience != 'ballot' %}checked{% endif %}> Only nominees who have verified — claimed their page or confirmed their nomination</label>
-      <label class="checkbox"><input type="radio" name="voting_letter_audience" value="ballot" {% if _vl.audience == 'ballot' %}checked{% endif %}> Every approved nominee on the ballot</label>
+      <label class="checkbox"><input type="radio" name="voting_letter_audience" value="verified" {% if _vl.audience == 'verified' %}checked{% endif %}> Only nominees who have verified — claimed their page or confirmed their nomination</label>
+      <label class="checkbox"><input type="radio" name="voting_letter_audience" value="ballot" {% if _vl.audience != 'verified' %}checked{% endif %}> Every approved nominee on the ballot</label>
     </div>
     <p class="hint">With “only verified”, a nominee approved by moderation who never confirmed receives nothing. If most of your nominees were added or approved without confirming, choose “every approved nominee”.</p>
     <div class="row">
