@@ -2031,6 +2031,7 @@ return function(App $app) {
 
         $g->get('/opportunities',  OpportunityController::class.':index');
         $g->get('/events',         EventsController::class.':index');
+        $g->get('/events.ics',     EventsController::class.':feedCalendar');
         // ── PAID TICKETS ─────────────────────────────────────────────────────
         //
         // BEFORE `/events/{slug}`, and that ordering is load-bearing: Slim matches in
@@ -3606,6 +3607,8 @@ return function(App $app) {
         // X-API-Version header (see ApiVersionMiddleware).
         $apiRoutes = function(RouteCollectorProxy $a) {
             $a->get('/registry',         ApiController::class.':registry');
+            // The events calendar for other sites (Afrovanguard). See EventsFeed.
+            $a->get('/events',           EventsController::class.':feed');
 
             /**
              * GET /api/v1/promos?placement=account — the band's own slides.
