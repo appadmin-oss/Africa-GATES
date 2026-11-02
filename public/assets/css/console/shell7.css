@@ -77,6 +77,18 @@
 
 /* ── The page header (§2.3) ───────────────────────────────────────────────────── */
 .sh7-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+/* Page changes: every page of the workspace and the lead console is a full load, so a click
+   blanked the screen and drew the rail again. A cross-document view transition fades the page
+   instead, with the rail, the top bar and the phone tabs named so they hold still. Reduced
+   motion turns it off. The partner: partials/instant-nav.twig (prefetch on intent). */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
+.sh7-rail { view-transition-name: sh7-rail; }
+.sh7-bar { view-transition-name: sh7-bar; }
+.sh7-phonetabs { view-transition-name: sh7-phonetabs; }
+
 /* A basis, not just `flex:1`: with min-width 0 and no basis the title column shrank to a few
    letters on a phone so two actions could share its row ("To" for "Today", one word a line).
    Below ~280px of title the actions wrap underneath instead. */

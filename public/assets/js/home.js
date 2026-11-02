@@ -19,8 +19,18 @@
     var dots = hero.querySelectorAll('[data-hm-dot]');
     var i = 0, timer = null, hover = false;
 
+    // A slide's image is fetched just before it is shown (home.twig), and the next one with it,
+    // so a crossfade never fades in an empty frame.
+    var wake = function (n) {
+      var im = slides[(n + slides.length) % slides.length].querySelector('img[data-hm-src]');
+      if (!im) return;
+      if (im.getAttribute('data-hm-srcset')) im.srcset = im.getAttribute('data-hm-srcset');
+      im.src = im.getAttribute('data-hm-src');
+      im.removeAttribute('data-hm-src'); im.removeAttribute('data-hm-srcset');
+    };
     var show = function (n) {
       i = (n + slides.length) % slides.length;
+      wake(i); wake(i + 1);
       for (var k = 0; k < slides.length; k++) {
         var on = k === i;
         slides[k].classList.toggle('is-on', on);
@@ -47,6 +57,8 @@
     hero.addEventListener('focusin', function () { hover = true; stop(); });
     hero.addEventListener('focusout', function () { hover = false; start(); });
     document.addEventListener('visibilitychange', start);
+    // The second slide once the page has finished loading, so the first turn is ready.
+    if (!reduce) window.addEventListener('load', function () { setTimeout(function () { wake(1); }, 1500); });
     start();
   }
 

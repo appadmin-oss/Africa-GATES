@@ -1,0 +1,42 @@
+{#
+  INSTANT NAVIGATION — why the public site no longer reloads like a document on every tap
+
+  Every public page is its own full load: the screen went blank, the app bar and the tab bar
+  were drawn again, and the next page appeared all at once, so every tap read as a reload.
+  Two browser features, neither of which needs this site to become a single-page app (every
+  page keeps working as a plain page, and a browser without them behaves exactly as before):
+
+  · PREFETCH ON INTENT (Speculation Rules). A link is fetched the moment a pointer rests on it
+    or a finger lands on it (`moderate`), so by the time the tap ends the page is already here.
+    Prefetch fetches the HTML only and runs nothing; VisitTracker::isSpeculative() keeps such
+    requests out of the visit count, as ConsoleShell::prefetch() does for the console.
+  · A CROSS-FADE INSTEAD OF A BLANK (`@view-transition`, shell.css), with the app bar, the tab
+    bar and the site header named so they hold still across the change.
+
+  ── WHAT IS NEVER PREFETCHED ─────────────────────────────────────────────────
+
+  A prefetch is a real GET. So anything whose GET does something is excluded by path, never by
+  hoping nobody links it: signing out, a `?lang=` switch (it sets the language cookie), an ad's
+  click-through (it counts the click), the gateway hand-offs, every token link from an email
+  (confirm, verify, reset, unsubscribe, stop, claim, the nominee's start link — opening one
+  spends or binds it), the consoles, downloads, and any link marked `rel=nofollow`,
+  `[download]`, `[data-no-prefetch]` or opening a new tab. Add to this list, not to the pages.
+  The volunteer and lead layout passes `member_area`: it links no console, and nothing on those
+  pages may name one (consoles-v7 README §0.4, LeadConsoleTest).
+#}
+<script type="speculationrules" nonce="{{ csp_nonce }}">
+{"prefetch": [{
+  "where": {"and": [
+    {"href_matches": "/*"},
+    {"not": {"href_matches": [
+      "/*logout*", "/*?*lang=*", "/ads/go/*", "/*/redirect", "/*/redirect?*",
+      "/vote/verify*", "/n/confirm/*", "/claim/*", "/email/*", "/shop/back-in-stock/stop/*",
+      "/account/verify*", "/account/reset*", "/account/confirm*", "/account/switch*", "/nominee/start/*", "/form/*",
+      {% if not member_area|default(false) %}"/admin/*", "/admin", "/judge/*", "/org/*", {% endif %}"/__*", "/hooks/*", "/api/*",
+      "/*.pdf", "/*.ics", "/*.csv", "/*.zip", "/*.json", "/*.txt", "/*.png", "/*.jpg", "/*.svg"
+    ]}},
+    {"not": {"selector_matches": "[rel~=nofollow], [download], [data-no-prefetch], [target=_blank]"}}
+  ]},
+  "eagerness": "moderate"
+}]}
+</script>

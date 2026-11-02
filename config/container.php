@@ -40,8 +40,20 @@ use AfricaGates\Admin\Controllers\{
 return [
     Twig::class => function(ContainerInterface $c) {
         $isDev = Env::get('APP_ENV', 'production') !== 'production';
+        // ── COMPILED TEMPLATES, ON UNLESS SOMEBODY SAID NO ──────────────────────
+        // The cache was on only when `.env` said TWIG_CACHE=true, and production has no shell
+        // to check that line with — without it every request compiles every template it
+        // touches, 90–165ms of server time a page against 22–37ms (measured). So it is on in
+        // production by default, `TWIG_CACHE=false` still turns it off, and it is used only
+        // where the directory can be written: Twig answers every page with an error when it
+        // cannot write its cache, which is a far worse failure than a slow page.
+        // `auto_reload` keeps it right across a deploy. Off under the test harness.
+        $twigCacheDir = __DIR__.'/../var/cache/twig';
+        $twigCache = defined('PHPUNIT_COMPOSER_INSTALL') ? false
+            : Env::bool('TWIG_CACHE', !$isDev);
+        if ($twigCache && !((is_dir($twigCacheDir) || @mkdir($twigCacheDir, 0775, true)) && is_writable($twigCacheDir))) $twigCache = false;
         $twig = Twig::create(__DIR__.'/../templates', [
-            'cache' => Env::bool('TWIG_CACHE') ? __DIR__.'/../var/cache/twig' : false,
+            'cache' => $twigCache ? $twigCacheDir : false,
             'auto_reload' => true,
             'debug' => $isDev,
         ]);
@@ -242,7 +254,10 @@ return [
             // fifteen individual stylesheets. Null on ANY doubt — no manifest, missing
             // file, or a source edited since the build — because stale CSS is a far
             // worse failure than nine extra requests. See Support\AssetBundle.
-            'css_bundle'        => \AfricaGates\Support\AssetBundle::url(),
+            // Never under the test harness: what a page links would then depend on whether some
+            // earlier run left a current build in public/, and the suite would render one page
+            // two ways. ShellLayoutTest renders the bundled head on purpose instead.
+            'css_bundle'        => defined('PHPUNIT_COMPOSER_INSTALL') ? null : \AfricaGates\Support\AssetBundle::url(),
         ];
         foreach ($globals as $k => $v) $twig->getEnvironment()->addGlobal($k, $v);
         // ── THE CONSENT NOTICE, AS A FUNCTION AND NOT A GLOBAL ──────────────

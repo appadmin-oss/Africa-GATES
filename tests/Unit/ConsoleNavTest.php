@@ -133,6 +133,7 @@ final class ConsoleNavTest extends TestCase
         foreach (['on:', 'every:', 'leave:', "'cn:unload'"] as $part) $this->assertStringContainsString($part, $head);
         // And every page in the console now takes part: no unmarked page script is left.
         $unmarked = [];
+        $partials = [];
         $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(self::ROOT . '/templates/admin'));
         foreach ($it as $f) {
             if (!$f->isFile() || !str_ends_with($f->getFilename(), '.twig') || $f->getFilename() === 'layout.twig') continue;
@@ -140,6 +141,15 @@ final class ConsoleNavTest extends TestCase
             $src = (string) preg_replace('~\{#.*?#\}~s', '', (string) file_get_contents($f->getPathname()));
             preg_match_all('~<script\b[^>]*>~', $src, $m);
             foreach ($m[0] as $tag) if (!preg_match('~data-nav="(rerun|shell)"|type="(application/(ld\+)?json|text/template)"~', $tag)) $unmarked[] = $f->getFilename() . ': ' . $tag;
+            // A shared partial a console page includes is part of that page: the stands
+            // screen reloaded the console through partials/viz.twig, which this sweep never read.
+            preg_match_all("~(?:include|import|embed|from)\\s*\\(?\\s*['\"](partials/[^'\"]+\\.twig)['\"]~", $src, $inc);
+            foreach ($inc[1] as $rel) $partials[$rel] = true;
+        }
+        foreach (array_keys($partials ?? []) as $rel) {
+            $src = (string) preg_replace('~\{#.*?#\}~s', '', (string) @file_get_contents(self::ROOT . '/templates/' . $rel));
+            preg_match_all('~<script\b[^>]*>~', $src, $m);
+            foreach ($m[0] as $tag) if (!preg_match('~data-nav="(rerun|shell)"|type="(application/(ld\+)?json|text/template)"~', $tag)) $unmarked[] = $rel . ': ' . $tag;
         }
         $this->assertSame([], $unmarked, 'a console page with an unmarked script reloads the whole console every time it is opened or left');
     }

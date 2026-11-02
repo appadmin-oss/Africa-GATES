@@ -194,6 +194,22 @@ html.ag-saver video[autoplay]{ display:none }
 html.ag-saver img[data-saver-hide]{ visibility:hidden }
 
 
+/* ══ Page changes ══════════════════════════════════════════════════════════════
+   Every public page is a full load, and without this the screen went blank and the chrome
+   was drawn again on every tap — the site read as reloading on almost every navigation. A
+   cross-document view transition fades the content instead, and the chrome is NAMED, so the
+   app bar, the tab bar and the site header are carried across in place rather than faded.
+   Each name is used once per page. A browser without view transitions loads as before;
+   reduced motion (either signal) turns it off below. The partner: instant-nav.twig. */
+@media (prefers-reduced-motion:no-preference){
+  @view-transition{ navigation:auto }
+}
+::view-transition-old(root),
+::view-transition-new(root){ animation-duration:var(--ag-dur-1); animation-timing-function:var(--ag-ease) }
+.ag-appbar{ view-transition-name:ag-appbar }
+.ag-tabbar{ view-transition-name:ag-tabbar }
+.ag-head{ view-transition-name:ag-head }
+
 /* ══ Reduced motion · REFERENCE §4.7, §6.6 ═══════════════════════════════════
    Both the operating system's signal and the in-app switch, and both show the
    FINAL state at once rather than a slower version of the motion. `!important` is
@@ -208,6 +224,9 @@ html.ag-saver img[data-saver-hide]{ visibility:hidden }
     scroll-behavior:auto!important;
   }
 }
+html.ag-rm::view-transition-group(*),
+html.ag-rm::view-transition-old(*),
+html.ag-rm::view-transition-new(*),
 html.ag-rm *,
 html.ag-rm *::before,
 html.ag-rm *::after{

@@ -139,6 +139,13 @@ final class Maintenance
             $ran[] = ['queue',  $this->task('queue',  fn() => $this->drainJobs())];
             $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())];
             $ran[] = ['cache',  $this->task('cache',  fn() => $this->pruneCache())];
+            // The public layout's base stylesheets as ONE request (AssetBundle). Nothing else
+            // ever built it on a host with no shell, so every page linked ten blocking files;
+            // built here whenever the layout would otherwise fall back (missing, or a source
+            // edited since), so a deploy is bundled within a tick. 0 when it is current.
+            // Not under the test harness, which must never write into the real public/.
+            $ran[] = ['assets', $this->task('assets', fn() => defined('PHPUNIT_COMPOSER_INSTALL') || \AfricaGates\Support\AssetBundle::url() !== null ? 0
+                : (\AfricaGates\Support\AssetBundle::build()['ok'] ? 1 : self::TASK_FAILED))];
             // ORDER IS LOAD-BEARING. Reconciliation re-verifies stale pending payments
             // against the gateway and confirms the genuinely-paid ones; the recovery
             // mail then tells whoever is STILL pending that they did not finish. Run

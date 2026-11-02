@@ -54,7 +54,12 @@
         <div class="hm-slide{{ loop.first ? ' is-on' }}" data-hm-slide{% if not loop.first %} aria-hidden="true"{% endif %}>
           <div class="hm-slide__img">
             {% if sl.img %}
-              <img src="{{ asset(sl.img) }}" srcset="{{ sl.srcset }}" sizes="(min-width: 1024px) 560px, 100vw" alt="{{ sl.alt }}"{{ loop.first ? ' fetchpriority="high"' : ' loading="lazy"' }}>
+              {# Only the first slide's image loads with the page. The others are drawn in the first
+                 screen at opacity 0, so `loading="lazy"` fetched all four at once — three images a
+                 phone on a slow connection pays for before anything rotates. home.js loads each just
+                 before it is shown; without the script the hero never rotates, so they are never seen. #}
+              {% if loop.first %}<img src="{{ asset(sl.img) }}" srcset="{{ sl.srcset }}" sizes="(min-width: 1024px) 560px, 100vw" alt="{{ sl.alt }}" fetchpriority="high">
+              {% else %}<img data-hm-src="{{ asset(sl.img) }}" data-hm-srcset="{{ sl.srcset }}" sizes="(min-width: 1024px) 560px, 100vw" alt="{{ sl.alt }}">{% endif %}
             {% elseif sl.photo %}
               {% include 'partials/photo.twig' with {kind: 'person', src: sl.photo|media_url('portrait'), name: sl.name, size: 160, alt: 'Photo of %name%'|trans({'%name%': sl.name}), eager: loop.first} only %}
             {% else %}

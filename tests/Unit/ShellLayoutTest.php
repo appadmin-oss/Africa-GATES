@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use AfricaGates\Support\AssetBundle;
+use Tests\Support\ChromeRender;
 use Tests\TestCase;
 
 /**
@@ -281,5 +282,32 @@ final class ShellLayoutTest extends TestCase
         $sorted = $at;
         sort($sorted);
         $this->assertSame($sorted, $at, 'layout/shell.twig and AssetBundle::STYLESHEETS disagree about the cascade');
+    }
+
+    /**
+     * The base is ONE request when a current bundle exists. Nothing built it on a host with no
+     * shell and no template read it, so every page linked ten render-blocking files. The
+     * layout uses `css_bundle`, falls back to the ten, and maintenance keeps it built.
+     */
+    public function test_a_current_bundle_replaces_the_ten_links_and_maintenance_builds_it(): void
+    {
+        $src = $this->twig('templates/layout/shell.twig');
+        $this->assertMatchesRegularExpression(
+            "~\\{% if css_bundle\\|default\\(null\\) %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ css_bundle \\}\\}\">\\s*\\{% else %\\}\\s*<link rel=\"stylesheet\" href=\"\\{\\{ asset\\('/assets/css/tokens.css'\\) \\}\\}\">~", $src,
+            'the bundle link, then the ten as the fallback');
+        $this->assertMatchesRegularExpression("~components/gee\\.css'\\) \\}\\}\">\\{% endif %\\}\\s*\\{% endif %\\}~", $src, 'the fallback ends with the last sheet');
+        $m = ChromeRender::code('src/Support/Maintenance.php');
+        $this->assertStringContainsString("['assets', \$this->task('assets'", $m, 'nothing keeps the bundle built');
+        $this->assertStringContainsString('AssetBundle::build()', $m);
+    }
+
+    /** The house fonts do not block the first paint; a browser without the script still gets them. */
+    public function test_the_fonts_do_not_block_the_first_paint(): void
+    {
+        $src = $this->twig('templates/layout/shell.twig');
+        $this->assertMatchesRegularExpression('~<link rel="stylesheet" href="https://fonts\\.googleapis\\.com/[^"]+" media="print" data-ag-fonts>~', $src);
+        $this->assertMatchesRegularExpression('~<noscript><link rel="stylesheet" href="https://fonts\\.googleapis\\.com/~', $src);
+        $this->assertDoesNotMatchRegularExpression('~<link rel="stylesheet" href="https://fonts\\.googleapis\\.com/[^"]+">\\s*(?!</noscript>)~', $src, 'a blocking copy is back');
+        $this->assertStringContainsString("fonts.media = 'all'", ChromeRender::code('public/assets/js/shell.js'));
     }
 }

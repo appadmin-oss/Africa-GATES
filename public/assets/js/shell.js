@@ -27,6 +27,15 @@
 (function () {
   'use strict';
 
+  /* The house fonts arrive WITHOUT blocking the first paint (layout/shell.twig). The link is
+     `media="print"`, so the browser fetches it at low priority and draws the page in the
+     fallback faces meanwhile; this applies it. A render-blocking stylesheet on a second
+     origin costs a DNS lookup, a TLS handshake and a request before ANY pixel — seconds on
+     the high-latency connections this site is mostly read on. `<noscript>` keeps the plain
+     link for a browser without this script. */
+  var fonts = document.querySelector('link[data-ag-fonts]');
+  if (fonts) fonts.media = 'all';
+
   var THRESHOLD = 8;     /* §6.6 / §9.1: scrolled = scrollTop > 8 */
   var DRIFT     = 24;    /* §9.2 state 4: an opened, empty search closes after 24px */
   var FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),' +

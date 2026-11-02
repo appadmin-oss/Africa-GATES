@@ -40,6 +40,9 @@
 <link rel="stylesheet" href="{{ asset('/assets/css/console/tokens.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/console/shell7.css') }}">
 {% include 'partials/csrf-fresh.twig' %}
+{# Every page here was a full load, and so every click read as a reload. Prefetch on intent and
+   a cross-fade, as on the public site (partials/instant-nav.twig, shell7.css). #}
+{% include 'partials/instant-nav.twig' with {member_area: true} %}
 </head>
 <body class="sh7">
 <a class="sh7-skip" href="#sh7Main">Skip to the page</a>
