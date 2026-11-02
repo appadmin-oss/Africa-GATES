@@ -265,6 +265,55 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-tier[aria-checked="true"]{ border-color:var(--tier-edge); background:var(--tier-wash) }
 .ed-tier:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
 .ed-tier:disabled{ cursor:not-allowed; opacity:.62 }
+/* THE CHOSEN TIER'S RING (owner, 2 Nov 2026: Google's AI-mode glow, in ONE colour — the
+   tier's own). Three layers, as that button is built:
+     top     the row's face, `padding-box`, so nothing reaches the words;
+     middle  the comet: a conic gradient that is mostly a faint floor of the tier's edge and
+             then, over the last ~45% of the turn, rises through `light` to `accent` with
+             `deep` at its head — one colour sweeping, its tail dragging behind it;
+     bottom  the surface, as `background-color`, which the faint floor mixes onto.
+   Only the 2px border shows the middle layer (`border-box` under a `padding-box` face).
+   `--tier-a` is registered so the angle INTERPOLATES; the turn is eased rather than linear,
+   so the head surges and settles each revolution instead of ticking round like a clock.
+   On the pick the halo behind the row blooms (scale 1.03, blurred) and settles to a trace.
+   One row is chosen at a time, so this is the one moving thing in the panel. Under reduced
+   motion — the OS setting or the site's own (`html.ag-rm`) — none of it runs: the row keeps
+   the plain `--tier-edge` border above, which is the whole of the meaning. */
+@property --tier-a{ syntax:'<angle>'; initial-value:0deg; inherits:true }
+@keyframes edTierTurn{ to{ --tier-a:360deg } }
+@keyframes edTierBloom{
+  0%{ opacity:0; transform:scale(.98) }
+  35%{ opacity:.6; transform:scale(1.03) }
+  100%{ opacity:.2; transform:scale(1) }
+}
+@media (prefers-reduced-motion:no-preference){
+  /* The halo sits BEHIND the row's face, so the stacking context is the LIST, not the row:
+     inside a row's own context a z-index:-1 child paints above that row's background, and
+     the blur then lies over the words. */
+  .ed-tiers{ isolation:isolate }
+  .ed-tier{ position:relative }
+  .ed-tier[aria-checked="true"]{
+    --tier-comet:conic-gradient(from var(--tier-a),
+      color-mix(in srgb, var(--tier-edge) 22%, transparent) 0deg 190deg,
+      color-mix(in srgb, var(--tier-light) 70%, transparent) 250deg,
+      var(--tier-accent) 320deg, var(--tier-deep) 352deg,
+      color-mix(in srgb, var(--tier-edge) 22%, transparent) 360deg);
+    border:2px solid transparent; padding:11.5px 13.5px;
+    background:linear-gradient(var(--tier-wash), var(--tier-wash)) padding-box, var(--tier-comet) border-box;
+    background-color:var(--ag-surface);
+    animation:edTierTurn 3.4s cubic-bezier(.55,.1,.35,.95) infinite;
+  }
+  .ed-tier[aria-checked="true"]::before{
+    content:""; position:absolute; inset:-3px; z-index:-1; border-radius:15px; pointer-events:none;
+    background:var(--tier-comet); filter:blur(9px);
+    animation:edTierBloom .9s var(--ag-ease) forwards;
+  }
+  /* Hover widens the bloom. `scale` and `filter`, never `opacity`/`transform`: those are
+     held by the bloom's `forwards` fill, and a filled animation beats any rule written here. */
+  .ed-tier[aria-checked="true"]::before{ transition:scale var(--ag-dur-2) var(--ag-ease), filter var(--ag-dur-2) var(--ag-ease) }
+  .ed-tier[aria-checked="true"]:hover::before{ scale:1.03; filter:blur(13px) }
+}
+html.ag-rm .ed-tier[aria-checked="true"]::before{ display:none }
 .ed-tier__radio{
   flex:none; width:18px; height:18px; margin-top:2px; border-radius:50%; box-sizing:border-box;
   border:2px solid var(--ag-chevron);
