@@ -38,7 +38,7 @@ final class PhoneDeclutterTest extends TestCase
 
         $js = ChromeRender::code('public/assets/js/gee.js');
         $this->assertStringContainsString("window.matchMedia('(max-width: 599px)')", $js);
-        $this->assertMatchesRegularExpression('~if \(!\(phone && phone\.matches && y > 80\)\) settle = setTimeout~', $js, 'it comes back at every pause on a phone');
+        $this->assertMatchesRegularExpression('~settle = setTimeout\(function \(\) \{\s*if \(!\(phone && phone\.matches && y > 80\)\) reading = false;~', $js, 'it comes back at every pause on a phone');
     }
 
     public function test_community_draws_no_counts_before_there_is_a_thread(): void

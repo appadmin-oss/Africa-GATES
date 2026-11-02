@@ -55,9 +55,13 @@ final class HelpDeskErrorReferenceTest extends TestCase
         $this->assertNull(PublicFault::quoted('NYSC-TEAM is nominated'));
         // Eight letters of the alphabet is also a word. This one cost a payment repair.
         $this->assertNull(PublicFault::quoted('I paid but my votes have not appeared, reference AFG-PVOTE-957ef35ed73d'));
-        // A reference minted here always round-trips.
-        $ref = PublicFault::reference();
-        $this->assertSame($ref, PublicFault::quoted('Reference ' . $ref));
+        // A reference minted here always round-trips — even with nothing in the log, which is
+        // the case a failed log write leaves. Drawn many times: one in six used to come out
+        // all letters and fail exactly this, intermittently.
+        for ($i = 0; $i < 400; $i++) {
+            $ref = PublicFault::reference();
+            $this->assertSame($ref, PublicFault::quoted('Reference ' . $ref), "minted $ref, which no reader could quote");
+        }
     }
 
     public function test_the_log_entry_is_found_by_its_reference_and_named_by_when_and_where_only(): void

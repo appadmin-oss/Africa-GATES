@@ -91,12 +91,19 @@ final class PublicFault
      */
     public static function reference(): string
     {
+        // Always with a digit. quoted() believes a digit-less reference only when the log
+        // holds it (eight letters is also a word), and the log write is best-effort — so a
+        // reference drawn all in letters was one a reader could quote and not be recognised
+        // by, whenever that write had failed. Redrawn rather than patched, so every
+        // position stays uniformly random.
         $n = strlen(self::ALPHABET);
-        $out = '';
-        for ($i = 0; $i < 8; $i++) {
-            $out .= self::ALPHABET[random_int(0, $n - 1)];
-            if ($i === 3) $out .= '-';
-        }
+        do {
+            $out = '';
+            for ($i = 0; $i < 8; $i++) {
+                $out .= self::ALPHABET[random_int(0, $n - 1)];
+                if ($i === 3) $out .= '-';
+            }
+        } while (!preg_match('/\d/', $out));
         return $out;
     }
 

@@ -1076,7 +1076,10 @@
     }, { passive: true });
     fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });
     var again = 0;
-    window.addEventListener('resize', function () { clearTimeout(again); again = setTimeout(look, 200); });
+    window.addEventListener('resize', function () {
+      if (!window.requestAnimationFrame) return look();
+      cancelAnimationFrame(again); again = requestAnimationFrame(look);
+    });
     // After the first layout and again once images have landed (a hero moves everything).
     if (window.requestAnimationFrame) requestAnimationFrame(look); else look();
     if (document.readyState !== 'complete') window.addEventListener('load', look);

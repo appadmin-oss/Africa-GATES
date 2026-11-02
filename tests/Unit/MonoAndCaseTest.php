@@ -126,7 +126,8 @@ final class MonoAndCaseTest extends TestCase
                      . "pre, code{ font-family:monospace } .ticket__code{ font-family:var(--ag-font-mono) }\n"
                      . ".tag{ text-transform:uppercase }\n.h2{ text-transform: capitalize }\n"
                      . ".sc{ font-variant-caps:all-small-caps }\n.tk-stamp{ text-transform:uppercase }\n"
-                     . "/* .gone{ text-transform:uppercase } */ .prefs{ font-family:var(--ag-font-ui) }",
+                     . "/* .gone{ text-transform:uppercase } */ .prefs{ font-family:var(--ag-font-ui) }\n"
+                     . "@font-face{ font-family:'JetBrains Mono'; src:url(/m.woff2) format('woff2') }",
             'b.twig' => "<span class=\"pill\" style=\"text-transform:uppercase\">x</span>\n"
                       . "<b class=\"kpi\" style=\"font-family:var(--ag-font-mono)\">9</b>\n"
                       . "<p class=\"eyebrow\">FINAL HOURS</p><abbr>FAQ</abbr>\n"
@@ -145,6 +146,7 @@ final class MonoAndCaseTest extends TestCase
         $this->assertStringNotContainsString('ticket__code', $mono);
         $this->assertStringNotContainsString('a.css:1', $mono, 'declaring an alias is not using it');
         $this->assertStringNotContainsString('prefs', $mono, '`prefs` is not the segment `ref`');
+        $this->assertStringNotContainsString('@font-face', $mono, 'declaring a face is not setting it on anything');
 
         $caps = implode("\n", $f['caps']);
         $this->assertStringContainsString('a.css:6  .tag', $caps);
@@ -204,6 +206,9 @@ final class MonoAndCaseTest extends TestCase
         $mono = $caps = [];
         foreach ($parsed as $rel => [$text, $twig, $rules]) {
             foreach ($rules as [$sel, $body, $at]) {
+                // An @font-face DECLARES a face and sets it on nothing — like declaring an alias,
+                // it is not using it. The house faces are served from here (fonts.css, 2 Nov 2026).
+                if (str_starts_with(ltrim($sel), '@font-face')) continue;
                 foreach (PublicSurface::declarations($body) as [$p, $v, $dAt]) {
                     $line = PublicSurface::lineAt($text, $at + $dAt);
                     if (($p === 'font-family' || $p === 'font') && self::isMono($v, $monoVars)
