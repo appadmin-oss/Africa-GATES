@@ -228,58 +228,53 @@ button.ev-btn{ cursor:pointer; font-family:inherit }
 .ed-tint{ color:var(--ev-deep) }
 
 /* THE GLOW — the card's rim, after Google's AI-mode glow, in ONE colour: the chosen tier's
-   (owner, 2 Nov 2026, superseding §8.10's two-ended ring). Built in the same three layers:
+   (owner, 2 Nov 2026, superseding §8.10's two-ended ring; "cleaner, like Google's").
+   Three layers, as that control is built:
      top     the card's face — the ring's `padding-box` fill, so no light reaches the form;
-     middle  the comet, a conic gradient shown only through the 2px `border-box`: a faint
-             floor of the tier's edge for half the turn, then rising through `light` and
-             `accent` to a `deep` head — one colour sweeping round, its tail dragging behind;
-     bottom  the halo, a blurred copy of the same comet behind the card, which is the glow.
+     middle  the comet, a conic gradient shown only through the 1.5px `border-box`. Away from
+             the comet it is the card's own hairline (`--ag-line`), so the rim reads as the
+             ordinary card edge everywhere but where the light is; the tail rises through
+             `light` and `accent` to a `deep` head that softens again rather than stopping hard;
+     bottom  the halo: a blurred copy of the comet ALONE (transparent elsewhere), tight to the
+             card, so the glow is under the head and nowhere else — no wash round the card.
 
+   · IT PLAYS, THEN RESTS. Two laps on an eased curve (the head surges out of each and eases
+     into the next), the light fading in over the first beat and out over the last, and the
+     card is left exactly as it was drawn. A rim turning for ever beside a form somebody is
+     filling in is the opposite of clean. It plays on every pick and the first time the card
+     is in view with a tier already chosen (event-detail.js), which is when it means
+     something: "this is what you are booking".
    · ONE CLOCK. `--ev-a` is registered (so it interpolates) and INHERITS, and is turned on
      `.ed-glow` alone, so the halo and the ring can never drift apart. Unregistered (no
-     @property) the angle does not move and the rim is a still gradient — the fallback.
-   · THE PACE IS EASED, not linear: the head surges out of each lap and eases into the next,
-     which is what keeps it reading as light rather than a clock hand.
-   · THE BLOOM. On a pick, and the first time the card comes into view with a tier chosen,
-     the halo swells (scale 1.03, opacity .6) and settles to a trace (.22); the ring fades in
-     over the first beat. Hover widens the halo — on `scale` and `filter`, because opacity and
-     transform are held by the bloom's `forwards` fill, which beats any rule written here.
-   · IT STOPS WHEN NOBODY CAN SEE IT. event-detail.js marks the card `data-ev-idle` while it
-     is off screen: a turning gradient repaints every frame wherever it is, and this page is
-     read on low-end phones.
+     @property) the angle does not move and the sweep is a still gradient fading in and out.
+   · PAUSED OFF SCREEN. event-detail.js marks the card `data-ev-idle` while none of it is
+     visible, so a sweep somebody scrolled away from waits for them.
    · aria-hidden and untouchable: the tier's border, wash and radio say everything it says,
      which is what makes it safe to drop entirely under reduced motion — the OS's or the
      site's own (`html.ag-rm`). */
 @property --ev-a{ syntax:'<angle>'; initial-value:0deg; inherits:true }
 @keyframes edAngle{ to{ --ev-a:360deg } }
-@keyframes edRingIn{ from{ opacity:0 } to{ opacity:1 } }
-@keyframes edBloom{
-  0%{ opacity:0; transform:scale(.98) }
-  30%{ opacity:.6; transform:scale(1.03) }
-  100%{ opacity:.22; transform:scale(1) }
-}
+@keyframes edSweep{ 0%{ opacity:0 } 8%{ opacity:1 } 78%{ opacity:1 } 100%{ opacity:0 } }
+@keyframes edHalo{ 0%{ opacity:0; transform:scale(.99) } 12%{ opacity:.7; transform:scale(1.02) } 70%{ opacity:.5; transform:scale(1) } 100%{ opacity:0; transform:scale(1) } }
 .ed-glow{
-  --ev-cg:conic-gradient(from var(--ev-a),
-          color-mix(in srgb, var(--tier-edge) 16%, transparent) 0deg 175deg,
-          color-mix(in srgb, var(--tier-light) 70%, transparent) 245deg,
-          var(--tier-accent) 318deg, var(--tier-deep) 352deg,
-          color-mix(in srgb, var(--tier-edge) 16%, transparent) 360deg);
+  --ev-head:var(--tier-light) 250deg, var(--tier-accent) 322deg, var(--tier-deep) 346deg, var(--tier-accent) 353deg;
+  --ev-cg:conic-gradient(from var(--ev-a), var(--ag-line) 0deg 190deg, var(--ev-head), var(--ag-line) 360deg);
+  --ev-halo:conic-gradient(from var(--ev-a), transparent 0deg 220deg, var(--ev-head), transparent 360deg);
   /* -1px: over the card's own hairline, so the ring IS the card's edge, not a second one. */
   position:absolute; inset:-1px; z-index:-1; pointer-events:none;
-  animation:edAngle 4s cubic-bezier(.55,.1,.35,.95) infinite;
+  animation:edAngle 2.4s cubic-bezier(.55,.1,.35,.95) 2 both;
 }
 .ed-glow__halo{
-  position:absolute; inset:-8px; border-radius:28px; background:var(--ev-cg);
-  filter:blur(20px); opacity:.22;
-  animation:edBloom 1.6s var(--ag-ease) forwards;
-  transition:scale var(--ag-dur-2) var(--ag-ease), filter var(--ag-dur-2) var(--ag-ease);
+  position:absolute; inset:-3px; border-radius:23px; background:var(--ev-halo);
+  filter:blur(10px); opacity:0;
+  animation:edHalo 4.8s var(--ag-ease) both;
 }
 .ed-glow__ring{
-  position:absolute; inset:0; border-radius:var(--ag-r-20); border:2px solid transparent;
+  position:absolute; inset:0; border-radius:var(--ag-r-20); border:1.5px solid transparent;
   background:linear-gradient(var(--ag-surface), var(--ag-surface)) padding-box, var(--ev-cg) border-box;
-  animation:edRingIn .4s var(--ag-ease) both;
+  opacity:0;
+  animation:edSweep 4.8s var(--ag-ease) both;
 }
-.ed-card:hover .ed-glow__halo{ scale:1.03; filter:blur(26px) }
 .ed-card[data-ev-idle] .ed-glow,
 .ed-card[data-ev-idle] .ed-glow > *{ animation-play-state:paused }
 @media (prefers-reduced-motion:reduce){ [data-ev-glow]{ display:none } }
