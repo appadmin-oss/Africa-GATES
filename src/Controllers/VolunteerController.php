@@ -342,7 +342,8 @@ final class VolunteerController
             'save_profile' => $this->saved(Volunteers::save($v, 'profile', $b)),
             'save_availability' => $this->saved(Volunteers::save($v, 'availability', $b)),
             'save_notifications' => $this->saved(Volunteers::save($v, 'notifications', $b)),
-            'pause' => Volunteers::pause($v, (int) ($b['weeks'] ?? 0)) ? $ok('You’re on a break. Invites pause until then.') : $no('Pick 2, 4 or 8 weeks.'),
+            'pause' => Volunteers::pause($v, (int) ($b['weeks'] ?? 0)) ? $ok('You’re on a break. Invites pause until then.')
+                : $no($v->status === 'active' ? 'Pick 2, 4 or 8 weeks.' : 'Only an active volunteer can take a break.'),
             'resume' => Volunteers::resume($v) ? $ok('Welcome back.') : $no('You’re not on a break.'),
             'leave' => Volunteers::leave($v) ? $ok('You’ve stepped back. Your record stays yours.') : $no('That could not be done.'),
             default => $no('That isn’t something this page can do.'),

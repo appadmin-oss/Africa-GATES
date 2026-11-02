@@ -89,7 +89,7 @@ final class WorkspacePages
         $lv = Level::of($v);
         $stats = [['l' => 'Verified hours', 'v' => Level::h($lv['hours']), 's' => 'All time']];
         if ($lv['next']) $stats[] = ['l' => 'To Level ' . $lv['next']['level'], 'v' => $lv['next']['hours_to'] > 0 ? Level::h($lv['next']['hours_to']) : 'Hours done',
-                                     'pct' => $lv['next']['pct'], 's' => implode(' and ', $lv['next']['needs']) ?: 'Nearly there'];
+                                     'pct' => $lv['next']['pct'], 's' => $lv['next']['needs'] ? 'Needs ' . implode(' and ', $lv['next']['needs']) : 'Nearly there'];
         $secs[] = ['k' => 'stats', 'h' => 'Your record', 'items' => $stats];
 
         // This week: tasks due and meetings, in the order the week happens.
@@ -404,7 +404,7 @@ final class WorkspacePages
         if ($tab === 'overview') {
             $steps = [];
             foreach ([1, 2, 3] as $n) {
-                $steps[] = ['t' => 'Level ' . $n, 'sub' => $n < $lv['level'] ? 'Reached' : ($n === $lv['level'] ? 'Now' : ($lv['next'] && $lv['next']['level'] === $n ? implode(' and ', $lv['next']['needs']) : 'After Level ' . ($n - 1))),
+                $steps[] = ['t' => 'Level ' . $n, 'sub' => $n < $lv['level'] ? 'Reached' : ($n === $lv['level'] ? 'Now' : ($lv['next'] && $lv['next']['level'] === $n ? ($lv['next']['needs'] ? 'Needs ' . implode(' and ', $lv['next']['needs']) : 'Nearly there') : 'After Level ' . ($n - 1))),
                             'st' => $n < $lv['level'] ? 'done' : ($n === $lv['level'] ? 'now' : '')];
             }
             $e = Effect::of($v);
@@ -443,9 +443,14 @@ final class WorkspacePages
      * A lead's contact report: coverage per award, who on the team did what, and the contacts,
      * newest first. Read through Outreach::report(), the same reader staff use.
      *
+     * A row links to the nominee only where the viewer can open that award's Nominees page —
+     * i.e. holds the outreach grant there. A team lead without it was handed a link that
+     * answered 404 from every row of "Latest contacts".
+     *
      * @param list<int> $cycles
+     * @param list<int> $open   the cycles whose Nominees page the viewer may open
      */
-    private static function contactReport(array $cycles, string $none): array
+    private static function contactReport(array $cycles, string $none, array $open = []): array
     {
         if (!$cycles) return [['k' => 'note', 'text' => $none, 'tone' => 'mute']];
         $r = Outreach::report($cycles, 0, 60);
@@ -473,7 +478,7 @@ final class WorkspacePages
         $rows = [];
         foreach ($r['recent'] as $c) {
             $rows[] = ['t' => $c->nominee . ' — ' . $c->outcome_label, 'ini' => Workspace::initials((string) $c->nominee),
-                       'href' => '/volunteer/cycle/' . $c->cycle_id . '/nominees?n=' . $c->nominee_id,
+                       'href' => in_array((int) $c->cycle_id, $open, true) ? '/volunteer/cycle/' . $c->cycle_id . '/nominees?n=' . $c->nominee_id : '',
                        'sub' => $c->channel_label . ' by ' . $c->volunteer . ' · ' . Workspace::day($c->created_at)
                                 . ($c->follow_up_on ? ' · follow up ' . Workspace::day($c->follow_up_on) : '') . ($c->note ? ' · ' . mb_strimwidth((string) $c->note, 0, 120, '…') : '')];
         }
@@ -511,7 +516,11 @@ final class WorkspacePages
             // event lead leads no award, so says so rather than drawing an empty report.
             $cycles = [];
             foreach (Team::scopes($v) as [$kind, $id]) if ($kind === 'cycle') $cycles[] = $id;
-            $secs = array_merge($secs, self::contactReport($cycles, 'You lead no award, so there are no nominee contacts to report. Contact reports belong to awards; an event lead’s team is on the Roster.'));
+            $open = [];
+            foreach (Workspace::places($v) as $pl) {
+                if ($pl['kind'] === 'cycle' && in_array(Outreach::CAPABILITY, $pl['caps'] ?? [], true)) $open[] = (int) $pl['id'];
+            }
+            $secs = array_merge($secs, self::contactReport($cycles, 'You lead no award, so there are no nominee contacts to report. Contact reports belong to awards; an event lead’s team is on the Roster.', $open));
         } elseif ($tab === 'requests') {
             $secs[] = self::requestTable(Requests::waitingOn('member', (int) $v->user_id), 'Nothing from your team.', 'Each request shows who asked and why. Declining needs a reason.');
         }
@@ -1074,11 +1083,21 @@ final class WorkspacePages
                 ['t' => 'Download a copy', 'sub' => 'Profile, hours, tasks and training', 'cta' => ['label' => 'Download my data', 'href' => '/volunteer/me/export.json']],
                 ['t' => 'Date of birth', 'sub' => 'Kept to check the minimum age. Nobody else sees it.'],
                 ['t' => 'Afrovanguard’s contact list', 'sub' => 'Your name, email and whether you’re applying, active, on a break or have stepped back. Nothing else, and nothing at all if you’re under 18.']]]],
+            // What each person can actually do. A break is for an active volunteer only
+            // (Volunteers::pause()): an applicant was offered 2, 4 or 8 weeks and, pressing one,
+            // was told to "pick 2, 4 or 8 weeks". And an applicant holds no role to end, so for
+            // them stepping back is withdrawing the application.
             'leave' => [['k' => 'rows', 'h' => 'Options', 'items' => array_values(array_filter([
-                $v->status === 'paused' ? ['t' => 'You’re on a break until ' . Workspace::day($v->paused_until), 'sub' => 'Come back whenever you like.', 'cta' => ['label' => 'Come back now', 'post' => ['do' => 'resume']]]
-                                        : ['t' => 'Take a break', 'sub' => 'Pause invites for 2, 4 or 8 weeks. Your tasks stay until you drop them.', 'pause' => true],
-                ['t' => 'Step back for good', 'sub' => 'Every role you hold ends now. Your verified record stays yours and can still give references.',
-                 'cta' => ['label' => 'Leave for good', 'post' => ['do' => 'leave'], 'confirm' => 'Step back for good? Every role you hold ends now.', 'danger' => true]]]))]],
+                match ((string) $v->status) {
+                    'paused' => ['t' => 'You’re on a break until ' . Workspace::day($v->paused_until), 'sub' => 'Come back whenever you like.', 'cta' => ['label' => 'Come back now', 'post' => ['do' => 'resume']]],
+                    'active' => ['t' => 'Take a break', 'sub' => 'Pause invites for 2, 4 or 8 weeks. Your tasks stay until you drop them.', 'pause' => true],
+                    default  => null,
+                },
+                $v->status === 'applicant'
+                    ? ['t' => 'Withdraw your application', 'sub' => 'It is closed and nothing more is asked of you. You can apply again later.',
+                       'cta' => ['label' => 'Withdraw my application', 'post' => ['do' => 'leave'], 'confirm' => 'Withdraw your application?', 'danger' => true]]
+                    : ['t' => 'Step back for good', 'sub' => 'Every role you hold ends now. Your verified record stays yours and can still give references.',
+                       'cta' => ['label' => 'Leave for good', 'post' => ['do' => 'leave'], 'confirm' => 'Step back for good? Every role you hold ends now.', 'danger' => true]]]))]],
             default => [],
         };
         return ['title' => Workspace::ME[$page][0] ?? 'Profile', 'secs' => $secs];

@@ -615,7 +615,9 @@ final class EventTicketService
             'message' => $free
                 ? ($off > 0 && $price > 0
                     ? 'Your code covered the whole ticket — you are registered.'
-                    : 'You are registered.')
+                    // Not "You are registered." — the card's heading already says that. The
+                    // free ticket is emailed inline (EventsController), so say what is next.
+                    : 'Your ticket is on its way to your email, and you can open it now.')
                 : 'Seats held for ' . self::HOLD_MINUTES . ' minutes while you pay.',
         ];
     }

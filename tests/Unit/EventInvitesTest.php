@@ -847,6 +847,24 @@ final class EventInvitesTest extends TestCase
         }
     }
 
+    /**
+     * A preview is served under its own narrow policy. Under the console's — no 'unsafe-inline' —
+     * the browser dropped the letter's own <style> block, so the operator previewed a letter that
+     * looked different from the one the inbox receives.
+     */
+    public function test_both_previews_keep_the_email_s_own_styles(): void
+    {
+        $_SESSION['admin_id'] = $this->admin();
+        foreach (['preview', 'reminder'] as $what) {
+            $r = $this->get('/admin/events/' . $this->eventId . '/invites/sample/' . $what);
+            $this->assertSame(200, $r->getStatusCode(), $what);
+            $csp = $r->getHeaderLine('Content-Security-Policy');
+            $this->assertStringContainsString("style-src 'unsafe-inline'", $csp, $what . ' is served under a policy that drops the email\'s styles');
+            $this->assertStringContainsString('sandbox', $csp, 'narrower than the console, not wider: no script runs in a preview');
+            $this->assertStringNotContainsString('script-src', $csp);
+        }
+    }
+
     /** The letter route returns a real PDF, inline, and not a redirect to a flash. */
     public function test_the_letter_route_returns_the_pdf_that_is_attached(): void
     {

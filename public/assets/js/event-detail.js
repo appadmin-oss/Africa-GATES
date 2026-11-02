@@ -231,6 +231,11 @@
     q('[data-ed-done-msg]', card).textContent = msg;
     var a = q('[data-ed-ticket]', card);
     if (ticketUrl) { a.href = ticketUrl; a.hidden = false; }
+    // The phone's fixed bar offers what they have just done ("From Free · Get tickets" over
+    // "You're registered"), so it goes. shell.js watches the page and re-measures the space
+    // Gee and the toasts keep clear of.
+    var bar = document.querySelector('.ed-bar');
+    if (bar) bar.remove();
     box.focus();
   }
 

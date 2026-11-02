@@ -115,6 +115,9 @@
 {% block content %}
 
 {# ── WHERE THIS CALL IS UP TO ──────────────────────────────────────────────── #}
+{# Only once somebody has applied: six zeros say nothing the call card below does not, and
+   the console draws no zero counts (consoles-v7 README §8). #}
+{% if summary.total > 0 %}
 <div class="st-strip" style="margin-bottom:16px">
   <div class="st-strip__c"><div class="st-strip__n">{{ summary.total }}</div>
     <div class="st-strip__l">Applications</div></div>
@@ -129,6 +132,7 @@
   <div class="st-strip__c"><div class="st-strip__n">{{ summary.waitlisted }}</div>
     <div class="st-strip__l">Waiting list</div></div>
 </div>
+{% endif %}
 
 {# ── 1 · THE PUBLISHED TERMS ───────────────────────────────────────────────── #}
 <div class="ad-card {% if call and call.locked_at %}st-locked{% endif %}" style="margin-bottom:16px">

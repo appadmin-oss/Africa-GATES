@@ -77,7 +77,10 @@
 
 /* ── The page header (§2.3) ───────────────────────────────────────────────────── */
 .sh7-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-.sh7-head__words { flex: 1; min-width: 0; }
+/* A basis, not just `flex:1`: with min-width 0 and no basis the title column shrank to a few
+   letters on a phone so two actions could share its row ("To" for "Today", one word a line).
+   Below ~280px of title the actions wrap underneath instead. */
+.sh7-head__words { flex: 1 1 280px; min-width: 0; }
 .sh7-head__kicker { margin: 0 0 4px; font-size: var(--cn-fs-13); color: var(--cn-soft); }
 .sh7-head__title { margin: 0; font-size: var(--cn-fs-28); font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
 .sh7-head__purpose { margin: 6px 0 0; color: var(--cn-ink-3); font-size: var(--cn-fs-14); line-height: 1.5; max-width: 70ch; }
