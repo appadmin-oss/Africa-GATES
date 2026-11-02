@@ -78,6 +78,7 @@ final class NomineeVotingNotice
             'on'              => !empty($eff['voting_letter_auto']),
             'signatory'       => mb_substr(trim((string) ($eff['voting_letter_signatory'] ?? '')), 0, 80),
             'signatory_title' => $title !== '' ? mb_substr($title, 0, 80) : self::DEFAULT_TITLE,
+            'audience'        => ($eff['voting_letter_audience'] ?? '') === 'ballot' ? 'ballot' : 'verified',
         ];
     }
 
@@ -153,12 +154,19 @@ final class NomineeVotingNotice
     {
         $campaign = self::campaign((int) $cycle->id);
         $handled  = BroadcastLog::handled($campaign);
-        $out      = ['due' => [], 'unreachable' => 0, 'sent' => 0, 'verified' => 0];
+        $everyone = self::settings((int) $cycle->programme_id, (int) $cycle->id)['audience'] === 'ballot';
+        $out      = ['due' => [], 'unreachable' => 0, 'sent' => 0, 'verified' => 0, 'ballot' => 0, 'unverified' => 0];
         $seen     = [];
 
         foreach (self::nominees((int) $cycle->id) as $n) {
-            if (!self::verified($n, (int) $cycle->id)) continue;
-            $out['verified']++;
+            $out['ballot']++;
+            // Counted either way, so the screen can say how many were left out and why.
+            if (self::verified($n, (int) $cycle->id)) {
+                $out['verified']++;
+            } else {
+                $out['unverified']++;
+                if (!$everyone) continue;
+            }
 
             $email = self::addressFor($n, (int) $cycle->id);
             if ($email === '') { $out['unreachable']++; continue; }
@@ -172,6 +180,28 @@ final class NomineeVotingNotice
             $seen[$h] = true;
 
             $out['due'][] = ['nominee' => $n, 'email' => $email];
+        }
+        return $out;
+    }
+
+    /**
+     * Send what is due on ONE award edition now, from its admin page, rather than waiting for
+     * the maintenance tick — on a host where the tick has stopped, waiting is for ever. The same
+     * plan, claim and send as the sweep, so a letter can never go twice.
+     *
+     * @return array{sent:int, failed:int, held:int, unreachable:int, error?:string}
+     */
+    public static function sendNow(object $cycle, OtpService $mailer): array
+    {
+        $out = ['sent' => 0, 'failed' => 0, 'held' => 0, 'unreachable' => 0];
+        if (!$mailer->canSend()) return $out + ['error' => 'Email is not set up, so nothing can be sent. See Settings → Mail.'];
+        if (CyclePolicy::phaseFor($cycle) !== CyclePhase::Voting) return $out + ['error' => 'Letters go only while this edition is open for voting.'];
+        $cfg = self::settings((int) $cycle->programme_id, (int) $cycle->id);
+        $plan = self::plan($cycle);
+        $out['unreachable'] = $plan['unreachable'];
+        foreach (array_slice($plan['due'], 0, self::PER_TICK * 5) as $r) {
+            $res = self::send($r['nominee'], $cycle, $r['email'], $mailer, $cfg);
+            $out[$res]++;
         }
         return $out;
     }
@@ -587,6 +617,9 @@ final class NomineeVotingNotice
             'on'          => $cfg['on'],
             'voting'      => CyclePolicy::phaseFor($cycle) === CyclePhase::Voting,
             'verified'    => $plan['verified'],
+            'ballot'      => $plan['ballot'],
+            'unverified'  => $plan['unverified'],
+            'audience'    => $cfg['audience'],
             'sent'        => $tally['sent'],
             'due'         => count($plan['due']),
             'unreachable' => $plan['unreachable'],

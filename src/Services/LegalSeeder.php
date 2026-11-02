@@ -485,8 +485,8 @@ HTML;
 </ul>
 <p>Unverified profiles score nothing. No votes or impact points attach to a profile until it has cleared review, so a fabricated entry cannot accumulate a standing while it waits.</p>
 
-<h2>Voting &mdash; free</h2>
-<p>Free voting is open to the public and is the vote that determines a nominee&rsquo;s community score.</p>
+<h2>Voting &mdash; the free vote</h2>
+<p>An award may offer a free vote, open to the public, alongside contributions &mdash; or it may run on contributions alone, in which case there is no free vote and the rules in this section do not apply to it. Each award&rsquo;s own page says which. A free vote and a contributed vote count towards the community part of the score in the same way; the larger share of that part counts separate verified people, so each person counts once however they took part.</p>
 <ul>
 <li>Every vote requires a <strong>one-time code</strong> sent to a working email address. An unconfirmed code is not a vote.</li>
 <li><strong>One identity, one vote, per category.</strong> You may vote in as many categories as you wish, but only once in each.</li>
@@ -504,7 +504,7 @@ HTML;
 <p><strong>It does:</strong></p>
 <ul>
 <li>Add to the nominee&rsquo;s public tally, shown on their page and on the leaderboard.</li>
-<li><strong>Count in the community part of the score.</strong> Bought votes add to the nominee&rsquo;s total tally, and the total tally is one of the two things the community part measures.</li>
+<li><strong>Count in the community part of the score.</strong> Contributed votes add to the nominee&rsquo;s total tally, and the total tally is one of the two things the community part measures.</li>
 <li>Place the supporter&rsquo;s name on the nominee&rsquo;s supporters list, if the supporter chose to be named.</li>
 <li>Set aside a share for the nominee once they qualify.</li>
 <li>Fund the programme.</li>
@@ -546,7 +546,7 @@ HTML;
 <ul>
 <li>All payments are verified <strong>server-side with the gateway</strong> before any vote is recorded. We do not take a browser&rsquo;s word for it.</li>
 <li><strong>If the ballot was open when you paid, the votes are yours</strong> even if the confirmation reached us late. We use the time you started the payment, not the moment our system noticed it.</li>
-<li>Card contribution closes a short time before free voting does, so payments already in flight have time to land before the ballot shuts.</li>
+<li>Card contribution closes a short time before voting ends, so payments already in flight have time to land before the ballot shuts.</li>
 <li><strong>Where votes genuinely cannot be delivered</strong> &mdash; the nominee left the ballot, or a payment confirmed long after voting closed &mdash; the order is refunded. We do not keep money for votes we did not deliver.</li>
 <li>Every order carries a reference beginning <code>AFG-</code>. Give it to the <a href="/support/assistant">support assistant</a> and it re-checks the payment with the gateway directly, adding the votes on the spot if the money arrived.</li>
 <li>Contributions are otherwise non-refundable once the corresponding votes have been delivered, because the recognition process they funded has taken place.</li>

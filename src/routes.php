@@ -4227,6 +4227,7 @@ return function(App $app) {
             ->add(new RoleMiddleware('superadmin'));
         $a->get('/programmes/{id:[0-9]+}/cycle',     AdminProgrammesController::class.':cycleEdit')->add(new RoleMiddleware('superadmin'));
         $a->get('/programmes/{id:[0-9]+}/cycle/voting-letter', AdminProgrammesController::class.':votingLetterPreview')->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/cycle/voting-letter/send', AdminProgrammesController::class.':votingLetterSend')->add(new RoleMiddleware('superadmin'));
         // The voting letter's words, per edition: the editor, and its autosave/publish/restore.
         $a->get('/programmes/{id:[0-9]+}/cycle/letter',  AdminProgrammesController::class.':letterEditor')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/cycle/letter', AdminProgrammesController::class.':letterSave')->add(new RoleMiddleware('superadmin'));

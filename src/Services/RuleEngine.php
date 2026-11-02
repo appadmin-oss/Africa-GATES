@@ -194,6 +194,11 @@ class RuleEngine
         'voting_letter_auto'                    => true,
         'voting_letter_signatory'               => '',
         'voting_letter_signatory_title'         => '',
+        // Who the letter goes to: `verified` (claimed their page or confirmed the nomination)
+        // or `ballot` (every approved nominee with an address we can be sure is theirs). Owner,
+        // 2 Nov 2026: "the voting letter was not sent" — on an award whose nominees were
+        // approved without confirming, `verified` is nobody, and nothing said so.
+        'voting_letter_audience'                => 'verified',
     ];
 
     /** @return array<string,mixed> merged ruleset */

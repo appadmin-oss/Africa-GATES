@@ -367,6 +367,28 @@ class ProgrammesController
         return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store');
     }
 
+    /**
+     * POST …/cycle/voting-letter/send — send the letters due on this edition now (owner, 2 Nov
+     * 2026: "the voting letter was not sent"). The sweep runs on the maintenance tick, and a
+     * host whose tick has stopped would wait for ever with nothing on screen to say so.
+     */
+    public function votingLetterSend(Request $req, Response $res, array $args): Response
+    {
+        $cycle = $this->letterCycle($req, $args);
+        if (!$cycle) throw new \Slim\Exception\HttpNotFoundException($req);
+        $r = \AfricaGates\Services\NomineeVotingNotice::sendNow($cycle, \AfricaGates\Services\OtpService::boot());
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'voting_letter.send_now', 'cycle', (int) $cycle->id,
+            ['sent' => $r['sent'], 'failed' => $r['failed']]);
+        if (isset($r['error'])) {
+            $_SESSION['flash_error'] = $r['error'];
+        } else {
+            $_SESSION['flash_ok'] = $r['sent'] === 0 && $r['failed'] === 0
+                ? 'Nothing was due: every nominee who can receive the letter already has it.'
+                : $r['sent'] . ($r['sent'] === 1 ? ' letter' : ' letters') . ' sent' . ($r['failed'] ? ', ' . $r['failed'] . ' failed (see Settings → Mail)' : '') . '.';
+        }
+        return $res->withHeader('Location', '/admin/programmes/' . (int) $args['id'] . '/cycle?cycle=' . (int) $cycle->id)->withStatus(303);
+    }
+
     /** @return array<string,mixed>|null null when the counts cannot be read, never a 500 */
     private static function votingLetterStatus(object $cycle): ?array
     {
