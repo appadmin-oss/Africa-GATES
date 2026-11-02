@@ -1027,6 +1027,7 @@
      the first scroll back up and when the scrolling stops, and never leaves while it has
      the keyboard's focus, so it is always one gesture away and never lost. */
   function tuckOnScroll() {
+    var phone = window.matchMedia ? window.matchMedia('(max-width: 599px)') : null;
     var main = document.querySelector('.ag-main') || document.scrollingElement;
     var scroller = main === document.scrollingElement ? window : main;
     var lastY = main.scrollTop, settle = 0;
@@ -1037,7 +1038,9 @@
       if (dy > 0 && y > 80 && document.activeElement !== fab) fab.setAttribute('data-tuck', '');
       else fab.removeAttribute('data-tuck');
       clearTimeout(settle);
-      settle = setTimeout(function () { fab.removeAttribute('data-tuck'); }, 900);
+      // On a phone it stays tucked once somebody is reading down the page, until they scroll
+      // back up: coming back at every pause put it over a row's button again mid-read.
+      if (!(phone && phone.matches && y > 80)) settle = setTimeout(function () { fab.removeAttribute('data-tuck'); }, 900);
     }, { passive: true });
     fab.addEventListener('focus', function () { fab.removeAttribute('data-tuck'); });
   }

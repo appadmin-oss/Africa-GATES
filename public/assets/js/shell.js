@@ -36,6 +36,19 @@
   var fonts = document.querySelector('link[data-ag-fonts]');
   if (fonts) fonts.media = 'all';
 
+  /* The footer's columns fold on a phone and are held open from 600 (site-footer.twig).
+     The markup ships them open, so a page without this script loses nothing. */
+  var folds = document.querySelectorAll('details[data-ag-foot]');
+  if (folds.length && window.matchMedia) {
+    var wideFoot = window.matchMedia('(min-width: 600px)');
+    var setFolds = function () { for (var f = 0; f < folds.length; f++) folds[f].open = wideFoot.matches; };
+    setFolds();
+    if (wideFoot.addEventListener) wideFoot.addEventListener('change', setFolds);
+    for (var g = 0; g < folds.length; g++) folds[g].addEventListener('toggle', function (e) {
+      if (wideFoot.matches && !e.currentTarget.open) e.currentTarget.open = true;
+    });
+  }
+
   var THRESHOLD = 8;     /* §6.6 / §9.1: scrolled = scrollTop > 8 */
   var DRIFT     = 24;    /* §9.2 state 4: an opened, empty search closes after 24px */
   var FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),' +

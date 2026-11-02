@@ -57,6 +57,18 @@
 .gee__fab[hidden]{ display:none }
 .gee__fab-t{ display:none }
 
+/* Phone: a tab against the screen's edge, not a 52px button over the page. Docked on the
+   right where a row keeps its Vote button and a form its total, the round launcher covered
+   one of them on every screen at rest; flush to the edge and 40 wide it sits mostly in the
+   16px page margin. Still 44 tall, the G and the support dot as before. From 600 the
+   floating pill with its words (below). */
+@media (max-width:599px){
+  .gee__fab{ inset-inline-end:0; width:40px; height:44px; padding:0 0 0 7px;
+             border-radius:var(--ag-r-pill) 0 0 var(--ag-r-pill); box-shadow:var(--ag-sh-float) }
+  [dir="rtl"] .gee__fab{ padding:0 7px 0 0; border-radius:0 var(--ag-r-pill) var(--ag-r-pill) 0 }
+  .gee__fab .gee__g{ width:26px; height:26px; font-size:var(--ag-fs-15) }
+}
+
 .gee__g{
   position:relative; flex:none;
   width:28px; height:28px; border-radius:50%;
