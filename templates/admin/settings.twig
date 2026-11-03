@@ -1110,6 +1110,10 @@
           </select>
         </div>
         <div>
+          <label for="f-ads_vat_pct">VAT on ads (%) <small>added at checkout, shown as its own line · 0 for none</small></label>
+          <input type="number" name="ads_vat_pct" id="f-ads_vat_pct" min="0" max="25" step="0.5" value="{{ ad_vat_pct }}">
+        </div>
+        <div>
           <label for="f-ads_revenue_target">Monthly ad income target <small>₦ · blank for none</small></label>
           <input type="number" name="ads_revenue_target" id="f-ads_revenue_target" min="0" step="1000" inputmode="numeric" value="{{ ad_target|default('') }}">
         </div>

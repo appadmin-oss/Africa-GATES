@@ -518,7 +518,9 @@ final class PaymentController
                 // Each stream owns what a reversal means for it. Votes lose the display votes
                 // the donation bought; a shop order goes back to stock and gives up its
                 // points; a ticket has its code cleared so it stops opening a door.
-                if ($stream === 'shop') {
+                if ($stream === 'ads') {
+                    $did = \AfricaGates\Services\Ads\AdCheckout::reverse($ref, $reversal) ? 'reversed' : 'unmatched';
+                } elseif ($stream === 'shop') {
                     $o = DB::table('gates_orders')->where('reference', $ref)->first();
                     $amount = isset($o->subtotal_naira) ? (int) $o->subtotal_naira : null;
                     $did = \AfricaGates\Services\ShopOrderService::reverse($ref, $reversal, $this->log)
@@ -573,6 +575,12 @@ final class PaymentController
         }
 
         $stream = PaymentDestination::streamForReference($reference);
+
+        if ($stream === 'ads') {
+            $r = \AfricaGates\Services\Ads\AdCheckout::confirm($reference, $this->payments);
+            Log::record($provider, $event, $reference, $stream, (string) $r['state'], (string) $r['message'], $domain);
+            return $ack();
+        }
 
         if ($stream === 'shop') {
             $r = \AfricaGates\Services\ShopOrderService::confirm(

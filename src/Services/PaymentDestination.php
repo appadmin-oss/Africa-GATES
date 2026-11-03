@@ -85,7 +85,7 @@ final class PaymentDestination
      * in, saying the opposite on the one screen an operator checks. Those rows now say plainly
      * that nothing here takes that money, and are never counted as routed.
      */
-    public const CHECKOUT_STREAMS = ['events', 'shop', 'votes'];
+    public const CHECKOUT_STREAMS = ['events', 'shop', 'votes', 'ads'];
 
     /** Does any checkout on this platform take this kind of money? */
     public static function usedHere(string $stream): bool
@@ -630,6 +630,7 @@ final class PaymentDestination
         // Every value returned here must be in CHECKOUT_STREAMS — a test holds the two together.
         if (str_starts_with($r, 'AFG-EVT')) return 'events';
         if (str_starts_with($r, 'AFG-SHP')) return 'shop';
+        if (str_starts_with($r, 'AFG-ADS')) return 'ads';      // Ads\AdCheckout::REF_PREFIX
         if (str_starts_with($r, 'AFG-'))    return 'votes';
         return '';
     }

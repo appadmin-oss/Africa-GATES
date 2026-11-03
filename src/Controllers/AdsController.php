@@ -33,6 +33,14 @@ final class AdsController
         private readonly ?UploadService $uploads = null,
     ) {}
 
+    private ?\AfricaGates\Services\PaymentService $ps = null;
+
+    /** The gateway, made once per request and only on the pages that take money. */
+    private function payments(): \AfricaGates\Services\PaymentService
+    {
+        return $this->ps ??= new \AfricaGates\Services\PaymentService();
+    }
+
     /** GET /advertise — what an ad is, where it runs and what it costs, before anybody signs up. */
     public function advertise(Request $req, Response $res): Response
     {
@@ -122,6 +130,9 @@ final class AdsController
             // Where each place sits, its tier and today's price: the builder states the same
             // market /advertise does (AdMarket::card), keyed for the checkbox loop.
             'market' => array_column(\AfricaGates\Services\Ads\AdMarket::card(), null, 'key'),
+            'paid' => ['open' => \AfricaGates\Services\Ads\AdCheckout::open($this->payments()),
+                       'min' => \AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA,
+                       'vat_pct' => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100],
             'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'summary' => $form['summary'] ?? '',
         ]);
     }
@@ -138,15 +149,23 @@ final class AdsController
             $f->summary('That is a lot of campaigns for one day. Try again tomorrow.')->flash();
             return $this->back($res);
         }
-        if (AdCampaigns::trialUsed((int) $user->id)) {
-            // Paid campaigns are not open yet: the money needs its own line in finance before
-            // it can be taken (see the commit that added this). Said, not hidden.
-            $f->summary('Your free trial is used. Paid campaigns open soon.')->flash();
+        $paid = (string) ($b['kind'] ?? '') === 'paid' || AdCampaigns::trialUsed((int) $user->id);
+        if ($paid && !\AfricaGates\Services\Ads\AdCheckout::open($this->payments())) {
+            $f->summary('Your free trial is used, and paid campaigns are not on sale right now.')->flash();
             return $this->back($res);
         }
 
         $image = $this->image($req, $f);
         $logo  = $this->image($req, $f, 'logo');
+        if ($paid) {
+            $r = \AfricaGates\Services\Ads\AdCheckout::create((int) $user->id, $b, $image, $logo);
+            if (!$r['ok']) {
+                foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
+                $f->flash();
+                return $this->back($res);
+            }
+            return $this->toCheckout($req, $res, (int) $r['id'], $user);
+        }
         $r = AdCampaigns::createTrial((int) $user->id, $b, $image, $logo);
         if (!$r['ok']) {
             foreach ($r['errors'] ?? [] as $k => $m) { $k === 'form' ? $f->summary($m) : $f->add($k, $m); }
@@ -155,6 +174,48 @@ final class AdsController
         }
         $_SESSION['flash_ok'] = 'Sent for review. Your trial starts when a person approves it.';
         return $res->withHeader('Location', '/account/ads/' . (int) $r['id'])->withStatus(303);
+    }
+
+    /** Open the gateway for one unpaid campaign, or say why not and show the campaign. */
+    private function toCheckout(Request $req, Response $res, int $id, object $user): Response
+    {
+        $cb = SiteUrl::base($req) . '/account/ads/' . $id . '/paid';
+        $r = \AfricaGates\Services\Ads\AdCheckout::start($this->payments(), $id, (int) $user->id, (string) ($user->email ?? ''), $cb);
+        if ($r['ok']) return $res->withHeader('Location', (string) $r['url'])->withStatus(303);
+        $_SESSION['flash_error'] = $r['message'];
+        return $res->withHeader('Location', '/account/ads/' . $id)->withStatus(303);
+    }
+
+    /** POST /account/ads/{id}/pay — pay for a saved campaign (a checkout left, or one that would not open). */
+    public function pay(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $this->toLogin($res, '/account/ads');
+        return $this->toCheckout($req, $res, (int) ($args['id'] ?? 0), $user);
+    }
+
+    /**
+     * GET /account/ads/{id}/paid — back from the gateway. Asks the gateway (never the query
+     * string) and says what it found; the webhook confirms the same payment if this page is
+     * never reached.
+     */
+    public function paid(Request $req, Response $res, array $args): Response
+    {
+        $user = $this->accounts->current();
+        $id = (int) ($args['id'] ?? 0);
+        if (!$user) return $this->toLogin($res, '/account/ads/' . $id);
+        $c = \Illuminate\Database\Capsule\Manager::table('gates_ad_campaigns')->where('id', $id)->where('user_id', (int) $user->id)->first();
+        if ($c && $c->payment_ref) {
+            $r = \AfricaGates\Services\Ads\AdCheckout::confirm((string) $c->payment_ref, $this->payments());
+            if (in_array($r['state'], ['confirmed', 'already'], true)) {
+                $_SESSION['flash_ok'] = 'Paid. A person checks your ad next; it runs from when it is approved. Your receipt is in your email.';
+            } elseif ($r['state'] === 'pending') {
+                $_SESSION['flash_ok'] = 'Your payment has not cleared yet. This page updates when it does; nothing runs before then.';
+            } else {
+                $_SESSION['flash_error'] = 'That payment did not match the campaign. Nothing was started; contact us with your reference.';
+            }
+        }
+        return $res->withHeader('Location', '/account/ads/' . $id)->withStatus(303);
     }
 
     /** GET /account/ads/{id} — one campaign: its ads, its results by day, its controls. */
@@ -318,6 +379,7 @@ final class AdsController
             'headline' => AdRules::HEADLINE_MAX, 'body_min' => AdRules::BODY_MIN, 'body' => AdRules::BODY_MAX,
             'name' => AdRules::NAME_MAX, 'offer' => AdRules::OFFER_MAX, 'code' => AdRules::CODE_MAX,
             'image' => AdRules::IMAGE_MIN, 'logo' => \AfricaGates\Support\ImageProfiles::get('ad_logo')['min'], 'days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS,
+            'max_days' => AdRules::MAX_DAYS,
             'freq' => AdRules::FREQUENCY_CAP,
             'placements' => AdRules::PLACEMENTS, 'objectives' => AdRules::OBJECTIVES, 'ctas' => AdRules::CTAS,
             'categories' => AdRules::CATEGORIES, 'approvals' => AdRules::APPROVALS, 'beta' => AdRules::inBeta(),

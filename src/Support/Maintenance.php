@@ -317,6 +317,11 @@ final class Maintenance
                 // reported for the page it was drawn on (Services\Ads\AdDelivery).
                 $ran[] = ['adevents', $this->task('adevents',
                     fn() => \AfricaGates\Services\Ads\AdDelivery::prune())];
+                // Paid campaigns that have finished: what they did not spend goes back, with
+                // its VAT (Services\Ads\AdCheckout::settle). Claimed before the gateway is
+                // asked, so two runs cannot refund one campaign.
+                $ran[] = ['adrefunds', $this->task('adrefunds',
+                    fn() => \AfricaGates\Services\Ads\AdCheckout::settle(new \AfricaGates\Services\PaymentService()))];
                 // Expired Gemini file-upload handles. The provider deletes the file itself
                 // after 48 hours; this drops OUR record of it, which is the half that
                 // matters — a stale row would be handed to generateContent as a live
