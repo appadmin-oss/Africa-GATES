@@ -1365,12 +1365,17 @@ final class HelpCentre
                 ['steps' => [
                     '<strong>The platform fee</strong> is the cut agreed with you before you went live. '
                         . 'It comes <em>out of</em> the gift, and it is the same percentage on every '
-                        . 'gift until it is renegotiated. Your console shows it on each donation.',
+                        . 'gift. It is set when your account is attached; changing it is a new agreement '
+                        . 'with us, and never alters a gift already made. Your console shows it on each donation.',
                     '<strong>A donor’s tip to Africa GATES</strong> is <em>added on top</em> of what '
                         . 'they gave you, never taken from it. It is off by default, the donor has to '
                         . 'choose it, and it is capped. You receive exactly the number the donor typed '
                         . 'for you whether the tip is zero or the largest we allow.',
                 ]],
+                ['p' => 'Most gifts need nothing from you: the provider settles them straight to your '
+                      . 'bank. A gift made before your account was attached, or one the provider could '
+                      . 'not route, reaches our account instead, and that is what your console offers '
+                      . 'to request. We pay it by bank transfer and record the reference.'],
                 ['p' => 'You request a payout from the payouts section of your console. The smallest '
                       . 'payout is <strong>₦{min_payout}</strong>, and only an account owner can '
                       . 'request one — not every user you have added.'],
@@ -1385,16 +1390,17 @@ final class HelpCentre
             'audience' => ['organisation'],
             'cat'  => 'organisations',
             'title' => 'Getting into your organisation console',
-            'summary' => 'It is a separate sign-in from a member account, on purpose.',
+            'summary' => 'Sign in to your Africa GATES account with the address your organisation registered.',
             'keywords' => ['org login', 'partner login', 'organisation sign in', 'vendor dashboard',
                            'cannot find dashboard', 'console', 'where do i log in'],
             'body' => [
-                ['p' => 'Your console is at <a href="/org">africagates.org/org</a>. Sign in there with '
-                      . 'the address you gave us when you applied.'],
-                ['p' => 'It is a <strong>different sign-in from a personal member account</strong>, and '
-                      . 'deliberately so: an organisation console can move money, and a shared front '
-                      . 'door is the thing that makes one of these a target. Having a member account '
-                      . 'does not sign you into your organisation, and it should not.'],
+                ['p' => 'There is one sign-in, at <a href="/account/login">africagates.org/account/login</a>. '
+                      . 'Your console opens from the Africa GATES account that has <strong>verified</strong> '
+                      . 'the address your organisation was registered with; nobody links or adds anything. '
+                      . 'Your console is then at <a href="/org">africagates.org/org</a>.'],
+                ['p' => 'Moving money asks again: a payout needs <strong>the organisation’s own '
+                      . 'password</strong>, not only the account’s, because an email alone must never '
+                      . 'move a charity’s money.'],
                 ['p' => 'The console holds your documents, your applications, your donations, your '
                       . 'appeals, your payouts and the fee on each gift.'],
                 ['note' => 'Only an account owner can request a payout. Add colleagues as users so they '

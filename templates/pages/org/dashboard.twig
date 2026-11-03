@@ -120,7 +120,8 @@
           <span class="org-fig__l">{{ 'Reached you, after fees'|trans }}</span>
         </div>
         <div class="org-fig">
-          <span class="org-fig__n">{{ ngn }}{{ (totals.gross|default(0))|number_format }}</span>
+          {# raised, not gross: gross carries the donors' tips to the platform, which were never given to them. #}
+          <span class="org-fig__n">{{ ngn }}{{ (totals.raised|default(0))|number_format }}</span>
           <span class="org-fig__l">{{ 'Given in total'|trans }}</span>
         </div>
         <div class="org-fig">

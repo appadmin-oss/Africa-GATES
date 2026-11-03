@@ -636,7 +636,8 @@ class PaymentService
                 // org id trustworthy here. A tip a client could pass to this method is a
                 // number a browser chose for somebody else's settlement.
                 $route = PaymentDestination::initFieldsForPartner(
-                    $orgId, PaymentDestination::platformTipForReference($reference));
+                    $orgId, PaymentDestination::platformTipForReference($reference),
+                    PaymentDestination::platformShareForReference($reference));
                 // Only claim the partner stream if the routing actually resolved. A suspended
                 // partner falls through to an empty route and the payment settles to the main
                 // account, where it is visible and refundable.

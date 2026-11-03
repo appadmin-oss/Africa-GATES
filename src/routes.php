@@ -4536,6 +4536,10 @@ return function(App $app) {
         $a->post('/payouts/{id:[0-9]+}/reject',  \AfricaGates\Admin\Controllers\PayoutsController::class.':reject');
         // Release a request the automatic checks held, to be paid by transfer.
         $a->post('/payouts/{id:[0-9]+}/send',    \AfricaGates\Admin\Controllers\PayoutsController::class.':send');
+        // An ORGANISATION's request for money that reached our account rather than theirs
+        // (OrgPayout::heldForOrg). Settled by hand with the transfer reference, or refused.
+        $a->post('/payouts/org/{id:[0-9]+}/pay',    \AfricaGates\Admin\Controllers\PayoutsController::class.':orgPay');
+        $a->post('/payouts/org/{id:[0-9]+}/refuse', \AfricaGates\Admin\Controllers\PayoutsController::class.':orgRefuse');
         // ── COMMUNITY RETURN ──────────────────────────────────────────────
         //
         // An edition's return rules and milestone confirmation, and the nominees'
