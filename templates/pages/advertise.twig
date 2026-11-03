@@ -63,7 +63,7 @@
           {% else %}{{ 'Free trial only for now'|trans }}{% endif %}
         </p>
         <p class="am-place__s">
-          {{ c.tier_note|trans }}
+          {% if c.price or c.measured %}{{ c.tier_note|trans }}{% endif %}
           {% if c.measured %}{{ '%r% of people who see an ad here tap it.'|trans({'%r%': c.ctr_pct ~ '%'}) }}{% endif %}
           {% if c.daily %}{{ 'About %n% views a day.'|trans({'%n%': c.daily|number_format}) }}{% endif %}
         </p>
