@@ -420,6 +420,10 @@ final class ChallengeServiceTest extends TestCase
         // A draw mode never assigns places on qualification — it is drawn, not raced.
         $this->assertSame(0, CS::claimed($ch));
 
+        // Not while entries are open: the pool the seed is applied to must be final.
+        $this->assertSame('NOT_ENDED', CS::draw($ch, 'too-early')['code']);
+        $this->closeIt($ch);
+
         $first = CS::draw($ch, 'a-published-seed');
         $this->assertTrue($first['ok']);
         $this->assertCount(3, $first['winners']);
@@ -429,6 +433,11 @@ final class ChallengeServiceTest extends TestCase
         $again = CS::draw($ch, 'a-completely-different-seed');
         $this->assertSame($first['winners'], $again['winners'], 'the draw was re-run');
         $this->assertSame('a-published-seed', $again['seed']);
+    }
+
+    private function closeIt(int $ch): void
+    {
+        DB::table('gates_challenges')->where('id', $ch)->update(['ends_at' => gmdate('Y-m-d H:i:s', time() - 60)]);
     }
 
     public function test_a_draw_only_includes_people_who_finished(): void
@@ -443,6 +452,7 @@ final class ChallengeServiceTest extends TestCase
         $this->nomination($short, 'A', 'verified', '2026-10-01 09:00:00');
         CS::recount($done);
         CS::recount($short);
+        $this->closeIt($ch);
 
         $this->assertSame([$done], CS::draw($ch)['winners'],
             'somebody who had not reached the target was in the draw');
