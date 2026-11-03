@@ -111,6 +111,7 @@ final class AdminNav
             ['page' => 'events', 'label' => 'Events', 'href' => '/admin/events', 'icon' => 'ticket',
              'sub' => 'Every event on the platform, with tickets and stands.',
              'children' => [
+                 ['page' => 'event_leads',   'label' => 'Event leads',         'href' => '/admin/events/leads'],
                  ['page' => 'stand_presets', 'label' => 'Stand presets',       'href' => '/admin/stand-presets'],
                  ['page' => 'registrations', 'label' => 'Event registrations', 'href' => '/admin/registrations'],
              ]],
