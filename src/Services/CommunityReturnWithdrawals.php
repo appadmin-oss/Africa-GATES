@@ -119,7 +119,7 @@ final class CommunityReturnWithdrawals
                 ? '₦' . CommunityReturnService::naira($available) . ' is available.'
                 : ($wallet['locked_kobo'] > 0
                     ? '₦' . CommunityReturnService::naira($wallet['locked_kobo']) . (($wallet['in_pool'] ?? false)
-                        ? ' raised by your supporters is in the edition’s pool. It is shared when voting closes, between the nominees who reached the vote target.'
+                        ? ' set aside from your supporters’ contributions is in the edition’s pool. It is shared when voting closes, between the nominees who reached the vote target, by their votes.'
                         : ' is locked until your edition’s milestone is confirmed.')
                     : ($wallet['awaiting_kobo'] > 0
                         ? '₦' . CommunityReturnService::naira($wallet['awaiting_kobo']) . ' is released when your edition announces its results.'
@@ -284,6 +284,18 @@ final class CommunityReturnWithdrawals
         }
     }
 
+    /** @return list<object> one member's own requests, on any page, newest first */
+    public static function byMember(int $userId, int $limit = 100): array
+    {
+        if ($userId < 1) return [];
+        try {
+            return DB::table('gates_return_withdrawals')->where('user_id', $userId)
+                ->orderByDesc('id')->limit(max(1, $limit))->get()->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     /** What open requests are holding against this nominee's balance. */
     public static function underReviewKobo(int $nomineeId): int
     {
@@ -368,10 +380,20 @@ final class CommunityReturnWithdrawals
         if (!$alreadySent && ($why = self::stillCovered($w))) return ['ok' => false, 'message' => $why];
 
         try {
-            DB::transaction(static function () use ($w, $reference, $adminId): void {
+            DB::transaction(static function () use ($w, $reference, $adminId, $alreadySent): void {
                 $now = Carbon::now()->toDateTimeString();
-                $n = DB::table('gates_return_withdrawals')->where('id', (int) $w->id)
-                    ->where('status', self::WD_APPROVED)->update([
+                $q = DB::table('gates_return_withdrawals')->where('id', (int) $w->id)->where('status', self::WD_APPROVED);
+                // By hand, only while the automatic sender has not claimed the row. busy()
+                // asks first, but asking Paystack about a held transfer takes seconds, and
+                // "Send by transfer" pressed in those seconds claimed the row and paid it
+                // while this went on to record a manual payment as well: the money left
+                // twice. The sender's own claim requires the same states, so exactly one of
+                // the two updates can land.
+                if (!$alreadySent) {
+                    $q->where(static fn ($x) => $x->whereNull('auto_state')
+                        ->orWhereIn('auto_state', [WalletAutoPay::A_HELD, WalletAutoPay::A_FAILED]));
+                }
+                $n = $q->update([
                         'status' => self::WD_PAID, 'payment_ref' => mb_substr($reference, 0, 120),
                         'paid_by' => $adminId > 0 ? $adminId : null, 'paid_at' => $now,
                     ]);
@@ -477,10 +499,30 @@ final class CommunityReturnWithdrawals
 
     // ══ internals ══════════════════════════════════════════════════════════════
 
+    /** stillCovered() by id, for the transfer path: null when it may still be paid. */
+    public static function whyNotPayable(int $id): ?string
+    {
+        $w = self::find($id);
+        return $w ? self::stillCovered($w) : 'No such request.';
+    }
+
     /** Null when the balance still covers this open request; otherwise why not. */
     private static function stillCovered(object $w): ?string
     {
-        $b = CommunityReturnService::balance((int) $w->nominee_id);
+        // Still THEIRS to take. The automatic path asks this (WalletRisk::validity); a person
+        // approving, recording or sending by hand did not, so a request made before a claim
+        // was revoked and handed to somebody else could be approved and paid to the former
+        // holder's bank — the account on the row is the one they gave. Nothing cancels an
+        // open request when a claim changes, so it is asked at every step that moves money.
+        $nid = (int) $w->nominee_id;
+        $ctl = ClaimGuard::controlledBy($nid);
+        if ($ctl === null || (int) ($ctl['user_id'] ?? 0) !== (int) ($w->user_id ?? 0) || !ClaimGuard::payable($nid)) {
+            return 'Do not pay this one: the member who asked no longer holds a payable claim on this page. Refuse it, with that reason.';
+        }
+        if ((int) (DB::table('gates_users')->where('id', (int) ($w->user_id ?? 0))->value('email_verified') ?? 0) !== 1) {
+            return 'Do not pay this one: the account that asked no longer has a verified email address. Refuse it, with that reason.';
+        }
+        $b = CommunityReturnService::balance($nid);
         if ($b['claim_block'] !== null) {
             return 'Do not pay this one: ' . $b['claim_block']['reason'] . ' Refuse it, with that reason.';
         }

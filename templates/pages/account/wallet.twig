@@ -129,9 +129,22 @@
             <p class="wl-pk__note">{{ '%a% of %b%'|trans({'%a%': m.naira(ms.measured_kobo), '%b%': m.naira(ms.target_kobo)}) }} · {{ ms.reached ? 'Reached — waiting for our team to confirm it.'|trans : 'When it is reached and confirmed, locked money is released.'|trans }}</p>
           </div>
         {% endif %}
+        {# A pool edition: the vote target decides this nominee's money, so it is said here,
+           where the money is — not only on the award page. #}
+        {% set pl = p.pool|default(null) %}
+        {% if pl %}
+          {% set _pct = min(100, (pl.votes * 100 / pl.target)|round(0, 'floor')) %}
+          <div class="wl-prog">
+            <p class="wl-prog__l"><span>{{ 'Your vote target'|trans }}</span> <span>{{ '%v% votes · target %t%'|trans({'%v%': pl.votes|number_format, '%t%': pl.target|number_format}) }}</span></p>
+            <progress class="wl-prog__bar" max="100" value="{{ _pct }}" aria-label="{{ 'Votes towards your target'|trans }}">{{ _pct }}%</progress>
+            <p class="wl-pk__note">{{ pl.reached
+              ? 'Reached. When voting closes you share the edition’s pool with the other nominees who reached it, by your votes.'|trans
+              : '%n% votes to go. Nominees who reach it share the edition’s pool by their votes; below it, nothing is paid.'|trans({'%n%': pl.to_go|number_format}) }}</p>
+          </div>
+        {% endif %}
         {% if p.coming_kobo > 0 or p.review_kobo > 0 or p.paid_kobo > 0 %}
           <dl class="wl-pk__lines">
-            {% if p.coming_kobo > 0 %}<div><dt>{{ 'Coming'|trans }}<span>{{ p.coming_note|trans }}</span></dt><dd>{{ m.amt(p.coming_kobo, '') }}</dd></div>{% endif %}
+            {% if p.coming_kobo > 0 %}<div><dt>{{ p.in_pool|default(false) ? 'In the pool'|trans : 'Coming'|trans }}{% if p.coming_note %}<span>{{ p.coming_note|trans }}</span>{% endif %}</dt><dd>{{ m.amt(p.coming_kobo, '') }}</dd></div>{% endif %}
             {% if p.review_kobo > 0 %}<div><dt>{{ 'In review'|trans }}<span>{{ 'A withdrawal a person is checking'|trans }}</span></dt><dd>{{ m.amt(p.review_kobo, '') }}</dd></div>{% endif %}
             {% if p.paid_kobo > 0 %}<div><dt>{{ 'Paid to you'|trans }}</dt><dd>{{ m.amt(p.paid_kobo, '') }}</dd></div>{% endif %}
           </dl>

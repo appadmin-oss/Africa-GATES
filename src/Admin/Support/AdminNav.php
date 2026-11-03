@@ -119,7 +119,10 @@ final class AdminNav
             ['page' => 'partner-orgs', 'label' => 'Giving', 'href' => '/admin/partner-orgs', 'icon' => 'mail',
              'sub' => 'Organisations raising money on Africa GATES, and their donation pages.',
              'children' => [
-                 ['page' => 'community-return', 'label' => 'Community return', 'href' => '/admin/community-return'],
+                 // Its own line: inheriting Giving's described this page as organisations and
+                 // their donation pages, on the screen that sets how nominees are paid.
+                 ['page' => 'community-return', 'label' => 'Community return', 'href' => '/admin/community-return',
+                  'sub' => 'The share of supporters’ payments that goes back to nominees: each edition’s rule, and the withdrawals.'],
              ]],
             ['page' => 'forms', 'label' => 'Forms', 'href' => '/admin/forms', 'icon' => 'form',
              'sub' => 'Submissions from the site’s forms.',

@@ -45,6 +45,10 @@ use Illuminate\Support\Carbon;
  */
 final class CommunityReturnPool
 {
+    /** The two notes settling writes, read back by the wallet to title them (MemberWallet). */
+    public const NOTE_INTO  = 'Into the edition pool';
+    public const NOTE_SHARE = 'Share of the edition pool';
+
     /** The votes that count, by nominee, for every approved nominee of an edition. @return array<int,int> */
     public static function votes(int $cycleId): array
     {
@@ -52,8 +56,16 @@ final class CommunityReturnPool
         foreach (self::nominees($cycleId) as $id => $_) $out[$id] = 0;
         if ($out === []) return [];
         try {
+            // Not a vote paid from a member's wallet: that is a return being spent again, and
+            // it carries nobody over a line that starts a return (WalletVotes, rule 2) — or a
+            // nominee could spend last edition's share to reach this edition's target and take
+            // a slice of a pool other nominees' supporters paid for. The vote page promises
+            // as much: "earn no return and don't count towards qualifying". `IS NULL` kept
+            // explicitly, because NOT LIKE on a NULL is NULL, and would drop the row.
             foreach (DB::table('gates_votes')->whereIn('nominee_id', array_keys($out))->where('fraud_flag', 0)
-                         ->whereIn('vote_type', ['standard', 'paid'])->groupBy('nominee_id')
+                         ->whereIn('vote_type', ['standard', 'paid'])
+                         ->where(static fn ($w) => $w->whereNull('voter_email_hash')->orWhere('voter_email_hash', 'not like', WalletVotes::HASH_PREFIX . '%'))
+                         ->groupBy('nominee_id')
                          ->selectRaw('nominee_id, SUM(weight) as n')->get() as $r) {
                 $out[(int) $r->nominee_id] = (int) $r->n;
             }
@@ -174,6 +186,19 @@ final class CommunityReturnPool
         $closed = in_array((string) $cy->status, ['results', 'archived'], true)
             || (!empty($cy->voting_close) && (string) $cy->voting_close <= Carbon::now()->toDateTimeString());
         if (!$closed) return $no('OPEN', 'Voting is still open. Settle the pool once it has closed.');
+        // And not inside the late-payment grace. A vote paid for before the close is still
+        // minted for PaidVoteService::lateMintGraceHours() after it (a slow bank transfer, a
+        // retried webhook), and once the pool is settled its share is refused — so a payment
+        // made in time put votes on the board, put nothing in the pool, and could carry a
+        // nominee over a target the settlement had already decided they missed: "reached"
+        // beside a share of nothing, on the admin screen and the public award page.
+        if (!empty($cy->voting_close)) {
+            $grace = Carbon::parse((string) $cy->voting_close)->addHours(PaidVoteService::lateMintGraceHours());
+            if ($grace->isFuture()) {
+                return $no('GRACE', 'Payments made before the close can still arrive until ' . $grace->format('j M Y, H:i')
+                    . '. Settle the pool after that, so every vote paid for in time is in it.');
+            }
+        }
 
         $p = self::progress($cycleId);
         if ($p['target'] < 1) return $no('NO_TARGET', 'Set the edition’s milestone first: the vote target is worked out from it.');
@@ -197,7 +222,7 @@ final class CommunityReturnPool
                     if ((int) $f->k === 0) continue;
                     DB::table('gates_community_returns')->insert(['nominee_id' => (int) $f->nominee_id, 'profile_id' => $f->profile_id, 'cycle_id' => $cycleId,
                         'entry_type' => 'adjustment', 'amount_kobo' => -1 * (int) $f->k, 'basis_kobo' => 0, 'rate_bps' => 0,
-                        'note' => 'Into the edition pool', 'created_by' => $adminId > 0 ? $adminId : null, 'created_at' => $now]);
+                        'note' => self::NOTE_INTO, 'created_by' => $adminId > 0 ? $adminId : null, 'created_at' => $now]);
                 }
                 $total = array_sum(array_map(static fn ($r) => $r['votes'], $winners));
                 foreach ($winners as $i => $w) {
@@ -205,7 +230,7 @@ final class CommunityReturnPool
                     $profile = DB::table('gates_nominees')->where('id', $w['id'])->value('profile_id');
                     DB::table('gates_community_returns')->insert(['nominee_id' => $w['id'], 'profile_id' => $profile, 'cycle_id' => $cycleId,
                         'entry_type' => 'adjustment', 'amount_kobo' => $shares[$i], 'basis_kobo' => 0, 'rate_bps' => 0,
-                        'note' => 'Share of the edition pool: ' . number_format($w['votes']) . ' of the ' . number_format($total) . ' votes that reached the target',
+                        'note' => self::NOTE_SHARE . ': ' . number_format($w['votes']) . ' of the ' . number_format($total) . ' votes that reached the target',
                         'created_by' => $adminId > 0 ? $adminId : null, 'created_at' => $now]);
                 }
             });

@@ -226,6 +226,11 @@ final class WalletAutoPay
         if ($kind === self::KIND_RETURN && (string) $w['status'] === CommunityReturnWithdrawals::WD_REQUESTED) {
             $ap = CommunityReturnWithdrawals::approve($id, $adminId, 'Released for transfer after review.');
             if (!$ap['ok']) return ['state' => '', 'message' => $ap['message'], 'tell' => []];
+        } elseif ($kind === self::KIND_RETURN && ($why = CommunityReturnWithdrawals::whyNotPayable($id)) !== null) {
+            // An APPROVED row is asked again too. It was checked when it was approved, which
+            // may have been days ago; since then the claim can have been disputed or handed
+            // on, and "Record as paid" already refuses it — this sent it anyway.
+            return ['state' => '', 'message' => $why, 'tell' => []];
         }
         $open = $kind === self::KIND_RETURN ? CommunityReturnWithdrawals::WD_APPROVED : 'requested';
         $n = DB::table($t)->where('id', $id)->where('status', $open)
