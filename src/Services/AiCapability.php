@@ -1226,6 +1226,47 @@ final class AiCapability
                 // from a database going into a prompt, and the fence costs nothing.
                 'untrusted_input' => true,
             ]),
+            /**
+             * An event lead's "Suggest a team" (EventPlan\TeamSuggest): teams and roles with ticks
+             * from the fixed permission menu. Advisory and DEGRADE: with no answer the lead gets
+             * the deterministic templates, and nothing suggested is applied until the lead proposes
+             * it and an owner approves it. Whatever comes back is kept to the menu.
+             */
+            'event.team_suggest' => $c('event.team_suggest', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::primary(self::TIER_REASON),
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 1400,
+                'calls_per_day'   => 120,
+                'tokens_per_day'  => 300_000,
+                'timeout'         => 20,
+                // The event's title and description are typed by staff or an organiser.
+                'untrusted_input' => true,
+                'data_sent'       => 'An event\'s title, tagline, a short description, its date and capacity, and counts '
+                    . 'of its planned work and sponsors. No names, addresses or anything about guests.',
+                'data_purpose'    => 'To suggest teams and roles for the event\'s lead to edit and propose.',
+            ]),
+            /**
+             * Notes for an event OWNER on one proposed role's permissions, written once when the
+             * role is proposed (no page waits on it). The fixed risky combinations are always
+             * shown; these only add to them, and an empty answer is a normal one.
+             */
+            'event.role_review' => $c('event.role_review', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::primary(self::TIER_REASON),
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 400,
+                'calls_per_day'   => 300,
+                'tokens_per_day'  => 150_000,
+                'timeout'         => 12,
+                'untrusted_input' => true,
+                'data_sent'       => 'A proposed role\'s name, description and permission list, and the event\'s title. Nothing about people.',
+                'data_purpose'    => 'To point out risky combinations of permissions to the owner deciding the role.',
+            ]),
             'admin.form_design' => $c('admin.form_design', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_WRITE,

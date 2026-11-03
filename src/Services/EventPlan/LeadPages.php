@@ -120,6 +120,18 @@ final class LeadPages
 
     private static function noEvents(array $me, string $page): array
     {
+        // An owner, or somebody in an event's own role, leads nothing: their events open from here.
+        $cards = [];
+        foreach (EventPermissions::events($me['id']) as $e) {
+            $st = EventPermissions::standing($me['id'], (int) $e->id);
+            if (!$st['any']) continue;
+            $cards[] = ['t' => (string) $e->title, 'ini' => Workspace::initials((string) $e->title), 'meta' => Workspace::day((string) $e->event_date),
+                        'sub' => EventPermissions::label($st), 'href' => EventPages::url((int) $e->id)];
+        }
+        if ($cards) {
+            return ['title' => self::ROOT[$page][0] ?? 'Overview', 'secs' => [['k' => 'cards', 'h' => 'Your roles at events', 'items' => $cards],
+                ['k' => 'note', 'tone' => 'mute', 'text' => 'You don’t lead an event, so the pages across events stay empty. Open an event to see what your role there may do.']]];
+        }
         $note = ['k' => 'note', 'tone' => 'mute', 'text' => 'You don’t lead an event yet. When the organiser makes you the lead on one, it shows here, with its work, risks and budget.'];
         return ['title' => self::ROOT[$page][0] ?? 'Overview', 'secs' => [$note]];
     }

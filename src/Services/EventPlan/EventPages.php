@@ -35,7 +35,7 @@ final class EventPages
         ['Plan', ['plan' => ['Plan', 'list'], 'award' => ['Award', 'trophy']]],
         ['Run the event', ['people' => ['People', 'users'], 'crm' => ['Relationships', 'msg'], 'money' => ['Money', 'card'], 'night' => ['The night', 'night']]],
         ['Learn', ['growth' => ['Growth', 'grow'], 'reports' => ['Reports', 'rep']]],
-        ['Admin', ['requests' => ['Requests', 'list'], 'settings' => ['Event settings', 'gear']]],
+        ['Admin', ['requests' => ['Requests', 'list'], 'roles' => ['Team & roles', 'users'], 'settings' => ['Event settings', 'gear']]],
     ];
 
     public const TABS = [
@@ -46,6 +46,8 @@ final class EventPages
         'night' => ['show' => 'Run of show', 'door' => 'Door', 'safety' => 'Safety'],
         'reports' => ['status' => 'Status', 'post' => 'Post-event', 'audit' => 'Audit'],
         'settings' => ['general' => 'General', 'members' => 'Members', 'limits' => 'Limits', 'devices' => 'Devices'],
+        // Teams, roles and who is in them: a lead proposes, an owner decides (EventPlan\Teams).
+        'roles' => TeamPages::TABS,
     ];
 
     /** Purpose lines, verbatim from `nav-admin.json` where it gives one. */
@@ -61,6 +63,7 @@ final class EventPages
         'reports' => 'Status for the committee, the post-event report and the audit trail.',
         'requests' => 'Requests about this event, from you and your team.',
         'settings' => 'Date, venue, members, limits and the devices used at the door.',
+        'roles' => 'Teams, committees and roles, and who is in them. A lead proposes; an owner decides.',
     ];
 
     /** Pages of the first lead build, and where each lives now (a retired address is not a dead one). */
@@ -72,24 +75,26 @@ final class EventPages
         return LeadPages::BASE . '/event/' . $id . ($page === 'today' ? '' : '/' . $page) . ($tab !== '' && $tab !== $first ? '?tab=' . $tab : '');
     }
 
-    public static function nav(int $eventId, string $current, array $counts): array
+    /** The rail, with only the pages this standing may open (null: every page, the lead's). */
+    public static function nav(int $eventId, string $current, array $counts, ?array $st = null): array
     {
         $groups = [];
         foreach (self::NAV as [$label, $pages]) {
             $items = [];
             foreach ($pages as $k => [$l, $icon]) {
+                if ($st !== null && !EventPermissions::allowsView($st, $k)) continue;
                 $items[] = ['key' => $k, 'label' => $l, 'icon' => $icon, 'href' => self::url($eventId, $k), 'current' => $k === $current,
                             'drill' => false, 'count' => $counts[$k] ?? null];
             }
-            $groups[] = ['label' => $label, 'items' => $items];
+            if ($items) $groups[] = ['label' => $label, 'items' => $items];
         }
         return $groups;
     }
 
-    public static function tabs(int $eventId, string $page, string $current): array
+    public static function tabs(int $eventId, string $page, string $current, ?array $st = null): array
     {
         $out = [];
-        foreach (self::TABS[$page] ?? [] as $k => $label) {
+        foreach ($st !== null ? EventPermissions::tabsFor($st, $page, self::TABS[$page] ?? []) : (self::TABS[$page] ?? []) as $k => $label) {
             $out[] = ['key' => $k, 'label' => $label, 'href' => self::url($eventId, $page, $k), 'current' => $k === $current, 'count' => null];
         }
         return $out;
@@ -107,6 +112,7 @@ final class EventPages
         if ($open > 0) $c['night'] = ['n' => $open, 'tone' => 'warn'];
         $info = count(array_filter(self::eventRequests($eventId), static fn ($r) => $r->status === 'needs_info' && $r->from_kind === Plan::ACTOR && (int) $r->from_id === $me['id']));
         if ($info > 0) $c['requests'] = ['n' => $info, 'tone' => 'warn'];
+        if (($w = Teams::waitingCount($eventId)) > 0) $c['roles'] = ['n' => $w, 'tone' => 'warn'];
         return $c;
     }
 
@@ -121,12 +127,29 @@ final class EventPages
         return $out;
     }
 
-    public static function page(array $me, object $e, string $page, string $tab, array $q): array
+    /**
+     * One page, drawn for what this member may do here: with a standing that is not a lead's,
+     * Today becomes the role's own overview, and every form and button their permissions do
+     * not open is left out (EventPermissions::filter) — the writers refuse it regardless.
+     */
+    public static function page(array $me, object $e, string $page, string $tab, array $q, ?array $st = null): array
+    {
+        $st ??= EventPermissions::standing($me['id'], (int) $e->id);
+        $c = self::draw($me, $e, $page, $tab, $q, $st);
+        $c['secs'] = EventPermissions::filter($c['secs'] ?? [], $st, (int) $e->id);
+        if (isset($c['side'])) $c['side'] = EventPermissions::filter($c['side'], $st, (int) $e->id);
+        if (isset($c['acts'])) $c['acts'] = array_values(array_filter($c['acts'], static fn ($a) => EventPermissions::actionOk($a, $st, (int) $e->id)));
+        return $c;
+    }
+
+    private static function draw(array $me, object $e, string $page, string $tab, array $q, array $st): array
     {
         $id = (int) $e->id;
         $owners = ['' => 'Nobody yet'];
         foreach (Plan::team($id) as $p) $owners[$p['key']] = $p['name'] !== '' ? $p['name'] : $p['role'];
+        if ($page === 'today' && !$st['lead'] && !$st['owner']) return TeamPages::roleToday($e, $st);
         return match ($page) {
+            EventPermissions::TEAM_PAGE => TeamPages::page($me, $e, $tab, $st),
             'plan' => match ($tab) {
                 'timeline' => self::timeline($e), 'risks' => self::risks($e, $owners), 'decisions' => self::decisions($e),
                 default => self::work($e, $owners, (string) ($q['owner'] ?? '')),
@@ -140,7 +163,7 @@ final class EventPages
                 'contacts' => self::contacts($e), 'letters' => self::letters($e), 'messages' => self::messages($e), default => self::sponsors($e, $owners),
             },
             'money' => match ($tab) {
-                'approvals' => self::approvals($me, $e), 'vendors' => self::vendors($e), 'income' => self::income($e), default => self::budget($e, (int) ($q['ask'] ?? 0)),
+                'approvals' => self::approvals($me, $e), 'vendors' => self::vendors($e), 'income' => self::income($e), default => self::budget($e, (int) ($q['ask'] ?? 0), $st['ceiling']),
             },
             'night' => match ($tab) { 'door' => self::door($e), 'safety' => self::safety($e, $owners), default => self::show($e, $owners) },
             'growth' => LeadPages::analytics([$e]),
@@ -612,10 +635,10 @@ final class EventPages
 
     // ── Money ───────────────────────────────────────────────────────────────────────────
 
-    private static function budget(object $e, int $ask): array
+    /** @param int $limit the viewer's own ceiling: the platform's for a lead, the role's for a custom role */
+    private static function budget(object $e, int $ask, int $limit): array
     {
         $id = (int) $e->id;
-        $limit = Plan::limitMinor();
         $lines = Plan::lines([$id]);
         $secs = [];
         $live = array_filter($lines, static fn ($l) => $l->status !== 'declined');
@@ -840,7 +863,10 @@ final class EventPages
                   'sponsor_add' => 'added a sponsor', 'sponsor_stage' => 'moved a sponsor', 'check_add' => 'added a safety check', 'check_done' => 'signed off a check',
                   'check_undo' => 'reopened a check', 'table_save' => 'changed the seating', 'seat' => 'seated a guest', 'seat_free' => 'freed a seat',
                   'letters_send' => 'sent invitation letters', 'message_send' => 'sent a message', 'door_issue' => 'made a scanning link',
-                  'door_revoke' => 'turned off a scanning link', 'request' => 'made a request', 'lead_grant' => 'gave the event a lead'];
+                  'door_revoke' => 'turned off a scanning link', 'request' => 'made a request', 'lead_grant' => 'gave the event a lead',
+                  'team_propose' => 'proposed a team', 'role_propose' => 'proposed a role', 'member_propose' => 'proposed somebody for a role',
+                  'proposal_withdraw' => 'withdrew a proposal', 'decide' => 'decided a proposal', 'member_end' => 'ended somebody’s role',
+                  'role_archive' => 'archived a role', 'team_suggest' => 'asked for a suggested team'];
         $rows = [];
         foreach (Scope::audit((int) $e->id) as $a) {
             $verb = substr((string) $a->action, 5);

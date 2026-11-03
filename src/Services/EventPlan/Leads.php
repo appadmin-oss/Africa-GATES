@@ -63,16 +63,38 @@ final class Leads
             $out[] = (object) ['event_id' => (int) $g->scope_id, 'name' => (string) ($u->name ?? 'A member'), 'email' => (string) ($u->email ?? ''),
                 'until' => Workspace::day((string) $g->expires_at), 'state' => 'lead', 'grant' => (int) $g->id];
         }
-        foreach (RoleInvites::waiting(null, ['event.lead']) as $i) {
+        // Owners too (EventPlan\Teams): the person who decides what the leads propose.
+        foreach (Grants::ready() ? DB::table('gates_grants')->where('capability', 'event.own')->where('scope_kind', 'event')->whereNull('revoked_at')
+            ->where('expires_at', '>', date('Y-m-d H:i:s'))->orderBy('expires_at')->get()->all() : [] as $g) {
+            if ($g->actor_kind !== Plan::ACTOR) continue;
+            $u = DB::table('gates_users')->where('id', $g->actor_id)->first(['name', 'email']);
+            $out[] = (object) ['event_id' => (int) $g->scope_id, 'name' => (string) ($u->name ?? 'A member'), 'email' => (string) ($u->email ?? ''),
+                'until' => Workspace::day((string) $g->expires_at), 'state' => 'owner', 'grant' => (int) $g->id];
+        }
+        foreach (RoleInvites::waiting(null, ['event.lead', 'event.own']) as $i) {
             $out[] = (object) ['event_id' => (int) $i->scope_id, 'name' => '', 'email' => (string) $i->email, 'until' => $i->until,
-                'state' => 'invited', 'waiting' => $i->waiting, 'invite' => (int) $i->id];
+                'state' => $i->capability === 'event.own' ? 'owner_invited' : 'invited', 'waiting' => $i->waiting, 'invite' => (int) $i->id];
         }
         return $out;
     }
 
-    public static function end(int $grantId, int $eventId, int $adminId): bool
+    /**
+     * Name an OWNER: the person who approves what this event's leads propose about teams, roles
+     * and access (EventPlan\Teams). Staff's to give, never a lead's; by address, so an outside
+     * organisation's own person can be invited, and it ends like every grant.
+     */
+    public static function giveOwner(int $eventId, string $email, string $until, int $adminId, string $adminName = ''): array
     {
-        $g = Grants::ready() ? DB::table('gates_grants')->where('id', $grantId)->where('capability', 'event.lead')
+        if (!Plan::event($eventId)) return ['ok' => false, 'error' => 'That event is not there.'];
+        if (!RoleInvites::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
+        return RoleInvites::offer($email, 'event.own', $eventId, $until, ['kind' => 'admin', 'id' => $adminId > 0 ? $adminId : null, 'name' => $adminName]);
+    }
+
+    /** End a lead's or an owner's access at this event — only one of those two, only here. */
+    public static function end(int $grantId, int $eventId, int $adminId, string $capability = 'event.lead'): bool
+    {
+        if (!in_array($capability, ['event.lead', 'event.own'], true)) return false;
+        $g = Grants::ready() ? DB::table('gates_grants')->where('id', $grantId)->where('capability', $capability)
             ->where('scope_kind', 'event')->where('scope_id', $eventId)->first() : null;
         return $g !== null && Grants::revoke($grantId, $adminId);
     }

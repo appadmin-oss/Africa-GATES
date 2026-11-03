@@ -46,6 +46,7 @@ class EventsController
            for the whole list, grouped here — never a query per row. */
         $leads = [];
         foreach (\AfricaGates\Services\EventPlan\Leads::everywhere() as $l) {
+            if (!in_array($l->state, ['lead', 'invited'], true)) continue;   // owners are listed on the event's own page
             $leads[$l->event_id][$l->state === 'lead' ? 'names' : 'invited'][] = $l->state === 'lead' ? $l->name : $l->email;
         }
         return $this->view->render($res, 'admin/events/index.twig', [
@@ -1173,6 +1174,7 @@ class EventsController
         return $this->view->render($res, 'admin/events/leads.twig', [
             'admin_page' => 'events', 'topbar_title' => 'Leads and volunteers', 'event' => $event,
             'leads' => \AfricaGates\Services\EventPlan\Leads::of((int) $event->id), 'flash_ok' => $ok, 'flash_error' => $err,
+            'owners' => \AfricaGates\Services\EventPlan\Teams::owners((int) $event->id), 'team' => $this->teamView((int) $event->id),
             'invites' => \AfricaGates\Services\RoleInvites::waiting((int) $event->id),
             'awards' => \AfricaGates\Services\EventInvites::programmesFor((int) $event->id),
             'may_staff' => $mayStaff, 'crew' => $this->crew((int) $event->id),
@@ -1247,6 +1249,39 @@ class EventsController
         return $out;
     }
 
+    /**
+     * The event's own teams, roles and people, for staff to SEE and to decide or end anything
+     * (EventPlan\Teams: staff are the second person when an event has no other owner).
+     *
+     * @return array{rows:list<array>, waiting:int}
+     */
+    private function teamView(int $eventId): array
+    {
+        $T = \AfricaGates\Services\EventPlan\Teams::class;
+        if (!$T::ready()) return ['rows' => [], 'waiting' => 0];
+        $roleName = [];
+        $rows = [];
+        foreach ($T::teams($eventId) as $t) {
+            $rows[] = ['subject' => 'team', 'id' => (int) $t->id, 'title' => 'Team: ' . $t->name, 'sub' => (string) ($t->purpose ?? ''), 'status' => (string) $t->status];
+        }
+        foreach ($T::roles($eventId) as $r) {
+            $roleName[(int) $r->id] = (string) $r->name;
+            $flags = \AfricaGates\Services\EventPlan\EventPermissions::risks($r->perms, (string) $r->kind);
+            $rows[] = ['subject' => 'role', 'id' => (int) $r->id, 'title' => 'Role: ' . $r->name, 'status' => (string) $r->status,
+                'sub' => implode(', ', array_map(static fn ($p) => \AfricaGates\Services\EventPlan\EventPermissions::MENU[$p]['label'], $r->perms))
+                    . ($flags ? ' · flagged: ' . implode(' ', $flags) : '')];
+        }
+        foreach ($T::members($eventId) as $m) {
+            $rows[] = ['subject' => 'member', 'id' => (int) $m->id, 'title' => (string) $m->email . ' as ' . ($roleName[(int) $m->role_id] ?? 'a role')
+                . ($m->team_role === 'lead' ? ', team lead' : ''), 'sub' => '', 'status' => (string) $m->status];
+        }
+        foreach ($rows as &$r) {
+            $r['label'] = $T::STATUSES[$r['status']] ?? $r['status'];
+        }
+        unset($r);
+        return ['rows' => $rows, 'waiting' => $T::waitingCount($eventId)];
+    }
+
     /** POST /admin/events/{id}/leads — give the event to a member by email, or end a lead's access. */
     public function leadsAct(Request $req, Response $res, array $args): Response
     {
@@ -1279,6 +1314,44 @@ class EventsController
                 } else {
                     $_SESSION['flash_error'] = 'That role had already ended.';
                 }
+            }
+        } elseif (in_array($do, ['team_decide', 'team_end'], true)) {
+            /* Staff see every team, role and person at the event and may decide or end any of it
+               — the second person where an event has no other owner. Same rules as an owner's
+               (Teams), always with a reason, audited as event.team.*. */
+            $by = ['kind' => 'admin', 'id' => $adminId ?: null, 'name' => (string) ($_SESSION['admin_name'] ?? 'Staff')];
+            $T = \AfricaGates\Services\EventPlan\Teams::class;
+            $subject = (string) ($b['subject'] ?? '');
+            $sid = (int) ($b['id'] ?? 0);
+            $reason = (string) ($b['reason'] ?? '');
+            $r = $do === 'team_decide' ? $T::decide($subject, $sid, (string) ($b['verdict'] ?? ''), $reason, $by)
+               : ($subject === 'member' ? $T::endMember($sid, $id, $reason, $by)
+               : ($subject === 'role' ? $T::archiveRole($sid, $id, $reason, $by) : ['ok' => false, 'error' => 'Only a person or a role can be ended here.']));
+            if ($r['ok'] && (int) ($r['event'] ?? $id) !== $id) $r = ['ok' => false, 'error' => 'That is not at this event.'];
+            if ($r['ok']) {
+                $_SESSION['flash_ok'] = (string) ($r['msg'] ?? 'Done.');
+                $this->audit->record($adminId, 'event.team.' . ($do === 'team_decide' ? ($r['verdict'] ?? 'decide') : 'end'), 'event', $id,
+                    ['subject' => $subject, 'id' => $sid, 'reason' => $reason]);
+            } else {
+                $_SESSION['flash_error'] = (string) $r['error'];
+            }
+        } elseif ($do === 'owner_give') {
+            $r = \AfricaGates\Services\EventPlan\Leads::giveOwner($id, (string) ($b['email'] ?? ''), (string) ($b['until'] ?? ''), $adminId, (string) ($_SESSION['admin_name'] ?? ''));
+            if ($r['ok']) {
+                $mail = !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent — tell them yourself; Settings › Mail says why.';
+                $_SESSION['flash_ok'] = (!empty($r['granted']) ? 'Done. They own this event now and decide what its leads propose.' : 'Invitation sent. It switches on when they sign in with that address confirmed.') . $mail;
+                $this->audit->record($adminId, !empty($r['granted']) ? 'event.owner.give' : 'event.owner.invite', 'event', $id,
+                    !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
+            } else {
+                $_SESSION['flash_error'] = (string) $r['error'];
+            }
+        } elseif ($do === 'owner_end') {
+            $grant = (int) ($b['grant'] ?? 0);
+            if (\AfricaGates\Services\EventPlan\Leads::end($grant, $id, $adminId, 'event.own')) {
+                $_SESSION['flash_ok'] = 'Ended. They no longer decide this event’s teams and roles.';
+                $this->audit->record($adminId, 'event.owner.end', 'event', $id, ['grant' => $grant]);
+            } else {
+                $_SESSION['flash_error'] = 'That access had already ended.';
             }
         } elseif ($do === 'end') {
             $grant = (int) ($b['grant'] ?? 0);

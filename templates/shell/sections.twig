@@ -86,7 +86,8 @@
 {% macro bar(pct, label) %}<span class="sh7-meter"><span class="sh7-meter__track"><span class="sh7-meter__fill" style="width:{{ min(100, max(0, pct)) }}%"></span></span>{% if label %}<span class="sh7-meter__label">{{ label }}</span>{% endif %}</span>{% endmacro %}
 
 {% macro field(f) %}
-  {% set id = 'f_' ~ f.name|replace({'[': '_', ']': ''}) %}
+  {# A page with several forms names each field's id (`f.id`), or two fields would share one. #}
+  {% set id = f.id is defined ? f.id : 'f_' ~ f.name|replace({'[': '_', ']': ''}) %}
   {% if f.type == 'radio' %}
     <fieldset class="sh7-field sh7-field--choice"><legend class="sh7-field__label">{{ f.label }}</legend>
       {% for k, l in f.options %}<label class="sh7-choice"><input type="radio" name="{{ f.name }}" value="{{ k }}"{{ (f.value|default('')) == k ? ' checked' }}{{ f.required|default(false) ? ' required' }}> {{ l }}</label>{% endfor %}

@@ -5,6 +5,10 @@ namespace AfricaGates\Controllers;
 
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\EventPlan\EventPages;
+use AfricaGates\Services\EventPlan\EventPermissions;
+use AfricaGates\Services\EventPlan\TeamPages;
+use AfricaGates\Services\EventPlan\Teams;
+use AfricaGates\Services\EventPlan\TeamSuggest;
 use AfricaGates\Services\EventPlan\LeadPages;
 use AfricaGates\Services\EventPlan\Outreach;
 use AfricaGates\Services\EventPlan\Plan;
@@ -101,7 +105,9 @@ final class LeadController
         if ($me === null) return $res->withHeader('Location', '/account/login?next=' . LeadPages::BASE)->withStatus(303);
         $id = (int) $args['id'];
         $e = Plan::ready() ? Plan::event($id) : null;
-        if (!$e || !Plan::isLead($me['id'], $id)) throw new HttpNotFoundException($req);   // not theirs: it does not exist here
+        // A lead, an owner, or somebody in one of the event's approved roles; anybody else, it does not exist here.
+        $st = $e ? EventPermissions::standing($me['id'], $id) : null;
+        if (!$e || !$st['any']) throw new HttpNotFoundException($req);
         $page = (string) ($args['page'] ?? 'today');
         // A page of the first build is forwarded to the page and tab that replaced it.
         if (isset(EventPages::ALIASES[$page])) {
@@ -114,21 +120,22 @@ final class LeadController
         }
         $valid = [];
         foreach (EventPages::NAV as [, $pages]) $valid += $pages;
-        if (!isset($valid[$page])) throw new HttpNotFoundException($req);
-        $tabs = EventPages::TABS[$page] ?? [];
+        // A page the member's permissions do not open is not there for them (EventPermissions).
+        if (!isset($valid[$page]) || !EventPermissions::allowsView($st, $page)) throw new HttpNotFoundException($req);
+        $tabs = EventPermissions::tabsFor($st, $page, EventPages::TABS[$page] ?? []);
         $tab = (string) ($req->getQueryParams()['tab'] ?? array_key_first($tabs) ?? '');
         if ($tabs && !isset($tabs[$tab])) $tab = (string) array_key_first($tabs);
-        $c = EventPages::page($me, $e, $page, $tab, $req->getQueryParams());
+        $c = EventPages::page($me, $e, $page, $tab, $req->getQueryParams(), $st);
         // A scanning link exists in readable form only now, once (only its hash is stored).
         if (($link = $this->take('lead_door_link')) && $page === 'settings') {
             array_unshift($c['secs'], ['k' => 'note', 'tone' => 'info', 'text' => 'Copy this link now; it is not shown again: ' . $link]);
         }
         $label = $valid[$page][0];
         return $this->render($res, $me, $c + [
-            'scope' => 'event', 'eventId' => $id, 'nav' => EventPages::nav($id, $page, EventPages::counts($me, $id)),
-            'tabs' => $tabs ? EventPages::tabs($id, $page, $tab) : [],
-            'instance' => ['name' => (string) $e->title, 'sub' => Workspace::day((string) $e->event_date) . ' · Event lead', 'ini' => Workspace::initials((string) $e->title), 'tone' => 'ok'],
-            'siblings' => EventPages::siblings(Plan::leadEvents($me['id']), $id, $page, $tab),
+            'scope' => 'event', 'eventId' => $id, 'nav' => EventPages::nav($id, $page, EventPages::counts($me, $id), $st),
+            'tabs' => $tabs ? EventPages::tabs($id, $page, $tab, $st) : [],
+            'instance' => ['name' => (string) $e->title, 'sub' => Workspace::day((string) $e->event_date) . ' · ' . EventPermissions::label($st), 'ini' => Workspace::initials((string) $e->title), 'tone' => 'ok'],
+            'siblings' => EventPages::siblings(EventPermissions::events($me['id']), $id, $page, $tab),
             'back' => ['label' => 'Overview', 'href' => LeadPages::BASE],
             'crumbs' => [['label' => 'Event lead', 'href' => LeadPages::BASE], ['label' => (string) $e->title, 'href' => EventPages::url($id)]]
                 + ($page === 'today' ? [] : [2 => ['label' => $label]]),
@@ -185,16 +192,26 @@ final class LeadController
             'attend_out' => [$this->attend($me, $b, false), 'Checked out. Their hours count now.', 'event', $int('event')],
             'attend_confirm' => [$this->attendConfirm($me, $b), 'Confirmed. Their hours count now.', 'event', $int('event')],
             'vol_invite', 'vol_invite_cancel', 'vol_end' => [$this->recruit($me, $b, $do), '', 'event', $int('event')],
+            'team_propose' => [Teams::proposeTeam($int('event'), $b, $me), '', 'event', $int('event')],
+            'role_propose' => [Teams::proposeRole($int('event'), $b, $me), '', 'event', $int('event')],
+            'member_propose' => [Teams::proposeMember($int('event'), $b, $me), '', 'event', $int('event')],
+            'proposal_withdraw' => [Teams::withdraw((string) ($b['subject'] ?? ''), $int('id'), $me), '', 'event', $int('event')],
+            'decide' => [$this->decide($me, $b), '', 'event', $int('event')],
+            'member_end' => [Teams::endMember($int('member'), $int('event'), (string) ($b['reason'] ?? ''), ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']]), '', 'event', $int('event')],
+            'role_archive' => [Teams::archiveRole($int('role'), $int('event'), (string) ($b['reason'] ?? ''), ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']]), '', 'event', $int('event')],
+            'team_suggest' => [$this->suggest($me, $int('event')), '', 'event', $int('event')],
             default => [['ok' => false, 'error' => 'That isn’t something this page can do.'], '', '', 0],
         };
         if (!$r['ok']) return $this->back($res, $back, false, (string) ($r['error'] ?? 'That didn’t work.'));
         // A change to an event is recorded AGAINST THE EVENT, so its Reports › Audit can list
         // it; the row it touched travels in the meta.
         $meta = array_intersect_key($b, array_flip(['status', 'owner', 'title', 'name', 'label', 'stage', 'likelihood', 'impact', 'estimate', 'vendor',
-                                                    'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until', 'why', 'capability', 'email']));
+                                                    'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until', 'why', 'capability', 'email',
+                                                    'subject', 'verdict', 'reason', 'perms', 'ceiling', 'team_role', 'kind']));
+        if ($do === 'decide' && isset($r['verdict'])) $meta['verdict'] = $r['verdict'];   // 'changed' is the decision's, not the form's
         if ($type === 'event') {
             $target = (int) ($r['event'] ?? $target);
-            foreach (['id', 'work', 'risk', 'line', 'decision', 'cue', 'sponsor', 'check', 'table', 'pass', 'vol', 'hour', 'grant', 'invite', 'volunteer'] as $k) if (!empty($r[$k] ?? $b[$k] ?? null) && $k !== 'event') $meta[$k] = (int) ($r[$k] ?? $b[$k]);
+            foreach (['id', 'work', 'risk', 'line', 'decision', 'cue', 'sponsor', 'check', 'table', 'pass', 'vol', 'hour', 'grant', 'invite', 'volunteer', 'member', 'role', 'team'] as $k) if (!empty($r[$k] ?? $b[$k] ?? null) && $k !== 'event') $meta[$k] = (int) ($r[$k] ?? $b[$k]);
         } else {
             $target = (int) ($r['id'] ?? $target);
         }
@@ -253,11 +270,35 @@ final class LeadController
         }
     }
 
+    /**
+     * An OWNER decides a proposal (Teams::decide holds the rules: an owner of the row's event,
+     * never their own proposal, never their own access, always a reason). Ticks travel only
+     * when the form drew them, so approving a team cannot clear a role's.
+     */
+    private function decide(array $me, array $b): array
+    {
+        $in = array_intersect_key($b, array_flip(['perms', 'ceiling']));
+        if (($b['subject'] ?? '') === 'role' && !isset($in['perms'])) $in['perms'] = [];
+        return Teams::decide((string) ($b['subject'] ?? ''), (int) ($b['id'] ?? 0), (string) ($b['verdict'] ?? ''), (string) ($b['reason'] ?? ''),
+            ['kind' => Plan::ACTOR, 'id' => $me['id'], 'name' => $me['name']], $in);
+    }
+
+    /** "Suggest a team": kept in the session for the page to draw as proposal forms. Applies nothing. */
+    private function suggest(array $me, int $event): array
+    {
+        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can ask for a suggested team.'];
+        $e = Plan::event($event);
+        if (!$e) return ['ok' => false, 'error' => 'That event is not there.'];
+        $s = (new TeamSuggest())->suggest($e);
+        $_SESSION[TeamPages::SESSION][$event] = $s;
+        return ['ok' => true, 'event' => $event, 'msg' => ($s['source'] === 'assistant' ? 'Suggested.' : 'Suggested from the templates.') . ' Change what you like, then propose what you keep.'];
+    }
+
     /** A lead's request is about one of THEIR events; nothing else is offered or accepted. */
     private function newRequest(array $me, array $b): array
     {
         $event = (int) ($b['event'] ?? 0);
-        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Pick one of your events.'];
+        if (!Plan::may($me['id'], $event, 'requests.make')) return ['ok' => false, 'error' => 'Pick one of your events.'];
         return Requests::create('lead', (string) ($b['type'] ?? ''), Plan::ACTOR, $me['id'], $me['name'], $b, 'event', $event);
     }
 
@@ -273,7 +314,7 @@ final class LeadController
     private function attend(array $me, array $b, bool $in): array
     {
         $event = (int) ($b['event'] ?? 0);
-        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can check its volunteers in.'];
+        if (!Plan::may($me['id'], $event, 'volunteers.checkin')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can check its volunteers in.'];
         $v = \Illuminate\Database\Capsule\Manager::table('gates_volunteers')->where('id', (int) ($b['vol'] ?? 0))->first();
         if (!$v) return ['ok' => false, 'error' => 'That volunteer was not found.'];
         $r = $in ? Attendance::arrive($v, $event, Attendance::LEAD, $me['name']) : Attendance::leave($v, $event, Attendance::LEAD, $me['name']);
@@ -285,7 +326,7 @@ final class LeadController
     {
         $event = (int) ($b['event'] ?? 0);
         $hour = (int) ($b['hour'] ?? 0);
-        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can confirm its time on site.'];
+        if (!Plan::may($me['id'], $event, 'volunteers.checkin')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can confirm its time on site.'];
         $here = \Illuminate\Database\Capsule\Manager::table('gates_vol_attendance')->where('event_id', $event)->where('hours_id', $hour)->exists();
         if (!$here) return ['ok' => false, 'error' => 'That time was not at this event.'];
         return Hours::confirm($hour, true, 'member', $me['id'], $me['name']) + ['event' => $event];
@@ -295,7 +336,7 @@ final class LeadController
     private function issueDoor(array $me, array $b): array
     {
         $event = (int) ($b['event'] ?? 0);
-        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can make its scanning links.'];
+        if (!Plan::may($me['id'], $event, 'door.manage')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can make its scanning links.'];
         $token = EventScanPass::issue($event, (string) (DisplayTime::toStored($b['closes_at'] ?? null) ?? ''), (string) (DisplayTime::toStored($b['opens_at'] ?? null) ?? ''),
             trim((string) ($b['label'] ?? '')), null);
         if ($token === null) return ['ok' => false, 'error' => 'That link could not be made. Check that it closes after it opens.'];
@@ -305,7 +346,7 @@ final class LeadController
     private function revokeDoor(array $me, array $b): array
     {
         $event = (int) ($b['event'] ?? 0);
-        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'Only a lead of this event can turn its scanning links off.'];
+        if (!Plan::may($me['id'], $event, 'door.manage')) return ['ok' => false, 'error' => 'Only a lead of this event, or a team role that includes it, can turn its scanning links off.'];
         return EventScanPass::revoke((int) ($b['pass'] ?? 0), $event) ? ['ok' => true, 'event' => $event, 'pass' => (int) ($b['pass'] ?? 0)]
                                                                      : ['ok' => false, 'error' => 'That link was already off.'];
     }

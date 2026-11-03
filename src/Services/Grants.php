@@ -31,6 +31,12 @@ final class Grants
     /** What each capability lets its holder do, in the words the access page shows. */
     public const CAPABILITIES = [
         'event.lead'                => 'Lead this event',
+        // An event's OWNER approves what its leads propose about who may do what there
+        // (EventPlan\Teams). Given by staff, never by a lead (owner, 3 Nov 2026).
+        'event.own'                 => 'Own this event',
+        // A role a lead defined and an owner approved; what it opens is the role's ticks
+        // from EventPlan\EventPermissions::MENU, read live, never this word.
+        'event.role'                => 'Event team role',
         'award.moderate'            => 'Moderate this award',
         'vol.nomination_check'      => 'Nomination check',
         'vol.voter_drive'           => 'Voter drive',
@@ -39,6 +45,9 @@ final class Grants
         'vol.usher'                 => 'Usher',
         'vol.interview_scheduling'  => 'Interview scheduling',
         'vol.team_lead'             => 'Team lead',
+        // The same, for a role the lead made a VOLUNTEER role: the vetting rule holds
+        // (RoleInvites::eligible reads the `vol.` prefix), and the role shows in the workspace.
+        'vol.event_role'            => 'Event team role (volunteer)',
     ];
 
     public const SCOPES = ['platform', 'programme', 'cycle', 'event'];

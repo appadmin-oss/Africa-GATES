@@ -41,6 +41,67 @@
   {% endif %}
 </section>
 
+<section class="cn-card vl-sec" aria-labelledby="oh">
+  <h2 class="vl-h" id="oh">Owners</h2>
+  <p class="vl-help">An owner decides what this event’s leads propose: its teams and committees, the roles they define and what each may do, and who is put in them. An owner never decides their own proposal; with no other owner, you do, below.</p>
+  {% if owners is empty %}
+    {{ kit.empty('Nobody owns this event yet', 'Name an owner below — your staff, or the organiser’s own person. Until then, what its leads propose waits for you here.', 'users') }}
+  {% else %}
+    <ul class="vl-list">
+      {% for o in owners %}
+        <li class="vl-li">
+          <span class="vl-li__t">{{ o.name }}</span>
+          <span class="vl-help">{{ o.email }} · until {{ o.until }}</span>
+          <form method="post" action="/admin/events/{{ event.id }}/leads" data-confirm="End {{ o.name }}’s ownership of this event now? They no longer decide its teams and roles.">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="owner_end"><input type="hidden" name="grant" value="{{ o.id }}">
+            <button class="cn-btn" type="submit">End<span class="sr-only">, {{ o.name }}</span></button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  <form class="vl-form" method="post" action="/admin/events/{{ event.id }}/leads">
+    <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="owner_give">
+    <label for="oe">Their email<input id="oe" type="email" name="email" required autocomplete="off"></label>
+    <label for="ou">Ownership ends<input id="ou" type="date" name="until"></label>
+    <p class="vl-acts vl-wide"><button class="cn-btn cn-btn--primary" type="submit">Make them an owner</button></p>
+  </form>
+  <p class="vl-help">Leave the date empty and it ends the day after the event. We email them either way.</p>
+</section>
+
+<section class="cn-card vl-sec" aria-labelledby="th">
+  <h2 class="vl-h" id="th">Teams and roles{% if team.waiting %} · {{ team.waiting }} waiting{% endif %}</h2>
+  {% if team.rows is empty %}
+    <p class="vl-help">No teams or roles yet. The event’s leads propose them from their own console.</p>
+  {% else %}
+    <p class="vl-help">Everything the leads have proposed, and what was decided. You can decide anything still waiting, and end a person’s role or archive a role; each needs a reason, which is recorded and shown to the lead.</p>
+    <ul class="vl-list">
+      {% for r in team.rows %}
+        <li class="vl-li">
+          <span class="vl-li__t">{{ r.title }}</span>
+          <span class="vl-help">{{ r.label }}{% if r.sub %} · {{ r.sub }}{% endif %}</span>
+          {% if r.status == 'proposed' %}
+            <form class="vl-form" method="post" action="/admin/events/{{ event.id }}/leads">
+              <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="team_decide">
+              <input type="hidden" name="subject" value="{{ r.subject }}"><input type="hidden" name="id" value="{{ r.id }}">
+              <label for="tv{{ r.subject }}{{ r.id }}">Decision<select id="tv{{ r.subject }}{{ r.id }}" name="verdict"><option value="approve">Approve</option><option value="refuse">Refuse</option></select></label>
+              <label for="tr{{ r.subject }}{{ r.id }}">Reason<input id="tr{{ r.subject }}{{ r.id }}" type="text" name="reason" required></label>
+              <p class="vl-acts"><button class="cn-btn" type="submit">Record<span class="sr-only"> the decision on {{ r.title }}</span></button></p>
+            </form>
+          {% elseif r.status == 'approved' and r.subject != 'team' %}
+            <form class="vl-form" method="post" action="/admin/events/{{ event.id }}/leads">
+              <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="team_end">
+              <input type="hidden" name="subject" value="{{ r.subject }}"><input type="hidden" name="id" value="{{ r.id }}">
+              <label for="te{{ r.subject }}{{ r.id }}">Reason<input id="te{{ r.subject }}{{ r.id }}" type="text" name="reason" required></label>
+              <p class="vl-acts"><button class="cn-btn" type="submit">{{ r.subject == 'role' ? 'Archive' : 'End' }}<span class="sr-only"> {{ r.title }}</span></button></p>
+            </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+
 {% if invites is not empty %}
 <section class="cn-card vl-sec" aria-labelledby="ih">
   <h2 class="vl-h" id="ih">Invited, not yet switched on</h2>

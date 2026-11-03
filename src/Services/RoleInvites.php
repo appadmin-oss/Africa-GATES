@@ -55,7 +55,7 @@ final class RoleInvites
      * @param array{kind:string,id:?int,name:string} $by who is giving it ('admin' or 'member')
      * @return array{ok:bool, error?:string, granted?:bool, pending?:bool, id?:int, emailed?:bool}
      */
-    public static function offer(string $email, string $capability, int $eventId, string $until, array $by, string $note = ''): array
+    public static function offer(string $email, string $capability, int $eventId, string $until, array $by, string $note = '', string $label = ''): array
     {
         if (!self::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
         $event = Plan::event($eventId);
@@ -69,14 +69,14 @@ final class RoleInvites
         $u = DB::table('gates_users')->whereRaw('LOWER(email) = ?', [$email])->first();
         if ($u && (string) ($u->status ?? 'active') !== 'active') return ['ok' => false, 'error' => 'That account is not active, so it cannot be given a role.'];
         if ($u && Grants::allows(Plan::ACTOR, (int) $u->id, $capability, 'event', $eventId)) {
-            return ['ok' => false, 'error' => $capability === 'event.lead' ? 'They already lead this event.' : 'They already have that role at this event.'];
+            return ['ok' => false, 'error' => match ($capability) { 'event.lead' => 'They already lead this event.', 'event.own' => 'They already own this event.', default => 'They already have that role at this event.' }];
         }
         // Eligible now: the role is theirs at once.
         if ($u && self::eligible($u, $capability)) {
             $g = Grants::grant(Plan::ACTOR, (int) $u->id, $capability, 'event', $eventId, $expires, $by['kind'] === 'admin' ? ($by['id'] ?: null) : null,
                 $note !== '' ? $note : self::noteFor($by));
             if (!$g['ok']) return $g;
-            $sent = self::tell($email, (string) ($u->name ?? ''), $capability, $event, $expires, 'given', $by);
+            $sent = self::tell($email, (string) ($u->name ?? ''), $capability, $event, $expires, 'given', $by, $label);
             return ['ok' => true, 'granted' => true, 'id' => (int) $g['id'], 'emailed' => $sent];
         }
         // Not yet: held against the address, once.
@@ -92,7 +92,7 @@ final class RoleInvites
         // (applying starts with an account); a lead needs an account, then a confirmed address.
         $vol = str_starts_with($capability, 'vol.');
         $state = $u && (int) ($u->email_verified ?? 0) !== 1 ? 'confirm' : ($vol ? 'apply' : 'account');
-        $sent = self::tell($email, (string) ($u->name ?? ''), $capability, $event, $expires, $state, $by);
+        $sent = self::tell($email, (string) ($u->name ?? ''), $capability, $event, $expires, $state, $by, $label);
         return ['ok' => true, 'pending' => true, 'id' => $id, 'emailed' => $sent];
     }
 
@@ -183,13 +183,16 @@ final class RoleInvites
      * Tell the person, by email. Never fails the giving: a role is real whether or not a mail
      * server answered, and the page that gave it says which.
      */
-    public static function tell(string $email, string $name, string $capability, object $event, string $expires, string $state, array $by): bool
+    public static function tell(string $email, string $name, string $capability, object $event, string $expires, string $state, array $by, string $roleName = ''): bool
     {
         $base = rtrim(SiteUrl::base(), '/');
         $lead = $capability === 'event.lead';
+        // Every role that opens the event's console (lead, owner, a team role) is opened there;
+        // a night's volunteer role in the volunteer workspace.
+        $console = in_array($capability, ['event.lead', 'event.own', 'event.role', 'vol.event_role'], true);
         $id = (int) $event->id;
         [$url, $label] = match ($state) {
-            'given'   => $lead ? [$base . '/lead/event/' . $id, 'Open the event'] : [$base . '/volunteer/event/' . $id, 'Open your volunteer workspace'],
+            'given'   => $console ? [$base . '/lead/event/' . $id, 'Open the event'] : [$base . '/volunteer/event/' . $id, 'Open your volunteer workspace'],
             'account' => [$base . '/account/register', 'Create your account'],
             'confirm' => [$base . '/account/login', 'Sign in and confirm your address'],
             default   => [$base . '/volunteer/apply', 'Apply to volunteer'],
@@ -197,7 +200,7 @@ final class RoleInvites
         $first = trim((string) strtok(trim($name), ' ')) ?: 'there';
         try {
             $r = Emails::send(OtpService::boot(), $email, 'role', [
-                'first_name' => $first, 'role' => $lead ? 'Lead' : (Grants::CAPABILITIES[$capability] ?? 'Volunteer'),
+                'first_name' => $first, 'role' => $lead ? 'Lead' : ($roleName !== '' ? $roleName : ($capability === 'event.own' ? 'Event owner' : (Grants::CAPABILITIES[$capability] ?? 'Volunteer'))),
                 'place' => (string) $event->title, 'when' => !empty($event->event_date) ? date('j F Y', (int) strtotime((string) $event->event_date)) : '',
                 'until' => date('j F Y', (int) strtotime($expires)), 'inviter' => (string) ($by['name'] ?? ''),
                 'state' => $state, 'action_url' => $url, 'action_label' => $label,
