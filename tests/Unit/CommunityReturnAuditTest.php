@@ -12,7 +12,10 @@ use AfricaGates\Services\MemberWallet as W;
 use AfricaGates\Services\PaymentService;
 use AfricaGates\Services\RuleEngine;
 use AfricaGates\Services\WalletAutoPay as Auto;
+use AfricaGates\Services\WalletHistory;
 use AfricaGates\Services\WalletVotes;
+use AfricaGates\Services\MergeService;
+use AfricaGates\Services\OtpService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -274,5 +277,60 @@ final class CommunityReturnAuditTest extends TestCase
         $this->assertContains('Into the edition pool', $titles);
         $this->assertContains('Your share of the edition pool', $titles);
         $this->assertNotContains('Correction by our team', $titles, 'settling read as our team taking money and handing some back');
+    }
+
+    // ── the second pass ──────────────────────────────────────────────────────────
+
+    public function test_a_merge_takes_the_return_with_it(): void
+    {
+        $this->assertTrue(Milestone::saveEditionRules(1, ['model' => 'flat', 'full_pct' => 10])['ok']);
+        DB::table('gates_nominees')->insert(['id' => 4, 'category_id' => 1, 'name' => 'Ada O.', 'status' => 'approved']);
+        $this->contribution(4, 10000);                                   // ₦1,000 on the duplicate
+        $r = MergeService::mergeNominees(1, [4], 1);
+        $this->assertTrue($r['ok'] ?? false, json_encode($r));
+        $this->assertSame(100000, (int) DB::table('gates_community_returns')->where('nominee_id', 1)->sum('amount_kobo'),
+            'the merged-away page kept the money, where nobody can withdraw it');
+        $this->assertSame([], Ret::audit(null, 1), 'credited to a different nominee');
+        MergeService::unmerge(4, 1);
+        $this->assertSame(100000, (int) DB::table('gates_community_returns')->where('nominee_id', 4)->sum('amount_kobo'), 'an unmerge must put it back');
+    }
+
+    public function test_the_pool_target_keeps_the_price_it_was_set_at(): void
+    {
+        $this->pool();                                                    // ₦30,000 at ₦100 → 100 each
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'vote_price_naira'], ['value' => '300']);
+        $this->assertSame(100, Pool::target(1)['each'], 'a price change in Settings moved every nominee’s target mid-edition');
+    }
+
+    public function test_winners_are_told_their_share_when_the_pool_settles(): void
+    {
+        $this->pool();
+        $this->votes(1, 100);
+        $this->contribution(1, 10000);
+        $this->close();
+        $this->assertTrue(Pool::settle(1, 1)['ok']);
+        $mail = new class extends OtpService {
+            public array $sent = [];
+            public function __construct() { parent::__construct(['username' => 'u', 'password' => 'p']); }
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0, string $why = ''): array
+            { $this->sent[] = [$to, $subject, $plainBody]; return ['success' => true]; }
+        };
+        $this->assertSame(1, Pool::notifyWinners(1, $mail));
+        $this->assertSame('ada@example.com', $mail->sent[0][0]);
+        $this->assertStringContainsString('₦2,000.00', $mail->sent[0][2]);
+    }
+
+    public function test_the_statement_counts_everything_that_left_the_balance(): void
+    {
+        $this->pool();
+        $this->votes(1, 100);
+        $this->votes(2, 100);
+        $this->contribution(1, 10000);                                    // ₦2,000 in, then into the pool
+        $this->close();
+        $this->assertTrue(Pool::settle(1, 1)['ok']);                      // ₦1,000 back as Ada's share
+        $all = W::transactions(7);
+        $q = WalletHistory::query($all, WalletHistory::params(['month' => 'all'], $all));
+        $this->assertSame((int) Ret::wallet(1)['available_kobo'], $q['in_kobo'] - $q['out_kobo'],
+            'in minus out is not the balance: "Into the edition pool" was never counted out');
     }
 }

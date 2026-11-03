@@ -97,6 +97,11 @@ final class CommunityReturnController
             'model_names'   => self::MODEL_NAMES,
             'model_choices' => self::MODEL_CHOICES,
             'ladder_text'   => $cycleId > 0 ? $this->ladderText($cycleId) : '',
+            // Whether this edition chose its model, or is running whatever the house default
+            // is. Unsaved, an edition reads as though somebody picked "Threshold" for it —
+            // the one that pays a nominee their own supporters' share — when nobody did.
+            'model_from'    => $cycleId > 0 ? (new \AfricaGates\Services\RuleEngine())->provenance('community_return_model',
+                                   (int) (DB::table('gates_award_cycles')->where('id', $cycleId)->value('programme_id') ?? 0) ?: null, $cycleId)['from'] : 'default',
         ]);
     }
 
@@ -158,7 +163,11 @@ final class CommunityReturnController
         $body = (array) $req->getParsedBody();
         $r = \AfricaGates\Services\CommunityReturnPool::settle($cycleId, $this->adminId(), (string) ($body['_reason'] ?? ''));
         $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
-        if ($r['ok']) $this->audit?->record($this->adminId(), 'community_return.pool_settled', 'cycle', $cycleId);
+        if ($r['ok']) {
+            $this->audit?->record($this->adminId(), 'community_return.pool_settled', 'cycle', $cycleId);
+            $told = \AfricaGates\Services\CommunityReturnPool::notifyWinners($cycleId);
+            if ($told > 0) $_SESSION['flash'] = $r['message'] . ' ' . ($told === 1 ? 'The winner has been told.' : $told . ' winners have been told.');
+        }
         return $this->back($res, $cycleId);
     }
 

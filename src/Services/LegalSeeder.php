@@ -518,13 +518,13 @@ HTML;
 <p>Money can make a nominee look more popular and can move the community part of their score. It cannot buy the judges&rsquo; part, and it cannot make somebody eligible to win. The current weightings and the judging quorum are published at <a href="/integrity">/integrity</a>, read live from the scoring configuration rather than restated here, so that page is always the authoritative figure.</p>
 
 <h2>The community return</h2>
-<p>Where a nominee&rsquo;s supporters raise contributions in their name, a share is set aside for the nominee &mdash; win or lose, because they raised it either way.</p>
+<p>Where a nominee&rsquo;s supporters raise contributions in their name, a share of that money can come back to nominees, under the rule each edition publishes at <a href="/integrity">/integrity</a> before it opens. Under the house rule the share is set aside for the nominee &mdash; win or lose, because they raised it either way. Under a <strong>target pool</strong>, every nominee has the same vote target; when voting closes, those who reached it share the edition&rsquo;s pool by their votes, and a nominee below the target receives nothing.</p>
 <ul>
-<li>A nominee begins earning only after reaching a <strong>qualifying-support threshold</strong>, counted in votes.</li>
+<li>Under the house rule, a nominee begins earning only after reaching a <strong>qualifying-support threshold</strong>, counted in votes.</li>
 <li><strong>No single supporter can carry the threshold.</strong> One supporter&rsquo;s contribution counts only up to a capped proportion of it, so qualifying requires support from several different verified people however much any one person spends.</li>
 <li>Crossing the threshold does not reach backwards. Earlier contributions stay unshared.</li>
 <li>The share is held as an <strong>append-only ledger</strong>. If a contribution is refunded or charged back, the share accrued on it is reversed and the reversal stays on the record beside the original.</li>
-<li>Nothing is payable until the cycle has ended and its results have been announced. A nominee cannot cash out mid-race.</li>
+<li>Nothing is payable before the edition&rsquo;s rule allows it: under the house rule, until the cycle has ended and its results have been announced; under a target pool, until the pool is settled after voting closes. A nominee cannot cash out mid-race.</li>
 <li>A nominee may withdraw an available return to a bank account in their own name, for the published service fee, or spend it on votes for any nominee. <strong>Votes paid from a return earn no return and do not count towards qualifying for one</strong>; otherwise they count exactly like any bought vote.</li>
 </ul>
 <p>The current share, threshold and per-supporter cap are published at <a href="/integrity">/integrity</a>. Eligibility requirements and payment arrangements are communicated to qualifying nominees directly.</p>
@@ -569,8 +569,8 @@ HTML;
 <p>Africa GATES is <strong>not</strong> a Ponzi scheme, pyramid scheme, multi-level marketing programme, investment scheme, get-rich-quick scheme or fraudulent fundraising operation.</p>
 <ul>
 <li>No participant is promised a financial return for recruiting other participants.</li>
-<li>No participant earns anything by introducing another person into the programme.</li>
-<li>There is no chain, no downline, no tier to climb and no referral commission.</li>
+<li>No participant earns anything for bringing another person into the programme: nobody is paid because somebody else registered, was nominated or voted.</li>
+<li>There is no chain, no downline and no tier to climb. The one referral reward is a published retail commission on event tickets and shop orders bought through a member&rsquo;s own link, paid on what those buyers actually paid and reversed if they are refunded. It is never paid for recruitment, and never on votes.</li>
 <li>Any community-return arrangement is a programme-based allocation subject to stated eligibility requirements. It is <strong>not</strong> an investment return, interest, profit share, or a promise of financial appreciation, and it is not payable simply because money was spent.</li>
 </ul>
 <p>If anyone tells you otherwise &mdash; particularly if they ask you to pay them directly, or promise you earnings for signing others up &mdash; they are not acting for Africa GATES. Report it.</p>

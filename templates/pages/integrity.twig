@@ -61,13 +61,14 @@
   {% set _rows = [] %}
   {% for e in return_editions %}
     {% set _rows = _rows|merge([[e.title, e.summary|e,
-        (not e.uses_milestone ? 'Released when the edition announces its results'|trans
+        (e.model == 'pool' ? (e.settled_at ? 'Shared on %d%'|trans({'%d%': e.settled_at|date('j M Y')}) : 'Shared when voting closes, by votes, between the nominees who reach the target'|trans)
+          : (not e.uses_milestone ? 'Released when the edition announces its results'|trans
           : (e.confirmed_at
             ? 'Confirmed on %d% at ₦%t%'|trans({'%d%': e.confirmed_at|date('j M Y'), '%t%': (e.target_kobo / 100)|number_format})
-            : '₦%m% raised of ₦%t%'|trans({'%m%': (e.measured_kobo / 100)|number_format, '%t%': (e.target_kobo / 100)|number_format})))|e]]) %}
+            : '₦%m% raised of ₦%t%'|trans({'%m%': (e.measured_kobo / 100)|number_format, '%t%': (e.target_kobo / 100)|number_format}))))|e]]) %}
   {% endfor %}
   {% set _ret_editions = [
-    {p: 'Some editions set their own rule before they open, and it never changes once anything is earned. Two-stage: a smaller share, held until contributions reach a published target and a person confirms it, then the full share. Flat: one share on everything. Tiered: the share rises as more is raised. Refunded or fraudulent money earns nothing.'|trans|e},
+    {p: 'Some editions set their own rule before they open, and it never changes once anything is earned. Target pool: every nominee has the same vote target; when voting closes, those who reached it share the pool by their votes, and below it nothing is paid. Two-stage: a smaller share, held until contributions reach a published target and a person confirms it, then the full share. Flat: one share on everything. Tiered: the share rises as more is raised. Refunded or fraudulent money earns nothing.'|trans|e},
     {table: {caption: 'Editions with their own return rule'|trans, head: ['Edition'|trans, 'Rule'|trans, 'When it is released'|trans], rows: _rows}}
   ] %}
 {% endif %}
@@ -83,7 +84,7 @@
             ? 'At the latest. Most are sent within minutes; any that need a closer look wait for a person.'|trans|e
             : 'After a person has reviewed the request.'|trans|e],
         ['Appeals'|trans, '%n% days'|trans({'%n%': _t.appeal_days}), 'To appeal a refusal or a hold, reply to the email that told you.'|trans|e],
-        ['Unclaimed balances'|trans, '%n% days'|trans({'%n%': _t.unclaimed_days}), 'Claim your money within this time. Nothing is taken away automatically: a person decides, and it is recorded.'|trans|e],
+        ['Unclaimed balances'|trans, '%n% days'|trans({'%n%': _t.unclaimed_days}), 'Claim your money within this time. Nothing is taken away automatically.'|trans|e],
         ['Tax'|trans, '—', _t.tax_note|e]
       ]}},
     {p: _t.automatic
@@ -232,7 +233,7 @@
         ['No single pocket'|trans, return_cap_pct|default(10) ~ '%', 'One supporter counts for at most %v% of those votes, so it takes at least %n% different people.'|trans({'%v%': return_cap_votes|default(25)|number_format, '%n%': return_people|default(10)})|e],
         ['The share'|trans, return_pct|default('50') ~ '%', 'That share of each later contribution is kept for the nominee. Earlier contributions don’t count.'|trans|e]
       ]}},
-    {p: 'Every entry stays on the record, and so does a refund, which takes its share back. Nothing is paid out before the edition’s results are announced. A nominee can spend an available return on votes for anyone; those votes earn no return and don’t count towards qualifying.'|trans|e}
+    {p: 'Every entry stays on the record, and so does a refund, which takes its share back. Under the house rule nothing is paid out before the edition’s results are announced; an edition with its own rule says when, below. A nominee can spend an available return on votes for anyone; those votes earn no return and don’t count towards qualifying.'|trans|e}
   ])|merge(_ret_editions)|merge(_ret_terms)|merge([
     {refs: [{href: '/help/the-community-return', label: 'The community return, in full'|trans}]}
   ])},

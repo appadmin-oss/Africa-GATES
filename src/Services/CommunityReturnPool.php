@@ -100,8 +100,14 @@ final class CommunityReturnPool
      */
     public static function target(int $cycleId): array
     {
-        $milestone = max(0, (int) (CommunityReturnMilestone::rulesForCycle($cycleId)['community_return_milestone_naira'] ?? 0));
-        $price = max(0, PaidVoteService::pricePerVote());
+        $rules = CommunityReturnMilestone::rulesForCycle($cycleId);
+        $milestone = max(0, (int) ($rules['community_return_milestone_naira'] ?? 0));
+        // The price the edition's rules were saved at, which lock with its first entry. Read
+        // live from Settings, a price change mid-edition silently moved every nominee's target
+        // — somebody who had reached it could stop having reached it with no vote cast.
+        // Editions saved before the price was pinned fall back to today's, as they always did.
+        $pinned = (int) ($rules['community_return_vote_price_naira'] ?? 0);
+        $price = max(0, $pinned > 0 ? $pinned : PaidVoteService::pricePerVote());
         $votes = $price > 0 ? intdiv($milestone + $price - 1, $price) : 0;
         $nominees = count(self::nominees($cycleId));
         return ['milestone_naira' => $milestone, 'price_naira' => $price, 'votes' => $votes, 'nominees' => $nominees,
@@ -250,6 +256,38 @@ final class CommunityReturnPool
      * @param list<int> $weights
      * @return list<int>
      */
+    /**
+     * Tell each nominee who reached the target what their share is, once the pool settles.
+     *
+     * The voting letter tells nominees "when voting closes … share", and settling is a person
+     * pressing a button some time after; nothing told a winner it had happened, so money sat
+     * in a wallet its owner had no reason to open. Best-effort and outside the settlement, as
+     * notifyConfirmed() is: a mail outage must not undo a recorded act.
+     *
+     * @return int how many were sent
+     */
+    public static function notifyWinners(int $cycleId, ?OtpService $mailer = null): int
+    {
+        try {
+            $rows = DB::table('gates_community_returns')->where('cycle_id', $cycleId)->where('entry_type', 'adjustment')
+                ->where('amount_kobo', '>', 0)->where('note', 'like', self::NOTE_SHARE . '%')->get(['nominee_id', 'amount_kobo']);
+        } catch (\Throwable) {
+            return 0;
+        }
+        if ($rows->isEmpty()) return 0;
+        try { $mailer ??= OtpService::boot(); } catch (\Throwable) { return 0; }
+        $sent = 0;
+        foreach ($rows as $r) {
+            $to = CommunityReturnWithdrawals::claimantEmail((int) $r->nominee_id);
+            if ($to === '') continue;
+            Notifier::confirm($mailer, $to, 'Your share of the community return',
+                'Voting has closed and you reached your edition’s vote target. Your share of the pool is ₦'
+                . CommunityReturnService::naira((int) $r->amount_kobo) . ".\n\nIt is in your wallet, under Community return.");
+            $sent++;
+        }
+        return $sent;
+    }
+
     public static function split(int $kobo, array $weights): array
     {
         $sum = array_sum($weights);

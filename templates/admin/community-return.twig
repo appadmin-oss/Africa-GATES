@@ -36,6 +36,7 @@
       <div class="ad-stat__lbl">Model</div>
       <div class="ad-stat__num">{{ model_names[p.model]|default(p.model) }}</div>
       <div class="ad-stat__hint">{{ p.summary }}</div>
+      {% if model_from in ['default', 'global'] %}<div class="ad-stat__hint"><strong>No rule saved for this edition</strong> — it runs the house default. Save this edition’s rules below to choose one.</div>{% endif %}
     </div>
     {% if p.uses_milestone %}
     <div class="ad-stat {{ p.reached ? 'ad-stat--accent' : '' }}">

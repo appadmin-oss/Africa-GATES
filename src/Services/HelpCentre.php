@@ -1009,7 +1009,7 @@ final class HelpCentre
             'audience' => ['nominee'],
             'cat'  => 'results',
             'title' => 'The community return: a share of what your supporters raised',
-            'summary' => 'A nominee keeps a share of the contributions made in their name — win or lose.',
+            'summary' => 'How a share of what supporters contribute comes back to nominees, under each edition’s rule.',
             'keywords' => ['community return', 'do nominees get paid', 'my share', 'earnings', 'payout',
                            'withdraw', 'money back to nominee', 'supporters raised', 'what do i earn',
                            'nominee earnings'],
@@ -1027,7 +1027,7 @@ final class HelpCentre
                 ['when' => 'rate_zero',
                  'note' => 'The share is currently set to <strong>0%</strong>, so no new contribution is '
                          . 'accruing anything. Shares already recorded are unaffected.'],
-                ['p' => 'When supporters contribute in a nominee\'s name, a share of that money is set '
+                ['p' => 'Under the house rule, when supporters contribute in a nominee\'s name, a share of that money is set '
                       . 'aside <strong>for the nominee</strong>. It is not a prize and it does not depend '
                       . 'on winning — they raised it either way, and a nominee who mobilised a community '
                       . 'and came second mobilised a community.'],
@@ -1058,7 +1058,9 @@ final class HelpCentre
                     'Under this rule, nothing is payable until that cycle has ended and its results have been announced.',
                 ]],
                 ['p' => 'Some editions run a <strong>different rule</strong>, chosen before the edition opens '
-                      . 'and fixed once anything is earned under it: a <strong>two-stage</strong> rule (a '
+                      . 'and fixed once anything is earned under it: a <strong>target pool</strong> (every '
+                      . 'nominee has the same vote target; when voting closes, those who reached it share the '
+                      . 'edition\'s pool by their votes, and below it nothing is paid), a <strong>two-stage</strong> rule (a '
                       . 'smaller share held locked until the edition\'s collective milestone is confirmed '
                       . 'by a person, then the full share), a <strong>flat</strong> share on every '
                       . 'contribution, or a <strong>tiered</strong> or <strong>custom</strong> ladder whose '
@@ -1066,10 +1068,9 @@ final class HelpCentre
                       . 'how far it has got are on <a href="/integrity#return">the integrity page</a>.'],
                 ['p' => 'To be paid, open your <strong>Wallet</strong> and choose Withdraw. A request is '
                       . 'checked before anything is sent — the money is released, you hold the page\'s '
-                      . 'verified claim, your bank confirms the account is in your own name, every share '
-                      . 'traces to a valid contribution, and you accepted the published terms. Where '
-                      . 'nothing needs a closer look it is sent automatically, usually within minutes; '
-                      . 'otherwise a person checks it first. The smallest amount, the fee, the timeline, '
+                      . 'verified claim, your account\'s email address is verified, your bank confirms the '
+                      . 'account is in your own name, every share traces to a valid contribution, and you '
+                      . 'accepted the published terms. {payout_speed} The smallest amount, the fee, the timeline, '
                       . 'appeals and the tax position are published on the integrity page; withdrawals '
                       . 'open once they are.'],
                 ['note' => 'The share, the threshold and the per-supporter ceiling are all per-cycle '
@@ -1908,6 +1909,12 @@ final class HelpCentre
             '{return_cap_pct}'    => (string) $ret['cap_pct'],
             '{return_cap_votes}'  => number_format($ret['cap_votes']),
             '{return_people}'     => (string) $ret['min_supporters'],
+            // Said as it is running, never as it might: the article told every nominee their
+            // withdrawal is "sent automatically, usually within minutes" while automatic
+            // payouts are off by default and every request waits for a person.
+            '{payout_speed}'      => \AfricaGates\Services\WalletAutoPay::enabled()
+                ? 'Where nothing needs a closer look it is sent automatically, usually within minutes; otherwise a person checks it first.'
+                : 'A person checks every request before it is paid.',
         ];
     }
 }

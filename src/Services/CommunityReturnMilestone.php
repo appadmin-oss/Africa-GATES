@@ -228,6 +228,9 @@ final class CommunityReturnMilestone
             'community_return_locked_bps'      => $locked,
             'community_return_milestone_naira' => $target,
         ];
+        // The pool's target is milestone ÷ price ÷ nominees, so the price is part of the rule
+        // and is pinned with it (CommunityReturnPool::target()).
+        if ($model === CommunityReturnService::MODEL_POOL) $write['community_return_vote_price_naira'] = max(0, PaidVoteService::pricePerVote());
 
         if ($model === CommunityReturnService::MODEL_POOL) {
             // The vote target is worked out from the milestone (CommunityReturnPool::target()).
@@ -309,9 +312,15 @@ final class CommunityReturnMilestone
             return [];
         }
         $out = [];
+        // The house rule, to tell a threshold edition that merely inherits it from one that
+        // set its own share or threshold. Skipping every threshold edition hid the second
+        // kind: the page stated the house percentage while that edition paid another.
+        $house = (new RuleEngine())->effective();
+        $own = static fn (array $r): bool => (int) ($r['community_return_bps'] ?? 0) !== (int) ($house['community_return_bps'] ?? 0)
+            || (int) ($r['community_return_vote_threshold'] ?? 0) !== (int) ($house['community_return_vote_threshold'] ?? 0);
         foreach ($cycles as $c) {
             $p = self::progress((int) $c->id);
-            if ($p['model'] === CommunityReturnService::MODEL_THRESHOLD) continue;
+            if ($p['model'] === CommunityReturnService::MODEL_THRESHOLD && !$own(self::rulesForCycle((int) $c->id))) continue;
             $out[] = [
                 'title'          => trim((string) $c->title . ' · ' . ((string) ($c->edition_label ?: $c->year))),
                 'model'          => $p['model'],
@@ -320,6 +329,8 @@ final class CommunityReturnMilestone
                 'target_kobo'    => $p['target_kobo'],
                 'measured_kobo'  => $p['measured_kobo'],
                 'confirmed_at'   => $p['confirmed_at'],
+                // When a pool edition's money moves: at settling, after voting closes.
+                'settled_at'     => $p['model'] === CommunityReturnService::MODEL_POOL ? (CommunityReturnPool::settlement((int) $c->id)->settled_at ?? null) : null,
             ];
         }
         return $out;

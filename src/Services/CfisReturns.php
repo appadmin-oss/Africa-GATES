@@ -46,7 +46,12 @@ final class CfisReturns
         if ($cfis === null) return 0;
 
         $from = (int) (self::setting(self::WATERMARK) ?? 0);
-        $top = (int) DB::table('gates_community_returns')->whereNotNull('donation_id')->max('id');
+        // Only rows old enough to be committed. Accruals are written inside the mint's own
+        // transaction, so a lower id can commit after a higher one; a watermark set to the
+        // highest id seen then stepped over it, and that payment was never reported. Two
+        // minutes is far longer than any mint transaction; the next push picks up the rest.
+        $top = (int) DB::table('gates_community_returns')->whereNotNull('donation_id')
+            ->where('created_at', '<=', \Illuminate\Support\Carbon::now()->subMinutes(2)->toDateTimeString())->max('id');
         $poolFrom = (int) (self::setting(self::POOL_WATERMARK) ?? 0);
         $poolTop = self::poolsTop();
         if ($top <= $from && $poolTop <= $poolFrom) return 0;

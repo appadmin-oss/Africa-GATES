@@ -1974,6 +1974,17 @@ class AccountController
         $bank = ['bank' => (string) ($b['bank'] ?? ''), 'account_name' => (string) ($b['account_name'] ?? ''),
                  'account_number' => (string) ($b['account_number'] ?? ''), 'bank_code' => (string) ($b['bank_code'] ?? '')];
         $amount = ($b['amount_kobo'] ?? '') === '' ? null : max(0, (int) $b['amount_kobo']);
+        // The bank code and its name come off a hidden field, so they are checked against
+        // the bank list here rather than trusted: a reviewer reads the NAME, an automatic
+        // transfer is built from the CODE, and a posted pair that disagrees would show one
+        // bank to the person and pay another. A code not on the list is dropped — the request
+        // then goes to a person, which is what a request without a code always did.
+        if ($bank['bank_code'] !== '') {
+            $listed = array_values(array_filter(\AfricaGates\Services\WalletAutoPay::banks(),
+                static fn ($x) => (string) ($x['code'] ?? '') === $bank['bank_code']));
+            if ($listed) $bank['bank'] = (string) $listed[0]['name'];
+            else $bank['bank_code'] = '';
+        }
 
         $r = $W::withdraw((int) $user->id, $key, $amount, $bank, ($b['accept'] ?? '') === '1');
         if (!$r['ok']) {

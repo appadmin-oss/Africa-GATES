@@ -422,9 +422,16 @@ final class MemberWallet
                 }
                 if ($r->note) $details[] = ['Note', (string) $r->note];
 
-                $out[] = self::tx('cr-' . (int) $r->id, $amt >= 0 ? 'in' : 'out', $title,
+                $tx = self::tx('cr-' . (int) $r->id, $amt >= 0 ? 'in' : 'out', $title,
                     $type === 'accrual' ? 'From a supporter of ' . $page : $page,
                     abs($amt), $status, (string) $r->created_at, $ref, 0, 'return', $details);
+                // A transfer the bank sent back (WalletAutoPay::reverseSettled): money restored,
+                // not money earned, so the statement does not count it in twice.
+                if ($type === 'adjustment' && preg_match('/^withdrawal #\d+ returned by the bank/', (string) $r->note)) {
+                    $tx['title'] = 'Returned by the bank';
+                    $tx['restores'] = true;
+                }
+                $out[] = $tx;
             }
 
 

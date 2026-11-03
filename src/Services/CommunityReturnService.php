@@ -237,6 +237,15 @@ final class CommunityReturnService
             // Paid voting first: with no vote sales the rate is moot, and naming the
             // rate there would send an operator to fix a setting that changes nothing.
             'off_reason'     => !$paid ? 'no_paid_voting' : ($bps > 0 ? '' : 'rate_zero'),
+            // The house rule as one sentence, whatever its model — and, when the return is
+            // not running, a sentence that says so. The philosophy document promised "a
+            // nominee keeps 50% … win or lose" on every site, including one that sells no
+            // votes and so returns nothing, and editions on the pool, where a nominee who
+            // misses the target is paid nothing at all.
+            'sentence'       => $bps > 0 && $paid
+                ? 'a share can come back to the nominee. Under the house rule: ' . CommunityReturnMilestone::summary($eff)
+                  . ' An edition may set its own rule before it opens, published on the integrity page.'
+                : 'a share can come back to the nominee where a programme runs a community return. This site is not running one at the moment.',
         ];
     }
 

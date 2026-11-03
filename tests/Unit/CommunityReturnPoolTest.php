@@ -158,11 +158,16 @@ final class CommunityReturnPoolTest extends TestCase
         $t = Pool::target(1);
         $this->assertSame(['milestone_naira' => 30000, 'price_naira' => 100, 'votes' => 300, 'nominees' => 3, 'each' => 100], $t);
 
+        // The price is part of the edition's rule, pinned when the rules are saved: changing it
+        // in Settings mid-edition used to move every nominee's target with no vote cast.
         DB::table('gates_settings')->updateOrInsert(['key_name' => 'vote_price_naira'], ['value' => '250']);
-        $this->assertSame(40, Pool::target(1)['each'], '₦30,000 ÷ ₦250 = 120 votes ÷ 3 nominees');
+        $this->assertSame(100, Pool::target(1)['each'], 'a Settings price change moved a saved edition’s target');
+        $this->assertTrue(Milestone::saveEditionRules(1, ['model' => 'pool', 'full_pct' => 20, 'milestone_naira' => 30000])['ok']);
+        $this->assertSame(40, Pool::target(1)['each'], 'saved again, at today’s price: ₦30,000 ÷ ₦250 = 120 votes ÷ 3 nominees');
         DB::table('gates_nominees')->where('id', 4)->update(['status' => 'approved']);
         $this->assertSame(30, Pool::target(1)['each'], 'a fourth approved nominee lowers each target');
         DB::table('gates_settings')->updateOrInsert(['key_name' => 'vote_price_naira'], ['value' => '700']);
+        $this->assertTrue(Milestone::saveEditionRules(1, ['model' => 'pool', 'full_pct' => 20, 'milestone_naira' => 30000])['ok']);
         $this->assertSame(11, Pool::target(1)['each'], 'rounded up: ₦30,000 ÷ ₦700 is 43 votes, ÷ 4 is 10.75');
 
         $this->assertFalse(Milestone::saveEditionRules(1, ['model' => 'pool', 'full_pct' => 20, 'milestone_naira' => 0])['ok'], 'no milestone, no target');
