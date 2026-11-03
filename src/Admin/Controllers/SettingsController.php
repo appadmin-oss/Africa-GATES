@@ -218,7 +218,13 @@ class SettingsController
             'invite_seq_audiences' => \AfricaGates\Services\InviteAudience::all(),
             // The ads rate card (naira per 1,000 views, per placement). Read and saved through
             // AdRateCard, the same resolver /advertise and the builder read.
-            'ad_rates'          => \AfricaGates\Services\Ads\AdRateCard::all(),
+            // The base prices the form edits, and the market they turn into (AdMarket).
+            'ad_rates'          => \AfricaGates\Services\Ads\AdRateCard::bases(),
+            'ad_market'         => \AfricaGates\Services\Ads\AdMarket::card(),
+            'ad_revenue'        => \AfricaGates\Services\Ads\AdMarket::revenue(),
+            'ad_advice'         => \AfricaGates\Services\Ads\AdMarket::advice(),
+            'ad_dynamic'        => \AfricaGates\Services\Ads\AdMarket::dynamic(),
+            'ad_target'         => (int) ($this->settings->get(\AfricaGates\Services\Ads\AdMarket::TARGET_KEY) ?? 0) ?: null,
             'ad_placements'     => \AfricaGates\Services\Ads\AdRules::PLACEMENTS,
             'ad_beta'           => \AfricaGates\Services\Ads\AdRules::inBeta(),
             'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
@@ -680,8 +686,14 @@ class SettingsController
             // The checkbox posts nothing when unticked, which is why this sits behind the
             // card's own marker: unticked means the beta is over.
             $this->settings->set('ads_beta', !empty($b['ads_beta']) ? '1' : '0', $adminId);
+            $mode = (string) ($b['ads_pricing_mode'] ?? 'dynamic') === 'fixed' ? 'fixed' : 'dynamic';
+            $this->settings->set(\AfricaGates\Services\Ads\AdMarket::MODE_KEY, $mode, $adminId);
+            $target = max(0, min(1_000_000_000, (int) preg_replace('/[^0-9]/', '', (string) ($b['ads_revenue_target'] ?? ''))));
+            $this->settings->set(\AfricaGates\Services\Ads\AdMarket::TARGET_KEY, $target > 0 ? (string) $target : '', $adminId);
+            \AfricaGates\Services\Ads\AdMarket::forget();
             $this->audit->record($adminId, 'settings.ads_rates', null, null,
-                ['rates' => \AfricaGates\Services\Ads\AdRateCard::all(), 'beta' => !empty($b['ads_beta'])]);
+                ['bases' => \AfricaGates\Services\Ads\AdRateCard::bases(), 'mode' => $mode, 'target_naira' => $target,
+                 'beta' => !empty($b['ads_beta'])]);
         }
 
         // Arrival tracking. Marker-gated like the others: an unchecked box posts nothing,

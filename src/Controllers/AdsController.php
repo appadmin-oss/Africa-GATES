@@ -37,11 +37,24 @@ final class AdsController
     public function advertise(Request $req, Response $res): Response
     {
         $host = (string) (parse_url(SiteUrl::base($req), PHP_URL_HOST) ?: 'africagates.org');
+        // The planner answers a GET, so a plan has an address an advertiser can send on, and
+        // it works with no script (AdPlanner).
+        $q = $req->getQueryParams();
+        $plan = null;
+        if (isset($q['goal'], $q['n']) && (int) $q['n'] > 0) {
+            $plan = \AfricaGates\Services\Ads\AdPlanner::plan((string) $q['goal'], (int) $q['n'], (int) ($q['days'] ?? 14));
+        }
         return $this->view->render($res, 'pages/advertise.twig', [
+            'market' => \AfricaGates\Services\Ads\AdMarket::card(), 'plan' => $plan,
+            'goals' => \AfricaGates\Services\Ads\AdPlanner::GOALS,
+            'plan_in' => ['goal' => (string) ($q['goal'] ?? 'visits'), 'n' => (int) ($q['n'] ?? 0) ?: '', 'days' => (int) ($q['days'] ?? 14) ?: 14],
+            'max_days' => AdRules::MAX_DAYS,
+            'pricing' => ['dynamic' => \AfricaGates\Services\Ads\AdMarket::dynamic(), 'floor' => (int) round(100 * \AfricaGates\Services\Ads\AdMarket::FLOOR),
+                          'ceil' => (int) round(100 * \AfricaGates\Services\Ads\AdMarket::CEIL), 'horizon' => \AfricaGates\Services\Ads\AdMarket::HORIZON,
+                          'assumed_ctr' => round(100 * \AfricaGates\Services\Ads\AdMarket::ASSUMED_CTR, 1)],
             'app_bar' => ['variant' => 'child', 'title' => 'Advertise', 'back' => '/', 'share' => false],
             'page_title' => 'Advertise — Africa GATES',
             'meta_description' => 'Put your business, product or event in front of the people on Africa GATES.',
-            'placements' => AdRules::PLACEMENTS, 'rates' => AdRateCard::all(),
             'trial' => ['days' => AdRules::TRIAL_DAYS, 'views' => AdRules::TRIAL_VIEWS],
             // A drawn example, in the real card, so an advertiser sees the format before
             // signing up. Labelled an example; it links nowhere. It is OUR OWN ad, drawn from
@@ -106,6 +119,9 @@ final class AdsController
             'trial_left' => !AdCampaigns::trialUsed((int) $user->id),
             'nominee_open' => AdRules::inOpenAward((int) $user->id),
             'rules' => self::rules(), 'estimate' => $est,
+            // Where each place sits, its tier and today's price: the builder states the same
+            // market /advertise does (AdMarket::card), keyed for the checkbox loop.
+            'market' => array_column(\AfricaGates\Services\Ads\AdMarket::card(), null, 'key'),
             'errors' => $form['errors'] ?? [], 'old' => $form['old'] ?? [], 'summary' => $form['summary'] ?? '',
         ]);
     }

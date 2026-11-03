@@ -13,7 +13,6 @@
 #}
 {# Tier 2, transactional: it asks for something (a campaign, a fix, a review). #}
 {% set colour_tier = '2' %}
-{% set _ph = {vote_hub: 'The list of awards people vote in. Never beside a ballot.', discover: 'Between results.', events: 'The events list and event pages.'} %}
 {% set _pv = {
   advertiser: old.advertiser|default('') ?: 'Your business'|trans, initials: '?', logo: null,
   body: old.body|default('') ?: 'Your text goes here: what you offer and why someone should care.'|trans,
@@ -83,7 +82,7 @@
         {% set _picked = old.placements|default(rules.placements|keys) %}
         <div class="am-checks">
           {% for k, label in rules.placements %}
-          <label class="am-check"><input type="checkbox" name="placements[]" value="{{ k }}"{% if k in _picked %} checked{% endif %}> <span><b>{{ label|trans }}</b><span class="am-check__s">{{ _ph[k]|default('')|trans }}</span></span></label>
+          <label class="am-check"><input type="checkbox" name="placements[]" value="{{ k }}"{% if k in _picked %} checked{% endif %}> <span><b>{{ label|trans }}</b><span class="am-check__s">{{ market[k].where|default('')|trans }}{% if market[k] is defined %} · {{ market[k].tier_label|trans }}{% if market[k].price %} · {{ '₦%p% per 1,000 views today'|trans({'%p%': market[k].price|number_format}) }}{% endif %}{% endif %}</span></span></label>
           {% endfor %}
         </div>
         {% if errors.placements %}<p class="am-err" role="alert">{{ errors.placements|trans }}</p>{% endif %}

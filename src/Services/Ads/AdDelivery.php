@@ -34,8 +34,9 @@ use Illuminate\Database\Capsule\Manager as DB;
  * ── PACING ──────────────────────────────────────────────────────────────────
  *
  * A campaign's views (trial) or budget (paid) is spread evenly over the days it has left, so
- * a week's budget is not spent by Monday lunchtime. Of the campaigns with room today, the one
- * furthest behind its day's share is shown first: on a rate card that is the fair order.
+ * a week's budget is not spent by Monday lunchtime. Paid campaigns are served before trials;
+ * among each, the one furthest behind its day's share is shown first: on a rate card that is
+ * the fair order.
  */
 final class AdDelivery
 {
@@ -87,8 +88,18 @@ final class AdDelivery
             if ($room === null) continue;
             $ad = self::rotate((int) $s->id, $day);
             if ($ad === null || self::seenToday((int) $ad->id, $day) >= AdRules::FREQUENCY_CAP) continue;
-            if ($best === null || $room < $best['room'] || ($room === $best['room'] && random_int(0, 1) === 1)) {
-                $best = ['room' => $room, 'set' => $s, 'ad' => $ad];
+            // ── PAID FIRST ─────────────────────────────────────────────────────
+            // A slot shown to a free trial while a paying campaign had room was money the
+            // platform declined and an advertiser who paid for delivery did not get. Among
+            // campaigns of the same kind the one furthest behind today's share goes first,
+            // which is what lets a paid budget finish on time: an undelivered budget is
+            // refunded, so every view it misses is revenue that goes back.
+            $paid = (int) $s->trial !== 1;
+            $better = $best === null
+                || ($paid && !$best['paid'])
+                || ($paid === $best['paid'] && ($room < $best['room'] || ($room === $best['room'] && random_int(0, 1) === 1)));
+            if ($better) {
+                $best = ['room' => $room, 'set' => $s, 'ad' => $ad, 'paid' => $paid];
             }
         }
         if ($best === null) return null;

@@ -1083,7 +1083,7 @@
   {# The ads rate card (Services\Ads\AdRateCard): one published price per placement, the same
      for every advertiser, printed on /advertise. Blank or 0 takes a placement off sale; the
      free trial still runs there. A running campaign keeps the price it was booked at. #}
-  <div class="ad-card" data-sec="money" data-keys="ads advertising advertise rate card price cpm placements sponsored promotion" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Ad prices<small>Naira per 1,000 views, the same for every advertiser. Shown on <a href="/advertise">/advertise</a>.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="money" data-keys="ads advertising advertise rate card price cpm placements sponsored promotion" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Ad prices<small>Naira per 1,000 views, the same for every advertiser on a given day. Shown on <a href="/advertise">/advertise</a>.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <input type="hidden" name="ads_rates" value="1">
       <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;margin-bottom:10px">
@@ -1095,11 +1095,48 @@
       <div class="row">
         {% for k, label in ad_placements %}
         <div>
-          <label for="f-ads_cpm_{{ k }}">{{ label }} <small>₦ per 1,000 views · blank is not on sale</small></label>
+          <label for="f-ads_cpm_{{ k }}">{{ label }} <small>starting price, ₦ per 1,000 views · blank is not on sale</small></label>
           <input type="number" name="ads_cpm[{{ k }}]" id="f-ads_cpm_{{ k }}" min="0" max="1000000" step="1" inputmode="numeric" value="{{ ad_rates[k]|default('') }}">
         </div>
         {% endfor %}
       </div>
+      {# THE MARKET (Services\Ads\AdMarket): what each starting price becomes today, and why. #}
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label for="f-ads_pricing_mode">Pricing</label>
+          <select name="ads_pricing_mode" id="f-ads_pricing_mode">
+            <option value="dynamic"{% if ad_dynamic %} selected{% endif %}>Set each day by results and demand</option>
+            <option value="fixed"{% if not ad_dynamic %} selected{% endif %}>Fixed at the starting price</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-ads_revenue_target">Monthly ad income target <small>₦ · blank for none</small></label>
+          <input type="number" name="ads_revenue_target" id="f-ads_revenue_target" min="0" step="1000" inputmode="numeric" value="{{ ad_target|default('') }}">
+        </div>
+      </div>
+      <table class="tbl" style="margin-top:12px">
+        <thead><tr><th scope="col">Place</th><th scope="col">Today</th><th scope="col">Results ×</th><th scope="col">Demand ×</th><th scope="col">Booked, next week</th><th scope="col">Tap rate</th><th scope="col">Seen views a day</th></tr></thead>
+        <tbody>
+        {% for c in ad_market %}
+          <tr>
+            <th scope="row">{{ c.label }} <small>{{ c.tier_label }}</small></th>
+            <td>{{ c.price ? '₦' ~ c.price|number_format : 'Not on sale' }}</td>
+            <td>{{ c.measured ? c.quality|number_format(2) : '—' }}</td>
+            <td>{{ c.sell is not null ? c.demand|number_format(2) : '—' }}</td>
+            <td>{{ c.sell is not null ? (c.sell * 100)|round ~ '%' : '—' }}</td>
+            <td>{{ c.ctr_pct is not null ? c.ctr_pct ~ '%' : '—' }}</td>
+            <td>{{ c.daily ? c.daily|number_format : '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="hint" style="margin:6px 0 0">
+        Today’s price is the starting price × how often people act on ads there against the site average × how much of the next week paid campaigns have booked, kept between the floor and ceiling the policy states. A dash means not measured yet, and that multiplier is then 1.
+        This month: {{ (ad_revenue.earned_kobo / 100)|number_format }} naira earned, {{ (ad_revenue.projected_kobo / 100)|number_format }} at this pace, {{ (ad_revenue.booked_kobo / 100)|number_format }} still booked{% if ad_revenue.target_kobo %}, against a target of {{ (ad_revenue.target_kobo / 100)|number_format }}{% endif %}.
+      </p>
+      {% if ad_advice %}
+      <ul class="hint" style="margin:6px 0 0;padding-left:18px">{% for a in ad_advice %}<li>{{ a }}</li>{% endfor %}</ul>
+      {% endif %}
       <p class="hint" style="margin:6px 0 0">Ads are reviewed in <a href="/admin/moderation">Moderation</a>.</p>
     </div>
   </div></div>

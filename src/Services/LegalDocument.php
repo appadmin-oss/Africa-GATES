@@ -100,6 +100,12 @@ final class LegalDocument
              . $R::TRIAL_DAYS . ' days, from when it is approved.</li>'
              . '<li>One person sees the same ad at most ' . $R::FREQUENCY_CAP . ' times a day.</li>'
              . '<li>A campaign can be booked for up to ' . $R::MAX_DAYS . ' days.</li>'
+             // How a price is set, from the constants the market runs on (AdMarket), so the
+             // policy cannot describe a different rule from the one charging people.
+             . (\AfricaGates\Services\Ads\AdMarket::dynamic()
+                 ? '<li>Prices are set each day for each place: its starting price, moved by how often people act on ads there against the site average and by how much of the next ' . \AfricaGates\Services\Ads\AdMarket::HORIZON . ' days paid campaigns have booked, never below ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::FLOOR) . '% or above ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::CEIL) . '% of the starting price. Until a place has ' . number_format(\AfricaGates\Services\Ads\AdMarket::MIN_VIEWS) . ' views to measure, its price is its starting price. Everyone booking on the same day pays the same price, and a campaign keeps the price it was booked at.</li>'
+                 : '<li>Prices are fixed per place, the same every day, and a campaign keeps the price it was booked at.</li>')
+             . '<li>Paid campaigns are shown before free trials.</li>'
              . '</ul><p>This section is generated from the rules the site runs, so it is always current.</p>';
         return implode("\n", $h);
     }

@@ -261,7 +261,7 @@ class EventsController
             // event belongs to is taking votes: the page then links to a ballot, and no ad
             // sits beside a choice somebody is making (owner, 27 Oct 2026).
             'ad'               => empty($awardsHere['voting'])
-                ? \AfricaGates\Services\Ads\AdDelivery::forRequest('events', $req) : null,
+                ? \AfricaGates\Services\Ads\AdDelivery::forRequest('event_page', $req) : null,
             'gcal'             => $gcal,
             'alert_waiting'    => $ev['state'] === 'soon' ? \AfricaGates\Services\EventSaleAlert::waiting($id) : 0,
             'alert_said'       => self::takeAlertSaid(),
