@@ -148,11 +148,11 @@ final class OrgPayout
                     ->whereColumn('gates_payment_routes.reference', 'gates_donations.payment_ref')
                     ->where('gates_payment_routes.revenue_stream', $stream));
             }
-            $row = $q->selectRaw('COALESCE(SUM(amount_naira),0) g, COALESCE(SUM(platform_fee_naira),0) f')->first();
+            $row = $q->selectRaw('COALESCE(SUM(' . PartnerOrg::netRowSql() . '),0) n')->first();
         } catch (\Throwable) {
             return 0;
         }
-        return max(0, (int) ($row->g ?? 0) - (int) ($row->f ?? 0));
+        return max(0, (int) ($row->n ?? 0));
     }
 
     /**

@@ -264,6 +264,19 @@ final class PaymentDestination
         }
     }
 
+    /** The donor's fee cover on a gift, as written on its row. */
+    public static function coverForReference(string $reference): int
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !str_starts_with(strtoupper($reference), 'AFG-GIVE')) return 0;
+        try {
+            if (!\AfricaGates\Support\SchemaHas::column('gates_donations', 'fee_cover_naira')) return 0;
+            return max(0, (int) (DB::table('gates_donations')->where('payment_ref', $reference)->value('fee_cover_naira') ?? 0));
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
     /**
      * Route a partner donation to the organisation's OWN subaccount.
      *
@@ -279,7 +292,7 @@ final class PaymentDestination
      *
      * @return array<string,string>
      */
-    public static function initFieldsForPartner(int $orgId, int $platformTipNaira = 0, int $platformShareNaira = 0): array
+    public static function initFieldsForPartner(int $orgId, int $platformTipNaira = 0, int $platformShareNaira = 0, int $coverNaira = 0): array
     {
         if (!self::enabled() || $orgId < 1) return [];
 
@@ -290,10 +303,20 @@ final class PaymentDestination
         }
         if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) return [];
 
-        // No `bearer` here. Who absorbs Paystack's cut on a partner donation is set by the
-        // subaccount's own percentage_charge at creation, and sending a conflicting bearer
-        // is how a partner discovers their share is not what they agreed to.
         $out = ['subaccount' => (string) $org->subaccount_code];
+
+        // ── WHO PAYS THE GATEWAY'S FEE: THE RECIPIENT, AS EVERYWHERE ─────────
+        // Owner, 3 Nov 2026: "do the modern standards". With no `bearer` Paystack charges its
+        // fee to the MAIN account, so this platform paid the processing on every gift to
+        // every organisation — including to the many whose agreed platform share is 0%,
+        // where each gift cost us money. GoFundMe, JustGiving and Givebutter all deduct the
+        // processing fee from the gift and let the donor cover it; so does this now, and the
+        // donor's cover (GatewayFee::cover) is exactly what keeps the organisation whole.
+        // A setting (`partner_fee_bearer = platform`) keeps the old arrangement for an
+        // operator who has promised it.
+        if (\AfricaGates\Services\GatewayFee::organisationBears()) {
+            $out['bearer'] = 'subaccount';
+        }
 
         // ── A DONOR'S VOLUNTARY GIFT TO THE PLATFORM RIDES AS A FLAT CHARGE ──
         //
@@ -319,8 +342,16 @@ final class PaymentDestination
         // recorded `platform_fee_naira` as ours. Every tipped gift to a fee-charging partner
         // under-settled the platform by exactly its fee, and the ledger said otherwise.
         // `$platformShareNaira` is that row's figure (fee + tip, {@see DonationController}).
-        if ($platformTipNaira > 0) {
-            $out['transaction_charge'] = (string) (max($platformTipNaira, $platformShareNaira) * 100);
+        //
+        // And it is sent whenever the charge holds money that is NOT the gift — a tip or a
+        // fee cover — because the subaccount's percentage would otherwise apply to the whole
+        // charge: a cover meant for the gateway would be part-paid to us as a fee on it.
+        // Only when our share is above zero: at a 0% share with no tip the subaccount's own
+        // percentage is already zero, and a zero charge is a value not worth testing on a
+        // gateway whose refusal sends the gift out unrouted.
+        $ours = max($platformTipNaira, $platformShareNaira);
+        if (($platformTipNaira > 0 || $coverNaira > 0) && $ours > 0) {
+            $out['transaction_charge'] = (string) ($ours * 100);
         }
 
         return $out;

@@ -147,15 +147,17 @@ final class OrgCampaign
             $row = PartnerOrg::countableDonations((int) $c->org_id)
                 ->where('campaign_id', $campaignId)
                 ->selectRaw('COALESCE(SUM(amount_naira),0) g, COALESCE(SUM(platform_fee_naira),0) f, COUNT(*) n, '
-                          . PartnerOrg::tipSumSql() . ' t')
+                          . PartnerOrg::tipSumSql() . ' t, ' . PartnerOrg::coverSumSql() . ' cv, ' . PartnerOrg::gatewaySumSql() . ' gw')
                 ->first();
         } catch (\Throwable) {
             return $zero;
         }
 
         $gross  = (int) ($row->g ?? 0);
-        $fee    = (int) ($row->f ?? 0);
-        $raised = max(0, $gross - max(0, (int) ($row->t ?? 0)));
+        // Less the gateway's fee where the organisation bears it, as PartnerOrg::totals().
+        $fee    = (int) ($row->f ?? 0) + max(0, (int) ($row->gw ?? 0));
+        // A donor's fee cover is the gateway's, not the appeal's: it moves no target.
+        $raised = max(0, $gross - max(0, (int) ($row->t ?? 0)) - max(0, (int) ($row->cv ?? 0)));
         $target = (int) ($c->target_naira ?? 0);
 
         return [

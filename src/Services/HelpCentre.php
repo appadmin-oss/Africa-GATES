@@ -1354,19 +1354,23 @@ final class HelpCentre
             'audience' => ['organisation'],
             'cat'  => 'organisations',
             'title' => 'When your money arrives, and what Africa GATES takes',
-            'summary' => 'Gifts settle to your own account. Our fee is agreed in advance and comes out of the gift; a donor tip is added on top and never comes out of yours.',
+            'summary' => 'Gifts settle to your own account. Our fee is agreed in advance; the payment processing fee comes out of the gift unless the donor covers it; a donor tip is added on top and never comes out of yours.',
             'keywords' => ['payout', 'settlement', 'when do we get paid', 'platform fee', 'our cut',
                            'commission', 'withdraw', 'minimum payout', 'subaccount', 'tip'],
             'body' => [
                 ['p' => 'Gifts to your appeal settle into <strong>your own account</strong>, not ours. '
                       . 'We hold a settlement destination for your organisation with the payment '
                       . 'provider, resolved against your CAC name when you were verified.'],
-                ['p' => 'Two separate amounts get confused constantly, so here they are apart:'],
+                ['p' => 'Three separate amounts get confused constantly, so here they are apart:'],
                 ['steps' => [
                     '<strong>The platform fee</strong> is the cut agreed with you before you went live. '
                         . 'It comes <em>out of</em> the gift, and it is the same percentage on every '
                         . 'gift. It is set when your account is attached; changing it is a new agreement '
                         . 'with us, and never alters a gift already made. Your console shows it on each donation.',
+                    '<strong>The payment processing fee</strong> is the payment provider’s, not ours: '
+                        . '{processing_fee}. {processing_fee_payer} Every donor is offered the exact '
+                        . 'amount that covers it, and when they tick it you receive their gift to the '
+                        . 'naira. It is never ticked for them.',
                     '<strong>A donor’s tip to Africa GATES</strong> is <em>added on top</em> of what '
                         . 'they gave you, never taken from it. It is off by default, the donor has to '
                         . 'choose it, and it is capped. You receive exactly the number the donor typed '
@@ -1897,6 +1901,17 @@ final class HelpCentre
             // around, and a number in prose outlives the rule it describes — which is why
             // HelpCentreTest refuses a naira figure written into an article at all.
             '{min_payout}' => number_format(\AfricaGates\Services\OrgPayout::MIN_NAIRA),
+            // The gateway's schedule and who bears it, read from the one place the charge is
+            // worked out (GatewayFee), so the article cannot quote a fee nobody is charged.
+            '{processing_fee}' => (static function (): string {
+                $f = \AfricaGates\Services\GatewayFee::schedule();
+                return rtrim(rtrim(number_format($f['pct'], 2), '0'), '.') . '%'
+                    . ($f['flat'] > 0 ? ' plus ₦' . number_format($f['flat']) . ($f['flat_from'] > 0 ? ' (the ₦' . number_format($f['flat']) . ' is waived under ₦' . number_format($f['flat_from']) . ')' : '') : '')
+                    . ($f['cap'] > 0 ? ', never more than ₦' . number_format($f['cap']) . ' a gift' : '');
+            })(),
+            '{processing_fee_payer}' => \AfricaGates\Services\GatewayFee::organisationBears()
+                ? 'It comes out of the gift, as on every giving platform.'
+                : 'Africa GATES pays it for you, so it does not come out of the gift.',
             '{ad_trial_views}' => number_format(\AfricaGates\Services\Ads\AdRules::TRIAL_VIEWS),
             '{ad_trial_days}'  => (string) \AfricaGates\Services\Ads\AdRules::TRIAL_DAYS,
 

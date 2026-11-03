@@ -1253,6 +1253,16 @@ class SettingsController
             if (array_key_exists('processing_fee_pct', $b)) {
                 $this->settings->set('processing_fee_pct', (string) max(0, (float) $b['processing_fee_pct']), $adminId);
             }
+            // The rest of the gateway's schedule, and who bears it on a partner gift
+            // (GatewayFee): one schedule the cover, the page's total and the ledger share.
+            foreach (['processing_fee_flat', 'processing_fee_flat_from', 'processing_fee_cap'] as $k) {
+                if (array_key_exists($k, $b)) $this->settings->set($k, (string) max(0, (int) $b[$k]), $adminId);
+            }
+            if (array_key_exists(\AfricaGates\Services\GatewayFee::BEARER_KEY, $b)) {
+                $this->settings->set(\AfricaGates\Services\GatewayFee::BEARER_KEY,
+                    (string) $b[\AfricaGates\Services\GatewayFee::BEARER_KEY] === 'platform' ? 'platform' : 'organisation', $adminId);
+            }
+            \AfricaGates\Services\GatewayFee::forget();
         }
 
         // Planned work on /status (Phase 9) — normalised by its one reader's own writer.
