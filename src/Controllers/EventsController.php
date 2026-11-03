@@ -151,8 +151,9 @@ class EventsController
                 'pct'       => ReferralService::ratePct(),
                 'threshold' => ReferralService::threshold(),
                 'link'      => null,
+                'signed_in' => $me !== null,
             ];
-            $rc = $me !== null ? ReferralService::codeFor($me) : null;
+            $rc = $me !== null ? ReferralService::existingCode($me) : null;
             if ($rc !== null) {
                 $referral['link'] = ReferralService::link(\AfricaGates\Support\SiteUrl::base($req), (string) $rc, (string) $event['slug']);
             }

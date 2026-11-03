@@ -33,7 +33,9 @@
     <div class="flo__scroll">
       {# 1 · ENTRY #}
       <div data-flo-stage="entry">
-        <p class="flo__p" data-flo-open-copy>{{ 'No ticket needed — put your name on it and share it.'|trans }}{% if referral and referral.pct %} {{ 'Register and your referral code earns %pct%% of every ticket bought through it.'|trans({'%pct%': referral.pct}) }}{% endif %}</p>
+        <p class="flo__p" data-flo-open-copy>{{ 'No ticket needed — put your name on it and share it.'|trans }}{% if referral and referral.pct %} {{ (referral.threshold|default(1) > 1
+              ? 'Register and your referral code earns %pct%% of every ticket bought through it, once %n% people have bought one.'
+              : 'Register and your referral code earns %pct%% of every ticket bought through it.')|trans({'%pct%': referral.pct, '%n%': referral.threshold|default(1)}) }}{% endif %}</p>
         <p class="flo__p" data-flo-token-copy hidden>{{ 'Your flier carries the confirmed mark, and its code is your referral link.'|trans }}</p>
 
         <label class="ed-label" for="flName">{{ 'Your name'|trans }}</label>

@@ -1342,8 +1342,12 @@ class AccountController
 
         \AfricaGates\Services\ReferralService::codeFor($id);
 
-        // Back to the dashboard, anchored on the panel, so the answer is on screen rather
-        // than at the top of a long page.
+        // Back where it was asked from when that is an event page (its "Get my link"), else
+        // the dashboard, anchored on the panel. Only an /events/ path: never an open redirect.
+        $next = (string) (((array) $req->getParsedBody())['next'] ?? '');
+        if (preg_match('~^/events/[A-Za-z0-9_-]+$~', $next)) {
+            return $res->withHeader('Location', $next . '#h-earn')->withStatus(303);
+        }
         return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
     }
 
@@ -1368,17 +1372,11 @@ class AccountController
             return $res->withHeader('Location', '/account/login')->withStatus(302);
         }
 
-        $b = (array) $req->getParsedBody();
-        $r = \AfricaGates\Services\ReferralPayout::request(
-            $id,
-            (string) ($b['bank'] ?? ''),
-            (string) ($b['account_name'] ?? ''),
-            (string) ($b['account_number'] ?? '')
-        );
-
-        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
-
-        return $res->withHeader('Location', '/account?tab=referral#me-referral')->withStatus(303);
+        // Retired: a referral withdrawal goes through the wallet (MemberWallet::withdraw), which
+        // records the bank change, tells the member, keeps the bank code and runs the checks.
+        // This posted straight to ReferralPayout::request() and did none of that. A page still
+        // holding the old form is sent to the wallet, never to an unchecked request.
+        return $res->withHeader('Location', '/account/wallet/withdraw?pocket=ref')->withStatus(303);
     }
 
     /**

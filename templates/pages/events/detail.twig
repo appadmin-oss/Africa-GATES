@@ -309,7 +309,16 @@
               <a href="/account?tab=referral#me-referral">{{ 'Your referrals'|trans }}</a></p>
           {% else %}
             <p class="ed-box__p">{{ 'Earn %pct%% of every ticket bought through your link.'|trans({'%pct%': referral.pct}) }}</p>
+            {% if referral.signed_in|default(false) %}
+              {# Asked for, not minted by looking at the page: a POST, back to this event. #}
+              <form method="post" action="/account/referral">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="next" value="/events/{{ event.slug }}">
+                <button class="ed-earn__btn" type="submit">{{ 'Get my link'|trans }}</button>
+              </form>
+            {% else %}
             <a class="ed-earn__btn" href="/account/login?next=/events/{{ event.slug|url_encode }}">{{ 'Sign in to get your link'|trans }}</a>
+            {% endif %}
             <p class="ed-box__alt">{{ 'Free, and your link works on every event.'|trans }}</p>
           {% endif %}
         </section>

@@ -866,9 +866,16 @@ final class EventTicketService
         // then emails on day three about a refund that has already reached their bank.
         if ((string) $row->status === 'cancelled') {
             $pending = (string) ($row->refund_status ?? '') === 'pending';
+            $failed = str_contains(strtolower($why), 'fail');
+            // A seat an organiser RELEASED is cancelled with no refund recorded — release()
+            // says the refund "is a separate decision". When that refund is later made at the
+            // gateway and its webhook lands here, the row is not `pending`, and this returned
+            // before anything else: the referrer kept commission on money the buyer had back.
+            // The money has moved whatever we had recorded, so the commission goes with it.
+            // reverseSale() is idempotent.
+            if (!$failed) ReferralService::reverseSale('registration', (int) $row->id, 'refund settled: ' . $why);
             if (!$pending) return false;
 
-            $failed = str_contains(strtolower($why), 'fail');
             try {
                 DB::table('gates_event_registrations')->where('id', (int) $row->id)
                     ->where('refund_status', 'pending')
