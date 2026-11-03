@@ -18,7 +18,23 @@
 
   function checkout(f) {
     var min = +f.getAttribute('data-min') || 0, max = +f.getAttribute('data-max') || Infinity;
-    var feePct = parseFloat(f.getAttribute('data-fee')) || 0, orgBps = +f.getAttribute('data-org-fee') || 0;
+    var orgBps = +f.getAttribute('data-org-fee') || 0;
+    // The gateway's schedule, from the same four settings the server charges by
+    // (GatewayFee): a percentage, plus a flat fee from a threshold, capped.
+    var fs = { pct: parseFloat(f.getAttribute('data-fee-pct')) || 0, flat: +f.getAttribute('data-fee-flat') || 0,
+               from: +f.getAttribute('data-fee-from') || 0, cap: +f.getAttribute('data-fee-cap') || 0 };
+    function gwFee(c) {
+      if (c <= 0) return 0;
+      var x = Math.ceil(c * fs.pct / 100 + (c >= fs.from ? fs.flat : 0));
+      return fs.cap > 0 ? Math.min(fs.cap, x) : x;
+    }
+    // GatewayFee::cover(): the smallest c with c >= fee(gift + tip + c).
+    function coverFor(a, also) {
+      if (a <= 0) return 0;
+      var c = 0;
+      for (var i = 0; i < 12; i++) { var need = gwFee(a + also + c); if (need <= c) return c; c = need; }
+      return c;
+    }
     var other = f.querySelector('[data-gv-other]'), amts = f.querySelector('.gv-amts');
     // The phone's action bar lives outside the form (form="give"), so the figures and the
     // buttons are looked up in the document, and every copy is kept in step.
@@ -38,17 +54,18 @@
 
     function paint() {
       var a = amount(), cover = $('[data-gv-cover]'), mon = monthly();
-      // The server's arithmetic, in its order (DonationController::start, PlatformTip):
-      // the cover rounds the WHOLE charge up, and the tip is a share of that charge,
-      // rounded down. A recap that rounds differently is a recap that disagrees with the
-      // bank statement by a naira.
-      var charge = cover && cover.checked ? Math.ceil(a * (1 + feePct / 100)) : a;
-      var fee = charge - a;
-      var tip = tipPct() > 0 ? Math.floor(charge * tipPct() / 100) : 0;
+      // The server's arithmetic, in its order (DonationController::start, PlatformTip,
+      // GatewayFee): the tip is a share of the gift, rounded down; the cover is then the
+      // fee on the whole charge. A recap that rounds differently is a recap that disagrees
+      // with the bank statement by a naira.
+      var tip = tipPct() > 0 ? Math.floor(a * tipPct() / 100) : 0;
+      var offer = coverFor(a, tip);
+      var fee = cover && cover.checked ? offer : 0;
       var total = a + fee + tip;
       var set = function (sel, v) { all(sel, function (el) { el.textContent = v; }); };
       set('[data-gv-amt]', ngn(a));
       set('[data-gv-fee]', ngn(fee));
+      set('[data-gv-cover-amt]', ngn(offer));
       var feeRow = $('[data-gv-fee-row]'); if (feeRow) feeRow.hidden = fee === 0;
       set('[data-gv-tipv]', ngn(tip));
       var tipRow = $('[data-gv-tip-row]'); if (tipRow) tipRow.hidden = tip === 0;

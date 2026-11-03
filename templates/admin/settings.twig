@@ -1668,6 +1668,21 @@
         <div><label for="f-otp_expiry_minutes">OTP code expiry (minutes)</label><input type="number" name="otp_expiry_minutes" id="f-otp_expiry_minutes" min="0" step="1" value="{{ values.otp_expiry_minutes|default('10') }}"></div>
         <div><label for="f-processing_fee_pct">Payment processing fee (%)</label><input type="number" name="processing_fee_pct" id="f-processing_fee_pct" min="0" step="0.1" value="{{ values.processing_fee_pct|default('1.5') }}"></div>
       </div>
+      {# The rest of the gateway's schedule (Services\GatewayFee), Paystack's local rates by
+         default, and who bears it on a gift to an organisation. #}
+      <div class="row">
+        <div><label for="f-processing_fee_flat">Plus a flat fee (₦)</label><input type="number" name="processing_fee_flat" id="f-processing_fee_flat" min="0" step="1" value="{{ values.processing_fee_flat|default('100') }}"></div>
+        <div><label for="f-processing_fee_flat_from">Flat fee from (₦)</label><input type="number" name="processing_fee_flat_from" id="f-processing_fee_flat_from" min="0" step="100" value="{{ values.processing_fee_flat_from|default('2500') }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-processing_fee_cap">Fee capped at (₦) <small>0 for no cap</small></label><input type="number" name="processing_fee_cap" id="f-processing_fee_cap" min="0" step="100" value="{{ values.processing_fee_cap|default('2000') }}"></div>
+        <div><label for="f-partner_fee_bearer">On a gift to an organisation, the processing fee is paid by</label>
+          <select name="partner_fee_bearer" id="f-partner_fee_bearer">
+            <option value="organisation"{% if values.partner_fee_bearer|default('organisation') != 'platform' %} selected{% endif %}>The organisation, from the gift (standard)</option>
+            <option value="platform"{% if values.partner_fee_bearer|default('') == 'platform' %} selected{% endif %}>Africa GATES</option>
+          </select></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--cn-soft)">Donors are offered, never defaulted into, the exact amount that covers this fee, worked out on the whole charge, so the recipient receives the gift to the naira.</p>
       <div class="row">
         <div><label for="f-donation_goal_naira">Donation target (₦)</label><input type="number" name="donation_goal_naira" id="f-donation_goal_naira" min="0" step="1000" value="{{ values.donation_goal_naira|default('0') }}"></div>
         <div></div>
