@@ -32,9 +32,11 @@
   </div>
   <p class="sv__status" data-sv-status role="status" aria-live="polite"></p>
   <a class="sv__dl" data-sv-dl hidden></a>
-  <p class="sv__note">{{ 'Saving takes about 19 seconds. Keep this tab open until it finishes.'|trans }}</p>
+  <p class="sv__note">{{ (story.kind == 'award' ? 'Saving takes about 15 seconds. Keep this tab open until it finishes.' : 'Saving takes about 19 seconds. Keep this tab open until it finishes.')|trans }}</p>
   <p class="sv__back"><a href="{{ story.url }}">{{ 'Back to %t%'|trans({'%t%': story.title}) }}</a></p>
 </div>
 {% endblock %}
 
-{% block foot_scripts %}<script defer src="{{ asset('/assets/js/share-video.js') }}" data-nav="rerun"></script>{% endblock %}
+{# A nominee's video is the share card in motion (share-video-award.js, ShareCardSpec's
+   tones); giving and events keep their own four beats. #}
+{% block foot_scripts %}{% if story.kind == 'award' %}<script defer src="{{ asset('/assets/js/share-video-award.js') }}" data-nav="rerun"></script>{% else %}<script defer src="{{ asset('/assets/js/share-video.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}
