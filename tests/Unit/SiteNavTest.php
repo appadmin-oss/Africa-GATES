@@ -91,6 +91,45 @@ final class SiteNavTest extends TestCase
         $this->assertStringContainsString('data-nav-keep="gee" data-nav-sync="data-gee-default"', ChromeRender::source('templates/partials/gee.twig'), 'every move between the help pages and the site would be a full load');
     }
 
+    /**
+     * An element with a view-transition-name is a backdrop root: a backdrop-filter INSIDE it
+     * blurs only what is inside it. Named all the time, the header's frosted bar and the mega
+     * panel hanging from it drew as a flat tint — measured, a stripe pattern behind them came
+     * through at full contrast (owner, 3 Nov 2026). So the chrome is named only while a
+     * transition is running, and no element that holds a blurred descendant is named at rest.
+     */
+    public function test_naming_the_chrome_for_a_transition_does_not_cost_its_blur(): void
+    {
+        $root = dirname(__DIR__, 2) . '/public/assets/css';
+        $named = $blurred = [];
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $f) {
+            $path = $f->getPathname();
+            if (!str_ends_with($path, '.css') || preg_match('~/(vendor|min|dist)/~', $path)) continue;
+            $css = (string) preg_replace('~/\*.*?\*/~s', '', (string) file_get_contents($path));
+            preg_match_all('~([^{}]+)\{([^{}]*)\}~', $css, $m, PREG_SET_ORDER);
+            foreach ($m as [, $sel, $body]) {
+                $sel = trim($sel);
+                if (preg_match('~view-transition-name\s*:\s*(?!none)~', $body) && !str_contains($sel, ':active-view-transition')) {
+                    foreach (preg_split('~\s*,\s*~', $sel) as $one) if (preg_match('~^\.([\w-]+)$~', $one, $c)) $named[] = $c[1];
+                }
+                if (preg_match('~(?<!-)backdrop-filter\s*:\s*(?!none)~', $body) && preg_match('~^\.([\w-]+?)(?:__|--|\b)~', $sel, $c)) $blurred[] = trim($sel);
+            }
+        }
+        // A named block whose own descendants (BEM children or children of its partials) blur.
+        $bad = [];
+        foreach (array_unique($named) as $block) {
+            foreach ($blurred as $sel) if (str_starts_with($sel, '.' . $block . '__') || str_starts_with($sel, '.' . $block . ' ')) $bad[] = "$block holds $sel";
+        }
+        $this->assertSame([], $bad, 'a backdrop-filter inside an element named at rest blurs nothing');
+        $shell = (string) file_get_contents($root . '/shell.css');
+        foreach (['ag-head', 'ag-appbar', 'ag-tabbar'] as $b) {
+            $this->assertStringContainsString("html:active-view-transition .$b{ view-transition-name:$b }", $shell, "$b must still be carried across a swap");
+        }
+        // The mega panel is not a BEM child of the header, so the sweep cannot see it: pinned.
+        $this->assertDoesNotMatchRegularExpression('~^\s*\.ag-head\s*\{\s*view-transition-name~m', $shell, 'the mega panel and the header bar lose their blur');
+    }
+
     public function test_a_post_is_never_sent_by_script_and_the_refusals_match_the_prefetch_list(): void
     {
         $js = ChromeRender::code('public/assets/js/site-nav.js');

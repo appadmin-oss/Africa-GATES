@@ -206,9 +206,16 @@ html.ag-saver img[data-saver-hide]{ visibility:hidden }
 }
 ::view-transition-old(root),
 ::view-transition-new(root){ animation-duration:var(--ag-dur-1); animation-timing-function:var(--ag-ease) }
-.ag-appbar{ view-transition-name:ag-appbar }
-.ag-tabbar{ view-transition-name:ag-tabbar }
-.ag-head{ view-transition-name:ag-head }
+/* NAMED ONLY WHILE A TRANSITION RUNS. An element with a view-transition-name is a backdrop
+   root, so a `backdrop-filter` INSIDE it can only blur what is inside it: named all the
+   time, the header made its own frosted bar and the mega panel hanging from it sample
+   nothing, and both drew as a flat tint over the page (owner, 3 Nov 2026: "you've removed
+   the megamenu blur"). Nothing on either rule changed, which is why it read as a removal.
+   A browser with view transitions but without this pseudo-class cross-fades the chrome
+   with the page instead — the chrome is identical on both sides, so nothing visibly moves. */
+html:active-view-transition .ag-appbar{ view-transition-name:ag-appbar }
+html:active-view-transition .ag-tabbar{ view-transition-name:ag-tabbar }
+html:active-view-transition .ag-head{ view-transition-name:ag-head }
 
 /* ══ Reduced motion · REFERENCE §4.7, §6.6 ═══════════════════════════════════
    Both the operating system's signal and the in-app switch, and both show the
