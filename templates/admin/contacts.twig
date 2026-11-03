@@ -44,7 +44,7 @@
   {% endif %}
 
   <div class="ls-bar">
-    <nav class="ls-tabs" aria-label="Who">
+    <nav class="ls-tabs" aria-label="Who" data-tabs="who">
       {% for k, t in tabs %}
         <a class="ls-tab" href="/admin/contacts?tab={{ k }}{{ qs_q }}"{% if k == tab %} aria-current="page"{% endif %}>{{ t.label }}<span class="ls-tab__num">{{ t.n|number_format }}</span></a>
       {% endfor %}

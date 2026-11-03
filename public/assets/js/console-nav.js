@@ -51,6 +51,10 @@
 
   var TTL = 20000;          // a prefetched page is fresh enough to show for this long
   var CACHE_MAX = 12;
+  // A tab's page is kept for a minute (owner, 3 Nov 2026: "switching tabs in a page should
+  // not need to reload"), and every save empties the cache (go(), below), so a tab shown
+  // from it is never older than a minute and never older than the last thing changed here.
+  var TAB_TTL = 60000, WARM_MAX = 8;
   var SKIP = /^\/admin\/(login|logout|magic)(\/|$)/;
   var FILE = /(\/export|\/download|\.(csv|zip|json|png|jpe?g|webp|gif|pdf|svg|txt|xml|ics|xlsx?))(\/|$)/i;
 
@@ -134,30 +138,98 @@
     });
   }
 
+  function fresh(c) { return !!c && Date.now() - c.at <= (c.ttl || TTL); }
   function cached(k) {
     var c = cache.get(k);
     if (!c) return null;
-    cache.delete(k);
-    if (Date.now() - c.at > TTL) return null;
-    return c;
+    // A hovered link's page is used once. A tab's stays, so going back to it is free.
+    if (!c.tab || !fresh(c)) cache.delete(k);
+    return fresh(c) ? c : null;
   }
 
   var inflight = 0;
   var navigating = false;
-  function prefetch(u) {
+  function frugal() {
+    var conn = navigator.connection;
+    return !!(conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || '')));
+  }
+  /** False only when it is worth asking again later (two requests already in flight). */
+  function prefetch(u, tab) {
     var k = key(u);
     // Never while a page is on its way: a save's redirect carries a one-time message, and a
-    // prefetch landing between the two would be the page that consumed it.
-    if (stuck || navigating || k === here() || cache.has(k) || inflight >= 2) return;
-    var conn = navigator.connection;
-    if (conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ''))) return;
+    // prefetch landing between the two would be the page that consumed it. (The server
+    // also declines to spend one on a prefetch now — config/container.php, `$ahead`.)
+    if (stuck || navigating || k === here() || frugal()) return true;
+    var had = cache.get(k);
+    if (had && fresh(had)) return true;
+    if (inflight >= 2) return false;
     inflight++;
     var p = request(u.href, { prefetch: true });
-    var entry = { at: Date.now(), p: p, prefetched: true };
+    var entry = { at: Date.now(), p: p, prefetched: true, tab: !!tab, ttl: tab ? TAB_TTL : TTL };
     cache.set(k, entry);
     p.catch(function () { if (cache.get(k) === entry) cache.delete(k); })
-     .then(function () { inflight--; });
-    while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+     .then(function () { inflight--; pump(); });
+    while (cache.size > CACHE_MAX + WARM_MAX) cache.delete(cache.keys().next().value);
+    return true;
+  }
+
+  // ── tabs: fetched ahead while the operator is reading ─────────────────────────
+  // The same as site-nav.js: `[data-tabs]` holds a page's own views; its links are fetched
+  // once the page is idle, two at a time, so pressing one swaps from memory. Measured on a
+  // 150ms link: ~720ms per tab before, the time to draw after.
+  var queue = [];
+  function pump() {
+    while (queue.length && !navigating) {
+      if (!prefetch(queue[0], true)) return;
+      queue.shift();
+    }
+  }
+  function warm() {
+    queue = [];
+    if (frugal() || stuck) return;
+    var seen = {};
+    [].forEach.call(document.querySelectorAll('[data-tabs]'), function (bar) {
+      if (!bar.getClientRects().length) return;
+      tabLinks(bar).slice(0, WARM_MAX).forEach(function (u) {
+        if (!seen[key(u)]) { seen[key(u)] = 1; queue.push(u); }
+      });
+    });
+    pump();
+  }
+  function warmSoon() {
+    if (window.requestIdleCallback) requestIdleCallback(warm, { timeout: 1500 });
+    else setTimeout(warm, 300);
+  }
+  function tabLinks(bar) {
+    return [].map.call(bar.querySelectorAll('a[href]'), linkUrl).filter(function (u) { return u && key(u) !== here(); });
+  }
+  /** Where the bar was on screen and which tab was pressed, so the swap can keep both. */
+  function tabState(bar, a) {
+    if (!main.contains(bar)) return null;
+    var t = { name: bar.getAttribute('data-tabs') || '', top: bar.getBoundingClientRect().top - main.getBoundingClientRect().top,
+              href: a.getAttribute('href'), focused: a === document.activeElement };
+    // Shown as chosen at once: the press is answered before the page is. The filter chips
+    // are painted by `is-on` as well as aria-current, so both move.
+    var cur = bar.querySelector('[aria-current]');
+    if (cur) {
+      var v = cur.getAttribute('aria-current');
+      [].forEach.call(bar.querySelectorAll('[aria-current]'), function (x) { x.removeAttribute('aria-current'); x.classList.remove('is-on'); });
+      a.setAttribute('aria-current', v);
+      if (cur.classList.contains('is-on') || a.classList.contains('cn-fchip')) a.classList.add('is-on');
+    }
+    return t;
+  }
+  /** After a tab swap: the bar where it was (or at the top, if it had scrolled away), focus on the tab. */
+  function keepTabs(t) {
+    var nb = null;
+    [].some.call(main.querySelectorAll('[data-tabs]'), function (b) { if ((b.getAttribute('data-tabs') || '') === t.name && b.getClientRects().length) { nb = b; return true; } return false; });
+    if (!nb) return false;
+    main.scrollTop += (nb.getBoundingClientRect().top - main.getBoundingClientRect().top) - Math.max(0, t.top);
+    if (t.focused) {
+      var same = [].filter.call(nb.querySelectorAll('a[href]'), function (x) { return x.getAttribute('href') === t.href; })[0];
+      if (same) same.focus({ preventScroll: true });
+    }
+    return true;
   }
 
   // ── going somewhere ──────────────────────────────────────────────────────────
@@ -184,6 +256,9 @@
     if (!eligible(u) || stuck) { hard(u.href, o); return; }
     if (!o.post && !o.pop && window.cnUx && window.cnUx.dirty()
         && !window.confirm('You have changes on this page that are not saved. Leave without saving them?')) return;
+    // Marked as chosen only once leaving is settled: a cancelled "leave without saving?"
+    // must not leave the wrong tab lit.
+    if (o.tabBar) o.tab = tabState(o.tabBar, o.tabLink);
 
     var mine = ++seq;
     navigating = true;
@@ -206,6 +281,11 @@
       return apply(page, u, o).then(function (swapped) {
         // A page answered from a prefetch was never counted as a visit. Now it is one.
         if (swapped && used && used.prefetched) fetch(page.url, { method: 'HEAD', credentials: 'same-origin', headers: { 'X-Console-Nav': '1' } }).catch(function () {});
+        // A tab just shown is kept for going back to (counted again when it is).
+        if (swapped && !o.post && (o.tab || (used && used.tab))) {
+          cache.set(key(u), { at: used ? used.at : Date.now(), p: Promise.resolve(page), prefetched: true, tab: true, ttl: TAB_TTL });
+        }
+        if (swapped) warmSoon();
       });
     }).catch(function (err) {
       if (mine !== seq || (err && err.name === 'AbortError')) return;
@@ -284,6 +364,7 @@
 
         var target = hash && document.getElementById(decodeURIComponent(hash.slice(1)));
         if (target) target.scrollIntoView();
+        else if (o.tab && keepTabs(o.tab)) { /* the bar stays where it was */ }
         else main.scrollTop = o.pop ? (o.y || 0) : (keepY != null ? keepY : 0);
 
         // Focus to the page, unless the page's own script already placed it inside — the door
@@ -435,6 +516,9 @@
 
   function linkOf(e) {
     var a = e.target.closest && e.target.closest('a[href]');
+    return a ? linkUrl(a) : null;
+  }
+  function linkUrl(a) {
     if (!a || optedOut(a) || a.hasAttribute('download')) return null;
     var t = a.getAttribute('target');
     if (t && t !== '_self') return null;
@@ -455,7 +539,8 @@
     var u = linkOf(e);
     if (!u) return;
     e.preventDefault();
-    go(u.href);
+    var a = e.target.closest('a[href]'), bar = a.closest('[data-tabs]');
+    go(u.href, { tabBar: bar, tabLink: a });
   });
 
   window.addEventListener('submit', function (e) {
@@ -510,6 +595,8 @@
     if (here() === shown) return;
     go(location.href, { pop: true, y: e.state.y || 0 });
   });
+
+  warmSoon();
 
   window.cnNav = { go: function (href) { go(href); }, prefetch: function (href) { prefetch(new URL(href, location.href)); } };
 })();

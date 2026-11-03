@@ -55,7 +55,7 @@
         <span>{{ org_standing }}</span>
       </span>
     </div>
-    <nav class="acx-rail__nav" aria-label="{{ 'Sections'|trans }}">
+    <nav class="acx-rail__nav" aria-label="{{ 'Sections'|trans }}" data-tabs="org" data-tabs-top>
       {% for t in rail|default([]) %}
         <a class="acx-tab" href="{{ t.href }}"{% if t.current %} aria-current="page"{% endif %}>
           <span class="acx-ico acx-ico--{{ t.tone }}" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.d }}"/></svg></span>

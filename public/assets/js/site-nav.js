@@ -56,10 +56,21 @@
   [].forEach.call(document.querySelectorAll('script[type="speculationrules"]'), function (s) { s.remove(); });
 
   var TTL = 15000, CACHE_MAX = 10;
+  // A tab's page is kept for a minute (owner, 3 Nov 2026: "switching tabs in a page should
+  // not need to reload"): long enough to read one tab and go back to the last without a
+  // request, short enough that nothing on it is older than a minute. Any POST — the only
+  // way anything here changes — is a full load, which empties this cache with the page.
+  var TAB_TTL = 60000, WARM_MAX = 8;
   // The same refusals as instant-nav.twig's prefetch list: a GET here does something.
-  var SKIP = /^\/(admin|judge|org|volunteer|lead|__|hooks|api|ads\/go|email|claim|form|account\/(login|logout|verify|reset|confirm|switch|register|forgot)|n\/confirm|nominee\/start|vote\/verify|shop\/back-in-stock\/stop|events\/[^/]+\/door)(\/|$)/;
+  var SKIP = /^\/(admin|judge|volunteer|lead|__|hooks|api|ads\/go|email|claim|form|account\/(login|logout|verify|reset|confirm|switch|register|forgot)|n\/confirm|nominee\/start|vote\/verify|shop\/back-in-stock\/stop|events\/[^/]+\/door)(\/|$)/;
   var FILE = /(\/export|\/download|\/redirect|\.(csv|zip|json|png|jpe?g|webp|gif|pdf|svg|txt|xml|ics|xlsx?))(\/|$|\?)/i;
   var refused = {};        // paths that turned out not to be swappable: straight to a full load
+  // The organisation console may be SWAPPED but not fetched ahead from outside it: a GET of
+  // /org opens the organisation's session from the account (Account\Roles::derive), and
+  // may answer with the emailed-code check. A click is somebody asking for that; a link
+  // hovered on another page is not. From inside /org the session is already open, so its
+  // own tabs are fetched ahead like any others.
+  var GATED = /^\/org(\/|$)/;
 
   function eligible(u) {
     if (u.origin !== location.origin) return false;
@@ -131,24 +142,93 @@
         return res.text().then(function (html) { page.html = html; return page; });
       });
   }
+  function fresh(c) { return !!c && Date.now() - c.at <= (c.ttl || TTL); }
   function cached(k) {
     var c = cache.get(k);
     if (!c) return null;
-    cache.delete(k);
-    return Date.now() - c.at > TTL ? null : c;
+    // A hovered link's page is used once. A tab's stays, so going back to it is free.
+    if (!c.tab || !fresh(c)) cache.delete(k);
+    return fresh(c) ? c : null;
   }
   var inflight = 0;
-  function prefetch(u) {
-    var k = key(u);
-    if (stuck || navigating || k === here() || cache.has(k) || inflight >= 2) return;
+  function frugal() {
     var conn = navigator.connection;
-    if (conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ''))) return;
+    return !!(conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || '')));
+  }
+  /** False only when it is worth asking again later (two requests already in flight). */
+  function prefetch(u, tab) {
+    var k = key(u);
+    if (stuck || navigating || k === here() || frugal()) return true;
+    if (GATED.test(u.pathname) && !GATED.test(location.pathname)) return true;
+    var had = cache.get(k);
+    if (had && fresh(had)) return true;
+    if (inflight >= 2) return false;
     inflight++;
     var p = request(u.href, { prefetch: true });
-    var entry = { at: Date.now(), p: p, prefetched: true };
+    var entry = { at: Date.now(), p: p, prefetched: true, tab: !!tab, ttl: tab ? TAB_TTL : TTL };
     cache.set(k, entry);
-    p.catch(function () { if (cache.get(k) === entry) cache.delete(k); }).then(function () { inflight--; });
-    while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+    p.catch(function () { if (cache.get(k) === entry) cache.delete(k); }).then(function () { inflight--; pump(); });
+    while (cache.size > CACHE_MAX + WARM_MAX) cache.delete(cache.keys().next().value);
+    return true;
+  }
+
+  // ── tabs: fetched ahead while the reader is reading ──────────────────────────
+  // A tab bar is `[data-tabs]` on the element holding the links. Its links are fetched once
+  // the page is idle, two at a time, so pressing one swaps from memory: measured on a
+  // 150ms link, ~950ms per tab before and the time to draw after. The ones not shown (the
+  // other breakpoint's copy of a bar) are not fetched; Save-Data and 2G fetch nothing ahead.
+  var queue = [];
+  function pump() {
+    while (queue.length && !navigating) {
+      if (!prefetch(queue[0], true)) return;
+      queue.shift();
+    }
+  }
+  function warm() {
+    queue = [];
+    if (frugal() || stuck) return;
+    var seen = {};
+    [].forEach.call(document.querySelectorAll('[data-tabs]'), function (bar) {
+      if (!bar.getClientRects().length) return;
+      tabLinks(bar).slice(0, WARM_MAX).forEach(function (u) {
+        if (!seen[key(u)]) { seen[key(u)] = 1; queue.push(u); }
+      });
+    });
+    pump();
+  }
+  function warmSoon() {
+    if (window.requestIdleCallback) requestIdleCallback(warm, { timeout: 1500 });
+    else setTimeout(warm, 300);
+  }
+  function tabLinks(bar) {
+    return [].map.call(bar.querySelectorAll('a[href]'), linkUrl).filter(function (u) { return u && key(u) !== here(); });
+  }
+  /** Where the bar was on screen and which tab was pressed, so the swap can keep both. */
+  function tabState(bar, a) {
+    if (!main.contains(bar)) return null;
+    var t = { name: bar.getAttribute('data-tabs') || '', top: bar.getBoundingClientRect().top - main.getBoundingClientRect().top,
+              href: a.getAttribute('href'), focused: a === document.activeElement, toTop: bar.hasAttribute('data-tabs-top') };
+    // Shown as chosen at once — the press is answered before the page is.
+    var cur = bar.querySelector('[aria-current]');
+    if (cur) {
+      var v = cur.getAttribute('aria-current');
+      [].forEach.call(bar.querySelectorAll('[aria-current]'), function (x) { x.removeAttribute('aria-current'); });
+      a.setAttribute('aria-current', v);
+    }
+    return t;
+  }
+  /** After a tab swap: the bar where it was (or at the top, if it had scrolled away), focus on the tab. */
+  function keepTabs(t) {
+    var nb = null;
+    [].some.call(main.querySelectorAll('[data-tabs]'), function (b) { if ((b.getAttribute('data-tabs') || '') === t.name && b.getClientRects().length) { nb = b; return true; } return false; });
+    if (!nb) return false;
+    if (t.toTop) main.scrollTop = 0;
+    else main.scrollTop += (nb.getBoundingClientRect().top - main.getBoundingClientRect().top) - Math.max(0, t.top);
+    if (t.focused) {
+      var same = [].filter.call(nb.querySelectorAll('a[href]'), function (x) { return x.getAttribute('href') === t.href; })[0];
+      if (same) same.focus({ preventScroll: true });
+    }
+    return true;
   }
 
   // ── going somewhere ──────────────────────────────────────────────────────────
@@ -162,6 +242,7 @@
     o = o || {};
     var u = new URL(href, location.href);
     if (!eligible(u) || stuck) { hard(u.href, o); return; }
+    if (o.tabBar) o.tab = tabState(o.tabBar, o.tabLink);
     var mine = ++seq;
     navigating = true;
     if (ctrl) ctrl.abort();
@@ -174,6 +255,11 @@
       return apply(page, u, o).then(function (swapped) {
         // A page answered from a prefetch was never counted as a visit. Now it is one.
         if (swapped && used && used.prefetched) fetch(page.url, { method: 'HEAD', credentials: 'same-origin', headers: { 'X-Site-Nav': '1' } }).catch(function () {});
+        // A tab just shown is kept for going back to (counted again when it is).
+        if (swapped && (o.tab || (used && used.tab))) {
+          cache.set(key(u), { at: used ? used.at : Date.now(), p: Promise.resolve(page), prefetched: true, tab: true, ttl: TAB_TTL });
+        }
+        if (swapped) warmSoon();
       });
     }).catch(function (err) {
       if (mine !== seq || (err && err.name === 'AbortError')) return;
@@ -203,6 +289,7 @@
         shown = here();
         var target = hash && document.getElementById(decodeURIComponent(hash.slice(1)));
         if (target) target.scrollIntoView();
+        else if (o.tab && keepTabs(o.tab)) { /* the bar stays where it was */ }
         // A tab or a filter on the same page keeps the reader where they were reading.
         else main.scrollTop = o.pop ? (o.y || 0) : (samePath && o.keep ? main.scrollTop : 0);
         if (!o.pop && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
@@ -212,7 +299,8 @@
       };
       var still = document.documentElement.classList.contains('ag-rm')
         || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-      if (document.startViewTransition && !still) {
+      // A tab answers at once: a cross-fade is 250ms of the old tab nobody asked to see.
+      if (document.startViewTransition && !still && !o.tab) {
         var vt = document.startViewTransition(function () { return run(); });
         return vt.updateCallbackDone.then(done, function () { return run().then(done); });
       }
@@ -360,6 +448,9 @@
   function optedOut(el) { return !!(el && el.closest && el.closest('[data-nav="off"]')); }
   function linkOf(e) {
     var a = e.target.closest && e.target.closest('a[href]');
+    return a ? linkUrl(a) : null;
+  }
+  function linkUrl(a) {
     if (!a || optedOut(a) || a.hasAttribute('download')) return null;
     var t = a.getAttribute('target');
     if (t && t !== '_self') return null;
@@ -379,7 +470,8 @@
     var u = linkOf(e);
     if (!u) return;
     e.preventDefault();
-    go(u.href, { keep: u.pathname === location.pathname });
+    var a = e.target.closest('a[href]'), bar = a.closest('[data-tabs]');
+    go(u.href, { keep: u.pathname === location.pathname, tabBar: bar, tabLink: a });
   });
 
   // GET forms only: a search, a filter. Every POST is a full navigation, deliberately.
@@ -423,6 +515,8 @@
     if (!(e.state && e.state.ag) && location.pathname === shownPath) return;
     go(location.href, { pop: true, y: (e.state && e.state.y) || 0 });
   });
+
+  warmSoon();
 
   window.agNav = { go: function (href) { go(href); }, prefetch: function (href) { prefetch(new URL(href, location.href)); } };
 })();

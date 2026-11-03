@@ -11,7 +11,7 @@
 
 {% block content %}
 <div class="cn-toolbar">
-  <div class="cn-fchips" role="group" aria-label="Requests">
+  <div class="cn-fchips" role="group" aria-label="Requests" data-tabs="requests">
     {% for k, l in tabs %}
       <a class="cn-fchip{{ tab == k ? ' is-on' }}" href="/admin/requests?tab={{ k }}"{% if tab == k %} aria-current="page"{% endif %}>
         <span class="cn-fchip__k">{{ l }}</span>{% if counts[k] is defined and counts[k] > 0 %}<span class="cn-fchip__v">{{ counts[k] }}</span>{% endif %}

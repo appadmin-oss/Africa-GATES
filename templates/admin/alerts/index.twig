@@ -69,7 +69,7 @@
 
   {# ── TABS, CHIPS, SOURCE ─────────────────────────────────────────────────────── #}
   <div class="al2-bar">
-    <nav class="al2-tabs" aria-label="Alerts">
+    <nav class="al2-tabs" aria-label="Alerts" data-tabs="alerts">
       <a class="al2-tab" href="{{ m.url('/admin/alerts', {}, {}) }}"{% if tab == 'open' %} aria-current="page"{% endif %}>Open<span class="al2-tab__num">{{ n_open }}</span></a>
       <a class="al2-tab" href="{{ m.url('/admin/alerts', {}, {tab: 'resolved'}) }}"{% if tab == 'resolved' %} aria-current="page"{% endif %}>Resolved · 7 days<span class="al2-tab__num">{{ logged ? n_resolved : '–' }}</span></a>
     </nav>

@@ -34,6 +34,12 @@
 #}
 {% set own_flash = true %}
 {% set tab = 'pulse' %}{# the shell's tab bar; the page's own tab is `view` #}
+{# The page's own tab. The controller passes `pulse_tab` (`foryou|following|alerts|saved`) and
+   this template was written against `view` with a hyphenated `for-you` — a name nothing
+   ever set. Unset in Twig is null, silently: every tab drew the same page, with no tab
+   marked current, no composer, no alerts list and no Saved heading. Resolved once, here,
+   at template scope so every block below can read it. #}
+{% set view = pulse_tab|default('foryou') == 'foryou' ? 'for-you' : pulse_tab %}
 {% set app_bar = {variant: 'root', title: reels ? 'Videos'|trans : 'Pulse'|trans} %}
 {% set colour_tier = '2' %}
 {% set _signed = member is not null %}
@@ -93,7 +99,7 @@
       <div class="pl-title"><h1 class="pl-title__h">{{ 'Saved'|trans }}</h1></div>
     {% else %}
       <h1 class="ag-sr">{{ 'Pulse'|trans }}</h1>
-      <nav class="pl-tabs" aria-label="{{ 'Pulse'|trans }}">
+      <nav class="pl-tabs" aria-label="{{ 'Pulse'|trans }}" data-tabs="pulse">
         {% for t in _tabs %}
           {% if _signed or t.k == 'for-you' %}
             <a class="pl-tabs__t{{ t.k == 'alerts' ? ' pl-tabs__t--alerts' }}" href="/pulse{{ t.k != 'for-you' ? '?tab=' ~ t.k }}"{% if view == t.k %} aria-current="page"{% endif %}>

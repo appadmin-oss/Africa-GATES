@@ -41,7 +41,7 @@
 
   {# ── the toolbar (tablet and desktop) ──────────────────────────────────── #}
   <div class="rq-bar">
-    <nav class="ls-tabs" aria-label="Status">
+    <nav class="ls-tabs" aria-label="Status" data-tabs="status">
       {% for t in tabs %}
         <a class="ls-tab" href="{{ t.href }}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}<span class="ls-tab__num">{{ t.n|number_format }}</span></a>
       {% endfor %}

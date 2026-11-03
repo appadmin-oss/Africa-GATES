@@ -71,6 +71,9 @@ return [
         $settings = [];
         try { $settings = $c->get(SettingsService::class)->all(); } catch (\Throwable $e) {}
 
+        // Fetched ahead of a click (site-nav, console-nav, the browser's own prefetch): see
+        // the flash globals below for why this matters.
+        $ahead = \AfricaGates\Support\Speculative::is() || \AfricaGates\Admin\Support\ConsoleShell::prefetch();
         $globals = [
             // Flags for embedding data in <script> blocks: hex-escape < ' " &
             // (defense-in-depth over Twig's default slash-escaping).
@@ -243,15 +246,23 @@ return [
             // somewhere that rendered nothing. Nor was it ever consumed, so the org
             // dashboard replayed the same message on every reload for the rest of the
             // session.
-            'flash_ok'          => $_SESSION['flash_ok'] ?? $_SESSION['flash'] ?? $_SESSION['org_flash_ok'] ?? null,
+            // ── A PAGE FETCHED AHEAD SHOWS NO ONE-SHOT MESSAGE, AND SPENDS NONE ──
+            //
+            // Both navigation scripts fetch pages before anybody asks for them — a hovered
+            // link, and every tab of a tab bar once the page is idle (owner, 3 Nov 2026). A
+            // flash is spent by whichever page renders first, so a background fetch could be
+            // the page that ate "Saved" or "Merged 3 duplicates", and the person never sees
+            // it. Ahead, it is neither shown nor cleared: the next page somebody actually
+            // looks at has it.
+            'flash_ok'          => $ahead ? null : ($_SESSION['flash_ok'] ?? $_SESSION['flash'] ?? $_SESSION['org_flash_ok'] ?? null),
             // The per-request CSP nonce. Every inline <script> must carry it or the
             // browser refuses to run it — see AfricaGates\Support\Csp.
             'csp_nonce'         => \AfricaGates\Support\Csp::nonce(),
-            'flash_error'       => $_SESSION['flash_error'] ?? $_SESSION['org_flash_error'] ?? null,
-            'flash_notice'      => $_SESSION['flash_notice'] ?? null,
+            'flash_error'       => $ahead ? null : ($_SESSION['flash_error'] ?? $_SESSION['org_flash_error'] ?? null),
+            'flash_notice'      => $ahead ? null : ($_SESSION['flash_notice'] ?? null),
             // What a refused form had in it, for the page it is sent back to (FormReplay,
             // CsrfMiddleware). Consumed by reading, like the flash beside it.
-            'form_replay'       => \AfricaGates\Support\FormReplay::take(),
+            'form_replay'       => $ahead ? null : \AfricaGates\Support\FormReplay::take(),
             // The built CSS bundle, or null when the layout must fall back to the
             // fifteen individual stylesheets. Null on ANY doubt — no manifest, missing
             // file, or a source edited since the build — because stale CSS is a far
@@ -732,7 +743,7 @@ return [
             [\AfricaGates\Admin\Support\ConsoleShell::class, 'context']
         ));
         // Consume one-shot flash. `flash` included — it was leaking for the whole session.
-        unset($_SESSION['flash_ok'], $_SESSION['flash'],
+        if (!$ahead) unset($_SESSION['flash_ok'], $_SESSION['flash'],
               $_SESSION['flash_error'], $_SESSION['flash_notice'],
               $_SESSION['org_flash_ok'], $_SESSION['org_flash_error']);
         return $twig;

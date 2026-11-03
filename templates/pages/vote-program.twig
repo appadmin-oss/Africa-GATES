@@ -82,7 +82,7 @@
     <p class="vp-hero__line">{{ _f.meta }}</p>
   </div>
 
-  <nav class="vp-tabs" aria-label="{{ 'Vote sections'|trans }}">
+  <nav class="vp-tabs" aria-label="{{ 'Vote sections'|trans }}" data-tabs="vote">
     <div class="vp-tabs__in">
       <a class="vp-tab" href="{{ _base }}"{% if tab == 'vote' %} aria-current="page"{% endif %}>{{ 'Vote'|trans }}</a>
       <a class="vp-tab" href="{{ _base }}?tab=about"{% if tab == 'about' %} aria-current="page"{% endif %}>{{ 'About the award'|trans }}</a>

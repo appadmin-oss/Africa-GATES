@@ -134,7 +134,7 @@
     </div>
   </div>
 
-  <nav class="aw-tabs" aria-label="{{ 'Award sections'|trans }}">
+  <nav class="aw-tabs" aria-label="{{ 'Award sections'|trans }}" data-tabs="award">
     {% for k, label in tabs %}
       <a class="aw-tab" href="/awards/{{ a.slug }}{{ k == 'overview' ? (_ed ? '?edition=' ~ _ed) : '?tab=' ~ k ~ _q }}"{% if tab == k %} aria-current="page"{% endif %}>{{ label|trans }}</a>
     {% endfor %}

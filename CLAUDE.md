@@ -174,6 +174,15 @@ binds no document, window or `<main>` listener and starts no interval except thr
 carry `data-nav-keep`; a kept element's per-page attributes are listed in `data-nav-sync`.
 Shell scripts re-scan on `ag:load`. `SiteNavTest` holds it, and fails on an unmarked script.
 
+**A tab bar says so: `data-tabs="name"` on the element holding its links** (3 Nov 2026).
+Both site-nav and console-nav then fetch that bar's links once the page is idle and keep them
+a minute, so a tab swaps from memory (950ms → ~30ms on a 150ms link; the organisation
+console was a 2.3s full reload per tab). `data-tabs-top` is for a section rail: the new
+section opens at its top rather than holding the rail in place. `/org` is swapped but never
+fetched ahead from outside it — a GET there opens the organisation's session. A page fetched
+ahead neither shows nor spends a flash or a form replay (`$ahead` in `config/container.php`).
+`TabSwitchTest` fails on a `?tab=` link marked current in a template with no `data-tabs`.
+
 ## A header can switch a feature off in a way nothing on the page can see
 
 `Permissions-Policy: camera=()` denied the camera on **every page of the site**, so the
