@@ -4462,6 +4462,7 @@ return function(App $app) {
         // Door passes: minted and revoked on the event's own tickets screen, because a door
         // belongs to an event and the person who needs one is already on that page an hour
         // before the gates open. See EventScanPass.
+        $a->get('/events/leads',                    AdminEventsController::class.':allLeads');
         $a->get('/events/{id:[0-9]+}/leads',        AdminEventsController::class.':leads');
         $a->post('/events/{id:[0-9]+}/leads',       AdminEventsController::class.':leadsAct');
         $a->post('/events/{id:[0-9]+}/door',        AdminEventsController::class.':issueDoorPass');

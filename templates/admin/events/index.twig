@@ -1,10 +1,10 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}Events{% endblock %}
-{% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/events/new">+ New Event</a>{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/events/leads">All event leads</a> <a class="ad-btn ad-btn--primary" href="/admin/events/new">+ New Event</a>{% endblock %}
 {% block content %}
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th scope="col">Event</th><th scope="col">When</th><th scope="col">Location</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Event</th><th scope="col">When</th><th scope="col">Location</th><th scope="col">Status</th><th scope="col">Leads</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
@@ -15,12 +15,19 @@
           {% set chip = {'published':'green','draft':'gold'}[r.status]|default('grey') %}
           <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|capitalize }}</span>
         </td>
+        <td>
+          {% set ld = leads[r.id]|default({}) %}
+          {% if ld.names is defined %}{{ ld.names|join(', ') }}{% endif %}
+          {% if ld.invited is defined %}<div style="font-size:12px;color:var(--cn-ink-3)">{{ ld.invited|length }} invited, not yet switched on</div>{% endif %}
+          {% if ld.names is not defined and ld.invited is not defined %}<span style="font-size:12px;color:var(--cn-ink-3)">Nobody yet</span>{% endif %}
+        </td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}">Edit</a>
+          <a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}/leads">Leads<span class="sr-only"> for {{ r.title }}</span></a>
           <form method="post" action="/admin/events/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ r.title }}” permanently? Registrations are not deleted with it, so anyone already holding a ticket keeps a link that no longer shows the event.">×</button></form>
         </td>
       </tr>
-      {% else %}<tr><td colspan="5" style="text-align:center;color:var(--cn-soft);padding:30px">No events yet.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--cn-soft);padding:30px">No events yet.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>

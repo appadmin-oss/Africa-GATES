@@ -393,10 +393,62 @@ final class EventPages
                 'sub' => 'Checked in ' . date('D j M, H:i', (int) strtotime((string) $w->in_at)) . ', out ' . date('H:i', (int) strtotime((string) $w->out_at)) . ', by themselves',
                 'cta' => ['label' => 'Confirm', 'post' => ['do' => 'attend_confirm', 'event' => $id, 'hour' => (int) $w->hour]]], $wait)];
         }
+        $secs = array_merge($secs, self::recruit($e));
         $secs[] = ['k' => 'note', 'tone' => 'mute', 'text' => ($ready ? 'Check-in opens six hours before the event and closes six hours after it. Your tap makes the hours count; a volunteer’s own taps wait for you here. ' : '')
-            . 'Reliability is what each person finished or turned up to in the last six months. Roles are given by the volunteer team and end by themselves after the event.',
-            'cta' => ['label' => 'Ask for volunteers', 'href' => self::url($id, 'requests')]];
+            . 'Reliability is what each person finished or turned up to in the last six months. Every role ends by itself on its end date.',
+            'cta' => ['label' => 'Ask the volunteer team instead', 'href' => self::url($id, 'requests')]];
         return ['title' => 'People', 'secs' => $secs];
+    }
+
+    /**
+     * A LEAD RECRUITS (owner, 3 Nov 2026: "the lead should also be able to recruit people").
+     * It was a request to the volunteer team and nothing else. Now, at their own event:
+     *
+     *   · add somebody BY EMAIL, in one of the night's roles (RoleInvites::EVENT_VOL_ROLES): an
+     *     approved volunteer holds it at once, anybody else is invited to apply and it switches
+     *     on only once they are approved — vetting is never skipped. By email and never from a
+     *     list: a lead may be an outside organisation's person, and the platform's volunteer
+     *     roster is not theirs to browse;
+     *   · end a role, and withdraw an invitation still waiting.
+     *
+     * Leads cannot make leads: leading moves money, and that stays staff's to give. Every one of
+     * these is re-checked against the lead's grant on THIS event in LeadController::recruit.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private static function recruit(object $e): array
+    {
+        $id = (int) $e->id;
+        if (!\AfricaGates\Services\RoleInvites::ready()) return [];
+        $roles = \AfricaGates\Services\RoleInvites::EVENT_VOL_ROLES;
+        $until = date('Y-m-d', (int) strtotime(((string) ($e->end_date ?? '') ?: (string) $e->event_date)) + 86400);
+        $secs = [];
+        // Who is on it now, to end a role: one row per live volunteer role here.
+        $held = ['' => 'Choose a role to end…'];
+        foreach (DB::table('gates_grants as g')->join('gates_volunteers as v', 'v.user_id', '=', 'g.actor_id')
+            ->where('g.actor_kind', 'member')->where('g.scope_kind', 'event')->where('g.scope_id', $id)->whereIn('g.capability', array_keys($roles))
+            ->whereNull('g.revoked_at')->where('g.expires_at', '>', date('Y-m-d H:i:s'))->orderBy('g.id')->get(['g.id as grant', 'g.capability', 'v.*']) as $g) {
+            $held[(int) $g->grant] = Volunteers::name($g) . ' — ' . ($roles[$g->capability] ?? 'Volunteer');
+        }
+        $waiting = \AfricaGates\Services\RoleInvites::waiting($id, array_keys($roles));
+        if ($waiting) {
+            $secs[] = ['k' => 'rows', 'h' => 'Invited, not yet switched on', 'items' => array_map(static fn ($i) => [
+                't' => (string) $i->email, 'ini' => '@', 'sub' => $i->role . ' · waiting ' . $i->waiting . ' · invited by ' . $i->by . ' · until ' . $i->until,
+                'cta' => ['label' => 'Withdraw', 'post' => ['do' => 'vol_invite_cancel', 'event' => $id, 'invite' => (int) $i->id]]], $waiting)];
+        }
+        $secs[] = ['k' => 'form', 'h' => 'Add somebody to the team', 'do' => 'vol_invite', 'hidden' => ['event' => $id], 'submit' => 'Add them', 'groups' => [
+            ['label' => 'Who', 'help' => 'By their email. An approved volunteer gets the role at once; anybody else is asked to apply, the volunteer team checks every application, and the role switches on once theirs is approved. Either way we email them.',
+             'fields' => [['name' => 'email', 'label' => 'Their email', 'type' => 'email', 'required' => true],
+                          ['name' => 'capability', 'label' => 'Role', 'type' => 'select', 'options' => $roles]]],
+            ['label' => 'Until', 'fields' => [['name' => 'until', 'label' => 'Ends', 'type' => 'date', 'value' => $until]]],
+        ]];
+        if (count($held) > 1) {
+            $secs[] = ['k' => 'form', 'h' => 'End a role', 'do' => 'vol_end', 'hidden' => ['event' => $id], 'submit' => 'End it now', 'groups' => [
+                ['label' => 'Whose', 'help' => 'It leaves their volunteer workspace on their next page. Hours already recorded stay.',
+                 'fields' => [['name' => 'grant', 'label' => 'Role', 'type' => 'select', 'options' => $held, 'required' => true]]],
+            ]];
+        }
+        return $secs;
     }
 
     /** Guests of honour: nominees only, or everybody invited. */

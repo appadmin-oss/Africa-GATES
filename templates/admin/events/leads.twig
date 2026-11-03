@@ -5,7 +5,7 @@
   never this console. Linked from the event's own page; the role ends with the event.
 #}
 {% import 'admin/partials/kit.twig' as kit %}
-{% block topbar_sub %}Who leads and who works {{ event.title }}. They run it from their own account, not this console.{% endblock %}
+{% block topbar_sub %}Who leads and who works {{ event.title }}. They run it from their own account, not this console. <a href="/admin/events/leads">Every event’s leads</a>{% endblock %}
 {% block head_styles %}<link rel="stylesheet" href="{{ asset('/assets/css/console/volunteers.css') }}">{% endblock %}
 
 {% block content %}
@@ -24,7 +24,7 @@
 <section class="cn-card vl-sec" aria-labelledby="lh">
   <h2 class="vl-h" id="lh">Leads</h2>
   {% if leads is empty %}
-    {{ kit.empty('Nobody leads this event yet', 'Give it to somebody below. They see it under Events I lead when they sign in.', 'users') }}
+    {{ kit.empty('Nobody leads this event yet', 'Give it to somebody below. We email them, and it shows under Events I lead in their account.', 'users') }}
   {% else %}
     <ul class="vl-list">
       {% for l in leads %}
@@ -41,9 +41,28 @@
   {% endif %}
 </section>
 
+{% if invites is not empty %}
+<section class="cn-card vl-sec" aria-labelledby="ih">
+  <h2 class="vl-h" id="ih">Invited, not yet switched on</h2>
+  <p class="vl-help">Each switches on by itself when they sign in with that address confirmed. Nobody has to give it again.</p>
+  <ul class="vl-list">
+    {% for i in invites %}
+      <li class="vl-li">
+        <span class="vl-li__t">{{ i.email }}</span>
+        <span class="vl-help">{{ i.role }} · waiting {{ i.waiting }} · invited by {{ i.by }} · until {{ i.until }}</span>
+        <form method="post" action="/admin/events/{{ event.id }}/leads" data-confirm="Withdraw the invitation to {{ i.email }}? It will not switch on.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="invite_cancel"><input type="hidden" name="invite" value="{{ i.id }}">
+          <button class="cn-btn" type="submit">Withdraw<span class="sr-only"> the invitation to {{ i.email }}</span></button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 <section class="cn-card vl-sec" aria-labelledby="gh">
   <h2 class="vl-h" id="gh">Give this event to a lead</h2>
-  <p class="vl-help">Use the email their Africa GATES account signed up with. It can be anybody: your staff, or the organiser’s own people.</p>
+  <p class="vl-help">Any email address: your staff, or the organiser’s own people. If they already have an Africa GATES account with that address confirmed, they lead it at once; if not, they are invited and it switches on when they sign up and confirm it. Either way we email them.</p>
   <form class="vl-form" method="post" action="/admin/events/{{ event.id }}/leads">
     <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="do" value="give">
     <label for="le">Their email<input id="le" type="email" name="email" required autocomplete="off"></label>

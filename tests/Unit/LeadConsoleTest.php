@@ -262,10 +262,15 @@ final class LeadConsoleTest extends TestCase
     {
         $ev = $this->event('Alimosho ceremony', '+10 days');
         $email = (string) DB::table('gates_users')->where('id', $this->lead)->value('email');
-        $this->assertFalse(Leads::give($ev, 'nobody@example.test', '', 1)['ok'], 'nobody with that address');
+        /* Nobody with the address, or an unconfirmed one, is now INVITED rather than refused
+           (owner, 3 Nov 2026) — and an unconfirmed address still never holds the role: the
+           invitation waits, and RoleInvitesTest holds when it switches on. */
+        $none = Leads::give($ev, 'nobody@example.test', '', 1);
+        $this->assertTrue($none['ok'] && !empty($none['pending']) && empty($none['granted']), 'nobody with that address: invited, not given');
         $unverified = $this->member('Kemi Bello', 0);
-        $this->assertStringContainsString('confirmed', Leads::give($ev, (string) DB::table('gates_users')->where('id', $unverified)->value('email'), '', 1)['error'],
-            'an unconfirmed address is not proof of who holds it');
+        $un = Leads::give($ev, (string) DB::table('gates_users')->where('id', $unverified)->value('email'), '', 1);
+        $this->assertTrue($un['ok'] && !empty($un['pending']), 'an unconfirmed address is invited');
+        $this->assertFalse(\AfricaGates\Services\Grants::allows('member', $unverified, 'event.lead', 'event', $ev), 'an unconfirmed address is not proof of who holds it');
         $this->assertTrue(Leads::give($ev, strtoupper($email), '', 1)['ok'], 'the address as typed, in any case');
         $this->assertFalse(Leads::give($ev, $email, '', 1)['ok'], 'not twice');
         $g = DB::table('gates_grants')->where('capability', 'event.lead')->where('actor_kind', 'member')->where('actor_id', $this->lead)->first();
@@ -337,5 +342,117 @@ final class LeadConsoleTest extends TestCase
         $html = $this->page('event', ['id' => $ev, 'page' => 'plan']);
         $this->assertStringContainsString('action="/lead/act"', $html, 'the shell posts to the lead console, not the volunteer workspace');
         $this->assertStringNotContainsString('/admin', $html, 'nothing on a lead page points into the staff console');
+    }
+
+    // ── Roles offered to an address (owner, 3 Nov 2026): told, invited, recruited, findable ──
+
+    private function vol(int $user, string $status = 'active'): void
+    {
+        DB::table('gates_volunteers')->insert(['user_id' => $user, 'status' => $status, 'display_name' => 'V' . $user, 'created_at' => date('Y-m-d H:i:s')]);
+    }
+
+    private function emailOf(int $user): string
+    {
+        return (string) DB::table('gates_users')->where('id', $user)->value('email');
+    }
+
+    public function test_somebody_with_no_account_is_invited_and_it_switches_on_when_they_sign_in_with_the_address_confirmed(): void
+    {
+        $ev = $this->event('Alimosho ceremony', '+10 days');
+        $r = Leads::give($ev, 'New.Organiser@Example.test', '', 1, 'Femi Ade');
+        $this->assertTrue($r['ok'] && !empty($r['pending']), 'held against the address');
+        $this->assertSame('pending', DB::table('gates_role_invites')->where('id', $r['id'])->value('status'));
+        // They sign up with that address — unconfirmed: nothing yet.
+        $u = (int) DB::table('gates_users')->insertGetId(['name' => 'Ngozi Eze', 'email' => 'new.organiser@example.test', 'password_hash' => 'x',
+            'status' => 'active', 'email_verified' => 0, 'created_at' => date('Y-m-d H:i:s')]);
+        $this->assertSame(0, \AfricaGates\Services\RoleInvites::claimFor($u), 'an unconfirmed address is not proof');
+        $this->assertFalse(Grants::allows('member', $u, 'event.lead', 'event', $ev));
+        // Confirmed: the next request through the member gate makes it theirs.
+        DB::table('gates_users')->where('id', $u)->update(['email_verified' => 1]);
+        $_SESSION['user_id'] = $u; unset($_SESSION['role_invites_at']);
+        (new \AfricaGates\Middleware\UserAuthMiddleware())->__invoke((new ServerRequestFactory())->createServerRequest('GET', '/lead'),
+            new class implements \Psr\Http\Server\RequestHandlerInterface { public function handle(\Psr\Http\Message\ServerRequestInterface $r): \Psr\Http\Message\ResponseInterface { return new Response(); } });
+        $this->assertTrue(Grants::allows('member', $u, 'event.lead', 'event', $ev), 'nobody had to give it again');
+        $i = DB::table('gates_role_invites')->where('id', $r['id'])->first();
+        $this->assertSame('granted', $i->status);
+        $this->assertSame(date('Y-m-d', strtotime('+11 days')) . ' 23:59:59', (string) DB::table('gates_grants')->where('id', $i->grant_id)->value('expires_at'), 'it ends with the event');
+        $this->assertSame(0, \AfricaGates\Services\RoleInvites::claimFor($u), 'once');
+    }
+
+    public function test_an_invitation_withdrawn_or_past_its_end_never_switches_on(): void
+    {
+        $ev = $this->event();
+        $a = Leads::give($ev, 'late@example.test', '', 1);
+        $this->assertTrue(\AfricaGates\Services\RoleInvites::cancel((int) $a['id'], $ev));
+        $this->assertFalse(\AfricaGates\Services\RoleInvites::cancel((int) $a['id'], $this->event('Another')), 'only at its own event');
+        $b = Leads::give($ev, 'gone@example.test', '', 1);
+        DB::table('gates_role_invites')->where('id', $b['id'])->update(['expires_at' => date('Y-m-d H:i:s', time() - 60)]);
+        foreach (['late@example.test', 'gone@example.test'] as $e) {
+            $u = (int) DB::table('gates_users')->insertGetId(['name' => 'X', 'email' => $e, 'password_hash' => 'x', 'status' => 'active', 'email_verified' => 1, 'created_at' => date('Y-m-d H:i:s')]);
+            \AfricaGates\Services\RoleInvites::claimFor($u);
+            $this->assertFalse(Grants::allows('member', $u, 'event.lead', 'event', $ev), $e);
+        }
+        $this->assertSame('expired', DB::table('gates_role_invites')->where('id', $b['id'])->value('status'));
+    }
+
+    public function test_a_lead_recruits_by_email_and_vetting_is_never_skipped(): void
+    {
+        $ev = $this->event();
+        $this->lead($ev);
+        $approved = $this->member('Chika Nwosu'); $this->vol($approved);
+        $this->assertStringContainsString('role is theirs now', $this->post(['do' => 'vol_invite', 'event' => $ev, 'email' => $this->emailOf($approved), 'capability' => 'vol.door']));
+        $this->assertTrue(Grants::allows('member', $approved, 'vol.door', 'event', $ev), 'an approved volunteer holds it at once');
+        // Somebody who is not a volunteer yet: invited, and it waits for the volunteer team's approval.
+        $applicant = $this->member('Bola Ade');
+        $this->assertStringContainsString('once they are an approved volunteer', $this->post(['do' => 'vol_invite', 'event' => $ev, 'email' => $this->emailOf($applicant), 'capability' => 'vol.usher']));
+        $this->vol($applicant, 'applicant');
+        \AfricaGates\Services\RoleInvites::claimFor($applicant);
+        $this->assertFalse(Grants::allows('member', $applicant, 'vol.usher', 'event', $ev), 'an applicant is not yet a volunteer');
+        DB::table('gates_volunteers')->where('user_id', $applicant)->update(['status' => 'active']);
+        \AfricaGates\Services\RoleInvites::claimFor($applicant);
+        $this->assertTrue(Grants::allows('member', $applicant, 'vol.usher', 'event', $ev), 'switched on once approved');
+        // A lead never makes a lead, and recruits only for their own events.
+        $this->assertStringContainsString('the night’s roles', $this->post(['do' => 'vol_invite', 'event' => $ev, 'email' => 'x@example.test', 'capability' => 'event.lead']));
+        $theirs = $this->event('Lagos Education Honours Night');
+        $this->assertStringContainsString('isn’t one of your events', $this->post(['do' => 'vol_invite', 'event' => $theirs, 'email' => 'x@example.test', 'capability' => 'vol.door']));
+        $this->assertSame(0, DB::table('gates_role_invites')->where('email', 'x@example.test')->count());
+        // Ending: only a volunteer role at THIS event.
+        $other = (int) Grants::grant('member', $approved, 'vol.door', 'event', $theirs, date('Y-m-d', strtotime('+20 days')), 1)['id'];
+        $this->assertStringContainsString('already ended', $this->post(['do' => 'vol_end', 'event' => $ev, 'grant' => $other]));
+        $this->assertTrue(Grants::allows('member', $approved, 'vol.door', 'event', $theirs), 'another event’s role is untouched');
+        $mine = (int) DB::table('gates_grants')->where('actor_id', $approved)->where('scope_id', $ev)->value('id');
+        $this->assertStringContainsString('Ended', $this->post(['do' => 'vol_end', 'event' => $ev, 'grant' => $mine]));
+        $this->assertFalse(Grants::allows('member', $approved, 'vol.door', 'event', $ev));
+        $this->assertGreaterThan(0, DB::table('gates_audit_log')->where('action', 'lead.vol_invite')->count(), 'every recruit is audited against the event');
+    }
+
+    public function test_the_volunteers_page_offers_recruiting_by_email_and_never_lists_the_platforms_roster(): void
+    {
+        $ev = $this->event();
+        $this->lead($ev);
+        $stranger = $this->member('Ada Obi'); $this->vol($stranger);
+        DB::table('gates_volunteers')->where('user_id', $stranger)->update(['display_name' => 'Ada Obi']);
+        $html = $this->page('event', ['id' => $ev, 'page' => 'people'], ['tab' => 'volunteers']);
+        $this->assertStringContainsString('Add somebody to the team', $html);
+        $this->assertStringContainsString('name="email"', $html);
+        $this->assertStringNotContainsString('Ada Obi', $html, 'a volunteer not on this event is not shown to a lead');
+    }
+
+    public function test_staff_find_every_events_leads_from_the_events_list(): void
+    {
+        $ev = $this->event('Alimosho ceremony');
+        $this->lead($ev);
+        Leads::give($ev, 'waiting@example.test', '', 1);
+        $this->staff($this->admin('Femi Ade', 'superadmin'), 'Femi Ade', 'superadmin');
+        $c = $this->ctrl(\AfricaGates\Admin\Controllers\EventsController::class);
+        $list = (string) $c->index((new ServerRequestFactory())->createServerRequest('GET', '/admin/events'), new Response())->getBody();
+        $this->assertStringContainsString('/admin/events/' . $ev . '/leads', $list, 'each event links to its leads');
+        $this->assertStringContainsString('Tunde Akin', $list, 'who leads it, on the list');
+        $this->assertStringContainsString('1 invited', $list);
+        $this->assertStringContainsString('/admin/events/leads', $list);
+        $all = (string) $c->allLeads((new ServerRequestFactory())->createServerRequest('GET', '/admin/events/leads'), new Response())->getBody();
+        $this->assertStringContainsString('Tunde Akin', $all);
+        $this->assertStringContainsString('waiting@example.test', $all);
+        $this->assertStringContainsString('Alimosho ceremony', $all);
     }
 }

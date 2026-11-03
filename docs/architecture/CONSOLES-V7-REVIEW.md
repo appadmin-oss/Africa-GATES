@@ -259,3 +259,20 @@ staff to an email address, and the account that has verified it holds it; nothin
 opens on the way in from the account. The top of the rail is a product switcher (after
 ElevenLabs) on the volunteer and lead shell and the staff console, in More on a phone. Rules
 and reasons: AUDIT-AND-PLAN §7.1; `AccountRolesTest` holds them.
+
+### 3 Nov 2026 — leads are told, invited by address, findable; leads recruit
+
+- **Told.** Giving a lead (or a volunteer role) emails the person (`Emails` key `role`), saying the
+  role, the event and the day it ends. The admin toast says whether the email went.
+- **Invited by address.** `gates_role_invites` (`2027_05_06_role_invites.php`) holds a role for an
+  email address with no eligible account yet. `RoleInvites::claimFor()` turns it into a grant the
+  next time an account that has CONFIRMED that address is signed in (UserAuthMiddleware, at most
+  every five minutes a session) — a volunteer role only once their volunteer record is approved.
+  Withdrawn and past-their-end invitations never switch on.
+- **Findable.** The Events list has a Leads column and link; `/admin/events/leads` lists every
+  lead and waiting invitation across events.
+- **Leads recruit.** Event › People › Volunteers: "Add somebody to the team" by email (approved
+  volunteer → role at once; anybody else → invited to apply, vetting never skipped), end a role,
+  withdraw an invitation. By email, never from a list: a lead may be an outside organisation's
+  person and the platform's roster is not theirs to browse. A lead never makes a lead.
+- Tests: `LeadConsoleTest` (five new, and the "give by email" test rewritten to the new promise).

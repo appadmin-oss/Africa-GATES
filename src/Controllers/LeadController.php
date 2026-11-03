@@ -184,16 +184,17 @@ final class LeadController
             'attend_in' => [$this->attend($me, $b, true), 'Checked in.', 'event', $int('event')],
             'attend_out' => [$this->attend($me, $b, false), 'Checked out. Their hours count now.', 'event', $int('event')],
             'attend_confirm' => [$this->attendConfirm($me, $b), 'Confirmed. Their hours count now.', 'event', $int('event')],
+            'vol_invite', 'vol_invite_cancel', 'vol_end' => [$this->recruit($me, $b, $do), '', 'event', $int('event')],
             default => [['ok' => false, 'error' => 'That isn’t something this page can do.'], '', '', 0],
         };
         if (!$r['ok']) return $this->back($res, $back, false, (string) ($r['error'] ?? 'That didn’t work.'));
         // A change to an event is recorded AGAINST THE EVENT, so its Reports › Audit can list
         // it; the row it touched travels in the meta.
         $meta = array_intersect_key($b, array_flip(['status', 'owner', 'title', 'name', 'label', 'stage', 'likelihood', 'impact', 'estimate', 'vendor',
-                                                    'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until', 'why']));
+                                                    'committed', 'paid', 'budget', 'series', 'type', 'action', 'admin', 'until', 'why', 'capability', 'email']));
         if ($type === 'event') {
             $target = (int) ($r['event'] ?? $target);
-            foreach (['id', 'work', 'risk', 'line', 'decision', 'cue', 'sponsor', 'check', 'table', 'pass', 'vol', 'hour'] as $k) if (!empty($r[$k] ?? $b[$k] ?? null) && $k !== 'event') $meta[$k] = (int) ($r[$k] ?? $b[$k]);
+            foreach (['id', 'work', 'risk', 'line', 'decision', 'cue', 'sponsor', 'check', 'table', 'pass', 'vol', 'hour', 'grant', 'invite', 'volunteer'] as $k) if (!empty($r[$k] ?? $b[$k] ?? null) && $k !== 'event') $meta[$k] = (int) ($r[$k] ?? $b[$k]);
         } else {
             $target = (int) ($r['id'] ?? $target);
         }
@@ -206,6 +207,7 @@ final class LeadController
             $msg = $r['sent'] . ' sent' . ($r['failed'] ? ', ' . $r['failed'] . ' could not be sent' : '') . '. '
                  . ($r['left'] > 0 ? $r['left'] . ' still to go: press again.' : 'That is everybody.');
         }
+        if (isset($r['msg'])) $msg = (string) $r['msg'];
         if ($do === 'request_remind') {
             $msg = ($r['emailed'] ?? 0) > 0 ? 'Reminded. ' . $r['emailed'] . (($r['emailed'] ?? 0) === 1 ? ' person was' : ' people were') . ' emailed.'
                                             : 'Reminder recorded, but no email could be sent. It is still at the top of their Waiting on you.';
@@ -214,6 +216,42 @@ final class LeadController
     }
 
     // ── writes that are not the plan's ──────────────────────────────────────────────────
+
+    /**
+     * A lead recruits for THEIR event (EventPages::recruit): somebody added by email (an approved
+     * volunteer at once, anybody else once approved), a role ended, an invitation withdrawn. Every one is checked against
+     * the lead's grant on the event in the post — a crafted post about another event, or a
+     * grant or invitation that is not this event's, writes nothing. Only the night's volunteer
+     * roles: a lead never makes a lead.
+     *
+     * @return array{ok:bool, error?:string, msg?:string, event?:int}
+     */
+    private function recruit(array $me, array $b, string $do): array
+    {
+        $event = (int) ($b['event'] ?? 0);
+        if (!Plan::isLead($me['id'], $event)) return ['ok' => false, 'error' => 'That isn’t one of your events.'];
+        if (!\AfricaGates\Services\RoleInvites::ready()) return ['ok' => false, 'error' => 'The database needs its latest update first.'];
+        $roles = \AfricaGates\Services\RoleInvites::EVENT_VOL_ROLES;
+        $cap = (string) ($b['capability'] ?? '');
+        $by = ['kind' => 'member', 'id' => $me['id'], 'name' => $me['name']];
+        $mail = static fn (array $r): string => !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent, so tell them yourself.';
+        switch ($do) {
+            case 'vol_invite':
+                if (!isset($roles[$cap])) return ['ok' => false, 'error' => 'Pick one of the night’s roles.'];
+                $r = \AfricaGates\Services\RoleInvites::offer((string) ($b['email'] ?? ''), $cap, $event, (string) ($b['until'] ?? ''), $by);
+                if (!$r['ok']) return $r;
+                return $r + ['event' => $event, 'msg' => (!empty($r['granted']) ? 'They were already an approved volunteer, so the role is theirs now.' : 'Invitation sent. It switches on once they are an approved volunteer.') . $mail($r)];
+            case 'vol_invite_cancel':
+                return \AfricaGates\Services\RoleInvites::cancel((int) ($b['invite'] ?? 0), $event)
+                    ? ['ok' => true, 'event' => $event, 'msg' => 'Invitation withdrawn.'] : ['ok' => false, 'error' => 'That invitation had already been used or withdrawn.'];
+            default:   // vol_end — only a volunteer role at THIS event
+                $g = (int) ($b['grant'] ?? 0);
+                $mine = \Illuminate\Database\Capsule\Manager::table('gates_grants')->where('id', $g)->where('scope_kind', 'event')->where('scope_id', $event)
+                    ->whereIn('capability', array_keys($roles))->whereNull('revoked_at')->exists();
+                return $mine && \AfricaGates\Services\Grants::revoke($g, null)
+                    ? ['ok' => true, 'event' => $event, 'msg' => 'Ended. It leaves their workspace on their next page.'] : ['ok' => false, 'error' => 'That role had already ended.'];
+        }
+    }
 
     /** A lead's request is about one of THEIR events; nothing else is offered or accepted. */
     private function newRequest(array $me, array $b): array

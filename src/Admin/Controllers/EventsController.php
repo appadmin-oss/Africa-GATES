@@ -41,10 +41,18 @@ class EventsController
     public function index(Request $req, Response $res): Response
     {
         $rows = DB::table('gates_site_events')->orderByDesc('event_date')->get()->map(fn($r)=>(array)$r)->all();
+        /* Who leads each event, on the list itself (owner, 3 Nov 2026: the only way in was a link
+           at the foot of the edit form). One read of the leads and one of the waiting invitations
+           for the whole list, grouped here — never a query per row. */
+        $leads = [];
+        foreach (\AfricaGates\Services\EventPlan\Leads::everywhere() as $l) {
+            $leads[$l->event_id][$l->state === 'lead' ? 'names' : 'invited'][] = $l->state === 'lead' ? $l->name : $l->email;
+        }
         return $this->view->render($res, 'admin/events/index.twig', [
             'page_title' => 'Events — Admin',
             'admin_page' => 'events',
             'rows'       => $rows,
+            'leads'      => $leads,
         ]);
     }
 
@@ -1165,10 +1173,28 @@ class EventsController
         return $this->view->render($res, 'admin/events/leads.twig', [
             'admin_page' => 'events', 'topbar_title' => 'Leads and volunteers', 'event' => $event,
             'leads' => \AfricaGates\Services\EventPlan\Leads::of((int) $event->id), 'flash_ok' => $ok, 'flash_error' => $err,
+            'invites' => \AfricaGates\Services\RoleInvites::waiting((int) $event->id),
             'awards' => \AfricaGates\Services\EventInvites::programmesFor((int) $event->id),
             'may_staff' => $mayStaff, 'crew' => $this->crew((int) $event->id),
             'pool' => $mayStaff ? $this->volunteerPool() : [], 'vol_roles' => self::EVENT_VOL_ROLES,
             'default_until' => date('Y-m-d', strtotime((string) ($event->end_date ?: $event->event_date) . ' +1 day')),
+        ]);
+    }
+
+    /**
+     * GET /admin/events/leads — every lead at every event, and every invitation still waiting,
+     * on one page (owner, 3 Nov 2026: "nowhere lists every lead across all events"). Each row
+     * goes to that event's own Leads and volunteers page, where the role is given and ended.
+     */
+    public function allLeads(Request $req, Response $res): Response
+    {
+        $rows = \AfricaGates\Services\EventPlan\Leads::everywhere();
+        $ids = array_values(array_unique(array_map(static fn ($r) => $r->event_id, $rows)));
+        $events = $ids ? DB::table('gates_site_events')->whereIn('id', $ids)->get(['id', 'title', 'event_date'])->keyBy('id')->all() : [];
+        foreach ($rows as $r) { $e = $events[$r->event_id] ?? null; $r->event = $e ? (string) $e->title : 'An event no longer listed'; $r->date = $e ? (string) $e->event_date : ''; }
+        usort($rows, static fn ($a, $b) => [$a->date, $a->event, $a->state] <=> [$b->date, $b->event, $b->state]);
+        return $this->view->render($res, 'admin/events/all-leads.twig', [
+            'admin_page' => 'events', 'topbar_title' => 'Event leads', 'rows' => $rows,
         ]);
     }
 
@@ -1262,11 +1288,26 @@ class EventsController
             } else {
                 $_SESSION['flash_error'] = 'That access had already ended.';
             }
+        } elseif ($do === 'invite_cancel') {
+            $inv = (int) ($b['invite'] ?? 0);
+            if (\AfricaGates\Services\RoleInvites::cancel($inv, $id)) {
+                $_SESSION['flash_ok'] = 'Invitation withdrawn. It will not switch on.';
+                $this->audit->record($adminId, 'event.lead.invite_cancel', 'event', $id, ['invite' => $inv]);
+            } else {
+                $_SESSION['flash_error'] = 'That invitation had already been used or withdrawn.';
+            }
         } else {
-            $r = \AfricaGates\Services\EventPlan\Leads::give($id, (string) ($b['email'] ?? ''), (string) ($b['until'] ?? ''), $adminId);
+            $r = \AfricaGates\Services\EventPlan\Leads::give($id, (string) ($b['email'] ?? ''), (string) ($b['until'] ?? ''), $adminId,
+                (string) ($_SESSION['admin_name'] ?? ''));
             if ($r['ok']) {
-                $_SESSION['flash_ok'] = 'Done. They see it under Events I lead when they sign in.';
-                $this->audit->record($adminId, 'event.lead.give', 'event', $id, ['grant' => (int) ($r['id'] ?? 0)]);
+                /* Say what actually happened, including whether the email went: the old sentence
+                   promised a person would "see it" while nothing ever reached them. */
+                $mail = !empty($r['emailed']) ? ' We emailed them.' : ' The email could not be sent — tell them yourself; Settings › Mail says why.';
+                $_SESSION['flash_ok'] = !empty($r['granted'])
+                    ? 'Done. They lead this event now, from Events I lead in their account.' . $mail
+                    : 'Invitation sent. It switches on by itself when they sign in with that address confirmed.' . $mail;
+                $this->audit->record($adminId, !empty($r['granted']) ? 'event.lead.give' : 'event.lead.invite', 'event', $id,
+                    !empty($r['granted']) ? ['grant' => (int) ($r['id'] ?? 0)] : ['invite' => (int) ($r['id'] ?? 0)]);
             } else {
                 $_SESSION['flash_error'] = (string) $r['error'];
             }
