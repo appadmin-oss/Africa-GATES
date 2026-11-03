@@ -132,7 +132,7 @@ final class CfisCatalogueTest extends TestCase
             $this->assertSame($label, $s[$code], $code . ' was dropped');
         }
         $this->assertArrayHasKey('dues', $s);
-        $this->assertCount(4, $s);
+        $this->assertCount(count(C::BUILT_IN) + 1, $s);
     }
 
     public function test_what_the_admin_screen_reads_survives_the_round_trip(): void
@@ -177,8 +177,8 @@ final class CfisCatalogueTest extends TestCase
 
         $s = C::streams();
 
-        // The one usable row, plus the three built-ins. Nothing else got through.
-        $this->assertSame(['training', 'events', 'shop', 'votes'], array_keys($s));
+        // The one usable row, plus the built-ins. Nothing else got through.
+        $this->assertSame(array_merge(['training'], array_keys(C::BUILT_IN)), array_keys($s));
     }
 
     public function test_a_cache_row_that_is_not_a_catalogue_degrades_rather_than_throwing(): void

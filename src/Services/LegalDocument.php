@@ -106,6 +106,10 @@ final class LegalDocument
                  ? '<li>Prices are set each day for each place: its starting price, moved by how often people act on ads there against the site average and by how much of the next ' . \AfricaGates\Services\Ads\AdMarket::HORIZON . ' days paid campaigns have booked, never below ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::FLOOR) . '% or above ' . (int) round(100 * \AfricaGates\Services\Ads\AdMarket::CEIL) . '% of the starting price. Until a place has ' . number_format(\AfricaGates\Services\Ads\AdMarket::MIN_VIEWS) . ' views to measure, its price is its starting price. Everyone booking on the same day pays the same price, and a campaign keeps the price it was booked at.</li>'
                  : '<li>Prices are fixed per place, the same every day, and a campaign keeps the price it was booked at.</li>')
              . '<li>Paid campaigns are shown before free trials.</li>'
+             . (\AfricaGates\Services\Ads\AdCheckout::vatBps() > 0
+                 ? '<li>Prices do not include VAT. VAT at ' . rtrim(rtrim(number_format(\AfricaGates\Services\Ads\AdCheckout::vatBps() / 100, 2), '0'), '.') . '% is added at checkout, shown as its own line, and printed on the receipt.</li>'
+                 : '')
+             . '<li>The smallest budget is ₦' . number_format(\AfricaGates\Services\Ads\AdCheckout::MIN_BUDGET_NAIRA) . '. A paid campaign starts when it is both paid for and approved, and runs the days bought from then. What it does not spend goes back, with its VAT, when it ends or is cancelled.</li>'
              . '</ul><p>This section is generated from the rules the site runs, so it is always current.</p>';
         return implode("\n", $h);
     }

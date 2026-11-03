@@ -3895,6 +3895,9 @@ return function(App $app) {
         $a->post('/ads/{id:[0-9]+}/{action:pause|resume|cancel}', \AfricaGates\Controllers\AdsController::class.':status');
         // Another version of a campaign's ad (up to AdRules::ADS_PER_SET), for review.
         $a->post('/ads/{id:[0-9]+}/ads', \AfricaGates\Controllers\AdsController::class.':addVersion');
+        // A paid campaign: pay for it (again, if a checkout was left), and the gateway's return.
+        $a->post('/ads/{id:[0-9]+}/pay', \AfricaGates\Controllers\AdsController::class.':pay');
+        $a->get('/ads/{id:[0-9]+}/paid', \AfricaGates\Controllers\AdsController::class.':paid');
         // The wallet: one balance across every pocket (MemberWallet), each movement's receipt,
         // and the three-step withdrawal. The JSON is what an open wallet polls, so money that
         // arrives while it is on screen says so. Every one reads the member from the session.

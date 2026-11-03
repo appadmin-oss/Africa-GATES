@@ -224,6 +224,7 @@ class SettingsController
             'ad_revenue'        => \AfricaGates\Services\Ads\AdMarket::revenue(),
             'ad_advice'         => \AfricaGates\Services\Ads\AdMarket::advice(),
             'ad_dynamic'        => \AfricaGates\Services\Ads\AdMarket::dynamic(),
+            'ad_vat_pct'        => \AfricaGates\Services\Ads\AdCheckout::vatBps() / 100,
             'ad_target'         => (int) ($this->settings->get(\AfricaGates\Services\Ads\AdMarket::TARGET_KEY) ?? 0) ?: null,
             'ad_placements'     => \AfricaGates\Services\Ads\AdRules::PLACEMENTS,
             'ad_beta'           => \AfricaGates\Services\Ads\AdRules::inBeta(),
@@ -690,6 +691,11 @@ class SettingsController
             $this->settings->set(\AfricaGates\Services\Ads\AdMarket::MODE_KEY, $mode, $adminId);
             $target = max(0, min(1_000_000_000, (int) preg_replace('/[^0-9]/', '', (string) ($b['ads_revenue_target'] ?? ''))));
             $this->settings->set(\AfricaGates\Services\Ads\AdMarket::TARGET_KEY, $target > 0 ? (string) $target : '', $adminId);
+            if (array_key_exists('ads_vat_pct', $b) && is_numeric($b['ads_vat_pct'])) {
+                // Basis points, so 7.5% is stored exactly (AdCheckout::vatBps()).
+                $this->settings->set(\AfricaGates\Services\Ads\AdCheckout::VAT_KEY,
+                    (string) max(0, min(2500, (int) round((float) $b['ads_vat_pct'] * 100))), $adminId);
+            }
             \AfricaGates\Services\Ads\AdMarket::forget();
             $this->audit->record($adminId, 'settings.ads_rates', null, null,
                 ['bases' => \AfricaGates\Services\Ads\AdRateCard::bases(), 'mode' => $mode, 'target_naira' => $target,

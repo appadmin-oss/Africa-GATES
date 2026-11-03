@@ -30,6 +30,7 @@ final class AdCampaigns
 
     /** What the advertiser is told, per derived state. */
     public const DELIVERY = [
+        'unpaid'       => 'Waiting for payment',
         'in_review'    => 'In review',
         'not_approved' => 'Not approved',
         'scheduled'    => 'Scheduled',
@@ -390,6 +391,17 @@ final class AdCampaigns
             'placements' => $set ? array_values(array_filter(explode(',', (string) $set->placements))) : [],
             'logo' => $c->logo_path ? (string) $c->logo_path : null,
             'by_placement' => $t['by_placement'],
+            // The payment, for a paid campaign: what was charged, its VAT, what went back.
+            'payment' => (int) $c->trial === 1 ? null : [
+                'ref' => (string) ($c->payment_ref ?? ''), 'paid' => $c->paid_at !== null,
+                'paid_label' => AdRateCard::format((int) ($c->paid_kobo ?? 0)),
+                'vat_label' => AdRateCard::format((int) ($c->vat_kobo ?? 0)),
+                'vat_pct' => (int) ($c->vat_bps ?? 0) / 100,
+                'refunded' => ($c->refunded_at ?? null) !== null,
+                'refunded_label' => AdRateCard::format((int) ($c->refunded_kobo ?? 0)),
+                'note' => (string) ($c->refund_note ?? ''),
+                'days' => $set && isset($set->days) ? (int) $set->days : null,
+            ],
             '_set' => $set,
         ];
     }
@@ -405,6 +417,10 @@ final class AdCampaigns
     {
         $now ??= date('Y-m-d H:i:s');
         if ((string) $c->status === self::ST_CANCELLED) return ['key' => 'cancelled', 'note' => ''];
+        // A paid campaign shows nothing until the gateway confirms its payment.
+        if ((int) ($c->trial ?? 0) !== 1 && ($c->paid_at ?? null) === null) {
+            return ['key' => 'unpaid', 'note' => 'Pay for it to send it on; nothing runs before the payment clears.'];
+        }
         if (!$set || $reviews === []) return ['key' => 'in_review', 'note' => ''];
         if (!in_array('approved', $reviews, true)) {
             return in_array('pending', $reviews, true) ? ['key' => 'in_review', 'note' => 'A person checks every ad before it runs.']

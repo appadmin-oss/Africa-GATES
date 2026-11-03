@@ -81,6 +81,8 @@ final class AdReview
                     'updated_at' => $now,
                 ]);
             }
+            // A paid campaign starts when it is both paid and approved, whichever is second.
+            if ($set && (int) $set->trial !== 1) AdCheckout::schedule((int) $set->id);
         }
         return ['ok' => true];
     }

@@ -27,6 +27,17 @@
   <header class="am-head">
     <h1 class="am-h1">{{ c.name }}</h1>
     <p class="am-p"><span class="am-state am-state--{{ c.delivery }}">{{ c.delivery_label|trans }}</span>{% if c.delivery_note %} · {{ c.delivery_note|trans }}{% endif %}</p>
+    {# A paid campaign's money, as its receipt states it (AdCheckout). #}
+    {% if c.payment %}
+    <p class="am-note">
+      {{ 'Budget %b%'|trans({'%b%': c.budget_label}) }}{% if c.payment.days %} · {{ '%d% days'|trans({'%d%': c.payment.days}) }}{% endif %}
+      {% if c.payment.paid %} · {{ 'Paid %p%, including %v% VAT at %r%%'|trans({'%p%': c.payment.paid_label, '%v%': c.payment.vat_label, '%r%': c.payment.vat_pct}) }} · {{ 'Reference %r%'|trans({'%r%': c.payment.ref}) }}{% endif %}
+      {% if c.payment.refunded %} · {{ 'Returned to you: %a%'|trans({'%a%': c.payment.refunded_label}) }}{% endif %}
+    </p>
+    {% if c.delivery == 'unpaid' %}
+    <form method="post" action="/account/ads/{{ c.id }}/pay"><input type="hidden" name="_token" value="{{ csrf_token }}"><button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Pay and send for review'|trans }}</button></form>
+    {% endif %}
+    {% endif %}
     <p class="am-note">{{ c.objective_label|trans }}{% if c.trial %} · {{ 'Free trial'|trans }}{% endif %}
       · {% for p in c.placements %}{{ rules.placements[p]|default(p)|trans }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
   </header>

@@ -35,8 +35,8 @@
     {% endif %}
   </header>
 
-  {% if not trial_left %}
-  <p class="am-p">{{ 'Your free trial is used. Paid campaigns open soon.'|trans }} <a class="am-link" href="/account/ads">{{ 'Back to your ads'|trans }}</a></p>
+  {% if not trial_left and not paid.open %}
+  <p class="am-p">{{ 'Your free trial is used, and paid campaigns are not on sale right now.'|trans }} <a class="am-link" href="/account/ads">{{ 'Back to your ads'|trans }}</a></p>
   {% else %}
   <form class="am-build" id="ad-form" method="post" action="/account/ads" enctype="multipart/form-data" novalidate data-ag-validate data-ad-builder data-note-need="{{ (rules.beta ? '(needed for this kind of ad after the beta)' : '(needed for this kind of ad)')|trans }}" data-note-optional="{{ '(if you have one)'|trans }}">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -91,6 +91,34 @@
           {% if estimate %}{{ 'These places drew about %n% views a day over the last %d% days. Your ad shares them with other ads.'|trans({'%n%': estimate.daily|number_format, '%d%': estimate.days}) }}
           {% else %}{{ 'Not enough history yet to estimate views. The trial ends after %d% days whatever it reaches.'|trans({'%d%': rules.days}) }}{% endif %}
         </p>
+        {#
+          HOW IT IS PAID FOR (Services\Ads\AdCheckout). Prepaid, one payment, VAT on top as its
+          own line; unspent budget goes back with its VAT. The trial is offered while unused.
+        #}
+        {% if paid.open %}
+        {% set _kind = old.kind|default(trial_left ? 'trial' : 'paid') %}
+        <fieldset class="am-field">
+          <legend class="ag-label">{{ 'How you pay'|trans }}</legend>
+          <div class="am-checks">
+            {% if trial_left %}<label class="am-check"><input type="radio" name="kind" value="trial"{% if _kind == 'trial' %} checked{% endif %}> <span><b>{{ 'Free trial'|trans }}</b><span class="am-check__s">{{ 'Up to %v% views over %d% days.'|trans({'%v%': rules.views|number_format, '%d%': rules.days}) }}</span></span></label>{% endif %}
+            <label class="am-check"><input type="radio" name="kind" value="paid"{% if _kind == 'paid' %} checked{% endif %}> <span><b>{{ 'Paid campaign'|trans }}</b><span class="am-check__s">{{ 'Your budget, for as many days as you choose. Pay only for views delivered.'|trans }}</span></span></label>
+          </div>
+        </fieldset>
+        <div class="am-field">
+          <label class="ag-label" for="ad-budget">{{ 'Budget'|trans }} <span class="am-opt">{{ '(paid campaign, ₦%a% or more)'|trans({'%a%': paid.min|number_format}) }}</span></label>
+          <input class="am-input" id="ad-budget" name="budget" type="number" min="{{ paid.min }}" step="500" inputmode="numeric" value="{{ old.budget|default('') }}" aria-describedby="ad-budget-h{% if errors.budget %} ad-budget-e{% endif %}"{% if errors.budget %} aria-invalid="true"{% endif %}>
+          <p class="am-note" id="ad-budget-h">{% if paid.vat_pct > 0 %}{{ 'Plus VAT at %v%%, shown as its own line before you pay. What the campaign does not spend comes back to you, with its VAT.'|trans({'%v%': paid.vat_pct}) }}{% else %}{{ 'What the campaign does not spend comes back to you.'|trans }}{% endif %}</p>
+          {% if errors.budget %}<p class="am-err" id="ad-budget-e" role="alert">{{ errors.budget|trans }}</p>{% endif %}
+        </div>
+        <div class="am-field">
+          <label class="ag-label" for="ad-days">{{ 'Days'|trans }} <span class="am-opt">{{ '(paid campaign, up to %d%)'|trans({'%d%': rules.max_days}) }}</span></label>
+          <input class="am-input" id="ad-days" name="days" type="number" min="1" max="{{ rules.max_days }}" inputmode="numeric" value="{{ old.days|default(14) }}"{% if errors.days %} aria-invalid="true"{% endif %}>
+          <p class="am-note">{{ 'It starts when it is both paid for and approved, and runs this many days from then.'|trans }} <a class="am-link" href="/advertise#plan">{{ 'Plan a budget for a result'|trans }}</a></p>
+          {% if errors.days %}<p class="am-err" role="alert">{{ errors.days|trans }}</p>{% endif %}
+        </div>
+        {% else %}
+        <input type="hidden" name="kind" value="trial">
+        {% endif %}
       </fieldset>
 
       <fieldset class="am-step">
@@ -159,7 +187,7 @@
         <label class="am-check am-check--agree"><input type="checkbox" name="standards" value="1" required{% if old.standards|default(false) %} checked{% endif %}{% if errors.standards %} aria-invalid="true" aria-describedby="ad-std-e"{% endif %}> <span>{{ 'My ad follows the'|trans }} <a class="am-link" href="/legal/advertising" target="_blank" rel="noopener">{{ 'Advertising Policy'|trans }}</a>{{ ', and its claims are true.'|trans }}</span></label>
         {% if errors.standards %}<p class="am-err" id="ad-std-e" role="alert">{{ errors.standards|trans }}</p>{% endif %}
         <p class="am-note">{{ 'A person checks every ad before it runs. Ads are labelled Sponsored.'|trans }}</p>
-        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ 'Send for review'|trans }}</button>
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--pill">{{ paid.open ? 'Continue'|trans : 'Send for review'|trans }}</button>
       </div>
     </div>
 
@@ -173,4 +201,4 @@
 </div>
 {% endblock %}
 
-{% block foot_scripts %}{% if trial_left %}<script defer src="{{ asset('/assets/js/image-tool.js') }}" data-nav="rerun"></script><script defer src="{{ asset('/assets/js/ads-builder.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}
+{% block foot_scripts %}{% if trial_left or paid.open %}<script defer src="{{ asset('/assets/js/image-tool.js') }}" data-nav="rerun"></script><script defer src="{{ asset('/assets/js/ads-builder.js') }}" data-nav="rerun"></script>{% endif %}{% endblock %}

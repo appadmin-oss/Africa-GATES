@@ -53,6 +53,9 @@ final class CfisCatalogue
         'events' => 'Event tickets',
         'shop'   => 'Shop orders',
         'votes'  => 'Votes and donations',
+        // Advertising (owner, 3 Nov 2026): its own kind of money from the day it could be
+        // taken, so paid campaigns are never counted as votes or donations.
+        'ads'    => 'Advertising',
     ];
 
     private const CACHE_KEY = 'cfis_stream_catalogue';
