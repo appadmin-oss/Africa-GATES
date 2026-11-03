@@ -135,11 +135,9 @@
         {% if pl %}
           {% set _pct = min(100, (pl.votes * 100 / pl.target)|round(0, 'floor')) %}
           <div class="wl-prog">
-            <p class="wl-prog__l"><span>{{ 'Your vote target'|trans }}</span> <span>{{ '%v% votes · target %t%'|trans({'%v%': pl.votes|number_format, '%t%': pl.target|number_format}) }}</span></p>
+            <p class="wl-prog__l"><span>{{ 'Vote target'|trans }}</span> <span>{{ '%v% / %t%'|trans({'%v%': pl.votes|number_format, '%t%': pl.target|number_format}) }} · {{ pl.reached ? 'Reached'|trans : '%n% to go'|trans({'%n%': pl.to_go|number_format}) }}</span></p>
             <progress class="wl-prog__bar" max="100" value="{{ _pct }}" aria-label="{{ 'Votes towards your target'|trans }}">{{ _pct }}%</progress>
-            <p class="wl-pk__note">{{ pl.reached
-              ? 'Reached. When voting closes you share the edition’s pool with the other nominees who reached it, by your votes.'|trans
-              : '%n% votes to go. Nominees who reach it share the edition’s pool by their votes; below it, nothing is paid.'|trans({'%n%': pl.to_go|number_format}) }}</p>
+            <p class="wl-pk__note">{{ pl.reached ? 'Shared by votes when voting closes.'|trans : 'Reach it to share the pool.'|trans }}</p>
           </div>
         {% endif %}
         {% if p.coming_kobo > 0 or p.review_kobo > 0 or p.paid_kobo > 0 %}
@@ -156,7 +154,7 @@
           </div>
         {% elseif p.can %}
           <a class="ag-btn ag-btn--secondary wl-pk__go" href="/account/wallet/withdraw?pocket={{ p.key|url_encode }}">{{ 'Withdraw from this pocket'|trans }}</a>
-        {% elseif p.why %}
+        {% elseif p.why and not pl %}
           <p class="wl-pk__why">{{ p.why|trans }}</p>
         {% endif %}
       </article>
