@@ -91,7 +91,14 @@ final class NominationChecks
         $evidence = array_map(static fn (array $e): array => $e['kind'] === 'file'
             ? ['label' => (string) $e['label'], 'href' => null, 'kind' => 'File']
             : ['label' => (string) $e['label'], 'href' => (string) $e['href'], 'kind' => 'Link'], $n['evidence_list'] ?? []);
-        $checks = array_map(static fn (array $c): array => ['t' => (string) $c['t'], 'ok' => (bool) $c['ok']], $n['check_list'] ?? []);
+        // What the desk found — from the row's KEYED checks, never the peek's `check_list`. That
+        // list also carries the nominator signals (self-nomination, one device behind several
+        // nominators, the nominee's contact being a nominator's own): moderation's judgements
+        // ABOUT the nominator, which a volunteer must not be sent any more than the nominator's
+        // name (§7: a volunteer sees the reason, the category and the evidence). Keyed, so the
+        // exclusion names the kind and survives a reworded signal.
+        $checks = array_values(array_map(static fn (array $c): array => ['t' => (string) $c['t'], 'ok' => ($c['tone'] ?? '') === 'green'],
+            array_filter($n['checks'] ?? [], static fn (array $c): bool => ($c['key'] ?? '') !== 'signal')));
 
         return [
             'id'       => (int) $n['id'],

@@ -225,11 +225,26 @@ and the decision's single reversal each fail it.
   no grant check, no note for "Something else", a vote on another award counting, the owner
   counting, and an undecided nomination counting towards agreement.
 
+**3 Nov 2026 — the desk's nominator signals stay with moderators.** `NominationChecks::view()`
+copied the peek's whole `check_list` to the volunteer, and that list carries the nominator
+signals as well as the desk's checks: "The nominator has the nominee's name", "Sent from the
+same device as N other nominators", "The nominee's contact is a nominator's own". No contact
+detail, but each is a moderation judgement ABOUT the nominator, and §7 gives a volunteer the
+reason, the category and the evidence. The view now builds from the row's keyed checks and
+leaves out the `signal` kind by key, so a reworded signal stays out too; a duplicate (about
+the nominee) still shows. `VolunteerAwardPlacesTest::test_the_desks_signals_about_the_nominator_never_reach_a_volunteer`
+fails on the code before the change.
+
 ### Not yet (next slices)
 
-- **Door scans as hours** (G1): a volunteer's own pass at the gate stamping
-  `gates_vol_signups.check_in_at` / `check_out_at`. Staff "Came / Didn't come" is the source
-  until then.
+- **Door scans as hours** (G1), as the DC draws it — a volunteer's own pass scanned at the
+  gate — is **not built, and the question changed under it.** Shifts were removed at the
+  owner's request (29 Oct), so there is no sign-up for a pass to belong to. Hours on site come
+  from `Volunteer\Attendance` instead (30 Oct): the volunteer checks in and out from the
+  event's page, or the event lead does it from People › Volunteers; a lead's tap counts at
+  once, the volunteer's own waits for a lead. Whether the DOOR should also do it — a signed
+  pass per role at the event, recognised by the scanner the way it tells an invitation from a
+  ticket — is for the owner.
 - **Shell behaviours** still to build: the drawer, remembered page per scope, smart group
   collapse.
 - **Event Role guide**: the event place has no Role guide page yet.
