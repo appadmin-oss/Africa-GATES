@@ -1,0 +1,62 @@
+[
+  {
+    "route": "/",
+    "url": "/",
+    "violations": []
+  },
+  {
+    "route": "/registry",
+    "url": "/discover",
+    "violations": []
+  },
+  {
+    "route": "/nominate",
+    "url": "/nominate",
+    "violations": []
+  },
+  {
+    "route": "/account",
+    "url": "/account",
+    "violations": []
+  },
+  {
+    "route": "/account?tab=profile",
+    "url": "/account",
+    "violations": []
+  },
+  {
+    "route": "/account?tab=security",
+    "url": "/account",
+    "violations": []
+  },
+  {
+    "route": "/account?tab=settings",
+    "url": "/account",
+    "violations": []
+  },
+  {
+    "route": "/account/display",
+    "url": "/account/display",
+    "violations": []
+  },
+  {
+    "route": "/admin/users",
+    "url": "/admin/users",
+    "violations": []
+  },
+  {
+    "route": "/admin/data/users/1",
+    "url": "/admin/data/users/1",
+    "violations": []
+  },
+  {
+    "route": "/admin/admins",
+    "url": "/admin/admins",
+    "violations": []
+  },
+  {
+    "route": "/admin/analytics",
+    "url": "/admin/analytics",
+    "violations": []
+  }
+]
