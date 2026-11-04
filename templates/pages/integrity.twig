@@ -85,18 +85,24 @@
   {% set _ret_terms = [{p: 'Withdrawals open once their terms are published here: the minimum, the fee, timing, appeals, unclaimed money and tax.'|trans|e}] %}
 {% endif %}
 
+{# Ordered by the question a reader arrives with, not by the logic of the method: the
+   answer first ("In short"), then how a winner is decided, then what checks it, then what
+   to do about it. The argument for the method (the philosophy précis) is last — it is the
+   essay /philosophy expands, and it used to be the first thing a reader with a dispute had
+   to get through. Ids are unchanged, because they are linked from help articles and mail. #}
 {% set _toc = [
-  {id: 'why',      title: 'Why this exists'|trans},
+  {id: 'short',    title: 'In short'|trans},
   {id: 'score',    title: 'How the score works'|trans},
-  {id: 'eligible', title: 'Who can actually win'|trans},
-  {id: 'criteria', title: 'What the judges score'|trans},
-  {id: 'money',    title: 'What money does, and what it can’t reach'|trans},
+  {id: 'eligible', title: 'Why the vote leader may not win'|trans},
+  {id: 'criteria', title: 'What the judges mark'|trans},
+  {id: 'money',    title: 'What paying for votes can and can’t do'|trans},
+  {id: 'honest',   title: 'How every vote is checked'|trans},
+  {id: 'sealed',   title: 'How a result is locked'|trans},
+  {id: 'failures', title: 'If a payment goes wrong'|trans},
+  {id: 'cycle',    title: 'The stages of an award'|trans},
   {id: 'return',   title: 'The community return'|trans},
-  {id: 'honest',   title: 'Keeping the count honest'|trans},
-  {id: 'failures', title: 'When a payment goes wrong'|trans},
-  {id: 'sealed',   title: 'Locking the result'|trans},
-  {id: 'cycle',    title: 'The edition, stage by stage'|trans},
-  {id: 'disputes', title: 'Disputes and your data'|trans}
+  {id: 'disputes', title: 'Challenging a result, and your data'|trans},
+  {id: 'why',      title: 'Why it works this way'|trans}
 ] %}
 
 {% set d = {
@@ -104,7 +110,7 @@
   eyebrow: 'Integrity Centre · Methodology'|trans,
   title: doc_title,
   subtitle: doc_subtitle ~ ', ' ~ 'version %v%'|trans({'%v%': doc_version}),
-  standfirst: 'How a winner is decided: what counts, what doesn’t, who checks it, and what we do when we get it wrong. Every figure here comes from the live settings.'|trans,
+  standfirst: 'How a winner is decided, who checks it, and what you can do if you think we got it wrong. Every figure on this page is read from the live settings.'|trans,
   byline: [doc_author, 'Version %v%'|trans({'%v%': doc_version}), 'Updated %d%'|trans({'%d%': doc_updated|date('j M Y')})],
   listen: true,
   download: null,
@@ -145,11 +151,20 @@
   : 'Counted under an earlier rule, kept so an announced result can be checked. The help article below shows the sums.'|trans %}
 
 {% set _sections = [
-  {id: 'why', blocks: doc_summary|merge([
-    {next: {href: '/philosophy', kicker: 'The argument in full'|trans,
-            title: 'The philosophy behind Africa GATES community voting'|trans,
-            blurb: 'What a vote means here, what we mean by a community, and what this model can’t do. Available to download and cite.'|trans}}
-  ])},
+  {id: 'short', blocks: [
+    {summary: {id: 'short-sum', title: 'The rules in four figures'|trans, facts: [
+      {n: c ~ '%', label: 'of the score is verified community support'|trans},
+      {n: j ~ '%', label: 'is the independent judge panel'|trans},
+      {n: q, label: (q == 1 ? 'complete judge scorecard needed to win'|trans : 'complete judge scorecards needed to win'|trans)},
+      {n: '0', label: 'votes or payments the judges can see'|trans}
+    ], points: [
+      ('<strong>' ~ ('Leading the vote isn’t enough.'|trans|e) ~ '</strong> ' ~ ('A winner also needs complete scorecards from at least %n% judges.'|trans({'%n%': q})|e)),
+      ('<strong>' ~ ('Money helps, in the open.'|trans|e) ~ '</strong> ' ~ ('Paying for votes adds to the community part only, and every result shows how many votes were bought.'|trans|e)),
+      ('<strong>' ~ ('Every vote is checked.'|trans|e) ~ '</strong> ' ~ ('Suspicious votes go to a person before they count.'|trans|e)),
+      ('<strong>' ~ ('A result can’t be quietly changed.'|trans|e) ~ '</strong> ' ~ ('It is locked when it is announced, and any later edit would show.'|trans|e)),
+      ('<strong>' ~ ('Think it’s wrong? Ask us.'|trans|e) ~ '</strong> ' ~ ('We redo the count and show you the working.'|trans|e) ~ ' <a href="#disputes">' ~ ('How to challenge a result'|trans|e) ~ '</a>')
+    ]}}
+  ]},
   {id: 'score', blocks: [
     {p: 'The score (the Cultural Power Index) combines verified community votes with an independent judge panel. Neither decides a winner alone.'|trans},
     {table: {caption: 'Composition of the Cultural Power Index'|trans, head: ['Input'|trans, 'Share'|trans, 'What it measures'|trans],
@@ -194,7 +209,7 @@
         (paid_sentence|default('') ? paid_sentence|e : 'Adds to the tally at full weight.'|trans|e),
         'Has no limit on how many votes can be bought.'|trans|e,
         'Names the supporter, if they chose to be named.'|trans|e,
-        'Sets aside a share for the nominee once they qualify.'|trans|e
+        'Can earn the nominee a share, where their award runs a community return (its rule is in the award details).'|trans|e
       ]},
       {mark: 'no', h: 'What it can’t reach'|trans|e, items: [
         'The judges’ part: judges can’t see votes or money.'|trans|e,
@@ -210,18 +225,6 @@
             {href: '/help/how-free-voting-works', label: 'How free voting works'|trans},
             {href: '/help/why-is-voting-paid', label: 'Why is voting paid?'|trans}]}
   ]},
-  {id: 'return', blocks: (return_off_reason|default('') == 'no_paid_voting'
-      ? [{note: {title: 'Not running on this site'|trans|e, body: ['The return is a share of what supporters contribute. Voting here is free, so nothing is earned. The rules below apply only if contributions are turned on.'|trans|e]}}]
-      : (return_off_reason|default('') == 'rate_zero'
-        ? [{note: {title: 'Currently set to nothing'|trans|e, body: ['The share is set to 0%, so new contributions earn nothing for a nominee. Money already earned is kept.'|trans|e]}}]
-        : [])
-    )|merge([
-    {p: 'Where an award runs a community return, a share of what supporters contribute in a nominee’s name comes back to that nominee. Each award sets its own rule before it opens, and the rule never changes once anything has been earned under it. So who earns, how much, and when it is paid depend on the award, and each award states its rule in its award details.'|trans|e},
-    {refs: [{href: '/awards', label: 'Find an award, then open Award details'|trans}]},
-    {p: 'Every entry stays on the record, and so does a refund, which takes its share back. A nominee can spend an available return on votes for anyone; those votes earn no return and don’t count towards any target or threshold.'|trans|e}
-  ])|merge(_ret_terms)|merge([
-    {refs: [{href: '/help/the-community-return', label: 'The community return, in full'|trans}]}
-  ])},
   {id: 'honest', blocks: [
     {p: 'Every free vote needs a one-time code sent to a working email address. Each attempt gets a risk score from 0 to 100 before it counts.'|trans|e},
     {table: {caption: 'Risk bands, and what each one does'|trans, head: ['Band'|trans, 'Score'|trans, 'What happens'|trans],
@@ -240,17 +243,6 @@
     {refs: [{href: '/help/how-we-spot-a-vote-that-is-not-real', label: 'How we decide a vote is not real'|trans},
             {href: '/help/already-voted', label: 'It says I already voted'|trans}]}
   ]},
-  {id: 'failures', blocks: [
-    {list: [
-      '<strong>' ~ ('The votes are still owed to you.'|trans|e) ~ '</strong> ' ~ ('If the ballot was open when you started paying, the votes are yours even if confirmation arrived late.'|trans|e),
-      '<strong>' ~ ('If they can’t be delivered, the money goes back.'|trans|e) ~ '</strong> ' ~ ('We don’t keep money for votes we didn’t deliver.'|trans|e),
-      '<strong>' ~ ('Tell Gee your reference.'|trans|e) ~ '</strong> ' ~ ('Every order has a reference starting AFG-. Gee checks it again with the payment provider and adds the votes if the money arrived.'|trans|e)
-    ]},
-    {note: {title: '', body: ['The same goes for our own mistakes. If our records show a voting code never arrived, that vote can be restored after voting closes. One person proposes it, another approves it, the number is limited, and it is shown on the nominee’s page.'|trans|e]}},
-    {refs: [{href: '/help/paid-but-no-votes', label: 'I paid but my votes haven’t appeared'|trans},
-            {href: '/help/refund-when-votes-cannot-count', label: 'When do you refund?'|trans},
-            {href: '/help/votes-we-could-not-deliver', label: 'Votes that never reached you'|trans}]}
-  ]},
   {id: 'sealed', blocks: [
     {p: 'Results are locked each time they are worked out. Each record carries a fingerprint of itself and the one before, so changing an old result breaks every record after it.'|trans|e},
     {steps: [
@@ -262,6 +254,17 @@
     {p: 'A published result is the one that was announced. It is locked when it is released, and a later rule change does not rewrite it.'|trans|e},
     {refs: [{href: '/help/how-results-are-sealed', label: 'How you can tell a result was not edited'|trans},
             {href: '/help/dispute-a-result', label: 'I think a count or a ranking is wrong'|trans}]}
+  ]},
+  {id: 'failures', blocks: [
+    {list: [
+      '<strong>' ~ ('The votes are still owed to you.'|trans|e) ~ '</strong> ' ~ ('If the ballot was open when you started paying, the votes are yours even if confirmation arrived late.'|trans|e),
+      '<strong>' ~ ('If they can’t be delivered, the money goes back.'|trans|e) ~ '</strong> ' ~ ('We don’t keep money for votes we didn’t deliver.'|trans|e),
+      '<strong>' ~ ('Tell Gee your reference.'|trans|e) ~ '</strong> ' ~ ('Every order has a reference starting AFG-. Gee checks it again with the payment provider and adds the votes if the money arrived.'|trans|e)
+    ]},
+    {note: {title: '', body: ['The same goes for our own mistakes. If our records show a voting code never arrived, that vote can be restored after voting closes. One person proposes it, another approves it, the number is limited, and it is shown on the nominee’s page.'|trans|e]}},
+    {refs: [{href: '/help/paid-but-no-votes', label: 'I paid but my votes haven’t appeared'|trans},
+            {href: '/help/refund-when-votes-cannot-count', label: 'When do you refund?'|trans},
+            {href: '/help/votes-we-could-not-deliver', label: 'Votes that never reached you'|trans}]}
   ]},
   {id: 'cycle', blocks: [
     {p: 'An edition moves through six stages, always forward. Each step closes something for good.'|trans|e},
@@ -277,6 +280,18 @@
     {refs: [{href: '/help/the-stages-of-an-award-cycle', label: 'The stages, and what freezes at each'|trans},
             {href: '/help/when-does-voting-close', label: 'When does voting close?'|trans}]}
   ]},
+  {id: 'return', blocks: (return_off_reason|default('') == 'no_paid_voting'
+      ? [{note: {title: 'Not running on this site'|trans|e, body: ['The return is a share of what supporters contribute. Voting here is free, so nothing is earned. The rules below apply only if contributions are turned on.'|trans|e]}}]
+      : (return_off_reason|default('') == 'rate_zero'
+        ? [{note: {title: 'Currently set to nothing'|trans|e, body: ['The share is set to 0%, so new contributions earn nothing for a nominee. Money already earned is kept.'|trans|e]}}]
+        : [])
+    )|merge([
+    {p: 'Where an award runs a community return, a share of what supporters contribute in a nominee’s name comes back to that nominee. Each award sets its own rule before it opens, and the rule never changes once anything has been earned under it. So who earns, how much, and when it is paid depend on the award, and each award states its rule in its award details.'|trans|e},
+    {refs: [{href: '/awards', label: 'Find an award, then open Award details'|trans}]},
+    {p: 'Every entry stays on the record, and so does a refund, which takes its share back. A nominee can spend an available return on votes for anyone; those votes earn no return and don’t count towards any target or threshold.'|trans|e}
+  ])|merge(_ret_terms)|merge([
+    {refs: [{href: '/help/the-community-return', label: 'The community return, in full'|trans}]}
+  ])},
   {id: 'disputes', blocks: [
     {p: 'Think a result is wrong? Tell us. Every count is logged, so we can redo it and show you. An appeal goes to someone who wasn’t part of the first decision.'|trans|e},
     {p: ('Raise it at %m% or through %s%. We will:'|trans|e)|replace({'%m%': '<a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>', '%s%': '<a href="/support">' ~ ('Support and appeals'|trans|e) ~ '</a>'})},
@@ -290,11 +305,13 @@
     {p: ('A scrambled form of your email and internet address, a device fingerprint, and who you voted for and when. Never your readable email beside a vote, and we never sell voter data. Full details: %p% · %t%.'|trans|e)|replace({'%p%': '<a href="/privacy">' ~ ('Privacy policy'|trans|e) ~ '</a>', '%t%': '<a href="/terms">' ~ ('Terms'|trans|e) ~ '</a>'})},
     {refs: [{href: '/help/dispute-a-result', label: 'I think a count or a ranking is wrong'|trans},
             {href: '/help/report-a-profile', label: 'How do I report a nominee or profile?'|trans},
-            {href: '/help/what-data-do-you-keep', label: 'What data do you keep about me?'|trans}]},
-    {next: {href: '/philosophy', kicker: 'The argument behind the method'|trans,
+            {href: '/help/what-data-do-you-keep', label: 'What data do you keep about me?'|trans}]}
+  ]},
+  {id: 'why', blocks: doc_summary|merge([
+    {next: {href: '/philosophy', kicker: 'The argument in full'|trans,
             title: 'The philosophy behind Africa GATES community voting'|trans,
-            blurb: 'Why the public vote carries a token contribution, what we mean by a community, and what this model can’t do.'|trans}}
-  ]}
+            blurb: 'What a vote means here, what we mean by a community, and what this model can’t do. Available to download and cite.'|trans}}
+  ])}
 ] %}
 
 {% block head_styles %}

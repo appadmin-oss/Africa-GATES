@@ -59,7 +59,7 @@
 .dp-doc{ min-width:0; width:100%; max-width:680px; justify-self:center; display:flex; flex-direction:column }
 
 /* ── Masthead ────────────────────────────────────────────────────────────── */
-.dp-head{ display:flex; flex-direction:column; gap:var(--ag-sp-14); padding-bottom:22px; border-bottom:1px solid var(--ag-line) }
+.dp-head{ display:flex; flex-direction:column; gap:var(--ag-sp-14); padding-bottom:28px; border-bottom:1px solid var(--ag-line-3) }
 .dp-head__eyebrow{ margin:0; font-size:var(--ag-fs-13-5); font-weight:600; color:var(--ag-ink-2) }
 .dp-head__h1{
   margin:0; font-family:var(--ag-font-display); font-weight:700;
@@ -140,8 +140,7 @@
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
 .dp-sec{
-  display:flex; flex-direction:column; gap:var(--ag-sp-14); padding:28px 0;
-  border-bottom:1px solid var(--ag-line);
+  display:flex; flex-direction:column; gap:var(--ag-sp-14); padding:24px 0 20px;
   /* The DC's `scroll-margin-top:64px` is already on the scroller: shell.css gives
      `.ag-main` `scroll-padding-top:64px` (WCAG 2.4.11), and the two ADD — a margin here
      as well landed every jump 64px too low. */
@@ -151,7 +150,11 @@
   font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-22); line-height:1.2;
 }
 .dp-sec__h:focus{ outline:none }
-.dp-sec__n{ font-family:var(--ag-font-ui); font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft); font-variant-numeric:tabular-nums }
+.dp-sec__h{ scroll-margin-top:8px }
+/* The two-digit number stays in the markup — doc.js reads it for the phone's "03 · …"
+   bar — and is not drawn: a heading that starts with "07" is a heading the eye has to step
+   over. The rails carry position now. */
+.dp-sec__n{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap }
 .dp-lead{ padding-top:28px }
 
 /* The body. Free HTML for a policy, block kinds for the Integrity Centre — the same
@@ -180,8 +183,19 @@
 /* Asides are white hairline cards — no coloured left border (§8.20). */
 .dp-note, .dp-quote, .dp-rich blockquote{
   margin:0; padding:16px 18px; background:var(--ag-surface);
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+  border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
   font-size:var(--ag-fs-15); line-height:1.6;
+}
+/* A note leads with a small ink "i" in a ring: the callout reads as an aside before a word
+   of it is read. Drawn in CSS (two lines and a circle), so it needs no icon font. */
+.dp-note{ position:relative; padding-inline-start:46px }
+.dp-note::before{
+  content:""; position:absolute; inset-inline-start:16px; top:18px; width:18px; height:18px;
+  border:1.5px solid var(--ag-ink-2); border-radius:50%; box-sizing:border-box;
+}
+.dp-note::after{
+  content:""; position:absolute; inset-inline-start:24px; top:22px; width:2px; height:10px;
+  background:linear-gradient(var(--ag-ink-2) 0 2px, transparent 2px 4px, var(--ag-ink-2) 4px);
 }
 .dp-note{ display:flex; flex-direction:column; gap:var(--ag-sp-8) }
 .dp-note > *, .dp-quote > *{ margin:0 }
@@ -197,7 +211,7 @@
 .dp-fig__foot{ margin:0; font-size:var(--ag-fs-13-5); color:var(--ag-ink-2) }
 .dp-rich table{
   width:100%; border-collapse:separate; border-spacing:0;
-  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+  background:var(--ag-surface); border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
   overflow:hidden; font-size:var(--ag-fs-14-5); line-height:1.55;
 }
 .dp-rich thead{ display:none }
@@ -217,7 +231,7 @@
 .dp-cols{ display:grid; grid-template-columns:minmax(0,1fr); gap:var(--ag-sp-10) }
 .dp-cols__c{
   display:flex; flex-direction:column; gap:var(--ag-sp-10); padding:16px 18px;
-  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+  background:var(--ag-surface); border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
 }
 .dp-cols__c h3{ margin:0; display:flex; align-items:center; gap:var(--ag-sp-8); font-size:var(--ag-fs-15-5) }
 .dp-cols__mark{
@@ -225,9 +239,39 @@
   display:flex; align-items:center; justify-content:center; font-size:var(--ag-fs-12);
 }
 .dp-cols__c ul{ margin:0; padding-inline-start:18px; display:flex; flex-direction:column; gap:var(--ag-sp-8); font-size:var(--ag-fs-14-5); line-height:1.55 }
-.dp-refs{ display:flex; flex-direction:column; gap:6px; padding-top:2px }
+/* "Further reading": link cards, two to a row from 600 (the docs' "next steps"). Each is a
+   whole-card target of at least 52px with an arrow, so it reads as somewhere to go rather
+   than a footnote — it was a stack of bare underlined links at 24px, the smallest target
+   WCAG allows, on the page a reader reaches from a phone with a dispute. Ink only (tier 0). */
+.dp-refs{ display:flex; flex-direction:column; gap:var(--ag-sp-8); padding-top:4px }
 .dp-refs__h{ font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
-.dp-refs a{ font-size:var(--ag-fs-14-5); line-height:1.5; min-height:24px }
+.dp-refs__grid{ display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--ag-sp-8) }
+.dp a.dp-refs__a{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-12);
+  min-height:52px; padding:12px 16px; background:var(--ag-surface);
+  border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
+  font-size:var(--ag-fs-14-5); font-weight:500; line-height:1.4; color:var(--ag-ink); text-decoration:none;
+  transition:border-color var(--ag-dur-1) var(--ag-ease);
+}
+.dp a.dp-refs__a:hover{ border-color:var(--ag-ink) }
+.dp-refs__go{ flex:none; color:var(--ag-soft); transition:transform var(--ag-dur-1) var(--ag-ease) }
+.dp a.dp-refs__a:hover .dp-refs__go{ color:var(--ag-ink); transform:translateX(2px) }
+[dir="rtl"] .dp-refs__go{ transform:scaleX(-1) }
+[dir="rtl"] .dp a.dp-refs__a:hover .dp-refs__go{ transform:scaleX(-1) translateX(2px) }
+
+/* "In short": the page's answer before its argument. Figures on the ground tint, the
+   label under each; then the handful of sentences somebody needs if they read nothing
+   else. The figure is display type, not mono — it is a number to read, not a code to copy. */
+.dp-sum{
+  display:flex; flex-direction:column; gap:var(--ag-sp-14); padding:18px;
+  background:var(--ag-surface); border:1px solid var(--ag-line-3); border-radius:var(--ag-r-12);
+}
+.dp-sum__h{ margin:0; font-size:var(--ag-fs-17); font-weight:700 }
+.dp-sum__facts{ margin:0; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--ag-sp-10) }
+.dp-sum__f{ margin:0; display:flex; flex-direction:column-reverse; justify-content:flex-end; gap:4px; padding:12px 14px; border-radius:var(--ag-r-12); background:var(--ag-ground) }
+.dp-sum__f dd{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:var(--ag-fs-26); line-height:1.1; font-variant-numeric:tabular-nums }
+.dp-sum__f dt{ font-size:var(--ag-fs-13-5); line-height:1.4; color:var(--ag-ink-2) }
+.dp-sum .dp-list{ font-size:var(--ag-fs-15-5) }
 
 .dp a.dp-next{
   display:grid; grid-template-columns:1fr 20px; gap:var(--ag-sp-12); align-items:center;
@@ -282,24 +326,32 @@
 .dp-sheet-layer:target .ag-scrim{ opacity:1; pointer-events:auto }
 .dp-sheet-layer:target .ag-sheet{ transform:none; visibility:visible }
 
-/* ── Rail (≥1024) ────────────────────────────────────────────────────────── */
-.dp-rail{ position:sticky; top:28px; flex-direction:column; gap:18px }
-.dp-rail__group{ display:flex; flex-direction:column; gap:2px }
-.dp-rail__h{ padding:0 10px 8px; font-size:var(--ag-fs-13); font-weight:700; color:var(--ag-ink-2) }
-.dp-rail__list{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:2px }
-.dp a.dp-rail__a{
-  display:grid; grid-template-columns:24px 1fr; gap:6px; align-items:baseline;
-  min-height:36px; padding:7px 10px; border-radius:var(--ag-r-10);
-  font-size:var(--ag-fs-14); line-height:1.35; font-weight:500; text-decoration:none;
+/* ── Rails (≥1024) ─────────────────────────────────────────────────────────
+   After Claude's platform docs (4 Nov 2026): documents on the left, "On this page" on the
+   right. The contents are a quiet list against a 1px track, the current section an ink bar
+   over it — position, not a filled pill, says "you are here", so the list reads as one
+   column of words. Text sizes from the closed ladder; ink and greys only (tier 0). */
+.dp-rail{ position:sticky; top:28px; flex-direction:column; gap:var(--ag-sp-28) }
+.dp-rail__docs{ display:flex; flex-direction:column; gap:2px }
+.dp-rail__h, .dp-toc__h{ padding:0 0 8px; font-size:var(--ag-fs-13); font-weight:600; color:var(--ag-soft) }
+.dp a.dp-rail__sib{
+  display:flex; align-items:center; min-height:36px; padding:6px 12px; margin-inline-start:-12px;
+  border-radius:var(--ag-r-10); font-size:var(--ag-fs-14-5); font-weight:500; text-decoration:none; color:var(--ag-ink-2);
 }
-.dp a.dp-rail__a:hover{ background:color-mix(in srgb, var(--ag-surface) 60%, transparent) }
-.dp a.dp-rail__a[aria-current="location"]{ background:var(--ag-surface); font-weight:700 }
-.dp-rail__n{ font-size:var(--ag-fs-12); color:var(--ag-soft); font-variant-numeric:tabular-nums }
-.dp-rail__also{ display:flex; flex-direction:column; gap:6px; padding:14px 10px 0; border-top:1px solid var(--ag-line) }
-.dp-rail__also .dp-rail__h{ padding:0 }
-.dp a.dp-rail__sib{ min-height:32px; display:flex; align-items:center; font-size:var(--ag-fs-14); font-weight:500; text-decoration:none }
-.dp a.dp-rail__sib:hover{ text-decoration:underline }
-.dp a.dp-rail__sib.is-current{ font-weight:700 }
+.dp a.dp-rail__sib:hover{ color:var(--ag-ink); background:color-mix(in srgb, var(--ag-surface) 70%, transparent) }
+.dp a.dp-rail__sib.is-current{ color:var(--ag-ink); font-weight:600; background:var(--ag-surface); box-shadow:inset 0 0 0 1px var(--ag-line-3) }
+
+.dp-toc{ display:flex; flex-direction:column }
+.dp-toc__list{ margin:0; padding:0; list-style:none; border-inline-start:1px solid var(--ag-line) }
+.dp a.dp-toc__a{
+  display:block; margin-inline-start:-1px; padding:6px 0 6px 14px; border-inline-start:2px solid transparent;
+  font-size:var(--ag-fs-13-5); line-height:1.4; color:var(--ag-soft); text-decoration:none;
+}
+.dp a.dp-toc__a:hover{ color:var(--ag-ink) }
+.dp a.dp-toc__a[aria-current="location"]{ color:var(--ag-ink); font-weight:600; border-inline-start-color:var(--ag-ink) }
+/* One copy of the contents at a time: in the left rail between 1024 and 1199, in the right
+   column from 1200 (see the breakpoints). */
+.dp-toc--right{ display:none }
 
 /* ── Breakpoints ─────────────────────────────────────────────────────────── */
 @media (min-width:600px){
@@ -308,43 +360,59 @@
   .dp-head__h1{ font-size:var(--ag-fs-40) }
   .dp-head__sub{ font-size:var(--ag-fs-19) }
   .dp-head__stand{ font-size:var(--ag-fs-18) }
-  .dp-sec, .dp-cite{ padding:36px 0 }
+  .dp-sec, .dp-cite{ padding:32px 0 24px }
+  .dp-refs__grid{ grid-template-columns:repeat(2, minmax(0, 1fr)) }
   .dp-lead{ padding-top:36px }
   .dp-sec__h{ font-size:var(--ag-fs-26) }
   .dp-rich{ font-size:var(--ag-fs-17) }
   .dp-cols{ grid-template-columns:1fr 1fr }
+  .dp-sum{ padding:22px 24px }
+  .dp-sum__facts{ grid-template-columns:repeat(4, minmax(0, 1fr)) }
 
   /* A real table from here up. */
   .dp-rich table{ display:table }
   .dp-rich thead{ display:table-header-group }
   .dp-rich tbody{ display:table-row-group }
   .dp-rich tr, .dp-table tr{ display:table-row; padding:0 }
-  .dp-rich td, .dp-rich th{ display:table-cell; padding:14px 16px; vertical-align:top; border-top:1px solid var(--ag-line-3) }
+  /* `tbody th` named outright: the phone rule above zeroes `.dp-rich tbody th`, which
+     out-ranks a bare `.dp-rich th`, so every row label sat flush against the table's edge
+     and above the rest of its row at every width (4 Nov 2026). */
+  .dp-rich td, .dp-rich tbody th{ display:table-cell; padding:12px 16px; vertical-align:top; border-top:1px solid var(--ag-line-3) }
+  .dp-rich tbody th{ font-weight:600 }
+  .dp-rich thead th{ display:table-cell }
   .dp-rich tbody tr:first-child > *{ border-top:0 }
   .dp-rich thead th{
-    padding:12px 16px; text-align:start; font-size:var(--ag-fs-13); font-weight:600;
-    color:var(--ag-soft); border-top:0; border-bottom:1px solid var(--ag-line); white-space:nowrap;
+    padding:10px 16px; text-align:start; font-size:var(--ag-fs-13); font-weight:600;
+    color:var(--ag-ink-2); background:var(--ag-ground); border-top:0; border-bottom:1px solid var(--ag-line-3); white-space:nowrap;
   }
   .dp-rich td[data-label]::before{ content:none }
-  .dp-table tbody th{ font-size:inherit; white-space:nowrap }
+  /* The label WRAPS. It was nowrap, so one long label ("Alimosho Incredible Principal
+     Awards · 2026") pushed the table past the column, and the table's own overflow:hidden
+     then cut the other two columns off mid-word. A share of the width, not a fixed one. */
+  .dp-table tbody th{ font-size:inherit; width:30% }
   .dp-table .dp-table__n{ font-size:inherit }
 }
 
 @media (min-width:1024px){
   .dp-cbar, .dp-sheet-layer{ display:none }
-  .dp-shell{ grid-template-columns:230px minmax(0,1fr); padding:40px var(--ag-sp-32) var(--ag-sp-64) }
+  .dp-shell{ grid-template-columns:220px minmax(0,1fr); padding:40px var(--ag-sp-32) var(--ag-sp-64) }
   .dp-rail{ display:flex }
   .dp-head__h1{ font-size:var(--ag-fs-44) }
 }
 
 @media (min-width:1200px){
-  .dp-shell{ max-width:1320px; grid-template-columns:240px minmax(0,680px) 280px; gap:48px }
+  .dp-shell{ max-width:1320px; grid-template-columns:220px minmax(0,700px) 240px; gap:56px }
+  .dp-doc{ max-width:700px }
   .dp-aside--inline{ display:none }
-  .dp-aside--rail{ display:flex; position:sticky; top:28px }
+  /* Scrolls on its own when taller than the screen: a long policy's contents (fifteen
+     sections) pushed the card below it out of reach while the column was pinned. */
+  .dp-aside--rail{ display:flex; position:sticky; top:28px; gap:var(--ag-sp-24); max-height:calc(100dvh - 120px); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin }
+  .dp-toc--left{ display:none }
+  .dp-toc--right{ display:flex }
 }
 
 @media (prefers-reduced-motion:reduce){
-  .dp-progress__fill, .dp-switch__track{ transition:none }
+  .dp-progress__fill, .dp-switch__track, .dp a.dp-refs__a, .dp-refs__go{ transition:none }
 }
 
 /* Windows high contrast: a selected state drawn only as a fill, tint or shadow vanishes

@@ -96,28 +96,40 @@
 {% endif %}
 {% endmacro %}
 
-{# The left rail at ≥1024: sticky contents with the current section lit (a white pill,
-   700 — set by doc.js through aria-current), then "Also filed here". #}
+{# ── THE TWO RAILS (4 Nov 2026, after Claude's platform docs) ──────────────────────
+   LEFT: where you are among the documents — this family's pages, the current one held on
+   a tint. RIGHT (≥1200): "On this page", the sections with the current one marked by an
+   ink bar on its left edge, then the page's card. Between 1024 and 1199 there is no right
+   column, so the left rail carries "On this page" too; CSS shows exactly one copy, and
+   display:none takes the other out of the accessibility tree. doc.js marks the current
+   section on every `[data-doc-toc]` link through aria-current, so both stay in step.
+   The section numbers are gone from the contents: a reader scanning for "the community
+   return" reads words, and two-digit numbers down the left made every row start alike. #}
+{% macro toc(d, where) %}
+{% if d.toc|length %}
+<div class="dp-toc dp-toc--{{ where }}">
+  <span class="dp-toc__h" id="dp-toc-{{ where }}">{{ 'On this page'|trans }}</span>
+  <ol class="dp-toc__list" aria-labelledby="dp-toc-{{ where }}">
+    {% for t in d.toc %}
+      <li><a class="dp-toc__a" href="#{{ t.id }}" data-doc-toc="{{ loop.index0 }}">{{ t.title }}</a></li>
+    {% endfor %}
+  </ol>
+</div>
+{% endif %}
+{% endmacro %}
+
 {% macro rail(d) %}
-<nav class="dp-rail" aria-label="{{ 'Contents'|trans }}">
-  {% if d.toc|length %}
-  <div class="dp-rail__group">
-    <span class="dp-rail__h">{{ 'In this document'|trans }}</span>
-    <ol class="dp-rail__list">
-      {% for t in d.toc %}
-        <li><a class="dp-rail__a" href="#{{ t.id }}" data-doc-toc="{{ loop.index0 }}"><span class="dp-rail__n">{{ '%02d'|format(loop.index) }}</span><span>{{ t.title }}</span></a></li>
-      {% endfor %}
-    </ol>
-  </div>
-  {% endif %}
+{%- import _self as m %}
+<nav class="dp-rail" aria-label="{{ 'Documents'|trans }}">
   {% if d.siblings|length %}
-  <div class="dp-rail__also">
-    <span class="dp-rail__h">{{ 'Also filed here'|trans }}</span>
+  <div class="dp-rail__docs">
+    <span class="dp-rail__h">{{ d.eyebrow|split(' · ')|first }}</span>
     {% for s in d.siblings %}
       <a class="dp-rail__sib{% if s.current %} is-current{% endif %}" href="{{ s.href }}"{% if s.current %} aria-current="page"{% endif %}>{{ s.label }}</a>
     {% endfor %}
   </div>
   {% endif %}
+  {{ m.toc(d, 'left') }}
 </nav>
 {% endmacro %}
 
@@ -154,13 +166,15 @@
 </header>
 {% endmacro %}
 
-{# The right card: "Live settings" (integrity, read from the engine) or "This document".
-   Drawn twice — inline under the masthead below 1200, sticky in the right column from
-   1200 — because which one applies is a viewport question; CSS shows exactly one, and
-   `display:none` takes the other out of the accessibility tree too. #}
+{# The right column. Inline (below 1200) it is only the page's card, under the masthead;
+   in the rail (≥1200) it is "On this page" first, then the card — drawn whether or not the
+   page has a card, because every document with sections has contents. #}
 {% macro aside(d, where) %}
-{% if d.aside %}
-<aside class="dp-aside dp-aside--{{ where }}" aria-label="{{ d.aside.label }}">
+{%- import _self as m %}
+{% if d.aside or (where == 'rail' and d.toc|length) %}
+<aside class="dp-aside dp-aside--{{ where }}" aria-label="{{ d.aside ? d.aside.label : 'On this page'|trans }}">
+  {% if where == 'rail' %}{{ m.toc(d, 'right') }}{% endif %}
+  {% if d.aside %}
   <section class="dp-card">
     <h2 class="dp-card__h">{{ d.aside.label }}</h2>
     <dl class="dp-card__rows">
@@ -173,6 +187,7 @@
       <b>{{ 'Think a result is wrong?'|trans }}</b>
       <span>{{ 'Ask for an audit. We’ll show the working.'|trans }}</span>
     </a>
+  {% endif %}
   {% endif %}
 </aside>
 {% endif %}
@@ -195,7 +210,8 @@
     {p}  {h3}  {quote}  {list: [html]}  {steps: [html]}  {note: {title, body:[html]}}
     {table: {caption, head:[3], rows:[[a, n, d]], foot?}}   a real <table>; a card stack on a phone
     {cols: [{mark:'yes'|'no', h, items:[html]}]}            can / cannot, ✓ / ✕ in ink circles
-    {refs: [{href, label}]}                                 "Further reading", an ink link list
+    {refs: [{href, label}]}                                 "Further reading", a card of ink rows, 44px each
+    {summary: {id, title, facts:[{n, label}], points:[html]}} "In short": key figures, then the few sentences
     {next: {href, kicker, title, blurb}}                    the handover card to the next document
 #}
 {% macro blocks(list) %}
@@ -235,9 +251,14 @@
         {% endfor %}
       </div>
     {%- elseif b.refs is defined %}
-      <div class="dp-refs"><span class="dp-refs__h">{{ 'Further reading'|trans }}</span>
-        {% for r in b.refs %}<a href="{{ r.href }}">{{ r.label }}</a>{% endfor %}
-      </div>
+      <nav class="dp-refs" aria-label="{{ 'Further reading'|trans }}"><span class="dp-refs__h" aria-hidden="true">{{ 'Further reading'|trans }}</span>
+        <span class="dp-refs__grid">{% for r in b.refs %}<a class="dp-refs__a" href="{{ r.href }}"><span class="dp-refs__t">{{ r.label }}</span><svg class="dp-refs__go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>{% endfor %}</span>
+      </nav>
+    {%- elseif b.summary is defined %}
+      <section class="dp-sum" aria-labelledby="{{ b.summary.id }}"><h3 class="dp-sum__h" id="{{ b.summary.id }}">{{ b.summary.title }}</h3>
+        {% if b.summary.facts|default([]) %}<dl class="dp-sum__facts">{% for f in b.summary.facts %}<div class="dp-sum__f"><dt>{{ f.label }}</dt><dd>{{ f.n }}</dd></div>{% endfor %}</dl>{% endif %}
+        {% if b.summary.points|default([]) %}<ul class="dp-list">{% for li in b.summary.points %}<li>{{ li|raw }}</li>{% endfor %}</ul>{% endif %}
+      </section>
     {%- elseif b.next is defined %}
       {{ m.next(b.next) }}
     {%- endif %}
