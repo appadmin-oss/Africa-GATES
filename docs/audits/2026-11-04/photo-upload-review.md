@@ -36,3 +36,9 @@ These are targeted release checks, not a claim that every existing repository te
 Keep the deployed `.env`/secrets, `vendor/` and existing uploaded files. Overlay the release into the existing application root, keep the document root at `public/`, and run `php bin/console db:migrate` against the configured production database. The new migration is `2027_04_30_account_and_nominee_photos.php` (the next filename in this repository's existing migration sequence). Ensure the web server can write `public/uploads` and runtime `var` directories. Verify an uploaded image request and the updated account/ballot page after deployment. The archive omits production credentials and user-upload contents; it is not a replacement for those server directories.
 
 Build a clean committed release with `python tools/release/build-production.py [output-directory]`. It exports the full commit, adds the rebuilt CSS bundle and deployment notes, verifies ZIP CRCs and per-file SHA-256 hashes, and excludes Composer dependencies, real secrets, upload contents and unapproved artwork.
+
+## Profile editor visual revision
+
+Replaced the oversized file-input card with a reusable portrait editor. The current portrait sits beside a keyboard-accessible Change/Add photo control; format and size guidance occupies one line, with detailed tips in a disclosure. A selected replacement previews in the same portrait slot and reveals Save and Cancel. Removal is a secondary disclosure with an explicit final action. The shared upload module continues to own validation and submission feedback. Without JavaScript, the native picker and Save remain usable.
+
+Chromium verified preview, cancel and restored focus, saving and display, removal, and no overflow at 320/390/768/1440 pixels. Existing shared-upload browser checks also passed. The mobile screenshot was visually reviewed. No backend behavior or schema changed in this revision.

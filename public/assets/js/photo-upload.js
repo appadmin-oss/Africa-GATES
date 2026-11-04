@@ -13,6 +13,11 @@
       input.dataset.photoMounted = 'true';
       const mixed = /application\/|video\/|\.pdf/.test(input.accept);
       const imageOnly = !mixed;
+      const editor = input.closest('[data-portrait-editor]');
+      const save = editor?.querySelector('[data-portrait-save]');
+      if (save) save.hidden = true;
+      const originalPortrait = editor?.querySelector('[data-portrait-current]');
+      const portraitPreview = editor?.querySelector('[data-portrait-preview]');
       const externalPreview = input.matches(managedPreview) || !!input.closest('[data-file-zone]');
       const box = document.createElement('div');
       box.className = 'ag-photo-upload';
@@ -27,7 +32,7 @@
       const clear = document.createElement('button');
       clear.type = 'button';
       clear.className = 'ag-photo-upload__clear';
-      clear.textContent = 'Clear selection';
+      clear.textContent = editor ? 'Cancel change' : 'Clear selection';
       clear.hidden = true;
       if (imageOnly && !input.hasAttribute('data-photo-upload')) {
         const hint = document.createElement('p');
@@ -40,9 +45,10 @@
       box.append(status, preview, clear);
       // Never put the button inside a label: activating it would reopen the picker.
       const label = input.closest('label');
-      (label || input).insertAdjacentElement('afterend', box);
+      if (editor) editor.querySelector('[data-portrait-feedback]').append(box);
+      else (label || input).insertAdjacentElement('afterend', box);
       let urls = [], generation = 0;
-      function release() { urls.forEach(url => URL.revokeObjectURL(url)); urls = []; preview.replaceChildren(); }
+      function release() { urls.forEach(url => URL.revokeObjectURL(url)); urls = []; preview.replaceChildren(); if (portraitPreview) { portraitPreview.replaceChildren(); portraitPreview.hidden = true; originalPortrait.hidden = false; save.hidden = true; } }
       function validate(file) {
         if (!imageOnly) return '';
         const max = Math.min(Number(input.dataset.photoMaxBytes || 10485760), hostMax);
@@ -62,7 +68,9 @@
         if (error) {
           input.setCustomValidity(error); input.setAttribute('aria-invalid', 'true'); status.textContent = error; return;
         }
+        if (save) save.hidden = false;
         status.textContent = files.map(f => `${f.name} (${(f.size / 1024).toFixed(0)} KB)`).join('; ') + '. Selected, not yet saved. Submit the form to save.';
+        if (editor) status.textContent = 'Preview of your new photo. Save to apply it.';
         const min = Number(input.dataset.photoMinSide || 0);
         files.filter(file => supported.has(file.type)).forEach((file, index) => {
           // Decode dimensions even when a page already has its own preview.
@@ -82,7 +90,8 @@
             input.setCustomValidity(message); input.setAttribute('aria-invalid', 'true'); status.textContent = message;
           };
           image.src = url;
-          if (!externalPreview && index < 4) preview.append(image);
+          if (portraitPreview) { portraitPreview.append(image); portraitPreview.hidden = false; originalPortrait.hidden = true; }
+          else if (!externalPreview && index < 4) preview.append(image);
         });
       });
       clear.addEventListener('click', () => { input.value = ''; input.dispatchEvent(new Event('change', {bubbles: true})); input.focus(); });

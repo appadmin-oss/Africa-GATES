@@ -11,3 +11,29 @@ input[type=file]{max-width:100%;min-width:0}
 
 /* Keep the native chooser reachable by keyboard inside legacy staff drop zones. */
 .ad-form .file-zone input[type=file]{display:block;width:100%;margin-top:.5rem}
+
+/* Portrait editing keeps the current photo and its replacement in one place. */
+.ag-portrait-editor{padding:24px}
+.ag-portrait-editor h2{margin:0 0 20px}
+.ag-portrait-editor__row{display:flex;align-items:center;gap:20px}
+.ag-portrait-editor__portrait{width:80px;height:80px;flex:none}
+.ag-portrait-editor__portrait .ag-avatar{width:80px;height:80px}
+.ag-portrait-editor__portrait img{display:block;width:80px;height:80px;object-fit:cover;border-radius:50%}
+.ag-portrait-editor__controls{min-width:0;flex:1}
+.ag-portrait-editor__choose{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 16px;border:1px solid currentColor;border-radius:999px;font-weight:600;cursor:pointer;overflow:hidden}
+.ag-portrait-editor__choose input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.ag-portrait-editor__choose:focus-within{outline:3px solid currentColor;outline-offset:3px}
+.ag-portrait-editor__controls #account-photo-help{font-size:.75rem;line-height:1.5;margin:8px 0 0;overflow-wrap:anywhere}
+.ag-portrait-editor__tips{font-size:.75rem;margin-top:4px}
+.ag-portrait-editor__tips summary{cursor:pointer;min-height:32px;display:flex;align-items:center;text-decoration:underline;text-underline-offset:3px}
+.ag-portrait-editor__tips p{line-height:1.5;margin:0 0 8px}
+.ag-portrait-editor .ag-photo-upload{margin:12px 0 0}
+.ag-portrait-editor .ag-photo-upload:has(.ag-photo-upload__status:empty){margin:0}
+.ag-portrait-editor .ag-photo-upload__clear{border:0;padding:0;min-height:44px;margin:0;text-decoration:underline;text-underline-offset:3px}
+.ag-portrait-editor [data-portrait-save]{margin-top:12px}
+.ag-portrait-editor [hidden]{display:none!important}
+.ag-portrait-editor__remove{margin-top:16px;border-top:1px solid var(--ag-line,#e4e3dc);padding-top:8px;font-size:.875rem}
+.ag-portrait-editor__remove summary{cursor:pointer;min-height:44px;display:flex;align-items:center;text-decoration:underline;text-underline-offset:3px}
+.ag-portrait-editor__remove p{margin:0;line-height:1.5}
+.ag-portrait-editor__text-button{font:inherit;color:inherit;background:transparent;border:0;padding:8px 0;min-height:44px;text-decoration:underline;cursor:pointer}
+@media(max-width:359px){.ag-portrait-editor{padding:20px}.ag-portrait-editor__row{gap:12px}.ag-portrait-editor__portrait,.ag-portrait-editor__portrait .ag-avatar,.ag-portrait-editor__portrait img{width:64px;height:64px}}

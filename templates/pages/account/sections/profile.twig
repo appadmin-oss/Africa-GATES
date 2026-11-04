@@ -29,20 +29,7 @@
     {% endif %}
   </section>
 
-  <section class="acx-card acx-form" aria-labelledby="account-photo-h">
-    <h2 class="acx-h2" id="account-photo-h">{{ 'Profile photo'|trans }}</h2>
-    <form method="post" action="/account/photo" enctype="multipart/form-data" class="acc__form">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      {% include 'partials/photo-upload.twig' with {id: 'account-photo', label: 'Choose your profile photo', required: true, min_side: 200, help: 'JPEG, PNG, WebP or GIF. At least 200 pixels on each side.'} only %}
-      <button type="submit" class="ag-btn ag-btn--primary">{{ 'Save photo'|trans }}</button>
-    </form>
-    {% if _u.avatar_path|default('') %}
-    <form method="post" action="/account/photo/delete">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button type="submit" class="ag-btn ag-btn--secondary">{{ 'Remove profile photo'|trans }}</button>
-    </form>
-    {% endif %}
-  </section>
+  {% include 'partials/profile-photo-editor.twig' with {person: _u} %}
 
   <section class="acc__sec" id="roles" aria-labelledby="acx-roles-h">
     <h2 class="acc__h2" id="acx-roles-h">{{ 'Your roles'|trans }}</h2>
