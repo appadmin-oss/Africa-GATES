@@ -211,6 +211,12 @@ class EventsController
         $awardsHere = \AfricaGates\Services\EventsFront::awards($id);
 
         return $this->view->render($res, 'pages/events/detail.twig', [
+            // The organiser's map link, checked again on the way OUT (CLAUDE.md: a stored value
+            // survives the code that wrote it), else a map search for the address. The template
+            // used to print the stored column straight into an href.
+            'map_link'         => \AfricaGates\Services\EventsFront::link((string) ($event['map_embed'] ?? ''))
+                                  ?: 'https://www.google.com/maps/search/?api=1&query='
+                                     . rawurlencode(implode(', ', array_filter([(string) ($event['venue'] ?? ''), (string) ($event['location'] ?? '')]))),
             'page_title'       => $event['title'] . ' — Africa GATES',
             'meta_description' => ($event['tagline'] ?? null)
                 ?: mb_substr(strip_tags((string) ($event['description'] ?? '')), 0, 150),

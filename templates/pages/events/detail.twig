@@ -183,7 +183,7 @@
         <h2 class="ed-sec__h" id="h-venue">{{ 'Venue'|trans }}</h2>
         <span class="ed-venue"><b>{{ event.venue|default(event.location) }}</b>
           {% if event.venue and event.location %}<span>{{ event.location }}</span>{% endif %}</span>
-        <a class="ed-link" href="{{ event.map_embed ?: 'https://www.google.com/maps/search/?api=1&query=' ~ ([event.venue, event.location]|filter(v => v)|join(', '))|url_encode }}" target="_blank" rel="noopener">{{ 'View on map'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
+        <a class="ed-link" href="{{ map_link }}" target="_blank" rel="noopener">{{ 'View on map'|trans }} <span class="ag-ico-dir" aria-hidden="true">→</span></a>
       </section>
       {% endif %}
 

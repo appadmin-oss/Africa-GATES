@@ -272,7 +272,9 @@ class EventsController
             'status'      => in_array($b['status'] ?? '', ['published','draft'], true) ? $b['status'] : 'draft',
             'capacity'    => trim((string)($b['capacity'] ?? '')) !== '' ? max(0, (int)$b['capacity']) : null,
             'schedule'            => $schedule ? json_encode($schedule) : null,
-            'map_embed'           => trim((string)($b['map_embed'] ?? '')) ?: null,
+            // Normalised and checked (EventsFront::mapLink()): a long Google Maps place link
+            // used to overflow the column and 500 the whole save on MySQL.
+            'map_embed'           => ($mapLink = \AfricaGates\Services\EventsFront::mapLink((string) ($b['map_embed'] ?? '')))['url'],
             'early_bird_text'     => trim((string)($b['early_bird_text'] ?? '')) ?: null,
             'early_bird_deadline' => self::fromInput($b['early_bird_deadline'] ?? ''),
             'early_bird_url'      => trim((string)($b['early_bird_url'] ?? '')) ?: null,
@@ -362,6 +364,10 @@ class EventsController
             $_SESSION['flash_error'] = 'Title and slug are required.';
             return $res->withHeader('Location', $id ? "/admin/events/{$id}" : '/admin/events/new')->withStatus(302);
         }
+        // A map link that cannot be kept does not cost the organiser the rest of the form:
+        // the event saves without it and says why. Refusing the whole save would throw away
+        // everything else typed with it.
+        if ($mapLink['error'] !== '') $_SESSION['flash_error'] = $mapLink['error'];
         if ($id) {
             DB::table('gates_site_events')->where('id', $id)->update($data);
             $this->audit->record((int)$_SESSION['admin_id'], 'event.update', 'site_event', $id);
